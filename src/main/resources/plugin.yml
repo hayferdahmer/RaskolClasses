@@ -1,0 +1,26 @@
+name: RaskolClasses
+version: '1.2.0'
+main: dev.raskol.classes.RaskolClasses
+# V2: нижняя планка форвард-совместимости — не повышать
+api-version: '1.21'
+author: hayferdahmer
+description: Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»
+
+# Все зависимости опциональны:
+#  - LuckPerms: без него отключается определение класса (варнинг, без падения);
+#  - AuraSkills: уровни через отражение, без него анлоки сняты;
+#  - PlaceholderAPI: без него плейсхолдеры %raskolclasses_*% не регистрируются.
+softdepend: [LuckPerms, AuraSkills, PlaceholderAPI]
+
+commands:
+  rc:
+    description: Команды классов RaskolClasses
+    usage: /rc [1-5|menu|hud|reload|debug]
+
+permissions:
+  raskolclasses.admin:
+    description: Перезагрузка конфигурации (/rc reload)
+    default: op
+  raskolclasses.debug:
+    description: Диагностика (/rc debug [player])
+    default: op
