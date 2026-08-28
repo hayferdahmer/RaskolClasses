@@ -1,0 +1,278 @@
+// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+package dev.raskol.classes.command;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.AbilityDef;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.effect.EffectType;
+import dev.raskol.classes.gui.ClassMenu;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * /rc — информация о классе; /rc 1–5 — каст слота; /rc menu — GUI;
+ * /rc hud — переключить HUD; /rc reload — перезагрузить конфиг (raskolclasses.admin);
+ * /rc debug [player] — диагностика (raskolclasses.debug).
+ */
+public final class RaskolCommand implements CommandExecutor, TabCompleter {
+
+    private static final List<String> ROOT_SUGGESTIONS =
+            List.of("1", "2", "3", "4", "5", "menu", "hud", "reload", "debug");
+
+    private final RaskolClasses plugin;
+
+    public RaskolCommand(RaskolClasses plugin) {
+        this.plugin = plugin;
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (args.length == 0) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage(Component.text("Информация о классе доступна только игрокам",
+                        NamedTextColor.GRAY));
+                return true;
+            }
+            sendInfo(player);
+            return true;
+        }
+
+        switch (args[0].toLowerCase()) {
+            case "reload" -> {
+                // Право проверяем до любого действия
+                if (!sender.hasPermission("raskolclasses.admin")) {
+                    sender.sendMessage(Component.text("Недостаточно прав", NamedTextColor.RED));
+                    return true;
+                }
+                plugin.reloadPlugin();
+                sender.sendMessage(Component.text("RaskolClasses: конфигурация перезагружена",
+                        NamedTextColor.GREEN));
+            }
+            case "hud" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(Component.text("HUD — только для игроков",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                boolean visible = plugin.getHud().toggle(player);
+                player.sendMessage(Component.text("HUD " + (visible ? "включён" : "выключен"),
+                        visible ? NamedTextColor.GREEN : NamedTextColor.GRAY));
+            }
+            case "menu" -> {
+                if (!(sender instanceof Player player)) {
+                    return true;
+                }
+                PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+                if (pc == null) {
+                    player.sendMessage(Component.text("Класс не выбран — посетите герольда",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                ClassMenu.open(plugin, player, pc);
+            }
+            case "1", "2", "3", "4", "5" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(Component.text("Каст доступен только игрокам",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+                if (pc == null) {
+                    player.sendMessage(Component.text("Класс не выбран — посетите герольда",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                int slot = Integer.parseInt(args[0]);
+                AbilityDef def = plugin.getAbilities().getBySlot(pc, slot);
+                if (def == null) {
+                    player.sendMessage(Component.text("У класса " + pc.getDisplayName()
+                            + " нет способности в слоте " + slot, NamedTextColor.GRAY));
+                    return true;
+                }
+                plugin.getAbilities().tryCast(player, def);
+            }
+            case "debug" -> {
+                if (!sender.hasPermission("raskolclasses.debug")) {
+                    sender.sendMessage(Component.text("Недостаточно прав",
+                            NamedTextColor.RED));
+                    return true;
+                }
+                Player target = sender instanceof Player p ? p : null;
+                if (args.length > 1) {
+                    target = Bukkit.getPlayer(args[1]);
+                    if (target == null) {
+                        sender.sendMessage(Component.text(
+                                "Игрок «" + args[1] + "» не найден",
+                                NamedTextColor.RED));
+                        return true;
+                    }
+                }
+                if (target == null) {
+                    sender.sendMessage(Component.text(
+                            "Укажите игрока или выполните команду в игре",
+                            NamedTextColor.RED));
+                    return true;
+                }
+                sendDebug(sender, target);
+            }
+            default -> sender.sendMessage(Component.text(
+                    "Использование: /rc [1-5|menu|hud|reload|debug]", NamedTextColor.GRAY));
+        }
+        return true;
+    }
+
+    /** Сводка: класс, ресурс, все способности со статусами. */
+    private void sendInfo(Player player) {
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        if (pc == null) {
+            player.sendMessage(Component.text("Класс не выбран. Выберите класс у герольда",
+                    NamedTextColor.GRAY));
+            return;
+        }
+        int level = plugin.getSkillLevels().getLevel(player.getUniqueId(), pc.profileSkillName());
+
+        player.sendMessage(Component.text("Класс: ", NamedTextColor.GRAY)
+                .append(Component.text(pc.getDisplayName(), pc.getColor())));
+        String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM
+                ? "AuraSkills не подключён"
+                : pc.profileSkillName() + " " + level;
+        player.sendMessage(Component.text("Уровень: " + levelText, NamedTextColor.GRAY));
+        player.sendMessage(Component.text(pc.getResourceName() + ": "
+                + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100",
+                pc.getColor()));
+
+        for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
+            player.sendMessage(Component.text("[" + def.slot() + "] ", NamedTextColor.DARK_GRAY)
+                    .append(Component.text(def.displayName(), pc.getColor()))
+                    .append(Component.text(" — " + def.cost() + " рес. · "
+                                    + def.cooldownMillis() / 1000L + "с кд · "
+                                    + statusOf(player, def, level),
+                            NamedTextColor.GRAY)));
+        }
+        player.sendMessage(Component.text("Каст: /rc 1–5 или /rc menu", NamedTextColor.DARK_GRAY));
+    }
+
+    /** Диагностический вывод: версия, класс, ресурс, КД, эффекты, уровень, HUD. */
+    private void sendDebug(CommandSender sender, Player target) {
+        UUID uuid = target.getUniqueId();
+        PlayerClass pc = plugin.getClassProvider().getClassOf(target);
+
+        sender.sendMessage(Component.text("--- RaskolClasses Debug ---",
+                NamedTextColor.GOLD));
+        sender.sendMessage(Component.text("Версия: ", NamedTextColor.GRAY)
+                .append(Component.text(plugin.getPluginMeta().getVersion(),
+                        NamedTextColor.WHITE)));
+        sender.sendMessage(Component.text("Цель: ", NamedTextColor.GRAY)
+                .append(Component.text(target.getName(), NamedTextColor.WHITE)));
+
+        if (pc == null) {
+            sender.sendMessage(Component.text("Класс: не выбран",
+                    NamedTextColor.RED));
+            return;
+        }
+
+        sender.sendMessage(Component.text("Класс: ", NamedTextColor.GRAY)
+                .append(Component.text(pc.getDisplayName() + " (" + pc.name() + ")",
+                        pc.getColor())));
+        sender.sendMessage(Component.text(
+                "Ресурс (" + pc.getResourceName() + "): ", NamedTextColor.GRAY)
+                .append(Component.text(
+                        (int) plugin.getResources().getValue(uuid) + "/100",
+                        pc.getColor())));
+
+        // Активные КД
+        boolean hasCooldowns = false;
+        for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
+            long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
+            if (remaining > 0L) {
+                if (!hasCooldowns) {
+                    sender.sendMessage(Component.text("Активные КД:",
+                            NamedTextColor.YELLOW));
+                    hasCooldowns = true;
+                }
+                sender.sendMessage(Component.text("  • " + def.displayName()
+                        + " — " + (remaining / 1000L + 1L) + "с",
+                        NamedTextColor.GRAY));
+            }
+        }
+        if (!hasCooldowns) {
+            sender.sendMessage(Component.text("Активные КД: нет",
+                    NamedTextColor.GRAY));
+        }
+
+        // Активные эффекты
+        Map<EffectType, Long> effects = plugin.getEffects().getActiveEffects(uuid);
+        if (effects.isEmpty()) {
+            sender.sendMessage(Component.text("Активные эффекты: нет",
+                    NamedTextColor.GRAY));
+        } else {
+            sender.sendMessage(Component.text("Активные эффекты:",
+                    NamedTextColor.LIGHT_PURPLE));
+            long now = System.currentTimeMillis();
+            for (Map.Entry<EffectType, Long> entry : effects.entrySet()) {
+                long exp = entry.getValue();
+                String suffix = exp == Long.MAX_VALUE ? "∞"
+                        : ((exp - now) / 1000L) + "с";
+                sender.sendMessage(Component.text("  • " + entry.getKey().name()
+                        + " — " + suffix, NamedTextColor.LIGHT_PURPLE));
+            }
+        }
+
+        // Уровень профиль-скилла
+        int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
+        String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM
+                ? "AuraSkills не подключён"
+                : String.valueOf(level);
+        sender.sendMessage(Component.text(
+                "Уровень " + pc.profileSkillName() + ": ", NamedTextColor.GRAY)
+                .append(Component.text(levelText, NamedTextColor.WHITE)));
+
+        // Флаг HUD
+        boolean visible = plugin.getHud().isVisible(target);
+        sender.sendMessage(Component.text("HUD: ", NamedTextColor.GRAY)
+                .append(Component.text(visible ? "включён" : "выключен",
+                        visible ? NamedTextColor.GREEN : NamedTextColor.RED)));
+    }
+
+    private String statusOf(Player player, AbilityDef def, int level) {
+        if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < def.unlockLevel()) {
+            return "закрыто (нужен уровень " + def.unlockLevel() + ")";
+        }
+        long remaining = plugin.getCooldowns().getRemainingMillis(player.getUniqueId(), def.id());
+        if (remaining > 0L) {
+            return "перезарядка " + (remaining / 1000L + 1L) + "с";
+        }
+        double value = plugin.getResources().getValue(player.getUniqueId());
+        if (value < def.cost()) {
+            return "мало ресурса (" + (int) value + "/" + def.cost() + ")";
+        }
+        return "готова";
+    }
+
+    @Override
+    public List<String> onTabComplete(CommandSender sender, Command command,
+                                      String alias, String[] args) {
+        if (args.length != 1) {
+            return List.of();
+        }
+        String prefix = args[0].toLowerCase();
+        return ROOT_SUGGESTIONS.stream()
+                .filter(suggestion -> suggestion.startsWith(prefix))
+                .filter(suggestion -> !"reload".equals(suggestion)
+                        || sender.hasPermission("raskolclasses.admin"))
+                .filter(suggestion -> !"debug".equals(suggestion)
+                        || sender.hasPermission("raskolclasses.debug"))
+                .toList();
+    }
+}
