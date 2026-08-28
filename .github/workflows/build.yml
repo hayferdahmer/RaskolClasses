@@ -1,0 +1,38 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build
+        run: |
+          set -o pipefail
+          mvn -B clean package -Dmaven.compiler.showDeprecation=true 2>&1 | tee build.log
+
+      - name: Deprecation gate
+        run: |
+          if grep -E "^\[WARNING\].*deprecated" build.log; then
+            echo "::error::Найдены deprecation-варнинги — смотри строки выше"
+            exit 1
+          fi
+          echo "Deprecation check: чисто"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: raskol-classes-1.2.0
+          path: target/raskol-classes-1.2.0.jar
