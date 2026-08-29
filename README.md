@@ -94,3 +94,26 @@ RASKOL Proprietary License v1.0 — см. [LICENSE](LICENSE).
 ### ×1.5 XP профильным деревьям (операторское, 1.3.0)
 
 Без кода, через LP-ноды (AuraSkills читает их нативно):
+/lp group class_warrior permission set auraskills.fighting.multiplier.50
+/lp group class_hunter permission set auraskills.archery.multiplier.50
+/lp group class_priest permission set auraskills.healing.multiplier.50
+/lp group class_mage permission set auraskills.sorcery.multiplier.50
+/lp group class_rogue permission set auraskills.agility.multiplier.50
+
+Верификация: убить моба без ноды → с нодой, сравнить прирост fighting-XP.
+Ожидаемый множитель: ≈×1.5 (семантика `50` = +50%). Если фактический множитель
+отличается — скажи, подстроим значение под реальную семантику AuraSkills 2.3.12.
+
+## Сборка и CI
+
+GitHub Actions: `.github/workflows/build.yml` — `mvn -B clean package`
++ **deprecation-гейт**: ран красный при любом javac-варнинге.
+Артефакт: `target/raskol-classes-<version>.jar`.
+
+## Архитектурные правила
+
+- V3: NMS и рефлексия во внутренние классы сервера запрещены; единственная
+  рефлексия — graceful-degrade к AuraSkills в `SkillLevelProvider`.
+- Запрещённые конструкции (исторические галлюцинации): `Component.Builder`,
+  `Location#setPosition`, `EventSubscription#unregister`, `UserDataMutateEvent`,
+  `Player#isVanished`, `JavaPlugin#getDescription`, `Sound.valueOf`.
