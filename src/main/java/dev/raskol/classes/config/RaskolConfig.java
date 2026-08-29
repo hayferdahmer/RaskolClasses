@@ -44,6 +44,9 @@ public final class RaskolConfig {
         config.addDefault("hotbar-bind.enabled", true);
         config.addDefault("hotbar-bind.material", "AMETHYST_SHARD");
 
+        // 1.3.1: таргет-касты жреца (ЛКМ по игроку со свитком)
+        config.addDefault("target-cast.enabled", true);
+
         config.addDefault("hud.boss-bar.enabled", true);
         config.addDefault("hud.boss-bar.min-duration-seconds", 8);
         config.addDefault("hud.boss-bar.max-visible", 2);
@@ -75,6 +78,12 @@ public final class RaskolConfig {
         config.addDefault("messages.tag.predator", "Хищник!");
         config.addDefault("messages.tag.poison", "Яд!");
         config.addDefault("messages.tag.backstab", "В спину +3!");
+        // 1.3.1: фидбек таргет-кастов
+        config.addDefault("messages.healed-target", "✚ {target}: +{amount} HP");
+        config.addDefault("messages.healed-you", "{caster} исцелил тебя");
+        config.addDefault("messages.shield-target", "Щит на: {target}");
+        config.addDefault("messages.shield-you", "{caster} наложил на тебя щит");
+        config.addDefault("messages.target-full-hp", "Цель здорова");
 
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
@@ -164,6 +173,9 @@ public final class RaskolConfig {
     // Пакет 6: хотбар-бинд
     public boolean isBindEnabled() { return plugin.getConfig().getBoolean("hotbar-bind.enabled", true); }
     public String bindMaterial() { return plugin.getConfig().getString("hotbar-bind.material", "AMETHYST_SHARD"); }
+
+    // 1.3.1: таргет-касты
+    public boolean isTargetCastEnabled() { return plugin.getConfig().getBoolean("target-cast.enabled", true); }
 
     public boolean isBossBarEnabled() { return plugin.getConfig().getBoolean("hud.boss-bar.enabled", true); }
     public int bossBarMinDurationSeconds() { return plugin.getConfig().getInt("hud.boss-bar.min-duration-seconds", 8); }
