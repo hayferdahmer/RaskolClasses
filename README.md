@@ -4,7 +4,7 @@
 Рантайм: Paper 26.2 (build ~112) · Java 21 · offline-mode + AuthMe.
 Компиляция: paper-api 1.21.4-R0.1-SNAPSHOT (нижняя планка форвард-совместимости).
 
-Текущая версия: **1.3.1** · [CHANGELOG](CHANGELOG.md)
+Текущая версия: **1.3.2** · [CHANGELOG](CHANGELOG.md)
 
 ## Владение и лицензия
 
@@ -15,8 +15,9 @@ RASKOL Proprietary License v1.0 — см. [LICENSE](LICENSE).
 
 ## Что делает плагин
 
-- Пять классов: Воин, Охотник, Жрец, Маг, Разбойник. Класс — из primary group
-  LuckPerms (`class_*`).
+- Пять классов: Воин, Охотник, Жрец, Маг, Разбойник. Класс читается из
+  паспорта **RaskolCore** (1.3.2); при отсутствии Core — фолбэк на primary
+  group LuckPerms `class_*`.
 - Ресурсы 0–100 с классовым регеном: Ярость, Концентрация, Свет, Мана, Энергия.
   У мага — тирный реген маны (3/4/5/6 в секунду по порогам 25/50/75).
 - 21 активная способность (4–5 на класс) со стоимостью, кулдаунами и анлоками;
@@ -41,7 +42,8 @@ RASKOL Proprietary License v1.0 — см. [LICENSE](LICENSE).
 |---|---|---|
 | Paper 1.21.4+ | обязателен | рантайм верифицирован на Paper 26.2 |
 | Java 21 | обязателен | |
-| LuckPerms | опционален | без него определение классов отключено (варнинг) |
+| RaskolCore | рекомендован | источник правды класса (1.3.2); без него — LP-фолбэк |
+| LuckPerms | опционален | фолбэк, если Core отсутствует |
 | AuraSkills | опционален | без него уровневые требования сняты |
 | PlaceholderAPI | опционален | без него плейсхолдеры не регистрируются |
 
@@ -53,9 +55,9 @@ RASKOL Proprietary License v1.0 — см. [LICENSE](LICENSE).
 | `/rc 1–5` | — | каст способности слота |
 | `/rc menu` | — | GUI способностей |
 | `/rc hud` | — | переключить HUD |
-| `/rc bind <1-5>` | — | выдать свиток способности (ПКМ = каст в себя; ЛКМ по игроку = в цель для точечных жреца) |
+| `/rc bind <1-5>` | — | выдать свиток способности (ПКМ = в себя; ЛКМ по игроку = в цель для точечных жреца) |
 | `/rc reload` | `raskolclasses.admin` (default: op) | перезагрузить конфиг |
-| `/rc debug [player]` | `raskolclasses.debug` (default: op) | диагностика: версия, класс, ресурс, КД, эффекты, уровень, HUD |
+| `/rc debug [player]` | `raskolclasses.debug` (default: op) | диагностика: версия, **источник класса (core/lp/off)**, класс, ресурс, КД, эффекты, уровень, HUD |
 
 ## Конфигурация
 
@@ -69,6 +71,7 @@ RASKOL Proprietary License v1.0 — см. [LICENSE](LICENSE).
   cooldown-seconds, display-name, description);
 - `classes.MAGE.regen-tier-{1..4}` — тиры регена маны (3/4/5/6 в секунду);
 - `class-accept.{enabled,subtitle}` — титр принятия класса;
+- `hooks.raskolcore.enabled` (1.3.2) — чтение класса из RaskolCore; false = только LP;
 - `hud.*`, `hud.boss-bar.*`, `performance.*`, `performance.ready-notify.*`,
   `hotbar-bind.*`, `target-cast.*`, `messages.*` — HUD, босс-бары, ready-notify,
   хотбар-бинд, таргет-касты и локализация.
@@ -96,22 +99,3 @@ RASKOL Proprietary License v1.0 — см. [LICENSE](LICENSE).
 ### ×1.5 XP профильным деревьям (операторское, 1.3.0)
 
 Без кода, через LP-ноды (AuraSkills читает их нативно):
-- /lp group class_warrior permission set auraskills.fighting.multiplier.50
-- /lp group class_hunter permission set auraskills.archery.multiplier.50
-- /lp group class_priest permission set auraskills.healing.multiplier.50
-- /lp group class_mage permission set auraskills.sorcery.multiplier.50
-- /lp group class_rogue permission set auraskills.agility.multiplier.50
-
-## Сборка и CI
-
-GitHub Actions: `.github/workflows/build.yml` — `mvn -B clean package`
-+ **deprecation-гейт**: ран красный при любом javac-варнинге.
-Артефакт: `target/raskol-classes-<version>.jar`.
-
-## Архитектурные правила
-
-- V3: NMS и рефлексия во внутренние классы сервера запрещены; единственная
-  рефлексия — graceful-degrade к AuraSkills в `SkillLevelProvider`.
-- Запрещённые конструкции (исторические галлюцинации): `Component.Builder`,
-  `Location#setPosition`, `EventSubscription#unregister`, `UserDataMutateEvent`,
-  `Player#isVanished`, `JavaPlugin#getDescription`, `Sound.valueOf`.
