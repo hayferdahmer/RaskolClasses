@@ -58,6 +58,12 @@ public final class RaskolClasses extends JavaPlugin {
         classProvider.setResourceService(resources);
 
         this.cooldowns = new CooldownManager(new File(getDataFolder(), "cooldowns.yml"));
+        // Пакет 2: ready-нотификация — привязка к плагину и параметрам конфига
+        this.cooldowns.attachScheduler(this,
+                raskolConfig.isReadyNotifyEnabled(),
+                raskolConfig.readyNotifyMinCooldownSeconds(),
+                raskolConfig.readyNotifySoundKey(),
+                raskolConfig.readyNotifyMessage());
         this.effects = new ActiveEffectManager();
 
         this.abilities = new AbilityRegistry(this);
@@ -95,6 +101,8 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
         if (cooldowns != null) {
+            // Пакет 2: отмена всех отложенных ready-нотификаций перед сохранением
+            cooldowns.cancelAllTasks();
             cooldowns.saveAll();
             cooldowns.clear();
         }
@@ -121,6 +129,12 @@ public final class RaskolClasses extends JavaPlugin {
         raskolConfig.reload();
         abilities.loadFromConfig(raskolConfig);
         hud.applyConfig();
+        // Пакет 2: при релоаде перечитываем параметры ready-notify
+        cooldowns.attachScheduler(this,
+                raskolConfig.isReadyNotifyEnabled(),
+                raskolConfig.readyNotifyMinCooldownSeconds(),
+                raskolConfig.readyNotifySoundKey(),
+                raskolConfig.readyNotifyMessage());
         getLogger().info("Конфигурация перезагружена");
     }
 
