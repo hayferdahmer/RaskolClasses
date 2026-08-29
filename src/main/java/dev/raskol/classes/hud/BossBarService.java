@@ -5,6 +5,9 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
+import dev.raskol.classes.util.TextFx;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
@@ -23,11 +26,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Пакет 5: босс-бар V2 для активных эффектов.
- * Тикает каждые N тиков (по умолчанию 5), опрашивает ActiveEffectManager,
- * фильтрует эффекты по порогу минимальной длительности (8 с по умолчанию),
- * сортирует по оставшемуся времени и показывает top-N (по умолчанию 2).
- * Цвет бара = цвет класса. Отсчёт — целые секунды. One-shot эффекты
- * (AIMED_SHOT) показываются как «{name}» с полной шкалой.
+ * Фикс-микро: порог min-duration-seconds применяется к ПОЛНОЙ длительности
+ * эффекта (решает, показывать ли бар), а бар живёт до конца эффекта.
+ * Визуал: символ класса + имя градиентом темы + секунды серым,
+ * сегментированная шкала, цвет по классу.
  */
 public final class BossBarService {
 
@@ -40,7 +42,7 @@ public final class BossBarService {
     }
 
     public BukkitTask start() {
-        int period = plugin.getRaskolConfig().bossBarTickPeriod();
+        int period = Math.max(1, plugin.getRaskolConfig().bossBarTickPeriod());
         this.task = new BukkitRunnable() {
             @Override
             public void run() {
@@ -56,7 +58,7 @@ public final class BossBarService {
         start();
     }
 
-    /** onDisable: убираем все бары со всех игроков, отменяем тик. */
+    /** onDisable: убираем все бары и отменяем тик. */
     public void shutdown() {
         if (task != null) {
             task.cancel();
@@ -84,53 +86,58 @@ public final class BossBarService {
         String fmtInf = cfg.bossBarFormatInfinite();
 
         for (Player player : Bukkit.getOnlinePlayers()) {
+            UUID id = player.getUniqueId();
+
             // Уважаем флаг /rc hud
             if (plugin.getHud() != null && !plugin.getHud().isVisible(player)) {
-                cleanupPlayer(player.getUniqueId());
+                cleanupPlayer(id);
                 continue;
             }
             PlayerClass pc = plugin.getClassProvider().getClassOf(player);
             if (pc == null) {
-                cleanupPlayer(player.getUniqueId());
+                cleanupPlayer(id);
                 continue;
             }
+            RaskolConfig.ClassTheme theme = cfg.themeOf(pc);
 
-            Map<EffectType, Long> active = plugin.getEffects().getActiveEffects(player.getUniqueId());
+            Map<EffectType, Long> active =
+                    plugin.getEffects().getActiveEffects(id);
 
-            // Фильтр: displayName != null (legacy пропускаем) и remaining >= minMillis или one-shot
+            // Кандидаты: displayName != null (legacy скрыт) и
+            // ПОЛНАЯ длительность >= порога (или one-shot).
             List<Map.Entry<EffectType, Long>> candidates = new ArrayList<>();
             for (Map.Entry<EffectType, Long> e : active.entrySet()) {
                 EffectType type = e.getKey();
                 if (type.displayName() == null) {
                     continue;
                 }
-                long expires = e.getValue();
-                long remaining = expires == Long.MAX_VALUE ? Long.MAX_VALUE : (expires - now);
-                if (remaining == Long.MAX_VALUE || remaining >= minMillis) {
+                boolean oneShot = e.getValue() == Long.MAX_VALUE;
+                if (oneShot || totalDurationMillis(pc, type) >= minMillis) {
                     candidates.add(e);
                 }
             }
 
-            // top-N по remaining (убывание)
+            // top-N по оставшемуся времени (убывание)
             candidates.sort(Comparator.<Map.Entry<EffectType, Long>, Long>comparing(
-                    e -> e.getValue() == Long.MAX_VALUE ? Long.MAX_VALUE : e.getValue() - now
-            ).reversed());
+                    e -> e.getValue() == Long.MAX_VALUE
+                            ? Long.MAX_VALUE : e.getValue() - now).reversed());
 
-            Map<EffectType, BossBar> playerBars = bars.computeIfAbsent(
-                    player.getUniqueId(), id -> new EnumMap<>(EffectType.class));
+            Map<EffectType, BossBar> playerBars =
+                    bars.computeIfAbsent(id, k -> new EnumMap<>(EffectType.class));
             BarColor color = barColor(pc);
 
-            int kept = 0;
             List<EffectType> visible = new ArrayList<>();
+            int kept = 0;
             for (Map.Entry<EffectType, Long> e : candidates) {
                 if (kept >= maxVisible) {
                     break;
                 }
                 EffectType type = e.getKey();
                 long expires = e.getValue();
+
                 BossBar bar = playerBars.get(type);
                 if (bar == null) {
-                    bar = Bukkit.createBossBar("", color, BarStyle.SOLID);
+                    bar = Bukkit.createBossBar("", color, BarStyle.SEGMENTED_10);
                     bar.addPlayer(player);
                     playerBars.put(type, bar);
                 } else {
@@ -138,24 +145,22 @@ public final class BossBarService {
                 }
 
                 if (expires == Long.MAX_VALUE) {
-                    bar.setTitle(fmtInf.replace("{name}", type.displayName()));
+                    bar.setTitle(buildTitle(theme, type, fmtInf, ""));
                     bar.setProgress(1.0);
                 } else {
-                    long remaining = expires - now;
+                    long remaining = Math.max(0L, expires - now);
                     int sec = (int) Math.max(1L, (remaining + 999L) / 1000L);
-                    bar.setTitle(fmt.replace("{name}", type.displayName())
-                            .replace("{sec}", String.valueOf(sec)));
+                    bar.setTitle(buildTitle(theme, type, fmt, String.valueOf(sec)));
                     double total = totalDurationMillis(pc, type);
-                    double progress = total > 0
+                    bar.setProgress(total > 0
                             ? Math.max(0.0, Math.min(1.0, remaining / total))
-                            : 1.0;
-                    bar.setProgress(progress);
+                            : 1.0);
                 }
                 visible.add(type);
                 kept++;
             }
 
-            // Убираем бары, не вошедшие в top-N
+            // Убираем бары, не вошедшие в top-N или исчезнувшие из эффектов
             List<EffectType> toRemove = new ArrayList<>();
             for (Map.Entry<EffectType, BossBar> entry : playerBars.entrySet()) {
                 if (!visible.contains(entry.getKey())) {
@@ -167,11 +172,11 @@ public final class BossBarService {
                 playerBars.remove(t);
             }
             if (playerBars.isEmpty()) {
-                bars.remove(player.getUniqueId());
+                bars.remove(id);
             }
         }
 
-        // Убираем бары игроков, которые вышли с сервера
+        // Бары игроков, вышедших с сервера
         List<UUID> offline = new ArrayList<>();
         for (UUID id : bars.keySet()) {
             if (Bukkit.getPlayer(id) == null) {
@@ -184,9 +189,22 @@ public final class BossBarService {
     }
 
     /**
-     * Начальная длительность эффекта для расчёта прогресса бара.
-     * Берём из конфига длительности связанной активки; если эффекта
-     * в маппинге нет (legacy) — возвращаем 0 и бар показываем полным.
+     * Заголовок: «⚰ Скрытность — 12с» — символ цветом темы, имя градиентом,
+     * хвост шаблона (из конфига) серым. {name} из шаблона вырезается
+     * (имя уже отрисовано градиентом), {sec} подставляется.
+     */
+    private Component buildTitle(RaskolConfig.ClassTheme theme, EffectType type,
+                                 String template, String secText) {
+        String suffix = template.replace("{name}", "").replace("{sec}", secText);
+        return Component.text(theme.symbol() + " ", theme.primary())
+                .append(TextFx.gradient(type.displayName(),
+                        theme.primary(), theme.secondary()))
+                .append(Component.text(suffix, NamedTextColor.DARK_GRAY));
+    }
+
+    /**
+     * Начальная длительность эффекта (для порога и прогресса бара) —
+     * из конфига связанной активки. 0 = one-shot/legacy: бар полный.
      */
     private double totalDurationMillis(PlayerClass pc, EffectType type) {
         return switch (type) {
@@ -204,7 +222,7 @@ public final class BossBarService {
         };
     }
 
-    /** Цвет бара по классу. Подбираем ближайший BarColor к secondary теме. */
+    /** Цвет полосы по классу. */
     private static BarColor barColor(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> BarColor.RED;
