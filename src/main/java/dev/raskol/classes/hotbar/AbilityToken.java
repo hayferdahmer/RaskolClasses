@@ -13,14 +13,13 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 /**
- * Пакет 6: свиток способности — предмет с PDC-меткой raskolclasses:ability.
- * ПКМ со свитком в руке = каст привязанной способности (BindListener).
- * Метка в PersistentDataContainer переживает рестарты и не путается с
- * обычными предметами.
+ * Свиток способности: предмет с PDC-меткой raskolclasses:ability.
+ * ПКМ — каст в себя; для точечных способностей жреца ЛКМ по игроку — каст в цель.
  */
 public final class AbilityToken {
 
@@ -40,10 +39,17 @@ public final class AbilityToken {
         item.editMeta(meta -> {
             meta.displayName(TextFx.gradient("✦ " + def.displayName(),
                     theme.primary(), theme.secondary()));
-            meta.lore(List.of(
-                    Component.text("ПКМ — каст", NamedTextColor.GRAY),
-                    Component.text("Слот способности: " + def.slot(),
-                            NamedTextColor.DARK_GRAY)));
+            List<Component> loreLines = new ArrayList<>();
+            // Таргетные способности подсказывают оба управления
+            if (plugin.getAbilities().isTargeted(def.id())) {
+                loreLines.add(Component.text("ПКМ — себя · ЛКМ по союзнику — цель",
+                        NamedTextColor.GRAY));
+            } else {
+                loreLines.add(Component.text("ПКМ — каст", NamedTextColor.GRAY));
+            }
+            loreLines.add(Component.text("Слот способности: " + def.slot(),
+                    NamedTextColor.DARK_GRAY));
+            meta.lore(loreLines);
             meta.getPersistentDataContainer().set(key, PersistentDataType.STRING, def.id());
         });
         return item;
