@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Изолированный мост к LuckPerms API: класс грузится только при установленном
  * LuckPerms (проверка в ClassProvider), иначе NoClassDefFoundError не коснётся плагина.
+ * В 1.3.2: остаётся фолбэком, если RaskolCore-хук недоступен.
  */
 public final class LuckPermsBackend {
 
@@ -45,6 +46,11 @@ public final class LuckPermsBackend {
         this.luckPerms = LuckPermsProvider.get();
         this.subscription = luckPerms.getEventBus()
                 .subscribe(NodeMutateEvent.class, this::onNodeMutate);
+    }
+
+    /** 1.3.2: LP-провайдер жив (для sourceOf()). */
+    public boolean isAvailable() {
+        return luckPerms != null;
     }
 
     public void setResourceService(ResourceService resourceService) {
