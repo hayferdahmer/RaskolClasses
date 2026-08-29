@@ -5,6 +5,25 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru-RU/1.0.0/),
 и проект придерживается [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [1.3.2] - 2026-08-30 — «Core-адаптер»
+
+### Добавлено
+- **RaskolCore-хук:** `RaskolCoreHook` изолирован через отражение по
+  класслоадеру Core-плагина (Bukkit-класслоадеры изолированы, прямой
+  `Class.forName` не работает). Когда Core доступен — класс читается из
+  паспорта (`RaskolCoreAPI.passportOf(uuid).playerClass()`), иначе —
+  LP-фолбэк. Без Core: один инфо-лог, без падения.
+- **`/rc debug`** показывает «Источник класса: core/lp/off» — диагностика,
+  откуда пришёл класс игрока.
+- **Флаг `hooks.raskolcore.enabled`** — выключает хук без пересборки.
+- `softdepend += RaskolCore` в `plugin.yml`.
+
+### Изменено
+- `PlayerClass.fromCoreId(String)` — отдельный маппинг сырых id паспорта
+  («warrior»/«mage»/...), не пересекающийся с `fromLuckPermsGroup`
+  (префикс `class_`).
+- `ClassProvider.getClassOf` — Core first, LP fallback; кэш общий.
+
 ## [1.3.1] - 2026-08-30 — «Прицельное благословение»
 
 ### Добавлено
