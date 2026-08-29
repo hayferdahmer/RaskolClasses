@@ -15,13 +15,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Конфигурация с дефолтами из кода: баланс, темы классов (§4), длительности
- * эффектов (D1), пассивки (§6 пакета 5) и параметры производительности (§2).
- * addDefault + copyDefaults дописывают новые ключи, не затирая правки админа.
- * Русские имена/описания пассивок и описания активок живут в коде как фолбэк —
- * UI корректен даже если старый config.yml не получил новые ключи.
- */
 public final class RaskolConfig {
 
     private final JavaPlugin plugin;
@@ -48,6 +41,12 @@ public final class RaskolConfig {
         config.addDefault("hud.debug-skip", false);
         config.addDefault("performance.purge-interval-ticks", 1200);
         config.addDefault("performance.cast-click-cooldown-ms", 150L);
+
+        // Пакет 2: ready-нотификация
+        config.addDefault("performance.ready-notify.enabled", true);
+        config.addDefault("performance.ready-notify.min-cooldown-seconds", 30);
+        config.addDefault("performance.ready-notify.sound", "ENTITY_PLAYER_LEVELUP");
+        config.addDefault("performance.ready-notify.message", "{ability} — готова");
 
         config.addDefault("class-accept.enabled", true);
         config.addDefault("class-accept.subtitle", "Твой путь избран");
@@ -78,7 +77,6 @@ public final class RaskolConfig {
         config.addDefault("classes.HUNTER.abilities.cheetah_aspect.duration-speed", 8);
         config.addDefault("classes.HUNTER.abilities.cheetah_aspect.duration-no-fall", 10);
 
-        // Пассивки (§6 пакета 5)
         config.addDefault("classes.WARRIOR.passives.execute_passive.enabled", true);
         config.addDefault("classes.WARRIOR.passives.execute_passive.chance", 0.20);
         config.addDefault("classes.WARRIOR.passives.execute_passive.multiplier", 3.0);
@@ -101,7 +99,6 @@ public final class RaskolConfig {
         config.addDefault("classes.ROGUE.passives.sadism.bonus", 3.0);
         config.addDefault("classes.ROGUE.passives.sadism.cooldown-seconds", 2);
 
-        // Пакет 1: display-name/description пассивок (фолбэк — в коде, см. DEFAULTS)
         config.addDefault("classes.WARRIOR.passives.execute_passive.display-name", "Казнь");
         config.addDefault("classes.WARRIOR.passives.execute_passive.description",
                 "20% шанс — ×3 урона по цели с ≤20% HP");
@@ -126,72 +123,40 @@ public final class RaskolConfig {
         rebuildThemes();
     }
 
-    /* ------------------------- HUD и производительность ------------------------- */
+    public boolean isHudEnabled() { return plugin.getConfig().getBoolean("hud.enabled", true); }
+    public int hudUpdatePeriodTicks() { return plugin.getConfig().getInt("hud.update-period-ticks", 10); }
+    public boolean hudSkipSpectator() { return plugin.getConfig().getBoolean("hud.skip-spectator", true); }
+    public boolean hudFullResourceAura() { return plugin.getConfig().getBoolean("hud.full-resource-aura", true); }
+    public boolean hudDebugSkip() { return plugin.getConfig().getBoolean("hud.debug-skip", false); }
+    public int purgeIntervalTicks() { return plugin.getConfig().getInt("performance.purge-interval-ticks", 1200); }
+    public long castClickCooldownMillis() { return plugin.getConfig().getLong("performance.cast-click-cooldown-ms", 150L); }
 
-    public boolean isHudEnabled() {
-        return plugin.getConfig().getBoolean("hud.enabled", true);
-    }
+    // Пакет 2: ready-notify
+    public boolean isReadyNotifyEnabled() { return plugin.getConfig().getBoolean("performance.ready-notify.enabled", true); }
+    public int readyNotifyMinCooldownSeconds() { return plugin.getConfig().getInt("performance.ready-notify.min-cooldown-seconds", 30); }
+    public String readyNotifySoundKey() { return plugin.getConfig().getString("performance.ready-notify.sound", "ENTITY_PLAYER_LEVELUP"); }
+    public String readyNotifyMessage() { return plugin.getConfig().getString("performance.ready-notify.message", "{ability} — готова"); }
 
-    public int hudUpdatePeriodTicks() {
-        return plugin.getConfig().getInt("hud.update-period-ticks", 10);
-    }
-
-    public boolean hudSkipSpectator() {
-        return plugin.getConfig().getBoolean("hud.skip-spectator", true);
-    }
-
-    public boolean hudFullResourceAura() {
-        return plugin.getConfig().getBoolean("hud.full-resource-aura", true);
-    }
-
-    public boolean hudDebugSkip() {
-        return plugin.getConfig().getBoolean("hud.debug-skip", false);
-    }
-
-    public int purgeIntervalTicks() {
-        return plugin.getConfig().getInt("performance.purge-interval-ticks", 1200);
-    }
-
-    public long castClickCooldownMillis() {
-        return plugin.getConfig().getLong("performance.cast-click-cooldown-ms", 150L);
-    }
-
-    /* ------------------------- V1: принятие класса ------------------------- */
-
-    public boolean isClassAcceptEnabled() {
-        return plugin.getConfig().getBoolean("class-accept.enabled", true);
-    }
-
-    public String classAcceptSubtitle() {
-        return plugin.getConfig().getString("class-accept.subtitle", "Твой путь избран");
-    }
-
-    /* ------------------------- пассивки (§6 пакета 5) ------------------------- */
+    public boolean isClassAcceptEnabled() { return plugin.getConfig().getBoolean("class-accept.enabled", true); }
+    public String classAcceptSubtitle() { return plugin.getConfig().getString("class-accept.subtitle", "Твой путь избран"); }
 
     public boolean passiveEnabled(PlayerClass pc, String id) {
         return plugin.getConfig().getBoolean(passivePath(pc, id, "enabled"), true);
     }
-
     public double passiveDouble(PlayerClass pc, String id, String key, double fallback) {
         return plugin.getConfig().getDouble(passivePath(pc, id, key), fallback);
     }
-
     public int passiveInt(PlayerClass pc, String id, String key, int fallback) {
         return plugin.getConfig().getInt(passivePath(pc, id, key), fallback);
     }
-
-    /** Имя пассивки: конфиг → код-фолбэк (русское имя) → переданный fallback. */
     public String passiveDisplayName(PlayerClass pc, String id, String fallback) {
         return plugin.getConfig().getString(passivePath(pc, id, "display-name"),
                 DEFAULTS.passiveDisplayName(pc, id, fallback));
     }
-
-    /** Описание пассивки: конфиг → код-фолбэк → переданный fallback. */
     public String passiveDescription(PlayerClass pc, String id, String fallback) {
         return plugin.getConfig().getString(passivePath(pc, id, "description"),
                 DEFAULTS.passiveDescription(pc, id, fallback));
     }
-
     public static List<String> passiveIds(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> List.of("execute_passive");
@@ -201,56 +166,20 @@ public final class RaskolConfig {
             case ROGUE -> List.of("poisoned_blades", "sadism");
         };
     }
-
     private String passivePath(PlayerClass pc, String id, String key) {
         return "classes." + pc.name() + ".passives." + id + "." + key;
     }
 
-    /* ------------------------- ресурсы ------------------------- */
+    public double resourceRegen(PlayerClass pc) { return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-regen", DEFAULTS.resourceRegen(pc)); }
+    public double resourceOnDeal(PlayerClass pc) { return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-deal", DEFAULTS.resourceOnDeal(pc)); }
+    public double resourceOnTake(PlayerClass pc) { return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-take", DEFAULTS.resourceOnTake(pc)); }
+    public double resourceOnHeal(PlayerClass pc) { return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-heal", DEFAULTS.resourceOnHeal(pc)); }
+    public int combatWindowSeconds(PlayerClass pc) { return plugin.getConfig().getInt("classes." + pc.name() + ".combat-window-seconds", 5); }
 
-    public double resourceRegen(PlayerClass pc) {
-        return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-regen",
-                DEFAULTS.resourceRegen(pc));
-    }
-
-    public double resourceOnDeal(PlayerClass pc) {
-        return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-deal",
-                DEFAULTS.resourceOnDeal(pc));
-    }
-
-    public double resourceOnTake(PlayerClass pc) {
-        return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-take",
-                DEFAULTS.resourceOnTake(pc));
-    }
-
-    public double resourceOnHeal(PlayerClass pc) {
-        return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-heal",
-                DEFAULTS.resourceOnHeal(pc));
-    }
-
-    public int combatWindowSeconds(PlayerClass pc) {
-        return plugin.getConfig().getInt("classes." + pc.name() + ".combat-window-seconds", 5);
-    }
-
-    /* ------------------------- способности ------------------------- */
-
-    public int abilityUnlock(PlayerClass pc, String id, int fallback) {
-        return plugin.getConfig().getInt(path(pc, id, "unlock"), fallback);
-    }
-
-    public int abilityCost(PlayerClass pc, String id, int fallback) {
-        return plugin.getConfig().getInt(path(pc, id, "cost"), fallback);
-    }
-
-    public int abilityCooldownSeconds(PlayerClass pc, String id, int fallback) {
-        return plugin.getConfig().getInt(path(pc, id, "cooldown"), fallback);
-    }
-
-    public String abilityName(PlayerClass pc, String id, String fallback) {
-        return plugin.getConfig().getString(path(pc, id, "name"), fallback);
-    }
-
-    /** Описание способности: конфиг → код-фолбэк (из DEFAULTS) → переданный fallback. */
+    public int abilityUnlock(PlayerClass pc, String id, int fallback) { return plugin.getConfig().getInt(path(pc, id, "unlock"), fallback); }
+    public int abilityCost(PlayerClass pc, String id, int fallback) { return plugin.getConfig().getInt(path(pc, id, "cost"), fallback); }
+    public int abilityCooldownSeconds(PlayerClass pc, String id, int fallback) { return plugin.getConfig().getInt(path(pc, id, "cooldown"), fallback); }
+    public String abilityName(PlayerClass pc, String id, String fallback) { return plugin.getConfig().getString(path(pc, id, "name"), fallback); }
     public String abilityDescription(PlayerClass pc, String id, String fallback) {
         AbilityDefaults d = DEFAULTS.abilities(pc).get(id);
         String codeDefault = d != null ? d.description() : "";
@@ -258,26 +187,17 @@ public final class RaskolConfig {
                 codeDefault.isEmpty() ? fallback : codeDefault);
     }
 
-    /* ------------------------- длительности эффектов (D1/D2) ------------------------- */
-
     public int durationSeconds(PlayerClass pc, String abilityId, int fallbackSeconds) {
         return plugin.getConfig().getInt(path(pc, abilityId, "duration"), fallbackSeconds);
     }
-
     public int durationSeconds(PlayerClass pc, String abilityId, String subKey, int fallbackSeconds) {
         return plugin.getConfig().getInt(path(pc, abilityId, "duration-" + subKey), fallbackSeconds);
     }
-
     private String path(PlayerClass pc, String abilityId, String key) {
         return "classes." + pc.name() + ".abilities." + abilityId + "." + key;
     }
 
-    /* ------------------------- темы (§4.1) ------------------------- */
-
-    public ClassTheme themeOf(PlayerClass pc) {
-        return themes.get(pc);
-    }
-
+    public ClassTheme themeOf(PlayerClass pc) { return themes.get(pc); }
     private void rebuildThemes() {
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
@@ -290,44 +210,28 @@ public final class RaskolConfig {
                     parseSound(config.getString(base + ".cast-sound"), Sound.ENTITY_PLAYER_LEVELUP)));
         }
     }
-
     private TextColor parseColor(String hex, String fallbackHex) {
         TextColor parsed = hex == null ? null : TextColor.fromHexString(hex);
-        if (parsed != null) {
-            return parsed;
-        }
+        if (parsed != null) return parsed;
         TextColor fallback = TextColor.fromHexString(fallbackHex);
         return fallback != null ? fallback : TextColor.color(0x45E08A);
     }
-
     private Particle parseParticle(String name, Particle fallback) {
-        if (name == null) {
-            return fallback;
-        }
-        try {
-            return Particle.valueOf(name.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return fallback;
-        }
+        if (name == null) return fallback;
+        try { return Particle.valueOf(name.toUpperCase()); }
+        catch (IllegalArgumentException e) { return fallback; }
     }
-
     private Sound parseSound(String name, Sound fallback) {
-        if (name == null) {
-            return fallback;
-        }
+        if (name == null) return fallback;
         Sound parsed = Registry.SOUNDS.get(NamespacedKey.minecraft(name.toLowerCase(Locale.ROOT)));
         return parsed != null ? parsed : fallback;
     }
 
-    /* ------------------------- дефолтный баланс ------------------------- */
-
-    /** description = "" означает «описания нет» (не выводится). */
     public record AbilityDefaults(int unlock, int cost, int cooldown, String name,
                                   int duration, String description) {
     }
 
     private static final class DEFAULTS {
-
         static double resourceRegen(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> -5.0;
@@ -336,19 +240,9 @@ public final class RaskolConfig {
                 case ROGUE -> 10.0;
             };
         }
-
-        static double resourceOnDeal(PlayerClass pc) {
-            return pc == PlayerClass.WARRIOR ? 10.0 : 0.0;
-        }
-
-        static double resourceOnTake(PlayerClass pc) {
-            return pc == PlayerClass.WARRIOR ? 10.0 : 0.0;
-        }
-
-        static double resourceOnHeal(PlayerClass pc) {
-            return pc == PlayerClass.PRIEST ? 5.0 : 0.0;
-        }
-
+        static double resourceOnDeal(PlayerClass pc) { return pc == PlayerClass.WARRIOR ? 10.0 : 0.0; }
+        static double resourceOnTake(PlayerClass pc) { return pc == PlayerClass.WARRIOR ? 10.0 : 0.0; }
+        static double resourceOnHeal(PlayerClass pc) { return pc == PlayerClass.PRIEST ? 5.0 : 0.0; }
         static String primary(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> "#8B0000";
@@ -358,7 +252,6 @@ public final class RaskolConfig {
                 case ROGUE -> "#2A0A3A";
             };
         }
-
         static String secondary(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> "#FF4500";
@@ -368,7 +261,6 @@ public final class RaskolConfig {
                 case ROGUE -> "#8B2FBF";
             };
         }
-
         static String symbol(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> "⚔";
@@ -378,7 +270,6 @@ public final class RaskolConfig {
                 case ROGUE -> "☠";
             };
         }
-
         static Particle particle(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> Particle.FLAME;
@@ -388,8 +279,6 @@ public final class RaskolConfig {
                 case ROGUE -> Particle.SOUL_FIRE_FLAME;
             };
         }
-
-        /** Код-фолбэк русских имён пассивок (работает без конфига). */
         static String passiveDisplayName(PlayerClass pc, String id, String fallback) {
             String name = switch (pc) {
                 case WARRIOR -> "execute_passive".equals(id) ? "Казнь" : null;
@@ -404,8 +293,6 @@ public final class RaskolConfig {
             };
             return name != null ? name : fallback;
         }
-
-        /** Код-фолбэк описаний пассивок (работает без конфига). */
         static String passiveDescription(PlayerClass pc, String id, String fallback) {
             String desc = switch (pc) {
                 case WARRIOR -> "execute_passive".equals(id)
@@ -421,56 +308,34 @@ public final class RaskolConfig {
             };
             return desc != null ? desc : fallback;
         }
-
         static Map<String, AbilityDefaults> abilities(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> Map.of(
-                        "steel_skin", new AbilityDefaults(10, 30, 45, "Стальная кожа", 5,
-                                "−80% входящего урона на 5 с"),
-                        "shield_bash", new AbilityDefaults(25, 20, 25, "Удар щитом", 3,
-                                "Slowness II + Blindness в радиусе 4, таунт мобов, 3 с"),
-                        "blood_fury", new AbilityDefaults(50, 40, 30, "Кровавое безумие", 4,
-                                "4 с: 20% входящего урона возвращается агрессору"),
-                        "war_god", new AbilityDefaults(75, 100, 300, "Бог войны", 8,
-                                "Сила II + Сопротивление I на 8 с"));
+                        "steel_skin", new AbilityDefaults(10, 30, 45, "Стальная кожа", 5, "−80% входящего урона на 5 с"),
+                        "shield_bash", new AbilityDefaults(25, 20, 25, "Удар щитом", 3, "Slowness II + Blindness в радиусе 4, таунт мобов, 3 с"),
+                        "blood_fury", new AbilityDefaults(50, 40, 30, "Кровавое безумие", 4, "4 с: 20% входящего урона возвращается агрессору"),
+                        "war_god", new AbilityDefaults(75, 100, 300, "Бог войны", 8, "Сила II + Сопротивление I на 8 с"));
                 case HUNTER -> Map.of(
-                        "aimed_shot", new AbilityDefaults(10, 20, 15, "Прицельный выстрел", 0,
-                                "Следующая стрела ×2 урона + Slowness цели"),
-                        "cheetah_aspect", new AbilityDefaults(25, 0, 60, "Аспект гепарда", 0,
-                                "Скорость II 8 с + иммунитет к урону падения 10 с"),
-                        "multi_shot", new AbilityDefaults(50, 40, 25, "Мультивыстрел", 0,
-                                "Три стрелы веером"),
-                        "barrage", new AbilityDefaults(75, 80, 120, "Заградительный огонь", 0,
-                                "Серия стрел по площади"));
+                        "aimed_shot", new AbilityDefaults(10, 20, 15, "Прицельный выстрел", 0, "Следующая стрела ×2 урона + Slowness цели"),
+                        "cheetah_aspect", new AbilityDefaults(25, 0, 60, "Аспект гепарда", 0, "Скорость II 8 с + иммунитет к урону падения 10 с"),
+                        "multi_shot", new AbilityDefaults(50, 40, 25, "Мультивыстрел", 0, "Три стрелы веером"),
+                        "barrage", new AbilityDefaults(75, 80, 120, "Заградительный огонь", 0, "Серия стрел по площади"));
                 case PRIEST -> Map.of(
-                        "lesser_heal", new AbilityDefaults(1, 10, 3, "Малое исцеление", 0,
-                                "Лечит 4 HP"),
-                        "flash_heal", new AbilityDefaults(10, 20, 6, "Быстрое исцеление", 0,
-                                "Лечит 8 HP"),
-                        "pw_shield", new AbilityDefaults(25, 30, 30, "Слово силы: Щит", 6,
-                                "Поглощает 8 урона, 6 с"),
-                        "circle_of_prayer", new AbilityDefaults(50, 50, 60, "Круг молитвы", 0,
-                                "Лечит союзников в радиусе 6"),
-                        "smite", new AbilityDefaults(75, 60, 90, "Кара", 0,
-                                "Молния по цели"));
+                        "lesser_heal", new AbilityDefaults(1, 10, 3, "Малое исцеление", 0, "Лечит 4 HP"),
+                        "flash_heal", new AbilityDefaults(10, 20, 6, "Быстрое исцеление", 0, "Лечит 8 HP"),
+                        "pw_shield", new AbilityDefaults(25, 30, 30, "Слово силы: Щит", 6, "Поглощает 8 урона, 6 с"),
+                        "circle_of_prayer", new AbilityDefaults(50, 50, 60, "Круг молитвы", 0, "Лечит союзников в радиусе 6"),
+                        "smite", new AbilityDefaults(75, 60, 90, "Кара", 0, "Молния по цели"));
                 case MAGE -> Map.of(
-                        "firebolt", new AbilityDefaults(1, 10, 2, "Огненная стрела", 0,
-                                "Огненный снаряд, поджигает цель"),
-                        "blink", new AbilityDefaults(25, 20, 20, "Скачок", 0,
-                                "Телепорт вперёд на 8 блоков"),
-                        "frost_nova", new AbilityDefaults(50, 40, 45, "Кольцо льда", 4,
-                                "Замораживает врагов в радиусе 5 на 4 с"),
-                        "arcane_burst", new AbilityDefaults(75, 100, 180, "Чародейский взрыв", 0,
-                                "Взрыв тайной энергии по площади"));
+                        "firebolt", new AbilityDefaults(1, 10, 2, "Огненная стрела", 0, "Огненный снаряд, поджигает цель"),
+                        "blink", new AbilityDefaults(25, 20, 20, "Скачок", 0, "Телепорт вперёд на 8 блоков"),
+                        "frost_nova", new AbilityDefaults(50, 40, 45, "Кольцо льда", 4, "Замораживает врагов в радиусе 5 на 4 с"),
+                        "arcane_burst", new AbilityDefaults(75, 100, 180, "Чародейский взрыв", 0, "Взрыв тайной энергии по площади"));
                 case ROGUE -> Map.of(
-                        "stealth", new AbilityDefaults(10, 30, 30, "Скрытность", 15,
-                                "Невидимость 15 с или до первого удара"),
-                        "fan_of_knives", new AbilityDefaults(25, 25, 15, "Веер ножей", 0,
-                                "4 урона по радиусу 3"),
-                        "cheap_shot", new AbilityDefaults(50, 40, 40, "Подлый удар", 2,
-                                "Blind + Slowness 2 с + 3 урона"),
-                        "evasion", new AbilityDefaults(75, 60, 120, "Уклонение", 4,
-                                "100% уклонение от урона, 4 с"));
+                        "stealth", new AbilityDefaults(10, 30, 30, "Скрытность", 15, "Невидимость 15 с или до первого удара"),
+                        "fan_of_knives", new AbilityDefaults(25, 25, 15, "Веер ножей", 0, "4 урона по радиусу 3"),
+                        "cheap_shot", new AbilityDefaults(50, 40, 40, "Подлый удар", 2, "Blind + Slowness 2 с + 3 урона"),
+                        "evasion", new AbilityDefaults(75, 60, 120, "Уклонение", 4, "100% уклонение от урона, 4 с"));
             };
         }
     }
