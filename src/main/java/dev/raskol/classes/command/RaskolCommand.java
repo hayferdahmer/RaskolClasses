@@ -234,6 +234,10 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         NamedTextColor.WHITE)));
         sender.sendMessage(Component.text("Цель: ", NamedTextColor.GRAY)
                 .append(Component.text(target.getName(), NamedTextColor.WHITE)));
+        // 1.3.2: источник класса
+        sender.sendMessage(Component.text("Источник класса: ", NamedTextColor.GRAY)
+                .append(Component.text(plugin.getClassProvider().sourceOf(),
+                        NamedTextColor.AQUA)));
 
         if (pc == null) {
             sender.sendMessage(Component.text("Класс: не выбран",
