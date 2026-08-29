@@ -40,6 +40,10 @@ public final class RaskolConfig {
         config.addDefault("hud.full-resource-aura", true);
         config.addDefault("hud.debug-skip", false);
 
+        // Пакет 6: хотбар-бинд (свитки способностей)
+        config.addDefault("hotbar-bind.enabled", true);
+        config.addDefault("hotbar-bind.material", "AMETHYST_SHARD");
+
         config.addDefault("hud.boss-bar.enabled", true);
         config.addDefault("hud.boss-bar.min-duration-seconds", 8);
         config.addDefault("hud.boss-bar.max-visible", 2);
@@ -96,7 +100,7 @@ public final class RaskolConfig {
             });
         }
 
-        // Пакет 5b: тиры регена мага (3/4/5/6 в секунду по порогам 25/50/75)
+        // Пакет 5b: тиры регена мага
         config.addDefault("classes.MAGE.regen-tier-1", 3.0);
         config.addDefault("classes.MAGE.regen-tier-2", 4.0);
         config.addDefault("classes.MAGE.regen-tier-3", 5.0);
@@ -157,6 +161,10 @@ public final class RaskolConfig {
     public boolean hudFullResourceAura() { return plugin.getConfig().getBoolean("hud.full-resource-aura", true); }
     public boolean hudDebugSkip() { return plugin.getConfig().getBoolean("hud.debug-skip", false); }
 
+    // Пакет 6: хотбар-бинд
+    public boolean isBindEnabled() { return plugin.getConfig().getBoolean("hotbar-bind.enabled", true); }
+    public String bindMaterial() { return plugin.getConfig().getString("hotbar-bind.material", "AMETHYST_SHARD"); }
+
     public boolean isBossBarEnabled() { return plugin.getConfig().getBoolean("hud.boss-bar.enabled", true); }
     public int bossBarMinDurationSeconds() { return plugin.getConfig().getInt("hud.boss-bar.min-duration-seconds", 8); }
     public int bossBarMaxVisible() { return plugin.getConfig().getInt("hud.boss-bar.max-visible", 2); }
@@ -180,7 +188,7 @@ public final class RaskolConfig {
         return v != null ? v : fallback;
     }
 
-    // Пакет 5b: тиры регена мага (фолбэк на дефолты из DEFAULTS)
+    // Пакет 5b: тиры регена мага
     public double mageRegenTier1() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-1", 3.0); }
     public double mageRegenTier2() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-2", 4.0); }
     public double mageRegenTier3() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-3", 5.0); }
