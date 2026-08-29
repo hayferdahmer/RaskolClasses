@@ -3,6 +3,8 @@ package dev.raskol.classes.classsystem;
 
 import net.kyori.adventure.text.format.NamedTextColor;
 
+import java.util.Locale;
+
 /** Пять классов сервера «РАСКОЛ». Цвета сообщений и скиллы — по ТЗ. */
 public enum PlayerClass {
 
@@ -28,9 +30,23 @@ public enum PlayerClass {
         if (group == null || !group.startsWith("class_")) {
             return null;
         }
-        String suffix = group.substring("class_".length()).toUpperCase();
+        String suffix = group.substring("class_".length()).toUpperCase(Locale.ROOT);
         for (PlayerClass pc : values()) {
             if (pc.name().equals(suffix)) {
+                return pc;
+            }
+        }
+        return null;
+    }
+
+    /** 1.3.2: "warrior" / "mage" / ... → WARRIOR / MAGE / ...; пусто/unknown → null. */
+    public static PlayerClass fromCoreId(String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
+        String upper = id.toUpperCase(Locale.ROOT);
+        for (PlayerClass pc : values()) {
+            if (pc.name().equals(upper)) {
                 return pc;
             }
         }
