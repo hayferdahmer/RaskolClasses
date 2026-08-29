@@ -42,7 +42,6 @@ public final class RaskolConfig {
         config.addDefault("performance.purge-interval-ticks", 1200);
         config.addDefault("performance.cast-click-cooldown-ms", 150L);
 
-        // Пакет 2: ready-нотификация
         config.addDefault("performance.ready-notify.enabled", true);
         config.addDefault("performance.ready-notify.min-cooldown-seconds", 30);
         config.addDefault("performance.ready-notify.sound", "ENTITY_PLAYER_LEVELUP");
@@ -50,6 +49,30 @@ public final class RaskolConfig {
 
         config.addDefault("class-accept.enabled", true);
         config.addDefault("class-accept.subtitle", "Твой путь избран");
+
+        // Пакет 3: все user-facing сообщения в messages.* с плейсхолдерами
+        config.addDefault("messages.no-class",
+                "Класс не выбран — посетите герольда");
+        config.addDefault("messages.no-class-cast",
+                "Класс не выбран — способности недоступны");
+        config.addDefault("messages.no-permission",
+                "Недостаточно прав");
+        config.addDefault("messages.unlock",
+                "«{ability}» откроется на уровне {required} (у вас {current})");
+        config.addDefault("messages.cooldown",
+                "«{ability}»: перезарядка ещё {seconds}с");
+        config.addDefault("messages.no-resource",
+                "Не хватает ресурса «{resource}»: нужно {cost}, у вас {value}");
+        config.addDefault("messages.activated",
+                "«{ability}» — активирована");
+        config.addDefault("messages.blink-unsafe",
+                "Скачок невозможен: нет безопасной точки");
+        config.addDefault("messages.cheap-shot-no-target",
+                "Нет цели в радиусе 4 блоков");
+        config.addDefault("messages.tag.execute", "Казнь ×3!");
+        config.addDefault("messages.tag.predator", "Хищник!");
+        config.addDefault("messages.tag.poison", "Яд!");
+        config.addDefault("messages.tag.backstab", "В спину +3!");
 
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
@@ -131,7 +154,6 @@ public final class RaskolConfig {
     public int purgeIntervalTicks() { return plugin.getConfig().getInt("performance.purge-interval-ticks", 1200); }
     public long castClickCooldownMillis() { return plugin.getConfig().getLong("performance.cast-click-cooldown-ms", 150L); }
 
-    // Пакет 2: ready-notify
     public boolean isReadyNotifyEnabled() { return plugin.getConfig().getBoolean("performance.ready-notify.enabled", true); }
     public int readyNotifyMinCooldownSeconds() { return plugin.getConfig().getInt("performance.ready-notify.min-cooldown-seconds", 30); }
     public String readyNotifySoundKey() { return plugin.getConfig().getString("performance.ready-notify.sound", "ENTITY_PLAYER_LEVELUP"); }
@@ -139,6 +161,13 @@ public final class RaskolConfig {
 
     public boolean isClassAcceptEnabled() { return plugin.getConfig().getBoolean("class-accept.enabled", true); }
     public String classAcceptSubtitle() { return plugin.getConfig().getString("class-accept.subtitle", "Твой путь избран"); }
+
+    /** Пакет 3: локализация — messages.<key>. Фолбэк на встроенные RU-строки,
+     *  если ключа нет в конфиге (битый/удалённый админом). */
+    public String message(String key, String fallback) {
+        String v = plugin.getConfig().getString("messages." + key, null);
+        return v != null ? v : fallback;
+    }
 
     public boolean passiveEnabled(PlayerClass pc, String id) {
         return plugin.getConfig().getBoolean(passivePath(pc, id, "enabled"), true);
