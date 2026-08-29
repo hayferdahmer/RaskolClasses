@@ -13,10 +13,6 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.RayTraceResult;
 
-/**
- * Активные способности разбойника (ресурс — энергия).
- * D2: хардкод STEALTH_DURATION_MILLIS удалён — длительность в config.
- */
 public final class RogueAbilities {
 
     private final RaskolClasses plugin;
@@ -25,11 +21,6 @@ public final class RogueAbilities {
         this.plugin = plugin;
     }
 
-    /**
-     * Скрытность: невидимость (duration, дефолт 15 с — аудит D1, было 60)
-     * до первой атаки или урона; первый удар ×1.5. Флаг и INVISIBILITY
-     * получают одинаковую длительность (D2).
-     */
     public boolean stealth(Player player, AbilityDef def) {
         long durationMillis = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.ROGUE, "stealth", 15) * 1000L;
@@ -39,7 +30,6 @@ public final class RogueAbilities {
         return true;
     }
 
-    /** Веер ножей: 4 урона всем живым в радиусе 3 (мгновенная). */
     public boolean fanOfKnives(Player player, AbilityDef def) {
         boolean affected = false;
         for (Entity entity : player.getNearbyEntities(3, 3, 3)) {
@@ -52,12 +42,14 @@ public final class RogueAbilities {
         return affected;
     }
 
-    /** Подлый удар: цель в фокусе (4 блока) — слепота и замедление (duration, 2 с) + 3 урона. */
     public boolean cheapShot(Player player, AbilityDef def) {
         RayTraceResult hit = player.rayTraceEntities(4);
         if (hit == null || !(hit.getHitEntity() instanceof LivingEntity target)) {
-            player.sendMessage(Component.text("Нет цели в радиусе 4 блоков", NamedTextColor.RED));
-            return false; // каст отменяется с возвратом ресурса и кулдауна
+            // Пакет 3: сообщение из messages.cheap-shot-no-target
+            String text = plugin.getRaskolConfig().message("cheap-shot-no-target",
+                    "Нет цели в радиусе 4 блоков");
+            player.sendMessage(Component.text(text, NamedTextColor.RED));
+            return false;
         }
         int ticks = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.ROGUE, "cheap_shot", 2) * 20;
@@ -67,7 +59,6 @@ public final class RogueAbilities {
         return true;
     }
 
-    /** Уклонение: полная отмена входящего урона (duration, дефолт 4 с). */
     public boolean evasion(Player player, AbilityDef def) {
         long durationMillis = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.ROGUE, "evasion", 4) * 1000L;
