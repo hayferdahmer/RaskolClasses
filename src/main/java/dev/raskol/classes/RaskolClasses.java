@@ -9,6 +9,7 @@ import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.gui.ClassMenu;
+import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.resource.ResourceService;
@@ -35,6 +36,7 @@ public final class RaskolClasses extends JavaPlugin {
     private AbilityRegistry abilities;
     private ActiveEffectManager effects;
     private HudService hud;
+    private BossBarService bossBars;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -58,7 +60,6 @@ public final class RaskolClasses extends JavaPlugin {
         classProvider.setResourceService(resources);
 
         this.cooldowns = new CooldownManager(new File(getDataFolder(), "cooldowns.yml"));
-        // Пакет 2: ready-нотификация — привязка к плагину и параметрам конфига
         this.cooldowns.attachScheduler(this,
                 raskolConfig.isReadyNotifyEnabled(),
                 raskolConfig.readyNotifyMinCooldownSeconds(),
@@ -70,6 +71,8 @@ public final class RaskolClasses extends JavaPlugin {
         abilities.loadFromConfig(raskolConfig);
 
         this.hud = new HudService(this);
+        // Пакет 5: босс-бар V2
+        this.bossBars = new BossBarService(this);
 
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
@@ -86,6 +89,7 @@ public final class RaskolClasses extends JavaPlugin {
 
         activeTasks.add(hud.start());
         activeTasks.add(resources.startTickTask(this));
+        activeTasks.add(bossBars.start());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
@@ -100,8 +104,10 @@ public final class RaskolClasses extends JavaPlugin {
     public void onDisable() {
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
+        if (bossBars != null) {
+            bossBars.shutdown();
+        }
         if (cooldowns != null) {
-            // Пакет 2: отмена всех отложенных ready-нотификаций перед сохранением
             cooldowns.cancelAllTasks();
             cooldowns.saveAll();
             cooldowns.clear();
@@ -129,44 +135,26 @@ public final class RaskolClasses extends JavaPlugin {
         raskolConfig.reload();
         abilities.loadFromConfig(raskolConfig);
         hud.applyConfig();
-        // Пакет 2: при релоаде перечитываем параметры ready-notify
+        // Пакет 2: ready-notify
         cooldowns.attachScheduler(this,
                 raskolConfig.isReadyNotifyEnabled(),
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
                 raskolConfig.readyNotifyMessage());
+        // Пакет 5: босс-бар V2
+        if (bossBars != null) {
+            bossBars.applyConfig();
+        }
         getLogger().info("Конфигурация перезагружена");
     }
 
-    public RaskolConfig getRaskolConfig() {
-        return raskolConfig;
-    }
-
-    public ClassProvider getClassProvider() {
-        return classProvider;
-    }
-
-    public SkillLevelProvider getSkillLevels() {
-        return skillLevels;
-    }
-
-    public ResourceService getResources() {
-        return resources;
-    }
-
-    public CooldownManager getCooldowns() {
-        return cooldowns;
-    }
-
-    public AbilityRegistry getAbilities() {
-        return abilities;
-    }
-
-    public ActiveEffectManager getEffects() {
-        return effects;
-    }
-
-    public HudService getHud() {
-        return hud;
-    }
+    public RaskolConfig getRaskolConfig() { return raskolConfig; }
+    public ClassProvider getClassProvider() { return classProvider; }
+    public SkillLevelProvider getSkillLevels() { return skillLevels; }
+    public ResourceService getResources() { return resources; }
+    public CooldownManager getCooldowns() { return cooldowns; }
+    public AbilityRegistry getAbilities() { return abilities; }
+    public ActiveEffectManager getEffects() { return effects; }
+    public HudService getHud() { return hud; }
+    public BossBarService getBossBars() { return bossBars; }
 }
