@@ -49,8 +49,30 @@ public final class ClassMenu implements InventoryHolder {
 
         // Символ класса в слоте 4 верхней строки
         ItemStack emblem = new ItemStack(Material.PAPER);
-        emblem.editMeta(meta -> meta.displayName(TextFx.gradient(
-                theme.symbol() + " " + pc.getDisplayName(), theme.primary(), theme.secondary())));
+        emblem.editMeta(meta -> {
+            meta.displayName(TextFx.gradient(
+                    theme.symbol() + " " + pc.getDisplayName(), theme.primary(), theme.secondary()));
+            // Пакет 1: видимость пассивок — строки «Пассив: {имя} — {описание}»
+            // в лоре карточки класса (по одному на пассивку, выключенные скрыты)
+            List<Component> emblemLore = new ArrayList<>();
+            for (String passiveId : RaskolConfig.passiveIds(pc)) {
+                if (!plugin.getRaskolConfig().passiveEnabled(pc, passiveId)) {
+                    continue;
+                }
+                String passiveName = plugin.getRaskolConfig()
+                        .passiveDisplayName(pc, passiveId, passiveId);
+                String passiveDesc = plugin.getRaskolConfig()
+                        .passiveDescription(pc, passiveId, "");
+                emblemLore.add(Component.text("Пассив: " + passiveName
+                                + (passiveDesc.isEmpty() ? "" : " — " + passiveDesc),
+                        NamedTextColor.GRAY));
+            }
+            if (!emblemLore.isEmpty()) {
+                emblemLore.add(0, separator());
+                emblemLore.add(separator());
+                meta.lore(emblemLore);
+            }
+        });
         inventory.setItem(SYMBOL_SLOT, emblem);
 
         int level = plugin.getSkillLevels().getLevel(player.getUniqueId(), pc.profileSkillName());
