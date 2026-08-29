@@ -9,6 +9,8 @@ import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.gui.ClassMenu;
+import dev.raskol.classes.hotbar.AbilityToken;
+import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.passive.PassiveListener;
@@ -37,6 +39,7 @@ public final class RaskolClasses extends JavaPlugin {
     private ActiveEffectManager effects;
     private HudService hud;
     private BossBarService bossBars;
+    private AbilityToken tokens;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -71,14 +74,16 @@ public final class RaskolClasses extends JavaPlugin {
         abilities.loadFromConfig(raskolConfig);
 
         this.hud = new HudService(this);
-        // Пакет 5: босс-бар V2
         this.bossBars = new BossBarService(this);
+        // Пакет 6: свитки способностей
+        this.tokens = new AbilityToken(this);
 
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
         pluginManager.registerEvents(cooldowns, this);
         pluginManager.registerEvents(new PassiveListener(this), this);
         pluginManager.registerEvents(new ClassMenu.ClickHandler(this), this);
+        pluginManager.registerEvents(new BindListener(this, tokens), this);
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
@@ -135,13 +140,11 @@ public final class RaskolClasses extends JavaPlugin {
         raskolConfig.reload();
         abilities.loadFromConfig(raskolConfig);
         hud.applyConfig();
-        // Пакет 2: ready-notify
         cooldowns.attachScheduler(this,
                 raskolConfig.isReadyNotifyEnabled(),
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
                 raskolConfig.readyNotifyMessage());
-        // Пакет 5: босс-бар V2
         if (bossBars != null) {
             bossBars.applyConfig();
         }
@@ -157,4 +160,5 @@ public final class RaskolClasses extends JavaPlugin {
     public ActiveEffectManager getEffects() { return effects; }
     public HudService getHud() { return hud; }
     public BossBarService getBossBars() { return bossBars; }
+    public AbilityToken getTokens() { return tokens; }
 }
