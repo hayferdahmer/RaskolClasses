@@ -97,5 +97,26 @@ RASKOL Proprietary License v1.0 — см. [LICENSE](LICENSE).
 | Бог войны | Сила II + Сопротивление I, 8 с (75/100/300) |
 
 ### ×1.5 XP профильным деревьям (операторское, 1.3.0)
+- /lp group class_warrior permission set auraskills.fighting.multiplier.50
+- /lp group class_hunter permission set auraskills.archery.multiplier.50
+- /lp group class_priest permission set auraskills.healing.multiplier.50
+- /lp group class_mage permission set auraskills.sorcery.multiplier.50
+- /lp group class_rogue permission set auraskills.agility.multiplier.50
+
+## Сборка и CI
+
+GitHub Actions: `.github/workflows/build.yml` — `mvn -B clean package`
++ **deprecation-гейт**: ран красный при любом javac-варнинге.
+Артефакт: `target/raskol-classes-<version>.jar`.
+
+## Архитектурные правила
+
+- V3: NMS и рефлексия во внутренние классы сервера запрещены;
+  рефлексия разрешена только для graceful-degrade к опциональным плагинам
+  (AuraSkills в `SkillLevelProvider`, RaskolCore в `RaskolCoreHook`),
+  изолированно в hook-классах.
+- Запрещённые конструкции (исторические галлюцинации): `Component.Builder`,
+  `Location#setPosition`, `EventSubscription#unregister`, `UserDataMutateEvent`,
+  `Player#isVanished`, `JavaPlugin#getDescription`, `Sound.valueOf`.
 
 Без кода, через LP-ноды (AuraSkills читает их нативно):
