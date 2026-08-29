@@ -40,7 +40,6 @@ public final class RaskolConfig {
         config.addDefault("hud.full-resource-aura", true);
         config.addDefault("hud.debug-skip", false);
 
-        // Пакет 5: босс-бар V2
         config.addDefault("hud.boss-bar.enabled", true);
         config.addDefault("hud.boss-bar.min-duration-seconds", 8);
         config.addDefault("hud.boss-bar.max-visible", 2);
@@ -59,24 +58,15 @@ public final class RaskolConfig {
         config.addDefault("class-accept.enabled", true);
         config.addDefault("class-accept.subtitle", "Твой путь избран");
 
-        config.addDefault("messages.no-class",
-                "Класс не выбран — посетите герольда");
-        config.addDefault("messages.no-class-cast",
-                "Класс не выбран — способности недоступны");
-        config.addDefault("messages.no-permission",
-                "Недостаточно прав");
-        config.addDefault("messages.unlock",
-                "«{ability}» откроется на уровне {required} (у вас {current})");
-        config.addDefault("messages.cooldown",
-                "«{ability}»: перезарядка ещё {seconds}с");
-        config.addDefault("messages.no-resource",
-                "Не хватает ресурса «{resource}»: нужно {cost}, у вас {value}");
-        config.addDefault("messages.activated",
-                "«{ability}» — активирована");
-        config.addDefault("messages.blink-unsafe",
-                "Скачок невозможен: нет безопасной точки");
-        config.addDefault("messages.cheap-shot-no-target",
-                "Нет цели в радиусе 4 блоков");
+        config.addDefault("messages.no-class", "Класс не выбран — посетите герольда");
+        config.addDefault("messages.no-class-cast", "Класс не выбран — способности недоступны");
+        config.addDefault("messages.no-permission", "Недостаточно прав");
+        config.addDefault("messages.unlock", "«{ability}» откроется на уровне {required} (у вас {current})");
+        config.addDefault("messages.cooldown", "«{ability}»: перезарядка ещё {seconds}с");
+        config.addDefault("messages.no-resource", "Не хватает ресурса «{resource}»: нужно {cost}, у вас {value}");
+        config.addDefault("messages.activated", "«{ability}» — активирована");
+        config.addDefault("messages.blink-unsafe", "Скачок невозможен: нет безопасной точки");
+        config.addDefault("messages.cheap-shot-no-target", "Нет цели в радиусе 4 блоков");
         config.addDefault("messages.tag.execute", "Казнь ×3!");
         config.addDefault("messages.tag.predator", "Хищник!");
         config.addDefault("messages.tag.poison", "Яд!");
@@ -105,6 +95,13 @@ public final class RaskolConfig {
                 }
             });
         }
+
+        // Пакет 5b: тиры регена мага (3/4/5/6 в секунду по порогам 25/50/75)
+        config.addDefault("classes.MAGE.regen-tier-1", 3.0);
+        config.addDefault("classes.MAGE.regen-tier-2", 4.0);
+        config.addDefault("classes.MAGE.regen-tier-3", 5.0);
+        config.addDefault("classes.MAGE.regen-tier-4", 6.0);
+
         config.addDefault("classes.HUNTER.abilities.cheetah_aspect.duration-speed", 8);
         config.addDefault("classes.HUNTER.abilities.cheetah_aspect.duration-no-fall", 10);
 
@@ -160,7 +157,6 @@ public final class RaskolConfig {
     public boolean hudFullResourceAura() { return plugin.getConfig().getBoolean("hud.full-resource-aura", true); }
     public boolean hudDebugSkip() { return plugin.getConfig().getBoolean("hud.debug-skip", false); }
 
-    // Пакет 5: босс-бар V2
     public boolean isBossBarEnabled() { return plugin.getConfig().getBoolean("hud.boss-bar.enabled", true); }
     public int bossBarMinDurationSeconds() { return plugin.getConfig().getInt("hud.boss-bar.min-duration-seconds", 8); }
     public int bossBarMaxVisible() { return plugin.getConfig().getInt("hud.boss-bar.max-visible", 2); }
@@ -183,6 +179,12 @@ public final class RaskolConfig {
         String v = plugin.getConfig().getString("messages." + key, null);
         return v != null ? v : fallback;
     }
+
+    // Пакет 5b: тиры регена мага (фолбэк на дефолты из DEFAULTS)
+    public double mageRegenTier1() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-1", 3.0); }
+    public double mageRegenTier2() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-2", 4.0); }
+    public double mageRegenTier3() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-3", 5.0); }
+    public double mageRegenTier4() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-4", 6.0); }
 
     public boolean passiveEnabled(PlayerClass pc, String id) {
         return plugin.getConfig().getBoolean(passivePath(pc, id, "enabled"), true);
@@ -280,7 +282,7 @@ public final class RaskolConfig {
             return switch (pc) {
                 case WARRIOR -> -5.0;
                 case HUNTER -> 5.0;
-                case PRIEST, MAGE -> 2.0;
+                case PRIEST, MAGE -> 2.0; // legacy: маг больше не использует эту ветку (пакет 5b)
                 case ROGUE -> 10.0;
             };
         }
