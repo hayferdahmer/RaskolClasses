@@ -27,14 +27,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Врождённые пассивки классов (§6 пакета 5). Все числа — в config
- * (classes.<CLASS>.passives.<id>.*). Фидбек прока — тег в actionbar.
- */
 public final class PassiveListener implements Listener {
 
     private final RaskolClasses plugin;
-    /** Внутренние КД проков: игрок → пассивка → время последнего СРАБОТАВШЕГО прока. */
     private final Map<UUID, Map<String, Long>> lastProc = new ConcurrentHashMap<>();
 
     public PassiveListener(RaskolClasses plugin) {
@@ -52,7 +47,6 @@ public final class PassiveListener implements Listener {
         }
     }
 
-    /** Благодать: всё получаемое жрецом лечение +15%. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
@@ -71,8 +65,6 @@ public final class PassiveListener implements Listener {
         lastProc.remove(event.getPlayer().getUniqueId());
     }
 
-    /* ------------------------- пассивки атакующего ------------------------- */
-
     private void applyAttackerPassives(Player attacker, EntityDamageByEntityEvent event) {
         PlayerClass pc = plugin.getClassProvider().getClassOf(attacker);
         if (pc == null) {
@@ -84,7 +76,6 @@ public final class PassiveListener implements Listener {
 
         switch (pc) {
             case WARRIOR -> {
-                // Казнь: 20% шанс ×3 урона по цели ≤20% HP; внутр. КД 6 с (при срабатывании)
                 if (config.passiveEnabled(pc, "execute_passive")
                         && event.getEntity() instanceof LivingEntity target
                         && target.getHealth() <= config.passiveDouble(pc, "execute_passive", "threshold", 0.20)
@@ -95,22 +86,20 @@ public final class PassiveListener implements Listener {
                             config.passiveInt(pc, "execute_passive", "cooldown-seconds", 6) * 1000L)) {
                     event.setDamage(event.getDamage()
                             * config.passiveDouble(pc, "execute_passive", "multiplier", 3.0));
-                    tag(attacker, "Казнь ×3!");
+                    tag(attacker, "tag.execute", "Казнь ×3!");
                 }
             }
             case HUNTER -> {
-                // Хищник: +20% урона по целям ≥80% HP
                 if (config.passiveEnabled(pc, "predator")
                         && event.getEntity() instanceof LivingEntity target
                         && target.getHealth() >= config.passiveDouble(pc, "predator", "threshold", 0.80)
                             * maxHealth(target)) {
                     event.setDamage(event.getDamage()
                             * config.passiveDouble(pc, "predator", "multiplier", 1.20));
-                    tag(attacker, "Хищник!");
+                    tag(attacker, "tag.predator", "Хищник!");
                 }
             }
             case ROGUE -> {
-                // Мастер ядов: ближний удар — 30% шанс Яд I на 2 с; внутр. КД 3 с
                 if (melee && config.passiveEnabled(pc, "poisoned_blades")
                         && event.getEntity() instanceof LivingEntity target
                         && ThreadLocalRandom.current().nextDouble()
@@ -119,23 +108,20 @@ public final class PassiveListener implements Listener {
                             config.passiveInt(pc, "poisoned_blades", "cooldown-seconds", 3) * 1000L)) {
                     target.addPotionEffect(new PotionEffect(PotionEffectType.POISON,
                             config.passiveInt(pc, "poisoned_blades", "duration-seconds", 2) * 20, 0));
-                    tag(attacker, "Яд!");
+                    tag(attacker, "tag.poison", "Яд!");
                 }
-                // Садизм: удар в спину +3 урона; внутр. КД 2 с
                 if (melee && config.passiveEnabled(pc, "sadism")
                         && event.getEntity() instanceof LivingEntity
                         && isBehind(attacker, event.getEntity())
                         && tryProc(id, "sadism",
                             config.passiveInt(pc, "sadism", "cooldown-seconds", 2) * 1000L)) {
                     event.setDamage(event.getDamage() + config.passiveDouble(pc, "sadism", "bonus", 3.0));
-                    tag(attacker, "В спину +3!");
+                    tag(attacker, "tag.backstab", "В спину +3!");
                 }
             }
             default -> { }
         }
     }
-
-    /* ------------------------- пассивки защищающегося ------------------------- */
 
     private void applyVictimPassives(Player victim, EntityDamageByEntityEvent event) {
         PlayerClass pc = plugin.getClassProvider().getClassOf(victim);
@@ -153,9 +139,6 @@ public final class PassiveListener implements Listener {
         }
     }
 
-    /* ------------------------- служебное ------------------------- */
-
-    /** true, если внутренний КД пассивки истёк; обновляет штамп срабатывания. */
     private boolean tryProc(UUID playerId, String passiveId, long cooldownMillis) {
         long now = System.currentTimeMillis();
         Map<String, Long> byPassive = lastProc.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>());
@@ -167,7 +150,6 @@ public final class PassiveListener implements Listener {
         return true;
     }
 
-    /** Удар в спину: жертва смотрит в сторону от атакующего (конус 45° сзади). */
     private boolean isBehind(Player attacker, Entity victim) {
         Vector toAttacker = attacker.getLocation().toVector()
                 .subtract(victim.getLocation().toVector()).normalize();
@@ -175,8 +157,11 @@ public final class PassiveListener implements Listener {
         return victimDir.dot(toAttacker) < -0.707;
     }
 
-    private void tag(Player player, String text) {
-        player.sendActionBar(Component.text(text, NamedTextColor.YELLOW));
+    /** Пакет 3: тег из messages.<key> с фолбэком на встроенный текст. */
+    private void tag(Player player, String key, String fallback) {
+        player.sendActionBar(Component.text(
+                plugin.getRaskolConfig().message(key, fallback),
+                NamedTextColor.YELLOW));
     }
 
     private Player resolveAttacker(Entity damager) {
