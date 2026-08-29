@@ -134,6 +134,16 @@ public final class AbilityRegistry {
         return null;
     }
 
+    /** Пакет 6: поиск способности по id внутри класса (проверка свитка). */
+    public AbilityDef findById(PlayerClass pc, String id) {
+        for (AbilityDef def : getAbilities(pc)) {
+            if (def.id().equals(id)) {
+                return def;
+            }
+        }
+        return null;
+    }
+
     public boolean tryCast(Player player, AbilityDef def) {
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         RaskolConfig cfg = plugin.getRaskolConfig();
