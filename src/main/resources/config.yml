@@ -180,19 +180,19 @@ classes:
     abilities:
       lesser_heal:
         name: "Малое исцеление"
-        description: "Лечит 4 HP"
+        description: "Лечит 4 HP. ПКМ — себя, ЛКМ по союзнику — цель"
         unlock: 1
         cost: 10
         cooldown: 3
       flash_heal:
         name: "Быстрое исцеление"
-        description: "Лечит 8 HP"
+        description: "Лечит 8 HP. ПКМ — себя, ЛКМ по союзнику — цель"
         unlock: 10
         cost: 20
         cooldown: 6
       pw_shield:
         name: "Слово силы: Щит"
-        description: "Поглощает 8 урона, 6 с"
+        description: "Поглощает 8 урона, 6 с. ПКМ — себя, ЛКМ по союзнику — цель"
         unlock: 25
         cost: 30
         cooldown: 30
