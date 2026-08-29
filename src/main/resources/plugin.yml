@@ -1,5 +1,5 @@
 name: RaskolClasses
-version: '1.3.1'
+version: '1.3.2'
 main: dev.raskol.classes.RaskolClasses
 # V2: нижняя планка форвард-совместимости — не повышать
 api-version: '1.21'
@@ -9,8 +9,9 @@ description: Активные способности пяти классов с�
 # Все зависимости опциональны:
 #  - LuckPerms: без него отключается определение класса (варнинг, без падения);
 #  - AuraSkills: уровни через отражение, без него анлоки сняты;
-#  - PlaceholderAPI: без него плейсхолдеры %raskolclasses_*% не регистрируются.
-softdepend: [LuckPerms, AuraSkills, PlaceholderAPI]
+#  - PlaceholderAPI: без него плейсхолдеры %raskolclasses_*% не регистрируются;
+#  - RaskolCore: 1.3.2 — читает класс из паспорта Core (LP — фолбэк).
+softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore]
 
 commands:
   rc:
