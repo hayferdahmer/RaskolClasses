@@ -21,11 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * /rc — информация о классе; /rc 1–5 — каст слота; /rc menu — GUI;
- * /rc hud — переключить HUD; /rc reload — перезагрузить конфиг (raskolclasses.admin);
- * /rc debug [player] — диагностика (raskolclasses.debug).
- */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
@@ -51,7 +46,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
         switch (args[0].toLowerCase()) {
             case "reload" -> {
-                // Право проверяем до любого действия
                 if (!sender.hasPermission("raskolclasses.admin")) {
                     sender.sendMessage(Component.text("Недостаточно прав", NamedTextColor.RED));
                     return true;
@@ -133,7 +127,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    /** Сводка: класс, ресурс, все способности со статусами. */
     private void sendInfo(Player player) {
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
@@ -153,17 +146,21 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100",
                 pc.getColor()));
 
+        // Микро-пакет: в строку активки добавляется « — {описание}»
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
+            String desc = plugin.getRaskolConfig().abilityDescription(pc, def.id(), "");
+            Component descComp = desc.isEmpty()
+                    ? Component.empty()
+                    : Component.text(" — " + desc, NamedTextColor.GRAY);
             player.sendMessage(Component.text("[" + def.slot() + "] ", NamedTextColor.DARK_GRAY)
                     .append(Component.text(def.displayName(), pc.getColor()))
-                    .append(Component.text(" — " + def.cost() + " рес. · "
+                    .append(descComp)
+                    .append(Component.text(" · " + def.cost() + " рес. · "
                                     + def.cooldownMillis() / 1000L + "с кд · "
                                     + statusOf(player, def, level),
                             NamedTextColor.GRAY)));
         }
 
-        // Пакет 1: видимость пассивок — та же строка, что в лоре ClassMenu,
-        // под списком активок. Имя пассивки — цветом класса.
         for (String passiveId : RaskolConfig.passiveIds(pc)) {
             if (!plugin.getRaskolConfig().passiveEnabled(pc, passiveId)) {
                 continue;
@@ -181,7 +178,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(Component.text("Каст: /rc 1–5 или /rc menu", NamedTextColor.DARK_GRAY));
     }
 
-    /** Диагностический вывод: версия, класс, ресурс, КД, эффекты, уровень, HUD. */
     private void sendDebug(CommandSender sender, Player target) {
         UUID uuid = target.getUniqueId();
         PlayerClass pc = plugin.getClassProvider().getClassOf(target);
@@ -209,7 +205,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         (int) plugin.getResources().getValue(uuid) + "/100",
                         pc.getColor())));
 
-        // Активные КД
         boolean hasCooldowns = false;
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
             long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
@@ -229,7 +224,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     NamedTextColor.GRAY));
         }
 
-        // Активные эффекты
         Map<EffectType, Long> effects = plugin.getEffects().getActiveEffects(uuid);
         if (effects.isEmpty()) {
             sender.sendMessage(Component.text("Активные эффекты: нет",
@@ -247,7 +241,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        // Пакет 1: блок пассивок с числами из конфига
         sender.sendMessage(Component.text("Пассивки:", NamedTextColor.AQUA));
         for (String passiveId : RaskolConfig.passiveIds(pc)) {
             boolean enabled = plugin.getRaskolConfig().passiveEnabled(pc, passiveId);
@@ -259,7 +252,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     NamedTextColor.GRAY));
         }
 
-        // Уровень профиль-скилла
         int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
         String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM
                 ? "AuraSkills не подключён"
@@ -268,14 +260,12 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 "Уровень " + pc.profileSkillName() + ": ", NamedTextColor.GRAY)
                 .append(Component.text(levelText, NamedTextColor.WHITE)));
 
-        // Флаг HUD
         boolean visible = plugin.getHud().isVisible(target);
         sender.sendMessage(Component.text("HUD: ", NamedTextColor.GRAY)
                 .append(Component.text(visible ? "включён" : "выключен",
                         visible ? NamedTextColor.GREEN : NamedTextColor.RED)));
     }
 
-    /** Пакет 1: числа пассивки из конфига для /rc debug (chance/multiplier/threshold/cooldown). */
     private String passiveNumbers(PlayerClass pc, String id) {
         RaskolConfig cfg = plugin.getRaskolConfig();
         return switch (id) {
