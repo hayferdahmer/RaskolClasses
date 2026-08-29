@@ -24,7 +24,7 @@ import java.util.UUID;
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
-            List.of("1", "2", "3", "4", "5", "menu", "hud", "reload", "debug");
+            List.of("1", "2", "3", "4", "5", "menu", "hud", "reload", "debug", "bind");
 
     private final RaskolClasses plugin;
 
@@ -102,6 +102,44 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 }
                 plugin.getAbilities().tryCast(player, def);
             }
+            case "bind" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(Component.text("Бинд доступен только игрокам",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+                if (pc == null) {
+                    player.sendMessage(Component.text(
+                            cfg.message("no-class", "Класс не выбран — посетите герольда"),
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                if (args.length < 2) {
+                    player.sendMessage(Component.text("Использование: /rc bind <1-5>",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                int bindSlot;
+                try {
+                    bindSlot = Integer.parseInt(args[1]);
+                } catch (NumberFormatException e) {
+                    player.sendMessage(Component.text("Использование: /rc bind <1-5>",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                AbilityDef bindDef = plugin.getAbilities().getBySlot(pc, bindSlot);
+                if (bindDef == null) {
+                    player.sendMessage(Component.text("У класса " + pc.getDisplayName()
+                            + " нет способности в слоте " + bindSlot, NamedTextColor.GRAY));
+                    return true;
+                }
+                player.getInventory().addItem(plugin.getTokens().create(bindDef, pc));
+                player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
+                        .append(Component.text(bindDef.displayName(), pc.getColor()))
+                        .append(Component.text(" — положи в хотбар и жми ПКМ",
+                                NamedTextColor.GRAY)));
+            }
             case "debug" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
                     sender.sendMessage(Component.text(
@@ -128,7 +166,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sendDebug(sender, target);
             }
             default -> sender.sendMessage(Component.text(
-                    "Использование: /rc [1-5|menu|hud|reload|debug]", NamedTextColor.GRAY));
+                    "Использование: /rc [1-5|menu|hud|reload|debug|bind]", NamedTextColor.GRAY));
         }
         return true;
     }
@@ -180,7 +218,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY)));
         }
 
-        player.sendMessage(Component.text("Каст: /rc 1–5 или /rc menu", NamedTextColor.DARK_GRAY));
+        player.sendMessage(Component.text("Каст: /rc 1–5 или /rc menu · Свиток: /rc bind <1-5>",
+                NamedTextColor.DARK_GRAY));
     }
 
     private void sendDebug(CommandSender sender, Player target) {
@@ -314,6 +353,12 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command,
                                       String alias, String[] args) {
+        if (args.length == 2 && "bind".equalsIgnoreCase(args[0])) {
+            String bindPrefix = args[1];
+            return List.of("1", "2", "3", "4", "5").stream()
+                    .filter(s -> s.startsWith(bindPrefix))
+                    .toList();
+        }
         if (args.length != 1) {
             return List.of();
         }
