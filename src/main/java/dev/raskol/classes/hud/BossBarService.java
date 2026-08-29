@@ -8,6 +8,7 @@ import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.util.TextFx;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
@@ -26,12 +27,17 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Пакет 5: босс-бар V2 для активных эффектов.
- * Фикс-микро: порог min-duration-seconds применяется к ПОЛНОЙ длительности
- * эффекта (решает, показывать ли бар), а бар живёт до конца эффекта.
+ * Порог min-duration-seconds применяется к ПОЛНОЙ длительности эффекта
+ * (решает, показывать ли бар), бар живёт до конца эффекта.
  * Визуал: символ класса + имя градиентом темы + секунды серым,
- * сегментированная шкала, цвет по классу.
+ * сегментированная шкала, цвет по классу. Заголовок сериализуется
+ * в legacy-строку с hex-кодами (Bukkit BossBar принимает String).
  */
 public final class BossBarService {
+
+    /** Градиент/цвета → legacy §-коды (включая §x-hex) для setTitle(String). */
+    private static final LegacyComponentSerializer LEGACY =
+            LegacyComponentSerializer.legacySection();
 
     private final RaskolClasses plugin;
     private final Map<UUID, Map<EffectType, BossBar>> bars = new ConcurrentHashMap<>();
@@ -145,12 +151,14 @@ public final class BossBarService {
                 }
 
                 if (expires == Long.MAX_VALUE) {
-                    bar.setTitle(buildTitle(theme, type, fmtInf, ""));
+                    bar.setTitle(LEGACY.serialize(
+                            buildTitle(theme, type, fmtInf, "")));
                     bar.setProgress(1.0);
                 } else {
                     long remaining = Math.max(0L, expires - now);
                     int sec = (int) Math.max(1L, (remaining + 999L) / 1000L);
-                    bar.setTitle(buildTitle(theme, type, fmt, String.valueOf(sec)));
+                    bar.setTitle(LEGACY.serialize(
+                            buildTitle(theme, type, fmt, String.valueOf(sec))));
                     double total = totalDurationMillis(pc, type);
                     bar.setProgress(total > 0
                             ? Math.max(0.0, Math.min(1.0, remaining / total))
@@ -189,7 +197,7 @@ public final class BossBarService {
     }
 
     /**
-     * Заголовок: «⚰ Скрытность — 12с» — символ цветом темы, имя градиентом,
+     * Заголовок: «☠ Скрытность — 12с» — символ цветом темы, имя градиентом,
      * хвост шаблона (из конфига) серым. {name} из шаблона вырезается
      * (имя уже отрисовано градиентом), {sec} подставляется.
      */
