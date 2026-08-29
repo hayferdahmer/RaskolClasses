@@ -19,7 +19,6 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-/** Активные способности мага (ресурс — мана). */
 public final class MageAbilities {
 
     private final RaskolClasses plugin;
@@ -28,21 +27,18 @@ public final class MageAbilities {
         this.plugin = plugin;
     }
 
-    /** Огненная стрела: малый файербол — без разрушения блоков, скорость ×1.5. */
     public boolean firebolt(Player player, AbilityDef def) {
         SmallFireball fireball = player.launchProjectile(SmallFireball.class);
-        fireball.setYield(0f);              // взрыв не ломает блоки
-        fireball.setIsIncendiary(false);    // и не поджигает мир
+        fireball.setYield(0f);
+        fireball.setIsIncendiary(false);
         fireball.setVelocity(fireball.getVelocity().multiply(1.5));
         return true;
     }
 
-    /** Скачок: телепорт на блок над точкой raytrace (8 блоков). */
     public boolean blink(Player player, AbilityDef def) {
         RayTraceResult hit = player.rayTraceBlocks(8);
         Location destination = player.getLocation().clone();
         if (hit == null || hit.getHitBlock() == null) {
-            // Преград нет: перенос на 8 блоков вперёд по лучу взгляда
             destination.add(player.getLocation().getDirection().multiply(8));
         } else {
             Block above = hit.getHitBlock().getRelative(BlockFace.UP);
@@ -50,15 +46,16 @@ public final class MageAbilities {
         }
 
         if (!isSafe(destination)) {
-            player.sendMessage(Component.text("Скачок невозможен: нет безопасной точки",
-                    NamedTextColor.RED));
-            return false; // ресурс и кулдаун вернутся
+            // Пакет 3: сообщение из messages.blink-unsafe
+            String text = plugin.getRaskolConfig().message("blink-unsafe",
+                    "Скачок невозможен: нет безопасной точки");
+            player.sendMessage(Component.text(text, NamedTextColor.RED));
+            return false;
         }
         player.teleport(destination);
         return true;
     }
 
-    /** Кольцо льда: живым в радиусе 5 — Slowness II (duration, дефолт 4 с) и 3 урона. */
     public boolean frostNova(Player player, AbilityDef def) {
         int ticks = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.MAGE, "frost_nova", 4) * 20;
@@ -74,7 +71,6 @@ public final class MageAbilities {
         return affected;
     }
 
-    /** Чародейский взрыв: в радиусе 6 — 8 урона и подброс вверх 0.6. */
     public boolean arcaneBurst(Player player, AbilityDef def) {
         boolean affected = false;
         for (Entity entity : player.getNearbyEntities(6, 6, 6)) {
@@ -88,7 +84,6 @@ public final class MageAbilities {
         return affected;
     }
 
-    /** Точка безопасна: проходима в рост, не ниже minHeight, под ногами — опора. */
     private boolean isSafe(Location location) {
         World world = location.getWorld();
         if (world == null) {
