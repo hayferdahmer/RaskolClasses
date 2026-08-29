@@ -34,10 +34,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        RaskolConfig cfg = plugin.getRaskolConfig();
         if (args.length == 0) {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage(Component.text("Информация о классе доступна только игрокам",
-                        NamedTextColor.GRAY));
+                sender.sendMessage(Component.text(
+                        "Информация о классе доступна только игрокам", NamedTextColor.GRAY));
                 return true;
             }
             sendInfo(player);
@@ -47,7 +48,9 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase()) {
             case "reload" -> {
                 if (!sender.hasPermission("raskolclasses.admin")) {
-                    sender.sendMessage(Component.text("Недостаточно прав", NamedTextColor.RED));
+                    sender.sendMessage(Component.text(
+                            cfg.message("no-permission", "Недостаточно прав"),
+                            NamedTextColor.RED));
                     return true;
                 }
                 plugin.reloadPlugin();
@@ -70,7 +73,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 }
                 PlayerClass pc = plugin.getClassProvider().getClassOf(player);
                 if (pc == null) {
-                    player.sendMessage(Component.text("Класс не выбран — посетите герольда",
+                    player.sendMessage(Component.text(
+                            cfg.message("no-class", "Класс не выбран — посетите герольда"),
                             NamedTextColor.GRAY));
                     return true;
                 }
@@ -84,7 +88,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 }
                 PlayerClass pc = plugin.getClassProvider().getClassOf(player);
                 if (pc == null) {
-                    player.sendMessage(Component.text("Класс не выбран — посетите герольда",
+                    player.sendMessage(Component.text(
+                            cfg.message("no-class", "Класс не выбран — посетите герольда"),
                             NamedTextColor.GRAY));
                     return true;
                 }
@@ -99,7 +104,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             }
             case "debug" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
-                    sender.sendMessage(Component.text("Недостаточно прав",
+                    sender.sendMessage(Component.text(
+                            cfg.message("no-permission", "Недостаточно прав"),
                             NamedTextColor.RED));
                     return true;
                 }
@@ -128,9 +134,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendInfo(Player player) {
+        RaskolConfig cfg = plugin.getRaskolConfig();
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
-            player.sendMessage(Component.text("Класс не выбран. Выберите класс у герольда",
+            player.sendMessage(Component.text(
+                    cfg.message("no-class", "Класс не выбран — посетите герольда"),
                     NamedTextColor.GRAY));
             return;
         }
@@ -146,9 +154,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100",
                 pc.getColor()));
 
-        // Микро-пакет: в строку активки добавляется « — {описание}»
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
-            String desc = plugin.getRaskolConfig().abilityDescription(pc, def.id(), "");
+            String desc = cfg.abilityDescription(pc, def.id(), "");
             Component descComp = desc.isEmpty()
                     ? Component.empty()
                     : Component.text(" — " + desc, NamedTextColor.GRAY);
@@ -162,13 +169,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         }
 
         for (String passiveId : RaskolConfig.passiveIds(pc)) {
-            if (!plugin.getRaskolConfig().passiveEnabled(pc, passiveId)) {
+            if (!cfg.passiveEnabled(pc, passiveId)) {
                 continue;
             }
-            String passiveName = plugin.getRaskolConfig()
-                    .passiveDisplayName(pc, passiveId, passiveId);
-            String passiveDesc = plugin.getRaskolConfig()
-                    .passiveDescription(pc, passiveId, "");
+            String passiveName = cfg.passiveDisplayName(pc, passiveId, passiveId);
+            String passiveDesc = cfg.passiveDescription(pc, passiveId, "");
             player.sendMessage(Component.text("Пассив: ", NamedTextColor.DARK_GRAY)
                     .append(Component.text(passiveName, pc.getColor()))
                     .append(Component.text(passiveDesc.isEmpty() ? "" : " — " + passiveDesc,
@@ -180,6 +185,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private void sendDebug(CommandSender sender, Player target) {
         UUID uuid = target.getUniqueId();
+        RaskolConfig cfg = plugin.getRaskolConfig();
         PlayerClass pc = plugin.getClassProvider().getClassOf(target);
 
         sender.sendMessage(Component.text("--- RaskolClasses Debug ---",
@@ -243,9 +249,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
         sender.sendMessage(Component.text("Пассивки:", NamedTextColor.AQUA));
         for (String passiveId : RaskolConfig.passiveIds(pc)) {
-            boolean enabled = plugin.getRaskolConfig().passiveEnabled(pc, passiveId);
-            String passiveName = plugin.getRaskolConfig()
-                    .passiveDisplayName(pc, passiveId, passiveId);
+            boolean enabled = cfg.passiveEnabled(pc, passiveId);
+            String passiveName = cfg.passiveDisplayName(pc, passiveId, passiveId);
             sender.sendMessage(Component.text("  • " + passiveName
                             + (enabled ? "" : " [выкл]") + " — "
                             + passiveNumbers(pc, passiveId),
