@@ -131,23 +131,32 @@ public final class ClassMenu implements InventoryHolder {
 
     private static Material iconOf(String abilityId) {
         return switch (abilityId) {
-            case "shield_wall" -> Material.SHIELD;
+            // Воин (актуальные id 1.2)
+            case "steel_skin" -> Material.SHIELD;
             case "shield_bash" -> Material.IRON_SWORD;
+            case "blood_fury" -> Material.NETHERITE_SWORD;
+            case "war_god" -> Material.GOLDEN_HELMET;
+            // Воин (legacy-alias, на случай старых конфигов/сохранённых КД)
+            case "shield_wall" -> Material.SHIELD;
             case "execute" -> Material.NETHERITE_AXE;
             case "avatar_of_war" -> Material.GOLDEN_HELMET;
+            // Охотник
             case "aimed_shot" -> Material.BOW;
             case "cheetah_aspect" -> Material.LEATHER_BOOTS;
             case "multi_shot" -> Material.ARROW;
             case "barrage" -> Material.SPECTRAL_ARROW;
+            // Жрец
             case "lesser_heal" -> Material.APPLE;
             case "flash_heal" -> Material.GOLDEN_APPLE;
             case "pw_shield" -> Material.TOTEM_OF_UNDYING;
             case "circle_of_prayer" -> Material.BOOK;
             case "smite" -> Material.NETHER_STAR;
+            // Маг
             case "firebolt" -> Material.FIRE_CHARGE;
             case "blink" -> Material.ENDER_PEARL;
             case "frost_nova" -> Material.BLUE_ICE;
             case "arcane_burst" -> Material.END_CRYSTAL;
+            // Разбойник
             case "stealth" -> Material.BLACK_DYE;
             case "fan_of_knives" -> Material.IRON_NUGGET;
             case "cheap_shot" -> Material.SPIDER_EYE;
