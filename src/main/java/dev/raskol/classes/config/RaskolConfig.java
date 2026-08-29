@@ -11,6 +11,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -99,6 +100,28 @@ public final class RaskolConfig {
         config.addDefault("classes.ROGUE.passives.sadism.bonus", 3.0);
         config.addDefault("classes.ROGUE.passives.sadism.cooldown-seconds", 2);
 
+        // Пакет 1: видимость пассивок — display-name/description для меню и /rc.
+        // addDefault + copyDefaults: у админов со старым config.yml ключи
+        // допишутся сами, существующие правки не затираются.
+        config.addDefault("classes.WARRIOR.passives.execute_passive.display-name", "Казнь");
+        config.addDefault("classes.WARRIOR.passives.execute_passive.description",
+                "20% шанс — ×3 урона по цели с ≤20% HP");
+        config.addDefault("classes.HUNTER.passives.predator.display-name", "Хищник");
+        config.addDefault("classes.HUNTER.passives.predator.description",
+                "×1.2 урона, пока HP ≥ 80%");
+        config.addDefault("classes.PRIEST.passives.grace.display-name", "Благодать");
+        config.addDefault("classes.PRIEST.passives.grace.description",
+                "×1.15 к исходящему лечению");
+        config.addDefault("classes.MAGE.passives.mana_soaked.display-name", "Пропитанный маной");
+        config.addDefault("classes.MAGE.passives.mana_soaked.description",
+                "мана ≥ 50 → −15% входящего урона");
+        config.addDefault("classes.ROGUE.passives.poisoned_blades.display-name", "Отравленные клинки");
+        config.addDefault("classes.ROGUE.passives.poisoned_blades.description",
+                "30% шанс — Яд I на 2 с");
+        config.addDefault("classes.ROGUE.passives.sadism.display-name", "Садизм");
+        config.addDefault("classes.ROGUE.passives.sadism.description",
+                "+3 урона при атаке со спины");
+
         config.options().copyDefaults(true);
         plugin.saveConfig();
         rebuildThemes();
@@ -156,6 +179,27 @@ public final class RaskolConfig {
 
     public int passiveInt(PlayerClass pc, String id, String key, int fallback) {
         return plugin.getConfig().getInt(passivePath(pc, id, key), fallback);
+    }
+
+    /** Пакет 1: отображаемое имя пассивки для ClassMenu и /rc (фолбэк = id). */
+    public String passiveDisplayName(PlayerClass pc, String id, String fallback) {
+        return plugin.getConfig().getString(passivePath(pc, id, "display-name"), fallback);
+    }
+
+    /** Пакет 1: описание пассивки для ClassMenu и /rc (фолбэк = ""). */
+    public String passiveDescription(PlayerClass pc, String id, String fallback) {
+        return plugin.getConfig().getString(passivePath(pc, id, "description"), fallback);
+    }
+
+    /** Пакет 1: id пассивок класса в порядке конфига. */
+    public static List<String> passiveIds(PlayerClass pc) {
+        return switch (pc) {
+            case WARRIOR -> List.of("execute_passive");
+            case HUNTER -> List.of("predator");
+            case PRIEST -> List.of("grace");
+            case MAGE -> List.of("mana_soaked");
+            case ROGUE -> List.of("poisoned_blades", "sadism");
+        };
     }
 
     private String passivePath(PlayerClass pc, String id, String key) {
