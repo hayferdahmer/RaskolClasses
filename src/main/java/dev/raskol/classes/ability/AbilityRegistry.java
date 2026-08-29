@@ -136,9 +136,10 @@ public final class AbilityRegistry {
 
     public boolean tryCast(Player player, AbilityDef def) {
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        RaskolConfig cfg = plugin.getRaskolConfig();
         if (pc == null) {
-            player.sendMessage(Component.text("Класс не выбран — способности недоступны",
-                    NamedTextColor.GRAY));
+            player.sendMessage(Component.text(cfg.message("no-class-cast",
+                    "Класс не выбран — способности недоступны"), NamedTextColor.GRAY));
             return false;
         }
         Caster caster = casters.get(def.id());
@@ -148,7 +149,7 @@ public final class AbilityRegistry {
         }
         UUID id = player.getUniqueId();
 
-        long window = plugin.getRaskolConfig().castClickCooldownMillis();
+        long window = cfg.castClickCooldownMillis();
         long now = System.currentTimeMillis();
         Map<String, Long> attempts = lastAttempts.computeIfAbsent(id, k -> new ConcurrentHashMap<>());
         Long previous = attempts.get(def.id());
@@ -159,26 +160,35 @@ public final class AbilityRegistry {
 
         int level = plugin.getSkillLevels().getLevel(id, pc.profileSkillName());
         if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < def.unlockLevel()) {
-            player.sendMessage(message(pc, "«" + def.displayName() + "» откроется на уровне "
-                    + def.unlockLevel() + " (у вас " + level + ")"));
+            String text = cfg.message("unlock",
+                            "«{ability}» откроется на уровне {required} (у вас {current})")
+                    .replace("{ability}", def.displayName())
+                    .replace("{required}", String.valueOf(def.unlockLevel()))
+                    .replace("{current}", String.valueOf(level));
+            player.sendMessage(message(pc, text));
             return false;
         }
 
         long remaining = plugin.getCooldowns().getRemainingMillis(id, def.id());
         if (remaining > 0L) {
-            player.sendMessage(message(pc, "«" + def.displayName() + "»: перезарядка ещё "
-                    + (remaining / 1000L + 1L) + "с"));
+            String text = cfg.message("cooldown",
+                            "«{ability}»: перезарядка ещё {seconds}с")
+                    .replace("{ability}", def.displayName())
+                    .replace("{seconds}", String.valueOf(remaining / 1000L + 1L));
+            player.sendMessage(message(pc, text));
             return false;
         }
 
         if (!plugin.getResources().consume(id, def.cost())) {
-            player.sendMessage(message(pc, "Не хватает ресурса «" + pc.getResourceName()
-                    + "»: нужно " + def.cost() + ", у вас "
-                    + (int) plugin.getResources().getValue(id)));
+            String text = cfg.message("no-resource",
+                            "Не хватает ресурса «{resource}»: нужно {cost}, у вас {value}")
+                    .replace("{resource}", pc.getResourceName())
+                    .replace("{cost}", String.valueOf(def.cost()))
+                    .replace("{value}", String.valueOf((int) plugin.getResources().getValue(id)));
+            player.sendMessage(message(pc, text));
             return false;
         }
 
-        // Пакет 2: передаём displayName для ready-нотификации
         plugin.getCooldowns().start(id, def.id(), def.cooldownMillis(), def.displayName());
         if (!caster.cast(player, def)) {
             plugin.getResources().refund(id, def.cost());
@@ -186,12 +196,14 @@ public final class AbilityRegistry {
             return false;
         }
 
-        RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
+        RaskolConfig.ClassTheme theme = cfg.themeOf(pc);
         player.getWorld().spawnParticle(theme.particle(),
                 player.getLocation().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.02);
         player.playSound(player.getLocation(), theme.sound(), 0.6f, 1.2f);
 
-        player.sendMessage(message(pc, "«" + def.displayName() + "» — активирована"));
+        String text = cfg.message("activated", "«{ability}» — активирована")
+                .replace("{ability}", def.displayName());
+        player.sendMessage(message(pc, text));
         return true;
     }
 
