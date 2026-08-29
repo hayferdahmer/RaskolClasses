@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.gui.ClassMenu;
 import net.kyori.adventure.text.Component;
@@ -160,6 +161,23 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                                     + statusOf(player, def, level),
                             NamedTextColor.GRAY)));
         }
+
+        // Пакет 1: видимость пассивок — та же строка, что в лоре ClassMenu,
+        // под списком активок. Имя пассивки — цветом класса.
+        for (String passiveId : RaskolConfig.passiveIds(pc)) {
+            if (!plugin.getRaskolConfig().passiveEnabled(pc, passiveId)) {
+                continue;
+            }
+            String passiveName = plugin.getRaskolConfig()
+                    .passiveDisplayName(pc, passiveId, passiveId);
+            String passiveDesc = plugin.getRaskolConfig()
+                    .passiveDescription(pc, passiveId, "");
+            player.sendMessage(Component.text("Пассив: ", NamedTextColor.DARK_GRAY)
+                    .append(Component.text(passiveName, pc.getColor()))
+                    .append(Component.text(passiveDesc.isEmpty() ? "" : " — " + passiveDesc,
+                            NamedTextColor.GRAY)));
+        }
+
         player.sendMessage(Component.text("Каст: /rc 1–5 или /rc menu", NamedTextColor.DARK_GRAY));
     }
 
@@ -229,6 +247,18 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             }
         }
 
+        // Пакет 1: блок пассивок с числами из конфига
+        sender.sendMessage(Component.text("Пассивки:", NamedTextColor.AQUA));
+        for (String passiveId : RaskolConfig.passiveIds(pc)) {
+            boolean enabled = plugin.getRaskolConfig().passiveEnabled(pc, passiveId);
+            String passiveName = plugin.getRaskolConfig()
+                    .passiveDisplayName(pc, passiveId, passiveId);
+            sender.sendMessage(Component.text("  • " + passiveName
+                            + (enabled ? "" : " [выкл]") + " — "
+                            + passiveNumbers(pc, passiveId),
+                    NamedTextColor.GRAY));
+        }
+
         // Уровень профиль-скилла
         int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
         String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM
@@ -243,6 +273,32 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Component.text("HUD: ", NamedTextColor.GRAY)
                 .append(Component.text(visible ? "включён" : "выключен",
                         visible ? NamedTextColor.GREEN : NamedTextColor.RED)));
+    }
+
+    /** Пакет 1: числа пассивки из конфига для /rc debug (chance/multiplier/threshold/cooldown). */
+    private String passiveNumbers(PlayerClass pc, String id) {
+        RaskolConfig cfg = plugin.getRaskolConfig();
+        return switch (id) {
+            case "execute_passive" -> "chance " + percent(cfg.passiveDouble(pc, id, "chance", 0.20))
+                    + " · ×" + cfg.passiveDouble(pc, id, "multiplier", 3.0)
+                    + " · threshold " + percent(cfg.passiveDouble(pc, id, "threshold", 0.20))
+                    + " · КД " + cfg.passiveInt(pc, id, "cooldown-seconds", 6) + "с";
+            case "predator" -> "threshold " + percent(cfg.passiveDouble(pc, id, "threshold", 0.80))
+                    + " · ×" + cfg.passiveDouble(pc, id, "multiplier", 1.20);
+            case "grace" -> "×" + cfg.passiveDouble(pc, id, "multiplier", 1.15);
+            case "mana_soaked" -> "threshold " + (int) cfg.passiveDouble(pc, id, "threshold", 50.0)
+                    + " маны · −" + percent(cfg.passiveDouble(pc, id, "reduction", 0.15));
+            case "poisoned_blades" -> "chance " + percent(cfg.passiveDouble(pc, id, "chance", 0.30))
+                    + " · " + cfg.passiveInt(pc, id, "duration-seconds", 2) + "с"
+                    + " · КД " + cfg.passiveInt(pc, id, "cooldown-seconds", 3) + "с";
+            case "sadism" -> "+" + cfg.passiveDouble(pc, id, "bonus", 3.0)
+                    + " · КД " + cfg.passiveInt(pc, id, "cooldown-seconds", 2) + "с";
+            default -> id;
+        };
+    }
+
+    private static String percent(double v) {
+        return (int) Math.round(v * 100.0) + "%";
     }
 
     private String statusOf(Player player, AbilityDef def, int level) {
