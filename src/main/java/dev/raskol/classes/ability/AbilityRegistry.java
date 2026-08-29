@@ -7,6 +7,7 @@ import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.config.RaskolConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
 import java.util.EnumMap;
@@ -23,9 +24,16 @@ public final class AbilityRegistry {
         boolean cast(Player player, AbilityDef def);
     }
 
+    /** 1.3.1: каст с явной целью (ЛКМ со свитком). */
+    @FunctionalInterface
+    public interface TargetedCaster {
+        boolean cast(Player caster, LivingEntity target, AbilityDef def);
+    }
+
     private final RaskolClasses plugin;
     private final Map<PlayerClass, List<AbilityDef>> byClass = new EnumMap<>(PlayerClass.class);
     private final Map<String, Caster> casters = new HashMap<>();
+    private final Map<String, TargetedCaster> targetedCasters = new HashMap<>();
     private final Map<UUID, Map<String, Long>> lastAttempts = new ConcurrentHashMap<>();
 
     private static final Map<PlayerClass, List<AbilityDef>> DEFAULTS;
@@ -87,9 +95,14 @@ public final class AbilityRegistry {
         casters.put("multi_shot", hunter::multiShot);
         casters.put("barrage", hunter::barrage);
 
-        casters.put("lesser_heal", priest::lesserHeal);
-        casters.put("flash_heal", priest::flashHeal);
-        casters.put("pw_shield", priest::powerWordShield);
+        // 1.3.1: точечные способности жреца. ПКМ//rc — в себя (лямбда),
+        // ЛКМ со свитком — в явную цель (targetedCasters).
+        casters.put("lesser_heal", (p, d) -> priest.lesserHeal(p, p, d));
+        casters.put("flash_heal", (p, d) -> priest.flashHeal(p, p, d));
+        casters.put("pw_shield", (p, d) -> priest.powerWordShield(p, p, d));
+        targetedCasters.put("lesser_heal", priest::lesserHeal);
+        targetedCasters.put("flash_heal", priest::flashHeal);
+        targetedCasters.put("pw_shield", priest::powerWordShield);
         casters.put("circle_of_prayer", priest::circleOfPrayer);
         casters.put("smite", priest::smite);
 
@@ -144,20 +157,35 @@ public final class AbilityRegistry {
         return null;
     }
 
+    /** 1.3.1: способность поддерживает явный таргетинг (ЛКМ со свитком). */
+    public boolean isTargeted(String abilityId) {
+        return targetedCasters.containsKey(abilityId);
+    }
+
     public boolean tryCast(Player player, AbilityDef def) {
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        return castOn(player, player, def, false);
+    }
+
+    /** 1.3.1: каст в явную цель (ЛКМ со свитком по игроку). */
+    public boolean tryCastTargeted(Player caster, LivingEntity target, AbilityDef def) {
+        return castOn(caster, target, def, true);
+    }
+
+    private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
+        PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
         RaskolConfig cfg = plugin.getRaskolConfig();
         if (pc == null) {
-            player.sendMessage(Component.text(cfg.message("no-class-cast",
+            caster.sendMessage(Component.text(cfg.message("no-class-cast",
                     "Класс не выбран — способности недоступны"), NamedTextColor.GRAY));
             return false;
         }
-        Caster caster = casters.get(def.id());
-        if (caster == null) {
+        Caster self = targeted ? null : casters.get(def.id());
+        TargetedCaster tcast = targeted ? targetedCasters.get(def.id()) : null;
+        if (self == null && tcast == null) {
             plugin.getLogger().warning("Способность " + def.id() + " не имеет реализации");
             return false;
         }
-        UUID id = player.getUniqueId();
+        UUID id = caster.getUniqueId();
 
         long window = cfg.castClickCooldownMillis();
         long now = System.currentTimeMillis();
@@ -175,7 +203,7 @@ public final class AbilityRegistry {
                     .replace("{ability}", def.displayName())
                     .replace("{required}", String.valueOf(def.unlockLevel()))
                     .replace("{current}", String.valueOf(level));
-            player.sendMessage(message(pc, text));
+            caster.sendMessage(message(pc, text));
             return false;
         }
 
@@ -185,7 +213,7 @@ public final class AbilityRegistry {
                             "«{ability}»: перезарядка ещё {seconds}с")
                     .replace("{ability}", def.displayName())
                     .replace("{seconds}", String.valueOf(remaining / 1000L + 1L));
-            player.sendMessage(message(pc, text));
+            caster.sendMessage(message(pc, text));
             return false;
         }
 
@@ -195,25 +223,26 @@ public final class AbilityRegistry {
                     .replace("{resource}", pc.getResourceName())
                     .replace("{cost}", String.valueOf(def.cost()))
                     .replace("{value}", String.valueOf((int) plugin.getResources().getValue(id)));
-            player.sendMessage(message(pc, text));
+            caster.sendMessage(message(pc, text));
             return false;
         }
 
         plugin.getCooldowns().start(id, def.id(), def.cooldownMillis(), def.displayName());
-        if (!caster.cast(player, def)) {
+        boolean ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
+        if (!ok) {
             plugin.getResources().refund(id, def.cost());
             plugin.getCooldowns().cancel(id, def.id());
             return false;
         }
 
         RaskolConfig.ClassTheme theme = cfg.themeOf(pc);
-        player.getWorld().spawnParticle(theme.particle(),
-                player.getLocation().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.02);
-        player.playSound(player.getLocation(), theme.sound(), 0.6f, 1.2f);
+        caster.getWorld().spawnParticle(theme.particle(),
+                caster.getLocation().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.02);
+        caster.playSound(caster.getLocation(), theme.sound(), 0.6f, 1.2f);
 
         String text = cfg.message("activated", "«{ability}» — активирована")
                 .replace("{ability}", def.displayName());
-        player.sendMessage(message(pc, text));
+        caster.sendMessage(message(pc, text));
         return true;
     }
 
