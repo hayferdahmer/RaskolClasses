@@ -40,12 +40,13 @@ public final class RaskolConfig {
         config.addDefault("hud.full-resource-aura", true);
         config.addDefault("hud.debug-skip", false);
 
-        // Пакет 6: хотбар-бинд (свитки способностей)
         config.addDefault("hotbar-bind.enabled", true);
         config.addDefault("hotbar-bind.material", "AMETHYST_SHARD");
 
-        // 1.3.1: таргет-касты жреца (ЛКМ по игроку со свитком)
         config.addDefault("target-cast.enabled", true);
+
+        // 1.3.2: Core-адаптер (читать класс из RaskolCore; LP — фолбэк)
+        config.addDefault("hooks.raskolcore.enabled", true);
 
         config.addDefault("hud.boss-bar.enabled", true);
         config.addDefault("hud.boss-bar.min-duration-seconds", 8);
@@ -78,7 +79,6 @@ public final class RaskolConfig {
         config.addDefault("messages.tag.predator", "Хищник!");
         config.addDefault("messages.tag.poison", "Яд!");
         config.addDefault("messages.tag.backstab", "В спину +3!");
-        // 1.3.1: фидбек таргет-кастов
         config.addDefault("messages.healed-target", "✚ {target}: +{amount} HP");
         config.addDefault("messages.healed-you", "{caster} исцелил тебя");
         config.addDefault("messages.shield-target", "Щит на: {target}");
@@ -109,7 +109,6 @@ public final class RaskolConfig {
             });
         }
 
-        // Пакет 5b: тиры регена мага
         config.addDefault("classes.MAGE.regen-tier-1", 3.0);
         config.addDefault("classes.MAGE.regen-tier-2", 4.0);
         config.addDefault("classes.MAGE.regen-tier-3", 5.0);
@@ -170,12 +169,13 @@ public final class RaskolConfig {
     public boolean hudFullResourceAura() { return plugin.getConfig().getBoolean("hud.full-resource-aura", true); }
     public boolean hudDebugSkip() { return plugin.getConfig().getBoolean("hud.debug-skip", false); }
 
-    // Пакет 6: хотбар-бинд
     public boolean isBindEnabled() { return plugin.getConfig().getBoolean("hotbar-bind.enabled", true); }
     public String bindMaterial() { return plugin.getConfig().getString("hotbar-bind.material", "AMETHYST_SHARD"); }
 
-    // 1.3.1: таргет-касты
     public boolean isTargetCastEnabled() { return plugin.getConfig().getBoolean("target-cast.enabled", true); }
+
+    // 1.3.2: Core-адаптер
+    public boolean raskolCoreEnabled() { return plugin.getConfig().getBoolean("hooks.raskolcore.enabled", true); }
 
     public boolean isBossBarEnabled() { return plugin.getConfig().getBoolean("hud.boss-bar.enabled", true); }
     public int bossBarMinDurationSeconds() { return plugin.getConfig().getInt("hud.boss-bar.min-duration-seconds", 8); }
@@ -200,7 +200,6 @@ public final class RaskolConfig {
         return v != null ? v : fallback;
     }
 
-    // Пакет 5b: тиры регена мага
     public double mageRegenTier1() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-1", 3.0); }
     public double mageRegenTier2() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-2", 4.0); }
     public double mageRegenTier3() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-3", 5.0); }
@@ -302,7 +301,7 @@ public final class RaskolConfig {
             return switch (pc) {
                 case WARRIOR -> -5.0;
                 case HUNTER -> 5.0;
-                case PRIEST, MAGE -> 2.0; // legacy: маг больше не использует эту ветку (пакет 5b)
+                case PRIEST, MAGE -> 2.0;
                 case ROGUE -> 10.0;
             };
         }
