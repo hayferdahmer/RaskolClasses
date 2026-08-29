@@ -39,6 +39,15 @@ public final class RaskolConfig {
         config.addDefault("hud.skip-spectator", true);
         config.addDefault("hud.full-resource-aura", true);
         config.addDefault("hud.debug-skip", false);
+
+        // Пакет 5: босс-бар V2
+        config.addDefault("hud.boss-bar.enabled", true);
+        config.addDefault("hud.boss-bar.min-duration-seconds", 8);
+        config.addDefault("hud.boss-bar.max-visible", 2);
+        config.addDefault("hud.boss-bar.tick-period", 5);
+        config.addDefault("hud.boss-bar.format", "{name} — {sec}с");
+        config.addDefault("hud.boss-bar.format-infinite", "{name}");
+
         config.addDefault("performance.purge-interval-ticks", 1200);
         config.addDefault("performance.cast-click-cooldown-ms", 150L);
 
@@ -50,7 +59,6 @@ public final class RaskolConfig {
         config.addDefault("class-accept.enabled", true);
         config.addDefault("class-accept.subtitle", "Твой путь избран");
 
-        // Пакет 3: все user-facing сообщения в messages.* с плейсхолдерами
         config.addDefault("messages.no-class",
                 "Класс не выбран — посетите герольда");
         config.addDefault("messages.no-class-cast",
@@ -151,6 +159,15 @@ public final class RaskolConfig {
     public boolean hudSkipSpectator() { return plugin.getConfig().getBoolean("hud.skip-spectator", true); }
     public boolean hudFullResourceAura() { return plugin.getConfig().getBoolean("hud.full-resource-aura", true); }
     public boolean hudDebugSkip() { return plugin.getConfig().getBoolean("hud.debug-skip", false); }
+
+    // Пакет 5: босс-бар V2
+    public boolean isBossBarEnabled() { return plugin.getConfig().getBoolean("hud.boss-bar.enabled", true); }
+    public int bossBarMinDurationSeconds() { return plugin.getConfig().getInt("hud.boss-bar.min-duration-seconds", 8); }
+    public int bossBarMaxVisible() { return plugin.getConfig().getInt("hud.boss-bar.max-visible", 2); }
+    public int bossBarTickPeriod() { return plugin.getConfig().getInt("hud.boss-bar.tick-period", 5); }
+    public String bossBarFormat() { return plugin.getConfig().getString("hud.boss-bar.format", "{name} — {sec}с"); }
+    public String bossBarFormatInfinite() { return plugin.getConfig().getString("hud.boss-bar.format-infinite", "{name}"); }
+
     public int purgeIntervalTicks() { return plugin.getConfig().getInt("performance.purge-interval-ticks", 1200); }
     public long castClickCooldownMillis() { return plugin.getConfig().getLong("performance.cast-click-cooldown-ms", 150L); }
 
@@ -162,8 +179,6 @@ public final class RaskolConfig {
     public boolean isClassAcceptEnabled() { return plugin.getConfig().getBoolean("class-accept.enabled", true); }
     public String classAcceptSubtitle() { return plugin.getConfig().getString("class-accept.subtitle", "Твой путь избран"); }
 
-    /** Пакет 3: локализация — messages.<key>. Фолбэк на встроенные RU-строки,
-     *  если ключа нет в конфиге (битый/удалённый админом). */
     public String message(String key, String fallback) {
         String v = plugin.getConfig().getString("messages." + key, null);
         return v != null ? v : fallback;
