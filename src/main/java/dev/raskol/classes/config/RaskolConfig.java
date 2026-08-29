@@ -386,9 +386,12 @@ public final class RaskolConfig {
                         "multi_shot", new AbilityDefaults(50, 40, 25, "Мультивыстрел", 0, "Три стрелы веером"),
                         "barrage", new AbilityDefaults(75, 80, 120, "Заградительный огонь", 0, "Серия стрел по площади"));
                 case PRIEST -> Map.of(
-                        "lesser_heal", new AbilityDefaults(1, 10, 3, "Малое исцеление", 0, "Лечит 4 HP"),
-                        "flash_heal", new AbilityDefaults(10, 20, 6, "Быстрое исцеление", 0, "Лечит 8 HP"),
-                        "pw_shield", new AbilityDefaults(25, 30, 30, "Слово силы: Щит", 6, "Поглощает 8 урона, 6 с"),
+                        "lesser_heal", new AbilityDefaults(1, 10, 3, "Малое исцеление", 0,
+                                "Лечит 4 HP. ПКМ — себя, ЛКМ по союзнику — цель"),
+                        "flash_heal", new AbilityDefaults(10, 20, 6, "Быстрое исцеление", 0,
+                                "Лечит 8 HP. ПКМ — себя, ЛКМ по союзнику — цель"),
+                        "pw_shield", new AbilityDefaults(25, 30, 30, "Слово силы: Щит", 6,
+                                "Поглощает 8 урона, 6 с. ПКМ — себя, ЛКМ по союзнику — цель"),
                         "circle_of_prayer", new AbilityDefaults(50, 50, 60, "Круг молитвы", 0, "Лечит союзников в радиусе 6"),
                         "smite", new AbilityDefaults(75, 60, 90, "Кара", 0, "Молния по цели"));
                 case MAGE -> Map.of(
