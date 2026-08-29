@@ -22,11 +22,6 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * GUI-книга способностей в стилистике класса (§4.6): филлер из чёрного стекла,
- * градиентный заголовок и имена, символ класса в слоте 4, лор-разделители.
- * Холдер позволяет слушателю за O(1) отличать «наше» меню от чужих инвентарей.
- */
 public final class ClassMenu implements InventoryHolder {
 
     private static final int SYMBOL_SLOT = 4;
@@ -40,20 +35,16 @@ public final class ClassMenu implements InventoryHolder {
                 TextFx.gradient("Способности: " + pc.getDisplayName(),
                         theme.primary(), theme.secondary()));
 
-        // Филлер: чёрное стекло без имени
         ItemStack filler = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
         filler.editMeta(meta -> meta.displayName(Component.empty()));
         for (int slot = 0; slot < inventory.getSize(); slot++) {
             inventory.setItem(slot, filler);
         }
 
-        // Символ класса в слоте 4 верхней строки
         ItemStack emblem = new ItemStack(Material.PAPER);
         emblem.editMeta(meta -> {
             meta.displayName(TextFx.gradient(
                     theme.symbol() + " " + pc.getDisplayName(), theme.primary(), theme.secondary()));
-            // Пакет 1: видимость пассивок — строки «Пассив: {имя} — {описание}»
-            // в лоре карточки класса (по одному на пассивку, выключенные скрыты)
             List<Component> emblemLore = new ArrayList<>();
             for (String passiveId : RaskolConfig.passiveIds(pc)) {
                 if (!plugin.getRaskolConfig().passiveEnabled(pc, passiveId)) {
@@ -100,6 +91,15 @@ public final class ClassMenu implements InventoryHolder {
         ItemStack item = new ItemStack(iconOf(def.id()));
         List<Component> lore = new ArrayList<>();
         lore.add(separator());
+
+        // Микро-пакет: описание способности — под разделителем, серым
+        String description = plugin.getRaskolConfig()
+                .abilityDescription(pc, def.id(), "");
+        if (!description.isEmpty()) {
+            lore.add(Component.text(description, NamedTextColor.GRAY));
+            lore.add(separator());
+        }
+
         lore.add(Component.text("Стоимость: " + def.cost() + " «" + pc.getResourceName() + "»",
                 NamedTextColor.GRAY));
         lore.add(Component.text("Перезарядка: " + def.cooldownMillis() / 1000L + "с",
@@ -118,7 +118,6 @@ public final class ClassMenu implements InventoryHolder {
         lore.add(Component.text("Слот: /rc " + def.slot(), NamedTextColor.DARK_GRAY));
 
         item.editMeta(meta -> {
-            // Имя способности — градиентом темы класса (§4.6)
             meta.displayName(TextFx.gradient(def.displayName(), theme.primary(), theme.secondary()));
             meta.lore(lore);
         });
@@ -131,32 +130,26 @@ public final class ClassMenu implements InventoryHolder {
 
     private static Material iconOf(String abilityId) {
         return switch (abilityId) {
-            // Воин (актуальные id 1.2)
             case "steel_skin" -> Material.SHIELD;
             case "shield_bash" -> Material.IRON_SWORD;
             case "blood_fury" -> Material.NETHERITE_SWORD;
             case "war_god" -> Material.GOLDEN_HELMET;
-            // Воин (legacy-alias, на случай старых конфигов/сохранённых КД)
             case "shield_wall" -> Material.SHIELD;
             case "execute" -> Material.NETHERITE_AXE;
             case "avatar_of_war" -> Material.GOLDEN_HELMET;
-            // Охотник
             case "aimed_shot" -> Material.BOW;
             case "cheetah_aspect" -> Material.LEATHER_BOOTS;
             case "multi_shot" -> Material.ARROW;
             case "barrage" -> Material.SPECTRAL_ARROW;
-            // Жрец
             case "lesser_heal" -> Material.APPLE;
             case "flash_heal" -> Material.GOLDEN_APPLE;
             case "pw_shield" -> Material.TOTEM_OF_UNDYING;
             case "circle_of_prayer" -> Material.BOOK;
             case "smite" -> Material.NETHER_STAR;
-            // Маг
             case "firebolt" -> Material.FIRE_CHARGE;
             case "blink" -> Material.ENDER_PEARL;
             case "frost_nova" -> Material.BLUE_ICE;
             case "arcane_burst" -> Material.END_CRYSTAL;
-            // Разбойник
             case "stealth" -> Material.BLACK_DYE;
             case "fan_of_knives" -> Material.IRON_NUGGET;
             case "cheap_shot" -> Material.SPIDER_EYE;
@@ -170,7 +163,6 @@ public final class ClassMenu implements InventoryHolder {
         return inventory;
     }
 
-    /** Регистрируется один раз; «наше» меню узнаёт по холдеру. */
     public static final class ClickHandler implements Listener {
 
         private final RaskolClasses plugin;
@@ -184,12 +176,11 @@ public final class ClassMenu implements InventoryHolder {
             if (!(event.getInventory().getHolder() instanceof ClassMenu)) {
                 return;
             }
-            event.setCancelled(true); // предметы из меню не забирают
+            event.setCancelled(true);
 
             if (!(event.getWhoClicked() instanceof Player player)) {
                 return;
             }
-            // Клик по собственному инвентарю под меню нас не интересует
             if (event.getClickedInventory() == null
                     || !(event.getClickedInventory().getHolder() instanceof ClassMenu)) {
                 return;
