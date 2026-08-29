@@ -3,6 +3,7 @@ package dev.raskol.classes.classsystem;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.hook.RaskolCoreHook;
 import dev.raskol.classes.resource.ResourceService;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
@@ -20,6 +21,7 @@ public final class ClassProvider {
 
     private final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
     private final LuckPermsBackend backend;
+    private final RaskolCoreHook coreHook;
 
     public ClassProvider(RaskolClasses plugin, RaskolConfig config) {
         LuckPermsBackend resolved = null;
@@ -34,20 +36,40 @@ public final class ClassProvider {
             }
         }
         this.backend = resolved;
+        // 1.3.2: Core-адаптер; читает класс из паспорта Core, LP остаётся фолбэком
+        this.coreHook = new RaskolCoreHook(plugin, config);
     }
 
+    /** LP-бэкенд жив. */
     public boolean isAvailable() {
         return backend != null;
     }
 
+    /** 1.3.2: источник класса для /rc debug. */
+    public String sourceOf() {
+        if (coreHook.isAvailable()) return "core";
+        if (backend != null) return "lp";
+        return "off";
+    }
+
     public PlayerClass getClassOf(Player player) {
-        if (backend == null) {
-            return null;
-        }
         UUID id = player.getUniqueId();
         CacheEntry entry = cache.get(id);
         if (entry != null && entry.expiresAt() > System.currentTimeMillis()) {
             return entry.playerClass();
+        }
+
+        // 1.3.2: сначала Core, потом LP-фолбэк
+        if (coreHook.isAvailable()) {
+            PlayerClass fromCore = coreHook.resolveClass(id);
+            if (fromCore != null) {
+                cache.put(id, new CacheEntry(fromCore, System.currentTimeMillis() + CACHE_TTL_MILLIS));
+                return fromCore;
+            }
+        }
+
+        if (backend == null) {
+            return null;
         }
         PlayerClass resolved = backend.resolve(player);
         cache.put(id, new CacheEntry(resolved, System.currentTimeMillis() + CACHE_TTL_MILLIS));
