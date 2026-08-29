@@ -24,8 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Ресурсы 0–100: реген и декей в асинхронном таске раз в секунду,
  * набор — на событиях урона и лечения. Только сессия, без БД.
- * O10: тик без аллокаций и без LP-вызовов, пока кэш прогрет;
- * для холодных записей — один LP-вызов на игрока (фолбэк).
+ * Пакет 5b: тиры регена мага (3/4/5/6 по порогам 25/50/75).
  */
 public final class ResourceService implements Listener {
 
@@ -51,25 +50,18 @@ public final class ResourceService implements Listener {
         return stateOf(playerId).consume(amount);
     }
 
-    /** Возврат ресурса при отмене каста (нет цели, нет безопасной точки). */
     public void refund(UUID playerId, double amount) {
         stateOf(playerId).add(amount);
     }
 
-    /**
-     * Сброс ресурса игрока при смене класса: «ярость воина» не должна
-     * перетекать в «ману мага». Вызывается из LuckPermsBackend на NodeMutateEvent.
-     */
     public void reset(UUID playerId) {
         states.remove(playerId);
     }
 
-    /** Бонус жреца за событие лечения. */
     public void addHealBonus(UUID playerId) {
         stateOf(playerId).add(config.resourceOnHeal(PlayerClass.PRIEST));
     }
 
-    /** Таск 20 тиков: реген вне боя, декей ярости, кап ресурсов. */
     public BukkitTask startTickTask(Plugin plugin) {
         return Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::tick, 20L, 20L);
     }
@@ -80,7 +72,6 @@ public final class ResourceService implements Listener {
             ResourceState state = states.computeIfAbsent(id, k -> new ResourceState());
             PlayerClass pc = classProvider.getCachedClass(id);
             if (pc == null) {
-                // Холодный кэш: один LP-вызов прогревает запись.
                 pc = classProvider.getClassOf(player);
                 if (pc == null) {
                     continue;
@@ -96,7 +87,7 @@ public final class ResourceService implements Listener {
 
         switch (pc) {
             case HUNTER -> {
-                // Концентрация: +5/с только вне боя, в бою — 0
+                // Концентрация: +5/с только вне боя
                 if (regenPerSecond > 0 && !state.isInCombat(windowMillis)) {
                     state.add(regenPerSecond);
                 }
@@ -107,26 +98,25 @@ public final class ResourceService implements Listener {
                     state.add(regenPerSecond);
                 }
             }
+            case MAGE -> {
+                // Пакет 5b: тиры регена мага по текущему значению маны
+                double v = state.getValue();
+                double rate;
+                if (v < 25) rate = config.mageRegenTier1();
+                else if (v < 50) rate = config.mageRegenTier2();
+                else if (v < 75) rate = config.mageRegenTier3();
+                else rate = config.mageRegenTier4();
+                state.add(rate);
+            }
             default -> {
-                // Свет, мана, энергия — линейный реген всегда
+                // Свет жреца, энергия разбойника — линейный реген всегда
                 if (regenPerSecond > 0) {
                     state.add(regenPerSecond);
-                }
-                // Пропитанный маной: при мане ≥ порога реген +1/с
-                if (pc == PlayerClass.MAGE && config.passiveEnabled(pc, "mana_soaked")
-                        && state.getValue() >= config.passiveDouble(pc, "mana_soaked", "threshold", 50.0)) {
-                    state.add(config.passiveDouble(pc, "mana_soaked", "regen-bonus", 1.0));
                 }
             }
         }
     }
 
-    /* ------------------------- события ------------------------- */
-
-    /**
-     * Join: создаём ResourceState и прогреваем кэш класса, чтобы реген
-     * пошёл уже со второго тика (через 1 с), а не после первого каста.
-     */
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
@@ -135,7 +125,6 @@ public final class ResourceService implements Listener {
         classProvider.getClassOf(player);
     }
 
-    /** Воин: +10 за нанесённый урон (кап 1 событие/с), окно боя обновляется. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerDealDamage(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) {
@@ -150,7 +139,6 @@ public final class ResourceService implements Listener {
         }
     }
 
-    /** Воин: +10 за полученный урон. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerTakeDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
@@ -165,7 +153,6 @@ public final class ResourceService implements Listener {
         }
     }
 
-    /** Жрец: +5 света за событие лечения. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
