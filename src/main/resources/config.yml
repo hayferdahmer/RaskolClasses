@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.1.0 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.3.2 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение без рестарта: /rc reload.
 #  Новые ключи дописываются автоматически (addDefault + copyDefaults),
@@ -12,10 +12,59 @@ hud:
   skip-spectator: true        # не слать actionbar зрителям (O8)
   full-resource-aura: true    # партикл темы раз в 20 тиков при ресурсе 100 (§4.5)
   debug-skip: false           # лог пропусков dirty-rendering — для проверки O1
+  boss-bar:
+    enabled: true             # босс-бары длительных эффектов
+    min-duration-seconds: 8   # порог показа (эффекты с меньшей длительностью скрыты)
+    max-visible: 2            # максимум баров одновременно (топ-N по оставшемуся времени)
+    tick-period: 5            # период опроса эффектов, в тиках
+    format: "{name} — {sec}с"
+    format-infinite: "{name}"
 
 performance:
   purge-interval-ticks: 1200  # чистка истёкших кулдаунов и флагов (O7)
   cast-click-cooldown-ms: 150 # анти-спам дабл-клика каста (O12)
+  ready-notify:
+    enabled: true             # звук + actionbar при окончании КД
+    min-cooldown-seconds: 30  # порог: уведомлять только о длинных КД
+    sound: ENTITY_PLAYER_LEVELUP
+    message: "{ability} — готова"
+
+hooks:
+  raskolcore:
+    enabled: true             # читать класс из паспорта RaskolCore (LP — фолбэк)
+
+hotbar-bind:
+  enabled: true               # свитки способностей (/rc bind <1-5>)
+  material: AMETHYST_SHARD    # материал свитка
+
+target-cast:
+  enabled: true               # ЛКМ со свитком точечной способности по игроку = каст в цель
+
+class-accept:
+  enabled: true               # титр при первом принятии класса (раз в сессию)
+  subtitle: "Твой путь избран"
+
+# Игровые тексты: меняй в конфиге, не нужно пересобирать.
+messages:
+  no-class: "Класс не выбран — посетите герольда"
+  no-class-cast: "Класс не выбран — способности недоступны"
+  no-permission: "Недостаточно прав"
+  unlock: "«{ability}» откроется на уровне {required} (у вас {current})"
+  cooldown: "«{ability}»: перезарядка ещё {seconds}с"
+  no-resource: "Не хватает ресурса «{resource}»: нужно {cost}, у вас {value}"
+  activated: "«{ability}» — активирована"
+  blink-unsafe: "Скачок невозможен: нет безопасной точки"
+  cheap-shot-no-target: "Нет цели в радиусе 4 блоков"
+  tag:
+    execute: "Казнь ×3!"
+    predator: "Хищник!"
+    poison: "Яд!"
+    backstab: "В спину +3!"
+  healed-target: "✚ {target}: +{amount} HP"
+  healed-you: "{caster} исцелил тебя"
+  shield-target: "Щит на: {target}"
+  shield-you: "{caster} наложил на тебя щит"
+  target-full-hp: "Цель здорова"
 
 classes:
   WARRIOR:
@@ -31,10 +80,43 @@ classes:
     cast-sound: ENTITY_PLAYER_LEVELUP
     cast-particle: FLAME
     abilities:
-      shield_wall:   { name: "Щит-стена",    unlock: 10, cost: 30,  cooldown: 45,  duration: 6 }
-      shield_bash:   { name: "Удар щитом",   unlock: 25, cost: 20,  cooldown: 20,  duration: 3 }
-      execute:       { name: "Казнь",        unlock: 50, cost: 40,  cooldown: 30 }
-      avatar_of_war: { name: "Аватара войны", unlock: 75, cost: 100, cooldown: 300, duration: 8 }
+      steel_skin:
+        name: "Стальная кожа"
+        description: "−80% входящего урона на 5 с"
+        unlock: 10
+        cost: 30
+        cooldown: 45
+        duration: 5
+      shield_bash:
+        name: "Удар щитом"
+        description: "Slowness II + Blindness в радиусе 4, таунт мобов, 3 с"
+        unlock: 25
+        cost: 20
+        cooldown: 25
+        duration: 3
+      blood_fury:
+        name: "Кровавое безумие"
+        description: "4 с: 20% входящего урона возвращается агрессору"
+        unlock: 50
+        cost: 40
+        cooldown: 30
+        duration: 4
+      war_god:
+        name: "Бог войны"
+        description: "Сила II + Сопротивление I на 8 с"
+        unlock: 75
+        cost: 100
+        cooldown: 300
+        duration: 8
+    passives:
+      execute_passive:
+        enabled: true
+        display-name: "Казнь"
+        description: "20% шанс — ×3 урона по цели с ≤20% HP"
+        chance: 0.20
+        multiplier: 3.0
+        threshold: 0.20
+        cooldown-seconds: 6
 
   HUNTER:
     resource-regen: 5.0         # концентрация: +5/с вне боя, 0 в бою
@@ -49,10 +131,39 @@ classes:
     cast-sound: ENTITY_PLAYER_LEVELUP
     cast-particle: CRIT
     abilities:
-      aimed_shot:     { name: "Прицельный выстрел",   unlock: 10, cost: 20, cooldown: 15 }
-      cheetah_aspect: { name: "Аспект гепарда",       unlock: 25, cost: 0,  cooldown: 60, duration-speed: 8, duration-no-fall: 10 }
-      multi_shot:     { name: "Мультивыстрел",        unlock: 50, cost: 40, cooldown: 25 }
-      barrage:        { name: "Заградительный огонь", unlock: 75, cost: 80, cooldown: 120 }
+      aimed_shot:
+        name: "Прицельный выстрел"
+        description: "Следующая стрела ×2 урона + Slowness цели"
+        unlock: 10
+        cost: 20
+        cooldown: 15
+      cheetah_aspect:
+        name: "Аспект гепарда"
+        description: "Скорость II 8 с + иммунитет к урону падения 10 с"
+        unlock: 25
+        cost: 0
+        cooldown: 60
+        duration-speed: 8
+        duration-no-fall: 10
+      multi_shot:
+        name: "Мультивыстрел"
+        description: "Три стрелы веером"
+        unlock: 50
+        cost: 40
+        cooldown: 25
+      barrage:
+        name: "Заградительный огонь"
+        description: "Серия стрел по площади"
+        unlock: 75
+        cost: 80
+        cooldown: 120
+    passives:
+      predator:
+        enabled: true
+        display-name: "Хищник"
+        description: "×1.2 урона, пока HP ≥ 80%"
+        threshold: 0.80
+        multiplier: 1.20
 
   PRIEST:
     resource-regen: 2.0         # свет: +2/с всегда
@@ -67,17 +178,53 @@ classes:
     cast-sound: ENTITY_PLAYER_LEVELUP
     cast-particle: ENCHANTED_HIT
     abilities:
-      lesser_heal:      { name: "Малое исцеление",   unlock: 1,  cost: 10, cooldown: 3 }
-      flash_heal:       { name: "Быстрое исцеление", unlock: 10, cost: 20, cooldown: 6 }
-      pw_shield:        { name: "Слово силы: Щит",   unlock: 25, cost: 30, cooldown: 30, duration: 6 }
-      circle_of_prayer: { name: "Круг молитвы",      unlock: 50, cost: 50, cooldown: 60 }
-      smite:            { name: "Кара",              unlock: 75, cost: 60, cooldown: 90 }
+      lesser_heal:
+        name: "Малое исцеление"
+        description: "Лечит 4 HP"
+        unlock: 1
+        cost: 10
+        cooldown: 3
+      flash_heal:
+        name: "Быстрое исцеление"
+        description: "Лечит 8 HP"
+        unlock: 10
+        cost: 20
+        cooldown: 6
+      pw_shield:
+        name: "Слово силы: Щит"
+        description: "Поглощает 8 урона, 6 с"
+        unlock: 25
+        cost: 30
+        cooldown: 30
+        duration: 6
+      circle_of_prayer:
+        name: "Круг молитвы"
+        description: "Лечит союзников в радиусе 6"
+        unlock: 50
+        cost: 50
+        cooldown: 60
+      smite:
+        name: "Кара"
+        description: "Молния по цели"
+        unlock: 75
+        cost: 60
+        cooldown: 90
+    passives:
+      grace:
+        enabled: true
+        display-name: "Благодать"
+        description: "×1.15 к исходящему лечению"
+        multiplier: 1.15
 
   MAGE:
-    resource-regen: 2.0         # мана: +2/с
+    resource-regen: 2.0         # мана: legacy (тирный реген ниже)
     resource-on-deal: 0.0
     resource-on-take: 0.0
     resource-on-heal: 0.0
+    regen-tier-1: 3.0           # мана < 25  → 3/с
+    regen-tier-2: 4.0           # мана < 50  → 4/с
+    regen-tier-3: 5.0           # мана < 75  → 5/с
+    regen-tier-4: 6.0           # мана ≥ 75  → 6/с
     combat-window-seconds: 5
     theme:
       primary: "#101A6E"
@@ -86,10 +233,38 @@ classes:
     cast-sound: ENTITY_PLAYER_LEVELUP
     cast-particle: PORTAL
     abilities:
-      firebolt:     { name: "Огненная стрела",   unlock: 1,  cost: 10,  cooldown: 2 }
-      blink:        { name: "Скачок",            unlock: 25, cost: 20,  cooldown: 20 }
-      frost_nova:   { name: "Кольцо льда",       unlock: 50, cost: 40,  cooldown: 45, duration: 4 }
-      arcane_burst: { name: "Чародейский взрыв", unlock: 75, cost: 100, cooldown: 180 }
+      firebolt:
+        name: "Огненная стрела"
+        description: "Огненный снаряд, поджигает цель"
+        unlock: 1
+        cost: 10
+        cooldown: 2
+      blink:
+        name: "Скачок"
+        description: "Телепорт вперёд на 8 блоков"
+        unlock: 25
+        cost: 20
+        cooldown: 20
+      frost_nova:
+        name: "Кольцо льда"
+        description: "Замораживает врагов в радиусе 5 на 4 с"
+        unlock: 50
+        cost: 40
+        cooldown: 45
+        duration: 4
+      arcane_burst:
+        name: "Чародейский взрыв"
+        description: "Взрыв тайной энергии по площади"
+        unlock: 75
+        cost: 100
+        cooldown: 180
+    passives:
+      mana_soaked:
+        enabled: true
+        display-name: "Пропитанный маной"
+        description: "мана ≥ 50 → −15% входящего урона"
+        threshold: 50.0
+        reduction: 0.15
 
   ROGUE:
     resource-regen: 10.0        # энергия: +10/с
@@ -104,7 +279,44 @@ classes:
     cast-sound: ENTITY_PLAYER_LEVELUP
     cast-particle: SOUL_FIRE_FLAME
     abilities:
-      stealth:       { name: "Скрытность",  unlock: 10, cost: 30, cooldown: 30, duration: 15 }
-      fan_of_knives: { name: "Веер ножей",  unlock: 25, cost: 25, cooldown: 15 }
-      cheap_shot:    { name: "Подлый удар", unlock: 50, cost: 40, cooldown: 40, duration: 2 }
-      evasion:       { name: "Уклонение",   unlock: 75, cost: 60, cooldown: 120, duration: 4 }
+      stealth:
+        name: "Скрытность"
+        description: "Невидимость 15 с или до первого удара"
+        unlock: 10
+        cost: 30
+        cooldown: 30
+        duration: 15
+      fan_of_knives:
+        name: "Веер ножей"
+        description: "4 урона по радиусу 3"
+        unlock: 25
+        cost: 25
+        cooldown: 15
+      cheap_shot:
+        name: "Подлый удар"
+        description: "Blind + Slowness 2 с + 3 урона"
+        unlock: 50
+        cost: 40
+        cooldown: 40
+        duration: 2
+      evasion:
+        name: "Уклонение"
+        description: "100% уклонение от урона, 4 с"
+        unlock: 75
+        cost: 60
+        cooldown: 120
+        duration: 4
+    passives:
+      poisoned_blades:
+        enabled: true
+        display-name: "Отравленные клинки"
+        description: "30% шанс — Яд I на 2 с"
+        chance: 0.30
+        duration-seconds: 2
+        cooldown-seconds: 3
+      sadism:
+        enabled: true
+        display-name: "Садизм"
+        description: "+3 урона при атаке со спины"
+        bonus: 3.0
+        cooldown-seconds: 2
