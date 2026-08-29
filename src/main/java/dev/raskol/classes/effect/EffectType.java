@@ -6,17 +6,28 @@ package dev.raskol.classes.effect;
  */
 public enum EffectType {
     /** Стальная кожа: −80% входящего урона. */
-    SHIELD_WALL,
+    SHIELD_WALL("Стальная кожа"),
     /** Кровавое безумие: 20% входящего урона возвращается агрессору. */
-    BLOOD_FURY,
-    /** Legacy-флаг старой Казни: более не выдаётся. */
-    EXECUTE,
+    BLOOD_FURY("Кровавое безумие"),
+    /** Legacy-флаг старой Казни: более не выдаётся. displayName = null → фильтр босс-бара. */
+    EXECUTE(null),
     /** Прицельный выстрел: следующая стрела ×2 + Slowness. */
-    AIMED_SHOT,
+    AIMED_SHOT("Прицельный выстрел"),
     /** Скрытность: невидимость до первой атаки/урона. */
-    STEALTH,
+    STEALTH("Скрытность"),
     /** Уклонение: полная отмена входящего урона. */
-    EVASION,
+    EVASION("Уклонение"),
     /** Аспект гепарда: иммунитет к урону от падения. */
-    NO_FALL_DAMAGE
+    NO_FALL_DAMAGE("Аспект гепарда");
+
+    private final String displayName;
+
+    EffectType(String displayName) {
+        this.displayName = displayName;
+    }
+
+    /** Пакет 5: человекочитаемое имя для босс-бара и отладки. null = legacy (скрыть). */
+    public String displayName() {
+        return displayName;
+    }
 }
