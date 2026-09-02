@@ -23,8 +23,10 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Полные пассивки всех 10 спеков (1.4.0, Пакет 2).
- * FIX 1.4.0.1: «Мороз» вешает замедление на любых LivingEntity (не только игроков);
+ * FIX 1.4.0.1: «Мороз» вешает замедление на любых LivingEntity;
  * партиклы на проках (крит/дodge/лифстил) — чтобы пассивки были видны в тесте.
+ * FIX 1.4.0.2: spawnParticle у не-игрока — только через getWorld()
+ * (у Entity метода spawnParticle нет).
  */
 public final class SpecListener implements Listener {
 
@@ -98,12 +100,12 @@ public final class SpecListener implements Listener {
             }
         }
 
-        // Ликвидатор: шанс крита + партикл прока
+        // Ликвидатор: шанс крита + партикл прока (FIX: через World)
         if (spec == Spec.LIQUIDATOR) {
             if (ThreadLocalRandom.current().nextDouble()
                     < def.passiveDouble("crit_chance", 0.10)) {
                 damage *= def.passiveDouble("crit_multiplier", 1.5);
-                event.getEntity().spawnParticle(Particle.CRIT,
+                event.getEntity().getWorld().spawnParticle(Particle.CRIT,
                         event.getEntity().getLocation().add(0.0, 1.0, 0.0),
                         6, 0.3, 0.3, 0.3, 0.0);
             }
@@ -119,7 +121,7 @@ public final class SpecListener implements Listener {
 
         event.setDamage(damage);
 
-        // Тенеплёт: lifesteal от итогового урона + сердечки
+        // Тенеплёт: lifesteal от итогового урона + сердечки (Player — имеет spawnParticle)
         if (spec == Spec.SHADOWWEAVER) {
             double heal = damage * def.passiveDouble("lifesteal_percent", 0.15);
             if (heal > 0.0) {
