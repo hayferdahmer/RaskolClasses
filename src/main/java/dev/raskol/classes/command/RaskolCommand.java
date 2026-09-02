@@ -209,7 +209,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 }
                 SpecMenu.open(plugin, player, pc);
             }
-            // 1.4.0 / Пакет 3: платный респец с подтверждением
             case "respec" -> {
                 if (!(sender instanceof Player player)) {
                     sender.sendMessage(Component.text("Респец — только для игроков",
@@ -308,7 +307,19 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100",
                 pc.getColor()));
 
-        Spec spec = plugin.getSpecService().getSpec(player.getUniqueId());
+        // 1.4.0 / Пакет 4: корона и титул
+        UUID uuid = player.getUniqueId();
+        player.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY)
+                .append(Component.text(
+                        plugin.getFlavorService().crownDisplayName(uuid),
+                        NamedTextColor.GOLD)));
+        String title = plugin.getFlavorService().titleOf(uuid, pc);
+        if (!title.isEmpty()) {
+            player.sendMessage(Component.text("Титул: ", NamedTextColor.GRAY)
+                    .append(Component.text(title, pc.getColor())));
+        }
+
+        Spec spec = plugin.getSpecService().getSpec(uuid);
         if (spec != null) {
             player.sendMessage(Component.text("Специализация: ", NamedTextColor.GRAY)
                     .append(Component.text(spec.displayName(), pc.getColor())));
@@ -380,6 +391,16 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 .append(Component.text(
                         (int) plugin.getResources().getValue(uuid) + "/100",
                         pc.getColor())));
+
+        // 1.4.0 / Пакет 4
+        sender.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY)
+                .append(Component.text(
+                        plugin.getFlavorService().crownDisplayName(uuid),
+                        NamedTextColor.GOLD)));
+        String title = plugin.getFlavorService().titleOf(uuid, pc);
+        sender.sendMessage(Component.text("Титул: ", NamedTextColor.GRAY)
+                .append(Component.text(title.isEmpty() ? "—" : title,
+                        NamedTextColor.WHITE)));
 
         Spec spec = plugin.getSpecService().getSpec(uuid);
         if (spec != null) {
