@@ -3,12 +3,12 @@ package dev.raskol.classes.spec;
 
 import dev.raskol.classes.RaskolClasses;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Player;
 
-import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -74,37 +74,53 @@ public final class SpecEffects {
     public void applyAttributes(Player player, Spec spec) {
         removeAttributes(player);
         if (spec == Spec.GUARDIAN) {
-            AttributeInstance armor = player.getAttribute(Attribute.GENERIC_ARMOR);
-            if (armor != null) {
-                armor.addModifier(new AttributeModifier(
-                        new NamespacedKey(plugin, "spec_guardian_armor"),
-                        2.0, AttributeModifier.Operation.ADD_NUMBER));
+            Attribute armorAttribute = Registry.ATTRIBUTE.get(
+                    new NamespacedKey("minecraft", "generic.armor"));
+            if (armorAttribute != null) {
+                AttributeInstance armor = player.getAttribute(armorAttribute);
+                if (armor != null) {
+                    armor.addModifier(new AttributeModifier(
+                            new NamespacedKey(plugin, "spec_guardian_armor"),
+                            2.0, AttributeModifier.Operation.ADD_NUMBER));
+                }
             }
         }
         if (spec == Spec.TRACKER) {
-            AttributeInstance speed = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
-            if (speed != null) {
-                speed.addModifier(new AttributeModifier(
-                        new NamespacedKey(plugin, "spec_tracker_speed"),
-                        0.10, AttributeModifier.Operation.ADD_SCALAR));
+            Attribute speedAttribute = Registry.ATTRIBUTE.get(
+                    new NamespacedKey("minecraft", "generic.movement_speed"));
+            if (speedAttribute != null) {
+                AttributeInstance speed = player.getAttribute(speedAttribute);
+                if (speed != null) {
+                    speed.addModifier(new AttributeModifier(
+                            new NamespacedKey(plugin, "spec_tracker_speed"),
+                            0.10, AttributeModifier.Operation.ADD_SCALAR));
+                }
             }
         }
     }
 
     public void removeAttributes(Player player) {
-        AttributeInstance armor = player.getAttribute(Attribute.GENERIC_ARMOR);
-        if (armor != null) {
-            armor.getModifiers().stream()
-                    .filter(m -> m.key().getNamespace().equals(plugin.getName().toLowerCase()))
-                    .toList()
-                    .forEach(armor::removeModifier);
+        Attribute armorAttribute = Registry.ATTRIBUTE.get(
+                new NamespacedKey("minecraft", "generic.armor"));
+        if (armorAttribute != null) {
+            AttributeInstance armor = player.getAttribute(armorAttribute);
+            if (armor != null) {
+                armor.getModifiers().stream()
+                        .filter(m -> m.key().namespace().equals(plugin.getName().toLowerCase()))
+                        .toList()
+                        .forEach(armor::removeModifier);
+            }
         }
-        AttributeInstance speed = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
-        if (speed != null) {
-            speed.getModifiers().stream()
-                    .filter(m -> m.key().getNamespace().equals(plugin.getName().toLowerCase()))
-                    .toList()
-                    .forEach(speed::removeModifier);
+        Attribute speedAttribute = Registry.ATTRIBUTE.get(
+                new NamespacedKey("minecraft", "generic.movement_speed"));
+        if (speedAttribute != null) {
+            AttributeInstance speed = player.getAttribute(speedAttribute);
+            if (speed != null) {
+                speed.getModifiers().stream()
+                        .filter(m -> m.key().namespace().equals(plugin.getName().toLowerCase()))
+                        .toList()
+                        .forEach(speed::removeModifier);
+            }
         }
     }
 
