@@ -6,6 +6,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Particle;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
@@ -17,6 +18,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 /**
  * Каст активок спеков со слота 6 (/rc 6).
  * Кулдауны — через CooldownManager (id "spec_<id>"), стоимость — через ResourceService.
+ * 1.4.0.3: визуалы — капкан (ItemDisplay), кольцо льда (снежинки), святилище (сердечки).
  */
 public final class SpecActiveCaster {
 
@@ -70,10 +72,13 @@ public final class SpecActiveCaster {
                     def.activeDouble("damage_bonus", 4.0));
             case MARKSMAN -> plugin.getSpecEffects().armPrecise(player.getUniqueId());
             case TRACKER -> {
+                // Капкан: рут + ВИЗУАЛ ловушки на земле
                 Entity target = player.getTargetEntity(6);
                 if (target instanceof LivingEntity living) {
+                    int duration = def.activeInt("duration", 2) * 20;
                     living.addPotionEffect(new PotionEffect(
-                            PotionEffectType.SLOWNESS, def.activeInt("duration", 2) * 20, 5));
+                            PotionEffectType.SLOWNESS, duration, 5));
+                    TrapVisual.show(plugin, living.getLocation(), duration);
                 }
             }
             case LIGHTBEARER -> {
@@ -90,6 +95,12 @@ public final class SpecActiveCaster {
                         if (elapsed > ticks) {
                             cancel();
                             return;
+                        }
+                        // визуал зоны: сердечки по кругу
+                        if (origin.getWorld() != null) {
+                            origin.getWorld().spawnParticle(Particle.HEART,
+                                    origin.clone().add(0.0, 0.5, 0.0),
+                                    2, radius * 0.5, 0.3, radius * 0.5, 0.0);
                         }
                         for (Entity entity : origin.getNearbyEntities(radius, radius, radius)) {
                             if (entity instanceof Player ally) {
@@ -127,6 +138,13 @@ public final class SpecActiveCaster {
                         mob.addPotionEffect(new PotionEffect(
                                 PotionEffectType.SLOWNESS, duration, 2));
                     }
+                }
+                // визуал: кольцо снежинок вокруг кастера
+                Location c = player.getLocation();
+                if (c.getWorld() != null) {
+                    c.getWorld().spawnParticle(Particle.SNOWFLAKE,
+                            c.clone().add(0.0, 0.3, 0.0),
+                            24, radius * 0.6, 0.2, radius * 0.6, 0.0);
                 }
             }
             case LIQUIDATOR -> {
