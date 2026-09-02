@@ -325,3 +325,24 @@ classes:
         description: "+3 урона при атаке со спины"
         bonus: 3.0
         cooldown-seconds: 2
+
+# 1.4.0 / Пакет 4: королевские вкусы (титул + партикл-аура по короне)
+flavors:
+  rassvet:
+    crown: "Рассвет"
+    particle: END_ROD
+    titles:
+      WARRIOR: "Рассветный клинок"
+      HUNTER: "Око Рассвета"
+      PRIEST: "Светоносец"
+      MAGE: "Заревая звезда"
+      ROGUE: "Рассветная тень"
+  valradis:
+    crown: "Вальрадис"
+    particle: SOUL_FIRE_FLAME
+    titles:
+      WARRIOR: "Драконорождённый"
+      HUNTER: "Коготь Вальрадиса"
+      PRIEST: "Пламенный жрец"
+      MAGE: "Аркан Дракона"
+      ROGUE: "Тень Вальрадиса"
