@@ -1,0 +1,141 @@
+# ============================================================
+#  RaskolClasses v1.4.0 — Специализации классов
+#  Выбор на 40 уровне профильного скилла AuraSkills, один раз.
+#  Респец — платный (Пакет 3).
+#  Применение без рестарта: /rc reload.
+# ============================================================
+
+specs:
+  # === ВОИН ===
+  guardian:
+    passive:
+      id: "guardian_passive"
+      description: "+2 брони постоянно"
+      armor: 2
+    active:
+      id: "challenge"
+      description: "Таунт 3 с, радиус 4"
+      cost: 30
+      cooldown: 30
+      duration: 3
+      radius: 4
+
+  berserker:
+    passive:
+      id: "berserker_passive"
+      description: "+15% урона при ярости ≥ 50"
+      rage_threshold: 50
+      damage_multiplier: 1.15
+    active:
+      id: "rage_burst"
+      description: "+4 урона на 5 с"
+      cost: 60
+      cooldown: 45
+      duration: 5
+      damage_bonus: 4
+
+  # === ОХОТНИК ===
+  marksman:
+    passive:
+      id: "marksman_passive"
+      description: "+20% урона луком с ≥ 10 блоков"
+      min_distance: 10
+      damage_multiplier: 1.20
+    active:
+      id: "precise_shot"
+      description: "Гарантированный крит"
+      cost: 40
+      cooldown: 40
+
+  tracker:
+    passive:
+      id: "tracker_passive"
+      description: "+10% скорости в дичи"
+      speed_multiplier: 1.10
+    active:
+      id: "snare"
+      description: "Рут 2 с"
+      cost: 30
+      cooldown: 30
+      duration: 2
+
+  # === ЖРЕЦ ===
+  lightbearer:
+    passive:
+      id: "lightbearer_passive"
+      description: "+20% к лечению"
+      heal_multiplier: 1.20
+    active:
+      id: "sanctuary"
+      description: "Зона лечения 5 с"
+      cost: 40
+      cooldown: 60
+      duration: 5
+      radius: 4
+
+  shadowweaver:
+    passive:
+      id: "shadowweaver_passive"
+      description: "15% нанесённого урона лечит тебя"
+      lifesteal_percent: 0.15
+    active:
+      id: "mind_spike"
+      description: "Урон + страх 1.5 с"
+      cost: 50
+      cooldown: 45
+      duration: 1.5
+      damage: 6
+
+  # === МАГ ===
+  arcane:
+    passive:
+      id: "arcane_passive"
+      description: "+15% урона способностей"
+      ability_multiplier: 1.15
+    active:
+      id: "arcane_flow"
+      description: "+50 маны и сброс кд одной абилки"
+      cost: 0
+      cooldown: 90
+      mana_restore: 50
+
+  frost:
+    passive:
+      id: "frost_passive"
+      description: "Хиты вешают Замедление I 2 с"
+      slow_duration: 2
+    active:
+      id: "ice_ring"
+      description: "Рут 3 с, радиус 3"
+      cost: 60
+      cooldown: 60
+      duration: 3
+      radius: 3
+
+  # === РАЗБОЙНИК ===
+  liquidator:
+    passive:
+      id: "liquidator_passive"
+      description: "+10% шанса крита (крит ×1.5)"
+      crit_chance: 0.10
+      crit_multiplier: 1.5
+    active:
+      id: "garrote"
+      description: "Кровотечение 6 с"
+      cost: 50
+      cooldown: 45
+      duration: 6
+      damage_per_tick: 2
+      tick_interval: 1
+
+  trickster:
+    passive:
+      id: "trickster_passive"
+      description: "+10% уклонения"
+      dodge_chance: 0.10
+    active:
+      id: "smoke_bomb"
+      description: "Невидимость 4 с"
+      cost: 60
+      cooldown: 90
+      duration: 4
