@@ -4,54 +4,24 @@ main: dev.raskol.classes.RaskolClasses
 # V2: нижняя планка форвард-совместимости — не повышать
 api-version: '1.21'
 author: hayferdahmer
-description: Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»
+description: Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации и королевские вкусы
 
 # Все зависимости опциональны:
-#  - LuckPerms: без него отключается определение класса (варнинг, без падения);
+#  - LuckPerms: без него определение класса отключено (варнинг);
 #  - AuraSkills: уровни через отражение, без него анлоки сняты;
-#  - PlaceholderAPI: без него плейсхолдеры %raskolclasses_*% не регистрируются;
-#  - RaskolCore: 1.3.2 — читает класс из паспорта Core (LP — фолбэк).
+#  - PlaceholderAPI: без него плейсхолдеры не регистрируются;
+#  - RaskolCore: паспорт (фракция для вкусов, экономика для респека), LP — фолбэк.
 softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore]
 
 commands:
   rc:
     description: Команды классов RaskolClasses
-    usage: /rc [1-5|menu|hud|reload|debug|bind|spec]
+    usage: /rc [1-6|menu|hud|reload|debug|bind|spec|respec]
 
 permissions:
   raskolclasses.admin:
-    description: "Перезагрузка конфигурации (/rc reload)"
+    description: Перезагрузка конфигурации и бесплатный респец (/rc reload, /rc respec)
     default: op
   raskolclasses.debug:
-    description: "Диагностика (/rc debug [player])"
+    description: Диагностика (/rc debug [player])
     default: op
-  raskolclasses.spec.guardian:
-    description: "Спека Воина: Страж"
-    default: false
-  raskolclasses.spec.berserker:
-    description: "Спека Воина: Берсерк"
-    default: false
-  raskolclasses.spec.marksman:
-    description: "Спека Охотника: Стрелок"
-    default: false
-  raskolclasses.spec.tracker:
-    description: "Спека Охотника: Следопыт"
-    default: false
-  raskolclasses.spec.lightbearer:
-    description: "Спека Жреца: Светоносец"
-    default: false
-  raskolclasses.spec.shadowweaver:
-    description: "Спека Жреца: Тенеплёт"
-    default: false
-  raskolclasses.spec.arcane:
-    description: "Спека Мага: Аркана"
-    default: false
-  raskolclasses.spec.frost:
-    description: "Спека Мага: Мороз"
-    default: false
-  raskolclasses.spec.liquidator:
-    description: "Спека Разбойника: Ликвидатор"
-    default: false
-  raskolclasses.spec.trickster:
-    description: "Спека Разбойника: Трюкач"
-    default: false
