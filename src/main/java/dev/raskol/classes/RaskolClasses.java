@@ -39,6 +39,7 @@ import java.util.List;
 /**
  * RaskolClasses — активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ».
  * 1.4.0: специализации + боевая механика + свитки + королевские вкусы.
+ * FIX 1.4.0.1: возвращена регистрация SpecBindListener (бинд свитка спеки).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -121,6 +122,8 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new PassiveListener(this), this);
         pluginManager.registerEvents(new ClassMenu.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
+        // FIX 1.4.0.1: слушатель свитков специализации (бинд /rc bind 6)
+        pluginManager.registerEvents(new SpecBindListener(this, specToken), this);
         pluginManager.registerEvents(new SpecListener(this), this);
         pluginManager.registerEvents(new SpecMenu.ClickHandler(this), this);
         pluginManager.registerEvents(flavorService, this);
