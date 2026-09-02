@@ -13,8 +13,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Персист выбранных спеков (1.4.0, Пакет 1).
- * Файл: plugins/RaskolClasses/specs.yml (uuid → spec_id).
- * Асинхронное сохранение на выходе и выгрузке.
+ * Файл: plugins/RaskolClasses/spec-choices.yml (uuid → spec_id).
+ * ОТДЕЛЬНЫЙ файл от specs.yml (баланс) — чтобы сохранение выборов
+ * никогда не перетирало конфигурацию спек.
+ * Сохранение синхронно при каждом выборе (редкое событие, дёшево).
  */
 public final class SpecStorage {
 
@@ -24,7 +26,7 @@ public final class SpecStorage {
 
     public SpecStorage(RaskolClasses plugin) {
         this.plugin = plugin;
-        this.file = new File(plugin.getDataFolder(), "specs.yml");
+        this.file = new File(plugin.getDataFolder(), "spec-choices.yml");
     }
 
     public void load() {
@@ -35,13 +37,12 @@ public final class SpecStorage {
         for (String uuidKey : cfg.getKeys(false)) {
             try {
                 UUID uuid = UUID.fromString(uuidKey);
-                String specId = cfg.getString(uuidKey, "");
-                Spec spec = Spec.fromId(specId);
+                Spec spec = Spec.fromId(cfg.getString(uuidKey, ""));
                 if (spec != null) {
                     choices.put(uuid, spec);
                 }
             } catch (IllegalArgumentException ignored) {
-                // битый ключ — пропускаем
+                // битый ключ — пропускаем, не роняем старт
             }
         }
     }
@@ -54,7 +55,8 @@ public final class SpecStorage {
         try {
             cfg.save(file);
         } catch (IOException e) {
-            plugin.getLogger().severe("Не удалось сохранить specs.yml: " + e.getMessage());
+            plugin.getLogger().severe("RaskolClasses: не удалось сохранить spec-choices.yml: "
+                    + e.getMessage());
         }
     }
 
@@ -71,6 +73,7 @@ public final class SpecStorage {
         return choices.containsKey(uuid);
     }
 
+    /** Респец (Пакет 3). */
     public void remove(UUID uuid) {
         choices.remove(uuid);
         save();
