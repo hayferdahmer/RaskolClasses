@@ -7,12 +7,12 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.util.Vector;
 
 /**
  * Каст активок спеков со слота 6 (/rc 6).
@@ -71,8 +71,8 @@ public final class SpecActiveCaster {
             case MARKSMAN -> plugin.getSpecEffects().armPrecise(player.getUniqueId());
             case TRACKER -> {
                 Entity target = player.getTargetEntity(6);
-                if (target != null) {
-                    target.addPotionEffect(new PotionEffect(
+                if (target instanceof LivingEntity living) {
+                    living.addPotionEffect(new PotionEffect(
                             PotionEffectType.SLOWNESS, def.activeInt("duration", 2) * 20, 5));
                 }
             }
@@ -101,11 +101,11 @@ public final class SpecActiveCaster {
             }
             case SHADOWWEAVER -> {
                 Entity target = player.getTargetEntity(6);
-                if (target != null) {
-                    target.damage(def.activeDouble("damage", 6.0), player);
-                    target.addPotionEffect(new PotionEffect(
+                if (target instanceof LivingEntity living) {
+                    living.damage(def.activeDouble("damage", 6.0), player);
+                    living.addPotionEffect(new PotionEffect(
                             PotionEffectType.BLINDNESS, 30, 0));
-                    target.addPotionEffect(new PotionEffect(
+                    living.addPotionEffect(new PotionEffect(
                             PotionEffectType.SLOWNESS, 30, 1));
                 }
             }
@@ -131,7 +131,7 @@ public final class SpecActiveCaster {
             }
             case LIQUIDATOR -> {
                 Entity target = player.getTargetEntity(5);
-                if (target != null) {
+                if (target instanceof LivingEntity living) {
                     int ticks = def.activeInt("duration", 6) * 20;
                     double perTick = def.activeDouble("damage_per_tick", 2.0);
                     new BukkitRunnable() {
@@ -140,11 +140,11 @@ public final class SpecActiveCaster {
                         @Override
                         public void run() {
                             elapsed += 20;
-                            if (elapsed > ticks || target.isDead()) {
+                            if (elapsed > ticks || living.isDead()) {
                                 cancel();
                                 return;
                             }
-                            target.damage(perTick, player);
+                            living.damage(perTick, player);
                         }
                     }.runTaskTimer(plugin, 20L, 20L);
                 }
