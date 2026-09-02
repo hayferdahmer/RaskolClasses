@@ -19,8 +19,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Бизнес-логика спеков (1.4.0): выбор на 40 уровне, платный респец (Пакет 3).
- * Цена респеца = base + level * per-level (конфиг spec.*), деньги сжигаются
- * через economy-контракт Core (money-sink).
+ * FIX 1.4.0.2: гейт уровня не убивает спеки намертво —
+ *  - админ (raskolclasses.admin) выбирает без уровня (тест-байпас);
+ *  - если AuraSkills недоступна (NO_SKILL_SYSTEM) — выбор разрешён,
+ *    иначе фича молча мертва на любом сбое скилл-хука.
  */
 public final class SpecService {
 
@@ -55,8 +57,16 @@ public final class SpecService {
         if (storage.hasSpec(player.getUniqueId())) {
             return false;
         }
+        // FIX 1.4.0.2: тест-байпас для админа
+        if (player.hasPermission("raskolclasses.admin")) {
+            return true;
+        }
         int level = plugin.getSkillLevels().getLevel(player.getUniqueId(), pc.profileSkillName());
-        return level != SkillLevelProvider.NO_SKILL_SYSTEM && level >= REQUIRED_LEVEL;
+        // FIX 1.4.0.2: скилл-система недоступна — не блокируем фичу целиком
+        if (level == SkillLevelProvider.NO_SKILL_SYSTEM) {
+            return true;
+        }
+        return level >= REQUIRED_LEVEL;
     }
 
     /** Выбор спеки. Возвращает true если успешно. */
