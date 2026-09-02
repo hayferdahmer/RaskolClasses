@@ -13,7 +13,9 @@ import java.util.Map;
 
 /**
  * Загрузка баланса спеков из specs.yml (1.4.0).
- * Пакет 2: хелперы чтения числовых параметров пассивок/активок.
+ * FIX 1.4.0.2: самовосстановление — если файл побит (старым багом хранения
+ * он перезаписывался uuid-ключами и терял секцию specs:), пересоздаём его
+ * из шаблона в jar и перечитываем. Без этого активки/пассивки молча мертвы.
  */
 public final class SpecRegistry {
 
@@ -62,15 +64,34 @@ public final class SpecRegistry {
             plugin.saveResource("specs.yml", false);
         }
 
-        FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+        int loaded = parse(YamlConfiguration.loadConfiguration(file));
+        if (loaded == 0) {
+            // Файл существует, но секций specs.* нет — побит. Лечим пересозданием.
+            plugin.getLogger().warning("specs.yml повреждён или пуст — "
+                    + "пересоздаю из шаблона (баланс спеков)");
+            if (file.delete()) {
+                plugin.saveResource("specs.yml", false);
+                loaded = parse(YamlConfiguration.loadConfiguration(file));
+            }
+        }
+        if (loaded == 0) {
+            plugin.getLogger().severe("specs.yml не читается даже из шаблона — "
+                    + "спеки отключены");
+        }
+        plugin.getLogger().info("Загружено " + definitions.size() + " специализаций");
+    }
+
+    /** Разбирает конфиг в definitions; возвращает число загруженных спеков. */
+    private int parse(FileConfiguration cfg) {
         definitions.clear();
+        int loaded = 0;
 
         for (Spec spec : Spec.values()) {
             ConfigurationSection section = cfg.getConfigurationSection("specs." + spec.id());
             if (section == null) {
-                plugin.getLogger().warning("specs.yml: отсутствует секция для " + spec.id());
                 continue;
             }
+            loaded++;
 
             String passiveId = section.getString("passive.id", spec.id() + "_passive");
             String passiveDesc = section.getString("passive.description", "");
@@ -104,11 +125,15 @@ public final class SpecRegistry {
                     activeId, activeDesc, activeCost, activeCooldown,
                     passiveParams, activeParams));
         }
-
-        plugin.getLogger().info("Загружено " + definitions.size() + " специализаций");
+        return loaded;
     }
 
     public SpecDef get(Spec spec) {
         return definitions.get(spec);
+    }
+
+    /** Для диагностики: сколько дефов реально загружено. */
+    public int size() {
+        return definitions.size();
     }
 }
