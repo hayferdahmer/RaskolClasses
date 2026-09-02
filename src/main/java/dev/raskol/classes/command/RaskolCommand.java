@@ -10,6 +10,7 @@ import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.gui.ClassMenu;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecMenu;
+import dev.raskol.classes.spec.SpecService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -26,7 +27,8 @@ import java.util.UUID;
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
-            List.of("1", "2", "3", "4", "5", "6", "menu", "hud", "reload", "debug", "bind", "spec");
+            List.of("1", "2", "3", "4", "5", "6", "menu", "hud", "reload", "debug",
+                    "bind", "spec", "respec");
 
     private final RaskolClasses plugin;
 
@@ -144,7 +146,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY));
                     return true;
                 }
-                // 1.4.0 / Пакет 2.1: слот 6 — свиток активки спеки
                 if (bindSlot == 6) {
                     Spec spec = plugin.getSpecService().getSpec(player.getUniqueId());
                     if (spec == null) {
@@ -190,7 +191,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY)
                             .append(Component.text(currentSpec.displayName(), pc.getColor())));
                     player.sendMessage(Component.text(
-                            "Респец будет доступен в Пакете 3",
+                            "Сменить — /rc respec (платно)",
                             NamedTextColor.YELLOW));
                     return true;
                 }
@@ -207,6 +208,52 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 SpecMenu.open(plugin, player, pc);
+            }
+            // 1.4.0 / Пакет 3: платный респец с подтверждением
+            case "respec" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(Component.text("Респец — только для игроков",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
+                if (current == null) {
+                    player.sendMessage(Component.text(
+                            "Специализация не выбрана — /rc spec", NamedTextColor.GRAY));
+                    return true;
+                }
+                SpecService specService = plugin.getSpecService();
+                if (args.length >= 2 && args[1].equalsIgnoreCase("confirm")) {
+                    SpecService.RespecResult result = specService.confirmRespec(player);
+                    switch (result) {
+                        case OK -> player.sendMessage(Component.text(
+                                "Специализация сброшена. Выбери новую: /rc spec",
+                                NamedTextColor.GREEN));
+                        case POOR -> player.sendMessage(Component.text(
+                                "Не хватает денег: респец стоит "
+                                        + specService.respecCost(player) + " монет",
+                                NamedTextColor.RED));
+                        case NO_ECONOMY -> player.sendMessage(Component.text(
+                                "Экономика недоступна — респец временно отключён",
+                                NamedTextColor.RED));
+                        case NOT_PENDING -> player.sendMessage(Component.text(
+                                "Запрос истёк. Повтори: /rc respec",
+                                NamedTextColor.GRAY));
+                        default -> player.sendMessage(Component.text(
+                                "Специализация не выбрана", NamedTextColor.GRAY));
+                    }
+                    return true;
+                }
+                specService.requestRespec(player);
+                int cost = specService.respecCost(player);
+                int balance = (int) specService.economy().balance(player.getUniqueId());
+                player.sendMessage(Component.text("Респец стоит: ", NamedTextColor.GRAY)
+                        .append(Component.text(cost + " монет", NamedTextColor.YELLOW))
+                        .append(Component.text(" (у тебя: " + balance + ")",
+                                NamedTextColor.GRAY)));
+                player.sendMessage(Component.text(
+                        "Подтверди в течение 30 секунд: /rc respec confirm",
+                        NamedTextColor.YELLOW));
             }
             case "debug" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
@@ -234,7 +281,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sendDebug(sender, target);
             }
             default -> sender.sendMessage(Component.text(
-                    "Использование: /rc [1-6|menu|hud|reload|debug|bind|spec]",
+                    "Использование: /rc [1-6|menu|hud|reload|debug|bind|spec|respec]",
                     NamedTextColor.GRAY));
         }
         return true;
@@ -299,7 +346,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY)));
         }
 
-        player.sendMessage(Component.text("Каст: /rc 1–6 · Свитки: /rc bind <1-6>",
+        player.sendMessage(Component.text("Каст: /rc 1–6 · Свитки: /rc bind <1-6> · Респец: /rc respec",
                 NamedTextColor.DARK_GRAY));
     }
 
@@ -457,6 +504,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             String bindPrefix = args[1];
             return List.of("1", "2", "3", "4", "5", "6").stream()
                     .filter(s -> s.startsWith(bindPrefix))
+                    .toList();
+        }
+        if (args.length == 2 && "respec".equalsIgnoreCase(args[0])) {
+            return List.of("confirm").stream()
+                    .filter(s -> s.startsWith(args[1].toLowerCase()))
                     .toList();
         }
         if (args.length != 1) {
