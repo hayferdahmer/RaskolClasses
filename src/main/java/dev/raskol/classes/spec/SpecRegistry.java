@@ -2,19 +2,18 @@
 package dev.raskol.classes.spec;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Загрузка баланса спеков из specs.yml (1.4.0, Пакет 1).
- * Все числа — в конфиге, правки без перекомпиляции.
+ * Загрузка баланса спеков из specs.yml (1.4.0).
+ * Пакет 2: хелперы чтения числовых параметров пассивок/активок.
  */
 public final class SpecRegistry {
 
@@ -28,7 +27,27 @@ public final class SpecRegistry {
             int activeCooldown,
             Map<String, Object> passiveParams,
             Map<String, Object> activeParams
-    ) {}
+    ) {
+        public double passiveDouble(String key, double def) {
+            Object v = passiveParams.get(key);
+            return v instanceof Number n ? n.doubleValue() : def;
+        }
+
+        public int passiveInt(String key, int def) {
+            Object v = passiveParams.get(key);
+            return v instanceof Number n ? n.intValue() : def;
+        }
+
+        public double activeDouble(String key, double def) {
+            Object v = activeParams.get(key);
+            return v instanceof Number n ? n.doubleValue() : def;
+        }
+
+        public int activeInt(String key, int def) {
+            Object v = activeParams.get(key);
+            return v instanceof Number n ? n.intValue() : def;
+        }
+    }
 
     private final RaskolClasses plugin;
     private final Map<Spec, SpecDef> definitions = new EnumMap<>(Spec.class);
@@ -60,7 +79,7 @@ public final class SpecRegistry {
             int activeCost = section.getInt("active.cost", 30);
             int activeCooldown = section.getInt("active.cooldown", 30);
 
-            Map<String, Object> passiveParams = new java.util.HashMap<>();
+            Map<String, Object> passiveParams = new HashMap<>();
             ConfigurationSection passiveSection = section.getConfigurationSection("passive");
             if (passiveSection != null) {
                 for (String key : passiveSection.getKeys(false)) {
@@ -70,21 +89,20 @@ public final class SpecRegistry {
                 }
             }
 
-            Map<String, Object> activeParams = new java.util.HashMap<>();
+            Map<String, Object> activeParams = new HashMap<>();
             ConfigurationSection activeSection = section.getConfigurationSection("active");
             if (activeSection != null) {
                 for (String key : activeSection.getKeys(false)) {
-                    if (!key.equals("id") && !key.equals("description") 
+                    if (!key.equals("id") && !key.equals("description")
                             && !key.equals("cost") && !key.equals("cooldown")) {
                         activeParams.put(key, activeSection.get(key));
                     }
                 }
             }
 
-            definitions.put(spec, new SpecDef(
-                    spec, passiveId, passiveDesc, activeId, activeDesc,
-                    activeCost, activeCooldown, passiveParams, activeParams
-            ));
+            definitions.put(spec, new SpecDef(spec, passiveId, passiveDesc,
+                    activeId, activeDesc, activeCost, activeCooldown,
+                    passiveParams, activeParams));
         }
 
         plugin.getLogger().info("Загружено " + definitions.size() + " специализаций");
