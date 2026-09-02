@@ -8,6 +8,8 @@ import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.gui.ClassMenu;
+import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.spec.SpecMenu;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -24,7 +26,7 @@ import java.util.UUID;
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
-            List.of("1", "2", "3", "4", "5", "menu", "hud", "reload", "debug", "bind");
+            List.of("1", "2", "3", "4", "5", "menu", "hud", "reload", "debug", "bind", "spec");
 
     private final RaskolClasses plugin;
 
@@ -140,6 +142,44 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         .append(Component.text(" — положи в хотбар и жми ПКМ",
                                 NamedTextColor.GRAY)));
             }
+            // 1.4.0: выбор специализации
+            case "spec" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(Component.text("Специализация — только для игроков",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+                if (pc == null) {
+                    player.sendMessage(Component.text(
+                            cfg.message("no-class", "Класс не выбран — посетите герольда"),
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                Spec currentSpec = plugin.getSpecService().getSpec(player.getUniqueId());
+                if (currentSpec != null) {
+                    player.sendMessage(Component.text("Специализация уже выбрана: ",
+                            NamedTextColor.GRAY)
+                            .append(Component.text(currentSpec.displayName(), pc.getColor())));
+                    player.sendMessage(Component.text(
+                            "Респец будет доступен в 1.5.0 (Пакет 3)",
+                            NamedTextColor.YELLOW));
+                    return true;
+                }
+                if (!plugin.getSpecService().canChoose(player)) {
+                    int level = plugin.getSkillLevels().getLevel(
+                            player.getUniqueId(), pc.profileSkillName());
+                    String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM
+                            ? "AuraSkills не подключён"
+                            : String.valueOf(level);
+                    player.sendMessage(Component.text(
+                            "Специализация открывается на 40 уровне ("
+                                    + pc.profileSkillName() + "). Твой уровень: " + levelText,
+                            NamedTextColor.RED));
+                    return true;
+                }
+                SpecMenu.open(plugin, player, pc);
+            }
             case "debug" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
                     sender.sendMessage(Component.text(
@@ -166,7 +206,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sendDebug(sender, target);
             }
             default -> sender.sendMessage(Component.text(
-                    "Использование: /rc [1-5|menu|hud|reload|debug|bind]", NamedTextColor.GRAY));
+                    "Использование: /rc [1-5|menu|hud|reload|debug|bind|spec]",
+                    NamedTextColor.GRAY));
         }
         return true;
     }
@@ -191,6 +232,19 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(Component.text(pc.getResourceName() + ": "
                 + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100",
                 pc.getColor()));
+
+        // 1.4.0: показать выбранную спеку или статус доступности
+        Spec spec = plugin.getSpecService().getSpec(player.getUniqueId());
+        if (spec != null) {
+            player.sendMessage(Component.text("Специализация: ", NamedTextColor.GRAY)
+                    .append(Component.text(spec.displayName(), pc.getColor())));
+        } else {
+            String specStatus = plugin.getSpecService().canChoose(player)
+                    ? "доступна — /rc spec"
+                    : "откроется на 40 уровне";
+            player.sendMessage(Component.text("Специализация: " + specStatus,
+                    NamedTextColor.DARK_GRAY));
+        }
 
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
             String desc = cfg.abilityDescription(pc, def.id(), "");
@@ -253,6 +307,16 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 .append(Component.text(
                         (int) plugin.getResources().getValue(uuid) + "/100",
                         pc.getColor())));
+
+        // 1.4.0: спека
+        Spec spec = plugin.getSpecService().getSpec(uuid);
+        if (spec != null) {
+            sender.sendMessage(Component.text("Специализация: ", NamedTextColor.GRAY)
+                    .append(Component.text(spec.displayName(), NamedTextColor.GREEN)));
+        } else {
+            sender.sendMessage(Component.text("Специализация: не выбрана",
+                    NamedTextColor.GRAY));
+        }
 
         boolean hasCooldowns = false;
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
