@@ -34,8 +34,8 @@ hooks:
     enabled: true             # читать класс из паспорта RaskolCore (LP — фолбэк)
 
 hotbar-bind:
-  enabled: true               # свитки способностей (/rc bind <1-5>)
-  material: AMETHYST_SHARD    # материал свитка
+  enabled: true               # свитки способностей (/rc bind <1-6>)
+  material: AMETHYST_SHARD    # материал классового свитка (спец-свиток — NETHER_STAR)
 
 target-cast:
   enabled: true               # ЛКМ со свитком точечной способности по игроку = каст в цель
@@ -44,13 +44,10 @@ class-accept:
   enabled: true               # титр при первом принятии класса (раз в сессию)
   subtitle: "Твой путь избран"
 
-# 1.4.0: Специализации классов
+# 1.4.0 / Пакет 3: платный респец (money-sink)
 spec:
-  required-level: 40          # уровень профильного скилла AuraSkills для выбора
-  messages:
-    already-chosen: "Специализация уже выбрана: {spec}"
-    not-available: "Специализация открывается на {level} уровне ({skill})"
-    chosen: "Специализация выбрана: {spec}"
+  respec-base-cost: 250       # базовая цена сброса спеки
+  respec-per-level: 10        # +10 за каждый уровень профильного скилла
 
 # Игровые тексты: меняй в конфиге, не нужно пересобирать.
 messages:
