@@ -15,6 +15,8 @@ import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.resource.ResourceService;
+import dev.raskol.classes.spec.SpecActiveCaster;
+import dev.raskol.classes.spec.SpecEffects;
 import dev.raskol.classes.spec.SpecListener;
 import dev.raskol.classes.spec.SpecMenu;
 import dev.raskol.classes.spec.SpecRegistry;
@@ -31,8 +33,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.4.0: + специализации (Spec).
- * Рантайм: Paper 26.2 · компиляция: paper-api 1.21.4 (нижняя планка, V1) · Java 21.
+ * 1.4.0: специализации (Пакет 1) + боевая механика спеков (Пакет 2).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -46,11 +47,13 @@ public final class RaskolClasses extends JavaPlugin {
     private HudService hud;
     private BossBarService bossBars;
     private AbilityToken tokens;
-    
+
     // 1.4.0: специализации
     private SpecRegistry specRegistry;
     private SpecStorage specStorage;
     private SpecService specService;
+    private SpecEffects specEffects;
+    private SpecActiveCaster specCaster;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -86,15 +89,16 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.hud = new HudService(this);
         this.bossBars = new BossBarService(this);
-        // Пакет 6: свитки способностей
         this.tokens = new AbilityToken(this);
-        
+
         // 1.4.0: специализации
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
         this.specStorage = new SpecStorage(this);
         specStorage.load();
+        this.specEffects = new SpecEffects(this);
         this.specService = new SpecService(this, specStorage, specRegistry);
+        this.specCaster = new SpecActiveCaster(this);
 
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
@@ -102,7 +106,6 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new PassiveListener(this), this);
         pluginManager.registerEvents(new ClassMenu.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
-        // 1.4.0: слушатели спеков и GUI выбора
         pluginManager.registerEvents(new SpecListener(this), this);
         pluginManager.registerEvents(new SpecMenu.ClickHandler(this), this);
 
@@ -120,6 +123,7 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
             effects.purgeExpired();
+            specEffects.purgeExpired();
         }, purgeInterval, purgeInterval));
 
         registerCommand();
@@ -144,7 +148,6 @@ public final class RaskolClasses extends JavaPlugin {
         if (effects != null) {
             effects.clear();
         }
-        // 1.4.0: сохранение выбранных спеков
         if (specStorage != null) {
             specStorage.save();
         }
@@ -173,7 +176,6 @@ public final class RaskolClasses extends JavaPlugin {
         if (bossBars != null) {
             bossBars.applyConfig();
         }
-        // 1.4.0: перезагрузка баланса спеков
         if (specRegistry != null) {
             specRegistry.load();
         }
@@ -190,9 +192,9 @@ public final class RaskolClasses extends JavaPlugin {
     public HudService getHud() { return hud; }
     public BossBarService getBossBars() { return bossBars; }
     public AbilityToken getTokens() { return tokens; }
-    
-    // 1.4.0: геттеры для спеков
     public SpecRegistry getSpecRegistry() { return specRegistry; }
     public SpecStorage getSpecStorage() { return specStorage; }
     public SpecService getSpecService() { return specService; }
+    public SpecEffects getSpecEffects() { return specEffects; }
+    public SpecActiveCaster getSpecCaster() { return specCaster; }
 }
