@@ -23,8 +23,9 @@ Soft-depend (все опциональны): LuckPerms, AuraSkills, PlaceholderA
 
 Выбор на 40 уровне профильного скилла: `/rc spec` → GUI двух спек.
 Одна на всю жизнь; смена — платный респец. Активка спеки — слот 6
-(`/rc 6`, свиток `/rc bind 6`). Пассивки — постоянно, числа в `specs.yml`.
-Хранение: `spec-choices.yml`; LP-нода `raskolclasses.spec.<id>` (для TAB).
+(`/rc 6`, свиток `/rc bind 6` — капкан с визуалом ловушки на земле).
+Пассивки — постоянно, числа в `specs.yml`. Хранение: `spec-choices.yml`;
+LP-нода `raskolclasses.spec.<id>` (для TAB).
 
 ## Королевские вкусы (1.4.0)
 
@@ -62,7 +63,7 @@ Soft-depend (все опциональны): LuckPerms, AuraSkills, PlaceholderA
 
 - `config.yml` — весь баланс: ресурсы классов, абилки, пассивки, цены респеца
   (`spec`), вкусы корон (`flavors`), HUD, ready-notify. Применение: `/rc reload`.
-- `specs.yml` — числа пассивок/активок специализаций.
+- `specs.yml` — числа пассивок/активок специализаций (самовосстанавливается).
 - Данные: `cooldowns.yml`, `spec-choices.yml` (папка плагина; не удалять при обновлении jar).
 
 ## История
