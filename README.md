@@ -1,122 +1,74 @@
-# RaskolClasses
+# RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ»
 
-Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ».
-Рантайм: Paper 26.2 (build ~112) · Java 21 · offline-mode + AuthMe.
-Компиляция: paper-api 1.21.4-R0.1-SNAPSHOT (нижняя планка форвард-совместимости).
+Классовый слой сервера: пять классов с ресурсами, активными способностями,
+специализациями и королевскими вкусами.
 
-Текущая версия: **1.3.2** · [CHANGELOG](CHANGELOG.md)
+Рантайм: Paper 1.21.4+ · Java 21 · api-version '1.21'.
+Soft-depend (все опциональны): LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore.
 
-## Владение и лицензия
+## Классы и ресурсы
 
-© 2026 hayferdahmer. Все права защищены.
-RASKOL Proprietary License v1.0 — см. [LICENSE](LICENSE).
-Копирование, распространение и использование вне сервера «РАСКОЛ» без письменного
-разрешения владельца запрещены.
-
-## Что делает плагин
-
-- Пять классов: Воин, Охотник, Жрец, Маг, Разбойник. Класс читается из
-  паспорта **RaskolCore** (1.3.2); при отсутствии Core — фолбэк на primary
-  group LuckPerms `class_*`.
-- Ресурсы 0–100 с классовым регеном: Ярость, Концентрация, Свет, Мана, Энергия.
-  У мага — тирный реген маны (3/4/5/6 в секунду по порогам 25/50/75).
-- 21 активная способность (4–5 на класс) со стоимостью, кулдаунами и анлоками;
-  кулдауны переживают релог (`cooldowns.yml`).
-- 6 врождённых пассивок; все цифры — в конфиге.
-- Тёмный тематический HUD в actionbar: градиент класса, шкала ресурса,
-  braille-спиннер кулдаунов, аура полного ресурса.
-- **Босс-бары длительных эффектов** (≥ 8 с, топ-2 одновременно, сегменты, отсчёт).
-- **Свитки способностей:** `/rc bind <1-5>` — предмет, ПКМ = каст в себя;
-  для точечных способностей жреца (хилы, щит) **ЛКМ по игроку = каст в цель** (1.3.1).
-- **Ready-notify:** звук и actionbar ««способность» — готова» при окончании длинных КД.
-- «Принятие класса»: титр градиентом темы + партиклы + звук при смене класса
-  (раз в сессию).
-- Плейсхолдеры PlaceholderAPI: `%raskolclasses_class%`, `%raskolclasses_resource%`,
-  `%raskolclasses_resource_max%`.
-- Уровни AuraSkills открывают способности (graceful-degrade: без AuraSkills
-  анлоки сняты).
-
-## Требования
-
-| Компонент | Статус | Примечание |
+| Класс | Ресурс | Реген |
 |---|---|---|
-| Paper 1.21.4+ | обязателен | рантайм верифицирован на Paper 26.2 |
-| Java 21 | обязателен | |
-| RaskolCore | рекомендован | источник правды класса (1.3.2); без него — LP-фолбэк |
-| LuckPerms | опционален | фолбэк, если Core отсутствует |
-| AuraSkills | опционален | без него уровневые требования сняты |
-| PlaceholderAPI | опционален | без него плейсхолдеры не регистрируются |
+| Воин | Ярость | −5/с вне боя; +10 за нанесённый/полученный урон |
+| Охотник | Концентрация | +5/с вне боя, 0 в бою |
+| Жрец | Свет | +2/с всегда; +5 за событие лечения |
+| Маг | Мана | тиры 3/4/5/6 по порогам 25/50/75 |
+| Разбойник | Энергия | +10/с |
 
-## Команды и права
+Способности: 5 на класс (слоты 1–5), лестница 1/10/25/50/75.
+Каст: `/rc 1–5`; свитки `/rc bind 1–5` (ПКМ — в себя, ЛКМ по союзнику — цель).
+
+## Специализации (1.4.0)
+
+Выбор на 40 уровне профильного скилла: `/rc spec` → GUI двух спек.
+Одна на всю жизнь; смена — платный респец. Активка спеки — слот 6
+(`/rc 6`, свиток `/rc bind 6`). Пассивки — постоянно, числа в `specs.yml`.
+Хранение: `spec-choices.yml`; LP-нода `raskolclasses.spec.<id>` (для TAB).
+
+## Королевские вкусы (1.4.0)
+
+Титул и партикл-аура по короне из паспорта RaskolCore (Рассвет/Вальрадис).
+Один класс выглядит по-разному в двух коронах; конфиг — секция `flavors`.
+Плейсхолдеры: `%raskolcrown_crown%`, `%raskolcrown_title%`, `%raskolcrown_faction%`.
+
+## Респец (1.4.0)
+
+`/rc respec` → цена (250 + 10×уровень) → `/rc respec confirm` (окно 30 с).
+Деньги списываются через economy-контракт RaskolCore (Vault/Essentials) и
+сжигаются — антиинфляционный sink. Админ (`raskolclasses.admin`) — бесплатно.
+
+## Команды
 
 | Команда | Право | Описание |
 |---|---|---|
-| `/rc` | — | сводка класса и способностей |
-| `/rc 1–5` | — | каст способности слота |
+| `/rc` | — | инфо: класс, уровень, ресурс, корона, титул, спека, абилки, пассивки |
+| `/rc 1–6` | — | каст способности (6 — активка спеки) |
 | `/rc menu` | — | GUI способностей |
-| `/rc hud` | — | переключить HUD |
-| `/rc bind <1-5>` | — | выдать свиток способности (ПКМ = в себя; ЛКМ по игроку = в цель для точечных жреца) |
-| `/rc reload` | `raskolclasses.admin` (default: op) | перезагрузить конфиг |
-| `/rc debug [player]` | `raskolclasses.debug` (default: op) | диагностика: версия, **источник класса (core/lp/off)**, класс, ресурс, КД, эффекты, уровень, HUD |
+| `/rc bind 1–6` | — | свиток способности/спеки |
+| `/rc spec` | — | выбор спеки (40 уровень, один раз) |
+| `/rc respec [confirm]` | — | платный сброс спеки (админ — бесплатно) |
+| `/rc hud` | — | HUD вкл/выкл |
+| `/rc reload` | raskolclasses.admin | перечитать конфиг |
+| `/rc debug [player]` | raskolclasses.debug | диагностика |
 
-## Конфигурация
+## Плейсхолдеры (PAPI)
 
-Весь баланс живёт в `config.yml`; отсутствующие ключи дописываются автоматически
-(`copyDefaults`), правки админа не затираются.
+`%raskolclasses_*%` — класс/ресурс/способности (RaskolPlaceholder).
+`%raskolcrown_crown% / %raskolcrown_title% / %raskolcrown_faction%` — вкусы корон
+(FlavorPlaceholder). Добавь `%raskolcrown_title%` в формат TAB — титул виден всем.
 
-- `classes.<CLASS>.resource-*` — реген и набор ресурса;
-- `classes.<CLASS>.theme.*`, `cast-sound`, `cast-particle` — темы классов;
-- `classes.<CLASS>.abilities.<id>.{unlock,cost,cooldown,name,description,duration}` — активки;
-- `classes.<CLASS>.passives.<id>.*` — пассивки (chance, multiplier, threshold,
-  cooldown-seconds, display-name, description);
-- `classes.MAGE.regen-tier-{1..4}` — тиры регена маны (3/4/5/6 в секунду);
-- `class-accept.{enabled,subtitle}` — титр принятия класса;
-- `hooks.raskolcore.enabled` (1.3.2) — чтение класса из RaskolCore; false = только LP;
-- `hud.*`, `hud.boss-bar.*`, `performance.*`, `performance.ready-notify.*`,
-  `hotbar-bind.*`, `target-cast.*`, `messages.*` — HUD, босс-бары, ready-notify,
-  хотбар-бинд, таргет-касты и локализация.
+## Конфиги
 
-### Врождённые пассивки (1.2.0, описания с 1.3.0)
+- `config.yml` — весь баланс: ресурсы классов, абилки, пассивки, цены респеца
+  (`spec`), вкусы корон (`flavors`), HUD, ready-notify. Применение: `/rc reload`.
+- `specs.yml` — числа пассивок/активок специализаций.
+- Данные: `cooldowns.yml`, `spec-choices.yml` (папка плагина; не удалять при обновлении jar).
 
-| Класс | Пассивка | Эффект (дефолт) |
-|---|---|---|
-| Воин | Казнь | 20% шанс ×3 урона по цели ≤20% HP; внутр. КД 6 с |
-| Охотник | Хищник | +20% урона по целям ≥80% HP |
-| Жрец | Благодать | ×1.15 к лечению (входящему и исходящему с 1.3.1) |
-| Маг | Пропитанный маной | мана ≥50 → −15% входящего урона |
-| Разбойник | Мастер ядов | 30% Яд I на 2 с; внутр. КД 3 с |
-| Разбойник | Садизм | +3 урона в спину; внутр. КД 2 с |
+## История
 
-### Ребаланс воина (1.2.0)
+См. `CHANGELOG.md`.
 
-| Способность | Цифры |
-|---|---|
-| Стальная кожа | −80% урона, 5 с (10/30/45) |
-| Удар щитом | Slowness II + Blindness r4, 3 с + таунт (25/20/25) |
-| Кровавое безумие | 4 с возвращает 20% урона агрессору (50/40/30) |
-| Бог войны | Сила II + Сопротивление I, 8 с (75/100/300) |
+## Лицензия
 
-### ×1.5 XP профильным деревьям (операторское, 1.3.0)
-- /lp group class_warrior permission set auraskills.fighting.multiplier.50
-- /lp group class_hunter permission set auraskills.archery.multiplier.50
-- /lp group class_priest permission set auraskills.healing.multiplier.50
-- /lp group class_mage permission set auraskills.sorcery.multiplier.50
-- /lp group class_rogue permission set auraskills.agility.multiplier.50
-
-## Сборка и CI
-
-GitHub Actions: `.github/workflows/build.yml` — `mvn -B clean package`
-+ **deprecation-гейт**: ран красный при любом javac-варнинге.
-Артефакт: `target/raskol-classes-<version>.jar`.
-
-## Архитектурные правила
-
-- V3: NMS и рефлексия во внутренние классы сервера запрещены;
-  рефлексия разрешена только для graceful-degrade к опциональным плагинам
-  (AuraSkills в `SkillLevelProvider`, RaskolCore в `RaskolCoreHook`),
-  изолированно в hook-классах.
-- Запрещённые конструкции (исторические галлюцинации): `Component.Builder`,
-  `Location#setPosition`, `EventSubscription#unregister`, `UserDataMutateEvent`,
-  `Player#isVanished`, `JavaPlugin#getDescription`, `Sound.valueOf`.
-
-Без кода, через LP-ноды (AuraSkills читает их нативно):
+© 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
