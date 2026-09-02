@@ -11,6 +11,8 @@ import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.gui.ClassMenu;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
+import dev.raskol.classes.hotbar.SpecBindListener;
+import dev.raskol.classes.hotbar.SpecToken;
 import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.passive.PassiveListener;
@@ -33,7 +35,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.4.0: специализации (Пакет 1) + боевая механика спеков (Пакет 2).
+ * 1.4.0: специализации + боевая механика + свитки спеков (/rc bind 6).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -54,6 +56,7 @@ public final class RaskolClasses extends JavaPlugin {
     private SpecService specService;
     private SpecEffects specEffects;
     private SpecActiveCaster specCaster;
+    private SpecToken specToken;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -99,6 +102,7 @@ public final class RaskolClasses extends JavaPlugin {
         this.specEffects = new SpecEffects(this);
         this.specService = new SpecService(this, specStorage, specRegistry);
         this.specCaster = new SpecActiveCaster(this);
+        this.specToken = new SpecToken(this);
 
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
@@ -108,6 +112,7 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new BindListener(this, tokens), this);
         pluginManager.registerEvents(new SpecListener(this), this);
         pluginManager.registerEvents(new SpecMenu.ClickHandler(this), this);
+        pluginManager.registerEvents(new SpecBindListener(this, specToken), this);
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
@@ -197,4 +202,5 @@ public final class RaskolClasses extends JavaPlugin {
     public SpecService getSpecService() { return specService; }
     public SpecEffects getSpecEffects() { return specEffects; }
     public SpecActiveCaster getSpecCaster() { return specCaster; }
+    public SpecToken getSpecToken() { return specToken; }
 }
