@@ -11,6 +11,10 @@ import java.util.UUID;
  *  1) не тащим raskol-core в pom (нет публичного Maven-репо);
  *  2) на рантайме классы Core видны через softdepend в plugin.yml.
  * Без Core/без провайдера — available() == false, респец блокируется.
+ *
+ * FIX: ленивый резолв реестра — balance()/withdraw() сами инициируют
+ * подключение, иначе первый вызов до available() видел registry == null
+ * и возвращал 0 при живом балансе.
  */
 public final class EconomyHook {
 
@@ -24,11 +28,15 @@ public final class EconomyHook {
 
     /** Контракт жив и провайдер зарегистрирован. */
     public boolean available() {
+        return provider() != null;
+    }
+
+    /** Резолв реестра ровно один раз, лениво. */
+    private void ensureResolved() {
         if (!attempted) {
             attempted = true;
             registry = resolveRegistry();
         }
-        return registry != null && provider() != null;
     }
 
     private Object resolveRegistry() {
@@ -47,6 +55,7 @@ public final class EconomyHook {
     }
 
     private Object provider() {
+        ensureResolved();
         if (registry == null) {
             return null;
         }
