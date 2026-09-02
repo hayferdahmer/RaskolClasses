@@ -21,8 +21,8 @@ import org.joml.Vector3f;
  * Сущность временная (setPersistent(false)), удаляется по таймеру —
  * мир не изменяется, на рестартах не остаётся мусора.
  *
- * FIX 1.4.0.4: масштаб через setTransformation(Transformation) —
- * метода setTransformationScale в paper-api 1.21.4 нет.
+ * FIX 1.4.0.5: порядок аргументов Transformation —
+ * (translation, leftRot, scale, rightRot), а не (translation, scale, ...).
  */
 public final class TrapVisual {
 
@@ -39,12 +39,12 @@ public final class TrapVisual {
 
         ItemDisplay display = (ItemDisplay) world.spawnEntity(spot, EntityType.ITEM_DISPLAY);
         display.setItemStack(new ItemStack(Material.TRIPWIRE_HOOK));
-        // scale ×2.2, без смещения и поворотов
+        // Правильный порядок: translation, leftRot, scale, rightRot
         display.setTransformation(new Transformation(
-                new Vector3f(0f, 0f, 0f),
-                new Vector3f(2.2f, 2.2f, 2.2f),
-                new AxisAngle4f(),
-                new AxisAngle4f()));
+                new Vector3f(0f, 0f, 0f),      // translation
+                new AxisAngle4f(),              // leftRot (нет поворота)
+                new Vector3f(2.2f, 2.2f, 2.2f), // scale
+                new AxisAngle4f()));            // rightRot (нет поворота)
         display.setViewRange(24f);
         display.setPersistent(false);
         display.setInvulnerable(true);
