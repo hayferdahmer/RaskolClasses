@@ -2,8 +2,10 @@
 package dev.raskol.classes.spec;
 
 import dev.raskol.classes.RaskolClasses;
+import org.bukkit.Particle;
 import org.bukkit.entity.Arrow;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
@@ -21,7 +23,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Полные пассивки всех 10 спеков (1.4.0, Пакет 2).
- * Все числа — из specs.yml. Все события — с ignoreCancelled.
+ * FIX 1.4.0.1: «Мороз» вешает замедление на любых LivingEntity (не только игроков);
+ * партиклы на проках (крит/дodge/лифстил) — чтобы пассивки были видны в тесте.
  */
 public final class SpecListener implements Listener {
 
@@ -39,7 +42,7 @@ public final class SpecListener implements Listener {
         return plugin.getSpecRegistry().get(spec);
     }
 
-    // --- атрибуты на вход/выход ---
+    // --- атрибуты на вход/выход (Страж: броня, Следопыт: скорость) ---
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Spec spec = specOf(event.getPlayer().getUniqueId());
@@ -95,11 +98,14 @@ public final class SpecListener implements Listener {
             }
         }
 
-        // Ликвидатор: шанс крита
+        // Ликвидатор: шанс крита + партикл прока
         if (spec == Spec.LIQUIDATOR) {
             if (ThreadLocalRandom.current().nextDouble()
                     < def.passiveDouble("crit_chance", 0.10)) {
                 damage *= def.passiveDouble("crit_multiplier", 1.5);
+                event.getEntity().spawnParticle(Particle.CRIT,
+                        event.getEntity().getLocation().add(0.0, 1.0, 0.0),
+                        6, 0.3, 0.3, 0.3, 0.0);
             }
         }
 
@@ -113,27 +119,28 @@ public final class SpecListener implements Listener {
 
         event.setDamage(damage);
 
-        // Тенеплёт: lifesteal от итогового урона
+        // Тенеплёт: lifesteal от итогового урона + сердечки
         if (spec == Spec.SHADOWWEAVER) {
             double heal = damage * def.passiveDouble("lifesteal_percent", 0.15);
             if (heal > 0.0) {
                 attacker.heal(heal);
+                attacker.spawnParticle(Particle.HEART,
+                        attacker.getLocation().add(0.0, 1.2, 0.0),
+                        2, 0.2, 0.2, 0.2, 0.0);
             }
         }
 
-        // Мороз: замедление цели
-        if (spec == Spec.FROST) {
-            Entity target = event.getEntity();
-            if (target instanceof Player targetPlayer
-                    && plugin.getSpecEffects().tryFrostSlow(targetPlayer.getUniqueId(), 3000L)) {
-                targetPlayer.addPotionEffect(new PotionEffect(
+        // FIX 1.4.0.1: Мороз — замедление на любых LivingEntity (игроки и мобы)
+        if (spec == Spec.FROST && event.getEntity() instanceof LivingEntity livingTarget) {
+            if (plugin.getSpecEffects().tryFrostSlow(livingTarget.getUniqueId(), 3000L)) {
+                livingTarget.addPotionEffect(new PotionEffect(
                         PotionEffectType.SLOWNESS,
                         (int) def.passiveDouble("slow_duration", 2.0) * 20, 0));
             }
         }
     }
 
-    // --- входящий урон: уклонение Трюкача ---
+    // --- входящий урон: уклонение Трюкача + партикл dodge ---
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageTaken(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) {
@@ -150,10 +157,13 @@ public final class SpecListener implements Listener {
         if (ThreadLocalRandom.current().nextDouble()
                 < def.passiveDouble("dodge_chance", 0.10)) {
             event.setCancelled(true);
+            victim.spawnParticle(Particle.CLOUD,
+                    victim.getLocation().add(0.0, 1.0, 0.0),
+                    5, 0.3, 0.2, 0.3, 0.0);
         }
     }
 
-    // --- лечение: Светоносец ---
+    // --- лечение: Светоносец ×1.2 ---
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onHeal(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
