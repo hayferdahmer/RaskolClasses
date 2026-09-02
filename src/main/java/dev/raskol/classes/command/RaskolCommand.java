@@ -82,7 +82,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 }
                 ClassMenu.open(plugin, player, pc);
             }
-            // 1.4.0 / Пакет 2: слот 6 — активка специализации
             case "6" -> {
                 if (!(sender instanceof Player player)) {
                     sender.sendMessage(Component.text("Каст доступен только игрокам",
@@ -133,7 +132,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 if (args.length < 2) {
-                    player.sendMessage(Component.text("Использование: /rc bind <1-5>",
+                    player.sendMessage(Component.text("Использование: /rc bind <1-6>",
                             NamedTextColor.GRAY));
                     return true;
                 }
@@ -141,8 +140,23 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 try {
                     bindSlot = Integer.parseInt(args[1]);
                 } catch (NumberFormatException e) {
-                    player.sendMessage(Component.text("Использование: /rc bind <1-5>",
+                    player.sendMessage(Component.text("Использование: /rc bind <1-6>",
                             NamedTextColor.GRAY));
+                    return true;
+                }
+                // 1.4.0 / Пакет 2.1: слот 6 — свиток активки спеки
+                if (bindSlot == 6) {
+                    Spec spec = plugin.getSpecService().getSpec(player.getUniqueId());
+                    if (spec == null) {
+                        player.sendMessage(Component.text(
+                                "Специализация не выбрана — /rc spec", NamedTextColor.GRAY));
+                        return true;
+                    }
+                    player.getInventory().addItem(plugin.getSpecToken().create(spec, pc));
+                    player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
+                            .append(Component.text(spec.displayName(), pc.getColor()))
+                            .append(Component.text(" — положи в хотбар и жми ПКМ",
+                                    NamedTextColor.GRAY)));
                     return true;
                 }
                 AbilityDef bindDef = plugin.getAbilities().getBySlot(pc, bindSlot);
@@ -285,7 +299,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY)));
         }
 
-        player.sendMessage(Component.text("Каст: /rc 1–6 · Свиток: /rc bind <1-5>",
+        player.sendMessage(Component.text("Каст: /rc 1–6 · Свитки: /rc bind <1-6>",
                 NamedTextColor.DARK_GRAY));
     }
 
@@ -441,7 +455,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                                       String alias, String[] args) {
         if (args.length == 2 && "bind".equalsIgnoreCase(args[0])) {
             String bindPrefix = args[1];
-            return List.of("1", "2", "3", "4", "5").stream()
+            return List.of("1", "2", "3", "4", "5", "6").stream()
                     .filter(s -> s.startsWith(bindPrefix))
                     .toList();
         }
