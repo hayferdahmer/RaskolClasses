@@ -26,7 +26,7 @@ import java.util.UUID;
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
-            List.of("1", "2", "3", "4", "5", "menu", "hud", "reload", "debug", "bind", "spec");
+            List.of("1", "2", "3", "4", "5", "6", "menu", "hud", "reload", "debug", "bind", "spec");
 
     private final RaskolClasses plugin;
 
@@ -81,6 +81,21 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 ClassMenu.open(plugin, player, pc);
+            }
+            // 1.4.0 / Пакет 2: слот 6 — активка специализации
+            case "6" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(Component.text("Каст доступен только игрокам",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                Spec spec = plugin.getSpecService().getSpec(player.getUniqueId());
+                if (spec == null) {
+                    player.sendMessage(Component.text(
+                            "Специализация не выбрана — /rc spec", NamedTextColor.GRAY));
+                    return true;
+                }
+                plugin.getSpecCaster().tryCast(player, spec);
             }
             case "1", "2", "3", "4", "5" -> {
                 if (!(sender instanceof Player player)) {
@@ -142,7 +157,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         .append(Component.text(" — положи в хотбар и жми ПКМ",
                                 NamedTextColor.GRAY)));
             }
-            // 1.4.0: выбор специализации
             case "spec" -> {
                 if (!(sender instanceof Player player)) {
                     sender.sendMessage(Component.text("Специализация — только для игроков",
@@ -162,7 +176,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY)
                             .append(Component.text(currentSpec.displayName(), pc.getColor())));
                     player.sendMessage(Component.text(
-                            "Респец будет доступен в 1.5.0 (Пакет 3)",
+                            "Респец будет доступен в Пакете 3",
                             NamedTextColor.YELLOW));
                     return true;
                 }
@@ -206,7 +220,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sendDebug(sender, target);
             }
             default -> sender.sendMessage(Component.text(
-                    "Использование: /rc [1-5|menu|hud|reload|debug|bind|spec]",
+                    "Использование: /rc [1-6|menu|hud|reload|debug|bind|spec]",
                     NamedTextColor.GRAY));
         }
         return true;
@@ -233,7 +247,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100",
                 pc.getColor()));
 
-        // 1.4.0: показать выбранную спеку или статус доступности
         Spec spec = plugin.getSpecService().getSpec(player.getUniqueId());
         if (spec != null) {
             player.sendMessage(Component.text("Специализация: ", NamedTextColor.GRAY)
@@ -272,7 +285,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY)));
         }
 
-        player.sendMessage(Component.text("Каст: /rc 1–5 или /rc menu · Свиток: /rc bind <1-5>",
+        player.sendMessage(Component.text("Каст: /rc 1–6 · Свиток: /rc bind <1-5>",
                 NamedTextColor.DARK_GRAY));
     }
 
@@ -288,7 +301,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         NamedTextColor.WHITE)));
         sender.sendMessage(Component.text("Цель: ", NamedTextColor.GRAY)
                 .append(Component.text(target.getName(), NamedTextColor.WHITE)));
-        // 1.3.2: источник класса
         sender.sendMessage(Component.text("Источник класса: ", NamedTextColor.GRAY)
                 .append(Component.text(plugin.getClassProvider().sourceOf(),
                         NamedTextColor.AQUA)));
@@ -308,7 +320,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         (int) plugin.getResources().getValue(uuid) + "/100",
                         pc.getColor())));
 
-        // 1.4.0: спека
         Spec spec = plugin.getSpecService().getSpec(uuid);
         if (spec != null) {
             sender.sendMessage(Component.text("Специализация: ", NamedTextColor.GRAY)
@@ -332,7 +343,14 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         NamedTextColor.GRAY));
             }
         }
-        if (!hasCooldowns) {
+        long specRemaining = spec != null
+                ? plugin.getCooldowns().getRemainingMillis(uuid, "spec_" + spec.id())
+                : 0L;
+        if (specRemaining > 0L) {
+            sender.sendMessage(Component.text("  • Спека — "
+                    + (specRemaining / 1000L + 1L) + "с", NamedTextColor.YELLOW));
+        }
+        if (!hasCooldowns && specRemaining <= 0L) {
             sender.sendMessage(Component.text("Активные КД: нет",
                     NamedTextColor.GRAY));
         }
