@@ -8,11 +8,14 @@ import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
+import dev.raskol.classes.flavor.CrownFlavorService;
 import dev.raskol.classes.gui.ClassMenu;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.SpecBindListener;
 import dev.raskol.classes.hotbar.SpecToken;
+import dev.raskol.classes.hook.FactionHook;
+import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.passive.PassiveListener;
@@ -35,7 +38,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.4.0: специализации + боевая механика + свитки спеков (/rc bind 6).
+ * 1.4.0: специализации + боевая механика + свитки + королевские вкусы.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -57,6 +60,10 @@ public final class RaskolClasses extends JavaPlugin {
     private SpecEffects specEffects;
     private SpecActiveCaster specCaster;
     private SpecToken specToken;
+
+    // 1.4.0 / Пакет 4: королевские вкусы
+    private FactionHook factionHook;
+    private CrownFlavorService flavorService;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -104,6 +111,10 @@ public final class RaskolClasses extends JavaPlugin {
         this.specCaster = new SpecActiveCaster(this);
         this.specToken = new SpecToken(this);
 
+        // 1.4.0 / Пакет 4: королевские вкусы
+        this.factionHook = new FactionHook(this);
+        this.flavorService = new CrownFlavorService(this, factionHook);
+
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
         pluginManager.registerEvents(cooldowns, this);
@@ -112,11 +123,13 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new BindListener(this, tokens), this);
         pluginManager.registerEvents(new SpecListener(this), this);
         pluginManager.registerEvents(new SpecMenu.ClickHandler(this), this);
-        pluginManager.registerEvents(new SpecBindListener(this, specToken), this);
+        pluginManager.registerEvents(flavorService, this);
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
-            getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% зарегистрированы");
+            new FlavorPlaceholder(this).register();
+            getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% "
+                    + "и %raskolcrown_*% зарегистрированы");
         } else {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
@@ -124,6 +137,7 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(hud.start());
         activeTasks.add(resources.startTickTask(this));
         activeTasks.add(bossBars.start());
+        activeTasks.add(flavorService.startAuraTask());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
@@ -203,4 +217,6 @@ public final class RaskolClasses extends JavaPlugin {
     public SpecEffects getSpecEffects() { return specEffects; }
     public SpecActiveCaster getSpecCaster() { return specCaster; }
     public SpecToken getSpecToken() { return specToken; }
+    public FactionHook getFactionHook() { return factionHook; }
+    public CrownFlavorService getFlavorService() { return flavorService; }
 }
