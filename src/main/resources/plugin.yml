@@ -20,38 +20,38 @@ commands:
 
 permissions:
   raskolclasses.admin:
-    description: Перезагрузка конфигурации (/rc reload)
+    description: "Перезагрузка конфигурации (/rc reload)"
     default: op
   raskolclasses.debug:
-    description: Диагностика (/rc debug [player])
+    description: "Диагностика (/rc debug [player])"
     default: op
   raskolclasses.spec.guardian:
-    description: Спека Воина: Страж
+    description: "Спека Воина: Страж"
     default: false
   raskolclasses.spec.berserker:
-    description: Спека Воина: Берсерк
+    description: "Спека Воина: Берсерк"
     default: false
   raskolclasses.spec.marksman:
-    description: Спека Охотника: Стрелок
+    description: "Спека Охотника: Стрелок"
     default: false
   raskolclasses.spec.tracker:
-    description: Спека Охотника: Следопыт
+    description: "Спека Охотника: Следопыт"
     default: false
   raskolclasses.spec.lightbearer:
-    description: Спека Жреца: Светоносец
+    description: "Спека Жреца: Светоносец"
     default: false
   raskolclasses.spec.shadowweaver:
-    description: Спека Жреца: Тенеплёт
+    description: "Спека Жреца: Тенеплёт"
     default: false
   raskolclasses.spec.arcane:
-    description: Спека Мага: Аркана
+    description: "Спека Мага: Аркана"
     default: false
   raskolclasses.spec.frost:
-    description: Спека Мага: Мороз
+    description: "Спека Мага: Мороз"
     default: false
   raskolclasses.spec.liquidator:
-    description: Спека Разбойника: Ликвидатор
+    description: "Спека Разбойника: Ликвидатор"
     default: false
   raskolclasses.spec.trickster:
-    description: Спека Разбойника: Трюкач
+    description: "Спека Разбойника: Трюкач"
     default: false
