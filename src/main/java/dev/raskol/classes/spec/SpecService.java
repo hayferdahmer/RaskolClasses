@@ -11,18 +11,24 @@ import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.model.user.User;
 import net.luckperms.api.node.Node;
+import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Бизнес-логика спеков (1.4.0): выбор на 40 уровне, платный респец (Пакет 3).
- * FIX 1.4.0.2: гейт уровня не убивает спеки намертво —
- *  - админ (raskolclasses.admin) выбирает без уровня (тест-байпас);
- *  - если AuraSkills недоступна (NO_SKILL_SYSTEM) — выбор разрешён,
- *    иначе фича молча мертва на любом сбое скилл-хука.
+ * Бизнес-логика спеков (1.4.0 + 1.5.1).
+ * FIX 1.5.1:
+ *  - getSpec(uuid) теперь валидирует спеку против текущего класса:
+ *    после админ-смены класса старая спека отключается сама (storage + LP-нода),
+ *    игрок получает одноразовое сообщение;
+ *  - респец сжигает свитки старой спеки из инвентаря;
+ *  - ready-notify для спек-активки (actionbar + звук), независимо от
+ *    CooldownManager; гейт performance.ready-notify.spec-enabled (default true).
  */
 public final class SpecService {
 
@@ -36,6 +42,8 @@ public final class SpecService {
     private final SpecRegistry registry;
     private final EconomyHook economy;
     private final Map<UUID, Long> pendingUntil = new ConcurrentHashMap<>();
+    /** previous remaining для ready-notify спек-активки. */
+    private final Map<UUID, Map<String, Long>> notifyPrev = new ConcurrentHashMap<>();
 
     public SpecService(RaskolClasses plugin, SpecStorage storage, SpecRegistry registry) {
         this.plugin = plugin;
@@ -57,12 +65,10 @@ public final class SpecService {
         if (storage.hasSpec(player.getUniqueId())) {
             return false;
         }
-        // FIX 1.4.0.2: тест-байпас для админа
         if (player.hasPermission("raskolclasses.admin")) {
             return true;
         }
         int level = plugin.getSkillLevels().getLevel(player.getUniqueId(), pc.profileSkillName());
-        // FIX 1.4.0.2: скилл-система недоступна — не блокируем фичу целиком
         if (level == SkillLevelProvider.NO_SKILL_SYSTEM) {
             return true;
         }
@@ -86,16 +92,41 @@ public final class SpecService {
         }
         storage.set(player.getUniqueId(), spec);
         syncToLuckPerms(player, spec);
-        // атрибуты (броня/скорость) — сразу, без релога
         plugin.getSpecEffects().applyAttributes(player, spec);
         player.sendMessage(Component.text("Специализация выбрана: ", NamedTextColor.GREEN)
                 .append(Component.text(spec.displayName(), pc.getColor())));
         return true;
     }
 
-    /** Получить выбранную спеку (null если не выбрана). */
+    /**
+     * Выбранная спека. FIX 1.5.1: если класс игрока сменился (админ/LP/Core)
+     * и не совпадает с классом спеки — спека отключается: storage чистится,
+     * LP-нода снимается, игрок получает одноразовое сообщение.
+     * Оффлайн-игроки не валидируются (пассивки оффлайн и не работают).
+     */
     public Spec getSpec(UUID uuid) {
-        return storage.get(uuid);
+        Spec spec = storage.get(uuid);
+        if (spec == null) {
+            return null;
+        }
+        Player player = plugin.getServer().getPlayer(uuid);
+        if (player == null) {
+            return spec;
+        }
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        if (pc == null || spec.playerClass() == pc) {
+            return spec;
+        }
+        plugin.getLogger().warning("RaskolClasses: спека " + spec.id() + " игрока "
+                + player.getName() + " не соответствует классу " + pc.name()
+                + " — спека сброшена");
+        player.sendMessage(Component.text(
+                "Твоя специализация сброшена: класс изменён. Выбери новую: /rc spec",
+                NamedTextColor.YELLOW));
+        storage.remove(uuid);
+        clearSpecFromLuckPerms(player, spec);
+        plugin.getSpecEffects().removeAttributes(player);
+        return null;
     }
 
     // --- Пакет 3: платный респец ---
@@ -150,12 +181,68 @@ public final class SpecService {
         clearSpecFromLuckPerms(player, old);
         storage.remove(uuid);
         plugin.getSpecEffects().removeAttributes(player);
+        notifyPrev.remove(uuid);
+        // FIX 1.5.1: свитки старого пути сгорают при отречении
+        int stripped = plugin.getSpecToken().stripScrolls(player, old);
+        if (stripped > 0) {
+            player.sendMessage(Component.text("Свитки старого пути сгорели: " + stripped,
+                    NamedTextColor.GRAY));
+        }
         return RespecResult.OK;
+    }
+
+    // --- FIX 1.5.1: ready-notify спек-активки ---
+
+    /**
+     * Таск раз в 20 тиков: когда кулдаун спек-активки (>= min-cooldown-seconds)
+     * истекает — actionbar + звук. Не трогает CooldownManager.
+     * Отключается: performance.ready-notify.spec-enabled: false.
+     */
+    public BukkitTask startSpecNotifyTask() {
+        return plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (!plugin.getRaskolConfig().isReadyNotifyEnabled()) {
+                return;
+            }
+            if (!plugin.getConfig().getBoolean("performance.ready-notify.spec-enabled", true)) {
+                return;
+            }
+            long minMillis = plugin.getRaskolConfig().readyNotifyMinCooldownSeconds() * 1000L;
+            String soundKey = plugin.getRaskolConfig().readyNotifySoundKey();
+            String template = plugin.getRaskolConfig().readyNotifyMessage();
+            for (Player player : plugin.getServer().getOnlinePlayers()) {
+                UUID uuid = player.getUniqueId();
+                Spec spec = getSpec(uuid);
+                Map<String, Long> prev = notifyPrev.computeIfAbsent(uuid, k -> new HashMap<>());
+                if (spec == null) {
+                    prev.clear();
+                    continue;
+                }
+                String cdId = "spec_" + spec.id();
+                prev.keySet().removeIf(k -> !k.equals(cdId)); // респец/смена спеки
+                long remaining = plugin.getCooldowns().getRemainingMillis(uuid, cdId);
+                Long before = prev.get(cdId);
+                if (before != null && before > 0 && remaining <= 0 && before >= minMillis) {
+                    SpecRegistry.SpecDef def = registry.get(spec);
+                    String name = def != null ? def.activeDescription() : spec.displayName();
+                    Sound sound = plugin.getFx().resolveSound(soundKey);
+                    if (sound != null) {
+                        plugin.getFx().playSound(player.getLocation(), sound, 0.6f, 1.0f);
+                    }
+                    player.sendActionBar(Component.text(
+                            template.replace("{ability}", name), NamedTextColor.GREEN));
+                }
+                prev.put(cdId, remaining);
+            }
+        }, 20L, 20L);
+    }
+
+    /** Чистка состояния notify на выход игрока. */
+    public void clearNotifyState(UUID uuid) {
+        notifyPrev.remove(uuid);
     }
 
     // --- LP-синхронизация ---
 
-    /** Синхронизация с LP: добавляем permission-ноду для TAB. */
     private void syncToLuckPerms(Player player, Spec spec) {
         if (plugin.getServer().getPluginManager().getPlugin("LuckPerms") == null) {
             return;
@@ -173,7 +260,6 @@ public final class SpecService {
         }
     }
 
-    /** Респец: снимаем permission-ноду старой спеки. */
     private void clearSpecFromLuckPerms(Player player, Spec spec) {
         if (plugin.getServer().getPluginManager().getPlugin("LuckPerms") == null) {
             return;
