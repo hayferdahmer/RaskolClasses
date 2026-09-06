@@ -8,6 +8,7 @@ import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.gui.ClassMenu;
+import dev.raskol.classes.install.Installation;
 import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecMenu;
@@ -15,6 +16,7 @@ import dev.raskol.classes.spec.SpecService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -99,7 +101,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 }
                 plugin.getSpecCaster().tryCast(player, spec);
             }
-            // 1.5.0 / Пакет 2: постановка инсталляции своего класса
             case "7" -> {
                 if (!(sender instanceof Player player)) {
                     sender.sendMessage(Component.text("Установка доступна только игрокам",
@@ -171,7 +172,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                                     NamedTextColor.GRAY)));
                     return true;
                 }
-                // 1.5.0 / Пакет 2: свиток инсталляции
                 if (bindSlot == 7) {
                     InstallationType type = InstallationType.forClass(pc);
                     if (type == null) {
@@ -354,7 +354,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     NamedTextColor.DARK_GRAY));
         }
 
-        // 1.5.0 / Пакет 2: счётчик инсталляций
         player.sendMessage(Component.text("Инсталляции: ", NamedTextColor.GRAY)
                 .append(Component.text(plugin.getInstallations().countOf(uuid) + "/2 активных",
                         NamedTextColor.DARK_GRAY)));
@@ -442,6 +441,24 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 .append(Component.text(plugin.getInstallations().countOf(uuid) + "/2",
                         NamedTextColor.WHITE)));
 
+        // 1.5.2: глобальный счётчик + список инсталляций цели с TTL и координатами
+        int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
+        sender.sendMessage(Component.text("Инсталляции на сервере: ", NamedTextColor.GRAY)
+                .append(Component.text(plugin.getInstallations().countGlobal() + "/" + maxGlobal,
+                        NamedTextColor.WHITE)));
+        long now = System.currentTimeMillis();
+        for (Installation inst : plugin.getInstallations().snapshot()) {
+            if (!inst.getOwner().equals(uuid)) {
+                continue;
+            }
+            long remain = Math.max(0L, inst.getExpiresAt() - now);
+            Location loc = inst.getLocation();
+            sender.sendMessage(Component.text("  • " + inst.getType().displayName()
+                            + " — " + (remain / 1000L) + "с ("
+                            + loc.getBlockX() + "/" + loc.getBlockY() + "/" + loc.getBlockZ() + ")",
+                    NamedTextColor.GRAY));
+        }
+
         boolean hasCooldowns = false;
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
             long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
@@ -475,7 +492,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         } else {
             sender.sendMessage(Component.text("Активные эффекты:",
                     NamedTextColor.LIGHT_PURPLE));
-            long now = System.currentTimeMillis();
             for (Map.Entry<EffectType, Long> entry : effects.entrySet()) {
                 long exp = entry.getValue();
                 String suffix = exp == Long.MAX_VALUE ? "∞"
