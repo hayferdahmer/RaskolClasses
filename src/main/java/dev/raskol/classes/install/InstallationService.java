@@ -25,24 +25,29 @@ import org.bukkit.util.Transformation;
 import org.joml.AxisAngle4f;
 import org.joml.Vector3f;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Фреймворк инсталляций (1.5.0, Пакет 2):
- *  - постановка: лимит 2 на игрока, TTL 60 с, анлок 50 (админ-байпас),
- *    запрет у спавна (радиус из конфига) и в клеймах Towny (рефлексия);
- *  - MINE: свип каждые 10 тиков, триггер по врагу/мобу в 1.2 блока → эффект → расход;
- *  - ZONE: тик раз в секунду до TTL (ауры для союзников);
- *  - визуал: ItemDisplay + партиклы + звук; союзность — через FactionHook.
- * FIX 1.5.0.2: ITEM_ARMOR_STAND_PLACE нет в Paper 1.21.4 — заменён на
- * BLOCK_WOOD_PLACE (нейтральный звук установки).
+ * Фреймворк инсталляций (1.5.0 + 1.5.2).
+ * FIX 1.5.2:
+ *  - глобальный кап активных инсталляций (installations.max-global, дефолт 200);
+ *  - анти-спам постановки: пауза install-anti-spam-ms (дефолт 1000) на игрока;
+ *  - уведомления владельцу (actionbar): мина сработала / инсталляция испарилась
+ *    (гейт installations.notify-owner, дефолт true);
+ *  - звуки постановки и растворения — свои на каждый тип;
+ *  - snapshot()/countGlobal() для /rc debug.
  */
 public final class InstallationService {
 
     private final RaskolClasses plugin;
     private final List<Installation> active = new CopyOnWriteArrayList<>();
+    /** анти-спам постановки: uuid -> timestamp последней постановки. */
+    private final Map<UUID, Long> lastPlace = new ConcurrentHashMap<>();
 
     public InstallationService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -56,6 +61,16 @@ public final class InstallationService {
             }
         }
         return count;
+    }
+
+    /** 1.5.2: сколько активных инсталляций на всём сервере. */
+    public int countGlobal() {
+        return active.size();
+    }
+
+    /** 1.5.2: копия списка для /rc debug. */
+    public List<Installation> snapshot() {
+        return new ArrayList<>(active);
     }
 
     /** Попытка поставить инсталляцию своего класса. Все проверки и сообщения здесь. */
@@ -83,13 +98,34 @@ public final class InstallationService {
             }
         }
 
-        // лимит активных
+        // лимит на игрока
         int max = plugin.getConfig().getInt("installations.max-per-player", 2);
         if (countOf(uuid) >= max) {
             player.sendMessage(Component.text("Лимит активных инсталляций: " + max,
                     NamedTextColor.RED));
             return false;
         }
+
+        // 1.5.2: глобальный кап — карта не должна утонуть в минах на масс-варе
+        int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
+        if (active.size() >= maxGlobal) {
+            player.sendMessage(Component.text(
+                    "Земля насыщена инсталляциями: глобальный лимит " + maxGlobal
+                            + ". Подожди, пока истечёт чужой TTL.",
+                    NamedTextColor.RED));
+            return false;
+        }
+
+        // 1.5.2: анти-спам постановки
+        long now = System.currentTimeMillis();
+        int window = plugin.getConfig().getInt("installations.place-anti-spam-ms", 1000);
+        Long prev = lastPlace.get(uuid);
+        if (prev != null && now - prev < window) {
+            player.sendMessage(Component.text("Слишком часто: пауза между постановками "
+                    + (window / 1000L) + " с", NamedTextColor.GRAY));
+            return false;
+        }
+        lastPlace.put(uuid, now);
 
         Location loc = player.getLocation();
 
@@ -111,20 +147,20 @@ public final class InstallationService {
         }
 
         long ttl = plugin.getConfig().getInt("installations.ttl-seconds", 60) * 1000L;
-        Installation inst = new Installation(uuid, type, loc, System.currentTimeMillis() + ttl);
+        Installation inst = new Installation(uuid, type, loc, now + ttl);
         spawnDisplay(inst);
         active.add(inst);
 
-        // FIX 1.5.0.2: BLOCK_WOOD_PLACE вместо несуществующего ITEM_ARMOR_STAND_PLACE
-        plugin.getFx().playSound(loc, Sound.BLOCK_WOOD_PLACE, 0.6f, 1.0f);
+        // 1.5.2: звук постановки по типу
+        plugin.getFx().playSound(loc, placeSound(type), 0.6f, 1.0f);
         if (loc.getWorld() != null) {
             loc.getWorld().spawnParticle(Particle.CLOUD,
                     loc.clone().add(0.5, 0.4, 0.5), 10, 0.4, 0.3, 0.4, 0.0);
         }
         player.sendMessage(Component.text("Инсталляция установлена: ", NamedTextColor.GREEN)
                 .append(Component.text(type.displayName(), pc.getColor()))
-                .append(Component.text(" · живёт "
-                        + (ttl / 1000L) + " с", NamedTextColor.GRAY)));
+                .append(Component.text(" · живёт " + (ttl / 1000L) + " с",
+                        NamedTextColor.GRAY)));
         return true;
     }
 
@@ -135,9 +171,13 @@ public final class InstallationService {
 
     private void sweep() {
         long now = System.currentTimeMillis();
+        // 1.5.2: чистка анти-спам карты
+        lastPlace.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L);
         for (Installation inst : active) {
             if (now >= inst.getExpiresAt()) {
-                despawn(inst);
+                // 1.5.2: владелец узнаёт, что инсталляция испарилась
+                notifyOwner(inst, "⚙ " + inst.getType().displayName() + ": истекла");
+                despawn(inst, true);
                 active.remove(inst);
                 continue;
             }
@@ -150,7 +190,7 @@ public final class InstallationService {
                 Entity trigger = findTrigger(inst);
                 if (trigger != null) {
                     triggerMine(inst, trigger);
-                    despawn(inst);
+                    despawn(inst, false);
                     active.remove(inst);
                 }
             }
@@ -224,6 +264,9 @@ public final class InstallationService {
             }
             default -> { }
         }
+        // 1.5.2: владелец узнаёт, кто задел его мину
+        notifyOwner(inst, "⚙ " + inst.getType().displayName() + ": сработала на "
+                + trigger.getName());
     }
 
     /** ZONE-тики: ауры для союзников. */
@@ -285,6 +328,17 @@ public final class InstallationService {
         return !fa.isEmpty() && fa.equals(fb);
     }
 
+    /** 1.5.2: actionbar владельцу (гейт installations.notify-owner). */
+    private void notifyOwner(Installation inst, String text) {
+        if (!plugin.getConfig().getBoolean("installations.notify-owner", true)) {
+            return;
+        }
+        Player owner = plugin.getServer().getPlayer(inst.getOwner());
+        if (owner != null) {
+            owner.sendActionBar(Component.text(text, NamedTextColor.YELLOW));
+        }
+    }
+
     private void spawnDisplay(Installation inst) {
         World world = inst.getLocation().getWorld();
         if (world == null) {
@@ -304,13 +358,17 @@ public final class InstallationService {
         inst.setDisplay(display);
     }
 
-    private void despawn(Installation inst) {
+    private void despawn(Installation inst, boolean expired) {
         if (inst.getDisplay() != null && !inst.getDisplay().isDead()) {
             Location loc = inst.getDisplay().getLocation();
             inst.getDisplay().remove();
             if (loc != null && loc.getWorld() != null) {
                 loc.getWorld().spawnParticle(Particle.CLOUD,
                         loc.clone().add(0.0, 0.3, 0.0), 6, 0.3, 0.2, 0.3, 0.0);
+                // 1.5.2: звук растворения по типу
+                if (expired) {
+                    loc.getWorld().playSound(loc, expireSound(inst.getType()), 0.5f, 1.0f);
+                }
             }
         }
     }
@@ -318,9 +376,31 @@ public final class InstallationService {
     /** Рестарт/выключение: убрать все дисплеи. */
     public void shutdown() {
         for (Installation inst : active) {
-            despawn(inst);
+            despawn(inst, false);
         }
         active.clear();
+    }
+
+    /** 1.5.2: звук постановки по типу. */
+    private Sound placeSound(InstallationType type) {
+        return switch (type) {
+            case WAR_BANNER -> Sound.BLOCK_BELL_USE;
+            case BEAR_TRAP -> Sound.BLOCK_TRIPWIRE_ATTACH;
+            case LIGHT_WARD -> Sound.BLOCK_BEACON_ACTIVATE;
+            case FROST_RUNE -> Sound.ENTITY_PLAYER_HURT_FREEZE;
+            case SMOKE_BOMB -> Sound.BLOCK_FIRE_EXTINGUISH;
+        };
+    }
+
+    /** 1.5.2: звук растворения по типу. */
+    private Sound expireSound(InstallationType type) {
+        return switch (type) {
+            case WAR_BANNER -> Sound.BLOCK_WOOD_BREAK;
+            case BEAR_TRAP -> Sound.BLOCK_TRIPWIRE_DETACH;
+            case LIGHT_WARD -> Sound.BLOCK_BEACON_DEACTIVATE;
+            case FROST_RUNE -> Sound.BLOCK_GLASS_BREAK;
+            case SMOKE_BOMB -> Sound.ENTITY_GENERIC_EXTINGUISH_FIRE;
+        };
     }
 
     /** Towny-клейм через рефлексию; без Towny или при сбое — false (разрешаем). */
