@@ -22,11 +22,8 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Полные пассивки всех 10 спеков (1.4.0, Пакет 2).
- * FIX 1.4.0.1: «Мороз» вешает замедление на любых LivingEntity;
- * партиклы на проках (крит/дodge/лифстил) — чтобы пассивки были видны в тесте.
- * FIX 1.4.0.2: spawnParticle у не-игрока — только через getWorld()
- * (у Entity метода spawnParticle нет).
+ * Пассивки всех 10 спеков (1.4.0 + 1.5.0 Пакет 3).
+ * 1.5.0.3: проки спеков (крит/додж/лифстил) играют звуки через fx.procByKey.
  */
 public final class SpecListener implements Listener {
 
@@ -44,7 +41,6 @@ public final class SpecListener implements Listener {
         return plugin.getSpecRegistry().get(spec);
     }
 
-    // --- атрибуты на вход/выход (Страж: броня, Следопыт: скорость) ---
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Spec spec = specOf(event.getPlayer().getUniqueId());
@@ -58,7 +54,6 @@ public final class SpecListener implements Listener {
         plugin.getSpecEffects().removeAttributes(event.getPlayer());
     }
 
-    // --- исходящий урон: множители, криты, флаги ---
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageDealt(EntityDamageByEntityEvent event) {
         Player attacker = resolveAttacker(event.getDamager());
@@ -78,7 +73,6 @@ public final class SpecListener implements Listener {
         double damage = event.getDamage();
         boolean isArrow = event.getDamager() instanceof Arrow;
 
-        // Берсерк: +X% при ярости >= порога
         if (spec == Spec.BERSERKER) {
             double rage = plugin.getResources().getValue(uuid);
             if (rage >= def.passiveDouble("rage_threshold", 50.0)) {
@@ -86,12 +80,10 @@ public final class SpecListener implements Listener {
             }
         }
 
-        // Аркана: +X% ко всему исходящему урону
         if (spec == Spec.ARCANE) {
             damage *= def.passiveDouble("ability_multiplier", 1.15);
         }
 
-        // Стрелок: +X% луком с дистанции
         if (spec == Spec.MARKSMAN && isArrow) {
             double distance = attacker.getLocation()
                     .distance(event.getEntity().getLocation());
@@ -100,7 +92,7 @@ public final class SpecListener implements Listener {
             }
         }
 
-        // Ликвидатор: шанс крита + партикл прока (FIX: через World)
+        // Ликвидатор: крит + партикл + ЗВУК (1.5.0.3)
         if (spec == Spec.LIQUIDATOR) {
             if (ThreadLocalRandom.current().nextDouble()
                     < def.passiveDouble("crit_chance", 0.10)) {
@@ -108,20 +100,18 @@ public final class SpecListener implements Listener {
                 event.getEntity().getWorld().spawnParticle(Particle.CRIT,
                         event.getEntity().getLocation().add(0.0, 1.0, 0.0),
                         6, 0.3, 0.3, 0.3, 0.0);
+                plugin.getFx().procByKey(attacker, "⚡ Крит ×1.5!", "crit_liquidator");
             }
         }
 
-        // Точный выстрел: следующая стрела ×2
         if (isArrow && plugin.getSpecEffects().consumePrecise(uuid)) {
             damage *= 2.0;
         }
 
-        // Вспышка ярости: +N плоского урона
         damage += plugin.getSpecEffects().rageBurstBonus(uuid);
-
         event.setDamage(damage);
 
-        // Тенеплёт: lifesteal от итогового урона + сердечки (Player — имеет spawnParticle)
+        // Тенеплёт: лифстил + сердечки + ЗВУК (1.5.0.3)
         if (spec == Spec.SHADOWWEAVER) {
             double heal = damage * def.passiveDouble("lifesteal_percent", 0.15);
             if (heal > 0.0) {
@@ -129,10 +119,10 @@ public final class SpecListener implements Listener {
                 attacker.spawnParticle(Particle.HEART,
                         attacker.getLocation().add(0.0, 1.2, 0.0),
                         2, 0.2, 0.2, 0.2, 0.0);
+                plugin.getFx().procByKey(attacker, "♥ Лифстил", "lifesteal_shadowweaver");
             }
         }
 
-        // FIX 1.4.0.1: Мороз — замедление на любых LivingEntity (игроки и мобы)
         if (spec == Spec.FROST && event.getEntity() instanceof LivingEntity livingTarget) {
             if (plugin.getSpecEffects().tryFrostSlow(livingTarget.getUniqueId(), 3000L)) {
                 livingTarget.addPotionEffect(new PotionEffect(
@@ -142,7 +132,7 @@ public final class SpecListener implements Listener {
         }
     }
 
-    // --- входящий урон: уклонение Трюкача + партикл dodge ---
+    // Трюкач: додж + партикл + ЗВУК (1.5.0.3)
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageTaken(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) {
@@ -162,10 +152,11 @@ public final class SpecListener implements Listener {
             victim.spawnParticle(Particle.CLOUD,
                     victim.getLocation().add(0.0, 1.0, 0.0),
                     5, 0.3, 0.2, 0.3, 0.0);
+            plugin.getFx().procByKey(victim, "💨 Уклонение!", "dodge_trickster");
         }
     }
 
-    // --- лечение: Светоносец ×1.2 ---
+    // Светоносец: ×1.2 к исходящему лечению + ЗВУК (1.5.0.3)
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onHeal(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
@@ -180,6 +171,7 @@ public final class SpecListener implements Listener {
             return;
         }
         event.setAmount(event.getAmount() * def.passiveDouble("heal_multiplier", 1.20));
+        plugin.getFx().procByKey(player, "✚ Благодать", "grace");
     }
 
     private Player resolveAttacker(Entity damager) {
