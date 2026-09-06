@@ -36,6 +36,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *  - MINE: свип каждые 10 тиков, триггер по врагу/мобу в 1.2 блока → эффект → расход;
  *  - ZONE: тик раз в секунду до TTL (ауры для союзников);
  *  - визуал: ItemDisplay + партиклы + звук; союзность — через FactionHook.
+ * FIX 1.5.0.2: ITEM_ARMOR_STAND_PLACE нет в Paper 1.21.4 — заменён на
+ * BLOCK_WOOD_PLACE (нейтральный звук установки).
  */
 public final class InstallationService {
 
@@ -113,7 +115,8 @@ public final class InstallationService {
         spawnDisplay(inst);
         active.add(inst);
 
-        plugin.getFx().playSound(loc, Sound.ITEM_ARMOR_STAND_PLACE, 0.6f, 1.0f);
+        // FIX 1.5.0.2: BLOCK_WOOD_PLACE вместо несуществующего ITEM_ARMOR_STAND_PLACE
+        plugin.getFx().playSound(loc, Sound.BLOCK_WOOD_PLACE, 0.6f, 1.0f);
         if (loc.getWorld() != null) {
             loc.getWorld().spawnParticle(Particle.CLOUD,
                     loc.clone().add(0.5, 0.4, 0.5), 10, 0.4, 0.3, 0.4, 0.0);
