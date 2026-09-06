@@ -6,7 +6,7 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.5.0</version>
+    <version>1.5.1</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
@@ -51,6 +51,7 @@
     </dependencies>
 
     <build>
+        <!-- артефакт raskol-classes-<version>.jar — под паттерн workflow -->
         <finalName>${project.artifactId}-${project.version}</finalName>
         <plugins>
             <plugin>
