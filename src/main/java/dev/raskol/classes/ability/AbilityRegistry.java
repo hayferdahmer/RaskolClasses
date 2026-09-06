@@ -15,131 +15,51 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 public final class AbilityRegistry {
 
-    @FunctionalInterface
-    public interface Caster {
-        boolean cast(Player player, AbilityDef def);
-    }
-
-    /** 1.3.1: каст с явной целью (ЛКМ со свитком). */
-    @FunctionalInterface
-    public interface TargetedCaster {
-        boolean cast(Player caster, LivingEntity target, AbilityDef def);
-    }
-
     private final RaskolClasses plugin;
-    private final Map<PlayerClass, List<AbilityDef>> byClass = new EnumMap<>(PlayerClass.class);
-    private final Map<String, Caster> casters = new HashMap<>();
-    private final Map<String, TargetedCaster> targetedCasters = new HashMap<>();
-    private final Map<UUID, Map<String, Long>> lastAttempts = new ConcurrentHashMap<>();
-
-    private static final Map<PlayerClass, List<AbilityDef>> DEFAULTS;
-
-    static {
-        DEFAULTS = new EnumMap<>(PlayerClass.class);
-        DEFAULTS.put(PlayerClass.WARRIOR, List.of(
-                def("steel_skin", "Стальная кожа", 1, 10, 30, 45),
-                def("shield_bash", "Удар щитом", 2, 25, 20, 25),
-                def("blood_fury", "Кровавое безумие", 3, 50, 40, 30),
-                def("war_god", "Бог войны", 4, 75, 100, 300)));
-        DEFAULTS.put(PlayerClass.HUNTER, List.of(
-                def("aimed_shot", "Прицельный выстрел", 1, 10, 20, 15),
-                def("cheetah_aspect", "Аспект гепарда", 2, 25, 0, 60),
-                def("multi_shot", "Мультивыстрел", 3, 50, 40, 25),
-                def("barrage", "Заградительный огонь", 4, 75, 80, 120)));
-        DEFAULTS.put(PlayerClass.PRIEST, List.of(
-                def("lesser_heal", "Малое исцеление", 1, 1, 10, 3),
-                def("flash_heal", "Быстрое исцеление", 2, 10, 20, 6),
-                def("pw_shield", "Слово силы: Щит", 3, 25, 30, 30),
-                def("circle_of_prayer", "Круг молитвы", 4, 50, 50, 60),
-                def("smite", "Кара", 5, 75, 60, 90)));
-        DEFAULTS.put(PlayerClass.MAGE, List.of(
-                def("firebolt", "Огненная стрела", 1, 1, 10, 2),
-                def("blink", "Скачок", 2, 25, 20, 20),
-                def("frost_nova", "Кольцо льда", 3, 50, 40, 45),
-                def("arcane_burst", "Чародейский взрыв", 4, 75, 100, 180)));
-        DEFAULTS.put(PlayerClass.ROGUE, List.of(
-                def("stealth", "Скрытность", 1, 10, 30, 30),
-                def("fan_of_knives", "Веер ножей", 2, 25, 25, 15),
-                def("cheap_shot", "Подлый удар", 3, 50, 40, 40),
-                def("evasion", "Уклонение", 4, 75, 60, 120)));
-    }
-
-    private static AbilityDef def(String id, String name, int slot,
-                                  int unlock, int cost, int cooldownSeconds) {
-        return new AbilityDef(id, name, slot, unlock, cost, cooldownSeconds * 1000L);
-    }
+    private final Map<PlayerClass, Map<String, AbilityDef>> abilities = new EnumMap<>(PlayerClass.class);
 
     public AbilityRegistry(RaskolClasses plugin) {
         this.plugin = plugin;
-        registerCasters();
     }
 
-    private void registerCasters() {
-        WarriorAbilities warrior = new WarriorAbilities(plugin);
-        HunterAbilities hunter = new HunterAbilities(plugin);
-        PriestAbilities priest = new PriestAbilities(plugin);
-        MageAbilities mage = new MageAbilities(plugin);
-        RogueAbilities rogue = new RogueAbilities(plugin);
-
-        casters.put("steel_skin", warrior::steelSkin);
-        casters.put("shield_bash", warrior::shieldBash);
-        casters.put("blood_fury", warrior::bloodFury);
-        casters.put("war_god", warrior::warGod);
-
-        casters.put("aimed_shot", hunter::aimedShot);
-        casters.put("cheetah_aspect", hunter::cheetahAspect);
-        casters.put("multi_shot", hunter::multiShot);
-        casters.put("barrage", hunter::barrage);
-
-        // 1.3.1: точечные способности жреца. ПКМ//rc — в себя (лямбда),
-        // ЛКМ со свитком — в явную цель (targetedCasters).
-        casters.put("lesser_heal", (p, d) -> priest.lesserHeal(p, p, d));
-        casters.put("flash_heal", (p, d) -> priest.flashHeal(p, p, d));
-        casters.put("pw_shield", (p, d) -> priest.powerWordShield(p, p, d));
-        targetedCasters.put("lesser_heal", priest::lesserHeal);
-        targetedCasters.put("flash_heal", priest::flashHeal);
-        targetedCasters.put("pw_shield", priest::powerWordShield);
-        casters.put("circle_of_prayer", priest::circleOfPrayer);
-        casters.put("smite", priest::smite);
-
-        casters.put("firebolt", mage::firebolt);
-        casters.put("blink", mage::blink);
-        casters.put("frost_nova", mage::frostNova);
-        casters.put("arcane_burst", mage::arcaneBurst);
-
-        casters.put("stealth", rogue::stealth);
-        casters.put("fan_of_knives", rogue::fanOfKnives);
-        casters.put("cheap_shot", rogue::cheapShot);
-        casters.put("evasion", rogue::evasion);
-    }
-
-    public void loadFromConfig(RaskolConfig config) {
-        byClass.clear();
+    public void loadFromConfig(RaskolConfig cfg) {
+        abilities.clear();
         for (PlayerClass pc : PlayerClass.values()) {
-            List<AbilityDef> defs = DEFAULTS.get(pc).stream()
-                    .map(base -> new AbilityDef(
-                            base.id(),
-                            config.abilityName(pc, base.id(), base.displayName()),
-                            base.slot(),
-                            config.abilityUnlock(pc, base.id(), base.unlockLevel()),
-                            config.abilityCost(pc, base.id(), base.cost()),
-                            config.abilityCooldownSeconds(pc, base.id(),
-                                    (int) (base.cooldownMillis() / 1000L)) * 1000L))
-                    .toList();
-            byClass.put(pc, defs);
+            Map<String, AbilityDef> classAbilities = new HashMap<>();
+            List<String> ids = cfg.abilityIds(pc);
+            int slot = 1;
+            for (String id : ids) {
+                String name = cfg.abilityName(pc, id, id);
+                int unlock = cfg.abilityUnlock(pc, id, 1);
+                int cost = cfg.abilityCost(pc, id, 10);
+                int cooldown = cfg.abilityCooldown(pc, id, 10);
+                int duration = cfg.abilityDuration(pc, id, 0);
+                boolean targeted = cfg.abilityTargeted(pc, id, false);
+                classAbilities.put(id, new AbilityDef(id, name, slot, unlock, cost,
+                        cooldown, duration, targeted));
+                slot++;
+            }
+            abilities.put(pc, classAbilities);
         }
     }
 
     public List<AbilityDef> getAbilities(PlayerClass pc) {
-        return byClass.getOrDefault(pc, List.of());
+        Map<String, AbilityDef> map = abilities.get(pc);
+        if (map == null) {
+            return List.of();
+        }
+        return map.values().stream().toList();
     }
 
     public AbilityDef getBySlot(PlayerClass pc, int slot) {
-        for (AbilityDef def : getAbilities(pc)) {
+        Map<String, AbilityDef> map = abilities.get(pc);
+        if (map == null) {
+            return null;
+        }
+        for (AbilityDef def : map.values()) {
             if (def.slot() == slot) {
                 return def;
             }
@@ -147,106 +67,85 @@ public final class AbilityRegistry {
         return null;
     }
 
-    /** Пакет 6: поиск способности по id внутри класса (проверка свитка). */
-    public AbilityDef findById(PlayerClass pc, String id) {
-        for (AbilityDef def : getAbilities(pc)) {
-            if (def.id().equals(id)) {
-                return def;
-            }
+    /** FIX 1.5.0.5: поиск абилки по id (для BindListener). */
+    public AbilityDef getById(PlayerClass pc, String id) {
+        Map<String, AbilityDef> map = abilities.get(pc);
+        if (map == null) {
+            return null;
         }
-        return null;
-    }
-
-    /** 1.3.1: способность поддерживает явный таргетинг (ЛКМ со свитком). */
-    public boolean isTargeted(String abilityId) {
-        return targetedCasters.containsKey(abilityId);
+        return map.get(id);
     }
 
     public boolean tryCast(Player player, AbilityDef def) {
-        return castOn(player, player, def, false);
-    }
-
-    /** 1.3.1: каст в явную цель (ЛКМ со свитком по игроку). */
-    public boolean tryCastTargeted(Player caster, LivingEntity target, AbilityDef def) {
-        return castOn(caster, target, def, true);
-    }
-
-    private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
-        PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
-        RaskolConfig cfg = plugin.getRaskolConfig();
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
-            caster.sendMessage(Component.text(cfg.message("no-class-cast",
-                    "Класс не выбран — способности недоступны"), NamedTextColor.GRAY));
+            player.sendMessage(Component.text(
+                    "Класс не выбран — способности недоступны", NamedTextColor.RED));
             return false;
         }
-        Caster self = targeted ? null : casters.get(def.id());
-        TargetedCaster tcast = targeted ? targetedCasters.get(def.id()) : null;
-        if (self == null && tcast == null) {
-            plugin.getLogger().warning("Способность " + def.id() + " не имеет реализации");
-            return false;
-        }
-        UUID id = caster.getUniqueId();
-
-        long window = cfg.castClickCooldownMillis();
-        long now = System.currentTimeMillis();
-        Map<String, Long> attempts = lastAttempts.computeIfAbsent(id, k -> new ConcurrentHashMap<>());
-        Long previous = attempts.get(def.id());
-        if (previous != null && now - previous < window) {
-            return false;
-        }
-        attempts.put(def.id(), now);
-
-        int level = plugin.getSkillLevels().getLevel(id, pc.profileSkillName());
+        UUID uuid = player.getUniqueId();
+        int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
         if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < def.unlockLevel()) {
-            String text = cfg.message("unlock",
-                            "«{ability}» откроется на уровне {required} (у вас {current})")
-                    .replace("{ability}", def.displayName())
-                    .replace("{required}", String.valueOf(def.unlockLevel()))
-                    .replace("{current}", String.valueOf(level));
-            caster.sendMessage(message(pc, text));
+            player.sendMessage(Component.text("«" + def.displayName() + "» откроется на уровне "
+                    + def.unlockLevel() + " (у вас " + level + ")", NamedTextColor.RED));
             return false;
         }
-
-        long remaining = plugin.getCooldowns().getRemainingMillis(id, def.id());
-        if (remaining > 0L) {
-            String text = cfg.message("cooldown",
-                            "«{ability}»: перезарядка ещё {seconds}с")
-                    .replace("{ability}", def.displayName())
-                    .replace("{seconds}", String.valueOf(remaining / 1000L + 1L));
-            caster.sendMessage(message(pc, text));
+        if (plugin.getCooldowns().isOnCooldown(uuid, def.id())) {
+            long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
+            player.sendMessage(Component.text("«" + def.displayName() + "»: перезарядка ещё "
+                    + (remaining / 1000L + 1L) + "с", NamedTextColor.GRAY));
             return false;
         }
-
-        if (!plugin.getResources().consume(id, def.cost())) {
-            String text = cfg.message("no-resource",
-                            "Не хватает ресурса «{resource}»: нужно {cost}, у вас {value}")
-                    .replace("{resource}", pc.getResourceName())
-                    .replace("{cost}", String.valueOf(def.cost()))
-                    .replace("{value}", String.valueOf((int) plugin.getResources().getValue(id)));
-            caster.sendMessage(message(pc, text));
+        if (!plugin.getResources().consume(uuid, def.cost())) {
+            player.sendMessage(Component.text("Не хватает ресурса «" + pc.getResourceName()
+                    + "»: нужно " + def.cost() + ", у вас "
+                    + (int) plugin.getResources().getValue(uuid), NamedTextColor.RED));
             return false;
         }
-
-        plugin.getCooldowns().start(id, def.id(), def.cooldownMillis(), def.displayName());
-        boolean ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
-        if (!ok) {
-            plugin.getResources().refund(id, def.cost());
-            plugin.getCooldowns().cancel(id, def.id());
-            return false;
-        }
-
-        RaskolConfig.ClassTheme theme = cfg.themeOf(pc);
-        caster.getWorld().spawnParticle(theme.particle(),
-                caster.getLocation().add(0, 1, 0), 12, 0.4, 0.6, 0.4, 0.02);
-        caster.playSound(caster.getLocation(), theme.sound(), 0.6f, 1.2f);
-
-        String text = cfg.message("activated", "«{ability}» — активирована")
-                .replace("{ability}", def.displayName());
-        caster.sendMessage(message(pc, text));
+        plugin.getCooldowns().start(uuid, def.id(), def.cooldownMillis());
+        cast(player, pc, def);
+        player.sendMessage(Component.text("«" + def.displayName() + "» — активирована",
+                NamedTextColor.GREEN));
         return true;
     }
 
-    private static Component message(PlayerClass pc, String text) {
-        return Component.text(text).color(pc == null ? NamedTextColor.GRAY : pc.getColor());
+    private void cast(Player player, PlayerClass pc, AbilityDef def) {
+        switch (def.id()) {
+            case "steel_skin" -> {
+                player.addPotionEffect(plugin.getEffects().apply(
+                        player, dev.raskol.classes.effect.EffectType.STEEL_SKIN, def.duration() * 20));
+            }
+            case "shield_bash" -> HunterAbilities.shieldBash(plugin, player, def);
+            case "blood_fury" -> {
+                player.addPotionEffect(plugin.getEffects().apply(
+                        player, dev.raskol.classes.effect.EffectType.BLOOD_FURY, def.duration() * 20));
+            }
+            case "war_god" -> {
+                player.addPotionEffect(plugin.getEffects().apply(
+                        player, dev.raskol.classes.effect.EffectType.WAR_GOD, def.duration() * 20));
+            }
+            case "aimed_shot" -> HunterAbilities.aimedShot(plugin, player, def);
+            case "cheetah_aspect" -> HunterAbilities.cheetahAspect(plugin, player, def);
+            case "multi_shot" -> HunterAbilities.multiShot(plugin, player, def);
+            case "barrage" -> HunterAbilities.barrage(plugin, player, def);
+            case "lesser_heal", "flash_heal" -> HunterAbilities.healSelf(plugin, player, def);
+            case "pw_shield" -> HunterAbilities.shieldSelf(plugin, player, def);
+            case "circle_of_prayer" -> HunterAbilities.circleOfPrayer(plugin, player, def);
+            case "smite" -> HunterAbilities.smite(plugin, player, def);
+            case "firebolt" -> HunterAbilities.firebolt(plugin, player, def);
+            case "blink" -> HunterAbilities.blink(plugin, player, def);
+            case "frost_nova" -> HunterAbilities.frostNova(plugin, player, def);
+            case "arcane_burst" -> HunterAbilities.arcaneBurst(plugin, player, def);
+            case "stealth" -> {
+                player.addPotionEffect(plugin.getEffects().apply(
+                        player, dev.raskol.classes.effect.EffectType.STEALTH, def.duration() * 20));
+            }
+            case "fan_of_knives" -> HunterAbilities.fanOfKnives(plugin, player, def);
+            case "cheap_shot" -> HunterAbilities.cheapShot(plugin, player, def);
+            case "evasion" -> {
+                player.addPotionEffect(plugin.getEffects().apply(
+                        player, dev.raskol.classes.effect.EffectType.EVASION, def.duration() * 20));
+            }
+        }
     }
 }
