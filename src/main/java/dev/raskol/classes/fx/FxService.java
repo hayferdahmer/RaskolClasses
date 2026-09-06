@@ -17,19 +17,20 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Движок звука/партиклов (1.5.0, Пакет 1).
- * FIX 1.5.0.1: каталог дефолтов вшит в код — звуки/партиклы работают
- * БЕЗ секции vfx в конфиге; конфиг (vfx.<id>.cast-sound/cast-particle)
- * только ПЕРЕОПРЕДЕЛЯЕТ дефолты.
- * FIX 1.5.0.2: резолв через Registry.SOUNDS / Registry.PARTICLE_TYPE
- * (без deprecated Sound.valueOf / Particle.valueOf — иначе deprecation-гейт
- * CI валит ран).
+ * Движок звука/партиклов (1.5.0, Пакеты 1+3).
+ *  - castVfx — VFX каста абилок (слоты 1–6);
+ *  - procByKey — VFX проков пассивок (execute_passive, predator, grace,
+ *    mana_soaked, poisoned_blades, sadism, crit_liquidator,
+ *    dodge_trickster, lifesteal_shadowweaver);
+ *  - всё резолвится через Registry (без deprecated valueOf);
+ *  - каталог дефолтов в коде, конфиг vfx.* только переопределяет.
  */
 public final class FxService {
 
     private static final Map<String, String[]> DEFAULTS = new HashMap<>();
 
     static {
+        // Каст абилок (слоты 1–6)
         DEFAULTS.put("steel_skin", new String[]{"ITEM_ARMOR_EQUIP_IRON", "CRIT"});
         DEFAULTS.put("shield_bash", new String[]{"BLOCK_ANVIL_LAND", "SWEEP_ATTACK"});
         DEFAULTS.put("blood_fury", new String[]{"ENTITY_RAVAGER_ROAR", "CRIMSON_SPORE"});
@@ -51,6 +52,7 @@ public final class FxService {
         DEFAULTS.put("fan_of_knives", new String[]{"ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK"});
         DEFAULTS.put("cheap_shot", new String[]{"ENTITY_PLAYER_ATTACK_KNOCKBACK", "SMOKE"});
         DEFAULTS.put("evasion", new String[]{"ENTITY_ENDERMAN_TELEPORT", "CLOUD"});
+        // Каст активок спеков
         DEFAULTS.put("challenge", new String[]{"BLOCK_BELL_USE", "ANGRY_VILLAGER"});
         DEFAULTS.put("rage_burst", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "CRIMSON_SPORE"});
         DEFAULTS.put("precise_shot", new String[]{"BLOCK_NOTE_BLOCK_PLING", "END_ROD"});
@@ -61,6 +63,16 @@ public final class FxService {
         DEFAULTS.put("ice_ring", new String[]{"ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE"});
         DEFAULTS.put("garrote", new String[]{"ENTITY_PLAYER_ATTACK_WEAK", "DAMAGE_INDICATOR"});
         DEFAULTS.put("smoke_bomb", new String[]{"BLOCK_FIRE_EXTINGUISH", "SMOKE"});
+        // 1.5.0 / Пакет 3: проки пассивок
+        DEFAULTS.put("proc.execute_passive", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "DAMAGE_INDICATOR"});
+        DEFAULTS.put("proc.predator", new String[]{"ENTITY_PLAYER_ATTACK_STRONG", "CRIT"});
+        DEFAULTS.put("proc.grace", new String[]{"ENTITY_EXPERIENCE_ORB_PICKUP", "HEART"});
+        DEFAULTS.put("proc.mana_soaked", new String[]{"ENTITY_PLAYER_BREATH", "ENCHANTED_HIT"});
+        DEFAULTS.put("proc.poisoned_blades", new String[]{"ENTITY_SPIDER_STEP", "COMPOSTER"});
+        DEFAULTS.put("proc.sadism", new String[]{"ENTITY_PLAYER_ATTACK_SWEEP", "DAMAGE_INDICATOR"});
+        DEFAULTS.put("proc.crit_liquidator", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "CRIT"});
+        DEFAULTS.put("proc.dodge_trickster", new String[]{"ENTITY_ENDERMAN_TELEPORT", "CLOUD"});
+        DEFAULTS.put("proc.lifesteal_shadowweaver", new String[]{"ENTITY_PLAYER_LEVELUP", "HEART"});
     }
 
     private final RaskolClasses plugin;
@@ -94,20 +106,28 @@ public final class FxService {
         String[] def = DEFAULTS.getOrDefault(id, new String[]{"", ""});
         String soundKey = cfg.getString("vfx." + id + ".cast-sound", def[0]);
         String particleKey = cfg.getString("vfx." + id + ".cast-particle", def[1]);
+        apply(player.getLocation(), player, soundKey, particleKey, false);
+    }
 
-        Sound sound = resolveSound(soundKey);
-        if (sound != null) {
-            playSound(player.getLocation(), sound, 0.6f, 1.0f);
-        }
-        Particle particle = resolveParticle(particleKey);
-        if (particle != null) {
-            player.spawnParticle(particle,
-                    player.getLocation().add(0.0, 1.0, 0.0),
-                    12, 0.3, 0.4, 0.3, 0.0);
+    /**
+     * VFX прока пассивки/спека: партикл + звук + (если включено) actionbar-тег.
+     * Ключ procId ищется как vfx.proc.<procId>.{cast-sound,cast-particle,tag},
+     * при отсутствии ключа — дефолт из DEFAULTS (ключ "proc.<procId>").
+     */
+    public void procByKey(Player player, String fallbackTag, String procId) {
+        FileConfiguration cfg = plugin.getConfig();
+        String[] def = DEFAULTS.getOrDefault("proc." + procId, new String[]{"", ""});
+        String soundKey = cfg.getString("vfx.proc." + procId + ".cast-sound", def[0]);
+        String particleKey = cfg.getString("vfx.proc." + procId + ".cast-particle", def[1]);
+        String tag = cfg.getString("vfx.proc." + procId + ".tag", fallbackTag);
+        apply(player.getLocation(), player, soundKey, particleKey, true);
+        if (tag != null && !tag.isEmpty()
+                && cfg.getBoolean("vfx.proc-actionbar", false)) {
+            player.sendActionBar(Component.text(tag, NamedTextColor.YELLOW));
         }
     }
 
-    /** Фидбек прока пассивки (Пакет 3). */
+    /** Legacy-обёртка для обратной совместимости. */
     public void proc(Player player, String tag, Particle particle, Sound sound) {
         if (particle != null) {
             player.spawnParticle(particle,
@@ -117,9 +137,19 @@ public final class FxService {
         if (sound != null) {
             playSound(player.getLocation(), sound, 0.4f, 1.2f);
         }
-        if (tag != null && !tag.isEmpty()
-                && plugin.getConfig().getBoolean("vfx.proc-actionbar", false)) {
-            player.sendActionBar(Component.text(tag, NamedTextColor.YELLOW));
+    }
+
+    private void apply(Location origin, Player player,
+                       String soundKey, String particleKey, boolean proc) {
+        Sound sound = resolveSound(soundKey);
+        if (sound != null) {
+            playSound(origin, sound, proc ? 0.4f : 0.6f, proc ? 1.2f : 1.0f);
+        }
+        Particle particle = resolveParticle(particleKey);
+        if (particle != null) {
+            player.spawnParticle(particle,
+                    player.getLocation().add(0.0, 1.0, 0.0),
+                    proc ? 6 : 12, 0.3, proc ? 0.3 : 0.4, 0.3, 0.0);
         }
     }
 
@@ -130,10 +160,7 @@ public final class FxService {
         }
     }
 
-    /**
-     * Безопасный резолв звука через Registry.SOUNDS (без deprecated valueOf).
-     * Пробует два варианта namespaced id: с точками и с подчёркиваниями.
-     */
+    /** Безопасный резолв звука через Registry.SOUNDS. */
     public Sound resolveSound(String key) {
         if (key == null || key.isEmpty()) {
             return null;
@@ -146,10 +173,7 @@ public final class FxService {
         return Registry.SOUNDS.get(NamespacedKey.minecraft(lower));
     }
 
-    /**
-     * Безопасный резолв партикла через Registry.PARTICLE_TYPE (без deprecated valueOf).
-     * Пробует два варианта namespaced id: с точками и с подчёркиваниями.
-     */
+    /** Безопасный резолв партикла через Registry.PARTICLE_TYPE. */
     public Particle resolveParticle(String key) {
         if (key == null || key.isEmpty()) {
             return null;
