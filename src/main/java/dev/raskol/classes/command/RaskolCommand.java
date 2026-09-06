@@ -119,6 +119,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 plugin.getAbilities().tryCast(player, def);
+                // 1.5.0 / Пакет 1: VFX каста (только при успешном касте)
+                plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
             }
             case "bind" -> {
                 if (!(sender instanceof Player player)) {
@@ -307,7 +309,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100",
                 pc.getColor()));
 
-        // 1.4.0 / Пакет 4: корона и титул
         UUID uuid = player.getUniqueId();
         player.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY)
                 .append(Component.text(
@@ -392,7 +393,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         (int) plugin.getResources().getValue(uuid) + "/100",
                         pc.getColor())));
 
-        // 1.4.0 / Пакет 4
         sender.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY)
                 .append(Component.text(
                         plugin.getFlavorService().crownDisplayName(uuid),
