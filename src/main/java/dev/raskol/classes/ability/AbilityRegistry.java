@@ -12,10 +12,8 @@ import org.bukkit.entity.Player;
 
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -24,6 +22,8 @@ import java.util.UUID;
  *  - casters: обычные способности (каст в себя);
  *  - targetedCasters: точечные жреца (каст в цель — ЛКМ со свитком).
  * Длительности эффектов — через RaskolConfig.durationSeconds(...).
+ * Значения по умолчанию (unlock/cost/cooldown) хранятся в DEFAULTS;
+ * конфиг (abilityName/Unlock/Cost/CooldownSeconds) переопределяет их.
  */
 public final class AbilityRegistry {
 
@@ -37,11 +37,47 @@ public final class AbilityRegistry {
         boolean cast(Player caster, LivingEntity target, AbilityDef def);
     }
 
+    /** Дефолтные значения способностей (до переопределения конфигом). */
+    private static final Map<PlayerClass, List<AbilityDef>> DEFAULTS = new EnumMap<>(PlayerClass.class);
+
+    static {
+        DEFAULTS.put(PlayerClass.WARRIOR, List.of(
+                def("steel_skin", "Стальная кожа", 1, 10, 30, 45),
+                def("shield_bash", "Удар щитом", 2, 25, 20, 25),
+                def("blood_fury", "Кровавое безумие", 3, 50, 40, 30),
+                def("war_god", "Бог войны", 4, 75, 100, 300)));
+        DEFAULTS.put(PlayerClass.HUNTER, List.of(
+                def("aimed_shot", "Прицельный выстрел", 1, 10, 20, 15),
+                def("cheetah_aspect", "Аспект гепарда", 2, 25, 0, 60),
+                def("multi_shot", "Мультивыстрел", 3, 50, 40, 25),
+                def("barrage", "Заградительный огонь", 4, 75, 80, 120)));
+        DEFAULTS.put(PlayerClass.PRIEST, List.of(
+                def("lesser_heal", "Малое исцеление", 1, 1, 10, 3),
+                def("flash_heal", "Быстрое исцеление", 2, 10, 20, 6),
+                def("pw_shield", "Слово силы: Щит", 3, 25, 30, 30),
+                def("circle_of_prayer", "Круг молитвы", 4, 50, 50, 60),
+                def("smite", "Кара", 5, 75, 60, 90)));
+        DEFAULTS.put(PlayerClass.MAGE, List.of(
+                def("firebolt", "Огненная стрела", 1, 1, 10, 2),
+                def("blink", "Скачок", 2, 25, 20, 20),
+                def("frost_nova", "Кольцо льда", 3, 50, 40, 45),
+                def("arcane_burst", "Чародейский взрыв", 4, 75, 100, 180)));
+        DEFAULTS.put(PlayerClass.ROGUE, List.of(
+                def("stealth", "Скрытность", 1, 10, 30, 30),
+                def("fan_of_knives", "Веер ножей", 2, 25, 25, 15),
+                def("cheap_shot", "Подлый удар", 3, 50, 40, 40),
+                def("evasion", "Уклонение", 4, 75, 60, 120)));
+    }
+
+    private static AbilityDef def(String id, String name, int slot,
+                                  int unlock, int cost, int cooldownSeconds) {
+        return new AbilityDef(id, name, slot, unlock, cost, cooldownSeconds * 1000L);
+    }
+
     private final RaskolClasses plugin;
     private final Map<PlayerClass, List<AbilityDef>> byClass = new EnumMap<>(PlayerClass.class);
     private final Map<String, Caster> casters = new HashMap<>();
     private final Map<String, TargetedCaster> targetedCasters = new HashMap<>();
-    private final Set<String> targetedIds = new HashSet<>();
 
     public AbilityRegistry(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -68,12 +104,10 @@ public final class AbilityRegistry {
         casters.put("barrage", hunter::barrage);
 
         // Жрец: точечные (ЛКМ по цели) + AoE (в себя)
+        // FIX 1.5.0.7: метод в PriestAbilities называется powerWordShield, не pwShield
         targetedCasters.put("lesser_heal", priest::lesserHeal);
         targetedCasters.put("flash_heal", priest::flashHeal);
-        targetedCasters.put("pw_shield", priest::pwShield);
-        targetedIds.add("lesser_heal");
-        targetedIds.add("flash_heal");
-        targetedIds.add("pw_shield");
+        targetedCasters.put("pw_shield", priest::powerWordShield);
         casters.put("circle_of_prayer", priest::circleOfPrayer);
         casters.put("smite", priest::smite);
 
@@ -90,36 +124,35 @@ public final class AbilityRegistry {
         casters.put("evasion", rogue::evasion);
     }
 
+    /**
+     * Загрузка: берём дефолты из DEFAULTS и переопределяем значения
+     * из конфига (abilityName/Unlock/Cost/CooldownSeconds).
+     * В RaskolConfig нет метода abilityIds — порядок и состав задан DEFAULTS.
+     */
     public void loadFromConfig(RaskolConfig cfg) {
         byClass.clear();
         for (PlayerClass pc : PlayerClass.values()) {
-            List<String> ids = cfg.abilityIds(pc);
-            int slot = 1;
-            java.util.List<AbilityDef> list = new java.util.ArrayList<>();
-            for (String id : ids) {
-                String name = cfg.abilityName(pc, id, id);
-                int unlock = cfg.abilityUnlock(pc, id, 1);
-                int cost = cfg.abilityCost(pc, id, 10);
-                int cooldownSec = cfg.abilityCooldown(pc, id, 10);
-                list.add(new AbilityDef(id, name, slot, unlock, cost,
-                        cooldownSec * 1000L));
-                slot++;
-            }
-            byClass.put(pc, List.copyOf(list));
+            List<AbilityDef> defs = DEFAULTS.get(pc).stream()
+                    .map(base -> new AbilityDef(
+                            base.id(),
+                            cfg.abilityName(pc, base.id(), base.displayName()),
+                            base.slot(),
+                            cfg.abilityUnlock(pc, base.id(), base.unlockLevel()),
+                            cfg.abilityCost(pc, base.id(), base.cost()),
+                            cfg.abilityCooldownSeconds(pc, base.id(),
+                                    (int) (base.cooldownMillis() / 1000L)) * 1000L
+                    ))
+                    .toList();
+            byClass.put(pc, defs);
         }
     }
 
     public List<AbilityDef> getAbilities(PlayerClass pc) {
-        List<AbilityDef> list = byClass.get(pc);
-        return list != null ? list : List.of();
+        return byClass.getOrDefault(pc, List.of());
     }
 
     public AbilityDef getBySlot(PlayerClass pc, int slot) {
-        List<AbilityDef> list = byClass.get(pc);
-        if (list == null) {
-            return null;
-        }
-        for (AbilityDef def : list) {
+        for (AbilityDef def : getAbilities(pc)) {
             if (def.slot() == slot) {
                 return def;
             }
@@ -127,13 +160,12 @@ public final class AbilityRegistry {
         return null;
     }
 
-    /** Поиск абилки по id внутри класса. */
+    /** Поиск абилки по id внутри класса (для BindListener). */
     public AbilityDef findById(PlayerClass pc, String id) {
-        List<AbilityDef> list = byClass.get(pc);
-        if (list == null || id == null) {
+        if (id == null) {
             return null;
         }
-        for (AbilityDef def : list) {
+        for (AbilityDef def : getAbilities(pc)) {
             if (def.id().equals(id)) {
                 return def;
             }
@@ -148,7 +180,7 @@ public final class AbilityRegistry {
 
     /** Способность принимает явную цель (ЛКМ по игроку со свитком). */
     public boolean isTargeted(String id) {
-        return targetedIds.contains(id);
+        return targetedCasters.containsKey(id);
     }
 
     public boolean tryCast(Player player, AbilityDef def) {
