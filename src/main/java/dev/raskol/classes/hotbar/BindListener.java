@@ -6,18 +6,12 @@ import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Material;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.persistence.PersistentDataContainer;
-import org.bukkit.persistence.PersistentDataType;
 
 /**
  * ПКМ со свитком = каст в себя (1.3.1 + 1.5.0 Пакет 3).
@@ -27,11 +21,11 @@ import org.bukkit.persistence.PersistentDataType;
 public final class BindListener implements Listener {
 
     private final RaskolClasses plugin;
-    private final NamespacedKey abilityKey;
+    private final AbilityToken token;
 
-    public BindListener(RaskolClasses plugin, dev.raskol.classes.hotbar.AbilityToken token) {
+    public BindListener(RaskolClasses plugin, AbilityToken token) {
         this.plugin = plugin;
-        this.abilityKey = new NamespacedKey(plugin, "ability");
+        this.token = token;
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -40,20 +34,24 @@ public final class BindListener implements Listener {
                 && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
-        Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInMainHand();
-        if (item == null || item.getType() == Material.AIR) {
+        if (!plugin.getRaskolConfig().isBindEnabled()) {
             return;
         }
-        AbilityDef def = readAbility(item);
-        if (def == null) {
+        Player player = event.getPlayer();
+        String id = token.readId(player.getInventory().getItemInMainHand());
+        if (id == null) {
             return;
         }
         event.setCancelled(true);
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
-            player.sendMessage(Component.text(
-                    "Класс не выбран — способности недоступны", NamedTextColor.RED));
+            player.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "no-class-cast", "Класс не выбран — способности недоступны"),
+                    NamedTextColor.GRAY));
+            return;
+        }
+        AbilityDef def = plugin.getAbilities().findById(pc, id);
+        if (def == null) {
             return;
         }
         if (!plugin.getAbilities().tryCast(player, def)) {
@@ -61,28 +59,5 @@ public final class BindListener implements Listener {
         }
         // 1.5.0 / Пакет 3: VFX каста свитком
         plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
-    }
-
-    private AbilityDef readAbility(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) {
-            return null;
-        }
-        ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        String raw = pdc.get(abilityKey, PersistentDataType.STRING);
-        if (raw == null || raw.isEmpty()) {
-            return null;
-        }
-        // Формат PDC: "<CLASS>:<ability_id>"
-        String[] parts = raw.split(":", 2);
-        if (parts.length != 2) {
-            return null;
-        }
-        try {
-            PlayerClass pc = PlayerClass.valueOf(parts[0]);
-            return plugin.getAbilities().getById(pc, parts[1]);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 }
