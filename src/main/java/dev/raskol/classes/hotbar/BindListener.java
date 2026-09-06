@@ -6,6 +6,7 @@ import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -13,17 +14,13 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 /**
  * Свитки способностей (bind 1–5).
- *  - ПКМ (воздух/блок/ЛЮБАЯ цель в прицеле) — ВСЕГДА каст В СЕБЯ;
- *  - ЛКМ-удар по ИГРОКУ со свитком точечной абилки — каст В ЦЕЛЬ, удар отменяется;
- *  - ЛКМ по мобу — обычная атака (свиток не мешает PvE).
- * FIX 1.5.0.10: канал ЛКМ — priority LOW + ignoreCancelled=false.
- * Раньше ignoreCancelled=true пропускал событие, отменённое защитой
- * Towny/WG в столице, — хил/щит по союзнику не срабатывал именно там.
- * Теперь перехватываем удар раньше защиты и сами гасим урон.
- * Дебаг: target-cast.debug: true в config.yml — точки обрыва в чат.
+ * FIX 1.5.1:
+ *  - таргет-каст не тратится на цели в creative/spectator (раньше съедал ресурс и кд);
+ *  - на quit чистится анти-спам карта и состояние ready-notify спеков.
  */
 public final class BindListener implements Listener {
 
@@ -69,11 +66,7 @@ public final class BindListener implements Listener {
         }
     }
 
-    /**
-     * ЛКМ по игроку со свитком точечной способности = каст в цель.
-     * LOW + ignoreCancelled=false: срабатывает даже если Towny/WG уже
-     * отменили урон (столицы, pvp-deny) — лечение союзника не PvP.
-     */
+    /** ЛКМ по игроку со свитком точечной способности = каст в цель. */
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
     public void onAttack(EntityDamageByEntityEvent event) {
         if (!plugin.getRaskolConfig().isTargetCastEnabled()) {
@@ -83,7 +76,13 @@ public final class BindListener implements Listener {
             return;
         }
         if (!(event.getEntity() instanceof Player target)) {
-            return; // ЛКМ по мобу — обычная атака
+            return;
+        }
+        // FIX 1.5.1: креатив/спектор — не цель лечения, каст не тратим
+        if (target.getGameMode() == GameMode.CREATIVE
+                || target.getGameMode() == GameMode.SPECTATOR) {
+            dbg(player, "обрыв: цель в creative/spectator");
+            return;
         }
         String id = token.readId(player.getInventory().getItemInMainHand());
         if (id == null) {
@@ -103,7 +102,6 @@ public final class BindListener implements Listener {
             dbg(player, "обрыв: абилка не точечная");
             return;
         }
-        // Гасим удар сами: защита столицы больше не мешает лечению
         event.setCancelled(true);
         if (plugin.getAbilities().tryCastTargeted(player, target, def)) {
             plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
@@ -113,7 +111,13 @@ public final class BindListener implements Listener {
         }
     }
 
-    /** Точки обрыва в чат, только при target-cast.debug: true. */
+    /** FIX 1.5.1: чистка per-player состояния на выход. */
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        plugin.getAbilities().clearAttempts(event.getPlayer().getUniqueId());
+        plugin.getSpecService().clearNotifyState(event.getPlayer().getUniqueId());
+    }
+
     private void dbg(Player player, String msg) {
         if (plugin.getRaskolConfig().isTargetCastDebug()) {
             player.sendMessage(Component.text("[dbg] " + msg, NamedTextColor.DARK_GRAY));
