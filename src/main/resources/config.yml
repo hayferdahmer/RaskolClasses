@@ -346,3 +346,102 @@ flavors:
       PRIEST: "Пламенный жрец"
       MAGE: "Аркан Дракона"
       ROGUE: "Тень Вальрадиса"
+# 1.5.0 / Пакет 1: VFX/SFX-каталог (всё перебивается без перекомпиляции, /rc reload)
+vfx:
+  proc-actionbar: false        # true = теги проков в actionbar («⚡ Казнь!»)
+  trails:
+    fireball: true             # пламенный трейл + треск огня у фаербола
+    arrows: true               # искровой трейл у стрел охотника
+  steel_skin:
+    cast-sound: ITEM_ARMOR_EQUIP_IRON
+    cast-particle: CRIT
+  shield_bash:
+    cast-sound: BLOCK_ANVIL_LAND
+    cast-particle: SWEEP_ATTACK
+  blood_fury:
+    cast-sound: ENTITY_RAVAGER_ROAR
+    cast-particle: CRIMSON_SPORE
+  war_god:
+    cast-sound: ENTITY_EVOKER_CAST_SPELL
+    cast-particle: FLAME
+  aimed_shot:
+    cast-sound: ENTITY_ARROW_SHOOT
+    cast-particle: CRIT
+  cheetah_aspect:
+    cast-sound: ENTITY_PHANTOM_FLAP
+    cast-particle: WHITE_ASH
+  multi_shot:
+    cast-sound: ENTITY_ARROW_SHOOT
+    cast-particle: SWEEP_ATTACK
+  barrage:
+    cast-sound: ENTITY_ARROW_SHOOT
+    cast-particle: POOF
+  lesser_heal:
+    cast-sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    cast-particle: HEART
+  flash_heal:
+    cast-sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    cast-particle: HEART
+  pw_shield:
+    cast-sound: ITEM_SHIELD_BLOCK
+    cast-particle: ENCHANT
+  circle_of_prayer:
+    cast-sound: BLOCK_BEACON_ACTIVATE
+    cast-particle: HEART
+  smite:
+    cast-sound: ENTITY_LIGHTNING_BOLT_IMPACT
+    cast-particle: FLASH
+  firebolt:
+    cast-sound: ITEM_FIRECHARGE_USE
+    cast-particle: FLAME
+  blink:
+    cast-sound: ENTITY_ENDERMAN_TELEPORT
+    cast-particle: PORTAL
+  frost_nova:
+    cast-sound: ENTITY_PLAYER_HURT_FREEZE
+    cast-particle: SNOWFLAKE
+  arcane_burst:
+    cast-sound: ENTITY_EVOKER_CAST_SPELL
+    cast-particle: POOF
+  stealth:
+    cast-sound: ENTITY_PHANTOM_FLAP
+    cast-particle: SMOKE
+  fan_of_knives:
+    cast-sound: ENTITY_PLAYER_ATTACK_SWEEP
+    cast-particle: SWEEP_ATTACK
+  cheap_shot:
+    cast-sound: ENTITY_PLAYER_ATTACK_KNOCKBACK
+    cast-particle: SMOKE
+  evasion:
+    cast-sound: ENTITY_ENDERMAN_TELEPORT
+    cast-particle: CLOUD
+  challenge:
+    cast-sound: BLOCK_BELL_USE
+    cast-particle: ANGRY_VILLAGER
+  rage_burst:
+    cast-sound: ENTITY_PLAYER_ATTACK_CRIT
+    cast-particle: CRIMSON_SPORE
+  precise_shot:
+    cast-sound: BLOCK_NOTE_BLOCK_PLING
+    cast-particle: END_ROD
+  snare:
+    cast-sound: BLOCK_TRIPWIRE_ATTACH
+    cast-particle: CRIT
+  sanctuary:
+    cast-sound: BLOCK_BEACON_ACTIVATE
+    cast-particle: HEART
+  mind_spike:
+    cast-sound: ENTITY_ENDERMAN_STARE
+    cast-particle: REVERSE_PORTAL
+  arcane_flow:
+    cast-sound: BLOCK_ENCHANTMENT_TABLE_USE
+    cast-particle: ENCHANT
+  ice_ring:
+    cast-sound: ENTITY_PLAYER_HURT_FREEZE
+    cast-particle: SNOWFLAKE
+  garrote:
+    cast-sound: ENTITY_PLAYER_ATTACK_WEAK
+    cast-particle: DAMAGE_INDICATOR
+  smoke_bomb:
+    cast-sound: BLOCK_FIRE_EXTINGUISH
+    cast-particle: SMOKE
