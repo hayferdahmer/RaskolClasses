@@ -8,6 +8,7 @@ import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.gui.ClassMenu;
+import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecMenu;
 import dev.raskol.classes.spec.SpecService;
@@ -27,7 +28,7 @@ import java.util.UUID;
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
-            List.of("1", "2", "3", "4", "5", "6", "menu", "hud", "reload", "debug",
+            List.of("1", "2", "3", "4", "5", "6", "7", "menu", "hud", "reload", "debug",
                     "bind", "spec", "respec");
 
     private final RaskolClasses plugin;
@@ -98,6 +99,15 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 }
                 plugin.getSpecCaster().tryCast(player, spec);
             }
+            // 1.5.0 / Пакет 2: постановка инсталляции своего класса
+            case "7" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage(Component.text("Установка доступна только игрокам",
+                            NamedTextColor.GRAY));
+                    return true;
+                }
+                plugin.getInstallations().tryPlace(player);
+            }
             case "1", "2", "3", "4", "5" -> {
                 if (!(sender instanceof Player player)) {
                     sender.sendMessage(Component.text("Каст доступен только игрокам",
@@ -119,7 +129,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 plugin.getAbilities().tryCast(player, def);
-                // 1.5.0 / Пакет 1: VFX каста (только при успешном касте)
                 plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
             }
             case "bind" -> {
@@ -136,7 +145,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 if (args.length < 2) {
-                    player.sendMessage(Component.text("Использование: /rc bind <1-6>",
+                    player.sendMessage(Component.text("Использование: /rc bind <1-7>",
                             NamedTextColor.GRAY));
                     return true;
                 }
@@ -144,7 +153,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 try {
                     bindSlot = Integer.parseInt(args[1]);
                 } catch (NumberFormatException e) {
-                    player.sendMessage(Component.text("Использование: /rc bind <1-6>",
+                    player.sendMessage(Component.text("Использование: /rc bind <1-7>",
                             NamedTextColor.GRAY));
                     return true;
                 }
@@ -158,6 +167,19 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     player.getInventory().addItem(plugin.getSpecToken().create(spec, pc));
                     player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
                             .append(Component.text(spec.displayName(), pc.getColor()))
+                            .append(Component.text(" — положи в хотбар и жми ПКМ",
+                                    NamedTextColor.GRAY)));
+                    return true;
+                }
+                // 1.5.0 / Пакет 2: свиток инсталляции
+                if (bindSlot == 7) {
+                    InstallationType type = InstallationType.forClass(pc);
+                    if (type == null) {
+                        return true;
+                    }
+                    player.getInventory().addItem(plugin.getInstallToken().create(type, pc));
+                    player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
+                            .append(Component.text(type.displayName(), pc.getColor()))
                             .append(Component.text(" — положи в хотбар и жми ПКМ",
                                     NamedTextColor.GRAY)));
                     return true;
@@ -282,7 +304,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sendDebug(sender, target);
             }
             default -> sender.sendMessage(Component.text(
-                    "Использование: /rc [1-6|menu|hud|reload|debug|bind|spec|respec]",
+                    "Использование: /rc [1-7|menu|hud|reload|debug|bind|spec|respec]",
                     NamedTextColor.GRAY));
         }
         return true;
@@ -332,6 +354,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     NamedTextColor.DARK_GRAY));
         }
 
+        // 1.5.0 / Пакет 2: счётчик инсталляций
+        player.sendMessage(Component.text("Инсталляции: ", NamedTextColor.GRAY)
+                .append(Component.text(plugin.getInstallations().countOf(uuid) + "/2 активных",
+                        NamedTextColor.DARK_GRAY)));
+
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
             String desc = cfg.abilityDescription(pc, def.id(), "");
             Component descComp = desc.isEmpty()
@@ -358,7 +385,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY)));
         }
 
-        player.sendMessage(Component.text("Каст: /rc 1–6 · Свитки: /rc bind <1-6> · Респец: /rc respec",
+        player.sendMessage(Component.text("Каст: /rc 1–7 · Свитки: /rc bind <1-7> · Респец: /rc respec",
                 NamedTextColor.DARK_GRAY));
     }
 
@@ -410,6 +437,10 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Component.text("Специализация: не выбрана",
                     NamedTextColor.GRAY));
         }
+
+        sender.sendMessage(Component.text("Инсталляции: ", NamedTextColor.GRAY)
+                .append(Component.text(plugin.getInstallations().countOf(uuid) + "/2",
+                        NamedTextColor.WHITE)));
 
         boolean hasCooldowns = false;
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
@@ -523,7 +554,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                                       String alias, String[] args) {
         if (args.length == 2 && "bind".equalsIgnoreCase(args[0])) {
             String bindPrefix = args[1];
-            return List.of("1", "2", "3", "4", "5", "6").stream()
+            return List.of("1", "2", "3", "4", "5", "6", "7").stream()
                     .filter(s -> s.startsWith(bindPrefix))
                     .toList();
         }
