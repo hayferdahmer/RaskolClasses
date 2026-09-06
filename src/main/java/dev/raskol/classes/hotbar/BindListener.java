@@ -19,8 +19,11 @@ import org.bukkit.event.player.PlayerInteractEvent;
  *  - ПКМ (воздух/блок/ЛЮБАЯ цель в прицеле) — ВСЕГДА каст В СЕБЯ;
  *  - ЛКМ-удар по ИГРОКУ со свитком точечной абилки — каст В ЦЕЛЬ, удар отменяется;
  *  - ЛКМ по мобу — обычная атака (свиток не мешает PvE).
- * FIX 1.5.0.9: убраны обработчики PlayerInteractEntity/AtEntity — они стреляют
- * на ПКМ по игроку и уводили хил/щит в цель. Канал ЛКМ — событие урона (как в 1.3.1).
+ * FIX 1.5.0.10: канал ЛКМ — priority LOW + ignoreCancelled=false.
+ * Раньше ignoreCancelled=true пропускал событие, отменённое защитой
+ * Towny/WG в столице, — хил/щит по союзнику не срабатывал именно там.
+ * Теперь перехватываем удар раньше защиты и сами гасим урон.
+ * Дебаг: target-cast.debug: true в config.yml — точки обрыва в чат.
  */
 public final class BindListener implements Listener {
 
@@ -66,8 +69,12 @@ public final class BindListener implements Listener {
         }
     }
 
-    /** ЛКМ по игроку со свитком точечной способности = каст в цель. */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    /**
+     * ЛКМ по игроку со свитком точечной способности = каст в цель.
+     * LOW + ignoreCancelled=false: срабатывает даже если Towny/WG уже
+     * отменили урон (столицы, pvp-deny) — лечение союзника не PvP.
+     */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
     public void onAttack(EntityDamageByEntityEvent event) {
         if (!plugin.getRaskolConfig().isTargetCastEnabled()) {
             return;
@@ -84,15 +91,32 @@ public final class BindListener implements Listener {
         }
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
+            dbg(player, "обрыв: нет класса");
             return;
         }
         AbilityDef def = plugin.getAbilities().findById(pc, id);
-        if (def == null || !plugin.getAbilities().isTargeted(def.id())) {
-            return; // чужой класс или не-точечная — атака как обычно
+        if (def == null) {
+            dbg(player, "обрыв: свиток чужого класса");
+            return;
         }
+        if (!plugin.getAbilities().isTargeted(def.id())) {
+            dbg(player, "обрыв: абилка не точечная");
+            return;
+        }
+        // Гасим удар сами: защита столицы больше не мешает лечению
         event.setCancelled(true);
         if (plugin.getAbilities().tryCastTargeted(player, target, def)) {
             plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
+            dbg(player, "каст в цель: " + def.id());
+        } else {
+            dbg(player, "обрыв: tryCastTargeted=false");
+        }
+    }
+
+    /** Точки обрыва в чат, только при target-cast.debug: true. */
+    private void dbg(Player player, String msg) {
+        if (plugin.getRaskolConfig().isTargetCastDebug()) {
+            player.sendMessage(Component.text("[dbg] " + msg, NamedTextColor.DARK_GRAY));
         }
     }
 }
