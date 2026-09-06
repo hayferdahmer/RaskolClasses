@@ -40,7 +40,6 @@ public final class AbilityToken {
             meta.displayName(TextFx.gradient("✦ " + def.displayName(),
                     theme.primary(), theme.secondary()));
             List<Component> loreLines = new ArrayList<>();
-            // Таргетные способности подсказывают оба управления
             if (plugin.getAbilities().isTargeted(def.id())) {
                 loreLines.add(Component.text("ПКМ — себя · ЛКМ по союзнику — цель",
                         NamedTextColor.GRAY));
