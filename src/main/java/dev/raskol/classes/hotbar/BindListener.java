@@ -12,12 +12,13 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 
 /**
- * Пакет 6: ПКМ со свитком = каст в себя. Пакет 1.3.1: ЛКМ со свитком точечной
- * способности по игроку = каст в цель (атака отменяется); ЛКМ по мобу =
- * обычная атака (свиток не мешает PvE).
+ * ПКМ со свитком = каст в себя; ЛКМ по союзнику = каст в цель.
+ * 1.5.0 / Пакет 3: после tryCast запускаем fx.onAttempt — звук/партикл
+ * каста свитком (раньше VFX были только у /rc 1–5).
  */
 public final class BindListener implements Listener {
 
@@ -29,65 +30,79 @@ public final class BindListener implements Listener {
         this.token = token;
     }
 
-    /** ПКМ: каст (точечные — всегда в себя). */
     @EventHandler(priority = EventPriority.HIGH)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_AIR
                 && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
-        if (!plugin.getRaskolConfig().isBindEnabled()) {
-            return;
-        }
         Player player = event.getPlayer();
-        String id = token.readId(player.getInventory().getItemInMainHand());
-        if (id == null) {
+        AbilityDef def = token.readAbility(player.getInventory().getItemInMainHand());
+        if (def == null) {
             return;
         }
         event.setCancelled(true);
-
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
             player.sendMessage(Component.text(
-                    plugin.getRaskolConfig().message("no-class-cast",
-                            "Класс не выбран — способности недоступны"),
-                    NamedTextColor.GRAY));
+                    "Класс не выбран — способности недоступны", NamedTextColor.RED));
             return;
         }
-        AbilityDef def = plugin.getAbilities().findById(pc, id);
-        if (def == null) {
-            player.sendMessage(Component.text("Этот свиток не твоего класса ("
-                    + pc.getDisplayName() + ")", NamedTextColor.RED));
+        if (!plugin.getAbilities().tryCast(player, def)) {
             return;
         }
-        plugin.getAbilities().tryCast(player, def);
+        // 1.5.0 / Пакет 3: VFX каста свитком
+        plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
     }
 
-    /** 1.3.1: ЛКМ по игроку со свитком точечной способности = каст в цель. */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onAttack(EntityDamageByEntityEvent event) {
-        if (!plugin.getRaskolConfig().isTargetCastEnabled()) {
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onInteractEntity(PlayerInteractEntityEvent event) {
+        Player player = event.getPlayer();
+        AbilityDef def = token.readAbility(player.getInventory().getItemInMainHand());
+        if (def == null) {
             return;
         }
+        if (!(event.getRightClicked() instanceof Player target)) {
+            return;
+        }
+        if (!def.isTargeted()) {
+            return;
+        }
+        event.setCancelled(true);
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        if (pc == null) {
+            player.sendMessage(Component.text(
+                    "Класс не выбран — способности недоступны", NamedTextColor.RED));
+            return;
+        }
+        if (!plugin.getAbilities().tryCastOn(player, def, target)) {
+            return;
+        }
+        // 1.5.0 / Пакет 3: VFX каста свитком в цель
+        plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onDamage(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) {
             return;
         }
         if (!(event.getEntity() instanceof Player target)) {
-            return; // ЛКМ по мобу — обычная атака
+            return;
         }
-        String id = token.readId(player.getInventory().getItemInMainHand());
-        if (id == null) {
+        AbilityDef def = token.readAbility(player.getInventory().getItemInMainHand());
+        if (def == null || !def.isTargeted()) {
             return;
         }
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
             return;
         }
-        AbilityDef def = plugin.getAbilities().findById(pc, id);
-        if (def == null || !plugin.getAbilities().isTargeted(def.id())) {
-            return; // чужой класс или не-точечная способность — атака как обычно
-        }
         event.setCancelled(true);
-        plugin.getAbilities().tryCastTargeted(player, target, def);
+        if (!plugin.getAbilities().tryCastOn(player, def, target)) {
+            return;
+        }
+        // 1.5.0 / Пакет 3: VFX каста свитком в цель через ЛКМ
+        plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
     }
 }
