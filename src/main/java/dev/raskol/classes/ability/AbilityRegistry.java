@@ -15,15 +15,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Реестр способностей пяти классов.
- * Две карты кастеров:
- *  - casters: обычные способности (каст в себя);
- *  - targetedCasters: точечные жреца (каст в цель — ЛКМ со свитком).
- * Длительности эффектов — через RaskolConfig.durationSeconds(...).
- * Значения по умолчанию (unlock/cost/cooldown) хранятся в DEFAULTS;
- * конфиг (abilityName/Unlock/Cost/CooldownSeconds) переопределяет их.
+ *  - casters: каст «в себя» (ПКМ /rc); для точечных абилок жреца —
+ *    лямбды (p, d) -> priest.xxx(p, p, d), то есть ПКМ ВСЕГДА лечит/щитует себя;
+ *  - targetedCasters: каст в явную цель (ТОЛЬКО ЛКМ со свитком по игроку).
+ * FIX 1.5.0.9: возвращены self-лямбды жреца в casters (ПКМ бил в пустоту)
+ * и разделены tryCast / tryCastTargeted (ПКМ — себя, ЛКМ — цель).
  */
 public final class AbilityRegistry {
 
@@ -37,7 +37,7 @@ public final class AbilityRegistry {
         boolean cast(Player caster, LivingEntity target, AbilityDef def);
     }
 
-    /** Дефолтные значения способностей (до переопределения конфигом). */
+    /** Дефолты (unlock/cost/cooldown/name) до переопределения конфигом. */
     private static final Map<PlayerClass, List<AbilityDef>> DEFAULTS = new EnumMap<>(PlayerClass.class);
 
     static {
@@ -78,6 +78,7 @@ public final class AbilityRegistry {
     private final Map<PlayerClass, List<AbilityDef>> byClass = new EnumMap<>(PlayerClass.class);
     private final Map<String, Caster> casters = new HashMap<>();
     private final Map<String, TargetedCaster> targetedCasters = new HashMap<>();
+    private final Map<UUID, Map<String, Long>> lastAttempts = new ConcurrentHashMap<>();
 
     public AbilityRegistry(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -91,20 +92,22 @@ public final class AbilityRegistry {
         MageAbilities mage = new MageAbilities(plugin);
         RogueAbilities rogue = new RogueAbilities(plugin);
 
-        // Воин (все — в себя)
+        // Воин
         casters.put("steel_skin", warrior::steelSkin);
         casters.put("shield_bash", warrior::shieldBash);
         casters.put("blood_fury", warrior::bloodFury);
         casters.put("war_god", warrior::warGod);
 
-        // Охотник (все — в себя / AoE)
+        // Охотник
         casters.put("aimed_shot", hunter::aimedShot);
         casters.put("cheetah_aspect", hunter::cheetahAspect);
         casters.put("multi_shot", hunter::multiShot);
         casters.put("barrage", hunter::barrage);
 
-        // Жрец: точечные (ЛКМ по цели) + AoE (в себя)
-        // FIX 1.5.0.7: метод в PriestAbilities называется powerWordShield, не pwShield
+        // Жрец: точечные. ПКМ /rc — В СЕБЯ (лямбда p,p); ЛКМ со свитком — в цель.
+        casters.put("lesser_heal", (p, d) -> priest.lesserHeal(p, p, d));
+        casters.put("flash_heal", (p, d) -> priest.flashHeal(p, p, d));
+        casters.put("pw_shield", (p, d) -> priest.powerWordShield(p, p, d));
         targetedCasters.put("lesser_heal", priest::lesserHeal);
         targetedCasters.put("flash_heal", priest::flashHeal);
         targetedCasters.put("pw_shield", priest::powerWordShield);
@@ -124,11 +127,6 @@ public final class AbilityRegistry {
         casters.put("evasion", rogue::evasion);
     }
 
-    /**
-     * Загрузка: берём дефолты из DEFAULTS и переопределяем значения
-     * из конфига (abilityName/Unlock/Cost/CooldownSeconds).
-     * В RaskolConfig нет метода abilityIds — порядок и состав задан DEFAULTS.
-     */
     public void loadFromConfig(RaskolConfig cfg) {
         byClass.clear();
         for (PlayerClass pc : PlayerClass.values()) {
@@ -160,7 +158,7 @@ public final class AbilityRegistry {
         return null;
     }
 
-    /** Поиск абилки по id внутри класса (для BindListener). */
+    /** Поиск абилки по id внутри класса (проверка свитка). */
     public AbilityDef findById(PlayerClass pc, String id) {
         if (id == null) {
             return null;
@@ -173,76 +171,82 @@ public final class AbilityRegistry {
         return null;
     }
 
-    /** Алиас для совместимости с BindListener Пакета 3. */
+    /** Алиас для совместимости. */
     public AbilityDef getById(PlayerClass pc, String id) {
         return findById(pc, id);
     }
 
-    /** Способность принимает явную цель (ЛКМ по игроку со свитком). */
+    /** Способность принимает явную цель (ЛКМ со свитком по игроку). */
     public boolean isTargeted(String id) {
         return targetedCasters.containsKey(id);
     }
 
+    /** ПКМ /rc: каст В СЕБЯ (даже если смотришь на союзника). */
     public boolean tryCast(Player player, AbilityDef def) {
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        return castOn(player, player, def, false);
+    }
+
+    /** ЛКМ со свитком по игроку: каст В ЦЕЛЬ. */
+    public boolean tryCastTargeted(Player caster, LivingEntity target, AbilityDef def) {
+        return castOn(caster, target, def, true);
+    }
+
+    private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
+        PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
+        RaskolConfig cfg = plugin.getRaskolConfig();
         if (pc == null) {
-            player.sendMessage(Component.text(
-                    "Класс не выбран — способности недоступны", NamedTextColor.RED));
+            caster.sendMessage(Component.text(cfg.message("no-class-cast",
+                    "Класс не выбран — способности недоступны"), NamedTextColor.GRAY));
             return false;
         }
-        UUID uuid = player.getUniqueId();
-        int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
+        Caster self = targeted ? null : casters.get(def.id());
+        TargetedCaster tcast = targeted ? targetedCasters.get(def.id()) : null;
+        if (self == null && tcast == null) {
+            plugin.getLogger().warning("Способность " + def.id() + " не имеет реализации");
+            return false;
+        }
+        UUID id = caster.getUniqueId();
+
+        // анти-спам дабл-клика
+        long window = cfg.castClickCooldownMillis();
+        long now = System.currentTimeMillis();
+        Map<String, Long> attempts = lastAttempts.computeIfAbsent(id, k -> new ConcurrentHashMap<>());
+        Long previous = attempts.get(def.id());
+        if (previous != null && now - previous < window) {
+            return false;
+        }
+        attempts.put(def.id(), now);
+
+        int level = plugin.getSkillLevels().getLevel(id, pc.profileSkillName());
         if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < def.unlockLevel()) {
-            player.sendMessage(Component.text("«" + def.displayName() + "» откроется на уровне "
+            caster.sendMessage(Component.text("«" + def.displayName() + "» откроется на уровне "
                     + def.unlockLevel() + " (у вас " + level + ")", NamedTextColor.RED));
             return false;
         }
-        if (plugin.getCooldowns().isOnCooldown(uuid, def.id())) {
-            long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
-            player.sendMessage(Component.text("«" + def.displayName() + "»: перезарядка ещё "
+        if (plugin.getCooldowns().isOnCooldown(id, def.id())) {
+            long remaining = plugin.getCooldowns().getRemainingMillis(id, def.id());
+            caster.sendMessage(Component.text("«" + def.displayName() + "»: перезарядка ещё "
                     + (remaining / 1000L + 1L) + "с", NamedTextColor.GRAY));
             return false;
         }
-        if (!plugin.getResources().consume(uuid, def.cost())) {
-            player.sendMessage(Component.text("Не хватает ресурса «" + pc.getResourceName()
+        if (!plugin.getResources().consume(id, def.cost())) {
+            caster.sendMessage(Component.text("Не хватает ресурса «" + pc.getResourceName()
                     + "»: нужно " + def.cost() + ", у вас "
-                    + (int) plugin.getResources().getValue(uuid), NamedTextColor.RED));
+                    + (int) plugin.getResources().getValue(id), NamedTextColor.RED));
             return false;
         }
-        plugin.getCooldowns().start(uuid, def.id(), def.cooldownMillis());
-        Caster caster = casters.get(def.id());
-        if (caster != null) {
-            caster.cast(player, def);
-        }
-        player.sendMessage(Component.text("«" + def.displayName() + "» — активирована",
-                NamedTextColor.GREEN));
-        return true;
-    }
+        plugin.getCooldowns().start(id, def.id(), def.cooldownMillis());
 
-    /** Каст точечной способности в конкретную цель (для ЛКМ со свитком). */
-    public boolean tryCastOn(Player caster, AbilityDef def, LivingEntity target) {
-        PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
-        if (pc == null) {
+        boolean ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
+        if (!ok) {
+            // цель здорова / никого не задело — возврат ресурса, кд остаётся как штраф
+            plugin.getResources().refund(id, def.cost());
             return false;
         }
-        UUID uuid = caster.getUniqueId();
-        int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-        if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < def.unlockLevel()) {
-            return false;
+        if (!targeted) {
+            caster.sendMessage(Component.text("«" + def.displayName() + "» — активирована",
+                    NamedTextColor.GREEN));
         }
-        if (plugin.getCooldowns().isOnCooldown(uuid, def.id())) {
-            return false;
-        }
-        if (!plugin.getResources().consume(uuid, def.cost())) {
-            return false;
-        }
-        plugin.getCooldowns().start(uuid, def.id(), def.cooldownMillis());
-        TargetedCaster tc = targetedCasters.get(def.id());
-        if (tc != null) {
-            tc.cast(caster, target, def);
-        }
-        caster.sendMessage(Component.text("«" + def.displayName() + "» → "
-                + target.getName(), NamedTextColor.GREEN));
         return true;
     }
 }
