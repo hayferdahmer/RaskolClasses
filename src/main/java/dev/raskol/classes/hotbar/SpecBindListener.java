@@ -16,8 +16,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 /**
  * ПКМ со свитком активки спеки = каст (bind 6).
  * Свиток читается через SpecToken (PDC-ключ raskolclasses:spec_ability).
- * 1.5.0: звук/партикл каста через FxService.
- * 1.5.1: чистка состояния ready-notify на quit.
+ * FIX 1.5.1.2: SpecActiveCaster.tryCast — void и сам внутри играет VFX через
+ * FxService.onCast; убрано лишнее условие и дубль VFX.
  */
 public final class SpecBindListener implements Listener {
 
@@ -51,9 +51,7 @@ public final class SpecBindListener implements Listener {
             return;
         }
         event.setCancelled(true);
-        if (plugin.getSpecCaster().tryCast(player, spec)) {
-            Spec def = plugin.getSpecRegistry().get(spec) != null ? spec : null;
-            plugin.getFx().onCast(player, "spec_" + spec.id());
-        }
+        // VFX каста играет SpecActiveCaster.tryCast внутри себя
+        plugin.getSpecCaster().tryCast(player, spec);
     }
 }
