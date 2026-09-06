@@ -10,18 +10,59 @@ import org.bukkit.Sound;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Движок звука/партиклов (1.5.0, Пакет 1).
- * Единая точка всех VFX/SFX: каст / прок / трейлы.
- *  - звуки играют с ограниченной громкостью (слышно в ~16 блоках);
- *  - имена звуков/партиклов — из конфига vfx.<id>.*, резолвятся безопасно:
- *    опечатка = тишина, не краш;
- *  - onAttempt — эвристика «свежего каста» по кулдауну (классовые абилки 1–5),
- *    onCast — безусловный VFX (активки спеков, где успех известен).
+ * FIX 1.5.0.1: каталог дефолтов вшит в код — звуки/партиклы работают
+ * БЕЗ секции vfx в конфиге; конфиг (vfx.<id>.cast-sound/cast-particle)
+ * теперь только ПЕРЕОПРЕДЕЛЯЕТ дефолты. Опечатка в конфиге = дефолт, не тишина.
+ *
+ *  - onCast — безусловный VFX (активки спеков, слот 6);
+ *  - onAttempt — эвристика «свежего каста» по кулдауну (классовые 1–5):
+ *    VFX играет только если кд запущен в последние 300 мс (каст прошёл);
+ *  - proc — фидбек проков пассивок (Пакет 3).
  */
 public final class FxService {
+
+    /** Дефолтный каталог: id -> [звук каста, партикл каста]. */
+    private static final Map<String, String[]> DEFAULTS = new HashMap<>();
+
+    static {
+        DEFAULTS.put("steel_skin", new String[]{"ITEM_ARMOR_EQUIP_IRON", "CRIT"});
+        DEFAULTS.put("shield_bash", new String[]{"BLOCK_ANVIL_LAND", "SWEEP_ATTACK"});
+        DEFAULTS.put("blood_fury", new String[]{"ENTITY_RAVAGER_ROAR", "CRIMSON_SPORE"});
+        DEFAULTS.put("war_god", new String[]{"ENTITY_EVOKER_CAST_SPELL", "FLAME"});
+        DEFAULTS.put("aimed_shot", new String[]{"ENTITY_ARROW_SHOOT", "CRIT"});
+        DEFAULTS.put("cheetah_aspect", new String[]{"ENTITY_PHANTOM_FLAP", "WHITE_ASH"});
+        DEFAULTS.put("multi_shot", new String[]{"ENTITY_ARROW_SHOOT", "SWEEP_ATTACK"});
+        DEFAULTS.put("barrage", new String[]{"ENTITY_ARROW_SHOOT", "POOF"});
+        DEFAULTS.put("lesser_heal", new String[]{"ENTITY_EXPERIENCE_ORB_PICKUP", "HEART"});
+        DEFAULTS.put("flash_heal", new String[]{"ENTITY_EXPERIENCE_ORB_PICKUP", "HEART"});
+        DEFAULTS.put("pw_shield", new String[]{"ITEM_SHIELD_BLOCK", "ENCHANT"});
+        DEFAULTS.put("circle_of_prayer", new String[]{"BLOCK_BEACON_ACTIVATE", "HEART"});
+        DEFAULTS.put("smite", new String[]{"ENTITY_LIGHTNING_BOLT_IMPACT", "FLASH"});
+        DEFAULTS.put("firebolt", new String[]{"ITEM_FIRECHARGE_USE", "FLAME"});
+        DEFAULTS.put("blink", new String[]{"ENTITY_ENDERMAN_TELEPORT", "PORTAL"});
+        DEFAULTS.put("frost_nova", new String[]{"ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE"});
+        DEFAULTS.put("arcane_burst", new String[]{"ENTITY_EVOKER_CAST_SPELL", "POOF"});
+        DEFAULTS.put("stealth", new String[]{"ENTITY_PHANTOM_FLAP", "SMOKE"});
+        DEFAULTS.put("fan_of_knives", new String[]{"ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK"});
+        DEFAULTS.put("cheap_shot", new String[]{"ENTITY_PLAYER_ATTACK_KNOCKBACK", "SMOKE"});
+        DEFAULTS.put("evasion", new String[]{"ENTITY_ENDERMAN_TELEPORT", "CLOUD"});
+        DEFAULTS.put("challenge", new String[]{"BLOCK_BELL_USE", "ANGRY_VILLAGER"});
+        DEFAULTS.put("rage_burst", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "CRIMSON_SPORE"});
+        DEFAULTS.put("precise_shot", new String[]{"BLOCK_NOTE_BLOCK_PLING", "END_ROD"});
+        DEFAULTS.put("snare", new String[]{"BLOCK_TRIPWIRE_ATTACH", "CRIT"});
+        DEFAULTS.put("sanctuary", new String[]{"BLOCK_BEACON_ACTIVATE", "HEART"});
+        DEFAULTS.put("mind_spike", new String[]{"ENTITY_ENDERMAN_STARE", "REVERSE_PORTAL"});
+        DEFAULTS.put("arcane_flow", new String[]{"BLOCK_ENCHANTMENT_TABLE_USE", "ENCHANT"});
+        DEFAULTS.put("ice_ring", new String[]{"ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE"});
+        DEFAULTS.put("garrote", new String[]{"ENTITY_PLAYER_ATTACK_WEAK", "DAMAGE_INDICATOR"});
+        DEFAULTS.put("smoke_bomb", new String[]{"BLOCK_FIRE_EXTINGUISH", "SMOKE"});
+    }
 
     private final RaskolClasses plugin;
 
@@ -51,11 +92,16 @@ public final class FxService {
 
     private void castVfx(Player player, String id) {
         FileConfiguration cfg = plugin.getConfig();
-        Sound sound = resolveSound(cfg.getString("vfx." + id + ".cast-sound", ""));
+        String[] def = DEFAULTS.getOrDefault(id, new String[]{"", ""});
+        // конфиг ПЕРЕОПРЕДЕЛЯЕТ дефолт; нет ключа или опечатка → дефолт/тишина
+        String soundKey = cfg.getString("vfx." + id + ".cast-sound", def[0]);
+        String particleKey = cfg.getString("vfx." + id + ".cast-particle", def[1]);
+
+        Sound sound = resolveSound(soundKey);
         if (sound != null) {
             playSound(player.getLocation(), sound, 0.6f, 1.0f);
         }
-        Particle particle = resolveParticle(cfg.getString("vfx." + id + ".cast-particle", ""));
+        Particle particle = resolveParticle(particleKey);
         if (particle != null) {
             player.spawnParticle(particle,
                     player.getLocation().add(0.0, 1.0, 0.0),
