@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.4.0 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.5.2 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение без рестарта: /rc reload.
 #  Новые ключи дописываются автоматически (addDefault + copyDefaults),
@@ -28,17 +28,19 @@ performance:
     min-cooldown-seconds: 30  # порог: уведомлять только о длинных КД
     sound: ENTITY_PLAYER_LEVELUP
     message: "{ability} — готова"
+    spec-enabled: true        # 1.5.1: готовность спек-активки озвучивается отдельно
 
 hooks:
   raskolcore:
     enabled: true             # читать класс из паспорта RaskolCore (LP — фолбэк)
 
 hotbar-bind:
-  enabled: true               # свитки способностей (/rc bind <1-6>)
+  enabled: true               # свитки способностей (/rc bind <1-7>)
   material: AMETHYST_SHARD    # материал классового свитка (спец-свиток — NETHER_STAR)
 
 target-cast:
   enabled: true               # ЛКМ со свитком точечной способности по игроку = каст в цель
+  debug: false                # true — точки обрыва ЛКМ-каста в чат ([dbg] ...)
 
 class-accept:
   enabled: true               # титр при первом принятии класса (раз в сессию)
@@ -270,6 +272,7 @@ classes:
         description: "мана ≥ 50 → −15% входящего урона"
         threshold: 50.0
         reduction: 0.15
+        regen-bonus: 1.0
 
   ROGUE:
     resource-regen: 10.0        # энергия: +10/с
@@ -346,12 +349,42 @@ flavors:
       PRIEST: "Пламенный жрец"
       MAGE: "Аркан Дракона"
       ROGUE: "Тень Вальрадиса"
-# 1.5.0 / Пакет 1: VFX/SFX-каталог (всё перебивается без перекомпиляции, /rc reload)
+
+# 1.5.0 / Пакет 2 + 1.5.2: инсталляции (ставящиеся мины/варды)
+installations:
+  unlock-level: 50            # уровень профильного скилла (админ — без лимита)
+  max-per-player: 2           # активных одновременно на игрока
+  max-global: 200             # 1.5.2: глобальный кап активных инсталляций на сервере
+  place-anti-spam-ms: 1000    # 1.5.2: пауза между постановками одного игрока
+  notify-owner: true          # 1.5.2: actionbar владельцу «сработала на X» / «истекла»
+  ttl-seconds: 60             # время жизни
+  deny-radius-spawn: 100      # запрет постановки в радиусе от спавна мира
+  deny-in-claims: true        # запрет на заклэймленной земле Towny
+  war_banner:
+    radius: 6.0
+    duration: 8               # секунд Resistance I союзникам
+  light_ward:
+    radius: 4.0
+    heal: 2.0                 # HP в секунду союзникам
+  bear_trap:
+    damage: 3.0
+    slow-duration: 2          # Slowness VI
+  frost_rune:
+    radius: 3.0
+    damage: 4.0
+    slow-duration: 3          # Slowness II
+  smoke_bomb:
+    radius: 3.0
+    blind-duration: 2         # Blindness врагам
+    speed-duration: 3         # Speed I владельцу
+
+# 1.5.0 / Пакет 1+3: VFX/SFX-каталог (переопределяет дефолты FxService)
+# Опечатка в имени звука/партикла = тишина, не краш (безопасный резолв).
 vfx:
-  proc-actionbar: false        # true = теги проков в actionbar («⚡ Казнь!»)
+  proc-actionbar: true        # теги проков пассивок в actionbar
   trails:
-    fireball: true             # пламенный трейл + треск огня у фаербола
-    arrows: true               # искровой трейл у стрел охотника
+    fireball: true            # пламенный трейл + треск огня у фаербола
+    arrows: true              # искровой трейл у стрел охотника
   steel_skin:
     cast-sound: ITEM_ARMOR_EQUIP_IRON
     cast-particle: CRIT
@@ -384,7 +417,7 @@ vfx:
     cast-particle: HEART
   pw_shield:
     cast-sound: ITEM_SHIELD_BLOCK
-    cast-particle: ENCHANT
+    cast-particle: ENCHANTED_HIT
   circle_of_prayer:
     cast-sound: BLOCK_BEACON_ACTIVATE
     cast-particle: HEART
@@ -435,7 +468,7 @@ vfx:
     cast-particle: REVERSE_PORTAL
   arcane_flow:
     cast-sound: BLOCK_ENCHANTMENT_TABLE_USE
-    cast-particle: ENCHANT
+    cast-particle: ENCHANTED_HIT
   ice_ring:
     cast-sound: ENTITY_PLAYER_HURT_FREEZE
     cast-particle: SNOWFLAKE
@@ -445,34 +478,6 @@ vfx:
   smoke_bomb:
     cast-sound: BLOCK_FIRE_EXTINGUISH
     cast-particle: SMOKE
-# 1.5.0 / Пакет 2: инсталляции (ставящиеся мины/варды)
-installations:
-  unlock-level: 50          # уровень профильного скилла (админ — без лимита)
-  max-per-player: 2         # активных одновременно на игрока
-  ttl-seconds: 60           # время жизни
-  deny-radius-spawn: 100    # запрет постановки в радиусе от спавна мира
-  deny-in-claims: true      # запрет на заклэймленной земле Towny
-  war_banner:
-    radius: 6.0
-    duration: 8             # секунд Resistance I союзникам
-  light_ward:
-    radius: 4.0
-    heal: 2.0               # HP в секунду союзникам
-  bear_trap:
-    damage: 3.0
-    slow-duration: 2        # Slowness VI
-  frost_rune:
-    radius: 3.0
-    damage: 4.0
-    slow-duration: 3        # Slowness II
-  smoke_bomb:
-    radius: 3.0
-    blind-duration: 2       # Blindness врагам
-    speed-duration: 3       # Speed I владельцу
-# 1.5.0 / Пакет 3: VFX проков пассивок и спеков
-# tag — actionbar-тег (если vfx.proc-actionbar: true)
-vfx:
-  proc-actionbar: true
   proc:
     execute_passive:
       cast-sound: ENTITY_PLAYER_ATTACK_CRIT
