@@ -1,16 +1,15 @@
 // © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
-package dev.raskol.classes.hotbar;
+package dev.raskol.classes.spec;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.util.TextFx;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
@@ -19,9 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Свиток активки специализации (1.4.0, Пакет 2.1).
- * Предмет с PDC-меткой raskolclasses:spec_ability; ПКМ = каст спеки.
- * Материал — NETHER_STAR, визуально отделён от классовых свитков (AMETHYST_SHARD).
+ * Свиток активки специализации (1.4.0 + 1.5.1).
+ * FIX 1.5.1: stripScrolls — сжигание свитков старого пути при респеце.
  */
 public final class SpecToken {
 
@@ -36,12 +34,9 @@ public final class SpecToken {
     public ItemStack create(Spec spec, PlayerClass pc) {
         SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(spec);
         RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
-
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         ItemMeta meta = item.getItemMeta();
-
-        meta.displayName(TextFx.gradient(
-                spec.symbol() + " Свиток: " + spec.displayName(),
+        meta.displayName(TextFx.gradient("⚔ Свиток: " + spec.displayName(),
                 theme.primary(), theme.secondary()));
 
         List<Component> lore = new ArrayList<>();
@@ -68,5 +63,22 @@ public final class SpecToken {
         String id = item.getItemMeta().getPersistentDataContainer()
                 .get(key, PersistentDataType.STRING);
         return Spec.fromId(id);
+    }
+
+    /** FIX 1.5.1: убрать из инвентаря все свитки указанной спеки; вернуть число. */
+    public int stripScrolls(Player player, Spec spec) {
+        int count = 0;
+        ItemStack[] contents = player.getInventory().getContents();
+        for (int i = 0; i < contents.length; i++) {
+            ItemStack item = contents[i];
+            if (item == null) {
+                continue;
+            }
+            if (readSpec(item) == spec) {
+                player.getInventory().setItem(i, null);
+                count++;
+            }
+        }
+        return count;
     }
 }
