@@ -3,6 +3,7 @@ package dev.raskol.classes.hotbar;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.spec.SpecToken;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
@@ -13,8 +14,10 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 
 /**
- * ПКМ со свитком спеки = каст активки (1.4.0, Пакет 2.1).
- * Свиток чужой спеки не работает (защита от передачи/подмены).
+ * ПКМ со свитком активки спеки = каст (bind 6).
+ * Свиток читается через SpecToken (PDC-ключ raskolclasses:spec_ability).
+ * 1.5.0: звук/партикл каста через FxService.
+ * 1.5.1: чистка состояния ready-notify на quit.
  */
 public final class SpecBindListener implements Listener {
 
@@ -32,19 +35,25 @@ public final class SpecBindListener implements Listener {
                 && event.getAction() != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
+        if (!plugin.getRaskolConfig().isBindEnabled()) {
+            return;
+        }
         Player player = event.getPlayer();
         Spec spec = token.readSpec(player.getInventory().getItemInMainHand());
         if (spec == null) {
             return;
         }
-        event.setCancelled(true);
-
         Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
         if (current != spec) {
             player.sendMessage(Component.text(
-                    "Этот свиток — для другой специализации", NamedTextColor.RED));
+                    "Этот свиток не твоей специализации",
+                    NamedTextColor.RED));
             return;
         }
-        plugin.getSpecCaster().tryCast(player, spec);
+        event.setCancelled(true);
+        if (plugin.getSpecCaster().tryCast(player, spec)) {
+            Spec def = plugin.getSpecRegistry().get(spec) != null ? spec : null;
+            plugin.getFx().onCast(player, "spec_" + spec.id());
+        }
     }
 }
