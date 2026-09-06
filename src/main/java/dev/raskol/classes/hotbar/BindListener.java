@@ -11,18 +11,16 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractAtEntityEvent;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
 
 /**
- * ПКМ со свитком = каст в себя; ЛКМ по игроку со свитком точечной абилки = в цель.
- * 1.5.0 / Пакет 3: после каста запускаем fx.onAttempt — звук/партикл.
- * FIX 1.5.0.8: ловим оба события ЛКМ (PlayerInteractEntityEvent +
- * PlayerInteractAtEntityEvent) с приоритетом HIGHEST — иначе Paper 1.21.4
- * стреляет только At-событием для игроков в броне/со щитом, и ЛКМ-бинд
- * жреца молча не срабатывает.
+ * Свитки способностей (bind 1–5).
+ *  - ПКМ (воздух/блок/ЛЮБАЯ цель в прицеле) — ВСЕГДА каст В СЕБЯ;
+ *  - ЛКМ-удар по ИГРОКУ со свитком точечной абилки — каст В ЦЕЛЬ, удар отменяется;
+ *  - ЛКМ по мобу — обычная атака (свиток не мешает PvE).
+ * FIX 1.5.0.9: убраны обработчики PlayerInteractEntity/AtEntity — они стреляют
+ * на ПКМ по игроку и уводили хил/щит в цель. Канал ЛКМ — событие урона (как в 1.3.1).
  */
 public final class BindListener implements Listener {
 
@@ -34,7 +32,7 @@ public final class BindListener implements Listener {
         this.token = token;
     }
 
-    /** ПКМ: каст в себя. */
+    /** ПКМ: каст в себя (точечные — тоже в себя). */
     @EventHandler(priority = EventPriority.HIGH)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_AIR
@@ -59,70 +57,42 @@ public final class BindListener implements Listener {
         }
         AbilityDef def = plugin.getAbilities().findById(pc, id);
         if (def == null) {
+            player.sendMessage(Component.text("Этот свиток не твоего класса ("
+                    + pc.getDisplayName() + ")", NamedTextColor.RED));
             return;
         }
-        if (!plugin.getAbilities().tryCast(player, def)) {
-            return;
+        if (plugin.getAbilities().tryCast(player, def)) {
+            plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
         }
-        plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
     }
 
-    /**
-     * ЛКМ по игроку: каст точечной абилки в цель (жрец: хилы/щит).
-     * FIX 1.5.0.8: HIGHEST приоритет + обработка обоих событий.
-     */
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onInteractEntity(PlayerInteractEntityEvent event) {
-        handleTargetedCast(event.getPlayer(), event.getRightClicked(),
-                event.getHand(), event);
-    }
-
-    /**
-     * Альтернативное событие ЛКМ (броня/щит/стойка) — то же самое действие.
-     * Paper 1.21.4 часто стреляет только этим событием.
-     */
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onInteractAtEntity(PlayerInteractAtEntityEvent event) {
-        handleTargetedCast(event.getPlayer(), event.getRightClicked(),
-                event.getHand(), event);
-    }
-
-    private void handleTargetedCast(Player caster, org.bukkit.entity.Entity clicked,
-                                    EquipmentSlot hand, org.bukkit.event.Cancellable cancellable) {
-        // Срабатываем только на MAIN_HAND, иначе событие стреляет дважды
-        if (hand != EquipmentSlot.HAND) {
+    /** ЛКМ по игроку со свитком точечной способности = каст в цель. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onAttack(EntityDamageByEntityEvent event) {
+        if (!plugin.getRaskolConfig().isTargetCastEnabled()) {
             return;
         }
-        if (!plugin.getRaskolConfig().isBindEnabled()) {
+        if (!(event.getDamager() instanceof Player player)) {
             return;
         }
-        if (!(clicked instanceof Player target)) {
-            return;
+        if (!(event.getEntity() instanceof Player target)) {
+            return; // ЛКМ по мобу — обычная атака
         }
-        // Нельзя лечить/щитовать самого себя через ЛКМ — для этого есть ПКМ
-        if (target.equals(caster)) {
-            return;
-        }
-        String id = token.readId(caster.getInventory().getItemInMainHand());
+        String id = token.readId(player.getInventory().getItemInMainHand());
         if (id == null) {
             return;
         }
-        PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
             return;
         }
         AbilityDef def = plugin.getAbilities().findById(pc, id);
-        if (def == null) {
-            return;
+        if (def == null || !plugin.getAbilities().isTargeted(def.id())) {
+            return; // чужой класс или не-точечная — атака как обычно
         }
-        if (!plugin.getAbilities().isTargeted(def.id())) {
-            return; // не точечная — пусть обрабатывается обычным ПКМ
+        event.setCancelled(true);
+        if (plugin.getAbilities().tryCastTargeted(player, target, def)) {
+            plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
         }
-        cancellable.setCancelled(true);
-        if (!plugin.getAbilities().tryCastOn(caster, def, target)) {
-            return;
-        }
-        // 1.5.0 / Пакет 3: VFX каста свитком в цель
-        plugin.getFx().onAttempt(caster, def.id(), def.cooldownMillis());
     }
 }
