@@ -11,12 +11,12 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 
 /**
- * ПКМ со свитком = каст в себя (1.3.1 + 1.5.0 Пакет 3).
- * Свиток определяется по PDC-ключу raskolclasses.ability.
- * 1.5.0 / Пакет 3: после tryCast запускаем fx.onAttempt — звук/партикл каста.
+ * ПКМ со свитком = каст в себя; ЛКМ по игроку со свитком точечной абилки = в цель.
+ * 1.5.0 / Пакет 3: после каста запускаем fx.onAttempt — звук/партикл.
  */
 public final class BindListener implements Listener {
 
@@ -28,6 +28,7 @@ public final class BindListener implements Listener {
         this.token = token;
     }
 
+    /** ПКМ: каст в себя (или в цель, если абилка точечная и есть таргет). */
     @EventHandler(priority = EventPriority.HIGH)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_AIR
@@ -59,5 +60,38 @@ public final class BindListener implements Listener {
         }
         // 1.5.0 / Пакет 3: VFX каста свитком
         plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
+    }
+
+    /** ЛКМ по игроку: каст точечной абилки в цель (жрец: хилы/щит). */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onInteractEntity(PlayerInteractEntityEvent event) {
+        if (!plugin.getRaskolConfig().isBindEnabled()) {
+            return;
+        }
+        Player caster = event.getPlayer();
+        String id = token.readId(caster.getInventory().getItemInMainHand());
+        if (id == null) {
+            return;
+        }
+        if (!(event.getRightClicked() instanceof Player target)) {
+            return;
+        }
+        PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
+        if (pc == null) {
+            return;
+        }
+        AbilityDef def = plugin.getAbilities().findById(pc, id);
+        if (def == null) {
+            return;
+        }
+        if (!plugin.getAbilities().isTargeted(def.id())) {
+            return; // не точечная — пусть обрабатывается обычным ПКМ
+        }
+        event.setCancelled(true);
+        if (!plugin.getAbilities().tryCastOn(caster, def, target)) {
+            return;
+        }
+        // 1.5.0 / Пакет 3: VFX каста свитком в цель
+        plugin.getFx().onAttempt(caster, def.id(), def.cooldownMillis());
     }
 }
