@@ -15,7 +15,6 @@ import dev.raskol.classes.gui.ClassMenu;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.SpecBindListener;
-import dev.raskol.classes.hotbar.SpecToken;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hud.BossBarService;
@@ -32,6 +31,7 @@ import dev.raskol.classes.spec.SpecMenu;
 import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
 import dev.raskol.classes.spec.SpecStorage;
+import dev.raskol.classes.spec.SpecToken;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -154,14 +154,12 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(bossBars.start());
         activeTasks.add(flavorService.startAuraTask());
         activeTasks.add(installations.startSweepTask());
-        // 1.5.1: ready-notify спек-абилок
         activeTasks.add(specService.startSpecNotifyTask());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
             effects.purgeExpired();
             specEffects.purgeExpired();
-            // 1.5.1: чистка анти-спам карты
             abilities.purgeStaleAttempts();
         }, purgeInterval, purgeInterval));
 
