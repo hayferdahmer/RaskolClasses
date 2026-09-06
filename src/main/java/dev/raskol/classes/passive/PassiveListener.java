@@ -4,6 +4,8 @@ package dev.raskol.classes.passive;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -20,12 +22,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Классовые пассивки (1.3.x + 1.5.0 Пакет 3).
- *  - execute_passive (Воин): 20% шанс ×3 урона по цели ≤20% HP, КД 6 с.
- *  - predator (Охотник): ×1.2 урона, пока HP ≥ 80%.
- *  - mana_soaked (Маг): −15% входящего урона, пока мана ≥ 50.
- *  - poisoned_blades (Разбойник): 30% шанс Яд I на 2 с, КД 3 с.
- *  - sadism (Разбойник): +3 урона при атаке со спины, КД 2 с.
- * 1.5.0 / Пакет 3: каждый прок → fx.procByKey() (звук + партикл + actionbar-тег).
+ * FIX 1.5.0.4: без deprecated getMaxHealth() — через Attribute.MAX_HEALTH.
  */
 public final class PassiveListener implements Listener {
 
@@ -57,7 +54,7 @@ public final class PassiveListener implements Listener {
             double threshold = cfg.passiveDouble(pc, "execute_passive", "threshold", 0.20);
             double multiplier = cfg.passiveDouble(pc, "execute_passive", "multiplier", 3.0);
             int cooldown = cfg.passiveInt(pc, "execute_passive", "cooldown-seconds", 6);
-            if (target.getHealth() / target.getMaxHealth() <= threshold
+            if (healthRatio(target) <= threshold
                     && ThreadLocalRandom.current().nextDouble() < chance
                     && !plugin.getCooldowns().isOnCooldown(uuid, "passive_execute")) {
                 damage *= multiplier;
@@ -70,7 +67,7 @@ public final class PassiveListener implements Listener {
         if (pc == PlayerClass.HUNTER && cfg.passiveEnabled(pc, "predator")) {
             double threshold = cfg.passiveDouble(pc, "predator", "threshold", 0.80);
             double multiplier = cfg.passiveDouble(pc, "predator", "multiplier", 1.20);
-            if (attacker.getHealth() / attacker.getMaxHealth() >= threshold) {
+            if (healthRatio(attacker) >= threshold) {
                 damage *= multiplier;
                 plugin.getFx().procByKey(attacker, "🐺 Хищник!", "predator");
             }
@@ -126,6 +123,13 @@ public final class PassiveListener implements Listener {
                 plugin.getFx().procByKey(victim, "💠 Пропитан маной!", "mana_soaked");
             }
         }
+    }
+
+    /** Отношение HP/max HP; без deprecated getMaxHealth(). */
+    private double healthRatio(LivingEntity entity) {
+        AttributeInstance attr = entity.getAttribute(Attribute.MAX_HEALTH);
+        double max = attr != null ? attr.getValue() : 20.0;
+        return max > 0 ? entity.getHealth() / max : 0.0;
     }
 
     /** Атака со спины: угол между направлением цели и вектором к атакующему < 60°. */
