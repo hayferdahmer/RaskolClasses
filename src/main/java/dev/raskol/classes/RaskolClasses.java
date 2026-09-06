@@ -42,10 +42,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * RaskolClasses — активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.4.0: специализации + боевая механика + свитки + королевские вкусы.
- * 1.5.0 / Пакет 1: FxService (звук/партиклы) + трейлы снарядов.
- * 1.5.0 / Пакет 2: инсталляции (5 классовых мин/вардов, слот 7).
+ * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
+ * 1.5.1: guard спеки против смены класса, ready-notify спек-абилок,
+ * чистка памяти, гигиена респеца, таргет-каст без waste на creative/spectator.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -60,7 +59,6 @@ public final class RaskolClasses extends JavaPlugin {
     private BossBarService bossBars;
     private AbilityToken tokens;
 
-    // 1.4.0: специализации
     private SpecRegistry specRegistry;
     private SpecStorage specStorage;
     private SpecService specService;
@@ -68,14 +66,11 @@ public final class RaskolClasses extends JavaPlugin {
     private SpecActiveCaster specCaster;
     private SpecToken specToken;
 
-    // 1.4.0 / Пакет 4: королевские вкусы
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
 
-    // 1.5.0 / Пакет 1: чувства
     private FxService fx;
 
-    // 1.5.0 / Пакет 2: инсталляции
     private InstallationService installations;
     private InstallToken installToken;
 
@@ -115,10 +110,8 @@ public final class RaskolClasses extends JavaPlugin {
         this.bossBars = new BossBarService(this);
         this.tokens = new AbilityToken(this);
 
-        // 1.5.0 / Пакет 1: движок VFX/SFX
         this.fx = new FxService(this);
 
-        // 1.4.0: специализации
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
         this.specStorage = new SpecStorage(this);
@@ -128,11 +121,9 @@ public final class RaskolClasses extends JavaPlugin {
         this.specCaster = new SpecActiveCaster(this);
         this.specToken = new SpecToken(this);
 
-        // 1.4.0 / Пакет 4: королевские вкусы
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
 
-        // 1.5.0 / Пакет 2: инсталляции
         this.installations = new InstallationService(this);
         this.installToken = new InstallToken(this);
 
@@ -163,11 +154,15 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(bossBars.start());
         activeTasks.add(flavorService.startAuraTask());
         activeTasks.add(installations.startSweepTask());
+        // 1.5.1: ready-notify спек-абилок
+        activeTasks.add(specService.startSpecNotifyTask());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
             effects.purgeExpired();
             specEffects.purgeExpired();
+            // 1.5.1: чистка анти-спам карты
+            abilities.purgeStaleAttempts();
         }, purgeInterval, purgeInterval));
 
         registerCommand();
