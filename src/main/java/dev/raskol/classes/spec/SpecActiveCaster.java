@@ -4,7 +4,6 @@ package dev.raskol.classes.spec;
 import dev.raskol.classes.RaskolClasses;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.Entity;
@@ -18,7 +17,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 /**
  * Каст активок спеков со слота 6 (/rc 6).
  * Кулдауны — через CooldownManager (id "spec_<id>"), стоимость — через ResourceService.
- * 1.4.0.3: визуалы — капкан (ItemDisplay), кольцо льда (снежинки), святилище (сердечки).
+ * 1.5.0: VFX каста через FxService (каталог vfx.* в конфиге).
  */
 public final class SpecActiveCaster {
 
@@ -49,6 +48,8 @@ public final class SpecActiveCaster {
         }
 
         plugin.getCooldowns().start(uuid, cdId, def.activeCooldown() * 1000L);
+        // 1.5.0: звук + партикл каста (каталог vfx.<activeId>)
+        plugin.getFx().onCast(player, def.activeId());
         cast(player, spec, def);
         player.sendMessage(Component.text("«" + def.activeDescription() + "» — активирована",
                 NamedTextColor.GREEN));
@@ -57,7 +58,6 @@ public final class SpecActiveCaster {
     private void cast(Player player, Spec spec, SpecRegistry.SpecDef def) {
         switch (spec) {
             case GUARDIAN -> {
-                // Таунт: мобы в радиусе атакуют тебя
                 double radius = def.activeDouble("radius", 4.0);
                 for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
                     if (entity instanceof Mob mob) {
@@ -72,7 +72,6 @@ public final class SpecActiveCaster {
                     def.activeDouble("damage_bonus", 4.0));
             case MARKSMAN -> plugin.getSpecEffects().armPrecise(player.getUniqueId());
             case TRACKER -> {
-                // Капкан: рут + ВИЗУАЛ ловушки на земле
                 Entity target = player.getTargetEntity(6);
                 if (target instanceof LivingEntity living) {
                     int duration = def.activeInt("duration", 2) * 20;
@@ -96,7 +95,6 @@ public final class SpecActiveCaster {
                             cancel();
                             return;
                         }
-                        // визуал зоны: сердечки по кругу
                         if (origin.getWorld() != null) {
                             origin.getWorld().spawnParticle(Particle.HEART,
                                     origin.clone().add(0.0, 0.5, 0.0),
@@ -121,7 +119,6 @@ public final class SpecActiveCaster {
                 }
             }
             case ARCANE -> {
-                // +N маны и снять негативные эффекты
                 plugin.getResources().refund(player.getUniqueId(),
                         def.activeInt("mana_restore", 50));
                 player.removePotionEffect(PotionEffectType.SLOWNESS);
@@ -139,7 +136,6 @@ public final class SpecActiveCaster {
                                 PotionEffectType.SLOWNESS, duration, 2));
                     }
                 }
-                // визуал: кольцо снежинок вокруг кастера
                 Location c = player.getLocation();
                 if (c.getWorld() != null) {
                     c.getWorld().spawnParticle(Particle.SNOWFLAKE,
