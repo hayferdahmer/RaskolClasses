@@ -19,11 +19,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Реестр способностей пяти классов.
- *  - casters: каст «в себя» (ПКМ /rc); для точечных абилок жреца —
- *    лямбды (p, d) -> priest.xxx(p, p, d), то есть ПКМ ВСЕГДА лечит/щитует себя;
- *  - targetedCasters: каст в явную цель (ТОЛЬКО ЛКМ со свитком по игроку).
- * FIX 1.5.0.9: возвращены self-лямбды жреца в casters (ПКМ бил в пустоту)
- * и разделены tryCast / tryCastTargeted (ПКМ — себя, ЛКМ — цель).
+ * FIX 1.5.1: чистка анти-спам карты lastAttempts (clearAttempts на quit,
+ * purgeStaleAttempts в общем purge-таске) — защита от роста памяти.
  */
 public final class AbilityRegistry {
 
@@ -37,7 +34,6 @@ public final class AbilityRegistry {
         boolean cast(Player caster, LivingEntity target, AbilityDef def);
     }
 
-    /** Дефолты (unlock/cost/cooldown/name) до переопределения конфигом. */
     private static final Map<PlayerClass, List<AbilityDef>> DEFAULTS = new EnumMap<>(PlayerClass.class);
 
     static {
@@ -92,19 +88,16 @@ public final class AbilityRegistry {
         MageAbilities mage = new MageAbilities(plugin);
         RogueAbilities rogue = new RogueAbilities(plugin);
 
-        // Воин
         casters.put("steel_skin", warrior::steelSkin);
         casters.put("shield_bash", warrior::shieldBash);
         casters.put("blood_fury", warrior::bloodFury);
         casters.put("war_god", warrior::warGod);
 
-        // Охотник
         casters.put("aimed_shot", hunter::aimedShot);
         casters.put("cheetah_aspect", hunter::cheetahAspect);
         casters.put("multi_shot", hunter::multiShot);
         casters.put("barrage", hunter::barrage);
 
-        // Жрец: точечные. ПКМ /rc — В СЕБЯ (лямбда p,p); ЛКМ со свитком — в цель.
         casters.put("lesser_heal", (p, d) -> priest.lesserHeal(p, p, d));
         casters.put("flash_heal", (p, d) -> priest.flashHeal(p, p, d));
         casters.put("pw_shield", (p, d) -> priest.powerWordShield(p, p, d));
@@ -114,13 +107,11 @@ public final class AbilityRegistry {
         casters.put("circle_of_prayer", priest::circleOfPrayer);
         casters.put("smite", priest::smite);
 
-        // Маг
         casters.put("firebolt", mage::firebolt);
         casters.put("blink", mage::blink);
         casters.put("frost_nova", mage::frostNova);
         casters.put("arcane_burst", mage::arcaneBurst);
 
-        // Разбойник
         casters.put("stealth", rogue::stealth);
         casters.put("fan_of_knives", rogue::fanOfKnives);
         casters.put("cheap_shot", rogue::cheapShot);
@@ -158,7 +149,6 @@ public final class AbilityRegistry {
         return null;
     }
 
-    /** Поиск абилки по id внутри класса (проверка свитка). */
     public AbilityDef findById(PlayerClass pc, String id) {
         if (id == null) {
             return null;
@@ -171,22 +161,18 @@ public final class AbilityRegistry {
         return null;
     }
 
-    /** Алиас для совместимости. */
     public AbilityDef getById(PlayerClass pc, String id) {
         return findById(pc, id);
     }
 
-    /** Способность принимает явную цель (ЛКМ со свитком по игроку). */
     public boolean isTargeted(String id) {
         return targetedCasters.containsKey(id);
     }
 
-    /** ПКМ /rc: каст В СЕБЯ (даже если смотришь на союзника). */
     public boolean tryCast(Player player, AbilityDef def) {
         return castOn(player, player, def, false);
     }
 
-    /** ЛКМ со свитком по игроку: каст В ЦЕЛЬ. */
     public boolean tryCastTargeted(Player caster, LivingEntity target, AbilityDef def) {
         return castOn(caster, target, def, true);
     }
@@ -207,7 +193,6 @@ public final class AbilityRegistry {
         }
         UUID id = caster.getUniqueId();
 
-        // анти-спам дабл-клика
         long window = cfg.castClickCooldownMillis();
         long now = System.currentTimeMillis();
         Map<String, Long> attempts = lastAttempts.computeIfAbsent(id, k -> new ConcurrentHashMap<>());
@@ -239,7 +224,6 @@ public final class AbilityRegistry {
 
         boolean ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
         if (!ok) {
-            // цель здорова / никого не задело — возврат ресурса, кд остаётся как штраф
             plugin.getResources().refund(id, def.cost());
             return false;
         }
@@ -248,5 +232,20 @@ public final class AbilityRegistry {
                     NamedTextColor.GREEN));
         }
         return true;
+    }
+
+    // --- FIX 1.5.1: чистка анти-спам карты ---
+
+    /** Полная чистка игрока (PlayerQuit). */
+    public void clearAttempts(UUID uuid) {
+        lastAttempts.remove(uuid);
+    }
+
+    /** Периодическая чистка записей старше 60 с (purge-таск). */
+    public void purgeStaleAttempts() {
+        long now = System.currentTimeMillis();
+        lastAttempts.values().forEach(map ->
+                map.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L));
+        lastAttempts.entrySet().removeIf(entry -> entry.getValue().isEmpty());
     }
 }
