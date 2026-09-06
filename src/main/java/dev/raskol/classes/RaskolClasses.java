@@ -9,6 +9,8 @@ import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.flavor.CrownFlavorService;
+import dev.raskol.classes.fx.FxService;
+import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassMenu;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
@@ -39,7 +41,7 @@ import java.util.List;
 /**
  * RaskolClasses — активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ».
  * 1.4.0: специализации + боевая механика + свитки + королевские вкусы.
- * FIX 1.4.0.1: возвращена регистрация SpecBindListener (бинд свитка спеки).
+ * 1.5.0 / Пакет 1: FxService (звук/партиклы) + трейлы снарядов.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -65,6 +67,9 @@ public final class RaskolClasses extends JavaPlugin {
     // 1.4.0 / Пакет 4: королевские вкусы
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
+
+    // 1.5.0 / Пакет 1: чувства
+    private FxService fx;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -102,6 +107,9 @@ public final class RaskolClasses extends JavaPlugin {
         this.bossBars = new BossBarService(this);
         this.tokens = new AbilityToken(this);
 
+        // 1.5.0 / Пакет 1: движок VFX/SFX
+        this.fx = new FxService(this);
+
         // 1.4.0: специализации
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
@@ -122,11 +130,12 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new PassiveListener(this), this);
         pluginManager.registerEvents(new ClassMenu.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
-        // FIX 1.4.0.1: слушатель свитков специализации (бинд /rc bind 6)
         pluginManager.registerEvents(new SpecBindListener(this, specToken), this);
         pluginManager.registerEvents(new SpecListener(this), this);
         pluginManager.registerEvents(new SpecMenu.ClickHandler(this), this);
         pluginManager.registerEvents(flavorService, this);
+        // 1.5.0 / Пакет 1: трейлы снарядов
+        pluginManager.registerEvents(new TrailListener(this), this);
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
@@ -222,4 +231,5 @@ public final class RaskolClasses extends JavaPlugin {
     public SpecToken getSpecToken() { return specToken; }
     public FactionHook getFactionHook() { return factionHook; }
     public CrownFlavorService getFlavorService() { return flavorService; }
+    public FxService getFx() { return fx; }
 }
