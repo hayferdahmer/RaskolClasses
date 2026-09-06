@@ -44,6 +44,7 @@ public final class RaskolConfig {
         config.addDefault("hotbar-bind.material", "AMETHYST_SHARD");
 
         config.addDefault("target-cast.enabled", true);
+        config.addDefault("target-cast.debug", false);
 
         // 1.3.2: Core-адаптер (читать класс из RaskolCore; LP — фолбэк)
         config.addDefault("hooks.raskolcore.enabled", true);
@@ -173,6 +174,7 @@ public final class RaskolConfig {
     public String bindMaterial() { return plugin.getConfig().getString("hotbar-bind.material", "AMETHYST_SHARD"); }
 
     public boolean isTargetCastEnabled() { return plugin.getConfig().getBoolean("target-cast.enabled", true); }
+    public boolean isTargetCastDebug() { return plugin.getConfig().getBoolean("target-cast.debug", false); }
 
     // 1.3.2: Core-адаптер
     public boolean raskolCoreEnabled() { return plugin.getConfig().getBoolean("hooks.raskolcore.enabled", true); }
