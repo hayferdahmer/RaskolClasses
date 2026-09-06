@@ -6,28 +6,32 @@ import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 
 /**
- * ПКМ со свитком = каст в себя; ЛКМ по союзнику = каст в цель.
- * 1.5.0 / Пакет 3: после tryCast запускаем fx.onAttempt — звук/партикл
- * каста свитком (раньше VFX были только у /rc 1–5).
+ * ПКМ со свитком = каст в себя (1.3.1 + 1.5.0 Пакет 3).
+ * Свиток определяется по PDC-ключу raskolclasses.ability.
+ * 1.5.0 / Пакет 3: после tryCast запускаем fx.onAttempt — звук/партикл каста.
  */
 public final class BindListener implements Listener {
 
     private final RaskolClasses plugin;
-    private final AbilityToken token;
+    private final NamespacedKey abilityKey;
 
-    public BindListener(RaskolClasses plugin, AbilityToken token) {
+    public BindListener(RaskolClasses plugin, dev.raskol.classes.hotbar.AbilityToken token) {
         this.plugin = plugin;
-        this.token = token;
+        this.abilityKey = new NamespacedKey(plugin, "ability");
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -37,7 +41,11 @@ public final class BindListener implements Listener {
             return;
         }
         Player player = event.getPlayer();
-        AbilityDef def = token.readAbility(player.getInventory().getItemInMainHand());
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (item == null || item.getType() == Material.AIR) {
+            return;
+        }
+        AbilityDef def = readAbility(item);
         if (def == null) {
             return;
         }
@@ -55,54 +63,26 @@ public final class BindListener implements Listener {
         plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
-    public void onInteractEntity(PlayerInteractEntityEvent event) {
-        Player player = event.getPlayer();
-        AbilityDef def = token.readAbility(player.getInventory().getItemInMainHand());
-        if (def == null) {
-            return;
+    private AbilityDef readAbility(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
         }
-        if (!(event.getRightClicked() instanceof Player target)) {
-            return;
+        ItemMeta meta = item.getItemMeta();
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        String raw = pdc.get(abilityKey, PersistentDataType.STRING);
+        if (raw == null || raw.isEmpty()) {
+            return null;
         }
-        if (!def.isTargeted()) {
-            return;
+        // Формат PDC: "<CLASS>:<ability_id>"
+        String[] parts = raw.split(":", 2);
+        if (parts.length != 2) {
+            return null;
         }
-        event.setCancelled(true);
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        if (pc == null) {
-            player.sendMessage(Component.text(
-                    "Класс не выбран — способности недоступны", NamedTextColor.RED));
-            return;
+        try {
+            PlayerClass pc = PlayerClass.valueOf(parts[0]);
+            return plugin.getAbilities().getById(pc, parts[1]);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
-        if (!plugin.getAbilities().tryCastOn(player, def, target)) {
-            return;
-        }
-        // 1.5.0 / Пакет 3: VFX каста свитком в цель
-        plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
-    }
-
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onDamage(EntityDamageByEntityEvent event) {
-        if (!(event.getDamager() instanceof Player player)) {
-            return;
-        }
-        if (!(event.getEntity() instanceof Player target)) {
-            return;
-        }
-        AbilityDef def = token.readAbility(player.getInventory().getItemInMainHand());
-        if (def == null || !def.isTargeted()) {
-            return;
-        }
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        if (pc == null) {
-            return;
-        }
-        event.setCancelled(true);
-        if (!plugin.getAbilities().tryCastOn(player, def, target)) {
-            return;
-        }
-        // 1.5.0 / Пакет 3: VFX каста свитком в цель через ЛКМ
-        plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
     }
 }
