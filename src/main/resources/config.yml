@@ -469,3 +469,44 @@ installations:
     radius: 3.0
     blind-duration: 2       # Blindness врагам
     speed-duration: 3       # Speed I владельцу
+# 1.5.0 / Пакет 3: VFX проков пассивок и спеков
+# tag — actionbar-тег (если vfx.proc-actionbar: true)
+vfx:
+  proc-actionbar: true
+  proc:
+    execute_passive:
+      cast-sound: ENTITY_PLAYER_ATTACK_CRIT
+      cast-particle: DAMAGE_INDICATOR
+      tag: "⚡ Казнь ×3!"
+    predator:
+      cast-sound: ENTITY_PLAYER_ATTACK_STRONG
+      cast-particle: CRIT
+      tag: "🐺 Хищник!"
+    grace:
+      cast-sound: ENTITY_EXPERIENCE_ORB_PICKUP
+      cast-particle: HEART
+      tag: "✚ Благодать"
+    mana_soaked:
+      cast-sound: ENTITY_PLAYER_BREATH
+      cast-particle: ENCHANTED_HIT
+      tag: "💠 Пропитан маной"
+    poisoned_blades:
+      cast-sound: ENTITY_SPIDER_STEP
+      cast-particle: COMPOSTER
+      tag: "☠ Яд!"
+    sadism:
+      cast-sound: ENTITY_PLAYER_ATTACK_SWEEP
+      cast-particle: DAMAGE_INDICATOR
+      tag: "🗡 В спину +3!"
+    crit_liquidator:
+      cast-sound: ENTITY_PLAYER_ATTACK_CRIT
+      cast-particle: CRIT
+      tag: "⚡ Крит ×1.5!"
+    dodge_trickster:
+      cast-sound: ENTITY_ENDERMAN_TELEPORT
+      cast-particle: CLOUD
+      tag: "💨 Уклонение!"
+    lifesteal_shadowweaver:
+      cast-sound: ENTITY_PLAYER_LEVELUP
+      cast-particle: HEART
+      tag: "♥ Лифстил"
