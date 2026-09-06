@@ -20,6 +20,9 @@ import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HudService;
+import dev.raskol.classes.install.InstallBindListener;
+import dev.raskol.classes.install.InstallToken;
+import dev.raskol.classes.install.InstallationService;
 import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.resource.ResourceService;
 import dev.raskol.classes.spec.SpecActiveCaster;
@@ -42,6 +45,7 @@ import java.util.List;
  * RaskolClasses — активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ».
  * 1.4.0: специализации + боевая механика + свитки + королевские вкусы.
  * 1.5.0 / Пакет 1: FxService (звук/партиклы) + трейлы снарядов.
+ * 1.5.0 / Пакет 2: инсталляции (5 классовых мин/вардов, слот 7).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -70,6 +74,10 @@ public final class RaskolClasses extends JavaPlugin {
 
     // 1.5.0 / Пакет 1: чувства
     private FxService fx;
+
+    // 1.5.0 / Пакет 2: инсталляции
+    private InstallationService installations;
+    private InstallToken installToken;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -124,6 +132,10 @@ public final class RaskolClasses extends JavaPlugin {
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
 
+        // 1.5.0 / Пакет 2: инсталляции
+        this.installations = new InstallationService(this);
+        this.installToken = new InstallToken(this);
+
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
         pluginManager.registerEvents(cooldowns, this);
@@ -134,8 +146,8 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new SpecListener(this), this);
         pluginManager.registerEvents(new SpecMenu.ClickHandler(this), this);
         pluginManager.registerEvents(flavorService, this);
-        // 1.5.0 / Пакет 1: трейлы снарядов
         pluginManager.registerEvents(new TrailListener(this), this);
+        pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
@@ -150,6 +162,7 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(resources.startTickTask(this));
         activeTasks.add(bossBars.start());
         activeTasks.add(flavorService.startAuraTask());
+        activeTasks.add(installations.startSweepTask());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
@@ -165,6 +178,9 @@ public final class RaskolClasses extends JavaPlugin {
     public void onDisable() {
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
+        if (installations != null) {
+            installations.shutdown();
+        }
         if (bossBars != null) {
             bossBars.shutdown();
         }
@@ -232,4 +248,6 @@ public final class RaskolClasses extends JavaPlugin {
     public FactionHook getFactionHook() { return factionHook; }
     public CrownFlavorService getFlavorService() { return flavorService; }
     public FxService getFx() { return fx; }
+    public InstallationService getInstallations() { return installations; }
+    public InstallToken getInstallToken() { return installToken; }
 }
