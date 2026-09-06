@@ -445,3 +445,27 @@ vfx:
   smoke_bomb:
     cast-sound: BLOCK_FIRE_EXTINGUISH
     cast-particle: SMOKE
+# 1.5.0 / Пакет 2: инсталляции (ставящиеся мины/варды)
+installations:
+  unlock-level: 50          # уровень профильного скилла (админ — без лимита)
+  max-per-player: 2         # активных одновременно на игрока
+  ttl-seconds: 60           # время жизни
+  deny-radius-spawn: 100    # запрет постановки в радиусе от спавна мира
+  deny-in-claims: true      # запрет на заклэймленной земле Towny
+  war_banner:
+    radius: 6.0
+    duration: 8             # секунд Resistance I союзникам
+  light_ward:
+    radius: 4.0
+    heal: 2.0               # HP в секунду союзникам
+  bear_trap:
+    damage: 3.0
+    slow-duration: 2        # Slowness VI
+  frost_rune:
+    radius: 3.0
+    damage: 4.0
+    slow-duration: 3        # Slowness II
+  smoke_bomb:
+    radius: 3.0
+    blind-duration: 2       # Blindness врагам
+    speed-duration: 3       # Speed I владельцу
