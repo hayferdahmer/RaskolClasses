@@ -4,179 +4,139 @@ package dev.raskol.classes.passive;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityRegainHealthEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * Классовые пассивки (1.3.x + 1.5.0 Пакет 3).
+ *  - execute_passive (Воин): 20% шанс ×3 урона по цели ≤20% HP, КД 6 с.
+ *  - predator (Охотник): ×1.2 урона, пока HP ≥ 80%.
+ *  - mana_soaked (Маг): −15% входящего урона, пока мана ≥ 50.
+ *  - poisoned_blades (Разбойник): 30% шанс Яд I на 2 с, КД 3 с.
+ *  - sadism (Разбойник): +3 урона при атаке со спины, КД 2 с.
+ * 1.5.0 / Пакет 3: каждый прок → fx.procByKey() (звук + партикл + actionbar-тег).
+ */
 public final class PassiveListener implements Listener {
 
     private final RaskolClasses plugin;
-    private final Map<UUID, Map<String, Long>> lastProc = new ConcurrentHashMap<>();
 
     public PassiveListener(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onDamageByEntity(EntityDamageByEntityEvent event) {
-        Player attacker = resolveAttacker(event.getDamager());
-        if (attacker != null) {
-            applyAttackerPassives(attacker, event);
-        }
-        if (event.getEntity() instanceof Player victim) {
-            applyVictimPassives(victim, event);
-        }
-    }
-
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onRegainHealth(EntityRegainHealthEvent event) {
-        if (!(event.getEntity() instanceof Player player)) {
+    public void onDamageDealt(EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player attacker)) {
             return;
         }
-        RaskolConfig config = plugin.getRaskolConfig();
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        if (pc != PlayerClass.PRIEST || !config.passiveEnabled(pc, "grace")) {
+        if (!(event.getEntity() instanceof LivingEntity target)) {
             return;
         }
-        event.setAmount(event.getAmount() * config.passiveDouble(pc, "grace", "multiplier", 1.15));
-    }
-
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        lastProc.remove(event.getPlayer().getUniqueId());
-    }
-
-    private void applyAttackerPassives(Player attacker, EntityDamageByEntityEvent event) {
         PlayerClass pc = plugin.getClassProvider().getClassOf(attacker);
         if (pc == null) {
             return;
         }
-        RaskolConfig config = plugin.getRaskolConfig();
-        UUID id = attacker.getUniqueId();
-        boolean melee = event.getDamager() instanceof Player;
+        RaskolConfig cfg = plugin.getRaskolConfig();
+        UUID uuid = attacker.getUniqueId();
+        double damage = event.getDamage();
 
-        switch (pc) {
-            case WARRIOR -> {
-                if (config.passiveEnabled(pc, "execute_passive")
-                        && event.getEntity() instanceof LivingEntity target
-                        && target.getHealth() <= config.passiveDouble(pc, "execute_passive", "threshold", 0.20)
-                            * maxHealth(target)
-                        && ThreadLocalRandom.current().nextDouble()
-                            < config.passiveDouble(pc, "execute_passive", "chance", 0.20)
-                        && tryProc(id, "execute_passive",
-                            config.passiveInt(pc, "execute_passive", "cooldown-seconds", 6) * 1000L)) {
-                    event.setDamage(event.getDamage()
-                            * config.passiveDouble(pc, "execute_passive", "multiplier", 3.0));
-                    tag(attacker, "tag.execute", "Казнь ×3!");
-                }
+        // execute_passive (Воин)
+        if (pc == PlayerClass.WARRIOR && cfg.passiveEnabled(pc, "execute_passive")) {
+            double chance = cfg.passiveDouble(pc, "execute_passive", "chance", 0.20);
+            double threshold = cfg.passiveDouble(pc, "execute_passive", "threshold", 0.20);
+            double multiplier = cfg.passiveDouble(pc, "execute_passive", "multiplier", 3.0);
+            int cooldown = cfg.passiveInt(pc, "execute_passive", "cooldown-seconds", 6);
+            if (target.getHealth() / target.getMaxHealth() <= threshold
+                    && ThreadLocalRandom.current().nextDouble() < chance
+                    && !plugin.getCooldowns().isOnCooldown(uuid, "passive_execute")) {
+                damage *= multiplier;
+                plugin.getCooldowns().start(uuid, "passive_execute", cooldown * 1000L);
+                plugin.getFx().procByKey(attacker, "⚡ Казнь ×3!", "execute_passive");
             }
-            case HUNTER -> {
-                if (config.passiveEnabled(pc, "predator")
-                        && event.getEntity() instanceof LivingEntity target
-                        && target.getHealth() >= config.passiveDouble(pc, "predator", "threshold", 0.80)
-                            * maxHealth(target)) {
-                    event.setDamage(event.getDamage()
-                            * config.passiveDouble(pc, "predator", "multiplier", 1.20));
-                    tag(attacker, "tag.predator", "Хищник!");
-                }
-            }
-            case ROGUE -> {
-                if (melee && config.passiveEnabled(pc, "poisoned_blades")
-                        && event.getEntity() instanceof LivingEntity target
-                        && ThreadLocalRandom.current().nextDouble()
-                            < config.passiveDouble(pc, "poisoned_blades", "chance", 0.30)
-                        && tryProc(id, "poisoned_blades",
-                            config.passiveInt(pc, "poisoned_blades", "cooldown-seconds", 3) * 1000L)) {
-                    target.addPotionEffect(new PotionEffect(PotionEffectType.POISON,
-                            config.passiveInt(pc, "poisoned_blades", "duration-seconds", 2) * 20, 0));
-                    tag(attacker, "tag.poison", "Яд!");
-                }
-                if (melee && config.passiveEnabled(pc, "sadism")
-                        && event.getEntity() instanceof LivingEntity
-                        && isBehind(attacker, event.getEntity())
-                        && tryProc(id, "sadism",
-                            config.passiveInt(pc, "sadism", "cooldown-seconds", 2) * 1000L)) {
-                    event.setDamage(event.getDamage() + config.passiveDouble(pc, "sadism", "bonus", 3.0));
-                    tag(attacker, "tag.backstab", "В спину +3!");
-                }
-            }
-            default -> { }
         }
+
+        // predator (Охотник)
+        if (pc == PlayerClass.HUNTER && cfg.passiveEnabled(pc, "predator")) {
+            double threshold = cfg.passiveDouble(pc, "predator", "threshold", 0.80);
+            double multiplier = cfg.passiveDouble(pc, "predator", "multiplier", 1.20);
+            if (attacker.getHealth() / attacker.getMaxHealth() >= threshold) {
+                damage *= multiplier;
+                plugin.getFx().procByKey(attacker, "🐺 Хищник!", "predator");
+            }
+        }
+
+        // poisoned_blades (Разбойник)
+        if (pc == PlayerClass.ROGUE && cfg.passiveEnabled(pc, "poisoned_blades")) {
+            double chance = cfg.passiveDouble(pc, "poisoned_blades", "chance", 0.30);
+            int duration = cfg.passiveInt(pc, "poisoned_blades", "duration-seconds", 2);
+            int cooldown = cfg.passiveInt(pc, "poisoned_blades", "cooldown-seconds", 3);
+            if (ThreadLocalRandom.current().nextDouble() < chance
+                    && !plugin.getCooldowns().isOnCooldown(uuid, "passive_poisoned")) {
+                target.addPotionEffect(new PotionEffect(
+                        PotionEffectType.POISON, duration * 20, 0));
+                plugin.getCooldowns().start(uuid, "passive_poisoned", cooldown * 1000L);
+                plugin.getFx().procByKey(attacker, "☠ Яд!", "poisoned_blades");
+            }
+        }
+
+        // sadism (Разбойник)
+        if (pc == PlayerClass.ROGUE && cfg.passiveEnabled(pc, "sadism")) {
+            double bonus = cfg.passiveDouble(pc, "sadism", "bonus", 3.0);
+            int cooldown = cfg.passiveInt(pc, "sadism", "cooldown-seconds", 2);
+            if (isBackstab(attacker, target)
+                    && !plugin.getCooldowns().isOnCooldown(uuid, "passive_sadism")) {
+                damage += bonus;
+                plugin.getCooldowns().start(uuid, "passive_sadism", cooldown * 1000L);
+                plugin.getFx().procByKey(attacker, "🗡 В спину +3!", "sadism");
+            }
+        }
+
+        event.setDamage(damage);
     }
 
-    private void applyVictimPassives(Player victim, EntityDamageByEntityEvent event) {
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onDamageTaken(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player victim)) {
+            return;
+        }
         PlayerClass pc = plugin.getClassProvider().getClassOf(victim);
-        if (pc != PlayerClass.MAGE) {
+        if (pc == null) {
             return;
         }
-        RaskolConfig config = plugin.getRaskolConfig();
-        if (!config.passiveEnabled(pc, "mana_soaked")) {
-            return;
-        }
-        if (plugin.getResources().getValue(victim.getUniqueId())
-                >= config.passiveDouble(pc, "mana_soaked", "threshold", 50.0)) {
-            event.setDamage(event.getDamage()
-                    * (1.0 - config.passiveDouble(pc, "mana_soaked", "reduction", 0.15)));
+        RaskolConfig cfg = plugin.getRaskolConfig();
+
+        // mana_soaked (Маг): −15% входящего урона при мане ≥ 50
+        if (pc == PlayerClass.MAGE && cfg.passiveEnabled(pc, "mana_soaked")) {
+            double threshold = cfg.passiveDouble(pc, "mana_soaked", "threshold", 50.0);
+            double reduction = cfg.passiveDouble(pc, "mana_soaked", "reduction", 0.15);
+            double mana = plugin.getResources().getValue(victim.getUniqueId());
+            if (mana >= threshold) {
+                event.setDamage(event.getDamage() * (1.0 - reduction));
+                plugin.getFx().procByKey(victim, "💠 Пропитан маной!", "mana_soaked");
+            }
         }
     }
 
-    private boolean tryProc(UUID playerId, String passiveId, long cooldownMillis) {
-        long now = System.currentTimeMillis();
-        Map<String, Long> byPassive = lastProc.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>());
-        Long previous = byPassive.get(passiveId);
-        if (previous != null && now - previous < cooldownMillis) {
+    /** Атака со спины: угол между направлением цели и вектором к атакующему < 60°. */
+    private boolean isBackstab(Player attacker, LivingEntity target) {
+        Vector targetDir = target.getLocation().getDirection().setY(0).normalize();
+        Vector toAttacker = attacker.getLocation().toVector()
+                .subtract(target.getLocation().toVector()).setY(0);
+        if (toAttacker.lengthSquared() < 1e-6) {
             return false;
         }
-        byPassive.put(passiveId, now);
-        return true;
-    }
-
-    private boolean isBehind(Player attacker, Entity victim) {
-        Vector toAttacker = attacker.getLocation().toVector()
-                .subtract(victim.getLocation().toVector()).normalize();
-        Vector victimDir = victim.getLocation().getDirection().normalize();
-        return victimDir.dot(toAttacker) < -0.707;
-    }
-
-    /** Пакет 3: тег из messages.<key> с фолбэком на встроенный текст. */
-    private void tag(Player player, String key, String fallback) {
-        player.sendActionBar(Component.text(
-                plugin.getRaskolConfig().message(key, fallback),
-                NamedTextColor.YELLOW));
-    }
-
-    private Player resolveAttacker(Entity damager) {
-        if (damager instanceof Player player) {
-            return player;
-        }
-        if (damager instanceof Projectile projectile
-                && projectile.getShooter() instanceof Player shooter) {
-            return shooter;
-        }
-        return null;
-    }
-
-    private double maxHealth(LivingEntity entity) {
-        AttributeInstance attribute = entity.getAttribute(Attribute.MAX_HEALTH);
-        return attribute != null ? attribute.getValue() : 20.0;
+        toAttacker.normalize();
+        return targetDir.dot(toAttacker) > 0.5;
     }
 }
