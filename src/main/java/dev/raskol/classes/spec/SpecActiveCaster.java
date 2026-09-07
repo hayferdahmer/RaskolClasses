@@ -2,6 +2,7 @@
 package dev.raskol.classes.spec;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.compat.AuthGate;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
@@ -16,8 +17,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 /**
  * Каст активок спеков со слота 6 (/rc 6).
- * Кулдауны — через CooldownManager (id "spec_<id>"), стоимость — через ResourceService.
- * 1.5.0: VFX каста через FxService (каталог vfx.* в конфиге).
+ * 1.5.8: гейт AuthGate.canAct (auth + creative).
  */
 public final class SpecActiveCaster {
 
@@ -28,6 +28,13 @@ public final class SpecActiveCaster {
     }
 
     public void tryCast(Player player, Spec spec) {
+        // 1.5.8: auth + creative гейт
+        if (!AuthGate.canAct(plugin, player)) {
+            player.sendMessage(Component.text(
+                    "Способности недоступны в этом режиме или до входа в аккаунт.",
+                    NamedTextColor.RED));
+            return;
+        }
         SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(spec);
         if (def == null) {
             return;
@@ -48,7 +55,6 @@ public final class SpecActiveCaster {
         }
 
         plugin.getCooldowns().start(uuid, cdId, def.activeCooldown() * 1000L);
-        // 1.5.0: звук + партикл каста (каталог vfx.<activeId>)
         plugin.getFx().onCast(player, def.activeId());
         cast(player, spec, def);
         player.sendMessage(Component.text("«" + def.activeDescription() + "» — активирована",
