@@ -19,17 +19,14 @@ import java.util.UUID;
 
 /**
  * 1.6.0: боевой сервис урона и резистов.
- * Путь A (ваниль): EntityDamageEvent по игроку — урон режется по типу причины
- *   (физ → физрезист, маг → магрезист; чистый не трогается). Ванильная броня
- *   применяется ПОСЛЕ нашего физрезиста штатно (cause ENTITY_ATTACK и т.п.).
- * Путь B (наши способности/инсталляции/спек-активки): dealDamage(target, source,
- *   profile) — сервис сам считает итог покомпонентно и применяет:
- *   физ-часть через обычную атаку (броня работает), маг+чистый — через
- *   DamageSource minecraft:magic (броню не трогает; резисты уже учтены нами).
- * FIX 1.6.0.2: НЕ импортируем org.bukkit.damage.DamageType — single-type import
- *   затенял наш enum DamageType из этого же пакета (TRUE/PHYSICAL «исчезали»).
- *   Ванильный тип magic держим полностью квалифицированным именем.
- * Двойного применения резиста нет: свои же вызовы помечаются ThreadLocal-флагом.
+ * Путь A (ваниль): EntityDamageEvent по игроку — урон режется резистом своего
+ * типа (карта причин → тип с конфиг-оверрайдами damage-types.vanilla-map).
+ * Путь B (наши способности): dealDamage(target, source, DamageProfile) —
+ * физ-компонента проходит броню, маг+чистый через DamageSource minecraft:magic.
+ * FIX 1.6.0.1: тип magic берётся из реестра Paper по namespaced-ключу.
+ * FIX 1.6.1 (B3): ThreadLocal-маркер SUPPRESS сбрасывается в finally сразу
+ * после каждого вызова damage(...) — если событие не было создано (цель умерла,
+ * неуязвима, вызов прерван), флаг не «протекает» на следующий ванильный урон.
  */
 public final class CombatService implements Listener {
 
@@ -110,25 +107,34 @@ public final class CombatService implements Listener {
         double dealt = 0.0;
         if (physPart > 0.0) {
             SUPPRESS.set(Boolean.TRUE);
-            if (source != null) {
-                target.damage(physPart, source);
-            } else {
-                target.damage(physPart);
+            try {
+                if (source != null) {
+                    target.damage(physPart, source);
+                } else {
+                    target.damage(physPart);
+                }
+            } finally {
+                // 1.6.1 (B3): событие диспатчится синхронно внутри damage();
+                // пост-сброс безопасен и закрывает утечку, если события не было
+                SUPPRESS.set(Boolean.FALSE);
             }
             dealt += physPart;
         }
         if (magicTruePart > 0.0) {
             SUPPRESS.set(Boolean.TRUE);
-            org.bukkit.damage.DamageType magic = magicType();
-            if (magic != null) {
-                DamageSource.Builder builder = DamageSource.builder(magic);
-                if (source != null) {
-                    builder = builder.withDirectEntity(source).withCausingEntity(source);
+            try {
+                org.bukkit.damage.DamageType magic = magicType();
+                if (magic != null) {
+                    DamageSource.Builder builder = DamageSource.builder(magic);
+                    if (source != null) {
+                        builder = builder.withDirectEntity(source).withCausingEntity(source);
+                    }
+                    target.damage(magicTruePart, builder.build());
+                } else {
+                    target.damage(magicTruePart);
                 }
-                target.damage(magicTruePart, builder.build());
-            } else {
-                // реестр недоступен (не должно случаться) — обычный урон без источника
-                target.damage(magicTruePart);
+            } finally {
+                SUPPRESS.set(Boolean.FALSE);
             }
             dealt += magicTruePart;
         }
