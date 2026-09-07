@@ -1,11 +1,11 @@
 name: RaskolClasses
-version: '1.5.7'
+version: '1.5.8'
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
 description: Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации, инсталляции и королевские вкусы
 
-softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny]
+softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, AuthMe]
 
 commands:
   rc:
@@ -14,7 +14,7 @@ commands:
 
 permissions:
   raskolclasses.admin:
-    description: Перезагрузка конфигурации, бесплатный респец, инсталляции без анлока
+    description: Перезагрузка конфигурации, бесплатный респец, инсталляции без анлока, касты в creative
     default: op
   raskolclasses.debug:
     description: Диагностика (/rc debug [player])
