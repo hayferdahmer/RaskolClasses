@@ -11,7 +11,7 @@ import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.flavor.CrownFlavorService;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
-import dev.raskol.classes.gui.ClassMenu;
+import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.SpecBindListener;
@@ -27,7 +27,6 @@ import dev.raskol.classes.resource.ResourceService;
 import dev.raskol.classes.spec.SpecActiveCaster;
 import dev.raskol.classes.spec.SpecEffects;
 import dev.raskol.classes.spec.SpecListener;
-import dev.raskol.classes.spec.SpecMenu;
 import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
 import dev.raskol.classes.spec.SpecStorage;
@@ -43,7 +42,8 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.5.3: валидация каталога vfx на старте и /rc reload.
+ * 1.5.4: Книга класса (/rc menu) заменяет /rc bind, /rc respec и старое меню;
+ * регистрация ClassBook.ClickHandler вместо ClassMenu.ClickHandler.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -110,7 +110,6 @@ public final class RaskolClasses extends JavaPlugin {
         this.tokens = new AbilityToken(this);
 
         this.fx = new FxService(this);
-        // 1.5.3: проверка имён vfx.* сразу на старте
         fx.validateConfig();
 
         this.specRegistry = new SpecRegistry(this);
@@ -132,11 +131,11 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(effects, this);
         pluginManager.registerEvents(cooldowns, this);
         pluginManager.registerEvents(new PassiveListener(this), this);
-        pluginManager.registerEvents(new ClassMenu.ClickHandler(this), this);
+        // 1.5.4: Книга класса вместо старого меню способностей
+        pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
         pluginManager.registerEvents(new SpecBindListener(this, specToken), this);
         pluginManager.registerEvents(new SpecListener(this), this);
-        pluginManager.registerEvents(new SpecMenu.ClickHandler(this), this);
         pluginManager.registerEvents(flavorService, this);
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
@@ -220,7 +219,6 @@ public final class RaskolClasses extends JavaPlugin {
         if (specRegistry != null) {
             specRegistry.load();
         }
-        // 1.5.3: повторная валидация имён vfx после правок конфига
         fx.validateConfig();
         getLogger().info("Конфигурация перезагружена");
     }
