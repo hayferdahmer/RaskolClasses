@@ -18,6 +18,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 /**
  * Каст активок спеков со слота 6 (/rc 6).
  * 1.5.8: гейт AuthGate.canAct (auth + creative).
+ * 1.5.9: текст гейта из messages.gate.blocked.
  */
 public final class SpecActiveCaster {
 
@@ -28,10 +29,10 @@ public final class SpecActiveCaster {
     }
 
     public void tryCast(Player player, Spec spec) {
-        // 1.5.8: auth + creative гейт
+        // 1.5.8: auth + creative гейт; 1.5.9: текст из конфига
         if (!AuthGate.canAct(plugin, player)) {
-            player.sendMessage(Component.text(
-                    "Способности недоступны в этом режиме или до входа в аккаунт.",
+            player.sendMessage(Component.text(plugin.getRaskolConfig().message("gate.blocked",
+                    "Способности недоступны в этом режиме или до входа в аккаунт."),
                     NamedTextColor.RED));
             return;
         }
