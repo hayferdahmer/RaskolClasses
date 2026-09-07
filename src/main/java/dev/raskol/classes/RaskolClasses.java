@@ -6,6 +6,7 @@ import dev.raskol.classes.ability.CooldownManager;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.RaskolConfig;
@@ -37,6 +38,7 @@ import dev.raskol.classes.spec.SpecToken;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -48,7 +50,8 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.6.0 пакет 1: ядро урона и резистов (ResistService + CombatService).
+ * 1.6.0 пакет 3: ManaSoakedService (динамический резист мага) +
+ * восстановление спек-резистов на входе игрока.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -78,9 +81,9 @@ public final class RaskolClasses extends JavaPlugin {
     private InstallationService installations;
     private InstallToken installToken;
 
-    // 1.6.0: ядро урона и резистов
     private ResistService resists;
     private CombatService combat;
+    private ManaSoakedService manaSoaked;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -121,9 +124,9 @@ public final class RaskolClasses extends JavaPlugin {
         this.fx = new FxService(this);
         fx.validateConfig();
 
-        // 1.6.0: резисты и боевой сервис
         this.resists = new ResistService(this);
         this.combat = new CombatService(this, resists);
+        this.manaSoaked = new ManaSoakedService(this);
 
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
@@ -151,7 +154,6 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(flavorService, this);
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
-        // 1.6.0: путь A — резисты к ванильному урону по игрокам
         pluginManager.registerEvents(combat, this);
         // 1.6.0: чистка модификаторов резиста на выход
         pluginManager.registerEvents(new Listener() {
@@ -160,6 +162,17 @@ public final class RaskolClasses extends JavaPlugin {
                 resists.clear(event.getPlayer().getUniqueId());
             }
         }, this);
+        // 1.6.0 пакет 3: восстановление спек-резистов на вход
+        pluginManager.registerEvents(new Listener() {
+            @EventHandler
+            public void onJoin(PlayerJoinEvent event) {
+                specService.restorePassiveResists(event.getPlayer());
+            }
+        }, this);
+        // 1.6.0 пакет 3: рестарт-сценарий — восстановить резисты уже онлайн-игрокам
+        for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
+            specService.restorePassiveResists(online);
+        }
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
@@ -177,6 +190,7 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(installations.startSweepTask());
         activeTasks.add(specService.startSpecNotifyTask());
         activeTasks.add(new ScrollCooldownTask(this).start());
+        activeTasks.add(manaSoaked.start());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
@@ -271,4 +285,5 @@ public final class RaskolClasses extends JavaPlugin {
     public InstallToken getInstallToken() { return installToken; }
     public ResistService getResists() { return resists; }
     public CombatService getCombat() { return combat; }
+    public ManaSoakedService getManaSoaked() { return manaSoaked; }
 }
