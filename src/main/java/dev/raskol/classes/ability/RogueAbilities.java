@@ -4,6 +4,7 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.Targeting;
 import dev.raskol.classes.effect.EffectType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -16,8 +17,8 @@ import org.bukkit.util.RayTraceResult;
 
 /**
  * Активные способности разбойника (ресурс — энергия).
- * 1.6.0 пакет 2: fan_of_knives и cheap_shot — ФИЗИЧЕСКИЙ урон через dealDamage.
- * 1.6.0 пакет 3: evasion даёт +30 физрезист на duration.
+ * 1.6.0 пакет 2: fan_of_knives/cheap_shot = ФИЗИЧЕСКИЙ урон через dealDamage.
+ * 1.6.2: союзники не бьются (гейт combat.friendly-fire).
  */
 public final class RogueAbilities {
 
@@ -36,7 +37,7 @@ public final class RogueAbilities {
         return true;
     }
 
-    /** Веер ножей — ФИЗИЧЕСКИЙ урон (4 дефолт) всем живым в радиусе 3. */
+    /** Веер ножей — ФИЗИЧЕСКИЙ урон (4 дефолт). 1.6.2: союзники пропускаются. */
     public boolean fanOfKnives(Player player, AbilityDef def) {
         double phys = plugin.getRaskolConfig()
                 .abilityDamagePhysical(PlayerClass.ROGUE, def.id(), 4.0);
@@ -45,13 +46,16 @@ public final class RogueAbilities {
             if (!(entity instanceof LivingEntity living) || entity.equals(player)) {
                 continue;
             }
+            if (!Targeting.isValidDamageTarget(plugin, player, living)) {
+                continue;
+            }
             plugin.getCombat().dealDamage(living, player, DamageProfile.physical(phys));
             affected = true;
         }
         return affected;
     }
 
-    /** Подлый удар — ФИЗИЧЕСКИЙ урон (3 дефолт) + Blindness + Slowness. */
+    /** Подлый удар — ФИЗИЧЕСКИЙ урон (3 дефолт) + Blind + Slowness. 1.6.2: не по союзникам. */
     public boolean cheapShot(Player player, AbilityDef def) {
         RayTraceResult hit = player.rayTraceEntities(4);
         if (hit == null || !(hit.getHitEntity() instanceof LivingEntity target)) {
@@ -59,6 +63,11 @@ public final class RogueAbilities {
                     "Нет цели в радиусе 4 блоков");
             player.sendMessage(Component.text(text, NamedTextColor.RED));
             return false;
+        }
+        if (!Targeting.isValidDamageTarget(plugin, player, target)) {
+            player.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
+            return false; // ресурс вернётся через отмену каста
         }
         double phys = plugin.getRaskolConfig()
                 .abilityDamagePhysical(PlayerClass.ROGUE, def.id(), 3.0);
@@ -70,10 +79,6 @@ public final class RogueAbilities {
         return true;
     }
 
-    /**
-     * Уклонение: +30 физрезист на duration (дефолт 4 с).
-     * 1.6.0 пакет 3: замена старого 100% уклонения на честный резист.
-     */
     public boolean evasion(Player player, AbilityDef def) {
         long durationMillis = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.ROGUE, "evasion", 4) * 1000L;
