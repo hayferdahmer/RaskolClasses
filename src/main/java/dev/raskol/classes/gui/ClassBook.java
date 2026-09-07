@@ -32,11 +32,12 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Книга класса (1.5.4): всё классовое в одном GUI вместо россыпи команд.
- * Вкладки: СПОСОБНОСТИ (ЛКМ — каст, ПКМ — свиток в хотбар; инсталляция там же),
- * СПЕЦИАЛИЗАЦИИ (ПКМ — выбор / свиток активки; кристалл ниже — респец с двойным
- * подтверждением), КЛАСС (пассивки, корона/титул).
- * Заменяет /rc bind, /rc respec и старое меню способностей.
+ * Книга класса (1.5.4 + 1.5.5).
+ * 1.5.5:
+ *  - живое обновление открытой книги после каста/постановки/выдачи свитка
+ *    (refresh без переоткрытия — иконки и глоу актуальны сразу);
+ *  - защита от дублей свитков: ПКМ не выдаёт второй свиток того же id;
+ *  - строка наличия свитка в лоре («Свиток: в инвентаре (N)» / «нет»).
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -85,6 +86,15 @@ public final class ClassBook implements InventoryHolder {
         if (theme != null && theme.sound() != null) {
             plugin.getFx().playSound(player.getLocation(), theme.sound(), 0.5f, 1.1f);
         }
+    }
+
+    /** 1.5.5: перерисовать содержимое открытой книги без переоткрытия. */
+    public void refresh(RaskolClasses plugin, Player player) {
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        if (pc == null || inventory == null) {
+            return;
+        }
+        fill(plugin, player, pc);
     }
 
     private void fill(RaskolClasses plugin, Player player, PlayerClass pc) {
@@ -139,6 +149,38 @@ public final class ClassBook implements InventoryHolder {
             }
         }
         return list;
+    }
+
+    // --- 1.5.5: счётчики свитков в инвентаре ---
+
+    private static int countAbilityScrolls(RaskolClasses plugin, Player player, String id) {
+        int count = 0;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && id.equals(plugin.getTokens().readId(item))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int countSpecScrolls(RaskolClasses plugin, Player player, Spec spec) {
+        int count = 0;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && plugin.getSpecToken().readSpec(item) == spec) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int countInstallScrolls(RaskolClasses plugin, Player player, InstallationType type) {
+        int count = 0;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && plugin.getInstallToken().readType(item) == type) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static ItemStack filler() {
@@ -211,6 +253,7 @@ public final class ClassBook implements InventoryHolder {
         boolean unlocked = level == dev.raskol.classes.classsystem.SkillLevelProvider.NO_SKILL_SYSTEM
                 || level >= def.unlockLevel();
         boolean ready = remaining <= 0 && resource >= def.cost() && unlocked;
+        int scrolls = countAbilityScrolls(plugin, player, def.id());
 
         ItemStack item = new ItemStack(Material.BOOK);
         item.editMeta(meta -> {
@@ -233,6 +276,11 @@ public final class ClassBook implements InventoryHolder {
             }
             lore.add(Component.text("Открытие: уровень " + def.unlockLevel(),
                     unlocked ? NamedTextColor.GREEN : NamedTextColor.RED));
+            // 1.5.5: наличие свитка
+            lore.add(Component.text(scrolls > 0
+                    ? "Свиток: в инвентаре (" + scrolls + ")"
+                    : "Свиток: нет",
+                    scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
             lore.add(Component.text(""));
             lore.add(Component.text("ЛКМ — применить", NamedTextColor.GREEN));
             lore.add(Component.text("ПКМ — свиток в хотбар", NamedTextColor.YELLOW));
@@ -246,6 +294,7 @@ public final class ClassBook implements InventoryHolder {
     }
 
     private ItemStack installItem(RaskolClasses plugin, Player player, PlayerClass pc, InstallationType type) {
+        int scrolls = countInstallScrolls(plugin, player, type);
         ItemStack item = new ItemStack(type.displayItem());
         item.editMeta(meta -> {
             meta.displayName(TextFx.gradient("⚙ " + type.displayName(),
@@ -255,6 +304,10 @@ public final class ClassBook implements InventoryHolder {
             lore.add(Component.text(installDesc(type), NamedTextColor.WHITE));
             lore.add(Component.text("Активно: " + plugin.getInstallations().countOf(player.getUniqueId())
                     + "/2 · TTL 60 с", NamedTextColor.GRAY));
+            lore.add(Component.text(scrolls > 0
+                    ? "Свиток: в инвентаре (" + scrolls + ")"
+                    : "Свиток: нет",
+                    scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
             lore.add(Component.text(""));
             lore.add(Component.text("ЛКМ — поставить здесь", NamedTextColor.GREEN));
             lore.add(Component.text("ПКМ — свиток постановки", NamedTextColor.YELLOW));
@@ -276,6 +329,7 @@ public final class ClassBook implements InventoryHolder {
     private ItemStack specItem(RaskolClasses plugin, Player player, PlayerClass pc, Spec spec) {
         SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(spec);
         Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
+        int scrolls = countSpecScrolls(plugin, player, spec);
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         item.editMeta(meta -> {
             meta.displayName(TextFx.gradient(spec.displayName(),
@@ -293,6 +347,10 @@ public final class ClassBook implements InventoryHolder {
             lore.add(Component.text(""));
             if (current == spec) {
                 lore.add(Component.text("Выбрана тобой", NamedTextColor.GREEN));
+                lore.add(Component.text(scrolls > 0
+                        ? "Свиток: в инвентаре (" + scrolls + ")"
+                        : "Свиток: нет",
+                        scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
                 lore.add(Component.text("ПКМ — свиток активки в хотбар", NamedTextColor.YELLOW));
             } else if (current == null) {
                 lore.add(Component.text("Не выбрана · ПКМ — выбрать (уровень 40+)",
@@ -443,10 +501,18 @@ public final class ClassBook implements InventoryHolder {
                                 plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
                             }
                         } else {
-                            player.getInventory().addItem(plugin.getTokens().create(def, pc));
-                            player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
-                                    .append(Component.text(def.displayName(), pc.getColor())));
+                            // 1.5.5: защита от дублей свитков
+                            if (countAbilityScrolls(plugin, player, def.id()) > 0) {
+                                player.sendMessage(Component.text(
+                                        "Свиток уже в инвентаре — дубль не выдан.",
+                                        NamedTextColor.GRAY));
+                            } else {
+                                player.getInventory().addItem(plugin.getTokens().create(def, pc));
+                                player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
+                                        .append(Component.text(def.displayName(), pc.getColor())));
+                            }
                         }
+                        book.refresh(plugin, player);
                         return;
                     }
                     if (slot == SLOT_INSTALL) {
@@ -457,10 +523,17 @@ public final class ClassBook implements InventoryHolder {
                         if (left) {
                             plugin.getInstallations().tryPlace(player);
                         } else {
-                            player.getInventory().addItem(plugin.getInstallToken().create(type, pc));
-                            player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
-                                    .append(Component.text(type.displayName(), pc.getColor())));
+                            if (countInstallScrolls(plugin, player, type) > 0) {
+                                player.sendMessage(Component.text(
+                                        "Свиток уже в инвентаре — дубль не выдан.",
+                                        NamedTextColor.GRAY));
+                            } else {
+                                player.getInventory().addItem(plugin.getInstallToken().create(type, pc));
+                                player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
+                                        .append(Component.text(type.displayName(), pc.getColor())));
+                            }
                         }
+                        book.refresh(plugin, player);
                     }
                 }
                 case SPECS -> {
@@ -476,18 +549,23 @@ public final class ClassBook implements InventoryHolder {
                             return;
                         }
                         if (current == null) {
-                            if (plugin.getSpecService().choose(player, spec)) {
-                                open(plugin, player, Tab.SPECS);
-                            }
+                            plugin.getSpecService().choose(player, spec);
                         } else if (current == spec) {
-                            player.getInventory().addItem(plugin.getSpecToken().create(spec, pc));
-                            player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
-                                    .append(Component.text(spec.displayName(), pc.getColor())));
+                            if (countSpecScrolls(plugin, player, spec) > 0) {
+                                player.sendMessage(Component.text(
+                                        "Свиток уже в инвентаре — дубль не выдан.",
+                                        NamedTextColor.GRAY));
+                            } else {
+                                player.getInventory().addItem(plugin.getSpecToken().create(spec, pc));
+                                player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
+                                        .append(Component.text(spec.displayName(), pc.getColor())));
+                            }
                         } else {
                             player.sendMessage(Component.text("Спека уже выбрана: "
                                     + current.displayName() + ". Отречение — кристалл ниже.",
                                     NamedTextColor.RED));
                         }
+                        book.refresh(plugin, player);
                         return;
                     }
                     if (slot == SLOT_RESPEC && right) {
@@ -506,7 +584,6 @@ public final class ClassBook implements InventoryHolder {
                         } else if (result == SpecService.RespecResult.OK) {
                             player.sendMessage(Component.text("Путь сброшен. Выбери новую спеку.",
                                     NamedTextColor.GREEN));
-                            open(plugin, player, Tab.SPECS);
                         } else if (result == SpecService.RespecResult.POOR) {
                             player.sendMessage(Component.text("Не хватает монет на отречение.",
                                     NamedTextColor.RED));
@@ -514,6 +591,7 @@ public final class ClassBook implements InventoryHolder {
                             player.sendMessage(Component.text("Экономика недоступна — респец отключён.",
                                     NamedTextColor.RED));
                         }
+                        book.refresh(plugin, player);
                     }
                 }
                 case CLASS -> {
