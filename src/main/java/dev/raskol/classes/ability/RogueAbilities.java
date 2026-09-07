@@ -16,8 +16,8 @@ import org.bukkit.util.RayTraceResult;
 
 /**
  * Активные способности разбойника (ресурс — энергия).
- * 1.6.0 пакет 2: fan_of_knives и cheap_shot наносят ФИЗИЧЕСКИЙ урон
- * через CombatService.dealDamage (числа из конфига damage-physical).
+ * 1.6.0 пакет 2: fan_of_knives и cheap_shot — ФИЗИЧЕСКИЙ урон через dealDamage.
+ * 1.6.0 пакет 3: evasion даёт +30 физрезист на duration.
  */
 public final class RogueAbilities {
 
@@ -36,10 +36,7 @@ public final class RogueAbilities {
         return true;
     }
 
-    /**
-     * Веер ножей — ФИЗИЧЕСКИЙ урон (4 дефолт) всем живым в радиусе 3.
-     * Число из конфига classes.ROGUE.abilities.fan_of_knives.damage-physical.
-     */
+    /** Веер ножей — ФИЗИЧЕСКИЙ урон (4 дефолт) всем живым в радиусе 3. */
     public boolean fanOfKnives(Player player, AbilityDef def) {
         double phys = plugin.getRaskolConfig()
                 .abilityDamagePhysical(PlayerClass.ROGUE, def.id(), 4.0);
@@ -54,10 +51,7 @@ public final class RogueAbilities {
         return affected;
     }
 
-    /**
-     * Подлый удар — ФИЗИЧЕСКИЙ урон (3 дефолт) + Blindness + Slowness цели в 4 блоках.
-     * Число из конфига classes.ROGUE.abilities.cheap_shot.damage-physical.
-     */
+    /** Подлый удар — ФИЗИЧЕСКИЙ урон (3 дефолт) + Blindness + Slowness. */
     public boolean cheapShot(Player player, AbilityDef def) {
         RayTraceResult hit = player.rayTraceEntities(4);
         if (hit == null || !(hit.getHitEntity() instanceof LivingEntity target)) {
@@ -76,10 +70,17 @@ public final class RogueAbilities {
         return true;
     }
 
+    /**
+     * Уклонение: +30 физрезист на duration (дефолт 4 с).
+     * 1.6.0 пакет 3: замена старого 100% уклонения на честный резист.
+     */
     public boolean evasion(Player player, AbilityDef def) {
         long durationMillis = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.ROGUE, "evasion", 4) * 1000L;
         plugin.getEffects().addTimed(player.getUniqueId(), EffectType.EVASION, durationMillis);
+        // 1.6.0 пакет 3: модификатор резиста
+        plugin.getResists().addTimedModifier(player.getUniqueId(), "evasion",
+                30.0, 0.0, durationMillis);
         return true;
     }
 }
