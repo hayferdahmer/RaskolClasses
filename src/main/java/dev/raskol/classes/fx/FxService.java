@@ -9,28 +9,30 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Registry;
 import org.bukkit.Sound;
+import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * Движок звука/партиклов (1.5.0, Пакеты 1+3).
- *  - castVfx — VFX каста абилок (слоты 1–6);
- *  - procByKey — VFX проков пассивок (execute_passive, predator, grace,
- *    mana_soaked, poisoned_blades, sadism, crit_liquidator,
- *    dodge_trickster, lifesteal_shadowweaver);
- *  - всё резолвится через Registry (без deprecated valueOf);
- *  - каталог дефолтов в коде, конфиг vfx.* только переопределяет.
+ * Движок звука/партиклов (1.5.0 + 1.5.3).
+ *  - каталог дефолтов вшит в код; конфиг vfx.* только переопределяет;
+ *  - резолв через Registry.SOUNDS / Registry.PARTICLE_TYPE (без deprecated API);
+ *  - FIX 1.5.3: validateConfig() при старте и /rc reload — варн на каждое
+ *    неизвестное имя в vfx.* (раньше опечатка = тихая тишина без следа);
+ *  - FIX 1.5.3: appendDebug(...) — строки fx-каталога в /rc debug.
  */
 public final class FxService {
 
+    /** Дефолтный каталог: id -> [звук каста, партикл каста]. */
     private static final Map<String, String[]> DEFAULTS = new HashMap<>();
 
     static {
-        // Каст абилок (слоты 1–6)
         DEFAULTS.put("steel_skin", new String[]{"ITEM_ARMOR_EQUIP_IRON", "CRIT"});
         DEFAULTS.put("shield_bash", new String[]{"BLOCK_ANVIL_LAND", "SWEEP_ATTACK"});
         DEFAULTS.put("blood_fury", new String[]{"ENTITY_RAVAGER_ROAR", "CRIMSON_SPORE"});
@@ -52,7 +54,6 @@ public final class FxService {
         DEFAULTS.put("fan_of_knives", new String[]{"ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK"});
         DEFAULTS.put("cheap_shot", new String[]{"ENTITY_PLAYER_ATTACK_KNOCKBACK", "SMOKE"});
         DEFAULTS.put("evasion", new String[]{"ENTITY_ENDERMAN_TELEPORT", "CLOUD"});
-        // Каст активок спеков
         DEFAULTS.put("challenge", new String[]{"BLOCK_BELL_USE", "ANGRY_VILLAGER"});
         DEFAULTS.put("rage_burst", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "CRIMSON_SPORE"});
         DEFAULTS.put("precise_shot", new String[]{"BLOCK_NOTE_BLOCK_PLING", "END_ROD"});
@@ -63,7 +64,6 @@ public final class FxService {
         DEFAULTS.put("ice_ring", new String[]{"ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE"});
         DEFAULTS.put("garrote", new String[]{"ENTITY_PLAYER_ATTACK_WEAK", "DAMAGE_INDICATOR"});
         DEFAULTS.put("smoke_bomb", new String[]{"BLOCK_FIRE_EXTINGUISH", "SMOKE"});
-        // 1.5.0 / Пакет 3: проки пассивок
         DEFAULTS.put("proc.execute_passive", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "DAMAGE_INDICATOR"});
         DEFAULTS.put("proc.predator", new String[]{"ENTITY_PLAYER_ATTACK_STRONG", "CRIT"});
         DEFAULTS.put("proc.grace", new String[]{"ENTITY_EXPERIENCE_ORB_PICKUP", "HEART"});
@@ -109,11 +109,7 @@ public final class FxService {
         apply(player.getLocation(), player, soundKey, particleKey, false);
     }
 
-    /**
-     * VFX прока пассивки/спека: партикл + звук + (если включено) actionbar-тег.
-     * Ключ procId ищется как vfx.proc.<procId>.{cast-sound,cast-particle,tag},
-     * при отсутствии ключа — дефолт из DEFAULTS (ключ "proc.<procId>").
-     */
+    /** Фидбек прока пассивки/спека: партикл + звук + (опц.) actionbar-тег. */
     public void procByKey(Player player, String fallbackTag, String procId) {
         FileConfiguration cfg = plugin.getConfig();
         String[] def = DEFAULTS.getOrDefault("proc." + procId, new String[]{"", ""});
@@ -127,7 +123,7 @@ public final class FxService {
         }
     }
 
-    /** Legacy-обёртка для обратной совместимости. */
+    /** Legacy-обёртка обратной совместимости. */
     public void proc(Player player, String tag, Particle particle, Sound sound) {
         if (particle != null) {
             player.spawnParticle(particle,
@@ -160,7 +156,7 @@ public final class FxService {
         }
     }
 
-    /** Безопасный резолв звука через Registry.SOUNDS. */
+    /** Безопасный резолв звука: опечатка = null (тишина). */
     public Sound resolveSound(String key) {
         if (key == null || key.isEmpty()) {
             return null;
@@ -173,7 +169,7 @@ public final class FxService {
         return Registry.SOUNDS.get(NamespacedKey.minecraft(lower));
     }
 
-    /** Безопасный резолв партикла через Registry.PARTICLE_TYPE. */
+    /** Безопасный резолв партикла: опечатка = null. */
     public Particle resolveParticle(String key) {
         if (key == null || key.isEmpty()) {
             return null;
@@ -184,5 +180,102 @@ public final class FxService {
             return p;
         }
         return Registry.PARTICLE_TYPE.get(NamespacedKey.minecraft(lower));
+    }
+
+    // --- FIX 1.5.3: диагностика каталога vfx ---
+
+    /**
+     * Проверка всех имён vfx.* (cast-sound/cast-particle, включая proc.*).
+     * Логирует WARNING на каждое неизвестное имя + итог. Вызывается на старте
+     * и в /rc reload. Возвращает число проблем.
+     */
+    public int validateConfig() {
+        int problems = scan(true);
+        if (problems == 0) {
+            plugin.getLogger().info("FxService: каталог vfx валиден — все имена резолвятся.");
+        } else {
+            plugin.getLogger().warning("FxService: в каталоге vfx " + problems
+                    + " неизвестных имён — эти эффекты будут тихими.");
+        }
+        return problems;
+    }
+
+    /** Тихий подсчёт проблем (для /rc debug). */
+    public int countProblems() {
+        return scan(false);
+    }
+
+    private int scan(boolean log) {
+        int problems = 0;
+        ConfigurationSection vfx = plugin.getConfig().getConfigurationSection("vfx");
+        if (vfx == null) {
+            return 0;
+        }
+        for (String key : vfx.getKeys(false)) {
+            if (key.equals("proc") || key.equals("trails")) {
+                continue;
+            }
+            ConfigurationSection entry = vfx.getConfigurationSection(key);
+            if (entry == null) {
+                continue; // например, proc-actionbar: boolean
+            }
+            problems += checkEntry("vfx." + key, entry, log);
+        }
+        ConfigurationSection proc = vfx.getConfigurationSection("proc");
+        if (proc != null) {
+            for (String key : proc.getKeys(false)) {
+                ConfigurationSection entry = proc.getConfigurationSection(key);
+                if (entry == null) {
+                    continue;
+                }
+                problems += checkEntry("vfx.proc." + key, entry, log);
+            }
+        }
+        return problems;
+    }
+
+    private int checkEntry(String path, ConfigurationSection entry, boolean log) {
+        int problems = 0;
+        String sound = entry.getString("cast-sound", "");
+        if (sound != null && !sound.isEmpty() && resolveSound(sound) == null) {
+            if (log) {
+                plugin.getLogger().warning("FxService: неизвестный звук '" + sound
+                        + "' в " + path + ".cast-sound");
+            }
+            problems++;
+        }
+        String particle = entry.getString("cast-particle", "");
+        if (particle != null && !particle.isEmpty() && resolveParticle(particle) == null) {
+            if (log) {
+                plugin.getLogger().warning("FxService: неизвестный партикл '" + particle
+                        + "' в " + path + ".cast-particle");
+            }
+            problems++;
+        }
+        return problems;
+    }
+
+    /** Эффективные звук/партикл абилки (конфиг-оверрайд или дефолт). */
+    public String describeFor(String abilityId) {
+        FileConfiguration cfg = plugin.getConfig();
+        String[] def = DEFAULTS.getOrDefault(abilityId, new String[]{"", ""});
+        String soundKey = cfg.getString("vfx." + abilityId + ".cast-sound", def[0]);
+        String particleKey = cfg.getString("vfx." + abilityId + ".cast-particle", def[1]);
+        Sound s = resolveSound(soundKey);
+        Particle p = resolveParticle(particleKey);
+        return (s != null ? s.name() : "тишина") + " / "
+                + (p != null ? p.name() : "без партикла");
+    }
+
+    /** Строки fx-каталога для /rc debug. */
+    public void appendDebug(CommandSender sender, List<String> abilityIds) {
+        int problems = countProblems();
+        sender.sendMessage(Component.text("Fx: проблем каталога vfx: " + problems
+                        + (problems == 0 ? " (все имена валидны)" : " — эти эффекты тихие"),
+                problems == 0 ? NamedTextColor.GREEN : NamedTextColor.RED));
+        for (String id : abilityIds) {
+            sender.sendMessage(Component.text("  • fx " + id + ": " + describeFor(id),
+                    NamedTextColor.GRAY));
+        }
     }
 }
