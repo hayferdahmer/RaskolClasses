@@ -14,6 +14,7 @@ import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
+import dev.raskol.classes.hotbar.ScrollCooldownTask;
 import dev.raskol.classes.hotbar.SpecBindListener;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
@@ -42,8 +43,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.5.4: Книга класса (/rc menu) заменяет /rc bind, /rc respec и старое меню;
- * регистрация ClassBook.ClickHandler вместо ClassMenu.ClickHandler.
+ * 1.5.6: визуальный кулдаун на свитках в хотбаре (ScrollCooldownTask).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -131,7 +131,6 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(effects, this);
         pluginManager.registerEvents(cooldowns, this);
         pluginManager.registerEvents(new PassiveListener(this), this);
-        // 1.5.4: Книга класса вместо старого меню способностей
         pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
         pluginManager.registerEvents(new SpecBindListener(this, specToken), this);
@@ -155,6 +154,8 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(flavorService.startAuraTask());
         activeTasks.add(installations.startSweepTask());
         activeTasks.add(specService.startSpecNotifyTask());
+        // 1.5.6: полоска КД на свитках в хотбаре
+        activeTasks.add(new ScrollCooldownTask(this).start());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
