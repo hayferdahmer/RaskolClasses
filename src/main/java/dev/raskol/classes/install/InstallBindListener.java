@@ -2,6 +2,7 @@
 package dev.raskol.classes.install;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.compat.AuthGate;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -10,8 +11,8 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 
 /**
- * ПКМ со свитком инсталляции = постановка (1.5.0, Пакет 2).
- * Тип берётся из класса игрока (свиток — лишь триггер).
+ * ПКМ со свитком инсталляции = постановка.
+ * 1.5.8: AuthGate.allowed на входе (creative/граница/пустота проверяются в tryPlace).
  */
 public final class InstallBindListener implements Listener {
 
@@ -30,6 +31,10 @@ public final class InstallBindListener implements Listener {
             return;
         }
         Player player = event.getPlayer();
+        // 1.5.8: auth-гейт
+        if (!AuthGate.allowed(plugin, player)) {
+            return;
+        }
         InstallationType type = token.readType(player.getInventory().getItemInMainHand());
         if (type == null) {
             return;
