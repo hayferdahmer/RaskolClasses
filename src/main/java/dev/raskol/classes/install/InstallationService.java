@@ -4,6 +4,7 @@ package dev.raskol.classes.install;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.compat.AuthGate;
 import dev.raskol.classes.spec.TrapVisual;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -33,16 +34,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Фреймворк инсталляций (1.5.0 + 1.5.2 + 1.5.7).
- * 1.5.7: адаптивный свип — если активных инсталляций нет, таск не делает
- * ничего (раньше каждый тик 10 крутил пустой цикл и чистил lastPlace);
- * чистка lastPlace переехала в purgeStale() (общий purge-таск, 1200 тиков).
+ * Фреймворк инсталляций (1.5.0 + 1.5.2 + 1.5.7 + 1.5.8).
+ * 1.5.8: гейт AuthGate.canAct; запрет постановки в пустоте/на лимите высоты
+ * и за мировой границей (installations.deny-outside-border, дефолт true).
  */
 public final class InstallationService {
 
     private final RaskolClasses plugin;
     private final List<Installation> active = new CopyOnWriteArrayList<>();
-    /** анти-спам постановки: uuid -> timestamp последней постановки. */
     private final Map<UUID, Long> lastPlace = new ConcurrentHashMap<>();
 
     public InstallationService(RaskolClasses plugin) {
@@ -59,18 +58,23 @@ public final class InstallationService {
         return count;
     }
 
-    /** 1.5.2: сколько активных инсталляций на всём сервере. */
     public int countGlobal() {
         return active.size();
     }
 
-    /** 1.5.2: копия списка для /rc debug. */
     public List<Installation> snapshot() {
         return new ArrayList<>(active);
     }
 
     /** Попытка поставить инсталляцию своего класса. Все проверки и сообщения здесь. */
     public boolean tryPlace(Player player) {
+        // 1.5.8: auth + creative гейт
+        if (!AuthGate.canAct(plugin, player)) {
+            player.sendMessage(Component.text(
+                    "Инсталляции недоступны в этом режиме или до входа в аккаунт.",
+                    NamedTextColor.RED));
+            return false;
+        }
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
             player.sendMessage(Component.text(
@@ -83,7 +87,6 @@ public final class InstallationService {
         }
         UUID uuid = player.getUniqueId();
 
-        // анлок 50 (админ-байпас; без AuraSkills не блокируем)
         if (!player.hasPermission("raskolclasses.admin")) {
             int unlock = plugin.getConfig().getInt("installations.unlock-level", 50);
             int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
@@ -94,7 +97,6 @@ public final class InstallationService {
             }
         }
 
-        // лимит на игрока
         int max = plugin.getConfig().getInt("installations.max-per-player", 2);
         if (countOf(uuid) >= max) {
             player.sendMessage(Component.text("Лимит активных инсталляций: " + max,
@@ -102,7 +104,6 @@ public final class InstallationService {
             return false;
         }
 
-        // 1.5.2: глобальный кап
         int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
         if (active.size() >= maxGlobal) {
             player.sendMessage(Component.text(
@@ -112,7 +113,6 @@ public final class InstallationService {
             return false;
         }
 
-        // 1.5.2: анти-спам постановки
         long now = System.currentTimeMillis();
         int window = plugin.getConfig().getInt("installations.place-anti-spam-ms", 1000);
         Long prev = lastPlace.get(uuid);
@@ -124,17 +124,35 @@ public final class InstallationService {
         lastPlace.put(uuid, now);
 
         Location loc = player.getLocation();
+        World world = loc.getWorld();
 
-        // защита спавна
+        // 1.5.8: пустота и лимит высоты — всегда запрет
+        if (world != null) {
+            int y = loc.getBlockY();
+            if (y <= world.getMinHeight() || y >= world.getMaxHeight() - 1) {
+                player.sendMessage(Component.text(
+                        "Нельзя ставить инсталляции в пустоте или на лимите высоты.",
+                        NamedTextColor.RED));
+                return false;
+            }
+            // 1.5.8: за мировой границей — запрет (гейт в конфиге)
+            if (plugin.getConfig().getBoolean("installations.deny-outside-border", true)
+                    && !world.getWorldBorder().isInside(loc)) {
+                player.sendMessage(Component.text(
+                        "Нельзя ставить инсталляции за мировой границей.",
+                        NamedTextColor.RED));
+                return false;
+            }
+        }
+
         int deny = plugin.getConfig().getInt("installations.deny-radius-spawn", 100);
-        if (loc.getWorld() != null
-                && loc.getWorld().getSpawnLocation().distanceSquared(loc) < (long) deny * deny) {
+        if (world != null
+                && world.getSpawnLocation().distanceSquared(loc) < (long) deny * deny) {
             player.sendMessage(Component.text("Нельзя ставить инсталляции рядом со спавном.",
                     NamedTextColor.RED));
             return false;
         }
 
-        // защита клеймов (Towny через рефлексию)
         if (plugin.getConfig().getBoolean("installations.deny-in-claims", true)
                 && isInClaim(loc)) {
             player.sendMessage(Component.text("Нельзя ставить инсталляции на заклэймленной земле.",
@@ -148,8 +166,8 @@ public final class InstallationService {
         active.add(inst);
 
         plugin.getFx().playSound(loc, placeSound(type), 0.6f, 1.0f);
-        if (loc.getWorld() != null) {
-            loc.getWorld().spawnParticle(Particle.CLOUD,
+        if (world != null) {
+            world.spawnParticle(Particle.CLOUD,
                     loc.clone().add(0.5, 0.4, 0.5), 10, 0.4, 0.3, 0.4, 0.0);
         }
         player.sendMessage(Component.text("Инсталляция установлена: ", NamedTextColor.GREEN)
@@ -166,7 +184,7 @@ public final class InstallationService {
 
     private void sweep() {
         if (active.isEmpty()) {
-            return; // 1.5.7: нет инсталляций — нет работы
+            return;
         }
         long now = System.currentTimeMillis();
         for (Installation inst : active) {
@@ -198,7 +216,6 @@ public final class InstallationService {
         lastPlace.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L);
     }
 
-    /** Враг-игрок (не владелец и не союзник) или любой моб. */
     private Entity findTrigger(Installation inst) {
         Location loc = inst.getLocation();
         for (Entity entity : loc.getNearbyEntities(1.2, 1.2, 1.2)) {
@@ -269,7 +286,6 @@ public final class InstallationService {
                 + trigger.getName());
     }
 
-    /** ZONE-тики: ауры для союзников. */
     private void zoneTick(Installation inst) {
         Location loc = inst.getLocation();
         World world = loc.getWorld();
@@ -309,7 +325,6 @@ public final class InstallationService {
         }
     }
 
-    /** Враг для зоны/мин: не владелец и не союзник (игрок); мобы — враги. */
     private boolean isEnemyOf(Installation inst, Entity entity) {
         if (entity instanceof Player p) {
             return !p.getUniqueId().equals(inst.getOwner())
@@ -318,7 +333,6 @@ public final class InstallationService {
         return entity instanceof Mob;
     }
 
-    /** Союзность через короны (FactionHook): одна фракция = союзники. */
     private boolean isAlly(UUID a, UUID b) {
         if (a.equals(b)) {
             return true;
@@ -328,7 +342,6 @@ public final class InstallationService {
         return !fa.isEmpty() && fa.equals(fb);
     }
 
-    /** 1.5.2: actionbar владельцу (гейт installations.notify-owner). */
     private void notifyOwner(Installation inst, String text) {
         if (!plugin.getConfig().getBoolean("installations.notify-owner", true)) {
             return;
@@ -372,7 +385,6 @@ public final class InstallationService {
         }
     }
 
-    /** Рестарт/выключение: убрать все дисплеи. */
     public void shutdown() {
         for (Installation inst : active) {
             despawn(inst, false);
@@ -380,7 +392,6 @@ public final class InstallationService {
         active.clear();
     }
 
-    /** 1.5.2: звук постановки по типу. */
     private Sound placeSound(InstallationType type) {
         return switch (type) {
             case WAR_BANNER -> Sound.BLOCK_BELL_USE;
@@ -391,7 +402,6 @@ public final class InstallationService {
         };
     }
 
-    /** 1.5.2: звук растворения по типу. */
     private Sound expireSound(InstallationType type) {
         return switch (type) {
             case WAR_BANNER -> Sound.BLOCK_WOOD_BREAK;
@@ -402,7 +412,6 @@ public final class InstallationService {
         };
     }
 
-    /** Towny-клейм через рефлексию; без Towny или при сбое — false (разрешаем). */
     private boolean isInClaim(Location loc) {
         try {
             Class<?> api = Class.forName("com.palmergames.bukkit.towny.TownyAPI");
