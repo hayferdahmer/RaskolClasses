@@ -4,6 +4,7 @@ package dev.raskol.classes.hotbar;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.compat.AuthGate;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
@@ -18,9 +19,8 @@ import org.bukkit.event.player.PlayerQuitEvent;
 
 /**
  * Свитки способностей (bind 1–5).
- * FIX 1.5.1:
- *  - таргет-каст не тратится на цели в creative/spectator (раньше съедал ресурс и кд);
- *  - на quit чистится анти-спам карта и состояние ready-notify спеков.
+ * 1.5.8: AuthGate.allowed на входе обоих каналов (неаутентифицированные
+ * AuthMe-игроки не пользуют свитки); creative-гейт живёт ниже в castOn.
  */
 public final class BindListener implements Listener {
 
@@ -43,6 +43,10 @@ public final class BindListener implements Listener {
             return;
         }
         Player player = event.getPlayer();
+        // 1.5.8: auth-гейт
+        if (!AuthGate.allowed(plugin, player)) {
+            return;
+        }
         String id = token.readId(player.getInventory().getItemInMainHand());
         if (id == null) {
             return;
@@ -57,8 +61,6 @@ public final class BindListener implements Listener {
         }
         AbilityDef def = plugin.getAbilities().findById(pc, id);
         if (def == null) {
-            player.sendMessage(Component.text("Этот свиток не твоего класса ("
-                    + pc.getDisplayName() + ")", NamedTextColor.RED));
             return;
         }
         if (plugin.getAbilities().tryCast(player, def)) {
@@ -76,9 +78,13 @@ public final class BindListener implements Listener {
             return;
         }
         if (!(event.getEntity() instanceof Player target)) {
+            return; // ЛКМ по мобу — обычная атака
+        }
+        // 1.5.8: auth-гейт
+        if (!AuthGate.allowed(plugin, player)) {
             return;
         }
-        // FIX 1.5.1: креатив/спектор — не цель лечения, каст не тратим
+        // 1.5.1: креатив/спектор-цель — каст не тратим
         if (target.getGameMode() == GameMode.CREATIVE
                 || target.getGameMode() == GameMode.SPECTATOR) {
             dbg(player, "обрыв: цель в creative/spectator");
@@ -111,7 +117,7 @@ public final class BindListener implements Listener {
         }
     }
 
-    /** FIX 1.5.1: чистка per-player состояния на выход. */
+    /** Чистка per-player состояния на выход. */
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         plugin.getAbilities().clearAttempts(event.getPlayer().getUniqueId());
