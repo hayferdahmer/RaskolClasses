@@ -2,8 +2,11 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
+import org.bukkit.NamespacedKey;
 import org.bukkit.damage.DamageSource;
-import org.bukkit.damage.DamageTypes;
+import org.bukkit.damage.DamageType;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -23,13 +26,18 @@ import java.util.UUID;
  * Путь B (наши способности/инсталляции/спек-активки): dealDamage(target, source,
  *   profile) — сервис сам считает итог покомпонентно и применяет:
  *   физ-часть через обычную атаку (броня работает), маг+чистый — через
- *   DamageSource MAGIC (броню и резисты обходит; резисты уже учтены нами).
+ *   DamageSource minecraft:magic (броню не трогает; резисты уже учтены нами).
+ * FIX 1.6.0.1: тип magic берётся из реестра Paper по namespaced-ключу
+ *   (в paper-api 1.21.4 нет класса-констант org.bukkit.damage.DamageTypes).
  * Двойного применения резиста нет: свои же вызовы помечаются ThreadLocal-флагом.
  */
 public final class CombatService implements Listener {
 
     /** Маркер «этот урон уже посчитан CombatService» (свои вызовы пути B). */
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    /** Кэш ванькиного типа урона minecraft:magic из реестра. */
+    private static volatile DamageType magicTypeCache;
 
     private final RaskolClasses plugin;
     private final ResistService resists;
@@ -41,6 +49,18 @@ public final class CombatService implements Listener {
 
     public ResistService resists() {
         return resists;
+    }
+
+    /** Тип урона minecraft:magic из реестра Paper (null-safe фолбэк не нужен). */
+    private static DamageType magicType() {
+        DamageType local = magicTypeCache;
+        if (local == null) {
+            local = RegistryAccess.registryAccess()
+                    .getRegistry(RegistryKey.DAMAGE_TYPE)
+                    .get(NamespacedKey.minecraft("magic"));
+            magicTypeCache = local;
+        }
+        return local;
     }
 
     /** Путь A: ванильный урон по игроку режется резистом своего типа. */
@@ -99,18 +119,24 @@ public final class CombatService implements Listener {
         }
         if (magicTruePart > 0.0) {
             SUPPRESS.set(Boolean.TRUE);
-            DamageSource.Builder builder = DamageSource.builder(DamageTypes.MAGIC);
-            if (source != null) {
-                builder = builder.withDirectEntity(source).withCausingEntity(source);
+            DamageType magic = magicType();
+            if (magic != null) {
+                DamageSource.Builder builder = DamageSource.builder(magic);
+                if (source != null) {
+                    builder = builder.withDirectEntity(source).withCausingEntity(source);
+                }
+                target.damage(magicTruePart, builder.build());
+            } else {
+                // реестр недоступен (не должно случаться) — обычный урон без источника
+                target.damage(magicTruePart);
             }
-            target.damage(magicTruePart, builder.build());
             dealt += magicTruePart;
         }
         return dealt;
     }
 
     /** Тип причины с учётом конфиг-оверрайдов damage-types.vanilla-map. */
-    private DamageType typeOf(org.bukkit.event.entity.EntityDamageEvent.DamageCause cause) {
+    private DamageType typeOf(EntityDamageEvent.DamageCause cause) {
         String override = plugin.getConfig()
                 .getString("damage-types.vanilla-map." + cause.name());
         if (override != null && !override.isEmpty()) {
