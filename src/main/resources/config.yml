@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.5.2 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.5.3 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение без рестарта: /rc reload.
 #  Новые ключи дописываются автоматически (addDefault + copyDefaults),
@@ -378,8 +378,8 @@ installations:
     blind-duration: 2         # Blindness врагам
     speed-duration: 3         # Speed I владельцу
 
-# 1.5.0 / Пакет 1+3: VFX/SFX-каталог (переопределяет дефолты FxService)
-# Опечатка в имени звука/партикла = тишина, не краш (безопасный резолв).
+# 1.5.0 / Пакет 1+3, 1.5.3.1: VFX/SFX-каталог (переопределяет дефолты FxService)
+# Опечатка в имени = WARNING при /rc reload и тишина для этого эффекта (не краш).
 vfx:
   proc-actionbar: true        # теги проков пассивок в actionbar
   trails:
@@ -467,7 +467,7 @@ vfx:
     cast-sound: ENTITY_ENDERMAN_STARE
     cast-particle: REVERSE_PORTAL
   arcane_flow:
-    cast-sound: BLOCK_ENCHANTMENT_TABLE_USE
+    cast-sound: BLOCK_ENCHANTING_TABLE_USE   # 1.5.3.1: ванильное имя (не enchantment_table)
     cast-particle: ENCHANTED_HIT
   ice_ring:
     cast-sound: ENTITY_PLAYER_HURT_FREEZE
