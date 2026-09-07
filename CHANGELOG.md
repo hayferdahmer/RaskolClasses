@@ -2,6 +2,27 @@
 
 Формат: [версия] — дата — имя. Секции Added / Changed / Fixed / Removed.
 
+## [1.5.8] — 2026-09-08 · «Совместимость и края»
+
+### Added
+- **AuthGate:** неаутентифицированные игроки AuthMe (offline-mode, до /login)
+  не пользуют свитки и не кастанут способности. AuthMe дёргается через рефлексию
+  (`fr.xephi.authme.api.v3.AuthMeApi#isAuthenticated`) — жёсткой зависимости нет;
+  если AuthMe отсутствует или рефлексия сломалась — гейт открыт
+  (fail-open + одноразовый warning в лог). Гейт `compat.authme-gate` (дефолт true).
+- **Creative-гейт:** способности (слоты 1–6) и инсталляции (слот 7) недоступны
+  в creative, кроме `raskolclasses.admin` — админ тестирует свободно.
+  Гейт `compat.block-casts-in-creative` (дефолт true).
+- **Края инсталляций:** постановка в пустоте и на лимите высоты запрещена всегда;
+  за мировой границей — запрет через гейт `installations.deny-outside-border`
+  (дефолт true). Гейты применены в одной точке на канал: `AbilityRegistry.castOn`,
+  `SpecActiveCaster.tryCast`, `InstallationService.tryPlace` + auth-проверки
+  в трёх слушателях свитков.
+- `AuthMe` добавлен в softdepend plugin.yml (информационно).
+
+### Changed
+- Версия в pom/plugin.yml: 1.5.8; артефакт `raskol-classes-1.5.8.jar`.
+
 ## [1.5.7] — 2026-09-08 · «Производительность»
 
 ### Added
