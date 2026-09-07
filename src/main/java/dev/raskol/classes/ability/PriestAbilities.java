@@ -3,6 +3,7 @@ package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.config.RaskolConfig;
 import net.kyori.adventure.text.Component;
@@ -17,9 +18,10 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 /**
- * Способности жреца (ресурс — свет). 1.3.1: точечные способности принимают
- * явную цель (ЛКМ со свитком — в цель, ПКМ и /rc — в себя); AoE-способности
- * (Круг молитвы, Кара) остаются центрированными на жреце.
+ * Способности жреца (ресурс — свет).
+ * 1.6.0 пакет 2: smite наносит МАГИЧЕСКИЙ урон через CombatService.dealDamage
+ * (число из конфига classes.PRIEST.abilities.smite.damage-magic).
+ * Лечение/щиты без изменений.
  */
 public final class PriestAbilities {
 
@@ -71,12 +73,17 @@ public final class PriestAbilities {
         return true;
     }
 
-    /** Кара: враждебным мобам в радиусе 6 — 6 урона, союзникам-игрокам +3 HP. */
+    /**
+     * Кара: враждебным мобам в радиусе 6 — МАГИЧЕСКИЙ урон (1.6.0 пакет 2),
+     * союзникам-игрокам +3 HP.
+     */
     public boolean smite(Player player, AbilityDef def) {
+        double magic = plugin.getRaskolConfig()
+                .abilityDamageMagic(PlayerClass.PRIEST, def.id(), 6.0);
         boolean affected = false;
         for (Entity entity : player.getNearbyEntities(6, 6, 6)) {
             if (entity instanceof Monster monster) {
-                monster.damage(6.0, player);
+                plugin.getCombat().dealDamage(monster, player, DamageProfile.magic(magic));
                 affected = true;
             } else if (entity instanceof Player ally && !ally.equals(player)) {
                 heal(player, ally, 3.0);
