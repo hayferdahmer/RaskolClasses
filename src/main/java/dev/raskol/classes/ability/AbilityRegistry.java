@@ -4,6 +4,7 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.compat.AuthGate;
 import dev.raskol.classes.config.RaskolConfig;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -19,8 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Реестр способностей пяти классов.
- * FIX 1.5.1: чистка анти-спам карты lastAttempts (clearAttempts на quit,
- * purgeStaleAttempts в общем purge-таске) — защита от роста памяти.
+ * 1.5.8: гейт AuthGate.canAct в castOn (auth + creative) — одна точка
+ * для всех каналов каста (команда, книга, свитки).
  */
 public final class AbilityRegistry {
 
@@ -178,6 +179,13 @@ public final class AbilityRegistry {
     }
 
     private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
+        // 1.5.8: auth + creative гейт — одна точка для всех каналов каста
+        if (!AuthGate.canAct(plugin, caster)) {
+            caster.sendMessage(Component.text(
+                    "Способности недоступны в этом режиме или до входа в аккаунт.",
+                    NamedTextColor.RED));
+            return false;
+        }
         PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
         RaskolConfig cfg = plugin.getRaskolConfig();
         if (pc == null) {
@@ -233,8 +241,6 @@ public final class AbilityRegistry {
         }
         return true;
     }
-
-    // --- FIX 1.5.1: чистка анти-спам карты ---
 
     /** Полная чистка игрока (PlayerQuit). */
     public void clearAttempts(UUID uuid) {
