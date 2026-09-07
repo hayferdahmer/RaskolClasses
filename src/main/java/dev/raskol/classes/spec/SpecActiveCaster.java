@@ -2,6 +2,7 @@
 package dev.raskol.classes.spec;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.compat.AuthGate;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -17,8 +18,8 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 /**
  * Каст активок спеков со слота 6 (/rc 6).
- * 1.5.8: гейт AuthGate.canAct (auth + creative).
- * 1.5.9: текст гейта из messages.gate.blocked.
+ * 1.6.0 пакет 2: урон через CombatService.dealDamage с DamageProfile.
+ * SHADOWWEAVER/FROST = маг, LIQUIDATOR = физ.
  */
 public final class SpecActiveCaster {
 
@@ -62,6 +63,10 @@ public final class SpecActiveCaster {
                 NamedTextColor.GREEN));
     }
 
+    /**
+     * 1.6.0 пакет 2: урон спек-активок через dealDamage.
+     * SHADOWWEAVER/FROST = маг, LIQUIDATOR = физ.
+     */
     private void cast(Player player, Spec spec, SpecRegistry.SpecDef def) {
         switch (spec) {
             case GUARDIAN -> {
@@ -116,9 +121,11 @@ public final class SpecActiveCaster {
                 }.runTaskTimer(plugin, 0L, 10L);
             }
             case SHADOWWEAVER -> {
+                // Магический урон (ментальный удар)
+                double magic = def.activeDouble("damage", 6.0);
                 Entity target = player.getTargetEntity(6);
                 if (target instanceof LivingEntity living) {
-                    living.damage(def.activeDouble("damage", 6.0), player);
+                    plugin.getCombat().dealDamage(living, player, DamageProfile.magic(magic));
                     living.addPotionEffect(new PotionEffect(
                             PotionEffectType.BLINDNESS, 30, 0));
                     living.addPotionEffect(new PotionEffect(
@@ -135,10 +142,13 @@ public final class SpecActiveCaster {
                         PotionEffectType.SPEED, 60, 0));
             }
             case FROST -> {
+                // Магический урон (кольцо льда спеки)
+                double magic = def.activeDouble("damage", 40.0);
                 double radius = def.activeDouble("radius", 3.0);
                 int duration = def.activeInt("duration", 3) * 20;
                 for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
                     if (entity instanceof Mob mob) {
+                        plugin.getCombat().dealDamage(mob, player, DamageProfile.magic(magic));
                         mob.addPotionEffect(new PotionEffect(
                                 PotionEffectType.SLOWNESS, duration, 2));
                     }
@@ -151,10 +161,11 @@ public final class SpecActiveCaster {
                 }
             }
             case LIQUIDATOR -> {
+                // Физический урон (кровотечение)
+                double physPerTick = def.activeDouble("damage_per_tick", 2.0);
                 Entity target = player.getTargetEntity(5);
                 if (target instanceof LivingEntity living) {
                     int ticks = def.activeInt("duration", 6) * 20;
-                    double perTick = def.activeDouble("damage_per_tick", 2.0);
                     new BukkitRunnable() {
                         int elapsed = 0;
 
@@ -165,7 +176,8 @@ public final class SpecActiveCaster {
                                 cancel();
                                 return;
                             }
-                            living.damage(perTick, player);
+                            plugin.getCombat().dealDamage(living, player,
+                                    DamageProfile.physical(physPerTick));
                         }
                     }.runTaskTimer(plugin, 20L, 20L);
                 }
