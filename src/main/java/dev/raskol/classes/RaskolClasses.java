@@ -50,8 +50,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.6.0 пакет 3: ManaSoakedService (динамический резист мага) +
- * восстановление спек-резистов на входе игрока.
+ * 1.6.1: таск сверки спек-резистов (reconcilePassiveResists, 20 тиков).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -155,21 +154,18 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
-        // 1.6.0: чистка модификаторов резиста на выход
         pluginManager.registerEvents(new Listener() {
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
                 resists.clear(event.getPlayer().getUniqueId());
             }
         }, this);
-        // 1.6.0 пакет 3: восстановление спек-резистов на вход
         pluginManager.registerEvents(new Listener() {
             @EventHandler
             public void onJoin(PlayerJoinEvent event) {
                 specService.restorePassiveResists(event.getPlayer());
             }
         }, this);
-        // 1.6.0 пакет 3: рестарт-сценарий — восстановить резисты уже онлайн-игрокам
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             specService.restorePassiveResists(online);
         }
@@ -191,6 +187,9 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(specService.startSpecNotifyTask());
         activeTasks.add(new ScrollCooldownTask(this).start());
         activeTasks.add(manaSoaked.start());
+        // 1.6.1: сверка спек-модификаторов резиста раз в секунду
+        activeTasks.add(getServer().getScheduler().runTaskTimer(this,
+                () -> specService.reconcilePassiveResists(), 20L, 20L));
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
