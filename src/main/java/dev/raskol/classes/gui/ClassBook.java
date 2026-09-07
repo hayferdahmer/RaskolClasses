@@ -24,7 +24,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.enchantments.Enchantment;
 
 import java.util.ArrayList;
@@ -32,12 +31,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Книга класса (1.5.4 + 1.5.5).
- * 1.5.5:
- *  - живое обновление открытой книги после каста/постановки/выдачи свитка
- *    (refresh без переоткрытия — иконки и глоу актуальны сразу);
- *  - защита от дублей свитков: ПКМ не выдаёт второй свиток того же id;
- *  - строка наличия свитка в лоре («Свиток: в инвентаре (N)» / «нет»).
+ * Книга класса (1.5.4 + 1.5.5 + 1.5.9).
+ * 1.5.9: все строки лора и сообщений читаются из messages.book.* конфига
+ * (ретекст без пересборки); плейсхолдеры {cost}/{sec}/{level}/{count}/{name}/{price}.
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -78,7 +74,8 @@ public final class ClassBook implements InventoryHolder {
         }
         ClassBook book = new ClassBook(player.getUniqueId(), tab);
         Inventory inv = Bukkit.createInventory(book, SIZE,
-                Component.text("Книга класса: ").append(Component.text(pc.getDisplayName(), pc.getColor())));
+                Component.text(plugin.getRaskolConfig().message("book.title", "Книга класса: "))
+                        .append(Component.text(pc.getDisplayName(), pc.getColor())));
         book.inventory = inv;
         book.fill(plugin, player, pc);
         player.openInventory(inv);
@@ -105,12 +102,12 @@ public final class ClassBook implements InventoryHolder {
             inventory.setItem(i, filler());
         }
         inventory.setItem(SLOT_EMBLEM, emblem(plugin, player, pc));
-        inventory.setItem(SLOT_TAB_ABILITIES, tabIcon(Material.BOOK, "Способности",
-                tab == Tab.ABILITIES));
-        inventory.setItem(SLOT_TAB_SPECS, tabIcon(Material.NETHER_STAR, "Специализации",
-                tab == Tab.SPECS));
-        inventory.setItem(SLOT_TAB_CLASS, tabIcon(Material.NAME_TAG, "Класс и пассивки",
-                tab == Tab.CLASS));
+        inventory.setItem(SLOT_TAB_ABILITIES, tabIcon(plugin, Material.BOOK,
+                "book.tab.abilities", "Способности", tab == Tab.ABILITIES));
+        inventory.setItem(SLOT_TAB_SPECS, tabIcon(plugin, Material.NETHER_STAR,
+                "book.tab.specs", "Специализации", tab == Tab.SPECS));
+        inventory.setItem(SLOT_TAB_CLASS, tabIcon(plugin, Material.NAME_TAG,
+                "book.tab.class", "Класс и пассивки", tab == Tab.CLASS));
         switch (tab) {
             case ABILITIES -> {
                 for (int i = 0; i < ABILITY_SLOTS.length; i++) {
@@ -151,7 +148,9 @@ public final class ClassBook implements InventoryHolder {
         return list;
     }
 
-    // --- 1.5.5: счётчики свитков в инвентаре ---
+    private static String msg(RaskolClasses plugin, String key, String def) {
+        return plugin.getRaskolConfig().message(key, def);
+    }
 
     private static int countAbilityScrolls(RaskolClasses plugin, Player player, String id) {
         int count = 0;
@@ -189,17 +188,19 @@ public final class ClassBook implements InventoryHolder {
         return item;
     }
 
-    private static ItemStack tabIcon(Material material, String name, boolean active) {
+    private static ItemStack tabIcon(RaskolClasses plugin, Material material,
+                                     String key, String def, boolean active) {
         ItemStack item = new ItemStack(material);
         item.editMeta(meta -> {
-            meta.displayName(Component.text(name,
+            meta.displayName(Component.text(msg(plugin, key, def),
                     active ? NamedTextColor.GREEN : NamedTextColor.GRAY));
             if (active) {
                 meta.addEnchant(Enchantment.LURE, 1, true);
                 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             }
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("Клик — открыть вкладку", NamedTextColor.DARK_GRAY));
+            lore.add(Component.text(msg(plugin, "book.tab.hint", "Клик — открыть вкладку"),
+                    NamedTextColor.DARK_GRAY));
             meta.lore(lore);
         });
         return item;
@@ -222,19 +223,23 @@ public final class ClassBook implements InventoryHolder {
                     plugin.getRaskolConfig().themeOf(pc).primary(),
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text(resourceRules(pc), NamedTextColor.GRAY));
-            lore.add(Component.text("Ресурс сейчас: "
-                    + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100",
+            lore.add(Component.text(msg(plugin,
+                    "book.resource." + pc.name().toLowerCase(), resourceRulesDef(pc)),
+                    NamedTextColor.GRAY));
+            lore.add(Component.text(msg(plugin, "book.emblem.resource", "Ресурс сейчас: {value}/100")
+                    .replace("{value}", String.valueOf(
+                            (int) plugin.getResources().getValue(player.getUniqueId()))),
                     NamedTextColor.AQUA));
-            lore.add(Component.text("Корона: "
-                    + plugin.getFlavorService().crownDisplayName(player.getUniqueId()),
+            lore.add(Component.text(msg(plugin, "book.emblem.crown", "Корона: {name}")
+                    .replace("{name}", plugin.getFlavorService()
+                            .crownDisplayName(player.getUniqueId())),
                     NamedTextColor.GOLD));
             meta.lore(lore);
         });
         return item;
     }
 
-    private static String resourceRules(PlayerClass pc) {
+    private static String resourceRulesDef(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> "Ярость: −5/с вне боя; +10 за урон (нанёс/получил)";
             case HUNTER -> "Концентрация: +5/с вне боя, 0 в бою";
@@ -258,32 +263,38 @@ public final class ClassBook implements InventoryHolder {
         ItemStack item = new ItemStack(Material.BOOK);
         item.editMeta(meta -> {
             meta.displayName(TextFx.gradient("[" + def.slot() + "] " + def.displayName(),
-                    plugin.getRaskolConfig().themeOf(pc).primary(),
-                    plugin.getRaskolConfig().themeOf(pc).secondary()));
+                    cfg.themeOf(pc).primary(), cfg.themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
             String desc = cfg.abilityDescription(pc, def.id(), "");
             if (!desc.isEmpty()) {
                 lore.add(Component.text(desc, NamedTextColor.WHITE));
             }
-            lore.add(Component.text("Цена: " + def.cost() + " " + pc.getResourceName(),
+            lore.add(Component.text(msg(plugin, "book.cost", "Цена: {cost} {resource}")
+                    .replace("{cost}", String.valueOf(def.cost()))
+                    .replace("{resource}", pc.getResourceName()),
                     resource >= def.cost() ? NamedTextColor.GREEN : NamedTextColor.RED));
             if (remaining > 0) {
-                lore.add(Component.text("Перезарядка: " + (remaining / 1000L + 1) + " с",
+                lore.add(Component.text(msg(plugin, "book.recharging", "Перезарядка: {sec} с")
+                        .replace("{sec}", String.valueOf(remaining / 1000L + 1)),
                         NamedTextColor.RED));
             } else {
-                lore.add(Component.text("Кулдаун: " + def.cooldownMillis() / 1000L + " с",
+                lore.add(Component.text(msg(plugin, "book.cooldown", "Кулдаун: {sec} с")
+                        .replace("{sec}", String.valueOf(def.cooldownMillis() / 1000L)),
                         NamedTextColor.GRAY));
             }
-            lore.add(Component.text("Открытие: уровень " + def.unlockLevel(),
+            lore.add(Component.text(msg(plugin, "book.unlock", "Открытие: уровень {level}")
+                    .replace("{level}", String.valueOf(def.unlockLevel())),
                     unlocked ? NamedTextColor.GREEN : NamedTextColor.RED));
-            // 1.5.5: наличие свитка
             lore.add(Component.text(scrolls > 0
-                    ? "Свиток: в инвентаре (" + scrolls + ")"
-                    : "Свиток: нет",
+                    ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
+                            .replace("{count}", String.valueOf(scrolls))
+                    : msg(plugin, "book.scroll.none", "Свиток: нет"),
                     scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
             lore.add(Component.text(""));
-            lore.add(Component.text("ЛКМ — применить", NamedTextColor.GREEN));
-            lore.add(Component.text("ПКМ — свиток в хотбар", NamedTextColor.YELLOW));
+            lore.add(Component.text(msg(plugin, "book.use.left", "ЛКМ — применить"),
+                    NamedTextColor.GREEN));
+            lore.add(Component.text(msg(plugin, "book.use.right", "ПКМ — свиток в хотбар"),
+                    NamedTextColor.YELLOW));
             meta.lore(lore);
             if (ready) {
                 meta.addEnchant(Enchantment.LURE, 1, true);
@@ -301,22 +312,30 @@ public final class ClassBook implements InventoryHolder {
                     plugin.getRaskolConfig().themeOf(pc).primary(),
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text(installDesc(type), NamedTextColor.WHITE));
-            lore.add(Component.text("Активно: " + plugin.getInstallations().countOf(player.getUniqueId())
-                    + "/2 · TTL 60 с", NamedTextColor.GRAY));
+            lore.add(Component.text(msg(plugin,
+                    "book.install.desc." + type.id(), installDescDef(type)), NamedTextColor.WHITE));
+            lore.add(Component.text(msg(plugin, "book.install.active", "Активно: {count}/2 · TTL {ttl} с")
+                    .replace("{count}", String.valueOf(
+                            plugin.getInstallations().countOf(player.getUniqueId())))
+                    .replace("{ttl}", String.valueOf(
+                            plugin.getConfig().getInt("installations.ttl-seconds", 60))),
+                    NamedTextColor.GRAY));
             lore.add(Component.text(scrolls > 0
-                    ? "Свиток: в инвентаре (" + scrolls + ")"
-                    : "Свиток: нет",
+                    ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
+                            .replace("{count}", String.valueOf(scrolls))
+                    : msg(plugin, "book.scroll.none", "Свиток: нет"),
                     scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
             lore.add(Component.text(""));
-            lore.add(Component.text("ЛКМ — поставить здесь", NamedTextColor.GREEN));
-            lore.add(Component.text("ПКМ — свиток постановки", NamedTextColor.YELLOW));
+            lore.add(Component.text(msg(plugin, "book.place.left", "ЛКМ — поставить здесь"),
+                    NamedTextColor.GREEN));
+            lore.add(Component.text(msg(plugin, "book.place.right", "ПКМ — свиток постановки"),
+                    NamedTextColor.YELLOW));
             meta.lore(lore);
         });
         return item;
     }
 
-    private static String installDesc(InstallationType type) {
+    private static String installDescDef(InstallationType type) {
         return switch (type) {
             case WAR_BANNER -> "Аура: Resistance I союзникам в радиусе 6 на 8 с";
             case BEAR_TRAP -> "Мина: Slowness VI 2 с + 3 урона шагнувшему врагу";
@@ -337,27 +356,32 @@ public final class ClassBook implements InventoryHolder {
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
             if (def != null) {
-                lore.add(Component.text("Пассив: " + def.passiveDescription(),
-                        NamedTextColor.WHITE));
-                lore.add(Component.text("Актив: " + def.activeDescription(),
-                        NamedTextColor.WHITE));
-                lore.add(Component.text("Цена актива: " + def.activeCost() + " рес · КД: "
-                        + def.activeCooldown() + " с", NamedTextColor.AQUA));
+                lore.add(Component.text(msg(plugin, "book.spec.passive", "Пассив: {text}")
+                        .replace("{text}", def.passiveDescription()), NamedTextColor.WHITE));
+                lore.add(Component.text(msg(plugin, "book.spec.active", "Актив: {text}")
+                        .replace("{text}", def.activeDescription()), NamedTextColor.WHITE));
+                lore.add(Component.text(msg(plugin, "book.spec.activecost", "Цена актива: {cost} рес · КД: {sec} с")
+                        .replace("{cost}", String.valueOf(def.activeCost()))
+                        .replace("{sec}", String.valueOf(def.activeCooldown())),
+                        NamedTextColor.AQUA));
             }
             lore.add(Component.text(""));
             if (current == spec) {
-                lore.add(Component.text("Выбрана тобой", NamedTextColor.GREEN));
+                lore.add(Component.text(msg(plugin, "book.spec.chosen", "Выбрана тобой"),
+                        NamedTextColor.GREEN));
                 lore.add(Component.text(scrolls > 0
-                        ? "Свиток: в инвентаре (" + scrolls + ")"
-                        : "Свиток: нет",
+                        ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
+                                .replace("{count}", String.valueOf(scrolls))
+                        : msg(plugin, "book.scroll.none", "Свиток: нет"),
                         scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
-                lore.add(Component.text("ПКМ — свиток активки в хотбар", NamedTextColor.YELLOW));
+                lore.add(Component.text(msg(plugin, "book.spec.scroll.right",
+                        "ПКМ — свиток активки в хотбар"), NamedTextColor.YELLOW));
             } else if (current == null) {
-                lore.add(Component.text("Не выбрана · ПКМ — выбрать (уровень 40+)",
-                        NamedTextColor.YELLOW));
+                lore.add(Component.text(msg(plugin, "book.spec.notchosen",
+                        "Не выбрана · ПКМ — выбрать (уровень 40+)"), NamedTextColor.YELLOW));
             } else {
-                lore.add(Component.text("Выбрана другая спека — отречение ниже",
-                        NamedTextColor.RED));
+                lore.add(Component.text(msg(plugin, "book.spec.other",
+                        "Выбрана другая спека — отречение ниже"), NamedTextColor.RED));
             }
             meta.lore(lore);
             if (current == spec) {
@@ -373,19 +397,20 @@ public final class ClassBook implements InventoryHolder {
         int cost = plugin.getSpecService().respecCost(player);
         ItemStack item = new ItemStack(Material.END_CRYSTAL);
         item.editMeta(meta -> {
-            meta.displayName(Component.text("Отречение от пути", NamedTextColor.LIGHT_PURPLE));
+            meta.displayName(Component.text(msg(plugin, "book.respec.title", "Отречение от пути"),
+                    NamedTextColor.LIGHT_PURPLE));
             List<Component> lore = new ArrayList<>();
             if (current == null) {
-                lore.add(Component.text("Спеки нет — отрекаться не от чего",
-                        NamedTextColor.GRAY));
+                lore.add(Component.text(msg(plugin, "book.respec.nospec",
+                        "Спеки нет — отрекаться не от чего"), NamedTextColor.GRAY));
             } else {
-                lore.add(Component.text("Текущая спека: " + current.displayName(),
-                        NamedTextColor.WHITE));
-                lore.add(Component.text("Цена: " + cost + " монет (сжигаются)",
-                        NamedTextColor.RED));
+                lore.add(Component.text(msg(plugin, "book.respec.current", "Текущая спека: {name}")
+                        .replace("{name}", current.displayName()), NamedTextColor.WHITE));
+                lore.add(Component.text(msg(plugin, "book.respec.price", "Цена: {price} монет (сжигаются)")
+                        .replace("{price}", String.valueOf(cost)), NamedTextColor.RED));
                 lore.add(Component.text(""));
-                lore.add(Component.text("ПКМ №1 — взвести, ПКМ №2 (30 с) — отречься",
-                        NamedTextColor.YELLOW));
+                lore.add(Component.text(msg(plugin, "book.respec.hint",
+                        "ПКМ №1 — взвести, ПКМ №2 (30 с) — отречься"), NamedTextColor.YELLOW));
             }
             meta.lore(lore);
         });
@@ -411,14 +436,16 @@ public final class ClassBook implements InventoryHolder {
         String title = plugin.getFlavorService().titleOf(uuid, pc);
         ItemStack item = new ItemStack(Material.GOLDEN_HELMET);
         item.editMeta(meta -> {
-            meta.displayName(Component.text("Корона и титул", NamedTextColor.GOLD));
+            meta.displayName(Component.text(msg(plugin, "book.crown.title", "Корона и титул"),
+                    NamedTextColor.GOLD));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("Корона: "
-                    + plugin.getFlavorService().crownDisplayName(uuid), NamedTextColor.GOLD));
-            lore.add(Component.text("Титул: " + (title.isEmpty() ? "—" : title),
-                    NamedTextColor.WHITE));
-            lore.add(Component.text("Аура-партикл видна союзникам и врагам",
-                    NamedTextColor.DARK_GRAY));
+            lore.add(Component.text(msg(plugin, "book.crown.crown", "Корона: {name}")
+                    .replace("{name}", plugin.getFlavorService().crownDisplayName(uuid)),
+                    NamedTextColor.GOLD));
+            lore.add(Component.text(msg(plugin, "book.crown.titleline", "Титул: {name}")
+                    .replace("{name}", title.isEmpty() ? "—" : title), NamedTextColor.WHITE));
+            lore.add(Component.text(msg(plugin, "book.crown.aura",
+                    "Аура-партикл видна союзникам и врагам"), NamedTextColor.DARK_GRAY));
             meta.lore(lore);
         });
         return item;
@@ -465,7 +492,7 @@ public final class ClassBook implements InventoryHolder {
             }
             int slot = event.getRawSlot();
             if (slot != event.getSlot()) {
-                return; // клик по своему инвентарю
+                return;
             }
             boolean left = event.getClick() == ClickType.LEFT;
             boolean right = event.getClick() == ClickType.RIGHT;
@@ -501,14 +528,14 @@ public final class ClassBook implements InventoryHolder {
                                 plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
                             }
                         } else {
-                            // 1.5.5: защита от дублей свитков
                             if (countAbilityScrolls(plugin, player, def.id()) > 0) {
-                                player.sendMessage(Component.text(
-                                        "Свиток уже в инвентаре — дубль не выдан.",
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
                                         NamedTextColor.GRAY));
                             } else {
                                 player.getInventory().addItem(plugin.getTokens().create(def, pc));
-                                player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
                                         .append(Component.text(def.displayName(), pc.getColor())));
                             }
                         }
@@ -524,12 +551,13 @@ public final class ClassBook implements InventoryHolder {
                             plugin.getInstallations().tryPlace(player);
                         } else {
                             if (countInstallScrolls(plugin, player, type) > 0) {
-                                player.sendMessage(Component.text(
-                                        "Свиток уже в инвентаре — дубль не выдан.",
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
                                         NamedTextColor.GRAY));
                             } else {
                                 player.getInventory().addItem(plugin.getInstallToken().create(type, pc));
-                                player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
                                         .append(Component.text(type.displayName(), pc.getColor())));
                             }
                         }
@@ -552,18 +580,19 @@ public final class ClassBook implements InventoryHolder {
                             plugin.getSpecService().choose(player, spec);
                         } else if (current == spec) {
                             if (countSpecScrolls(plugin, player, spec) > 0) {
-                                player.sendMessage(Component.text(
-                                        "Свиток уже в инвентаре — дубль не выдан.",
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
                                         NamedTextColor.GRAY));
                             } else {
                                 player.getInventory().addItem(plugin.getSpecToken().create(spec, pc));
-                                player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
                                         .append(Component.text(spec.displayName(), pc.getColor())));
                             }
                         } else {
-                            player.sendMessage(Component.text("Спека уже выбрана: "
-                                    + current.displayName() + ". Отречение — кристалл ниже.",
-                                    NamedTextColor.RED));
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.spec.other", "Спека уже выбрана: {name}. Отречение — кристалл ниже.")
+                                    .replace("{name}", current.displayName()), NamedTextColor.RED));
                         }
                         book.refresh(plugin, player);
                         return;
@@ -572,23 +601,29 @@ public final class ClassBook implements InventoryHolder {
                         SpecService service = plugin.getSpecService();
                         Spec current = service.getSpec(player.getUniqueId());
                         if (current == null) {
-                            player.sendMessage(Component.text("Спеки нет — отрекаться не от чего.",
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.none", "Спеки нет — отрекаться не от чего."),
                                     NamedTextColor.GRAY));
                             return;
                         }
                         SpecService.RespecResult result = service.confirmRespec(player);
                         if (result == SpecService.RespecResult.NOT_PENDING) {
                             service.requestRespec(player);
-                            player.sendMessage(Component.text("Отречение взведено: ПКМ по кристаллу ещё раз в течение 30 с. Цена: "
-                                    + service.respecCost(player) + " монет", NamedTextColor.YELLOW));
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.arm", "Отречение взведено: ПКМ по кристаллу ещё раз в течение 30 с. Цена: {price} монет")
+                                    .replace("{price}", String.valueOf(service.respecCost(player))),
+                                    NamedTextColor.YELLOW));
                         } else if (result == SpecService.RespecResult.OK) {
-                            player.sendMessage(Component.text("Путь сброшен. Выбери новую спеку.",
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.ok", "Путь сброшен. Выбери новую спеку."),
                                     NamedTextColor.GREEN));
                         } else if (result == SpecService.RespecResult.POOR) {
-                            player.sendMessage(Component.text("Не хватает монет на отречение.",
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.poor", "Не хватает монет на отречение."),
                                     NamedTextColor.RED));
                         } else if (result == SpecService.RespecResult.NO_ECONOMY) {
-                            player.sendMessage(Component.text("Экономика недоступна — респец отключён.",
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.noecon", "Экономика недоступна — респец отключён."),
                                     NamedTextColor.RED));
                         }
                         book.refresh(plugin, player);
