@@ -3,26 +3,34 @@ package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.6.0 пакет 3: «Пропитанный маной» как честный резист.
- * Старый механизм (−15% входящего урона через событие в PassiveListener)
- * выключается конфигом classes.MAGE.passives.mana_soaked.enabled: false.
- * Здесь: раз в 20 тиков проверяем ману мага; при мана ≥ порога ставим
- * permanent-модификатор mana_soaked (+физ/+маг из resist.mana-soaked.*),
- * при падении ниже порога — снимаем. Переключение idempotent.
- * FIX 1.6.1 (B2): игрок, сменивший класс с мага, гарантированно теряет
- * модификатор (раньше ветка не-мага делала continue и резист оставался навсегда).
+ * 1.6.0 пакет 3: «Пропитанный маной» как честный резист (+физ/+маг при мана ≥ порога).
+ * Старый механизм (−15% урона через событие) выключен конфигом
+ * classes.MAGE.passives.mana_soaked.enabled: false.
+ *
+ * 1.6.1 (B2): не-маги теряют модификатор.
+ * 1.6.3 (производительность): полный проход по онлайн-игрокам с getClassOf —
+ * только раз в 100 тиков (5 с) для ПОПОЛНЕНИЯ множества магов; рабочий тик
+ * (20 тиков) ходит лишь по mageIds. Снятие модификатора экс-мага происходит
+ * в рабочем тике за ~1 с (проверка класса по множеству), оффлайн-чистка —
+ * через ResistService.clear на quit.
  */
 public final class ManaSoakedService {
 
     private static final String SOURCE = "mana_soaked";
+    private static final long SCAN_INTERVAL_TICKS = 100L; // пополнение множества раз в 5 с
 
     private final RaskolClasses plugin;
+    private final Set<UUID> mageIds = ConcurrentHashMap.newKeySet();
+    private long lastScanTick = -1L;
 
     public ManaSoakedService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -36,16 +44,26 @@ public final class ManaSoakedService {
         if (!plugin.getConfig().getBoolean("resist.mana-soaked.enabled", true)) {
             return;
         }
+        long tick = Bukkit.getCurrentTick();
+        if (lastScanTick < 0 || tick - lastScanTick >= SCAN_INTERVAL_TICKS) {
+            lastScanTick = tick;
+            scanForMages();
+        }
         double threshold = plugin.getConfig()
                 .getDouble("classes.MAGE.passives.mana_soaked.threshold", 50.0);
         double phys = plugin.getConfig().getDouble("resist.mana-soaked.physical", 15.0);
         double magic = plugin.getConfig().getDouble("resist.mana-soaked.magic", 15.0);
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            UUID uuid = player.getUniqueId();
-            PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-            if (pc != PlayerClass.MAGE) {
-                // 1.6.1 (B2): экс-маг не должен держать резист «Пропитан маной»
+
+        for (UUID uuid : mageIds) {
+            Player player = plugin.getServer().getPlayer(uuid);
+            if (player == null) {
+                mageIds.remove(uuid); // модификаторы уже сняты ResistService.clear на quit
+                continue;
+            }
+            // 1.6.1 B2: экс-маг теряет резист за ~1 с (рабочий тик)
+            if (plugin.getClassProvider().getClassOf(player) != PlayerClass.MAGE) {
                 plugin.getResists().removeModifiersBySource(uuid, SOURCE);
+                mageIds.remove(uuid);
                 continue;
             }
             double mana = plugin.getResources().getValue(uuid);
@@ -57,5 +75,18 @@ public final class ManaSoakedService {
                 plugin.getResists().removeModifiersBySource(uuid, SOURCE);
             }
         }
+    }
+
+    /** Полный проход по онлайну: добавить новых магов, снять модификаторы экс-магов. */
+    private void scanForMages() {
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            UUID uuid = player.getUniqueId();
+            if (plugin.getClassProvider().getClassOf(player) == PlayerClass.MAGE) {
+                mageIds.add(uuid);
+            } else if (mageIds.remove(uuid)) {
+                plugin.getResists().removeModifiersBySource(uuid, SOURCE);
+            }
+        }
+        mageIds.removeIf(id -> plugin.getServer().getPlayer(id) == null);
     }
 }
