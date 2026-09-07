@@ -4,6 +4,7 @@ package dev.raskol.classes.fx;
 import dev.raskol.classes.RaskolClasses;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -14,21 +15,21 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Движок звука/партиклов (1.5.0 + 1.5.3 + 1.5.4).
- * 1.5.4: каталог пересмотрен под темы классов — звуки различимы и соответствуют
- * описанию способности:
- *  - Жрец (свет/магия): колокол и аметистовый перезвон вместо «железа воина»;
- *  - Воин (металл/война): наковальня, лёд доспеха, гром аватара на «Боге войны»;
- *  - Охотник (лук/зверь): арбалетный выстрел на прицеле, кошачье шипение на аспекте;
- *  - Маг (аркана/стихии) и Разбойник (тень/дым) — без изменений, темы уже читались.
- * Резолв имён — индекс реестра по нормализованному ключу + алиасы (1.5.3.1).
- * Валидация vfx.* на старте и /rc reload (1.5.3).
+ * Движок звука/партиклов (1.5.0 + 1.5.3 + 1.5.4 + 1.5.6).
+ * FIX 1.5.6: теги проков больше не шлются в actionbar (HUD затирал их за ~0.5 с) —
+ * теперь это субтайтл (отдельный слой экрана) с визуальным кулдауном 3 с на прок,
+ * чтобы «Хищник» на каждом ударе не спамил экраном.
+ * Остальное без изменений: индекс реестра + алиасы (1.5.3.1), валидация (1.5.3),
+ * тематический каталог (1.5.4).
  */
 public final class FxService {
 
@@ -46,7 +47,7 @@ public final class FxService {
         DEFAULTS.put("cheetah_aspect", new String[]{"ENTITY_CAT_HISS", "WHITE_ASH"});
         DEFAULTS.put("multi_shot", new String[]{"ENTITY_ARROW_SHOOT", "SWEEP_ATTACK"});
         DEFAULTS.put("barrage", new String[]{"ENTITY_ARROW_SHOOT", "POOF"});
-        // Жрец: свет и магия (1.5.4: колокол/перезвон вместо щита воина)
+        // Жрец: свет и магия
         DEFAULTS.put("lesser_heal", new String[]{"BLOCK_BELL_USE", "HEART"});
         DEFAULTS.put("flash_heal", new String[]{"BLOCK_AMETHYST_BLOCK_CHIME", "HEART"});
         DEFAULTS.put("pw_shield", new String[]{"BLOCK_AMETHYST_BLOCK_CHIME", "ENCHANTED_HIT"});
@@ -96,6 +97,9 @@ public final class FxService {
     private static volatile Map<String, Sound> soundIndexCache;
     private static volatile Map<String, Particle> particleIndexCache;
 
+    /** 1.5.6: визуальный кулдаун тегов проков: uuid -> (procId -> timestamp). */
+    private final Map<UUID, Map<String, Long>> procVisualCd = new ConcurrentHashMap<>();
+
     private final RaskolClasses plugin;
 
     public FxService(RaskolClasses plugin) {
@@ -127,7 +131,11 @@ public final class FxService {
         apply(player.getLocation(), player, soundKey, particleKey, false);
     }
 
-    /** Фидбек прока пассивки/спека: партикл + звук + (опц.) actionbar-тег. */
+    /**
+     * Фидбек прока пассивки/спека: партикл + звук + тег.
+     * FIX 1.5.6: тег — субтайтлом (не затирается HUD-тиком), не чаще раза в 3 с
+     * на каждый прок (анти-спам для частых проков вроде «Хищник»).
+     */
     public void procByKey(Player player, String fallbackTag, String procId) {
         FileConfiguration cfg = plugin.getConfig();
         String[] def = DEFAULTS.getOrDefault("proc." + procId, new String[]{"", ""});
@@ -136,9 +144,30 @@ public final class FxService {
         String tag = cfg.getString("vfx.proc." + procId + ".tag", fallbackTag);
         apply(player.getLocation(), player, soundKey, particleKey, true);
         if (tag != null && !tag.isEmpty()
-                && cfg.getBoolean("vfx.proc-actionbar", false)) {
-            player.sendActionBar(Component.text(tag, NamedTextColor.YELLOW));
+                && cfg.getBoolean("vfx.proc-actionbar", true)
+                && tryProcVisual(player, procId)) {
+            player.showTitle(Title.title(
+                    Component.empty(),
+                    Component.text(tag, NamedTextColor.YELLOW),
+                    Title.Times.times(
+                            Duration.ofMillis(80),
+                            Duration.ofMillis(900),
+                            Duration.ofMillis(250))));
         }
+    }
+
+    /** 1.5.6: не чаще 1 раза в 3 с на прок; попутно чистит устаревшее. */
+    private boolean tryProcVisual(Player player, String procId) {
+        UUID uuid = player.getUniqueId();
+        long now = System.currentTimeMillis();
+        Map<String, Long> perPlayer = procVisualCd.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>());
+        perPlayer.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L);
+        Long prev = perPlayer.get(procId);
+        if (prev != null && now - prev < 3_000L) {
+            return false;
+        }
+        perPlayer.put(procId, now);
+        return true;
     }
 
     /** Legacy-обёртка обратной совместимости. */
