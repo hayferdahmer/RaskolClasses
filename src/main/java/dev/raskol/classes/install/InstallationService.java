@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.compat.AuthGate;
+import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.spec.TrapVisual;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -34,9 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Фреймворк инсталляций (1.5.0 + 1.5.2 + 1.5.7 + 1.5.8).
- * 1.5.8: гейт AuthGate.canAct; запрет постановки в пустоте/на лимите высоты
- * и за мировой границей (installations.deny-outside-border, дефолт true).
+ * Фреймворк инсталляций (1.5.0 … 1.5.9).
+ * 1.5.9: все сообщения (постановка, отказы, notify владельцу) читаются
+ * из messages.install.* / messages.gate.* конфига — ретекст без пересборки.
  */
 public final class InstallationService {
 
@@ -68,17 +69,18 @@ public final class InstallationService {
 
     /** Попытка поставить инсталляцию своего класса. Все проверки и сообщения здесь. */
     public boolean tryPlace(Player player) {
+        RaskolConfig cfg = plugin.getRaskolConfig();
         // 1.5.8: auth + creative гейт
         if (!AuthGate.canAct(plugin, player)) {
-            player.sendMessage(Component.text(
-                    "Инсталляции недоступны в этом режиме или до входа в аккаунт.",
+            player.sendMessage(Component.text(cfg.message("gate.blocked.install",
+                    "Инсталляции недоступны в этом режиме или до входа в аккаунт."),
                     NamedTextColor.RED));
             return false;
         }
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
-            player.sendMessage(Component.text(
-                    "Класс не выбран — посетите герольда", NamedTextColor.GRAY));
+            player.sendMessage(Component.text(cfg.message("install.msg.noclass",
+                    "Класс не выбран — посетите герольда"), NamedTextColor.GRAY));
             return false;
         }
         InstallationType type = InstallationType.forClass(pc);
@@ -91,25 +93,27 @@ public final class InstallationService {
             int unlock = plugin.getConfig().getInt("installations.unlock-level", 50);
             int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
             if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < unlock) {
-                player.sendMessage(Component.text("Инсталляции откроются на уровне "
-                        + unlock + " (" + pc.profileSkillName() + ")", NamedTextColor.RED));
+                player.sendMessage(Component.text(cfg.message("install.msg.unlock",
+                        "Инсталляции откроются на уровне {level} ({skill})")
+                        .replace("{level}", String.valueOf(unlock))
+                        .replace("{skill}", pc.profileSkillName()), NamedTextColor.RED));
                 return false;
             }
         }
 
         int max = plugin.getConfig().getInt("installations.max-per-player", 2);
         if (countOf(uuid) >= max) {
-            player.sendMessage(Component.text("Лимит активных инсталляций: " + max,
-                    NamedTextColor.RED));
+            player.sendMessage(Component.text(cfg.message("install.msg.limit",
+                    "Лимит активных инсталляций: {max}")
+                    .replace("{max}", String.valueOf(max)), NamedTextColor.RED));
             return false;
         }
 
         int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
         if (active.size() >= maxGlobal) {
-            player.sendMessage(Component.text(
-                    "Земля насыщена инсталляциями: глобальный лимит " + maxGlobal
-                            + ". Подожди, пока истечёт чужой TTL.",
-                    NamedTextColor.RED));
+            player.sendMessage(Component.text(cfg.message("install.msg.global",
+                    "Земля насыщена инсталляциями: глобальный лимит {max}. Подожди, пока истечёт чужой TTL.")
+                    .replace("{max}", String.valueOf(maxGlobal)), NamedTextColor.RED));
             return false;
         }
 
@@ -117,8 +121,9 @@ public final class InstallationService {
         int window = plugin.getConfig().getInt("installations.place-anti-spam-ms", 1000);
         Long prev = lastPlace.get(uuid);
         if (prev != null && now - prev < window) {
-            player.sendMessage(Component.text("Слишком часто: пауза между постановками "
-                    + (window / 1000L) + " с", NamedTextColor.GRAY));
+            player.sendMessage(Component.text(cfg.message("install.msg.spam",
+                    "Слишком часто: пауза между постановками {sec} с")
+                    .replace("{sec}", String.valueOf(window / 1000L)), NamedTextColor.GRAY));
             return false;
         }
         lastPlace.put(uuid, now);
@@ -130,16 +135,16 @@ public final class InstallationService {
         if (world != null) {
             int y = loc.getBlockY();
             if (y <= world.getMinHeight() || y >= world.getMaxHeight() - 1) {
-                player.sendMessage(Component.text(
-                        "Нельзя ставить инсталляции в пустоте или на лимите высоты.",
+                player.sendMessage(Component.text(cfg.message("install.msg.void",
+                        "Нельзя ставить инсталляции в пустоте или на лимите высоты."),
                         NamedTextColor.RED));
                 return false;
             }
             // 1.5.8: за мировой границей — запрет (гейт в конфиге)
             if (plugin.getConfig().getBoolean("installations.deny-outside-border", true)
                     && !world.getWorldBorder().isInside(loc)) {
-                player.sendMessage(Component.text(
-                        "Нельзя ставить инсталляции за мировой границей.",
+                player.sendMessage(Component.text(cfg.message("install.msg.border",
+                        "Нельзя ставить инсталляции за мировой границей."),
                         NamedTextColor.RED));
                 return false;
             }
@@ -148,15 +153,15 @@ public final class InstallationService {
         int deny = plugin.getConfig().getInt("installations.deny-radius-spawn", 100);
         if (world != null
                 && world.getSpawnLocation().distanceSquared(loc) < (long) deny * deny) {
-            player.sendMessage(Component.text("Нельзя ставить инсталляции рядом со спавном.",
-                    NamedTextColor.RED));
+            player.sendMessage(Component.text(cfg.message("install.msg.spawn",
+                    "Нельзя ставить инсталляции рядом со спавном."), NamedTextColor.RED));
             return false;
         }
 
         if (plugin.getConfig().getBoolean("installations.deny-in-claims", true)
                 && isInClaim(loc)) {
-            player.sendMessage(Component.text("Нельзя ставить инсталляции на заклэймленной земле.",
-                    NamedTextColor.RED));
+            player.sendMessage(Component.text(cfg.message("install.msg.claim",
+                    "Нельзя ставить инсталляции на заклэймленной земле."), NamedTextColor.RED));
             return false;
         }
 
@@ -170,10 +175,11 @@ public final class InstallationService {
             world.spawnParticle(Particle.CLOUD,
                     loc.clone().add(0.5, 0.4, 0.5), 10, 0.4, 0.3, 0.4, 0.0);
         }
-        player.sendMessage(Component.text("Инсталляция установлена: ", NamedTextColor.GREEN)
+        player.sendMessage(Component.text(cfg.message("install.msg.placed",
+                "Инсталляция установлена: "), NamedTextColor.GREEN)
                 .append(Component.text(type.displayName(), pc.getColor()))
-                .append(Component.text(" · живёт " + (ttl / 1000L) + " с",
-                        NamedTextColor.GRAY)));
+                .append(Component.text(cfg.message("install.msg.ttl", " · живёт {sec} с")
+                        .replace("{sec}", String.valueOf(ttl / 1000L)), NamedTextColor.GRAY)));
         return true;
     }
 
@@ -189,7 +195,9 @@ public final class InstallationService {
         long now = System.currentTimeMillis();
         for (Installation inst : active) {
             if (now >= inst.getExpiresAt()) {
-                notifyOwner(inst, "⚙ " + inst.getType().displayName() + ": истекла");
+                notifyOwner(inst, plugin.getRaskolConfig().message("install.notify.expired",
+                        "⚙ {name}: истекла")
+                        .replace("{name}", inst.getType().displayName()));
                 despawn(inst, true);
                 active.remove(inst);
                 continue;
@@ -282,8 +290,10 @@ public final class InstallationService {
             }
             default -> { }
         }
-        notifyOwner(inst, "⚙ " + inst.getType().displayName() + ": сработала на "
-                + trigger.getName());
+        notifyOwner(inst, plugin.getRaskolConfig().message("install.notify.trigger",
+                "⚙ {name}: сработала на {target}")
+                .replace("{name}", inst.getType().displayName())
+                .replace("{target}", trigger.getName()));
     }
 
     private void zoneTick(Installation inst) {
