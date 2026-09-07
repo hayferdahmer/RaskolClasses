@@ -43,8 +43,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.5.1: guard спеки против смены класса, ready-notify спек-абилок,
- * чистка памяти, гигиена респеца, таргет-каст без waste на creative/spectator.
+ * 1.5.3: валидация каталога vfx на старте и /rc reload.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -111,6 +110,8 @@ public final class RaskolClasses extends JavaPlugin {
         this.tokens = new AbilityToken(this);
 
         this.fx = new FxService(this);
+        // 1.5.3: проверка имён vfx.* сразу на старте
+        fx.validateConfig();
 
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
@@ -219,6 +220,8 @@ public final class RaskolClasses extends JavaPlugin {
         if (specRegistry != null) {
             specRegistry.load();
         }
+        // 1.5.3: повторная валидация имён vfx после правок конфига
+        fx.validateConfig();
         getLogger().info("Конфигурация перезагружена");
     }
 
