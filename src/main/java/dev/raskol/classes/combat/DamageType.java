@@ -12,6 +12,7 @@ import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
  * отдельным типом не хранится.
  * Карта причин vanilla → тип может переопределяться конфигом
  * (damage-types.vanilla-map.<CAUSE> = physical|magic|true).
+ * FIX 1.6.0.2: причина порошкового снега в Bukkit — FREEZE (не FREEZING).
  */
 public enum DamageType {
 
@@ -23,7 +24,7 @@ public enum DamageType {
     public static DamageType defaultFor(DamageCause cause) {
         return switch (cause) {
             case MAGIC, POISON, WITHER, FIRE, FIRE_TICK, LAVA, HOT_FLOOR,
-                 DRAGON_BREATH, FREEZING, LIGHTNING -> MAGIC;
+                 DRAGON_BREATH, FREEZE, LIGHTNING -> MAGIC;
             case VOID, SONIC_BOOM -> TRUE;
             default -> PHYSICAL;
         };
