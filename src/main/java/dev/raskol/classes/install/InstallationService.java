@@ -33,14 +33,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Фреймворк инсталляций (1.5.0 + 1.5.2).
- * FIX 1.5.2:
- *  - глобальный кап активных инсталляций (installations.max-global, дефолт 200);
- *  - анти-спам постановки: пауза install-anti-spam-ms (дефолт 1000) на игрока;
- *  - уведомления владельцу (actionbar): мина сработала / инсталляция испарилась
- *    (гейт installations.notify-owner, дефолт true);
- *  - звуки постановки и растворения — свои на каждый тип;
- *  - snapshot()/countGlobal() для /rc debug.
+ * Фреймворк инсталляций (1.5.0 + 1.5.2 + 1.5.7).
+ * 1.5.7: адаптивный свип — если активных инсталляций нет, таск не делает
+ * ничего (раньше каждый тик 10 крутил пустой цикл и чистил lastPlace);
+ * чистка lastPlace переехала в purgeStale() (общий purge-таск, 1200 тиков).
  */
 public final class InstallationService {
 
@@ -106,7 +102,7 @@ public final class InstallationService {
             return false;
         }
 
-        // 1.5.2: глобальный кап — карта не должна утонуть в минах на масс-варе
+        // 1.5.2: глобальный кап
         int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
         if (active.size() >= maxGlobal) {
             player.sendMessage(Component.text(
@@ -151,7 +147,6 @@ public final class InstallationService {
         spawnDisplay(inst);
         active.add(inst);
 
-        // 1.5.2: звук постановки по типу
         plugin.getFx().playSound(loc, placeSound(type), 0.6f, 1.0f);
         if (loc.getWorld() != null) {
             loc.getWorld().spawnParticle(Particle.CLOUD,
@@ -164,18 +159,18 @@ public final class InstallationService {
         return true;
     }
 
-    /** Свип: сроки, зоны, триггеры мин. */
+    /** Свип: сроки, зоны, триггеры мин. 1.5.7: адаптивный (пусто = ноль работы). */
     public BukkitTask startSweepTask() {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::sweep, 10L, 10L);
     }
 
     private void sweep() {
+        if (active.isEmpty()) {
+            return; // 1.5.7: нет инсталляций — нет работы
+        }
         long now = System.currentTimeMillis();
-        // 1.5.2: чистка анти-спам карты
-        lastPlace.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L);
         for (Installation inst : active) {
             if (now >= inst.getExpiresAt()) {
-                // 1.5.2: владелец узнаёт, что инсталляция испарилась
                 notifyOwner(inst, "⚙ " + inst.getType().displayName() + ": истекла");
                 despawn(inst, true);
                 active.remove(inst);
@@ -195,6 +190,12 @@ public final class InstallationService {
                 }
             }
         }
+    }
+
+    /** 1.5.7: чистка анти-спам карты общим purge-таском. */
+    public void purgeStale() {
+        long now = System.currentTimeMillis();
+        lastPlace.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L);
     }
 
     /** Враг-игрок (не владелец и не союзник) или любой моб. */
@@ -264,7 +265,6 @@ public final class InstallationService {
             }
             default -> { }
         }
-        // 1.5.2: владелец узнаёт, кто задел его мину
         notifyOwner(inst, "⚙ " + inst.getType().displayName() + ": сработала на "
                 + trigger.getName());
     }
@@ -365,7 +365,6 @@ public final class InstallationService {
             if (loc != null && loc.getWorld() != null) {
                 loc.getWorld().spawnParticle(Particle.CLOUD,
                         loc.clone().add(0.0, 0.3, 0.0), 6, 0.3, 0.2, 0.3, 0.0);
-                // 1.5.2: звук растворения по типу
                 if (expired) {
                     loc.getWorld().playSound(loc, expireSound(inst.getType()), 0.5f, 1.0f);
                 }
