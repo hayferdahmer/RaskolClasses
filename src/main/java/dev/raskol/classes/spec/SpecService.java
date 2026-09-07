@@ -21,11 +21,12 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Бизнес-логика спеков (1.4.0 + 1.5.1 + 1.6.0 пакет 3).
- * 1.6.0 пакет 3: спек-пассивки дают permanent-модификаторы резиста:
- * GUARDIAN → +10 физ (resist.specs.guardian.physical). Модификатор ставится
- * на выборе, снимается на респеце и восстанавливается на входе
- * (restorePassiveResists), т.к. на quit ResistService чистит всё.
+ * Бизнес-логика спеков (1.4.0 + 1.5.1 + 1.6.0 пакет 3 + 1.6.1).
+ * 1.6.1: reconcilePassiveResists() — периодическая сверка спек-модификаторов
+ * резиста с фактической спекой (закрывает админ-смену класса и ручные правки
+ * storage при выключенном ready-notify, когда периодический getSpec не ходит);
+ * choose() дополнительно снимает модификаторы старой спеки перед установкой
+ * новых (защита от будущих кодовых путей).
  */
 public final class SpecService {
 
@@ -94,7 +95,8 @@ public final class SpecService {
         storage.set(player.getUniqueId(), spec);
         syncToLuckPerms(player, spec);
         plugin.getSpecEffects().applyAttributes(player, spec);
-        // 1.6.0 пакет 3: permanent-резист спек-пассивки
+        // 1.6.1: защитное снятие модификаторов старой спеки перед установкой новых
+        plugin.getResists().removeModifiersBySource(player.getUniqueId(), GUARDIAN_SOURCE);
         if (spec == Spec.GUARDIAN) {
             plugin.getResists().addPermanentModifier(player.getUniqueId(),
                     GUARDIAN_SOURCE, guardianPhys(), 0.0);
@@ -106,7 +108,7 @@ public final class SpecService {
 
     /**
      * Выбранная спека с валидацией класса (1.5.1): после админ-смены класса
-     * спека отключается сама (storage + LP-нода + атрибуты).
+     * спека отключается сама (storage + LP-нода + атрибуты + резисты).
      */
     public Spec getSpec(UUID uuid) {
         Spec spec = storage.get(uuid);
@@ -143,6 +145,26 @@ public final class SpecService {
         if (spec == Spec.GUARDIAN) {
             plugin.getResists().addPermanentModifier(player.getUniqueId(),
                     GUARDIAN_SOURCE, guardianPhys(), 0.0);
+        }
+    }
+
+    /**
+     * 1.6.1: сверка спек-модификаторов резиста с фактической спекой по всем
+     * онлайн-игрокам (раз в 20 тиков). Закрывает кейсы: админ-смена класса при
+     * выключенном ready-notify, ручные правки spec-choices.yml, рассинхрон
+     * после рестарта с изменёнными данными.
+     */
+    public void reconcilePassiveResists() {
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            UUID uuid = player.getUniqueId();
+            Spec spec = getSpec(uuid); // валидация сама сбросит спеку при mismatch
+            boolean has = plugin.getResists().hasModifier(uuid, GUARDIAN_SOURCE);
+            if (spec == Spec.GUARDIAN && !has) {
+                plugin.getResists().addPermanentModifier(uuid, GUARDIAN_SOURCE,
+                        guardianPhys(), 0.0);
+            } else if (spec != Spec.GUARDIAN && has) {
+                plugin.getResists().removeModifiersBySource(uuid, GUARDIAN_SOURCE);
+            }
         }
     }
 
@@ -195,7 +217,6 @@ public final class SpecService {
         clearSpecFromLuckPerms(player, old);
         storage.remove(uuid);
         plugin.getSpecEffects().removeAttributes(player);
-        // 1.6.0 пакет 3: снять permanent-резисты старой спеки
         plugin.getResists().removeModifiersBySource(uuid, GUARDIAN_SOURCE);
         notifyPrev.remove(uuid);
         int stripped = plugin.getSpecToken().stripScrolls(player, old);
