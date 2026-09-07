@@ -381,10 +381,10 @@ installations:
 # 1.5.0 / Пакет 1+3, 1.5.3.1: VFX/SFX-каталог (переопределяет дефолты FxService)
 # Опечатка в имени = WARNING при /rc reload и тишина для этого эффекта (не краш).
 vfx:
-  proc-actionbar: true        # теги проков пассивок в actionbar
+  proc-actionbar: true
   trails:
-    fireball: true            # пламенный трейл + треск огня у фаербола
-    arrows: true              # искровой трейл у стрел охотника
+    fireball: true
+    arrows: true
   steel_skin:
     cast-sound: ITEM_ARMOR_EQUIP_IRON
     cast-particle: CRIT
@@ -395,13 +395,13 @@ vfx:
     cast-sound: ENTITY_RAVAGER_ROAR
     cast-particle: CRIMSON_SPORE
   war_god:
-    cast-sound: ENTITY_EVOKER_CAST_SPELL
+    cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: FLAME
   aimed_shot:
-    cast-sound: ENTITY_ARROW_SHOOT
+    cast-sound: ITEM_CROSSBOW_SHOOT
     cast-particle: CRIT
   cheetah_aspect:
-    cast-sound: ENTITY_PHANTOM_FLAP
+    cast-sound: ENTITY_CAT_HISS
     cast-particle: WHITE_ASH
   multi_shot:
     cast-sound: ENTITY_ARROW_SHOOT
@@ -410,13 +410,13 @@ vfx:
     cast-sound: ENTITY_ARROW_SHOOT
     cast-particle: POOF
   lesser_heal:
-    cast-sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    cast-sound: BLOCK_BELL_USE
     cast-particle: HEART
   flash_heal:
-    cast-sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    cast-sound: BLOCK_AMETHYST_BLOCK_CHIME
     cast-particle: HEART
   pw_shield:
-    cast-sound: ITEM_SHIELD_BLOCK
+    cast-sound: BLOCK_AMETHYST_BLOCK_CHIME
     cast-particle: ENCHANTED_HIT
   circle_of_prayer:
     cast-sound: BLOCK_BEACON_ACTIVATE
@@ -467,7 +467,7 @@ vfx:
     cast-sound: ENTITY_ENDERMAN_STARE
     cast-particle: REVERSE_PORTAL
   arcane_flow:
-    cast-sound: BLOCK_ENCHANTING_TABLE_USE   # 1.5.3.1: ванильное имя (не enchantment_table)
+    cast-sound: BLOCK_ENCHANTING_TABLE_USE
     cast-particle: ENCHANTED_HIT
   ice_ring:
     cast-sound: ENTITY_PLAYER_HURT_FREEZE
