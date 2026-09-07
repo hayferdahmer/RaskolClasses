@@ -21,19 +21,17 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Бизнес-логика спеков (1.4.0 + 1.5.1).
- * FIX 1.5.1:
- *  - getSpec(uuid) теперь валидирует спеку против текущего класса:
- *    после админ-смены класса старая спека отключается сама (storage + LP-нода),
- *    игрок получает одноразовое сообщение;
- *  - респец сжигает свитки старой спеки из инвентаря;
- *  - ready-notify для спек-активки (actionbar + звук), независимо от
- *    CooldownManager; гейт performance.ready-notify.spec-enabled (default true).
+ * Бизнес-логика спеков (1.4.0 + 1.5.1 + 1.6.0 пакет 3).
+ * 1.6.0 пакет 3: спек-пассивки дают permanent-модификаторы резиста:
+ * GUARDIAN → +10 физ (resist.specs.guardian.physical). Модификатор ставится
+ * на выборе, снимается на респеце и восстанавливается на входе
+ * (restorePassiveResists), т.к. на quit ResistService чистит всё.
  */
 public final class SpecService {
 
     private static final int REQUIRED_LEVEL = 40;
     private static final long PENDING_MILLIS = 30_000L;
+    private static final String GUARDIAN_SOURCE = "guardian";
 
     public enum RespecResult { OK, NO_SPEC, NO_ECONOMY, POOR, NOT_PENDING }
 
@@ -42,7 +40,6 @@ public final class SpecService {
     private final SpecRegistry registry;
     private final EconomyHook economy;
     private final Map<UUID, Long> pendingUntil = new ConcurrentHashMap<>();
-    /** previous remaining для ready-notify спек-активки. */
     private final Map<UUID, Map<String, Long>> notifyPrev = new ConcurrentHashMap<>();
 
     public SpecService(RaskolClasses plugin, SpecStorage storage, SpecRegistry registry) {
@@ -54,6 +51,10 @@ public final class SpecService {
 
     public EconomyHook economy() {
         return economy;
+    }
+
+    private double guardianPhys() {
+        return plugin.getConfig().getDouble("resist.specs.guardian.physical", 10.0);
     }
 
     /** Проверка: может ли игрок выбрать спеку? */
@@ -93,16 +94,19 @@ public final class SpecService {
         storage.set(player.getUniqueId(), spec);
         syncToLuckPerms(player, spec);
         plugin.getSpecEffects().applyAttributes(player, spec);
+        // 1.6.0 пакет 3: permanent-резист спек-пассивки
+        if (spec == Spec.GUARDIAN) {
+            plugin.getResists().addPermanentModifier(player.getUniqueId(),
+                    GUARDIAN_SOURCE, guardianPhys(), 0.0);
+        }
         player.sendMessage(Component.text("Специализация выбрана: ", NamedTextColor.GREEN)
                 .append(Component.text(spec.displayName(), pc.getColor())));
         return true;
     }
 
     /**
-     * Выбранная спека. FIX 1.5.1: если класс игрока сменился (админ/LP/Core)
-     * и не совпадает с классом спеки — спека отключается: storage чистится,
-     * LP-нода снимается, игрок получает одноразовое сообщение.
-     * Оффлайн-игроки не валидируются (пассивки оффлайн и не работают).
+     * Выбранная спека с валидацией класса (1.5.1): после админ-смены класса
+     * спека отключается сама (storage + LP-нода + атрибуты).
      */
     public Spec getSpec(UUID uuid) {
         Spec spec = storage.get(uuid);
@@ -121,17 +125,29 @@ public final class SpecService {
                 + player.getName() + " не соответствует классу " + pc.name()
                 + " — спека сброшена");
         player.sendMessage(Component.text(
-                "Твоя специализация сброшена: класс изменён. Выбери новую: /rc spec",
+                "Твоя специализация сброшена: класс изменён. Выбери новую: /rc menu",
                 NamedTextColor.YELLOW));
         storage.remove(uuid);
         clearSpecFromLuckPerms(player, spec);
         plugin.getSpecEffects().removeAttributes(player);
+        plugin.getResists().removeModifiersBySource(uuid, GUARDIAN_SOURCE);
         return null;
     }
 
-    // --- Пакет 3: платный респец ---
+    /**
+     * 1.6.0 пакет 3: восстановление permanent-резистов спек-пассивок на входе
+     * (на quit ResistService чистит все модификаторы).
+     */
+    public void restorePassiveResists(Player player) {
+        Spec spec = getSpec(player.getUniqueId());
+        if (spec == Spec.GUARDIAN) {
+            plugin.getResists().addPermanentModifier(player.getUniqueId(),
+                    GUARDIAN_SOURCE, guardianPhys(), 0.0);
+        }
+    }
 
-    /** Цена: base + level * per-level. */
+    // --- Пакет 3 (1.4.0): платный респец ---
+
     public int respecCost(Player player) {
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         int level = pc == null
@@ -145,12 +161,10 @@ public final class SpecService {
         return base + level * per;
     }
 
-    /** Запрос подтверждения (живёт 30 секунд). */
     public void requestRespec(Player player) {
         pendingUntil.put(player.getUniqueId(), System.currentTimeMillis() + PENDING_MILLIS);
     }
 
-    /** Подтверждение и выполнение респеца. */
     public RespecResult confirmRespec(Player player) {
         UUID uuid = player.getUniqueId();
         Long until = pendingUntil.get(uuid);
@@ -181,8 +195,9 @@ public final class SpecService {
         clearSpecFromLuckPerms(player, old);
         storage.remove(uuid);
         plugin.getSpecEffects().removeAttributes(player);
+        // 1.6.0 пакет 3: снять permanent-резисты старой спеки
+        plugin.getResists().removeModifiersBySource(uuid, GUARDIAN_SOURCE);
         notifyPrev.remove(uuid);
-        // FIX 1.5.1: свитки старого пути сгорают при отречении
         int stripped = plugin.getSpecToken().stripScrolls(player, old);
         if (stripped > 0) {
             player.sendMessage(Component.text("Свитки старого пути сгорели: " + stripped,
@@ -191,13 +206,8 @@ public final class SpecService {
         return RespecResult.OK;
     }
 
-    // --- FIX 1.5.1: ready-notify спек-активки ---
+    // --- Ready-notify спек-абилок (1.5.1) ---
 
-    /**
-     * Таск раз в 20 тиков: когда кулдаун спек-активки (>= min-cooldown-seconds)
-     * истекает — actionbar + звук. Не трогает CooldownManager.
-     * Отключается: performance.ready-notify.spec-enabled: false.
-     */
     public BukkitTask startSpecNotifyTask() {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
             if (!plugin.getRaskolConfig().isReadyNotifyEnabled()) {
@@ -218,7 +228,7 @@ public final class SpecService {
                     continue;
                 }
                 String cdId = "spec_" + spec.id();
-                prev.keySet().removeIf(k -> !k.equals(cdId)); // респец/смена спеки
+                prev.keySet().removeIf(k -> !k.equals(cdId));
                 long remaining = plugin.getCooldowns().getRemainingMillis(uuid, cdId);
                 Long before = prev.get(cdId);
                 if (before != null && before > 0 && remaining <= 0 && before >= minMillis) {
@@ -236,7 +246,6 @@ public final class SpecService {
         }, 20L, 20L);
     }
 
-    /** Чистка состояния notify на выход игрока. */
     public void clearNotifyState(UUID uuid) {
         notifyPrev.remove(uuid);
     }
