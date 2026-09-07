@@ -15,6 +15,8 @@ import java.util.UUID;
  * Здесь: раз в 20 тиков проверяем ману мага; при мана ≥ порога ставим
  * permanent-модификатор mana_soaked (+физ/+маг из resist.mana-soaked.*),
  * при падении ниже порога — снимаем. Переключение idempotent.
+ * FIX 1.6.1 (B2): игрок, сменивший класс с мага, гарантированно теряет
+ * модификатор (раньше ветка не-мага делала continue и резист оставался навсегда).
  */
 public final class ManaSoakedService {
 
@@ -39,11 +41,13 @@ public final class ManaSoakedService {
         double phys = plugin.getConfig().getDouble("resist.mana-soaked.physical", 15.0);
         double magic = plugin.getConfig().getDouble("resist.mana-soaked.magic", 15.0);
         for (Player player : plugin.getServer().getOnlinePlayers()) {
+            UUID uuid = player.getUniqueId();
             PlayerClass pc = plugin.getClassProvider().getClassOf(player);
             if (pc != PlayerClass.MAGE) {
+                // 1.6.1 (B2): экс-маг не должен держать резист «Пропитан маной»
+                plugin.getResists().removeModifiersBySource(uuid, SOURCE);
                 continue;
             }
-            UUID uuid = player.getUniqueId();
             double mana = plugin.getResources().getValue(uuid);
             boolean soaked = mana >= threshold;
             boolean has = plugin.getResists().hasModifier(uuid, SOURCE);
