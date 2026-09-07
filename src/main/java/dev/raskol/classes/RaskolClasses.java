@@ -43,7 +43,8 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.5.6: визуальный кулдаун на свитках в хотбаре (ScrollCooldownTask).
+ * 1.5.7: консолидация purge (fx + installations в общем таске),
+ * адаптивный свип инсталляций, звуковой бюджет на тик.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -154,14 +155,16 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(flavorService.startAuraTask());
         activeTasks.add(installations.startSweepTask());
         activeTasks.add(specService.startSpecNotifyTask());
-        // 1.5.6: полоска КД на свитках в хотбаре
         activeTasks.add(new ScrollCooldownTask(this).start());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
+        // 1.5.7: единый purge-таск для всех stale-карт
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
             effects.purgeExpired();
             specEffects.purgeExpired();
             abilities.purgeStaleAttempts();
+            fx.purgeStale();
+            installations.purgeStale();
         }, purgeInterval, purgeInterval));
 
         registerCommand();
