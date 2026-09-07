@@ -1,5 +1,5 @@
 name: RaskolClasses
-version: '1.5.3'
+version: '1.5.4'
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
@@ -10,7 +10,7 @@ softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny]
 commands:
   rc:
     description: Команды классов RaskolClasses
-    usage: /rc [1-7|menu|hud|reload|debug|bind|spec|respec]
+    usage: /rc [1-7|menu|reload|debug]
 
 permissions:
   raskolclasses.admin:
