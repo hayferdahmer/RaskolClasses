@@ -73,6 +73,40 @@ public final class RaskolConfig {
         config.addDefault("class-accept.enabled", true);
         config.addDefault("class-accept.subtitle", "Твой путь избран");
 
+        // 1.6.0: резисты и типы урона
+        config.addDefault("resist.cap", 90.0);
+        config.addDefault("resist.classes.WARRIOR.magic", 12.0);
+        config.addDefault("resist.classes.WARRIOR.physical", 27.0);
+        config.addDefault("resist.classes.ROGUE.magic", 12.0);
+        config.addDefault("resist.classes.ROGUE.physical", 14.0);
+        config.addDefault("resist.classes.MAGE.magic", 26.0);
+        config.addDefault("resist.classes.MAGE.physical", 12.0);
+        config.addDefault("resist.classes.PRIEST.magic", 30.0);
+        config.addDefault("resist.classes.PRIEST.physical", 16.0);
+        config.addDefault("resist.classes.HUNTER.magic", 12.0);
+        config.addDefault("resist.classes.HUNTER.physical", 16.0);
+        config.addDefault("damage-types.vanilla-map.SONIC_BOOM", "true");
+        config.addDefault("damage-types.vanilla-map.VOID", "true");
+        config.addDefault("damage-types.vanilla-map.FIRE", "magic");
+        config.addDefault("damage-types.vanilla-map.FIRE_TICK", "magic");
+        config.addDefault("damage-types.vanilla-map.LAVA", "magic");
+        config.addDefault("damage-types.vanilla-map.HOT_FLOOR", "magic");
+        config.addDefault("damage-types.vanilla-map.POISON", "magic");
+        config.addDefault("damage-types.vanilla-map.WITHER", "magic");
+        config.addDefault("damage-types.vanilla-map.MAGIC", "magic");
+        config.addDefault("damage-types.vanilla-map.DRAGON_BREATH", "magic");
+        config.addDefault("damage-types.vanilla-map.FREEZING", "magic");
+        config.addDefault("damage-types.vanilla-map.LIGHTNING", "magic");
+
+        // 1.6.0 пакет 2: числа урона способностей/инсталляций (damage-numbers)
+        config.addDefault("classes.MAGE.abilities.firebolt.damage-physical", 30.0);
+        config.addDefault("classes.MAGE.abilities.firebolt.damage-magic", 70.0);
+        config.addDefault("classes.MAGE.abilities.frost_nova.damage-magic", 40.0);
+        config.addDefault("classes.MAGE.abilities.arcane_burst.damage-magic", 100.0);
+        config.addDefault("classes.PRIEST.abilities.smite.damage-magic", 6.0);
+        config.addDefault("installations.bear_trap.damage-physical", 3.0);
+        config.addDefault("installations.frost_rune.damage-magic", 4.0);
+
         config.addDefault("messages.no-class", "Класс не выбран — посетите герольда");
         config.addDefault("messages.no-class-cast", "Класс не выбран — способности недоступны");
         config.addDefault("messages.no-permission", "Недостаточно прав");
@@ -91,8 +125,21 @@ public final class RaskolConfig {
         config.addDefault("messages.shield-target", "Щит на: {target}");
         config.addDefault("messages.shield-you", "{caster} наложил на тебя щит");
         config.addDefault("messages.target-full-hp", "Цель здорова");
-
-        // 1.5.9: локализация Книги класса
+        config.addDefault("messages.gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
+        config.addDefault("messages.gate.blocked.install", "Инсталляции недоступны в этом режиме или до входа в аккаунт.");
+        config.addDefault("messages.install.msg.noclass", "Класс не выбран — посетите герольда");
+        config.addDefault("messages.install.msg.unlock", "Инсталляции откроются на уровне {level} ({skill})");
+        config.addDefault("messages.install.msg.limit", "Лимит активных инсталляций: {max}");
+        config.addDefault("messages.install.msg.global", "Земля насыщена инсталляциями: глобальный лимит {max}. Подожди, пока истечёт чужой TTL.");
+        config.addDefault("messages.install.msg.spam", "Слишком часто: пауза между постановками {sec} с");
+        config.addDefault("messages.install.msg.void", "Нельзя ставить инсталляции в пустоте или на лимите высоты.");
+        config.addDefault("messages.install.msg.border", "Нельзя ставить инсталляции за мировой границей.");
+        config.addDefault("messages.install.msg.spawn", "Нельзя ставить инсталляции рядом со спавном.");
+        config.addDefault("messages.install.msg.claim", "Нельзя ставить инсталляции на заклэймленной земле.");
+        config.addDefault("messages.install.msg.placed", "Инсталляция установлена: ");
+        config.addDefault("messages.install.msg.ttl", " · живёт {sec} с");
+        config.addDefault("messages.install.notify.trigger", "⚙ {name}: сработала на {target}");
+        config.addDefault("messages.install.notify.expired", "⚙ {name}: истекла");
         config.addDefault("messages.book.title", "Книга класса: ");
         config.addDefault("messages.book.tab.abilities", "Способности");
         config.addDefault("messages.book.tab.specs", "Специализации");
@@ -145,23 +192,6 @@ public final class RaskolConfig {
         config.addDefault("messages.book.install.desc.light_ward", "Зона: +2 HP/с союзникам в радиусе 4 на 6 с");
         config.addDefault("messages.book.install.desc.frost_rune", "Мина: 4 урона + Slowness II 3 с врагам в радиусе 3");
         config.addDefault("messages.book.install.desc.smoke_bomb", "Мина: Blindness 2 с врагам + Speed I себе 3 с");
-
-        // 1.5.9: локализация гейтов и инсталляций
-        config.addDefault("messages.gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
-        config.addDefault("messages.gate.blocked.install", "Инсталляции недоступны в этом режиме или до входа в аккаунт.");
-        config.addDefault("messages.install.msg.noclass", "Класс не выбран — посетите герольда");
-        config.addDefault("messages.install.msg.unlock", "Инсталляции откроются на уровне {level} ({skill})");
-        config.addDefault("messages.install.msg.limit", "Лимит активных инсталляций: {max}");
-        config.addDefault("messages.install.msg.global", "Земля насыщена инсталляциями: глобальный лимит {max}. Подожди, пока истечёт чужой TTL.");
-        config.addDefault("messages.install.msg.spam", "Слишком часто: пауза между постановками {sec} с");
-        config.addDefault("messages.install.msg.void", "Нельзя ставить инсталляции в пустоте или на лимите высоты.");
-        config.addDefault("messages.install.msg.border", "Нельзя ставить инсталляции за мировой границей.");
-        config.addDefault("messages.install.msg.spawn", "Нельзя ставить инсталляции рядом со спавном.");
-        config.addDefault("messages.install.msg.claim", "Нельзя ставить инсталляции на заклэймленной земле.");
-        config.addDefault("messages.install.msg.placed", "Инсталляция установлена: ");
-        config.addDefault("messages.install.msg.ttl", " · живёт {sec} с");
-        config.addDefault("messages.install.notify.trigger", "⚙ {name}: сработала на {target}");
-        config.addDefault("messages.install.notify.expired", "⚙ {name}: истекла");
 
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
@@ -253,6 +283,9 @@ public final class RaskolConfig {
     public boolean isTargetCastEnabled() { return plugin.getConfig().getBoolean("target-cast.enabled", true); }
     public boolean isTargetCastDebug() { return plugin.getConfig().getBoolean("target-cast.debug", false); }
 
+    public boolean authMeGate() { return plugin.getConfig().getBoolean("compat.authme-gate", true); }
+    public boolean blockCastsInCreative() { return plugin.getConfig().getBoolean("compat.block-casts-in-creative", true); }
+
     // 1.3.2: Core-адаптер
     public boolean raskolCoreEnabled() { return plugin.getConfig().getBoolean("hooks.raskolcore.enabled", true); }
 
@@ -277,6 +310,15 @@ public final class RaskolConfig {
     public String message(String key, String fallback) {
         String v = plugin.getConfig().getString("messages." + key, null);
         return v != null ? v : fallback;
+    }
+
+    // 1.6.0 пакет 2: числа урона способностей (damage-numbers)
+    public double abilityDamagePhysical(PlayerClass pc, String id, double fallback) {
+        return plugin.getConfig().getDouble(path(pc, id, "damage-physical"), fallback);
+    }
+
+    public double abilityDamageMagic(PlayerClass pc, String id, double fallback) {
+        return plugin.getConfig().getDouble(path(pc, id, "damage-magic"), fallback);
     }
 
     public double mageRegenTier1() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-1", 3.0); }
