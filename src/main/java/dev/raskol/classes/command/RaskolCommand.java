@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.gui.ClassBook;
@@ -26,10 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Команды 1.5.4: /rc (инфо), /rc 1–7 (каст/постановка), /rc menu (Книга класса),
- * /rc reload, /rc debug. Команды hud/bind/respec ушли в Книгу класса.
- */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
@@ -174,6 +171,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 pc.getColor()));
 
         UUID uuid = player.getUniqueId();
+
+        // 1.6.0: итоговые резисты класса (+ модификаторы)
+        player.sendMessage(Component.text("Резисты: ", NamedTextColor.GRAY)
+                .append(Component.text("физ " + (int) plugin.getResists().physicalResist(uuid)
+                        + "% · маг " + (int) plugin.getResists().magicResist(uuid) + "%",
+                        NamedTextColor.AQUA)));
+
         player.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY)
                 .append(Component.text(
                         plugin.getFlavorService().crownDisplayName(uuid),
@@ -260,6 +264,18 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 .append(Component.text(
                         (int) plugin.getResources().getValue(uuid) + "/100",
                         pc.getColor())));
+
+        // 1.6.0: разбивка резистов — база класса + активные модификаторы
+        ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
+        sender.sendMessage(Component.text("Резисты: ", NamedTextColor.GRAY)
+                .append(Component.text("физ " + (int) rb.physicalTotal() + "% (база "
+                        + (int) rb.basePhysical() + ") · маг " + (int) rb.magicTotal()
+                        + "% (база " + (int) rb.baseMagic() + ")", NamedTextColor.AQUA)));
+        for (ResistService.Modifier m : rb.active()) {
+            sender.sendMessage(Component.text("  • модификатор " + m.source()
+                    + ": физ " + (int) m.physicalPct() + "% · маг " + (int) m.magicPct() + "%",
+                    NamedTextColor.GRAY));
+        }
 
         sender.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY)
                 .append(Component.text(
@@ -390,7 +406,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             case "grace" -> "×" + cfg.passiveDouble(pc, id, "multiplier", 1.15);
             case "mana_soaked" -> "threshold " + (int) cfg.passiveDouble(pc, id, "threshold", 50.0)
                     + " маны · −" + percent(cfg.passiveDouble(pc, id, "reduction", 0.15));
-            case "poisoned_blides" -> "";
             case "poisoned_blades" -> "chance " + percent(cfg.passiveDouble(pc, id, "chance", 0.30))
                     + " · " + cfg.passiveInt(pc, id, "duration-seconds", 2) + "с"
                     + " · КД " + cfg.passiveInt(pc, id, "cooldown-seconds", 3) + "с";
