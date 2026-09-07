@@ -59,7 +59,7 @@ spec:
   respec-per-level: 10        # +10 за каждый уровень профильного скилла
 
 # 1.6.0: система сопротивлений урону (РЕЗИСТ)
-# Эффективный резист = база класса + модификаторы (эффекты/спек-пассивки/предметы),
+# Эффективный резист = база класса + модификаторы (эффекты/спек-пассивки),
 # суммарно не выше cap. Формула: получено = компонент × (1 − резист/100).
 # Чистый урон (true) игнорирует резисты и броню целиком.
 resist:
@@ -80,6 +80,13 @@ resist:
     HUNTER:                   # Охотник: сбалансированный лёгкий доспех
       magic: 12
       physical: 16
+  mana-soaked:                # 1.6.0 пакет 3: динамический резист мага (мана ≥ порога)
+    enabled: true
+    physical: 15
+    magic: 15
+  specs:
+    guardian:
+      physical: 10            # 1.6.0 пакет 3: пассивка спеки Страж (постоянно)
 
 # 1.6.0: переопределение типов ванильных причин урона (physical|magic|true).
 # Дефолты кода: огонь/яды/иссушение/молния = magic; VOID/SONIC_BOOM = true;
@@ -230,7 +237,7 @@ classes:
     abilities:
       steel_skin:
         name: "Стальная кожа"
-        description: "−80% входящего урона на 5 с"
+        description: "+15% физрезиста на 5 с"   # 1.6.0 пакет 3: честный резист вместо −80%
         unlock: 10
         cost: 30
         cooldown: 45
@@ -413,11 +420,9 @@ classes:
         damage-magic: 100       # 1.6.0 пакет 2: магический урон
     passives:
       mana_soaked:
-        enabled: true
-        display-name: "Пропитанный маной"
-        description: "мана ≥ 50 → −15% входящего урона"
+        enabled: false          # 1.6.0 пакет 3: старый −15% урона ВЫКЛ (теперь resist.mana-soaked)
         threshold: 50.0
-        reduction: 0.15
+        reduction: 0.15         # legacy, не используется
         regen-bonus: 1.0
 
   ROGUE:
@@ -446,7 +451,7 @@ classes:
         unlock: 25
         cost: 25
         cooldown: 15
-        damage-physical: 4      # 1.6.0 пакет 2 (после конвертации RogueAbilities): физ
+        damage-physical: 4      # 1.6.0 пакет 2: физический урон
       cheap_shot:
         name: "Подлый удар"
         description: "Blind + Slowness 2 с + 3 урона"
@@ -454,10 +459,10 @@ classes:
         cost: 40
         cooldown: 40
         duration: 2
-        damage-physical: 3      # 1.6.0 пакет 2 (после конвертации RogueAbilities): физ
+        damage-physical: 3      # 1.6.0 пакет 2: физический урон
       evasion:
         name: "Уклонение"
-        description: "100% уклонение от урона, 4 с"
+        description: "+30% физрезиста на 4 с"   # 1.6.0 пакет 3: честный резист вместо 100% уклонения
         unlock: 75
         cost: 60
         cooldown: 120
@@ -516,12 +521,10 @@ installations:
     radius: 4.0
     heal: 2.0                 # HP в секунду союзникам
   bear_trap:
-    damage: 3.0               # legacy-ключ (не используется с 1.6.0)
     damage-physical: 3        # 1.6.0 пакет 2: капкан = физический урон
     slow-duration: 2          # Slowness VI
   frost_rune:
     radius: 3.0
-    damage: 4.0               # legacy-ключ (не используется с 1.6.0)
     damage-magic: 4           # 1.6.0 пакет 2: руна = магический урон
     slow-duration: 3          # Slowness II
   smoke_bomb:
