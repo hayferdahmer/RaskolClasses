@@ -5,6 +5,8 @@ import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
@@ -33,6 +35,9 @@ import dev.raskol.classes.spec.SpecService;
 import dev.raskol.classes.spec.SpecStorage;
 import dev.raskol.classes.spec.SpecToken;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -43,8 +48,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.5.7: консолидация purge (fx + installations в общем таске),
- * адаптивный свип инсталляций, звуковой бюджет на тик.
+ * 1.6.0 пакет 1: ядро урона и резистов (ResistService + CombatService).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -73,6 +77,10 @@ public final class RaskolClasses extends JavaPlugin {
 
     private InstallationService installations;
     private InstallToken installToken;
+
+    // 1.6.0: ядро урона и резистов
+    private ResistService resists;
+    private CombatService combat;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -113,6 +121,10 @@ public final class RaskolClasses extends JavaPlugin {
         this.fx = new FxService(this);
         fx.validateConfig();
 
+        // 1.6.0: резисты и боевой сервис
+        this.resists = new ResistService(this);
+        this.combat = new CombatService(this, resists);
+
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
         this.specStorage = new SpecStorage(this);
@@ -139,6 +151,15 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(flavorService, this);
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
+        // 1.6.0: путь A — резисты к ванильному урону по игрокам
+        pluginManager.registerEvents(combat, this);
+        // 1.6.0: чистка модификаторов резиста на выход
+        pluginManager.registerEvents(new Listener() {
+            @EventHandler
+            public void onQuit(PlayerQuitEvent event) {
+                resists.clear(event.getPlayer().getUniqueId());
+            }
+        }, this);
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
@@ -157,7 +178,6 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(specService.startSpecNotifyTask());
         activeTasks.add(new ScrollCooldownTask(this).start());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
-        // 1.5.7: единый purge-таск для всех stale-карт
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
             effects.purgeExpired();
@@ -165,6 +185,7 @@ public final class RaskolClasses extends JavaPlugin {
             abilities.purgeStaleAttempts();
             fx.purgeStale();
             installations.purgeStale();
+            resists.purgeExpired();
         }, purgeInterval, purgeInterval));
 
         registerCommand();
@@ -248,4 +269,6 @@ public final class RaskolClasses extends JavaPlugin {
     public FxService getFx() { return fx; }
     public InstallationService getInstallations() { return installations; }
     public InstallToken getInstallToken() { return installToken; }
+    public ResistService getResists() { return resists; }
+    public CombatService getCombat() { return combat; }
 }
