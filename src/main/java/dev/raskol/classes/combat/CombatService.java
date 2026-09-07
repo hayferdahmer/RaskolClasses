@@ -6,7 +6,6 @@ import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.NamespacedKey;
 import org.bukkit.damage.DamageSource;
-import org.bukkit.damage.DamageType;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -27,8 +26,9 @@ import java.util.UUID;
  *   profile) — сервис сам считает итог покомпонентно и применяет:
  *   физ-часть через обычную атаку (броня работает), маг+чистый — через
  *   DamageSource minecraft:magic (броню не трогает; резисты уже учтены нами).
- * FIX 1.6.0.1: тип magic берётся из реестра Paper по namespaced-ключу
- *   (в paper-api 1.21.4 нет класса-констант org.bukkit.damage.DamageTypes).
+ * FIX 1.6.0.2: НЕ импортируем org.bukkit.damage.DamageType — single-type import
+ *   затенял наш enum DamageType из этого же пакета (TRUE/PHYSICAL «исчезали»).
+ *   Ванильный тип magic держим полностью квалифицированным именем.
  * Двойного применения резиста нет: свои же вызовы помечаются ThreadLocal-флагом.
  */
 public final class CombatService implements Listener {
@@ -36,8 +36,8 @@ public final class CombatService implements Listener {
     /** Маркер «этот урон уже посчитан CombatService» (свои вызовы пути B). */
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
-    /** Кэш ванькиного типа урона minecraft:magic из реестра. */
-    private static volatile DamageType magicTypeCache;
+    /** Кэш ванильного типа урона minecraft:magic из реестра Paper. */
+    private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
     private final RaskolClasses plugin;
     private final ResistService resists;
@@ -51,9 +51,9 @@ public final class CombatService implements Listener {
         return resists;
     }
 
-    /** Тип урона minecraft:magic из реестра Paper (null-safe фолбэк не нужен). */
-    private static DamageType magicType() {
-        DamageType local = magicTypeCache;
+    /** Тип урона minecraft:magic из реестра Paper (без класса-констант). */
+    private static org.bukkit.damage.DamageType magicType() {
+        org.bukkit.damage.DamageType local = magicTypeCache;
         if (local == null) {
             local = RegistryAccess.registryAccess()
                     .getRegistry(RegistryKey.DAMAGE_TYPE)
@@ -119,7 +119,7 @@ public final class CombatService implements Listener {
         }
         if (magicTruePart > 0.0) {
             SUPPRESS.set(Boolean.TRUE);
-            DamageType magic = magicType();
+            org.bukkit.damage.DamageType magic = magicType();
             if (magic != null) {
                 DamageSource.Builder builder = DamageSource.builder(magic);
                 if (source != null) {
