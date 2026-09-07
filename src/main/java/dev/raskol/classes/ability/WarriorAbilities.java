@@ -11,7 +11,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-/** Активные способности воина (ресурс — ярость). Длительности — из config (D2). */
+/**
+ * Активные способности воина (ресурс — ярость).
+ * 1.6.0 пакет 3: Стальная кожа даёт +15 физрезист на duration через ResistService.
+ */
 public final class WarriorAbilities {
 
     private final RaskolClasses plugin;
@@ -20,15 +23,22 @@ public final class WarriorAbilities {
         this.plugin = plugin;
     }
 
-    /** Стальная кожа: −80% входящего урона (duration, дефолт 5 с). */
+    /**
+     * Стальная кожа: −80% входящего урона (реализовано как +15% физрезист
+     * на duration, дефолт 5 с). Эффект SHIELD_WALL сохранён для совместимости
+     * с PassiveListener/прочими слушателями.
+     */
     public boolean steelSkin(Player player, AbilityDef def) {
         long durationMillis = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.WARRIOR, "steel_skin", 5) * 1000L;
         plugin.getEffects().addTimed(player.getUniqueId(), EffectType.SHIELD_WALL, durationMillis);
+        // 1.6.0 пакет 3: модификатор резиста
+        plugin.getResists().addTimedModifier(player.getUniqueId(), "steel_skin",
+                15.0, 0.0, durationMillis);
         return true;
     }
 
-    /** Удар щитом: живым в радиусе 4 — Slowness II и слепота (duration, дефолт 3 с) + таунт. */
+    /** Удар щитом: Slowness II + Blindness в радиусе 4 + таунт мобов. */
     public boolean shieldBash(Player player, AbilityDef def) {
         int ticks = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.WARRIOR, "shield_bash", 3) * 20;
@@ -40,11 +50,11 @@ public final class WarriorAbilities {
             living.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, ticks, 1));
             living.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, ticks, 0));
             if (living instanceof Mob mob) {
-                mob.setTarget(player); // таунт
+                mob.setTarget(player);
             }
             affected++;
         }
-        return affected > 0; // никого не задело — каст отменяется с возвратом
+        return affected > 0;
     }
 
     /** Кровавое безумие: 4 с возвращает 20% полученного урона агрессору. */
@@ -55,7 +65,7 @@ public final class WarriorAbilities {
         return true;
     }
 
-    /** Бог войны: Сила II и Сопротивление I (duration, дефолт 8 с). */
+    /** Бог войны: Сила II + Сопротивление I (duration, дефолт 8 с). */
     public boolean warGod(Player player, AbilityDef def) {
         int ticks = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.WARRIOR, "war_god", 8) * 20;
