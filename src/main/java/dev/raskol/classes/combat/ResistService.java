@@ -13,17 +13,20 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 1.6.0: сопротивления урону (РЕЗИСТ).
- * Эффективный резист = база класса (конфиг resist.classes.*) + временные
- * модификаторы (эффекты/спек-пассивки/будущие предметы), всё в процентах,
- * суммарно ограничено капом resist.cap (дефолт 90). Чистый урон игнорирует
- * резисты целиком — он через этот сервис не проходит.
- * Базы по ТЗ 1.6.0: Воин 12/27, Разбойник 12/14, Маг 26/12, Жрец 30/16,
- * Охотник 12/16 (маг/физ).
+ * Эффективный резист = база класса + временные/постоянные модификаторы
+ * (эффекты/спек-пассивки/будущие предметы), всё в процентах, суммарно
+ * ограничено капом resist.cap (дефолт 90). Чистый урон игнорирует резисты
+ * целиком — он через этот сервис не проходит.
+ *
+ * Пакет 3: permanent-модификаторы (expiresAt = Long.MAX_VALUE) для спек-пассивок
+ * типа Стража +10 физ; removeModifiersBySource() — снятие по источнику (респец,
+ * смена класса, истечение бафа).
  */
 public final class ResistService {
 
-    /** Временной модификатор резиста (проценты, может быть отрицательным). */
+    /** Временной или постоянный модификатор резиста (проценты). */
     public record Modifier(String source, double physicalPct, double magicPct, long expiresAt) {
+        public boolean isPermanent() { return expiresAt == Long.MAX_VALUE; }
     }
 
     /** Разбивка для /rc debug: база + активные модификаторы + итог. */
@@ -39,7 +42,6 @@ public final class ResistService {
         this.plugin = plugin;
     }
 
-    /** Кап суммарного резиста, % (дефолт 90). */
     public double cap() {
         return plugin.getConfig().getDouble("resist.cap", 90.0);
     }
@@ -74,15 +76,44 @@ public final class ResistService {
         };
     }
 
-    /** Добавить временной модификатор (эффект, спек-пассивка, будущий предмет). */
+    /** Временной модификатор (эффект-баф, spect-активка). */
     public void addTimedModifier(UUID uuid, String source,
                                  double physicalPct, double magicPct, long millis) {
+        removeModifiersBySource(uuid, source);
         modifiers.computeIfAbsent(uuid, k -> new CopyOnWriteArrayList<>())
                 .add(new Modifier(source, physicalPct, magicPct,
                         System.currentTimeMillis() + millis));
     }
 
-    /** Полный расчёт с разбивкой (для /rc debug и боевых вызовов). */
+    /**
+     * Постоянный модификатор (спек-пассивка типа Страж +10 физ).
+     * expiresAt = Long.MAX_VALUE — снимается только через removeModifiersBySource.
+     */
+    public void addPermanentModifier(UUID uuid, String source,
+                                     double physicalPct, double magicPct) {
+        removeModifiersBySource(uuid, source);
+        modifiers.computeIfAbsent(uuid, k -> new CopyOnWriteArrayList<>())
+                .add(new Modifier(source, physicalPct, magicPct, Long.MAX_VALUE));
+    }
+
+    /** Есть ли активный модификатор с данным источником (для idempotent-логики). */
+    public boolean hasModifier(UUID uuid, String source) {
+        CopyOnWriteArrayList<Modifier> list = modifiers.get(uuid);
+        if (list == null) return false;
+        long now = System.currentTimeMillis();
+        return list.stream()
+                .anyMatch(m -> m.source().equals(source)
+                        && (m.expiresAt() == Long.MAX_VALUE || m.expiresAt() > now));
+    }
+
+    /** Снять все модификаторы с данным источником (респец, смена класса, баф-офф). */
+    public void removeModifiersBySource(UUID uuid, String source) {
+        CopyOnWriteArrayList<Modifier> list = modifiers.get(uuid);
+        if (list == null) return;
+        list.removeIf(m -> m.source().equals(source));
+        if (list.isEmpty()) modifiers.remove(uuid);
+    }
+
     public Breakdown breakdown(UUID uuid) {
         Player player = plugin.getServer().getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
@@ -98,25 +129,10 @@ public final class ResistService {
         return new Breakdown(basePhys, baseMagic, active, clamp(phys), clamp(magic));
     }
 
-    /** Итоговый физрезист игрока, % (0..cap). */
-    public double physicalResist(UUID uuid) {
-        return breakdown(uuid).physicalTotal();
-    }
-
-    /** Итоговый магрезист игрока, % (0..cap). */
-    public double magicResist(UUID uuid) {
-        return breakdown(uuid).magicTotal();
-    }
-
-    /** Множитель входящего физического урона (0..1). */
-    public double physicalFactor(UUID uuid) {
-        return 1.0 - physicalResist(uuid) / 100.0;
-    }
-
-    /** Множитель входящего магического урона (0..1). */
-    public double magicFactor(UUID uuid) {
-        return 1.0 - magicResist(uuid) / 100.0;
-    }
+    public double physicalResist(UUID uuid) { return breakdown(uuid).physicalTotal(); }
+    public double magicResist(UUID uuid) { return breakdown(uuid).magicTotal(); }
+    public double physicalFactor(UUID uuid) { return 1.0 - physicalResist(uuid) / 100.0; }
+    public double magicFactor(UUID uuid) { return 1.0 - magicResist(uuid) / 100.0; }
 
     private double clamp(double value) {
         return Math.max(0.0, Math.min(cap(), value));
@@ -124,25 +140,19 @@ public final class ResistService {
 
     private List<Modifier> activeModifiers(UUID uuid) {
         CopyOnWriteArrayList<Modifier> list = modifiers.get(uuid);
-        if (list == null) {
-            return List.of();
-        }
+        if (list == null) return List.of();
         long now = System.currentTimeMillis();
-        list.removeIf(m -> m.expiresAt() <= now);
+        list.removeIf(m -> !m.isPermanent() && m.expiresAt() <= now);
         return list;
     }
 
-    /** Чистка истёкших модификаторов (общий purge-таск). */
     public void purgeExpired() {
         long now = System.currentTimeMillis();
         modifiers.entrySet().removeIf(entry -> {
-            entry.getValue().removeIf(m -> m.expiresAt() <= now);
+            entry.getValue().removeIf(m -> !m.isPermanent() && m.expiresAt() <= now);
             return entry.getValue().isEmpty();
         });
     }
 
-    /** Полная чистка игрока (PlayerQuit). */
-    public void clear(UUID uuid) {
-        modifiers.remove(uuid);
-    }
+    public void clear(UUID uuid) { modifiers.remove(uuid); }
 }
