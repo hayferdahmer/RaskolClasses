@@ -42,9 +42,13 @@ public final class RaskolConfig {
 
         config.addDefault("hotbar-bind.enabled", true);
         config.addDefault("hotbar-bind.material", "AMETHYST_SHARD");
+        config.addDefault("hotbar-bind.cooldown-bar", true);
 
         config.addDefault("target-cast.enabled", true);
         config.addDefault("target-cast.debug", false);
+
+        config.addDefault("compat.authme-gate", true);
+        config.addDefault("compat.block-casts-in-creative", true);
 
         // 1.3.2: Core-адаптер (читать класс из RaskolCore; LP — фолбэк)
         config.addDefault("hooks.raskolcore.enabled", true);
@@ -58,11 +62,13 @@ public final class RaskolConfig {
 
         config.addDefault("performance.purge-interval-ticks", 1200);
         config.addDefault("performance.cast-click-cooldown-ms", 150L);
+        config.addDefault("performance.sound-budget-per-tick", 8);
 
         config.addDefault("performance.ready-notify.enabled", true);
         config.addDefault("performance.ready-notify.min-cooldown-seconds", 30);
         config.addDefault("performance.ready-notify.sound", "ENTITY_PLAYER_LEVELUP");
         config.addDefault("performance.ready-notify.message", "{ability} — готова");
+        config.addDefault("performance.ready-notify.spec-enabled", true);
 
         config.addDefault("class-accept.enabled", true);
         config.addDefault("class-accept.subtitle", "Твой путь избран");
@@ -85,6 +91,77 @@ public final class RaskolConfig {
         config.addDefault("messages.shield-target", "Щит на: {target}");
         config.addDefault("messages.shield-you", "{caster} наложил на тебя щит");
         config.addDefault("messages.target-full-hp", "Цель здорова");
+
+        // 1.5.9: локализация Книги класса
+        config.addDefault("messages.book.title", "Книга класса: ");
+        config.addDefault("messages.book.tab.abilities", "Способности");
+        config.addDefault("messages.book.tab.specs", "Специализации");
+        config.addDefault("messages.book.tab.class", "Класс и пассивки");
+        config.addDefault("messages.book.tab.hint", "Клик — открыть вкладку");
+        config.addDefault("messages.book.cost", "Цена: {cost} {resource}");
+        config.addDefault("messages.book.cooldown", "Кулдаун: {sec} с");
+        config.addDefault("messages.book.recharging", "Перезарядка: {sec} с");
+        config.addDefault("messages.book.unlock", "Открытие: уровень {level}");
+        config.addDefault("messages.book.scroll.have", "Свиток: в инвентаре ({count})");
+        config.addDefault("messages.book.scroll.none", "Свиток: нет");
+        config.addDefault("messages.book.use.left", "ЛКМ — применить");
+        config.addDefault("messages.book.use.right", "ПКМ — свиток в хотбар");
+        config.addDefault("messages.book.place.left", "ЛКМ — поставить здесь");
+        config.addDefault("messages.book.place.right", "ПКМ — свиток постановки");
+        config.addDefault("messages.book.install.active", "Активно: {count}/2 · TTL {ttl} с");
+        config.addDefault("messages.book.spec.passive", "Пассив: {text}");
+        config.addDefault("messages.book.spec.active", "Актив: {text}");
+        config.addDefault("messages.book.spec.activecost", "Цена актива: {cost} рес · КД: {sec} с");
+        config.addDefault("messages.book.spec.chosen", "Выбрана тобой");
+        config.addDefault("messages.book.spec.notchosen", "Не выбрана · ПКМ — выбрать (уровень 40+)");
+        config.addDefault("messages.book.spec.other", "Выбрана другая спека — отречение ниже");
+        config.addDefault("messages.book.spec.scroll.right", "ПКМ — свиток активки в хотбар");
+        config.addDefault("messages.book.respec.title", "Отречение от пути");
+        config.addDefault("messages.book.respec.nospec", "Спеки нет — отрекаться не от чего");
+        config.addDefault("messages.book.respec.current", "Текущая спека: {name}");
+        config.addDefault("messages.book.respec.price", "Цена: {price} монет (сжигаются)");
+        config.addDefault("messages.book.respec.hint", "ПКМ №1 — взвести, ПКМ №2 (30 с) — отречься");
+        config.addDefault("messages.book.msg.scroll.got", "Свиток получен: ");
+        config.addDefault("messages.book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан.");
+        config.addDefault("messages.book.msg.spec.other", "Спека уже выбрана: {name}. Отречение — кристалл ниже.");
+        config.addDefault("messages.book.msg.respec.none", "Спеки нет — отрекаться не от чего.");
+        config.addDefault("messages.book.msg.respec.arm", "Отречение взведено: ПКМ по кристаллу ещё раз в течение 30 с. Цена: {price} монет");
+        config.addDefault("messages.book.msg.respec.ok", "Путь сброшен. Выбери новую спеку.");
+        config.addDefault("messages.book.msg.respec.poor", "Не хватает монет на отречение.");
+        config.addDefault("messages.book.msg.respec.noecon", "Экономика недоступна — респец отключён.");
+        config.addDefault("messages.book.resource.warrior", "Ярость: −5/с вне боя; +10 за урон (нанёс/получил)");
+        config.addDefault("messages.book.resource.hunter", "Концентрация: +5/с вне боя, 0 в бою");
+        config.addDefault("messages.book.resource.priest", "Свет: +2/с всегда; +5 за событие лечения");
+        config.addDefault("messages.book.resource.mage", "Мана: +3/4/5/6 в секунду по порогам 25/50/75");
+        config.addDefault("messages.book.resource.rogue", "Энергия: +10/с");
+        config.addDefault("messages.book.emblem.resource", "Ресурс сейчас: {value}/100");
+        config.addDefault("messages.book.emblem.crown", "Корона: {name}");
+        config.addDefault("messages.book.crown.title", "Корона и титул");
+        config.addDefault("messages.book.crown.crown", "Корона: {name}");
+        config.addDefault("messages.book.crown.titleline", "Титул: {name}");
+        config.addDefault("messages.book.crown.aura", "Аура-партикл видна союзникам и врагам");
+        config.addDefault("messages.book.install.desc.war_banner", "Аура: Resistance I союзникам в радиусе 6 на 8 с");
+        config.addDefault("messages.book.install.desc.bear_trap", "Мина: Slowness VI 2 с + 3 урона шагнувшему врагу");
+        config.addDefault("messages.book.install.desc.light_ward", "Зона: +2 HP/с союзникам в радиусе 4 на 6 с");
+        config.addDefault("messages.book.install.desc.frost_rune", "Мина: 4 урона + Slowness II 3 с врагам в радиусе 3");
+        config.addDefault("messages.book.install.desc.smoke_bomb", "Мина: Blindness 2 с врагам + Speed I себе 3 с");
+
+        // 1.5.9: локализация гейтов и инсталляций
+        config.addDefault("messages.gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
+        config.addDefault("messages.gate.blocked.install", "Инсталляции недоступны в этом режиме или до входа в аккаунт.");
+        config.addDefault("messages.install.msg.noclass", "Класс не выбран — посетите герольда");
+        config.addDefault("messages.install.msg.unlock", "Инсталляции откроются на уровне {level} ({skill})");
+        config.addDefault("messages.install.msg.limit", "Лимит активных инсталляций: {max}");
+        config.addDefault("messages.install.msg.global", "Земля насыщена инсталляциями: глобальный лимит {max}. Подожди, пока истечёт чужой TTL.");
+        config.addDefault("messages.install.msg.spam", "Слишком часто: пауза между постановками {sec} с");
+        config.addDefault("messages.install.msg.void", "Нельзя ставить инсталляции в пустоте или на лимите высоты.");
+        config.addDefault("messages.install.msg.border", "Нельзя ставить инсталляции за мировой границей.");
+        config.addDefault("messages.install.msg.spawn", "Нельзя ставить инсталляции рядом со спавном.");
+        config.addDefault("messages.install.msg.claim", "Нельзя ставить инсталляции на заклэймленной земле.");
+        config.addDefault("messages.install.msg.placed", "Инсталляция установлена: ");
+        config.addDefault("messages.install.msg.ttl", " · живёт {sec} с");
+        config.addDefault("messages.install.notify.trigger", "⚙ {name}: сработала на {target}");
+        config.addDefault("messages.install.notify.expired", "⚙ {name}: истекла");
 
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
