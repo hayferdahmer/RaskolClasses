@@ -3,20 +3,16 @@ package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import dev.raskol.classes.combat.DamageProfile;
 import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
-import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
+import org.bukkit.Particle;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Fireball;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.SmallFireball;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 public final class MageAbilities {
@@ -27,77 +23,83 @@ public final class MageAbilities {
         this.plugin = plugin;
     }
 
+    /**
+     * Огненная стрела — ГИБРИД: 30 физ (снаряд) + 70 маг (огонь/поджог).
+     * Числа читаются из конфига damage-numbers.mage.firebolt.{physical,magic}.
+     */
     public boolean firebolt(Player player, AbilityDef def) {
-        SmallFireball fireball = player.launchProjectile(SmallFireball.class);
+        double phys = plugin.getRaskolConfig().abilityDamagePhysical(PlayerClass.MAGE, def.id(), 30.0);
+        double magic = plugin.getRaskolConfig().abilityDamageMagic(PlayerClass.MAGE, def.id(), 70.0);
+        Location loc = player.getEyeLocation();
+        Vector dir = loc.getDirection();
+        Fireball fireball = player.launchProjectile(Fireball.class, dir.multiply(1.5));
+        fireball.setIsIncendiary(true);
         fireball.setYield(0f);
-        fireball.setIsIncendiary(false);
-        fireball.setVelocity(fireball.getVelocity().multiply(1.5));
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (fireball.isValid() && !fireball.isDead()) {
+                Entity target = null;
+                for (Entity e : fireball.getNearbyEntities(2.0, 2.0, 2.0)) {
+                    if (e instanceof LivingEntity && e != player) {
+                        target = e;
+                        break;
+                    }
+                }
+                if (target instanceof LivingEntity living) {
+                    plugin.getCombat().dealDamage(living, player,
+                            DamageProfile.hybrid(phys, magic));
+                    living.setFireTicks(60);
+                }
+                fireball.remove();
+            }
+        }, 40L);
         return true;
     }
 
     public boolean blink(Player player, AbilityDef def) {
-        RayTraceResult hit = player.rayTraceBlocks(8);
-        Location destination = player.getLocation().clone();
-        if (hit == null || hit.getHitBlock() == null) {
-            destination.add(player.getLocation().getDirection().multiply(8));
-        } else {
-            Block above = hit.getHitBlock().getRelative(BlockFace.UP);
-            destination.set(above.getX() + 0.5, above.getY(), above.getZ() + 0.5);
-        }
-
-        if (!isSafe(destination)) {
-            // Пакет 3: сообщение из messages.blink-unsafe
-            String text = plugin.getRaskolConfig().message("blink-unsafe",
-                    "Скачок невозможен: нет безопасной точки");
-            player.sendMessage(Component.text(text, NamedTextColor.RED));
+        Location loc = player.getLocation();
+        Vector dir = loc.getDirection().multiply(8.0);
+        Location target = loc.clone().add(dir);
+        if (target.getBlock().getType().isSolid()) {
+            player.sendMessage(plugin.getRaskolConfig().message("blink-unsafe",
+                    "Скачок невозможен: нет безопасной точки"));
             return false;
         }
-        player.teleport(destination);
+        player.teleport(target);
+        player.getWorld().spawnParticle(Particle.PORTAL, loc, 30, 0.5, 0.5, 0.5, 0.1);
+        player.getWorld().spawnParticle(Particle.PORTAL, target, 30, 0.5, 0.5, 0.5, 0.1);
         return true;
     }
 
+    /** Кольцо льда — МАГ. */
     public boolean frostNova(Player player, AbilityDef def) {
-        int ticks = plugin.getRaskolConfig()
-                .durationSeconds(PlayerClass.MAGE, "frost_nova", 4) * 20;
-        boolean affected = false;
-        for (Entity entity : player.getNearbyEntities(5, 5, 5)) {
-            if (!(entity instanceof LivingEntity living) || entity.equals(player)) {
-                continue;
+        double magic = plugin.getRaskolConfig().abilityDamageMagic(PlayerClass.MAGE, def.id(), 40.0);
+        double radius = 5.0;
+        int duration = plugin.getRaskolConfig().durationSeconds(PlayerClass.MAGE, def.id(), 4);
+        for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
+            if (entity instanceof Mob mob && mob != player) {
+                plugin.getCombat().dealDamage(mob, player, DamageProfile.magic(magic));
+                mob.addPotionEffect(new PotionEffect(
+                        PotionEffectType.SLOWNESS, duration * 20, 2));
             }
-            living.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, ticks, 1));
-            living.damage(3.0, player);
-            affected = true;
         }
-        return affected;
+        player.getWorld().spawnParticle(Particle.SNOWFLAKE,
+                player.getLocation().clone().add(0.0, 0.5, 0.0),
+                40, radius * 0.6, 0.3, radius * 0.6, 0.0);
+        return true;
     }
 
+    /** Чародейский взрыв — МАГ. */
     public boolean arcaneBurst(Player player, AbilityDef def) {
-        boolean affected = false;
-        for (Entity entity : player.getNearbyEntities(6, 6, 6)) {
-            if (!(entity instanceof LivingEntity living) || entity.equals(player)) {
-                continue;
+        double magic = plugin.getRaskolConfig().abilityDamageMagic(PlayerClass.MAGE, def.id(), 100.0);
+        double radius = 6.0;
+        for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
+            if (entity instanceof LivingEntity living && living != player) {
+                plugin.getCombat().dealDamage(living, player, DamageProfile.magic(magic));
             }
-            living.damage(8.0, player);
-            living.setVelocity(living.getVelocity().add(new Vector(0.0, 0.6, 0.0)));
-            affected = true;
         }
-        return affected;
-    }
-
-    private boolean isSafe(Location location) {
-        World world = location.getWorld();
-        if (world == null) {
-            return false;
-        }
-        int y = location.getBlockY();
-        if (y <= world.getMinHeight() || y >= world.getMaxHeight() - 1) {
-            return false;
-        }
-        Block feet = world.getBlockAt(location);
-        Block head = world.getBlockAt(location.clone().add(0, 1, 0));
-        Block ground = world.getBlockAt(location.clone().subtract(0, 1, 0));
-        return feet.isPassable() && head.isPassable()
-                && !ground.isPassable()
-                && ground.getType() != Material.LAVA;
+        player.getWorld().spawnParticle(Particle.POOF,
+                player.getLocation().clone().add(0.0, 1.0, 0.0),
+                50, 0.8, 0.8, 0.8, 0.05);
+        return true;
     }
 }
