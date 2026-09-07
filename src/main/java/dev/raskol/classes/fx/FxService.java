@@ -21,11 +21,12 @@ import java.util.Map;
 
 /**
  * Движок звука/партиклов (1.5.0 + 1.5.3).
- *  - каталог дефолтов вшит в код; конфиг vfx.* только переопределяет;
- *  - резолв через Registry.SOUNDS / Registry.PARTICLE_TYPE (без deprecated API);
- *  - FIX 1.5.3: validateConfig() при старте и /rc reload — варн на каждое
- *    неизвестное имя в vfx.* (раньше опечатка = тихая тишина без следа);
- *  - FIX 1.5.3: appendDebug(...) — строки fx-каталога в /rc debug.
+ * FIX 1.5.3.1: резолв имён через ИНДЕКС реестра по нормализованному ключу
+ * (регистр и разделители [._-] игнорируются) — ванильные id вида
+ * entity.experience_orb.pickup / entity.player.hurt_freeze теперь резолвятся;
+ * плюс алиасы для переименованных имён (enchantment_table -> enchanting_table,
+ * item.armor.equip.iron -> block.anvil.land на билдах, где equip-звуков нет).
+ * Валидация vfx.* на старте и /rc reload — как в 1.5.3.
  */
 public final class FxService {
 
@@ -60,7 +61,8 @@ public final class FxService {
         DEFAULTS.put("snare", new String[]{"BLOCK_TRIPWIRE_ATTACH", "CRIT"});
         DEFAULTS.put("sanctuary", new String[]{"BLOCK_BEACON_ACTIVATE", "HEART"});
         DEFAULTS.put("mind_spike", new String[]{"ENTITY_ENDERMAN_STARE", "REVERSE_PORTAL"});
-        DEFAULTS.put("arcane_flow", new String[]{"BLOCK_ENCHANTMENT_TABLE_USE", "ENCHANTED_HIT"});
+        // 1.5.3.1: ванильное имя — block.enchanting_table.use
+        DEFAULTS.put("arcane_flow", new String[]{"BLOCK_ENCHANTING_TABLE_USE", "ENCHANTED_HIT"});
         DEFAULTS.put("ice_ring", new String[]{"ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE"});
         DEFAULTS.put("garrote", new String[]{"ENTITY_PLAYER_ATTACK_WEAK", "DAMAGE_INDICATOR"});
         DEFAULTS.put("smoke_bomb", new String[]{"BLOCK_FIRE_EXTINGUISH", "SMOKE"});
@@ -75,6 +77,17 @@ public final class FxService {
         DEFAULTS.put("proc.lifesteal_shadowweaver", new String[]{"ENTITY_PLAYER_LEVELUP", "HEART"});
     }
 
+    /** Алиасы для имён, переименованных или отсутствующих на части билдов. */
+    private static final Map<String, String> SOUND_ALIASES = new HashMap<>();
+
+    static {
+        SOUND_ALIASES.put("BLOCK_ENCHANTMENT_TABLE_USE", "BLOCK_ENCHANTING_TABLE_USE");
+        SOUND_ALIASES.put("ITEM_ARMOR_EQUIP_IRON", "BLOCK_ANVIL_LAND");
+    }
+
+    private static volatile Map<String, Sound> soundIndexCache;
+    private static volatile Map<String, Particle> particleIndexCache;
+
     private final RaskolClasses plugin;
 
     public FxService(RaskolClasses plugin) {
@@ -86,10 +99,7 @@ public final class FxService {
         castVfx(player, abilityId);
     }
 
-    /**
-     * VFX каста классовых абилок (1–5): играет только если кулдаун
-     * «свежий» (запущен в последние 300 мс) — значит каст прошёл успешно.
-     */
+    /** VFX каста классовых абилок (1–5) только при «свежем» кулдауне. */
     public void onAttempt(Player player, String abilityId, long cooldownMillis) {
         if (cooldownMillis > 0) {
             long remaining = plugin.getCooldowns()
@@ -156,39 +166,89 @@ public final class FxService {
         }
     }
 
-    /** Безопасный резолв звука: опечатка = null (тишина). */
-    public Sound resolveSound(String key) {
-        if (key == null || key.isEmpty()) {
-            return null;
-        }
-        String lower = key.toLowerCase(Locale.ROOT);
-        Sound s = Registry.SOUNDS.get(NamespacedKey.minecraft(lower.replace('_', '.')));
-        if (s != null) {
-            return s;
-        }
-        return Registry.SOUNDS.get(NamespacedKey.minecraft(lower));
+    // --- FIX 1.5.3.1: резолв через индекс реестра + алиасы ---
+
+    /** Нормализация: нижний регистр, без разделителей [._-]. */
+    private static String norm(String s) {
+        return s.toLowerCase(Locale.ROOT).replaceAll("[._-]", "");
     }
 
-    /** Безопасный резолв партикла: опечатка = null. */
+    private static Map<String, Sound> soundIndex() {
+        Map<String, Sound> local = soundIndexCache;
+        if (local == null) {
+            synchronized (FxService.class) {
+                local = soundIndexCache;
+                if (local == null) {
+                    local = new HashMap<>();
+                    for (Sound s : Registry.SOUNDS) {
+                        local.putIfAbsent(norm(s.name()), s);
+                    }
+                    soundIndexCache = local;
+                }
+            }
+        }
+        return local;
+    }
+
+    private static Map<String, Particle> particleIndex() {
+        Map<String, Particle> local = particleIndexCache;
+        if (local == null) {
+            synchronized (FxService.class) {
+                local = particleIndexCache;
+                if (local == null) {
+                    local = new HashMap<>();
+                    for (Particle p : Registry.PARTICLE_TYPE) {
+                        local.putIfAbsent(norm(p.name()), p);
+                    }
+                    particleIndexCache = local;
+                }
+            }
+        }
+        return local;
+    }
+
+    /** Безопасный резолв звука: индекс → алиасы → прямые ключи; иначе null. */
+    public Sound resolveSound(String key) {
+        String current = key;
+        for (int hop = 0; hop < 3 && current != null && !current.isEmpty(); hop++) {
+            String lower = current.toLowerCase(Locale.ROOT);
+            Sound s = soundIndex().get(norm(lower));
+            if (s != null) {
+                return s;
+            }
+            s = Registry.SOUNDS.get(NamespacedKey.minecraft(lower.replace('_', '.')));
+            if (s != null) {
+                return s;
+            }
+            s = Registry.SOUNDS.get(NamespacedKey.minecraft(lower));
+            if (s != null) {
+                return s;
+            }
+            current = SOUND_ALIASES.get(current.toUpperCase(Locale.ROOT));
+        }
+        return null;
+    }
+
+    /** Безопасный резолв партикла: индекс → прямые ключи; иначе null. */
     public Particle resolveParticle(String key) {
         if (key == null || key.isEmpty()) {
             return null;
         }
         String lower = key.toLowerCase(Locale.ROOT);
-        Particle p = Registry.PARTICLE_TYPE.get(NamespacedKey.minecraft(lower.replace('_', '.')));
+        Particle p = particleIndex().get(norm(lower));
+        if (p != null) {
+            return p;
+        }
+        p = Registry.PARTICLE_TYPE.get(NamespacedKey.minecraft(lower.replace('_', '.')));
         if (p != null) {
             return p;
         }
         return Registry.PARTICLE_TYPE.get(NamespacedKey.minecraft(lower));
     }
 
-    // --- FIX 1.5.3: диагностика каталога vfx ---
+    // --- 1.5.3: диагностика каталога vfx ---
 
-    /**
-     * Проверка всех имён vfx.* (cast-sound/cast-particle, включая proc.*).
-     * Логирует WARNING на каждое неизвестное имя + итог. Вызывается на старте
-     * и в /rc reload. Возвращает число проблем.
-     */
+    /** Проверка всех имён vfx.*; WARNING на каждое неизвестное; возврат = число проблем. */
     public int validateConfig() {
         int problems = scan(true);
         if (problems == 0) {
@@ -217,7 +277,7 @@ public final class FxService {
             }
             ConfigurationSection entry = vfx.getConfigurationSection(key);
             if (entry == null) {
-                continue; // например, proc-actionbar: boolean
+                continue;
             }
             problems += checkEntry("vfx." + key, entry, log);
         }
