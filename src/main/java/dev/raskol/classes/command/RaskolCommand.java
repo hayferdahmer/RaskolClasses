@@ -7,13 +7,10 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
-import dev.raskol.classes.gui.ClassMenu;
+import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.install.Installation;
-import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.SpecMenu;
 import dev.raskol.classes.spec.SpecRegistry;
-import dev.raskol.classes.spec.SpecService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -29,11 +26,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Команды 1.5.4: /rc (инфо), /rc 1–7 (каст/постановка), /rc menu (Книга класса),
+ * /rc reload, /rc debug. Команды hud/bind/respec ушли в Книгу класса.
+ */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
-            List.of("1", "2", "3", "4", "5", "6", "7", "menu", "hud", "reload", "debug",
-                    "bind", "spec", "respec");
+            List.of("1", "2", "3", "4", "5", "6", "7", "menu", "reload", "debug");
 
     private final RaskolClasses plugin;
 
@@ -66,28 +66,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(Component.text("RaskolClasses: конфигурация перезагружена",
                         NamedTextColor.GREEN));
             }
-            case "hud" -> {
-                if (!(sender instanceof Player player)) {
-                    sender.sendMessage(Component.text("HUD — только для игроков",
-                            NamedTextColor.GRAY));
-                    return true;
-                }
-                boolean visible = plugin.getHud().toggle(player);
-                player.sendMessage(Component.text("HUD " + (visible ? "включён" : "выключен"),
-                        visible ? NamedTextColor.GREEN : NamedTextColor.GRAY));
-            }
             case "menu" -> {
                 if (!(sender instanceof Player player)) {
-                    return true;
-                }
-                PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-                if (pc == null) {
-                    player.sendMessage(Component.text(
-                            cfg.message("no-class", "Класс не выбран — посетите герольда"),
+                    sender.sendMessage(Component.text("Книга класса — только для игроков",
                             NamedTextColor.GRAY));
                     return true;
                 }
-                ClassMenu.open(plugin, player, pc);
+                ClassBook.open(plugin, player, ClassBook.Tab.ABILITIES);
             }
             case "6" -> {
                 if (!(sender instanceof Player player)) {
@@ -98,7 +83,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 Spec spec = plugin.getSpecService().getSpec(player.getUniqueId());
                 if (spec == null) {
                     player.sendMessage(Component.text(
-                            "Специализация не выбрана — /rc spec", NamedTextColor.GRAY));
+                            "Специализация не выбрана — открой Книгу класса: /rc menu",
+                            NamedTextColor.GRAY));
                     return true;
                 }
                 plugin.getSpecCaster().tryCast(player, spec);
@@ -134,152 +120,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 plugin.getAbilities().tryCast(player, def);
                 plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
             }
-            case "bind" -> {
-                if (!(sender instanceof Player player)) {
-                    sender.sendMessage(Component.text("Бинд доступен только игрокам",
-                            NamedTextColor.GRAY));
-                    return true;
-                }
-                PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-                if (pc == null) {
-                    player.sendMessage(Component.text(
-                            cfg.message("no-class", "Класс не выбран — посетите герольда"),
-                            NamedTextColor.GRAY));
-                    return true;
-                }
-                if (args.length < 2) {
-                    player.sendMessage(Component.text("Использование: /rc bind <1-7>",
-                            NamedTextColor.GRAY));
-                    return true;
-                }
-                int bindSlot;
-                try {
-                    bindSlot = Integer.parseInt(args[1]);
-                } catch (NumberFormatException e) {
-                    player.sendMessage(Component.text("Использование: /rc bind <1-7>",
-                            NamedTextColor.GRAY));
-                    return true;
-                }
-                if (bindSlot == 6) {
-                    Spec spec = plugin.getSpecService().getSpec(player.getUniqueId());
-                    if (spec == null) {
-                        player.sendMessage(Component.text(
-                                "Специализация не выбрана — /rc spec", NamedTextColor.GRAY));
-                        return true;
-                    }
-                    player.getInventory().addItem(plugin.getSpecToken().create(spec, pc));
-                    player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
-                            .append(Component.text(spec.displayName(), pc.getColor()))
-                            .append(Component.text(" — положи в хотбар и жми ПКМ",
-                                    NamedTextColor.GRAY)));
-                    return true;
-                }
-                if (bindSlot == 7) {
-                    InstallationType type = InstallationType.forClass(pc);
-                    if (type == null) {
-                        return true;
-                    }
-                    player.getInventory().addItem(plugin.getInstallToken().create(type, pc));
-                    player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
-                            .append(Component.text(type.displayName(), pc.getColor()))
-                            .append(Component.text(" — положи в хотбар и жми ПКМ",
-                                    NamedTextColor.GRAY)));
-                    return true;
-                }
-                AbilityDef bindDef = plugin.getAbilities().getBySlot(pc, bindSlot);
-                if (bindDef == null) {
-                    player.sendMessage(Component.text("У класса " + pc.getDisplayName()
-                            + " нет способности в слоте " + bindSlot, NamedTextColor.GRAY));
-                    return true;
-                }
-                player.getInventory().addItem(plugin.getTokens().create(bindDef, pc));
-                player.sendMessage(Component.text("Свиток получен: ", NamedTextColor.GRAY)
-                        .append(Component.text(bindDef.displayName(), pc.getColor()))
-                        .append(Component.text(" — положи в хотбар и жми ПКМ",
-                                NamedTextColor.GRAY)));
-            }
-            case "spec" -> {
-                if (!(sender instanceof Player player)) {
-                    sender.sendMessage(Component.text("Специализация — только для игроков",
-                            NamedTextColor.GRAY));
-                    return true;
-                }
-                PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-                if (pc == null) {
-                    player.sendMessage(Component.text(
-                            cfg.message("no-class", "Класс не выбран — посетите герольда"),
-                            NamedTextColor.GRAY));
-                    return true;
-                }
-                Spec currentSpec = plugin.getSpecService().getSpec(player.getUniqueId());
-                if (currentSpec != null) {
-                    player.sendMessage(Component.text("Специализация уже выбрана: ",
-                            NamedTextColor.GRAY)
-                            .append(Component.text(currentSpec.displayName(), pc.getColor())));
-                    player.sendMessage(Component.text(
-                            "Сменить — /rc respec (платно)",
-                            NamedTextColor.YELLOW));
-                    return true;
-                }
-                if (!plugin.getSpecService().canChoose(player)) {
-                    int level = plugin.getSkillLevels().getLevel(
-                            player.getUniqueId(), pc.profileSkillName());
-                    String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM
-                            ? "AuraSkills не подключён"
-                            : String.valueOf(level);
-                    player.sendMessage(Component.text(
-                            "Специализация открывается на 40 уровне ("
-                                    + pc.profileSkillName() + "). Твой уровень: " + levelText,
-                            NamedTextColor.RED));
-                    return true;
-                }
-                SpecMenu.open(plugin, player, pc);
-            }
-            case "respec" -> {
-                if (!(sender instanceof Player player)) {
-                    sender.sendMessage(Component.text("Респец — только для игроков",
-                            NamedTextColor.GRAY));
-                    return true;
-                }
-                Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
-                if (current == null) {
-                    player.sendMessage(Component.text(
-                            "Специализация не выбрана — /rc spec", NamedTextColor.GRAY));
-                    return true;
-                }
-                SpecService specService = plugin.getSpecService();
-                if (args.length >= 2 && args[1].equalsIgnoreCase("confirm")) {
-                    SpecService.RespecResult result = specService.confirmRespec(player);
-                    switch (result) {
-                        case OK -> player.sendMessage(Component.text(
-                                "Специализация сброшена. Выбери новую: /rc spec",
-                                NamedTextColor.GREEN));
-                        case POOR -> player.sendMessage(Component.text(
-                                "Не хватает денег: респец стоит "
-                                        + specService.respecCost(player) + " монет",
-                                NamedTextColor.RED));
-                        case NO_ECONOMY -> player.sendMessage(Component.text(
-                                "Экономика недоступна — респец временно отключён",
-                                NamedTextColor.RED));
-                        case NOT_PENDING -> player.sendMessage(Component.text(
-                                "Запрос истёк. Повтори: /rc respec",
-                                NamedTextColor.GRAY));
-                        default -> player.sendMessage(Component.text(
-                                "Специализация не выбрана", NamedTextColor.GRAY));
-                    }
-                    return true;
-                }
-                specService.requestRespec(player);
-                int cost = specService.respecCost(player);
-                int balance = (int) specService.economy().balance(player.getUniqueId());
-                player.sendMessage(Component.text("Респец стоит: ", NamedTextColor.GRAY)
-                        .append(Component.text(cost + " монет", NamedTextColor.YELLOW))
-                        .append(Component.text(" (у тебя: " + balance + ")",
-                                NamedTextColor.GRAY)));
-                player.sendMessage(Component.text(
-                        "Подтверди в течение 30 секунд: /rc respec confirm",
-                        NamedTextColor.YELLOW));
-            }
             case "debug" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
                     sender.sendMessage(Component.text(
@@ -306,7 +146,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sendDebug(sender, target);
             }
             default -> sender.sendMessage(Component.text(
-                    "Использование: /rc [1-7|menu|hud|reload|debug|bind|spec|respec]",
+                    "Использование: /rc [1-7|menu|reload|debug]",
                     NamedTextColor.GRAY));
         }
         return true;
@@ -350,7 +190,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     .append(Component.text(spec.displayName(), pc.getColor())));
         } else {
             String specStatus = plugin.getSpecService().canChoose(player)
-                    ? "доступна — /rc spec"
+                    ? "доступна — Книга класса (/rc menu)"
                     : "откроется на 40 уровне";
             player.sendMessage(Component.text("Специализация: " + specStatus,
                     NamedTextColor.DARK_GRAY));
@@ -386,7 +226,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY)));
         }
 
-        player.sendMessage(Component.text("Каст: /rc 1–7 · Свитки: /rc bind <1-7> · Респец: /rc respec",
+        player.sendMessage(Component.text("Книга класса: /rc menu · Каст: /rc 1–7",
                 NamedTextColor.DARK_GRAY));
     }
 
@@ -512,7 +352,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     NamedTextColor.GRAY));
         }
 
-        // 1.5.3: fx-каталог — проблемы имён + эффективные звук/партикл абилок
         List<String> fxIds = new ArrayList<>();
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
             fxIds.add(def.id());
@@ -551,6 +390,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             case "grace" -> "×" + cfg.passiveDouble(pc, id, "multiplier", 1.15);
             case "mana_soaked" -> "threshold " + (int) cfg.passiveDouble(pc, id, "threshold", 50.0)
                     + " маны · −" + percent(cfg.passiveDouble(pc, id, "reduction", 0.15));
+            case "poisoned_blides" -> "";
             case "poisoned_blades" -> "chance " + percent(cfg.passiveDouble(pc, id, "chance", 0.30))
                     + " · " + cfg.passiveInt(pc, id, "duration-seconds", 2) + "с"
                     + " · КД " + cfg.passiveInt(pc, id, "cooldown-seconds", 3) + "с";
@@ -582,17 +422,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command,
                                       String alias, String[] args) {
-        if (args.length == 2 && "bind".equalsIgnoreCase(args[0])) {
-            String bindPrefix = args[1];
-            return List.of("1", "2", "3", "4", "5", "6", "7").stream()
-                    .filter(s -> s.startsWith(bindPrefix))
-                    .toList();
-        }
-        if (args.length == 2 && "respec".equalsIgnoreCase(args[0])) {
-            return List.of("confirm").stream()
-                    .filter(s -> s.startsWith(args[1].toLowerCase()))
-                    .toList();
-        }
         if (args.length != 1) {
             return List.of();
         }
