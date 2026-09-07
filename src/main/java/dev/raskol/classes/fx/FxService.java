@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -24,12 +25,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Движок звука/партиклов (1.5.0 + 1.5.3 + 1.5.4 + 1.5.6).
- * FIX 1.5.6: теги проков больше не шлются в actionbar (HUD затирал их за ~0.5 с) —
- * теперь это субтайтл (отдельный слой экрана) с визуальным кулдауном 3 с на прок,
- * чтобы «Хищник» на каждом ударе не спамил экраном.
- * Остальное без изменений: индекс реестра + алиасы (1.5.3.1), валидация (1.5.3),
- * тематический каталог (1.5.4).
+ * Движок звука/партиклов (1.5.0 … 1.5.7).
+ * 1.5.7: глобальный звуковой бюджет на тик (performance.sound-budget-per-tick,
+ * дефолт 8) — в масс-замесах (десятки проков/триггеров мин в один тик) лишние
+ * sound-пакеты отбрасываются вместо спама в сеть; партиклы бюджетом не тронуты.
+ * 1.5.7: purgeStale() — чистка procVisualCd общим purge-таском.
+ * Ранее: субтайтлы проков (1.5.6), индекс реестра + алиасы (1.5.3.1),
+ * валидация vfx (1.5.3), тематический каталог (1.5.4).
  */
 public final class FxService {
 
@@ -100,10 +102,16 @@ public final class FxService {
     /** 1.5.6: визуальный кулдаун тегов проков: uuid -> (procId -> timestamp). */
     private final Map<UUID, Map<String, Long>> procVisualCd = new ConcurrentHashMap<>();
 
+    /** 1.5.7: звуковой бюджет на тик (глобально). */
+    private int soundBudget = 8;
+    private int budgetTick = -1;
+    private int soundsThisTick = 0;
+
     private final RaskolClasses plugin;
 
     public FxService(RaskolClasses plugin) {
         this.plugin = plugin;
+        this.soundBudget = plugin.getConfig().getInt("performance.sound-budget-per-tick", 8);
     }
 
     /** Безусловный VFX каста (спеки, слот 6). */
@@ -132,9 +140,8 @@ public final class FxService {
     }
 
     /**
-     * Фидбек прока пассивки/спека: партикл + звук + тег.
-     * FIX 1.5.6: тег — субтайтлом (не затирается HUD-тиком), не чаще раза в 3 с
-     * на каждый прок (анти-спам для частых проков вроде «Хищник»).
+     * Фидбек прока пассивки/спека: партикл + звук + тег-субтайтл (1.5.6),
+     * не чаще раза в 3 с на прок.
      */
     public void procByKey(Player player, String fallbackTag, String procId) {
         FileConfiguration cfg = plugin.getConfig();
@@ -156,18 +163,27 @@ public final class FxService {
         }
     }
 
-    /** 1.5.6: не чаще 1 раза в 3 с на прок; попутно чистит устаревшее. */
+    /** 1.5.6: не чаще 1 раза в 3 с на прок. */
     private boolean tryProcVisual(Player player, String procId) {
         UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
         Map<String, Long> perPlayer = procVisualCd.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>());
-        perPlayer.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L);
         Long prev = perPlayer.get(procId);
         if (prev != null && now - prev < 3_000L) {
             return false;
         }
         perPlayer.put(procId, now);
         return true;
+    }
+
+    /** 1.5.7: чистка procVisualCd общим purge-таском. */
+    public void purgeStale() {
+        long now = System.currentTimeMillis();
+        procVisualCd.entrySet().removeIf(entry -> {
+            entry.getValue().entrySet()
+                    .removeIf(inner -> now - inner.getValue() > 60_000L);
+            return entry.getValue().isEmpty();
+        });
     }
 
     /** Legacy-обёртка обратной совместимости. */
@@ -196,11 +212,25 @@ public final class FxService {
         }
     }
 
-    /** Звук в точке (затухает с дистанцией, ~16 блоков). */
+    /**
+     * Звук в точке (затухает с дистанцией, ~16 блоков).
+     * 1.5.7: глобальный бюджет sound-budget-per-tick — сверх бюджета звук
+     * отбрасывается (защита от пакетного спама в масс-замесах).
+     */
     public void playSound(Location loc, Sound sound, float volume, float pitch) {
-        if (loc.getWorld() != null) {
-            loc.getWorld().playSound(loc, sound, volume, pitch);
+        if (loc.getWorld() == null) {
+            return;
         }
+        int now = Bukkit.getCurrentTick();
+        if (now != budgetTick) {
+            budgetTick = now;
+            soundsThisTick = 0;
+        }
+        if (soundsThisTick >= soundBudget) {
+            return;
+        }
+        soundsThisTick++;
+        loc.getWorld().playSound(loc, sound, volume, pitch);
     }
 
     // --- 1.5.3.1: резолв через индекс реестра + алиасы ---
@@ -285,6 +315,7 @@ public final class FxService {
     // --- 1.5.3: диагностика каталога vfx ---
 
     public int validateConfig() {
+        this.soundBudget = plugin.getConfig().getInt("performance.sound-budget-per-tick", 8);
         int problems = scan(true);
         if (problems == 0) {
             plugin.getLogger().info("FxService: каталог vfx валиден — все имена резолвятся.");
