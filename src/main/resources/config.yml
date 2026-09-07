@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.5.6 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.5.7 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение без рестарта: /rc reload.
 #  Новые ключи дописываются автоматически (addDefault + copyDefaults),
@@ -21,8 +21,9 @@ hud:
     format-infinite: "{name}"
 
 performance:
-  purge-interval-ticks: 1200  # чистка истёкших кулдаунов и флагов (O7)
-  cast-click-cooldown-ms: 150 # анти-спам дабл-клика каста (O12)
+  purge-interval-ticks: 1200    # чистка истёкших кулдаунов и флагов (O7)
+  cast-click-cooldown-ms: 150   # анти-спам дабл-клика каста (O12)
+  sound-budget-per-tick: 8      # 1.5.7: максимум sound-событий за тик на сервер (защита от пакетного спама)
   ready-notify:
     enabled: true             # звук + actionbar при окончании КД
     min-cooldown-seconds: 30  # порог: уведомлять только о длинных КД
