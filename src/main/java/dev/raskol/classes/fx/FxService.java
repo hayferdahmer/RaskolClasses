@@ -20,13 +20,15 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Движок звука/партиклов (1.5.0 + 1.5.3).
- * FIX 1.5.3.1: резолв имён через ИНДЕКС реестра по нормализованному ключу
- * (регистр и разделители [._-] игнорируются) — ванильные id вида
- * entity.experience_orb.pickup / entity.player.hurt_freeze теперь резолвятся;
- * плюс алиасы для переименованных имён (enchantment_table -> enchanting_table,
- * item.armor.equip.iron -> block.anvil.land на билдах, где equip-звуков нет).
- * Валидация vfx.* на старте и /rc reload — как в 1.5.3.
+ * Движок звука/партиклов (1.5.0 + 1.5.3 + 1.5.4).
+ * 1.5.4: каталог пересмотрен под темы классов — звуки различимы и соответствуют
+ * описанию способности:
+ *  - Жрец (свет/магия): колокол и аметистовый перезвон вместо «железа воина»;
+ *  - Воин (металл/война): наковальня, лёд доспеха, гром аватара на «Боге войны»;
+ *  - Охотник (лук/зверь): арбалетный выстрел на прицеле, кошачье шипение на аспекте;
+ *  - Маг (аркана/стихии) и Разбойник (тень/дым) — без изменений, темы уже читались.
+ * Резолв имён — индекс реестра по нормализованному ключу + алиасы (1.5.3.1).
+ * Валидация vfx.* на старте и /rc reload (1.5.3).
  */
 public final class FxService {
 
@@ -34,38 +36,44 @@ public final class FxService {
     private static final Map<String, String[]> DEFAULTS = new HashMap<>();
 
     static {
+        // Воин: металл и война
         DEFAULTS.put("steel_skin", new String[]{"ITEM_ARMOR_EQUIP_IRON", "CRIT"});
         DEFAULTS.put("shield_bash", new String[]{"BLOCK_ANVIL_LAND", "SWEEP_ATTACK"});
         DEFAULTS.put("blood_fury", new String[]{"ENTITY_RAVAGER_ROAR", "CRIMSON_SPORE"});
-        DEFAULTS.put("war_god", new String[]{"ENTITY_EVOKER_CAST_SPELL", "FLAME"});
-        DEFAULTS.put("aimed_shot", new String[]{"ENTITY_ARROW_SHOOT", "CRIT"});
-        DEFAULTS.put("cheetah_aspect", new String[]{"ENTITY_PHANTOM_FLAP", "WHITE_ASH"});
+        DEFAULTS.put("war_god", new String[]{"ENTITY_LIGHTNING_BOLT_THUNDER", "FLAME"});
+        // Охотник: лук и зверь
+        DEFAULTS.put("aimed_shot", new String[]{"ITEM_CROSSBOW_SHOOT", "CRIT"});
+        DEFAULTS.put("cheetah_aspect", new String[]{"ENTITY_CAT_HISS", "WHITE_ASH"});
         DEFAULTS.put("multi_shot", new String[]{"ENTITY_ARROW_SHOOT", "SWEEP_ATTACK"});
         DEFAULTS.put("barrage", new String[]{"ENTITY_ARROW_SHOOT", "POOF"});
-        DEFAULTS.put("lesser_heal", new String[]{"ENTITY_EXPERIENCE_ORB_PICKUP", "HEART"});
-        DEFAULTS.put("flash_heal", new String[]{"ENTITY_EXPERIENCE_ORB_PICKUP", "HEART"});
-        DEFAULTS.put("pw_shield", new String[]{"ITEM_SHIELD_BLOCK", "ENCHANTED_HIT"});
+        // Жрец: свет и магия (1.5.4: колокол/перезвон вместо щита воина)
+        DEFAULTS.put("lesser_heal", new String[]{"BLOCK_BELL_USE", "HEART"});
+        DEFAULTS.put("flash_heal", new String[]{"BLOCK_AMETHYST_BLOCK_CHIME", "HEART"});
+        DEFAULTS.put("pw_shield", new String[]{"BLOCK_AMETHYST_BLOCK_CHIME", "ENCHANTED_HIT"});
         DEFAULTS.put("circle_of_prayer", new String[]{"BLOCK_BEACON_ACTIVATE", "HEART"});
         DEFAULTS.put("smite", new String[]{"ENTITY_LIGHTNING_BOLT_IMPACT", "FLASH"});
+        // Маг: аркана и стихии
         DEFAULTS.put("firebolt", new String[]{"ITEM_FIRECHARGE_USE", "FLAME"});
         DEFAULTS.put("blink", new String[]{"ENTITY_ENDERMAN_TELEPORT", "PORTAL"});
         DEFAULTS.put("frost_nova", new String[]{"ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE"});
         DEFAULTS.put("arcane_burst", new String[]{"ENTITY_EVOKER_CAST_SPELL", "POOF"});
+        // Разбойник: тень и дым
         DEFAULTS.put("stealth", new String[]{"ENTITY_PHANTOM_FLAP", "SMOKE"});
         DEFAULTS.put("fan_of_knives", new String[]{"ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK"});
         DEFAULTS.put("cheap_shot", new String[]{"ENTITY_PLAYER_ATTACK_KNOCKBACK", "SMOKE"});
         DEFAULTS.put("evasion", new String[]{"ENTITY_ENDERMAN_TELEPORT", "CLOUD"});
+        // Активки специализаций
         DEFAULTS.put("challenge", new String[]{"BLOCK_BELL_USE", "ANGRY_VILLAGER"});
         DEFAULTS.put("rage_burst", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "CRIMSON_SPORE"});
         DEFAULTS.put("precise_shot", new String[]{"BLOCK_NOTE_BLOCK_PLING", "END_ROD"});
         DEFAULTS.put("snare", new String[]{"BLOCK_TRIPWIRE_ATTACH", "CRIT"});
         DEFAULTS.put("sanctuary", new String[]{"BLOCK_BEACON_ACTIVATE", "HEART"});
         DEFAULTS.put("mind_spike", new String[]{"ENTITY_ENDERMAN_STARE", "REVERSE_PORTAL"});
-        // 1.5.3.1: ванильное имя — block.enchanting_table.use
         DEFAULTS.put("arcane_flow", new String[]{"BLOCK_ENCHANTING_TABLE_USE", "ENCHANTED_HIT"});
         DEFAULTS.put("ice_ring", new String[]{"ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE"});
         DEFAULTS.put("garrote", new String[]{"ENTITY_PLAYER_ATTACK_WEAK", "DAMAGE_INDICATOR"});
         DEFAULTS.put("smoke_bomb", new String[]{"BLOCK_FIRE_EXTINGUISH", "SMOKE"});
+        // Проки пассивок
         DEFAULTS.put("proc.execute_passive", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "DAMAGE_INDICATOR"});
         DEFAULTS.put("proc.predator", new String[]{"ENTITY_PLAYER_ATTACK_STRONG", "CRIT"});
         DEFAULTS.put("proc.grace", new String[]{"ENTITY_EXPERIENCE_ORB_PICKUP", "HEART"});
@@ -166,9 +174,8 @@ public final class FxService {
         }
     }
 
-    // --- FIX 1.5.3.1: резолв через индекс реестра + алиасы ---
+    // --- 1.5.3.1: резолв через индекс реестра + алиасы ---
 
-    /** Нормализация: нижний регистр, без разделителей [._-]. */
     private static String norm(String s) {
         return s.toLowerCase(Locale.ROOT).replaceAll("[._-]", "");
     }
@@ -248,7 +255,6 @@ public final class FxService {
 
     // --- 1.5.3: диагностика каталога vfx ---
 
-    /** Проверка всех имён vfx.*; WARNING на каждое неизвестное; возврат = число проблем. */
     public int validateConfig() {
         int problems = scan(true);
         if (problems == 0) {
@@ -260,7 +266,6 @@ public final class FxService {
         return problems;
     }
 
-    /** Тихий подсчёт проблем (для /rc debug). */
     public int countProblems() {
         return scan(false);
     }
