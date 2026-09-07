@@ -12,6 +12,7 @@ import dev.raskol.classes.install.Installation;
 import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecMenu;
+import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -23,6 +24,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -441,7 +443,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 .append(Component.text(plugin.getInstallations().countOf(uuid) + "/2",
                         NamedTextColor.WHITE)));
 
-        // 1.5.2: глобальный счётчик + список инсталляций цели с TTL и координатами
         int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
         sender.sendMessage(Component.text("Инсталляции на сервере: ", NamedTextColor.GRAY)
                 .append(Component.text(plugin.getInstallations().countGlobal() + "/" + maxGlobal,
@@ -510,6 +511,19 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             + passiveNumbers(pc, passiveId),
                     NamedTextColor.GRAY));
         }
+
+        // 1.5.3: fx-каталог — проблемы имён + эффективные звук/партикл абилок
+        List<String> fxIds = new ArrayList<>();
+        for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
+            fxIds.add(def.id());
+        }
+        if (spec != null) {
+            SpecRegistry.SpecDef sdef = plugin.getSpecRegistry().get(spec);
+            if (sdef != null) {
+                fxIds.add(sdef.activeId());
+            }
+        }
+        plugin.getFx().appendDebug(sender, fxIds);
 
         int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
         String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM
