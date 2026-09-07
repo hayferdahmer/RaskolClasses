@@ -5,7 +5,6 @@ import dev.raskol.classes.RaskolClasses;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -25,13 +24,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Движок звука/партиклов (1.5.0 … 1.5.7).
- * 1.5.7: глобальный звуковой бюджет на тик (performance.sound-budget-per-tick,
- * дефолт 8) — в масс-замесах (десятки проков/триггеров мин в один тик) лишние
- * sound-пакеты отбрасываются вместо спама в сеть; партиклы бюджетом не тронуты.
- * 1.5.7: purgeStale() — чистка procVisualCd общим purge-таском.
- * Ранее: субтайтлы проков (1.5.6), индекс реестра + алиасы (1.5.3.1),
- * валидация vfx (1.5.3), тематический каталог (1.5.4).
+ * Движок звука/партиклов (1.5.0 … 1.6.0.2).
+ * FIX 1.6.0.2: Sound#name()/Particle#name() deprecated for removal в Paper 1.21.4 —
+ * индекс и describeFor используют getKey().getKey() (не deprecated).
+ * Ранее: звуковой бюджет на тик и purgeStale (1.5.7), субтайтлы проков (1.5.6),
+ * индекс реестра + алиасы (1.5.3.1), валидация vfx (1.5.3).
  */
 public final class FxService {
 
@@ -139,10 +136,7 @@ public final class FxService {
         apply(player.getLocation(), player, soundKey, particleKey, false);
     }
 
-    /**
-     * Фидбек прока пассивки/спека: партикл + звук + тег-субтайтл (1.5.6),
-     * не чаще раза в 3 с на прок.
-     */
+    /** Фидбек прока пассивки/спека: партикл + звук + тег-субтайтл (1.5.6). */
     public void procByKey(Player player, String fallbackTag, String procId) {
         FileConfiguration cfg = plugin.getConfig();
         String[] def = DEFAULTS.getOrDefault("proc." + procId, new String[]{"", ""});
@@ -168,6 +162,7 @@ public final class FxService {
         UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
         Map<String, Long> perPlayer = procVisualCd.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>());
+        perPlayer.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L);
         Long prev = perPlayer.get(procId);
         if (prev != null && now - prev < 3_000L) {
             return false;
@@ -180,8 +175,7 @@ public final class FxService {
     public void purgeStale() {
         long now = System.currentTimeMillis();
         procVisualCd.entrySet().removeIf(entry -> {
-            entry.getValue().entrySet()
-                    .removeIf(inner -> now - inner.getValue() > 60_000L);
+            entry.getValue().entrySet().removeIf(inner -> now - inner.getValue() > 60_000L);
             return entry.getValue().isEmpty();
         });
     }
@@ -212,16 +206,12 @@ public final class FxService {
         }
     }
 
-    /**
-     * Звук в точке (затухает с дистанцией, ~16 блоков).
-     * 1.5.7: глобальный бюджет sound-budget-per-tick — сверх бюджета звук
-     * отбрасывается (защита от пакетного спама в масс-замесах).
-     */
+    /** Звук в точке (затухает с дистанцией, ~16 блоков). 1.5.7: бюджет на тик. */
     public void playSound(Location loc, Sound sound, float volume, float pitch) {
         if (loc.getWorld() == null) {
             return;
         }
-        int now = Bukkit.getCurrentTick();
+        int now = org.bukkit.Bukkit.getCurrentTick();
         if (now != budgetTick) {
             budgetTick = now;
             soundsThisTick = 0;
@@ -247,7 +237,8 @@ public final class FxService {
                 if (local == null) {
                     local = new HashMap<>();
                     for (Sound s : Registry.SOUNDS) {
-                        local.putIfAbsent(norm(s.name()), s);
+                        // 1.6.0.2: getKey() вместо deprecated name()
+                        local.putIfAbsent(norm(s.getKey().getKey()), s);
                     }
                     soundIndexCache = local;
                 }
@@ -264,7 +255,8 @@ public final class FxService {
                 if (local == null) {
                     local = new HashMap<>();
                     for (Particle p : Registry.PARTICLE_TYPE) {
-                        local.putIfAbsent(norm(p.name()), p);
+                        // 1.6.0.2: getKey() вместо deprecated name()
+                        local.putIfAbsent(norm(p.getKey().getKey()), p);
                     }
                     particleIndexCache = local;
                 }
@@ -388,8 +380,9 @@ public final class FxService {
         String particleKey = cfg.getString("vfx." + abilityId + ".cast-particle", def[1]);
         Sound s = resolveSound(soundKey);
         Particle p = resolveParticle(particleKey);
-        return (s != null ? s.name() : "тишина") + " / "
-                + (p != null ? p.name() : "без партикла");
+        // 1.6.0.2: getKey() вместо deprecated name()
+        return (s != null ? s.getKey().getKey() : "тишина") + " / "
+                + (p != null ? p.getKey().getKey() : "без партикла");
     }
 
     /** Строки fx-каталога для /rc debug. */
