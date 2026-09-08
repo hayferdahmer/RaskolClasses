@@ -36,9 +36,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Фреймворк инсталляций (1.5.0 … 1.6.0 пакет 2).
- * 1.6.0 пакет 2: урон инсталляций через CombatService.dealDamage с DamageProfile.
- * bear_trap = физ, frost_rune = маг.
+ * Фреймворк инсталляций (1.5.0 … 1.6.8).
+ * 1.6.8: килл-кредит владельцу — если владелец онлайн, он передаётся как source
+ * в CombatService.dealDamage: дроп, статистика убийств и килл-трекинг AuraSkills
+ * видят смерть от капкана/руны как убийство владельцем. Владелец оффлайн —
+ * source null (урон без кредита, как раньше).
  */
 public final class InstallationService {
 
@@ -241,19 +243,21 @@ public final class InstallationService {
     }
 
     /**
-     * 1.6.0 пакет 2: урон мин через CombatService.dealDamage с DamageProfile.
-     * bear_trap = физ, frost_rune = маг.
+     * Триггер мины. 1.6.8: онлайн-владелец передаётся как source урона —
+     * килл-кредит, дроп и килл-трекинг навыков работают на убийствах ловушками.
      */
     private void triggerMine(Installation inst, Entity trigger) {
         Location loc = inst.getLocation();
         World world = loc.getWorld();
+        // 1.6.8: килл-кредит владельцу (оффлайн-владелец → null, урон без кредита)
+        Player ownerPlayer = plugin.getServer().getPlayer(inst.getOwner());
         switch (inst.getType()) {
             case BEAR_TRAP -> {
-                // Физический урон (капкан — механика)
                 double phys = plugin.getConfig().getDouble(
                         "installations.bear_trap.damage-physical", 3.0);
                 if (trigger instanceof LivingEntity living) {
-                    plugin.getCombat().dealDamage(living, null, DamageProfile.physical(phys));
+                    plugin.getCombat().dealDamage(living, ownerPlayer,
+                            DamageProfile.physical(phys));
                     living.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,
                             (int) num(inst, "slow-duration", 2.0) * 20, 5));
                 }
@@ -263,13 +267,13 @@ public final class InstallationService {
                 }
             }
             case FROST_RUNE -> {
-                // Магический урон (ледяная руна)
                 double magic = plugin.getConfig().getDouble(
                         "installations.frost_rune.damage-magic", 4.0);
                 double radius = num(inst, "radius", 3.0);
                 for (Entity e : loc.getNearbyEntities(radius, radius, radius)) {
                     if (e instanceof LivingEntity living && isEnemyOf(inst, e)) {
-                        plugin.getCombat().dealDamage(living, null, DamageProfile.magic(magic));
+                        plugin.getCombat().dealDamage(living, ownerPlayer,
+                                DamageProfile.magic(magic));
                         living.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,
                                 (int) num(inst, "slow-duration", 3.0) * 20, 1));
                     }
