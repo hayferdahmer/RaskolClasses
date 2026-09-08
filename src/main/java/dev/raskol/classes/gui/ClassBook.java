@@ -32,11 +32,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Книга класса (1.5.4 + 1.5.5 + 1.5.9 + 1.6.6).
- * 1.6.6: во вкладке «Класс» — предмет-сводка резистов (слот 14): итоги физ/маг
- * с базой, список активных модификаторов, кап; в лоре способностей строка
- * «Даёт: +X% физрезиста на Y с» (значения из resist.grants.* — единый источник
- * с боевым кодом); у спеки Стража строка «Пассив: +X% физрезиста постоянно».
+ * Книга класса (1.5.4 + 1.5.5 + 1.5.9 + 1.6.6 + 1.6.7).
+ * 1.6.7: ключ сообщения маг-гранта — book.resist.grant-magic (плоский ключ,
+ * достижимый через path-API Bukkit; раньше grant.magic был недоступен, т.к.
+ * ключ grant занят строкой физ-гранта).
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -255,10 +254,7 @@ public final class ClassBook implements InventoryHolder {
         };
     }
 
-    /**
-     * 1.6.6: сводка резистов — итоги с базой, активные модификаторы, кап.
-     * Значения берутся из ResistService.breakdown (тот же источник, что /rc debug).
-     */
+    /** 1.6.6: сводка резистов — итоги с базой, активные модификаторы, кап. */
     private ItemStack resistItem(RaskolClasses plugin, Player player, PlayerClass pc) {
         UUID uuid = player.getUniqueId();
         ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
@@ -334,7 +330,7 @@ public final class ClassBook implements InventoryHolder {
             lore.add(Component.text(msg(plugin, "book.unlock", "Открытие: уровень {level}")
                     .replace("{level}", String.valueOf(def.unlockLevel())),
                     unlocked ? NamedTextColor.GREEN : NamedTextColor.RED));
-            // 1.6.6: строка гранта резиста (единый источник resist.grants.*)
+            // 1.6.6/1.6.7: строки грантов резиста (единый источник resist.grants.*)
             double grantPhys = plugin.getConfig()
                     .getDouble("resist.grants." + def.id() + ".physical", 0.0);
             double grantMagic = plugin.getConfig()
@@ -348,7 +344,7 @@ public final class ClassBook implements InventoryHolder {
             }
             if (grantMagic > 0.0) {
                 int secs = cfg.durationSeconds(pc, def.id(), 0);
-                lore.add(Component.text(msg(plugin, "book.resist.grant.magic",
+                lore.add(Component.text(msg(plugin, "book.resist.grant-magic",
                         "Даёт: +{magic}% магрезиста на {sec} с")
                         .replace("{magic}", String.valueOf((int) grantMagic))
                         .replace("{sec}", String.valueOf(secs)), NamedTextColor.AQUA));
@@ -432,7 +428,6 @@ public final class ClassBook implements InventoryHolder {
                         .replace("{cost}", String.valueOf(def.activeCost()))
                         .replace("{sec}", String.valueOf(def.activeCooldown())),
                         NamedTextColor.AQUA));
-                // 1.6.6: постоянный резист-грант спеки (Страж)
                 if (spec == Spec.GUARDIAN) {
                     double g = plugin.getConfig()
                             .getDouble("resist.specs.guardian.physical", 10.0);
