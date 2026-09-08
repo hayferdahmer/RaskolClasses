@@ -4,6 +4,7 @@ package dev.raskol.classes.gui;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.spec.Spec;
@@ -31,9 +32,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Книга класса (1.5.4 + 1.5.5 + 1.5.9).
- * 1.5.9: все строки лора и сообщений читаются из messages.book.* конфига
- * (ретекст без пересборки); плейсхолдеры {cost}/{sec}/{level}/{count}/{name}/{price}.
+ * Книга класса (1.5.4 + 1.5.5 + 1.5.9 + 1.6.6).
+ * 1.6.6: во вкладке «Класс» — предмет-сводка резистов (слот 14): итоги физ/маг
+ * с базой, список активных модификаторов, кап; в лоре способностей строка
+ * «Даёт: +X% физрезиста на Y с» (значения из resist.grants.* — единый источник
+ * с боевым кодом); у спеки Стража строка «Пассив: +X% физрезиста постоянно».
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -50,6 +53,8 @@ public final class ClassBook implements InventoryHolder {
     private static final int SLOT_RESPEC = 22;
     private static final int[] PASSIVE_SLOTS = {10, 11, 12, 13};
     private static final int SLOT_CROWN = 15;
+    /** 1.6.6: сводка резистов во вкладке «Класс». */
+    private static final int SLOT_RESIST = 14;
 
     private Inventory inventory;
     private final UUID owner;
@@ -133,6 +138,7 @@ public final class ClassBook implements InventoryHolder {
                 for (int i = 0; i < passives.size() && i < PASSIVE_SLOTS.length; i++) {
                     inventory.setItem(PASSIVE_SLOTS[i], passiveItem(plugin, pc, passives.get(i)));
                 }
+                inventory.setItem(SLOT_RESIST, resistItem(plugin, player, pc));
                 inventory.setItem(SLOT_CROWN, crownItem(plugin, player, pc));
             }
         }
@@ -249,6 +255,49 @@ public final class ClassBook implements InventoryHolder {
         };
     }
 
+    /**
+     * 1.6.6: сводка резистов — итоги с базой, активные модификаторы, кап.
+     * Значения берутся из ResistService.breakdown (тот же источник, что /rc debug).
+     */
+    private ItemStack resistItem(RaskolClasses plugin, Player player, PlayerClass pc) {
+        UUID uuid = player.getUniqueId();
+        ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
+        ItemStack item = new ItemStack(Material.SHIELD);
+        item.editMeta(meta -> {
+            meta.displayName(TextFx.gradient(msg(plugin, "book.resist.title", "Сопротивления"),
+                    plugin.getRaskolConfig().themeOf(pc).primary(),
+                    plugin.getRaskolConfig().themeOf(pc).secondary()));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text(msg(plugin, "book.resist.phys", "Физ: {total}% (база {base}%)")
+                    .replace("{total}", String.valueOf((int) rb.physicalTotal()))
+                    .replace("{base}", String.valueOf((int) rb.basePhysical())),
+                    NamedTextColor.GREEN));
+            lore.add(Component.text(msg(plugin, "book.resist.magic", "Маг: {total}% (база {base}%)")
+                    .replace("{total}", String.valueOf((int) rb.magicTotal()))
+                    .replace("{base}", String.valueOf((int) rb.baseMagic())),
+                    NamedTextColor.LIGHT_PURPLE));
+            lore.add(Component.text(""));
+            if (rb.active().isEmpty()) {
+                lore.add(Component.text(msg(plugin, "book.resist.none",
+                        "Активных модификаторов нет"), NamedTextColor.DARK_GRAY));
+            } else {
+                for (ResistService.Modifier m : rb.active()) {
+                    lore.add(Component.text(msg(plugin, "book.resist.mod",
+                            "• {source}: +{phys} физ / +{magic} маг")
+                            .replace("{source}", m.source())
+                            .replace("{phys}", String.valueOf((int) m.physicalPct()))
+                            .replace("{magic}", String.valueOf((int) m.magicPct())),
+                            NamedTextColor.GRAY));
+                }
+            }
+            lore.add(Component.text(msg(plugin, "book.resist.cap", "Кап: {cap}%")
+                    .replace("{cap}", String.valueOf((int) plugin.getResists().cap())),
+                    NamedTextColor.DARK_GRAY));
+            meta.lore(lore);
+        });
+        return item;
+    }
+
     private ItemStack abilityItem(RaskolClasses plugin, Player player, PlayerClass pc, AbilityDef def) {
         RaskolConfig cfg = plugin.getRaskolConfig();
         UUID uuid = player.getUniqueId();
@@ -285,6 +334,25 @@ public final class ClassBook implements InventoryHolder {
             lore.add(Component.text(msg(plugin, "book.unlock", "Открытие: уровень {level}")
                     .replace("{level}", String.valueOf(def.unlockLevel())),
                     unlocked ? NamedTextColor.GREEN : NamedTextColor.RED));
+            // 1.6.6: строка гранта резиста (единый источник resist.grants.*)
+            double grantPhys = plugin.getConfig()
+                    .getDouble("resist.grants." + def.id() + ".physical", 0.0);
+            double grantMagic = plugin.getConfig()
+                    .getDouble("resist.grants." + def.id() + ".magic", 0.0);
+            if (grantPhys > 0.0) {
+                int secs = cfg.durationSeconds(pc, def.id(), 0);
+                lore.add(Component.text(msg(plugin, "book.resist.grant",
+                        "Даёт: +{phys}% физрезиста на {sec} с")
+                        .replace("{phys}", String.valueOf((int) grantPhys))
+                        .replace("{sec}", String.valueOf(secs)), NamedTextColor.AQUA));
+            }
+            if (grantMagic > 0.0) {
+                int secs = cfg.durationSeconds(pc, def.id(), 0);
+                lore.add(Component.text(msg(plugin, "book.resist.grant.magic",
+                        "Даёт: +{magic}% магрезиста на {sec} с")
+                        .replace("{magic}", String.valueOf((int) grantMagic))
+                        .replace("{sec}", String.valueOf(secs)), NamedTextColor.AQUA));
+            }
             lore.add(Component.text(scrolls > 0
                     ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
                             .replace("{count}", String.valueOf(scrolls))
@@ -364,6 +432,15 @@ public final class ClassBook implements InventoryHolder {
                         .replace("{cost}", String.valueOf(def.activeCost()))
                         .replace("{sec}", String.valueOf(def.activeCooldown())),
                         NamedTextColor.AQUA));
+                // 1.6.6: постоянный резист-грант спеки (Страж)
+                if (spec == Spec.GUARDIAN) {
+                    double g = plugin.getConfig()
+                            .getDouble("resist.specs.guardian.physical", 10.0);
+                    lore.add(Component.text(msg(plugin, "book.resist.spec",
+                            "Пассив: +{phys}% физрезиста постоянно")
+                            .replace("{phys}", String.valueOf((int) g)),
+                            NamedTextColor.AQUA));
+                }
             }
             lore.add(Component.text(""));
             if (current == spec) {
