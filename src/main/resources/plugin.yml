@@ -1,5 +1,5 @@
 name: RaskolClasses
-version: '1.6.7'
+version: '1.6.8'
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
