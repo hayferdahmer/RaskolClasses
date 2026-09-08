@@ -4,6 +4,8 @@ package dev.raskol.classes.combat;
 import dev.raskol.classes.RaskolClasses;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.entity.Entity;
@@ -19,14 +21,16 @@ import java.util.UUID;
 
 /**
  * 1.6.0: боевой сервис урона и резистов.
- * Путь A (ваниль): EntityDamageEvent по игроку — урон режется резистом своего
- * типа (карта причин → тип с конфиг-оверрайдами damage-types.vanilla-map).
- * Путь B (наши способности): dealDamage(target, source, DamageProfile) —
- * физ-компонента проходит броню, маг+чистый через DamageSource minecraft:magic.
- * FIX 1.6.0.1: тип magic берётся из реестра Paper по namespaced-ключу.
- * FIX 1.6.1 (B3): ThreadLocal-маркер SUPPRESS сбрасывается в finally сразу
- * после каждого вызова damage(...) — если событие не было создано (цель умерла,
- * неуязвима, вызов прерван), флаг не «протекает» на следующий ванильный урон.
+ * Путь A (ваниль): EntityDamageEvent по игроку режется резистом своего типа
+ * (карта причин → тип с конфиг-оверрайдами damage-types.vanilla-map).
+ * Путь B (наши способности/инсталляции/спек-активки): dealDamage(target, source,
+ * DamageProfile) — физ-компонента проходит броню, маг+чистый через DamageSource
+ * minecraft:magic (броню не трогает). Двойного применения резиста нет
+ * (ThreadLocal-маркер SUPPRESS, сброс в finally — 1.6.1 B3).
+ *
+ * 1.6.4: единая формула в simulateTaken() (ею же пользуется dealDamage);
+ * боевой лог combat.debug-damage для админов (raskolclasses.debug):
+ * «[dmg] источник → цель: профиль … → дошло … (резисты …)».
  */
 public final class CombatService implements Listener {
 
@@ -85,6 +89,23 @@ public final class CombatService implements Listener {
     }
 
     /**
+     * 1.6.4: единая формула урона по цели (игрок — с резистами, моб — целиком).
+     * Ею пользуются и dealDamage, и симулятор в /rc debug — расхождений нет.
+     */
+    public double simulateTaken(LivingEntity target, DamageProfile profile) {
+        if (profile == null || target == null) {
+            return 0.0;
+        }
+        if (target instanceof Player p) {
+            UUID uuid = p.getUniqueId();
+            return profile.physical() * resists.physicalFactor(uuid)
+                    + profile.magic() * resists.magicFactor(uuid)
+                    + profile.trueDamage();
+        }
+        return profile.total();
+    }
+
+    /**
      * Путь B: наш урон с профилем. Возвращает фактически нанесённый урон.
      * Формула: физ×(1−физрезист/100) + маг×(1−магрезист/100) + чистый.
      * Мобы резистов не имеют (урон проходит целиком).
@@ -104,7 +125,8 @@ public final class CombatService implements Listener {
             physPart = profile.physical();
             magicTruePart = profile.magic() + profile.trueDamage();
         }
-        double dealt = 0.0;
+        double taken = physPart + magicTruePart;
+        debugLog(target, source, profile, taken);
         if (physPart > 0.0) {
             SUPPRESS.set(Boolean.TRUE);
             try {
@@ -118,7 +140,6 @@ public final class CombatService implements Listener {
                 // пост-сброс безопасен и закрывает утечку, если события не было
                 SUPPRESS.set(Boolean.FALSE);
             }
-            dealt += physPart;
         }
         if (magicTruePart > 0.0) {
             SUPPRESS.set(Boolean.TRUE);
@@ -136,9 +157,39 @@ public final class CombatService implements Listener {
             } finally {
                 SUPPRESS.set(Boolean.FALSE);
             }
-            dealt += magicTruePart;
         }
-        return dealt;
+        return taken;
+    }
+
+    /**
+     * 1.6.4: боевой лог нашего урона (гейт combat.debug-damage, дефолт false).
+     * Пишет в чат всем онлайн-админам с raskolclasses.debug серой строкой:
+     * профиль (физ/маг/чистый) → дошло → резисты цели.
+     */
+    private void debugLog(LivingEntity target, Entity source, DamageProfile profile, double taken) {
+        if (!plugin.getConfig().getBoolean("combat.debug-damage", false)) {
+            return;
+        }
+        String resistInfo;
+        if (target instanceof Player tp) {
+            UUID uuid = tp.getUniqueId();
+            resistInfo = String.format(Locale.ROOT, "резисты: физ %.0f%% / маг %.0f%%",
+                    resists.physicalResist(uuid), resists.magicResist(uuid));
+        } else {
+            resistInfo = "резисты: физ 0% / маг 0%";
+        }
+        String line = String.format(Locale.ROOT,
+                "[dmg] %s → %s: профиль %.1f физ / %.1f маг / %.1f чист → дошло %.1f (%s)",
+                source != null ? source.getName() : "env",
+                target.getName(),
+                profile.physical(), profile.magic(), profile.trueDamage(),
+                taken, resistInfo);
+        Component message = Component.text(line, NamedTextColor.DARK_GRAY);
+        for (Player online : plugin.getServer().getOnlinePlayers()) {
+            if (online.hasPermission("raskolclasses.debug")) {
+                online.sendMessage(message);
+            }
+        }
     }
 
     /** Тип причины с учётом конфиг-оверрайдов damage-types.vanilla-map. */
