@@ -13,7 +13,9 @@ import org.bukkit.potion.PotionEffectType;
 
 /**
  * Активные способности воина (ресурс — ярость).
- * 1.6.0 пакет 3: Стальная кожа даёт +15 физрезист на duration через ResistService.
+ * 1.6.0 пакет 3: Стальная кожа даёт физрезист через ResistService.
+ * 1.6.6: значение гранта читается из конфига resist.grants.steel_skin.physical
+ * (единый источник с лором Книги класса).
  */
 public final class WarriorAbilities {
 
@@ -23,18 +25,15 @@ public final class WarriorAbilities {
         this.plugin = plugin;
     }
 
-    /**
-     * Стальная кожа: −80% входящего урона (реализовано как +15% физрезист
-     * на duration, дефолт 5 с). Эффект SHIELD_WALL сохранён для совместимости
-     * с PassiveListener/прочими слушателями.
-     */
+    /** Стальная кожа: +физрезист (конфиг) на duration, дефолт 5 с. */
     public boolean steelSkin(Player player, AbilityDef def) {
         long durationMillis = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.WARRIOR, "steel_skin", 5) * 1000L;
+        double phys = plugin.getConfig()
+                .getDouble("resist.grants.steel_skin.physical", 15.0);
         plugin.getEffects().addTimed(player.getUniqueId(), EffectType.SHIELD_WALL, durationMillis);
-        // 1.6.0 пакет 3: модификатор резиста
         plugin.getResists().addTimedModifier(player.getUniqueId(), "steel_skin",
-                15.0, 0.0, durationMillis);
+                phys, 0.0, durationMillis);
         return true;
     }
 
