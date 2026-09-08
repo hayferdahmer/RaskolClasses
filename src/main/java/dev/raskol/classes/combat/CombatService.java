@@ -6,6 +6,7 @@ import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.entity.Entity;
@@ -28,9 +29,10 @@ import java.util.UUID;
  * minecraft:magic (броню не трогает). Двойного применения резиста нет
  * (ThreadLocal-маркер SUPPRESS, сброс в finally — 1.6.1 B3).
  *
- * 1.6.4: единая формула в simulateTaken() (ею же пользуется dealDamage);
- * боевой лог combat.debug-damage для админов (raskolclasses.debug):
- * «[dmg] источник → цель: профиль … → дошло … (резисты …)».
+ * 1.6.8: spectator/creative-гарды. Путь A: зрители пропускаются до вычислений.
+ * Путь B: урон по зрителям и креативщикам не применяется вовсе (ваниль делает
+ * их неуязвимыми) — не тратим вызовы и не рискуем флагами; согласовано с
+ * правилом 1.5.1 «таргет-каст не тратит ресурс на creative/spectator».
  */
 public final class CombatService implements Listener {
 
@@ -74,6 +76,10 @@ public final class CombatService implements Listener {
         if (!(event.getEntity() instanceof Player target)) {
             return; // резисты пока только у игроков
         }
+        // 1.6.8: зрители не получают урон — нечего и резистить
+        if (target.getGameMode() == GameMode.SPECTATOR) {
+            return;
+        }
         DamageType type = typeOf(event.getCause());
         if (type == DamageType.TRUE) {
             return; // чистый урон резистами не режется
@@ -89,30 +95,20 @@ public final class CombatService implements Listener {
     }
 
     /**
-     * 1.6.4: единая формула урона по цели (игрок — с резистами, моб — целиком).
-     * Ею пользуются и dealDamage, и симулятор в /rc debug — расхождений нет.
-     */
-    public double simulateTaken(LivingEntity target, DamageProfile profile) {
-        if (profile == null || target == null) {
-            return 0.0;
-        }
-        if (target instanceof Player p) {
-            UUID uuid = p.getUniqueId();
-            return profile.physical() * resists.physicalFactor(uuid)
-                    + profile.magic() * resists.magicFactor(uuid)
-                    + profile.trueDamage();
-        }
-        return profile.total();
-    }
-
-    /**
      * Путь B: наш урон с профилем. Возвращает фактически нанесённый урон.
      * Формула: физ×(1−физрезист/100) + маг×(1−магрезист/100) + чистый.
      * Мобы резистов не имеют (урон проходит целиком).
+     * 1.6.8: зрители и креативщики пропускаются (ванильная неуязвимость).
      */
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
         if (profile == null || profile.isEmpty() || target == null || target.isDead()) {
             return 0.0;
+        }
+        if (target instanceof Player tp) {
+            GameMode gm = tp.getGameMode();
+            if (gm == GameMode.SPECTATOR || gm == GameMode.CREATIVE) {
+                return 0.0;
+            }
         }
         double physPart;
         double magicTruePart;
