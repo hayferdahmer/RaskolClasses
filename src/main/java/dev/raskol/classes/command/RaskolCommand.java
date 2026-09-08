@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
@@ -24,9 +25,15 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Команды 1.5.4+ /rc (инфо), /rc 1–7, /rc menu, /rc reload, /rc debug.
+ * 1.6.0: строка резистов в /rc и разбивка в /rc debug.
+ * 1.6.4: симулятор урона по цели в /rc debug (phys/magic/hybrid/true → дойдёт).
+ */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
@@ -172,7 +179,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
         UUID uuid = player.getUniqueId();
 
-        // 1.6.0: итоговые резисты класса (+ модификаторы)
         player.sendMessage(Component.text("Резисты: ", NamedTextColor.GRAY)
                 .append(Component.text("физ " + (int) plugin.getResists().physicalResist(uuid)
                         + "% · маг " + (int) plugin.getResists().magicResist(uuid) + "%",
@@ -265,7 +271,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         (int) plugin.getResources().getValue(uuid) + "/100",
                         pc.getColor())));
 
-        // 1.6.0: разбивка резистов — база класса + активные модификаторы
         ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
         sender.sendMessage(Component.text("Резисты: ", NamedTextColor.GRAY)
                 .append(Component.text("физ " + (int) rb.physicalTotal() + "% (база "
@@ -276,6 +281,21 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     + ": физ " + (int) m.physicalPct() + "% · маг " + (int) m.magicPct() + "%",
                     NamedTextColor.GRAY));
         }
+
+        // 1.6.4: симулятор урона по цели — та же формула, что в бою (simulateTaken)
+        sender.sendMessage(Component.text("Симулятор урона по цели:", NamedTextColor.AQUA));
+        sender.sendMessage(Component.text("  • физ 100 → дойдёт "
+                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.physical(100))),
+                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • маг 100 → дойдёт "
+                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.magic(100))),
+                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • гибрид 50/50 → дойдёт "
+                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.hybrid(50, 50))),
+                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • чистый 100 → дойдёт "
+                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.trueDmg(100))),
+                NamedTextColor.GRAY));
 
         sender.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY)
                 .append(Component.text(
@@ -392,6 +412,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Component.text("HUD: ", NamedTextColor.GRAY)
                 .append(Component.text(visible ? "включён" : "выключен",
                         visible ? NamedTextColor.GREEN : NamedTextColor.RED)));
+    }
+
+    /** 1.6.4: формат чисел симулятора (одна десятая, точка как разделитель). */
+    private static String fmt(double value) {
+        return String.format(Locale.ROOT, "%.1f", value);
     }
 
     private String passiveNumbers(PlayerClass pc, String id) {
