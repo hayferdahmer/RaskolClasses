@@ -19,6 +19,7 @@ import org.bukkit.util.RayTraceResult;
  * Активные способности разбойника (ресурс — энергия).
  * 1.6.0 пакет 2: fan_of_knives/cheap_shot = ФИЗИЧЕСКИЙ урон через dealDamage.
  * 1.6.2: союзники не бьются (гейт combat.friendly-fire).
+ * 1.6.6: грант Уклонения читается из конфига resist.grants.evasion.physical.
  */
 public final class RogueAbilities {
 
@@ -37,7 +38,7 @@ public final class RogueAbilities {
         return true;
     }
 
-    /** Веер ножей — ФИЗИЧЕСКИЙ урон (4 дефолт). 1.6.2: союзники пропускаются. */
+    /** Веер ножей — ФИЗИЧЕСКИЙ урон (4 дефолт). Союзники пропускаются. */
     public boolean fanOfKnives(Player player, AbilityDef def) {
         double phys = plugin.getRaskolConfig()
                 .abilityDamagePhysical(PlayerClass.ROGUE, def.id(), 4.0);
@@ -55,7 +56,7 @@ public final class RogueAbilities {
         return affected;
     }
 
-    /** Подлый удар — ФИЗИЧЕСКИЙ урон (3 дефолт) + Blind + Slowness. 1.6.2: не по союзникам. */
+    /** Подлый удар — ФИЗИЧЕСКИЙ урон (3 дефолт) + Blind + Slowness. Не по союзникам. */
     public boolean cheapShot(Player player, AbilityDef def) {
         RayTraceResult hit = player.rayTraceEntities(4);
         if (hit == null || !(hit.getHitEntity() instanceof LivingEntity target)) {
@@ -67,7 +68,7 @@ public final class RogueAbilities {
         if (!Targeting.isValidDamageTarget(plugin, player, target)) {
             player.sendMessage(Component.text(plugin.getRaskolConfig().message(
                     "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
-            return false; // ресурс вернётся через отмену каста
+            return false;
         }
         double phys = plugin.getRaskolConfig()
                 .abilityDamagePhysical(PlayerClass.ROGUE, def.id(), 3.0);
@@ -79,13 +80,15 @@ public final class RogueAbilities {
         return true;
     }
 
+    /** Уклонение: +физрезист (конфиг) на duration, дефолт 4 с. */
     public boolean evasion(Player player, AbilityDef def) {
         long durationMillis = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.ROGUE, "evasion", 4) * 1000L;
+        double phys = plugin.getConfig()
+                .getDouble("resist.grants.evasion.physical", 30.0);
         plugin.getEffects().addTimed(player.getUniqueId(), EffectType.EVASION, durationMillis);
-        // 1.6.0 пакет 3: модификатор резиста
         plugin.getResists().addTimedModifier(player.getUniqueId(), "evasion",
-                30.0, 0.0, durationMillis);
+                phys, 0.0, durationMillis);
         return true;
     }
 }
