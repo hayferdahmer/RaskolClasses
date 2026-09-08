@@ -1,5 +1,5 @@
 name: RaskolClasses
-version: '1.6.3'
+version: '1.6.4'
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
@@ -17,5 +17,5 @@ permissions:
     description: Перезагрузка конфигурации, бесплатный респец, инсталляции без анлока, касты в creative
     default: op
   raskolclasses.debug:
-    description: Диагностика (/rc debug [player])
+    description: Диагностика (/rc debug [player], боевой лог combat.debug-damage)
     default: op
