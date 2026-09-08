@@ -9,6 +9,7 @@ import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.command.RaskolCommand;
+import dev.raskol.classes.config.ConfigValidator;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.flavor.CrownFlavorService;
@@ -50,7 +51,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.6.1: таск сверки спек-резистов (reconcilePassiveResists, 20 тиков).
+ * 1.6.7: ConfigValidator на старте и при /rc reload + сводка баз резистов в лог.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -83,6 +84,7 @@ public final class RaskolClasses extends JavaPlugin {
     private ResistService resists;
     private CombatService combat;
     private ManaSoakedService manaSoaked;
+    private ConfigValidator configValidator;
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -126,6 +128,11 @@ public final class RaskolClasses extends JavaPlugin {
         this.resists = new ResistService(this);
         this.combat = new CombatService(this, resists);
         this.manaSoaked = new ManaSoakedService(this);
+
+        // 1.6.7: валидация конфига резистов/урона + сводка баз
+        this.configValidator = new ConfigValidator(this);
+        configValidator.validate();
+        configValidator.logSummary();
 
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
@@ -187,9 +194,6 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(specService.startSpecNotifyTask());
         activeTasks.add(new ScrollCooldownTask(this).start());
         activeTasks.add(manaSoaked.start());
-        // 1.6.1: сверка спек-модификаторов резиста раз в секунду
-        activeTasks.add(getServer().getScheduler().runTaskTimer(this,
-                () -> specService.reconcilePassiveResists(), 20L, 20L));
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
@@ -258,6 +262,8 @@ public final class RaskolClasses extends JavaPlugin {
             specRegistry.load();
         }
         fx.validateConfig();
+        // 1.6.7: повторная валидация конфига резистов/урона
+        configValidator.validate();
         getLogger().info("Конфигурация перезагружена");
     }
 
@@ -285,4 +291,5 @@ public final class RaskolClasses extends JavaPlugin {
     public ResistService getResists() { return resists; }
     public CombatService getCombat() { return combat; }
     public ManaSoakedService getManaSoaked() { return manaSoaked; }
+    public ConfigValidator getConfigValidator() { return configValidator; }
 }
