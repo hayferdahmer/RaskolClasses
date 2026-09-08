@@ -29,10 +29,11 @@ import java.util.UUID;
  * minecraft:magic (броню не трогает). Двойного применения резиста нет
  * (ThreadLocal-маркер SUPPRESS, сброс в finally — 1.6.1 B3).
  *
- * 1.6.8: spectator/creative-гарды. Путь A: зрители пропускаются до вычислений.
- * Путь B: урон по зрителям и креативщикам не применяется вовсе (ваниль делает
- * их неуязвимыми) — не тратим вызовы и не рискуем флагами; согласовано с
- * правилом 1.5.1 «таргет-каст не тратит ресурс на creative/spectator».
+ * 1.6.4: simulateTaken() — единая формула «сколько дойдёт», ею пользуются
+ * и боевой код, и симулятор в /rc debug.
+ * 1.6.8: spectator/creative-гарды в обоих путях.
+ * FIX 1.6.8.1: восстановлен simulateTaken, случайно потерянный в замене 1.6.8
+ * (на него ссылается симулятор в RaskolCommand).
  */
 public final class CombatService implements Listener {
 
@@ -95,8 +96,26 @@ public final class CombatService implements Listener {
     }
 
     /**
+     * 1.6.4: единая формула «сколько дойдёт» до цели.
+     * Игрок: физ×(1−физрезист/100) + маг×(1−магрезист/100) + чистый.
+     * Моб: урон проходит целиком.
+     * Ею пользуются dealDamage (через те же факторы) и симулятор в /rc debug.
+     */
+    public double simulateTaken(LivingEntity target, DamageProfile profile) {
+        if (profile == null || target == null) {
+            return 0.0;
+        }
+        if (target instanceof Player p) {
+            UUID uuid = p.getUniqueId();
+            return profile.physical() * resists.physicalFactor(uuid)
+                    + profile.magic() * resists.magicFactor(uuid)
+                    + profile.trueDamage();
+        }
+        return profile.total();
+    }
+
+    /**
      * Путь B: наш урон с профилем. Возвращает фактически нанесённый урон.
-     * Формула: физ×(1−физрезист/100) + маг×(1−магрезист/100) + чистый.
      * Мобы резистов не имеют (урон проходит целиком).
      * 1.6.8: зрители и креативщики пропускаются (ванильная неуязвимость).
      */
@@ -121,7 +140,7 @@ public final class CombatService implements Listener {
             physPart = profile.physical();
             magicTruePart = profile.magic() + profile.trueDamage();
         }
-        double taken = physPart + magicTruePart;
+        double taken = physPart + magicTruePart; // совпадает с simulateTaken по построению
         debugLog(target, source, profile, taken);
         if (physPart > 0.0) {
             SUPPRESS.set(Boolean.TRUE);
