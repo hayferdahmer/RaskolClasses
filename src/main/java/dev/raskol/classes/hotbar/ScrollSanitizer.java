@@ -15,12 +15,17 @@ import org.bukkit.inventory.ItemStack;
 
 /**
  * 1.6.11: санитизация свитков с мёртвыми/неизвестными id на входе игрока.
- * Чистит инвентарь от свитков способностей с несуществующими id (после
- * переименований в конфиге между сезонами), свитков спеков и инсталляций
- * с неизвестными значениями. Игрок получает уведомление один раз за чистку.
  *
- * Не трогает валидные свитки; не чистит при каждом клике — только на join
- * (достаточно редко и безопасно для производительности).
+ * Три категории «битых» свитков:
+ * 1. Ability-свитки (PDC-ключ ability): id есть, но AbilityRegistry.exists(id)
+ *    возвращает false — абилка переименована/удалена между сезонами.
+ * 2. Spec-свитки (PDC-ключ spec_ability): ключ есть, но readSpec() = null —
+ *    id не резолвится в Spec (удалённая спека, опечатка).
+ * 3. Install-свитки (PDC-ключ install): ключ есть, но readType() = null —
+ *    id не резолвится в InstallationType.
+ *
+ * Работает только на join (достаточно редко). Игрок получает одно уведомление
+ * с общим числом удалённых свитков.
  */
 public final class ScrollSanitizer implements Listener {
 
@@ -46,20 +51,23 @@ public final class ScrollSanitizer implements Listener {
             if (item == null) {
                 continue;
             }
+            // 1. Ability-свиток: id есть, но в реестре больше не существует
             String abilityId = plugin.getTokens().readId(item);
             if (abilityId != null && !plugin.getAbilities().exists(abilityId)) {
                 item.setAmount(0);
                 removed++;
                 continue;
             }
-            Spec spec = plugin.getSpecToken().readSpec(item);
-            if (spec == null && plugin.getSpecToken().isSpecScroll(item)) {
+            // 2. Spec-свиток: PDC-ключ есть, но id не резолвится в Spec
+            if (plugin.getSpecToken().isSpecScroll(item)
+                    && plugin.getSpecToken().readSpec(item) == null) {
                 item.setAmount(0);
                 removed++;
                 continue;
             }
-            InstallationType type = plugin.getInstallToken().readType(item);
-            if (type == null && plugin.getInstallToken().isInstallScroll(item)) {
+            // 3. Install-свиток: PDC-ключ есть, но id не резолвится в тип
+            if (plugin.getInstallToken().isInstallScroll(item)
+                    && plugin.getInstallToken().readType(item) == null) {
                 item.setAmount(0);
                 removed++;
             }
