@@ -3,6 +3,7 @@ package dev.raskol.classes.selftest;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
+import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
@@ -20,9 +21,9 @@ import java.util.UUID;
 
 /**
  * 1.6.13: headless-самотестирование плагина (/rc selftest).
- * Семь групп проверок, каждая — строка [PASS]/[FAIL]/[SKIP], в конце итог.
- * Ничего не мутирует: боевые проверки читают живое состояние, PDC-проверки
- * создают временные предметы в памяти (без мира и без выдачи игрокам).
+ * 1.7.0 пакет 1: добавлены три группы проверок формул атрибутов AttributeMath
+ * (HP воина, DR свыше soft-cap, микро-парирование AGI-основных + refund в dodge);
+ * итого 10 групп проверок. Ничего не мутирует.
  */
 public final class SelftestRunner {
 
@@ -191,6 +192,71 @@ public final class SelftestRunner {
             fail++;
             sender.sendMessage(Component.text(
                     "[FAIL] Fx-каталог: " + fxProblems + " неизвестных имён",
+                    NamedTextColor.RED));
+        }
+
+        // --- 1.7.0 пакет 1: формулы атрибутов AttributeMath (pure, headless) ---
+
+        // 8. HP-формула воина (STR основной): 20 + STR×perStr + level×perLevel + STR×mainBonus
+        //    При perStr=2, mainBonus=1, STR=60, level=40 → 20 + 120 + 40 + 60 = 240
+        double hpWarrior = AttributeMath.maxHp(60.0, 40.0, true, 2.0, 1.0, 1.0);
+        double hpMage = AttributeMath.maxHp(60.0, 40.0, false, 2.0, 1.0, 1.0);
+        if (Math.abs(hpWarrior - 240.0) < 0.01 && Math.abs(hpMage - 200.0) < 0.01) {
+            pass++;
+            sender.sendMessage(Component.text(
+                    "[PASS] HP-формула: воин 240, маг 200 (STR=60, level=40)",
+                    NamedTextColor.GREEN));
+        } else {
+            fail++;
+            sender.sendMessage(Component.text(
+                    "[FAIL] HP-формула: воин=" + hpWarrior + " (ожидалось 240), маг=" + hpMage + " (ожидалось 200)",
+                    NamedTextColor.RED));
+        }
+
+        // 9. DR: raw=80 → eff=70 при softCap=60, drFactor=0.5, hardCap=75
+        //    raw=100 → eff=80 (60 + (100-60)×0.5 = 80); raw=200 → eff=75 (жёсткий кап)
+        double dr80 = AttributeMath.applyDR(80.0, 60.0, 0.5, 75.0);
+        double dr100 = AttributeMath.applyDR(100.0, 60.0, 0.5, 75.0);
+        double dr200 = AttributeMath.applyDR(200.0, 60.0, 0.5, 75.0);
+        if (Math.abs(dr80 - 70.0) < 0.01
+                && Math.abs(dr100 - 80.0) < 0.01
+                && Math.abs(dr200 - 75.0) < 0.01) {
+            pass++;
+            sender.sendMessage(Component.text(
+                    "[PASS] DR: raw 80→70, 100→80, 200→75 (hard-cap)",
+                    NamedTextColor.GREEN));
+        } else {
+            fail++;
+            sender.sendMessage(Component.text(
+                    "[FAIL] DR: dr80=" + dr80 + ", dr100=" + dr100 + ", dr200=" + dr200,
+                    NamedTextColor.RED));
+        }
+
+        // 10. AGI-основные: raw-dodge с refund половины потерянного парирования
+        //    dodgeRaw(AGI=50, k=100) = 100×50/150 = 33.33
+        //    parryRaw(STR=20, k=150) = 100×20/170 = 11.76
+        //    lost = 11.76 − 0.5 (micro) = 11.26
+        //    refund = 11.26 × 0.5 = 5.63
+        //    итого dodge = 33.33 + 5.63 = 38.96
+        double dodge = AttributeMath.dodgeRaw(50.0, 100.0);
+        double parry = AttributeMath.parryRaw(20.0, 150.0);
+        double micro = 0.5;
+        double lost = Math.max(0.0, parry - micro);
+        double refund = lost * 0.5;
+        double dodgeWithRefund = dodge + refund;
+        if (Math.abs(dodgeWithRefund - 38.96) < 0.5
+                && parry >= 10.0 && parry <= 13.0
+                && dodge >= 30.0 && dodge <= 36.0) {
+            pass++;
+            sender.sendMessage(Component.text(
+                    "[PASS] AGI-основные: dodge=33.33 + refund=5.63 = 38.96; parry raw="
+                            + String.format(java.util.Locale.ROOT, "%.2f", parry),
+                    NamedTextColor.GREEN));
+        } else {
+            fail++;
+            sender.sendMessage(Component.text(
+                    "[FAIL] AGI-основные: dodge=" + dodge + ", parry=" + parry
+                            + ", refund=" + refund + ", sum=" + dodgeWithRefund,
                     NamedTextColor.RED));
         }
 
