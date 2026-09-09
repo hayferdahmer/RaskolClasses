@@ -2,6 +2,37 @@
 
 Формат: [версия] — дата — имя. Секции Added / Changed / Fixed / Removed.
 
+## [1.6.12] — 2026-09-10 · «Наблюдаемость»
+
+### Added
+- **Команда `/rc health`** (permission `raskolclasses.debug`) — сводка
+  наблюдаемости для оператора, все строки однострочные:
+  - MSPT-снапшот (`Server#getAverageTickTime`, 2 знака) + TPS (первое значение
+    `getTPS()`); строка зелёная при MSPT ≤ 50, красная выше;
+  - модификаторы резиста: игроков / записей / размер кэша факторов;
+  - кулдауны: игроков / записей;
+  - инсталляции: активных / глобальный кап;
+  - proc-кулдауны Fx: игроков;
+  - звуковой бюджет: сброшено звуков с прошлого `/rc health`
+    (окно сбрасывается опросом — семантика «с прошлого вызова»);
+  - последний purge: N с назад; аптайм плагина.
+- **Метрики FxService:** счётчик `droppedSoundsWindow` (инкремент в ветке
+  сброса бюджета в `playSound`), `pollDroppedSounds()` (возврат + сброс окна),
+  `procVisualCdSize()`.
+- **Метрики CooldownManager:** `trackedPlayers()`, `totalEntries()`.
+- **Метрики ResistService:** `trackedPlayers()`, `totalModifiers()`,
+  `factorCacheSize()`.
+- **Отметки RaskolClasses:** `lastPurgeMillis` (обновляется в purge-таске),
+  `enabledAtMillis` (на onEnable) + геттеры для `/rc health`.
+
+### Changed
+- Таб-комплит `/rc`: добавлен `health` в корневой список, гейт
+  `raskolclasses.debug` (как у `debug`).
+- **Политика WARNING задокументирована:** однострочные сообщения без
+  стектрейсов везде, где стек не является единственным способом найти причину;
+  стек остаётся только в SafeStorage SEVERE (коррупт хранилища).
+- Версия в pom/plugin.yml: 1.6.12; артефакт `raskol-classes-1.6.12.jar`.
+
 ## [1.6.11] — 2026-09-10 · «Анти-эксплойт и sanity»
 
 ### Added
