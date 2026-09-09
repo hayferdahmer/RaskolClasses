@@ -4,7 +4,7 @@ package dev.raskol.classes.fx;
 import dev.raskol.classes.RaskolClasses;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.title.Title;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -15,20 +15,20 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Движок звука/партиклов (1.5.0 … 1.6.0.2).
- * FIX 1.6.0.2: Sound#name()/Particle#name() deprecated for removal в Paper 1.21.4 —
- * индекс и describeFor используют getKey().getKey() (не deprecated).
- * Ранее: звуковой бюджет на тик и purgeStale (1.5.7), субтайтлы проков (1.5.6),
- * индекс реестра + алиасы (1.5.3.1), валидация vfx (1.5.3).
+ * Движок звука/партиклов (1.5.0 … 1.6.12).
+ * 1.6.12: наблюдаемость — счётчик звуков, сброшенных глобальным бюджетом
+ * (pollDroppedSounds для /rc health), размер карты proc-кулдаунов.
+ * WARNING-и валидации каталога — однострочные, без стектрейсов (стек только
+ * там, где без него не найти причину:SafeStorage SEVERE).
  */
 public final class FxService {
 
@@ -36,33 +36,27 @@ public final class FxService {
     private static final Map<String, String[]> DEFAULTS = new HashMap<>();
 
     static {
-        // Воин: металл и война
         DEFAULTS.put("steel_skin", new String[]{"ITEM_ARMOR_EQUIP_IRON", "CRIT"});
         DEFAULTS.put("shield_bash", new String[]{"BLOCK_ANVIL_LAND", "SWEEP_ATTACK"});
         DEFAULTS.put("blood_fury", new String[]{"ENTITY_RAVAGER_ROAR", "CRIMSON_SPORE"});
         DEFAULTS.put("war_god", new String[]{"ENTITY_LIGHTNING_BOLT_THUNDER", "FLAME"});
-        // Охотник: лук и зверь
         DEFAULTS.put("aimed_shot", new String[]{"ITEM_CROSSBOW_SHOOT", "CRIT"});
         DEFAULTS.put("cheetah_aspect", new String[]{"ENTITY_CAT_HISS", "WHITE_ASH"});
         DEFAULTS.put("multi_shot", new String[]{"ENTITY_ARROW_SHOOT", "SWEEP_ATTACK"});
         DEFAULTS.put("barrage", new String[]{"ENTITY_ARROW_SHOOT", "POOF"});
-        // Жрец: свет и магия
         DEFAULTS.put("lesser_heal", new String[]{"BLOCK_BELL_USE", "HEART"});
         DEFAULTS.put("flash_heal", new String[]{"BLOCK_AMETHYST_BLOCK_CHIME", "HEART"});
         DEFAULTS.put("pw_shield", new String[]{"BLOCK_AMETHYST_BLOCK_CHIME", "ENCHANTED_HIT"});
         DEFAULTS.put("circle_of_prayer", new String[]{"BLOCK_BEACON_ACTIVATE", "HEART"});
         DEFAULTS.put("smite", new String[]{"ENTITY_LIGHTNING_BOLT_IMPACT", "FLASH"});
-        // Маг: аркана и стихии
         DEFAULTS.put("firebolt", new String[]{"ITEM_FIRECHARGE_USE", "FLAME"});
         DEFAULTS.put("blink", new String[]{"ENTITY_ENDERMAN_TELEPORT", "PORTAL"});
         DEFAULTS.put("frost_nova", new String[]{"ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE"});
         DEFAULTS.put("arcane_burst", new String[]{"ENTITY_EVOKER_CAST_SPELL", "POOF"});
-        // Разбойник: тень и дым
         DEFAULTS.put("stealth", new String[]{"ENTITY_PHANTOM_FLAP", "SMOKE"});
         DEFAULTS.put("fan_of_knives", new String[]{"ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK"});
         DEFAULTS.put("cheap_shot", new String[]{"ENTITY_PLAYER_ATTACK_KNOCKBACK", "SMOKE"});
         DEFAULTS.put("evasion", new String[]{"ENTITY_ENDERMAN_TELEPORT", "CLOUD"});
-        // Активки специализаций
         DEFAULTS.put("challenge", new String[]{"BLOCK_BELL_USE", "ANGRY_VILLAGER"});
         DEFAULTS.put("rage_burst", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "CRIMSON_SPORE"});
         DEFAULTS.put("precise_shot", new String[]{"BLOCK_NOTE_BLOCK_PLING", "END_ROD"});
@@ -73,7 +67,6 @@ public final class FxService {
         DEFAULTS.put("ice_ring", new String[]{"ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE"});
         DEFAULTS.put("garrote", new String[]{"ENTITY_PLAYER_ATTACK_WEAK", "DAMAGE_INDICATOR"});
         DEFAULTS.put("smoke_bomb", new String[]{"BLOCK_FIRE_EXTINGUISH", "SMOKE"});
-        // Проки пассивок
         DEFAULTS.put("proc.execute_passive", new String[]{"ENTITY_PLAYER_ATTACK_CRIT", "DAMAGE_INDICATOR"});
         DEFAULTS.put("proc.predator", new String[]{"ENTITY_PLAYER_ATTACK_STRONG", "CRIT"});
         DEFAULTS.put("proc.grace", new String[]{"ENTITY_EXPERIENCE_ORB_PICKUP", "HEART"});
@@ -103,6 +96,9 @@ public final class FxService {
     private int soundBudget = 8;
     private int budgetTick = -1;
     private int soundsThisTick = 0;
+
+    /** 1.6.12: счётчик звуков, сброшенных бюджетом (окно между опросами /rc health). */
+    private final AtomicLong droppedSoundsWindow = new AtomicLong(0L);
 
     private final RaskolClasses plugin;
 
@@ -147,13 +143,13 @@ public final class FxService {
         if (tag != null && !tag.isEmpty()
                 && cfg.getBoolean("vfx.proc-actionbar", true)
                 && tryProcVisual(player, procId)) {
-            player.showTitle(Title.title(
+            player.showTitle(net.kyori.adventure.title.Title.title(
                     Component.empty(),
                     Component.text(tag, NamedTextColor.YELLOW),
-                    Title.Times.times(
-                            Duration.ofMillis(80),
-                            Duration.ofMillis(900),
-                            Duration.ofMillis(250))));
+                    net.kyori.adventure.title.Title.Times.times(
+                            java.time.Duration.ofMillis(80),
+                            java.time.Duration.ofMillis(900),
+                            java.time.Duration.ofMillis(250))));
         }
     }
 
@@ -178,6 +174,19 @@ public final class FxService {
             entry.getValue().entrySet().removeIf(inner -> now - inner.getValue() > 60_000L);
             return entry.getValue().isEmpty();
         });
+    }
+
+    /** 1.6.12: размер карты proc-кулдаунов для /rc health. */
+    public int procVisualCdSize() {
+        return procVisualCd.size();
+    }
+
+    /**
+     * 1.6.12: число звуков, сброшенных бюджетом, с момента прошлого опроса.
+     * Вызов сбрасывает окно (семантика «с прошлого /rc health»).
+     */
+    public long pollDroppedSounds() {
+        return droppedSoundsWindow.getAndSet(0L);
     }
 
     /** Legacy-обёртка обратной совместимости. */
@@ -211,12 +220,14 @@ public final class FxService {
         if (loc.getWorld() == null) {
             return;
         }
-        int now = org.bukkit.Bukkit.getCurrentTick();
+        int now = Bukkit.getCurrentTick();
         if (now != budgetTick) {
             budgetTick = now;
             soundsThisTick = 0;
         }
         if (soundsThisTick >= soundBudget) {
+            // 1.6.12: учитываем сброшенные звуки для наблюдаемости
+            droppedSoundsWindow.incrementAndGet();
             return;
         }
         soundsThisTick++;
@@ -237,7 +248,6 @@ public final class FxService {
                 if (local == null) {
                     local = new HashMap<>();
                     for (Sound s : Registry.SOUNDS) {
-                        // 1.6.0.2: getKey() вместо deprecated name()
                         local.putIfAbsent(norm(s.getKey().getKey()), s);
                     }
                     soundIndexCache = local;
@@ -255,7 +265,6 @@ public final class FxService {
                 if (local == null) {
                     local = new HashMap<>();
                     for (Particle p : Registry.PARTICLE_TYPE) {
-                        // 1.6.0.2: getKey() вместо deprecated name()
                         local.putIfAbsent(norm(p.getKey().getKey()), p);
                     }
                     particleIndexCache = local;
@@ -304,7 +313,7 @@ public final class FxService {
         return Registry.PARTICLE_TYPE.get(NamespacedKey.minecraft(lower));
     }
 
-    // --- 1.5.3: диагностика каталога vfx ---
+    // --- 1.5.3: диагностика каталога vfx (WARNING однострочные, без стеков) ---
 
     public int validateConfig() {
         this.soundBudget = plugin.getConfig().getInt("performance.sound-budget-per-tick", 8);
@@ -380,7 +389,6 @@ public final class FxService {
         String particleKey = cfg.getString("vfx." + abilityId + ".cast-particle", def[1]);
         Sound s = resolveSound(soundKey);
         Particle p = resolveParticle(particleKey);
-        // 1.6.0.2: getKey() вместо deprecated name()
         return (s != null ? s.getKey().getKey() : "тишина") + " / "
                 + (p != null ? p.getKey().getKey() : "без партикла");
     }
