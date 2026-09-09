@@ -3,6 +3,8 @@ package dev.raskol.classes.gui;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
+import dev.raskol.classes.attribute.AttributeService;
+import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.config.RaskolConfig;
@@ -29,13 +31,17 @@ import org.bukkit.enchantments.Enchantment;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Книга класса (1.5.4 + 1.5.5 + 1.5.9 + 1.6.6 + 1.6.7).
- * 1.6.7: ключ сообщения маг-гранта — book.resist.grant-magic (плоский ключ,
- * достижимый через path-API Bukkit; раньше grant.magic был недоступен, т.к.
- * ключ grant занят строкой физ-гранта).
+ * Книга класса (1.5.4 + 1.5.5 + 1.5.9 + 1.6.6 + 1.7.0 пакет 1).
+ * 1.6.6: сводка резистов (предмет-щит, слот 14) и grant-строки в лоре.
+ * 1.6.7: ключ маг-гранта — плоский book.resist.grant-magic.
+ * 1.7.0 пакет 1: предмет-эмблема атрибутов (слот 16 вкладки «Класс»):
+ * значения STR/AGI/INT со звёздочкой у основного атрибута, maxHP по формуле,
+ * эффективные уклонение/парирование (после DR), криты мили/магии.
+ * Значения берутся из AttributeService — тот же источник, что бой/PAPI/дебаг.
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -54,6 +60,8 @@ public final class ClassBook implements InventoryHolder {
     private static final int SLOT_CROWN = 15;
     /** 1.6.6: сводка резистов во вкладке «Класс». */
     private static final int SLOT_RESIST = 14;
+    /** 1.7.0 пакет 1: сводка атрибутов во вкладке «Класс». */
+    private static final int SLOT_ATTRIBUTES = 16;
 
     private Inventory inventory;
     private final UUID owner;
@@ -139,6 +147,8 @@ public final class ClassBook implements InventoryHolder {
                 }
                 inventory.setItem(SLOT_RESIST, resistItem(plugin, player, pc));
                 inventory.setItem(SLOT_CROWN, crownItem(plugin, player, pc));
+                // 1.7.0 пакет 1: сводка атрибутов
+                inventory.setItem(SLOT_ATTRIBUTES, attributesItem(plugin, player, pc));
             }
         }
     }
@@ -294,6 +304,55 @@ public final class ClassBook implements InventoryHolder {
         return item;
     }
 
+    /**
+     * 1.7.0 пакет 1: сводка классовых атрибутов. Звёздочка ★ — основной атрибут
+     * класса; числа — из AttributeService (единый источник с боем и PAPI).
+     */
+    private ItemStack attributesItem(RaskolClasses plugin, Player player, PlayerClass pc) {
+        UUID uuid = player.getUniqueId();
+        AttributeService attrs = plugin.getAttributes();
+        AttributeType main = attrs.mainOf(pc);
+        double str = attrs.value(uuid, AttributeType.STR);
+        double agi = attrs.value(uuid, AttributeType.AGI);
+        double intel = attrs.value(uuid, AttributeType.INT);
+        double[] eff = attrs.effectiveAvoidance(uuid);
+        ItemStack item = new ItemStack(Material.ENCHANTED_BOOK);
+        item.editMeta(meta -> {
+            meta.displayName(TextFx.gradient(
+                    msg(plugin, "book.attributes.title", "Атрибуты класса"),
+                    plugin.getRaskolConfig().themeOf(pc).primary(),
+                    plugin.getRaskolConfig().themeOf(pc).secondary()));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text((main == AttributeType.STR ? "★ " : "  ")
+                    + msg(plugin, "book.attributes.str", "СИЛА: {value}")
+                    .replace("{value}", String.valueOf((int) str)), NamedTextColor.RED));
+            lore.add(Component.text((main == AttributeType.AGI ? "★ " : "  ")
+                    + msg(plugin, "book.attributes.agi", "ЛОВКОСТЬ: {value}")
+                    .replace("{value}", String.valueOf((int) agi)), NamedTextColor.GREEN));
+            lore.add(Component.text((main == AttributeType.INT ? "★ " : "  ")
+                    + msg(plugin, "book.attributes.int", "ИНТЕЛЛЕКТ: {value}")
+                    .replace("{value}", String.valueOf((int) intel)), NamedTextColor.AQUA));
+            lore.add(Component.text(""));
+            lore.add(Component.text(msg(plugin, "book.attributes.hp", "Макс. HP: {value}")
+                    .replace("{value}", String.valueOf((int) attrs.maxHp(uuid))),
+                    NamedTextColor.WHITE));
+            lore.add(Component.text(msg(plugin, "book.attributes.dodge", "Уклонение: {value}%")
+                    .replace("{value}", String.format(Locale.ROOT, "%.1f", eff[0])),
+                    NamedTextColor.GREEN));
+            lore.add(Component.text(msg(plugin, "book.attributes.parry", "Парирование: {value}%")
+                    .replace("{value}", String.format(Locale.ROOT, "%.1f", eff[1])),
+                    NamedTextColor.YELLOW));
+            lore.add(Component.text(msg(plugin, "book.attributes.crit-melee", "Крит мили: {value}%")
+                    .replace("{value}", String.format(Locale.ROOT, "%.1f",
+                            attrs.critMeleeChance(uuid))), NamedTextColor.RED));
+            lore.add(Component.text(msg(plugin, "book.attributes.crit-spell", "Крит магии: {value}%")
+                    .replace("{value}", String.format(Locale.ROOT, "%.1f",
+                            attrs.critSpellChance(uuid))), NamedTextColor.AQUA));
+            meta.lore(lore);
+        });
+        return item;
+    }
+
     private ItemStack abilityItem(RaskolClasses plugin, Player player, PlayerClass pc, AbilityDef def) {
         RaskolConfig cfg = plugin.getRaskolConfig();
         UUID uuid = player.getUniqueId();
@@ -428,6 +487,7 @@ public final class ClassBook implements InventoryHolder {
                         .replace("{cost}", String.valueOf(def.activeCost()))
                         .replace("{sec}", String.valueOf(def.activeCooldown())),
                         NamedTextColor.AQUA));
+                // 1.6.6: постоянный резист-грант спеки (Страж)
                 if (spec == Spec.GUARDIAN) {
                     double g = plugin.getConfig()
                             .getDouble("resist.specs.guardian.physical", 10.0);
