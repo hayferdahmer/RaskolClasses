@@ -55,9 +55,8 @@ import java.util.Locale;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.7.0 пакет 2: HpBarService (Dota-HP: maxHP-модификатор, скрытие сердец,
- * босс-бар сверху / совмещённый actionbar); задача HudService не стартует,
- * когда hp-display.mode = actionbar (иначе две строки actionbar конфликтовали бы).
+ * 1.7.0 пакет 2 (редизайн): HudService стартует ТОЛЬКО при hp-display.mode=vanilla;
+ * в режиме actionbar совмещённую строку «HP + ресурс» шлёт HpBarService.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -146,7 +145,7 @@ public final class RaskolClasses extends JavaPlugin {
 
         // 1.7.0 пакет 1: классовые атрибуты
         this.attributes = new AttributeService(this);
-        // 1.7.0 пакет 2: Dota-HP (maxHP + бар)
+        // 1.7.0 пакет 2: HP-реформа (совмещённая строка + maxHP)
         this.hpBarService = new HpBarService(this);
         pluginManager.registerEvents(hpBarService, this);
 
@@ -204,12 +203,12 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
 
-        // 1.7.0 пакет 2: в режиме actionbar совмещённую строку шлёт HpBarService,
-        // поэтому отдельная задача HudService не стартует (конфликт actionbar).
+        // 1.7.0 пакет 2 (редизайн): HudService рисует ресурсную строку ТОЛЬКО в
+        // режиме vanilla; в режиме actionbar совмещённую строку шлёт HpBarService.
         boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
-        boolean hpActionbar = "actionbar".equalsIgnoreCase(
-                getConfig().getString("hp-display.mode", "bossbar"));
-        if (hudEnabled && !hpActionbar) {
+        boolean hpVanilla = "vanilla".equalsIgnoreCase(
+                getConfig().getString("hp-display.mode", "actionbar"));
+        if (hudEnabled && hpVanilla) {
             activeTasks.add(hud.start());
         }
         activeTasks.add(hpBarService.start());
@@ -246,9 +245,6 @@ public final class RaskolClasses extends JavaPlugin {
     public void onDisable() {
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
-        if (hpBarService != null) {
-            hpBarService.shutdown();
-        }
         if (installations != null) {
             installations.shutdown();
         }
