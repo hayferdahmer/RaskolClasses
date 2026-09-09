@@ -19,6 +19,7 @@ import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
+import dev.raskol.classes.hotbar.ScrollSanitizer;
 import dev.raskol.classes.hotbar.SpecBindListener;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
@@ -51,8 +52,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.6.10: автосейв хранилищ (cooldowns.yml + spec-choices.yml) каждые
- * storage.autosave-minutes; CooldownManager уже пишет атомарно через SafeStorage.
+ * 1.6.11: регистрация ScrollSanitizer (чистка устаревших свитков на join).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -130,7 +130,6 @@ public final class RaskolClasses extends JavaPlugin {
         this.combat = new CombatService(this, resists);
         this.manaSoaked = new ManaSoakedService(this);
 
-        // 1.6.7: валидация конфига резистов/урона + сводка баз
         this.configValidator = new ConfigValidator(this);
         configValidator.validate();
         configValidator.logSummary();
@@ -162,6 +161,8 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
+        // 1.6.11: санитизация свитков с мёртвыми id на join
+        pluginManager.registerEvents(new ScrollSanitizer(this), this);
         pluginManager.registerEvents(new Listener() {
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
@@ -205,8 +206,6 @@ public final class RaskolClasses extends JavaPlugin {
             installations.purgeStale();
             resists.purgeExpired();
         }, purgeInterval, purgeInterval));
-        // 1.6.10: автосейв хранилищ каждые N минут (дефолт 5):
-        // при крахе теряется не более N минут кулдаунов; спек-выборы не теряются
         long autosaveTicks = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.saveAll();
@@ -270,7 +269,6 @@ public final class RaskolClasses extends JavaPlugin {
             specRegistry.load();
         }
         fx.validateConfig();
-        // 1.6.7: повторная валидация конфига резистов/урона
         configValidator.validate();
         getLogger().info("Конфигурация перезагружена");
     }
