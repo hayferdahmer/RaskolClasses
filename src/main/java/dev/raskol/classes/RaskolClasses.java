@@ -52,7 +52,8 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.6.11: регистрация ScrollSanitizer (чистка устаревших свитков на join).
+ * 1.6.12: lastPurgeMillis (обновляется purge-таском) и enabledAtMillis —
+ * метрики для /rc health.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -86,6 +87,11 @@ public final class RaskolClasses extends JavaPlugin {
     private CombatService combat;
     private ManaSoakedService manaSoaked;
     private ConfigValidator configValidator;
+
+    /** 1.6.12: момент последнего purge-цикла (для /rc health). */
+    private volatile long lastPurgeMillis = System.currentTimeMillis();
+    /** 1.6.12: момент включения плагина (для аптайма в /rc health). */
+    private final long enabledAtMillis = System.currentTimeMillis();
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
@@ -161,7 +167,6 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
-        // 1.6.11: санитизация свитков с мёртвыми id на join
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
         pluginManager.registerEvents(new Listener() {
             @EventHandler
@@ -205,6 +210,8 @@ public final class RaskolClasses extends JavaPlugin {
             fx.purgeStale();
             installations.purgeStale();
             resists.purgeExpired();
+            // 1.6.12: отметка для /rc health
+            lastPurgeMillis = System.currentTimeMillis();
         }, purgeInterval, purgeInterval));
         long autosaveTicks = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
@@ -271,6 +278,16 @@ public final class RaskolClasses extends JavaPlugin {
         fx.validateConfig();
         configValidator.validate();
         getLogger().info("Конфигурация перезагружена");
+    }
+
+    /** 1.6.12: момент последнего purge-цикла, epoch millis. */
+    public long getLastPurgeMillis() {
+        return lastPurgeMillis;
+    }
+
+    /** 1.6.12: момент включения плагина, epoch millis. */
+    public long getEnabledAtMillis() {
+        return enabledAtMillis;
     }
 
     public RaskolConfig getRaskolConfig() { return raskolConfig; }
