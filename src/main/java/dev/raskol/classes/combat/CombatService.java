@@ -24,28 +24,15 @@ import java.util.UUID;
 
 /**
  * 1.6.0: боевой сервис урона и резистов.
- * Путь A (ваниль): EntityDamageEvent по игроку режется резистом своего типа
- * (карта причин → тип с конфиг-оверрайдами damage-types.vanilla-map).
- * Путь B (наши способности/инсталляции/спек-активки): dealDamage(target, source,
- * DamageProfile) — физ-компонента проходит броню, маг+чистый через DamageSource
- * minecraft:magic (броню не трогает). Двойного применения резиста нет
- * (ThreadLocal-маркер SUPPRESS, сброс в finally — 1.6.1 B3).
- *
  * 1.6.4: simulateTaken() — единая формула «сколько дойдёт» для симулятора.
  * 1.6.8: spectator/creative-гарды; CRAMMING/DRYOUT явно physical.
- * 1.6.9: три баланс-рубильника:
- *  - resist.disabled-worlds: в перечисленных мирах резисты не применяются вовсе;
- *  - resist.pvp-cap: отдельный кап резиста, когда урон пришёл от игрока
- *    (PvP: прямой удар или снаряд с шутером-игроком; путь B: source — игрок);
- *  - combat.true-damage-cap-per-hit: предохранитель компоненты true в профилях
- *    (дефолт 1000) — защита от опечаток баланса и fuse для контента 1.7.x.
+ * 1.6.9: resist.disabled-worlds / pvp-cap / true-damage-cap-per-hit.
+ * 1.6.11: санитаризация NaN/Infinity в dealDamage и simulateTaken —
+ * битый конфиг (`.nan`, `.inf`, опечатка) не ломает бой и не уходит в NaN-урон.
  */
 public final class CombatService implements Listener {
 
-    /** Маркер «этот урон уже посчитан CombatService» (свои вызовы пути B). */
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
-
-    /** Кэш ванильного типа урона minecraft:magic из реестра Paper. */
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
     private final RaskolClasses plugin;
@@ -60,7 +47,6 @@ public final class CombatService implements Listener {
         return resists;
     }
 
-    /** Тип урона minecraft:magic из реестра Paper (без класса-констант). */
     private static org.bukkit.damage.DamageType magicType() {
         org.bukkit.damage.DamageType local = magicTypeCache;
         if (local == null) {
@@ -72,12 +58,11 @@ public final class CombatService implements Listener {
         return local;
     }
 
-    /** 1.6.9: предохранитель компоненты чистого урона за один вызов. */
     private double trueCap() {
-        return plugin.getConfig().getDouble("combat.true-damage-cap-per-hit", 1000.0);
+        double v = plugin.getConfig().getDouble("combat.true-damage-cap-per-hit", 1000.0);
+        return Double.isFinite(v) && v >= 0.0 ? v : 1000.0;
     }
 
-    /** 1.6.9: урон пришёл от игрока (PvP) — прямой удар или снаряд с шутером-игроком. */
     private static boolean isPvp(EntityDamageEvent event) {
         if (!(event instanceof EntityDamageByEntityEvent byEntity)) {
             return false;
@@ -89,69 +74,65 @@ public final class CombatService implements Listener {
         return damager instanceof Projectile proj && proj.getShooter() instanceof Player;
     }
 
-    /** Путь A: ванильный урон по игроку режется резистом своего типа. */
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         if (Boolean.TRUE.equals(SUPPRESS.get())) {
             SUPPRESS.set(Boolean.FALSE);
-            return; // урон уже посчитан dealDamage — резисты не применяем повторно
+            return;
         }
         if (!(event.getEntity() instanceof Player target)) {
-            return; // резисты пока только у игроков
+            return;
         }
-        // 1.6.8: зрители не получают урон — нечего и резистить
         if (target.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
-        // 1.6.9: миры-арены/хабы без резистов
         if (resists.disabledIn(target.getWorld())) {
             return;
         }
         DamageType type = typeOf(event.getCause());
         if (type == DamageType.TRUE) {
-            return; // чистый урон резистами не режется
+            return;
         }
-        // 1.6.9: PvP-урон режется по pvp-cap, PvE — по общему cap
         double cap = isPvp(event) ? resists.pvpCap() : resists.cap();
         UUID uuid = target.getUniqueId();
         double factor = type == DamageType.PHYSICAL
                 ? resists.physicalFactor(uuid, cap)
                 : resists.magicFactor(uuid, cap);
-        if (factor >= 1.0) {
+        // 1.6.11: битый фактор (NaN/отрицательный) — пропускаем применение
+        if (!Double.isFinite(factor) || factor >= 1.0 || factor < 0.0) {
             return;
         }
         event.setDamage(event.getDamage() * factor);
     }
 
-    /**
-     * 1.6.4: единая формула «сколько дойдёт» до цели (PvE-кап, миры-без-резистов
-     * и предохранитель true учитываются). Ею пользуется симулятор /rc debug.
-     */
+    /** 1.6.11: simulateTaken с санитаризацией — симулятор не упадёт на NaN-конфиге. */
     public double simulateTaken(LivingEntity target, DamageProfile profile) {
         if (profile == null || target == null) {
             return 0.0;
         }
-        double truePart = Math.min(profile.trueDamage(), trueCap());
+        DamageProfile safe = sanitize(profile);
+        double truePart = Math.min(safe.trueDamage(), trueCap());
         if (resists.disabledIn(target.getWorld())) {
-            return profile.physical() + profile.magic() + truePart;
+            return safe.physical() + safe.magic() + truePart;
         }
         if (target instanceof Player p) {
             UUID uuid = p.getUniqueId();
-            return profile.physical() * resists.physicalFactor(uuid)
-                    + profile.magic() * resists.magicFactor(uuid)
-                    + truePart;
+            double physFactor = resists.physicalFactor(uuid);
+            double magicFactor = resists.magicFactor(uuid);
+            double phys = Double.isFinite(physFactor) ? safe.physical() * physFactor : safe.physical();
+            double magic = Double.isFinite(magicFactor) ? safe.magic() * magicFactor : safe.magic();
+            return phys + magic + truePart;
         }
-        return profile.physical() + profile.magic() + truePart;
+        return safe.physical() + safe.magic() + truePart;
     }
 
-    /**
-     * Путь B: наш урон с профилем. Возвращает фактически нанесённый урон.
-     * Мобы резистов не имеют (урон проходит целиком).
-     * 1.6.8: зрители и креативщики пропускаются (ванильная неуязвимость).
-     * 1.6.9: миры без резистов, PvP-кап, предохранитель true-компоненты.
-     */
+    /** 1.6.11: dealDamage с санитаризацией — NaN/Infinity в профиле → 0. */
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
-        if (profile == null || profile.isEmpty() || target == null || target.isDead()) {
+        if (profile == null || target == null || target.isDead()) {
+            return 0.0;
+        }
+        DamageProfile safe = sanitize(profile);
+        if (safe.isEmpty()) {
             return 0.0;
         }
         if (target instanceof Player tp) {
@@ -160,23 +141,26 @@ public final class CombatService implements Listener {
                 return 0.0;
             }
         }
-        double truePart = Math.min(profile.trueDamage(), trueCap());
+        double truePart = Math.min(safe.trueDamage(), trueCap());
         double physPart;
         double magicTruePart;
         if (resists.disabledIn(target.getWorld())) {
-            physPart = profile.physical();
-            magicTruePart = profile.magic() + truePart;
+            physPart = safe.physical();
+            magicTruePart = safe.magic() + truePart;
         } else if (target instanceof Player p) {
             UUID uuid = p.getUniqueId();
             double cap = source instanceof Player ? resists.pvpCap() : resists.cap();
-            physPart = profile.physical() * resists.physicalFactor(uuid, cap);
-            magicTruePart = profile.magic() * resists.magicFactor(uuid, cap) + truePart;
+            double physFactor = resists.physicalFactor(uuid, cap);
+            double magicFactor = resists.magicFactor(uuid, cap);
+            physPart = Double.isFinite(physFactor) ? safe.physical() * physFactor : safe.physical();
+            double magicScaled = Double.isFinite(magicFactor) ? safe.magic() * magicFactor : safe.magic();
+            magicTruePart = magicScaled + truePart;
         } else {
-            physPart = profile.physical();
-            magicTruePart = profile.magic() + truePart;
+            physPart = safe.physical();
+            magicTruePart = safe.magic() + truePart;
         }
-        double taken = physPart + magicTruePart; // совпадает с simulateTaken по построению
-        debugLog(target, source, profile, taken);
+        double taken = physPart + magicTruePart;
+        debugLog(target, source, safe, taken);
         if (physPart > 0.0) {
             SUPPRESS.set(Boolean.TRUE);
             try {
@@ -186,8 +170,6 @@ public final class CombatService implements Listener {
                     target.damage(physPart);
                 }
             } finally {
-                // 1.6.1 (B3): событие диспатчится синхронно внутри damage();
-                // пост-сброс безопасен и закрывает утечку, если события не было
                 SUPPRESS.set(Boolean.FALSE);
             }
         }
@@ -211,11 +193,6 @@ public final class CombatService implements Listener {
         return taken;
     }
 
-    /**
-     * 1.6.4: боевой лог нашего урона (гейт combat.debug-damage, дефолт false).
-     * Пишет в чат всем онлайн-админам с raskolclasses.debug серой строкой:
-     * профиль (физ/маг/чистый) → дошло → резисты цели.
-     */
     private void debugLog(LivingEntity target, Entity source, DamageProfile profile, double taken) {
         if (!plugin.getConfig().getBoolean("combat.debug-damage", false)) {
             return;
@@ -242,7 +219,6 @@ public final class CombatService implements Listener {
         }
     }
 
-    /** Тип причины с учётом конфиг-оверрайдов damage-types.vanilla-map. */
     private DamageType typeOf(EntityDamageEvent.DamageCause cause) {
         String override = plugin.getConfig()
                 .getString("damage-types.vanilla-map." + cause.name());
@@ -254,5 +230,16 @@ public final class CombatService implements Listener {
             }
         }
         return DamageType.defaultFor(cause);
+    }
+
+    /** 1.6.11: санитаризация DamageProfile — NaN/Infinity/отрицательные → 0. */
+    private static DamageProfile sanitize(DamageProfile p) {
+        double phys = Double.isFinite(p.physical()) && p.physical() >= 0 ? p.physical() : 0.0;
+        double magic = Double.isFinite(p.magic()) && p.magic() >= 0 ? p.magic() : 0.0;
+        double truth = Double.isFinite(p.trueDamage()) && p.trueDamage() >= 0 ? p.trueDamage() : 0.0;
+        if (phys == p.physical() && magic == p.magic() && truth == p.trueDamage()) {
+            return p;
+        }
+        return new DamageProfile(phys, magic, truth);
     }
 }
