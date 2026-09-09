@@ -51,7 +51,8 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.6.7: ConfigValidator на старте и при /rc reload + сводка баз резистов в лог.
+ * 1.6.10: автосейв хранилищ (cooldowns.yml + spec-choices.yml) каждые
+ * storage.autosave-minutes; CooldownManager уже пишет атомарно через SafeStorage.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -204,6 +205,13 @@ public final class RaskolClasses extends JavaPlugin {
             installations.purgeStale();
             resists.purgeExpired();
         }, purgeInterval, purgeInterval));
+        // 1.6.10: автосейв хранилищ каждые N минут (дефолт 5):
+        // при крахе теряется не более N минут кулдаунов; спек-выборы не теряются
+        long autosaveTicks = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
+        activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
+            cooldowns.saveAll();
+            specStorage.save();
+        }, autosaveTicks, autosaveTicks));
 
         registerCommand();
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
