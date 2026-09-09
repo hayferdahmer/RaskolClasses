@@ -67,7 +67,7 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
             case "resource_max":
                 return String.valueOf((int) ResourceState.MAX_VALUE);
             case "str":
-                return String.valueOf((int) plugin.getAttributes().value(uuid, AttributeType.STR);
+                return String.valueOf((int) plugin.getAttributes().value(uuid, AttributeType.STR));
             case "agi":
                 return String.valueOf((int) plugin.getAttributes().value(uuid, AttributeType.AGI));
             case "int":
