@@ -15,9 +15,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 1.6.0: сопротивления урону (РЕЗИСТ).
- * 1.6.3: кэш факторов на тик.
- * 1.6.9: pvp-cap / disabled-worlds.
- * 1.6.11: NaN-защита — битые значения из конфига не уходят в факторы.
+ * 1.6.3: кэш факторов на тик. 1.6.9: pvp-cap / disabled-worlds.
+ * 1.6.11: NaN-защита. 1.6.12: метрики размеров карт для /rc health.
  */
 public final class ResistService {
 
@@ -143,6 +142,25 @@ public final class ResistService {
         invalidate(uuid);
     }
 
+    /** 1.6.12: число игроков с модификаторами (для /rc health). */
+    public int trackedPlayers() {
+        return modifiers.size();
+    }
+
+    /** 1.6.12: суммарное число модификаторов (для /rc health). */
+    public int totalModifiers() {
+        int total = 0;
+        for (CopyOnWriteArrayList<Modifier> list : modifiers.values()) {
+            total += list.size();
+        }
+        return total;
+    }
+
+    /** 1.6.12: размер кэша факторов (для /rc health). */
+    public int factorCacheSize() {
+        return factorCache.size();
+    }
+
     public Breakdown breakdown(UUID uuid) {
         return breakdown(uuid, cap());
     }
@@ -177,7 +195,6 @@ public final class ResistService {
 
     public double physicalFactor(UUID uuid, double cap) {
         double factor = 1.0 - physicalResist(uuid, cap) / 100.0;
-        // 1.6.11: защита от NaN и выхода за [0..1]
         if (!Double.isFinite(factor)) return 1.0;
         return Math.max(0.0, Math.min(1.0, factor));
     }
@@ -222,7 +239,6 @@ public final class ResistService {
         factorCache.remove(uuid);
     }
 
-    /** 1.6.11: NaN-защита — битое значение превращается в 0.0. */
     private double clamp(double value, double cap) {
         if (!Double.isFinite(value)) {
             return 0.0;
