@@ -17,6 +17,7 @@ import java.util.List;
 /**
  * Свиток инсталляции (1.5.0, Пакет 2): предмет = сама инсталляция,
  * ПКМ в хотбаре — постановка. PDC-ключ raskolclasses.install.
+ * 1.6.11: isInstallScroll — проверка PDC-ключа для санитизатора.
  */
 public final class InstallToken {
 
@@ -64,5 +65,18 @@ public final class InstallToken {
             }
         }
         return null;
+    }
+
+    /**
+     * 1.6.11: предмет — свиток инсталляции (имеет наш PDC-ключ install).
+     * Используется ScrollSanitizer: если это свиток, но readType() = null
+     * (id не резолвится в InstallationType) — свиток битый, его надо удалить.
+     */
+    public boolean isInstallScroll(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return false;
+        }
+        return item.getItemMeta().getPersistentDataContainer()
+                .has(key, PersistentDataType.STRING);
     }
 }
