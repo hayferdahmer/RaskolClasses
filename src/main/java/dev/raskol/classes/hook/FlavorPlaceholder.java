@@ -2,38 +2,31 @@
 package dev.raskol.classes.hook;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.resource.ResourceState;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.UUID;
-
 /**
- * Расширение PlaceholderAPI (A2): %raskolclasses_class%,
- * %raskolclasses_resource%, %raskolclasses_resource_max%.
- * 1.7.0 пакет 1: атрибуты и производные:
- *   %raskolclasses_str% / _agi% / _int%        — итоговые значения атрибутов;
- *   %raskolclasses_hp% / _hp_max%              — текущее HP и максимум по формуле;
- *   %raskolclasses_dodge% / _parry%            — эффективные шансы после DR (целые %);
- *   %raskolclasses_crit_melee% / _crit_spell%  — шансы крита (целые %).
+ * Расширение PlaceholderAPI для королевских вкусов (1.4.0):
+ *   %raskolcrown_crown%   — имя короны (Рассвет / Вальрадис);
+ *   %raskolcrown_title%   — титул класса по короне (пусто, если класса нет);
+ *   %raskolcrown_faction% — фракция игрока (хук корон/Towny, пусто если нет).
  * Регистрируется только при установленном PlaceholderAPI (проверка в onEnable);
  * persist() — переживает /papi reload.
  */
-public final class RaskolPlaceholder extends PlaceholderExpansion {
+public final class FlavorPlaceholder extends PlaceholderExpansion {
 
     private final RaskolClasses plugin;
 
-    public RaskolPlaceholder(RaskolClasses plugin) {
+    public FlavorPlaceholder(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
     @Override
     public @NotNull String getIdentifier() {
-        return "raskolclasses";
+        return "raskolcrown";
     }
 
     @Override
@@ -56,38 +49,17 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
         if (player == null) {
             return "";
         }
-        UUID uuid = player.getUniqueId();
         switch (params) {
-            case "class": {
+            case "crown":
+                return plugin.getFlavorService().crownDisplayName(player.getUniqueId());
+            case "title": {
                 PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-                return pc == null ? "" : pc.getDisplayName();
+                return pc == null
+                        ? ""
+                        : plugin.getFlavorService().titleOf(player.getUniqueId(), pc);
             }
-            case "resource":
-                return String.valueOf((int) plugin.getResources().getValue(uuid));
-            case "resource_max":
-                return String.valueOf((int) ResourceState.MAX_VALUE);
-            case "str":
-                return String.valueOf((int) plugin.getAttributes().value(uuid, AttributeType.STR));
-            case "agi":
-                return String.valueOf((int) plugin.getAttributes().value(uuid, AttributeType.AGI));
-            case "int":
-                return String.valueOf((int) plugin.getAttributes().value(uuid, AttributeType.INT));
-            case "hp":
-                return String.valueOf((int) player.getHealth());
-            case "hp_max":
-                return String.valueOf((int) plugin.getAttributes().maxHp(uuid));
-            case "dodge":
-                return String.valueOf(Math.round(
-                        plugin.getAttributes().effectiveAvoidance(uuid)[0]));
-            case "parry":
-                return String.valueOf(Math.round(
-                        plugin.getAttributes().effectiveAvoidance(uuid)[1]));
-            case "crit_melee":
-                return String.valueOf(Math.round(
-                        plugin.getAttributes().critMeleeChance(uuid)));
-            case "crit_spell":
-                return String.valueOf(Math.round(
-                        plugin.getAttributes().critSpellChance(uuid)));
+            case "faction":
+                return plugin.getFactionHook().factionOf(player.getUniqueId());
             default:
                 return null; // неизвестный плейсхолдер — PAPI оставит как есть
         }
