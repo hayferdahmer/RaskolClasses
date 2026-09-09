@@ -3,6 +3,7 @@ package dev.raskol.classes.spec;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.Targeting;
 import dev.raskol.classes.compat.AuthGate;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -18,8 +19,9 @@ import org.bukkit.scheduler.BukkitRunnable;
 
 /**
  * Каст активок спеков со слота 6 (/rc 6).
- * 1.6.0 пакет 2: урон через CombatService.dealDamage с DamageProfile.
- * SHADOWWEAVER/FROST = маг, LIQUIDATOR = физ.
+ * 1.6.0 пакет 2: урон через CombatService.dealDamage с DamageProfile
+ * (SHADOWWEAVER/FROST = маг, LIQUIDATOR = физ).
+ * 1.6.11: AoE спеки FROST не бьёт сквозь стены (Targeting.hasLineOfSight).
  */
 public final class SpecActiveCaster {
 
@@ -63,10 +65,6 @@ public final class SpecActiveCaster {
                 NamedTextColor.GREEN));
     }
 
-    /**
-     * 1.6.0 пакет 2: урон спек-активок через dealDamage.
-     * SHADOWWEAVER/FROST = маг, LIQUIDATOR = физ.
-     */
     private void cast(Player player, Spec spec, SpecRegistry.SpecDef def) {
         switch (spec) {
             case GUARDIAN -> {
@@ -121,7 +119,6 @@ public final class SpecActiveCaster {
                 }.runTaskTimer(plugin, 0L, 10L);
             }
             case SHADOWWEAVER -> {
-                // Магический урон (ментальный удар)
                 double magic = def.activeDouble("damage", 6.0);
                 Entity target = player.getTargetEntity(6);
                 if (target instanceof LivingEntity living) {
@@ -142,12 +139,15 @@ public final class SpecActiveCaster {
                         PotionEffectType.SPEED, 60, 0));
             }
             case FROST -> {
-                // Магический урон (кольцо льда спеки)
                 double magic = def.activeDouble("damage", 40.0);
                 double radius = def.activeDouble("radius", 3.0);
                 int duration = def.activeInt("duration", 3) * 20;
                 for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
                     if (entity instanceof Mob mob) {
+                        // 1.6.11: цели за стенами не получают урон (LOS)
+                        if (!Targeting.hasLineOfSight(plugin, player, mob)) {
+                            continue;
+                        }
                         plugin.getCombat().dealDamage(mob, player, DamageProfile.magic(magic));
                         mob.addPotionEffect(new PotionEffect(
                                 PotionEffectType.SLOWNESS, duration, 2));
@@ -161,7 +161,6 @@ public final class SpecActiveCaster {
                 }
             }
             case LIQUIDATOR -> {
-                // Физический урон (кровотечение)
                 double physPerTick = def.activeDouble("damage_per_tick", 2.0);
                 Entity target = player.getTargetEntity(5);
                 if (target instanceof LivingEntity living) {
