@@ -31,13 +31,14 @@ import java.util.UUID;
 
 /**
  * Команды 1.5.4+ /rc (инфо), /rc 1–7, /rc menu, /rc reload, /rc debug.
- * 1.6.0: строка резистов в /rc и разбивка в /rc debug.
- * 1.6.4: симулятор урона по цели в /rc debug (phys/magic/hybrid/true → дойдёт).
+ * 1.6.4: симулятор урона в /rc debug.
+ * 1.6.12: /rc health — наблюдаемость (MSPT/TPS, размеры карт, сброшенные
+ * звуки бюджета, время последнего purge, аптайм).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
-            List.of("1", "2", "3", "4", "5", "6", "7", "menu", "reload", "debug");
+            List.of("1", "2", "3", "4", "5", "6", "7", "menu", "reload", "debug", "health");
 
     private final RaskolClasses plugin;
 
@@ -124,6 +125,16 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 plugin.getAbilities().tryCast(player, def);
                 plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
             }
+            case "health" -> {
+                // 1.6.12: наблюдаемость для оператора
+                if (!sender.hasPermission("raskolclasses.debug")) {
+                    sender.sendMessage(Component.text(
+                            cfg.message("no-permission", "Недостаточно прав"),
+                            NamedTextColor.RED));
+                    return true;
+                }
+                sendHealth(sender);
+            }
             case "debug" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
                     sender.sendMessage(Component.text(
@@ -150,10 +161,63 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sendDebug(sender, target);
             }
             default -> sender.sendMessage(Component.text(
-                    "Использование: /rc [1-7|menu|reload|debug]",
+                    "Использование: /rc [1-7|menu|reload|debug|health]",
                     NamedTextColor.GRAY));
         }
         return true;
+    }
+
+    /**
+     * 1.6.12: сводка наблюдаемости. Все строки однострочные, числа без стеков.
+     * Счётчик сброшенных звуков опрашивается и сбрасывается (семантика
+     * «с прошлого /rc health»).
+     */
+    private void sendHealth(CommandSender sender) {
+        sender.sendMessage(Component.text("--- RaskolClasses Health ---",
+                NamedTextColor.GOLD));
+
+        double mspt = plugin.getServer().getAverageTickTime();
+        double[] tpsArr = plugin.getServer().getTPS();
+        double tps = tpsArr != null && tpsArr.length > 0 ? tpsArr[0] : 0.0;
+        sender.sendMessage(Component.text("MSPT: " + fmt2(mspt) + " ms · TPS: " + fmt2(tps),
+                mspt <= 50.0 ? NamedTextColor.GREEN : NamedTextColor.RED));
+
+        sender.sendMessage(Component.text("Модификаторы резиста: игроков "
+                + plugin.getResists().trackedPlayers()
+                + " · записей " + plugin.getResists().totalModifiers()
+                + " · кэш факторов " + plugin.getResists().factorCacheSize(),
+                NamedTextColor.GRAY));
+
+        sender.sendMessage(Component.text("Кулдауны: игроков "
+                + plugin.getCooldowns().trackedPlayers()
+                + " · записей " + plugin.getCooldowns().totalEntries(),
+                NamedTextColor.GRAY));
+
+        int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
+        sender.sendMessage(Component.text("Инсталляции: активных "
+                + plugin.getInstallations().countGlobal() + "/" + maxGlobal,
+                NamedTextColor.GRAY));
+
+        sender.sendMessage(Component.text("Proc-кулдауны Fx: игроков "
+                + plugin.getFx().procVisualCdSize(), NamedTextColor.GRAY));
+
+        sender.sendMessage(Component.text("Звуковой бюджет: сброшено с прошлого /rc health: "
+                + plugin.getFx().pollDroppedSounds(), NamedTextColor.GRAY));
+
+        long sincePurge = Math.max(0L,
+                (System.currentTimeMillis() - plugin.getLastPurgeMillis()) / 1000L);
+        sender.sendMessage(Component.text("Последний purge: " + sincePurge + " с назад",
+                NamedTextColor.GRAY));
+
+        long uptime = Math.max(0L,
+                (System.currentTimeMillis() - plugin.getEnabledAtMillis()) / 1000L);
+        sender.sendMessage(Component.text("Аптайм плагина: "
+                + uptime / 60L + " мин " + uptime % 60L + " с",
+                NamedTextColor.GRAY));
+    }
+
+    private static String fmt2(double v) {
+        return String.format(Locale.ROOT, "%.2f", v);
     }
 
     private void sendInfo(Player player) {
@@ -282,7 +346,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     NamedTextColor.GRAY));
         }
 
-        // 1.6.4: симулятор урона по цели — та же формула, что в бою (simulateTaken)
         sender.sendMessage(Component.text("Симулятор урона по цели:", NamedTextColor.AQUA));
         sender.sendMessage(Component.text("  • физ 100 → дойдёт "
                 + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.physical(100))),
@@ -414,7 +477,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         visible ? NamedTextColor.GREEN : NamedTextColor.RED)));
     }
 
-    /** 1.6.4: формат чисел симулятора (одна десятая, точка как разделитель). */
     private static String fmt(double value) {
         return String.format(Locale.ROOT, "%.1f", value);
     }
@@ -471,6 +533,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 .filter(suggestion -> !"reload".equals(suggestion)
                         || sender.hasPermission("raskolclasses.admin"))
                 .filter(suggestion -> !"debug".equals(suggestion)
+                        || sender.hasPermission("raskolclasses.debug"))
+                .filter(suggestion -> !"health".equals(suggestion)
                         || sender.hasPermission("raskolclasses.debug"))
                 .toList();
     }
