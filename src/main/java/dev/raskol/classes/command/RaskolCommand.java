@@ -3,6 +3,8 @@ package dev.raskol.classes.command;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
+import dev.raskol.classes.attribute.AttributeService;
+import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
@@ -11,7 +13,6 @@ import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.install.Installation;
-import dev.raskol.classes.selftest.SelftestRunner;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecRegistry;
 import net.kyori.adventure.text.Component;
@@ -32,7 +33,7 @@ import java.util.UUID;
 
 /**
  * Команды 1.5.4+ /rc (инфо), /rc 1–7, /rc menu, /rc reload, /rc debug, /rc health.
- * 1.6.13: /rc selftest — headless-самотестирование (PASS/FAIL-список).
+ * 1.6.13: /rc selftest. 1.7.0 пакет 1: блоки атрибутов в /rc и /rc debug.
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
@@ -135,14 +136,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sendHealth(sender);
             }
             case "selftest" -> {
-                // 1.6.13: headless-самотестирование
                 if (!sender.hasPermission("raskolclasses.debug")) {
                     sender.sendMessage(Component.text(
                             cfg.message("no-permission", "Недостаточно прав"),
                             NamedTextColor.RED));
                     return true;
                 }
-                SelftestRunner.run(plugin, sender);
+                dev.raskol.classes.selftest.SelftestRunner.run(plugin, sender);
             }
             case "debug" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
@@ -248,6 +248,20 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
         UUID uuid = player.getUniqueId();
 
+        // 1.7.0 пакет 1: атрибуты одной строкой
+        AttributeService attrs = plugin.getAttributes();
+        player.sendMessage(Component.text("Атрибуты: ", NamedTextColor.GRAY)
+                .append(Component.text("СИЛА " + (int) attrs.value(uuid, AttributeType.STR)
+                        + " · ЛОВКОСТЬ " + (int) attrs.value(uuid, AttributeType.AGI)
+                        + " · ИНТЕЛЛЕКТ " + (int) attrs.value(uuid, AttributeType.INT)
+                        + " (осн. " + attrs.mainOf(pc).displayName() + ")",
+                        NamedTextColor.AQUA)));
+        double[] eff = attrs.effectiveAvoidance(uuid);
+        player.sendMessage(Component.text("HP: " + (int) player.getHealth() + "/"
+                + (int) attrs.maxHp(uuid)
+                + " · Уклонение " + fmt(eff[0]) + "% · Парирование " + fmt(eff[1]) + "%",
+                NamedTextColor.GRAY));
+
         player.sendMessage(Component.text("Резисты: ", NamedTextColor.GRAY)
                 .append(Component.text("физ " + (int) plugin.getResists().physicalResist(uuid)
                         + "% · маг " + (int) plugin.getResists().magicResist(uuid) + "%",
@@ -339,6 +353,26 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 .append(Component.text(
                         (int) plugin.getResources().getValue(uuid) + "/100",
                         pc.getColor())));
+
+        // 1.7.0 пакет 1: блок атрибутов
+        AttributeService attrs = plugin.getAttributes();
+        sender.sendMessage(Component.text("Атрибуты:", NamedTextColor.AQUA));
+        for (AttributeType t : AttributeType.values()) {
+            sender.sendMessage(Component.text("  • " + t.displayName() + ": "
+                    + fmt(attrs.value(uuid, t))
+                    + (attrs.mainOf(pc) == t ? " (основной)" : ""), NamedTextColor.GRAY));
+        }
+        sender.sendMessage(Component.text("  • maxHP по формуле: " + fmt(attrs.maxHp(uuid))
+                + " (применится в пакете 2)", NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • крит мили: " + fmt(attrs.critMeleeChance(uuid))
+                + "% · крит магии: " + fmt(attrs.critSpellChance(uuid)) + "%",
+                NamedTextColor.GRAY));
+        double dodgeRaw = attrs.dodgeChance(uuid);
+        double parryRaw = attrs.parryChance(uuid);
+        double[] eff = attrs.effectiveAvoidance(uuid);
+        sender.sendMessage(Component.text("  • уклонение raw " + fmt(dodgeRaw) + "% → eff "
+                + fmt(eff[0]) + "% · парирование raw " + fmt(parryRaw) + "% → eff "
+                + fmt(eff[1]) + "% (при фронт+мили)", NamedTextColor.GRAY));
 
         ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
         sender.sendMessage(Component.text("Резисты: ", NamedTextColor.GRAY)
