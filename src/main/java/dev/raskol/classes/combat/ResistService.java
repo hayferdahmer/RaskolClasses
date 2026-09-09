@@ -4,6 +4,7 @@ package dev.raskol.classes.combat;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 import java.util.List;
@@ -14,17 +15,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 1.6.0: сопротивления урону (РЕЗИСТ).
- * Эффективный резист = база класса + временные/постоянные модификаторы,
- * суммарно не выше кап resist.cap. Чистый урон игнорирует резисты.
+ * Эффективный резист = база класса + модификаторы (эффекты/спек-пассивки/гранты),
+ * суммарно не выше капа. Формула: получено = компонент × (1 − резист/100).
+ * Чистый урон (true) игнорирует резисты целиком.
  *
- * 1.6.3 (производительность):
- *  - кэш резист-факторов на игрока на тик (factorCache): повторные вызовы
- *    physicalFactor/magicFactor в одном тике не пересчитывают breakdown;
- *    кэш инвалидируется любым изменением модификаторов (add/remove/clear/purge),
- *    поэтому каст бафа и удар в том же тике считаются корректно;
- *  - фильтрация истёкших модификаторов БЕЗ мутации списка (skip при чтении):
- *    removeIf по CopyOnWriteArrayList больше не дёргается на каждый урон,
- *    мутация и чистка памяти — только в purgeExpired() (purge-таск, 1200 тиков).
+ * 1.6.3: кэш резист-факторов на игрока на тик (PvE), не-мутирующая фильтрация.
+ * 1.6.9: pvpCap() — отдельный кап резиста для урона от игроков (дефолт = cap);
+ * disabledIn(World) — миры из resist.disabled-worlds работают без резистов;
+ * факторы принимают кап параметром, PvP-путь считает без кэша (события реже,
+ * корректность важнее микрооптимизации).
  */
 public final class ResistService {
 
@@ -33,13 +32,13 @@ public final class ResistService {
         public boolean isPermanent() { return expiresAt == Long.MAX_VALUE; }
     }
 
-    /** Разбивка для /rc debug: база + активные модификаторы + итог. */
+    /** Разбивка для /rc debug: база + активные модификаторы + итог (с клампом капа). */
     public record Breakdown(double basePhysical, double baseMagic,
                             List<Modifier> active,
                             double physicalTotal, double magicTotal) {
     }
 
-    /** Кэш факторов на тик; main-thread only. */
+    /** Кэш PvE-факторов на тик; main-thread only. */
     private static final class FactorCache {
         long tick = -1;
         double phys = 1.0;
@@ -54,8 +53,23 @@ public final class ResistService {
         this.plugin = plugin;
     }
 
+    /** Общий кап суммарного резиста, % (resist.cap). */
     public double cap() {
         return plugin.getConfig().getDouble("resist.cap", 90.0);
+    }
+
+    /** 1.6.9: кап суммарного резиста для урона ОТ ИГРОКОВ (resist.pvp-cap, дефолт = cap). */
+    public double pvpCap() {
+        return plugin.getConfig().getDouble("resist.pvp-cap", cap());
+    }
+
+    /** 1.6.9: в этом мире резисты отключены (resist.disabled-worlds). */
+    public boolean disabledIn(World world) {
+        if (world == null) {
+            return false;
+        }
+        return plugin.getConfig().getStringList("resist.disabled-worlds")
+                .contains(world.getName());
     }
 
     public double basePhysical(PlayerClass pc) {
@@ -136,8 +150,13 @@ public final class ResistService {
         invalidate(uuid);
     }
 
-    /** Разбивка база+модификаторы (для /rc debug и пересчёта кэша). Без мутации. */
+    /** Разбивка с клампом по общему капу (для отображения и PvE). */
     public Breakdown breakdown(UUID uuid) {
+        return breakdown(uuid, cap());
+    }
+
+    /** 1.6.9: разбивка с произвольным капом (PvP передаёт pvpCap). */
+    public Breakdown breakdown(UUID uuid, double cap) {
         Player player = plugin.getServer().getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
         double basePhys = pc != null ? basePhysical(pc) : 0.0;
@@ -153,20 +172,31 @@ public final class ResistService {
             phys += m.physicalPct();
             magic += m.magicPct();
         }
-        return new Breakdown(basePhys, baseMagic, active, clamp(phys), clamp(magic));
+        return new Breakdown(basePhys, baseMagic, active,
+                clamp(phys, cap), clamp(magic, cap));
     }
 
-    /** Итоговый физрезист, % (без кэша — для отображения). */
     public double physicalResist(UUID uuid) { return breakdown(uuid).physicalTotal(); }
-
-    /** Итоговый магрезист, % (без кэша — для отображения). */
     public double magicResist(UUID uuid) { return breakdown(uuid).magicTotal(); }
 
-    /** Множитель входящего физического урона (0..1), кэш на тик. */
+    /** 1.6.9: резисты с произвольным капом (без кэша). */
+    public double physicalResist(UUID uuid, double cap) { return breakdown(uuid, cap).physicalTotal(); }
+    public double magicResist(UUID uuid, double cap) { return breakdown(uuid, cap).magicTotal(); }
+
+    /** Множитель входящего физического урона (0..1), PvE-кэш на тик. */
     public double physicalFactor(UUID uuid) { return factors(uuid).phys; }
 
-    /** Множитель входящего магического урона (0..1), кэш на тик. */
+    /** Множитель входящего магического урона (0..1), PvE-кэш на тик. */
     public double magicFactor(UUID uuid) { return factors(uuid).magic; }
+
+    /** 1.6.9: множители с произвольным капом (PvP-путь), без кэша. */
+    public double physicalFactor(UUID uuid, double cap) {
+        return 1.0 - physicalResist(uuid, cap) / 100.0;
+    }
+
+    public double magicFactor(UUID uuid, double cap) {
+        return 1.0 - magicResist(uuid, cap) / 100.0;
+    }
 
     /** 1.6.3: пересчёт не чаще раза в тик на игрока; инвалидация сбрасывает кэш. */
     private FactorCache factors(UUID uuid) {
@@ -189,14 +219,13 @@ public final class ResistService {
         }
     }
 
-    /** Чистка истёкших модификаторов и кэшей (purge-таск, 1200 тиков). */
+    /** Чистка истёкших модификаторов и кэшей оффлайна (purge-таск, 1200 тиков). */
     public void purgeExpired() {
         long now = System.currentTimeMillis();
         modifiers.entrySet().removeIf(entry -> {
             entry.getValue().removeIf(m -> !m.isPermanent() && m.expiresAt() <= now);
             return entry.getValue().isEmpty();
         });
-        // память: кэши оффлайн-игроков не держим
         factorCache.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null
                 && !modifiers.containsKey(uuid));
     }
@@ -207,7 +236,7 @@ public final class ResistService {
         factorCache.remove(uuid);
     }
 
-    private double clamp(double value) {
-        return Math.max(0.0, Math.min(cap(), value));
+    private double clamp(double value, double cap) {
+        return Math.max(0.0, Math.min(cap, value));
     }
 }
