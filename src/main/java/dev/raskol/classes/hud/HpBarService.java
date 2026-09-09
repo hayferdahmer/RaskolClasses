@@ -25,21 +25,15 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.Locale;
 
 /**
- * 1.7.0 пакет 2 (редизайн после провала v1): HP-реформа без босс-баров и без
- * глифов, которых нет в шрифте клиента.
+ * 1.7.0 пакет 2 (редизайн p2.3): красивый совмещённый HUD в actionbar:
+ *   ❬ ❤ ▰▰▱▱▱▱▱▱▱▱ 33/234 ❭ ❬ Концентрация ▰▰▰▰▰▰▰▰ 100/100 ❭
+ * HP-гейдж красится по доле (зелёный >60% → жёлтый >30% → красный),
+ * ресурс-гейдж — цветом класса. Сегменты ▰▱ отключаются ключом hp-display.gauge.
  *
- * Итоговый вид (mode=actionbar, дефолт): ОДНА совмещённая строка actionbar
- *   ❬ ❤ 82/234 ❭ ❬ Концентрация 70/100 ❭
- * HP-сегмент красится по доле (зелёный >60% → жёлтый >30% → красный),
- * ресурс — цветом класса. Задача HudService в этом режиме НЕ стартует
- * (решается в RaskolClasses), поэтому двойной строки ресурса нет.
- *
- * Сердца: healthScale = hearts-scale (дефолт 20.0) — ровно ОДИН ряд из 10
- * сердец на весь пул HP (визуальная доля без многорядного месива).
- * hearts-scale: 0 — неподдерживаемый эксперимент «скрыть сердца» (на части
- * сборок не работает, оставлен на свой страх).
- * mode=villa... vanilla: строка не шлётся, сердца возвращаются в дефолт,
- * ресурсную строку снова рисует HudService (стартует в RaskolClasses).
+ * Сердца: healthScale = hearts-scale (дефолт 20 = один ряд из 10 сердец на весь
+ * пул — ванильная «полоса HP»). Полное скрытие сердец сервером невозможно
+ * (Paper отклоняет scale 0) — только ресурспаком (см. RUNBOOK/доки).
+ * mode=vanilla: строка не шлётся, сердца в дефолте, ресурс рисует HudService.
  *
  * Применение maxHP: AttributeModifier ADD_NUMBER с ключом raskolclasses:max_hp;
  * пересчёт каждые hp-display.update-period-ticks (дефолт 10) покрывает все
@@ -47,7 +41,7 @@ import java.util.Locale;
  * Здоровье клампится сверху при уменьшении maxHP.
  *
  * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
- * REDesign 1.7.0-p2.2: убраны босс-бар и глифы ▰▱ (артефакты шрифта на клиенте).
+ * p2.2: убран босс-бар и артефактные глифы; p2.3: возвращены сегментные полосы.
  */
 public final class HpBarService implements Listener {
 
@@ -73,10 +67,18 @@ public final class HpBarService implements Listener {
 
     private double heartsScale() {
         double v = plugin.getConfig().getDouble("hp-display.hearts-scale", 20.0);
-        if (!Double.isFinite(v) || v < 0.0) {
-            return 20.0;
+        if (!Double.isFinite(v) || v <= 0.0) {
+            return 20.0; // Paper требует scale > 0; 0/мусор → безопасные 20
         }
         return Math.min(20.0, v);
+    }
+
+    private boolean gaugeEnabled() {
+        return plugin.getConfig().getBoolean("hp-display.gauge", true);
+    }
+
+    private int gaugeLength() {
+        return Math.max(4, Math.min(20, plugin.getConfig().getInt("hp-display.gauge-length", 10)));
     }
 
     private int period() {
@@ -97,7 +99,7 @@ public final class HpBarService implements Listener {
         boolean unified = !"vanilla".equals(mode());
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (player.getGameMode() == GameMode.SPECTATOR) {
-                continue; // зрителям ни строки, ни scale-правкок
+                continue; // зрителям ни строки, ни scale-правок
             }
             applyMaxHealth(player);
             applyHearts(player, unified);
@@ -173,8 +175,8 @@ public final class HpBarService implements Listener {
     /* --------------------------- совмещённая строка --------------------------- */
 
     /**
-     * ❬ ❤ 82/234 ❭ ❬ Концентрация 70/100 ❭ — только фонто-безопасные символы.
-     * HP-сегмент красится по доле, ресурс — цветом класса.
+     * ❬ ❤ ▰▰▱▱▱▱▱▱▱▱ 33/234 ❭ ❬ Концентрация ▰▰▰▰▰▰▰▰▰ 100/100 ❭
+     * Только фонто-безопасные символы (❬ ❭ ❤ ▰ ▱ — рендерятся ванильным шрифтом).
      */
     private void sendUnifiedActionbar(Player player) {
         double max = maxOf(player);
@@ -182,20 +184,38 @@ public final class HpBarService implements Listener {
         double res = plugin.getResources().getValue(player.getUniqueId());
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         String resName = pc != null ? pc.getResourceName() : "Ресурс";
+        TextColor hpColor = TextColor.fromHexString(AttributeMath.hpFractionColor(hp, max));
         TextColor resColor = pc != null ? pc.getColor() : NamedTextColor.AQUA;
-
-        String hpText = format()
-                .replace("{hp}", String.valueOf((int) hp))
-                .replace("{max}", String.valueOf((int) max));
+        int len = gaugeLength();
+        boolean gauge = gaugeEnabled();
 
         Component line = Component.text("❬ ", NamedTextColor.DARK_GRAY)
-                .append(Component.text(hpText,
-                        TextColor.fromHexString(AttributeMath.hpFractionColor(hp, max))))
-                .append(Component.text(" ❭ ", NamedTextColor.DARK_GRAY))
-                .append(Component.text("❬ ", NamedTextColor.DARK_GRAY))
-                .append(Component.text(resName + " " + (int) res + "/100", resColor))
+                .append(Component.text("❤ ", hpColor));
+        if (gauge) {
+            line = line.append(Component.text(
+                    segments(max <= 0 ? 0 : hp / max, len) + " ", hpColor));
+        }
+        line = line.append(Component.text((int) hp + "/" + (int) max, hpColor))
+                .append(Component.text(" ❭ ❬ ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(resName + " ", resColor));
+        if (gauge) {
+            line = line.append(Component.text(
+                    segments(res / 100.0, len) + " ", resColor));
+        }
+        line = line.append(Component.text((int) res + "/100", resColor))
                 .append(Component.text(" ❭", NamedTextColor.DARK_GRAY));
         player.sendActionBar(line);
+    }
+
+    /** Полоса из len сегментов: залитые ▰ по доле, пустые ▱. */
+    private static String segments(double fraction, int len) {
+        double clamped = Math.max(0.0, Math.min(1.0, fraction));
+        int filled = (int) Math.round(clamped * len);
+        StringBuilder sb = new StringBuilder(len);
+        for (int i = 0; i < len; i++) {
+            sb.append(i < filled ? '▰' : '▱');
+        }
+        return sb.toString();
     }
 
     private double maxOf(Player player) {
@@ -220,6 +240,6 @@ public final class HpBarService implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        // состояний на игрока больше не держим (бары удалены) — чистка не нужна
+        // состояний на игрока не держим — чистка не нужна
     }
 }
