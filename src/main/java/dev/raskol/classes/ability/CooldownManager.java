@@ -1,6 +1,7 @@
 // © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
 package dev.raskol.classes.ability;
 
+import dev.raskol.classes.storage.SafeStorage;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -18,12 +19,10 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -32,6 +31,8 @@ import java.util.logging.Logger;
  * выходе и выгрузке, восстановление на входе; очистка памяти на выходе (O2)
  * и периодический purge истёкших записей (O7).
  * Пакет 2: ready-нотификация — отложенный таск на конец КД (звук + actionbar).
+ * 1.6.10: чтение/запись через SafeStorage (атомарно, .bak, фолбэк при коррупте);
+ * автосейв каждые storage.autosave-minutes регистрируется в RaskolClasses.
  */
 public final class CooldownManager implements Listener {
 
@@ -53,9 +54,9 @@ public final class CooldownManager implements Listener {
 
     public CooldownManager(File file) {
         this.file = file;
-        this.store = file.exists()
-                ? YamlConfiguration.loadConfiguration(file)
-                : new YamlConfiguration();
+        // 1.6.10: битый cooldowns.yml больше не роняет данные молча —
+        // восстанавливаемся из .bak или стартуем с пустой конфигурацией
+        this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
 
     /**
@@ -162,7 +163,7 @@ public final class CooldownManager implements Listener {
         });
     }
 
-    /* ------------------------- персист (A1) ------------------------- */
+    /* ------------------------- персист (A1 + 1.6.10) ------------------------- */
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -194,7 +195,7 @@ public final class CooldownManager implements Listener {
         persist();
     }
 
-    /** Полное сохранение — вызывается в onDisable. */
+    /** Полное сохранение — вызывается в onDisable и автосейв-таском (1.6.10). */
     public void saveAll() {
         for (UUID playerId : readyAt.keySet()) {
             writeSection(playerId);
@@ -223,12 +224,9 @@ public final class CooldownManager implements Listener {
         });
     }
 
+    /** 1.6.10: атомарная запись с .bak-копией предыдущей версии. */
     private void persist() {
-        try {
-            store.save(file);
-        } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Не удалось сохранить cooldowns.yml", e);
-        }
+        SafeStorage.saveAtomic(store, file, LOGGER);
     }
 
     private void cancelPlayerTasks(UUID playerId) {
