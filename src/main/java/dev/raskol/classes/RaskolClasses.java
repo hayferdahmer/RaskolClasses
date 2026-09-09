@@ -3,6 +3,7 @@ package dev.raskol.classes;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
+import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
@@ -52,8 +53,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.6.12: lastPurgeMillis (обновляется purge-таском) и enabledAtMillis —
- * метрики для /rc health.
+ * 1.7.0 пакет 1: AttributeService (классовые атрибуты STR/AGI/INT).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -87,10 +87,9 @@ public final class RaskolClasses extends JavaPlugin {
     private CombatService combat;
     private ManaSoakedService manaSoaked;
     private ConfigValidator configValidator;
+    private AttributeService attributes;
 
-    /** 1.6.12: момент последнего purge-цикла (для /rc health). */
     private volatile long lastPurgeMillis = System.currentTimeMillis();
-    /** 1.6.12: момент включения плагина (для аптайма в /rc health). */
     private final long enabledAtMillis = System.currentTimeMillis();
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
@@ -140,6 +139,9 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.validate();
         configValidator.logSummary();
 
+        // 1.7.0 пакет 1: классовые атрибуты
+        this.attributes = new AttributeService(this);
+
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
         this.specStorage = new SpecStorage(this);
@@ -172,6 +174,7 @@ public final class RaskolClasses extends JavaPlugin {
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
                 resists.clear(event.getPlayer().getUniqueId());
+                attributes.clear(event.getPlayer().getUniqueId());
             }
         }, this);
         pluginManager.registerEvents(new Listener() {
@@ -210,7 +213,7 @@ public final class RaskolClasses extends JavaPlugin {
             fx.purgeStale();
             installations.purgeStale();
             resists.purgeExpired();
-            // 1.6.12: отметка для /rc health
+            attributes.purgeExpired();
             lastPurgeMillis = System.currentTimeMillis();
         }, purgeInterval, purgeInterval));
         long autosaveTicks = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
@@ -280,12 +283,10 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info("Конфигурация перезагружена");
     }
 
-    /** 1.6.12: момент последнего purge-цикла, epoch millis. */
     public long getLastPurgeMillis() {
         return lastPurgeMillis;
     }
 
-    /** 1.6.12: момент включения плагина, epoch millis. */
     public long getEnabledAtMillis() {
         return enabledAtMillis;
     }
@@ -315,4 +316,5 @@ public final class RaskolClasses extends JavaPlugin {
     public CombatService getCombat() { return combat; }
     public ManaSoakedService getManaSoaked() { return manaSoaked; }
     public ConfigValidator getConfigValidator() { return configValidator; }
+    public AttributeService getAttributes() { return attributes; }
 }
