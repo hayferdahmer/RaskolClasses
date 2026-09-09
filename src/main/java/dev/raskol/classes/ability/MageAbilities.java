@@ -19,8 +19,8 @@ import org.bukkit.util.Vector;
 /**
  * Активные способности мага (ресурс — мана).
  * 1.6.0 пакет 2: firebolt = гибрид 30/70, frost_nova/arcane_burst = маг.
- * 1.6.2: AoE не задевает союзников (гейт combat.friendly-fire),
- * frost_nova получила врагов-игроков (раньше била только мобов).
+ * 1.6.2: союзники не бьются (гейт combat.friendly-fire).
+ * 1.6.11: AoE-урон не проходит сквозь стены (Targeting.hasLineOfSight).
  */
 public final class MageAbilities {
 
@@ -75,8 +75,8 @@ public final class MageAbilities {
     }
 
     /**
-     * Кольцо льда — МАГ. 1.6.2: бьёт мобов и врагов-игроков,
-     * союзников и себя не трогает.
+     * Кольцо льда — МАГ. Бьёт мобов и врагов-игроков, союзников пропускает.
+     * 1.6.11: цели за стенами не получают урон (LOS).
      */
     public boolean frostNova(Player player, AbilityDef def) {
         double magic = plugin.getRaskolConfig().abilityDamageMagic(PlayerClass.MAGE, def.id(), 40.0);
@@ -88,12 +88,18 @@ public final class MageAbilities {
                 continue;
             }
             if (entity instanceof Mob mob) {
+                if (!Targeting.hasLineOfSight(plugin, player, mob)) {
+                    continue;
+                }
                 plugin.getCombat().dealDamage(mob, player, DamageProfile.magic(magic));
                 mob.addPotionEffect(new PotionEffect(
                         PotionEffectType.SLOWNESS, duration * 20, 2));
                 affected++;
             } else if (entity instanceof Player tp
                     && Targeting.canHitPlayer(plugin, player, tp)) {
+                if (!Targeting.hasLineOfSight(plugin, player, tp)) {
+                    continue;
+                }
                 plugin.getCombat().dealDamage(tp, player, DamageProfile.magic(magic));
                 tp.addPotionEffect(new PotionEffect(
                         PotionEffectType.SLOWNESS, duration * 20, 2));
@@ -106,7 +112,7 @@ public final class MageAbilities {
         return affected > 0 || true; // визуал и заморозка мобов важнее счётчика
     }
 
-    /** Чародейский взрыв — МАГ. 1.6.2: союзники пропускаются. */
+    /** Чародейский взрыв — МАГ. Союзники пропускаются; 1.6.11: LOS сквозь стены. */
     public boolean arcaneBurst(Player player, AbilityDef def) {
         double magic = plugin.getRaskolConfig().abilityDamageMagic(PlayerClass.MAGE, def.id(), 100.0);
         double radius = 6.0;
@@ -116,6 +122,9 @@ public final class MageAbilities {
                 continue;
             }
             if (!Targeting.isValidDamageTarget(plugin, player, living)) {
+                continue;
+            }
+            if (!Targeting.hasLineOfSight(plugin, player, living)) {
                 continue;
             }
             plugin.getCombat().dealDamage(living, player, DamageProfile.magic(magic));
