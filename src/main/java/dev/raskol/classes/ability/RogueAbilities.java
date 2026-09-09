@@ -19,7 +19,7 @@ import org.bukkit.util.RayTraceResult;
  * Активные способности разбойника (ресурс — энергия).
  * 1.6.0 пакет 2: fan_of_knives/cheap_shot = ФИЗИЧЕСКИЙ урон через dealDamage.
  * 1.6.2: союзники не бьются (гейт combat.friendly-fire).
- * 1.6.6: грант Уклонения читается из конфига resist.grants.evasion.physical.
+ * 1.6.11: fan_of_knives не бьёт сквозь стены (Targeting.hasLineOfSight).
  */
 public final class RogueAbilities {
 
@@ -38,7 +38,7 @@ public final class RogueAbilities {
         return true;
     }
 
-    /** Веер ножей — ФИЗИЧЕСКИЙ урон (4 дефолт). Союзники пропускаются. */
+    /** Веер ножей — ФИЗИЧЕСКИЙ урон (4 дефолт). Союзники и цели за стенами пропускаются. */
     public boolean fanOfKnives(Player player, AbilityDef def) {
         double phys = plugin.getRaskolConfig()
                 .abilityDamagePhysical(PlayerClass.ROGUE, def.id(), 4.0);
@@ -48,6 +48,9 @@ public final class RogueAbilities {
                 continue;
             }
             if (!Targeting.isValidDamageTarget(plugin, player, living)) {
+                continue;
+            }
+            if (!Targeting.hasLineOfSight(plugin, player, living)) {
                 continue;
             }
             plugin.getCombat().dealDamage(living, player, DamageProfile.physical(phys));
@@ -80,7 +83,7 @@ public final class RogueAbilities {
         return true;
     }
 
-    /** Уклонение: +физрезист (конфиг) на duration, дефолт 4 с. */
+    /** Уклонение: +физрезист (конфиг resist.grants.evasion.physical) на duration. */
     public boolean evasion(Player player, AbilityDef def) {
         long durationMillis = plugin.getRaskolConfig()
                 .durationSeconds(PlayerClass.ROGUE, "evasion", 4) * 1000L;
