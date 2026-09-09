@@ -4,14 +4,16 @@ package dev.raskol.classes.hud;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.classsystem.PlayerClass;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
-import org.bukkit.Attribute;
-import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.NamespacedKey;
 import org.bukkit.GameMode;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -46,8 +48,17 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * покрывает все триггеры без событий: смена класса, рост уровня скилла,
  * выбор/респец спеки, модификаторы атрибутов, /rc reload.
  * Здоровье клампится сверху при уменьшении maxHP (хилы/урон не ломаются).
+ *
+ * FIX 1.7.0-p2.1: в Paper 1.21.4 Attribute — registry-интерфейс в пакете
+ * org.bukkit.attribute (старого org.bukkit.Attribute нет); max_health
+ * резолвится через RegistryAccess без зависимости от констант-полей.
  */
 public final class HpBarService implements Listener {
+
+    /** max_health из реестра атрибутов Paper (1.21.4-safe). */
+    private static final Attribute MAX_HEALTH = RegistryAccess.registryAccess()
+            .getRegistry(RegistryKey.ATTRIBUTE)
+            .get(NamespacedKey.minecraft("max_health"));
 
     private final RaskolClasses plugin;
     private final NamespacedKey maxHpKey;
@@ -119,7 +130,10 @@ public final class HpBarService implements Listener {
 
     /** Ставит/обновляет AttributeModifier так, чтобы maxHealth == AttributeService.maxHp. */
     private void applyMaxHealth(Player player) {
-        AttributeInstance instance = player.getAttribute(Attribute.MAX_HEALTH);
+        if (MAX_HEALTH == null) {
+            return; // реестр недоступен — не ломаем бой, бар продолжит работать от getValue()
+        }
+        AttributeInstance instance = player.getAttribute(MAX_HEALTH);
         if (instance == null) {
             return;
         }
@@ -213,12 +227,15 @@ public final class HpBarService implements Listener {
     }
 
     private double maxOf(Player player) {
-        AttributeInstance instance = player.getAttribute(Attribute.MAX_HEALTH);
+        if (MAX_HEALTH == null) {
+            return 20.0;
+        }
+        AttributeInstance instance = player.getAttribute(MAX_HEALTH);
         double max = instance != null ? instance.getValue() : 20.0;
         return Double.isFinite(max) && max > 0.0 ? max : 20.0;
     }
 
-    /** «❬ ❤ 734/1250 ▰▰▰▱▱ ❭» — числа + 10-сегментный гейдж. */
+    /** «❬ ❤ 734/1250 ▰▰▰▱ ❭» — числа + 10-сегментный гейдж. */
     private String gauge(double hp, double max) {
         String numbers = format()
                 .replace("{hp}", String.valueOf((int) hp))
