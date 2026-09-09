@@ -2,6 +2,48 @@
 
 Формат: [версия] — дата — имя. Секции Added / Changed / Fixed / Removed.
 
+## [1.6.11] — 2026-09-10 · «Анти-эксплойт и sanity»
+
+### Added
+- **LOS-проверка AoE сквозь стены (`combat.aoe-los`, дефолт true):**
+  `Targeting.hasLineOfSight` трассирует луч из глаз кастера в глаза цели
+  через `rayTraceBlocks` (FluidCollisionMode.NEVER). Применяется к
+  боевым AoE: frost_nova, arcane_burst, fan_of_knives, спек FROST.
+  Стекло/камень/двери блокируют урон; вода/воздух/трава — проходят.
+  **Хиляющие AoE (circle_of_prayer, smite-хил) LOS не получают намеренно:**
+  саппорт через стену — нормальный геймплей, задокументировано.
+  Гейт `combat.aoe-los: false` возвращает старое поведение.
+- **NaN/Infinity-гарды в боевой математике:**
+  - `CombatService.dealDamage`/`simulateTaken`: `sanitize(DamageProfile)`
+    обнуляет некорректные компоненты (NaN, Infinity, отрицательные) до
+    применения урона — битый конфиг урона не падает в NaN-урон.
+  - `ResistService.clamp` и `physicalFactor`/`magicFactor`: защита от
+    NaN-значений, кламп фактора в [0..1], фолбэк на 1.0 (урон не режется)
+    при любой некорректности.
+  - `ResourceService`: санитаризация `sanitize()` на всех публичных входах
+    (add/refund/consume/addHealBonus, тики регена всех классов) —
+    битое значение из конфига или хука не может сломать ресурс или унести
+    его за границы.
+- **ScrollSanitizer — чистка устаревших свитков на join:**
+  слушатель `hotbar/ScrollSanitizer` при входе игрока удаляет из инвентаря
+  свитки с мёртвыми/неизвестными id (после переименований абилок/спеков/
+  инсталляций между сезонами). Игрок получает одно уведомление
+  «Удалены устаревшие классовые свитки: N». Работает на join
+  (достаточно редко и безопасно для производительности).
+
+### Changed
+- **`AbilityRegistry`:** добавлен `exists(String id)` — пробег по всем
+  классам в поиске абилки; используется ScrollSanitizer.
+- **`SpecToken`:** добавлен `isSpecScroll(ItemStack)` — проверка
+  PDC-ключа `spec_ability` для санитизатора.
+- **`InstallToken`:** добавлен `isInstallScroll(ItemStack)` — проверка
+  PDC-ключа `install` для санитизатора.
+- **`MageAbilities.frostNova` / `arcaneBurst`:** цели за стенами
+  пропускаются через `Targeting.hasLineOfSight`.
+- **`RogueAbilities.fanOfKnives`:** цели за стенами пропускаются.
+- **`SpecActiveCaster` спек FROST:** цели за стенами пропускаются.
+- Версия в pom/plugin.yml: 1.6.11; артефакт `raskol-classes-1.6.11.jar`.
+
 ## [1.6.10] — 2026-09-10 · «Надёжность хранения»
 
 ### Added
