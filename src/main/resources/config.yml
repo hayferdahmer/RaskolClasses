@@ -1,16 +1,17 @@
 # ============================================================
-#  RaskolClasses v1.7.0-p1 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.7.0-p2 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
-#  Применение без рестарта: /rc reload.
+#  Применение без рестарта: /rc reload (кроме hp-display.mode — рестарт).
 #  Новые ключи дописываются автоматически (addDefault + copyDefaults),
 #  правки админа не затираются.
 #  1.6.7: ConfigValidator проверяет резист/урон-ключи на старте и reload.
 #  1.6.10: атомарные сейвы хранилищ + .bak + автосейв (секция storage).
-#  1.7.0: классовые атрибуты СИЛА/ЛОВКОСТЬ/ИНТЕЛЛЕКТ (секция attributes).
+#  1.7.0: классовые атрибуты СИЛА/ЛОВКОСТЬ/ИНТЕЛЛЕКТ (секция attributes),
+#         Dota-HP: maxHP по формуле, скрытие сердец, бар сверху (hp-display).
 # ============================================================
 
 hud:
-  enabled: true               # ActionBar-строка
+  enabled: true               # ActionBar-строка ресурса (нижний слой)
   update-period-ticks: 10     # период HUD-тика (O5)
   skip-spectator: true        # не слать actionbar зрителям (O8)
   full-resource-aura: true    # партикл темы раз в 20 тиков при ресурсе 100 (§4.5)
@@ -160,7 +161,8 @@ attributes:
     parry-stagger-mob-ms: 500     # стаггер моба: knockback + Slowness I
   hp-display:
     mode: bossbar             # bossbar | actionbar | vanilla
-    hide-vanilla-hearts: true # healthScale 0 — ванильные сердца не рисуются (пакет 2)
+    hide-vanilla-hearts: true # healthScale = hearts-scale — сердца не рисуются
+    hearts-scale: 0.0         # 1.7.0 п2: страховочный ключ 0..20, если клиент капризен к 0
     update-period-ticks: 10   # тот же тик-паттерн, что у HUD
     format: "❤ {hp}/{max}"
   boss-no-avoidance: []       # имена MythicMobs-боссов: их атаки не уклоняются/парируются
