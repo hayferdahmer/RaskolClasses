@@ -20,6 +20,7 @@ import java.util.List;
 /**
  * Свиток активки специализации (1.4.0 + 1.5.1).
  * FIX 1.5.1: stripScrolls — сжигание свитков старого пути при респеце.
+ * 1.6.11: isSpecScroll — проверка PDC-ключа для санитизатора.
  */
 public final class SpecToken {
 
@@ -63,6 +64,19 @@ public final class SpecToken {
         String id = item.getItemMeta().getPersistentDataContainer()
                 .get(key, PersistentDataType.STRING);
         return Spec.fromId(id);
+    }
+
+    /**
+     * 1.6.11: предмет — свиток спеки (имеет наш PDC-ключ spec_ability).
+     * Используется ScrollSanitizer: если это свиток, но readSpec() = null
+     * (id не резолвится в Spec) — свиток битый, его надо удалить.
+     */
+    public boolean isSpecScroll(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return false;
+        }
+        return item.getItemMeta().getPersistentDataContainer()
+                .has(key, PersistentDataType.STRING);
     }
 
     /** FIX 1.5.1: убрать из инвентаря все свитки указанной спеки; вернуть число. */
