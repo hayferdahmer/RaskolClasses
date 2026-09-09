@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Реестр способностей пяти классов.
  * 1.5.9: сообщение гейта каста читается из messages.gate.blocked.
+ * 1.6.11: exists(id) — поиск id по всем классам для санитизации свитков.
  */
 public final class AbilityRegistry {
 
@@ -163,6 +164,23 @@ public final class AbilityRegistry {
 
     public AbilityDef getById(PlayerClass pc, String id) {
         return findById(pc, id);
+    }
+
+    /**
+     * 1.6.11: есть ли способность с таким id хотя бы в одном классе.
+     * Используется ScrollSanitizer на join для вычистки свитков с мёртвыми id
+     * (например, после переименования абилки в конфиге между сезонами).
+     */
+    public boolean exists(String id) {
+        if (id == null) {
+            return false;
+        }
+        for (PlayerClass pc : PlayerClass.values()) {
+            if (findById(pc, id) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean isTargeted(String id) {
