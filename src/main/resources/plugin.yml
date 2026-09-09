@@ -1,5 +1,5 @@
 name: RaskolClasses
-version: '1.6.12'
+version: '1.6.13'
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
@@ -10,12 +10,12 @@ softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, AuthMe]
 commands:
   rc:
     description: Команды классов RaskolClasses
-    usage: /rc [1-7|menu|reload|debug|health]
+    usage: /rc [1-7|menu|reload|debug|health|selftest]
 
 permissions:
   raskolclasses.admin:
     description: Перезагрузка конфигурации, бесплатный респец, инсталляции без анлока, касты в creative
     default: op
   raskolclasses.debug:
-    description: Диагностика (/rc debug [player], /rc health, боевой лог combat.debug-damage)
+    description: Диагностика (/rc debug [player], /rc health, /rc selftest, боевой лог combat.debug-damage)
     default: op
