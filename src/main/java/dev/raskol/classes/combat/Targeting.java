@@ -2,18 +2,24 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
+import org.bukkit.FluidCollisionMode;
+import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.util.RayTraceResult;
+import org.bukkit.util.Vector;
 
 import java.util.UUID;
 
 /**
  * 1.6.2: справедливость боя — фракционно-осознанные таргеты.
- * Союзники: сам кастер или игроки одной НЕПУСТОЙ фракции (FactionHook:
- * короны/Towny). Безфракционные между собой — НЕ союзники (PvP работает).
- * Гейт combat.friendly-fire (дефолт false):
- *  - false: наш урон не задевает союзников, хилы/щиты не ложатся на врагов;
- *  - true : старое поведение (AoE бьёт всех, хилы на кого угодно) для арен.
+ * Союзники: сам кастер или игроки одной НЕПУСТОЙ фракции (FactionHook).
+ * Гейт combat.friendly-fire (дефолт false).
+ *
+ * 1.6.11: hasLineOfSight — LOS-проверка AoE сквозь стены (гейт combat.aoe-los,
+ * дефолт true): луч из глаз кастера в глаза цели, любой НЕпроходимый блок
+ * (камень, стекло, двери) на пути = урон не проходит; вода/воздух/трава
+ * (passable) не блокируют. Хиляющие AoE проверкой не ограничены намеренно.
  */
 public final class Targeting {
 
@@ -57,5 +63,31 @@ public final class Targeting {
             return canHitPlayer(plugin, caster, tp);
         }
         return true; // мобы валидны всегда
+    }
+
+    /**
+     * 1.6.11: прямая видимость между существами для AoE-урона.
+     * Гейт combat.aoe-los=false отключает проверку целиком (старое поведение).
+     * Разные миры = нет видимости. Луч короче эпсилон = видимость (та же точка).
+     */
+    public static boolean hasLineOfSight(RaskolClasses plugin, LivingEntity from, LivingEntity to) {
+        if (!plugin.getConfig().getBoolean("combat.aoe-los", true)) {
+            return true;
+        }
+        if (from == null || to == null || from.getWorld() == null
+                || !from.getWorld().equals(to.getWorld())) {
+            return false;
+        }
+        Location fromLoc = from.getEyeLocation();
+        Location toLoc = to.getEyeLocation();
+        Vector dir = toLoc.toVector().subtract(fromLoc.toVector());
+        double dist = dir.length();
+        if (dist < 1e-6) {
+            return true;
+        }
+        dir.normalize();
+        RayTraceResult hit = from.getWorld().rayTraceBlocks(fromLoc, dir, dist,
+                FluidCollisionMode.NEVER, true);
+        return hit == null;
     }
 }
