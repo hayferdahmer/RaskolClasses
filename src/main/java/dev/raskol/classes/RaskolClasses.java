@@ -25,6 +25,7 @@ import dev.raskol.classes.hotbar.SpecBindListener;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hud.BossBarService;
+import dev.raskol.classes.hud.HpBarService;
 import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
@@ -50,10 +51,13 @@ import org.bukkit.scheduler.BukkitTask;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.7.0 пакет 1: AttributeService (классовые атрибуты STR/AGI/INT).
+ * 1.7.0 пакет 2: HpBarService (Dota-HP: maxHP-модификатор, скрытие сердец,
+ * босс-бар сверху / совмещённый actionbar); задача HudService не стартует,
+ * когда hp-display.mode = actionbar (иначе две строки actionbar конфликтовали бы).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -66,6 +70,7 @@ public final class RaskolClasses extends JavaPlugin {
     private ActiveEffectManager effects;
     private HudService hud;
     private BossBarService bossBars;
+    private HpBarService hpBarService;
     private AbilityToken tokens;
 
     private SpecRegistry specRegistry;
@@ -141,6 +146,9 @@ public final class RaskolClasses extends JavaPlugin {
 
         // 1.7.0 пакет 1: классовые атрибуты
         this.attributes = new AttributeService(this);
+        // 1.7.0 пакет 2: Dota-HP (maxHP + бар)
+        this.hpBarService = new HpBarService(this);
+        pluginManager.registerEvents(hpBarService, this);
 
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
@@ -196,7 +204,15 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
 
-        activeTasks.add(hud.start());
+        // 1.7.0 пакет 2: в режиме actionbar совмещённую строку шлёт HpBarService,
+        // поэтому отдельная задача HudService не стартует (конфликт actionbar).
+        boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
+        boolean hpActionbar = "actionbar".equalsIgnoreCase(
+                getConfig().getString("hp-display.mode", "bossbar"));
+        if (hudEnabled && !hpActionbar) {
+            activeTasks.add(hud.start());
+        }
+        activeTasks.add(hpBarService.start());
         activeTasks.add(resources.startTickTask(this));
         activeTasks.add(bossBars.start());
         activeTasks.add(flavorService.startAuraTask());
@@ -230,6 +246,9 @@ public final class RaskolClasses extends JavaPlugin {
     public void onDisable() {
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
+        if (hpBarService != null) {
+            hpBarService.shutdown();
+        }
         if (installations != null) {
             installations.shutdown();
         }
@@ -300,6 +319,7 @@ public final class RaskolClasses extends JavaPlugin {
     public ActiveEffectManager getEffects() { return effects; }
     public HudService getHud() { return hud; }
     public BossBarService getBossBars() { return bossBars; }
+    public HpBarService getHpBarService() { return hpBarService; }
     public AbilityToken getTokens() { return tokens; }
     public SpecRegistry getSpecRegistry() { return specRegistry; }
     public SpecStorage getSpecStorage() { return specStorage; }
