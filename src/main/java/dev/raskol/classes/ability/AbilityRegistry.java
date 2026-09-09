@@ -11,17 +11,21 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Реестр способностей пяти классов.
  * 1.5.9: сообщение гейта каста читается из messages.gate.blocked.
- * 1.6.11: exists(id) — поиск id по всем классам для санитизации свитков.
+ * 1.6.11: exists(id) для санитизации свитков.
+ * 1.6.13: integrityProblems() для /rc selftest.
  */
 public final class AbilityRegistry {
 
@@ -166,11 +170,7 @@ public final class AbilityRegistry {
         return findById(pc, id);
     }
 
-    /**
-     * 1.6.11: есть ли способность с таким id хотя бы в одном классе.
-     * Используется ScrollSanitizer на join для вычистки свитков с мёртвыми id
-     * (например, после переименования абилки в конфиге между сезонами).
-     */
+    /** 1.6.11: есть ли способность с таким id хотя бы в одном классе. */
     public boolean exists(String id) {
         if (id == null) {
             return false;
@@ -181,6 +181,39 @@ public final class AbilityRegistry {
             }
         }
         return false;
+    }
+
+    /**
+     * 1.6.13: целостность реестра для /rc selftest.
+     * Проверяет: у каждой способности есть кастер (self или targeted);
+     * у каждого targeted-кастера есть self-кастер (castOn без таргета);
+     * нет сиротских кастеров вне DEFAULTS.
+     */
+    public List<String> integrityProblems() {
+        List<String> problems = new ArrayList<>();
+        Set<String> knownIds = new HashSet<>();
+        for (PlayerClass pc : PlayerClass.values()) {
+            for (AbilityDef def : getAbilities(pc)) {
+                knownIds.add(def.id());
+                if (!casters.containsKey(def.id()) && !targetedCasters.containsKey(def.id())) {
+                    problems.add("способность " + def.id() + " (" + pc.name() + ") без кастера");
+                }
+            }
+        }
+        for (String id : targetedCasters.keySet()) {
+            if (!casters.containsKey(id)) {
+                problems.add("targeted-кастер " + id + " без self-кастера");
+            }
+            if (!knownIds.contains(id)) {
+                problems.add("targeted-кастер " + id + " — сирота (нет в DEFAULTS)");
+            }
+        }
+        for (String id : casters.keySet()) {
+            if (!knownIds.contains(id)) {
+                problems.add("кастер " + id + " — сирота (нет в DEFAULTS)");
+            }
+        }
+        return problems;
     }
 
     public boolean isTargeted(String id) {
@@ -197,7 +230,6 @@ public final class AbilityRegistry {
 
     private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
         RaskolConfig cfg = plugin.getRaskolConfig();
-        // 1.5.8: auth + creative гейт; 1.5.9: текст гейта из конфига
         if (!AuthGate.canAct(plugin, caster)) {
             caster.sendMessage(Component.text(cfg.message("gate.blocked",
                     "Способности недоступны в этом режиме или до входа в аккаунт."),
