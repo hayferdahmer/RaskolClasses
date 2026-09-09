@@ -2,6 +2,33 @@
 
 Формат: [версия] — дата — имя. Секции Added / Changed / Fixed / Removed.
 
+## [1.6.10] — 2026-09-10 · «Надёжность хранения»
+
+### Added
+- **`storage.SafeStorage` — универсальный безопасный сейвер YAML:**
+  - `saveAtomic`: пишем в `<file>.tmp` → предыдущую версию уносим в `<file>.bak` →
+    атомарно переименовываем tmp в целевой файл. После обесточки/`kill -9` на
+    диске не может остаться полубитого yml: есть либо целостный текущий, либо `.bak`.
+    Фолбэк на `REPLACE_EXISTING` на ФС, не поддерживающих `ATOMIC_MOVE`.
+  - `loadWithFallback`: при битом YAML — WARNING одной строкой и попытка чтения
+    `.bak`; если и `.bak` бит/отсутствует — пустая конфигурация + SEVERE в лог
+    (инцидент виден оператору, плагин поднимается, данные с нуля).
+- **Автосейв хранилищ:** таск в `RaskolClasses` каждые `storage.autosave-minutes`
+  (дефолт 5) пишет `cooldowns.yml` и `spec-choices.yml` через SafeStorage.
+  При краше теряется не более N минут кулдаунов; спек-выборы не теряются
+  вовсе (сейв на каждое изменение уже был, теперь он атомарный).
+
+### Changed
+- **`CooldownManager`:** конструктор использует `SafeStorage.loadWithFallback`
+  (битый `cooldowns.yml` больше не роняет загрузку молча), `persist()` —
+  `SafeStorage.saveAtomic`. Поведение ready-notify и персиста на join/quit
+  без изменений.
+- **`SpecStorage`:** `load()` на `SafeStorage.loadWithFallback` (битый
+  `spec-choices.yml` → `.bak` → пустая конфигурация с SEVERE), `save()` —
+  `SafeStorage.saveAtomic`. Сейв на каждое изменение (`set`/`remove`)
+  сохранён — выбор и отречение спеки не теряются.
+- Версия в pom/plugin.yml: 1.6.10; артефакт `raskol-classes-1.6.10.jar`.
+
 ## [1.6.9] — 2026-09-10 · «Баланс-рубильники»
 
 ### Added
