@@ -1,12 +1,12 @@
 # ============================================================
-#  RaskolClasses v1.6.11 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.7.0-p1 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение без рестарта: /rc reload.
 #  Новые ключи дописываются автоматически (addDefault + copyDefaults),
 #  правки админа не затираются.
 #  1.6.7: ConfigValidator проверяет резист/урон-ключи на старте и reload.
 #  1.6.10: атомарные сейвы хранилищ + .bak + автосейв (секция storage).
-#  1.6.11: combat.aoe-los — AoE-урон не проходит сквозь стены.
+#  1.7.0: классовые атрибуты СИЛА/ЛОВКОСТЬ/ИНТЕЛЛЕКТ (секция attributes).
 # ============================================================
 
 hud:
@@ -52,16 +52,14 @@ compat:
   authme-gate: true             # неаутентифицированные (AuthMe, до /login) не пользуют свитки/касты
   block-casts-in-creative: true # способности недоступны в creative (кроме raskolclasses.admin)
 
-# 1.6.2: справедливость боя
+# 1.6.2 + 1.6.9 + 1.6.11: справедливость боя и рубильники
 combat:
   friendly-fire: false   # false = союзники не получают наш урон, хилы не ложатся на врагов;
                          # true  = старое поведение (AoE бьёт всех, хилы на кого угодно) для арен
   debug-damage: false    # 1.6.4: боевой лог нашего урона для админов (raskolclasses.debug)
   true-damage-cap-per-hit: 1000   # 1.6.9: предохранитель компоненты true за один вызов
-  aoe-los: true   # 1.6.11: AoE-урон не проходит сквозь стены (стекло/камень);
-                  # вода/воздух/трава не блокируют; false = старое поведение
-                  # Хиляющие AoE (circle_of_prayer) LOS не получают намеренно —
-                  # саппорт через стену это нормальный геймплей
+  aoe-los: true          # 1.6.11: AoE-урон не проходит сквозь стены (стекло/камень);
+                         # вода/воздух/трава не блокируют; false = старое поведение
 
 # 1.6.10: надёжность хранения
 storage:
@@ -115,6 +113,57 @@ resist:
   specs:
     guardian:
       physical: 10            # пассивка спеки Страж (постоянно)
+
+# ------------------------------------------------------------
+# 1.7.0: КЛАССОВЫЕ АТРИБУТЫ (СИЛА / ЛОВКОСТЬ / ИНТЕЛЛЕКТ)
+# Значение = base + growth×PlayerLevel + модификаторы (спек/эффекты).
+# PlayerLevel по умолчанию = уровень профильного скилла класса.
+# Вся математика — AttributeMath (pure); боевое применение — пакеты 2–4.
+# ------------------------------------------------------------
+attributes:
+  level-source: class-skill   # class-skill | vanilla
+  classes:
+    WARRIOR: { main: STR, base-str: 12, base-agi: 6,  base-int: 4,  growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
+    HUNTER:  { main: AGI, base-str: 6,  base-agi: 12, base-int: 4,  growth-str: 0.5, growth-agi: 1.2, growth-int: 0.3 }
+    ROGUE:   { main: AGI, base-str: 7,  base-agi: 11, base-int: 4,  growth-str: 0.6, growth-agi: 1.1, growth-int: 0.3 }
+    MAGE:    { main: INT, base-str: 4,  base-agi: 6,  base-int: 12, growth-str: 0.3, growth-agi: 0.5, growth-int: 1.2 }
+    PRIEST:  { main: INT, base-str: 5,  base-agi: 5,  base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
+  hp:
+    per-str: 2          # HP за единицу СИЛЫ
+    per-level: 1        # HP за уровень
+    main-str-bonus: 1   # дополнительный HP за СИЛУ, если СИЛА — основной атрибут
+                        # (итог воина: 20 + STR×3 + level)
+  offense:
+    str-to-physical: true   # плоская добавка STR+level к физ-компоненте (пакет 4)
+    int-to-magic: true      # плоская добавка INT+level к маг-компоненте (пакет 4)
+  crit:
+    melee-base: 5           # базовый крит мили, %
+    melee-per-agi: 0.05     # +0.05% за единицу ЛОВКОСТИ
+    melee-cap: 40           # кап крита мили, %
+    melee-mult: 1.5         # множитель урона при крите мили
+    spell-base: 5           # базовый крит магии, %
+    spell-per-int: 0.03     # +0.03% за единицу ИНТЕЛЛЕКТА
+    spell-cap: 35           # кап крита магии, %
+    spell-mult: 1.5         # множитель урона при крите магии
+    spell-main-mult: 1.5    # дополнительный множитель шанса, если INT основной
+  avoidance:
+    dodge-k: 100              # знаменатель гиперболы уклонения: 100×AGI/(AGI+k)
+    parry-k: 150              # знаменатель гиперболы парирования: 100×STR/(STR+k)
+    soft-cap: 60              # до него — без убывающей отдачи (DR)
+    dr-factor: 0.5            # цена процента свыше soft-cap (каждый за полцены)
+    hard-cap: 75              # жёсткий предел суммарного avoidance (dodge+parry)
+    agi-main-parry-micro: 0.5 # микро-парирование AGI-основных классов, % (не работает в спину)
+    agi-main-dodge-refund: 0.5 # доля потерянного парирования, уходящая в уклонение
+    front-angle: 90           # фронт для парирования, градусов (угол взгляда ≤ 90)
+    back-angle: 135           # отсюда начинается «спина» (микро-парирование не работает)
+    parry-stagger-player-ms: 600  # стаггер атакующего-игрока при парировании (дебафф attack-speed)
+    parry-stagger-mob-ms: 500     # стаггер моба: knockback + Slowness I
+  hp-display:
+    mode: bossbar             # bossbar | actionbar | vanilla
+    hide-vanilla-hearts: true # healthScale 0 — ванильные сердца не рисуются (пакет 2)
+    update-period-ticks: 10   # тот же тик-паттерн, что у HUD
+    format: "❤ {hp}/{max}"
+  boss-no-avoidance: []       # имена MythicMobs-боссов: их атаки не уклоняются/парируются
 
 # 1.6.0: переопределение типов ванильных причин урона (physical|magic|true).
 # Дефолты кода: огонь/яды/иссушение/молния = magic; VOID/SONIC_BOOM = true;
