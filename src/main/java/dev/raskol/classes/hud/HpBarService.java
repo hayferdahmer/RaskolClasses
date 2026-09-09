@@ -6,8 +6,8 @@ import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.classsystem.PlayerClass;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
-import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.GameMode;
@@ -23,35 +23,31 @@ import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 1.7.0 пакет 2: HP-реформа в Dota-стиле.
+ * 1.7.0 пакет 2 (редизайн после провала v1): HP-реформа без босс-баров и без
+ * глифов, которых нет в шрифте клиента.
  *
- * Слои отображения (hp-display.mode):
- *  - bossbar (дефолт): персональный босс-бар СВЕРХУ «❬ ❤ 734/1250 ▰▰▰▱▱ ❭»
- *    с цветом по доле (зелёный >60% → жёлтый >30% → красный); ресурс остаётся
- *    в actionbar СНИЗУ (HudService без изменений) — два слоя в одном стиле ❬ ❭;
- *  - actionbar: ОДНА совмещённая строка actionbar (HP-гейдж + ресурс-гейдж),
- *    задача HudService при этом НЕ стартует (решается в RaskolClasses);
- *  - vanilla: бар не рисуется, сердца возвращаются.
+ * Итоговый вид (mode=actionbar, дефолт): ОДНА совмещённая строка actionbar
+ *   ❬ ❤ 82/234 ❭ ❬ Концентрация 70/100 ❭
+ * HP-сегмент красится по доле (зелёный >60% → жёлтый >30% → красный),
+ * ресурс — цветом класса. Задача HudService в этом режиме НЕ стартует
+ * (решается в RaskolClasses), поэтому двойной строки ресурса нет.
  *
- * Скрытие ванильных сердец: setHealthScaled(true) + setHealthScale(hearts-scale)
- * (дефолт 0.0 — сердца не рисуются вовсе); ключ hearts-scale страховочный,
- * если клиент окажется капризным (0..20).
+ * Сердца: healthScale = hearts-scale (дефолт 20.0) — ровно ОДИН ряд из 10
+ * сердец на весь пул HP (визуальная доля без многорядного месива).
+ * hearts-scale: 0 — неподдерживаемый эксперимент «скрыть сердца» (на части
+ * сборок не работает, оставлен на свой страх).
+ * mode=villa... vanilla: строка не шлётся, сердца возвращаются в дефолт,
+ * ресурсную строку снова рисует HudService (стартует в RaskolClasses).
  *
  * Применение maxHP: AttributeModifier ADD_NUMBER с ключом raskolclasses:max_hp;
- * пересчёт каждые hp-display.update-period-ticks (дефолт 10, как у HUD) —
- * покрывает все триггеры без событий: смена класса, рост уровня скилла,
- * выбор/респец спеки, модификаторы атрибутов, /rc reload.
- * Здоровье клампится сверху при уменьшении maxHP (хилы/урон не ломаются).
+ * пересчёт каждые hp-display.update-period-ticks (дефолт 10) покрывает все
+ * триггеры: смена класса, рост уровня, спек, модификаторы, reload.
+ * Здоровье клампится сверху при уменьшении maxHP.
  *
- * FIX 1.7.0-p2.1: в Paper 1.21.4 Attribute — registry-интерфейс в пакете
- * org.bukkit.attribute (старого org.bukkit.Attribute нет); max_health
- * резолвится через RegistryAccess без зависимости от констант-полей.
+ * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
+ * REDesign 1.7.0-p2.2: убраны босс-бар и глифы ▰▱ (артефакты шрифта на клиенте).
  */
 public final class HpBarService implements Listener {
 
@@ -62,8 +58,6 @@ public final class HpBarService implements Listener {
 
     private final RaskolClasses plugin;
     private final NamespacedKey maxHpKey;
-    private final Map<UUID, BossBar> bars = new ConcurrentHashMap<>();
-    private final AtomicBoolean heartsWarned = new AtomicBoolean(false);
 
     public HpBarService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -73,17 +67,14 @@ public final class HpBarService implements Listener {
     /* -------------------------------- конфиг -------------------------------- */
 
     private String mode() {
-        return plugin.getConfig().getString("hp-display.mode", "bossbar").toLowerCase(Locale.ROOT);
-    }
-
-    private boolean hideHearts() {
-        return plugin.getConfig().getBoolean("hp-display.hide-vanilla-hearts", true);
+        return plugin.getConfig().getString("hp-display.mode", "actionbar")
+                .toLowerCase(Locale.ROOT);
     }
 
     private double heartsScale() {
-        double v = plugin.getConfig().getDouble("hp-display.hearts-scale", 0.0);
+        double v = plugin.getConfig().getDouble("hp-display.hearts-scale", 20.0);
         if (!Double.isFinite(v) || v < 0.0) {
-            return 0.0;
+            return 20.0;
         }
         return Math.min(20.0, v);
     }
@@ -96,42 +87,31 @@ public final class HpBarService implements Listener {
         return plugin.getConfig().getString("hp-display.format", "❤ {hp}/{max}");
     }
 
-    /* -------------------------------- задачи -------------------------------- */
+    /* -------------------------------- задача -------------------------------- */
 
     public BukkitTask start() {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, period(), period());
     }
 
     private void tick() {
-        String mode = mode();
+        boolean unified = !"vanilla".equals(mode());
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (player.getGameMode() == GameMode.SPECTATOR) {
-                hideBar(player);
-                continue;
+                continue; // зрителям ни строки, ни scale-правкок
             }
             applyMaxHealth(player);
-            applyHearts(player);
-            if ("vanilla".equals(mode)) {
-                hideBar(player);
-                continue;
-            }
-            if ("actionbar".equals(mode)) {
-                hideBar(player);
-                sendCombinedActionbar(player);
-            } else {
-                updateBar(player);
+            applyHearts(player, unified);
+            if (unified) {
+                sendUnifiedActionbar(player);
             }
         }
-        // гигиена: бары оффлайн-игроков не держим
-        bars.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null);
     }
 
     /* ----------------------------- применение maxHP ----------------------------- */
 
-    /** Ставит/обновляет AttributeModifier так, чтобы maxHealth == AttributeService.maxHp. */
     private void applyMaxHealth(Player player) {
         if (MAX_HEALTH == null) {
-            return; // реестр недоступен — не ломаем бой, бар продолжит работать от getValue()
+            return;
         }
         AttributeInstance instance = player.getAttribute(MAX_HEALTH);
         if (instance == null) {
@@ -167,63 +147,55 @@ public final class HpBarService implements Listener {
         }
     }
 
-    /** Скрытие/возврат ванильных сердец через health-scale. */
-    private void applyHearts(Player player) {
-        boolean wantHidden = hideHearts() && !"vanilla".equals(mode());
-        if (wantHidden) {
-            double scale = heartsScale();
-            if (!player.isHealthScaled() || Math.abs(player.getHealthScale() - scale) > 0.001) {
-                try {
-                    player.setHealthScaled(true);
-                    player.setHealthScale(scale);
-                } catch (IllegalArgumentException e) {
-                    if (heartsWarned.compareAndSet(false, true)) {
-                        plugin.getLogger().warning("HpBarService: клиентский health-scale "
-                                + scale + " отклонён ядром — сердца остаются видимыми");
-                    }
-                    player.setHealthScaled(false);
-                }
+    /**
+     * Сердца: в unified-режиме — ровно один ряд (scale 20 по умолчанию);
+     * в vanilla — возвращаем клиенту дефолтное отображение.
+     */
+    private void applyHearts(Player player, boolean unified) {
+        if (!unified) {
+            if (player.isHealthScaled()) {
+                player.setHealthScaled(false);
             }
-        } else if (player.isHealthScaled()) {
-            player.setHealthScaled(false);
+            return;
+        }
+        double scale = heartsScale();
+        if (!player.isHealthScaled() || Math.abs(player.getHealthScale() - scale) > 0.001) {
+            try {
+                player.setHealthScaled(true);
+                player.setHealthScale(scale);
+            } catch (IllegalArgumentException e) {
+                // ядро отклонило scale — оставляем дефолт, строка всё равно несёт числа
+                player.setHealthScaled(false);
+            }
         }
     }
 
-    /* -------------------------------- рендер -------------------------------- */
+    /* --------------------------- совмещённая строка --------------------------- */
 
-    private void updateBar(Player player) {
-        double max = maxOf(player);
-        double hp = Math.max(0.0, player.getHealth());
-        float progress = max <= 0.0
-                ? 0.0f
-                : (float) Math.max(0.0, Math.min(1.0, hp / max));
-        BossBar bar = bars.computeIfAbsent(player.getUniqueId(), uuid -> {
-            BossBar created = BossBar.bossBar(Component.empty(), 1.0f,
-                    BossBar.Color.GREEN, BossBar.Overlay.PROGRESS);
-            player.showBossBar(created);
-            return created;
-        });
-        bar.progress(progress);
-        bar.color(ratioColor(progress));
-        bar.name(Component.text(gauge(hp, max),
-                TextColor.fromHexString(AttributeMath.hpFractionColor(hp, max))));
-    }
-
-    /** Режим actionbar: совмещённая строка HP + ресурс в одном стиле ❬ ❭. */
-    private void sendCombinedActionbar(Player player) {
+    /**
+     * ❬ ❤ 82/234 ❭ ❬ Концентрация 70/100 ❭ — только фонто-безопасные символы.
+     * HP-сегмент красится по доле, ресурс — цветом класса.
+     */
+    private void sendUnifiedActionbar(Player player) {
         double max = maxOf(player);
         double hp = Math.max(0.0, player.getHealth());
         double res = plugin.getResources().getValue(player.getUniqueId());
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         String resName = pc != null ? pc.getResourceName() : "Ресурс";
+        TextColor resColor = pc != null ? pc.getColor() : NamedTextColor.AQUA;
+
         String hpText = format()
                 .replace("{hp}", String.valueOf((int) hp))
                 .replace("{max}", String.valueOf((int) max));
-        String line = "❬ " + hpText + " " + segments(max <= 0 ? 0 : hp / max) + " ❭"
-                + " ❬ " + resName + " " + segments(res / 100.0)
-                + " " + (int) res + "/100 ❭";
-        player.sendActionBar(Component.text(line,
-                TextColor.fromHexString(AttributeMath.hpFractionColor(hp, max))));
+
+        Component line = Component.text("❬ ", NamedTextColor.DARK_GRAY)
+                .append(Component.text(hpText,
+                        TextColor.fromHexString(AttributeMath.hpFractionColor(hp, max))))
+                .append(Component.text(" ❭ ", NamedTextColor.DARK_GRAY))
+                .append(Component.text("❬ ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(resName + " " + (int) res + "/100", resColor))
+                .append(Component.text(" ❭", NamedTextColor.DARK_GRAY));
+        player.sendActionBar(line);
     }
 
     private double maxOf(Player player) {
@@ -235,49 +207,6 @@ public final class HpBarService implements Listener {
         return Double.isFinite(max) && max > 0.0 ? max : 20.0;
     }
 
-    /** «❬ ❤ 734/1250 ▰▰▰▱ ❭» — числа + 10-сегментный гейдж. */
-    private String gauge(double hp, double max) {
-        String numbers = format()
-                .replace("{hp}", String.valueOf((int) hp))
-                .replace("{max}", String.valueOf((int) max));
-        return "❬ " + numbers + " " + segments(max <= 0 ? 0 : hp / max) + " ❭";
-    }
-
-    private static String segments(double fraction) {
-        double clamped = Math.max(0.0, Math.min(1.0, fraction));
-        int filled = (int) Math.round(clamped * 10);
-        StringBuilder sb = new StringBuilder(10);
-        for (int i = 0; i < 10; i++) {
-            sb.append(i < filled ? '▰' : '▱');
-        }
-        return sb.toString();
-    }
-
-    private static BossBar.Color ratioColor(float progress) {
-        if (progress > 0.6f) {
-            return BossBar.Color.GREEN;
-        }
-        if (progress > 0.3f) {
-            return BossBar.Color.YELLOW;
-        }
-        return BossBar.Color.RED;
-    }
-
-    private void hideBar(Player player) {
-        BossBar bar = bars.remove(player.getUniqueId());
-        if (bar != null) {
-            player.hideBossBar(bar);
-        }
-    }
-
-    /** Выключение плагина: убрать бары у онлайна. */
-    public void shutdown() {
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            hideBar(player);
-        }
-        bars.clear();
-    }
-
     /* -------------------------------- события -------------------------------- */
 
     @EventHandler
@@ -285,12 +214,12 @@ public final class HpBarService implements Listener {
         Player player = event.getPlayer();
         if (player.getGameMode() != GameMode.SPECTATOR) {
             applyMaxHealth(player);
-            applyHearts(player);
+            applyHearts(player, !"vanilla".equals(mode()));
         }
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        hideBar(event.getPlayer());
+        // состояний на игрока больше не держим (бары удалены) — чистка не нужна
     }
 }
