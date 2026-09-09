@@ -11,6 +11,7 @@ import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.install.Installation;
+import dev.raskol.classes.selftest.SelftestRunner;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecRegistry;
 import net.kyori.adventure.text.Component;
@@ -30,15 +31,14 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Команды 1.5.4+ /rc (инфо), /rc 1–7, /rc menu, /rc reload, /rc debug.
- * 1.6.4: симулятор урона в /rc debug.
- * 1.6.12: /rc health — наблюдаемость (MSPT/TPS, размеры карт, сброшенные
- * звуки бюджета, время последнего purge, аптайм).
+ * Команды 1.5.4+ /rc (инфо), /rc 1–7, /rc menu, /rc reload, /rc debug, /rc health.
+ * 1.6.13: /rc selftest — headless-самотестирование (PASS/FAIL-список).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUGGESTIONS =
-            List.of("1", "2", "3", "4", "5", "6", "7", "menu", "reload", "debug", "health");
+            List.of("1", "2", "3", "4", "5", "6", "7", "menu", "reload",
+                    "debug", "health", "selftest");
 
     private final RaskolClasses plugin;
 
@@ -126,7 +126,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
             }
             case "health" -> {
-                // 1.6.12: наблюдаемость для оператора
                 if (!sender.hasPermission("raskolclasses.debug")) {
                     sender.sendMessage(Component.text(
                             cfg.message("no-permission", "Недостаточно прав"),
@@ -134,6 +133,16 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 sendHealth(sender);
+            }
+            case "selftest" -> {
+                // 1.6.13: headless-самотестирование
+                if (!sender.hasPermission("raskolclasses.debug")) {
+                    sender.sendMessage(Component.text(
+                            cfg.message("no-permission", "Недостаточно прав"),
+                            NamedTextColor.RED));
+                    return true;
+                }
+                SelftestRunner.run(plugin, sender);
             }
             case "debug" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
@@ -161,17 +170,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sendDebug(sender, target);
             }
             default -> sender.sendMessage(Component.text(
-                    "Использование: /rc [1-7|menu|reload|debug|health]",
+                    "Использование: /rc [1-7|menu|reload|debug|health|selftest]",
                     NamedTextColor.GRAY));
         }
         return true;
     }
 
-    /**
-     * 1.6.12: сводка наблюдаемости. Все строки однострочные, числа без стеков.
-     * Счётчик сброшенных звуков опрашивается и сбрасывается (семантика
-     * «с прошлого /rc health»).
-     */
+    /** 1.6.12: сводка наблюдаемости. */
     private void sendHealth(CommandSender sender) {
         sender.sendMessage(Component.text("--- RaskolClasses Health ---",
                 NamedTextColor.GOLD));
@@ -535,6 +540,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 .filter(suggestion -> !"debug".equals(suggestion)
                         || sender.hasPermission("raskolclasses.debug"))
                 .filter(suggestion -> !"health".equals(suggestion)
+                        || sender.hasPermission("raskolclasses.debug"))
+                .filter(suggestion -> !"selftest".equals(suggestion)
                         || sender.hasPermission("raskolclasses.debug"))
                 .toList();
     }
