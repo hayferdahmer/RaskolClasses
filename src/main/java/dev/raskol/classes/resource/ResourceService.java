@@ -25,6 +25,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * Ресурсы 0–100: реген и декей в асинхронном таске раз в секунду,
  * набор — на событиях урона и лечения. Только сессия, без БД.
  * Пакет 5b: тиры регена мага (3/4/5/6 по порогам 25/50/75).
+ *
+ * 1.6.11: явный кламп [0..100] на всех публичных входах (add/refund/consume)
+ * + санитаризация NaN/Infinity: битое число из конфига или от хука не может
+ * сломать ресурс или унести его за границы. Второй уровень защиты:
+ * ResourceState.add() внутри уже делает clamp, но явный guard здесь
+ * закрывает утечки через публичные методы и делает контракт явным.
  */
 public final class ResourceService implements Listener {
 
@@ -46,20 +52,36 @@ public final class ResourceService implements Listener {
         return state == null ? 0.0 : state.getValue();
     }
 
+    /**
+     * 1.6.11: consume с санитаризацией. NaN/Infinity/отрицательные — отказ.
+     * Кламп сверху: нельзя запросить списание больше максимума.
+     */
     public boolean consume(UUID playerId, double amount) {
-        return stateOf(playerId).consume(amount);
+        double safe = sanitize(amount);
+        if (safe <= 0.0 || safe > ResourceState.MAX_VALUE) {
+            return false;
+        }
+        return stateOf(playerId).consume(safe);
     }
 
+    /** 1.6.11: refund с санитаризацией и явным клампом 0..100. */
     public void refund(UUID playerId, double amount) {
-        stateOf(playerId).add(amount);
+        double safe = sanitize(amount);
+        if (safe > 0.0) {
+            stateOf(playerId).add(safe);
+        }
     }
 
     public void reset(UUID playerId) {
         states.remove(playerId);
     }
 
+    /** 1.6.11: бонус жреца за событие лечения — тоже через санитаризацию. */
     public void addHealBonus(UUID playerId) {
-        stateOf(playerId).add(config.resourceOnHeal(PlayerClass.PRIEST));
+        double gain = sanitize(config.resourceOnHeal(PlayerClass.PRIEST));
+        if (gain > 0.0) {
+            stateOf(playerId).add(gain);
+        }
     }
 
     public BukkitTask startTickTask(Plugin plugin) {
@@ -82,7 +104,7 @@ public final class ResourceService implements Listener {
     }
 
     private void tickFor(PlayerClass pc, ResourceState state) {
-        double regenPerSecond = config.resourceRegen(pc);
+        double regenPerSecond = sanitize(config.resourceRegen(pc));
         long windowMillis = config.combatWindowSeconds(pc) * 1000L;
 
         switch (pc) {
@@ -102,10 +124,10 @@ public final class ResourceService implements Listener {
                 // Пакет 5b: тиры регена мага по текущему значению маны
                 double v = state.getValue();
                 double rate;
-                if (v < 25) rate = config.mageRegenTier1();
-                else if (v < 50) rate = config.mageRegenTier2();
-                else if (v < 75) rate = config.mageRegenTier3();
-                else rate = config.mageRegenTier4();
+                if (v < 25) rate = sanitize(config.mageRegenTier1());
+                else if (v < 50) rate = sanitize(config.mageRegenTier2());
+                else if (v < 75) rate = sanitize(config.mageRegenTier3());
+                else rate = sanitize(config.mageRegenTier4());
                 state.add(rate);
             }
             default -> {
@@ -133,7 +155,7 @@ public final class ResourceService implements Listener {
         ResourceState state = stateOf(player.getUniqueId());
         state.markCombat();
         PlayerClass pc = classProvider.getClassOf(player);
-        double gain = pc == null ? 0.0 : config.resourceOnDeal(pc);
+        double gain = sanitize(pc == null ? 0.0 : config.resourceOnDeal(pc));
         if (gain > 0 && state.allowGainEvent()) {
             state.add(gain);
         }
@@ -147,7 +169,7 @@ public final class ResourceService implements Listener {
         ResourceState state = stateOf(player.getUniqueId());
         state.markCombat();
         PlayerClass pc = classProvider.getClassOf(player);
-        double gain = pc == null ? 0.0 : config.resourceOnTake(pc);
+        double gain = sanitize(pc == null ? 0.0 : config.resourceOnTake(pc));
         if (gain > 0 && state.allowGainEvent()) {
             state.add(gain);
         }
@@ -162,11 +184,27 @@ public final class ResourceService implements Listener {
         if (pc != PlayerClass.PRIEST) {
             return;
         }
-        stateOf(player.getUniqueId()).add(config.resourceOnHeal(PlayerClass.PRIEST));
+        double gain = sanitize(config.resourceOnHeal(PlayerClass.PRIEST));
+        if (gain > 0) {
+            stateOf(player.getUniqueId()).add(gain);
+        }
     }
 
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         states.remove(event.getPlayer().getUniqueId());
+    }
+
+    /**
+     * 1.6.11: санитаризация чисел, приходящих из конфига и хуков.
+     * NaN/Infinity → 0.0; конечные значения возвращаются как есть
+     * (кламп в [0..100] делает ResourceState.add, но потребителям безопаснее
+     * иметь чистое значение уже на входе).
+     */
+    private static double sanitize(double value) {
+        if (!Double.isFinite(value)) {
+            return 0.0;
+        }
+        return value;
     }
 }
