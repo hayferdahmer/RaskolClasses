@@ -2,23 +2,28 @@
 package dev.raskol.classes.spec;
 
 import dev.raskol.classes.RaskolClasses;
-import org.bukkit.configuration.file.FileConfiguration;
+import dev.raskol.classes.storage.SafeStorage;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
  * Персист выбранных спеков (1.4.0, Пакет 1).
  * Файл: plugins/RaskolClasses/spec-choices.yml (uuid → spec_id).
  * ОТДЕЛЬНЫЙ файл от specs.yml (баланс) — чтобы сохранение выборов
  * никогда не перетирало конфигурацию спек.
- * Сохранение синхронно при каждом выборе (редкое событие, дёшево).
+ *
+ * 1.6.10: атомарные сейвы через SafeStorage (tmp → .bak → atomic rename);
+ * чтение с фолбэком: битый YAML → .bak → пустая конфигурация (с SEVERE в лог).
+ * Сейв на каждое изменение (set/remove) сохранён — выбор спеки не теряется.
  */
 public final class SpecStorage {
+
+    private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
 
     private final RaskolClasses plugin;
     private final File file;
@@ -33,7 +38,9 @@ public final class SpecStorage {
         if (!file.exists()) {
             return;
         }
-        FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+        // 1.6.10: фолбэк на .bak при битом YAML; если и .bak мёртв — стартуем
+        // с пустой конфигурацией, SEVERE в лог (оператор увидит инцидент)
+        YamlConfiguration cfg = SafeStorage.loadWithFallback(file, LOGGER);
         for (String uuidKey : cfg.getKeys(false)) {
             try {
                 UUID uuid = UUID.fromString(uuidKey);
@@ -47,17 +54,13 @@ public final class SpecStorage {
         }
     }
 
+    /** 1.6.10: атомарная запись с .bak-копией предыдущей версии. */
     public void save() {
-        FileConfiguration cfg = new YamlConfiguration();
+        YamlConfiguration cfg = new YamlConfiguration();
         for (Map.Entry<UUID, Spec> entry : choices.entrySet()) {
             cfg.set(entry.getKey().toString(), entry.getValue().id());
         }
-        try {
-            cfg.save(file);
-        } catch (IOException e) {
-            plugin.getLogger().severe("RaskolClasses: не удалось сохранить spec-choices.yml: "
-                    + e.getMessage());
-        }
+        SafeStorage.saveAtomic(cfg, file, LOGGER);
     }
 
     public Spec get(UUID uuid) {
@@ -66,7 +69,7 @@ public final class SpecStorage {
 
     public void set(UUID uuid, Spec spec) {
         choices.put(uuid, spec);
-        save();
+        save(); // сейв на каждое изменение — выбор не теряется
     }
 
     public boolean hasSpec(UUID uuid) {
@@ -76,6 +79,6 @@ public final class SpecStorage {
     /** Респец (Пакет 3). */
     public void remove(UUID uuid) {
         choices.remove(uuid);
-        save();
+        save(); // сейв на каждое изменение — отречение не теряется
     }
 }
