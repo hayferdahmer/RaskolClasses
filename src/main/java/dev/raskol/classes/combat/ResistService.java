@@ -15,30 +15,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 1.6.0: сопротивления урону (РЕЗИСТ).
- * Эффективный резист = база класса + модификаторы (эффекты/спек-пассивки/гранты),
- * суммарно не выше капа. Формула: получено = компонент × (1 − резист/100).
- * Чистый урон (true) игнорирует резисты целиком.
- *
- * 1.6.3: кэш резист-факторов на игрока на тик (PvE), не-мутирующая фильтрация.
- * 1.6.9: pvpCap() — отдельный кап резиста для урона от игроков (дефолт = cap);
- * disabledIn(World) — миры из resist.disabled-worlds работают без резистов;
- * факторы принимают кап параметром, PvP-путь считает без кэша (события реже,
- * корректность важнее микрооптимизации).
+ * 1.6.3: кэш факторов на тик.
+ * 1.6.9: pvp-cap / disabled-worlds.
+ * 1.6.11: NaN-защита — битые значения из конфига не уходят в факторы.
  */
 public final class ResistService {
 
-    /** Временной или постоянный модификатор резиста (проценты). */
     public record Modifier(String source, double physicalPct, double magicPct, long expiresAt) {
         public boolean isPermanent() { return expiresAt == Long.MAX_VALUE; }
     }
 
-    /** Разбивка для /rc debug: база + активные модификаторы + итог (с клампом капа). */
     public record Breakdown(double basePhysical, double baseMagic,
                             List<Modifier> active,
                             double physicalTotal, double magicTotal) {
     }
 
-    /** Кэш PvE-факторов на тик; main-thread only. */
     private static final class FactorCache {
         long tick = -1;
         double phys = 1.0;
@@ -53,17 +44,16 @@ public final class ResistService {
         this.plugin = plugin;
     }
 
-    /** Общий кап суммарного резиста, % (resist.cap). */
     public double cap() {
-        return plugin.getConfig().getDouble("resist.cap", 90.0);
+        double v = plugin.getConfig().getDouble("resist.cap", 90.0);
+        return Double.isFinite(v) && v >= 0.0 && v <= 100.0 ? v : 90.0;
     }
 
-    /** 1.6.9: кап суммарного резиста для урона ОТ ИГРОКОВ (resist.pvp-cap, дефолт = cap). */
     public double pvpCap() {
-        return plugin.getConfig().getDouble("resist.pvp-cap", cap());
+        double v = plugin.getConfig().getDouble("resist.pvp-cap", cap());
+        return Double.isFinite(v) && v >= 0.0 && v <= 100.0 ? v : cap();
     }
 
-    /** 1.6.9: в этом мире резисты отключены (resist.disabled-worlds). */
     public boolean disabledIn(World world) {
         if (world == null) {
             return false;
@@ -73,13 +63,15 @@ public final class ResistService {
     }
 
     public double basePhysical(PlayerClass pc) {
-        return plugin.getConfig().getDouble(
+        double v = plugin.getConfig().getDouble(
                 "resist.classes." + pc.name() + ".physical", defaultPhysical(pc));
+        return Double.isFinite(v) ? v : defaultPhysical(pc);
     }
 
     public double baseMagic(PlayerClass pc) {
-        return plugin.getConfig().getDouble(
+        double v = plugin.getConfig().getDouble(
                 "resist.classes." + pc.name() + ".magic", defaultMagic(pc));
+        return Double.isFinite(v) ? v : defaultMagic(pc);
     }
 
     private static double defaultPhysical(PlayerClass pc) {
@@ -102,26 +94,28 @@ public final class ResistService {
         };
     }
 
-    /** Временной модификатор (эффект-баф). Идемпотентно: источник перезаписывается. */
     public void addTimedModifier(UUID uuid, String source,
                                  double physicalPct, double magicPct, long millis) {
         removeModifiersBySource(uuid, source);
         modifiers.computeIfAbsent(uuid, k -> new CopyOnWriteArrayList<>())
-                .add(new Modifier(source, physicalPct, magicPct,
+                .add(new Modifier(source,
+                        Double.isFinite(physicalPct) ? physicalPct : 0.0,
+                        Double.isFinite(magicPct) ? magicPct : 0.0,
                         System.currentTimeMillis() + millis));
         invalidate(uuid);
     }
 
-    /** Постоянный модификатор (спек-пассивки): expiresAt = Long.MAX_VALUE. */
     public void addPermanentModifier(UUID uuid, String source,
                                      double physicalPct, double magicPct) {
         removeModifiersBySource(uuid, source);
         modifiers.computeIfAbsent(uuid, k -> new CopyOnWriteArrayList<>())
-                .add(new Modifier(source, physicalPct, magicPct, Long.MAX_VALUE));
+                .add(new Modifier(source,
+                        Double.isFinite(physicalPct) ? physicalPct : 0.0,
+                        Double.isFinite(magicPct) ? magicPct : 0.0,
+                        Long.MAX_VALUE));
         invalidate(uuid);
     }
 
-    /** Есть ли активный (не истёкший) модификатор с данным источником. Без мутации. */
     public boolean hasModifier(UUID uuid, String source) {
         CopyOnWriteArrayList<Modifier> list = modifiers.get(uuid);
         if (list == null) {
@@ -137,7 +131,6 @@ public final class ResistService {
         return false;
     }
 
-    /** Снять все модификаторы источника (респец, смена класса, баф-офф). */
     public void removeModifiersBySource(UUID uuid, String source) {
         CopyOnWriteArrayList<Modifier> list = modifiers.get(uuid);
         if (list == null) {
@@ -150,12 +143,10 @@ public final class ResistService {
         invalidate(uuid);
     }
 
-    /** Разбивка с клампом по общему капу (для отображения и PvE). */
     public Breakdown breakdown(UUID uuid) {
         return breakdown(uuid, cap());
     }
 
-    /** 1.6.9: разбивка с произвольным капом (PvP передаёт pvpCap). */
     public Breakdown breakdown(UUID uuid, double cap) {
         Player player = plugin.getServer().getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
@@ -178,27 +169,25 @@ public final class ResistService {
 
     public double physicalResist(UUID uuid) { return breakdown(uuid).physicalTotal(); }
     public double magicResist(UUID uuid) { return breakdown(uuid).magicTotal(); }
-
-    /** 1.6.9: резисты с произвольным капом (без кэша). */
     public double physicalResist(UUID uuid, double cap) { return breakdown(uuid, cap).physicalTotal(); }
     public double magicResist(UUID uuid, double cap) { return breakdown(uuid, cap).magicTotal(); }
 
-    /** Множитель входящего физического урона (0..1), PvE-кэш на тик. */
     public double physicalFactor(UUID uuid) { return factors(uuid).phys; }
-
-    /** Множитель входящего магического урона (0..1), PvE-кэш на тик. */
     public double magicFactor(UUID uuid) { return factors(uuid).magic; }
 
-    /** 1.6.9: множители с произвольным капом (PvP-путь), без кэша. */
     public double physicalFactor(UUID uuid, double cap) {
-        return 1.0 - physicalResist(uuid, cap) / 100.0;
+        double factor = 1.0 - physicalResist(uuid, cap) / 100.0;
+        // 1.6.11: защита от NaN и выхода за [0..1]
+        if (!Double.isFinite(factor)) return 1.0;
+        return Math.max(0.0, Math.min(1.0, factor));
     }
 
     public double magicFactor(UUID uuid, double cap) {
-        return 1.0 - magicResist(uuid, cap) / 100.0;
+        double factor = 1.0 - magicResist(uuid, cap) / 100.0;
+        if (!Double.isFinite(factor)) return 1.0;
+        return Math.max(0.0, Math.min(1.0, factor));
     }
 
-    /** 1.6.3: пересчёт не чаще раза в тик на игрока; инвалидация сбрасывает кэш. */
     private FactorCache factors(UUID uuid) {
         FactorCache cache = factorCache.computeIfAbsent(uuid, k -> new FactorCache());
         long tick = Bukkit.getCurrentTick();
@@ -211,7 +200,6 @@ public final class ResistService {
         return cache;
     }
 
-    /** Сброс кэша факторов игрока (любое изменение модификаторов). */
     public void invalidate(UUID uuid) {
         FactorCache cache = factorCache.get(uuid);
         if (cache != null) {
@@ -219,7 +207,6 @@ public final class ResistService {
         }
     }
 
-    /** Чистка истёкших модификаторов и кэшей оффлайна (purge-таск, 1200 тиков). */
     public void purgeExpired() {
         long now = System.currentTimeMillis();
         modifiers.entrySet().removeIf(entry -> {
@@ -230,13 +217,17 @@ public final class ResistService {
                 && !modifiers.containsKey(uuid));
     }
 
-    /** Полная чистка игрока (PlayerQuit). */
     public void clear(UUID uuid) {
         modifiers.remove(uuid);
         factorCache.remove(uuid);
     }
 
+    /** 1.6.11: NaN-защита — битое значение превращается в 0.0. */
     private double clamp(double value, double cap) {
-        return Math.max(0.0, Math.min(cap, value));
+        if (!Double.isFinite(value)) {
+            return 0.0;
+        }
+        double safeCap = Double.isFinite(cap) ? cap : 90.0;
+        return Math.max(0.0, Math.min(safeCap, value));
     }
 }
