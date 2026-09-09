@@ -26,13 +26,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
- * Кулдауны в миллисекундах (на игрока и способность) + персист (A1):
- * cooldowns.yml хранит uuid → способность → readyAtEpoch. Сохранение на
- * выходе и выгрузке, восстановление на входе; очистка памяти на выходе (O2)
- * и периодический purge истёкших записей (O7).
- * Пакет 2: ready-нотификация — отложенный таск на конец КД (звук + actionbar).
- * 1.6.10: чтение/запись через SafeStorage (атомарно, .bak, фолбэк при коррупте);
- * автосейв каждые storage.autosave-minutes регистрируется в RaskolClasses.
+ * Кулдауны в миллисекундах (на игрока и способность) + персист (A1).
+ * 1.6.10: чтение/запись через SafeStorage (атомарно, .bak, фолбэк).
+ * 1.6.12: метрики trackedPlayers()/totalEntries() для /rc health.
  */
 public final class CooldownManager implements Listener {
 
@@ -42,11 +38,9 @@ public final class CooldownManager implements Listener {
     private final File file;
     private final YamlConfiguration store;
 
-    // Пакет 2: отложенные таски ready-notify
     private final Map<UUID, Map<String, BukkitTask>> tasks = new ConcurrentHashMap<>();
     private Plugin plugin;
 
-    // Пакет 2: конфиг ready-notify (кэшируются в attachScheduler)
     private boolean notifyEnabled = false;
     private long notifyMinMillis = 30_000L;
     private Sound notifySound = Sound.ENTITY_PLAYER_LEVELUP;
@@ -54,16 +48,9 @@ public final class CooldownManager implements Listener {
 
     public CooldownManager(File file) {
         this.file = file;
-        // 1.6.10: битый cooldowns.yml больше не роняет данные молча —
-        // восстанавливаемся из .bak или стартуем с пустой конфигурацией
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
 
-    /**
-     * Пакет 2: привязка к плагину для планирования тасков. Вызывается один раз
-     * в onEnable после создания CooldownManager. Читает конфиг ready-notify
-     * и кэширует параметры.
-     */
     public void attachScheduler(Plugin plugin,
                                 boolean enabled,
                                 int minCooldownSeconds,
@@ -93,16 +80,10 @@ public final class CooldownManager implements Listener {
         return getRemainingMillis(playerId, abilityId) > 0L;
     }
 
-    /** Базовый start без нотификации (обратная совместимость). */
     public void start(UUID playerId, String abilityId, long durationMillis) {
         start(playerId, abilityId, durationMillis, abilityId);
     }
 
-    /**
-     * Пакет 2: start с нотификацией. Ставит КД и, если ready-notify включён,
-     * КД ≥ порога — планирует таск на конец КД. Старый таск этой же абилки
-     * отменяется (защита от «призраков» при re-cast).
-     */
     public void start(UUID playerId, String abilityId, long durationMillis, String displayName) {
         readyAt.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>())
                 .put(abilityId, System.currentTimeMillis() + durationMillis);
@@ -111,7 +92,6 @@ public final class CooldownManager implements Listener {
             return;
         }
 
-        // Отмена старого таска этой же абилки
         Map<String, BukkitTask> byAbility = tasks.computeIfAbsent(playerId,
                 id -> new ConcurrentHashMap<>());
         BukkitTask old = byAbility.remove(abilityId);
@@ -121,13 +101,11 @@ public final class CooldownManager implements Listener {
 
         long delayTicks = Math.max(1L, durationMillis / 50L);
         BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            // Защита: игрок может выйти — в onQuit таск отменяется, но на всякий
             Player player = Bukkit.getPlayer(playerId);
             if (player == null || !player.isOnline()) {
                 return;
             }
             if (getRemainingMillis(playerId, abilityId) > 0L) {
-                // КД ещё не истёк (перезапуск сервера сдвинул часы) — пропускаем
                 return;
             }
             player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
@@ -137,7 +115,6 @@ public final class CooldownManager implements Listener {
         byAbility.put(abilityId, task);
     }
 
-    /** Отмена кулдауна (используется при отмене каста). */
     public void cancel(UUID playerId, String abilityId) {
         Map<String, Long> byAbility = readyAt.get(playerId);
         if (byAbility != null) {
@@ -152,7 +129,20 @@ public final class CooldownManager implements Listener {
         tasks.clear();
     }
 
-    /** O7: удалить истёкшие записи и опустевшие мапы игроков. */
+    /** 1.6.12: число игроков с записями кулдаунов (для /rc health). */
+    public int trackedPlayers() {
+        return readyAt.size();
+    }
+
+    /** 1.6.12: суммарное число записей кулдаунов (для /rc health). */
+    public int totalEntries() {
+        int total = 0;
+        for (Map<String, Long> byAbility : readyAt.values()) {
+            total += byAbility.size();
+        }
+        return total;
+    }
+
     public void purgeExpired() {
         long now = System.currentTimeMillis();
         readyAt.forEach((playerId, byAbility) -> {
@@ -185,9 +175,9 @@ public final class CooldownManager implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         UUID playerId = event.getPlayer().getUniqueId();
-        savePlayer(playerId);        // A1: зафиксировать в файле
-        readyAt.remove(playerId);    // O2: очистить память
-        cancelPlayerTasks(playerId); // Пакет 2: убрать призрачные таски
+        savePlayer(playerId);
+        readyAt.remove(playerId);
+        cancelPlayerTasks(playerId);
     }
 
     public void savePlayer(UUID playerId) {
@@ -195,7 +185,6 @@ public final class CooldownManager implements Listener {
         persist();
     }
 
-    /** Полное сохранение — вызывается в onDisable и автосейв-таском (1.6.10). */
     public void saveAll() {
         for (UUID playerId : readyAt.keySet()) {
             writeSection(playerId);
@@ -203,7 +192,6 @@ public final class CooldownManager implements Listener {
         persist();
     }
 
-    /** Пакет 2: отмена всех тасков — вызывается в onDisable перед закрытием. */
     public void cancelAllTasks() {
         tasks.values().forEach(m -> m.values().forEach(BukkitTask::cancel));
         tasks.clear();
@@ -224,7 +212,6 @@ public final class CooldownManager implements Listener {
         });
     }
 
-    /** 1.6.10: атомарная запись с .bak-копией предыдущей версии. */
     private void persist() {
         SafeStorage.saveAtomic(store, file, LOGGER);
     }
