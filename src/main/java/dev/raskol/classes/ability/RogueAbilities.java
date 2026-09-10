@@ -4,8 +4,6 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
-import dev.raskol.classes.combat.Targeting;
-import dev.raskol.classes.effect.EffectType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
@@ -13,15 +11,23 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.util.RayTraceResult;
+
+import java.util.UUID;
 
 /**
- * Активные способности разбойника (ресурс — энергия).
- * 1.6.0 пакет 2: fan_of_knives/cheap_shot = ФИЗИЧЕСКИЙ урон через dealDamage.
- * 1.6.2: союзники не бьются (гейт combat.friendly-fire).
- * 1.6.11: fan_of_knives не бьёт сквозь стены (Targeting.hasLineOfSight).
+ * 1.7.3: КИТ РАЗБОЙНИКА (средневековый реализм). Всё масштабируется от Силы оружия (WP):
+ * урон = base + WP × coeff (конфиг classes.ROGUE.abilities.<id>.*).
+ *
+ * Кит (слоты 1–5):
+ *  1. «Плащ теней» (shadow_cloak)     — Невидимость 15 с;
+ *  2. «Веер клинков» (blade_fan)      — AoE радиус 3 (LOS): физ-урон;
+ *  3. «Удушение палача» (strangle)    — одиночный: физ + Blind 2 с + Slowness 2 с;
+ *  4. «Яд Борджа» (borgia_poison)     — Яд I 5 с + малый физ-урон;
+ *  5. «Танец теней» (shadow_dance)    — timed-модификатор +AGI (всплеск dodge через avoidance).
  */
 public final class RogueAbilities {
+
+    private static final PlayerClass PC = PlayerClass.ROGUE;
 
     private final RaskolClasses plugin;
 
@@ -29,69 +35,110 @@ public final class RogueAbilities {
         this.plugin = plugin;
     }
 
-    public boolean stealth(Player player, AbilityDef def) {
-        long durationMillis = plugin.getRaskolConfig()
-                .durationSeconds(PlayerClass.ROGUE, "stealth", 15) * 1000L;
-        plugin.getEffects().addTimed(player.getUniqueId(), EffectType.STEALTH, durationMillis);
-        player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY,
-                (int) (durationMillis / 50L), 0));
+    /* ------------------------------ конфиг-хелперы ------------------------------ */
+
+    private double cfgD(String path, double def) {
+        double v = plugin.getConfig().getDouble(path, def);
+        return Double.isFinite(v) ? v : def;
+    }
+
+    private double base(AbilityDef def, double defv) {
+        return cfgD("classes.ROGUE.abilities." + def.id() + ".base", defv);
+    }
+
+    private double coeff(AbilityDef def, double defv) {
+        return cfgD("classes.ROGUE.abilities." + def.id() + ".coeff", defv);
+    }
+
+    private String power(AbilityDef def) {
+        return plugin.getConfig().getString(
+                "classes.ROGUE.abilities." + def.id() + ".power", "wp");
+    }
+
+    private int duration(AbilityDef def, int defv) {
+        int v = plugin.getConfig().getInt(
+                "classes.ROGUE.abilities." + def.id() + ".duration", defv);
+        return v > 0 ? v : defv;
+    }
+
+    private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
+        return plugin.getCombat().powers().abilityDamage(
+                p.getUniqueId(), power(def), base(def, defBase), coeff(def, defCoeff));
+    }
+
+    private LivingEntity rayTarget(Player p, double range) {
+        Entity e = p.getTargetEntity((int) range);
+        return e instanceof LivingEntity le ? le : null;
+    }
+
+    private void noTarget(Player p) {
+        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.RED));
+    }
+
+    /* -------------------------------- способности -------------------------------- */
+
+    /** 1. «Плащ теней» — Невидимость 15 с. */
+    public boolean shadowCloak(Player p, AbilityDef def) {
+        int secs = duration(def, 15);
+        p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, secs * 20, 0));
         return true;
     }
 
-    /** Веер ножей — ФИЗИЧЕСКИЙ урон (4 дефолт). Союзники и цели за стенами пропускаются. */
-    public boolean fanOfKnives(Player player, AbilityDef def) {
-        double phys = plugin.getRaskolConfig()
-                .abilityDamagePhysical(PlayerClass.ROGUE, def.id(), 4.0);
-        boolean affected = false;
-        for (Entity entity : player.getNearbyEntities(3, 3, 3)) {
-            if (!(entity instanceof LivingEntity living) || entity.equals(player)) {
+    /** 2. «Веер клинков» — AoE физ-урон радиус 3 (LOS). */
+    public boolean bladeFan(Player p, AbilityDef def) {
+        double radius = cfgD("classes.ROGUE.abilities." + def.id() + ".radius", 3.0);
+        double dmg = dmg(p, def, 8.0, 0.5);
+        boolean hit = false;
+        for (Entity e : p.getNearbyEntities(radius, radius, radius)) {
+            if (!(e instanceof LivingEntity t) || e.equals(p)) {
                 continue;
             }
-            if (!Targeting.isValidDamageTarget(plugin, player, living)) {
+            if (!dev.raskol.classes.combat.Targeting.isValidDamageTarget(plugin, p, t)) {
                 continue;
             }
-            if (!Targeting.hasLineOfSight(plugin, player, living)) {
+            if (!dev.raskol.classes.combat.Targeting.hasLineOfSight(plugin, p, t)) {
                 continue;
             }
-            plugin.getCombat().dealDamage(living, player, DamageProfile.physical(phys));
-            affected = true;
+            plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
+            hit = true;
         }
-        return affected;
+        return hit;
     }
 
-    /** Подлый удар — ФИЗИЧЕСКИЙ урон (3 дефолт) + Blind + Slowness. Не по союзникам. */
-    public boolean cheapShot(Player player, AbilityDef def) {
-        RayTraceResult hit = player.rayTraceEntities(4);
-        if (hit == null || !(hit.getHitEntity() instanceof LivingEntity target)) {
-            String text = plugin.getRaskolConfig().message("cheap-shot-no-target",
-                    "Нет цели в радиусе 4 блоков");
-            player.sendMessage(Component.text(text, NamedTextColor.RED));
+    /** 3. «Удушение палача» — одиночный: физ + Blind + Slowness. */
+    public boolean strangle(Player p, AbilityDef def) {
+        LivingEntity t = rayTarget(p, 4);
+        if (t == null) {
+            noTarget(p);
             return false;
         }
-        if (!Targeting.isValidDamageTarget(plugin, player, target)) {
-            player.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
-            return false;
-        }
-        double phys = plugin.getRaskolConfig()
-                .abilityDamagePhysical(PlayerClass.ROGUE, def.id(), 3.0);
-        int ticks = plugin.getRaskolConfig()
-                .durationSeconds(PlayerClass.ROGUE, "cheap_shot", 2) * 20;
-        target.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, ticks, 0));
-        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, ticks, 0));
-        plugin.getCombat().dealDamage(target, player, DamageProfile.physical(phys));
+        double dmg = dmg(p, def, 10.0, 0.6);
+        plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
+        t.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 2 * 20, 0));
+        t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2 * 20, 1));
         return true;
     }
 
-    /** Уклонение: +физрезист (конфиг resist.grants.evasion.physical) на duration. */
-    public boolean evasion(Player player, AbilityDef def) {
-        long durationMillis = plugin.getRaskolConfig()
-                .durationSeconds(PlayerClass.ROGUE, "evasion", 4) * 1000L;
-        double phys = plugin.getConfig()
-                .getDouble("resist.grants.evasion.physical", 30.0);
-        plugin.getEffects().addTimed(player.getUniqueId(), EffectType.EVASION, durationMillis);
-        plugin.getResists().addTimedModifier(player.getUniqueId(), "evasion",
-                phys, 0.0, durationMillis);
+    /** 4. «Яд Борджа» — Яд I 5 с + малый физ-урон. */
+    public boolean borgiaPoison(Player p, AbilityDef def) {
+        LivingEntity t = rayTarget(p, 4);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        double dmg = dmg(p, def, 5.0, 0.3);
+        plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
+        t.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 5 * 20, 0));
+        return true;
+    }
+
+    /** 5. «Танец теней» — timed-модификатор +AGI → всплеск dodge через avoidance. */
+    public boolean shadowDance(Player p, AbilityDef def) {
+        UUID uuid = p.getUniqueId();
+        double agiBonus = base(def, 30.0);
+        int secs = duration(def, 4);
+        plugin.getAttributes().addTimedModifier(uuid, def.id(), 0.0, agiBonus, 0.0, secs * 1000L);
         return true;
     }
 }
