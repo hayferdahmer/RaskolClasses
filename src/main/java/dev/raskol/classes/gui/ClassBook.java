@@ -38,10 +38,9 @@ import java.util.UUID;
  * Книга класса (1.5.4 + 1.5.5 + 1.5.9 + 1.6.6 + 1.7.0 пакет 1).
  * 1.6.6: сводка резистов (предмет-щит, слот 14) и grant-строки в лоре.
  * 1.6.7: ключ маг-гранта — плоский book.resist.grant-magic.
- * 1.7.0 пакет 1: предмет-эмблема атрибутов (слот 16 вкладки «Класс»):
- * значения STR/AGI/INT со звёздочкой у основного атрибута, maxHP по формуле,
- * эффективные уклонение/парирование (после DR), криты мили/магии.
- * Значения берутся из AttributeService — тот же источник, что бой/PAPI/дебаг.
+ * 1.7.0 пакет 1: предмет-эмблема атрибутов (слот 16 вкладки «Класс»).
+ * 1.7.5: вкладка SPECS показывает только пассивную идентичность — строки
+ * активки/цены/свитка удалены, выдача свитка активки убрана.
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -58,9 +57,7 @@ public final class ClassBook implements InventoryHolder {
     private static final int SLOT_RESPEC = 22;
     private static final int[] PASSIVE_SLOTS = {10, 11, 12, 13};
     private static final int SLOT_CROWN = 15;
-    /** 1.6.6: сводка резистов во вкладке «Класс». */
     private static final int SLOT_RESIST = 14;
-    /** 1.7.0 пакет 1: сводка атрибутов во вкладке «Класс». */
     private static final int SLOT_ATTRIBUTES = 16;
 
     private Inventory inventory;
@@ -97,7 +94,6 @@ public final class ClassBook implements InventoryHolder {
         }
     }
 
-    /** 1.5.5: перерисовать содержимое открытой книги без переоткрытия. */
     public void refresh(RaskolClasses plugin, Player player) {
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null || inventory == null) {
@@ -147,7 +143,6 @@ public final class ClassBook implements InventoryHolder {
                 }
                 inventory.setItem(SLOT_RESIST, resistItem(plugin, player, pc));
                 inventory.setItem(SLOT_CROWN, crownItem(plugin, player, pc));
-                // 1.7.0 пакет 1: сводка атрибутов
                 inventory.setItem(SLOT_ATTRIBUTES, attributesItem(plugin, player, pc));
             }
         }
@@ -171,16 +166,6 @@ public final class ClassBook implements InventoryHolder {
         int count = 0;
         for (ItemStack item : player.getInventory().getContents()) {
             if (item != null && id.equals(plugin.getTokens().readId(item))) {
-                count++;
-            }
-        }
-        return count;
-    }
-
-    private static int countSpecScrolls(RaskolClasses plugin, Player player, Spec spec) {
-        int count = 0;
-        for (ItemStack item : player.getInventory().getContents()) {
-            if (item != null && plugin.getSpecToken().readSpec(item) == spec) {
                 count++;
             }
         }
@@ -264,7 +249,6 @@ public final class ClassBook implements InventoryHolder {
         };
     }
 
-    /** 1.6.6: сводка резистов — итоги с базой, активные модификаторы, кап. */
     private ItemStack resistItem(RaskolClasses plugin, Player player, PlayerClass pc) {
         UUID uuid = player.getUniqueId();
         ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
@@ -304,10 +288,6 @@ public final class ClassBook implements InventoryHolder {
         return item;
     }
 
-    /**
-     * 1.7.0 пакет 1: сводка классовых атрибутов. Звёздочка ★ — основной атрибут
-     * класса; числа — из AttributeService (единый источник с боем и PAPI).
-     */
     private ItemStack attributesItem(RaskolClasses plugin, Player player, PlayerClass pc) {
         UUID uuid = player.getUniqueId();
         AttributeService attrs = plugin.getAttributes();
@@ -389,7 +369,6 @@ public final class ClassBook implements InventoryHolder {
             lore.add(Component.text(msg(plugin, "book.unlock", "Открытие: уровень {level}")
                     .replace("{level}", String.valueOf(def.unlockLevel())),
                     unlocked ? NamedTextColor.GREEN : NamedTextColor.RED));
-            // 1.6.6/1.6.7: строки грантов резиста (единый источник resist.grants.*)
             double grantPhys = plugin.getConfig()
                     .getDouble("resist.grants." + def.id() + ".physical", 0.0);
             double grantMagic = plugin.getConfig()
@@ -468,10 +447,13 @@ public final class ClassBook implements InventoryHolder {
         };
     }
 
+    /**
+     * 1.7.5: спека = пассивная идентичность. Лор показывает только пассивку,
+     * резист-грант Стража и статус выбора. Строки активки/цены/свитка удалены.
+     */
     private ItemStack specItem(RaskolClasses plugin, Player player, PlayerClass pc, Spec spec) {
         SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(spec);
         Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
-        int scrolls = countSpecScrolls(plugin, player, spec);
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         item.editMeta(meta -> {
             meta.displayName(TextFx.gradient(spec.displayName(),
@@ -481,13 +463,6 @@ public final class ClassBook implements InventoryHolder {
             if (def != null) {
                 lore.add(Component.text(msg(plugin, "book.spec.passive", "Пассив: {text}")
                         .replace("{text}", def.passiveDescription()), NamedTextColor.WHITE));
-                lore.add(Component.text(msg(plugin, "book.spec.active", "Актив: {text}")
-                        .replace("{text}", def.activeDescription()), NamedTextColor.WHITE));
-                lore.add(Component.text(msg(plugin, "book.spec.activecost", "Цена актива: {cost} рес · КД: {sec} с")
-                        .replace("{cost}", String.valueOf(def.activeCost()))
-                        .replace("{sec}", String.valueOf(def.activeCooldown())),
-                        NamedTextColor.AQUA));
-                // 1.6.6: постоянный резист-грант спеки (Страж)
                 if (spec == Spec.GUARDIAN) {
                     double g = plugin.getConfig()
                             .getDouble("resist.specs.guardian.physical", 10.0);
@@ -501,13 +476,8 @@ public final class ClassBook implements InventoryHolder {
             if (current == spec) {
                 lore.add(Component.text(msg(plugin, "book.spec.chosen", "Выбрана тобой"),
                         NamedTextColor.GREEN));
-                lore.add(Component.text(scrolls > 0
-                        ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
-                                .replace("{count}", String.valueOf(scrolls))
-                        : msg(plugin, "book.scroll.none", "Свиток: нет"),
-                        scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
-                lore.add(Component.text(msg(plugin, "book.spec.scroll.right",
-                        "ПКМ — свиток активки в хотбар"), NamedTextColor.YELLOW));
+                lore.add(Component.text("Пассивка работает постоянно",
+                        NamedTextColor.DARK_GRAY));
             } else if (current == null) {
                 lore.add(Component.text(msg(plugin, "book.spec.notchosen",
                         "Не выбрана · ПКМ — выбрать (уровень 40+)"), NamedTextColor.YELLOW));
@@ -604,7 +574,7 @@ public final class ClassBook implements InventoryHolder {
         return -1;
     }
 
-    /** Обработчик кликов книги. */
+    /** Обработчик кликов книги. 1.7.5: SPECS — только выбор и отречение. */
     public static final class ClickHandler implements Listener {
 
         private final RaskolClasses plugin;
@@ -711,16 +681,10 @@ public final class ClassBook implements InventoryHolder {
                         if (current == null) {
                             plugin.getSpecService().choose(player, spec);
                         } else if (current == spec) {
-                            if (countSpecScrolls(plugin, player, spec) > 0) {
-                                player.sendMessage(Component.text(msg(plugin,
-                                        "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
-                                        NamedTextColor.GRAY));
-                            } else {
-                                player.getInventory().addItem(plugin.getSpecToken().create(spec, pc));
-                                player.sendMessage(Component.text(msg(plugin,
-                                        "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
-                                        .append(Component.text(spec.displayName(), pc.getColor())));
-                            }
+                            // 1.7.5: свитков активок больше нет — информируем
+                            player.sendMessage(Component.text(
+                                    "Эта спека — твоя пассивная идентичность: её бонусы работают постоянно.",
+                                    NamedTextColor.GRAY));
                         } else {
                             player.sendMessage(Component.text(msg(plugin,
                                     "book.msg.spec.other", "Спека уже выбрана: {name}. Отречение — кристалл ниже.")
