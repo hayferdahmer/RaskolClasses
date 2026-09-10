@@ -2,12 +2,18 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.AttributeMath;
+import dev.raskol.classes.attribute.AttributeService;
+import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.classsystem.PlayerClass;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.title.Title;
 import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.damage.DamageSource;
@@ -21,20 +27,31 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 1.6.0: боевой сервис урона и резистов.
- * Путь A (ваниль): EntityDamageEvent по игроку.
+ * Путь A (ваниль): EntityDamageEvent по игроку (резисты) + исходящий офенс игрока.
  * Путь B (наши способности): dealDamage(target, source, DamageProfile).
- * 1.7.0 пакет 3: ПОРЯДОК ПУТИ A для PHYSICAL:
- *   1) avoidance-ролл (уклонение/парирование) → отмена события;
- *   2) резист-фактор (если урон не наш path-B; наш уже посчитан в dealDamage).
- * TRUE-урон: резисты не применяются; среда из env-lethal масштабируется × maxHP/20.
- * SUPPRESS-маркер: path-B событие не получает резист повторно, но avoidance
- * роллится и для него (способности можно уклонить/парировать как обычные удары).
+ *
+ * 1.7.0 пакет 4: НАСТУПАТЕЛЬНЫЕ АТРИБУТЫ:
+ *  - плоские добавки исходящего урона игрока: STR+level → физ-компонента,
+ *    INT+level → маг-компонента (гейты attributes.offense.str-to-physical /
+ *    int-to-magic); применяются ДО резистов цели;
+ *  - криты: мили (AGI, attributes.crit.melee-*) и магия (INT, spell-*),
+ *    множители melee-mult/spell-mult, визуал (тег+звук, attributes.crit.visuals);
+ *  - точки применения: path A — applyOutgoingOffense (ванильные удары/стрелы,
+ *    только не-SUPPRESS события); path B — dealDamage (source-игрок);
+ *    SUPPRESS-поток исключает двойное начисление;
+ *  - TRUE-урон бонусов и критов НЕ получает.
+ *
+ * Порядок path A для PHYSICAL по игроку-цели: исходящий бонус/крит →
+ * avoidance-ролл (уклонение/парирование, отмена) → резист-фактор цели.
+ * 1.7.0.2: среда (FALL/DROWNING/…) = TRUE + масштаб летальности × maxHP/20.
  */
 public final class CombatService implements Listener {
 
@@ -81,6 +98,16 @@ public final class CombatService implements Listener {
         return Double.isFinite(v) && v >= 0.0 ? v : 1000.0;
     }
 
+    private double cfgD(String path, double def) {
+        double v = plugin.getConfig().getDouble(path, def);
+        return Double.isFinite(v) ? v : def;
+    }
+
+    private String cfgS(String path, String def) {
+        String v = plugin.getConfig().getString(path, def);
+        return v != null && !v.isEmpty() ? v : def;
+    }
+
     private static boolean isPvp(EntityDamageEvent event) {
         if (!(event instanceof EntityDamageByEntityEvent byEntity)) {
             return false;
@@ -97,6 +124,11 @@ public final class CombatService implements Listener {
         boolean suppressed = Boolean.TRUE.equals(SUPPRESS.get());
         if (suppressed) {
             SUPPRESS.set(Boolean.FALSE);
+        }
+        // 1.7.0 пакет 4: исходящий офенс игрока (path A), до резистов цели;
+        // SUPPRESS-события (path B) уже получили бонусы внутри dealDamage
+        if (!suppressed) {
+            applyOutgoingOffense(event);
         }
         if (!(event.getEntity() instanceof Player target)) {
             return;
@@ -133,6 +165,144 @@ public final class CombatService implements Listener {
         event.setDamage(event.getDamage() * factor);
     }
 
+    /* --------------------- 1.7.0 пакет 4: исходящий офенс --------------------- */
+
+    /**
+     * Path A: ванильный урон игрока (удар/стрела) по живой цели.
+     * Бонус STR/INT + крит-ролл ДО резистов цели. TRUE не трогает.
+     */
+    private void applyOutgoingOffense(EntityDamageEvent event) {
+        if (!(event instanceof EntityDamageByEntityEvent by)) {
+            return;
+        }
+        if (!(event.getEntity() instanceof LivingEntity)) {
+            return;
+        }
+        Player attacker = null;
+        Entity damager = by.getDamager();
+        if (damager instanceof Player p) {
+            attacker = p;
+        } else if (damager instanceof Projectile proj
+                && proj.getShooter() instanceof Player sh) {
+            attacker = sh;
+        }
+        if (attacker == null) {
+            return;
+        }
+        DamageType type = typeOf(event.getCause());
+        if (type == DamageType.TRUE) {
+            return;
+        }
+        double add = 0.0;
+        boolean crit;
+        if (type == DamageType.PHYSICAL) {
+            if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", true)) {
+                add += strBonus(attacker);
+            }
+            crit = rollMeleeCrit(attacker);
+        } else {
+            if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", true)) {
+                add += intBonus(attacker);
+            }
+            crit = rollSpellCrit(attacker);
+        }
+        double base = event.getDamage();
+        double total = base + add;
+        if (crit) {
+            total *= type == DamageType.PHYSICAL ? meleeMult() : spellMult();
+            critFeedback(attacker, type == DamageType.PHYSICAL);
+        }
+        if (total != base && Double.isFinite(total) && total >= 0.0) {
+            event.setDamage(total);
+        }
+    }
+
+    /** Плоская добавка физ-урона: STR + PlayerLevel. */
+    private double strBonus(Player player) {
+        AttributeService attrs = plugin.getAttributes();
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        if (pc == null) {
+            return 0.0;
+        }
+        UUID uuid = player.getUniqueId();
+        return AttributeMath.physicalBonus(
+                attrs.value(uuid, AttributeType.STR), attrs.levelOf(uuid, pc));
+    }
+
+    /** Плоская добавка маг-урона: INT + PlayerLevel. */
+    private double intBonus(Player player) {
+        AttributeService attrs = plugin.getAttributes();
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        if (pc == null) {
+            return 0.0;
+        }
+        UUID uuid = player.getUniqueId();
+        return AttributeMath.spellBonus(
+                attrs.value(uuid, AttributeType.INT), attrs.levelOf(uuid, pc));
+    }
+
+    private boolean rollMeleeCrit(Player player) {
+        AttributeService attrs = plugin.getAttributes();
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        if (pc == null) {
+            return false;
+        }
+        double chance = AttributeMath.critMelee(
+                attrs.value(player.getUniqueId(), AttributeType.AGI),
+                cfgD("attributes.crit.melee-base", 5.0),
+                cfgD("attributes.crit.melee-per-agi", 0.05),
+                cfgD("attributes.crit.melee-cap", 40.0));
+        return ThreadLocalRandom.current().nextDouble() * 100.0 < chance;
+    }
+
+    private boolean rollSpellCrit(Player player) {
+        AttributeService attrs = plugin.getAttributes();
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        if (pc == null) {
+            return false;
+        }
+        UUID uuid = player.getUniqueId();
+        double chance = AttributeMath.critSpell(
+                attrs.value(uuid, AttributeType.INT),
+                attrs.mainOf(pc) == AttributeType.INT,
+                cfgD("attributes.crit.spell-base", 5.0),
+                cfgD("attributes.crit.spell-per-int", 0.03),
+                cfgD("attributes.crit.spell-main-mult", 1.5),
+                cfgD("attributes.crit.spell-cap", 35.0));
+        return ThreadLocalRandom.current().nextDouble() * 100.0 < chance;
+    }
+
+    private double meleeMult() {
+        return cfgD("attributes.crit.melee-mult", 1.5);
+    }
+
+    private double spellMult() {
+        return cfgD("attributes.crit.spell-mult", 1.5);
+    }
+
+    /** Визуал крита: субтайтл-тег атакующему + звук. */
+    private void critFeedback(Player attacker, boolean melee) {
+        if (!plugin.getConfig().getBoolean("attributes.crit.visuals", true)) {
+            return;
+        }
+        String tag = melee
+                ? cfgS("attributes.crit.melee-tag", "⚡ Крит!")
+                : cfgS("attributes.crit.spell-tag", "✦ Магический крит!");
+        attacker.showTitle(Title.title(
+                Component.empty(),
+                Component.text(tag, melee ? NamedTextColor.RED : NamedTextColor.LIGHT_PURPLE),
+                Title.Times.times(Duration.ofMillis(50),
+                        Duration.ofMillis(550), Duration.ofMillis(150))));
+        Sound s = plugin.getFx().resolveSound(melee
+                ? cfgS("attributes.crit.melee-sound", "ENTITY_PLAYER_ATTACK_CRIT")
+                : cfgS("attributes.crit.spell-sound", "ENTITY_EVOKER_CAST_SPELL"));
+        if (s != null) {
+            plugin.getFx().playSound(attacker.getLocation(), s, 0.5f, melee ? 0.9f : 1.2f);
+        }
+    }
+
+    /* ------------------------- среда и прочее (path A) ------------------------- */
+
     /** 1.7.0.2: масштаб летальности среды × maxHP/20 (гейт env-lethal-scale). */
     private void applyEnvLethalScale(EntityDamageEvent event, Player target) {
         if (!plugin.getConfig().getBoolean("damage-types.env-lethal-scale", true)) {
@@ -155,7 +325,7 @@ public final class CombatService implements Listener {
         }
     }
 
-    /** 1.6.4: единая формула «сколько дойдёт» (симулятор /rc debug). */
+    /** 1.6.4: единая формула «сколько дойдёт» (симулятор /rc debug, целе-центричная). */
     public double simulateTaken(LivingEntity target, DamageProfile profile) {
         if (profile == null || target == null) {
             return 0.0;
@@ -176,7 +346,7 @@ public final class CombatService implements Listener {
         return safe.physical() + safe.magic() + truePart;
     }
 
-    /** Путь B: наш урон с профилем. */
+    /** Путь B: наш урон с профилем + офенс-бонусы и криты source-игрока. */
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
         if (profile == null || target == null || target.isDead()) {
             return 0.0;
@@ -192,22 +362,46 @@ public final class CombatService implements Listener {
             }
         }
         double truePart = Math.min(safe.trueDamage(), trueCap());
+        double physBase = safe.physical();
+        double magicBase = safe.magic();
+        if (source instanceof Player sp) {
+            // 1.7.0 пакет 4: бонусы и криты атакующего — ДО резистов цели
+            if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", true)) {
+                physBase += strBonus(sp);
+            }
+            if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", true)) {
+                magicBase += intBonus(sp);
+            }
+            boolean critMelee = false;
+            boolean critSpell = false;
+            if (physBase > 0.0 && rollMeleeCrit(sp)) {
+                critMelee = true;
+                physBase *= meleeMult();
+            }
+            if (magicBase > 0.0 && rollSpellCrit(sp)) {
+                critSpell = true;
+                magicBase *= spellMult();
+            }
+            if (critMelee || critSpell) {
+                critFeedback(sp, critMelee);
+            }
+        }
         double physPart;
         double magicTruePart;
         if (resists.disabledIn(target.getWorld())) {
-            physPart = safe.physical();
-            magicTruePart = safe.magic() + truePart;
+            physPart = physBase;
+            magicTruePart = magicBase + truePart;
         } else if (target instanceof Player p) {
             UUID uuid = p.getUniqueId();
             double cap = source instanceof Player ? resists.pvpCap() : resists.cap();
             double physFactor = resists.physicalFactor(uuid, cap);
             double magicFactor = resists.magicFactor(uuid, cap);
-            physPart = Double.isFinite(physFactor) ? safe.physical() * physFactor : safe.physical();
-            double magicScaled = Double.isFinite(magicFactor) ? safe.magic() * magicFactor : safe.magic();
+            physPart = Double.isFinite(physFactor) ? physBase * physFactor : physBase;
+            double magicScaled = Double.isFinite(magicFactor) ? magicBase * magicFactor : magicBase;
             magicTruePart = magicScaled + truePart;
         } else {
-            physPart = safe.physical();
-            magicTruePart = safe.magic() + truePart;
+            physPart = physBase;
+            magicTruePart = magicBase + truePart;
         }
         double taken = physPart + magicTruePart;
         debugLog(target, source, safe, taken);
