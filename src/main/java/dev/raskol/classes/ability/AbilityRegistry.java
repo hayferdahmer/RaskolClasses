@@ -23,10 +23,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Реестр способностей пяти классов.
- * 1.7.2: киты Воина (нордика) и Охотника (средневековье других вселенных) заменены
- * на масштабируемые от WP способности (base + WP×coeff); старые id воина/охотника
- * удалены — мёртвые свитки сжигает ScrollSanitizer на join (1.6.11).
- * Киты Мага/Разбойника/Жреца остаются на старых id до патчей 1.7.3/1.7.4.
+ * 1.7.2: киты Воина (нордика) и Охотника (средневековье других вселенных).
+ * 1.7.3: киты Мага (Греция) и Разбойника (средневековый реализм) — все способности
+ * масштабируются от WP/SP через PowerService (base + Power×coeff).
+ * Старые id мага/разбойника (firebolt/blink/frost_nova/arcane_burst/stealth/
+ * fan_of_knives/cheap_shot/evasion) удалены — мёртвые свитки сжигает
+ * ScrollSanitizer на join (1.6.11). Кит Жреца остаётся до 1.7.4.
  */
 public final class AbilityRegistry {
 
@@ -57,22 +59,27 @@ public final class AbilityRegistry {
                 def("piercing_shot", "Пронзающий выстрел", 3, 50, 30, 20),
                 def("arrow_fan", "Веер стрел", 4, 65, 35, 22),
                 def("arrow_rain", "Дождь стрел", 5, 75, 60, 90)));
+        // Жрец: католика, до 1.7.4 (старый кит)
         DEFAULTS.put(PlayerClass.PRIEST, List.of(
                 def("lesser_heal", "Малое исцеление", 1, 1, 10, 3),
                 def("flash_heal", "Быстрое исцеление", 2, 10, 20, 6),
                 def("pw_shield", "Слово силы: Щит", 3, 25, 30, 30),
                 def("circle_of_prayer", "Круг молитвы", 4, 50, 50, 60),
                 def("smite", "Кара", 5, 75, 60, 90)));
+        // 1.7.3: Греция, лестница 10/25/50/65/75
         DEFAULTS.put(PlayerClass.MAGE, List.of(
-                def("firebolt", "Огненная стрела", 1, 1, 10, 2),
-                def("blink", "Скачок", 2, 25, 20, 20),
-                def("frost_nova", "Кольцо льда", 3, 50, 40, 45),
-                def("arcane_burst", "Чародейский взрыв", 4, 75, 100, 180)));
+                def("fire_prometheus", "Огонь Прометея", 1, 10, 15, 6),
+                def("hermes_step", "Шаг Гермеса", 2, 25, 20, 20),
+                def("boreas_breath", "Дыхание Борея", 3, 50, 40, 45),
+                def("athena_aegis", "Эгида Афины", 4, 65, 30, 30),
+                def("zeus_wrath", "Гнев Зевса", 5, 75, 60, 90)));
+        // 1.7.3: средневековый реализм, лестница 10/25/50/65/75
         DEFAULTS.put(PlayerClass.ROGUE, List.of(
-                def("stealth", "Скрытность", 1, 10, 30, 30),
-                def("fan_of_knives", "Веер ножей", 2, 25, 25, 15),
-                def("cheap_shot", "Подлый удар", 3, 50, 40, 40),
-                def("evasion", "Уклонение", 4, 75, 60, 120)));
+                def("shadow_cloak", "Плащ теней", 1, 10, 30, 30),
+                def("blade_fan", "Веер клинков", 2, 25, 25, 15),
+                def("strangle", "Удушение палача", 3, 50, 40, 40),
+                def("borgia_poison", "Яд Борджа", 4, 65, 35, 30),
+                def("shadow_dance", "Танец теней", 5, 75, 60, 120)));
     }
 
     private static AbilityDef def(String id, String name, int slot,
@@ -112,6 +119,7 @@ public final class AbilityRegistry {
         casters.put("arrow_fan", hunter::arrowFan);
         casters.put("arrow_rain", hunter::arrowRain);
 
+        // Жрец: старый кит до 1.7.4
         casters.put("lesser_heal", (p, d) -> priest.lesserHeal(p, p, d));
         casters.put("flash_heal", (p, d) -> priest.flashHeal(p, p, d));
         casters.put("pw_shield", (p, d) -> priest.powerWordShield(p, p, d));
@@ -121,15 +129,19 @@ public final class AbilityRegistry {
         casters.put("circle_of_prayer", priest::circleOfPrayer);
         casters.put("smite", priest::smite);
 
-        casters.put("firebolt", mage::firebolt);
-        casters.put("blink", mage::blink);
-        casters.put("frost_nova", mage::frostNova);
-        casters.put("arcane_burst", mage::arcaneBurst);
+        // 1.7.3: кит мага (Греция)
+        casters.put("fire_prometheus", mage::firePrometheus);
+        casters.put("hermes_step", mage::hermesStep);
+        casters.put("boreas_breath", mage::boreasBreath);
+        casters.put("athena_aegis", mage::athenaAegis);
+        casters.put("zeus_wrath", mage::zeusWrath);
 
-        casters.put("stealth", rogue::stealth);
-        casters.put("fan_of_knives", rogue::fanOfKnives);
-        casters.put("cheap_shot", rogue::cheapShot);
-        casters.put("evasion", rogue::evasion);
+        // 1.7.3: кит разбойника (средневековый реализм)
+        casters.put("shadow_cloak", rogue::shadowCloak);
+        casters.put("blade_fan", rogue::bladeFan);
+        casters.put("strangle", rogue::strangle);
+        casters.put("borgia_poison", rogue::borgiaPoison);
+        casters.put("shadow_dance", rogue::shadowDance);
     }
 
     public void loadFromConfig(RaskolConfig cfg) {
