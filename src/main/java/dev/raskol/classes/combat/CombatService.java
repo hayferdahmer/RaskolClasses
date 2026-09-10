@@ -2,18 +2,13 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeMath;
-import dev.raskol.classes.attribute.AttributeService;
-import dev.raskol.classes.attribute.AttributeType;
-import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.attribute.PowerService;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.title.Title;
 import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
-import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.damage.DamageSource;
@@ -27,31 +22,21 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 1.6.0: боевой сервис урона и резистов.
- * Путь A (ваниль): EntityDamageEvent по игроку (резисты) + исходящий офенс игрока.
- * Путь B (наши способности): dealDamage(target, source, DamageProfile).
- *
- * 1.7.0 пакет 4: НАСТУПАТЕЛЬНЫЕ АТРИБУТЫ:
- *  - плоские добавки исходящего урона игрока: STR+level → физ-компонента,
- *    INT+level → маг-компонента (гейты attributes.offense.str-to-physical /
- *    int-to-magic); применяются ДО резистов цели;
- *  - криты: мили (AGI, attributes.crit.melee-*) и магия (INT, spell-*),
- *    множители melee-mult/spell-mult, визуал (тег+звук, attributes.crit.visuals);
- *  - точки применения: path A — applyOutgoingOffense (ванильные удары/стрелы,
- *    только не-SUPPRESS события); path B — dealDamage (source-игрок);
- *    SUPPRESS-поток исключает двойное начисление;
- *  - TRUE-урон бонусов и критов НЕ получает.
- *
- * Порядок path A для PHYSICAL по игроку-цели: исходящий бонус/крит →
- * avoidance-ролл (уклонение/парирование, отмена) → резист-фактор цели.
- * 1.7.0.2: среда (FALL/DROWNING/…) = TRUE + масштаб летальности × maxHP/20.
+ * 1.6.0: боевой сервис урона и резистов. Путь A (ваниль) + путь B (наши способности).
+ * 1.7.1: ПРОИЗВОДНЫЕ СТАТЫ И АНТИ-ВАНШОТ:
+ *  - базовый удар игрока: ванильное оружие + WP × basic-coeff (вместо плоского STR+level);
+ *    legacy-ключи str-to-physical/int-to-magic по умолчанию ВЫКЛ (back-compat);
+ *  - анти-ваншот: одиночный.hit по игроку ≤ combat.max-single-hit-pct% от max HP
+ *    (после резистов/критов); исключения — combat.cap-exempt-causes (среда: FALL и т.п.,
+ *    летальность среды сохранена) и allowOverCap-флаг для execute-финишеров (киты 1.7.2+);
+ *  - PowerService доступен через powers() для кит-патчей.
+ * Порядок пути A по игроку-цели: исходящий бонус/крит атакующего → avoidance-ролл
+ * (уклонение/парирование, отмена) → резист-фактор цели → анти-ваншот кап.
  */
 public final class CombatService implements Listener {
 
@@ -66,20 +51,32 @@ public final class CombatService implements Listener {
     private final RaskolClasses plugin;
     private final ResistService resists;
     private final AvoidanceService avoidance;
+    private final PowerService powers;
 
     public CombatService(RaskolClasses plugin, ResistService resists) {
         this.plugin = plugin;
         this.resists = resists;
         this.avoidance = new AvoidanceService(plugin);
+        this.powers = new PowerService(plugin);
     }
 
     public ResistService resists() {
         return resists;
     }
 
-    /** 1.7.0 пакет 3: сервис уклонения/парирования (доступен для диагностики). */
+    /** 1.7.0 пакет 3: сервис уклонения/парирования. */
     public AvoidanceService avoidance() {
         return avoidance;
+    }
+
+    /** 1.7.1: производные статы (WP/SP/HPow) для кит-патчей и базового урона. */
+    public PowerService powers() {
+        return powers;
+    }
+
+    private double cfgD(String path, double def) {
+        double v = plugin.getConfig().getDouble(path, def);
+        return Double.isFinite(v) ? v : def;
     }
 
     private static org.bukkit.damage.DamageType magicType() {
@@ -94,18 +91,8 @@ public final class CombatService implements Listener {
     }
 
     private double trueCap() {
-        double v = plugin.getConfig().getDouble("combat.true-damage-cap-per-hit", 1000.0);
-        return Double.isFinite(v) && v >= 0.0 ? v : 1000.0;
-    }
-
-    private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
-    }
-
-    private String cfgS(String path, String def) {
-        String v = plugin.getConfig().getString(path, def);
-        return v != null && !v.isEmpty() ? v : def;
+        double v = cfgD("combat.true-damage-cap-per-hit", 1000.0);
+        return v >= 0.0 ? v : 1000.0;
     }
 
     private static boolean isPvp(EntityDamageEvent event) {
@@ -125,8 +112,7 @@ public final class CombatService implements Listener {
         if (suppressed) {
             SUPPRESS.set(Boolean.FALSE);
         }
-        // 1.7.0 пакет 4: исходящий офенс игрока (path A), до резистов цели;
-        // SUPPRESS-события (path B) уже получили бонусы внутри dealDamage
+        // 1.7.1: исходящий офенс игрока (WP-базовый бонус + крит) — до резистов цели
         if (!suppressed) {
             applyOutgoingOffense(event);
         }
@@ -163,13 +149,16 @@ public final class CombatService implements Listener {
             return;
         }
         event.setDamage(event.getDamage() * factor);
+        // 1.7.1: анти-ваншот кап — последним, после резистов цели
+        applySingleHitCap(event);
     }
 
-    /* --------------------- 1.7.0 пакет 4: исходящий офенс --------------------- */
+    /* --------------------- 1.7.1: исходящий офенс (путь A) --------------------- */
 
     /**
-     * Path A: ванильный урон игрока (удар/стрела) по живой цели.
-     * Бонус STR/INT + крит-ролл ДО резистов цели. TRUE не трогает.
+     * Базовый удар игрока: + WP × basic-coeff к физ-компоненте (или SP × coeff к магии),
+     * + крит-ролл (мили AGI / магия INT). Legacy плоские бонусы str-to-physical /
+     * int-to-magic по умолчанию выключены (заменены WP/SP), но уважаются, если true.
      */
     private void applyOutgoingOffense(EntityDamageEvent event) {
         if (!(event instanceof EntityDamageByEntityEvent by)) {
@@ -182,8 +171,7 @@ public final class CombatService implements Listener {
         Entity damager = by.getDamager();
         if (damager instanceof Player p) {
             attacker = p;
-        } else if (damager instanceof Projectile proj
-                && proj.getShooter() instanceof Player sh) {
+        } else if (damager instanceof Projectile proj && proj.getShooter() instanceof Player sh) {
             attacker = sh;
         }
         if (attacker == null) {
@@ -193,16 +181,25 @@ public final class CombatService implements Listener {
         if (type == DamageType.TRUE) {
             return;
         }
+        UUID uuid = attacker.getUniqueId();
         double add = 0.0;
-        boolean crit;
+        boolean crit = false;
         if (type == DamageType.PHYSICAL) {
-            if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", true)) {
-                add += strBonus(attacker);
+            add += powers.weaponPower(uuid) * cfgD("attributes.offense.basic-coeff", 0.35);
+            if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", false)) {
+                add += plugin.getAttributes().value(uuid,
+                        dev.raskol.classes.attribute.AttributeType.STR)
+                        + plugin.getAttributes().levelOf(uuid,
+                        plugin.getClassProvider().getClassOf(attacker));
             }
             crit = rollMeleeCrit(attacker);
         } else {
-            if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", true)) {
-                add += intBonus(attacker);
+            add += powers.spellPower(uuid) * cfgD("attributes.offense.basic-coeff-magic", 0.35);
+            if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", false)) {
+                add += plugin.getAttributes().value(uuid,
+                        dev.raskol.classes.attribute.AttributeType.INT)
+                        + plugin.getAttributes().levelOf(uuid,
+                        plugin.getClassProvider().getClassOf(attacker));
             }
             crit = rollSpellCrit(attacker);
         }
@@ -217,59 +214,18 @@ public final class CombatService implements Listener {
         }
     }
 
-    /** Плоская добавка физ-урона: STR + PlayerLevel. */
-    private double strBonus(Player player) {
-        AttributeService attrs = plugin.getAttributes();
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        if (pc == null) {
-            return 0.0;
-        }
-        UUID uuid = player.getUniqueId();
-        return AttributeMath.physicalBonus(
-                attrs.value(uuid, AttributeType.STR), attrs.levelOf(uuid, pc));
-    }
-
-    /** Плоская добавка маг-урона: INT + PlayerLevel. */
-    private double intBonus(Player player) {
-        AttributeService attrs = plugin.getAttributes();
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        if (pc == null) {
-            return 0.0;
-        }
-        UUID uuid = player.getUniqueId();
-        return AttributeMath.spellBonus(
-                attrs.value(uuid, AttributeType.INT), attrs.levelOf(uuid, pc));
-    }
-
     private boolean rollMeleeCrit(Player player) {
-        AttributeService attrs = plugin.getAttributes();
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        if (pc == null) {
-            return false;
-        }
-        double chance = AttributeMath.critMelee(
-                attrs.value(player.getUniqueId(), AttributeType.AGI),
-                cfgD("attributes.crit.melee-base", 5.0),
-                cfgD("attributes.crit.melee-per-agi", 0.05),
-                cfgD("attributes.crit.melee-cap", 40.0));
-        return ThreadLocalRandom.current().nextDouble() * 100.0 < chance;
+        return ThreadLocalRandom01() * 100.0
+                < plugin.getAttributes().critMeleeChance(player.getUniqueId());
     }
 
     private boolean rollSpellCrit(Player player) {
-        AttributeService attrs = plugin.getAttributes();
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        if (pc == null) {
-            return false;
-        }
-        UUID uuid = player.getUniqueId();
-        double chance = AttributeMath.critSpell(
-                attrs.value(uuid, AttributeType.INT),
-                attrs.mainOf(pc) == AttributeType.INT,
-                cfgD("attributes.crit.spell-base", 5.0),
-                cfgD("attributes.crit.spell-per-int", 0.03),
-                cfgD("attributes.crit.spell-main-mult", 1.5),
-                cfgD("attributes.crit.spell-cap", 35.0));
-        return ThreadLocalRandom.current().nextDouble() * 100.0 < chance;
+        return ThreadLocalRandom01() * 100.0
+                < plugin.getAttributes().critSpellChance(player.getUniqueId());
+    }
+
+    private static double ThreadLocalRandom01() {
+        return java.util.concurrent.ThreadLocalRandom.current().nextDouble();
     }
 
     private double meleeMult() {
@@ -280,30 +236,60 @@ public final class CombatService implements Listener {
         return cfgD("attributes.crit.spell-mult", 1.5);
     }
 
-    /** Визуал крита: субтайтл-тег атакующему + звук. */
     private void critFeedback(Player attacker, boolean melee) {
         if (!plugin.getConfig().getBoolean("attributes.crit.visuals", true)) {
             return;
         }
         String tag = melee
-                ? cfgS("attributes.crit.melee-tag", "⚡ Крит!")
-                : cfgS("attributes.crit.spell-tag", "✦ Магический крит!");
-        attacker.showTitle(Title.title(
+                ? plugin.getConfig().getString("attributes.crit.melee-tag", "⚡ Крит!")
+                : plugin.getConfig().getString("attributes.crit.spell-tag", "✦ Магический крит!");
+        attacker.showTitle(net.kyori.adventure.title.Title.title(
                 Component.empty(),
                 Component.text(tag, melee ? NamedTextColor.RED : NamedTextColor.LIGHT_PURPLE),
-                Title.Times.times(Duration.ofMillis(50),
-                        Duration.ofMillis(550), Duration.ofMillis(150))));
-        Sound s = plugin.getFx().resolveSound(melee
-                ? cfgS("attributes.crit.melee-sound", "ENTITY_PLAYER_ATTACK_CRIT")
-                : cfgS("attributes.crit.spell-sound", "ENTITY_EVOKER_CAST_SPELL"));
+                net.kyori.adventure.title.Title.Times.times(
+                        java.time.Duration.ofMillis(50),
+                        java.time.Duration.ofMillis(550),
+                        java.time.Duration.ofMillis(150))));
+        dev.raskol.classes.fx.FxService fx = plugin.getFx();
+        String soundKey = melee
+                ? plugin.getConfig().getString("attributes.crit.melee-sound", "ENTITY_PLAYER_ATTACK_CRIT")
+                : plugin.getConfig().getString("attributes.crit.spell-sound", "ENTITY_EVOKER_CAST_SPELL");
+        org.bukkit.Sound s = fx.resolveSound(soundKey);
         if (s != null) {
-            plugin.getFx().playSound(attacker.getLocation(), s, 0.5f, melee ? 0.9f : 1.2f);
+            fx.playSound(attacker.getLocation(), s, 0.5f, melee ? 0.9f : 1.2f);
         }
     }
 
-    /* ------------------------- среда и прочее (path A) ------------------------- */
+    /* --------------------- 1.7.1: анти-ваншот кап (путь A) --------------------- */
 
-    /** 1.7.0.2: масштаб летальности среды × maxHP/20 (гейт env-lethal-scale). */
+    /**
+     * Одиночный.hit по игроку ≤ max-single-hit-pct% от его max HP.
+     * Исключения: причины из combat.cap-exempt-causes (среда летальна по дизайну).
+     * Вызывается ПОСЛЕ резистов цели.
+     */
+    private void applySingleHitCap(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player target)) {
+            return;
+        }
+        double pct = cfgD("combat.max-single-hit-pct", 35.0);
+        if (pct <= 0.0) {
+            return;
+        }
+        List<String> exempt = plugin.getConfig().getStringList("combat.cap-exempt-causes");
+        if (exempt.contains(event.getCause().name())) {
+            return;
+        }
+        double max = plugin.getAttributes().maxHp(target.getUniqueId());
+        double limit = max * pct / 100.0;
+        double dmg = event.getDamage();
+        if (dmg > limit) {
+            event.setDamage(limit);
+        }
+    }
+
+    /* ------------------------- среда (1.7.0.2) ------------------------- */
+
+    /** Летальность среды: урон причин из env-lethal × maxHP/20 для игроков. */
     private void applyEnvLethalScale(EntityDamageEvent event, Player target) {
         if (!plugin.getConfig().getBoolean("damage-types.env-lethal-scale", true)) {
             return;
@@ -325,7 +311,9 @@ public final class CombatService implements Listener {
         }
     }
 
-    /** 1.6.4: единая формула «сколько дойдёт» (симулятор /rc debug, целе-центричная). */
+    /* ------------------------- симулятор (1.6.4) ------------------------- */
+
+    /** Единая формула «сколько дойдёт» (симулятор /rc debug, целе-центричная). */
     public double simulateTaken(LivingEntity target, DamageProfile profile) {
         if (profile == null || target == null) {
             return 0.0;
@@ -346,8 +334,18 @@ public final class CombatService implements Listener {
         return safe.physical() + safe.magic() + truePart;
     }
 
-    /** Путь B: наш урон с профилем + офенс-бонусы и криты source-игрока. */
+    /* ------------------------- путь B (наши способности) ------------------------- */
+
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
+        return dealDamage(target, source, profile, false);
+    }
+
+    /**
+     * Путь B. allowOverCap = true — execute-финишеры (киты 1.7.2+), которым разрешено
+     * превышать анти-ваншот кап (только по цели ниже порога — проверяет вызывающий кит).
+     */
+    public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
+                             boolean allowOverCap) {
         if (profile == null || target == null || target.isDead()) {
             return 0.0;
         }
@@ -365,25 +363,14 @@ public final class CombatService implements Listener {
         double physBase = safe.physical();
         double magicBase = safe.magic();
         if (source instanceof Player sp) {
-            // 1.7.0 пакет 4: бонусы и криты атакующего — ДО резистов цели
-            if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", true)) {
-                physBase += strBonus(sp);
-            }
-            if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", true)) {
-                magicBase += intBonus(sp);
-            }
-            boolean critMelee = false;
-            boolean critSpell = false;
+            // 1.7.1: криты атакующего до резистов цели (бонусы WP/SP придут с китами 1.7.2+)
             if (physBase > 0.0 && rollMeleeCrit(sp)) {
-                critMelee = true;
                 physBase *= meleeMult();
+                critFeedback(sp, true);
             }
             if (magicBase > 0.0 && rollSpellCrit(sp)) {
-                critSpell = true;
                 magicBase *= spellMult();
-            }
-            if (critMelee || critSpell) {
-                critFeedback(sp, critMelee);
+                critFeedback(sp, false);
             }
         }
         double physPart;
@@ -404,6 +391,19 @@ public final class CombatService implements Listener {
             magicTruePart = magicBase + truePart;
         }
         double taken = physPart + magicTruePart;
+        // 1.7.1: анти-ваншот кап (масштабируем обе компоненты пропорционально)
+        if (!allowOverCap && target instanceof Player tp2) {
+            double pct = cfgD("combat.max-single-hit-pct", 35.0);
+            if (pct > 0.0 && taken > 0.0) {
+                double limit = plugin.getAttributes().maxHp(tp2.getUniqueId()) * pct / 100.0;
+                if (taken > limit) {
+                    double f = limit / taken;
+                    physPart *= f;
+                    magicTruePart *= f;
+                    taken = limit;
+                }
+            }
+        }
         debugLog(target, source, safe, taken);
         if (physPart > 0.0) {
             SUPPRESS.set(Boolean.TRUE);
