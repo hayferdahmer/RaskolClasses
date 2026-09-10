@@ -15,7 +15,33 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Конфиг-слой плагина.
+ * 1.7.5.1: САМОЛЕЧЕНИЕ КОНФИГА: пустые/битые значения damage-types.vanilla-map
+ * восстанавливаются до дефолтов при reload c сохранением файла; добавлены
+ * addDefault для летальных ключей среды и анти-ваншота, которых раньше не было
+ * (из-за их отсутствия живой конфиг терял летальность падения).
+ */
 public final class RaskolConfig {
+
+    /** Канонические значения vanilla-map для самолечения. */
+    private static final Map<String, String> VANILLA_MAP_DEFAULTS = Map.ofEntries(
+            Map.entry("SONIC_BOOM", "true"),
+            Map.entry("VOID", "true"),
+            Map.entry("FALL", "true"),
+            Map.entry("DROWNING", "true"),
+            Map.entry("SUFFOCATION", "true"),
+            Map.entry("STARVATION", "true"),
+            Map.entry("FIRE", "magic"),
+            Map.entry("FIRE_TICK", "magic"),
+            Map.entry("LAVA", "magic"),
+            Map.entry("HOT_FLOOR", "magic"),
+            Map.entry("POISON", "magic"),
+            Map.entry("WITHER", "magic"),
+            Map.entry("MAGIC", "magic"),
+            Map.entry("DRAGON_BREATH", "magic"),
+            Map.entry("FREEZING", "magic"),
+            Map.entry("LIGHTNING", "magic"));
 
     private final JavaPlugin plugin;
     private final Map<PlayerClass, ClassTheme> themes = new EnumMap<>(PlayerClass.class);
@@ -50,7 +76,6 @@ public final class RaskolConfig {
         config.addDefault("compat.authme-gate", true);
         config.addDefault("compat.block-casts-in-creative", true);
 
-        // 1.3.2: Core-адаптер (читать класс из RaskolCore; LP — фолбэк)
         config.addDefault("hooks.raskolcore.enabled", true);
 
         config.addDefault("hud.boss-bar.enabled", true);
@@ -73,7 +98,7 @@ public final class RaskolConfig {
         config.addDefault("class-accept.enabled", true);
         config.addDefault("class-accept.subtitle", "Твой путь избран");
 
-        // 1.6.0: резисты и типы урона
+        // 1.6.0: резисты
         config.addDefault("resist.cap", 90.0);
         config.addDefault("resist.classes.WARRIOR.magic", 12.0);
         config.addDefault("resist.classes.WARRIOR.physical", 27.0);
@@ -85,21 +110,27 @@ public final class RaskolConfig {
         config.addDefault("resist.classes.PRIEST.physical", 16.0);
         config.addDefault("resist.classes.HUNTER.magic", 12.0);
         config.addDefault("resist.classes.HUNTER.physical", 16.0);
-        config.addDefault("damage-types.vanilla-map.SONIC_BOOM", "true");
-        config.addDefault("damage-types.vanilla-map.VOID", "true");
-        config.addDefault("damage-types.vanilla-map.FIRE", "magic");
-        config.addDefault("damage-types.vanilla-map.FIRE_TICK", "magic");
-        config.addDefault("damage-types.vanilla-map.LAVA", "magic");
-        config.addDefault("damage-types.vanilla-map.HOT_FLOOR", "magic");
-        config.addDefault("damage-types.vanilla-map.POISON", "magic");
-        config.addDefault("damage-types.vanilla-map.WITHER", "magic");
-        config.addDefault("damage-types.vanilla-map.MAGIC", "magic");
-        config.addDefault("damage-types.vanilla-map.DRAGON_BREATH", "magic");
-        config.addDefault("damage-types.vanilla-map.FREEZING", "magic");
-        config.addDefault("damage-types.vanilla-map.LIGHTNING", "magic");
+
+        // 1.7.5.1: летальная среда и анти-ваншот — теперь с addDefault
+        config.addDefault("damage-types.env-lethal-scale", true);
+        config.addDefault("damage-types.env-lethal",
+                List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION"));
+        config.addDefault("combat.max-single-hit-pct", 35.0);
+        config.addDefault("combat.cap-exempt-causes",
+                List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION", "VOID", "SONIC_BOOM"));
+        for (Map.Entry<String, String> e : VANILLA_MAP_DEFAULTS.entrySet()) {
+            config.addDefault("damage-types.vanilla-map." + e.getKey(), e.getValue());
+        }
 
         config.addDefault("installations.bear_trap.damage-physical", 3.0);
         config.addDefault("installations.frost_rune.damage-magic", 4.0);
+
+        // 1.7.0.5: HP-формула — живые ключи с addDefault
+        config.addDefault("attributes.hp.base-hp", 100.0);
+        config.addDefault("attributes.hp.per-str", 20.0);
+        config.addDefault("attributes.hp.regen-per-str", 0.025);
+        config.addDefault("attributes.hp.regen-combat-factor", 0.35);
+        config.addDefault("attributes.hp.regen-cap-pct", 1.5);
 
         config.addDefault("messages.no-class", "Класс не выбран — посетите герольда");
         config.addDefault("messages.no-class-cast", "Класс не выбран — способности недоступны");
@@ -121,19 +152,6 @@ public final class RaskolConfig {
         config.addDefault("messages.target-full-hp", "Цель здорова");
         config.addDefault("messages.gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
         config.addDefault("messages.gate.blocked.install", "Инсталляции недоступны в этом режиме или до входа в аккаунт.");
-        config.addDefault("messages.install.msg.noclass", "Класс не выбран — посетите герольда");
-        config.addDefault("messages.install.msg.unlock", "Инсталляции откроются на уровне {level} ({skill})");
-        config.addDefault("messages.install.msg.limit", "Лимит активных инсталляций: {max}");
-        config.addDefault("messages.install.msg.global", "Земля насыщена инсталляциями: глобальный лимит {max}. Подожди, пока истечёт чужой TTL.");
-        config.addDefault("messages.install.msg.spam", "Слишком часто: пауза между постановками {sec} с");
-        config.addDefault("messages.install.msg.void", "Нельзя ставить инсталляции в пустоте или на лимите высоты.");
-        config.addDefault("messages.install.msg.border", "Нельзя ставить инсталляции за мировой границей.");
-        config.addDefault("messages.install.msg.spawn", "Нельзя ставить инсталляции рядом со спавном.");
-        config.addDefault("messages.install.msg.claim", "Нельзя ставить инсталляции на заклэймленной земле.");
-        config.addDefault("messages.install.msg.placed", "Инсталляция установлена: ");
-        config.addDefault("messages.install.msg.ttl", " · живёт {sec} с");
-        config.addDefault("messages.install.notify.trigger", "⚙ {name}: сработала на {target}");
-        config.addDefault("messages.install.notify.expired", "⚙ {name}: истекла");
         config.addDefault("messages.book.title", "Книга класса: ");
         config.addDefault("messages.book.tab.abilities", "Способности");
         config.addDefault("messages.book.tab.specs", "Специализации");
@@ -151,12 +169,9 @@ public final class RaskolConfig {
         config.addDefault("messages.book.place.right", "ПКМ — свиток постановки");
         config.addDefault("messages.book.install.active", "Активно: {count}/2 · TTL {ttl} с");
         config.addDefault("messages.book.spec.passive", "Пассив: {text}");
-        config.addDefault("messages.book.spec.active", "Актив: {text}");
-        config.addDefault("messages.book.spec.activecost", "Цена актива: {cost} рес · КД: {sec} с");
         config.addDefault("messages.book.spec.chosen", "Выбрана тобой");
         config.addDefault("messages.book.spec.notchosen", "Не выбрана · ПКМ — выбрать (уровень 40+)");
         config.addDefault("messages.book.spec.other", "Выбрана другая спека — отречение ниже");
-        config.addDefault("messages.book.spec.scroll.right", "ПКМ — свиток активки в хотбар");
         config.addDefault("messages.book.respec.title", "Отречение от пути");
         config.addDefault("messages.book.respec.nospec", "Спеки нет — отрекаться не от чего");
         config.addDefault("messages.book.respec.current", "Текущая спека: {name}");
@@ -181,11 +196,6 @@ public final class RaskolConfig {
         config.addDefault("messages.book.crown.crown", "Корона: {name}");
         config.addDefault("messages.book.crown.titleline", "Титул: {name}");
         config.addDefault("messages.book.crown.aura", "Аура-партикл видна союзникам и врагам");
-        config.addDefault("messages.book.install.desc.war_banner", "Аура: Resistance I союзникам в радиусе 6 на 8 с");
-        config.addDefault("messages.book.install.desc.bear_trap", "Мина: Slowness VI 2 с + 3 урона шагнувшему врагу");
-        config.addDefault("messages.book.install.desc.light_ward", "Зона: +2 HP/с союзникам в радиусе 4 на 6 с");
-        config.addDefault("messages.book.install.desc.frost_rune", "Мина: 4 урона + Slowness II 3 с врагам в радиусе 3");
-        config.addDefault("messages.book.install.desc.smoke_bomb", "Мина: Blindness 2 с врагам + Speed I себе 3 с");
 
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
@@ -238,62 +248,30 @@ public final class RaskolConfig {
         config.addDefault("classes.ROGUE.passives.sadism.bonus", 3.0);
         config.addDefault("classes.ROGUE.passives.sadism.cooldown-seconds", 2);
 
-        config.addDefault("classes.WARRIOR.passives.execute_passive.display-name", "Казнь");
-        config.addDefault("classes.WARRIOR.passives.execute_passive.description",
-                "20% шанс — ×3 урона по цели с ≤20% HP");
-        config.addDefault("classes.HUNTER.passives.predator.display-name", "Хищник");
-        config.addDefault("classes.HUNTER.passives.predator.description",
-                "×1.2 урона, пока HP ≥ 80%");
-        config.addDefault("classes.PRIEST.passives.grace.display-name", "Благодать");
-        config.addDefault("classes.PRIEST.passives.grace.description",
-                "×1.15 к исходящему лечению");
-        config.addDefault("classes.MAGE.passives.mana_soaked.display-name", "Пропитанный маной");
-        config.addDefault("classes.MAGE.passives.mana_soaked.description",
-                "мана ≥ 50 → −15% входящего урона");
-        config.addDefault("classes.ROGUE.passives.poisoned_blades.display-name", "Отравленные клинки");
-        config.addDefault("classes.ROGUE.passives.poisoned_blades.description",
-                "30% шанс — Яд I на 2 с");
-        config.addDefault("classes.ROGUE.passives.sadism.display-name", "Садизм");
-        config.addDefault("classes.ROGUE.passives.sadism.description",
-                "+3 урона при атаке со спины");
-
-        // 1.7.4.1 фикс 5: vfx-записи всех кит-абилок как дефолты — copyDefaults(true)
-        // сам допишет недостающие записи в существующий config.yml при /rc reload.
-        vfxDefault(config, "tyr_strike", "ENTITY_IRON_GOLEM_ATTACK", "SWEEP_ATTACK");
-        vfxDefault(config, "balder_skin", "ITEM_ARMOR_EQUIP_GOLD", "ENCHANT");
-        vfxDefault(config, "berserkergang", "ENTITY_RAVAGER_ROAR", "CRIMSON_SPORE");
-        vfxDefault(config, "fenrir_blood", "ENTITY_WOLF_HOWL", "CRIMSON_SPORE");
-        vfxDefault(config, "ragnarok", "ENTITY_LIGHTNING_BOLT_THUNDER", "EXPLOSION");
-        vfxDefault(config, "wolf_mark", "ENTITY_WOLF_GROWL", "CRIT");
-        vfxDefault(config, "swallow", "ENTITY_GENERIC_DRINK", "EFFECT");
-        vfxDefault(config, "piercing_shot", "ITEM_CROSSBOW_SHOOT", "CRIT");
-        vfxDefault(config, "arrow_fan", "ENTITY_ARROW_SHOOT", "SWEEP_ATTACK");
-        vfxDefault(config, "arrow_rain", "ENTITY_ARROW_SHOOT", "POOF");
-        vfxDefault(config, "saint_tear", "BLOCK_BELL_USE", "HEART");
-        vfxDefault(config, "word_of_life", "BLOCK_AMETHYST_BLOCK_CHIME", "HEART");
-        vfxDefault(config, "aegis_faith", "ITEM_ARMOR_EQUIP_DIAMOND", "ENCHANTED_HIT");
-        vfxDefault(config, "circle_elysium", "BLOCK_BEACON_ACTIVATE", "HEART");
-        vfxDefault(config, "wrath_heaven", "ENTITY_LIGHTNING_BOLT_THUNDER", "FLASH");
-        vfxDefault(config, "fire_prometheus", "ITEM_FIRECHARGE_USE", "FLAME");
-        vfxDefault(config, "hermes_step", "ENTITY_ENDERMAN_TELEPORT", "PORTAL");
-        vfxDefault(config, "boreas_breath", "ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE");
-        vfxDefault(config, "athena_aegis", "ITEM_ARMOR_EQUIP_DIAMOND", "ENCHANTED_HIT");
-        vfxDefault(config, "zeus_wrath", "ENTITY_LIGHTNING_BOLT_THUNDER", "FLASH");
-        vfxDefault(config, "shadow_cloak", "ENTITY_PHANTOM_FLAP", "SMOKE");
-        vfxDefault(config, "blade_fan", "ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK");
-        vfxDefault(config, "strangle", "ENTITY_PLAYER_ATTACK_WEAK", "DAMAGE_INDICATOR");
-        vfxDefault(config, "borgia_poison", "ENTITY_SPIDER_STEP", "COMPOSTER");
-        vfxDefault(config, "shadow_dance", "ENTITY_ENDERMAN_TELEPORT", "CLOUD");
-
         config.options().copyDefaults(true);
+        // 1.7.5.1: самолечение битых значений vanilla-map ДО сохранения
+        healVanillaMap(config);
         plugin.saveConfig();
         rebuildThemes();
     }
 
-    /** 1.7.4.1 фикс 5: пара addDefault для vfx-записи способности. */
-    private void vfxDefault(FileConfiguration config, String id, String sound, String particle) {
-        config.addDefault("vfx." + id + ".cast-sound", sound);
-        config.addDefault("vfx." + id + ".cast-particle", particle);
+    /**
+     * 1.7.5.1: если значение vanilla-map отсутствует или пустое (битый merge конфига),
+     * ставим каноническое значение. Вызывается до saveConfig — файл лечится сам.
+     */
+    private void healVanillaMap(FileConfiguration config) {
+        boolean dirty = false;
+        for (Map.Entry<String, String> e : VANILLA_MAP_DEFAULTS.entrySet()) {
+            String path = "damage-types.vanilla-map." + e.getKey();
+            String current = config.getString(path, null);
+            if (current == null || current.isEmpty()) {
+                config.set(path, e.getValue());
+                dirty = true;
+            }
+        }
+        if (dirty) {
+            plugin.getLogger().info("config: восстановлены пустые значения damage-types.vanilla-map (1.7.5.1)");
+        }
     }
 
     public boolean isHudEnabled() { return plugin.getConfig().getBoolean("hud.enabled", true); }
@@ -311,7 +289,6 @@ public final class RaskolConfig {
     public boolean authMeGate() { return plugin.getConfig().getBoolean("compat.authme-gate", true); }
     public boolean blockCastsInCreative() { return plugin.getConfig().getBoolean("compat.block-casts-in-creative", true); }
 
-    // 1.3.2: Core-адаптер
     public boolean raskolCoreEnabled() { return plugin.getConfig().getBoolean("hooks.raskolcore.enabled", true); }
 
     public boolean isBossBarEnabled() { return plugin.getConfig().getBoolean("hud.boss-bar.enabled", true); }
