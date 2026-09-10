@@ -2,6 +2,8 @@
 package dev.raskol.classes.hud;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.AttributeMath;
+import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
 import io.papermc.paper.registry.RegistryAccess;
@@ -30,20 +32,19 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.7.0 пакет 2 (финал p2.6): строгая компоновка 1.6.x + градиентные полосы
  * + искра регена (последний залитый сегмент вспыхивает spark-цветом при росте).
  *
- * Компоновка (как в 1.6.x):
- *   ❬ ❤ ▰▰▰▱▱▱▱▱▱▱ 82/234 ❭ ❬ ⚔ ▰▰▰▰▰▰▰▰▰ 100/100 ❭
+ * 1.7.0.3: STR-РЕГЕН HP (Dota-подобный): applyStrRegen тикает вместе с баром
+ * (hp-display.update-period-ticks, дефолт 10):
+ *   rate = STR × regen-per-str (вне боя);
+ *   в бою (окно combat-window-seconds после урона) rate ×= regen-combat-factor;
+ *   кап regen-cap-pct от maxHP в секунду.
+ * Реген применяется прямым setHealth БЕЗ события EntityRegainHealthEvent —
+ * иначе тики регена спамили бы ресурс жреца (onRegainHealth) и проки лечения
+ * (grace): это дыра в экономике, закрыта осознанно.
+ * Мёртвые/зрители не регенят; реген работает в любом hp-display.mode.
  *
- * Градиент:
- *   HP    — hp-gradient-start → hp-gradient-end (тёмно-бордовый → красный);
- *   Ресурс — theme.primary → theme.secondary (свой перелив у каждого класса).
- *   Пустые сегменты — gauge-empty (тёмная бронза).
- *
- * Искра регена: когда HP или ресурс растёт по сравнению с прошлым тиком,
- * последний залитый сегмент (индекс filled−1) рисуется spark-цветом (белое
- * золото по умолчанию). Один тик, не мешает восприятию боя.
- *
- * Все цвета — в конфиге hp-display.colors/gradient/regen-spark (тюнинг без
- * пересборки, /rc reload).
+ * Компоновка бара (как в 1.6.x):
+ *   ❬ ❤ ▰▰▱▱▱▱▱▱ 82/234 ❭ ❬ ⚔ ▰▰▰▰▰▰▰ 100/100 ❭
+ * Все цвета — в конфиге hp-display.colors/gradient/regen-spark.
  *
  * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
  * FIX 1.7.0-p2.5: ClassTheme.primary()/secondary() возвращают TextColor.
@@ -131,6 +132,7 @@ public final class HpBarService implements Listener {
                 continue;
             }
             applyMaxHealth(player);
+            applyStrRegen(player); // 1.7.0.3: реген до отрисовки — бар показывает свежее HP
             applyHearts(player, unified);
             if (unified) {
                 sendUnifiedActionbar(player);
@@ -180,6 +182,48 @@ public final class HpBarService implements Listener {
         }
     }
 
+    /* --------------------------- 1.7.0.3: STR-реген --------------------------- */
+
+    /**
+     * Dota-подобный реген HP от СИЛЫ. Прямой setHealth без RegainHealthEvent
+     * (не спамит ресурс жреца и проки лечения). Мёртвые не регенят.
+     * Работает в любом hp-display.mode (геймплей, а не отображение).
+     */
+    private void applyStrRegen(Player player) {
+        if (player.isDead()) {
+            return;
+        }
+        double max = maxOf(player);
+        double hp = player.getHealth();
+        if (hp >= max) {
+            return;
+        }
+        UUID uuid = player.getUniqueId();
+        double str = plugin.getAttributes().value(uuid, AttributeType.STR);
+        double perStr = plugin.getConfig().getDouble("attributes.hp.regen-per-str", 0.05);
+        double combatFactor = plugin.getConfig().getDouble("attributes.hp.regen-combat-factor", 0.35);
+        double capPct = plugin.getConfig().getDouble("attributes.hp.regen-cap-pct", 1.5);
+
+        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        long windowMs = (pc != null
+                ? plugin.getRaskolConfig().combatWindowSeconds(pc)
+                : 5) * 1000L;
+        boolean inCombat = plugin.getResources().stateOf(uuid).isInCombat(windowMs);
+
+        double perSec = AttributeMath.strRegenPerSecond(
+                str, perStr, max, inCombat, combatFactor, capPct);
+        if (perSec <= 0.0) {
+            return;
+        }
+        double perTick = perSec * period() / 20.0;
+        double newHp = Math.min(max, hp + perTick);
+        if (newHp > hp) {
+            player.setHealth(newHp);
+        }
+    }
+
+    /* -------------------------------- сердца -------------------------------- */
+
     private void applyHearts(Player player, boolean unified) {
         if (!unified) {
             if (player.isHealthScaled()) {
@@ -211,14 +255,13 @@ public final class HpBarService implements Listener {
 
         TextColor frame = color("hp-display.colors.frame", "#8B5A3C");
         TextColor empty = color("hp-display.colors.gauge-empty", "#6E5232");
+        TextColor hpFill = color("hp-display.colors.hp-fill", "#A32020");
         TextColor numbers = color("hp-display.colors.numbers", "#D6CDBE");
         TextColor spark = color("hp-display.regen-spark.color", "#F5E6B8");
 
-        // Градиент HP: тёмно-бордовый → насыщенный красный
         TextColor hpStart = color("hp-display.gradient.hp-start", "#5C0F0F");
         TextColor hpEnd = color("hp-display.gradient.hp-end", "#C82020");
 
-        // Градиент ресурса: тема класса (primary → secondary); фолбэк — бронза→золото
         RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
         TextColor resStart = theme != null && theme.primary() != null
                 ? theme.primary()
@@ -231,7 +274,6 @@ public final class HpBarService implements Listener {
                 : numbers;
         String symbol = symbolOf(pc);
 
-        // Детект регена: рост по сравнению с прошлым тиком
         UUID uuid = player.getUniqueId();
         State prev = lastTick.get(uuid);
         boolean sparkActive = sparkEnabled() && prev != null;
@@ -240,7 +282,7 @@ public final class HpBarService implements Listener {
         lastTick.put(uuid, new State(hp, res));
 
         Component line = Component.text("❬ ", frame)
-                .append(Component.text("❤ ", hpEnd));
+                .append(Component.text("❤ ", hpFill));
         if (gauge) {
             line = line.append(gradientBar(hpFraction, len,
                     gradientEnabled() ? hpStart : hpEnd, hpEnd, empty,
@@ -252,7 +294,7 @@ public final class HpBarService implements Listener {
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
             line = line.append(gradientBar(res / 100.0, len,
-                    gradientEnabled() ? resStart : resEnd, resEnd, empty,
+                    gradientEnabled() ? resStart : resEnd, empty,
                     resRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
@@ -261,12 +303,7 @@ public final class HpBarService implements Listener {
         player.sendActionBar(line);
     }
 
-    /**
-     * Полоса с градиентом и опциональной искрой регена:
-     *   - залитые сегменты ▰ — интерполированный цвет от start к end;
-     *   - если sparkColor != null и это последний залитый сегмент — рисуется spark;
-     *   - пустые сегменты ▱ — emptyColor.
-     */
+    /** Полоса с градиентом и опциональной искрой регена. */
     private static Component gradientBar(double fraction, int len,
                                          TextColor start, TextColor end,
                                          TextColor empty, TextColor sparkColor) {
