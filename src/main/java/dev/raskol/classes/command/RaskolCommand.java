@@ -34,6 +34,8 @@ import java.util.UUID;
 /**
  * Команды 1.5.4+ /rc (инфо), /rc 1–7, /rc menu, /rc reload, /rc debug, /rc health.
  * 1.6.13: /rc selftest. 1.7.0 пакет 1: блоки атрибутов в /rc и /rc debug.
+ * 1.7.5: слот 6 больше не кастует активку спеки — спеки стали пассивной
+ * идентичностью; команда объясняет это и отсылает к талантам 1.8.0.
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
@@ -81,19 +83,17 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 ClassBook.open(plugin, player, ClassBook.Tab.ABILITIES);
             }
             case "6" -> {
+                // 1.7.5: активки спеков удалены — спека теперь пассивная идентичность
                 if (!(sender instanceof Player player)) {
                     sender.sendMessage(Component.text("Каст доступен только игрокам",
                             NamedTextColor.GRAY));
                     return true;
                 }
-                Spec spec = plugin.getSpecService().getSpec(player.getUniqueId());
-                if (spec == null) {
-                    player.sendMessage(Component.text(
-                            "Специализация не выбрана — открой Книгу класса: /rc menu",
-                            NamedTextColor.GRAY));
-                    return true;
-                }
-                plugin.getSpecCaster().tryCast(player, spec);
+                player.sendMessage(Component.text(
+                        "Активки специализаций удалены в 1.7.5: спека — это твоя пассивная "
+                                + "идентичность (резисты и проки работают постоянно). "
+                                + "Дерево талантов спеки придёт в 1.8.0.",
+                        NamedTextColor.GRAY));
             }
             case "7" -> {
                 if (!(sender instanceof Player player)) {
@@ -248,7 +248,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
         UUID uuid = player.getUniqueId();
 
-        // 1.7.0 пакет 1: атрибуты одной строкой
         AttributeService attrs = plugin.getAttributes();
         player.sendMessage(Component.text("Атрибуты: ", NamedTextColor.GRAY)
                 .append(Component.text("СИЛА " + (int) attrs.value(uuid, AttributeType.STR)
@@ -280,7 +279,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         Spec spec = plugin.getSpecService().getSpec(uuid);
         if (spec != null) {
             player.sendMessage(Component.text("Специализация: ", NamedTextColor.GRAY)
-                    .append(Component.text(spec.displayName(), pc.getColor())));
+                    .append(Component.text(spec.displayName() + " (пассивная идентичность)",
+                            pc.getColor()));
         } else {
             String specStatus = plugin.getSpecService().canChoose(player)
                     ? "доступна — Книга класса (/rc menu)"
@@ -319,7 +319,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             NamedTextColor.GRAY)));
         }
 
-        player.sendMessage(Component.text("Книга класса: /rc menu · Каст: /rc 1–7",
+        player.sendMessage(Component.text("Книга класса: /rc menu · Каст: /rc 1–5",
                 NamedTextColor.DARK_GRAY));
     }
 
@@ -354,7 +354,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         (int) plugin.getResources().getValue(uuid) + "/100",
                         pc.getColor())));
 
-        // 1.7.0 пакет 1: блок атрибутов
         AttributeService attrs = plugin.getAttributes();
         sender.sendMessage(Component.text("Атрибуты:", NamedTextColor.AQUA));
         for (AttributeType t : AttributeType.values()) {
@@ -362,8 +361,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     + fmt(attrs.value(uuid, t))
                     + (attrs.mainOf(pc) == t ? " (основной)" : ""), NamedTextColor.GRAY));
         }
-        sender.sendMessage(Component.text("  • maxHP по формуле: " + fmt(attrs.maxHp(uuid))
-                + " (применится в пакете 2)", NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • maxHP по формуле: " + fmt(attrs.maxHp(uuid)),
+                NamedTextColor.GRAY));
         sender.sendMessage(Component.text("  • крит мили: " + fmt(attrs.critMeleeChance(uuid))
                 + "% · крит магии: " + fmt(attrs.critSpellChance(uuid)) + "%",
                 NamedTextColor.GRAY));
@@ -411,7 +410,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         Spec spec = plugin.getSpecService().getSpec(uuid);
         if (spec != null) {
             sender.sendMessage(Component.text("Специализация: ", NamedTextColor.GRAY)
-                    .append(Component.text(spec.displayName(), NamedTextColor.GREEN)));
+                    .append(Component.text(spec.displayName() + " (пассивная)",
+                            NamedTextColor.GREEN));
         } else {
             sender.sendMessage(Component.text("Специализация: не выбрана",
                     NamedTextColor.GRAY));
@@ -452,14 +452,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                         NamedTextColor.GRAY));
             }
         }
-        long specRemaining = spec != null
-                ? plugin.getCooldowns().getRemainingMillis(uuid, "spec_" + spec.id())
-                : 0L;
-        if (specRemaining > 0L) {
-            sender.sendMessage(Component.text("  • Спека — "
-                    + (specRemaining / 1000L + 1L) + "с", NamedTextColor.YELLOW));
-        }
-        if (!hasCooldowns && specRemaining <= 0L) {
+        if (!hasCooldowns) {
             sender.sendMessage(Component.text("Активные КД: нет",
                     NamedTextColor.GRAY));
         }
@@ -493,12 +486,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         List<String> fxIds = new ArrayList<>();
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
             fxIds.add(def.id());
-        }
-        if (spec != null) {
-            SpecRegistry.SpecDef sdef = plugin.getSpecRegistry().get(spec);
-            if (sdef != null) {
-                fxIds.add(sdef.activeId());
-            }
         }
         plugin.getFx().appendDebug(sender, fxIds);
 
