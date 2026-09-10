@@ -3,6 +3,7 @@ package dev.raskol.classes.hud;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.RaskolConfig;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
@@ -24,12 +25,25 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.Locale;
 
 /**
- * 1.7.0 пакет 2 (редизайн p2.4): красивый совмещённый HUD в actionbar:
- *   ❬ ❤ ██████░░░░ 102/234 ❭ ❬  ██████████ 100/100 ❭
- * Полосы — полновесные блоки █ (залитая часть — цветом, пустая — тёмно-серая),
- * вместо имени ресурса — эмблема класса (theme.symbol: ⚔ ➳  ✦ ☠).
- * Палитра Dota-стиля: HP-бар зелёный (цифры белые, красные при HP ≤ 30%),
- * ресурс — цветом класса. Сердце ❤ всегда красное.
+ * 1.7.0 пакет 2 (редизайн p2.5 «строгая готика»): совмещённый HUD в actionbar.
+ *
+ * Вид (референс — тёмные строгие полосы с «дорогой» рамкой):
+ *   ❬ ❤ ██████████ 235/235 ❭ ❬ ➳ ██████████ 100/100 ❭
+ *   │  │  │          │       │   │  │          │       └─ рамка: бронза бренда
+ *   │  │  │          │       │   │  │          └─ цифры: тёплый светлый (контраст)
+ *   │  │  │          │       │   │  └─ fill ресурса: тёмный primary темы класса
+ *   │  │  │          │       │   └─ эмблема класса: secondary темы
+ *   │  │  │          │       └─ рамка: бронза бренда
+ *   │  │  │          └─ цифры HP: тёплый светлый
+ *   │  │  └─ fill HP: глубокий кроваво-красный (не неон, не зелёный)
+ *   │  └─ сердце: цвет fill HP
+ *   └─ рамка: бронза бренда (#8B5A3C, цвет ⚜ из MOTD)
+ * Пустая часть полосы (трек) — почти чёрный тёплый: полоса читается как
+ * «залитая/не залитая» на любом фоне, без игрушечной яркости.
+ *
+ * ВСЕ цвета — в конфиге hp-display.colors (тюнинг без пересборки).
+ * Ресурс-полоса: fill = theme.primary класса (тёмный, строгий),
+ * эмблема = theme.secondary (акцент), цифры общие.
  *
  * Сердца: healthScale = hearts-scale (дефолт 20 = один ряд из 10 сердец на весь
  * пул). Полное скрытие сердец сервером невозможно (Paper отклоняет scale 0) —
@@ -41,7 +55,6 @@ import java.util.Locale;
  * Здоровье клампится сверху при уменьшении maxHP.
  *
  * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
- * p2.4: толстые █-полосы, эмблема вместо имени ресурса, Dota-палитра.
  */
 public final class HpBarService implements Listener {
 
@@ -83,6 +96,22 @@ public final class HpBarService implements Listener {
 
     private int period() {
         return Math.max(1, plugin.getConfig().getInt("hp-display.update-period-ticks", 10));
+    }
+
+    /** Цвет из конфига с фолбэком; битый hex не роняет HUD. */
+    private TextColor color(String path, String fallback) {
+        String hex = plugin.getConfig().getString(path, fallback);
+        if (hex != null) {
+            try {
+                TextColor parsed = TextColor.fromHexString(hex);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // битый hex → фолбэк
+            }
+        }
+        return TextColor.fromHexString(fallback);
     }
 
     /* -------------------------------- задача -------------------------------- */
@@ -171,43 +200,52 @@ public final class HpBarService implements Listener {
     /* --------------------------- совмещённая строка --------------------------- */
 
     /**
-     * ❬ ❤ ██████░░░░ 102/234 ❭ ❬ ➳ ██████████ 100/100 ❭
-     * Толстые █: залитая часть — цветом, пустая — DARK_GRAY (видна, но молчит).
+     * Строгая готика: бронзовая рамка, кроваво-красный fill HP, тёмный трек,
+     * тёплые светлые цифры; ресурс — тёмной темой класса с эмблемой-акцентом.
      */
     private void sendUnifiedActionbar(Player player) {
         double max = maxOf(player);
         double hp = Math.max(0.0, player.getHealth());
         double res = plugin.getResources().getValue(player.getUniqueId());
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        TextColor resColor = pc != null ? pc.getColor() : NamedTextColor.AQUA;
-        String symbol = symbolOf(pc);
         int len = gaugeLength();
         boolean gauge = gaugeEnabled();
         double hpFraction = max <= 0 ? 0 : hp / max;
 
-        // Dota-стиль: бар зелёный; цифры белые, красные при HP ≤ 30%
-        NamedTextColor hpNumbers = hpFraction > 0.30
-                ? NamedTextColor.WHITE
-                : NamedTextColor.RED;
+        TextColor frame = color("hp-display.colors.frame", "#8B5A3C");
+        TextColor track = color("hp-display.colors.track", "#1E1916");
+        TextColor hpFill = color("hp-display.colors.hp-fill", "#A32020");
+        TextColor numbers = color("hp-display.colors.numbers", "#D6CDBE");
 
-        Component line = Component.text("❬ ", NamedTextColor.DARK_GRAY)
-                .append(Component.text("❤ ", NamedTextColor.RED));
-        if (gauge) {
-            line = line.append(gauge(hpFraction, len, NamedTextColor.GREEN));
+        RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
+        TextColor resFill = theme != null ? parseHex(theme.primary()) : null;
+        if (resFill == null) {
+            resFill = color("hp-display.colors.res-fill", "#C8A24A");
         }
-        line = line.append(Component.text(" " + (int) hp + "/" + (int) max, hpNumbers))
-                .append(Component.text(" ❭ ❬ ", NamedTextColor.DARK_GRAY))
-                .append(Component.text(symbol + " ", resColor));
-        if (gauge) {
-            line = line.append(gauge(res / 100.0, len, resColor));
+        TextColor resAccent = theme != null ? parseHex(theme.secondary()) : null;
+        if (resAccent == null) {
+            resAccent = numbers;
         }
-        line = line.append(Component.text(" " + (int) res + "/100", resColor))
-                .append(Component.text(" ❭", NamedTextColor.DARK_GRAY));
+        String symbol = symbolOf(pc);
+
+        Component line = Component.text("❬ ", frame)
+                .append(Component.text("❤ ", hpFill));
+        if (gauge) {
+            line = line.append(gauge(hpFraction, len, hpFill, track));
+        }
+        line = line.append(Component.text(" " + (int) hp + "/" + (int) max, numbers))
+                .append(Component.text(" ❭ ❬ ", frame))
+                .append(Component.text(symbol + " ", resAccent));
+        if (gauge) {
+            line = line.append(gauge(res / 100.0, len, resFill, track));
+        }
+        line = line.append(Component.text(" " + (int) res + "/100", numbers))
+                .append(Component.text(" ❭", frame));
         player.sendActionBar(line);
     }
 
-    /** Полоса из len блоков █: залитые — цветом fill, пустые — тёмно-серые. */
-    private static Component gauge(double fraction, int len, TextColor fill) {
+    /** Полоса из len блоков █: залитые — fill, пустые — track (почти чёрный). */
+    private static Component gauge(double fraction, int len, TextColor fill, TextColor track) {
         double clamped = Math.max(0.0, Math.min(1.0, fraction));
         int filled = (int) Math.round(clamped * len);
         Component c = Component.empty();
@@ -215,9 +253,20 @@ public final class HpBarService implements Listener {
             c = c.append(Component.text("█".repeat(filled), fill));
         }
         if (len - filled > 0) {
-            c = c.append(Component.text("█".repeat(len - filled), NamedTextColor.DARK_GRAY));
+            c = c.append(Component.text("█".repeat(len - filled), track));
         }
         return c;
+    }
+
+    private static TextColor parseHex(String hex) {
+        if (hex == null || hex.isEmpty()) {
+            return null;
+        }
+        try {
+            return TextColor.fromHexString(hex);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** Эмблема класса из конфига (theme.symbol), фолбэк по классу. */
