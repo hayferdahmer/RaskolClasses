@@ -1,134 +1,134 @@
 # ============================================================
-#  RaskolClasses v1.4.0 — Специализации классов
-#  Выбор на 40 уровне, один раз, бесплатно. Респец — Пакет 3.
+#  RaskolClasses v1.7.4 — Специализации классов
+#  Выбор на 40 уровне, один раз, бесплатно. Респец — платный (Пакет 3).
 #  /rc reload — применить без рестарта.
+#  ВНИМАНИЕ: активки спеков удаляются в 1.7.5 (спека = пассивная идентичность);
+#  до тех пор секции active: живые и используются SpecActiveCaster/SpecToken.
+#  Passive-ключи читает SpecListener/SpecService с фолбэками в коде —
+#  отсутствующий ключ не ломает старт, берётся дефолт из кода.
 # ============================================================
 
 specs:
+  # ---------- ВОИН ----------
   guardian:
     passive:
-      id: "guardian_passive"
-      description: "+2 брони постоянно"
-      armor: 2
+      id: guardian
+      description: "Стоическая стойка: +10% физрезиста постоянно"
+      physical: 10
     active:
-      id: "challenge"
-      description: "Вызов: таунт мобов в радиусе 4 + Сопротивление I на 3 с"
-      cost: 30
-      cooldown: 30
-      duration: 3
-      radius: 4
-
+      id: challenge
+      description: "Вызов: таунт мобов в радиусе 6 на 4 с"
+      cost: 20
+      cooldown: 40
+      duration: 4
+      radius: 6.0
   berserker:
     passive:
-      id: "berserker_passive"
-      description: "+15% урона при ярости >= 50"
-      rage_threshold: 50
-      damage_multiplier: 1.15
+      id: berserker
+      description: "Ярость севера: +15% урона, пока HP ≥ 60%"
+      damage_pct: 15
+      threshold: 0.60
     active:
-      id: "rage_burst"
-      description: "Вспышка ярости: +4 урона на 5 с"
-      cost: 60
-      cooldown: 45
-      duration: 5
-      damage_bonus: 4
-
+      id: rage_burst
+      description: "Всплеск ярости: +4 урона к следующей атаке, КД 8 с"
+      cost: 15
+      cooldown: 8
+      bonus: 4.0
+  # ---------- ОХОТНИК ----------
   marksman:
     passive:
-      id: "marksman_passive"
-      description: "+20% урона луком с 10+ блоков"
-      min_distance: 10
-      damage_multiplier: 1.20
+      id: marksman
+      description: "Глаз сокола: +10% шанса крита стрелами"
+      crit_bonus: 10
     active:
-      id: "precise_shot"
-      description: "Точный выстрел: следующая стрела x2"
-      cost: 40
-      cooldown: 40
-
+      id: precise_shot
+      description: "Точный выстрел: следующий выстрел игнорирует 50% резиста цели"
+      cost: 20
+      cooldown: 25
   tracker:
     passive:
-      id: "tracker_passive"
-      description: "+10% скорости передвижения"
-      speed_multiplier: 1.10
+      id: tracker
+      description: "Следопыт: видишь HP цели и её подсветку 6 с после удара"
+      track_duration: 6
     active:
-      id: "snare"
-      description: "Капкан: Slowness VI на 2 с цели в 6 блоках"
-      cost: 30
+      id: snare
+      description: "Силки: Slowness III на 3 с по цели в радиусе 4"
+      cost: 20
       cooldown: 30
-      duration: 2
-
+      duration: 3
+      radius: 4.0
+  # ---------- ЖРЕЦ ----------
   lightbearer:
     passive:
-      id: "lightbearer_passive"
-      description: "+20% к получаемому лечению"
+      id: lightbearer
+      description: "Светоносец: ×1.2 к исходящему лечению"
       heal_multiplier: 1.20
     active:
-      id: "sanctuary"
-      description: "Святилище: лечит союзников в радиусе 4 (2 HP / 10 тиков, 5 с)"
-      cost: 40
-      cooldown: 60
+      id: sanctuary
+      description: "Санктуарий: реген 2 HP/с себе и союзникам в радиусе 4 на 5 с"
+      cost: 30
+      cooldown: 45
       duration: 5
-      radius: 4
-      heal: 2
-
+      radius: 4.0
+      regen: 2.0
   shadowweaver:
     passive:
-      id: "shadowweaver_passive"
-      description: "15% нанесённого урона лечит тебя"
-      lifesteal_percent: 0.15
+      id: shadowweaver
+      description: "Ткач теней: 15% лифстила от исходящего маг-урона"
+      lifesteal_pct: 15
     active:
-      id: "mind_spike"
-      description: "Мыслештырь: 6 урона + Слепота/Замедление на 1.5 с"
-      cost: 50
-      cooldown: 45
-      damage: 6
-
+      id: mind_spike
+      description: "Шип разума: маг-урон 12 + Blind 2 с по цели"
+      cost: 25
+      cooldown: 20
+      damage: 12.0
+      duration: 2
+  # ---------- МАГ ----------
   arcane:
     passive:
-      id: "arcane_passive"
-      description: "+15% исходящего урона"
-      ability_multiplier: 1.15
+      id: arcane
+      description: "Тайный поток: +1 маны/с сверх регена класса"
+      mana_regen: 1.0
     active:
-      id: "arcane_flow"
-      description: "Арканный поток: +50 маны, снять негативы, Скорость I на 3 с"
+      id: arcane_flow
+      description: "Поток: следующий каст стоит 0 маны, КД 30 с"
       cost: 0
-      cooldown: 90
-      mana_restore: 50
-
+      cooldown: 30
   frost:
     passive:
-      id: "frost_passive"
-      description: "Твои удары вешают Замедление I на 2 с"
-      slow_duration: 2
+      id: frost
+      description: "Мороз: твои маг-атаки замедляют цель на 1 с"
+      slow_duration: 1
     active:
-      id: "ice_ring"
-      description: "Кольцо льда: Slowness III на 3 с мобам в радиусе 3"
-      cost: 60
-      cooldown: 60
+      id: ice_ring
+      description: "Кольцо льда: Slowness II 3 с всем врагам в радиусе 4"
+      cost: 30
+      cooldown: 35
       duration: 3
-      radius: 3
-
+      radius: 4.0
+  # ---------- РАЗБОЙНИК ----------
   liquidator:
     passive:
-      id: "liquidator_passive"
-      description: "+10% шанса крита (крит x1.5)"
-      crit_chance: 0.10
-      crit_multiplier: 1.5
+      id: liquidator
+      description: "Ликвидатор: +15% шанса крита ×1.5 в ближнем бою"
+      crit_chance: 15
+      crit_mult: 1.5
     active:
-      id: "garrote"
-      description: "Гаррота: кровотечение 2 урона/с на 6 с"
-      cost: 50
-      cooldown: 45
-      duration: 6
-      damage_per_tick: 2
-
+      id: garrote
+      description: "Гаррота: урон 8 + Slowness I 2 с по цели спереди"
+      cost: 20
+      cooldown: 18
+      damage: 8.0
+      duration: 2
   trickster:
     passive:
-      id: "trickster_passive"
-      description: "10% шанс полностью уклониться от удара"
-      dodge_chance: 0.10
+      id: trickster
+      description: "Трюкач: +15% шанса уклонения"
+      dodge_chance: 15
     active:
-      id: "smoke_bomb"
-      description: "Дымовая завеса: Невидимость 4 с + сброс аггро мобов"
-      cost: 60
-      cooldown: 90
-      duration: 4
+      id: smoke_bomb
+      description: "Дымовая шашка: Blind 2 с всем врагам в радиусе 3"
+      cost: 25
+      cooldown: 30
+      duration: 2
+      radius: 3.0
