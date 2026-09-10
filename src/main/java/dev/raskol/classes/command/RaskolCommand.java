@@ -14,7 +14,6 @@ import dev.raskol.classes.effect.EffectType;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.install.Installation;
 import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.SpecRegistry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -36,6 +35,7 @@ import java.util.UUID;
  * 1.6.13: /rc selftest. 1.7.0 пакет 1: блоки атрибутов в /rc и /rc debug.
  * 1.7.5: слот 6 больше не кастует активку спеки — спеки стали пассивной
  * идентичностью; команда объясняет это и отсылает к талантам 1.8.0.
+ * Все строковые литералы однострочные (защита от поломки склеек при копировании).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
@@ -54,8 +54,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         RaskolConfig cfg = plugin.getRaskolConfig();
         if (args.length == 0) {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage(Component.text(
-                        "Информация о классе доступна только игрокам", NamedTextColor.GRAY));
+                sender.sendMessage(Component.text("Информация о классе доступна только игрокам", NamedTextColor.GRAY));
                 return true;
             }
             sendInfo(player);
@@ -65,62 +64,47 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase()) {
             case "reload" -> {
                 if (!sender.hasPermission("raskolclasses.admin")) {
-                    sender.sendMessage(Component.text(
-                            cfg.message("no-permission", "Недостаточно прав"),
-                            NamedTextColor.RED));
+                    sender.sendMessage(Component.text(cfg.message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
                     return true;
                 }
                 plugin.reloadPlugin();
-                sender.sendMessage(Component.text("RaskolClasses: конфигурация перезагружена",
-                        NamedTextColor.GREEN));
+                sender.sendMessage(Component.text("RaskolClasses: конфигурация перезагружена", NamedTextColor.GREEN));
             }
             case "menu" -> {
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage(Component.text("Книга класса — только для игроков",
-                            NamedTextColor.GRAY));
+                    sender.sendMessage(Component.text("Книга класса — только для игроков", NamedTextColor.GRAY));
                     return true;
                 }
                 ClassBook.open(plugin, player, ClassBook.Tab.ABILITIES);
             }
             case "6" -> {
-                // 1.7.5: активки спеков удалены — спека теперь пассивная идентичность
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage(Component.text("Каст доступен только игрокам",
-                            NamedTextColor.GRAY));
+                    sender.sendMessage(Component.text("Каст доступен только игрокам", NamedTextColor.GRAY));
                     return true;
                 }
-                player.sendMessage(Component.text(
-                        "Активки специализаций удалены в 1.7.5: спека — это твоя пассивная "
-                                + "идентичность (резисты и проки работают постоянно). "
-                                + "Дерево талантов спеки придёт в 1.8.0.",
-                        NamedTextColor.GRAY));
+                player.sendMessage(Component.text("Активки спеков удалены в 1.7.5: спека — пассивная идентичность. Таланты придут в 1.8.0.", NamedTextColor.GRAY));
             }
             case "7" -> {
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage(Component.text("Установка доступна только игрокам",
-                            NamedTextColor.GRAY));
+                    sender.sendMessage(Component.text("Установка доступна только игрокам", NamedTextColor.GRAY));
                     return true;
                 }
                 plugin.getInstallations().tryPlace(player);
             }
             case "1", "2", "3", "4", "5" -> {
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage(Component.text("Каст доступен только игрокам",
-                            NamedTextColor.GRAY));
+                    sender.sendMessage(Component.text("Каст доступен только игрокам", NamedTextColor.GRAY));
                     return true;
                 }
                 PlayerClass pc = plugin.getClassProvider().getClassOf(player);
                 if (pc == null) {
-                    player.sendMessage(Component.text(
-                            cfg.message("no-class", "Класс не выбран — посетите герольда"),
-                            NamedTextColor.GRAY));
+                    player.sendMessage(Component.text(cfg.message("no-class", "Класс не выбран — посетите герольда"), NamedTextColor.GRAY));
                     return true;
                 }
                 int slot = Integer.parseInt(args[0]);
                 AbilityDef def = plugin.getAbilities().getBySlot(pc, slot);
                 if (def == null) {
-                    player.sendMessage(Component.text("У класса " + pc.getDisplayName()
-                            + " нет способности в слоте " + slot, NamedTextColor.GRAY));
+                    player.sendMessage(Component.text("У класса " + pc.getDisplayName() + " нет способности в слоте " + slot, NamedTextColor.GRAY));
                     return true;
                 }
                 plugin.getAbilities().tryCast(player, def);
@@ -128,58 +112,45 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             }
             case "health" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
-                    sender.sendMessage(Component.text(
-                            cfg.message("no-permission", "Недостаточно прав"),
-                            NamedTextColor.RED));
+                    sender.sendMessage(Component.text(cfg.message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
                     return true;
                 }
                 sendHealth(sender);
             }
             case "selftest" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
-                    sender.sendMessage(Component.text(
-                            cfg.message("no-permission", "Недостаточно прав"),
-                            NamedTextColor.RED));
+                    sender.sendMessage(Component.text(cfg.message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
                     return true;
                 }
                 dev.raskol.classes.selftest.SelftestRunner.run(plugin, sender);
             }
             case "debug" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
-                    sender.sendMessage(Component.text(
-                            cfg.message("no-permission", "Недостаточно прав"),
-                            NamedTextColor.RED));
+                    sender.sendMessage(Component.text(cfg.message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
                     return true;
                 }
                 Player target = sender instanceof Player p ? p : null;
                 if (args.length > 1) {
                     target = Bukkit.getPlayer(args[1]);
                     if (target == null) {
-                        sender.sendMessage(Component.text(
-                                "Игрок «" + args[1] + "» не найден",
-                                NamedTextColor.RED));
+                        sender.sendMessage(Component.text("Игрок " + args[1] + " не найден", NamedTextColor.RED));
                         return true;
                     }
                 }
                 if (target == null) {
-                    sender.sendMessage(Component.text(
-                            "Укажите игрока или выполните команду в игре",
-                            NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Укажите игрока или выполните команду в игре", NamedTextColor.RED));
                     return true;
                 }
                 sendDebug(sender, target);
             }
-            default -> sender.sendMessage(Component.text(
-                    "Использование: /rc [1-7|menu|reload|debug|health|selftest]",
-                    NamedTextColor.GRAY));
+            default -> sender.sendMessage(Component.text("Использование: /rc [1-7|menu|reload|debug|health|selftest]", NamedTextColor.GRAY));
         }
         return true;
     }
 
     /** 1.6.12: сводка наблюдаемости. */
     private void sendHealth(CommandSender sender) {
-        sender.sendMessage(Component.text("--- RaskolClasses Health ---",
-                NamedTextColor.GOLD));
+        sender.sendMessage(Component.text("--- RaskolClasses Health ---", NamedTextColor.GOLD));
 
         double mspt = plugin.getServer().getAverageTickTime();
         double[] tpsArr = plugin.getServer().getTPS();
@@ -187,38 +158,27 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Component.text("MSPT: " + fmt2(mspt) + " ms · TPS: " + fmt2(tps),
                 mspt <= 50.0 ? NamedTextColor.GREEN : NamedTextColor.RED));
 
-        sender.sendMessage(Component.text("Модификаторы резиста: игроков "
-                + plugin.getResists().trackedPlayers()
+        sender.sendMessage(Component.text("Модификаторы резиста: игроков " + plugin.getResists().trackedPlayers()
                 + " · записей " + plugin.getResists().totalModifiers()
-                + " · кэш факторов " + plugin.getResists().factorCacheSize(),
-                NamedTextColor.GRAY));
+                + " · кэш факторов " + plugin.getResists().factorCacheSize(), NamedTextColor.GRAY));
 
-        sender.sendMessage(Component.text("Кулдауны: игроков "
-                + plugin.getCooldowns().trackedPlayers()
-                + " · записей " + plugin.getCooldowns().totalEntries(),
-                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("Кулдауны: игроков " + plugin.getCooldowns().trackedPlayers()
+                + " · записей " + plugin.getCooldowns().totalEntries(), NamedTextColor.GRAY));
 
         int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
-        sender.sendMessage(Component.text("Инсталляции: активных "
-                + plugin.getInstallations().countGlobal() + "/" + maxGlobal,
-                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("Инсталляции: активных " + plugin.getInstallations().countGlobal()
+                + "/" + maxGlobal, NamedTextColor.GRAY));
 
-        sender.sendMessage(Component.text("Proc-кулдауны Fx: игроков "
-                + plugin.getFx().procVisualCdSize(), NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("Proc-кулдауны Fx: игроков " + plugin.getFx().procVisualCdSize(), NamedTextColor.GRAY));
 
         sender.sendMessage(Component.text("Звуковой бюджет: сброшено с прошлого /rc health: "
                 + plugin.getFx().pollDroppedSounds(), NamedTextColor.GRAY));
 
-        long sincePurge = Math.max(0L,
-                (System.currentTimeMillis() - plugin.getLastPurgeMillis()) / 1000L);
-        sender.sendMessage(Component.text("Последний purge: " + sincePurge + " с назад",
-                NamedTextColor.GRAY));
+        long sincePurge = Math.max(0L, (System.currentTimeMillis() - plugin.getLastPurgeMillis()) / 1000L);
+        sender.sendMessage(Component.text("Последний purge: " + sincePurge + " с назад", NamedTextColor.GRAY));
 
-        long uptime = Math.max(0L,
-                (System.currentTimeMillis() - plugin.getEnabledAtMillis()) / 1000L);
-        sender.sendMessage(Component.text("Аптайм плагина: "
-                + uptime / 60L + " мин " + uptime % 60L + " с",
-                NamedTextColor.GRAY));
+        long uptime = Math.max(0L, (System.currentTimeMillis() - plugin.getEnabledAtMillis()) / 1000L);
+        sender.sendMessage(Component.text("Аптайм плагина: " + uptime / 60L + " мин " + uptime % 60L + " с", NamedTextColor.GRAY));
     }
 
     private static String fmt2(double v) {
@@ -229,82 +189,53 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         RaskolConfig cfg = plugin.getRaskolConfig();
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
-            player.sendMessage(Component.text(
-                    cfg.message("no-class", "Класс не выбран — посетите герольда"),
-                    NamedTextColor.GRAY));
+            player.sendMessage(Component.text(cfg.message("no-class", "Класс не выбран — посетите герольда"), NamedTextColor.GRAY));
             return;
         }
         int level = plugin.getSkillLevels().getLevel(player.getUniqueId(), pc.profileSkillName());
 
-        player.sendMessage(Component.text("Класс: ", NamedTextColor.GRAY)
-                .append(Component.text(pc.getDisplayName(), pc.getColor())));
-        String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM
-                ? "AuraSkills не подключён"
-                : pc.profileSkillName() + " " + level;
+        player.sendMessage(Component.text("Класс: ", NamedTextColor.GRAY).append(Component.text(pc.getDisplayName(), pc.getColor())));
+        String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM ? "AuraSkills не подключён" : pc.profileSkillName() + " " + level;
         player.sendMessage(Component.text("Уровень: " + levelText, NamedTextColor.GRAY));
-        player.sendMessage(Component.text(pc.getResourceName() + ": "
-                + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100",
-                pc.getColor()));
+        player.sendMessage(Component.text(pc.getResourceName() + ": " + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100", pc.getColor()));
 
         UUID uuid = player.getUniqueId();
 
         AttributeService attrs = plugin.getAttributes();
-        player.sendMessage(Component.text("Атрибуты: ", NamedTextColor.GRAY)
-                .append(Component.text("СИЛА " + (int) attrs.value(uuid, AttributeType.STR)
-                        + " · ЛОВКОСТЬ " + (int) attrs.value(uuid, AttributeType.AGI)
-                        + " · ИНТЕЛЛЕКТ " + (int) attrs.value(uuid, AttributeType.INT)
-                        + " (осн. " + attrs.mainOf(pc).displayName() + ")",
-                        NamedTextColor.AQUA)));
+        player.sendMessage(Component.text("Атрибуты: СИЛА " + (int) attrs.value(uuid, AttributeType.STR)
+                + " · ЛОВКОСТЬ " + (int) attrs.value(uuid, AttributeType.AGI)
+                + " · ИНТЕЛЛЕКТ " + (int) attrs.value(uuid, AttributeType.INT)
+                + " (осн. " + attrs.mainOf(pc).displayName() + ")", NamedTextColor.AQUA));
         double[] eff = attrs.effectiveAvoidance(uuid);
-        player.sendMessage(Component.text("HP: " + (int) player.getHealth() + "/"
-                + (int) attrs.maxHp(uuid)
-                + " · Уклонение " + fmt(eff[0]) + "% · Парирование " + fmt(eff[1]) + "%",
-                NamedTextColor.GRAY));
+        player.sendMessage(Component.text("HP: " + (int) player.getHealth() + "/" + (int) attrs.maxHp(uuid)
+                + " · Уклонение " + fmt(eff[0]) + "% · Парирование " + fmt(eff[1]) + "%", NamedTextColor.GRAY));
 
-        player.sendMessage(Component.text("Резисты: ", NamedTextColor.GRAY)
-                .append(Component.text("физ " + (int) plugin.getResists().physicalResist(uuid)
-                        + "% · маг " + (int) plugin.getResists().magicResist(uuid) + "%",
-                        NamedTextColor.AQUA)));
+        player.sendMessage(Component.text("Резисты: физ " + (int) plugin.getResists().physicalResist(uuid)
+                + "% · маг " + (int) plugin.getResists().magicResist(uuid) + "%", NamedTextColor.AQUA));
 
-        player.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY)
-                .append(Component.text(
-                        plugin.getFlavorService().crownDisplayName(uuid),
-                        NamedTextColor.GOLD)));
+        player.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY).append(Component.text(plugin.getFlavorService().crownDisplayName(uuid), NamedTextColor.GOLD)));
         String title = plugin.getFlavorService().titleOf(uuid, pc);
         if (!title.isEmpty()) {
-            player.sendMessage(Component.text("Титул: ", NamedTextColor.GRAY)
-                    .append(Component.text(title, pc.getColor())));
+            player.sendMessage(Component.text("Титул: ", NamedTextColor.GRAY).append(Component.text(title, pc.getColor())));
         }
 
         Spec spec = plugin.getSpecService().getSpec(uuid);
         if (spec != null) {
-            player.sendMessage(Component.text("Специализация: ", NamedTextColor.GRAY)
-                    .append(Component.text(spec.displayName() + " (пассивная идентичность)",
-                            pc.getColor()));
+            player.sendMessage(Component.text("Специализация: " + spec.displayName() + " (пассивная идентичность)", pc.getColor()));
         } else {
-            String specStatus = plugin.getSpecService().canChoose(player)
-                    ? "доступна — Книга класса (/rc menu)"
-                    : "откроется на 40 уровне";
-            player.sendMessage(Component.text("Специализация: " + specStatus,
-                    NamedTextColor.DARK_GRAY));
+            String specStatus = plugin.getSpecService().canChoose(player) ? "доступна — Книга класса (/rc menu)" : "откроется на 40 уровне";
+            player.sendMessage(Component.text("Специализация: " + specStatus, NamedTextColor.DARK_GRAY));
         }
 
-        player.sendMessage(Component.text("Инсталляции: ", NamedTextColor.GRAY)
-                .append(Component.text(plugin.getInstallations().countOf(uuid) + "/2 активных",
-                        NamedTextColor.DARK_GRAY)));
+        player.sendMessage(Component.text("Инсталляции: " + plugin.getInstallations().countOf(uuid) + "/2 активных", NamedTextColor.DARK_GRAY));
 
         for (AbilityDef def : plugin.getAbilities().getAbilities(pc)) {
             String desc = cfg.abilityDescription(pc, def.id(), "");
-            Component descComp = desc.isEmpty()
-                    ? Component.empty()
-                    : Component.text(" — " + desc, NamedTextColor.GRAY);
+            Component descComp = desc.isEmpty() ? Component.empty() : Component.text(" — " + desc, NamedTextColor.GRAY);
             player.sendMessage(Component.text("[" + def.slot() + "] ", NamedTextColor.DARK_GRAY)
                     .append(Component.text(def.displayName(), pc.getColor()))
                     .append(descComp)
-                    .append(Component.text(" · " + def.cost() + " рес. · "
-                                    + def.cooldownMillis() / 1000L + "с кд · "
-                                    + statusOf(player, def, level),
-                            NamedTextColor.GRAY)));
+                    .append(Component.text(" · " + def.cost() + " рес. · " + def.cooldownMillis() / 1000L + "с кд · " + statusOf(player, def, level), NamedTextColor.GRAY)));
         }
 
         for (String passiveId : RaskolConfig.passiveIds(pc)) {
@@ -315,12 +246,10 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             String passiveDesc = cfg.passiveDescription(pc, passiveId, "");
             player.sendMessage(Component.text("Пассив: ", NamedTextColor.DARK_GRAY)
                     .append(Component.text(passiveName, pc.getColor()))
-                    .append(Component.text(passiveDesc.isEmpty() ? "" : " — " + passiveDesc,
-                            NamedTextColor.GRAY)));
+                    .append(Component.text(passiveDesc.isEmpty() ? "" : " — " + passiveDesc, NamedTextColor.GRAY)));
         }
 
-        player.sendMessage(Component.text("Книга класса: /rc menu · Каст: /rc 1–5",
-                NamedTextColor.DARK_GRAY));
+        player.sendMessage(Component.text("Книга класса: /rc menu · Каст: /rc 1–5", NamedTextColor.DARK_GRAY));
     }
 
     private void sendDebug(CommandSender sender, Player target) {
@@ -328,103 +257,68 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         RaskolConfig cfg = plugin.getRaskolConfig();
         PlayerClass pc = plugin.getClassProvider().getClassOf(target);
 
-        sender.sendMessage(Component.text("--- RaskolClasses Debug ---",
-                NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("Версия: ", NamedTextColor.GRAY)
-                .append(Component.text(plugin.getPluginMeta().getVersion(),
-                        NamedTextColor.WHITE)));
-        sender.sendMessage(Component.text("Цель: ", NamedTextColor.GRAY)
-                .append(Component.text(target.getName(), NamedTextColor.WHITE)));
-        sender.sendMessage(Component.text("Источник класса: ", NamedTextColor.GRAY)
-                .append(Component.text(plugin.getClassProvider().sourceOf(),
-                        NamedTextColor.AQUA)));
+        sender.sendMessage(Component.text("--- RaskolClasses Debug ---", NamedTextColor.GOLD));
+        sender.sendMessage(Component.text("Версия: ", NamedTextColor.GRAY).append(Component.text(plugin.getPluginMeta().getVersion(), NamedTextColor.WHITE)));
+        sender.sendMessage(Component.text("Цель: ", NamedTextColor.GRAY).append(Component.text(target.getName(), NamedTextColor.WHITE)));
+        sender.sendMessage(Component.text("Источник класса: ", NamedTextColor.GRAY).append(Component.text(plugin.getClassProvider().sourceOf(), NamedTextColor.AQUA)));
 
         if (pc == null) {
-            sender.sendMessage(Component.text("Класс: не выбран",
-                    NamedTextColor.RED));
+            sender.sendMessage(Component.text("Класс: не выбран", NamedTextColor.RED));
             return;
         }
 
-        sender.sendMessage(Component.text("Класс: ", NamedTextColor.GRAY)
-                .append(Component.text(pc.getDisplayName() + " (" + pc.name() + ")",
-                        pc.getColor())));
-        sender.sendMessage(Component.text(
-                "Ресурс (" + pc.getResourceName() + "): ", NamedTextColor.GRAY)
-                .append(Component.text(
-                        (int) plugin.getResources().getValue(uuid) + "/100",
-                        pc.getColor())));
+        sender.sendMessage(Component.text("Класс: ", NamedTextColor.GRAY).append(Component.text(pc.getDisplayName() + " (" + pc.name() + ")", pc.getColor())));
+        sender.sendMessage(Component.text("Ресурс (" + pc.getResourceName() + "): ", NamedTextColor.GRAY)
+                .append(Component.text((int) plugin.getResources().getValue(uuid) + "/100", pc.getColor())));
 
         AttributeService attrs = plugin.getAttributes();
         sender.sendMessage(Component.text("Атрибуты:", NamedTextColor.AQUA));
         for (AttributeType t : AttributeType.values()) {
-            sender.sendMessage(Component.text("  • " + t.displayName() + ": "
-                    + fmt(attrs.value(uuid, t))
+            sender.sendMessage(Component.text("  • " + t.displayName() + ": " + fmt(attrs.value(uuid, t))
                     + (attrs.mainOf(pc) == t ? " (основной)" : ""), NamedTextColor.GRAY));
         }
-        sender.sendMessage(Component.text("  • maxHP по формуле: " + fmt(attrs.maxHp(uuid)),
-                NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("  • крит мили: " + fmt(attrs.critMeleeChance(uuid))
-                + "% · крит магии: " + fmt(attrs.critSpellChance(uuid)) + "%",
-                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • maxHP по формуле: " + fmt(attrs.maxHp(uuid)), NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • крит мили: " + fmt(attrs.critMeleeChance(uuid)) + "% · крит магии: "
+                + fmt(attrs.critSpellChance(uuid)) + "%", NamedTextColor.GRAY));
         double dodgeRaw = attrs.dodgeChance(uuid);
         double parryRaw = attrs.parryChance(uuid);
         double[] eff = attrs.effectiveAvoidance(uuid);
-        sender.sendMessage(Component.text("  • уклонение raw " + fmt(dodgeRaw) + "% → eff "
-                + fmt(eff[0]) + "% · парирование raw " + fmt(parryRaw) + "% → eff "
-                + fmt(eff[1]) + "% (при фронт+мили)", NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • уклонение raw " + fmt(dodgeRaw) + "% → eff " + fmt(eff[0])
+                + "% · парирование raw " + fmt(parryRaw) + "% → eff " + fmt(eff[1]) + "% (при фронт+мили)", NamedTextColor.GRAY));
 
         ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
-        sender.sendMessage(Component.text("Резисты: ", NamedTextColor.GRAY)
-                .append(Component.text("физ " + (int) rb.physicalTotal() + "% (база "
-                        + (int) rb.basePhysical() + ") · маг " + (int) rb.magicTotal()
-                        + "% (база " + (int) rb.baseMagic() + ")", NamedTextColor.AQUA)));
+        sender.sendMessage(Component.text("Резисты: физ " + (int) rb.physicalTotal() + "% (база " + (int) rb.basePhysical()
+                + ") · маг " + (int) rb.magicTotal() + "% (база " + (int) rb.baseMagic() + ")", NamedTextColor.AQUA));
         for (ResistService.Modifier m : rb.active()) {
-            sender.sendMessage(Component.text("  • модификатор " + m.source()
-                    + ": физ " + (int) m.physicalPct() + "% · маг " + (int) m.magicPct() + "%",
-                    NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("  • модификатор " + m.source() + ": физ " + (int) m.physicalPct()
+                    + "% · маг " + (int) m.magicPct() + "%", NamedTextColor.GRAY));
         }
 
         sender.sendMessage(Component.text("Симулятор урона по цели:", NamedTextColor.AQUA));
         sender.sendMessage(Component.text("  • физ 100 → дойдёт "
-                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.physical(100))),
-                NamedTextColor.GRAY));
+                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.physical(100))), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("  • маг 100 → дойдёт "
-                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.magic(100))),
-                NamedTextColor.GRAY));
+                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.magic(100))), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("  • гибрид 50/50 → дойдёт "
-                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.hybrid(50, 50))),
-                NamedTextColor.GRAY));
+                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.hybrid(50, 50))), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("  • чистый 100 → дойдёт "
-                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.trueDmg(100))),
-                NamedTextColor.GRAY));
+                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.trueDmg(100))), NamedTextColor.GRAY));
 
-        sender.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY)
-                .append(Component.text(
-                        plugin.getFlavorService().crownDisplayName(uuid),
-                        NamedTextColor.GOLD)));
+        sender.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY).append(Component.text(plugin.getFlavorService().crownDisplayName(uuid), NamedTextColor.GOLD)));
         String title = plugin.getFlavorService().titleOf(uuid, pc);
-        sender.sendMessage(Component.text("Титул: ", NamedTextColor.GRAY)
-                .append(Component.text(title.isEmpty() ? "—" : title,
-                        NamedTextColor.WHITE)));
+        sender.sendMessage(Component.text("Титул: ", NamedTextColor.GRAY).append(Component.text(title.isEmpty() ? "—" : title, NamedTextColor.WHITE)));
 
         Spec spec = plugin.getSpecService().getSpec(uuid);
         if (spec != null) {
-            sender.sendMessage(Component.text("Специализация: ", NamedTextColor.GRAY)
-                    .append(Component.text(spec.displayName() + " (пассивная)",
-                            NamedTextColor.GREEN));
+            sender.sendMessage(Component.text("Специализация: " + spec.displayName() + " (пассивная)", NamedTextColor.GREEN));
         } else {
-            sender.sendMessage(Component.text("Специализация: не выбрана",
-                    NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("Специализация: не выбрана", NamedTextColor.GRAY));
         }
 
-        sender.sendMessage(Component.text("Инсталляции: ", NamedTextColor.GRAY)
-                .append(Component.text(plugin.getInstallations().countOf(uuid) + "/2",
-                        NamedTextColor.WHITE)));
+        sender.sendMessage(Component.text("Инсталляции: ", NamedTextColor.GRAY).append(Component.text(plugin.getInstallations().countOf(uuid) + "/2", NamedTextColor.WHITE)));
 
         int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
-        sender.sendMessage(Component.text("Инсталляции на сервере: ", NamedTextColor.GRAY)
-                .append(Component.text(plugin.getInstallations().countGlobal() + "/" + maxGlobal,
-                        NamedTextColor.WHITE)));
+        sender.sendMessage(Component.text("Инсталляции на сервере: ", NamedTextColor.GRAY).append(Component.text(plugin.getInstallations().countGlobal() + "/" + maxGlobal, NamedTextColor.WHITE)));
         long now = System.currentTimeMillis();
         for (Installation inst : plugin.getInstallations().snapshot()) {
             if (!inst.getOwner().equals(uuid)) {
@@ -432,10 +326,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             }
             long remain = Math.max(0L, inst.getExpiresAt() - now);
             Location loc = inst.getLocation();
-            sender.sendMessage(Component.text("  • " + inst.getType().displayName()
-                            + " — " + (remain / 1000L) + "с ("
-                            + loc.getBlockX() + "/" + loc.getBlockY() + "/" + loc.getBlockZ() + ")",
-                    NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("  • " + inst.getType().displayName() + " — " + (remain / 1000L) + "с ("
+                    + loc.getBlockX() + "/" + loc.getBlockY() + "/" + loc.getBlockZ() + ")", NamedTextColor.GRAY));
         }
 
         boolean hasCooldowns = false;
@@ -443,33 +335,25 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
             if (remaining > 0L) {
                 if (!hasCooldowns) {
-                    sender.sendMessage(Component.text("Активные КД:",
-                            NamedTextColor.YELLOW));
+                    sender.sendMessage(Component.text("Активные КД:", NamedTextColor.YELLOW));
                     hasCooldowns = true;
                 }
-                sender.sendMessage(Component.text("  • " + def.displayName()
-                        + " — " + (remaining / 1000L + 1L) + "с",
-                        NamedTextColor.GRAY));
+                sender.sendMessage(Component.text("  • " + def.displayName() + " — " + (remaining / 1000L + 1L) + "с", NamedTextColor.GRAY));
             }
         }
         if (!hasCooldowns) {
-            sender.sendMessage(Component.text("Активные КД: нет",
-                    NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("Активные КД: нет", NamedTextColor.GRAY));
         }
 
         Map<EffectType, Long> effects = plugin.getEffects().getActiveEffects(uuid);
         if (effects.isEmpty()) {
-            sender.sendMessage(Component.text("Активные эффекты: нет",
-                    NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("Активные эффекты: нет", NamedTextColor.GRAY));
         } else {
-            sender.sendMessage(Component.text("Активные эффекты:",
-                    NamedTextColor.LIGHT_PURPLE));
+            sender.sendMessage(Component.text("Активные эффекты:", NamedTextColor.LIGHT_PURPLE));
             for (Map.Entry<EffectType, Long> entry : effects.entrySet()) {
                 long exp = entry.getValue();
-                String suffix = exp == Long.MAX_VALUE ? "∞"
-                        : ((exp - now) / 1000L) + "с";
-                sender.sendMessage(Component.text("  • " + entry.getKey().name()
-                        + " — " + suffix, NamedTextColor.LIGHT_PURPLE));
+                String suffix = exp == Long.MAX_VALUE ? "∞" : ((exp - now) / 1000L) + "с";
+                sender.sendMessage(Component.text("  • " + entry.getKey().name() + " — " + suffix, NamedTextColor.LIGHT_PURPLE));
             }
         }
 
@@ -477,10 +361,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         for (String passiveId : RaskolConfig.passiveIds(pc)) {
             boolean enabled = cfg.passiveEnabled(pc, passiveId);
             String passiveName = cfg.passiveDisplayName(pc, passiveId, passiveId);
-            sender.sendMessage(Component.text("  • " + passiveName
-                            + (enabled ? "" : " [выкл]") + " — "
-                            + passiveNumbers(pc, passiveId),
-                    NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("  • " + passiveName + (enabled ? "" : " [выкл]") + " — "
+                    + passiveNumbers(pc, passiveId), NamedTextColor.GRAY));
         }
 
         List<String> fxIds = new ArrayList<>();
@@ -490,17 +372,12 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         plugin.getFx().appendDebug(sender, fxIds);
 
         int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-        String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM
-                ? "AuraSkills не подключён"
-                : String.valueOf(level);
-        sender.sendMessage(Component.text(
-                "Уровень " + pc.profileSkillName() + ": ", NamedTextColor.GRAY)
-                .append(Component.text(levelText, NamedTextColor.WHITE)));
+        String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM ? "AuraSkills не подключён" : String.valueOf(level);
+        sender.sendMessage(Component.text("Уровень " + pc.profileSkillName() + ": ", NamedTextColor.GRAY).append(Component.text(levelText, NamedTextColor.WHITE)));
 
         boolean visible = plugin.getHud().isVisible(target);
-        sender.sendMessage(Component.text("HUD: ", NamedTextColor.GRAY)
-                .append(Component.text(visible ? "включён" : "выключен",
-                        visible ? NamedTextColor.GREEN : NamedTextColor.RED)));
+        sender.sendMessage(Component.text("HUD: ", NamedTextColor.GRAY).append(Component.text(visible ? "включён" : "выключен",
+                visible ? NamedTextColor.GREEN : NamedTextColor.RED)));
     }
 
     private static String fmt(double value) {
@@ -509,23 +386,38 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private String passiveNumbers(PlayerClass pc, String id) {
         RaskolConfig cfg = plugin.getRaskolConfig();
-        return switch (id) {
-            case "execute_passive" -> "chance " + percent(cfg.passiveDouble(pc, id, "chance", 0.20))
-                    + " · ×" + cfg.passiveDouble(pc, id, "multiplier", 3.0)
-                    + " · threshold " + percent(cfg.passiveDouble(pc, id, "threshold", 0.20))
-                    + " · КД " + cfg.passiveInt(pc, id, "cooldown-seconds", 6) + "с";
-            case "predator" -> "threshold " + percent(cfg.passiveDouble(pc, id, "threshold", 0.80))
-                    + " · ×" + cfg.passiveDouble(pc, id, "multiplier", 1.20);
-            case "grace" -> "×" + cfg.passiveDouble(pc, id, "multiplier", 1.15);
-            case "mana_soaked" -> "threshold " + (int) cfg.passiveDouble(pc, id, "threshold", 50.0)
-                    + " маны · −" + percent(cfg.passiveDouble(pc, id, "reduction", 0.15));
-            case "poisoned_blades" -> "chance " + percent(cfg.passiveDouble(pc, id, "chance", 0.30))
-                    + " · " + cfg.passiveInt(pc, id, "duration-seconds", 2) + "с"
-                    + " · КД " + cfg.passiveInt(pc, id, "cooldown-seconds", 3) + "с";
-            case "sadism" -> "+" + cfg.passiveDouble(pc, id, "bonus", 3.0)
-                    + " · КД " + cfg.passiveInt(pc, id, "cooldown-seconds", 2) + "с";
-            default -> id;
-        };
+        if (id.equals("execute_passive")) {
+            String chance = percent(cfg.passiveDouble(pc, id, "chance", 0.20));
+            double mult = cfg.passiveDouble(pc, id, "multiplier", 3.0);
+            String thr = percent(cfg.passiveDouble(pc, id, "threshold", 0.20));
+            int cd = cfg.passiveInt(pc, id, "cooldown-seconds", 6);
+            return "chance " + chance + " · x" + mult + " · порог " + thr + " · КД " + cd + " с";
+        }
+        if (id.equals("predator")) {
+            String thr = percent(cfg.passiveDouble(pc, id, "threshold", 0.80));
+            double mult = cfg.passiveDouble(pc, id, "multiplier", 1.20);
+            return "порог " + thr + " · x" + mult;
+        }
+        if (id.equals("grace")) {
+            return "x" + cfg.passiveDouble(pc, id, "multiplier", 1.15);
+        }
+        if (id.equals("mana_soaked")) {
+            int thr = (int) cfg.passiveDouble(pc, id, "threshold", 50.0);
+            String red = percent(cfg.passiveDouble(pc, id, "reduction", 0.15));
+            return "порог маны " + thr + " · -" + red + " входящего урона";
+        }
+        if (id.equals("poisoned_blades")) {
+            String chance = percent(cfg.passiveDouble(pc, id, "chance", 0.30));
+            int dur = cfg.passiveInt(pc, id, "duration-seconds", 2);
+            int cd = cfg.passiveInt(pc, id, "cooldown-seconds", 3);
+            return chance + " шанс · Яд I " + dur + " с · КД " + cd + " с";
+        }
+        if (id.equals("sadism")) {
+            double bonus = cfg.passiveDouble(pc, id, "bonus", 3.0);
+            int cd = cfg.passiveInt(pc, id, "cooldown-seconds", 2);
+            return "+" + bonus + " урона со спины · КД " + cd + " с";
+        }
+        return id;
     }
 
     private static String percent(double v) {
@@ -548,22 +440,17 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command,
-                                      String alias, String[] args) {
+    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length != 1) {
             return List.of();
         }
         String prefix = args[0].toLowerCase();
         return ROOT_SUGGESTIONS.stream()
                 .filter(suggestion -> suggestion.startsWith(prefix))
-                .filter(suggestion -> !"reload".equals(suggestion)
-                        || sender.hasPermission("raskolclasses.admin"))
-                .filter(suggestion -> !"debug".equals(suggestion)
-                        || sender.hasPermission("raskolclasses.debug"))
-                .filter(suggestion -> !"health".equals(suggestion)
-                        || sender.hasPermission("raskolclasses.debug"))
-                .filter(suggestion -> !"selftest".equals(suggestion)
-                        || sender.hasPermission("raskolclasses.debug"))
+                .filter(suggestion -> !"reload".equals(suggestion) || sender.hasPermission("raskolclasses.admin"))
+                .filter(suggestion -> !"debug".equals(suggestion) || sender.hasPermission("raskolclasses.debug"))
+                .filter(suggestion -> !"health".equals(suggestion) || sender.hasPermission("raskolclasses.debug"))
+                .filter(suggestion -> !"selftest".equals(suggestion) || sender.hasPermission("raskolclasses.debug"))
                 .toList();
     }
 }
