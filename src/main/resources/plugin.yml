@@ -1,9 +1,9 @@
 name: RaskolClasses
-version: '1.7.4'
+version: '1.7.5'
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
-description: Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот и масштабируемые киты
+description: Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность с 1.7.5), инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот и масштабируемые киты
 
 softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, AuthMe]
 
