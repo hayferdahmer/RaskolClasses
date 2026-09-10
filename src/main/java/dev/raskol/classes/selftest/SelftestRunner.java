@@ -2,7 +2,6 @@
 package dev.raskol.classes.selftest;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
@@ -14,16 +13,20 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * 1.6.13: headless-самотестирование плагина (/rc selftest).
- * 1.7.0 пакет 1: добавлены три группы проверок формул атрибутов AttributeMath
- * (HP воина, DR свыше soft-cap, микро-парирование AGI-основных + refund в dodge);
- * итого 10 групп проверок. Ничего не мутирует.
+ * 1.7.0-p2.4: исправлены ожидания проверок (mage maxHp = 180 при str=60/level=40;
+ * DR упирается в hard-cap 75: raw 100 → 75, raw 200 → 75); Fx-проверка печатает
+ * точные пути и значения неизвестных имён — виновник находится за один заход.
+ * Ничего не мутирует.
  */
 public final class SelftestRunner {
 
@@ -115,7 +118,8 @@ public final class SelftestRunner {
         }
 
         // 4. PDC-раундтрип токенов (временные предметы, без мира)
-        AbilityDef def = plugin.getAbilities().getBySlot(PlayerClass.WARRIOR, 1);
+        dev.raskol.classes.ability.AbilityDef def =
+                plugin.getAbilities().getBySlot(PlayerClass.WARRIOR, 1);
         ItemStack abilityScroll = def != null
                 ? plugin.getTokens().create(def, PlayerClass.WARRIOR)
                 : null;
@@ -181,9 +185,30 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 7. Валидность fx-каталога
-        int fxProblems = plugin.getFx().countProblems();
-        if (fxProblems == 0) {
+        // 7. Валидность fx-каталога С ПЕЧАТЬЮ ВИНОВНИКОВ
+        List<String> fxBad = new ArrayList<>();
+        ConfigurationSection vfx = plugin.getConfig().getConfigurationSection("vfx");
+        if (vfx != null) {
+            for (String key : vfx.getKeys(false)) {
+                if (key.equals("proc") || key.equals("trails")) {
+                    continue;
+                }
+                ConfigurationSection entry = vfx.getConfigurationSection(key);
+                if (entry != null) {
+                    collectFxProblems(plugin, fxBad, "vfx." + key, entry);
+                }
+            }
+            ConfigurationSection proc = vfx.getConfigurationSection("proc");
+            if (proc != null) {
+                for (String key : proc.getKeys(false)) {
+                    ConfigurationSection entry = proc.getConfigurationSection(key);
+                    if (entry != null) {
+                        collectFxProblems(plugin, fxBad, "vfx.proc." + key, entry);
+                    }
+                }
+            }
+        }
+        if (fxBad.isEmpty()) {
             pass++;
             sender.sendMessage(Component.text(
                     "[PASS] Fx-каталог: все имена звуков/партиклов резолвятся",
@@ -191,39 +216,42 @@ public final class SelftestRunner {
         } else {
             fail++;
             sender.sendMessage(Component.text(
-                    "[FAIL] Fx-каталог: " + fxProblems + " неизвестных имён",
+                    "[FAIL] Fx-каталог: " + fxBad.size() + " неизвестных имён",
                     NamedTextColor.RED));
+            for (String bad : fxBad) {
+                sender.sendMessage(Component.text("        • " + bad,
+                        NamedTextColor.RED));
+            }
         }
 
-        // --- 1.7.0 пакет 1: формулы атрибутов AttributeMath (pure, headless) ---
-
-        // 8. HP-формула воина (STR основной): 20 + STR×perStr + level×perLevel + STR×mainBonus
-        //    При perStr=2, mainBonus=1, STR=60, level=40 → 20 + 120 + 40 + 60 = 240
+        // 8. HP-формула: воин (STR основной) и маг (STR не основной)
+        //    воин: 20 + 60×2 + 40×1 + 60×1 = 240; маг: 20 + 60×2 + 40×1 = 180
         double hpWarrior = AttributeMath.maxHp(60.0, 40.0, true, 2.0, 1.0, 1.0);
         double hpMage = AttributeMath.maxHp(60.0, 40.0, false, 2.0, 1.0, 1.0);
-        if (Math.abs(hpWarrior - 240.0) < 0.01 && Math.abs(hpMage - 200.0) < 0.01) {
+        if (Math.abs(hpWarrior - 240.0) < 0.01 && Math.abs(hpMage - 180.0) < 0.01) {
             pass++;
             sender.sendMessage(Component.text(
-                    "[PASS] HP-формула: воин 240, маг 200 (STR=60, level=40)",
+                    "[PASS] HP-формула: воин 240, маг 180 (str=60, level=40)",
                     NamedTextColor.GREEN));
         } else {
             fail++;
             sender.sendMessage(Component.text(
-                    "[FAIL] HP-формула: воин=" + hpWarrior + " (ожидалось 240), маг=" + hpMage + " (ожидалось 200)",
+                    "[FAIL] HP-формула: воин=" + hpWarrior + " (ожидалось 240), маг="
+                            + hpMage + " (ожидалось 180)",
                     NamedTextColor.RED));
         }
 
-        // 9. DR: raw=80 → eff=70 при softCap=60, drFactor=0.5, hardCap=75
-        //    raw=100 → eff=80 (60 + (100-60)×0.5 = 80); raw=200 → eff=75 (жёсткий кап)
+        // 9. DR: soft-cap 60, dr-factor 0.5, hard-cap 75:
+        //    raw 80 → 70; raw 100 → 80→зажим 75; raw 200 → 75
         double dr80 = AttributeMath.applyDR(80.0, 60.0, 0.5, 75.0);
         double dr100 = AttributeMath.applyDR(100.0, 60.0, 0.5, 75.0);
         double dr200 = AttributeMath.applyDR(200.0, 60.0, 0.5, 75.0);
         if (Math.abs(dr80 - 70.0) < 0.01
-                && Math.abs(dr100 - 80.0) < 0.01
+                && Math.abs(dr100 - 75.0) < 0.01
                 && Math.abs(dr200 - 75.0) < 0.01) {
             pass++;
             sender.sendMessage(Component.text(
-                    "[PASS] DR: raw 80→70, 100→80, 200→75 (hard-cap)",
+                    "[PASS] DR: raw 80→70, 100→75, 200→75 (hard-cap)",
                     NamedTextColor.GREEN));
         } else {
             fail++;
@@ -232,12 +260,7 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 10. AGI-основные: raw-dodge с refund половины потерянного парирования
-        //    dodgeRaw(AGI=50, k=100) = 100×50/150 = 33.33
-        //    parryRaw(STR=20, k=150) = 100×20/170 = 11.76
-        //    lost = 11.76 − 0.5 (micro) = 11.26
-        //    refund = 11.26 × 0.5 = 5.63
-        //    итого dodge = 33.33 + 5.63 = 38.96
+        // 10. AGI-основные: микро-парирование + refund половины потерянного в dodge
         double dodge = AttributeMath.dodgeRaw(50.0, 100.0);
         double parry = AttributeMath.parryRaw(20.0, 150.0);
         double micro = 0.5;
@@ -263,5 +286,20 @@ public final class SelftestRunner {
         int total = pass + fail;
         sender.sendMessage(Component.text("Итог: " + pass + "/" + total + " PASS",
                 fail == 0 ? NamedTextColor.GREEN : NamedTextColor.RED));
+    }
+
+    /** Точный виновник: путь ключа + значение, которое не резолвится. */
+    private static void collectFxProblems(RaskolClasses plugin, List<String> sink,
+                                          String path, ConfigurationSection entry) {
+        String sound = entry.getString("cast-sound", "");
+        if (sound != null && !sound.isEmpty()
+                && plugin.getFx().resolveSound(sound) == null) {
+            sink.add(path + ".cast-sound = " + sound);
+        }
+        String particle = entry.getString("cast-particle", "");
+        if (particle != null && !particle.isEmpty()
+                && plugin.getFx().resolveParticle(particle) == null) {
+            sink.add(path + ".cast-particle = " + particle);
+        }
     }
 }
