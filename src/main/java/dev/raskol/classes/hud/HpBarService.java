@@ -25,25 +25,21 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.Locale;
 
 /**
- * 1.7.0 пакет 2 (редизайн p2.5 «строгая готика»): совмещённый HUD в actionbar.
- *
- * Вид (референс — тёмные строгие полосы с «дорогой» рамкой):
- *   ❬ ❤ ██████████ 235/235 ❭ ❬ ➳ ██████████ 100/100 ❭
- *   │  │  │          │       │   │  │          │       └─ рамка: бронза бренда
- *   │  │  │          │       │   │  │          └─ цифры: тёплый светлый (контраст)
- *   │  │  │          │       │   │  └─ fill ресурса: тёмный primary темы класса
- *   │  │  │          │       │   └─ эмблема класса: secondary темы
- *   │  │  │          │       └─ рамка: бронза бренда
- *   │  │  │          └─ цифры HP: тёплый светлый
- *   │  │  └─ fill HP: глубокий кроваво-красный (не неон, не зелёный)
+ * 1.7.0 пакет 2 (редизайн p2.5-fix): ActionBar-HUD в старой строгой компоновке
+ * 1.6.x, но в текущей тёмной брендовой палитре:
+ *   ❬ ❤ ▰▰▱▱▱▱▱▱▱ 82/234 ❭ ❬  ▰▰▰▰▰▰▰▰▰▰ 100/100 ❭
+ *   │  │  ││││└└└└└└─ пустые сегменты: бронза (строгий контур полосы)
+ *   │  │  └└└└─────── залитые сегменты HP: глубокий кроваво-красный
  *   │  └─ сердце: цвет fill HP
- *   └─ рамка: бронза бренда (#8B5A3C, цвет ⚜ из MOTD)
- * Пустая часть полосы (трек) — почти чёрный тёплый: полоса читается как
- * «залитая/не залитая» на любом фоне, без игрушечной яркости.
+ *   └─ рамка ❬ ❭: бронза бренда (#8B5A3C, тон ⚜ из MOTD)
+ * Ресурс-полоса: эмблема класса (theme.secondary) + fill тёмным theme.primary,
+ * цифры — тёплый пергамент (#D6CDBE) для контраста на любом фоне.
+ * Компоновка ровно как в 1.6.x («Энергия ☠ ▰▰▱▱ 30/100»), без имени ресурса
+ * (по требованию: только эмблема).
  *
- * ВСЕ цвета — в конфиге hp-display.colors (тюнинг без пересборки).
- * Ресурс-полоса: fill = theme.primary класса (тёмный, строгий),
- * эмблема = theme.secondary (акцент), цифры общие.
+ * FIX 1.7.0-p2.5: ClassTheme.primary()/secondary() возвращают TextColor, а не
+ * String — убран строковый парсер там, где значение уже готовое.
+ * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
  *
  * Сердца: healthScale = hearts-scale (дефолт 20 = один ряд из 10 сердец на весь
  * пул). Полное скрытие сердец сервером невозможно (Paper отклоняет scale 0) —
@@ -53,8 +49,6 @@ import java.util.Locale;
  * пересчёт каждые hp-display.update-period-ticks (дефолт 10) покрывает все
  * триггеры: смена класса, рост уровня, спек, модификаторы, reload.
  * Здоровье клампится сверху при уменьшении maxHP.
- *
- * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
  */
 public final class HpBarService implements Listener {
 
@@ -98,7 +92,7 @@ public final class HpBarService implements Listener {
         return Math.max(1, plugin.getConfig().getInt("hp-display.update-period-ticks", 10));
     }
 
-    /** Цвет из конфига с фолбэком; битый hex не роняет HUD. */
+    /** Цвет из конфига (hex-строка) с фолбэком; битый hex не роняет HUD. */
     private TextColor color(String path, String fallback) {
         String hex = plugin.getConfig().getString(path, fallback);
         if (hex != null) {
@@ -200,8 +194,8 @@ public final class HpBarService implements Listener {
     /* --------------------------- совмещённая строка --------------------------- */
 
     /**
-     * Строгая готика: бронзовая рамка, кроваво-красный fill HP, тёмный трек,
-     * тёплые светлые цифры; ресурс — тёмной темой класса с эмблемой-акцентом.
+     * Старая строгая компоновка 1.6.x в брендовой палитре:
+     * ❬ ❤ ▰▰▰▱▱▱▱▱▱▱ 82/234 ❭ ❬ ⚔ ▰▰▰▰▰▰▰▰▰ 100/100 ❭
      */
     private void sendUnifiedActionbar(Player player) {
         double max = maxOf(player);
@@ -213,60 +207,50 @@ public final class HpBarService implements Listener {
         double hpFraction = max <= 0 ? 0 : hp / max;
 
         TextColor frame = color("hp-display.colors.frame", "#8B5A3C");
-        TextColor track = color("hp-display.colors.track", "#1E1916");
+        TextColor empty = color("hp-display.colors.gauge-empty", "#6E5232");
         TextColor hpFill = color("hp-display.colors.hp-fill", "#A32020");
         TextColor numbers = color("hp-display.colors.numbers", "#D6CDBE");
 
+        // theme.primary()/secondary() уже TextColor — парсить нечего
         RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
-        TextColor resFill = theme != null ? parseHex(theme.primary()) : null;
-        if (resFill == null) {
-            resFill = color("hp-display.colors.res-fill", "#C8A24A");
-        }
-        TextColor resAccent = theme != null ? parseHex(theme.secondary()) : null;
-        if (resAccent == null) {
-            resAccent = numbers;
-        }
+        TextColor resFill = theme != null && theme.primary() != null
+                ? theme.primary()
+                : color("hp-display.colors.res-fill", "#C8A24A");
+        TextColor resSymbol = theme != null && theme.secondary() != null
+                ? theme.secondary()
+                : numbers;
         String symbol = symbolOf(pc);
 
         Component line = Component.text("❬ ", frame)
                 .append(Component.text("❤ ", hpFill));
         if (gauge) {
-            line = line.append(gauge(hpFraction, len, hpFill, track));
+            line = line.append(gauge(hpFraction, len, hpFill, empty))
+                    .append(Component.text(" ", frame));
         }
-        line = line.append(Component.text(" " + (int) hp + "/" + (int) max, numbers))
+        line = line.append(Component.text((int) hp + "/" + (int) max, numbers))
                 .append(Component.text(" ❭ ❬ ", frame))
-                .append(Component.text(symbol + " ", resAccent));
+                .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
-            line = line.append(gauge(res / 100.0, len, resFill, track));
+            line = line.append(gauge(res / 100.0, len, resFill, empty))
+                    .append(Component.text(" ", frame));
         }
-        line = line.append(Component.text(" " + (int) res + "/100", numbers))
+        line = line.append(Component.text((int) res + "/100", numbers))
                 .append(Component.text(" ❭", frame));
         player.sendActionBar(line);
     }
 
-    /** Полоса из len блоков █: залитые — fill, пустые — track (почти чёрный). */
-    private static Component gauge(double fraction, int len, TextColor fill, TextColor track) {
+    /** Полоса в стиле 1.6.x: залитые ▰ цветом fill, пустые ▱ бронзой empty. */
+    private static Component gauge(double fraction, int len, TextColor fill, TextColor empty) {
         double clamped = Math.max(0.0, Math.min(1.0, fraction));
         int filled = (int) Math.round(clamped * len);
         Component c = Component.empty();
         if (filled > 0) {
-            c = c.append(Component.text("█".repeat(filled), fill));
+            c = c.append(Component.text("▰".repeat(filled), fill));
         }
         if (len - filled > 0) {
-            c = c.append(Component.text("█".repeat(len - filled), track));
+            c = c.append(Component.text("▱".repeat(len - filled), empty));
         }
         return c;
-    }
-
-    private static TextColor parseHex(String hex) {
-        if (hex == null || hex.isEmpty()) {
-            return null;
-        }
-        try {
-            return TextColor.fromHexString(hex);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
     }
 
     /** Эмблема класса из конфига (theme.symbol), фолбэк по классу. */
