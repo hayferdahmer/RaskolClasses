@@ -26,8 +26,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * 1.7.0 пакет 3: added effectiveAvoidance / dodgeChance / parryChance —
  * сводка шансов уклонения/парирования (после DR и split) для GUI, /rc debug,
- * PAPI. Логика дублирует AvoidanceService, но без зависимостей от сущностей
- * (только числа атрибутов и конфига).
+ * PAPI. effectiveAvoidance возвращает double[] {dodge, parry} для совместимости
+ * с вызовами (RaskolCommand, ClassBook, RaskolPlaceholder индексируют [0]/[1]).
  *
  * PlayerLevel: attributes.level-source (class-skill | vanilla).
  */
@@ -234,15 +234,19 @@ public final class AttributeService {
     /* ------------------ avoidance сводка (пакет 3, без сущностей) ------------------ */
 
     /**
-     * Эффективная сумма dodge+parry после DR, % (0..hard-cap).
-     * Используется в /rc debug и Книге класса; в бою сам AvoidanceService
-     * считает ролл отдельно с учётом оружия/углов/микро-парирования.
+     * Эффективные шансы dodge и parry после DR и splitEff, % (массив из 2 чисел).
+     * [0] = effective dodge%, [1] = effective parry%.
+     * Вызывается из /rc debug, Книги класса, PAPI-плейсхолдеров; в бою сам
+     * AvoidanceService считает ролл отдельно с учётом оружия/углов/микро-парирования.
+     *
+     * Сигнатура double[] сохранена для совместимости с вызовами
+     * (RaskolCommand, ClassBook, RaskolPlaceholder индексируют результат [0]/[1]).
      */
-    public double effectiveAvoidance(UUID uuid) {
+    public double[] effectiveAvoidance(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
         if (pc == null) {
-            return 0.0;
+            return new double[]{0.0, 0.0};
         }
         double agi = value(uuid, AttributeType.AGI);
         double str = value(uuid, AttributeType.STR);
@@ -256,62 +260,23 @@ public final class AttributeService {
             dodge += Math.max(0.0, parry - micro) * refund;
             parry = micro;
         }
-        return AttributeMath.applyDR(dodge + parry,
+        double eff = AttributeMath.applyDR(dodge + parry,
                 cfgD("avoidance.soft-cap", 60.0),
                 cfgD("avoidance.dr-factor", 0.5),
                 cfgD("avoidance.hard-cap", 75.0));
+        return AttributeMath.splitEff(dodge, parry, eff);
     }
 
     /** Эффективный шанс уклонения, % (после DR и split). */
     public double dodgeChance(UUID uuid) {
-        Player player = Bukkit.getPlayer(uuid);
-        PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
-        if (pc == null) {
-            return 0.0;
-        }
-        double agi = value(uuid, AttributeType.AGI);
-        double str = value(uuid, AttributeType.STR);
-        boolean agiMain = mainOf(pc) == AttributeType.AGI;
-
-        double dodge = AttributeMath.dodgeRaw(agi, cfgD("avoidance.dodge-k", 100.0));
-        double parry = AttributeMath.parryRaw(str, cfgD("avoidance.parry-k", 150.0));
-        if (agiMain) {
-            double micro = cfgD("avoidance.agi-main-parry-micro", 0.5);
-            double refund = cfgD("avoidance.agi-main-dodge-refund", 0.5);
-            dodge += Math.max(0.0, parry - micro) * refund;
-            parry = micro;
-        }
-        double eff = AttributeMath.applyDR(dodge + parry,
-                cfgD("avoidance.soft-cap", 60.0),
-                cfgD("avoidance.dr-factor", 0.5),
-                cfgD("avoidance.hard-cap", 75.0));
-        return AttributeMath.splitEff(dodge, parry, eff)[0];
+        double[] eff = effectiveAvoidance(uuid);
+        return eff[0];
     }
 
     /** Эффективный шанс парирования, % (после DR и split). */
     public double parryChance(UUID uuid) {
-        Player player = Bukkit.getPlayer(uuid);
-        PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
-        if (pc == null) {
-            return 0.0;
-        }
-        double agi = value(uuid, AttributeType.AGI);
-        double str = value(uuid, AttributeType.STR);
-        boolean agiMain = mainOf(pc) == AttributeType.AGI;
-
-        double dodge = AttributeMath.dodgeRaw(agi, cfgD("avoidance.dodge-k", 100.0));
-        double parry = AttributeMath.parryRaw(str, cfgD("avoidance.parry-k", 150.0));
-        if (agiMain) {
-            double micro = cfgD("avoidance.agi-main-parry-micro", 0.5);
-            double refund = cfgD("avoidance.agi-main-dodge-refund", 0.5);
-            dodge += Math.max(0.0, parry - micro) * refund;
-            parry = micro;
-        }
-        double eff = AttributeMath.applyDR(dodge + parry,
-                cfgD("avoidance.soft-cap", 60.0),
-                cfgD("avoidance.dr-factor", 0.5),
-                cfgD("avoidance.hard-cap", 75.0));
-        return AttributeMath.splitEff(dodge, parry, eff)[1];
+        double[] eff = effectiveAvoidance(uuid);
+        return eff[1];
     }
 
     /* ------------------------------- модификаторы ------------------------------- */
