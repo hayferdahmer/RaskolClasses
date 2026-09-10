@@ -37,18 +37,20 @@ import java.util.concurrent.ConcurrentHashMap;
  *   rate = STR × regen-per-str (вне боя);
  *   в бою (окно combat-window-seconds после урона) rate ×= regen-combat-factor;
  *   кап regen-cap-pct от maxHP в секунду.
- * Реген применяется прямым setHealth БЕЗ события EntityRegainHealthEvent —
- * иначе тики регена спамили бы ресурс жреца (onRegainHealth) и проки лечения
- * (grace): это дыра в экономике, закрыта осознанно.
+ * 1.7.0.4: НЕРФ РЕГЕНА ВДВОЕ — дефолт regen-per-str 0.05 → 0.025
+ * (баланс-фидбек: «слишком быстро восстанавливается HP даже на жреце»):
+ *   воин 40 ур. (STR 60): 1.5 HP/с вне боя / 0.525 в бою;
+ *   жрец 40 ур. (STR 21): 0.52 HP/с вне боя.
+ * Реген идёт прямым setHealth БЕЗ события RegainHealth: не спамит ресурс
+ * жреца и проки лечения (grace) — осознанное закрытие дыры в экономике.
  * Мёртвые/зрители не регенят; реген работает в любом hp-display.mode.
  *
  * Компоновка бара (как в 1.6.x):
- *   ❬ ❤ ▰▰▱▱▱▱▱▱ 82/234 ❭ ❬ ⚔ ▰▰▰▰▰▰▰ 100/100 ❭
+ *   ❬ ❤ ▰▰▱▱▱▱▱▱ 82/234 ❭ ❬  ▰▰▰▰▰▰▰ 100/100 ❭
  * Все цвета — в конфиге hp-display.colors/gradient/regen-spark.
  *
  * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
  * FIX 1.7.0-p2.5: ClassTheme.primary()/secondary() возвращают TextColor.
- * FIX 1.7.0.3.1: gradientBar вызов для ресурс-полосы — добавлен resEnd (6 аргументов).
  */
 public final class HpBarService implements Listener {
 
@@ -182,11 +184,11 @@ public final class HpBarService implements Listener {
         }
     }
 
-    /* --------------------------- 1.7.0.3: STR-реген --------------------------- */
+    /* --------------------------- 1.7.0.3/4: STR-реген --------------------------- */
 
     /**
-     * Dota-подобный реген HP от СИЛЫ. Прямой setHealth без RegainHealthEvent
-     * (не спамит ресурс жреца и проки лечения). Мёртвые не регенят.
+     * Dota-подобный реген HP от СИЛЫ (нерф 1.7.0.4: дефолт 0.025 HP/с за STR).
+     * Прямой setHealth без RegainHealthEvent (не спамит ресурс жреца и grace).
      */
     private void applyStrRegen(Player player) {
         if (player.isDead()) {
@@ -199,7 +201,7 @@ public final class HpBarService implements Listener {
         }
         UUID uuid = player.getUniqueId();
         double str = plugin.getAttributes().value(uuid, AttributeType.STR);
-        double perStr = plugin.getConfig().getDouble("attributes.hp.regen-per-str", 0.05);
+        double perStr = plugin.getConfig().getDouble("attributes.hp.regen-per-str", 0.025);
         double combatFactor = plugin.getConfig().getDouble("attributes.hp.regen-combat-factor", 0.35);
         double capPct = plugin.getConfig().getDouble("attributes.hp.regen-cap-pct", 1.5);
 
@@ -254,6 +256,7 @@ public final class HpBarService implements Listener {
 
         TextColor frame = color("hp-display.colors.frame", "#8B5A3C");
         TextColor empty = color("hp-display.colors.gauge-empty", "#6E5232");
+        TextColor hpFill = color("hp-display.colors.hp-fill", "#A32020");
         TextColor numbers = color("hp-display.colors.numbers", "#D6CDBE");
         TextColor spark = color("hp-display.regen-spark.color", "#F5E6B8");
 
@@ -291,9 +294,8 @@ public final class HpBarService implements Listener {
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
-            // FIX 1.7.0.3.1: добавлен resEnd (6-й аргумент — конечный цвет градиента)
             line = line.append(gradientBar(res / 100.0, len,
-                    gradientEnabled() ? resStart : resEnd, resEnd, empty,
+                    gradientEnabled() ? resStart : resEnd, empty,
                     resRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
