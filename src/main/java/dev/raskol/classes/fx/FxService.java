@@ -154,6 +154,14 @@ public final class FxService {
         }
     }
 
+    /**
+     * Алиас для каста спек-активок: SpecActiveCaster вызывает onCast(player, id),
+     * когда кулдаун-аргумент не нужен (FxService его внутри onAttempt не читает).
+     */
+    public void onCast(Player player, String abilityId) {
+        onAttempt(player, abilityId, 0L);
+    }
+
     /** Одноразовый WARNING по отсутствующей vfx-записи (фикс 5). */
     private void warnMissing(String abilityId) {
         if (warnedMissing.add(abilityId)) {
