@@ -6,11 +6,11 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.6.15</version>
+    <version>1.7.0</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации, инсталляции, королевские вкусы и система урона/резистов</description>
+    <description>Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации, инсталляции, королевские вкусы, классовые атрибуты и боевая физика</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
