@@ -98,7 +98,6 @@ public final class RaskolConfig {
         config.addDefault("damage-types.vanilla-map.FREEZING", "magic");
         config.addDefault("damage-types.vanilla-map.LIGHTNING", "magic");
 
-        // 1.6.0 пакет 2: числа урона инсталляций (damage-numbers)
         config.addDefault("installations.bear_trap.damage-physical", 3.0);
         config.addDefault("installations.frost_rune.damage-magic", 4.0);
 
@@ -110,7 +109,7 @@ public final class RaskolConfig {
         config.addDefault("messages.no-resource", "Не хватает ресурса «{resource}»: нужно {cost}, у вас {value}");
         config.addDefault("messages.activated", "«{ability}» — активирована");
         config.addDefault("messages.blink-unsafe", "Скачок невозможен: нет безопасной точки");
-        config.addDefault("messages.cheap-shot-no-target", "Нет цели в радиусе 4 блоков");
+        config.addDefault("messages.cheap-shot-no-target", "Нет цели в радиусе действия");
         config.addDefault("messages.tag.execute", "Казнь ×3!");
         config.addDefault("messages.tag.predator", "Хищник!");
         config.addDefault("messages.tag.poison", "Яд!");
@@ -258,9 +257,43 @@ public final class RaskolConfig {
         config.addDefault("classes.ROGUE.passives.sadism.description",
                 "+3 урона при атаке со спины");
 
+        // 1.7.4.1 фикс 5: vfx-записи всех кит-абилок как дефолты — copyDefaults(true)
+        // сам допишет недостающие записи в существующий config.yml при /rc reload.
+        vfxDefault(config, "tyr_strike", "ENTITY_IRON_GOLEM_ATTACK", "SWEEP_ATTACK");
+        vfxDefault(config, "balder_skin", "ITEM_ARMOR_EQUIP_GOLD", "ENCHANT");
+        vfxDefault(config, "berserkergang", "ENTITY_RAVAGER_ROAR", "CRIMSON_SPORE");
+        vfxDefault(config, "fenrir_blood", "ENTITY_WOLF_HOWL", "CRIMSON_SPORE");
+        vfxDefault(config, "ragnarok", "ENTITY_LIGHTNING_BOLT_THUNDER", "EXPLOSION");
+        vfxDefault(config, "wolf_mark", "ENTITY_WOLF_GROWL", "CRIT");
+        vfxDefault(config, "swallow", "ENTITY_GENERIC_DRINK", "EFFECT");
+        vfxDefault(config, "piercing_shot", "ITEM_CROSSBOW_SHOOT", "CRIT");
+        vfxDefault(config, "arrow_fan", "ENTITY_ARROW_SHOOT", "SWEEP_ATTACK");
+        vfxDefault(config, "arrow_rain", "ENTITY_ARROW_SHOOT", "POOF");
+        vfxDefault(config, "saint_tear", "BLOCK_BELL_USE", "HEART");
+        vfxDefault(config, "word_of_life", "BLOCK_AMETHYST_BLOCK_CHIME", "HEART");
+        vfxDefault(config, "aegis_faith", "ITEM_ARMOR_EQUIP_DIAMOND", "ENCHANTED_HIT");
+        vfxDefault(config, "circle_elysium", "BLOCK_BEACON_ACTIVATE", "HEART");
+        vfxDefault(config, "wrath_heaven", "ENTITY_LIGHTNING_BOLT_THUNDER", "FLASH");
+        vfxDefault(config, "fire_prometheus", "ITEM_FIRECHARGE_USE", "FLAME");
+        vfxDefault(config, "hermes_step", "ENTITY_ENDERMAN_TELEPORT", "PORTAL");
+        vfxDefault(config, "boreas_breath", "ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE");
+        vfxDefault(config, "athena_aegis", "ITEM_ARMOR_EQUIP_DIAMOND", "ENCHANTED_HIT");
+        vfxDefault(config, "zeus_wrath", "ENTITY_LIGHTNING_BOLT_THUNDER", "FLASH");
+        vfxDefault(config, "shadow_cloak", "ENTITY_PHANTOM_FLAP", "SMOKE");
+        vfxDefault(config, "blade_fan", "ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK");
+        vfxDefault(config, "strangle", "ENTITY_PLAYER_ATTACK_WEAK", "DAMAGE_INDICATOR");
+        vfxDefault(config, "borgia_poison", "ENTITY_SPIDER_STEP", "COMPOSTER");
+        vfxDefault(config, "shadow_dance", "ENTITY_ENDERMAN_TELEPORT", "CLOUD");
+
         config.options().copyDefaults(true);
         plugin.saveConfig();
         rebuildThemes();
+    }
+
+    /** 1.7.4.1 фикс 5: пара addDefault для vfx-записи способности. */
+    private void vfxDefault(FileConfiguration config, String id, String sound, String particle) {
+        config.addDefault("vfx." + id + ".cast-sound", sound);
+        config.addDefault("vfx." + id + ".cast-particle", particle);
     }
 
     public boolean isHudEnabled() { return plugin.getConfig().getBoolean("hud.enabled", true); }
@@ -477,12 +510,6 @@ public final class RaskolConfig {
             };
             return desc != null ? desc : fallback;
         }
-
-        /**
-         * 1.7.2–1.7.4: актуальные id китов (WP/SP/HPow-масштаб).
-         * Значения unlock/cost/cooldown/description согласованы с AbilityRegistry DEFAULTS,
-         * чтобы addDefault не перезаписывал живые конфиг-значения при /rc reload.
-         */
         static Map<String, AbilityDefaults> abilities(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> Map.of(
