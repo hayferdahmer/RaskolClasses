@@ -10,6 +10,7 @@
 #         HP-реформа: строгая компоновка + градиентные полосы + искра регена.
 #  1.7.0.2: неотвратимая среда (падение/утопление/удушение/голод) = TRUE +
 #           масштаб летальности × maxHP/20 (damage-types.env-lethal*).
+#  1.7.0.3: STR-реген HP (Dota-подобный): attributes.hp.regen-*.
 # ============================================================
 
 hud:
@@ -118,6 +119,87 @@ resist:
       physical: 10            # пассивка спеки Страж (постоянно)
 
 # ------------------------------------------------------------
+# 1.7.0: КЛАССОВЫЕ АТРИБУТЫ (СИЛА / ЛОВКОСТЬ / ИНТЕЛЛЕКТ)
+# Значение = base + growth×PlayerLevel + модификаторы (спек/эффекты).
+# PlayerLevel по умолчанию = уровень профильного скилла класса.
+# Вся математика — AttributeMath (pure); боевое применение — пакеты 2–4.
+# ------------------------------------------------------------
+attributes:
+  level-source: class-skill   # class-skill | vanilla
+  classes:
+    WARRIOR: { main: STR, base-str: 12, base-agi: 6,  base-int: 4,  growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
+    HUNTER:  { main: AGI, base-str: 6,  base-agi: 12, base-int: 4,  growth-str: 0.5, growth-agi: 1.2, growth-int: 0.3 }
+    ROGUE:   { main: AGI, base-str: 7,  base-agi: 11, base-int: 4,  growth-str: 0.6, growth-agi: 1.1, growth-int: 0.3 }
+    MAGE:    { main: INT, base-str: 4,  base-agi: 6,  base-int: 12, growth-str: 0.3, growth-agi: 0.5, growth-int: 1.2 }
+    PRIEST:  { main: INT, base-str: 5,  base-agi: 5,  base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
+  hp:
+    per-str: 2          # HP за единицу СИЛЫ
+    per-level: 1        # HP за уровень
+    main-str-bonus: 1   # дополнительный HP за СИЛУ, если СИЛА — основной атрибут
+                        # (итог воина: 20 + STR×3 + level)
+    # 1.7.0.3: STR-реген HP (Dota-подобный, но сбалансированный под наш пул):
+    #   вне боя: STR × regen-per-str HP/сек (воин 40 ур., STR 60 → 3.0 HP/сек);
+    #   в бою (окно combat-window-seconds после урона): × regen-combat-factor
+    #     (воин в бою → 1.05 HP/сек — толпа всё равно убивает);
+    #   кап: regen-cap-pct от maxHP в секунду (анти-скейл абьюз с ростом пула).
+    # Реген идёт прямым setHealth БЕЗ события RegainHealth: не спамит ресурс
+    # жреца и проки лечения (grace) — осознанное закрытие дыры в экономике.
+    regen-per-str: 0.05         # HP/сек за единицу СИЛЫ вне боя
+    regen-combat-factor: 0.35   # множитель регена в бою (0 = реген в бою выключен)
+    regen-cap-pct: 1.5          # кап регена: % от maxHP в секунду
+  offense:
+    str-to-physical: true   # плоская добавка STR+level к физ-компоненте (пакет 4)
+    int-to-magic: true      # плоская добавка INT+level к маг-компоненте (пакет 4)
+  crit:
+    melee-base: 5           # базовый крит мили, %
+    melee-per-agi: 0.05     # +0.05% за единицу ЛОВКОСТИ
+    melee-cap: 40           # кап крита мили, %
+    melee-mult: 1.5         # множитель урона при крите мили
+    spell-base: 5           # базовый крит магии, %
+    spell-per-int: 0.03     # +0.03% за единицу ИНТЕЛЛЕКТА
+    spell-cap: 35           # кап крита магии, %
+    spell-mult: 1.5         # множитель урона при крите магии
+    spell-main-mult: 1.5    # дополнительный множитель шанса, если INT основной
+  avoidance:
+    dodge-k: 100              # знаменатель гиперболы уклонения: 100×AGI/(AGI+k)
+    parry-k: 150              # знаменатель гиперболы парирования: 100×STR/(STR+k)
+    soft-cap: 60              # до него — без убывающей отдачи (DR)
+    dr-factor: 0.5            # цена процента свыше soft-cap (каждый за полцены)
+    hard-cap: 75              # жёсткий предел суммарного avoidance (dodge+parry)
+    agi-main-parry-micro: 0.5 # микро-парирование AGI-основных классов, % (не работает в спину)
+    agi-main-dodge-refund: 0.5 # доля потерянного парирования, уходящая в уклонение
+    front-angle: 90           # фронт для парирования, градусов (угол взгляда ≤ 90)
+    back-angle: 135           # отсюда начинается «спина» (микро-парирование не работает)
+    parry-stagger-player-ms: 600  # стаггер атакующего-игрока при парировании (дебафф attack-speed)
+    parry-stagger-mob-ms: 500     # стаггер моба: knockback + Slowness I
+  hp-display:
+    mode: actionbar           # actionbar = совмещённая строка с полосами; vanilla = старая строка HudService
+    gauge: true               # сегменты ▰▱ в строке; false — только цифры
+    gauge-length: 10          # число сегментов на каждую шкалу (4..20)
+    hearts-scale: 20.0        # 20 = один ряд из 10 сердец на весь пул HP;
+                              # 0 НЕ поддерживается ядром (Paper требует >0) — полное скрытие
+                              # сердец возможно только ресурспаком (прозрачные heart-спрайты)
+    update-period-ticks: 10   # тот же тик-паттерн, что у HUD
+    # 1.7.0-p2.5 «строгая готика»: палитра полос (тюнинг без пересборки, /rc reload)
+    colors:
+      frame: "#8B5A3C"        # рамка ❬ ❭ — бронза бренда (тон ⚜ из MOTD)
+      gauge-empty: "#6E5232"  # пустые сегменты ▱ — тёмная бронза (контур полосы)
+      numbers: "#D6CDBE"      # цифры — тёплый светлый пергамент (контраст на тёмном)
+    # 1.7.0-p2.6: градиенты заполнения полос (каждый сегмент ▰ получает свой цвет)
+    gradient:
+      enabled: true           # false = плоский цвет (hp-end и res-end)
+      hp-start: "#5C0F0F"     # HP — тёмно-бордовый (начало, у сердца)
+      hp-end: "#C82020"       # HP — насыщенный красный (конец, у цифр)
+      res-start: "#8B5A3C"    # фолбэк ресурса, если у темы нет primary
+      res-end: "#D6A642"      # фолбэк ресурса, если у темы нет secondary
+                              # вживую: у каждого класса свой градиент theme.primary → theme.secondary
+    # 1.7.0-p2.6: искра регена — последний залитый сегмент вспыхивает при росте HP/ресурса
+    regen-spark:
+      enabled: true           # false = без искры
+      color: "#F5E6B8"        # белое золото — читается как вспышка заполнения
+    format: "❤ {hp}/{max}"
+  boss-no-avoidance: []       # имена MythicMobs-боссов: их атаки не уклоняются/парируются
+
 # 1.6.0 + 1.7.0.2: типы ванильных причин урона (physical|magic|true)
 # Дефолты кода: огонь/яды/иссушение/молния/freeze = magic;
 # VOID/SONIC_BOOM/FALL/DROWNING/SUFFOCATION/STARVATION = true (неотвратимая среда);
@@ -127,7 +209,6 @@ resist:
 # как в ванилле, независимо от классового пула HP (235 у воина и т.п.).
 # Контрплей: чары Protection/Feather Falling применяются ванилью после масштаба.
 # VOID/SONIC_BOOM не масштабируются (уже летальны без этого).
-# ------------------------------------------------------------
 damage-types:
   env-lethal-scale: true      # false = вернуть старые числа среды (без масштаба)
   env-lethal:                 # причины, получающие масштаб летальности (тип должен быть true)
