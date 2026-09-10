@@ -15,9 +15,11 @@ import java.util.Locale;
 
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
- * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа (прежние).
- * 1.7.6: чек 17 — TTK воин↔воин 40 ур. (seed 42) ∈ [10,60] с (не ваншот, не бесконечно);
- *        чек 18 — жрец↔жрец = heal-war (timeout 60 с): якорь до талантов 1.8.
+ * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
+ * 1.7.6: чек 17 — TTK воин↔воин 40 ур. (seed 42) ∈ [10,60] с;
+ *        чек 18 — жрец↔жрец heal-war: ≥30 с или timeout 60 с.
+ * 1.7.6.1-fix: чек 8 исправлен — наклон DR тестируется входом 80 → 70
+ * (вход 100 упирался в hard-cap 75, ожидание 80 было ошибочным).
  */
 public final class SelftestRunner {
 
@@ -44,10 +46,10 @@ public final class SelftestRunner {
         if (check(report, "6", "parryRaw(450,150)=75", p3 == 75.0, "parryRaw", p3)) passed++; else failed++;
 
         double dr1 = AttributeMath.applyDR(0.0, 60.0, 0.5, 75.0);
-        double dr2 = AttributeMath.applyDR(100.0, 60.0, 0.5, 75.0);
+        double dr2 = AttributeMath.applyDR(80.0, 60.0, 0.5, 75.0);
         double dr3 = AttributeMath.applyDR(200.0, 60.0, 0.5, 75.0);
         if (check(report, "7", "applyDR(0)=0", dr1 == 0.0, "applyDR", dr1)) passed++; else failed++;
-        if (check(report, "8", "applyDR(100)=80", dr2 == 80.0, "applyDR", dr2)) passed++; else failed++;
+        if (check(report, "8", "applyDR(80)=70 (наклон DR после soft-cap)", Math.abs(dr2 - 70.0) < 1e-6, "applyDR", dr2)) passed++; else failed++;
         if (check(report, "9", "applyDR(200)=75 (hard-cap)", dr3 == 75.0, "applyDR", dr3)) passed++; else failed++;
 
         double[] sp1 = AttributeMath.splitEff(50.0, 50.0, 50.0);
@@ -86,7 +88,7 @@ public final class SelftestRunner {
         if (check(report, "16c", "capped(500,1000,0)=500 (кап выкл)", c3 == 500.0,
                 "cappedDamage", c3)) passed++; else failed++;
 
-        // 17. TTK sanity (1.7.6): воин↔воин 40 ур., seed 42 — не ваншот и не бесконечно
+        // 17. TTK sanity: воин↔воин 40 ур., seed 42 — не ваншот и не бесконечно
         BalanceSimulator.DuelResult ww = BalanceSimulator.duel(
                 plugin, PlayerClass.WARRIOR, PlayerClass.WARRIOR, 40, 42L);
         boolean ok17 = !ww.timeout() && ww.ttkSeconds() >= 10.0 && ww.ttkSeconds() <= 60.0;
@@ -97,14 +99,14 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 18. Heal-war якорь: жрец↔жрец должен упираться в timeout 60 с
-        // (хилы сильнее авто-урона). Если чек упадёт после нерфов хилов — это
-        // сигнал пересмотреть якорь, а не поломка.
+        // 18. Heal-war якорь: жрец↔жрец должен идти ≥30 с или упираться в timeout 60 с.
+        // Execute-финишер может добить истощённого жреца (~40 с) — это всё ещё
+        // heal-war относительно DPS-зеркал; падение чека = сигнал пересмотреть якорь.
         BalanceSimulator.DuelResult pp = BalanceSimulator.duel(
                 plugin, PlayerClass.PRIEST, PlayerClass.PRIEST, 40, 42L);
-        boolean ok18 = pp.timeout();
-        if (check(report, "18", "жрец↔жрец = heal-war (timeout 60 с)", ok18,
-                "BalanceSimulator", pp.ttkSeconds())) {
+        boolean ok18 = pp.timeout() || pp.ttkSeconds() >= 30.0;
+        if (check(report, "18", "жрец↔жрец ≥30 с или timeout (получено "
+                + fmt(pp.ttkSeconds()) + " с)", ok18, "BalanceSimulator", pp.ttkSeconds())) {
             passed++;
         } else {
             failed++;
