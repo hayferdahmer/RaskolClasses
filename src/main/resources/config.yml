@@ -7,7 +7,7 @@
 #  1.6.7: ConfigValidator проверяет резист/урон-ключи на старте и reload.
 #  1.6.10: атомарные сейвы хранилищ + .bak + автосейв (секция storage).
 #  1.7.0: классовые атрибуты СИЛА/ЛОВКОСТЬ/ИНТЕЛЛЕКТ (секция attributes),
-#         HP-реформа: «живая готика» — литые градиентные полосы с искрой регена.
+#         HP-реформа: строгая компоновка + градиентные полосы + искра регена.
 # ============================================================
 
 hud:
@@ -160,24 +160,30 @@ attributes:
     parry-stagger-player-ms: 600  # стаггер атакующего-игрока при парировании (дебафф attack-speed)
     parry-stagger-mob-ms: 500     # стаггер моба: knockback + Slowness I
   hp-display:
-    mode: actionbar           # actionbar = совмещённая строка; vanilla = старая строка HudService
-    gauge: true               # полосы из █; false — только цифры/символы
-    gauge-length-hp: 14       # длина HP-бара (длиннее ресурса — асимметрия)
-    gauge-length-res: 10      # длина ресурс-бара
-    show-numbers: true        # false — чистые полосы без цифр (минимализм)
+    mode: actionbar           # actionbar = совмещённая строка с полосами; vanilla = старая строка HudService
+    gauge: true               # сегменты ▰▱ в строке; false — только цифры
+    gauge-length: 10          # число сегментов на каждую шкалу (4..20)
     hearts-scale: 20.0        # 20 = один ряд из 10 сердец на весь пул HP;
                               # 0 НЕ поддерживается ядром (Paper требует >0) — полное скрытие
                               # сердец возможно только ресурспаком (прозрачные heart-спрайты)
     update-period-ticks: 10   # тот же тик-паттерн, что у HUD
-    # 1.7.0-p2.6 «живая готика»: палитра полос (тюнинг без пересборки, /rc reload)
+    # 1.7.0-p2.5 «строгая готика»: палитра полос (тюнинг без пересборки, /rc reload)
     colors:
       frame: "#8B5A3C"        # рамка ❬ ❭ — бронза бренда (тон ⚜ из MOTD)
-      empty: "#241C17"        # пустые сегменты — почти чёрный тёплый (строгий контур)
-      hp-start: "#5A0F0F"     # градиент HP: левый край — тёмная запёкшаяся кровь
-      hp-end: "#C43B3B"       # градиент HP: правый край — живой алый
-      numbers: "#B7A880"      # цифры — приглушённый тёплый пергамент (не белый)
-      spark: "#FFD700"        # искра регена — золотая вспышка с затуханием 600 мс
-      res-fill: "#C8A24A"     # фолбэк градиента ресурса, если у темы нет primary/secondary
+      gauge-empty: "#6E5232"  # пустые сегменты ▱ — тёмная бронза (контур полосы)
+      numbers: "#D6CDBE"      # цифры — тёплый светлый пергамент (контраст на тёмном)
+    # 1.7.0-p2.6: градиенты заполнения полос (каждый сегмент ▰ получает свой цвет)
+    gradient:
+      enabled: true           # false = плоский цвет (hp-end и res-end)
+      hp-start: "#5C0F0F"     # HP — тёмно-бордовый (начало, у сердца)
+      hp-end: "#C82020"       # HP — насыщенный красный (конец, у цифр)
+      res-start: "#8B5A3C"    # фолбэк ресурса, если у темы нет primary
+      res-end: "#D6A642"      # фолбэк ресурса, если у темы нет secondary
+                              # вживую: у каждого класса свой градиент theme.primary → theme.secondary
+    # 1.7.0-p2.6: искра регена — последний залитый сегмент вспыхивает при росте HP/ресурса
+    regen-spark:
+      enabled: true           # false = без искры
+      color: "#F5E6B8"        # белое золото — читается как вспышка заполнения
     format: "❤ {hp}/{max}"
   boss-no-avoidance: []       # имена MythicMobs-боссов: их атаки не уклоняются/парируются
 
@@ -339,7 +345,7 @@ classes:
     abilities:
       steel_skin:
         name: "Стальная кожа"
-        description: "+15% физрезиста на 5 с"   # 1.6.0 пакет 3: честный резист вместо −80%
+        description: "+15% физрезиста на 5 с"
         unlock: 10
         cost: 30
         cooldown: 45
@@ -376,7 +382,7 @@ classes:
         cooldown-seconds: 6
 
   HUNTER:
-    resource-regen: 5.0         # концентрация: +5/с вне боя, 0 в бою
+    resource-regen: 5.0
     resource-on-deal: 0.0
     resource-on-take: 0.0
     resource-on-heal: 0.0
@@ -423,10 +429,10 @@ classes:
         multiplier: 1.20
 
   PRIEST:
-    resource-regen: 2.0         # свет: +2/с всегда
+    resource-regen: 2.0
     resource-on-deal: 0.0
     resource-on-take: 0.0
-    resource-on-heal: 5.0       # +5 за событие лечения
+    resource-on-heal: 5.0
     combat-window-seconds: 5
     theme:
       primary: "#B8B8B8"
@@ -466,7 +472,7 @@ classes:
         unlock: 75
         cost: 60
         cooldown: 90
-        damage-magic: 6         # 1.6.0 пакет 2: магический урон Кары
+        damage-magic: 6
     passives:
       grace:
         enabled: true
@@ -475,14 +481,14 @@ classes:
         multiplier: 1.15
 
   MAGE:
-    resource-regen: 2.0         # мана: legacy (тирный реген ниже)
+    resource-regen: 2.0
     resource-on-deal: 0.0
     resource-on-take: 0.0
     resource-on-heal: 0.0
-    regen-tier-1: 3.0           # мана < 25  → 3/с
-    regen-tier-2: 4.0           # мана < 50  → 4/с
-    regen-tier-3: 5.0           # мана < 75  → 5/с
-    regen-tier-4: 6.0           # мана ≥ 75  → 6/с
+    regen-tier-1: 3.0
+    regen-tier-2: 4.0
+    regen-tier-3: 5.0
+    regen-tier-4: 6.0
     combat-window-seconds: 5
     theme:
       primary: "#101A6E"
@@ -497,8 +503,8 @@ classes:
         unlock: 1
         cost: 10
         cooldown: 2
-        damage-physical: 30     # 1.6.0 пакет 2: физ-компонента гибрида (снаряд)
-        damage-magic: 70        # 1.6.0 пакет 2: маг-компонента гибрида (огонь)
+        damage-physical: 30
+        damage-magic: 70
       blink:
         name: "Скачок"
         description: "Телепорт вперёд на 8 блоков"
@@ -512,23 +518,23 @@ classes:
         cost: 40
         cooldown: 45
         duration: 4
-        damage-magic: 40        # 1.6.0 пакет 2: магический урон
+        damage-magic: 40
       arcane_burst:
         name: "Чародейский взрыв"
         description: "Взрыв тайной энергии по площади"
         unlock: 75
         cost: 100
         cooldown: 180
-        damage-magic: 100       # 1.6.0 пакет 2: магический урон
+        damage-magic: 100
     passives:
       mana_soaked:
-        enabled: false          # 1.6.0 пакет 3: старый −15% урона ВЫКЛ (теперь resist.mana-soaked)
+        enabled: false
         threshold: 50.0
-        reduction: 0.15         # legacy, не используется
+        reduction: 0.15
         regen-bonus: 1.0
 
   ROGUE:
-    resource-regen: 10.0        # энергия: +10/с
+    resource-regen: 10.0
     resource-on-deal: 0.0
     resource-on-take: 0.0
     resource-on-heal: 0.0
@@ -553,7 +559,7 @@ classes:
         unlock: 25
         cost: 25
         cooldown: 15
-        damage-physical: 4      # 1.6.0 пакет 2: физический урон
+        damage-physical: 4
       cheap_shot:
         name: "Подлый удар"
         description: "Blind + Slowness 2 с + 3 урона"
@@ -561,10 +567,10 @@ classes:
         cost: 40
         cooldown: 40
         duration: 2
-        damage-physical: 3      # 1.6.0 пакет 2: физический урон
+        damage-physical: 3
       evasion:
         name: "Уклонение"
-        description: "+30% физрезиста на 4 с"   # 1.6.0 пакет 3: честный резист вместо 100% уклонения
+        description: "+30% физрезиста на 4 с"
         unlock: 75
         cost: 60
         cooldown: 120
@@ -607,41 +613,39 @@ flavors:
 
 # 1.5.0 / Пакет 2 + 1.5.2 + 1.5.8 + 1.6.0: инсталляции (ставящиеся мины/варды)
 installations:
-  unlock-level: 50            # уровень профильного скилла (админ — без лимита)
-  max-per-player: 2           # активных одновременно на игрока
-  max-global: 200             # 1.5.2: глобальный кап активных инсталляций на сервере
-  place-anti-spam-ms: 1000    # 1.5.2: пауза между постановками одного игрока
-  notify-owner: true          # 1.5.2: actionbar владельцу «сработала на X» / «истекла»
-  ttl-seconds: 60             # время жизни
-  deny-radius-spawn: 100      # запрет постановки в радиусе от спавна мира
-  deny-in-claims: true        # запрет на заклэймленной земле Towny
-  deny-outside-border: true   # 1.5.8: запрет постановки за мировой границей
+  unlock-level: 50
+  max-per-player: 2
+  max-global: 200
+  place-anti-spam-ms: 1000
+  notify-owner: true
+  ttl-seconds: 60
+  deny-radius-spawn: 100
+  deny-in-claims: true
+  deny-outside-border: true
   war_banner:
     radius: 6.0
-    duration: 8               # секунд Resistance I союзникам
+    duration: 8
   light_ward:
     radius: 4.0
-    heal: 2.0                 # HP в секунду союзникам
+    heal: 2.0
   bear_trap:
-    damage-physical: 3        # 1.6.0 пакет 2: капкан = физический урон
-    slow-duration: 2          # Slowness VI
+    damage-physical: 3
+    slow-duration: 2
   frost_rune:
     radius: 3.0
-    damage-magic: 4           # 1.6.0 пакет 2: руна = магический урон
-    slow-duration: 3          # Slowness II
+    damage-magic: 4
+    slow-duration: 3
   smoke_bomb:
     radius: 3.0
-    blind-duration: 2         # Blindness врагам
-    speed-duration: 3         # Speed I владельцу
+    blind-duration: 2
+    speed-duration: 3
 
 # 1.5.0 / Пакет 1+3, 1.5.3.1, 1.5.6: VFX/SFX-каталог
-# (переопределяет дефолты FxService; опечатка = WARNING при /rc reload и тишина)
-# 1.5.6: теги proc.* показываются СУБТАЙТЛОМ (не затираются HUD), не чаще 1 раза в 3 с
 vfx:
-  proc-actionbar: true        # true = теги проков включены (рендер: субтайтл)
+  proc-actionbar: true
   trails:
-    fireball: true            # пламенный трейл + треск огня у фаербола
-    arrows: true              # искровой трейл у стрел охотника
+    fireball: true
+    arrows: true
   steel_skin:
     cast-sound: ITEM_ARMOR_EQUIP_IRON
     cast-particle: CRIT
@@ -724,7 +728,7 @@ vfx:
     cast-sound: ENTITY_ENDERMAN_STARE
     cast-particle: REVERSE_PORTAL
   arcane_flow:
-    cast-sound: BLOCK_ENCHANTING_TABLE_USE   # 1.5.3.1: ванильное имя (не enchantment_table)
+    cast-sound: BLOCK_ENCHANTING_TABLE_USE
     cast-particle: ENCHANTED_HIT
   ice_ring:
     cast-sound: ENTITY_PLAYER_HURT_FREEZE
