@@ -3,8 +3,11 @@ package dev.raskol.classes.config;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.ResistService;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
 
 import java.util.Locale;
 import java.util.Set;
@@ -107,13 +110,27 @@ public final class ConfigValidator {
         return problems;
     }
 
-    /** Стартовая сводка эффективных баз резистов по классам. */
+    /**
+     * Стартовая сводка эффективных баз резистов по классам.
+     * Читает базы через breakdown() первого онлайн-игрока каждого класса;
+     * если онлайн-игрока класса нет — печатает 0/0 для этого класса.
+     */
     public void logSummary() {
         StringBuilder sb = new StringBuilder("Базы резистов (маг/физ): ");
         for (PlayerClass pc : PlayerClass.values()) {
+            double baseMagic = 0;
+            double basePhys = 0;
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (plugin.getClassProvider().getClassOf(online) == pc) {
+                    ResistService.Breakdown rb = plugin.getResists().breakdown(online.getUniqueId());
+                    baseMagic = rb.baseMagic();
+                    basePhys = rb.basePhysical();
+                    break;
+                }
+            }
             sb.append(pc.name()).append(' ')
-                    .append((int) plugin.getResists().baseMagic(pc)).append('/')
-                    .append((int) plugin.getResists().basePhysical(pc)).append("; ");
+                    .append((int) baseMagic).append('/')
+                    .append((int) basePhys).append("; ");
         }
         sb.append("кап ").append((int) plugin.getResists().cap());
         plugin.getLogger().info(sb.toString());
