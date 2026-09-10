@@ -26,6 +26,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.5.9: сообщение гейта каста читается из messages.gate.blocked.
  * 1.6.11: exists(id) для санитизации свитков.
  * 1.6.13: integrityProblems() для /rc selftest.
+ * FIX 1.7.0-hotfix: при cost <= 0 проверка consume не вызывается —
+ * бесплатные абилки (Аспект гепарда и т.п.) больше не получают
+ * «Не хватает ресурса: нужно 0» (дефект ResourceState.consume(0) → false).
  */
 public final class AbilityRegistry {
 
@@ -183,12 +186,7 @@ public final class AbilityRegistry {
         return false;
     }
 
-    /**
-     * 1.6.13: целостность реестра для /rc selftest.
-     * Проверяет: у каждой способности есть кастер (self или targeted);
-     * у каждого targeted-кастера есть self-кастер (castOn без таргета);
-     * нет сиротских кастеров вне DEFAULTS.
-     */
+    /** 1.6.13: целостность реестра для /rc selftest. */
     public List<String> integrityProblems() {
         List<String> problems = new ArrayList<>();
         Set<String> knownIds = new HashSet<>();
@@ -230,6 +228,7 @@ public final class AbilityRegistry {
 
     private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
         RaskolConfig cfg = plugin.getRaskolConfig();
+        // 1.5.8: auth + creative гейт; 1.5.9: текст гейта из конфига
         if (!AuthGate.canAct(plugin, caster)) {
             caster.sendMessage(Component.text(cfg.message("gate.blocked",
                     "Способности недоступны в этом режиме или до входа в аккаунт."),
@@ -271,17 +270,25 @@ public final class AbilityRegistry {
                     + (remaining / 1000L + 1L) + "с", NamedTextColor.GRAY));
             return false;
         }
-        if (!plugin.getResources().consume(id, def.cost())) {
+        // FIX 1.7.0-hotfix: бесплатные абилки (cost <= 0) не трогают ресурс —
+        // обходим дефект ResourceState.consume(0) == false («Нужно 0, у вас N»)
+        if (def.cost() > 0 && !plugin.getResources().consume(id, def.cost())) {
             caster.sendMessage(Component.text("Не хватает ресурса «" + pc.getResourceName()
                     + "»: нужно " + def.cost() + ", у вас "
                     + (int) plugin.getResources().getValue(id), NamedTextColor.RED));
             return false;
         }
-        plugin.getCooldowns().start(id, def.id(), def.cooldownMillis());
+        if (def.cost() > 0) {
+            plugin.getCooldowns().start(id, def.id(), def.cooldownMillis());
+        } else {
+            plugin.getCooldowns().start(id, def.id(), def.cooldownMillis());
+        }
 
         boolean ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
         if (!ok) {
-            plugin.getResources().refund(id, def.cost());
+            if (def.cost() > 0) {
+                plugin.getResources().refund(id, def.cost());
+            }
             return false;
         }
         if (!targeted) {
