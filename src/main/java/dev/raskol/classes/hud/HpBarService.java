@@ -2,7 +2,6 @@
 package dev.raskol.classes.hud;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.classsystem.PlayerClass;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -25,15 +24,16 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.Locale;
 
 /**
- * 1.7.0 пакет 2 (редизайн p2.3): красивый совмещённый HUD в actionbar:
- *   ❬ ❤ ▰▰▱▱▱▱▱▱▱▱ 33/234 ❭ ❬ Концентрация ▰▰▰▰▰▰▰▰ 100/100 ❭
- * HP-гейдж красится по доле (зелёный >60% → жёлтый >30% → красный),
- * ресурс-гейдж — цветом класса. Сегменты ▰▱ отключаются ключом hp-display.gauge.
+ * 1.7.0 пакет 2 (редизайн p2.4): красивый совмещённый HUD в actionbar:
+ *   ❬ ❤ ██████░░░░ 102/234 ❭ ❬  ██████████ 100/100 ❭
+ * Полосы — полновесные блоки █ (залитая часть — цветом, пустая — тёмно-серая),
+ * вместо имени ресурса — эмблема класса (theme.symbol: ⚔ ➳  ✦ ☠).
+ * Палитра Dota-стиля: HP-бар зелёный (цифры белые, красные при HP ≤ 30%),
+ * ресурс — цветом класса. Сердце ❤ всегда красное.
  *
  * Сердца: healthScale = hearts-scale (дефолт 20 = один ряд из 10 сердец на весь
- * пул — ванильная «полоса HP»). Полное скрытие сердец сервером невозможно
- * (Paper отклоняет scale 0) — только ресурспаком (см. RUNBOOK/доки).
- * mode=vanilla: строка не шлётся, сердца в дефолте, ресурс рисует HudService.
+ * пул). Полное скрытие сердец сервером невозможно (Paper отклоняет scale 0) —
+ * только ресурспаком. mode=vanilla: строка не шлётся, ресурс рисует HudService.
  *
  * Применение maxHP: AttributeModifier ADD_NUMBER с ключом raskolclasses:max_hp;
  * пересчёт каждые hp-display.update-period-ticks (дефолт 10) покрывает все
@@ -41,7 +41,7 @@ import java.util.Locale;
  * Здоровье клампится сверху при уменьшении maxHP.
  *
  * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
- * p2.2: убран босс-бар и артефактные глифы; p2.3: возвращены сегментные полосы.
+ * p2.4: толстые █-полосы, эмблема вместо имени ресурса, Dota-палитра.
  */
 public final class HpBarService implements Listener {
 
@@ -83,10 +83,6 @@ public final class HpBarService implements Listener {
 
     private int period() {
         return Math.max(1, plugin.getConfig().getInt("hp-display.update-period-ticks", 10));
-    }
-
-    private String format() {
-        return plugin.getConfig().getString("hp-display.format", "❤ {hp}/{max}");
     }
 
     /* -------------------------------- задача -------------------------------- */
@@ -175,47 +171,72 @@ public final class HpBarService implements Listener {
     /* --------------------------- совмещённая строка --------------------------- */
 
     /**
-     * ❬ ❤ ▰▰▱▱▱▱▱▱▱▱ 33/234 ❭ ❬ Концентрация ▰▰▰▰▰▰▰▰▰ 100/100 ❭
-     * Только фонто-безопасные символы (❬ ❭ ❤ ▰ ▱ — рендерятся ванильным шрифтом).
+     * ❬ ❤ ██████░░░░ 102/234 ❭ ❬ ➳ ██████████ 100/100 ❭
+     * Толстые █: залитая часть — цветом, пустая — DARK_GRAY (видна, но молчит).
      */
     private void sendUnifiedActionbar(Player player) {
         double max = maxOf(player);
         double hp = Math.max(0.0, player.getHealth());
         double res = plugin.getResources().getValue(player.getUniqueId());
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        String resName = pc != null ? pc.getResourceName() : "Ресурс";
-        TextColor hpColor = TextColor.fromHexString(AttributeMath.hpFractionColor(hp, max));
         TextColor resColor = pc != null ? pc.getColor() : NamedTextColor.AQUA;
+        String symbol = symbolOf(pc);
         int len = gaugeLength();
         boolean gauge = gaugeEnabled();
+        double hpFraction = max <= 0 ? 0 : hp / max;
+
+        // Dota-стиль: бар зелёный; цифры белые, красные при HP ≤ 30%
+        NamedTextColor hpNumbers = hpFraction > 0.30
+                ? NamedTextColor.WHITE
+                : NamedTextColor.RED;
 
         Component line = Component.text("❬ ", NamedTextColor.DARK_GRAY)
-                .append(Component.text("❤ ", hpColor));
+                .append(Component.text("❤ ", NamedTextColor.RED));
         if (gauge) {
-            line = line.append(Component.text(
-                    segments(max <= 0 ? 0 : hp / max, len) + " ", hpColor));
+            line = line.append(gauge(hpFraction, len, NamedTextColor.GREEN));
         }
-        line = line.append(Component.text((int) hp + "/" + (int) max, hpColor))
+        line = line.append(Component.text(" " + (int) hp + "/" + (int) max, hpNumbers))
                 .append(Component.text(" ❭ ❬ ", NamedTextColor.DARK_GRAY))
-                .append(Component.text(resName + " ", resColor));
+                .append(Component.text(symbol + " ", resColor));
         if (gauge) {
-            line = line.append(Component.text(
-                    segments(res / 100.0, len) + " ", resColor));
+            line = line.append(gauge(res / 100.0, len, resColor));
         }
-        line = line.append(Component.text((int) res + "/100", resColor))
+        line = line.append(Component.text(" " + (int) res + "/100", resColor))
                 .append(Component.text(" ❭", NamedTextColor.DARK_GRAY));
         player.sendActionBar(line);
     }
 
-    /** Полоса из len сегментов: залитые ▰ по доле, пустые ▱. */
-    private static String segments(double fraction, int len) {
+    /** Полоса из len блоков █: залитые — цветом fill, пустые — тёмно-серые. */
+    private static Component gauge(double fraction, int len, TextColor fill) {
         double clamped = Math.max(0.0, Math.min(1.0, fraction));
         int filled = (int) Math.round(clamped * len);
-        StringBuilder sb = new StringBuilder(len);
-        for (int i = 0; i < len; i++) {
-            sb.append(i < filled ? '▰' : '▱');
+        Component c = Component.empty();
+        if (filled > 0) {
+            c = c.append(Component.text("█".repeat(filled), fill));
         }
-        return sb.toString();
+        if (len - filled > 0) {
+            c = c.append(Component.text("█".repeat(len - filled), NamedTextColor.DARK_GRAY));
+        }
+        return c;
+    }
+
+    /** Эмблема класса из конфига (theme.symbol), фолбэк по классу. */
+    private String symbolOf(PlayerClass pc) {
+        if (pc == null) {
+            return "✦";
+        }
+        String s = plugin.getConfig().getString(
+                "classes." + pc.name() + ".theme.symbol", "");
+        if (s != null && !s.isEmpty()) {
+            return s;
+        }
+        return switch (pc) {
+            case WARRIOR -> "⚔";
+            case HUNTER -> "➳";
+            case PRIEST -> "✚";
+            case MAGE -> "✦";
+            case ROGUE -> "☠";
+        };
     }
 
     private double maxOf(Player player) {
