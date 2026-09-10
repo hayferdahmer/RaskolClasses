@@ -24,14 +24,17 @@ import java.util.UUID;
 
 /**
  * 1.6.13: headless-самотестирование плагина (/rc selftest).
- * 1.7.0 пакет 3: итого 12 групп проверок:
+ * 1.7.0 пакет 4: итого 14 групп проверок:
  *   1–7  — резисты/клампы/реестр/PDC/спек/конфиг/fx (fx печатает точных виновников);
  *   8    — HP-формула (воин 240 / маг 180 при str=60, level=40);
  *   9    — DR: raw 80→70, 100→75, 200→75 (hard-cap);
  *   10   — AGI-основные: dodge 33.33 + refund 5.63 = 38.96; parry raw 11.76;
- *   11   — STR-реген: 3.0 вне боя, 1.05 в бою, кап 3.0 при str=1000/maxHp=200;
+ *   11   — STR-реген (нерф 1.7.0.4, perStr 0.025): 1.5 вне боя, 0.525 в бою,
+ *          кап 3.0 при str=1000/maxHp=200;
  *   12   — углы: фронт 0° (isFront=true, isBack=false), спина 180° (наоборот),
- *          бок 90° = граница фронта (isFront=true).
+ *          бок 90° = граница фронта (isFront=true);
+ *   13   — крит мили: AGI 55 → 7.75%; кап 40 при AGI 1000;
+ *   14   — крит магии: INT 60 main → 10.2%; без main-mult → 6.8%; кап 35.
  * Ничего не мутирует; все проверки — чистая математика AttributeMath + реестры.
  */
 public final class SelftestRunner {
@@ -231,7 +234,6 @@ public final class SelftestRunner {
         }
 
         // 8. HP-формула: воин (STR основной) и маг (STR не основной)
-        //    воин: 20 + 60×2 + 40×1 + 60×1 = 240; маг: 20 + 60×2 + 40×1 = 180
         double hpWarrior = AttributeMath.maxHp(60.0, 40.0, true, 2.0, 1.0, 1.0);
         double hpMage = AttributeMath.maxHp(60.0, 40.0, false, 2.0, 1.0, 1.0);
         if (Math.abs(hpWarrior - 240.0) < 0.01 && Math.abs(hpMage - 180.0) < 0.01) {
@@ -247,8 +249,7 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 9. DR: soft-cap 60, dr-factor 0.5, hard-cap 75:
-        //    raw 80 → 70; raw 100 → 80 → зажим 75; raw 200 → 75
+        // 9. DR: soft-cap 60, dr-factor 0.5, hard-cap 75
         double dr80 = AttributeMath.applyDR(80.0, 60.0, 0.5, 75.0);
         double dr100 = AttributeMath.applyDR(100.0, 60.0, 0.5, 75.0);
         double dr200 = AttributeMath.applyDR(200.0, 60.0, 0.5, 75.0);
@@ -289,19 +290,18 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 11. STR-реген (1.7.0.3): вне боя / в бою / кап
-        //     str=60, perStr=0.05 → 3.0; cap = 235×1.5% = 3.525 → min = 3.0
-        //     в бою: 3.0 × 0.35 = 1.05
-        //     кап: str=1000 → rate 50, cap = 200×1.5% = 3.0 → 3.0
-        double regenOut = AttributeMath.strRegenPerSecond(60.0, 0.05, 235.0, false, 0.35, 1.5);
-        double regenIn = AttributeMath.strRegenPerSecond(60.0, 0.05, 235.0, true, 0.35, 1.5);
+        // 11. STR-реген (нерф 1.7.0.4, perStr 0.025):
+        //     str=60 → 1.5 вне боя; ×0.35 → 0.525 в бою;
+        //     кап: str=1000, perStr 0.05, maxHp 200 → rate 50 → cap 3.0
+        double regenOut = AttributeMath.strRegenPerSecond(60.0, 0.025, 235.0, false, 0.35, 1.5);
+        double regenIn = AttributeMath.strRegenPerSecond(60.0, 0.025, 235.0, true, 0.35, 1.5);
         double regenCap = AttributeMath.strRegenPerSecond(1000.0, 0.05, 200.0, false, 1.0, 1.5);
-        if (Math.abs(regenOut - 3.0) < 0.01
-                && Math.abs(regenIn - 1.05) < 0.01
+        if (Math.abs(regenOut - 1.5) < 0.01
+                && Math.abs(regenIn - 0.525) < 0.01
                 && Math.abs(regenCap - 3.0) < 0.01) {
             pass++;
             sender.sendMessage(Component.text(
-                    "[PASS] STR-реген: 3.0 вне боя, 1.05 в бою, кап 3.0 (str=1000/maxHp=200)",
+                    "[PASS] STR-реген (нерф ×0.5): 1.5 вне боя, 0.525 в бою, кап 3.0",
                     NamedTextColor.GREEN));
         } else {
             fail++;
@@ -311,10 +311,7 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 12. Углы фронт/спина (1.7.0 пакет 3):
-        //     взгляд (0,1); атакующий спереди (0,1) → 0°: isFront=true, isBack=false;
-        //     сзади (0,-1) → 180°: isFront=false, isBack=true;
-        //     бок (1,0) → 90°: isFront=true (граница), isBack=false
+        // 12. Углы фронт/спина
         double aFront = AttributeMath.angleToAttacker(0, 1, 0, 1);
         double aBack = AttributeMath.angleToAttacker(0, 1, 0, -1);
         double aSide = AttributeMath.angleToAttacker(0, 1, 1, 0);
@@ -333,6 +330,41 @@ public final class SelftestRunner {
             fail++;
             sender.sendMessage(Component.text(
                     "[FAIL] Углы: front=" + aFront + ", back=" + aBack + ", side=" + aSide,
+                    NamedTextColor.RED));
+        }
+
+        // 13. Крит мили (пакет 4): AGI 55 → 5 + 55×0.05 = 7.75%; кап 40 при AGI 1000
+        double critMelee = AttributeMath.critMelee(55.0, 5.0, 0.05, 40.0);
+        double critMeleeCap = AttributeMath.critMelee(1000.0, 5.0, 0.05, 40.0);
+        if (Math.abs(critMelee - 7.75) < 0.01 && Math.abs(critMeleeCap - 40.0) < 0.01) {
+            pass++;
+            sender.sendMessage(Component.text(
+                    "[PASS] Крит мили: AGI 55 → 7.75%; кап 40 (AGI 1000)",
+                    NamedTextColor.GREEN));
+        } else {
+            fail++;
+            sender.sendMessage(Component.text(
+                    "[FAIL] Крит мили: crit=" + critMelee + ", cap=" + critMeleeCap,
+                    NamedTextColor.RED));
+        }
+
+        // 14. Крит магии (пакет 4): INT 60 main → (5+1.8)×1.5 = 10.2%;
+        //     без main-mult → 6.8%; кап 35 при INT 2000
+        double critSpellMain = AttributeMath.critSpell(60.0, true, 5.0, 0.03, 1.5, 35.0);
+        double critSpellOff = AttributeMath.critSpell(60.0, false, 5.0, 0.03, 1.5, 35.0);
+        double critSpellCap = AttributeMath.critSpell(2000.0, true, 5.0, 0.03, 1.5, 35.0);
+        if (Math.abs(critSpellMain - 10.2) < 0.01
+                && Math.abs(critSpellOff - 6.8) < 0.01
+                && Math.abs(critSpellCap - 35.0) < 0.01) {
+            pass++;
+            sender.sendMessage(Component.text(
+                    "[PASS] Крит магии: INT 60 main → 10.2%, без main → 6.8%, кап 35",
+                    NamedTextColor.GREEN));
+        } else {
+            fail++;
+            sender.sendMessage(Component.text(
+                    "[FAIL] Крит магии: main=" + critSpellMain + ", off=" + critSpellOff
+                            + ", cap=" + critSpellCap,
                     NamedTextColor.RED));
         }
 
