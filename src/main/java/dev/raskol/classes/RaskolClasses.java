@@ -55,8 +55,8 @@ import java.util.Locale;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.7.0 пакет 2 (редизайн): HudService стартует ТОЛЬКО при hp-display.mode=vanilla;
- * в режиме actionbar совмещённую строку «HP + ресурс» шлёт HpBarService.
+ * 1.7.4.1 фикс 2: HpBarService зарегистрирован как Listener И его таск запущен —
+ * без этого join/quit-хуки (персист здоровья) и применение maxHP не работают.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -145,9 +145,8 @@ public final class RaskolClasses extends JavaPlugin {
 
         // 1.7.0 пакет 1: классовые атрибуты
         this.attributes = new AttributeService(this);
-        // 1.7.0 пакет 2: HP-реформа (совмещённая строка + maxHP)
+        // 1.7.0 пакет 2 + 1.7.4.1: HP-бар, применение maxHP, персист здоровья
         this.hpBarService = new HpBarService(this);
-        pluginManager.registerEvents(hpBarService, this);
 
         this.specRegistry = new SpecRegistry(this);
         specRegistry.load();
@@ -177,6 +176,8 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
+        // 1.7.4.1 фикс 2: HpBarService — Listener (join/quit/respawn хуки)
+        pluginManager.registerEvents(hpBarService, this);
         pluginManager.registerEvents(new Listener() {
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
@@ -203,14 +204,14 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
 
-        // 1.7.0 пакет 2 (редизайн): HudService рисует ресурсную строку ТОЛЬКО в
-        // режиме vanilla; в режиме actionbar совмещённую строку шлёт HpBarService.
+        // HUD-ресурс только в vanilla-режиме; в actionbar-режиме строку шлёт HpBarService
         boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
         boolean hpVanilla = "vanilla".equalsIgnoreCase(
                 getConfig().getString("hp-display.mode", "actionbar"));
         if (hudEnabled && hpVanilla) {
             activeTasks.add(hud.start());
         }
+        // 1.7.4.1 фикс 2: таск HpBarService запущен безусловно (применение maxHP + HUD)
         activeTasks.add(hpBarService.start());
         activeTasks.add(resources.startTickTask(this));
         activeTasks.add(bossBars.start());
