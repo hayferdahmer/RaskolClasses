@@ -6,6 +6,7 @@ import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.storage.SafeStorage;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
@@ -15,45 +16,37 @@ import org.bukkit.GameMode;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.File;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
- * 1.7.0 пакет 2 (финал p2.6): строгая компоновка 1.6.x + градиентные полосы
- * + искра регена (последний залитый сегмент вспыхивает spark-цветом при росте).
- *
- * 1.7.0.3: STR-РЕГЕН HP (Dota-подобный): applyStrRegen тикает вместе с баром
- * (hp-display.update-period-ticks, дефолт 10):
- *   rate = STR × regen-per-str (вне боя);
- *   в бою (окно combat-window-seconds после урона) rate ×= regen-combat-factor;
- *   кап regen-cap-pct от maxHP в секунду.
- * 1.7.0.4: НЕРФ РЕГЕНА ВДВОЕ — дефолт regen-per-str 0.05 → 0.025
- * (баланс-фидбек: «слишком быстро восстанавливается HP даже на жреце»):
- *   воин 40 ур. (STR 60): 1.5 HP/с вне боя / 0.525 в бою;
- *   жрец 40 ур. (STR 21): 0.52 HP/с вне боя.
- * Реген идёт прямым setHealth БЕЗ события RegainHealth: не спамит ресурс
- * жреца и проки лечения (grace) — осознанное закрытие дыры в экономике.
- * Мёртвые/зрители не регенят; реген работает в любом hp-display.mode.
- *
- * Компоновка бара (как в 1.6.x):
- *   ❬ ❤ ▰▰▱▱▱▱▱▱ 82/234 ❭ ❬  ▰▰▰▰▰▰▰ 100/100 ❭
- * Все цвета — в конфиге hp-display.colors/gradient/regen-spark.
- *
- * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
- * FIX 1.7.0-p2.5: ClassTheme.primary()/secondary() возвращают TextColor.
- * FIX 1.7.0.4.1: gradientBar вызов для ресурс-полосы — 6 аргументов (добавлен resEnd).
+ * 1.7.0 пакет 2 (финал p2.6) + 1.7.4.1 фикс 2:
+ *  - совмещённый HUD (HP + ресурс) с градиентными полосами и искрой регена;
+ *  - применение формульного maxHP к ванильному Attribute.MAX_HEALTH
+ *    (ADD_NUMBER-модификатор raskolclasses:max_hp) — на join, на respawn
+ *    и каждый тик (покрывает смену класса/левел-ап/модификаторы);
+ *  - ПЕРСИСТ ЗДОРОВЬЯ (баг 3b): на quit сохраняем долю HP в health.yml,
+ *    на join восстанавливаем долю × новый max; без записи — полный пул;
+ *  - respawn: пересчёт maxHP + полное здоровье через 1 тик.
+ * Сердца = один ряд (healthScale 20); STR-реген тикает здесь же.
  */
 public final class HpBarService implements Listener {
+
+    private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
 
     /** max_health из реестра атрибутов Paper (1.21.4-safe). */
     private static final Attribute MAX_HEALTH = RegistryAccess.registryAccess()
@@ -65,11 +58,15 @@ public final class HpBarService implements Listener {
 
     private final RaskolClasses plugin;
     private final NamespacedKey maxHpKey;
+    private final File healthFile;
+    private final YamlConfiguration healthStore;
     private final Map<UUID, State> lastTick = new ConcurrentHashMap<>();
 
     public HpBarService(RaskolClasses plugin) {
         this.plugin = plugin;
         this.maxHpKey = new NamespacedKey(plugin, "max_hp");
+        this.healthFile = new File(plugin.getDataFolder(), "health.yml");
+        this.healthStore = SafeStorage.loadWithFallback(healthFile, LOGGER);
     }
 
     /* -------------------------------- конфиг -------------------------------- */
@@ -107,7 +104,6 @@ public final class HpBarService implements Listener {
         return Math.max(1, plugin.getConfig().getInt("hp-display.update-period-ticks", 10));
     }
 
-    /** Цвет из конфига (hex-строка) с фолбэком; битый hex не роняет HUD. */
     private TextColor color(String path, String fallback) {
         String hex = plugin.getConfig().getString(path, fallback);
         if (hex != null) {
@@ -147,6 +143,11 @@ public final class HpBarService implements Listener {
 
     /* ----------------------------- применение maxHP ----------------------------- */
 
+    /**
+     * Применяет формульный maxHP (AttributeService.maxHp) к ванильному атрибуту
+     * через ADD_NUMBER-модификатор. Вызывается на join/respawn/каждый тик —
+     * покрывает смену класса, левел-ап и модификаторы атрибутов.
+     */
     private void applyMaxHealth(Player player) {
         if (MAX_HEALTH == null) {
             return;
@@ -185,12 +186,38 @@ public final class HpBarService implements Listener {
         }
     }
 
-    /* --------------------------- 1.7.0.3/4: STR-реген --------------------------- */
+    /* ------------------------- персист здоровья (баг 3b) ------------------------- */
 
-    /**
-     * Dota-подобный реген HP от СИЛЫ (нерф 1.7.0.4: дефолт 0.025 HP/с за STR).
-     * Прямой setHealth без RegainHealthEvent (не спамит ресурс жреца и grace).
-     */
+    /** На quit: сохраняем долю HP (0..1) в health.yml. */
+    private void saveHealth(Player player) {
+        double max = maxOf(player);
+        if (max <= 0.0) {
+            return;
+        }
+        double ratio = Math.max(0.0, Math.min(1.0, player.getHealth() / max));
+        healthStore.set(player.getUniqueId().toString(), ratio);
+        SafeStorage.saveAtomic(healthStore, healthFile, LOGGER);
+    }
+
+    /** На join: восстанавливаем долю × новый max; без записи — полный пул. */
+    private void restoreHealth(Player player) {
+        double max = maxOf(player);
+        if (max <= 0.0) {
+            return;
+        }
+        String key = player.getUniqueId().toString();
+        double health;
+        if (healthStore.isSet(key)) {
+            double ratio = Math.max(0.0, Math.min(1.0, healthStore.getDouble(key, 1.0)));
+            health = Math.max(1.0, ratio * max);
+        } else {
+            health = max; // первый вход под систему — начинаем с полного пула
+        }
+        player.setHealth(Math.min(health, max));
+    }
+
+    /* --------------------------- STR-реген (1.7.0.3) --------------------------- */
+
     private void applyStrRegen(Player player) {
         if (player.isDead()) {
             return;
@@ -295,7 +322,6 @@ public final class HpBarService implements Listener {
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
-            // FIX 1.7.0.4.1: 6 аргументов (добавлен resEnd между resStart/resEnd-выбором и empty)
             line = line.append(gradientBar(res / 100.0, len,
                     gradientEnabled() ? resStart : resEnd, resEnd, empty,
                     resRegen ? spark : null))
@@ -306,7 +332,6 @@ public final class HpBarService implements Listener {
         player.sendActionBar(line);
     }
 
-    /** Полоса с градиентом и опциональной искрой регена (6 аргументов). */
     private static Component gradientBar(double fraction, int len,
                                          TextColor start, TextColor end,
                                          TextColor empty, TextColor sparkColor) {
@@ -375,14 +400,31 @@ public final class HpBarService implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        if (player.getGameMode() != GameMode.SPECTATOR) {
-            applyMaxHealth(player);
-            applyHearts(player, !"vanilla".equals(mode()));
+        if (player.getGameMode() == GameMode.SPECTATOR) {
+            return;
         }
+        applyMaxHealth(player);   // макс ДО восстановления доли
+        restoreHealth(player);    // доля × новый max (или полный пул)
+        applyHearts(player, !"vanilla".equals(mode()));
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        lastTick.remove(event.getPlayer().getUniqueId());
+        Player player = event.getPlayer();
+        saveHealth(player);
+        lastTick.remove(player.getUniqueId());
+    }
+
+    /** Респавн: пересчёт maxHP + полное здоровье через 1 тик (после завершения респавна). */
+    @EventHandler
+    public void onRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && player.getGameMode() != GameMode.SPECTATOR) {
+                applyMaxHealth(player);
+                player.setHealth(maxOf(player));
+                applyHearts(player, !"vanilla".equals(mode()));
+            }
+        });
     }
 }
