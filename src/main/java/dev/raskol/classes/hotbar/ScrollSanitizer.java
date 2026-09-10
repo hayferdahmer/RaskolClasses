@@ -3,7 +3,6 @@ package dev.raskol.classes.hotbar;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.install.InstallationType;
-import dev.raskol.classes.spec.Spec;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
@@ -19,8 +18,8 @@ import org.bukkit.inventory.ItemStack;
  * Три категории «битых» свитков:
  * 1. Ability-свитки (PDC-ключ ability): id есть, но AbilityRegistry.exists(id)
  *    возвращает false — абилка переименована/удалена между сезонами.
- * 2. Spec-свитки (PDC-ключ spec_ability): ключ есть, но readSpec() = null —
- *    id не резолвится в Spec (удалённая спека, опечатка).
+ * 2. Spec-свитки (PDC-ключ spec_ability): 1.7.5 — сгорают ВСЕ, независимо от
+ *    резолва: активки спеков удалены, свитки больше не имеют назначения.
  * 3. Install-свитки (PDC-ключ install): ключ есть, но readType() = null —
  *    id не резолвится в InstallationType.
  *
@@ -58,9 +57,8 @@ public final class ScrollSanitizer implements Listener {
                 removed++;
                 continue;
             }
-            // 2. Spec-свиток: PDC-ключ есть, но id не резолвится в Spec
-            if (plugin.getSpecToken().isSpecScroll(item)
-                    && plugin.getSpecToken().readSpec(item) == null) {
+            // 2. Spec-свиток: 1.7.5 — сгорают все (активки спеков удалены)
+            if (plugin.getSpecToken().isSpecScroll(item)) {
                 item.setAmount(0);
                 removed++;
                 continue;
