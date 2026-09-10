@@ -1,14 +1,12 @@
 # ============================================================
-#  RaskolClasses v1.7.0.5 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.7.1 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение без рестарта: /rc reload (кроме hp-display.mode — рестарт).
 #  Новые ключи дописываются автоматически (addDefault + copyDefaults),
 #  правки админа не затираются.
-#  1.6.7: ConfigValidator проверяет резист/урон-ключи на старте и reload.
-#  1.6.10: атомарные сейвы хранилищ + .bak + автосейв (секция storage).
-#  1.7.0: атрибуты, HP-реформа (бар+градиент+искра), STR-реген, среда=TRUE,
-#         avoidance (уклонение/парирование), офенс-бонусы и криты (пакет 4).
-#  1.7.0.5: HP-формула: HP = base-hp + STR × per-str (100 + STR×20).
+#  1.7.0: атрибуты, HP-реформа, avoidance, офенс/криты, среда=TRUE.
+#  1.7.1: производные статы WP/SP/HPow (attributes.power), базовый урон
+#         через WP × basic-coeff, анти-ваншот кап 35% max HP.
 # ============================================================
 
 hud:
@@ -54,20 +52,26 @@ compat:
   authme-gate: true             # неаутентифицированные (AuthMe, до /login) не пользуют свитки/касты
   block-casts-in-creative: true # способности недоступны в creative (кроме raskolclasses.admin)
 
-# 1.6.2 + 1.6.9 + 1.6.11: справедливость боя и рубильники
+# 1.6.2 + 1.6.9 + 1.6.11 + 1.7.1: справедливость боя и рубильники
 combat:
-  friendly-fire: false   # false = союзники не получают наш урон, хилы не ложатся на врагов;
-                         # true  = старое поведение (AoE бьёт всех, хилы на кого угодно) для арен
+  friendly-fire: false   # false = союзники не получают наш урон, хилы не ложатся на врагов
   debug-damage: false    # 1.6.4: боевой лог нашего урона для админов (raskolclasses.debug)
   true-damage-cap-per-hit: 1000   # 1.6.9: предохранитель компоненты true за один вызов
-  aoe-los: true          # 1.6.11: AoE-урон не проходит сквозь стены (стекло/камень);
-                         # вода/воздух/трава не блокируют; false = старое поведение
+  aoe-los: true          # 1.6.11: AoE-урон не проходит сквозь стены
+  # 1.7.1: АНТИ-ВАНШОТ — одиночный.hit по игроку не снимает больше N% его max HP
+  # (после резистов/критов). Исключения — среда (летальна по дизайну) и execute-финишеры.
+  max-single-hit-pct: 35
+  cap-exempt-causes:
+    - FALL
+    - DROWNING
+    - SUFFOCATION
+    - STARVATION
+    - VOID
+    - SONIC_BOOM
 
 # 1.6.10: надёжность хранения
 storage:
-  autosave-minutes: 5   # период автосейва cooldowns.yml + spec-choices.yml;
-                        # при краше теряется не более N минут кулдаунов,
-                        # спек-выборы не теряются вовсе (сейв на каждое изменение)
+  autosave-minutes: 5   # период автосейва cooldowns.yml + spec-choices.yml
 
 class-accept:
   enabled: true               # титр при первом принятии класса (раз в сессию)
@@ -79,48 +83,42 @@ spec:
   respec-per-level: 10        # +10 за каждый уровень профильного скилла
 
 # 1.6.0: система сопротивлений урону (РЕЗИСТ)
-# Эффективный резист = база класса + модификаторы (эффекты/спек-пассивки/гранты),
-# суммарно не выше cap. Формула: получено = компонент × (1 − резист/100).
-# Чистый урон (true) игнорирует резисты целиком.
-# 1.6.7: все ключи ниже проверяет ConfigValidator (диапазоны 0..100, ≥ 0, типы).
 resist:
   cap: 90                     # максимум суммарного резиста, %
-  pvp-cap: 90                 # 1.6.9: отдельный кап резиста для урона от игроков (дефолт = cap)
-  disabled-worlds: []         # 1.6.9: миры без резистов (арены/хабы), напр. [world_arena]
+  pvp-cap: 90                 # 1.6.9: отдельный кап резиста для урона от игроков
+  disabled-worlds: []         # 1.6.9: миры без резистов (арены/хабы)
   classes:
-    WARRIOR:                  # Воин: крепкий к оружию, слабее к магии
+    WARRIOR:
       magic: 12
       physical: 27
-    ROGUE:                    # Разбойник: уклончив, без тяжёлой защиты
+    ROGUE:
       magic: 12
       physical: 14
-    MAGE:                     # Маг: сильная магическая защита, хрупкий телом
+    MAGE:
       magic: 26
       physical: 12
-    PRIEST:                   # Жрец: лучшая магическая защита
+    PRIEST:
       magic: 30
       physical: 16
-    HUNTER:                   # Охотник: сбалансированный лёгкий доспех
+    HUNTER:
       magic: 12
       physical: 16
-  grants:                     # 1.6.6: единый источник грантов для боя И лора Книги
+  grants:
     steel_skin:
       physical: 15
     evasion:
       physical: 30
-  mana-soaked:                # 1.6.0 пакет 3: динамический резист мага (мана ≥ порога)
+  mana-soaked:
     enabled: true
     physical: 15
     magic: 15
   specs:
     guardian:
-      physical: 10            # пассивка спеки Страж (постоянно)
+      physical: 10
 
 # ------------------------------------------------------------
 # 1.7.0: КЛАССОВЫЕ АТРИБУТЫ (СИЛА / ЛОВКОСТЬ / ИНТЕЛЛЕКТ)
-# Значение = base + growth×PlayerLevel + модификаторы (спек/эффекты).
-# PlayerLevel по умолчанию = уровень профильного скилла класса.
-# Вся математика — AttributeMath (pure); боевое применение — пакеты 2–4.
+# Значение = base + growth×PlayerLevel + модификаторы.
 # ------------------------------------------------------------
 attributes:
   level-source: class-skill   # class-skill | vanilla
@@ -131,121 +129,80 @@ attributes:
     MAGE:    { main: INT, base-str: 4,  base-agi: 6,  base-int: 12, growth-str: 0.3, growth-agi: 0.5, growth-int: 1.2 }
     PRIEST:  { main: INT, base-str: 5,  base-agi: 5,  base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
   hp:
-    # 1.7.0.5: НОВАЯ HP-ФОРМУЛА: HP = base-hp + STR × per-str
-    #   дефолты: base-hp = 100, per-str = 20
-    #   воин 40 ур., STR 60 → 100 + 60×20 = 1300 HP
-    #   маг 40 ур., STR 16  → 100 + 16×20 = 420 HP
-    #   разбойник 40 ур., STR 31 → 100 + 31×20 = 720 HP
-    # Классовый разрыв определяется только тем, сколько STR реально набирается
-    # (рост класса + спектральные модификаторы). Ключи ЖИВЫЕ: читаются
-    # AttributeService.maxHp() и применяются через /rc reload.
     base-hp: 100            # базовое HP любого класса
     per-str: 20             # HP за единицу СИЛЫ
-    # legacy-ключи: формулой 1.7.0.5 больше не используются, оставлены для
-    # совместимости старых конфигов; можешь удалить в следующей полной правке.
     per-level: 0            # (legacy) HP за уровень — не влияет
     main-str-bonus: 0       # (legacy) бонус STR-основному — не влияет
-    # 1.7.0.3: STR-реген HP (Dota-подобный, нерф 1.7.0.4):
-    #   вне боя: STR × regen-per-str HP/сек;
-    #   в бою (окно combat-window-seconds после урона): × regen-combat-factor;
-    #   кап: regen-cap-pct от maxHP в секунду.
-    # При новой формуле (maxHP 1300 у воина): реген 1.5 HP/сек,
-    # кап 1.5% × 1300 = 19.5 HP/сек — не ограничивает.
     regen-per-str: 0.025        # HP/сек за единицу СИЛЫ вне боя (нерф 1.7.0.4)
-    regen-combat-factor: 0.35   # множитель регена в бою (0 = реген в бою выключен)
+    regen-combat-factor: 0.35   # множитель регена в бою
     regen-cap-pct: 1.5          # кап регена: % от maxHP в секунду
+  # 1.7.1: ПРОИЗВОДНЫЕ СТАТЫ (WP/SP/HPow) — единственный источник силы урона/хилов
+  power:
+    str-to-wp: 1.5
+    agi-to-wp: 0.5
+    int-to-sp: 1.5
+    int-to-hpow: 1.4
+    base-wp:  { WARRIOR: 30, HUNTER: 35, ROGUE: 30, MAGE: 5,  PRIEST: 10 }
+    base-sp:  { WARRIOR: 5,  HUNTER: 5,  ROGUE: 5,  MAGE: 30, PRIEST: 25 }
+    base-hpow:{ WARRIOR: 0,  HUNTER: 0,  ROGUE: 0,  MAGE: 15, PRIEST: 25 }
   offense:
-    str-to-physical: true   # плоская добавка STR+level к физ-компоненте исходящего урона
-    int-to-magic: true      # плоская добавка INT+level к маг-компоненте исходящего урона
+    basic-coeff: 0.35        # 1.7.1: базовый удар = ванильное оружие + WP × coeff
+    basic-coeff-magic: 0.35  # 1.7.1: ванильная магия игрока = SP × coeff
+    str-to-physical: false   # (legacy, ВЫКЛ) плоский бонус STR+level заменён WP
+    int-to-magic: false      # (legacy, ВЫКЛ) плоский бонус INT+level заменён SP
   crit:
-    melee-base: 5           # базовый крит мили, %
-    melee-per-agi: 0.05     # +0.05% за единицу ЛОВКОСТИ
-    melee-cap: 40           # кап крита мили, %
-    melee-mult: 1.5         # множитель урона при крите мили
-    spell-base: 5           # базовый крит магии, %
-    spell-per-int: 0.03     # +0.03% за единицу ИНТЕЛЛЕКТА
-    spell-cap: 35           # кап крита магии, %
-    spell-mult: 1.5         # множитель урона при крите магии
-    spell-main-mult: 1.5    # дополнительный множитель ШАНСА, если INT основной
-    # 1.7.0 пакет 4: визуал крита (субтайтл-тег атакующему + звук)
+    melee-base: 5
+    melee-per-agi: 0.05
+    melee-cap: 40
+    melee-mult: 1.5
+    spell-base: 5
+    spell-per-int: 0.03
+    spell-cap: 35
+    spell-mult: 1.5
+    spell-main-mult: 1.5
     visuals: true
     melee-tag: "⚡ Крит!"
     spell-tag: "✦ Магический крит!"
     melee-sound: ENTITY_PLAYER_ATTACK_CRIT
     spell-sound: ENTITY_EVOKER_CAST_SPELL
   avoidance:
-    dodge-k: 100              # знаменатель гиперболы уклонения: 100×AGI/(AGI+k)
-    parry-k: 150              # знаменатель гиперболы парирования: 100×STR/(STR+k)
-    soft-cap: 60              # до него — без убывающей отдачи (DR)
-    dr-factor: 0.5            # цена процента свыше soft-cap (каждый за полцены)
-    hard-cap: 75              # жёсткий предел суммарного avoidance (dodge+parry)
-    agi-main-parry-micro: 0.5 # микро-парирование AGI-основных классов, % (не работает в спину)
-    agi-main-dodge-refund: 0.5 # доля потерянного парирования, уходящая в уклонение
-    front-angle: 90           # фронт для парирования, градусов (угол взгляда ≤ 90)
-    back-angle: 135           # отсюда начинается «спина» (микро-парирование не работает)
-    parry-stagger-player-ms: 600  # стаггер атакующего-игрока при парировании (дебафф attack-speed)
-    parry-stagger-mob-ms: 500     # стаггер моба: knockback + Slowness I
+    dodge-k: 100
+    parry-k: 150
+    soft-cap: 60
+    dr-factor: 0.5
+    hard-cap: 75
+    agi-main-parry-micro: 0.5
+    agi-main-dodge-refund: 0.5
+    front-angle: 90
+    back-angle: 135
+    parry-stagger-player-ms: 600
+    parry-stagger-mob-ms: 500
   hp-display:
-    mode: actionbar           # actionbar = совмещённая строка с полосами; vanilla = старая строка HudService
-    gauge: true               # сегменты ▰▱ в строке; false — только цифры
-    gauge-length: 10          # число сегментов на каждую шкалу (4..20)
-    hearts-scale: 20.0        # 20 = один ряд из 10 сердец на весь пул HP;
-                              # 0 НЕ поддерживается ядром (Paper требует >0) — полное скрытие
-                              # сердец возможно только ресурспаком (прозрачные heart-спрайты)
-    update-period-ticks: 10   # тот же тик-паттерн, что у HUD
-    # 1.7.0-p2.5 «строгая готика»: палитра полос (тюнинг без пересборки, /rc reload)
+    mode: actionbar
+    gauge: true
+    gauge-length: 10
+    hearts-scale: 20.0
+    update-period-ticks: 10
     colors:
-      frame: "#8B5A3C"        # рамка ❬ ❭ — бронза бренда (тон ⚜ из MOTD)
-      gauge-empty: "#6E5232"  # пустые сегменты ▱ — тёмная бронза (контур полосы)
-      numbers: "#D6CDBE"      # цифры — тёплый светлый пергамент (контраст на тёмном)
-    # 1.7.0-p2.6: градиенты заполнения полос (каждый сегмент ▰ получает свой цвет)
+      frame: "#8B5A3C"
+      gauge-empty: "#6E5232"
+      numbers: "#D6CDBE"
     gradient:
-      enabled: true           # false = плоский цвет (hp-end и res-end)
-      hp-start: "#5C0F0F"     # HP — тёмно-бордовый (начало, у сердца)
-      hp-end: "#C82020"       # HP — насыщенный красный (конец, у цифр)
-      res-start: "#8B5A3C"    # фолбэк ресурса, если у темы нет primary
-      res-end: "#D6A642"      # фолбэк ресурса, если у темы нет secondary
-                              # вживую: у каждого класса свой градиент theme.primary → theme.secondary
-    # 1.7.0-p2.6: искра регена — последний залитый сегмент вспыхивает при росте HP/ресурса
+      enabled: true
+      hp-start: "#5C0F0F"
+      hp-end: "#C82020"
+      res-start: "#8B5A3C"
+      res-end: "#D6A642"
     regen-spark:
-      enabled: true           # false = без искры
-      color: "#F5E6B8"        # белое золото — читается как вспышка заполнения
+      enabled: true
+      color: "#F5E6B8"
     format: "❤ {hp}/{max}"
-  boss-no-avoidance: []       # имена MythicMobs-боссов: их атаки не уклоняются/парируются
-
-# ------------------------------------------------------------
-# 1.7.0 пакет 3: УКЛОНЕНИЕ / ПАРИРОВАНИЕ (avoidance)
-# dodge: против ЛЮБОЙ физической атаки, любой угол; шанс = гипербола AGI
-#   (+ половина потерянного парирования у AGI-основных).
-# parry: только с мили-оружием/щитом в руке; полное — фронт ≤ front-angle;
-#   micro у AGI-основных — любой угол, кроме спины (≥ back-angle).
-# Сумма проходит DR (soft-cap → hard-cap) и делится пропорционально.
-# TRUE-урон (падение/утопление/чистый) НЕ уклоняется и НЕ парируется.
-# Контратака при парировании: игрок-атакующий теряет скорость атаки
-# (parry-stagger-attack-speed, множитель) на parry-stagger-player-ms;
-# моб получает Slowness I + knockback на parry-stagger-mob-ms.
-# ------------------------------------------------------------
-avoidance:
-  enabled: true                 # false = механика выключена целиком (аварийный рубильник)
-  visuals: true                 # субтайтл-теги + звуки + партиклы
-  dodge-tag: "💨 Уклонение!"
-  parry-tag: "⚔ Парирование!"
-  dodge-sound: ENTITY_ENDERMAN_TELEPORT
-  parry-sound: ENTITY_SHIELD_BLOCK
-  parry-stagger-attack-speed: -0.4   # множитель attack-speed атакующего при парировании
+  boss-no-avoidance: []
 
 # 1.6.0 + 1.7.0.2: типы ванильных причин урона (physical|magic|true)
-# Дефолты кода: огонь/яды/иссушение/молния/freeze = magic;
-# VOID/SONIC_BOOM/FALL/DROWNING/SUFFOCATION/STARVATION = true (неотвратимая среда);
-# CRAMMING/DRYOUT = physical; остальное = physical.
-# 1.7.0.2: МАСШТАБ ЛЕТАЛЬНОСТИ СРЕДЫ — урон причин из env-lethal умножается
-# на maxHP/20 для игроков: падение с 60 блоков и утопление убивают так же,
-# как в ванилле, независимо от классового пула HP (1300 у воина и т.п.).
-# Контрплей: чары Protection/Feather Falling применяются ванилью после масштаба.
-# VOID/SONIC_BOOM не масштабируются (уже летальны без этого).
 damage-types:
-  env-lethal-scale: true      # false = вернуть старые числа среды (без масштаба)
-  env-lethal:                 # причины, получающие масштаб летальности (тип должен быть true)
+  env-lethal-scale: true
+  env-lethal:
     - FALL
     - DROWNING
     - SUFFOCATION
@@ -253,10 +210,10 @@ damage-types:
   vanilla-map:
     SONIC_BOOM: 'true'
     VOID: 'true'
-    FALL: 'true'              # 1.7.0.2: падение игнорирует резисты и dodge/parry
-    DROWNING: 'true'          # 1.7.0.2: утопление игнорирует резисты
-    SUFFOCATION: 'true'       # 1.7.0.2: удушение в блоке игнорирует резисты
-    STARVATION: 'true'        # 1.7.0.2: голод игнорирует резисты
+    FALL: 'true'
+    DROWNING: 'true'
+    SUFFOCATION: 'true'
+    STARVATION: 'true'
     FIRE: magic
     FIRE_TICK: magic
     LAVA: magic
@@ -289,18 +246,12 @@ messages:
   shield-target: "Щит на: {target}"
   shield-you: "{caster} наложил на тебя щит"
   target-full-hp: "Цель здорова"
-
-  # 1.6.2: сообщения фракционной справедливости
   ally:
     no-hit: "Союзника бить нельзя"
     no-heal: "Цель не союзник"
-
-  # 1.5.8: сообщения гейтов (creative / AuthMe)
   gate:
     blocked: "Способности недоступны в этом режиме или до входа в аккаунт."
     blocked.install: "Инсталляции недоступны в этом режиме или до входа в аккаунт."
-
-  # 1.5.9 + 1.6.6 + 1.6.7 + 1.7.0: локализация Книги класса (/rc menu)
   book:
     title: "Книга класса: "
     tab:
@@ -343,7 +294,6 @@ messages:
       current: "Текущая спека: {name}"
       price: "Цена: {price} монет (сжигаются)"
       hint: "ПКМ №1 — взвести, ПКМ №2 (30 с) — отречься"
-    # 1.6.6: сводка резистов во вкладке «Класс» и grant-строки в лоре
     resist:
       title: "Сопротивления"
       phys: "Физ: {total}% (база {base}%)"
@@ -352,9 +302,8 @@ messages:
       none: "Активных модификаторов нет"
       cap: "Кап: {cap}%"
       grant: "Даёт: +{phys}% физрезиста на {sec} с"
-      grant-magic: "Даёт: +{magic}% магрезиста на {sec} с"   # 1.6.7: плоский ключ
+      grant-magic: "Даёт: +{magic}% магрезиста на {sec} с"
       spec: "Пассив: +{phys}% физрезиста постоянно"
-    # 1.7.0 пакет 1: сводка атрибутов (предмет-эмблема, слот 16 вкладки «Класс»)
     attributes:
       title: "Атрибуты класса"
       str: "СИЛА: {value}"
@@ -394,9 +343,9 @@ messages:
 
 classes:
   WARRIOR:
-    resource-regen: -5.0        # ярость: −5/с вне боя
-    resource-on-deal: 10.0      # +10 за нанесённый урон (кап 1 событие/с)
-    resource-on-take: 10.0      # +10 за полученный урон
+    resource-regen: -5.0
+    resource-on-deal: 10.0
+    resource-on-take: 10.0
     resource-on-heal: 0.0
     combat-window-seconds: 5
     theme:
@@ -653,7 +602,6 @@ classes:
         bonus: 3.0
         cooldown-seconds: 2
 
-# 1.4.0 / Пакет 4: королевские вкусы (титул + партикл-аура по короне)
 flavors:
   rassvet:
     crown: "Рассвет"
@@ -674,7 +622,6 @@ flavors:
       MAGE: "Аркан Дракона"
       ROGUE: "Тень Вальрадиса"
 
-# 1.5.0 / Пакет 2 + 1.5.2 + 1.5.8 + 1.6.0: инсталляции (ставящиеся мины/варды)
 installations:
   unlock-level: 50
   max-per-player: 2
@@ -703,9 +650,6 @@ installations:
     blind-duration: 2
     speed-duration: 3
 
-# 1.5.0 / Пакет 1+3, 1.5.3.1, 1.5.6: VFX/SFX-каталог
-# (переопределяет дефолты FxService; опечатка = WARNING при /rc reload и тишина)
-# 1.5.6: теги proc.* показываются СУБТАЙТЛОМ (не затираются HUD), не чаще 1 раза в 3 с
 vfx:
   proc-actionbar: true
   trails:
@@ -793,8 +737,6 @@ vfx:
     cast-sound: ENTITY_ENDERMAN_STARE
     cast-particle: REVERSE_PORTAL
   arcane_flow:
-    # FIX 1.7.0-p3.1: в Java-реестре 1.21.4 звук чар-стола живёт под СТАРЫМ ID
-    # (блок переименован в 1.13, звук остался на старом ID — MC-218109).
     cast-sound: BLOCK_ENCHANTMENT_TABLE_USE
     cast-particle: ENCHANTED_HIT
   ice_ring:
