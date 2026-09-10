@@ -2,6 +2,7 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.PowerService;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -278,6 +279,26 @@ public final class CombatService implements Listener {
     }
 
     /* ------------------------- анти-ваншот (1.7.1 + 1.7.5.1) ------------------------- */
+
+    /**
+     * Pure-статик капа одиночного удара: damage ≤ maxHp × pct/100.
+     * pct ≤ 0 (или NaN/∞) = кап выключен, возвращается damage.
+     * Тот же, что применяет applySingleHitCap() в боевом пути.
+     * Используется /rc selftest (чек 16) — поэтому формулы теста и боя идентичны.
+     */
+    public static double cappedDamage(double damage, double maxHp, double pct) {
+        if (!Double.isFinite(damage) || damage <= 0.0) {
+            return 0.0;
+        }
+        if (!Double.isFinite(maxHp) || maxHp <= 0.0) {
+            return damage;
+        }
+        if (!Double.isFinite(pct) || pct <= 0.0) {
+            return damage;
+        }
+        double limit = maxHp * pct / 100.0;
+        return damage > limit ? limit : damage;
+    }
 
     /**
      * Одиночный.hit по игроку ≤ max-single-hit-pct% от max HP.
