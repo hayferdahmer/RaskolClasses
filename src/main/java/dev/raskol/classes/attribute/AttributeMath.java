@@ -7,9 +7,13 @@ package dev.raskol.classes.attribute;
  * в /rc selftest headless-проверками и переиспользовать их в бою, HUD и PAPI
  * без расхождений (единый источник правды).
  *
- * 1.7.0.3: strRegenPerSecond — Dota-подобный реген HP от СИЛЫ:
- * вне боя полная скорость, в бою — множитель regen-combat-factor,
- * кап — regen-cap-pct от maxHP в секунду (анти-скейл абьюз).
+ * 1.7.0.5: HP-ФОРМУЛА ПЕРЕСЧИТАНА:
+ *   HP = baseHp + STR × perStr
+ *   (дефолты: baseHp=100, perStr=20 → воин STR 60 = 1300 HP, маг STR 16 = 420 HP).
+ *   Параметры level/strMain/perLevel/mainBonus сохранены в сигнатуре для
+ *   совместимости вызовов, но не используются (legacy).
+ *
+ * 1.7.0.3: strRegenPerSecond — Dota-подобный реген HP от СИЛЫ.
  */
 public final class AttributeMath {
 
@@ -19,15 +23,27 @@ public final class AttributeMath {
     /* ------------------------------- здоровье ------------------------------- */
 
     /**
-     * Максимум HP: 20 + STR×perStr + level×perLevel; если STR основной —
-     * сверху +STR×mainBonus (итог воина: 20 + STR×3 + level при perStr=2, mainBonus=1).
+     * Максимум HP: baseHp + STR × perStr.
+     * Параметры level/strMain/perLevel/mainBonus — legacy, не используются
+     * (сохранены для совместимости вызовов AttributeService).
+     * 1.7.0.5: baseHp=100, perStr=20 (было: 20 + STR×perStr + level×perLevel + mainBonus).
      */
+    @SuppressWarnings("unused")
     public static double maxHp(double str, double level, boolean strMain,
                                double perStr, double perLevel, double mainBonus) {
-        double hp = 20.0 + str * perStr + level * perLevel;
-        if (strMain) {
-            hp += str * mainBonus;
-        }
+        return maxHp(str, 100.0, perStr);
+    }
+
+    /**
+     * Каноническая формула HP (1.7.0.5): HP = baseHp + STR × perStr.
+     * Кламп снизу на 1.0 (живой игрок всегда имеет хотя бы 1 HP в модели).
+     * Все входы защищены от NaN/отрицательных.
+     */
+    public static double maxHp(double str, double baseHp, double perStr) {
+        double safeStr = Double.isFinite(str) && str >= 0 ? str : 0.0;
+        double safePerStr = Double.isFinite(perStr) && perStr >= 0 ? perStr : 0.0;
+        double safeBase = Double.isFinite(baseHp) && baseHp >= 0 ? baseHp : 100.0;
+        double hp = safeBase + safeStr * safePerStr;
         return Math.max(1.0, hp);
     }
 
@@ -104,7 +120,6 @@ public final class AttributeMath {
     /**
      * Закон убывающей отдачи (DR): до softCap эффективность полная,
      * свыше — каждый процент за drFactor; жёсткий предел hardCap.
-     * Пример: softCap 60, dr 0.5, raw 80 → eff 70.
      */
     public static double applyDR(double total, double softCap, double drFactor, double hardCap) {
         if (total <= 0.0) {
@@ -117,8 +132,7 @@ public final class AttributeMath {
     }
 
     /**
-     * Пропорциональное распределение эффективного шанса между уклоном и парированием
-     * (возврат [dodgeEff, parryEff]): условия парирования (фронт/оружие) не ломают математику.
+     * Пропорциональное распределение эффективного шанса между уклоном и парированием.
      */
     public static double[] splitEff(double dodgeRaw, double parryRaw, double effTotal) {
         double raw = dodgeRaw + parryRaw;
@@ -131,10 +145,6 @@ public final class AttributeMath {
 
     /* ------------------------------- углы ------------------------------------ */
 
-    /**
-     * Угол (градусы, 0..180) между направлением взгляда защищающегося
-     * и вектором на атакующего (горизонтальная плоскость). 0 = точно спереди.
-     */
     public static double angleToAttacker(double defDirX, double defDirZ,
                                          double toAttX, double toAttZ) {
         double lenA = Math.hypot(defDirX, defDirZ);
@@ -147,19 +157,16 @@ public final class AttributeMath {
         return Math.toDegrees(Math.acos(cos));
     }
 
-    /** Фронт: угол ≤ frontAngle (дефолт 90°). */
     public static boolean isFront(double angleDeg, double frontAngle) {
         return angleDeg <= frontAngle;
     }
 
-    /** Спина: угол ≥ backAngle (дефолт 135°) — микро-парирование здесь не работает. */
     public static boolean isBack(double angleDeg, double backAngle) {
         return angleDeg >= backAngle;
     }
 
     /* ------------------------------- прочее ---------------------------------- */
 
-    /** Цвет HP-бара по доле: >0.6 зелёный, >0.3 жёлтый, иначе красный (код цвета для Adventure). */
     public static String hpFractionColor(double hp, double maxHp) {
         if (maxHp <= 0.0) {
             return "#D64545";
