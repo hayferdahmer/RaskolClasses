@@ -98,12 +98,7 @@ public final class RaskolConfig {
         config.addDefault("damage-types.vanilla-map.FREEZING", "magic");
         config.addDefault("damage-types.vanilla-map.LIGHTNING", "magic");
 
-        // 1.6.0 пакет 2: числа урона способностей/инсталляций (damage-numbers)
-        config.addDefault("classes.MAGE.abilities.firebolt.damage-physical", 30.0);
-        config.addDefault("classes.MAGE.abilities.firebolt.damage-magic", 70.0);
-        config.addDefault("classes.MAGE.abilities.frost_nova.damage-magic", 40.0);
-        config.addDefault("classes.MAGE.abilities.arcane_burst.damage-magic", 100.0);
-        config.addDefault("classes.PRIEST.abilities.smite.damage-magic", 6.0);
+        // 1.6.0 пакет 2: числа урона инсталляций (damage-numbers)
         config.addDefault("installations.bear_trap.damage-physical", 3.0);
         config.addDefault("installations.frost_rune.damage-magic", 4.0);
 
@@ -222,9 +217,6 @@ public final class RaskolConfig {
         config.addDefault("classes.MAGE.regen-tier-3", 5.0);
         config.addDefault("classes.MAGE.regen-tier-4", 6.0);
 
-        config.addDefault("classes.HUNTER.abilities.cheetah_aspect.duration-speed", 8);
-        config.addDefault("classes.HUNTER.abilities.cheetah_aspect.duration-no-fall", 10);
-
         config.addDefault("classes.WARRIOR.passives.execute_passive.enabled", true);
         config.addDefault("classes.WARRIOR.passives.execute_passive.chance", 0.20);
         config.addDefault("classes.WARRIOR.passives.execute_passive.multiplier", 3.0);
@@ -310,15 +302,6 @@ public final class RaskolConfig {
     public String message(String key, String fallback) {
         String v = plugin.getConfig().getString("messages." + key, null);
         return v != null ? v : fallback;
-    }
-
-    // 1.6.0 пакет 2: числа урона способностей (damage-numbers)
-    public double abilityDamagePhysical(PlayerClass pc, String id, double fallback) {
-        return plugin.getConfig().getDouble(path(pc, id, "damage-physical"), fallback);
-    }
-
-    public double abilityDamageMagic(PlayerClass pc, String id, double fallback) {
-        return plugin.getConfig().getDouble(path(pc, id, "damage-magic"), fallback);
     }
 
     public double mageRegenTier1() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-1", 3.0); }
@@ -494,37 +477,69 @@ public final class RaskolConfig {
             };
             return desc != null ? desc : fallback;
         }
+
+        /**
+         * 1.7.2–1.7.4: актуальные id китов (WP/SP/HPow-масштаб).
+         * Значения unlock/cost/cooldown/description согласованы с AbilityRegistry DEFAULTS,
+         * чтобы addDefault не перезаписывал живые конфиг-значения при /rc reload.
+         */
         static Map<String, AbilityDefaults> abilities(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> Map.of(
-                        "steel_skin", new AbilityDefaults(10, 30, 45, "Стальная кожа", 5, "−80% входящего урона на 5 с"),
-                        "shield_bash", new AbilityDefaults(25, 20, 25, "Удар щитом", 3, "Slowness II + Blindness в радиусе 4, таунт мобов, 3 с"),
-                        "blood_fury", new AbilityDefaults(50, 40, 30, "Кровавое безумие", 4, "4 с: 20% входящего урона возвращается агрессору"),
-                        "war_god", new AbilityDefaults(75, 100, 300, "Бог войны", 8, "Сила II + Сопротивление I на 8 с"));
+                        "tyr_strike", new AbilityDefaults(10, 20, 8, "Удар Тира", 0,
+                                "Тяжёлый удар бога войны: физ-урон, скалируется от Силы оружия"),
+                        "balder_skin", new AbilityDefaults(25, 25, 30, "Шкура Бальдра", 5,
+                                "Кожа неуязвимого бога: +физрезист на 5 с (скалируется от Силы оружия)"),
+                        "berserkergang", new AbilityDefaults(50, 35, 45, "Берсеркерганг", 6,
+                                "Ярость берсерка: Сила II + Сопротивление I на 6 с"),
+                        "fenrir_blood", new AbilityDefaults(65, 30, 25, "Кровь Фенрира", 0,
+                                "Волчья кровь лечит тебя (хил скалируется от Силы оружия)"),
+                        "ragnarok", new AbilityDefaults(75, 60, 60, "Рагнарёк", 0,
+                                "Сумерки богов: тяжёлый удар; цель ниже 25% HP получает ×3"));
                 case HUNTER -> Map.of(
-                        "aimed_shot", new AbilityDefaults(10, 20, 15, "Прицельный выстрел", 0, "Следующая стрела ×2 урона + Slowness цели"),
-                        "cheetah_aspect", new AbilityDefaults(25, 0, 60, "Аспект гепарда", 0, "Скорость II 8 с + иммунитет к урону падения 10 с"),
-                        "multi_shot", new AbilityDefaults(50, 40, 25, "Мультивыстрел", 0, "Три стрелы веером"),
-                        "barrage", new AbilityDefaults(75, 80, 120, "Заградительный огонь", 0, "Серия стрел по площади"));
+                        "wolf_mark", new AbilityDefaults(10, 20, 12, "Метка Волка", 0,
+                                "Ведьмачья метка: урон, Slowness I 3 с и подсветка цели на 6 с"),
+                        "swallow", new AbilityDefaults(25, 15, 40, "Ласточка", 8,
+                                "Ведьмачье зелье: Скорость II + Регенерация I на 8 с"),
+                        "piercing_shot", new AbilityDefaults(50, 30, 20, "Пронзающий выстрел", 0,
+                                "Бронебойный выстрел: тяжёлый одиночный урон (скалируется от Силы оружия)"),
+                        "arrow_fan", new AbilityDefaults(65, 35, 22, "Веер стрел", 0,
+                                "Три стрелы конусом, урон каждой скалируется от Силы оружия"),
+                        "arrow_rain", new AbilityDefaults(75, 60, 90, "Дождь стрел", 0,
+                                "Шквал стрел по площади радиусом 5 (не проходит сквозь стены)"));
                 case PRIEST -> Map.of(
-                        "lesser_heal", new AbilityDefaults(1, 10, 3, "Малое исцеление", 0,
-                                "Лечит 4 HP. ПКМ — себя, ЛКМ по союзнику — цель"),
-                        "flash_heal", new AbilityDefaults(10, 20, 6, "Быстрое исцеление", 0,
-                                "Лечит 8 HP. ПКМ — себя, ЛКМ по союзнику — цель"),
-                        "pw_shield", new AbilityDefaults(25, 30, 30, "Слово силы: Щит", 6,
-                                "Поглощает 8 урона, 6 с. ПКМ — себя, ЛКМ по союзнику — цель"),
-                        "circle_of_prayer", new AbilityDefaults(50, 50, 60, "Круг молитвы", 0, "Лечит союзников в радиусе 6"),
-                        "smite", new AbilityDefaults(75, 60, 90, "Кара", 0, "Молния по цели"));
+                        "saint_tear", new AbilityDefaults(10, 10, 3, "Слеза Святой", 0,
+                                "Литургический хил: восстанавливает HP себе или союзнику (скалируется от Силы исцеления)"),
+                        "word_of_life", new AbilityDefaults(25, 20, 6, "Слово Жизни", 0,
+                                "Мощное слово: восстанавливает много HP себе или союзнику (скалируется от Силы исцеления)"),
+                        "aegis_faith", new AbilityDefaults(50, 30, 30, "Эгида Веры", 5,
+                                "Щит веры: +физрезист и +магрезист на 5 с (скалируется от Силы исцеления)"),
+                        "circle_elysium", new AbilityDefaults(65, 50, 60, "Круг Элизия", 0,
+                                "Лечит себя и всех союзников в радиусе 6 (скалируется от Силы исцеления)"),
+                        "wrath_heaven", new AbilityDefaults(75, 60, 90, "Кара Небес", 0,
+                                "Карая кара: тяжёлый маг-урон; цель ниже 25% HP получает ×3"));
                 case MAGE -> Map.of(
-                        "firebolt", new AbilityDefaults(1, 10, 2, "Огненная стрела", 0, "Огненный снаряд, поджигает цель"),
-                        "blink", new AbilityDefaults(25, 20, 20, "Скачок", 0, "Телепорт вперёд на 8 блоков"),
-                        "frost_nova", new AbilityDefaults(50, 40, 45, "Кольцо льда", 4, "Замораживает врагов в радиусе 5 на 4 с"),
-                        "arcane_burst", new AbilityDefaults(75, 100, 180, "Чародейский взрыв", 0, "Взрыв тайной энергии по площади"));
+                        "fire_prometheus", new AbilityDefaults(10, 15, 6, "Огонь Прометея", 0,
+                                "Дар титана: гибридный урон 30/70 (физ/маг) + поджог 3 с"),
+                        "hermes_step", new AbilityDefaults(25, 20, 20, "Шаг Гермеса", 0,
+                                "Мгновенный рывок вперёд на 8 блоков (проверяет безопасность точки)"),
+                        "boreas_breath", new AbilityDefaults(50, 40, 45, "Дыхание Борея", 4,
+                                "Ледяной шквал: маг-урон по площади радиусом 5 + Slowness II 4 с (не сквозь стены)"),
+                        "athena_aegis", new AbilityDefaults(65, 30, 30, "Эгида Афины", 5,
+                                "Щит богини: +магрезист на 5 с (скалируется от Силы заклинаний)"),
+                        "zeus_wrath", new AbilityDefaults(75, 60, 90, "Гнев Зевса", 0,
+                                "Карая молния: тяжёлый маг-урон; цель ниже 25% HP получает ×3"));
                 case ROGUE -> Map.of(
-                        "stealth", new AbilityDefaults(10, 30, 30, "Скрытность", 15, "Невидимость 15 с или до первого удара"),
-                        "fan_of_knives", new AbilityDefaults(25, 25, 15, "Веер ножей", 0, "4 урона по радиусу 3"),
-                        "cheap_shot", new AbilityDefaults(50, 40, 40, "Подлый удар", 2, "Blind + Slowness 2 с + 3 урона"),
-                        "evasion", new AbilityDefaults(75, 60, 120, "Уклонение", 4, "100% уклонение от урона, 4 с"));
+                        "shadow_cloak", new AbilityDefaults(10, 30, 30, "Плащ теней", 15,
+                                "Слиться с тенью: Невидимость 15 с"),
+                        "blade_fan", new AbilityDefaults(25, 25, 15, "Веер клинков", 0,
+                                "Вихрь ножей по площади радиусом 3 (не сквозь стены)"),
+                        "strangle", new AbilityDefaults(50, 40, 40, "Удушение палача", 0,
+                                "Хватка палача: урон + Blind 2 с + Slowness 2 с"),
+                        "borgia_poison", new AbilityDefaults(65, 35, 30, "Яд Борджа", 0,
+                                "Отравленный клинок: урон + Яд I 5 с"),
+                        "shadow_dance", new AbilityDefaults(75, 60, 120, "Танец теней", 4,
+                                "Танец клинков: +30 ЛОВКОСТИ на 4 с (всплеск уклонения через avoidance)"));
             };
         }
     }
