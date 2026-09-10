@@ -139,4 +139,206 @@ public final class AbilityRegistry {
         // 1.7.3: кит разбойника (средневековый реализм)
         casters.put("shadow_cloak", rogue::shadowCloak);
         casters.put("blade_fan", rogue::bladeFan);
-        casters.put("strangle", rogue::
+        casters.put("strangle", rogue::strangle);
+        casters.put("borgia_poison", rogue::borgiaPoison);
+        casters.put("shadow_dance", rogue::shadowDance);
+    }
+
+    public void loadFromConfig(RaskolConfig cfg) {
+        byClass.clear();
+        for (PlayerClass pc : PlayerClass.values()) {
+            List<AbilityDef> defs = DEFAULTS.get(pc).stream()
+                    .map(base -> new AbilityDef(
+                            base.id(),
+                            cfg.abilityName(pc, base.id(), base.displayName()),
+                            base.slot(),
+                            cfg.abilityUnlock(pc, base.id(), base.unlockLevel()),
+                            cfg.abilityCost(pc, base.id(), base.cost()),
+                            cfg.abilityCooldownSeconds(pc, base.id(),
+                                    (int) (base.cooldownMillis() / 1000L)) * 1000L
+                    ))
+                    .toList();
+            byClass.put(pc, defs);
+        }
+    }
+
+    public List<AbilityDef> getAbilities(PlayerClass pc) {
+        return byClass.getOrDefault(pc, List.of());
+    }
+
+    public AbilityDef getBySlot(PlayerClass pc, int slot) {
+        for (AbilityDef def : getAbilities(pc)) {
+            if (def.slot() == slot) {
+                return def;
+            }
+        }
+        return null;
+    }
+
+    public AbilityDef findById(PlayerClass pc, String id) {
+        if (id == null) {
+            return null;
+        }
+        for (AbilityDef def : getAbilities(pc)) {
+            if (def.id().equals(id)) {
+                return def;
+            }
+        }
+        return null;
+    }
+
+    public AbilityDef getById(PlayerClass pc, String id) {
+        return findById(pc, id);
+    }
+
+    /** 1.6.11: есть ли способность с таким id хотя бы в одном классе. */
+    public boolean exists(String id) {
+        if (id == null) {
+            return false;
+        }
+        for (PlayerClass pc : PlayerClass.values()) {
+            if (findById(pc, id) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 1.6.13: целостность реестра для /rc selftest. */
+    public List<String> integrityProblems() {
+        List<String> problems = new ArrayList<>();
+        Set<String> knownIds = new HashSet<>();
+        for (PlayerClass pc : PlayerClass.values()) {
+            for (AbilityDef def : getAbilities(pc)) {
+                knownIds.add(def.id());
+                if (!casters.containsKey(def.id()) && !targetedCasters.containsKey(def.id())) {
+                    problems.add("способность " + def.id() + " (" + pc.name() + ") без кастера");
+                }
+            }
+        }
+        for (String id : targetedCasters.keySet()) {
+            if (!casters.containsKey(id)) {
+                problems.add("targeted-кастер " + id + " без self-кастера");
+            }
+            if (!knownIds.contains(id)) {
+                problems.add("targeted-кастер " + id + " — сирота (нет в DEFAULTS)");
+            }
+        }
+        for (String id : casters.keySet()) {
+            if (!knownIds.contains(id)) {
+                problems.add("кастер " + id + " — сирота (нет в DEFAULTS)");
+            }
+        }
+        return problems;
+    }
+
+    public boolean isTargeted(String id) {
+        return targetedCasters.containsKey(id);
+    }
+
+    public boolean tryCast(Player player, AbilityDef def) {
+        return castOn(player, player, def, false);
+    }
+
+    public boolean tryCastTargeted(Player caster, LivingEntity target, AbilityDef def) {
+        return castOn(caster, target, def, true);
+    }
+
+    /**
+     * Ядро каста. Порядок операций (1.7.4.1):
+     *  1. Гейты (auth/class/level/cd/resource).
+     *  2. Попытка каста → булева ok.
+     *  3. При провале → refund ресурса, возврат false, КУЛДАУН НЕ СТАРТУЕТ.
+     *  4. При успехе → старт кулдауна + сообщение + возврат true.
+     * Это гарантирует, что проваленные касты (нет цели / полный HP / unsafe blink)
+     * не уходят в КД зря.
+     */
+    private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
+        RaskolConfig cfg = plugin.getRaskolConfig();
+        if (!AuthGate.canAct(plugin, caster)) {
+            caster.sendMessage(Component.text(cfg.message("gate.blocked",
+                    "Способности недоступны в этом режиме или до входа в аккаунт."),
+                    NamedTextColor.RED));
+            return false;
+        }
+        PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
+        if (pc == null) {
+            caster.sendMessage(Component.text(cfg.message("no-class-cast",
+                    "Класс не выбран — способности недоступны"), NamedTextColor.GRAY));
+            return false;
+        }
+        Caster self = targeted ? null : casters.get(def.id());
+        TargetedCaster tcast = targeted ? targetedCasters.get(def.id()) : null;
+        if (self == null && tcast == null) {
+            plugin.getLogger().warning("Способность " + def.id() + " не имеет реализации");
+            return false;
+        }
+        UUID id = caster.getUniqueId();
+
+        long window = cfg.castClickCooldownMillis();
+        long now = System.currentTimeMillis();
+        Map<String, Long> attempts = lastAttempts.computeIfAbsent(id, k -> new ConcurrentHashMap<>());
+        Long previous = attempts.get(def.id());
+        if (previous != null && now - previous < window) {
+            return false;
+        }
+        attempts.put(def.id(), now);
+
+        int level = plugin.getSkillLevels().getLevel(id, pc.profileSkillName());
+        if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < def.unlockLevel()) {
+            caster.sendMessage(Component.text("«" + def.displayName() + "» откроется на уровне "
+                    + def.unlockLevel() + " (у вас " + level + ")", NamedTextColor.RED));
+            return false;
+        }
+        if (plugin.getCooldowns().isOnCooldown(id, def.id())) {
+            long remaining = plugin.getCooldowns().getRemainingMillis(id, def.id());
+            caster.sendMessage(Component.text("«" + def.displayName() + "»: перезарядка ещё "
+                    + (remaining / 1000L + 1L) + "с", NamedTextColor.GRAY));
+            return false;
+        }
+        if (def.cost() > 0 && !plugin.getResources().consume(id, def.cost())) {
+            caster.sendMessage(Component.text("Не хватает ресурса «" + pc.getResourceName()
+                    + "»: нужно " + def.cost() + ", у вас "
+                    + (int) plugin.getResources().getValue(id), NamedTextColor.RED));
+            return false;
+        }
+
+        // Попытка каста
+        boolean ok;
+        try {
+            ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
+        } catch (RuntimeException ex) {
+            plugin.getLogger().warning("Каст " + def.id() + " бросил исключение: " + ex.getMessage());
+            ok = false;
+        }
+
+        // 1.7.4.1: ПРОАЛЕННАЯ СЕМАНТИКА — кулдаун стартует ТОЛЬКО при успешном касте
+        if (!ok) {
+            if (def.cost() > 0) {
+                plugin.getResources().refund(id, def.cost());
+            }
+            return false;
+        }
+
+        // Успех: старт кулдауна + сообщение
+        plugin.getCooldowns().start(id, def.id(), def.cooldownMillis(), def.displayName());
+        if (!targeted) {
+            caster.sendMessage(Component.text("«" + def.displayName() + "» — активирована",
+                    NamedTextColor.GREEN));
+        }
+        return true;
+    }
+
+    /** Полная чистка игрока (PlayerQuit). */
+    public void clearAttempts(UUID uuid) {
+        lastAttempts.remove(uuid);
+    }
+
+    /** Периодическая чистка записей старше 60 с (purge-таск). */
+    public void purgeStaleAttempts() {
+        long now = System.currentTimeMillis();
+        lastAttempts.values().forEach(map ->
+                map.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L));
+        lastAttempts.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+    }
+}
