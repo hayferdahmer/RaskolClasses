@@ -28,9 +28,8 @@ import org.bukkit.util.Vector;
  *  4. «Веер стрел» (arrow_fan)       — 3 стрелы конусом, урон каждой base+WP×0.35;
  *  5. «Дождь стрел» (arrow_rain)     — AoE радиус 5 (LOS + фракции), урон base+WP×0.5.
  *
- * 1.7.4.1 фикс 4 (баг «стрелы возвращаются»): стрелы «Веера» больше нельзя
- * подобрать и они не висят в мире вечно:
- *  - pickupStatus = DISALLOWED выставляется сразу И повторно на 1-м и 2-м тиках
+ * 1.7.4.1 фикс 4 (баг «стрелы возвращаются»):
+ *  - pickupStatus = DISALLOWED сразу + повторно на 1-м и 2-м тиках
  *    (Paper может перезатереть статус, выставленный в тик спавна);
  *  - lifetime 600 тиков (30 с): застрявшая стрела исчезает сама;
  *  - PDC-метка raskolclasses:fan_arrow для отладки/будущих гардов.
@@ -150,7 +149,7 @@ public final class HunterAbilities {
         arrow.setShooter(p);
         arrow.setDamage(damage);
         arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
-        arrow.setLifetime(600); // 30 с: застрявшая стрела исчезает сама, не висит в мире
+        arrow.setLifetimeTicks(600); // 30 с: застрявшая стрела исчезает сама
         arrow.getPersistentDataContainer().set(fanArrowKey, PersistentDataType.BYTE, (byte) 1);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (arrow.isValid()) {
