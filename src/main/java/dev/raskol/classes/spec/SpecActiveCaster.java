@@ -22,6 +22,8 @@ import org.bukkit.scheduler.BukkitRunnable;
  * 1.6.0 пакет 2: урон через CombatService.dealDamage с DamageProfile
  * (SHADOWWEAVER/FROST = маг, LIQUIDATOR = физ).
  * 1.6.11: AoE спеки FROST не бьёт сквозь стены (Targeting.hasLineOfSight).
+ * FIX 1.7.0-hotfix: при activeCost <= 0 проверка consume не вызывается —
+ * бесплатные активки не получают «Не хватает ресурса: нужно 0».
  */
 public final class SpecActiveCaster {
 
@@ -52,7 +54,9 @@ public final class SpecActiveCaster {
                     + (remaining / 1000L + 1L) + "с", NamedTextColor.GRAY));
             return;
         }
-        if (!plugin.getResources().consume(uuid, def.activeCost())) {
+        int cost = def.activeCost();
+        // FIX 1.7.0-hotfix: бесплатные активки не трогают ресурс
+        if (cost > 0 && !plugin.getResources().consume(uuid, cost)) {
             player.sendMessage(Component.text("Не хватает ресурса для «"
                     + def.activeDescription() + "»", NamedTextColor.RED));
             return;
