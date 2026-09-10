@@ -1,210 +1,220 @@
 // © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
 package dev.raskol.classes.resource;
 
+import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
-import org.bukkit.Bukkit;
+import dev.raskol.classes.storage.SafeStorage;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.io.File;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
- * Ресурсы 0–100: реген и декей в асинхронном таске раз в секунду,
- * набор — на событиях урона и лечения. Только сессия, без БД.
- * Пакет 5b: тиры регена мага (3/4/5/6 по порогам 25/50/75).
+ * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия), 0–100.
+ * Реген-правила по классам (тик 1 раз в секунду):
+ *  - WARRIOR: −5/с вне боя; +10 за урон (нанёс/получил, кап 1 событие/с);
+ *  - HUNTER: +5/с вне боя, 0 в бою;
+ *  - PRIEST: +2/с всегда; +5 за событие лечения (RegainHealth);
+ *  - MAGE: тиры 3/4/5/6 в секунду по порогам значения 25/50/75;
+ *  - ROGUE: +10/с.
  *
- * 1.6.11: явный кламп [0..100] на всех публичных входах (add/refund/consume)
- * + санитаризация NaN/Infinity: битое число из конфига или от хука не может
- * сломать ресурс или унести его за границы. Второй уровень защиты:
- * ResourceState.add() внутри уже делает clamp, но явный guard здесь
- * закрывает утечки через публичные методы и делает контракт явным.
+ * 1.7.4.1 фикс 3: ПЕРСИСТ РЕСУРСА — resources.yml через SafeStorage:
+ *  - на quit сохраняем значение, на join восстанавливаем;
+ *  - saveAll() вызывается автосейв-таском RaskolClasses вместе с кулдаунами;
+ *  - без записи на join новый игрок стартует с 0 (легаси-поведение).
  */
 public final class ResourceService implements Listener {
 
-    private final Map<UUID, ResourceState> states = new ConcurrentHashMap<>();
+    private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
+
+    private final RaskolClasses plugin;
     private final RaskolConfig config;
     private final ClassProvider classProvider;
+    private final Map<UUID, ResourceState> states = new ConcurrentHashMap<>();
+    private final File file;
+    private final YamlConfiguration store;
 
-    public ResourceService(RaskolConfig config, ClassProvider classProvider) {
+    public ResourceService(RaskolClasses plugin, RaskolConfig config, ClassProvider classProvider) {
+        this.plugin = plugin;
         this.config = config;
         this.classProvider = classProvider;
+        this.file = new File(plugin.getDataFolder(), "resources.yml");
+        this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
 
-    public ResourceState stateOf(UUID playerId) {
-        return states.computeIfAbsent(playerId, id -> new ResourceState());
+    /* ------------------------------ доступ к статам ------------------------------ */
+
+    public ResourceState stateOf(UUID uuid) {
+        return states.computeIfAbsent(uuid, id -> new ResourceState());
     }
 
-    public double getValue(UUID playerId) {
-        ResourceState state = states.get(playerId);
-        return state == null ? 0.0 : state.getValue();
+    public double getValue(UUID uuid) {
+        return stateOf(uuid).getValue();
     }
 
-    /**
-     * 1.6.11: consume с санитаризацией. NaN/Infinity/отрицательные — отказ.
-     * Кламп сверху: нельзя запросить списание больше максимума.
-     */
-    public boolean consume(UUID playerId, double amount) {
-        double safe = sanitize(amount);
-        if (safe <= 0.0 || safe > ResourceState.MAX_VALUE) {
-            return false;
-        }
-        return stateOf(playerId).consume(safe);
+    public boolean consume(UUID uuid, double amount) {
+        return stateOf(uuid).consume(amount);
     }
 
-    /** 1.6.11: refund с санитаризацией и явным клампом 0..100. */
-    public void refund(UUID playerId, double amount) {
-        double safe = sanitize(amount);
-        if (safe > 0.0) {
-            stateOf(playerId).add(safe);
-        }
+    public void refund(UUID uuid, double amount) {
+        stateOf(uuid).add(amount);
     }
 
-    public void reset(UUID playerId) {
-        states.remove(playerId);
+    public void add(UUID uuid, double amount) {
+        stateOf(uuid).add(amount);
     }
 
-    /** 1.6.11: бонус жреца за событие лечения — тоже через санитаризацию. */
-    public void addHealBonus(UUID playerId) {
-        double gain = sanitize(config.resourceOnHeal(PlayerClass.PRIEST));
-        if (gain > 0.0) {
-            stateOf(playerId).add(gain);
-        }
+    public void clear(UUID uuid) {
+        states.remove(uuid);
     }
 
-    public BukkitTask startTickTask(Plugin plugin) {
-        return Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::tick, 20L, 20L);
-    }
+    /* ------------------------- персист (1.7.4.1 фикс 3) ------------------------- */
 
-    private void tick() {
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            UUID id = player.getUniqueId();
-            ResourceState state = states.computeIfAbsent(id, k -> new ResourceState());
-            PlayerClass pc = classProvider.getCachedClass(id);
-            if (pc == null) {
-                pc = classProvider.getClassOf(player);
-                if (pc == null) {
-                    continue;
-                }
-            }
-            tickFor(pc, state);
-        }
-    }
-
-    private void tickFor(PlayerClass pc, ResourceState state) {
-        double regenPerSecond = sanitize(config.resourceRegen(pc));
-        long windowMillis = config.combatWindowSeconds(pc) * 1000L;
-
-        switch (pc) {
-            case HUNTER -> {
-                // Концентрация: +5/с только вне боя
-                if (regenPerSecond > 0 && !state.isInCombat(windowMillis)) {
-                    state.add(regenPerSecond);
-                }
-            }
-            case WARRIOR -> {
-                // Ярость: −5/с вне боя, в бою не тикает
-                if (regenPerSecond < 0 && !state.isInCombat(windowMillis)) {
-                    state.add(regenPerSecond);
-                }
-            }
-            case MAGE -> {
-                // Пакет 5b: тиры регена мага по текущему значению маны
-                double v = state.getValue();
-                double rate;
-                if (v < 25) rate = sanitize(config.mageRegenTier1());
-                else if (v < 50) rate = sanitize(config.mageRegenTier2());
-                else if (v < 75) rate = sanitize(config.mageRegenTier3());
-                else rate = sanitize(config.mageRegenTier4());
-                state.add(rate);
-            }
-            default -> {
-                // Свет жреца, энергия разбойника — линейный реген всегда
-                if (regenPerSecond > 0) {
-                    state.add(regenPerSecond);
-                }
-            }
-        }
-    }
-
+    /** На join: восстанавливаем сохранённое значение ресурса (если запись есть). */
     @EventHandler
-    public void onPlayerJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        UUID id = player.getUniqueId();
-        states.computeIfAbsent(id, k -> new ResourceState());
-        classProvider.getClassOf(player);
+    public void onJoin(PlayerJoinEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        String key = uuid.toString();
+        if (store.isSet(key)) {
+            stateOf(uuid).setValue(store.getDouble(key, 0.0));
+        }
     }
 
+    /** На quit: сохраняем значение и убираем состояние из памяти. */
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        store.set(uuid.toString(), stateOf(uuid).getValue());
+        SafeStorage.saveAtomic(store, file, LOGGER);
+        states.remove(uuid);
+    }
+
+    /** Автосейв (вызывается автосейв-таском RaskolClasses). */
+    public void saveAll() {
+        states.forEach((uuid, st) -> store.set(uuid.toString(), st.getValue()));
+        SafeStorage.saveAtomic(store, file, LOGGER);
+    }
+
+    /* -------------------------------- реген-тик -------------------------------- */
+
+    public BukkitTask startTickTask(RaskolClasses plugin) {
+        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tickRegen, 20L, 20L);
+    }
+
+    private void tickRegen() {
+        for (Player p : plugin.getServer().getOnlinePlayers()) {
+            PlayerClass pc = classProvider.getCachedClass(p.getUniqueId());
+            if (pc == null) {
+                pc = classProvider.getClassOf(p);
+            }
+            if (pc == null) {
+                continue;
+            }
+            UUID uuid = p.getUniqueId();
+            ResourceState st = stateOf(uuid);
+            boolean inCombat = st.isInCombat(config.combatWindowSeconds(pc) * 1000L);
+            double delta = 0.0;
+            switch (pc) {
+                case WARRIOR, HUNTER -> {
+                    if (!inCombat) {
+                        delta = config.resourceRegen(pc);
+                    }
+                }
+                case PRIEST, ROGUE -> delta = config.resourceRegen(pc);
+                case MAGE -> delta = mageTier(st.getValue());
+            }
+            if (delta != 0.0) {
+                st.add(delta);
+            }
+        }
+    }
+
+    /** Тиры маны: 3/4/5/6 в секунду по порогам значения 25/50/75. */
+    private double mageTier(double value) {
+        if (value < 25.0) {
+            return config.mageRegenTier1();
+        }
+        if (value < 50.0) {
+            return config.mageRegenTier2();
+        }
+        if (value < 75.0) {
+            return config.mageRegenTier3();
+        }
+        return config.mageRegenTier4();
+    }
+
+    /* ------------------------------ боевые события ------------------------------ */
+
+    /** Урон: метка «в бою» + ярость воина за нанесение/получение (кап 1 событие/с). */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerDealDamage(EntityDamageByEntityEvent event) {
-        if (!(event.getDamager() instanceof Player player)) {
-            return;
+    public void onDamageByEntity(EntityDamageByEntityEvent event) {
+        Player damager = resolvePlayer(event.getDamager());
+        if (damager != null) {
+            UUID uuid = damager.getUniqueId();
+            ResourceState st = stateOf(uuid);
+            st.markCombat();
+            PlayerClass pc = classProvider.getClassOf(damager);
+            if (pc != null) {
+                double onDeal = config.resourceOnDeal(pc);
+                if (onDeal != 0.0 && st.allowGainEvent()) {
+                    st.add(onDeal);
+                }
+            }
         }
-        ResourceState state = stateOf(player.getUniqueId());
-        state.markCombat();
-        PlayerClass pc = classProvider.getClassOf(player);
-        double gain = sanitize(pc == null ? 0.0 : config.resourceOnDeal(pc));
-        if (gain > 0 && state.allowGainEvent()) {
-            state.add(gain);
+        if (event.getEntity() instanceof Player victim) {
+            UUID uuid = victim.getUniqueId();
+            ResourceState st = stateOf(uuid);
+            st.markCombat();
+            PlayerClass pc = classProvider.getClassOf(victim);
+            if (pc != null) {
+                double onTake = config.resourceOnTake(pc);
+                if (onTake != 0.0 && st.allowGainEvent()) {
+                    st.add(onTake);
+                }
+            }
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerTakeDamage(EntityDamageEvent event) {
-        if (!(event.getEntity() instanceof Player player)) {
-            return;
-        }
-        ResourceState state = stateOf(player.getUniqueId());
-        state.markCombat();
-        PlayerClass pc = classProvider.getClassOf(player);
-        double gain = sanitize(pc == null ? 0.0 : config.resourceOnTake(pc));
-        if (gain > 0 && state.allowGainEvent()) {
-            state.add(gain);
-        }
-    }
-
+    /** Лечение: +resource-on-heal классу вылеченного (легаси: жрец за любое своё лечение). */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
-        if (!(event.getEntity() instanceof Player player)) {
+        if (!(event.getEntity() instanceof Player p)) {
             return;
         }
-        PlayerClass pc = classProvider.getClassOf(player);
-        if (pc != PlayerClass.PRIEST) {
+        PlayerClass pc = classProvider.getClassOf(p);
+        if (pc == null) {
             return;
         }
-        double gain = sanitize(config.resourceOnHeal(PlayerClass.PRIEST));
-        if (gain > 0) {
-            stateOf(player.getUniqueId()).add(gain);
+        double onHeal = config.resourceOnHeal(pc);
+        if (onHeal != 0.0) {
+            stateOf(p.getUniqueId()).add(onHeal);
         }
     }
 
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        states.remove(event.getPlayer().getUniqueId());
-    }
-
-    /**
-     * 1.6.11: санитаризация чисел, приходящих из конфига и хуков.
-     * NaN/Infinity → 0.0; конечные значения возвращаются как есть
-     * (кламп в [0..100] делает ResourceState.add, но потребителям безопаснее
-     * иметь чистое значение уже на входе).
-     */
-    private static double sanitize(double value) {
-        if (!Double.isFinite(value)) {
-            return 0.0;
+    private Player resolvePlayer(Entity damager) {
+        if (damager instanceof Player p) {
+            return p;
         }
-        return value;
+        if (damager instanceof Projectile proj && proj.getShooter() instanceof Player p) {
+            return p;
+        }
+        return null;
     }
 }
