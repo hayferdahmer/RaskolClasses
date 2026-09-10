@@ -36,6 +36,8 @@ import java.util.UUID;
  * 1.6.13: /rc selftest. 1.7.0 пакет 1: блоки атрибутов в /rc и /rc debug.
  * 1.7.5: слот 6 — инфо-сообщение (активки спеков удалены).
  * 1.7.6: /rc debug simulate [classA] [classB] — TTK-харнесс (матрица 5×5 и дуэли).
+ * 1.7.6.1-fix: исправлен off-by-one в индексах simulate (simulate = args[1],
+ * классы начинаются с args[2]; матрица — при args.length <= 2).
  * Все строковые литералы однострочные (защита от поломки склеек при копировании).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
@@ -130,7 +132,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(Component.text(cfg.message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
                     return true;
                 }
-                // 1.7.6: симулятор баланса
+                // 1.7.6: симулятор баланса (simulate = args[1])
                 if (args.length > 1 && args[1].equalsIgnoreCase("simulate")) {
                     handleSimulate(sender, args);
                     return true;
@@ -162,13 +164,15 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
      * /rc debug simulate <A> <B>    → дуэль A против B.
      * Уровень 40, seed 42 (детерминированно). Подсветка: зелёный = коридор
      * anchor ±30%, жёлтый = вне коридора, красный = не убивает за 60 с.
+     * 1.7.6.1-fix: simulate = args[1], классы = args[2]/args[3].
      */
     private void handleSimulate(CommandSender sender, String[] args) {
         int level = 40;
         long seed = 42L;
         double anchor = plugin.getRaskolConfig().targetTtkSeconds();
 
-        if (args.length == 1) {
+        // Матрица: аргументов класса нет (args = [debug, simulate])
+        if (args.length <= 2) {
             double[][] m = BalanceSimulator.matrix(plugin, level, seed);
             PlayerClass[] pcs = PlayerClass.values();
             sender.sendMessage(Component.text("─── TTK-матрица (сек), уровень " + level
@@ -197,10 +201,10 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        PlayerClass a = parseClass(args[1]);
+        PlayerClass a = parseClass(args[2]);
         PlayerClass b;
-        if (args.length > 2) {
-            b = parseClass(args[2]);
+        if (args.length > 3) {
+            b = parseClass(args[3]);
         } else if (sender instanceof Player p && plugin.getClassProvider().getClassOf(p) != null) {
             b = a;
             a = plugin.getClassProvider().getClassOf(p);
