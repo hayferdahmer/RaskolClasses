@@ -28,17 +28,19 @@ import java.util.UUID;
 
 /**
  * 1.6.0: боевой сервис урона и резистов. Путь A (ваниль) + путь B (наши способности).
- * 1.7.1: ПРОИЗВОДНЫЕ СТАТЫ И АНТИ-ВАНШОТ:
- *  - базовый удар игрока: ванильное оружие + WP × basic-coeff (вместо плоского STR+level);
- *    legacy-ключи str-to-physical/int-to-magic по умолчанию ВЫКЛ (back-compat);
- *  - анти-ваншот: одиночный.hit по игроку ≤ combat.max-single-hit-pct% от max HP
- *    (после резистов/критов); исключения — combat.cap-exempt-causes (среда летальна
- *    по дизайну) и allowOverCap-флаг для execute-финишеров (киты 1.7.2+);
- *  - cappedDamage(...) — pure-статик: его же проверяет /rc selftest (чек 16).
- * Порядок пути A по игроку-цели: исходящий бонус/крит атакующего → avoidance-ролл
- * (уклонение/парирование, отмена) → резист-фактор цели → анти-ваншот кап.
+ * 1.7.1: производные статы и анти-ваншот.
+ * 1.7.5.1: кодовые фолбэк-списки летальной среды и исключений капа —
+ * летальность падения/утопления работает даже если конфиг битый/пустой.
  */
 public final class CombatService implements Listener {
+
+    /** 1.7.5.1: фолбэк, если damage-types.env-lethal отсутствует/пуст в конфиге. */
+    private static final List<String> DEFAULT_ENV =
+            List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION");
+
+    /** 1.7.5.1: фолбэк, если combat.cap-exempt-causes отсутствует/пуст в конфиге. */
+    private static final List<String> DEFAULT_EXEMPT =
+            List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION", "VOID", "SONIC_BOOM");
 
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
@@ -64,12 +66,10 @@ public final class CombatService implements Listener {
         return resists;
     }
 
-    /** 1.7.0 пакет 3: сервис уклонения/парирования. */
     public AvoidanceService avoidance() {
         return avoidance;
     }
 
-    /** 1.7.1: производные статы (WP/SP/HPow) для кит-патчей и базового урона. */
     public PowerService powers() {
         return powers;
     }
@@ -77,21 +77,6 @@ public final class CombatService implements Listener {
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
         return Double.isFinite(v) ? v : def;
-    }
-
-    /* --------------------- 1.7.1: анти-ваншот (pure-ядро) --------------------- */
-
-    /**
-     * Pure-кап одиночного удара: не больше pct% от maxHp.
-     * pct <= 0 или maxHp <= 0 = кап выключен (урон не трогаем).
-     * Вызывается из applySingleHitCap (путь A), dealDamage (путь B) и /rc selftest.
-     */
-    public static double cappedDamage(double damage, double maxHp, double pct) {
-        if (pct <= 0.0 || maxHp <= 0.0) {
-            return damage;
-        }
-        double limit = maxHp * pct / 100.0;
-        return damage > limit ? limit : damage;
     }
 
     private static org.bukkit.damage.DamageType magicType() {
@@ -127,7 +112,6 @@ public final class CombatService implements Listener {
         if (suppressed) {
             SUPPRESS.set(Boolean.FALSE);
         }
-        // 1.7.1: исходящий офенс игрока (WP-базовый бонус + крит) — до резистов цели
         if (!suppressed) {
             applyOutgoingOffense(event);
         }
@@ -145,15 +129,14 @@ public final class CombatService implements Listener {
             if (!suppressed) {
                 applyEnvLethalScale(event, target);
             }
-            return; // чистый урон: ни резистов, ни avoidance
+            return;
         }
-        // 1.7.0 пакет 3: уклонение/парирование — только PHYSICAL, до резистов
         if (type == DamageType.PHYSICAL && avoidance.tryAvoid(target, event)) {
             event.setCancelled(true);
             return;
         }
         if (suppressed) {
-            return; // резист уже учтён в dealDamage
+            return;
         }
         double cap = isPvp(event) ? resists.pvpCap() : resists.cap();
         UUID uuid = target.getUniqueId();
@@ -164,17 +147,11 @@ public final class CombatService implements Listener {
             return;
         }
         event.setDamage(event.getDamage() * factor);
-        // 1.7.1: анти-ваншот кап — последним, после резистов цели
         applySingleHitCap(event);
     }
 
-    /* --------------------- 1.7.1: исходящий офенс (путь A) --------------------- */
+    /* --------------------- исходящий офенс (путь A, 1.7.1) --------------------- */
 
-    /**
-     * Базовый удар игрока: + WP × basic-coeff к физ-компоненте (или SP × coeff к магии),
-     * + крит-ролл (мили AGI / магия INT). Legacy плоские бонусы str-to-physical /
-     * int-to-magic по умолчанию выключены (заменены WP/SP), но уважаются, если true.
-     */
     private void applyOutgoingOffense(EntityDamageEvent event) {
         if (!(event instanceof EntityDamageByEntityEvent by)) {
             return;
@@ -202,8 +179,7 @@ public final class CombatService implements Listener {
         if (type == DamageType.PHYSICAL) {
             add += powers.weaponPower(uuid) * cfgD("attributes.offense.basic-coeff", 0.35);
             if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", false)) {
-                add += plugin.getAttributes().value(uuid,
-                        dev.raskol.classes.attribute.AttributeType.STR)
+                add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.STR)
                         + plugin.getAttributes().levelOf(uuid,
                         plugin.getClassProvider().getClassOf(attacker));
             }
@@ -211,8 +187,7 @@ public final class CombatService implements Listener {
         } else {
             add += powers.spellPower(uuid) * cfgD("attributes.offense.basic-coeff-magic", 0.35);
             if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", false)) {
-                add += plugin.getAttributes().value(uuid,
-                        dev.raskol.classes.attribute.AttributeType.INT)
+                add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.INT)
                         + plugin.getAttributes().levelOf(uuid,
                         plugin.getClassProvider().getClassOf(attacker));
             }
@@ -271,39 +246,21 @@ public final class CombatService implements Listener {
         }
     }
 
-    /* --------------------- 1.7.1: анти-ваншот кап (путь A) --------------------- */
+    /* ------------------------- летальная среда (1.7.0.2 + 1.7.5.1) ------------------------- */
 
     /**
-     * Одиночный.hit по игроку ≤ max-single-hit-pct% от его max HP (после резистов).
-     * Исключения: причины из combat.cap-exempt-causes (среда летальна по дизайну).
+     * Масштаб летальности среды: урон причин из env-lethal × maxHP/20.
+     * 1.7.5.1: если список в конфиге отсутствует/пуст — берём кодовый фолбэк,
+     * чтобы падение/утопление оставались смертельны при любом состоянии конфига.
      */
-    private void applySingleHitCap(EntityDamageEvent event) {
-        if (!(event.getEntity() instanceof Player target)) {
-            return;
-        }
-        double pct = cfgD("combat.max-single-hit-pct", 35.0);
-        if (pct <= 0.0) {
-            return;
-        }
-        List<String> exempt = plugin.getConfig().getStringList("combat.cap-exempt-causes");
-        if (exempt.contains(event.getCause().name())) {
-            return;
-        }
-        double max = plugin.getAttributes().maxHp(target.getUniqueId());
-        double capped = cappedDamage(event.getDamage(), max, pct);
-        if (capped != event.getDamage()) {
-            event.setDamage(capped);
-        }
-    }
-
-    /* ------------------------- среда (1.7.0.2) ------------------------- */
-
-    /** Летальность среды: урон причин из env-lethal × maxHP/20 для игроков. */
     private void applyEnvLethalScale(EntityDamageEvent event, Player target) {
         if (!plugin.getConfig().getBoolean("damage-types.env-lethal-scale", true)) {
             return;
         }
         List<String> env = plugin.getConfig().getStringList("damage-types.env-lethal");
+        if (env.isEmpty()) {
+            env = DEFAULT_ENV;
+        }
         if (!env.contains(event.getCause().name())) {
             return;
         }
@@ -320,9 +277,38 @@ public final class CombatService implements Listener {
         }
     }
 
+    /* ------------------------- анти-ваншот (1.7.1 + 1.7.5.1) ------------------------- */
+
+    /**
+     * Одиночный.hit по игроку ≤ max-single-hit-pct% от max HP.
+     * 1.7.5.1: если cap-exempt-causes отсутствует/пуст — кодовый фолбэк
+     * (среда не каппится, остаётся летальной).
+     */
+    private void applySingleHitCap(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player target)) {
+            return;
+        }
+        double pct = cfgD("combat.max-single-hit-pct", 35.0);
+        if (pct <= 0.0) {
+            return;
+        }
+        List<String> exempt = plugin.getConfig().getStringList("combat.cap-exempt-causes");
+        if (exempt.isEmpty()) {
+            exempt = DEFAULT_EXEMPT;
+        }
+        if (exempt.contains(event.getCause().name())) {
+            return;
+        }
+        double max = plugin.getAttributes().maxHp(target.getUniqueId());
+        double limit = max * pct / 100.0;
+        double dmg = event.getDamage();
+        if (dmg > limit) {
+            event.setDamage(limit);
+        }
+    }
+
     /* ------------------------- симулятор (1.6.4) ------------------------- */
 
-    /** Единая формула «сколько дойдёт» (симулятор /rc debug, целе-центричная). */
     public double simulateTaken(LivingEntity target, DamageProfile profile) {
         if (profile == null || target == null) {
             return 0.0;
@@ -349,10 +335,6 @@ public final class CombatService implements Listener {
         return dealDamage(target, source, profile, false);
     }
 
-    /**
-     * Путь B. allowOverCap = true — execute-финишеры (киты 1.7.2+), которым разрешено
-     * превышать анти-ваншот кап (только по цели ниже порога — проверяет вызывающий кит).
-     */
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
                              boolean allowOverCap) {
         if (profile == null || target == null || target.isDead()) {
@@ -372,7 +354,6 @@ public final class CombatService implements Listener {
         double physBase = safe.physical();
         double magicBase = safe.magic();
         if (source instanceof Player sp) {
-            // 1.7.1: криты атакующего до резистов цели (бонусы WP/SP придут с китами 1.7.2+)
             if (physBase > 0.0 && rollMeleeCrit(sp)) {
                 physBase *= meleeMult();
                 critFeedback(sp, true);
@@ -400,18 +381,15 @@ public final class CombatService implements Listener {
             magicTruePart = magicBase + truePart;
         }
         double taken = physPart + magicTruePart;
-        // 1.6.9: предохранитель true-компоненты
-        // 1.7.1: анти-ваншот кап (масштабируем обе компоненты пропорционально)
         if (!allowOverCap && target instanceof Player tp2) {
             double pct = cfgD("combat.max-single-hit-pct", 35.0);
             if (pct > 0.0 && taken > 0.0) {
-                double max = plugin.getAttributes().maxHp(tp2.getUniqueId());
-                double capped = cappedDamage(taken, max, pct);
-                if (capped < taken) {
-                    double f = capped / taken;
+                double limit = plugin.getAttributes().maxHp(tp2.getUniqueId()) * pct / 100.0;
+                if (taken > limit) {
+                    double f = limit / taken;
                     physPart *= f;
                     magicTruePart *= f;
-                    taken = capped;
+                    taken = limit;
                 }
             }
         }
@@ -487,7 +465,6 @@ public final class CombatService implements Listener {
         return DamageType.defaultFor(cause);
     }
 
-    /** NaN/Infinity/отрицательные компоненты профиля → 0. */
     private static DamageProfile sanitize(DamageProfile p) {
         double phys = Double.isFinite(p.physical()) && p.physical() >= 0 ? p.physical() : 0.0;
         double magic = Double.isFinite(p.magic()) && p.magic() >= 0 ? p.magic() : 0.0;
