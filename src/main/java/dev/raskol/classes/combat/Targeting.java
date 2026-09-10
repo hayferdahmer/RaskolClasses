@@ -19,7 +19,12 @@ import java.util.UUID;
  * 1.6.11: hasLineOfSight — LOS-проверка AoE сквозь стены (гейт combat.aoe-los,
  * дефолт true): луч из глаз кастера в глаза цели, любой НЕпроходимый блок
  * (камень, стекло, двери) на пути = урон не проходит; вода/воздух/трава
- * (passable) не блокируют. Хиляющие AoE проверкой не ограничены намеренно.
+ * (passable) не блокируют. Хилящие AoE проверкой не ограничены намеренно.
+ *
+ * 1.7.5-prep: либерализация canHealPlayer — бесфракционные игроки не считаются
+ * врагами для целей лечения (согласовано с PriestAbilities.isAllyOrSelf 1.7.4).
+ * Для canHitPlayer (PvP-урон) логика строгая: бесфракционные = враги,
+ * что соответствует PvP-дизайну сервера.
  */
 public final class Targeting {
 
@@ -31,7 +36,11 @@ public final class Targeting {
         return plugin.getConfig().getBoolean("combat.friendly-fire", false);
     }
 
-    /** Союзники ли a и b (сам себе — всегда союзник). */
+    /**
+     * Союзники ли a и b (сам себе — всегда союзник).
+     * Логика строгая: союзники = одна непустая фракция. Бесфракционные = не союзники.
+     * Используется для PvP-урона (canHitPlayer).
+     */
     public static boolean isAlly(RaskolClasses plugin, UUID a, UUID b) {
         if (a.equals(b)) {
             return true;
@@ -41,7 +50,10 @@ public final class Targeting {
         return !fa.isEmpty() && fa.equals(fb);
     }
 
-    /** Может ли кастер нанести урон игроку-цели (фракции + гейт). */
+    /**
+     * Может ли кастер нанести урон игроку-цели (фракции + гейт).
+     * Бесфракционные игроки считаются врагами (PvP-дизайн).
+     */
     public static boolean canHitPlayer(RaskolClasses plugin, Player caster, Player target) {
         if (friendlyFire(plugin)) {
             return true;
@@ -49,12 +61,27 @@ public final class Targeting {
         return !isAlly(plugin, caster.getUniqueId(), target.getUniqueId());
     }
 
-    /** Может ли кастер лечить/щитовать игрока-цель (себя/союзника; гейт открывает всех). */
+    /**
+     * Может ли кастер лечить/щитовать игрока-цель.
+     * 1.7.5-prep: ЛИЕБРАЛЬНАЯ логика — если фракции пусты, цель считается
+     * валидной для хила (бесфракционный ≠ враг для лечения). Согласовано с
+     * PriestAbilities.isAllyOrSelf (1.7.4) для будущих хилок через этот API.
+     */
     public static boolean canHealPlayer(RaskolClasses plugin, Player caster, Player target) {
+        if (caster.getUniqueId().equals(target.getUniqueId())) {
+            return true;
+        }
         if (friendlyFire(plugin)) {
             return true;
         }
-        return isAlly(plugin, caster.getUniqueId(), target.getUniqueId());
+        String fa = plugin.getFactionHook().factionOf(caster.getUniqueId());
+        String fb = plugin.getFactionHook().factionOf(target.getUniqueId());
+        // Если обе фракции пусты — считаем цель валидной для хила
+        if (fa.isEmpty() && fb.isEmpty()) {
+            return true;
+        }
+        // Если хотя бы одна непустая — союзники только при совпадении
+        return !fa.isEmpty() && fa.equals(fb);
     }
 
     /** Валидная боевая цель: любой моб или игрок, проходящий canHitPlayer. */
