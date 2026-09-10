@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.7.3 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.7.4 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение без рестарта: /rc reload (кроме hp-display.mode — рестарт).
 #  Новые ключи дописываются автоматически (addDefault + copyDefaults),
@@ -8,6 +8,7 @@
 #  1.7.1: производные статы WP/SP/HPow + базовый урон + анти-ваншот 35%.
 #  1.7.2: киты Воина (нордика) и Охотника (средневековье других вселенных).
 #  1.7.3: киты Мага (Греция) и Разбойника (средневековый реализм).
+#  1.7.4: кит Жреца (католика/паладинство) — хилы масштабируются от HPow.
 # ============================================================
 
 hud:
@@ -111,6 +112,9 @@ resist:
       physical: 30            # (legacy id, мертва с 1.7.3; оставлена для старых сейвов)
     balder_skin:
       physical: 15            # 1.7.2: грант Шкуры Бальдра для лора Книги (реально скалируется от WP)
+    aegis_faith:
+      physical: 12            # 1.7.4: грант Эгиды Веры (физ+маг) для лора Книги
+      magic: 12               # (реально скалируется от HPow: base 12 + HPow×0.04)
   mana-soaked:
     enabled: true
     physical: 15
@@ -486,7 +490,9 @@ classes:
         multiplier: 1.20
 
   # ------------------------------------------------------------
-  # ЖРЕЦ: католика/паладинство — СТАРЫЙ КИТ до 1.7.4 (хилы ещё плоские).
+  # 1.7.4: КИТ ЖРЕЦА — католика/паладинство.
+  # Хилы = base + HPow×coeff (power: hpow); финишер — от SP (power: sp).
+  # Таргет-хилы: себя или союзника (одна фракция); при friendly-fire=true — кого угодно.
   # ------------------------------------------------------------
   PRIEST:
     resource-regen: 2.0
@@ -501,38 +507,55 @@ classes:
     cast-sound: ENTITY_PLAYER_LEVELUP
     cast-particle: ENCHANTED_HIT
     abilities:
-      lesser_heal:
-        name: "Малое исцеление"
-        description: "Лечит 4 HP. ПКМ — себя, ЛКМ по союзнику — цель"
-        unlock: 1
+      saint_tear:
+        name: "Слеза Святой"
+        description: "Литургический хил: восстанавливает HP себе или союзнику (скалируется от Силы исцеления)"
+        unlock: 10
         cost: 10
         cooldown: 3
-      flash_heal:
-        name: "Быстрое исцеление"
-        description: "Лечит 8 HP. ПКМ — себя, ЛКМ по союзнику — цель"
-        unlock: 10
+        power: hpow
+        base: 10
+        coeff: 0.35
+      word_of_life:
+        name: "Слово Жизни"
+        description: "Мощное слово: восстанавливает много HP себе или союзнику (скалируется от Силы исцеления)"
+        unlock: 25
         cost: 20
         cooldown: 6
-      pw_shield:
-        name: "Слово силы: Щит"
-        description: "Поглощает 8 урона, 6 с. ПКМ — себя, ЛКМ по союзнику — цель"
-        unlock: 25
+        power: hpow
+        base: 20
+        coeff: 0.6
+      aegis_faith:
+        name: "Эгида Веры"
+        description: "Щит веры: +физрезист и +магрезист на 5 с (скалируется от Силы исцеления)"
+        unlock: 50
         cost: 30
         cooldown: 30
-        duration: 6
-      circle_of_prayer:
-        name: "Круг молитвы"
-        description: "Лечит союзников в радиусе 6"
-        unlock: 50
+        power: hpow
+        base: 12
+        coeff: 0.04
+        duration: 5
+      circle_elysium:
+        name: "Круг Элизия"
+        description: "Лечит себя и всех союзников в радиусе 6 (скалируется от Силы исцеления)"
+        unlock: 65
         cost: 50
         cooldown: 60
-      smite:
-        name: "Кара"
-        description: "Молния по цели"
+        power: hpow
+        base: 15
+        coeff: 0.45
+        radius: 6.0
+      wrath_heaven:
+        name: "Кара Небес"
+        description: "Карая кара: тяжёлый маг-урон; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)"
         unlock: 75
         cost: 60
         cooldown: 90
-        damage-magic: 6
+        power: sp
+        base: 20
+        coeff: 1.2
+        threshold: 0.25
+        execute-mult: 3.0
     passives:
       grace:
         enabled: true
@@ -738,8 +761,8 @@ installations:
     speed-duration: 3
 
 # ------------------------------------------------------------
-# 1.5.0 / 1.5.3.1 / 1.5.6 / 1.7.2 / 1.7.3: VFX/SFX-каталог
-# 1.7.3: записи под новые id мага/разбойника; мёртвые id мага/разбойника удалены.
+# 1.5.0 / 1.5.3.1 / 1.5.6 / 1.7.2 / 1.7.3 / 1.7.4: VFX/SFX-каталог
+# 1.7.4: записи под новые id жреца; мёртвые id жреца удалены.
 # Спека-активки (challenge/rage_burst/precise_shot/snare/sanctuary/mind_spike/
 # arcane_flow/ice_ring/garrote/smoke_bomb) остаются до 1.7.5.
 # Опечатка в имени = WARNING при /rc reload и тишина, не краш.
@@ -781,21 +804,21 @@ vfx:
   arrow_rain:
     cast-sound: ENTITY_ARROW_SHOOT
     cast-particle: POOF
-  # --- Жрец (католика, до 1.7.4) ---
-  lesser_heal:
+  # --- Жрец (католика/паладинство, 1.7.4) ---
+  saint_tear:
     cast-sound: BLOCK_BELL_USE
     cast-particle: HEART
-  flash_heal:
+  word_of_life:
     cast-sound: BLOCK_AMETHYST_BLOCK_CHIME
     cast-particle: HEART
-  pw_shield:
-    cast-sound: BLOCK_AMETHYST_BLOCK_CHIME
+  aegis_faith:
+    cast-sound: ITEM_ARMOR_EQUIP_DIAMOND
     cast-particle: ENCHANTED_HIT
-  circle_of_prayer:
+  circle_elysium:
     cast-sound: BLOCK_BEACON_ACTIVATE
     cast-particle: HEART
-  smite:
-    cast-sound: ENTITY_LIGHTNING_BOLT_IMPACT
+  wrath_heaven:
+    cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: FLASH
   # --- Маг (Греция, 1.7.3) ---
   fire_prometheus:
