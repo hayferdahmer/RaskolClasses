@@ -32,9 +32,9 @@ import java.util.UUID;
  *  - базовый удар игрока: ванильное оружие + WP × basic-coeff (вместо плоского STR+level);
  *    legacy-ключи str-to-physical/int-to-magic по умолчанию ВЫКЛ (back-compat);
  *  - анти-ваншот: одиночный.hit по игроку ≤ combat.max-single-hit-pct% от max HP
- *    (после резистов/критов); исключения — combat.cap-exempt-causes (среда: FALL и т.п.,
- *    летальность среды сохранена) и allowOverCap-флаг для execute-финишеров (киты 1.7.2+);
- *  - PowerService доступен через powers() для кит-патчей.
+ *    (после резистов/критов); исключения — combat.cap-exempt-causes (среда летальна
+ *    по дизайну) и allowOverCap-флаг для execute-финишеров (киты 1.7.2+);
+ *  - cappedDamage(...) — pure-статик: его же проверяет /rc selftest (чек 16).
  * Порядок пути A по игроку-цели: исходящий бонус/крит атакующего → avoidance-ролл
  * (уклонение/парирование, отмена) → резист-фактор цели → анти-ваншот кап.
  */
@@ -77,6 +77,21 @@ public final class CombatService implements Listener {
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
         return Double.isFinite(v) ? v : def;
+    }
+
+    /* --------------------- 1.7.1: анти-ваншот (pure-ядро) --------------------- */
+
+    /**
+     * Pure-кап одиночного удара: не больше pct% от maxHp.
+     * pct <= 0 или maxHp <= 0 = кап выключен (урон не трогаем).
+     * Вызывается из applySingleHitCap (путь A), dealDamage (путь B) и /rc selftest.
+     */
+    public static double cappedDamage(double damage, double maxHp, double pct) {
+        if (pct <= 0.0 || maxHp <= 0.0) {
+            return damage;
+        }
+        double limit = maxHp * pct / 100.0;
+        return damage > limit ? limit : damage;
     }
 
     private static org.bukkit.damage.DamageType magicType() {
@@ -215,17 +230,13 @@ public final class CombatService implements Listener {
     }
 
     private boolean rollMeleeCrit(Player player) {
-        return ThreadLocalRandom01() * 100.0
+        return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0
                 < plugin.getAttributes().critMeleeChance(player.getUniqueId());
     }
 
     private boolean rollSpellCrit(Player player) {
-        return ThreadLocalRandom01() * 100.0
+        return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0
                 < plugin.getAttributes().critSpellChance(player.getUniqueId());
-    }
-
-    private static double ThreadLocalRandom01() {
-        return java.util.concurrent.ThreadLocalRandom.current().nextDouble();
     }
 
     private double meleeMult() {
@@ -263,9 +274,8 @@ public final class CombatService implements Listener {
     /* --------------------- 1.7.1: анти-ваншот кап (путь A) --------------------- */
 
     /**
-     * Одиночный.hit по игроку ≤ max-single-hit-pct% от его max HP.
+     * Одиночный.hit по игроку ≤ max-single-hit-pct% от его max HP (после резистов).
      * Исключения: причины из combat.cap-exempt-causes (среда летальна по дизайну).
-     * Вызывается ПОСЛЕ резистов цели.
      */
     private void applySingleHitCap(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player target)) {
@@ -280,10 +290,9 @@ public final class CombatService implements Listener {
             return;
         }
         double max = plugin.getAttributes().maxHp(target.getUniqueId());
-        double limit = max * pct / 100.0;
-        double dmg = event.getDamage();
-        if (dmg > limit) {
-            event.setDamage(limit);
+        double capped = cappedDamage(event.getDamage(), max, pct);
+        if (capped != event.getDamage()) {
+            event.setDamage(capped);
         }
     }
 
@@ -391,16 +400,18 @@ public final class CombatService implements Listener {
             magicTruePart = magicBase + truePart;
         }
         double taken = physPart + magicTruePart;
+        // 1.6.9: предохранитель true-компоненты
         // 1.7.1: анти-ваншот кап (масштабируем обе компоненты пропорционально)
         if (!allowOverCap && target instanceof Player tp2) {
             double pct = cfgD("combat.max-single-hit-pct", 35.0);
             if (pct > 0.0 && taken > 0.0) {
-                double limit = plugin.getAttributes().maxHp(tp2.getUniqueId()) * pct / 100.0;
-                if (taken > limit) {
-                    double f = limit / taken;
+                double max = plugin.getAttributes().maxHp(tp2.getUniqueId());
+                double capped = cappedDamage(taken, max, pct);
+                if (capped < taken) {
+                    double f = capped / taken;
                     physPart *= f;
                     magicTruePart *= f;
-                    taken = limit;
+                    taken = capped;
                 }
             }
         }
