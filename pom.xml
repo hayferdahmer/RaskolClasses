@@ -6,11 +6,11 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.7.0</version>
+    <version>1.7.1</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации, инсталляции, королевские вкусы, классовые атрибуты и боевая физика</description>
+    <description>Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow и анти-ваншот</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -51,7 +51,6 @@
     </dependencies>
 
     <build>
-        <!-- артефакт raskol-classes-<version>.jar — под паттерн workflow -->
         <finalName>${project.artifactId}-${project.version}</finalName>
         <plugins>
             <plugin>
