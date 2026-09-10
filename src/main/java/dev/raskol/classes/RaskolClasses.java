@@ -21,7 +21,6 @@ import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
 import dev.raskol.classes.hotbar.ScrollSanitizer;
-import dev.raskol.classes.hotbar.SpecBindListener;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hud.BossBarService;
@@ -32,7 +31,6 @@ import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
 import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.resource.ResourceService;
-import dev.raskol.classes.spec.SpecActiveCaster;
 import dev.raskol.classes.spec.SpecEffects;
 import dev.raskol.classes.spec.SpecListener;
 import dev.raskol.classes.spec.SpecRegistry;
@@ -55,9 +53,11 @@ import java.util.Locale;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.7.4.1 фикс 2: HpBarService зарегистрирован как Listener И его таск запущен.
- * 1.7.4.1 фикс 3: ResourceService с персистом (resources.yml); автосейв ресурсов
- * вместе с кулдаунами и спеками.
+ * 1.7.5: спеки = пассивная идентичность. Убраны: SpecBindListener-регистрация,
+ * SpecActiveCaster (инициализация+геттер), таск specNotify. SpecToken остаётся
+ * только для санитизатора (сжигание свитков спеков на join).
+ * Файлы spec/SpecActiveCaster.java и hotbar/SpecBindListener.java больше не
+ * используются — их можно удалить из репозитория (компиляции они не мешают).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -77,7 +77,6 @@ public final class RaskolClasses extends JavaPlugin {
     private SpecStorage specStorage;
     private SpecService specService;
     private SpecEffects specEffects;
-    private SpecActiveCaster specCaster;
     private SpecToken specToken;
 
     private FactionHook factionHook;
@@ -114,7 +113,6 @@ public final class RaskolClasses extends JavaPlugin {
         }
 
         this.skillLevels = new SkillLevelProvider(this);
-        // 1.7.4.1 фикс 3: ResourceService с персистом (plugin, config, classProvider)
         this.resources = new ResourceService(this, raskolConfig, classProvider);
 
         classProvider.setResourceService(resources);
@@ -145,9 +143,7 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.validate();
         configValidator.logSummary();
 
-        // 1.7.0 пакет 1: классовые атрибуты
         this.attributes = new AttributeService(this);
-        // 1.7.0 пакет 2 + 1.7.4.1: HP-бар, применение maxHP, персист здоровья
         this.hpBarService = new HpBarService(this);
 
         this.specRegistry = new SpecRegistry(this);
@@ -156,7 +152,6 @@ public final class RaskolClasses extends JavaPlugin {
         specStorage.load();
         this.specEffects = new SpecEffects(this);
         this.specService = new SpecService(this, specStorage, specRegistry);
-        this.specCaster = new SpecActiveCaster(this);
         this.specToken = new SpecToken(this);
 
         this.factionHook = new FactionHook(this);
@@ -171,14 +166,13 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new PassiveListener(this), this);
         pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
-        pluginManager.registerEvents(new SpecBindListener(this, specToken), this);
+        // 1.7.5: SpecBindListener больше не регистрируется (активки спеков удалены)
         pluginManager.registerEvents(new SpecListener(this), this);
         pluginManager.registerEvents(flavorService, this);
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
-        // 1.7.4.1 фикс 2: HpBarService — Listener (join/quit/respawn хуки)
         pluginManager.registerEvents(hpBarService, this);
         pluginManager.registerEvents(new Listener() {
             @EventHandler
@@ -206,20 +200,18 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
 
-        // HUD-ресурс только в vanilla-режиме; в actionbar-режиме строку шлёт HpBarService
         boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
         boolean hpVanilla = "vanilla".equalsIgnoreCase(
                 getConfig().getString("hp-display.mode", "actionbar"));
         if (hudEnabled && hpVanilla) {
             activeTasks.add(hud.start());
         }
-        // 1.7.4.1 фикс 2: таск HpBarService запущен безусловно (применение maxHP + HUD)
         activeTasks.add(hpBarService.start());
         activeTasks.add(resources.startTickTask(this));
         activeTasks.add(bossBars.start());
         activeTasks.add(flavorService.startAuraTask());
         activeTasks.add(installations.startSweepTask());
-        activeTasks.add(specService.startSpecNotifyTask());
+        // 1.7.5: таск specNotify не стартует (активок спеков больше нет)
         activeTasks.add(new ScrollCooldownTask(this).start());
         activeTasks.add(manaSoaked.start());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
@@ -238,7 +230,6 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.saveAll();
             specStorage.save();
-            // 1.7.4.1 фикс 3: автосейв ресурсов вместе с кулдаунами
             resources.saveAll();
         }, autosaveTicks, autosaveTicks));
 
@@ -329,7 +320,6 @@ public final class RaskolClasses extends JavaPlugin {
     public SpecStorage getSpecStorage() { return specStorage; }
     public SpecService getSpecService() { return specService; }
     public SpecEffects getSpecEffects() { return specEffects; }
-    public SpecActiveCaster getSpecCaster() { return specCaster; }
     public SpecToken getSpecToken() { return specToken; }
     public FactionHook getFactionHook() { return factionHook; }
     public CrownFlavorService getFlavorService() { return flavorService; }
