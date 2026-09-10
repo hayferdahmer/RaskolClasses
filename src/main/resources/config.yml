@@ -1,12 +1,13 @@
 # ============================================================
-#  RaskolClasses v1.7.1 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.7.2 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение без рестарта: /rc reload (кроме hp-display.mode — рестарт).
 #  Новые ключи дописываются автоматически (addDefault + copyDefaults),
 #  правки админа не затираются.
 #  1.7.0: атрибуты, HP-реформа, avoidance, офенс/криты, среда=TRUE.
-#  1.7.1: производные статы WP/SP/HPow (attributes.power), базовый урон
-#         через WP × basic-coeff, анти-ваншот кап 35% max HP.
+#  1.7.1: производные статы WP/SP/HPow + базовый урон + анти-ваншот 35%.
+#  1.7.2: киты Воина (нордика) и Охотника (средневековье других вселенных):
+#         новые id, формулы base + WP×coeff, новые vfx-записи под новые id.
 # ============================================================
 
 hud:
@@ -105,9 +106,11 @@ resist:
       physical: 16
   grants:
     steel_skin:
-      physical: 15
+      physical: 15            # (legacy id, мертва с 1.7.2; оставлена для старых сейвов)
     evasion:
       physical: 30
+    balder_skin:
+      physical: 15            # 1.7.2: грант Шкуры Бальдра для лора Книги (реально скалируется от WP)
   mana-soaked:
     enabled: true
     physical: 15
@@ -235,7 +238,7 @@ messages:
   no-resource: "Не хватает ресурса «{resource}»: нужно {cost}, у вас {value}"
   activated: "«{ability}» — активирована"
   blink-unsafe: "Скачок невозможен: нет безопасной точки"
-  cheap-shot-no-target: "Нет цели в радиусе 4 блоков"
+  cheap-shot-no-target: "Нет цели в радиусе действия"
   tag:
     execute: "Казнь ×3!"
     predator: "Хищник!"
@@ -342,6 +345,9 @@ messages:
       aura: "Аура-партикл видна союзникам и врагам"
 
 classes:
+  # ------------------------------------------------------------
+  # 1.7.2: КИТ ВОИНА — нордика. Урон/хил/гранты = base + WP×coeff (power: wp).
+  # ------------------------------------------------------------
   WARRIOR:
     resource-regen: -5.0
     resource-on-deal: 10.0
@@ -355,34 +361,52 @@ classes:
     cast-sound: ENTITY_PLAYER_LEVELUP
     cast-particle: FLAME
     abilities:
-      steel_skin:
-        name: "Стальная кожа"
-        description: "+15% физрезиста на 5 с"
+      tyr_strike:
+        name: "Удар Тира"
+        description: "Тяжёлый удар бога войны: физ-урон, скалируется от Силы оружия"
         unlock: 10
-        cost: 30
-        cooldown: 45
-        duration: 5
-      shield_bash:
-        name: "Удар щитом"
-        description: "Slowness II + Blindness в радиусе 4, таунт мобов, 3 с"
-        unlock: 25
         cost: 20
-        cooldown: 25
-        duration: 3
-      blood_fury:
-        name: "Кровавое безумие"
-        description: "4 с: 20% входящего урона возвращается агрессору"
-        unlock: 50
-        cost: 40
+        cooldown: 8
+        power: wp
+        base: 10
+        coeff: 0.6
+      balder_skin:
+        name: "Шкура Бальдра"
+        description: "Кожа неуязвимого бога: +физрезист на 5 с (скалируется от Силы оружия)"
+        unlock: 25
+        cost: 25
         cooldown: 30
-        duration: 4
-      war_god:
-        name: "Бог войны"
-        description: "Сила II + Сопротивление I на 8 с"
+        power: wp
+        base: 15        # базовый грант физрезиста, %
+        coeff: 0.05     # + % за единицу WP
+        duration: 5
+      berserkergang:
+        name: "Берсеркерганг"
+        description: "Ярость берсерка: Сила II + Сопротивление I на 6 с"
+        unlock: 50
+        cost: 35
+        cooldown: 45
+        duration: 6
+      fenrir_blood:
+        name: "Кровь Фенрира"
+        description: "Волчья кровь лечит тебя (хил скалируется от Силы оружия)"
+        unlock: 65
+        cost: 30
+        cooldown: 25
+        power: wp
+        base: 15
+        coeff: 0.5
+      ragnarok:
+        name: "Рагнарёк"
+        description: "Сумерки богов: тяжёлый удар; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)"
         unlock: 75
-        cost: 100
-        cooldown: 300
-        duration: 8
+        cost: 60
+        cooldown: 60
+        power: wp
+        base: 20
+        coeff: 1.8
+        threshold: 0.25
+        execute-mult: 3.0
     passives:
       execute_passive:
         enabled: true
@@ -393,6 +417,9 @@ classes:
         threshold: 0.20
         cooldown-seconds: 6
 
+  # ------------------------------------------------------------
+  # 1.7.2: КИТ ОХОТНИКА — средневековье других вселенных (Ведьмак/Skyrim-вайб).
+  # ------------------------------------------------------------
   HUNTER:
     resource-regen: 5.0
     resource-on-deal: 0.0
@@ -406,32 +433,50 @@ classes:
     cast-sound: ENTITY_PLAYER_LEVELUP
     cast-particle: CRIT
     abilities:
-      aimed_shot:
-        name: "Прицельный выстрел"
-        description: "Следующая стрела ×2 урона + Slowness цели"
+      wolf_mark:
+        name: "Метка Волка"
+        description: "Ведьмачья метка: урон, Slowness I 3 с и подсветка цели на 6 с"
         unlock: 10
         cost: 20
-        cooldown: 15
-      cheetah_aspect:
-        name: "Аспект гепарда"
-        description: "Скорость II 8 с + иммунитет к урону падения 10 с"
+        cooldown: 12
+        power: wp
+        base: 8
+        coeff: 0.5
+      swallow:
+        name: "Ласточка"
+        description: "Ведьмачье зелье: Скорость II + Регенерация I на 8 с"
         unlock: 25
-        cost: 0
-        cooldown: 60
-        duration-speed: 8
-        duration-no-fall: 10
-      multi_shot:
-        name: "Мультивыстрел"
-        description: "Три стрелы веером"
+        cost: 15
+        cooldown: 40
+        duration: 8
+      piercing_shot:
+        name: "Пронзающий выстрел"
+        description: "Бронебойный выстрел: тяжёлый одиночный урон (скалируется от Силы оружия)"
         unlock: 50
-        cost: 40
-        cooldown: 25
-      barrage:
-        name: "Заградительный огонь"
-        description: "Серия стрел по площади"
+        cost: 30
+        cooldown: 20
+        power: wp
+        base: 12
+        coeff: 0.9
+      arrow_fan:
+        name: "Веер стрел"
+        description: "Три стрелы конусом, урон каждой скалируется от Силы оружия"
+        unlock: 65
+        cost: 35
+        cooldown: 22
+        power: wp
+        base: 6
+        coeff: 0.35
+      arrow_rain:
+        name: "Дождь стрел"
+        description: "Шквал стрел по площади радиусом 5 (не проходит сквозь стены)"
         unlock: 75
-        cost: 80
-        cooldown: 120
+        cost: 60
+        cooldown: 90
+        power: wp
+        base: 10
+        coeff: 0.5
+        radius: 5.0
     passives:
       predator:
         enabled: true
@@ -650,35 +695,51 @@ installations:
     blind-duration: 2
     speed-duration: 3
 
+# ------------------------------------------------------------
+# 1.5.0 / Пакет 1+3, 1.5.3.1, 1.5.6, 1.7.2: VFX/SFX-каталог
+# 1.7.2: записи под новые id китов Воина/Охотника; записи мёртвых id
+# (steel_skin/shield_bash/blood_fury/war_god/aimed_shot/cheetah_aspect/
+# multi_shot/barrage) удалены — свитки этих id сжигает ScrollSanitizer.
+# Опечатка в имени = WARNING при /rc reload и тишина, не краш.
+# ------------------------------------------------------------
 vfx:
   proc-actionbar: true
   trails:
     fireball: true
     arrows: true
-  steel_skin:
-    cast-sound: ITEM_ARMOR_EQUIP_IRON
-    cast-particle: CRIT
-  shield_bash:
-    cast-sound: BLOCK_ANVIL_LAND
+  # --- Воин (нордика) ---
+  tyr_strike:
+    cast-sound: ENTITY_IRON_GOLEM_ATTACK
     cast-particle: SWEEP_ATTACK
-  blood_fury:
+  balder_skin:
+    cast-sound: ITEM_ARMOR_EQUIP_GOLD
+    cast-particle: ENCHANT
+  berserkergang:
     cast-sound: ENTITY_RAVAGER_ROAR
     cast-particle: CRIMSON_SPORE
-  war_god:
+  fenrir_blood:
+    cast-sound: ENTITY_WOLF_HOWL
+    cast-particle: CRIMSON_SPORE
+  ragnarok:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
-    cast-particle: FLAME
-  aimed_shot:
+    cast-particle: EXPLOSION
+  # --- Охотник (средневековье других вселенных) ---
+  wolf_mark:
+    cast-sound: ENTITY_WOLF_GROWL
+    cast-particle: CRIT
+  swallow:
+    cast-sound: ENTITY_GENERIC_DRINK
+    cast-particle: EFFECT
+  piercing_shot:
     cast-sound: ITEM_CROSSBOW_SHOOT
     cast-particle: CRIT
-  cheetah_aspect:
-    cast-sound: ENTITY_CAT_HISS
-    cast-particle: WHITE_ASH
-  multi_shot:
+  arrow_fan:
     cast-sound: ENTITY_ARROW_SHOOT
     cast-particle: SWEEP_ATTACK
-  barrage:
+  arrow_rain:
     cast-sound: ENTITY_ARROW_SHOOT
     cast-particle: POOF
+  # --- Жрец (католика, до 1.7.4) ---
   lesser_heal:
     cast-sound: BLOCK_BELL_USE
     cast-particle: HEART
@@ -694,6 +755,7 @@ vfx:
   smite:
     cast-sound: ENTITY_LIGHTNING_BOLT_IMPACT
     cast-particle: FLASH
+  # --- Маг (Греция, до 1.7.3) ---
   firebolt:
     cast-sound: ITEM_FIRECHARGE_USE
     cast-particle: FLAME
@@ -706,6 +768,7 @@ vfx:
   arcane_burst:
     cast-sound: ENTITY_EVOKER_CAST_SPELL
     cast-particle: POOF
+  # --- Разбойник (средневековый реализм, до 1.7.3) ---
   stealth:
     cast-sound: ENTITY_PHANTOM_FLAP
     cast-particle: SMOKE
