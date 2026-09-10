@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.balance.BalanceSimulator;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
@@ -33,8 +34,8 @@ import java.util.UUID;
 /**
  * Команды 1.5.4+ /rc (инфо), /rc 1–7, /rc menu, /rc reload, /rc debug, /rc health.
  * 1.6.13: /rc selftest. 1.7.0 пакет 1: блоки атрибутов в /rc и /rc debug.
- * 1.7.5: слот 6 больше не кастует активку спеки — спеки стали пассивной
- * идентичностью; команда объясняет это и отсылает к талантам 1.8.0.
+ * 1.7.5: слот 6 — инфо-сообщение (активки спеков удалены).
+ * 1.7.6: /rc debug simulate [classA] [classB] — TTK-харнесс (матрица 5×5 и дуэли).
  * Все строковые литералы однострочные (защита от поломки склеек при копировании).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
@@ -129,6 +130,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(Component.text(cfg.message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
                     return true;
                 }
+                // 1.7.6: симулятор баланса
+                if (args.length > 1 && args[1].equalsIgnoreCase("simulate")) {
+                    handleSimulate(sender, args);
+                    return true;
+                }
                 Player target = sender instanceof Player p ? p : null;
                 if (args.length > 1) {
                     target = Bukkit.getPlayer(args[1]);
@@ -148,7 +154,118 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    /** 1.6.12: сводка наблюдаемости. */
+    /* ------------------------- 1.7.6: TTK-харнесс ------------------------- */
+
+    /**
+     * /rc debug simulate            → матрица 5×5 TTK (строка = атакующий).
+     * /rc debug simulate <A>        → дуэль класса отправителя (или WARRIOR из консоли) против A.
+     * /rc debug simulate <A> <B>    → дуэль A против B.
+     * Уровень 40, seed 42 (детерминированно). Подсветка: зелёный = коридор
+     * anchor ±30%, жёлтый = вне коридора, красный = не убивает за 60 с.
+     */
+    private void handleSimulate(CommandSender sender, String[] args) {
+        int level = 40;
+        long seed = 42L;
+        double anchor = plugin.getRaskolConfig().targetTtkSeconds();
+
+        if (args.length == 1) {
+            double[][] m = BalanceSimulator.matrix(plugin, level, seed);
+            PlayerClass[] pcs = PlayerClass.values();
+            sender.sendMessage(Component.text("─── TTK-матрица (сек), уровень " + level
+                    + ", якорь " + fmt1(anchor) + " с ───", NamedTextColor.GOLD));
+            Component header = Component.text("атак\\защ          |", NamedTextColor.GRAY);
+            for (PlayerClass pc : pcs) {
+                header = header.append(Component.text(String.format(Locale.ROOT, " %8s", shortName(pc)),
+                        NamedTextColor.DARK_GRAY));
+            }
+            sender.sendMessage(header);
+            for (int i = 0; i < pcs.length; i++) {
+                Component row = Component.text(String.format(Locale.ROOT, "%-17s |", shortName(pcs[i])),
+                        NamedTextColor.GRAY);
+                for (int j = 0; j < pcs.length; j++) {
+                    double v = m[i][j];
+                    String cell = Double.isFinite(v)
+                            ? String.format(Locale.ROOT, " %8s", fmt1(v))
+                            : String.format(Locale.ROOT, " %8s", "—");
+                    row = row.append(Component.text(cell, cellColor(v, anchor)));
+                }
+                sender.sendMessage(row);
+            }
+            sender.sendMessage(Component.text("Зелёный = якорь ±30% · жёлтый = вне коридора · — = не убивает за 60 с",
+                    NamedTextColor.DARK_GRAY));
+            sender.sendMessage(Component.text("Детали пары: /rc debug simulate <A> <B>", NamedTextColor.DARK_GRAY));
+            return;
+        }
+
+        PlayerClass a = parseClass(args[1]);
+        PlayerClass b;
+        if (args.length > 2) {
+            b = parseClass(args[2]);
+        } else if (sender instanceof Player p && plugin.getClassProvider().getClassOf(p) != null) {
+            b = a;
+            a = plugin.getClassProvider().getClassOf(p);
+        } else {
+            b = a;
+            a = PlayerClass.WARRIOR;
+        }
+        if (a == null || b == null) {
+            sender.sendMessage(Component.text("Классы: WARRIOR, HUNTER, PRIEST, MAGE, ROGUE", NamedTextColor.RED));
+            return;
+        }
+        BalanceSimulator.DuelResult r = BalanceSimulator.duel(plugin, a, b, level, seed);
+        sender.sendMessage(Component.text("─── Дуэль: " + shortName(a) + " vs " + shortName(b)
+                + " (уровень " + level + ", seed " + seed + ") ───", NamedTextColor.GOLD));
+        if (r.timeout()) {
+            String leader = r.winner() == null ? "ничья по HP" : "лидер по HP: " + shortName(r.winner());
+            sender.sendMessage(Component.text("Итог: timeout 60 с (" + leader + ")", NamedTextColor.YELLOW));
+        } else {
+            sender.sendMessage(Component.text("Итог: " + shortName(r.winner()) + " победил за "
+                    + fmt1(r.ttkSeconds()) + " с", NamedTextColor.GREEN));
+            double dev = (r.ttkSeconds() - anchor) / anchor * 100.0;
+            NamedTextColor devColor = Math.abs(dev) <= 30.0 ? NamedTextColor.GREEN : NamedTextColor.YELLOW;
+            sender.sendMessage(Component.text("Отклонение от якоря " + fmt1(anchor) + " с: "
+                    + (dev >= 0 ? "+" : "") + fmt1(dev) + "%", devColor));
+        }
+        sender.sendMessage(Component.text("Касты: " + shortName(a) + " " + r.castsA()
+                + " · " + shortName(b) + " " + r.castsB(), NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("Уклонения/парирования: " + shortName(a) + " " + r.dodgesA()
+                + " · " + shortName(b) + " " + r.dodgesB(), NamedTextColor.GRAY));
+    }
+
+    private static PlayerClass parseClass(String s) {
+        if (s == null) {
+            return null;
+        }
+        try {
+            return PlayerClass.valueOf(s.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private static String shortName(PlayerClass pc) {
+        return switch (pc) {
+            case WARRIOR -> "воин";
+            case HUNTER -> "охотник";
+            case PRIEST -> "жрец";
+            case MAGE -> "маг";
+            case ROGUE -> "разбойник";
+        };
+    }
+
+    private static NamedTextColor cellColor(double v, double anchor) {
+        if (!Double.isFinite(v)) {
+            return NamedTextColor.RED;
+        }
+        return Math.abs(v - anchor) <= anchor * 0.3 ? NamedTextColor.GREEN : NamedTextColor.YELLOW;
+    }
+
+    private static String fmt1(double v) {
+        return String.format(Locale.ROOT, "%.1f", v);
+    }
+
+    /* ------------------------- /rc health (1.6.12) ------------------------- */
+
     private void sendHealth(CommandSender sender) {
         sender.sendMessage(Component.text("--- RaskolClasses Health ---", NamedTextColor.GOLD));
 
@@ -185,6 +302,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         return String.format(Locale.ROOT, "%.2f", v);
     }
 
+    /* ------------------------- /rc (инфо) ------------------------- */
+
     private void sendInfo(Player player) {
         RaskolConfig cfg = plugin.getRaskolConfig();
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
@@ -208,7 +327,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 + " (осн. " + attrs.mainOf(pc).displayName() + ")", NamedTextColor.AQUA));
         double[] eff = attrs.effectiveAvoidance(uuid);
         player.sendMessage(Component.text("HP: " + (int) player.getHealth() + "/" + (int) attrs.maxHp(uuid)
-                + " · Уклонение " + fmt(eff[0]) + "% · Парирование " + fmt(eff[1]) + "%", NamedTextColor.GRAY));
+                + " · Уклонение " + fmt1(eff[0]) + "% · Парирование " + fmt1(eff[1]) + "%", NamedTextColor.GRAY));
 
         player.sendMessage(Component.text("Резисты: физ " + (int) plugin.getResists().physicalResist(uuid)
                 + "% · маг " + (int) plugin.getResists().magicResist(uuid) + "%", NamedTextColor.AQUA));
@@ -252,6 +371,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         player.sendMessage(Component.text("Книга класса: /rc menu · Каст: /rc 1–5", NamedTextColor.DARK_GRAY));
     }
 
+    /* ------------------------- /rc debug ------------------------- */
+
     private void sendDebug(CommandSender sender, Player target) {
         UUID uuid = target.getUniqueId();
         RaskolConfig cfg = plugin.getRaskolConfig();
@@ -274,17 +395,17 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         AttributeService attrs = plugin.getAttributes();
         sender.sendMessage(Component.text("Атрибуты:", NamedTextColor.AQUA));
         for (AttributeType t : AttributeType.values()) {
-            sender.sendMessage(Component.text("  • " + t.displayName() + ": " + fmt(attrs.value(uuid, t))
+            sender.sendMessage(Component.text("  • " + t.displayName() + ": " + fmt1(attrs.value(uuid, t))
                     + (attrs.mainOf(pc) == t ? " (основной)" : ""), NamedTextColor.GRAY));
         }
-        sender.sendMessage(Component.text("  • maxHP по формуле: " + fmt(attrs.maxHp(uuid)), NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("  • крит мили: " + fmt(attrs.critMeleeChance(uuid)) + "% · крит магии: "
-                + fmt(attrs.critSpellChance(uuid)) + "%", NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • maxHP по формуле: " + fmt1(attrs.maxHp(uuid)), NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • крит мили: " + fmt1(attrs.critMeleeChance(uuid)) + "% · крит магии: "
+                + fmt1(attrs.critSpellChance(uuid)) + "%", NamedTextColor.GRAY));
         double dodgeRaw = attrs.dodgeChance(uuid);
         double parryRaw = attrs.parryChance(uuid);
         double[] eff = attrs.effectiveAvoidance(uuid);
-        sender.sendMessage(Component.text("  • уклонение raw " + fmt(dodgeRaw) + "% → eff " + fmt(eff[0])
-                + "% · парирование raw " + fmt(parryRaw) + "% → eff " + fmt(eff[1]) + "% (при фронт+мили)", NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  • уклонение raw " + fmt1(dodgeRaw) + "% → eff " + fmt1(eff[0])
+                + "% · парирование raw " + fmt1(parryRaw) + "% → eff " + fmt1(eff[1]) + "% (при фронт+мили)", NamedTextColor.GRAY));
 
         ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
         sender.sendMessage(Component.text("Резисты: физ " + (int) rb.physicalTotal() + "% (база " + (int) rb.basePhysical()
@@ -296,13 +417,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
         sender.sendMessage(Component.text("Симулятор урона по цели:", NamedTextColor.AQUA));
         sender.sendMessage(Component.text("  • физ 100 → дойдёт "
-                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.physical(100))), NamedTextColor.GRAY));
+                + fmt1(plugin.getCombat().simulateTaken(target, DamageProfile.physical(100))), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("  • маг 100 → дойдёт "
-                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.magic(100))), NamedTextColor.GRAY));
+                + fmt1(plugin.getCombat().simulateTaken(target, DamageProfile.magic(100))), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("  • гибрид 50/50 → дойдёт "
-                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.hybrid(50, 50))), NamedTextColor.GRAY));
+                + fmt1(plugin.getCombat().simulateTaken(target, DamageProfile.hybrid(50, 50))), NamedTextColor.GRAY));
         sender.sendMessage(Component.text("  • чистый 100 → дойдёт "
-                + fmt(plugin.getCombat().simulateTaken(target, DamageProfile.trueDmg(100))), NamedTextColor.GRAY));
+                + fmt1(plugin.getCombat().simulateTaken(target, DamageProfile.trueDmg(100))), NamedTextColor.GRAY));
 
         sender.sendMessage(Component.text("Корона: ", NamedTextColor.GRAY).append(Component.text(plugin.getFlavorService().crownDisplayName(uuid), NamedTextColor.GOLD)));
         String title = plugin.getFlavorService().titleOf(uuid, pc);
@@ -378,10 +499,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         boolean visible = plugin.getHud().isVisible(target);
         sender.sendMessage(Component.text("HUD: ", NamedTextColor.GRAY).append(Component.text(visible ? "включён" : "выключен",
                 visible ? NamedTextColor.GREEN : NamedTextColor.RED)));
-    }
-
-    private static String fmt(double value) {
-        return String.format(Locale.ROOT, "%.1f", value);
+        sender.sendMessage(Component.text("TTK-харнесс: /rc debug simulate [A] [B]", NamedTextColor.DARK_GRAY));
     }
 
     private String passiveNumbers(PlayerClass pc, String id) {
