@@ -24,11 +24,11 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Реестр способностей пяти классов.
  * 1.7.2: киты Воина (нордика) и Охотника (средневековье других вселенных).
- * 1.7.3: киты Мага (Греция) и Разбойника (средневековый реализм) — все способности
- * масштабируются от WP/SP через PowerService (base + Power×coeff).
- * Старые id мага/разбойника (firebolt/blink/frost_nova/arcane_burst/stealth/
- * fan_of_knives/cheap_shot/evasion) удалены — мёртвые свитки сжигает
- * ScrollSanitizer на join (1.6.11). Кит Жреца остаётся до 1.7.4.
+ * 1.7.3: киты Мага (Греция) и Разбойника (средневековый реализм).
+ * 1.7.4: кит Жреца (католика/паладинство) — хилы масштабируются от HPow;
+ * старые id жреца (lesser_heal/flash_heal/pw_shield/circle_of_prayer/smite) удалены —
+ * мёртвые свитки сжигает ScrollSanitizer на join (1.6.11).
+ * Все киты масштабируются от WP/SP/HPow через PowerService (base + Power×coeff).
  */
 public final class AbilityRegistry {
 
@@ -59,13 +59,13 @@ public final class AbilityRegistry {
                 def("piercing_shot", "Пронзающий выстрел", 3, 50, 30, 20),
                 def("arrow_fan", "Веер стрел", 4, 65, 35, 22),
                 def("arrow_rain", "Дождь стрел", 5, 75, 60, 90)));
-        // Жрец: католика, до 1.7.4 (старый кит)
+        // 1.7.4: католика/паладинство, лестница 10/25/50/65/75
         DEFAULTS.put(PlayerClass.PRIEST, List.of(
-                def("lesser_heal", "Малое исцеление", 1, 1, 10, 3),
-                def("flash_heal", "Быстрое исцеление", 2, 10, 20, 6),
-                def("pw_shield", "Слово силы: Щит", 3, 25, 30, 30),
-                def("circle_of_prayer", "Круг молитвы", 4, 50, 50, 60),
-                def("smite", "Кара", 5, 75, 60, 90)));
+                def("saint_tear", "Слеза Святой", 1, 10, 10, 3),
+                def("word_of_life", "Слово Жизни", 2, 25, 20, 6),
+                def("aegis_faith", "Эгида Веры", 3, 50, 30, 30),
+                def("circle_elysium", "Круг Элизия", 4, 65, 50, 60),
+                def("wrath_heaven", "Кара Небес", 5, 75, 60, 90)));
         // 1.7.3: Греция, лестница 10/25/50/65/75
         DEFAULTS.put(PlayerClass.MAGE, List.of(
                 def("fire_prometheus", "Огонь Прометея", 1, 10, 15, 6),
@@ -119,15 +119,14 @@ public final class AbilityRegistry {
         casters.put("arrow_fan", hunter::arrowFan);
         casters.put("arrow_rain", hunter::arrowRain);
 
-        // Жрец: старый кит до 1.7.4
-        casters.put("lesser_heal", (p, d) -> priest.lesserHeal(p, p, d));
-        casters.put("flash_heal", (p, d) -> priest.flashHeal(p, p, d));
-        casters.put("pw_shield", (p, d) -> priest.powerWordShield(p, p, d));
-        targetedCasters.put("lesser_heal", priest::lesserHeal);
-        targetedCasters.put("flash_heal", priest::flashHeal);
-        targetedCasters.put("pw_shield", priest::powerWordShield);
-        casters.put("circle_of_prayer", priest::circleOfPrayer);
-        casters.put("smite", priest::smite);
+        // 1.7.4: кит жреца (католика/паладинство); таргет-хилы через targetedCasters
+        casters.put("saint_tear", (p, d) -> priest.saintTear(p, p, d));
+        casters.put("word_of_life", (p, d) -> priest.wordOfLife(p, p, d));
+        targetedCasters.put("saint_tear", priest::saintTear);
+        targetedCasters.put("word_of_life", priest::wordOfLife);
+        casters.put("aegis_faith", priest::aegisFaith);
+        casters.put("circle_elysium", priest::circleElysium);
+        casters.put("wrath_heaven", priest::wrathHeaven);
 
         // 1.7.3: кит мага (Греция)
         casters.put("fire_prometheus", mage::firePrometheus);
