@@ -4,25 +4,34 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
-import dev.raskol.classes.combat.Targeting;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
-import org.bukkit.Particle;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.Fireball;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
+import java.util.UUID;
+
 /**
- * Активные способности мага (ресурс — мана).
- * 1.6.0 пакет 2: firebolt = гибрид 30/70, frost_nova/arcane_burst = маг.
- * 1.6.2: союзники не бьются (гейт combat.friendly-fire).
- * 1.6.11: AoE-урон не проходит сквозь стены (Targeting.hasLineOfSight).
+ * 1.7.3: КИТ МАГА (греческая мифология). Всё масштабируется от Силы заклинаний (SP):
+ * урон/гранты = base + SP × coeff (конфиг classes.MAGE.abilities.<id>.*).
+ *
+ * Кит (слоты 1–5):
+ *  1. «Огонь Прометея» (fire_prometheus) — гибрид 30/70 (физ/маг) + поджог 3 с;
+ *  2. «Шаг Гермеса» (hermes_step)        — телепорт на distance блоков с проверкой безопасности;
+ *  3. «Дыхание Борея» (boreas_breath)   — AoE радиус 5 (LOS): маг-урон + Slowness II 4 с;
+ *  4. «Эгида Афины» (athena_aegis)      — грант МАГ-резиста (15 + SP×0.05)% на duration;
+ *  5. «Гнев Зевса» (zeus_wrath)         — execute: цель <25% HP → ×3 через allowOverCap.
  */
 public final class MageAbilities {
+
+    private static final PlayerClass PC = PlayerClass.MAGE;
 
     private final RaskolClasses plugin;
 
@@ -30,109 +39,139 @@ public final class MageAbilities {
         this.plugin = plugin;
     }
 
-    /** Огненная стрела — ГИБРИД: 30 физ (снаряд) + 70 маг (огонь/поджог). */
-    public boolean firebolt(Player player, AbilityDef def) {
-        double phys = plugin.getRaskolConfig().abilityDamagePhysical(PlayerClass.MAGE, def.id(), 30.0);
-        double magic = plugin.getRaskolConfig().abilityDamageMagic(PlayerClass.MAGE, def.id(), 70.0);
-        Location loc = player.getEyeLocation();
-        Vector dir = loc.getDirection();
-        Fireball fireball = player.launchProjectile(Fireball.class, dir.multiply(1.5));
-        fireball.setIsIncendiary(true);
-        fireball.setYield(0f);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (fireball.isValid() && !fireball.isDead()) {
-                Entity target = null;
-                for (Entity e : fireball.getNearbyEntities(2.0, 2.0, 2.0)) {
-                    if (e instanceof LivingEntity && e != player) {
-                        target = e;
-                        break;
-                    }
-                }
-                if (target instanceof LivingEntity living) {
-                    plugin.getCombat().dealDamage(living, player,
-                            DamageProfile.hybrid(phys, magic));
-                    living.setFireTicks(60);
-                }
-                fireball.remove();
-            }
-        }, 40L);
-        return true;
+    /* ------------------------------ конфиг-хелперы ------------------------------ */
+
+    private double cfgD(String path, double def) {
+        double v = plugin.getConfig().getDouble(path, def);
+        return Double.isFinite(v) ? v : def;
     }
 
-    public boolean blink(Player player, AbilityDef def) {
-        Location loc = player.getLocation();
-        Vector dir = loc.getDirection().multiply(8.0);
-        Location target = loc.clone().add(dir);
-        if (target.getBlock().getType().isSolid()) {
-            player.sendMessage(plugin.getRaskolConfig().message("blink-unsafe",
-                    "Скачок невозможен: нет безопасной точки"));
+    private double base(AbilityDef def, double defv) {
+        return cfgD("classes.MAGE.abilities." + def.id() + ".base", defv);
+    }
+
+    private double coeff(AbilityDef def, double defv) {
+        return cfgD("classes.MAGE.abilities." + def.id() + ".coeff", defv);
+    }
+
+    private String power(AbilityDef def) {
+        return plugin.getConfig().getString(
+                "classes.MAGE.abilities." + def.id() + ".power", "sp");
+    }
+
+    private int duration(AbilityDef def, int defv) {
+        int v = plugin.getConfig().getInt(
+                "classes.MAGE.abilities." + def.id() + ".duration", defv);
+        return v > 0 ? v : defv;
+    }
+
+    private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
+        return plugin.getCombat().powers().abilityDamage(
+                p.getUniqueId(), power(def), base(def, defBase), coeff(def, defCoeff));
+    }
+
+    private LivingEntity rayTarget(Player p, double range) {
+        Entity e = p.getTargetEntity((int) range);
+        return e instanceof LivingEntity le ? le : null;
+    }
+
+    private void noTarget(Player p) {
+        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.RED));
+    }
+
+    /* -------------------------------- способности -------------------------------- */
+
+    /** 1. «Огонь Прометея» — гибрид 30/70 + поджог. */
+    public boolean firePrometheus(Player p, AbilityDef def) {
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
             return false;
         }
-        player.teleport(target);
-        player.getWorld().spawnParticle(Particle.PORTAL, loc, 30, 0.5, 0.5, 0.5, 0.1);
-        player.getWorld().spawnParticle(Particle.PORTAL, target, 30, 0.5, 0.5, 0.5, 0.1);
+        double dmg = dmg(p, def, 15.0, 0.8);
+        plugin.getCombat().dealDamage(t, p, DamageProfile.hybrid(dmg * 0.3, dmg * 0.7));
+        t.setFireTicks(3 * 20);
         return true;
     }
 
-    /**
-     * Кольцо льда — МАГ. Бьёт мобов и врагов-игроков, союзников пропускает.
-     * 1.6.11: цели за стенами не получают урон (LOS).
-     */
-    public boolean frostNova(Player player, AbilityDef def) {
-        double magic = plugin.getRaskolConfig().abilityDamageMagic(PlayerClass.MAGE, def.id(), 40.0);
-        double radius = 5.0;
-        int duration = plugin.getRaskolConfig().durationSeconds(PlayerClass.MAGE, def.id(), 4);
-        int affected = 0;
-        for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
-            if (entity.equals(player)) {
-                continue;
-            }
-            if (entity instanceof Mob mob) {
-                if (!Targeting.hasLineOfSight(plugin, player, mob)) {
-                    continue;
-                }
-                plugin.getCombat().dealDamage(mob, player, DamageProfile.magic(magic));
-                mob.addPotionEffect(new PotionEffect(
-                        PotionEffectType.SLOWNESS, duration * 20, 2));
-                affected++;
-            } else if (entity instanceof Player tp
-                    && Targeting.canHitPlayer(plugin, player, tp)) {
-                if (!Targeting.hasLineOfSight(plugin, player, tp)) {
-                    continue;
-                }
-                plugin.getCombat().dealDamage(tp, player, DamageProfile.magic(magic));
-                tp.addPotionEffect(new PotionEffect(
-                        PotionEffectType.SLOWNESS, duration * 20, 2));
-                affected++;
-            }
+    /** 2. «Шаг Гермеса» — телепорт с проверкой безопасности. */
+    public boolean hermesStep(Player p, AbilityDef def) {
+        double dist = cfgD("classes.MAGE.abilities." + def.id() + ".distance", 8.0);
+        Location loc = p.getLocation();
+        Vector dir = loc.getDirection().setY(0).normalize();
+        Location target = loc.clone().add(dir.multiply(dist));
+        if (!isSafe(target)) {
+            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "blink-unsafe", "Скачок невозможен: нет безопасной точки"),
+                    NamedTextColor.RED));
+            return false;
         }
-        player.getWorld().spawnParticle(Particle.SNOWFLAKE,
-                player.getLocation().clone().add(0.0, 0.5, 0.0),
-                40, radius * 0.6, 0.3, radius * 0.6, 0.0);
-        return affected > 0 || true; // визуал и заморозка мобов важнее счётчика
+        target.setYaw(loc.getYaw());
+        target.setPitch(loc.getPitch());
+        p.teleport(target);
+        return true;
     }
 
-    /** Чародейский взрыв — МАГ. Союзники пропускаются; 1.6.11: LOS сквозь стены. */
-    public boolean arcaneBurst(Player player, AbilityDef def) {
-        double magic = plugin.getRaskolConfig().abilityDamageMagic(PlayerClass.MAGE, def.id(), 100.0);
-        double radius = 6.0;
-        boolean affected = false;
-        for (Entity entity : player.getNearbyEntities(radius, radius, radius)) {
-            if (!(entity instanceof LivingEntity living) || entity.equals(player)) {
+    private boolean isSafe(Location l) {
+        return l.getBlock().isPassable()
+                && l.clone().add(0, 1, 0).getBlock().isPassable()
+                && l.clone().subtract(0, 1, 0).getBlock().getType().isSolid();
+    }
+
+    /** 3. «Дыхание Борея» — AoE маг-урон + slow (LOS). */
+    public boolean boreasBreath(Player p, AbilityDef def) {
+        double radius = cfgD("classes.MAGE.abilities." + def.id() + ".radius", 5.0);
+        int secs = duration(def, 4);
+        double dmg = dmg(p, def, 12.0, 0.6);
+        boolean hit = false;
+        for (Entity e : p.getNearbyEntities(radius, radius, radius)) {
+            if (!(e instanceof LivingEntity t) || e.equals(p)) {
                 continue;
             }
-            if (!Targeting.isValidDamageTarget(plugin, player, living)) {
+            if (!dev.raskol.classes.combat.Targeting.isValidDamageTarget(plugin, p, t)) {
                 continue;
             }
-            if (!Targeting.hasLineOfSight(plugin, player, living)) {
+            if (!dev.raskol.classes.combat.Targeting.hasLineOfSight(plugin, p, t)) {
                 continue;
             }
-            plugin.getCombat().dealDamage(living, player, DamageProfile.magic(magic));
-            affected = true;
+            plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
+            t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, secs * 20, 1));
+            hit = true;
         }
-        player.getWorld().spawnParticle(Particle.POOF,
-                player.getLocation().clone().add(0.0, 1.0, 0.0),
-                50, 0.8, 0.8, 0.8, 0.05);
-        return affected;
+        return hit;
+    }
+
+    /** 4. «Эгида Афины» — грант МАГ-резиста, скалируется от SP. */
+    public boolean athenaAegis(Player p, AbilityDef def) {
+        UUID uuid = p.getUniqueId();
+        double sp = plugin.getCombat().powers().spellPower(uuid);
+        double grant = base(def, 15.0) + sp * coeff(def, 0.05);
+        int secs = duration(def, 5);
+        plugin.getResists().addTimedModifier(uuid, def.id(), 0.0, grant, secs * 1000L);
+        return true;
+    }
+
+    /** 5. «Гнев Зевса» — execute-финишер: цель <25% HP → ×3 через allowOverCap. */
+    public boolean zeusWrath(Player p, AbilityDef def) {
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        double threshold = cfgD("classes.MAGE.abilities." + def.id() + ".threshold", 0.25);
+        AttributeInstance maxAttr = t.getAttribute(Attribute.MAX_HEALTH);
+        double max = maxAttr != null ? maxAttr.getValue() : 20.0;
+        double frac = max > 0 ? t.getHealth() / max : 1.0;
+        double dmg = dmg(p, def, 25.0, 1.4);
+        if (frac < threshold) {
+            dmg *= cfgD("classes.MAGE.abilities." + def.id() + ".execute-mult", 3.0);
+            plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
+            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "tag.execute", "Казнь ×3!"), NamedTextColor.RED));
+        } else {
+            plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
+        }
+        return true;
     }
 }
