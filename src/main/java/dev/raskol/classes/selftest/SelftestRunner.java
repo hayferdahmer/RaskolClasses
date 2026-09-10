@@ -3,7 +3,9 @@ package dev.raskol.classes.selftest;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeMath;
+import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.install.InstallationType;
@@ -24,8 +26,19 @@ import java.util.UUID;
 
 /**
  * 1.6.13: headless-самотестирование плагина (/rc selftest).
- * 1.7.0.5: итого 14 групп проверок (HP-чек пересчитан под формулу 1.7.0.5).
- * Ничего не мутирует; все проверки — чистая математика AttributeMath + реестры.
+ * 1.7.1: итого 16 групп проверок:
+ *   1–7   — резисты/клампы/реестр/PDC/спек/конфиг/fx (fx печатает точных виновников);
+ *   8     — HP-формула 1.7.0.5 (100 + STR×20);
+ *   9     — DR: raw 80→70, 100→75, 200→75 (hard-cap);
+ *   10    — AGI-основные: dodge 33.33 + refund 5.63 = 38.96; parry raw 11.76;
+ *   11    — STR-реген (нерф ×0.5): 1.5 вне боя, 0.525 в бою, кап 3.0;
+ *   12    — углы: фронт 0°, спина 180°, бок 90° = граница фронта;
+ *   13    — крит мили: AGI 55 → 7.75%; кап 40;
+ *   14    — крит магии: INT 60 main → 10.2%, без main → 6.8%, кап 35;
+ *   15    — производные статы (pure-формулы PowerService): WP 133, SP 120, HPow 109;
+ *   16    — анти-ваншот кап (pure CombatService.cappedDamage): 9999→455 при 1300/35%,
+ *           100→100 (ниже капа), pct=0 = кап выключен.
+ * Ничего не мутирует; проверки 15–16 вызывают те же pure-статики, что и бой.
  */
 public final class SelftestRunner {
 
@@ -223,10 +236,7 @@ public final class SelftestRunner {
             }
         }
 
-        // 8. HP-формула (1.7.0.5): base=100, perStr=20; level/strMain/perLevel/mainBonus игнорируются.
-        //    воин (STR 60, level 40): 100 + 60×20 = 1300
-        //    маг  (STR 60, level 40): 100 + 60×20 = 1300 (main-бонус больше не применяется)
-        //    Вызов через legacy-сигнатуру 6 аргументов проверяет обратную совместимость.
+        // 8. HP-формула (1.7.0.5): 100 + STR×20
         double hpWarrior = AttributeMath.maxHp(60.0, 40.0, true, 20.0, 0.0, 0.0);
         double hpMage = AttributeMath.maxHp(60.0, 40.0, false, 20.0, 0.0, 0.0);
         if (Math.abs(hpWarrior - 1300.0) < 0.01 && Math.abs(hpMage - 1300.0) < 0.01) {
@@ -260,7 +270,7 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 10. AGI-основные: микро-парирование + refund
+        // 10. AGI-основные: микро-парирование + refund половины потерянного в dodge
         double dodge = AttributeMath.dodgeRaw(50.0, 100.0);
         double parry = AttributeMath.parryRaw(20.0, 150.0);
         double micro = 0.5;
@@ -283,9 +293,7 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 11. STR-реген (нерф 1.7.0.4, perStr 0.025):
-        //     str=60, maxHp=1300 → 1.5 HP/сек вне боя; ×0.35 → 0.525 в бою;
-        //     кап: str=1000, perStr=0.05, maxHp=200 → rate 50 → cap 3.0
+        // 11. STR-реген (нерф 1.7.0.4, perStr 0.025)
         double regenOut = AttributeMath.strRegenPerSecond(60.0, 0.025, 1300.0, false, 0.35, 1.5);
         double regenIn = AttributeMath.strRegenPerSecond(60.0, 0.025, 1300.0, true, 0.35, 1.5);
         double regenCap = AttributeMath.strRegenPerSecond(1000.0, 0.05, 200.0, false, 1.0, 1.5);
@@ -326,7 +334,7 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 13. Крит мили (пакет 4): AGI 55 → 5 + 55×0.05 = 7.75%; кап 40 при AGI 1000
+        // 13. Крит мили: AGI 55 → 7.75%; кап 40 при AGI 1000
         double critMelee = AttributeMath.critMelee(55.0, 5.0, 0.05, 40.0);
         double critMeleeCap = AttributeMath.critMelee(1000.0, 5.0, 0.05, 40.0);
         if (Math.abs(critMelee - 7.75) < 0.01 && Math.abs(critMeleeCap - 40.0) < 0.01) {
@@ -341,8 +349,7 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 14. Крит магии (пакет 4): INT 60 main → (5+1.8)×1.5 = 10.2%;
-        //     без main-mult → 6.8%; кап 35 при INT 2000
+        // 14. Крит магии: INT 60 main → 10.2%; без main → 6.8%; кап 35
         double critSpellMain = AttributeMath.critSpell(60.0, true, 5.0, 0.03, 1.5, 35.0);
         double critSpellOff = AttributeMath.critSpell(60.0, false, 5.0, 0.03, 1.5, 35.0);
         double critSpellCap = AttributeMath.critSpell(2000.0, true, 5.0, 0.03, 1.5, 35.0);
@@ -358,6 +365,47 @@ public final class SelftestRunner {
             sender.sendMessage(Component.text(
                     "[FAIL] Крит магии: main=" + critSpellMain + ", off=" + critSpellOff
                             + ", cap=" + critSpellCap,
+                    NamedTextColor.RED));
+        }
+
+        // 15. Производные статы (pure-формулы PowerService, те же что в бою):
+        //     Воин 40 ур.: WP = 30 + 60×1.5 + 26×0.5 = 133
+        //     Маг 40 ур.:  SP = 30 + 60×1.5 = 120
+        //     Жрец 40 ур.: HPow = 25 + 60×1.4 = 109
+        double wp = PowerService.weaponPowerFormula(30.0, 60.0, 26.0, 1.5, 0.5);
+        double sp = PowerService.spellPowerFormula(30.0, 60.0, 1.5);
+        double hpow = PowerService.healPowerFormula(25.0, 60.0, 1.4);
+        if (Math.abs(wp - 133.0) < 0.01
+                && Math.abs(sp - 120.0) < 0.01
+                && Math.abs(hpow - 109.0) < 0.01) {
+            pass++;
+            sender.sendMessage(Component.text(
+                    "[PASS] Производные статы: WP 133, SP 120, HPow 109 (40 ур., дефолты)",
+                    NamedTextColor.GREEN));
+        } else {
+            fail++;
+            sender.sendMessage(Component.text(
+                    "[FAIL] Производные статы: wp=" + wp + ", sp=" + sp + ", hpow=" + hpow,
+                    NamedTextColor.RED));
+        }
+
+        // 16. Анти-ваншот кап (pure CombatService.cappedDamage, тот же что в бою):
+        //     9999 при maxHp 1300 / 35% → 455; 100 → 100 (ниже капа); pct=0 → без капа
+        double cappedBig = CombatService.cappedDamage(9999.0, 1300.0, 35.0);
+        double cappedSmall = CombatService.cappedDamage(100.0, 1300.0, 35.0);
+        double cappedOff = CombatService.cappedDamage(500.0, 1300.0, 0.0);
+        if (Math.abs(cappedBig - 455.0) < 0.01
+                && Math.abs(cappedSmall - 100.0) < 0.01
+                && Math.abs(cappedOff - 500.0) < 0.01) {
+            pass++;
+            sender.sendMessage(Component.text(
+                    "[PASS] Анти-ваншот: 9999→455 (1300 HP, 35%), 100→100, pct=0 → выкл",
+                    NamedTextColor.GREEN));
+        } else {
+            fail++;
+            sender.sendMessage(Component.text(
+                    "[FAIL] Анти-ваншот: big=" + cappedBig + ", small=" + cappedSmall
+                            + ", off=" + cappedOff,
                     NamedTextColor.RED));
         }
 
