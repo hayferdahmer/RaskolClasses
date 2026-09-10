@@ -21,6 +21,12 @@ import org.bukkit.event.player.PlayerQuitEvent;
  * Свитки способностей (bind 1–5).
  * 1.5.8: AuthGate.allowed на входе обоих каналов (неаутентифицированные
  * AuthMe-игроки не пользуют свитки); creative-гейт живёт ниже в castOn.
+ *
+ * 1.7.5-prep:
+ * - D1: ЛКМ-канал теперь уважает hotbar-bind.enabled (гейты ПКМ/ЛКМ согласованы);
+ * - D2: event.setCancelled(true) вызывается ПОСЛЕ проверки isTargeted —
+ *   если свиток не точечной абилки, обычная PvP-атака проходит штатно
+ *   (игрок не «застревает» между отменённой атакой и не-таргетным кастом).
  */
 public final class BindListener implements Listener {
 
@@ -68,9 +74,17 @@ public final class BindListener implements Listener {
         }
     }
 
-    /** ЛКМ по игроку со свитком точечной способности = каст в цель. */
+    /**
+     * ЛКМ по игроку со свитком точечной способности = каст в цель.
+     * 1.7.5-prep (D2): setCancelled только если свиток действительно точечной
+     * абилки и прошёл все гейты — иначе обычная PvP-атака идёт штатно.
+     */
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = false)
     public void onAttack(EntityDamageByEntityEvent event) {
+        // D1: общий гейт hotbar-bind.enabled теперь уважается и ЛКМ-каналом
+        if (!plugin.getRaskolConfig().isBindEnabled()) {
+            return;
+        }
         if (!plugin.getRaskolConfig().isTargetCastEnabled()) {
             return;
         }
@@ -104,10 +118,13 @@ public final class BindListener implements Listener {
             dbg(player, "обрыв: свиток чужого класса");
             return;
         }
+        // D2: СНАЧАЛА проверка isTargeted — если абилка не точечная, выходим
+        // БЕЗ setCancelled, чтобы обычная PvP-атака прошла штатно
         if (!plugin.getAbilities().isTargeted(def.id())) {
             dbg(player, "обрыв: абилка не точечная");
             return;
         }
+        // Только сейчас отменяем ванильную атаку — идём в таргет-каст
         event.setCancelled(true);
         if (plugin.getAbilities().tryCastTargeted(player, target, def)) {
             plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
