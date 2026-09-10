@@ -14,24 +14,22 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * 1.7.0: сервис классовых атрибутов.
- * Значение атрибута = base(class) + growth(class)×PlayerLevel + модификаторы
+ * 1.7.0 пакет 1: сервис классовых атрибутов (STR/AGI/INT).
+ * Значение = base(class) + growth(class) × PlayerLevel + модификаторы
  * (спек-пассивки, эффекты, будущий шмот). Кэш на игрока на тик (паттерн
  * ResistService): повторные чтения в одном тике бесплатны, любое изменение
  * модификаторов инвалидирует кэш немедленно.
  *
- * PlayerLevel по умолчанию = уровень профильного скилла класса (SkillLevelProvider);
- * переключатель attributes.level-source: class-skill | vanilla.
- * Вся математика — в AttributeMath (pure), здесь только данные, конфиг и кэш.
+ * 1.7.0.5: maxHp(uuid) читает ЖИВЫЕ ключи конфига attributes.hp.base-hp
+ * и attributes.hp.per-str и вызывает каноническую формулу
+ * AttributeMath.maxHp(str, baseHp, perStr) — HP = base-hp + STR × per-str.
+ * Legacy-ключи per-level/main-str-bonus больше не читаются.
  *
- * Пакет 1, шаг 2а: производные шансы защиты — dodgeChance/parryChance (raw)
- * и effectiveAvoidance (после DR и капов). Условия боя (фронт, мили/щит)
- * здесь НЕ учитываются — их накладывает AvoidanceService в пакете 3;
- * эти методы — единый источник чисел для боя, PAPI, /rc debug и Книги.
+ * PlayerLevel: attributes.level-source (class-skill | vanilla).
  */
 public final class AttributeService {
 
-    /** Временной или постоянный модификатор атрибутов (дельты). */
+    /** Временной или постоянный модификатор атрибутов (дельты STR/AGI/INT). */
     public record Modifier(String source, double str, double agi, double intel, long expiresAt) {
         public boolean isPermanent() {
             return expiresAt == Long.MAX_VALUE;
@@ -74,14 +72,14 @@ public final class AttributeService {
         double v = plugin.getConfig().getDouble(
                 "attributes.classes." + pc.name() + ".base-" + type.name().toLowerCase(),
                 defaultBase(pc, type));
-        return Double.isFinite(v) ? Math.max(0.0, v) : defaultBase(pc, type);
+        return Double.isFinite(v) && v >= 0 ? v : defaultBase(pc, type);
     }
 
     private double growthOf(PlayerClass pc, AttributeType type) {
         double v = plugin.getConfig().getDouble(
                 "attributes.classes." + pc.name() + ".growth-" + type.name().toLowerCase(),
                 defaultGrowth(pc, type));
-        return Double.isFinite(v) ? Math.max(0.0, v) : defaultGrowth(pc, type);
+        return Double.isFinite(v) && v >= 0 ? v : defaultGrowth(pc, type);
     }
 
     private static double defaultBase(PlayerClass pc, AttributeType type) {
@@ -174,26 +172,38 @@ public final class AttributeService {
         }
     }
 
-    /* --------------------------- производные величины -------------------------- */
+    /* ----------------------------- производные ----------------------------- */
 
-    /** Максимум HP игрока по формуле пакета 1 (применение к vanilla-атрибуту — пакет 2). */
+    /**
+     * 1.7.0.5: максимум HP игрока по живой формуле конфига:
+     * HP = base-hp + STR × per-str (дефолты 100 и 20).
+     * Без класса — базовое HP (100), чтобы HUD/реген не ловили ноль.
+     */
     public double maxHp(UUID uuid) {
+        double baseHp = plugin.getConfig().getDouble("attributes.hp.base-hp", 100.0);
+        double perStr = plugin.getConfig().getDouble("attributes.hp.per-str", 20.0);
+        if (!Double.isFinite(baseHp) || baseHp < 0) {
+            baseHp = 100.0;
+        }
+        if (!Double.isFinite(perStr) || perStr < 0) {
+            perStr = 20.0;
+        }
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
         if (pc == null) {
-            return 20.0;
+            return AttributeMath.maxHp(0.0, baseHp, perStr);
         }
         double str = value(uuid, AttributeType.STR);
-        double level = levelOf(uuid, pc);
-        boolean strMain = mainOf(pc) == AttributeType.STR;
-        double perStr = plugin.getConfig().getDouble("attributes.hp.per-str", 2.0);
-        double perLevel = plugin.getConfig().getDouble("attributes.hp.per-level", 1.0);
-        double mainBonus = plugin.getConfig().getDouble("attributes.hp.main-str-bonus", 1.0);
-        return AttributeMath.maxHp(str, level, strMain, perStr, perLevel, mainBonus);
+        return AttributeMath.maxHp(str, baseHp, perStr);
     }
 
-    /** Шанс крита мили, % (применение — пакет 4). */
+    /** Шанс крита мили, % (пакет 4). */
     public double critMeleeChance(UUID uuid) {
+        Player player = Bukkit.getPlayer(uuid);
+        PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
+        if (pc == null) {
+            return 0.0;
+        }
         double agi = value(uuid, AttributeType.AGI);
         return AttributeMath.critMelee(agi,
                 plugin.getConfig().getDouble("attributes.crit.melee-base", 5.0),
@@ -201,11 +211,14 @@ public final class AttributeService {
                 plugin.getConfig().getDouble("attributes.crit.melee-cap", 40.0));
     }
 
-    /** Шанс крита магии, % (применение — пакет 4). */
+    /** Шанс крита магии, % (пакет 4). */
     public double critSpellChance(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
-        boolean intMain = pc != null && mainOf(pc) == AttributeType.INT;
+        if (pc == null) {
+            return 0.0;
+        }
+        boolean intMain = mainOf(pc) == AttributeType.INT;
         double intel = value(uuid, AttributeType.INT);
         return AttributeMath.critSpell(intel, intMain,
                 plugin.getConfig().getDouble("attributes.crit.spell-base", 5.0),
@@ -214,69 +227,7 @@ public final class AttributeService {
                 plugin.getConfig().getDouble("attributes.crit.spell-cap", 35.0));
     }
 
-    /**
-     * Raw-шанс уклонения, %: гипербола AGI; для AGI-основных классов сверху
-     * добавляется половина потерянного парирования (Правило 1 из ТЗ):
-     * lost = parryRaw(STR) − micro, refund = lost × agi-main-dodge-refund.
-     * Условия боя не учитываются (уклонение работает с любого угла).
-     */
-    public double dodgeChance(UUID uuid) {
-        Player player = Bukkit.getPlayer(uuid);
-        PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
-        if (pc == null) {
-            return 0.0;
-        }
-        double agi = value(uuid, AttributeType.AGI);
-        double k = plugin.getConfig().getDouble("attributes.avoidance.dodge-k", 100.0);
-        double dodge = AttributeMath.dodgeRaw(agi, k);
-        if (mainOf(pc) == AttributeType.AGI) {
-            double str = value(uuid, AttributeType.STR);
-            double parryK = plugin.getConfig().getDouble("attributes.avoidance.parry-k", 150.0);
-            double micro = plugin.getConfig().getDouble("attributes.avoidance.agi-main-parry-micro", 0.5);
-            double lost = Math.max(0.0, AttributeMath.parryRaw(str, parryK) - micro);
-            double refund = plugin.getConfig().getDouble("attributes.avoidance.agi-main-dodge-refund", 0.5);
-            dodge += lost * refund;
-        }
-        return dodge;
-    }
-
-    /**
-     * Raw-шанс парирования, %: гипербола STR; для AGI-основных классов —
-     * плоское микро-значение (их защита — уклонение). Условия боя (фронт ≤ 90°,
-     * мили/щит в руке) накладывает AvoidanceService в пакете 3.
-     */
-    public double parryChance(UUID uuid) {
-        Player player = Bukkit.getPlayer(uuid);
-        PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
-        if (pc == null) {
-            return 0.0;
-        }
-        if (mainOf(pc) == AttributeType.AGI) {
-            return plugin.getConfig().getDouble("attributes.avoidance.agi-main-parry-micro", 0.5);
-        }
-        double str = value(uuid, AttributeType.STR);
-        double k = plugin.getConfig().getDouble("attributes.avoidance.parry-k", 150.0);
-        return AttributeMath.parryRaw(str, k);
-    }
-
-    /**
-     * Эффективная пара [dodge, parry] после закона убывающей отдачи и капов
-     * (soft-cap 60, dr-factor 0.5, hard-cap 75) при предположении, что условия
-     * парирования выполнены. Именно эти числа крутятся в бою (пакет 3)
-     * и показываются игроку (PAPI, /rc debug, Книга).
-     */
-    public double[] effectiveAvoidance(UUID uuid) {
-        double dodge = dodgeChance(uuid);
-        double parry = parryChance(uuid);
-        double total = dodge + parry;
-        double eff = AttributeMath.applyDR(total,
-                plugin.getConfig().getDouble("attributes.avoidance.soft-cap", 60.0),
-                plugin.getConfig().getDouble("attributes.avoidance.dr-factor", 0.5),
-                plugin.getConfig().getDouble("attributes.avoidance.hard-cap", 75.0));
-        return AttributeMath.splitEff(dodge, parry, eff);
-    }
-
-    /* ------------------------------- модификаторы ------------------------------ */
+    /* ------------------------------- модификаторы ------------------------------- */
 
     public void addTimedModifier(UUID uuid, String source,
                                  double str, double agi, double intel, long millis) {
