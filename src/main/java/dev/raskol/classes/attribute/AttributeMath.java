@@ -3,11 +3,13 @@ package dev.raskol.classes.attribute;
 
 /**
  * 1.7.0: ВСЯ боевая математика атрибутов — чистые статические функции без Bukkit.
- * Никакого состояния, никаких_side-эффектов: это позволяет гонять формулы
+ * Никакого состояния, никаких side-эффектов: это позволяет гонять формулы
  * в /rc selftest headless-проверками и переиспользовать их в бою, HUD и PAPI
  * без расхождений (единый источник правды).
  *
- * Соглашения: шансы и проценты — в процентах (0..100), углы — в градусах.
+ * 1.7.0.3: strRegenPerSecond — Dota-подобный реген HP от СИЛЫ:
+ * вне боя полная скорость, в бою — множитель regen-combat-factor,
+ * кап — regen-cap-pct от maxHP в секунду (анти-скейл абьюз).
  */
 public final class AttributeMath {
 
@@ -27,6 +29,29 @@ public final class AttributeMath {
             hp += str * mainBonus;
         }
         return Math.max(1.0, hp);
+    }
+
+    /**
+     * 1.7.0.3: реген HP от СИЛЫ, HP/сек.
+     *   rate = STR × perStr;
+     *   в бою rate ×= combatFactor (толпа всё равно убивает);
+     *   кап: rate ≤ maxHp × capPct / 100 (реген не скейлится в абсурд с пулом).
+     * Все входы защищены от NaN/отрицательных.
+     */
+    public static double strRegenPerSecond(double str, double perStr, double maxHp,
+                                           boolean inCombat, double combatFactor, double capPct) {
+        double rate = Math.max(0.0, str) * Math.max(0.0, perStr);
+        if (!Double.isFinite(rate)) {
+            return 0.0;
+        }
+        if (inCombat) {
+            rate *= Math.max(0.0, combatFactor);
+        }
+        double cap = Math.max(0.0, maxHp) * Math.max(0.0, capPct) / 100.0;
+        if (!Double.isFinite(cap)) {
+            return 0.0;
+        }
+        return Math.min(rate, cap);
     }
 
     /* -------------------------------- урон ----------------------------------- */
