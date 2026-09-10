@@ -51,6 +51,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
  * FIX 1.7.0-p2.5: ClassTheme.primary()/secondary() возвращают TextColor.
+ * FIX 1.7.0.4.1: gradientBar вызов для ресурс-полосы — 6 аргументов (добавлен resEnd).
  */
 public final class HpBarService implements Listener {
 
@@ -294,8 +295,9 @@ public final class HpBarService implements Listener {
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
+            // FIX 1.7.0.4.1: 6 аргументов (добавлен resEnd между resStart/resEnd-выбором и empty)
             line = line.append(gradientBar(res / 100.0, len,
-                    gradientEnabled() ? resStart : resEnd, empty,
+                    gradientEnabled() ? resStart : resEnd, resEnd, empty,
                     resRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
@@ -304,7 +306,7 @@ public final class HpBarService implements Listener {
         player.sendActionBar(line);
     }
 
-    /** Полоса с градиентом и опциональной искрой регена. */
+    /** Полоса с градиентом и опциональной искрой регена (6 аргументов). */
     private static Component gradientBar(double fraction, int len,
                                          TextColor start, TextColor end,
                                          TextColor empty, TextColor sparkColor) {
