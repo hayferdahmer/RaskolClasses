@@ -24,17 +24,7 @@ import java.util.UUID;
 
 /**
  * 1.6.13: headless-самотестирование плагина (/rc selftest).
- * 1.7.0 пакет 4: итого 14 групп проверок:
- *   1–7  — резисты/клампы/реестр/PDC/спек/конфиг/fx (fx печатает точных виновников);
- *   8    — HP-формула (воин 240 / маг 180 при str=60, level=40);
- *   9    — DR: raw 80→70, 100→75, 200→75 (hard-cap);
- *   10   — AGI-основные: dodge 33.33 + refund 5.63 = 38.96; parry raw 11.76;
- *   11   — STR-реген (нерф 1.7.0.4, perStr 0.025): 1.5 вне боя, 0.525 в бою,
- *          кап 3.0 при str=1000/maxHp=200;
- *   12   — углы: фронт 0° (isFront=true, isBack=false), спина 180° (наоборот),
- *          бок 90° = граница фронта (isFront=true);
- *   13   — крит мили: AGI 55 → 7.75%; кап 40 при AGI 1000;
- *   14   — крит магии: INT 60 main → 10.2%; без main-mult → 6.8%; кап 35.
+ * 1.7.0.5: итого 14 групп проверок (HP-чек пересчитан под формулу 1.7.0.5).
  * Ничего не мутирует; все проверки — чистая математика AttributeMath + реестры.
  */
 public final class SelftestRunner {
@@ -233,19 +223,22 @@ public final class SelftestRunner {
             }
         }
 
-        // 8. HP-формула: воин (STR основной) и маг (STR не основной)
-        double hpWarrior = AttributeMath.maxHp(60.0, 40.0, true, 2.0, 1.0, 1.0);
-        double hpMage = AttributeMath.maxHp(60.0, 40.0, false, 2.0, 1.0, 1.0);
-        if (Math.abs(hpWarrior - 240.0) < 0.01 && Math.abs(hpMage - 180.0) < 0.01) {
+        // 8. HP-формула (1.7.0.5): base=100, perStr=20; level/strMain/perLevel/mainBonus игнорируются.
+        //    воин (STR 60, level 40): 100 + 60×20 = 1300
+        //    маг  (STR 60, level 40): 100 + 60×20 = 1300 (main-бонус больше не применяется)
+        //    Вызов через legacy-сигнатуру 6 аргументов проверяет обратную совместимость.
+        double hpWarrior = AttributeMath.maxHp(60.0, 40.0, true, 20.0, 0.0, 0.0);
+        double hpMage = AttributeMath.maxHp(60.0, 40.0, false, 20.0, 0.0, 0.0);
+        if (Math.abs(hpWarrior - 1300.0) < 0.01 && Math.abs(hpMage - 1300.0) < 0.01) {
             pass++;
             sender.sendMessage(Component.text(
-                    "[PASS] HP-формула: воин 240, маг 180 (str=60, level=40)",
+                    "[PASS] HP-формула (1.7.0.5): 100 + STR×20; str=60 → 1300",
                     NamedTextColor.GREEN));
         } else {
             fail++;
             sender.sendMessage(Component.text(
-                    "[FAIL] HP-формула: воин=" + hpWarrior + " (ожидалось 240), маг="
-                            + hpMage + " (ожидалось 180)",
+                    "[FAIL] HP-формула: воин=" + hpWarrior + " (ожидалось 1300), маг="
+                            + hpMage + " (ожидалось 1300)",
                     NamedTextColor.RED));
         }
 
@@ -267,7 +260,7 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
 
-        // 10. AGI-основные: микро-парирование + refund половины потерянного в dodge
+        // 10. AGI-основные: микро-парирование + refund
         double dodge = AttributeMath.dodgeRaw(50.0, 100.0);
         double parry = AttributeMath.parryRaw(20.0, 150.0);
         double micro = 0.5;
@@ -291,10 +284,10 @@ public final class SelftestRunner {
         }
 
         // 11. STR-реген (нерф 1.7.0.4, perStr 0.025):
-        //     str=60 → 1.5 вне боя; ×0.35 → 0.525 в бою;
-        //     кап: str=1000, perStr 0.05, maxHp 200 → rate 50 → cap 3.0
-        double regenOut = AttributeMath.strRegenPerSecond(60.0, 0.025, 235.0, false, 0.35, 1.5);
-        double regenIn = AttributeMath.strRegenPerSecond(60.0, 0.025, 235.0, true, 0.35, 1.5);
+        //     str=60, maxHp=1300 → 1.5 HP/сек вне боя; ×0.35 → 0.525 в бою;
+        //     кап: str=1000, perStr=0.05, maxHp=200 → rate 50 → cap 3.0
+        double regenOut = AttributeMath.strRegenPerSecond(60.0, 0.025, 1300.0, false, 0.35, 1.5);
+        double regenIn = AttributeMath.strRegenPerSecond(60.0, 0.025, 1300.0, true, 0.35, 1.5);
         double regenCap = AttributeMath.strRegenPerSecond(1000.0, 0.05, 200.0, false, 1.0, 1.5);
         if (Math.abs(regenOut - 1.5) < 0.01
                 && Math.abs(regenIn - 0.525) < 0.01
