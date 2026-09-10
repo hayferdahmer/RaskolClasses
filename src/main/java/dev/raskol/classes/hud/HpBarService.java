@@ -7,8 +7,8 @@ import dev.raskol.classes.config.RaskolConfig;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.NamespacedKey;
 import org.bukkit.GameMode;
 import org.bukkit.attribute.Attribute;
@@ -23,43 +23,32 @@ import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.7.0 пакет 2 (редизайн p2.7 «скошенная классика»): совмещённый ActionBar-HUD.
+ * 1.7.0 пакет 2 (редизайн p2.5-fix): ActionBar-HUD в старой строгой компоновке
+ * 1.6.x, но в текущей тёмной брендовой палитре:
+ *   ❬ ❤ ▰▰▱▱▱▱▱▱▱ 82/234 ❭ ❬  ▰▰▰▰▰▰▰▰▰▰ 100/100 ❭
+ *   │  │  ││││└└└└└└─ пустые сегменты: бронза (строгий контур полосы)
+ *   │  │  └└└└─────── залитые сегменты HP: глубокий кроваво-красный
+ *   │  └─ сердце: цвет fill HP
+ *   └─ рамка ❬ ❭: бронза бренда (#8B5A3C, тон ⚜ из MOTD)
+ * Ресурс-полоса: эмблема класса (theme.secondary) + fill тёмным theme.primary,
+ * цифры — тёплый пергамент (#D6CDBE) для контраста на любом фоне.
+ * Компоновка ровно как в 1.6.x («Энергия ☠ ▰▰▱▱ 30/100»), без имени ресурса
+ * (по требованию: только эмблема).
  *
- *   ❬ ❤ ╱╱╱╱╱╱╱╱ 93/235 ❭ ❬  ╱╱╱╱╱╱╱╱ 100/100 ❭
- *        (скошенные сегменты в рост цифр)
+ * FIX 1.7.0-p2.5: ClassTheme.primary()/secondary() возвращают TextColor, а не
+ * String — убран строковый парсер там, где значение уже готовое.
+ * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
  *
- * По отзыву (скрины «как было» vs «что стало»):
- *  - Сегменты — СКОШЕННЫЕ параллелограммы в рост цифр: полноразмерный блок,
- *    наклонённый курсивом Adventure (глиф ▰ нельзя растянуть до высоты цифр —
- *    кегль глифа фиксирован шрифтом; курсив даёт тот же скошенный силуэт ▰,
- *    но в полный рост). Никаких прямых толстых █ и квадратов.
- *  - СИММЕТРИЯ: HP-бар и ресурс-бар одинаковой длины (gauge-length, дефолт 10)
- *    и одинаковой компоновки.
- *  - ГРАДИЕНТЫ: HP — тёмно-красный перелив (hp-start → hp-end); ресурс —
- *    классовый цвет от тёмного (theme.primary) к чуть более светлому
- *    (primary, осветлённый на 30%).
- *  - ИСКРА РЕГЕНА без золота: свежезалитые сегменты на 600 мс осветляются
- *    к shimmer-цвету (дефолт белый, доля 45%) и плавно гаснут — перелив
- *    по своим же оттенкам, без чужеродных вспышек.
- *  - Пустые сегменты — тот же скошенный силуэт в почти чёрном empty:
- *    полоса читается целиком, как «залито/не залито».
- *  - Цифры — приглушённый тёплый пергамент (не примитивно-белый),
- *    show-numbers:false — чистые полосы.
- *
- * Сердца: healthScale = hearts-scale (дефолт 20 = один ряд на весь пул).
- * Полное скрытие сердец сервером невозможно (Paper отклоняет scale 0) —
+ * Сердца: healthScale = hearts-scale (дефолт 20 = один ряд из 10 сердец на весь
+ * пул). Полное скрытие сердец сервером невозможно (Paper отклоняет scale 0) —
  * только ресурспаком. mode=vanilla: строка не шлётся, ресурс рисует HudService.
  *
- * Применение maxHP: AttributeModifier ADD_NUMBER raskolclasses:max_hp;
- * пересчёт каждые hp-display.update-period-ticks (дефолт 10).
- * FIX 1.7.0-p2.1: Attribute через RegistryAccess (Paper 1.21.4).
- * p2.7: ключи gauge-length-hp/gauge-length-res/spark больше не читаются
- * (симметрия и shimmer вместо золотой вспышки); конфиг не требует правок.
+ * Применение maxHP: AttributeModifier ADD_NUMBER с ключом raskolclasses:max_hp;
+ * пересчёт каждые hp-display.update-period-ticks (дефолт 10) покрывает все
+ * триггеры: смена класса, рост уровня, спек, модификаторы, reload.
+ * Здоровье клампится сверху при уменьшении maxHP.
  */
 public final class HpBarService implements Listener {
 
@@ -68,25 +57,8 @@ public final class HpBarService implements Listener {
             .getRegistry(RegistryKey.ATTRIBUTE)
             .get(NamespacedKey.minecraft("max_health"));
 
-    /** Длительность искры регена, мс. */
-    private static final long SPARK_MS = 600L;
-
-    /** Максимальная доля осветления сегмента искрой (без чужеродных цветов). */
-    private static final double SHIMMER_STRENGTH = 0.45;
-
-    /** Состояние полос игрока: последние значения и окна искры. */
-    private static final class BarState {
-        double lastHp = -1;
-        double lastRes = -1;
-        long sparkHpUntil;
-        long sparkResUntil;
-        int sparkHpFrom;
-        int sparkResFrom;
-    }
-
     private final RaskolClasses plugin;
     private final NamespacedKey maxHpKey;
-    private final Map<UUID, BarState> states = new ConcurrentHashMap<>();
 
     public HpBarService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -112,14 +84,8 @@ public final class HpBarService implements Listener {
         return plugin.getConfig().getBoolean("hp-display.gauge", true);
     }
 
-    private boolean showNumbers() {
-        return plugin.getConfig().getBoolean("hp-display.show-numbers", true);
-    }
-
-    /** Симметричная длина обеих полос. */
     private int gaugeLength() {
-        return Math.max(4, Math.min(24,
-                plugin.getConfig().getInt("hp-display.gauge-length", 10)));
+        return Math.max(4, Math.min(20, plugin.getConfig().getInt("hp-display.gauge-length", 10)));
     }
 
     private int period() {
@@ -149,7 +115,6 @@ public final class HpBarService implements Listener {
     }
 
     private void tick() {
-        long now = System.currentTimeMillis();
         boolean unified = !"vanilla".equals(mode());
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (player.getGameMode() == GameMode.SPECTATOR) {
@@ -158,11 +123,9 @@ public final class HpBarService implements Listener {
             applyMaxHealth(player);
             applyHearts(player, unified);
             if (unified) {
-                sendUnifiedActionbar(player, now);
+                sendUnifiedActionbar(player);
             }
         }
-        // гигиена: состояния оффлайн-игроков не держим
-        states.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null);
     }
 
     /* ----------------------------- применение maxHP ----------------------------- */
@@ -231,116 +194,63 @@ public final class HpBarService implements Listener {
     /* --------------------------- совмещённая строка --------------------------- */
 
     /**
-     * Симметричная компоновка: обе полосы одной длины, скошенные сегменты,
-     * градиенты тёмный→светлее, искра регена без золота.
+     * Старая строгая компоновка 1.6.x в брендовой палитре:
+     * ❬ ❤ ▰▰▰▱▱▱▱▱▱▱ 82/234 ❭ ❬ ⚔ ▰▰▰▰▰▰▰▰▰ 100/100 ❭
      */
-    private void sendUnifiedActionbar(Player player, long now) {
+    private void sendUnifiedActionbar(Player player) {
         double max = maxOf(player);
         double hp = Math.max(0.0, player.getHealth());
         double res = plugin.getResources().getValue(player.getUniqueId());
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         int len = gaugeLength();
         boolean gauge = gaugeEnabled();
-        double hpFraction = max <= 0 ? 0 : Math.max(0.0, Math.min(1.0, hp / max));
-        double resFraction = Math.max(0.0, Math.min(1.0, res / 100.0));
-
-        BarState st = states.computeIfAbsent(player.getUniqueId(), k -> new BarState());
-        // искра регена: значение выросло → окно и стартовый индекс сегментов
-        if (st.lastHp >= 0 && hp > st.lastHp + 0.01) {
-            st.sparkHpFrom = Math.max(0, (int) Math.floor(
-                    (st.lastHp / Math.max(1.0, max)) * len));
-            st.sparkHpUntil = now + SPARK_MS;
-        }
-        if (st.lastRes >= 0 && res > st.lastRes + 0.01) {
-            st.sparkResFrom = Math.max(0, (int) Math.floor((st.lastRes / 100.0) * len));
-            st.sparkResUntil = now + SPARK_MS;
-        }
-        st.lastHp = hp;
-        st.lastRes = res;
+        double hpFraction = max <= 0 ? 0 : hp / max;
 
         TextColor frame = color("hp-display.colors.frame", "#8B5A3C");
-        TextColor empty = color("hp-display.colors.empty", "#241C17");
-        TextColor numbers = color("hp-display.colors.numbers", "#B7A880");
-        TextColor shimmer = color("hp-display.colors.shimmer", "#FFFFFF");
-        TextColor hpFrom = color("hp-display.colors.hp-start", "#4A0C0C");
-        TextColor hpTo = color("hp-display.colors.hp-end", "#A32020");
+        TextColor empty = color("hp-display.colors.gauge-empty", "#6E5232");
+        TextColor hpFill = color("hp-display.colors.hp-fill", "#A32020");
+        TextColor numbers = color("hp-display.colors.numbers", "#D6CDBE");
 
-        // ресурс: классовый от тёмного к чуть более светлому (primary → +30% света)
+        // theme.primary()/secondary() уже TextColor — парсить нечего
         RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
-        TextColor resFrom = theme != null && theme.primary() != null
+        TextColor resFill = theme != null && theme.primary() != null
                 ? theme.primary()
                 : color("hp-display.colors.res-fill", "#C8A24A");
-        TextColor resTo = lerp(resFrom, TextColor.fromHexString("#FFFFFF"), 0.30);
+        TextColor resSymbol = theme != null && theme.secondary() != null
+                ? theme.secondary()
+                : numbers;
         String symbol = symbolOf(pc);
 
         Component line = Component.text("❬ ", frame)
-                .append(Component.text("❤ ", hpTo));
+                .append(Component.text("❤ ", hpFill));
         if (gauge) {
-            line = line.append(gauge(hpFraction, len, hpFrom, hpTo, empty,
-                    st.sparkHpUntil, st.sparkHpFrom, shimmer, now))
+            line = line.append(gauge(hpFraction, len, hpFill, empty))
                     .append(Component.text(" ", frame));
         }
-        if (showNumbers()) {
-            line = line.append(Component.text((int) hp + "/" + (int) max, numbers));
-        }
-        line = line.append(Component.text(" ❭ ❬ ", frame))
-                .append(Component.text(symbol + " ", resTo));
+        line = line.append(Component.text((int) hp + "/" + (int) max, numbers))
+                .append(Component.text(" ❭ ❬ ", frame))
+                .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
-            line = line.append(gauge(resFraction, len, resFrom, resTo, empty,
-                    st.sparkResUntil, st.sparkResFrom, shimmer, now))
+            line = line.append(gauge(res / 100.0, len, resFill, empty))
                     .append(Component.text(" ", frame));
         }
-        if (showNumbers()) {
-            line = line.append(Component.text((int) res + "/100", numbers));
-        }
-        line = line.append(Component.text(" ❭", frame));
+        line = line.append(Component.text((int) res + "/100", numbers))
+                .append(Component.text(" ❭", frame));
         player.sendActionBar(line);
     }
 
-    /**
-     * Скошенная полоса в рост цифр: сегменты — полноразмерный блок под курсивом
-     * (тот же силуэт ▰, но в полный рост); залитые — градиент from→to,
-     * поверх — искра shimmer (осветление своей палитры, fade 600 мс);
-     * пустые — тот же силуэт в almost-black empty.
-     */
-    private static Component gauge(double fraction, int len,
-                                   TextColor from, TextColor to, TextColor empty,
-                                   long sparkUntil, int sparkFrom, TextColor shimmer, long now) {
-        int filled = (int) Math.round(Math.max(0.0, Math.min(1.0, fraction)) * len);
+    /** Полоса в стиле 1.6.x: залитые ▰ цветом fill, пустые ▱ бронзой empty. */
+    private static Component gauge(double fraction, int len, TextColor fill, TextColor empty) {
+        double clamped = Math.max(0.0, Math.min(1.0, fraction));
+        int filled = (int) Math.round(clamped * len);
         Component c = Component.empty();
-        for (int i = 0; i < len; i++) {
-            if (i < filled) {
-                double t = len <= 1 ? 1.0 : i / (double) (len - 1);
-                TextColor col = lerp(from, to, t);
-                if (now < sparkUntil && i >= sparkFrom) {
-                    double fade = (sparkUntil - now) / (double) SPARK_MS; // 1 → 0
-                    col = lerp(col, shimmer, Math.max(0.0, Math.min(1.0, fade)) * SHIMMER_STRENGTH);
-                }
-                c = c.append(Component.text("█", col)
-                        .decoration(TextDecoration.ITALIC, true));
-            } else {
-                c = c.append(Component.text("█", empty)
-                        .decoration(TextDecoration.ITALIC, true));
-            }
+        if (filled > 0) {
+            c = c.append(Component.text("▰".repeat(filled), fill));
+        }
+        if (len - filled > 0) {
+            c = c.append(Component.text("▱".repeat(len - filled), empty));
         }
         return c;
-    }
-
-    /** Линейная интерполяция двух hex-цветов. */
-    private static TextColor lerp(TextColor a, TextColor b, double t) {
-        double k = Math.max(0.0, Math.min(1.0, t));
-        int av = a.value();
-        int bv = b.value();
-        int ar = (av >> 16) & 0xFF;
-        int ag = (av >> 8) & 0xFF;
-        int ab = av & 0xFF;
-        int br = (bv >> 16) & 0xFF;
-        int bg = (bv >> 8) & 0xFF;
-        int bb = bv & 0xFF;
-        int r = (int) Math.round(ar + (br - ar) * k);
-        int g = (int) Math.round(ag + (bg - ag) * k);
-        int bl = (int) Math.round(ab + (bb - ab) * k);
-        return TextColor.fromHexString(String.format(Locale.ROOT, "#%02X%02X%02X", r, g, bl));
     }
 
     /** Эмблема класса из конфига (theme.symbol), фолбэк по классу. */
@@ -384,6 +294,6 @@ public final class HpBarService implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        states.remove(event.getPlayer().getUniqueId());
+        // состояний на игрока не держим — чистка не нужна
     }
 }
