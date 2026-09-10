@@ -17,10 +17,8 @@ import java.util.Map;
 
 /**
  * Конфиг-слой плагина.
- * 1.7.5.1: САМОЛЕЧЕНИЕ КОНФИГА: пустые/битые значения damage-types.vanilla-map
- * восстанавливаются до дефолтов при reload c сохранением файла; добавлены
- * addDefault для летальных ключей среды и анти-ваншота, которых раньше не было
- * (из-за их отсутствия живой конфиг терял летальность падения).
+ * 1.7.5.1: самолечение битых значений damage-types.vanilla-map при reload.
+ * 1.7.6: ключ balance.target-ttk-seconds — якорь TTK-харнесса (подсветка матрицы).
  */
 public final class RaskolConfig {
 
@@ -98,6 +96,9 @@ public final class RaskolConfig {
         config.addDefault("class-accept.enabled", true);
         config.addDefault("class-accept.subtitle", "Твой путь избран");
 
+        // 1.7.6: якорь TTK-харнесса
+        config.addDefault("balance.target-ttk-seconds", 20.0);
+
         // 1.6.0: резисты
         config.addDefault("resist.cap", 90.0);
         config.addDefault("resist.classes.WARRIOR.magic", 12.0);
@@ -111,7 +112,7 @@ public final class RaskolConfig {
         config.addDefault("resist.classes.HUNTER.magic", 12.0);
         config.addDefault("resist.classes.HUNTER.physical", 16.0);
 
-        // 1.7.5.1: летальная среда и анти-ваншот — теперь с addDefault
+        // 1.7.5.1: летальная среда и анти-ваншот — с addDefault
         config.addDefault("damage-types.env-lethal-scale", true);
         config.addDefault("damage-types.env-lethal",
                 List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION"));
@@ -249,16 +250,12 @@ public final class RaskolConfig {
         config.addDefault("classes.ROGUE.passives.sadism.cooldown-seconds", 2);
 
         config.options().copyDefaults(true);
-        // 1.7.5.1: самолечение битых значений vanilla-map ДО сохранения
         healVanillaMap(config);
         plugin.saveConfig();
         rebuildThemes();
     }
 
-    /**
-     * 1.7.5.1: если значение vanilla-map отсутствует или пустое (битый merge конфига),
-     * ставим каноническое значение. Вызывается до saveConfig — файл лечится сам.
-     */
+    /** 1.7.5.1: пустые/битые значения vanilla-map восстанавливаются до канона. */
     private void healVanillaMap(FileConfiguration config) {
         boolean dirty = false;
         for (Map.Entry<String, String> e : VANILLA_MAP_DEFAULTS.entrySet()) {
@@ -272,6 +269,12 @@ public final class RaskolConfig {
         if (dirty) {
             plugin.getLogger().info("config: восстановлены пустые значения damage-types.vanilla-map (1.7.5.1)");
         }
+    }
+
+    /** 1.7.6: якорь TTK для подсветки матрицы симулятора. */
+    public double targetTtkSeconds() {
+        double v = plugin.getConfig().getDouble("balance.target-ttk-seconds", 20.0);
+        return Double.isFinite(v) && v > 0.0 ? v : 20.0;
     }
 
     public boolean isHudEnabled() { return plugin.getConfig().getBoolean("hud.enabled", true); }
