@@ -23,12 +23,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Реестр способностей пяти классов.
- * 1.5.9: сообщение гейта каста читается из messages.gate.blocked.
- * 1.6.11: exists(id) для санитизации свитков.
- * 1.6.13: integrityProblems() для /rc selftest.
- * FIX 1.7.0-hotfix: при cost <= 0 проверка consume не вызывается —
- * бесплатные абилки (Аспект гепарда и т.п.) больше не получают
- * «Не хватает ресурса: нужно 0» (дефект ResourceState.consume(0) → false).
+ * 1.7.2: киты Воина (нордика) и Охотника (средневековье других вселенных) заменены
+ * на масштабируемые от WP способности (base + WP×coeff); старые id воина/охотника
+ * удалены — мёртвые свитки сжигает ScrollSanitizer на join (1.6.11).
+ * Киты Мага/Разбойника/Жреца остаются на старых id до патчей 1.7.3/1.7.4.
  */
 public final class AbilityRegistry {
 
@@ -45,16 +43,20 @@ public final class AbilityRegistry {
     private static final Map<PlayerClass, List<AbilityDef>> DEFAULTS = new EnumMap<>(PlayerClass.class);
 
     static {
+        // 1.7.2: нордика, лестница 10/25/50/65/75
         DEFAULTS.put(PlayerClass.WARRIOR, List.of(
-                def("steel_skin", "Стальная кожа", 1, 10, 30, 45),
-                def("shield_bash", "Удар щитом", 2, 25, 20, 25),
-                def("blood_fury", "Кровавое безумие", 3, 50, 40, 30),
-                def("war_god", "Бог войны", 4, 75, 100, 300)));
+                def("tyr_strike", "Удар Тира", 1, 10, 20, 8),
+                def("balder_skin", "Шкура Бальдра", 2, 25, 25, 30),
+                def("berserkergang", "Берсеркерганг", 3, 50, 35, 45),
+                def("fenrir_blood", "Кровь Фенрира", 4, 65, 30, 25),
+                def("ragnarok", "Рагнарёк", 5, 75, 60, 60)));
+        // 1.7.2: Ведьмак/Skyrim-вайб, лестница 10/25/50/65/75
         DEFAULTS.put(PlayerClass.HUNTER, List.of(
-                def("aimed_shot", "Прицельный выстрел", 1, 10, 20, 15),
-                def("cheetah_aspect", "Аспект гепарда", 2, 25, 0, 60),
-                def("multi_shot", "Мультивыстрел", 3, 50, 40, 25),
-                def("barrage", "Заградительный огонь", 4, 75, 80, 120)));
+                def("wolf_mark", "Метка Волка", 1, 10, 20, 12),
+                def("swallow", "Ласточка", 2, 25, 15, 40),
+                def("piercing_shot", "Пронзающий выстрел", 3, 50, 30, 20),
+                def("arrow_fan", "Веер стрел", 4, 65, 35, 22),
+                def("arrow_rain", "Дождь стрел", 5, 75, 60, 90)));
         DEFAULTS.put(PlayerClass.PRIEST, List.of(
                 def("lesser_heal", "Малое исцеление", 1, 1, 10, 3),
                 def("flash_heal", "Быстрое исцеление", 2, 10, 20, 6),
@@ -96,15 +98,19 @@ public final class AbilityRegistry {
         MageAbilities mage = new MageAbilities(plugin);
         RogueAbilities rogue = new RogueAbilities(plugin);
 
-        casters.put("steel_skin", warrior::steelSkin);
-        casters.put("shield_bash", warrior::shieldBash);
-        casters.put("blood_fury", warrior::bloodFury);
-        casters.put("war_god", warrior::warGod);
+        // 1.7.2: кит воина (нордика)
+        casters.put("tyr_strike", warrior::tyrStrike);
+        casters.put("balder_skin", warrior::balderSkin);
+        casters.put("berserkergang", warrior::berserkergang);
+        casters.put("fenrir_blood", warrior::fenrirBlood);
+        casters.put("ragnarok", warrior::ragnarok);
 
-        casters.put("aimed_shot", hunter::aimedShot);
-        casters.put("cheetah_aspect", hunter::cheetahAspect);
-        casters.put("multi_shot", hunter::multiShot);
-        casters.put("barrage", hunter::barrage);
+        // 1.7.2: кит охотника (средневековье других вселенных)
+        casters.put("wolf_mark", hunter::wolfMark);
+        casters.put("swallow", hunter::swallow);
+        casters.put("piercing_shot", hunter::piercingShot);
+        casters.put("arrow_fan", hunter::arrowFan);
+        casters.put("arrow_rain", hunter::arrowRain);
 
         casters.put("lesser_heal", (p, d) -> priest.lesserHeal(p, p, d));
         casters.put("flash_heal", (p, d) -> priest.flashHeal(p, p, d));
@@ -228,7 +234,6 @@ public final class AbilityRegistry {
 
     private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
         RaskolConfig cfg = plugin.getRaskolConfig();
-        // 1.5.8: auth + creative гейт; 1.5.9: текст гейта из конфига
         if (!AuthGate.canAct(plugin, caster)) {
             caster.sendMessage(Component.text(cfg.message("gate.blocked",
                     "Способности недоступны в этом режиме или до входа в аккаунт."),
@@ -270,19 +275,13 @@ public final class AbilityRegistry {
                     + (remaining / 1000L + 1L) + "с", NamedTextColor.GRAY));
             return false;
         }
-        // FIX 1.7.0-hotfix: бесплатные абилки (cost <= 0) не трогают ресурс —
-        // обходим дефект ResourceState.consume(0) == false («Нужно 0, у вас N»)
         if (def.cost() > 0 && !plugin.getResources().consume(id, def.cost())) {
             caster.sendMessage(Component.text("Не хватает ресурса «" + pc.getResourceName()
                     + "»: нужно " + def.cost() + ", у вас "
                     + (int) plugin.getResources().getValue(id), NamedTextColor.RED));
             return false;
         }
-        if (def.cost() > 0) {
-            plugin.getCooldowns().start(id, def.id(), def.cooldownMillis());
-        } else {
-            plugin.getCooldowns().start(id, def.id(), def.cooldownMillis());
-        }
+        plugin.getCooldowns().start(id, def.id(), def.cooldownMillis());
 
         boolean ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
         if (!ok) {
