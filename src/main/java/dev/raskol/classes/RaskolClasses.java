@@ -55,8 +55,9 @@ import java.util.Locale;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.7.4.1 фикс 2: HpBarService зарегистрирован как Listener И его таск запущен —
- * без этого join/quit-хуки (персист здоровья) и применение maxHP не работают.
+ * 1.7.4.1 фикс 2: HpBarService зарегистрирован как Listener И его таск запущен.
+ * 1.7.4.1 фикс 3: ResourceService с персистом (resources.yml); автосейв ресурсов
+ * вместе с кулдаунами и спеками.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -113,7 +114,8 @@ public final class RaskolClasses extends JavaPlugin {
         }
 
         this.skillLevels = new SkillLevelProvider(this);
-        this.resources = new ResourceService(raskolConfig, classProvider);
+        // 1.7.4.1 фикс 3: ResourceService с персистом (plugin, config, classProvider)
+        this.resources = new ResourceService(this, raskolConfig, classProvider);
 
         classProvider.setResourceService(resources);
 
@@ -236,6 +238,8 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.saveAll();
             specStorage.save();
+            // 1.7.4.1 фикс 3: автосейв ресурсов вместе с кулдаунами
+            resources.saveAll();
         }, autosaveTicks, autosaveTicks));
 
         registerCommand();
@@ -246,6 +250,9 @@ public final class RaskolClasses extends JavaPlugin {
     public void onDisable() {
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
+        if (resources != null) {
+            resources.saveAll();
+        }
         if (installations != null) {
             installations.shutdown();
         }
