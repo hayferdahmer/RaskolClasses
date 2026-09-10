@@ -48,6 +48,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * FIX 1.7.0-p2.1: Attribute резолвится через RegistryAccess (Paper 1.21.4).
  * FIX 1.7.0-p2.5: ClassTheme.primary()/secondary() возвращают TextColor.
+ * FIX 1.7.0.3.1: gradientBar вызов для ресурс-полосы — добавлен resEnd (6 аргументов).
  */
 public final class HpBarService implements Listener {
 
@@ -132,13 +133,12 @@ public final class HpBarService implements Listener {
                 continue;
             }
             applyMaxHealth(player);
-            applyStrRegen(player); // 1.7.0.3: реген до отрисовки — бар показывает свежее HP
+            applyStrRegen(player);
             applyHearts(player, unified);
             if (unified) {
                 sendUnifiedActionbar(player);
             }
         }
-        // гигиена: state оффлайн-игроков не держим
         lastTick.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null);
     }
 
@@ -187,7 +187,6 @@ public final class HpBarService implements Listener {
     /**
      * Dota-подобный реген HP от СИЛЫ. Прямой setHealth без RegainHealthEvent
      * (не спамит ресурс жреца и проки лечения). Мёртвые не регенят.
-     * Работает в любом hp-display.mode (геймплей, а не отображение).
      */
     private void applyStrRegen(Player player) {
         if (player.isDead()) {
@@ -255,7 +254,6 @@ public final class HpBarService implements Listener {
 
         TextColor frame = color("hp-display.colors.frame", "#8B5A3C");
         TextColor empty = color("hp-display.colors.gauge-empty", "#6E5232");
-        TextColor hpFill = color("hp-display.colors.hp-fill", "#A32020");
         TextColor numbers = color("hp-display.colors.numbers", "#D6CDBE");
         TextColor spark = color("hp-display.regen-spark.color", "#F5E6B8");
 
@@ -282,7 +280,7 @@ public final class HpBarService implements Listener {
         lastTick.put(uuid, new State(hp, res));
 
         Component line = Component.text("❬ ", frame)
-                .append(Component.text("❤ ", hpFill));
+                .append(Component.text("❤ ", hpEnd));
         if (gauge) {
             line = line.append(gradientBar(hpFraction, len,
                     gradientEnabled() ? hpStart : hpEnd, hpEnd, empty,
@@ -293,8 +291,9 @@ public final class HpBarService implements Listener {
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
+            // FIX 1.7.0.3.1: добавлен resEnd (6-й аргумент — конечный цвет градиента)
             line = line.append(gradientBar(res / 100.0, len,
-                    gradientEnabled() ? resStart : resEnd, empty,
+                    gradientEnabled() ? resStart : resEnd, resEnd, empty,
                     resRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
@@ -330,7 +329,6 @@ public final class HpBarService implements Listener {
         return c;
     }
 
-    /** Линейная интерполяция в RGB (надёжно, без зависимости от версии Adventure). */
     private static TextColor lerpRgb(float t, TextColor a, TextColor b) {
         float tt = Math.max(0f, Math.min(1f, t));
         int ar = (a.value() >> 16) & 0xFF, ag = (a.value() >> 8) & 0xFF, ab = a.value() & 0xFF;
