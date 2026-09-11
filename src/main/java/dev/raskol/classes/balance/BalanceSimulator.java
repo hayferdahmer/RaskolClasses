@@ -16,6 +16,7 @@ import java.util.Random;
  * Модель: два виртуальных игрока уровня level; атрибуты/HP/WP/SP/HPow/резисты/
  * avoidance/криты/STR-реген/анти-ваншот — ТЕ ЖЕ формулы, что в бою
  * (AttributeMath / PowerService.*Formula / CombatService.cappedDamage).
+ * 1.7.6.1-fix: dodge ×= avoidance.dodge-mult (дефолт 0.5) — как в AvoidanceService.
  *
  * Учитывает все 5 абилок кита каждого класса: урон/хил/гранты/баффы/execute
  * с реальными base/coeff/cooldown/cost/duration/threshold/execute-mult из конфига.
@@ -268,6 +269,8 @@ public final class BalanceSimulator {
         } else {
             parry = parryFull; // допущение: атака всегда во фронт, мили в руке
         }
+        // 1.7.6.1-fix: уклонение урезано вдвое (дефолт 0.5) — как в AvoidanceService
+        dodge *= cfg(plugin, "avoidance.dodge-mult", 0.5);
         double eff = AttributeMath.applyDR(dodge + parry,
                 cfg(plugin, "avoidance.soft-cap", 60.0),
                 cfg(plugin, "avoidance.dr-factor", 0.5),
