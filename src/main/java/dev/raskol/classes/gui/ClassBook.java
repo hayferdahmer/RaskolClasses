@@ -390,3 +390,354 @@ public final class ClassBook implements InventoryHolder {
                 lore.add(Component.text(msg(plugin, "book.resist.grant",
                         "Даёт: +{phys}% физрезиста на {sec} с")
                         .replace("{phys}", String.valueOf((int) grantPhys))
+                        .replace("{sec}", String.valueOf(secs)), NamedTextColor.AQUA));
+            }
+            if (grantMagic > 0.0) {
+                int secs = cfg.durationSeconds(pc, def.id(), 0);
+                lore.add(Component.text(msg(plugin, "book.resist.grant-magic",
+                        "Даёт: +{magic}% магрезиста на {sec} с")
+                        .replace("{magic}", String.valueOf((int) grantMagic))
+                        .replace("{sec}", String.valueOf(secs)), NamedTextColor.AQUA));
+            }
+            lore.add(Component.text(scrolls > 0
+                    ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
+                            .replace("{count}", String.valueOf(scrolls))
+                    : msg(plugin, "book.scroll.none", "Свиток: нет"),
+                    scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
+            lore.add(Component.text(""));
+            lore.add(Component.text(msg(plugin, "book.use.left", "ЛКМ — применить"),
+                    NamedTextColor.GREEN));
+            lore.add(Component.text(msg(plugin, "book.use.right", "ПКМ — свиток в хотбар"),
+                    NamedTextColor.YELLOW));
+            meta.lore(lore);
+            if (ready) {
+                meta.addEnchant(Enchantment.LURE, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
+        });
+        return item;
+    }
+
+    private ItemStack installItem(RaskolClasses plugin, Player player, PlayerClass pc, InstallationType type) {
+        int scrolls = countInstallScrolls(plugin, player, type);
+        ItemStack item = new ItemStack(type.displayItem());
+        item.editMeta(meta -> {
+            meta.displayName(TextFx.gradient("⚙ " + type.displayName(),
+                    plugin.getRaskolConfig().themeOf(pc).primary(),
+                    plugin.getRaskolConfig().themeOf(pc).secondary()));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text(msg(plugin,
+                    "book.install.desc." + type.id(), installDescDef(type)), NamedTextColor.WHITE));
+            lore.add(Component.text(msg(plugin, "book.install.active", "Активно: {count}/2 · TTL {ttl} с")
+                    .replace("{count}", String.valueOf(
+                            plugin.getInstallations().countOf(player.getUniqueId())))
+                    .replace("{ttl}", String.valueOf(
+                            plugin.getConfig().getInt("installations.ttl-seconds", 60))),
+                    NamedTextColor.GRAY));
+            lore.add(Component.text(scrolls > 0
+                    ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
+                            .replace("{count}", String.valueOf(scrolls))
+                    : msg(plugin, "book.scroll.none", "Свиток: нет"),
+                    scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
+            lore.add(Component.text(""));
+            lore.add(Component.text(msg(plugin, "book.place.left", "ЛКМ — поставить здесь"),
+                    NamedTextColor.GREEN));
+            lore.add(Component.text(msg(plugin, "book.place.right", "ПКМ — свиток постановки"),
+                    NamedTextColor.YELLOW));
+            meta.lore(lore);
+        });
+        return item;
+    }
+
+    private static String installDescDef(InstallationType type) {
+        return switch (type) {
+            case WAR_BANNER -> "Аура: Resistance I союзникам в радиусе 6 на 8 с";
+            case BEAR_TRAP -> "Мина: Slowness VI 2 с + 3 урона шагнувшему врагу";
+            case LIGHT_WARD -> "Зона: +2 HP/с союзникам в радиусе 4 на 6 с";
+            case FROST_RUNE -> "Мина: 4 урона + Slowness II 3 с врагам в радиусе 3";
+            case SMOKE_BOMB -> "Мина: Blindness 2 с врагам + Speed I себе 3 с";
+        };
+    }
+
+    /** 1.7.5: спека = пассивная идентичность; свитков активок больше нет. */
+    private ItemStack specItem(RaskolClasses plugin, Player player, PlayerClass pc, Spec spec) {
+        SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(spec);
+        Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
+        ItemStack item = new ItemStack(Material.NETHER_STAR);
+        item.editMeta(meta -> {
+            meta.displayName(TextFx.gradient(spec.displayName(),
+                    plugin.getRaskolConfig().themeOf(pc).primary(),
+                    plugin.getRaskolConfig().themeOf(pc).secondary()));
+            List<Component> lore = new ArrayList<>();
+            if (def != null) {
+                lore.add(Component.text(msg(plugin, "book.spec.passive", "Пассив: {text}")
+                        .replace("{text}", def.passiveDescription()), NamedTextColor.WHITE));
+                if (spec == Spec.GUARDIAN) {
+                    double g = plugin.getConfig()
+                            .getDouble("resist.specs.guardian.physical", 10.0);
+                    lore.add(Component.text(msg(plugin, "book.resist.spec",
+                            "Пассив: +{phys}% физрезиста постоянно")
+                            .replace("{phys}", String.valueOf((int) g)),
+                            NamedTextColor.AQUA));
+                }
+            }
+            lore.add(Component.text(""));
+            if (current == spec) {
+                lore.add(Component.text(msg(plugin, "book.spec.chosen", "Выбрана тобой"),
+                        NamedTextColor.GREEN));
+                lore.add(Component.text("Пассивка работает постоянно",
+                        NamedTextColor.DARK_GRAY));
+            } else if (current == null) {
+                lore.add(Component.text(msg(plugin, "book.spec.notchosen",
+                        "Не выбрана · ПКМ — выбрать (уровень 40+)"), NamedTextColor.YELLOW));
+            } else {
+                lore.add(Component.text(msg(plugin, "book.spec.other",
+                        "Выбрана другая спека — отречение ниже"), NamedTextColor.RED));
+            }
+            meta.lore(lore);
+            if (current == spec) {
+                meta.addEnchant(Enchantment.LURE, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
+        });
+        return item;
+    }
+
+    private ItemStack respecItem(RaskolClasses plugin, Player player) {
+        Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
+        int cost = plugin.getSpecService().respecCost(player);
+        ItemStack item = new ItemStack(Material.END_CRYSTAL);
+        item.editMeta(meta -> {
+            meta.displayName(Component.text(msg(plugin, "book.respec.title", "Отречение от пути"),
+                    NamedTextColor.LIGHT_PURPLE));
+            List<Component> lore = new ArrayList<>();
+            if (current == null) {
+                lore.add(Component.text(msg(plugin, "book.respec.nospec",
+                        "Спеки нет — отрекаться не от чего"), NamedTextColor.GRAY));
+            } else {
+                lore.add(Component.text(msg(plugin, "book.respec.current", "Текущая спека: {name}")
+                        .replace("{name}", current.displayName()), NamedTextColor.WHITE));
+                lore.add(Component.text(msg(plugin, "book.respec.price", "Цена: {price} монет (сжигаются)")
+                        .replace("{price}", String.valueOf(cost)), NamedTextColor.RED));
+                lore.add(Component.text(""));
+                lore.add(Component.text(msg(plugin, "book.respec.hint",
+                        "ПКМ №1 — взвести, ПКМ №2 (30 с) — отречься"), NamedTextColor.YELLOW));
+            }
+            meta.lore(lore);
+        });
+        return item;
+    }
+
+    private ItemStack passiveItem(RaskolClasses plugin, PlayerClass pc, String id) {
+        RaskolConfig cfg = plugin.getRaskolConfig();
+        ItemStack item = new ItemStack(Material.EXPERIENCE_BOTTLE);
+        item.editMeta(meta -> {
+            meta.displayName(Component.text(cfg.passiveDisplayName(pc, id, id),
+                    NamedTextColor.AQUA));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text(cfg.passiveDescription(pc, id, ""), NamedTextColor.WHITE));
+            lore.add(Component.text(passiveNumbers(pc, id), NamedTextColor.GRAY));
+            meta.lore(lore);
+        });
+        return item;
+    }
+
+    private ItemStack crownItem(RaskolClasses plugin, Player player, PlayerClass pc) {
+        UUID uuid = player.getUniqueId();
+        String title = plugin.getFlavorService().titleOf(uuid, pc);
+        ItemStack item = new ItemStack(Material.GOLDEN_HELMET);
+        item.editMeta(meta -> {
+            meta.displayName(Component.text(msg(plugin, "book.crown.title", "Корона и титул"),
+                    NamedTextColor.GOLD));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text(msg(plugin, "book.crown.crown", "Корона: {name}")
+                    .replace("{name}", plugin.getFlavorService().crownDisplayName(uuid)),
+                    NamedTextColor.GOLD));
+            lore.add(Component.text(msg(plugin, "book.crown.titleline", "Титул: {name}")
+                    .replace("{name}", title.isEmpty() ? "—" : title), NamedTextColor.WHITE));
+            lore.add(Component.text(msg(plugin, "book.crown.aura",
+                    "Аура-партикл видна союзникам и врагам"), NamedTextColor.DARK_GRAY));
+            meta.lore(lore);
+        });
+        return item;
+    }
+
+    private static String passiveNumbers(PlayerClass pc, String id) {
+        return switch (id) {
+            case "execute_passive" -> "20% шанс · ×3 · порог HP 20% · КД 6 с";
+            case "predator" -> "порог HP 80% · ×1.2";
+            case "grace" -> "×1.15 к исходящему лечению";
+            case "mana_soaked" -> "порог маны 50 · −15% входящего урона";
+            case "poisoned_blades" -> "30% шанс · Яд I 2 с · КД 3 с";
+            case "sadism" -> "+3 урона со спины · КД 2 с";
+            default -> "";
+        };
+    }
+
+    private static int indexOf(int[] slots, int slot) {
+        for (int i = 0; i < slots.length; i++) {
+            if (slots[i] == slot) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Обработчик кликов книги. 1.7.5: SPECS — только выбор и отречение. */
+    public static final class ClickHandler implements Listener {
+
+        private final RaskolClasses plugin;
+
+        public ClickHandler(RaskolClasses plugin) {
+            this.plugin = plugin;
+        }
+
+        @EventHandler(priority = EventPriority.HIGH)
+        public void onClick(InventoryClickEvent event) {
+            if (!(event.getInventory().getHolder() instanceof ClassBook book)) {
+                return;
+            }
+            event.setCancelled(true);
+            if (!(event.getWhoClicked() instanceof Player player)) {
+                return;
+            }
+            int slot = event.getRawSlot();
+            if (slot != event.getSlot()) {
+                return;
+            }
+            boolean left = event.getClick() == ClickType.LEFT;
+            boolean right = event.getClick() == ClickType.RIGHT;
+            if (!left && !right) {
+                return;
+            }
+            PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+            if (pc == null) {
+                return;
+            }
+            if (slot == SLOT_TAB_ABILITIES) {
+                open(plugin, player, Tab.ABILITIES);
+                return;
+            }
+            if (slot == SLOT_TAB_SPECS) {
+                open(plugin, player, Tab.SPECS);
+                return;
+            }
+            if (slot == SLOT_TAB_CLASS) {
+                open(plugin, player, Tab.CLASS);
+                return;
+            }
+            switch (book.tab) {
+                case ABILITIES -> {
+                    int idx = indexOf(ABILITY_SLOTS, slot);
+                    if (idx >= 0) {
+                        AbilityDef def = plugin.getAbilities().getBySlot(pc, idx + 1);
+                        if (def == null) {
+                            return;
+                        }
+                        if (left) {
+                            if (plugin.getAbilities().tryCast(player, def)) {
+                                plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
+                            }
+                        } else {
+                            if (countAbilityScrolls(plugin, player, def.id()) > 0) {
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
+                                        NamedTextColor.GRAY));
+                            } else {
+                                player.getInventory().addItem(plugin.getTokens().create(def, pc));
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
+                                        .append(Component.text(def.displayName(), pc.getColor())));
+                            }
+                        }
+                        book.refresh(plugin, player);
+                        return;
+                    }
+                    if (slot == SLOT_INSTALL) {
+                        InstallationType type = InstallationType.forClass(pc);
+                        if (type == null) {
+                            return;
+                        }
+                        if (left) {
+                            plugin.getInstallations().tryPlace(player);
+                        } else {
+                            if (countInstallScrolls(plugin, player, type) > 0) {
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
+                                        NamedTextColor.GRAY));
+                            } else {
+                                player.getInventory().addItem(plugin.getInstallToken().create(type, pc));
+                                player.sendMessage(Component.text(msg(plugin,
+                                        "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
+                                        .append(Component.text(type.displayName(), pc.getColor())));
+                            }
+                        }
+                        book.refresh(plugin, player);
+                    }
+                }
+                case SPECS -> {
+                    int idx = indexOf(SPEC_SLOTS, slot);
+                    if (idx >= 0) {
+                        List<Spec> specs = specsFor(pc);
+                        if (idx >= specs.size()) {
+                            return;
+                        }
+                        Spec spec = specs.get(idx);
+                        Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
+                        if (!right) {
+                            return;
+                        }
+                        if (current == null) {
+                            plugin.getSpecService().choose(player, spec);
+                        } else if (current == spec) {
+                            // 1.7.5: свитков активок больше нет — пассивка работает постоянно
+                            player.sendMessage(Component.text(
+                                    "Спека уже выбрана: пассивка работает постоянно, свитков активок больше нет.",
+                                    NamedTextColor.GRAY));
+                        } else {
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.spec.other", "Спека уже выбрана: {name}. Отречение — кристалл ниже.")
+                                    .replace("{name}", current.displayName()), NamedTextColor.RED));
+                        }
+                        book.refresh(plugin, player);
+                        return;
+                    }
+                    if (slot == SLOT_RESPEC && right) {
+                        SpecService service = plugin.getSpecService();
+                        Spec current = service.getSpec(player.getUniqueId());
+                        if (current == null) {
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.none", "Спеки нет — отрекаться не от чего."),
+                                    NamedTextColor.GRAY));
+                            return;
+                        }
+                        SpecService.RespecResult result = service.confirmRespec(player);
+                        if (result == SpecService.RespecResult.NOT_PENDING) {
+                            service.requestRespec(player);
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.arm", "Отречение взведено: ПКМ по кристаллу ещё раз в течение 30 с. Цена: {price} монет")
+                                    .replace("{price}", String.valueOf(service.respecCost(player))),
+                                    NamedTextColor.YELLOW));
+                        } else if (result == SpecService.RespecResult.OK) {
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.ok", "Путь сброшен. Выбери новую спеку."),
+                                    NamedTextColor.GREEN));
+                        } else if (result == SpecService.RespecResult.POOR) {
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.poor", "Не хватает монет на отречение."),
+                                    NamedTextColor.RED));
+                        } else if (result == SpecService.RespecResult.NO_ECONOMY) {
+                            player.sendMessage(Component.text(msg(plugin,
+                                    "book.msg.respec.noecon", "Экономика недоступна — респец отключён."),
+                                    NamedTextColor.RED));
+                        }
+                        book.refresh(plugin, player);
+                    }
+                }
+                case CLASS -> {
+                    // информационная вкладка — клики ничего не делают
+                }
+            }
+        }
+    }
+}
