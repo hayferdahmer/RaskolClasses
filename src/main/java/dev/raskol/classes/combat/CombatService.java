@@ -33,11 +33,13 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 1.6.0: боевой сервис урона и резистов. Путь A (ваниль) + путь B (наши способности).
  * 1.7.1: производные статы и анти-ваншот (одиночный.hit ≤ max-single-hit-pct%).
- * 1.7.6.1: BURST-WINDOW CAP — скользящее окно combat.burst-window-seconds (3 с)
- * суммирует урон по игроку-цели и ограничивает его combat.burst-window-pct (50%)
- * от maxHP: веер стрел + пронзающий + авто за одно окно больше не сносят стеклянному
- * классу весь пул (кейсы матрицы: охотник→маг 1.7 с, воин→маг 3.3 с).
- * Исключения: среда (TRUE-причины из cap-exempt) и execute-финишеры (allowOverCap).
+ * 1.7.6.1: burst-окно (combat.burst-window-seconds/pct) — суммарный урон по игроку
+ * за окно ≤ pct% maxHP; среда и execute-финишеры исключены.
+ * 1.8.1 (S1+S2): ЕДИНЫЙ фракционный гейт:
+ *  - canHit(source, target) — публичный предикат для китов (ранний return);
+ *  - dealDamage отклоняет урон по союзнику при combat.friendly-fire=false;
+ *  - path-A (ванильное событие) отменяется для «союзник бьёт союзника»,
+ *    включая наш WP-бонус исходящего офенса (раньше он бил союзников в wilderness).
  */
 public final class CombatService implements Listener {
 
@@ -62,7 +64,7 @@ public final class CombatService implements Listener {
     private final AvoidanceService avoidance;
     private final PowerService powers;
 
-    /** 1.7.6.1: журнал урона по окнам: uuid → deque of [timeMillis, amount]. */
+    /** 1.7.6.1: журнал урона по burst-окну: uuid → deque of [timeMillis, amount]. */
     private final Map<UUID, Deque<double[]>> burstLog = new ConcurrentHashMap<>();
 
     public CombatService(RaskolClasses plugin, ResistService resists) {
@@ -116,12 +118,56 @@ public final class CombatService implements Listener {
         return damager instanceof Projectile proj && proj.getShooter() instanceof Player;
     }
 
+    /* ------------------------- 1.8.1: фракционный гейт ------------------------- */
+
+    /**
+     * Может ли source наносить урон target с учётом combat.friendly-fire.
+     * Мобы и среда проходят всегда; PvP-союзники (одна непустая фракция) — нет,
+     * если friendly-fire=false. Публичный предикат для кит-файлов (S3).
+     */
+    public boolean canHit(Entity source, LivingEntity target) {
+        if (target == null) {
+            return false;
+        }
+        if (!(target instanceof Player tp)) {
+            return true; // мобы валидны всегда
+        }
+        if (source == null) {
+            return true; // среда
+        }
+        if (!(source instanceof Player sp)) {
+            return true; // моб бьёт игрока
+        }
+        if (sp.getUniqueId().equals(tp.getUniqueId())) {
+            return true; // сам себя (служебные симуляции)
+        }
+        if (plugin.getConfig().getBoolean("combat.friendly-fire", false)) {
+            return true;
+        }
+        return !Targeting.isAlly(plugin, sp.getUniqueId(), tp.getUniqueId());
+    }
+
+    /* ------------------------------ путь A (ваниль) ------------------------------ */
+
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         boolean suppressed = Boolean.TRUE.equals(SUPPRESS.get());
         if (suppressed) {
             SUPPRESS.set(Boolean.FALSE);
         }
+
+        // 1.8.1 (S1): союзник бьёт союзника — отменяем ДО офенс-математики,
+        // чтобы наш WP/SP-бонус исходящего урона не доходил до союзника.
+        if (!suppressed && event instanceof EntityDamageByEntityEvent by
+                && by.getDamager() instanceof Player attacker
+                && event.getEntity() instanceof Player victimTarget
+                && !attacker.getUniqueId().equals(victimTarget.getUniqueId())
+                && !plugin.getConfig().getBoolean("combat.friendly-fire", false)
+                && Targeting.isAlly(plugin, attacker.getUniqueId(), victimTarget.getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
+
         if (!suppressed) {
             applyOutgoingOffense(event);
         }
@@ -158,7 +204,6 @@ public final class CombatService implements Listener {
         }
         event.setDamage(event.getDamage() * factor);
         applySingleHitCap(event);
-        // 1.7.6.1: burst-window cap после одиночного капа
         event.setDamage(applyBurstCap(target, event.getDamage()));
     }
 
@@ -325,17 +370,12 @@ public final class CombatService implements Listener {
 
     /* --------------------- burst-window cap (1.7.6.1) --------------------- */
 
-    /**
-     * Скользящее окно: суммарный урон по игроку за combat.burst-window-seconds (3 с)
-     * ≤ combat.burst-window-pct (50%) от maxHP. Возвращает разрешённую часть урона
-     * (0, если окно уже выбрано). Журнал пишется только по фактически пропущенному урону.
-     */
     private double applyBurstCap(Player target, double damage) {
         if (damage <= 0.0) {
             return damage;
         }
         double seconds = cfgD("combat.burst-window-seconds", 3.0);
-        double pct = cfgD("combat.burst-window-pct", 50.0);
+        double pct = cfgD("combat.burst-window-pct", 18.0);
         if (seconds <= 0.0 || pct <= 0.0) {
             return damage;
         }
@@ -408,6 +448,10 @@ public final class CombatService implements Listener {
         if (profile == null || target == null || target.isDead()) {
             return 0.0;
         }
+        // 1.8.1 (S2): центральный фракционный гейт — абилки не бьют союзников
+        if (!canHit(source, target)) {
+            return 0.0;
+        }
         DamageProfile safe = sanitize(profile);
         if (safe.isEmpty()) {
             return 0.0;
@@ -460,7 +504,6 @@ public final class CombatService implements Listener {
                     taken = limit;
                 }
             }
-            // 1.7.6.1: burst-window cap (execute-финишеры исключены через allowOverCap)
             double burstAllowed = applyBurstCap(tp2, taken);
             if (burstAllowed < taken && taken > 0.0) {
                 double f = burstAllowed / taken;
