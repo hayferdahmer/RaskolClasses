@@ -38,6 +38,7 @@ import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
 import dev.raskol.classes.spec.SpecStorage;
 import dev.raskol.classes.spec.SpecToken;
+import dev.raskol.classes.talent.TalentService;
 import dev.raskol.classes.talent.TalentsStorage;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.event.EventHandler;
@@ -51,13 +52,11 @@ import org.bukkit.scheduler.BukkitTask;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.9.0 (инкремент 1): TalentsStorage — персист талантов (talents.yml),
- * автосейв вместе с кулдаунами/спеками/ресурсами. TalentService/Registry/UI —
- * следующие инкременты.
+ * 1.9.0: TalentsStorage + TalentService — персист и рантайм дерева талантов спеки;
+ * reconcile талантов на join и /rc reload, очистка кэша на quit.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -81,6 +80,7 @@ public final class RaskolClasses extends JavaPlugin {
     private SpecToken specToken;
 
     private TalentsStorage talentsStorage;
+    private TalentService talentService;
 
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
@@ -158,8 +158,9 @@ public final class RaskolClasses extends JavaPlugin {
         this.specService = new SpecService(this, specStorage, specRegistry);
         this.specToken = new SpecToken(this);
 
-        // 1.9.0 (инкремент 1): персист талантов
+        // 1.9.0: персист + рантайм талантов
         this.talentsStorage = new TalentsStorage(this);
+        this.talentService = new TalentService(this, talentsStorage);
 
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
@@ -186,16 +187,20 @@ public final class RaskolClasses extends JavaPlugin {
                 resists.clear(event.getPlayer().getUniqueId());
                 attributes.clear(event.getPlayer().getUniqueId());
                 characterLevels.invalidate(event.getPlayer().getUniqueId());
+                talentService.clear(event.getPlayer().getUniqueId());
             }
         }, this);
         pluginManager.registerEvents(new Listener() {
             @EventHandler
             public void onJoin(PlayerJoinEvent event) {
                 specService.restorePassiveResists(event.getPlayer());
+                // 1.9.0: применить таланты на login
+                talentService.reconcile(event.getPlayer().getUniqueId());
             }
         }, this);
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             specService.restorePassiveResists(online);
+            talentService.reconcile(online.getUniqueId());
         }
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
@@ -305,6 +310,10 @@ public final class RaskolClasses extends JavaPlugin {
         }
         fx.validateConfig();
         configValidator.validate();
+        // 1.9.0: пересобрать таланты всех онлайн после /rc reload
+        for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
+            talentService.reconcile(online.getUniqueId());
+        }
         getLogger().info("Конфигурация перезагружена");
     }
 
@@ -334,6 +343,7 @@ public final class RaskolClasses extends JavaPlugin {
     public SpecEffects getSpecEffects() { return specEffects; }
     public SpecToken getSpecToken() { return specToken; }
     public TalentsStorage getTalentsStorage() { return talentsStorage; }
+    public TalentService getTalentService() { return talentService; }
     public FactionHook getFactionHook() { return factionHook; }
     public CrownFlavorService getFlavorService() { return flavorService; }
     public FxService getFx() { return fx; }
