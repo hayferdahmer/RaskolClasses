@@ -37,6 +37,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * Модель (конфиг avoidance.*):
  *  - dodge raw  = 100×AGI/(AGI+dodge-k); у AGI-основных сверху + половина
  *    потерянного парирования (Правило 1: (parryFull − micro) × refund);
+ *  - 1.7.6.1-fix: dodge ×= dodge-mult (дефолт 0.5) — уклонение урезано вдвое,
+ *    высокие значения (30%+) достижимы только с кастомной бронёй (1.10.x);
  *  - parry raw  = 100×STR/(STR+parry-k); у AGI-основных заменено на micro;
  *  - условия парирования: в руке мили-оружие/щит И атака не в спину;
  *    полное парирование (не-AGI-основные) — только фронт ≤ front-angle;
@@ -109,6 +111,8 @@ public final class AvoidanceService {
             dodge += Math.max(0.0, parryFull - micro)
                     * cfgD("avoidance.agi-main-dodge-refund", 0.5);
         }
+        // 1.7.6.1-fix: уклонение урезано вдвое (дефолт 0.5); такие цифры — только со шмотом
+        dodge *= cfgD("avoidance.dodge-mult", 0.5);
 
         double parryChance = 0.0;
         if (holdsMeleeOrShield(defender) && !isBack(defender, attacker)) {
