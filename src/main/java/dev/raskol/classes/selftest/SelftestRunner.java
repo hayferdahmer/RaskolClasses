@@ -8,20 +8,22 @@ import dev.raskol.classes.balance.BalanceSimulator;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.talent.TalentModel;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
  * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
- * Чеки 17–18: TTK-санити (воин-зеркало ∈ [10,60]; жрец-зеркало heal-war ≥30/timeout).
- * Чеки 19–20: pure-формула сводного уровня topNAverage (1.8.0).
- * Чек 21 (1.8.1, S6): фракционный гейт canHit — self и среда проходят всегда.
+ * Чеки 17–18: TTK-санити. Чеки 19–20: сводный уровень topNAverage (1.8.0).
+ * Чек 21: фракционный гейт canHit (1.8.1).
+ * Чеки 22–23 (1.9.0): экономика очков талантов и стоимость дерева.
  */
 public final class SelftestRunner {
 
@@ -126,7 +128,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 21 (1.8.1, S6): фракционный гейт canHit — self и среда проходят всегда
         Player probe = sender instanceof Player sp
                 ? sp
                 : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
@@ -146,6 +147,33 @@ public final class SelftestRunner {
             } else {
                 failed++;
             }
+        }
+
+        // 22 (1.9.0): экономика очков талантов
+        int e39 = TalentModel.earnedPoints(39, 40, 1, 21);
+        int e40 = TalentModel.earnedPoints(40, 40, 1, 21);
+        int e60 = TalentModel.earnedPoints(60, 40, 1, 21);
+        int e99 = TalentModel.earnedPoints(99, 40, 1, 21);
+        boolean ok22 = e39 == 0 && e40 == 1 && e60 == 21 && e99 == 21;
+        if (check(report, "22", "очки талантов: 39→0, 40→1, 60→21, 99→21 (кап)",
+                ok22, "earnedPoints", e39 + "/" + e40 + "/" + e60 + "/" + e99)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 23 (1.9.0): стоимость полного дерева = 21 (2×1 + 4×2 + 2×3 + 1×5)
+        int cost = TalentModel.treeCost(List.of(
+                TalentModel.node("t1a", 1), TalentModel.node("t1b", 1),
+                TalentModel.node("t2a1", 2), TalentModel.node("t2a2", 2),
+                TalentModel.node("t2b1", 2), TalentModel.node("t2b2", 2),
+                TalentModel.node("t3a", 3), TalentModel.node("t3b", 3),
+                TalentModel.node("t4", 5)));
+        if (check(report, "23", "стоимость полного дерева талантов = 21", cost == 21,
+                "treeCost", cost)) {
+            passed++;
+        } else {
+            failed++;
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
