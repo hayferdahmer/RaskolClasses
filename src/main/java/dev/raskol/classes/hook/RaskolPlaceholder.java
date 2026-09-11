@@ -4,24 +4,32 @@ package dev.raskol.classes.hook;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.resource.ResourceState;
+import dev.raskol.classes.classsystem.SkillLevelProvider;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.bukkit.OfflinePlayer;
 
+import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Расширение PlaceholderAPI (A2): %raskolclasses_class%,
- * %raskolclasses_resource%, %raskolclasses_resource_max%.
- * 1.7.0 пакет 1: атрибуты и производные:
- *   %raskolclasses_str% / _agi% / _int%        — итоговые значения атрибутов;
- *   %raskolclasses_hp% / _hp_max%              — текущее HP и максимум по формуле;
- *   %raskolclasses_dodge% / _parry%            — эффективные шансы после DR (целые %);
- *   %raskolclasses_crit_melee% / _crit_spell%  — шансы крита (целые %).
- * Регистрируется только при установленном PlaceholderAPI (проверка в onEnable);
- * persist() — переживает /papi reload.
+ * PlaceholderAPI-хук RaskolClasses (1.6.5 + 1.8.1).
+ * 1.8.1 (S5): добавлен %raskolclasses_level% — СВОНДНЫЙ уровень персонажа
+ * (топ-N скиллов, кап level-cap): прогрессия видна в TAB/табах/скорбордах.
+ *
+ * Полный список плейсхолдеров:
+ *  %raskolclasses_class%        — отображаемое имя класса;
+ *  %raskolclasses_class_id%     — WARRIOR/HUNTER/PRIEST/MAGE/ROGUE;
+ *  %raskolclasses_level%        — сводный уровень персонажа (1.8.0/1.8.1);
+ *  %raskolclasses_char_level%   — алиас level;
+ *  %raskolclasses_skill_level%  — профильный скилл класса (AuraSkills);
+ *  %raskolclasses_resource%     — текущий ресурс класса (0–100);
+ *  %raskolclasses_resource_max% — 100;
+ *  %raskolclasses_hp% / %raskolclasses_hp_max% — текущее/макс HP (онлайн);
+ *  %raskolclasses_phys_resist% / %raskolclasses_magic_resist% — резисты (1.6.5);
+ *  %raskolclasses_resist_mods%  — число активных модификаторов резиста (1.6.5);
+ *  %raskolclasses_dodge% / %raskolclasses_parry% — эффективные avoidance-шансы.
+ * Оффлайн-игрок: uuid-зависимые (level/skill_level) работают, остальные — пустая строка.
  */
 public final class RaskolPlaceholder extends PlaceholderExpansion {
 
@@ -32,17 +40,17 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
     }
 
     @Override
-    public @NotNull String getIdentifier() {
+    public String getIdentifier() {
         return "raskolclasses";
     }
 
     @Override
-    public @NotNull String getAuthor() {
+    public String getAuthor() {
         return "hayferdahmer";
     }
 
     @Override
-    public @NotNull String getVersion() {
+    public String getVersion() {
         return plugin.getPluginMeta().getVersion();
     }
 
@@ -52,44 +60,76 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
     }
 
     @Override
-    public @Nullable String onPlaceholderRequest(Player player, @NotNull String params) {
-        if (player == null) {
+    public String onRequest(OfflinePlayer player, String params) {
+        if (player == null || player.getUniqueId() == null) {
             return "";
         }
         UUID uuid = player.getUniqueId();
-        switch (params) {
-            case "class": {
-                PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-                return pc == null ? "" : pc.getDisplayName();
+        String p = params == null ? "" : params.toLowerCase(Locale.ROOT);
+        Player online = player.getPlayer();
+
+        switch (p) {
+            case "level":
+            case "char_level":
+                return String.valueOf(plugin.getCharacterLevels().characterLevel(uuid));
+
+            case "class":
+            case "class_id": {
+                if (online == null) {
+                    return "";
+                }
+                PlayerClass pc = plugin.getClassProvider().getClassOf(online);
+                if (pc == null) {
+                    return "";
+                }
+                return p.equals("class") ? pc.getDisplayName() : pc.name();
             }
+
+            case "skill_level": {
+                if (online == null) {
+                    return "";
+                }
+                PlayerClass pc = plugin.getClassProvider().getClassOf(online);
+                if (pc == null) {
+                    return "";
+                }
+                int lv = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
+                return lv == SkillLevelProvider.NO_SKILL_SYSTEM ? "0" : String.valueOf(lv);
+            }
+
             case "resource":
-                return String.valueOf((int) plugin.getResources().getValue(uuid));
+                return online == null ? "" : String.valueOf((int) plugin.getResources().getValue(uuid));
+
             case "resource_max":
-                return String.valueOf((int) ResourceState.MAX_VALUE);
-            case "str":
-                return String.valueOf((int) plugin.getAttributes().value(uuid, AttributeType.STR));
-            case "agi":
-                return String.valueOf((int) plugin.getAttributes().value(uuid, AttributeType.AGI));
-            case "int":
-                return String.valueOf((int) plugin.getAttributes().value(uuid, AttributeType.INT));
+                return "100";
+
             case "hp":
-                return String.valueOf((int) player.getHealth());
+                return online == null ? "" : String.valueOf((int) online.getHealth());
+
             case "hp_max":
-                return String.valueOf((int) plugin.getAttributes().maxHp(uuid));
+                return online == null ? "" : String.valueOf((int) plugin.getAttributes().maxHp(uuid));
+
+            case "phys_resist":
+                return online == null ? "" : String.valueOf((int) plugin.getResists().physicalResist(uuid));
+
+            case "magic_resist":
+                return online == null ? "" : String.valueOf((int) plugin.getResists().magicResist(uuid));
+
+            case "resist_mods":
+                return online == null ? "" : String.valueOf(plugin.getResists().breakdown(uuid).active().size());
+
             case "dodge":
-                return String.valueOf(Math.round(
-                        plugin.getAttributes().effectiveAvoidance(uuid)[0]));
+                return online == null ? "" : fmt1(plugin.getAttributes().dodgeChance(uuid));
+
             case "parry":
-                return String.valueOf(Math.round(
-                        plugin.getAttributes().effectiveAvoidance(uuid)[1]));
-            case "crit_melee":
-                return String.valueOf(Math.round(
-                        plugin.getAttributes().critMeleeChance(uuid)));
-            case "crit_spell":
-                return String.valueOf(Math.round(
-                        plugin.getAttributes().critSpellChance(uuid)));
+                return online == null ? "" : fmt1(plugin.getAttributes().parryChance(uuid));
+
             default:
-                return null; // неизвестный плейсхолдер — PAPI оставит как есть
+                return null;
         }
+    }
+
+    private static String fmt1(double v) {
+        return String.format(Locale.ROOT, "%.1f", v);
     }
 }
