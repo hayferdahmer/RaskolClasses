@@ -15,14 +15,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.7.0 пакет 1: сервис классовых атрибутов (STR/AGI/INT).
- * Значение = base + growth×Level + модификаторы (спек/эффекты/кит-баффы).
+ * Значение = base + growth×Level + модификаторы (спек/таланты/кит-баффы).
  * Кэш на тик: повторные чтения в одном тике бесплатны.
  *
- * 1.7.0.5: maxHp читает живые ключи attributes.hp.base-hp / per-str.
- * 1.7.6.1: effectiveAvoidance применяет avoidance.dodge-mult (дисплей = бой).
  * 1.8.0: levelOf по умолчанию берёт СВОНДНЫЙ уровень персонажа
- * (CharacterLevelService, топ-N скиллов с потолком attributes.level-cap);
- * attributes.level-source = class-skill|vanilla — рубильники отката к 1.7.x.
+ * (CharacterLevelService, топ-N скиллов с потолком attributes.level-cap).
+ * 1.9.0: effectiveAvoidance учитывает плоские avoid-бонусы талантов
+ * (TalentService.avoidBonus) ДО DR/split — дисплей и бой совпадают.
  */
 public final class AttributeService {
 
@@ -105,10 +104,8 @@ public final class AttributeService {
     /**
      * Уровень для формул атрибутов (1.8.0):
      *  - character (дефолт): сводный уровень персонажа (топ-N скиллов, кап level-cap);
-     *  - class-skill: профильный скилл класса (поведение 1.7.x, рубильник отката);
+     *  - class-skill: профильный скилл класса (рубильник отката к 1.7.x);
      *  - vanilla: ванильный уровень игрока.
-     * Анлоки способностей НЕ используют этот метод — они остаются на профильном
-     * скилле (AbilityRegistry), чтобы класс-фэнтези не ломалось от сводного уровня.
      */
     public double levelOf(UUID uuid, PlayerClass pc) {
         String source = plugin.getConfig().getString("attributes.level-source", "character");
@@ -221,8 +218,8 @@ public final class AttributeService {
     }
 
     /**
-     * Эффективные dodge/parry после dodge-mult, DR и split — ЕДИНЫЙ источник
-     * для боя (AvoidanceService), симулятора, Книги, PAPI и /rc debug.
+     * Эффективные dodge/parry после dodge-mult, ПЛЮС плоские бонусы талантов (1.9.0),
+     * затем DR и split — ЕДИНЫЙ источник для боя, симулятора, Книги, PAPI и /rc debug.
      */
     public double[] effectiveAvoidance(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
@@ -249,6 +246,12 @@ public final class AttributeService {
         } else {
             parryChance = parryFull; // дисплей считает «фронт+мили» (худший кейс атакующего)
         }
+
+        // 1.9.0: плоские avoid-бонусы талантов (avoid:dodge / avoid:parry)
+        double[] avoidB = plugin.getTalentService().avoidBonus(uuid);
+        dodge += avoidB[0];
+        parryChance += avoidB[1];
+
         double total = dodge + parryChance;
         if (total <= 0.0) {
             return new double[]{0.0, 0.0};
