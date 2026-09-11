@@ -2,10 +2,7 @@
 package dev.raskol.classes.talent;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeService;
-import dev.raskol.classes.attribute.AttributeType;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.ResistService;
+import dev.raskol.classes.hook.EconomyHook;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.talent.TalentModel.TalentNode;
 import dev.raskol.classes.talent.TalentModel.TalentTree;
@@ -22,48 +19,51 @@ import java.util.UUID;
  * 1.9.0: рантайм талантов.
  *
  * Обязанности:
- *  - earned/spent/available очков (чистая математика);
- *  - покупка узла с серверной валидацией (никакого доверия клиенту);
- *  - сброс дерева активной спеки (платный/бесплатный админский);
- *  - reconcile: пересборка модификаторов AttributeService/ResistService
- *    (source "talents") и кэш-карт для хот-пути боя;
- *  - кэш-карты (baseBonus/coeffMult/cooldownMult/procBonus/avoidBonus/regenBonus) —
- *    читаются кит-файлами и AbilityRegistry за O(1).
+ *  - earned/spent/available очков (чистая математика из TalentModel);
+ *  - покупка узла с ПОЛНОЙ серверной валидацией (клиент не участвует в проверках);
+ *  - сброс дерева активной спеки (платный через EconomyHook / бесплатный админский);
+ *  - reconcile: пересборка постоянных модификаторов AttributeService/ResistService
+ *    (source "talents") и кэш-карт хот-пути боя;
+ *  - кэш-карты baseBonus/coeffMult/cooldownMult/procBonus/avoidBonus/regenBonus —
+ *    читаются кит-файлами, AbilityRegistry, AttributeService, ResourceService,
+ *    PassiveListener за O(1) без аллокаций.
  *
  * Reconcile вызывается: onJoin, после purchase, после reset, после смены спеки,
  * после /rc reload. Рассинхрон «куплено ≠ применено» невозможен дольше одного события.
  */
 public final class TalentService {
 
-    /** Статический source модификаторов атрибутов/резистов для reconcile. */
+    /** Source постоянных модификаторов атрибутов/резистов (для reconcile). */
     public static final String SOURCE = "talents";
 
     public enum PurchaseResult {
         OK, TALENTS_DISABLED, NO_SPEC, NODE_NOT_FOUND, WRONG_TREE,
-        TIER_GATE, PREREQ_MISSING, NOT_ENOUGH_POINTS, ALREADY_OWNED, INTERNAL
+        TIER_GATE, PREREQ_MISSING, NOT_ENOUGH_POINTS, ALREADY_OWNED
     }
 
     public enum ResetResult {
-        OK, NO_SPEC, NO_PURCHASED, POOR, NO_ECONOMY, ARMED_WAIT, INTERNAL
+        OK, NO_SPEC, NO_PURCHASED, POOR, NO_ECONOMY
     }
 
     private final RaskolClasses plugin;
     private final TalentsStorage storage;
+    private final EconomyHook economy;
 
-    /** Кэш-карты (пересобираются при reconcile). Volatile для видимости между потоками. */
-    private volatile Map<UUID, Map<String, Double>> baseBonusMap = new HashMap<>();
-    private volatile Map<UUID, Map<String, Double>> coeffMultMap = new HashMap<>();
-    private volatile Map<UUID, Map<String, Double>> cooldownMultMap = new HashMap<>();
-    private volatile Map<UUID, Map<String, Double>> procBonusMap = new HashMap<>();
-    private volatile Map<UUID, double[]> avoidBonusMap = new HashMap<>(); // [dodge, parry]
-    private volatile Map<UUID, Double> regenBonusMap = new HashMap<>();
+    /** Кэш-карты бонусов (пересобираются только в reconcile). */
+    private final Map<UUID, Map<String, Double>> baseBonusMap = new HashMap<>();
+    private final Map<UUID, Map<String, Double>> coeffMultMap = new HashMap<>();
+    private final Map<UUID, Map<String, Double>> cooldownMultMap = new HashMap<>();
+    private final Map<UUID, Map<String, Double>> procBonusMap = new HashMap<>();
+    private final Map<UUID, double[]> avoidBonusMap = new HashMap<>();
+    private final Map<UUID, Double> regenBonusMap = new HashMap<>();
 
     public TalentService(RaskolClasses plugin, TalentsStorage storage) {
         this.plugin = plugin;
         this.storage = storage;
+        this.economy = new EconomyHook(plugin);
     }
 
-    /* -------------------------------- экономика -------------------------------- */
+    /* -------------------------------- экономика очков -------------------------------- */
 
     private int startLevel() {
         return Math.max(1, plugin.getConfig().getInt("talents.start-level", 40));
@@ -81,19 +81,20 @@ public final class TalentService {
         return plugin.getConfig().getBoolean("talents.enabled", true);
     }
 
+    /** Очки из сводного уровня персонажа (1.8.0): clamp(charLevel−39, 0, 21). */
     public int earnedPoints(UUID uuid) {
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
         return TalentModel.earnedPoints(charLevel, startLevel(), perLevel(), maxPoints());
     }
 
+    /** Потраченные очки в дереве спеки = сумма стоимостей купленных узлов. */
     public int spentPoints(UUID uuid, String specId) {
         TalentTree tree = TalentsRegistry.treeOf(specId);
         if (tree == null) {
             return 0;
         }
-        List<String> owned = storage.getPurchased(uuid, specId);
         int sum = 0;
-        for (String nodeId : owned) {
+        for (String nodeId : storage.getPurchased(uuid, specId)) {
             TalentNode n = tree.find(nodeId);
             if (n != null) {
                 sum += n.cost();
@@ -112,6 +113,11 @@ public final class TalentService {
 
     /* -------------------------------- покупка -------------------------------- */
 
+    /**
+     * Покупка узла. Все проверки серверные:
+     * enabled → активная спека → узел существует → узел из ДЕРЕВА АКТИВНОЙ спеки →
+     * не куплен → тир-гейт по charLevel → пререквизиты → стоимость.
+     */
     public PurchaseResult purchase(Player player, String nodeId) {
         if (!enabled()) {
             return PurchaseResult.TALENTS_DISABLED;
@@ -130,7 +136,6 @@ public final class TalentService {
         if (node == null) {
             return PurchaseResult.NODE_NOT_FOUND;
         }
-        // серверная проверка: узел из дерева активной спеки (защита от подмены id)
         if (!node.specId().equals(specId)) {
             return PurchaseResult.WRONG_TREE;
         }
@@ -158,6 +163,11 @@ public final class TalentService {
 
     /* -------------------------------- сброс -------------------------------- */
 
+    /**
+     * Платный сброс дерева АКТИВНОЙ спеки: очки возвращаются в пул,
+     * узлы очищаются, модификаторы пересобираются. Цена: reset-base + reset-per-point×spent.
+     * free=true — админский бесплатный сброс (команда с raskolclasses.admin).
+     */
     public ResetResult reset(Player player, boolean free) {
         UUID uuid = player.getUniqueId();
         Spec spec = plugin.getSpecService().getSpec(uuid);
@@ -172,19 +182,17 @@ public final class TalentService {
         if (!free) {
             int base = plugin.getConfig().getInt("talents.reset-base", 500);
             int perPoint = plugin.getConfig().getInt("talents.reset-per-point", 25);
-            int spent = spentPoints(uuid, specId);
-            int cost = base + perPoint * spent;
-            dev.raskol.classes.hook.EconomyHook eco = plugin.getEconomyHook();
-            if (eco == null || !eco.isAvailable()) {
+            int cost = base + perPoint * spentPoints(uuid, specId);
+            if (!economy.available()) {
                 return ResetResult.NO_ECONOMY;
             }
-            if (!eco.has(player, cost)) {
+            if (economy.balance(uuid) < cost) {
                 player.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                        "talents.reset.poor", "Не хватает монет на сброс талантов.")
+                        "talents.reset.poor", "Не хватает монет на сброс талантов: нужно {cost}.")
                         .replace("{cost}", String.valueOf(cost)), NamedTextColor.RED));
                 return ResetResult.POOR;
             }
-            eco.withdraw(player, cost);
+            economy.withdraw(uuid, cost);
         }
         storage.clearSpec(uuid, specId);
         reconcile(uuid);
@@ -195,16 +203,13 @@ public final class TalentService {
     /* -------------------------------- reconcile -------------------------------- */
 
     /**
-     * Пересборка модификаторов и кэш-карт для игрока.
-     * Читает активную спеку, суммирует эффекты купленных узлов,
-     * пишет постоянные модификаторы (source "talents") и обновляет кэш.
+     * Пересборка: удалить модификаторы source="talents" → просуммировать эффекты
+     * купленных узлов активной спеки → записать постоянные модификаторы и кэш-карты.
      */
     public void reconcile(UUID uuid) {
-        // очистить старые модификаторы талантов
         plugin.getAttributes().removeModifiersBySource(uuid, SOURCE);
         plugin.getResists().removeModifiersBySource(uuid, SOURCE);
 
-        // обнулить кэш-карты
         Map<String, Double> base = new HashMap<>();
         Map<String, Double> coeff = new HashMap<>();
         Map<String, Double> cd = new HashMap<>();
@@ -212,15 +217,18 @@ public final class TalentService {
         double dodgeAdd = 0.0;
         double parryAdd = 0.0;
         double regenAdd = 0.0;
-        double attrStr = 0.0, attrAgi = 0.0, attrInt = 0.0;
-        double resPhys = 0.0, resMagic = 0.0;
+        double attrStr = 0.0;
+        double attrAgi = 0.0;
+        double attrInt = 0.0;
+        double resPhys = 0.0;
+        double resMagic = 0.0;
 
-        Spec spec = specOf(uuid);
+        Player online = plugin.getServer().getPlayer(uuid);
+        Spec spec = online != null ? plugin.getSpecService().getSpec(uuid) : null;
         if (spec != null) {
-            String specId = spec.id();
-            TalentTree tree = TalentsRegistry.treeOf(specId);
+            TalentTree tree = TalentsRegistry.treeOf(spec.id());
             if (tree != null) {
-                for (String nodeId : storage.getPurchased(uuid, specId)) {
+                for (String nodeId : storage.getPurchased(uuid, spec.id())) {
                     TalentNode n = tree.find(nodeId);
                     if (n == null || n.effect() == null) {
                         continue;
@@ -231,11 +239,9 @@ public final class TalentService {
                     double v2 = n.effect().value2();
                     switch (kind) {
                         case "attr" -> {
-                            switch (target) {
-                                case "str" -> attrStr += v;
-                                case "agi" -> attrAgi += v;
-                                case "int" -> attrInt += v;
-                            }
+                            if ("str".equals(target)) attrStr += v;
+                            else if ("agi".equals(target)) attrAgi += v;
+                            else if ("int".equals(target)) attrInt += v;
                         }
                         case "resist" -> {
                             if ("both".equals(target)) {
@@ -248,31 +254,29 @@ public final class TalentService {
                             }
                         }
                         case "kit_base" -> base.merge(target, v, Double::sum);
-                        case "kit_mult" ->
-                                coeff.merge(target, v, Double::sum); // 0.25 = +25%
-                        case "cd" ->
-                                cd.merge(target, v, Double::sum); // 0.15 = −15%
+                        case "kit_mult" -> coeff.merge(target, v, Double::sum);
+                        case "cd" -> cd.merge(target, v, Double::sum);
                         case "regen" -> regenAdd += v;
                         case "avoid" -> {
                             if ("dodge".equals(target)) dodgeAdd += v;
                             else if ("parry".equals(target)) parryAdd += v;
                         }
                         case "proc" -> proc.merge(target, v, Double::sum);
+                        default -> {
+                            // неизвестный kind игнорируется (защита от опечаток каталога)
+                        }
                     }
                 }
             }
         }
 
-        // применить постоянные модификаторы атрибутов
         if (attrStr != 0.0 || attrAgi != 0.0 || attrInt != 0.0) {
             plugin.getAttributes().addPermanentModifier(uuid, SOURCE, attrStr, attrAgi, attrInt);
         }
-        // применить постоянные модификаторы резистов
         if (resPhys != 0.0 || resMagic != 0.0) {
             plugin.getResists().addPermanentModifier(uuid, SOURCE, resPhys, resMagic);
         }
 
-        // обновить кэш-карты
         baseBonusMap.put(uuid, base);
         coeffMultMap.put(uuid, coeff);
         cooldownMultMap.put(uuid, cd);
@@ -280,19 +284,10 @@ public final class TalentService {
         avoidBonusMap.put(uuid, new double[]{dodgeAdd, parryAdd});
         regenBonusMap.put(uuid, regenAdd);
 
-        // инвалидировать кэш атрибутов (т.к. STR/AGI/INT изменились)
         plugin.getAttributes().invalidate(uuid);
     }
 
-    private Spec specOf(UUID uuid) {
-        Player p = plugin.getServer().getPlayer(uuid);
-        if (p == null) {
-            return null;
-        }
-        return plugin.getSpecService().getSpec(uuid);
-    }
-
-    /** Сбросить кэш игрока (logout). */
+    /** Очистка кэша игрока (logout). */
     public void clear(UUID uuid) {
         baseBonusMap.remove(uuid);
         coeffMultMap.remove(uuid);
@@ -302,9 +297,9 @@ public final class TalentService {
         regenBonusMap.remove(uuid);
     }
 
-    /* ------------------------------- кэш-карты ------------------------------- */
+    /* ------------------------------- кэш-карты (хот-путь) ------------------------------- */
 
-    /** +base к базовому урону/хилу абилки (0.0 если нет бонуса). */
+    /** +base к базовому урону/хилу абилки (0.0 если бонуса нет). */
     public double baseBonus(UUID uuid, String abilityId) {
         Map<String, Double> m = baseBonusMap.get(uuid);
         return m == null ? 0.0 : m.getOrDefault(abilityId, 0.0);
@@ -316,27 +311,25 @@ public final class TalentService {
         if (m == null) {
             return 1.0;
         }
-        double add = m.getOrDefault(abilityId, 0.0);
-        return 1.0 + add;
+        return 1.0 + m.getOrDefault(abilityId, 0.0);
     }
 
-    /** Множитель кулдауна: 1.0 = нет бонуса, 0.85 = −15%. */
+    /** Множитель кулдауна: 1.0 = нет бонуса, 0.85 = −15% (пол −90%). */
     public double cooldownMult(UUID uuid, String abilityId) {
         Map<String, Double> m = cooldownMultMap.get(uuid);
         if (m == null) {
             return 1.0;
         }
-        double sub = m.getOrDefault(abilityId, 0.0);
-        return Math.max(0.1, 1.0 - sub); // жёсткий пол -90%
+        return Math.max(0.1, 1.0 - m.getOrDefault(abilityId, 0.0));
     }
 
-    /** +бонус к проке: для chance-проков это + к шансу, для sadism — + к flat-бонусу. */
+    /** +бонус проки: chance-прокам — к шансу, sadism — к flat-бонусу, grace — к множителю. */
     public double procBonus(UUID uuid, String procId) {
         Map<String, Double> m = procBonusMap.get(uuid);
         return m == null ? 0.0 : m.getOrDefault(procId, 0.0);
     }
 
-    /** [dodge, parry] плоские % бонусы (0,0 если нет). */
+    /** [dodge, parry] плоские % бонусы (нулевые если нет). */
     public double[] avoidBonus(UUID uuid) {
         double[] v = avoidBonusMap.get(uuid);
         return v == null ? new double[]{0.0, 0.0} : v;
@@ -350,7 +343,7 @@ public final class TalentService {
 
     /* ------------------------------- selftest API ------------------------------- */
 
-    /** Для selftest: купить узел без валидации (тест reconcile). */
+    /** Тестовая покупка без валидации (чек 24: reconcile добавляет/удаляет узел). */
     public void forcePurchaseForTest(UUID uuid, String specId, String nodeId) {
         storage.addNode(uuid, specId, nodeId);
         reconcile(uuid);
