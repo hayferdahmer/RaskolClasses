@@ -16,7 +16,9 @@ import org.bukkit.entity.Player;
  * 1.7.4: КИТ ЖРЕЦА (католика/паладинство). Хилы = base + HPow×coeff, финишер от SP.
  * Таргет-хилы: себя или союзника (одна непустая фракция); полный HP → отказ + refund.
  * 1.8.1 (S3): «Кара Небес» проверяет canHit ДО урона и execute-сообщения —
- * финишер по союзнику отклоняется без траты ресурса/КД и без тега «Казнь».
+ * финишер по союзнику отклоняется без траты ресурса/КД и без тега.
+ * 1.8.1 (нейминг): execute-тег жреца — собственный ключ tag.execute-priest
+ * («Кара Небес ×3!»), чтобы не пересекаться с талантом воина «Казнь».
  */
 public final class PriestAbilities {
 
@@ -165,7 +167,7 @@ public final class PriestAbilities {
         return healed;
     }
 
-    /** 5. «Кара Небес» — execute-финишер от SP. 1.8.1: гейт союзника ДО урона/тега. */
+    /** 5. «Кара Небес» — execute-финишер от SP. 1.8.1: гейт союзника; тег — tag.execute-priest. */
     public boolean wrathHeaven(Player p, AbilityDef def) {
         Entity e = p.getTargetEntity(20);
         if (!(e instanceof LivingEntity t)) {
@@ -184,7 +186,7 @@ public final class PriestAbilities {
             dmg *= cfgD("classes.PRIEST.abilities." + def.id() + ".execute-mult", 3.0);
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "tag.execute", "Казнь ×3!"), NamedTextColor.RED));
+                    "tag.execute-priest", "Кара Небес ×3!"), NamedTextColor.RED));
         } else {
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
         }
