@@ -34,14 +34,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
- * 1.7.0 пакет 2 (финал p2.6) + 1.7.4.1 фикс 2:
+ * 1.7.0 пакет 2 + 1.7.4.1 фикс 2 + 1.8.1 фикс S7:
  *  - совмещённый HUD (HP + ресурс) с градиентными полосами и искрой регена;
  *  - применение формульного maxHP к ванильному Attribute.MAX_HEALTH
- *    (ADD_NUMBER-модификатор raskolclasses:max_hp) — на join, на respawn
- *    и каждый тик (покрывает смену класса/левел-ап/модификаторы);
- *  - ПЕРСИСТ ЗДОРОВЬЯ (баг 3b): на quit сохраняем долю HP в health.yml,
- *    на join восстанавливаем долю × новый max; без записи — полный пул;
- *  - respawn: пересчёт maxHP + полное здоровье через 1 тик.
+ *    (ADD_NUMBER-модификатор raskolclasses:max_hp) на join/respawn/каждый тик;
+ *  - ПЕРСИСТ ЗДОРОВЬЯ: на quit сохраняем ДОЛЮ HP в health.yml, на join восстанавливаем
+ *    долю × новый max; без записи — полный пул;
+ *  - 1.8.1 (S7): доля клампится в [0,1] И при сохранении, И при загрузке —
+ *    битый/руками правленный health.yml не даст переполнения или нежданного фулл-хила.
  * Сердца = один ряд (healthScale 20); STR-реген тикает здесь же.
  */
 public final class HpBarService implements Listener {
@@ -54,7 +54,8 @@ public final class HpBarService implements Listener {
             .get(NamespacedKey.minecraft("max_health"));
 
     /** Состояние игрока для детекта регена (рост HP/ресурса). */
-    private record State(double lastHp, double lastRes) {}
+    private record State(double lastHp, double lastRes) {
+    }
 
     private final RaskolClasses plugin;
     private final NamespacedKey maxHpKey;
@@ -143,11 +144,6 @@ public final class HpBarService implements Listener {
 
     /* ----------------------------- применение maxHP ----------------------------- */
 
-    /**
-     * Применяет формульный maxHP (AttributeService.maxHp) к ванильному атрибуту
-     * через ADD_NUMBER-модификатор. Вызывается на join/respawn/каждый тик —
-     * покрывает смену класса, левел-ап и модификаторы атрибутов.
-     */
     private void applyMaxHealth(Player player) {
         if (MAX_HEALTH == null) {
             return;
@@ -186,9 +182,9 @@ public final class HpBarService implements Listener {
         }
     }
 
-    /* ------------------------- персист здоровья (баг 3b) ------------------------- */
+    /* ------------------------- персист здоровья + S7 ------------------------- */
 
-    /** На quit: сохраняем долю HP (0..1) в health.yml. */
+    /** На quit: сохраняем ДОЛЮ HP, кламп [0,1] (S7). */
     private void saveHealth(Player player) {
         double max = maxOf(player);
         if (max <= 0.0) {
@@ -199,7 +195,7 @@ public final class HpBarService implements Listener {
         SafeStorage.saveAtomic(healthStore, healthFile, LOGGER);
     }
 
-    /** На join: восстанавливаем долю × новый max; без записи — полный пул. */
+    /** На join: доля × новый max; доля клампится [0,1] (S7); без записи — полный пул. */
     private void restoreHealth(Player player) {
         double max = maxOf(player);
         if (max <= 0.0) {
@@ -323,7 +319,7 @@ public final class HpBarService implements Listener {
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
             line = line.append(gradientBar(res / 100.0, len,
-                    gradientEnabled() ? resStart : resEnd, resEnd, empty,
+                    gradientEnabled() ? resStart : resEnd, empty,
                     resRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
@@ -404,7 +400,7 @@ public final class HpBarService implements Listener {
             return;
         }
         applyMaxHealth(player);   // макс ДО восстановления доли
-        restoreHealth(player);    // доля × новый max (или полный пул)
+        restoreHealth(player);    // доля × новый max (или полный пул), кламп [0,1]
         applyHearts(player, !"vanilla".equals(mode()));
     }
 
