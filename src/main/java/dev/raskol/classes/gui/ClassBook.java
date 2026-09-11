@@ -12,6 +12,9 @@ import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
+import dev.raskol.classes.talent.TalentModel;
+import dev.raskol.classes.talent.TalentService;
+import dev.raskol.classes.talent.TalentsRegistry;
 import dev.raskol.classes.util.TextFx;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -32,20 +35,24 @@ import org.bukkit.enchantments.Enchantment;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * Книга класса (1.5.4 + 1.5.5 + 1.5.9 + 1.6.6 + 1.7.0 пакет 1).
- * 1.7.5: вкладка SPECS — только пассивная идентичность (без активок и свитков).
- * 1.8.0: вкладка CLASS — строка «Уровень персонажа» (топ-N скиллов, кап)
- * первой строкой лора атрибутов: прогрессия привязана к ширине прокачки.
+ * Книга класса (1.5.4 + 1.6.6 + 1.7.0 + 1.8.0 + 1.9.0).
+ * 1.9.0 (инкремент 3/4): вкладка TALENTS — дерево талантов активной спеки:
+ *  сетка 9 узлов (T1a=2, T1b=6, T2a1=10, T2a2=12, T2b1=14, T2b2=16,
+ *  T3a=20, T3b=24, T4=31), инфо-предмет очков (4), кристалл сброса (40).
+ *  Покупка — клик по узлу, вся валидация серверная (TalentService.purchase).
+ *  Сброс — ПКМ по кристаллу дважды с окном 30 с (анти-мисклик).
  */
 public final class ClassBook implements InventoryHolder {
 
-    public enum Tab { ABILITIES, SPECS, CLASS }
+    public enum Tab { ABILITIES, SPECS, CLASS, TALENTS }
 
     private static final int SIZE = 54;
     private static final int SLOT_EMBLEM = 4;
+    private static final int SLOT_TAB_TALENTS = 46;
     private static final int SLOT_TAB_ABILITIES = 48;
     private static final int SLOT_TAB_SPECS = 50;
     private static final int SLOT_TAB_CLASS = 52;
@@ -57,6 +64,12 @@ public final class ClassBook implements InventoryHolder {
     private static final int SLOT_CROWN = 15;
     private static final int SLOT_RESIST = 14;
     private static final int SLOT_ATTRIBUTES = 16;
+
+    /** 1.9.0: слоты узлов дерева (порядок = порядок узлов в TalentTree). */
+    private static final int[] TALENT_NODE_SLOTS = {2, 6, 10, 12, 14, 16, 20, 24, 31};
+    private static final int SLOT_TALENT_INFO = 4;
+    private static final int SLOT_TALENT_RESET = 40;
+    private static final long RESET_ARM_MILLIS = 30_000L;
 
     private Inventory inventory;
     private final UUID owner;
@@ -114,6 +127,8 @@ public final class ClassBook implements InventoryHolder {
                 "book.tab.specs", "Специализации", tab == Tab.SPECS));
         inventory.setItem(SLOT_TAB_CLASS, tabIcon(plugin, Material.NAME_TAG,
                 "book.tab.class", "Класс и пассивки", tab == Tab.CLASS));
+        inventory.setItem(SLOT_TAB_TALENTS, tabIcon(plugin, Material.END_CRYSTAL,
+                "book.tab.talents", "Таланты спеки", tab == Tab.TALENTS));
         switch (tab) {
             case ABILITIES -> {
                 for (int i = 0; i < ABILITY_SLOTS.length; i++) {
@@ -143,8 +158,138 @@ public final class ClassBook implements InventoryHolder {
                 inventory.setItem(SLOT_CROWN, crownItem(plugin, player, pc));
                 inventory.setItem(SLOT_ATTRIBUTES, attributesItem(plugin, player, pc));
             }
+            case TALENTS -> fillTalents(plugin, player);
         }
     }
+
+    /* ------------------------------ 1.9.0: TALENTS ------------------------------ */
+
+    private void fillTalents(RaskolClasses plugin, Player player) {
+        UUID uuid = player.getUniqueId();
+        Spec spec = plugin.getSpecService().getSpec(uuid);
+        if (spec == null) {
+            ItemStack info = new ItemStack(Material.BARRIER);
+            info.editMeta(meta -> {
+                meta.displayName(Component.text("Таланты недоступны", NamedTextColor.RED));
+                meta.lore(List.of(
+                        Component.text("Сначала выбери специализацию", NamedTextColor.GRAY),
+                        Component.text("во вкладке «Специализации» (уровень 40+)", NamedTextColor.GRAY)));
+            });
+            inventory.setItem(SLOT_TALENT_INFO, info);
+            return;
+        }
+        TalentModel.TalentTree tree = TalentsRegistry.treeOf(spec.id());
+        if (tree == null) {
+            ItemStack info = new ItemStack(Material.BARRIER);
+            info.editMeta(meta -> {
+                meta.displayName(Component.text("Дерево не найдено", NamedTextColor.RED));
+                meta.lore(List.of(Component.text("specId: " + spec.id(), NamedTextColor.GRAY)));
+            });
+            inventory.setItem(SLOT_TALENT_INFO, info);
+            return;
+        }
+        TalentService talents = plugin.getTalentService();
+        int available = talents.availablePoints(uuid, spec.id());
+        List<String> owned = talents.purchased(uuid, spec.id());
+
+        ItemStack info = new ItemStack(Material.EXPERIENCE_BOTTLE);
+        info.editMeta(meta -> {
+            meta.displayName(Component.text("Таланты: " + spec.displayName(), NamedTextColor.GOLD));
+            meta.lore(List.of(
+                    Component.text("Очков доступно: " + available, NamedTextColor.AQUA),
+                    Component.text("Потрачено: " + talents.spentPoints(uuid, spec.id())
+                            + " / заработано: " + talents.earnedPoints(uuid), NamedTextColor.GRAY),
+                    Component.text("Очки растут с уровнем персонажа (топ-5 скиллов)", NamedTextColor.DARK_GRAY),
+                    Component.text("Клик по узлу — купить талант", NamedTextColor.GREEN)));
+        });
+        inventory.setItem(SLOT_TALENT_INFO, info);
+
+        List<TalentModel.TalentNode> nodes = tree.nodes();
+        for (int i = 0; i < nodes.size() && i < TALENT_NODE_SLOTS.length; i++) {
+            inventory.setItem(TALENT_NODE_SLOTS[i],
+                    talentNodeItem(plugin, player, spec.id(), nodes.get(i), owned, available));
+        }
+
+        ItemStack reset = new ItemStack(Material.END_CRYSTAL);
+        reset.editMeta(meta -> {
+            meta.displayName(Component.text("Сброс дерева талантов", NamedTextColor.LIGHT_PURPLE));
+            meta.lore(List.of(
+                    Component.text("ПКМ №1 — взвести, ПКМ №2 (30 с) — сбросить", NamedTextColor.YELLOW),
+                    Component.text("Цена: " + plugin.getConfig().getInt("talents.reset-base", 500)
+                            + " + " + plugin.getConfig().getInt("talents.reset-per-point", 25)
+                            + "×потрачено монет", NamedTextColor.RED),
+                    Component.text("Очки возвращаются в пул", NamedTextColor.GRAY)));
+        });
+        inventory.setItem(SLOT_TALENT_RESET, reset);
+    }
+
+    private ItemStack talentNodeItem(RaskolClasses plugin, Player player, String specId,
+                                     TalentModel.TalentNode node, List<String> owned, int available) {
+        UUID uuid = player.getUniqueId();
+        boolean isOwned = owned.contains(node.id());
+        int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
+        int gate = TalentModel.tierGate(node.tier(),
+                plugin.getConfig().getInt("talents.start-level", 40));
+        boolean tierOk = charLevel >= gate;
+        boolean prereqOk = owned.containsAll(node.prereqs());
+        boolean affordable = node.cost() <= available;
+
+        ItemStack item = new ItemStack(Material.NETHER_STAR);
+        item.editMeta(meta -> {
+            NamedTextColor nameColor = isOwned ? NamedTextColor.GREEN
+                    : (!tierOk || !prereqOk) ? NamedTextColor.DARK_GRAY
+                    : affordable ? NamedTextColor.YELLOW : NamedTextColor.RED;
+            meta.displayName(Component.text(node.name(), nameColor));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text(node.lore(), NamedTextColor.WHITE));
+            lore.add(Component.text(describeEffect(node.effect()), NamedTextColor.AQUA));
+            lore.add(Component.text("Тир " + node.tier() + " · цена " + node.cost() + " очк.",
+                    NamedTextColor.GRAY));
+            if (isOwned) {
+                lore.add(Component.text("✔ КУПЛЕНО", NamedTextColor.GREEN));
+            } else if (!tierOk) {
+                lore.add(Component.text("Нужен уровень персонажа " + gate, NamedTextColor.RED));
+            } else if (!prereqOk) {
+                lore.add(Component.text("Нужны предыдущие узлы ветки", NamedTextColor.RED));
+            } else if (!affordable) {
+                lore.add(Component.text("Не хватает очков", NamedTextColor.RED));
+            } else {
+                lore.add(Component.text("Клик — купить", NamedTextColor.GREEN));
+            }
+            meta.lore(lore);
+            if (isOwned) {
+                meta.addEnchant(Enchantment.LURE, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
+        });
+        return item;
+    }
+
+    private String describeEffect(TalentModel.TalentEffect e) {
+        if (e == null) {
+            return "";
+        }
+        return switch (e.kind()) {
+            case "attr" -> "+" + (int) e.value() + " " + switch (e.target()) {
+                case "str" -> "СИЛЫ";
+                case "agi" -> "ЛОВКОСТИ";
+                case "int" -> "ИНТЕЛЛЕКТА";
+                default -> e.target();
+            } + " постоянно";
+            case "resist" -> "both".equals(e.target())
+                    ? "+" + (int) e.value() + "% физ и +" + (int) e.value2() + "% маг резиста"
+                    : "+" + (int) e.value() + "% " + ("phys".equals(e.target()) ? "физ" : "маг") + "резиста";
+            case "kit_base" -> "+" + (int) e.value() + " к базе «" + e.target() + "»";
+            case "kit_mult" -> "+" + (int) Math.round(e.value() * 100) + "% к коэф. «" + e.target() + "»";
+            case "cd" -> "−" + (int) Math.round(e.value() * 100) + "% кулдауна «" + e.target() + "»";
+            case "regen" -> "+" + (int) e.value() + " ресурс/с";
+            case "avoid" -> "+" + (int) e.value() + "% " + ("dodge".equals(e.target()) ? "уклонения" : "парирования");
+            case "proc" -> "+" + e.value() + " к проце «" + e.target() + "»";
+            default -> e.kind() + " " + e.target();
+        };
+    }
+
+    /* ------------------------------ остальные вкладки ------------------------------ */
 
     private static List<Spec> specsFor(PlayerClass pc) {
         List<Spec> list = new ArrayList<>();
@@ -286,11 +431,7 @@ public final class ClassBook implements InventoryHolder {
         return item;
     }
 
-    /**
-     * 1.7.0 пакет 1 + 1.8.0: сводка атрибутов. Первая строка лора — уровень
-     * персонажа (топ-N скиллов, кап): игрок видит, от чего растут его числа
-     * и почему одиночное дерево до 99 больше не раздувает статы.
-     */
+    /** 1.8.0: первая строка лора — уровень персонажа (топ-N скиллов, кап). */
     private ItemStack attributesItem(RaskolClasses plugin, Player player, PlayerClass pc) {
         UUID uuid = player.getUniqueId();
         AttributeService attrs = plugin.getAttributes();
@@ -459,7 +600,6 @@ public final class ClassBook implements InventoryHolder {
         };
     }
 
-    /** 1.7.5: спека = пассивная идентичность; свитков активок больше нет. */
     private ItemStack specItem(RaskolClasses plugin, Player player, PlayerClass pc, Spec spec) {
         SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(spec);
         Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
@@ -583,8 +723,10 @@ public final class ClassBook implements InventoryHolder {
         return -1;
     }
 
-    /** Обработчик кликов книги. 1.7.5: SPECS — только выбор и отречение. */
+    /** Обработчик кликов книги. 1.9.0: вкладка TALENTS — покупка/сброс талантов. */
     public static final class ClickHandler implements Listener {
+
+        private static final Map<UUID, Long> RESET_ARM = new java.util.concurrent.ConcurrentHashMap<>();
 
         private final RaskolClasses plugin;
 
@@ -624,6 +766,10 @@ public final class ClassBook implements InventoryHolder {
             }
             if (slot == SLOT_TAB_CLASS) {
                 open(plugin, player, Tab.CLASS);
+                return;
+            }
+            if (slot == SLOT_TAB_TALENTS) {
+                open(plugin, player, Tab.TALENTS);
                 return;
             }
             switch (book.tab) {
@@ -690,7 +836,6 @@ public final class ClassBook implements InventoryHolder {
                         if (current == null) {
                             plugin.getSpecService().choose(player, spec);
                         } else if (current == spec) {
-                            // 1.7.5: свитков активок больше нет — пассивка работает постоянно
                             player.sendMessage(Component.text(
                                     "Спека уже выбрана: пассивка работает постоянно, свитков активок больше нет.",
                                     NamedTextColor.GRAY));
@@ -731,6 +876,61 @@ public final class ClassBook implements InventoryHolder {
                                     "book.msg.respec.noecon", "Экономика недоступна — респец отключён."),
                                     NamedTextColor.RED));
                         }
+                        book.refresh(plugin, player);
+                    }
+                }
+                case TALENTS -> {
+                    UUID uuid = player.getUniqueId();
+                    if (slot == SLOT_TALENT_RESET && right) {
+                        Long armed = RESET_ARM.get(uuid);
+                        long now = System.currentTimeMillis();
+                        if (armed == null || now - armed > RESET_ARM_MILLIS) {
+                            RESET_ARM.put(uuid, now);
+                            player.sendMessage(Component.text(
+                                    "Сброс талантов взведён: ПКМ по кристаллу ещё раз в течение 30 с.",
+                                    NamedTextColor.YELLOW));
+                        } else {
+                            RESET_ARM.remove(uuid);
+                            boolean free = player.hasPermission("raskolclasses.admin");
+                            TalentService.ResetResult result =
+                                    plugin.getTalentService().reset(player, free);
+                            player.sendMessage(Component.text(switch (result) {
+                                case OK -> "Дерево талантов сброшено: очки возвращены в пул.";
+                                case NO_SPEC -> "Спека не выбрана — сбрасывать нечего.";
+                                case NO_PURCHASED -> "В дереве нет купленных узлов.";
+                                case POOR -> "Не хватает монет на сброс талантов.";
+                                case NO_ECONOMY -> "Экономика недоступна — сброс отключён.";
+                            }, result == TalentService.ResetResult.OK
+                                    ? NamedTextColor.GREEN : NamedTextColor.RED));
+                        }
+                        book.refresh(plugin, player);
+                        return;
+                    }
+                    int nodeIdx = indexOf(TALENT_NODE_SLOTS, slot);
+                    if (nodeIdx >= 0 && left) {
+                        Spec spec = plugin.getSpecService().getSpec(uuid);
+                        if (spec == null) {
+                            return;
+                        }
+                        TalentModel.TalentTree tree = TalentsRegistry.treeOf(spec.id());
+                        if (tree == null || nodeIdx >= tree.nodes().size()) {
+                            return;
+                        }
+                        TalentModel.TalentNode node = tree.nodes().get(nodeIdx);
+                        TalentService.PurchaseResult result =
+                                plugin.getTalentService().purchase(player, node.id());
+                        player.sendMessage(Component.text(switch (result) {
+                            case OK -> "Талант «" + node.name() + "» изучен.";
+                            case TALENTS_DISABLED -> "Таланты отключены конфигурацией.";
+                            case NO_SPEC -> "Спека не выбрана.";
+                            case NODE_NOT_FOUND -> "Узел не найден в дереве.";
+                            case WRONG_TREE -> "Узел не из дерева активной спеки.";
+                            case TIER_GATE -> "Рановато: нужен уровень персонажа выше.";
+                            case PREREQ_MISSING -> "Сначала изучи предыдущие узлы ветки.";
+                            case NOT_ENOUGH_POINTS -> "Не хватает очков талантов.";
+                            case ALREADY_OWNED -> "Талант уже изучен.";
+                        }, result == TalentService.PurchaseResult.OK
+                                ? NamedTextColor.GREEN : NamedTextColor.GRAY));
                         book.refresh(plugin, player);
                     }
                 }
