@@ -1,67 +1,64 @@
 # ============================================================
-#  RaskolClasses v1.7.4 — сервер «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.7.5+ (тюнинг 1.7.6.2) — «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение без рестарта: /rc reload (кроме hp-display.mode — рестарт).
-#  Новые ключи дописываются автоматически (addDefault + copyDefaults),
-#  правки админа не затираются.
-#  1.7.0: атрибуты, HP-реформа, avoidance, офенс/криты, среда=TRUE.
-#  1.7.1: производные статы WP/SP/HPow + базовый урон + анти-ваншот 35%.
-#  1.7.2: киты Воина (нордика) и Охотника (средневековье других вселенных).
-#  1.7.3: киты Мага (Греция) и Разбойника (средневековый реализм).
-#  1.7.4: кит Жреца (католика/паладинство) — хилы масштабируются от HPow.
+#  1.7.6.2: баланс-пакет по матрице TTK:
+#   - combat.burst-window-pct 50 → 25 (пол TTK ≈ 12–15 с вместо 6 с);
+#   - avoidance.parry-k 150 → 300 (парирование воина 28.6% → 16.7%);
+#   - resist.classes.WARRIOR.physical 27 → 18 (пробиваемость танка);
+#   - подъём coeff против танков: piercing_shot 1.4, arrow_rain 0.9,
+#     fire_prometheus 1.2, boreas_breath 1.0, zeus_wrath 2.0,
+#     blade_fan 0.8, strangle 0.9, wrath_heaven 1.6.
 # ============================================================
 
 hud:
   enabled: true               # ресурсная строка HudService (только при hp-display.mode: vanilla)
-  update-period-ticks: 10     # период HUD-тика (O5)
-  skip-spectator: true        # не слать actionbar зрителям (O8)
-  full-resource-aura: true    # партикл темы раз в 20 тиков при ресурсе 100 (§4.5)
-  debug-skip: false           # лог пропусков dirty-rendering — для проверки O1
+  update-period-ticks: 10
+  skip-spectator: true
+  full-resource-aura: true
+  debug-skip: false
   boss-bar:
-    enabled: true             # босс-бары длительных эффектов (НЕ для HP)
-    min-duration-seconds: 8   # порог показа (эффекты с меньшей длительностью скрыты)
-    max-visible: 2            # максимум баров одновременно (топ-N по оставшемуся времени)
-    tick-period: 5            # период опроса эффектов, в тиках
+    enabled: true
+    min-duration-seconds: 8
+    max-visible: 2
+    tick-period: 5
     format: "{name} — {sec}с"
     format-infinite: "{name}"
 
 performance:
-  purge-interval-ticks: 1200    # чистка истёкших кулдаунов и флагов (O7)
-  cast-click-cooldown-ms: 150   # анти-спам дабл-клика каста (O12)
-  sound-budget-per-tick: 8      # 1.5.7: максимум sound-событий за тик на сервер
+  purge-interval-ticks: 1200
+  cast-click-cooldown-ms: 150
+  sound-budget-per-tick: 8
   ready-notify:
-    enabled: true             # звук + actionbar при окончании КД
-    min-cooldown-seconds: 30  # порог: уведомлять только о длинных КД
+    enabled: true
+    min-cooldown-seconds: 30
     sound: ENTITY_PLAYER_LEVELUP
     message: "{ability} — готова"
-    spec-enabled: true        # 1.5.1: готовность спек-активки озвучивается отдельно
+    spec-enabled: true
 
 hooks:
   raskolcore:
-    enabled: true             # читать класс из паспорта RaskolCore (LP — фолбэк)
+    enabled: true
 
 hotbar-bind:
-  enabled: true               # свитки способностей (Книга класса / свитки в хотбаре)
-  material: AMETHYST_SHARD    # материал классового свитка (спец-свиток — NETHER_STAR)
-  cooldown-bar: true          # 1.5.6: полоска перезарядки на свитке в хотбаре
+  enabled: true
+  material: AMETHYST_SHARD
+  cooldown-bar: true
 
 target-cast:
-  enabled: true               # ЛКМ со свитком точечной способности по игроку = каст в цель
-  debug: false                # true — точки обрыва ЛКМ-каста в чат ([dbg] ...)
+  enabled: true
+  debug: false
 
-# 1.5.8: совместимость и края
 compat:
-  authme-gate: true             # неаутентифицированные (AuthMe, до /login) не пользуют свитки/касты
-  block-casts-in-creative: true # способности недоступны в creative (кроме raskolclasses.admin)
+  authme-gate: true
+  block-casts-in-creative: true
 
-# 1.6.2 + 1.6.9 + 1.6.11 + 1.7.1: справедливость боя и рубильники
+# 1.6.2 + 1.6.9 + 1.6.11 + 1.7.1 + 1.7.6.1 + 1.7.6.2
 combat:
-  friendly-fire: false   # false = союзники не получают наш урон, хилы не ложатся на врагов
-  debug-damage: false    # 1.6.4: боевой лог нашего урона для админов (raskolclasses.debug)
-  true-damage-cap-per-hit: 1000   # 1.6.9: предохранитель компоненты true за один вызов
-  aoe-los: true          # 1.6.11: AoE-урон не проходит сквозь стены
-  # 1.7.1: АНТИ-ВАНШОТ — одиночный.hit по игроку не снимает больше N% его max HP
-  # (после резистов/критов). Исключения: среда (летальна по дизайну) и execute-финишеры.
+  friendly-fire: false
+  debug-damage: false
+  true-damage-cap-per-hit: 1000
+  aoe-los: true
   max-single-hit-pct: 35
   cap-exempt-causes:
     - FALL
@@ -70,29 +67,34 @@ combat:
     - STARVATION
     - VOID
     - SONIC_BOOM
+  # 1.7.6.1: burst-window cap; 1.7.6.2: pct 50 → 25 (пол TTK ≈ 12–15 с)
+  burst-window-seconds: 3.0
+  burst-window-pct: 25.0
 
-# 1.6.10: надёжность хранения
 storage:
-  autosave-minutes: 5   # период автосейва cooldowns.yml + spec-choices.yml
+  autosave-minutes: 5
 
 class-accept:
-  enabled: true               # титр при первом принятии класса (раз в сессию)
+  enabled: true
   subtitle: "Твой путь избран"
 
-# 1.4.0 / Пакет 3: платный респец (money-sink)
-spec:
-  respec-base-cost: 250       # базовая цена сброса спеки
-  respec-per-level: 10        # +10 за каждый уровень профильного скилла
+# 1.7.6: якорь TTK-харнесса (подсветка матрицы ±30%)
+balance:
+  target-ttk-seconds: 20.0
 
-# 1.6.0: система сопротивлений урону (РЕЗИСТ)
+spec:
+  respec-base-cost: 250
+  respec-per-level: 10
+
+# 1.6.0 + 1.7.6.2: резисты (воин физ 27 → 18)
 resist:
-  cap: 90                     # максимум суммарного резиста, %
-  pvp-cap: 90                 # 1.6.9: отдельный кап резиста для урона от игроков
-  disabled-worlds: []         # 1.6.9: миры без резистов (арены/хабы)
+  cap: 90
+  pvp-cap: 90
+  disabled-worlds: []
   classes:
     WARRIOR:
       magic: 12
-      physical: 27
+      physical: 18
     ROGUE:
       magic: 12
       physical: 14
@@ -107,14 +109,14 @@ resist:
       physical: 16
   grants:
     steel_skin:
-      physical: 15            # (legacy id, мертва с 1.7.2; оставлена для старых сейвов)
+      physical: 15
     evasion:
-      physical: 30            # (legacy id, мертва с 1.7.3; оставлена для старых сейвов)
+      physical: 30
     balder_skin:
-      physical: 15            # 1.7.2: грант Шкуры Бальдра для лора Книги (реально скалируется от WP)
+      physical: 15
     aegis_faith:
-      physical: 12            # 1.7.4: грант Эгиды Веры (физ+маг) для лора Книги
-      magic: 12               # (реально скалируется от HPow: base 12 + HPow×0.04)
+      physical: 12
+      magic: 12
   mana-soaked:
     enabled: true
     physical: 15
@@ -124,11 +126,10 @@ resist:
       physical: 10
 
 # ------------------------------------------------------------
-# 1.7.0: КЛАССОВЫЕ АТРИБУТЫ (СИЛА / ЛОВКОСТЬ / ИНТЕЛЛЕКТ)
-# Значение = base + growth×PlayerLevel + модификаторы.
+# 1.7.0 + 1.7.6.2: атрибуты (parry-k 150 → 300)
 # ------------------------------------------------------------
 attributes:
-  level-source: class-skill   # class-skill | vanilla
+  level-source: class-skill
   classes:
     WARRIOR: { main: STR, base-str: 12, base-agi: 6,  base-int: 4,  growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
     HUNTER:  { main: AGI, base-str: 6,  base-agi: 12, base-int: 4,  growth-str: 0.5, growth-agi: 1.2, growth-int: 0.3 }
@@ -136,14 +137,13 @@ attributes:
     MAGE:    { main: INT, base-str: 4,  base-agi: 6,  base-int: 12, growth-str: 0.3, growth-agi: 0.5, growth-int: 1.2 }
     PRIEST:  { main: INT, base-str: 5,  base-agi: 5,  base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
   hp:
-    base-hp: 100            # базовое HP любого класса
-    per-str: 20             # HP за единицу СИЛЫ
-    per-level: 0            # (legacy) HP за уровень — не влияет
-    main-str-bonus: 0       # (legacy) бонус STR-основному — не влияет
-    regen-per-str: 0.025        # HP/сек за единицу СИЛЫ вне боя (нерф 1.7.0.4)
-    regen-combat-factor: 0.35   # множитель регена в бою
-    regen-cap-pct: 1.5          # кап регена: % от maxHP в секунду
-  # 1.7.1: ПРОИЗВОДНЫЕ СТАТЫ (WP/SP/HPow) — единственный источник силы урона/хилов
+    base-hp: 100
+    per-str: 20
+    per-level: 0
+    main-str-bonus: 0
+    regen-per-str: 0.025
+    regen-combat-factor: 0.35
+    regen-cap-pct: 1.5
   power:
     str-to-wp: 1.5
     agi-to-wp: 0.5
@@ -153,10 +153,10 @@ attributes:
     base-sp:  { WARRIOR: 5,  HUNTER: 5,  ROGUE: 5,  MAGE: 30, PRIEST: 25 }
     base-hpow:{ WARRIOR: 0,  HUNTER: 0,  ROGUE: 0,  MAGE: 15, PRIEST: 25 }
   offense:
-    basic-coeff: 0.35        # 1.7.1: базовый удар = ванильное оружие + WP × coeff
-    basic-coeff-magic: 0.35  # 1.7.1: ванильная магия игрока = SP × coeff
-    str-to-physical: false   # (legacy, ВЫКЛ) плоский бонус STR+level заменён WP
-    int-to-magic: false      # (legacy, ВЫКЛ) плоский бонус INT+level заменён SP
+    basic-coeff: 0.35
+    basic-coeff-magic: 0.35
+    str-to-physical: false
+    int-to-magic: false
   crit:
     melee-base: 5
     melee-per-agi: 0.05
@@ -174,10 +174,11 @@ attributes:
     spell-sound: ENTITY_EVOKER_CAST_SPELL
   avoidance:
     dodge-k: 100
-    parry-k: 150
+    parry-k: 300            # 1.7.6.2: было 150 — парирование доминировало в промахах
     soft-cap: 60
     dr-factor: 0.5
     hard-cap: 75
+    dodge-mult: 0.5         # 1.7.6.1: халв уклонения (дисплей = бой)
     agi-main-parry-micro: 0.5
     agi-main-dodge-refund: 0.5
     front-angle: 90
@@ -206,7 +207,6 @@ attributes:
     format: "❤ {hp}/{max}"
   boss-no-avoidance: []
 
-# 1.6.0 + 1.7.0.2: типы ванильных причин урона (physical|magic|true)
 damage-types:
   env-lethal-scale: true
   env-lethal:
@@ -232,7 +232,6 @@ damage-types:
     FREEZING: magic
     LIGHTNING: magic
 
-# Игровые тексты: меняй в конфиге, не нужно пересобирать.
 messages:
   no-class: "Класс не выбран — посетите герольда"
   no-class-cast: "Класс не выбран — способности недоступны"
@@ -349,9 +348,6 @@ messages:
       aura: "Аура-партикл видна союзникам и врагам"
 
 classes:
-  # ------------------------------------------------------------
-  # 1.7.2: КИТ ВОИНА — нордика. Урон/хил/гранты = base + WP×coeff (power: wp).
-  # ------------------------------------------------------------
   WARRIOR:
     resource-regen: -5.0
     resource-on-deal: 10.0
@@ -421,9 +417,6 @@ classes:
         threshold: 0.20
         cooldown-seconds: 6
 
-  # ------------------------------------------------------------
-  # 1.7.2: КИТ ОХОТНИКА — средневековье других вселенных (Ведьмак/Skyrim-вайб).
-  # ------------------------------------------------------------
   HUNTER:
     resource-regen: 5.0
     resource-on-deal: 0.0
@@ -461,7 +454,7 @@ classes:
         cooldown: 20
         power: wp
         base: 12
-        coeff: 0.9
+        coeff: 1.4        # 1.7.6.2: было 0.9 — пробитие танков
       arrow_fan:
         name: "Веер стрел"
         description: "Три стрелы конусом, урон каждой скалируется от Силы оружия"
@@ -479,7 +472,7 @@ classes:
         cooldown: 90
         power: wp
         base: 10
-        coeff: 0.5
+        coeff: 0.9        # 1.7.6.2: было 0.5
         radius: 5.0
     passives:
       predator:
@@ -489,11 +482,6 @@ classes:
         threshold: 0.80
         multiplier: 1.20
 
-  # ------------------------------------------------------------
-  # 1.7.4: КИТ ЖРЕЦА — католика/паладинство.
-  # Хилы = base + HPow×coeff (power: hpow); финишер — от SP (power: sp).
-  # Таргет-хилы: себя или союзника (одна фракция); при friendly-fire=true — кого угодно.
-  # ------------------------------------------------------------
   PRIEST:
     resource-regen: 2.0
     resource-on-deal: 0.0
@@ -553,7 +541,7 @@ classes:
         cooldown: 90
         power: sp
         base: 20
-        coeff: 1.2
+        coeff: 1.6        # 1.7.6.2: было 1.2
         threshold: 0.25
         execute-mult: 3.0
     passives:
@@ -563,9 +551,6 @@ classes:
         description: "×1.15 к исходящему лечению"
         multiplier: 1.15
 
-  # ------------------------------------------------------------
-  # 1.7.3: КИТ МАГА — греческая мифология. Урон/гранты = base + SP×coeff (power: sp).
-  # ------------------------------------------------------------
   MAGE:
     resource-regen: 2.0
     resource-on-deal: 0.0
@@ -591,7 +576,7 @@ classes:
         cooldown: 6
         power: sp
         base: 15
-        coeff: 0.8
+        coeff: 1.2        # 1.7.6.2: было 0.8
       hermes_step:
         name: "Шаг Гермеса"
         description: "Мгновенный рывок вперёд на 8 блоков (проверяет безопасность точки)"
@@ -607,7 +592,7 @@ classes:
         cooldown: 45
         power: sp
         base: 12
-        coeff: 0.6
+        coeff: 1.0        # 1.7.6.2: было 0.6
         radius: 5.0
         duration: 4
       athena_aegis:
@@ -628,7 +613,7 @@ classes:
         cooldown: 90
         power: sp
         base: 25
-        coeff: 1.4
+        coeff: 2.0        # 1.7.6.2: было 1.4
         threshold: 0.25
         execute-mult: 3.0
     passives:
@@ -638,9 +623,6 @@ classes:
         reduction: 0.15
         regen-bonus: 1.0
 
-  # ------------------------------------------------------------
-  # 1.7.3: КИТ РАЗБОЙНИКА — средневековый реализм. Урон = base + WP×coeff (power: wp).
-  # ------------------------------------------------------------
   ROGUE:
     resource-regen: 10.0
     resource-on-deal: 0.0
@@ -669,7 +651,7 @@ classes:
         cooldown: 15
         power: wp
         base: 8
-        coeff: 0.5
+        coeff: 0.8        # 1.7.6.2: было 0.5
         radius: 3.0
       strangle:
         name: "Удушение палача"
@@ -679,7 +661,7 @@ classes:
         cooldown: 40
         power: wp
         base: 10
-        coeff: 0.6
+        coeff: 0.9        # 1.7.6.2: было 0.6
       borgia_poison:
         name: "Яд Борджа"
         description: "Отравленный клинок: урон + Яд I 5 с"
@@ -760,19 +742,11 @@ installations:
     blind-duration: 2
     speed-duration: 3
 
-# ------------------------------------------------------------
-# 1.5.0 / 1.5.3.1 / 1.5.6 / 1.7.2 / 1.7.3 / 1.7.4: VFX/SFX-каталог
-# 1.7.4: записи под новые id жреца; мёртвые id жреца удалены.
-# Спека-активки (challenge/rage_burst/precise_shot/snare/sanctuary/mind_spike/
-# arcane_flow/ice_ring/garrote/smoke_bomb) остаются до 1.7.5.
-# Опечатка в имени = WARNING при /rc reload и тишина, не краш.
-# ------------------------------------------------------------
 vfx:
   proc-actionbar: true
   trails:
     fireball: true
     arrows: true
-  # --- Воин (нордика, 1.7.2) ---
   tyr_strike:
     cast-sound: ENTITY_IRON_GOLEM_ATTACK
     cast-particle: SWEEP_ATTACK
@@ -788,7 +762,6 @@ vfx:
   ragnarok:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: EXPLOSION
-  # --- Охотник (средневековье других вселенных, 1.7.2) ---
   wolf_mark:
     cast-sound: ENTITY_WOLF_GROWL
     cast-particle: CRIT
@@ -804,7 +777,6 @@ vfx:
   arrow_rain:
     cast-sound: ENTITY_ARROW_SHOOT
     cast-particle: POOF
-  # --- Жрец (католика/паладинство, 1.7.4) ---
   saint_tear:
     cast-sound: BLOCK_BELL_USE
     cast-particle: HEART
@@ -820,7 +792,6 @@ vfx:
   wrath_heaven:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: FLASH
-  # --- Маг (Греция, 1.7.3) ---
   fire_prometheus:
     cast-sound: ITEM_FIRECHARGE_USE
     cast-particle: FLAME
@@ -836,7 +807,6 @@ vfx:
   zeus_wrath:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: FLASH
-  # --- Разбойник (средневековый реализм, 1.7.3) ---
   shadow_cloak:
     cast-sound: ENTITY_PHANTOM_FLAP
     cast-particle: SMOKE
@@ -852,7 +822,6 @@ vfx:
   shadow_dance:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
     cast-particle: CLOUD
-  # --- Спека-активки (до 1.7.5) ---
   challenge:
     cast-sound: BLOCK_BELL_USE
     cast-particle: ANGRY_VILLAGER
