@@ -6,11 +6,11 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.7.6</version>
+    <version>1.8.0</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно и TTK-харнесс</description>
+    <description>Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), уровень персонажа (топ-N скиллов), инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно и TTK-харнесс</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
