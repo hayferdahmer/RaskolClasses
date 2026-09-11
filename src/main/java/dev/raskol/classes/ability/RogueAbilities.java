@@ -13,10 +13,12 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import java.util.UUID;
+
 /**
  * 1.7.3: КИТ РАЗБОЙНИКА (средневековый реализм). Урон = base + WP×coeff.
- * 1.8.1 (S3): «Удушение палача» и «Яд Борджа» проверяют canHit ДО наложения
- * blind/slow/poison — каст по союзнику отклоняется чисто, без дебаффов.
+ * 1.8.1: canHit-гейты на однотargetных урон-абилках (до наложения blind/slow/poison).
+ * 1.9.0: талантовые хуки baseBonus/coeffMult.
  */
 public final class RogueAbilities {
 
@@ -54,9 +56,12 @@ public final class RogueAbilities {
         return v > 0 ? v : defv;
     }
 
+    /** 1.9.0: base/coeff с талантовыми хуками. */
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        return plugin.getCombat().powers().abilityDamage(
-                p.getUniqueId(), power(def), base(def, defBase), coeff(def, defCoeff));
+        UUID uuid = p.getUniqueId();
+        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
     private LivingEntity rayTarget(Player p, double range) {
@@ -76,7 +81,7 @@ public final class RogueAbilities {
 
     /* -------------------------------- способности -------------------------------- */
 
-    /** 1. «Плащ теней» — Невидимость 15 с (self, гейт не нужен). */
+    /** 1. «Плащ теней» — Невидимость 15 с (self). */
     public boolean shadowCloak(Player p, AbilityDef def) {
         int secs = duration(def, 15);
         p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, secs * 20, 0));
@@ -139,7 +144,7 @@ public final class RogueAbilities {
         return true;
     }
 
-    /** 5. «Танец теней» — +30 AGI на 4 с (self, гейт не нужен). */
+    /** 5. «Танец теней» — +30 ЛОВКОСТИ на 4 с (self, всплеск уклонения). */
     public boolean shadowDance(Player p, AbilityDef def) {
         double agiBonus = base(def, 30.0);
         int secs = duration(def, 4);
