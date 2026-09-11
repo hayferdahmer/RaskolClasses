@@ -35,9 +35,9 @@ import java.util.UUID;
  * Команды 1.5.4+ /rc (инфо), /rc 1–7, /rc menu, /rc reload, /rc debug, /rc health.
  * 1.6.13: /rc selftest. 1.7.0 пакет 1: блоки атрибутов в /rc и /rc debug.
  * 1.7.5: слот 6 — инфо-сообщение (активки спеков удалены).
- * 1.7.6: /rc debug simulate [classA] [classB] — TTK-харнесс (матрица 5×5 и дуэли).
- * 1.7.6.1-fix: исправлен off-by-one в индексах simulate (simulate = args[1],
- * классы начинаются с args[2]; матрица — при args.length <= 2).
+ * 1.7.6: /rc debug simulate [classA] [classB] — TTK-харнесс.
+ * 1.7.6.1-fix: матрица выводится самоподписанными ячейками (В:25.4 О:5.9 …) —
+ * в непропорциональном MC-шрифте колонки с пробелами всегда съезжали.
  * Все строковые литералы однострочные (защита от поломки склеек при копировании).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
@@ -158,13 +158,24 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     /* ------------------------- 1.7.6: TTK-харнесс ------------------------- */
 
+    /** Буква класса для самоподписанных ячеек матрицы. */
+    private static String letter(PlayerClass pc) {
+        return switch (pc) {
+            case WARRIOR -> "В";
+            case HUNTER -> "О";
+            case PRIEST -> "Ж";
+            case MAGE -> "М";
+            case ROGUE -> "Р";
+        };
+    }
+
     /**
      * /rc debug simulate            → матрица 5×5 TTK (строка = атакующий).
      * /rc debug simulate <A>        → дуэль класса отправителя (или WARRIOR из консоли) против A.
      * /rc debug simulate <A> <B>    → дуэль A против B.
-     * Уровень 40, seed 42 (детерминированно). Подсветка: зелёный = коридор
-     * anchor ±30%, жёлтый = вне коридора, красный = не убивает за 60 с.
-     * 1.7.6.1-fix: simulate = args[1], классы = args[2]/args[3].
+     * Уровень 40, seed 42 (детерминированно). Формат ячеек: «Б:NN.N» — каждая
+     * цифра подписана буквой класса-цели, поэтому съезжать в чате нечему.
+     * Подсветка: зелёный = коридор anchor ±30%, жёлтый = вне, красный = >60 с.
      */
     private void handleSimulate(CommandSender sender, String[] args) {
         int level = 40;
@@ -177,26 +188,18 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             PlayerClass[] pcs = PlayerClass.values();
             sender.sendMessage(Component.text("─── TTK-матрица (сек), уровень " + level
                     + ", якорь " + fmt1(anchor) + " с ───", NamedTextColor.GOLD));
-            Component header = Component.text("атак\\защ          |", NamedTextColor.GRAY);
-            for (PlayerClass pc : pcs) {
-                header = header.append(Component.text(String.format(Locale.ROOT, " %8s", shortName(pc)),
-                        NamedTextColor.DARK_GRAY));
-            }
-            sender.sendMessage(header);
+            sender.sendMessage(Component.text("В=воин О=охотник Ж=жрец М=маг Р=разбойник · >60 = не убивает за 60 с",
+                    NamedTextColor.DARK_GRAY));
             for (int i = 0; i < pcs.length; i++) {
-                Component row = Component.text(String.format(Locale.ROOT, "%-17s |", shortName(pcs[i])),
-                        NamedTextColor.GRAY);
+                Component row = Component.text(shortName(pcs[i]) + " │ ", NamedTextColor.GRAY);
                 for (int j = 0; j < pcs.length; j++) {
                     double v = m[i][j];
-                    String cell = Double.isFinite(v)
-                            ? String.format(Locale.ROOT, " %8s", fmt1(v))
-                            : String.format(Locale.ROOT, " %8s", "—");
-                    row = row.append(Component.text(cell, cellColor(v, anchor)));
+                    String cell = Double.isFinite(v) ? fmt1(v) : ">60";
+                    row = row.append(Component.text(letter(pcs[j]) + ":" + cell + " ", cellColor(v, anchor)));
                 }
                 sender.sendMessage(row);
             }
-            sender.sendMessage(Component.text("Зелёный = якорь ±30% · жёлтый = вне коридора · — = не убивает за 60 с",
-                    NamedTextColor.DARK_GRAY));
+            sender.sendMessage(Component.text("Зелёный = якорь ±30% · жёлтый = вне коридора", NamedTextColor.DARK_GRAY));
             sender.sendMessage(Component.text("Детали пары: /rc debug simulate <A> <B>", NamedTextColor.DARK_GRAY));
             return;
         }
