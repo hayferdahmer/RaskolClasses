@@ -16,28 +16,24 @@ import java.util.UUID;
 /**
  * PlaceholderAPI-хук: %raskolclasses_*% (1.6.5 + 1.8.0 + 1.9.0).
  *
- * Полный список плейсхолдеров:
- *  %raskolclasses_class%        — отображаемое имя класса
- *  %raskolclasses_class_id%     — WARRIOR/HUNTER/PRIEST/MAGE/ROGUE
- *  %raskolclasses_level%        — уровень персонажа (топ-N скиллов, кап level-cap)
- *  %raskolclasses_char_level%   — алиас level
- *  %raskolclasses_skill_level%  — профильный скилл класса (AuraSkills)
- *  %raskolclasses_resource%     — текущий ресурс класса (0–100)
- *  %raskolclasses_resource_max% — 100
- *  %raskolclasses_hp%           — текущее HP (целое)
- *  %raskolclasses_hp_max%       — макс. HP по формуле (целое)
- *  %raskolclasses_phys_resist%  — физрезист, % (целое)
- *  %raskolclasses_magic_resist% — магрезист, % (целое)
- *  %raskolclasses_dodge%        — эффективное уклонение, % (1 знак)
- *  %raskolclasses_parry%        — эффективное парирование, % (1 знак)
- *  %raskolclasses_crit_melee%   — крит мили, % (1 знак)
- *  %raskolclasses_crit_spell%   — крит магии, % (1 знак)
- *  %raskolclasses_spec%         — отображаемое имя спеки (пусто если нет)
- *  %raskolclasses_spec_id%      — id спеки (guardian/berserker/…, пусто если нет)
- *  %raskolclasses_talent_points%— доступные очки талантов (1.9.0; 0 без спеки)
- *  %raskolclasses_talents%      — «потрачено/заработано» (1.9.0; «0/0» без спеки)
+ *  %raskolclasses_class%         — отображаемое имя класса
+ *  %raskolclasses_class_id%      — WARRIOR/HUNTER/PRIEST/MAGE/ROGUE
+ *  %raskolclasses_level%         — уровень персонажа (топ-N скиллов, кап level-cap)
+ *  %raskolclasses_char_level%    — алиас level
+ *  %raskolclasses_skill_level%   — профильный скилл класса (AuraSkills)
+ *  %raskolclasses_resource%      — текущий ресурс класса (0–100)
+ *  %raskolclasses_resource_max%  — 100
+ *  %raskolclasses_hp% / %raskolclasses_hp_max%
+ *  %raskolclasses_phys_resist% / %raskolclasses_magic_resist%
+ *  %raskolclasses_dodge% / %raskolclasses_parry%
+ *  %raskolclasses_crit_melee% / %raskolclasses_crit_spell%
+ *  %raskolclasses_spec% / %raskolclasses_spec_id%
+ *  %raskolclasses_talent_points% — доступные очки талантов (1.9.0; 0 без спеки)
+ *  %raskolclasses_talents%       — «потрачено/заработано» (1.9.0; «0/0» без спеки)
  *
- * Оффлайн-игрок или неизвестный ключ → пустая строка / null (плейсхолдер остаётся как есть).
+ * Оффлайн-игрок → пустая строка; неизвестный ключ → null (плейсхолдер остаётся как есть).
+ * 1.9.0-fix: onRequest — switch-EXPRESSION (return switch + yield), иначе
+ * строковые тела кейсов не компилируются («not a statement»).
  */
 public final class RaskolPlaceholder extends PlaceholderExpansion {
 
@@ -76,67 +72,59 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
         UUID uuid = p.getUniqueId();
         String key = params.toLowerCase(Locale.ROOT);
 
-        switch (key) {
+        return switch (key) {
             case "class" -> {
                 PlayerClass pc = pcOf(p);
-                return pc == null ? "" : pc.getDisplayName();
+                yield pc == null ? "" : pc.getDisplayName();
             }
             case "class_id" -> {
                 PlayerClass pc = pcOf(p);
-                return pc == null ? "" : pc.name();
+                yield pc == null ? "" : pc.name();
             }
             case "level", "char_level" ->
                     String.valueOf(plugin.getCharacterLevels().characterLevel(uuid));
             case "skill_level" -> {
                 PlayerClass pc = pcOf(p);
                 if (pc == null) {
-                    return "";
+                    yield "";
                 }
                 int lv = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-                return lv == SkillLevelProvider.NO_SKILL_SYSTEM ? "" : String.valueOf(lv);
+                yield lv == SkillLevelProvider.NO_SKILL_SYSTEM ? "" : String.valueOf(lv);
             }
-            case "resource" ->
-                    String.valueOf((int) plugin.getResources().getValue(uuid));
+            case "resource" -> String.valueOf((int) plugin.getResources().getValue(uuid));
             case "resource_max" -> "100";
             case "hp" -> String.valueOf((int) p.getHealth());
             case "hp_max" -> String.valueOf((int) plugin.getAttributes().maxHp(uuid));
-            case "phys_resist" ->
-                    String.valueOf((int) plugin.getResists().physicalResist(uuid));
-            case "magic_resist" ->
-                    String.valueOf((int) plugin.getResists().magicResist(uuid));
+            case "phys_resist" -> String.valueOf((int) plugin.getResists().physicalResist(uuid));
+            case "magic_resist" -> String.valueOf((int) plugin.getResists().magicResist(uuid));
             case "dodge" -> fmt1(plugin.getAttributes().effectiveAvoidance(uuid)[0]);
             case "parry" -> fmt1(plugin.getAttributes().effectiveAvoidance(uuid)[1]);
             case "crit_melee" -> fmt1(plugin.getAttributes().critMeleeChance(uuid));
             case "crit_spell" -> fmt1(plugin.getAttributes().critSpellChance(uuid));
             case "spec" -> {
                 Spec s = plugin.getSpecService().getSpec(uuid);
-                return s == null ? "" : s.displayName();
+                yield s == null ? "" : s.displayName();
             }
             case "spec_id" -> {
                 Spec s = plugin.getSpecService().getSpec(uuid);
-                return s == null ? "" : s.id();
+                yield s == null ? "" : s.id();
             }
-            // 1.9.0: таланты (дисплей для TAB/скорборда; управление — только в Книге)
             case "talent_points" -> {
                 Spec s = plugin.getSpecService().getSpec(uuid);
-                if (s == null) {
-                    return "0";
-                }
-                return String.valueOf(plugin.getTalentService().availablePoints(uuid, s.id()));
+                yield s == null ? "0"
+                        : String.valueOf(plugin.getTalentService().availablePoints(uuid, s.id()));
             }
             case "talents" -> {
                 Spec s = plugin.getSpecService().getSpec(uuid);
                 if (s == null) {
-                    return "0/0";
+                    yield "0/0";
                 }
                 int spent = plugin.getTalentService().spentPoints(uuid, s.id());
                 int earned = plugin.getTalentService().earnedPoints(uuid);
-                return spent + "/" + earned;
+                yield spent + "/" + earned;
             }
-            default -> {
-                return null; // неизвестный ключ — PAPI оставит плейсхолдер как есть
-            }
-        }
+            default -> null;
+        };
     }
 
     private PlayerClass pcOf(Player p) {
