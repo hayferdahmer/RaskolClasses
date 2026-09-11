@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.balance.BalanceSimulator;
+import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
 import net.kyori.adventure.text.Component;
@@ -16,10 +17,8 @@ import java.util.Locale;
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
  * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
- * 1.7.6: чек 17 — TTK воин↔воин 40 ур. (seed 42) ∈ [10,60] с;
- *        чек 18 — жрец↔жрец heal-war: ≥30 с или timeout 60 с.
- * 1.7.6.1-fix: чек 8 исправлен — наклон DR тестируется входом 80 → 70
- * (вход 100 упирался в hard-cap 75, ожидание 80 было ошибочным).
+ * Чеки 17–18: TTK-санити (воин-зеркало ∈ [10,60]; жрец-зеркало heal-war ≥30/timeout).
+ * 1.8.0: чеки 19–20 — pure-формула сводного уровня персонажа (topNAverage).
  */
 public final class SelftestRunner {
 
@@ -88,7 +87,6 @@ public final class SelftestRunner {
         if (check(report, "16c", "capped(500,1000,0)=500 (кап выкл)", c3 == 500.0,
                 "cappedDamage", c3)) passed++; else failed++;
 
-        // 17. TTK sanity: воин↔воин 40 ур., seed 42 — не ваншот и не бесконечно
         BalanceSimulator.DuelResult ww = BalanceSimulator.duel(
                 plugin, PlayerClass.WARRIOR, PlayerClass.WARRIOR, 40, 42L);
         boolean ok17 = !ww.timeout() && ww.ttkSeconds() >= 10.0 && ww.ttkSeconds() <= 60.0;
@@ -99,14 +97,29 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 18. Heal-war якорь: жрец↔жрец должен идти ≥30 с или упираться в timeout 60 с.
-        // Execute-финишер может добить истощённого жреца (~40 с) — это всё ещё
-        // heal-war относительно DPS-зеркал; падение чека = сигнал пересмотреть якорь.
         BalanceSimulator.DuelResult pp = BalanceSimulator.duel(
                 plugin, PlayerClass.PRIEST, PlayerClass.PRIEST, 40, 42L);
         boolean ok18 = pp.timeout() || pp.ttkSeconds() >= 30.0;
         if (check(report, "18", "жрец↔жрец ≥30 с или timeout (получено "
                 + fmt(pp.ttkSeconds()) + " с)", ok18, "BalanceSimulator", pp.ttkSeconds())) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 19. Сводный уровень: среднее топ-5 (floor): (99+70+40+20+10)/5 = 47.8 → 47
+        int cl1 = CharacterLevelService.topNAverage(new int[]{99, 70, 40, 20, 10, 5, 0}, 5);
+        if (check(report, "19", "topNAverage([99,70,40,20,10,5,0],5)=47", cl1 == 47,
+                "topNAverage", cl1)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 20. N > length → среднее всех: (15+0+0+0+0)/5 = 3
+        int cl2 = CharacterLevelService.topNAverage(new int[]{15, 0, 0, 0, 0}, 5);
+        if (check(report, "20", "topNAverage([15,0,0,0,0],5)=3", cl2 == 3,
+                "topNAverage", cl2)) {
             passed++;
         } else {
             failed++;
