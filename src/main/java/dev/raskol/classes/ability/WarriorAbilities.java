@@ -14,20 +14,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.UUID;
-
 /**
- * 1.7.2: КИТ ВОИНА (нордика). Все способности масштабируются от Силы оружия (WP):
- * урон/хил/гранты = base + WP × coeff (конфиг classes.WARRIOR.abilities.<id>.*).
- *
- * Кит (слоты 1–5):
- *  1. «Удар Тира» (tyr_strike)     — одиночный физ-нуку base+WP×0.6, рей 4 блока;
- *  2. «Шкура Бальдра» (balder_skin)— грант физ-резиста (15 + WP×0.05)% на duration;
- *  3. «Берсеркерганг» (berserkergang) — Сила II + Сопротивление I на duration;
- *  4. «Кровь Фенрира» (fenrir_blood) — мгновенный self-хил base+WP×0.5 (Victory Rush-вайб);
- *  5. «Рагнарёк» (ragnarok)        — execute-финишер: цель <25% HP → ×3 урона через
- *                                    dealDamage(allowOverCap=true); иначе base+WP×1.8.
- * Плоских чисел урона больше нет: всё через PowerService.abilityDamage(power="wp").
+ * 1.7.2: КИТ ВОИНА (нордика). Урон/хил/гранты = base + WP×coeff.
+ * 1.8.1 (S3): однотargetные урон-абилки проверяют canHit ДО траты ресурса/КД —
+ * каст по союзнику отклоняется с сообщением, ресурс и КД не тратятся.
  */
 public final class WarriorAbilities {
 
@@ -77,16 +67,25 @@ public final class WarriorAbilities {
 
     private void noTarget(Player p) {
         p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.RED));
+                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
+    }
+
+    private void allyTarget(Player p) {
+        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
     /* -------------------------------- способности -------------------------------- */
 
-    /** 1. «Удар Тира» — одиночный физ-нуку ближнего боя. */
+    /** 1. «Удар Тира» — одиночный физ-нуку. 1.8.1: гейт союзника. */
     public boolean tyrStrike(Player p, AbilityDef def) {
-        LivingEntity t = rayTarget(p, 4);
+        LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
             return false;
         }
         double dmg = dmg(p, def, 10.0, 0.6);
@@ -94,17 +93,15 @@ public final class WarriorAbilities {
         return true;
     }
 
-    /** 2. «Шкура Бальдра» — грант физ-резиста, масштабируется от WP. */
+    /** 2. «Шкура Бальдра» — грант физ-резиста (self, гейт не нужен). */
     public boolean balderSkin(Player p, AbilityDef def) {
-        UUID uuid = p.getUniqueId();
-        double wp = plugin.getCombat().powers().weaponPower(uuid);
-        double grant = base(def, 15.0) + wp * coeff(def, 0.05);
+        double grant = base(def, 15.0) + plugin.getCombat().powers().weaponPower(p.getUniqueId()) * coeff(def, 0.05);
         int secs = duration(def, 5);
-        plugin.getResists().addTimedModifier(uuid, def.id(), grant, 0.0, secs * 1000L);
+        plugin.getResists().addTimedModifier(p.getUniqueId(), def.id(), grant, 0.0, secs * 1000L);
         return true;
     }
 
-    /** 3. «Берсеркерганг» — бафф урона/стойкости ванильными эффектами. */
+    /** 3. «Берсеркерганг» — Сила II + Сопротивление I (self). */
     public boolean berserkergang(Player p, AbilityDef def) {
         int secs = duration(def, 6);
         p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, secs * 20, 1));
@@ -112,26 +109,29 @@ public final class WarriorAbilities {
         return true;
     }
 
-    /** 4. «Кровь Фенрира» — мгновенный self-хил от WP (Victory Rush-вайб). */
+    /** 4. «Кровь Фенрира» — self-хил от WP. */
     public boolean fenrirBlood(Player p, AbilityDef def) {
-        double heal = dmg(p, def, 15.0, 0.5);
         AttributeInstance maxAttr = p.getAttribute(Attribute.MAX_HEALTH);
         double max = maxAttr != null ? maxAttr.getValue() : 20.0;
-        double now = p.getHealth();
-        if (now >= max) {
+        if (p.getHealth() >= max) {
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                     "target-full-hp", "Цель здорова"), NamedTextColor.GRAY));
             return false;
         }
-        p.heal(Math.min(heal, max - now));
+        double amount = dmg(p, def, 15.0, 0.5);
+        p.setHealth(Math.min(max, p.getHealth() + amount));
         return true;
     }
 
-    /** 5. «Рагнарёк» — execute-финишер: цель <25% HP → ×3 через allowOverCap. */
+    /** 5. «Рагнарёк» — execute-финишер. 1.8.1: гейт союзника ДО execute-логики. */
     public boolean ragnarok(Player p, AbilityDef def) {
-        LivingEntity t = rayTarget(p, 4);
+        LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
             return false;
         }
         double threshold = cfgD("classes.WARRIOR.abilities." + def.id() + ".threshold", 0.25);
