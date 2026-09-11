@@ -38,6 +38,7 @@ import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
 import dev.raskol.classes.spec.SpecStorage;
 import dev.raskol.classes.spec.SpecToken;
+import dev.raskol.classes.talent.TalentsStorage;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -54,10 +55,9 @@ import java.util.Locale;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.7.5: спеки = пассивная идентичность (SpecBindListener/SpecActiveCaster удалены).
- * 1.8.0: CharacterLevelService — сводный уровень персонажа (топ-N скиллов, кап);
- * атрибуты растут от него (attributes.level-source=character), анлоки абилок
- * остаются на профильном скилле.
+ * 1.9.0 (инкремент 1): TalentsStorage — персист талантов (talents.yml),
+ * автосейв вместе с кулдаунами/спеками/ресурсами. TalentService/Registry/UI —
+ * следующие инкременты.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -79,6 +79,8 @@ public final class RaskolClasses extends JavaPlugin {
     private SpecService specService;
     private SpecEffects specEffects;
     private SpecToken specToken;
+
+    private TalentsStorage talentsStorage;
 
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
@@ -114,7 +116,6 @@ public final class RaskolClasses extends JavaPlugin {
         }
 
         this.skillLevels = new SkillLevelProvider(this);
-        // 1.8.0: сводный уровень персонажа (до AttributeService — levelOf читает его)
         this.characterLevels = new CharacterLevelService(this);
         this.resources = new ResourceService(this, raskolConfig, classProvider);
 
@@ -146,9 +147,7 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.validate();
         configValidator.logSummary();
 
-        // 1.7.0 пакет 1: классовые атрибуты (1.8.0: level-source=character по умолчанию)
         this.attributes = new AttributeService(this);
-        // 1.7.0 пакет 2 + 1.7.4.1: HP-бар, применение maxHP, персист здоровья
         this.hpBarService = new HpBarService(this);
 
         this.specRegistry = new SpecRegistry(this);
@@ -158,6 +157,9 @@ public final class RaskolClasses extends JavaPlugin {
         this.specEffects = new SpecEffects(this);
         this.specService = new SpecService(this, specStorage, specRegistry);
         this.specToken = new SpecToken(this);
+
+        // 1.9.0 (инкремент 1): персист талантов
+        this.talentsStorage = new TalentsStorage(this);
 
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
@@ -205,7 +207,6 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
 
-        // HUD-ресурс только в vanilla-режиме; в actionbar-режиме строку шлёт HpBarService
         boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
         boolean hpVanilla = "vanilla".equalsIgnoreCase(
                 getConfig().getString("hp-display.mode", "actionbar"));
@@ -237,6 +238,7 @@ public final class RaskolClasses extends JavaPlugin {
             cooldowns.saveAll();
             specStorage.save();
             resources.saveAll();
+            talentsStorage.save();
         }, autosaveTicks, autosaveTicks));
 
         registerCommand();
@@ -249,6 +251,9 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.clear();
         if (resources != null) {
             resources.saveAll();
+        }
+        if (talentsStorage != null) {
+            talentsStorage.save();
         }
         if (installations != null) {
             installations.shutdown();
@@ -328,6 +333,7 @@ public final class RaskolClasses extends JavaPlugin {
     public SpecService getSpecService() { return specService; }
     public SpecEffects getSpecEffects() { return specEffects; }
     public SpecToken getSpecToken() { return specToken; }
+    public TalentsStorage getTalentsStorage() { return talentsStorage; }
     public FactionHook getFactionHook() { return factionHook; }
     public CrownFlavorService getFlavorService() { return flavorService; }
     public FxService getFx() { return fx; }
