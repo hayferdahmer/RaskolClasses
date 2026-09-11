@@ -10,7 +10,9 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 import java.util.Locale;
 
@@ -18,7 +20,8 @@ import java.util.Locale;
  * Headless-самотестирование формул плагина (/rc selftest).
  * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
  * Чеки 17–18: TTK-санити (воин-зеркало ∈ [10,60]; жрец-зеркало heal-war ≥30/timeout).
- * 1.8.0: чеки 19–20 — pure-формула сводного уровня персонажа (topNAverage).
+ * Чеки 19–20: pure-формула сводного уровня topNAverage (1.8.0).
+ * Чек 21 (1.8.1, S6): фракционный гейт canHit — self и среда проходят всегда.
  */
 public final class SelftestRunner {
 
@@ -107,7 +110,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 19. Сводный уровень: среднее топ-5 (floor): (99+70+40+20+10)/5 = 47.8 → 47
         int cl1 = CharacterLevelService.topNAverage(new int[]{99, 70, 40, 20, 10, 5, 0}, 5);
         if (check(report, "19", "topNAverage([99,70,40,20,10,5,0],5)=47", cl1 == 47,
                 "topNAverage", cl1)) {
@@ -116,13 +118,34 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 20. N > length → среднее всех: (15+0+0+0+0)/5 = 3
         int cl2 = CharacterLevelService.topNAverage(new int[]{15, 0, 0, 0, 0}, 5);
         if (check(report, "20", "topNAverage([15,0,0,0,0],5)=3", cl2 == 3,
                 "topNAverage", cl2)) {
             passed++;
         } else {
             failed++;
+        }
+
+        // 21 (1.8.1, S6): фракционный гейт canHit — self и среда проходят всегда
+        Player probe = sender instanceof Player sp
+                ? sp
+                : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
+        if (probe == null) {
+            if (check(report, "21", "canHit: self/среда (пропущено: нет онлайн-игрока)",
+                    true, "canHit", "skip")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        } else {
+            boolean self = plugin.getCombat().canHit(probe, probe);
+            boolean env = plugin.getCombat().canHit(null, probe);
+            if (check(report, "21", "canHit: self=true и среда=true",
+                    self && env, "canHit", self + "/" + env)) {
+                passed++;
+            } else {
+                failed++;
+            }
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
