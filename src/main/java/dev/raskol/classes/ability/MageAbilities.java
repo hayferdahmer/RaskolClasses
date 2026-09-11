@@ -9,20 +9,21 @@ import dev.raskol.classes.hook.TownyHook;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
+
+import java.util.UUID;
 
 /**
  * 1.7.3: КИТ МАГА (греческая мифология). Урон/гранты = base + SP×coeff.
- * 1.8.1 (S3): однотargetные урон-абилки проверяют canHit ДО урона и побочных
- * эффектов (поджог/execute-тег) — каст по союзнику отклоняется чисто.
- * 1.8.1 (S4): «Шаг Гермеса» не блинкует в чужой клейм Towny
- * (wilderness и свой город/резидентство — можно; чужой город — нет; fail closed
- * при сломанной рефлексии TownyHook).
- * 1.8.1 (нейминг): execute-тег мага — собственный ключ tag.execute-mage
- * («Кара Зевса ×3!»), чтобы не пересекаться с талантом воина «Казнь».
+ * 1.8.1: canHit-гейты на однотargetных урон-абилках; Towny-гейт блинка; тег execute-mage.
+ * 1.9.0: талантовые хуки baseBonus/coeffMult.
  */
 public final class MageAbilities {
 
@@ -60,9 +61,12 @@ public final class MageAbilities {
         return v > 0 ? v : defv;
     }
 
+    /** 1.9.0: base/coeff с талантовыми хуками. */
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        return plugin.getCombat().powers().abilityDamage(
-                p.getUniqueId(), power(def), base(def, defBase), coeff(def, defCoeff));
+        UUID uuid = p.getUniqueId();
+        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
     private LivingEntity rayTarget(Player p, double range) {
@@ -99,7 +103,7 @@ public final class MageAbilities {
         return true;
     }
 
-    /** 2. «Шаг Гермеса» — телепорт 8 блоков. 1.8.1: гейт клеймов Towny (S4). */
+    /** 2. «Шаг Гермеса» — телепорт 8 блоков. 1.8.1: Towny-гейт клеймов. */
     public boolean hermesStep(Player p, AbilityDef def) {
         double dist = cfgD("classes.MAGE.abilities." + def.id() + ".distance", 8.0);
         Location loc = p.getLocation();
@@ -111,7 +115,6 @@ public final class MageAbilities {
                     NamedTextColor.RED));
             return false;
         }
-        // 1.8.1 (S4): нельзя блинковаться в чужой клейм в обход ворот/осад
         if (!TownyHook.canBlink(plugin, p, loc, target)) {
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                     "blink-claim", "Скачок невозможен: чужие владения"),
@@ -147,23 +150,24 @@ public final class MageAbilities {
                 continue;
             }
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
-            t.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                    org.bukkit.potion.PotionEffectType.SLOWNESS, secs * 20, 1));
+            t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, secs * 20, 1));
             hit = true;
         }
         return hit;
     }
 
-    /** 4. «Эгида Афины» — грант МАГ-резиста (self, гейт не нужен). */
+    /** 4. «Эгида Афины» — грант МАГ-резиста (self). 1.9.0: талантовые хуки. */
     public boolean athenaAegis(Player p, AbilityDef def) {
-        double grant = base(def, 15.0)
-                + plugin.getCombat().powers().spellPower(p.getUniqueId()) * coeff(def, 0.05);
+        UUID uuid = p.getUniqueId();
+        double b = base(def, 15.0) + plugin.getTalentService().baseBonus(uuid, def.id());
+        double c = coeff(def, 0.05) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double grant = b + plugin.getCombat().powers().spellPower(uuid) * c;
         int secs = duration(def, 5);
-        plugin.getResists().addTimedModifier(p.getUniqueId(), def.id(), 0.0, grant, secs * 1000L);
+        plugin.getResists().addTimedModifier(uuid, def.id(), 0.0, grant, secs * 1000L);
         return true;
     }
 
-    /** 5. «Гнев Зевса» — execute-финишер. 1.8.1: гейт союзника; тег — tag.execute-mage. */
+    /** 5. «Гнев Зевса» — execute-финишер. 1.8.1: гейт союзника; тег execute-mage. */
     public boolean zeusWrath(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -175,7 +179,8 @@ public final class MageAbilities {
             return false;
         }
         double threshold = cfgD("classes.MAGE.abilities." + def.id() + ".threshold", 0.25);
-        double max = maxOf(t);
+        AttributeInstance maxAttr = t.getAttribute(Attribute.MAX_HEALTH);
+        double max = maxAttr != null ? maxAttr.getValue() : 20.0;
         double frac = max > 0 ? t.getHealth() / max : 1.0;
         double dmg = dmg(p, def, 25.0, 2.0);
         if (frac < threshold) {
@@ -187,11 +192,5 @@ public final class MageAbilities {
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
         }
         return true;
-    }
-
-    private double maxOf(LivingEntity e) {
-        org.bukkit.attribute.AttributeInstance attr =
-                e.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
-        return attr != null ? attr.getValue() : 20.0;
     }
 }
