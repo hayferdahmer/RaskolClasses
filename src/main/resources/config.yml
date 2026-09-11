@@ -1,21 +1,14 @@
 # ============================================================
-#  RaskolClasses v1.7.5+ (тюнинг 1.7.6.3) — «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.7.6+ (1.8.0) — «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
-#  Сводка тюнинга 1.7.6.1–1.7.6.3:
-#   - avoidance.dodge-mult: 0.5        — халв уклонения (дисплей = бой);
-#   - avoidance.parry-k: 300           — парирование воина 28.6% → 16.7%;
-#   - resist.classes.WARRIOR.physical: 18 — пробиваемость танка;
-#   - combat.burst-window-seconds: 3.0 / burst-window-pct: 18.0
-#     — пол TTK ≈ 13–15 с вместо 6 с (зеркала в коридор 14–26);
-#   - classes.HUNTER.resource-on-deal: 4.0 — охотник sustains в длинных дуэлях;
-#   - поднятые coeff против танков: piercing_shot 1.4, arrow_rain 0.9,
-#     fire_prometheus 1.2, boreas_breath 1.0, zeus_wrath 2.0,
-#     blade_fan 0.8, strangle 0.9, wrath_heaven 1.6.
+#  1.8.0: уровень персонажа = среднее топ-N скиллов с потолком;
+#         атрибуты растут от него (level-source: character),
+#         анлоки способностей остаются на профильном скилле класса.
 # ============================================================
 
 hud:
-  enabled: true               # ресурсная строка HudService (только при hp-display.mode: vanilla)
+  enabled: true
   update-period-ticks: 10
   skip-spectator: true
   full-resource-aura: true
@@ -64,7 +57,6 @@ combat:
   debug-damage: false
   true-damage-cap-per-hit: 1000
   aoe-los: true
-  # Анти-ваншот одиночного.hit (после резистов/критов); среда и execute исключены
   max-single-hit-pct: 35
   cap-exempt-causes:
     - FALL
@@ -73,7 +65,6 @@ combat:
     - STARVATION
     - VOID
     - SONIC_BOOM
-  # 1.7.6.1+1.7.6.3: burst-окно — суммарный урон по игроку за окно ≤ pct% maxHP
   burst-window-seconds: 3.0
   burst-window-pct: 18.0
 
@@ -88,12 +79,34 @@ class-accept:
 balance:
   target-ttk-seconds: 20.0
 
+# ------------------------------------------------------------
+# 1.8.0: УРОВЕНЬ ПЕРСОНАЖА — сводная прогрессия
+# Уровень = floor(среднее топ-N скиллов AuraSkills), зажат в [0, level-cap].
+# Атрибуты (STR/AGI/INT → HP/WP/SP/HPow/dodge/parry/crit) растут от него;
+# одиночное дерево до 99 больше не раздувает статы (кейс жреца 1.7.x закрыт).
+# Анлоки способностей НЕ зависят от сводного уровня (остаются на профильном скилле).
+# ------------------------------------------------------------
+character-level:
+  top-n: 5
+  fallback: 40          # AuraSkills отсутствует и игрок оффлайн/консоль
+  skills:
+    - fighting
+    - defense
+    - archery
+    - agility
+    - healing
+    - sorcery
+    - alchemy
+    - enchanting
+    - mining
+    - forging
+
 spec:
   respec-base-cost: 250
   respec-per-level: 10
 
 # ------------------------------------------------------------
-# Резисты (1.6.0 + 1.7.6.2: воин физ 27 → 18)
+# Резисты (1.6.0 + 1.7.6.2: воин физ 18)
 # ------------------------------------------------------------
 resist:
   cap: 90
@@ -134,10 +147,11 @@ resist:
       physical: 10
 
 # ------------------------------------------------------------
-# Атрибуты (1.7.0 + 1.7.6.1: dodge-mult + 1.7.6.2: parry-k 300)
+# Атрибуты (1.7.0 + 1.7.6.1/2 + 1.8.0: level-source/level-cap)
 # ------------------------------------------------------------
 attributes:
-  level-source: class-skill
+  level-source: character   # character | class-skill | vanilla (1.8.0 дефолт: character)
+  level-cap: 60             # потолок сводного уровня в формулах атрибутов
   classes:
     WARRIOR: { main: STR, base-str: 12, base-agi: 6,  base-int: 4,  growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
     HUNTER:  { main: AGI, base-str: 6,  base-agi: 12, base-int: 4,  growth-str: 0.5, growth-agi: 1.2, growth-int: 0.3 }
@@ -182,11 +196,11 @@ attributes:
     spell-sound: ENTITY_EVOKER_CAST_SPELL
   avoidance:
     dodge-k: 100
-    parry-k: 300            # 1.7.6.2: было 150
+    parry-k: 300
     soft-cap: 60
     dr-factor: 0.5
     hard-cap: 75
-    dodge-mult: 0.5         # 1.7.6.1: халв уклонения
+    dodge-mult: 0.5
     agi-main-parry-micro: 0.5
     agi-main-dodge-refund: 0.5
     front-angle: 90
@@ -302,12 +316,9 @@ messages:
         smoke_bomb: "Мина: Blindness 2 с врагам + Speed I себе 3 с"
     spec:
       passive: "Пассив: {text}"
-      active: "Актив: {text}"
-      activecost: "Цена актива: {cost} рес · КД: {sec} с"
       chosen: "Выбрана тобой"
       notchosen: "Не выбрана · ПКМ — выбрать (уровень 40+)"
       other: "Выбрана другая спека — отречение ниже"
-      scroll.right: "ПКМ — свиток активки в хотбар"
     respec:
       title: "Отречение от пути"
       nospec: "Спеки нет — отрекаться не от чего"
@@ -326,6 +337,7 @@ messages:
       spec: "Пассив: +{phys}% физрезиста постоянно"
     attributes:
       title: "Атрибуты класса"
+      char-level: "Уровень персонажа: {value} (топ-{n} скиллов, кап {cap})"
       str: "СИЛА: {value}"
       agi: "ЛОВКОСТЬ: {value}"
       int: "ИНТЕЛЛЕКТ: {value}"
@@ -436,7 +448,7 @@ classes:
 
   HUNTER:
     resource-regen: 5.0
-    resource-on-deal: 4.0     # 1.7.6.3: было 0.0 — sustain в длинных дуэлях
+    resource-on-deal: 4.0
     resource-on-take: 0.0
     resource-on-heal: 0.0
     combat-window-seconds: 5
@@ -471,7 +483,7 @@ classes:
         cooldown: 20
         power: wp
         base: 12
-        coeff: 1.4        # 1.7.6.2: было 0.9
+        coeff: 1.4
       arrow_fan:
         name: "Веер стрел"
         description: "Три стрелы конусом, урон каждой скалируется от Силы оружия"
@@ -489,7 +501,7 @@ classes:
         cooldown: 90
         power: wp
         base: 10
-        coeff: 0.9        # 1.7.6.2: было 0.5
+        coeff: 0.9
         radius: 5.0
     passives:
       predator:
@@ -558,7 +570,7 @@ classes:
         cooldown: 90
         power: sp
         base: 20
-        coeff: 1.6        # 1.7.6.2: было 1.2
+        coeff: 1.6
         threshold: 0.25
         execute-mult: 3.0
     passives:
@@ -593,7 +605,7 @@ classes:
         cooldown: 6
         power: sp
         base: 15
-        coeff: 1.2        # 1.7.6.2: было 0.8
+        coeff: 1.2
       hermes_step:
         name: "Шаг Гермеса"
         description: "Мгновенный рывок вперёд на 8 блоков (проверяет безопасность точки)"
@@ -609,7 +621,7 @@ classes:
         cooldown: 45
         power: sp
         base: 12
-        coeff: 1.0        # 1.7.6.2: было 0.6
+        coeff: 1.0
         radius: 5.0
         duration: 4
       athena_aegis:
@@ -630,7 +642,7 @@ classes:
         cooldown: 90
         power: sp
         base: 25
-        coeff: 2.0        # 1.7.6.2: было 1.4
+        coeff: 2.0
         threshold: 0.25
         execute-mult: 3.0
     passives:
@@ -668,7 +680,7 @@ classes:
         cooldown: 15
         power: wp
         base: 8
-        coeff: 0.8        # 1.7.6.2: было 0.5
+        coeff: 0.8
         radius: 3.0
       strangle:
         name: "Удушение палача"
@@ -678,7 +690,7 @@ classes:
         cooldown: 40
         power: wp
         base: 10
-        coeff: 0.9        # 1.7.6.2: было 0.6
+        coeff: 0.9
       borgia_poison:
         name: "Яд Борджа"
         description: "Отравленный клинок: урон + Яд I 5 с"
