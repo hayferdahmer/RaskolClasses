@@ -14,10 +14,12 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import java.util.UUID;
+
 /**
  * 1.7.2: КИТ ВОИНА (нордика). Урон/хил/гранты = base + WP×coeff.
- * 1.8.1 (S3): однотargetные урон-абилки проверяют canHit ДО траты ресурса/КД —
- * каст по союзнику отклоняется с сообщением, ресурс и КД не тратятся.
+ * 1.8.1: canHit-гейты на однотargetных урон-абилках (каст по союзнику отклоняется).
+ * 1.9.0: талантовые хуки baseBonus/coeffMult во всех числах (узлы kit_base/kit_mult).
  */
 public final class WarriorAbilities {
 
@@ -55,9 +57,12 @@ public final class WarriorAbilities {
         return v > 0 ? v : defv;
     }
 
+    /** 1.9.0: base/coeff с талантовыми хуками. */
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        return plugin.getCombat().powers().abilityDamage(
-                p.getUniqueId(), power(def), base(def, defBase), coeff(def, defCoeff));
+        UUID uuid = p.getUniqueId();
+        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
     private LivingEntity rayTarget(Player p, double range) {
@@ -93,11 +98,14 @@ public final class WarriorAbilities {
         return true;
     }
 
-    /** 2. «Шкура Бальдра» — грант физ-резиста (self, гейт не нужен). */
+    /** 2. «Шкура Бальдра» — грант физ-резиста (self). 1.9.0: талантовые хуки. */
     public boolean balderSkin(Player p, AbilityDef def) {
-        double grant = base(def, 15.0) + plugin.getCombat().powers().weaponPower(p.getUniqueId()) * coeff(def, 0.05);
+        UUID uuid = p.getUniqueId();
+        double b = base(def, 15.0) + plugin.getTalentService().baseBonus(uuid, def.id());
+        double c = coeff(def, 0.05) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double grant = b + plugin.getCombat().powers().weaponPower(uuid) * c;
         int secs = duration(def, 5);
-        plugin.getResists().addTimedModifier(p.getUniqueId(), def.id(), grant, 0.0, secs * 1000L);
+        plugin.getResists().addTimedModifier(uuid, def.id(), grant, 0.0, secs * 1000L);
         return true;
     }
 
