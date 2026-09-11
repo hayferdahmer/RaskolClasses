@@ -15,12 +15,14 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.7.0 пакет 1: сервис классовых атрибутов (STR/AGI/INT).
- * Значение = base + growth×PlayerLevel + модификаторы (спек/эффекты/кит-баффы).
+ * Значение = base + growth×Level + модификаторы (спек/эффекты/кит-баффы).
  * Кэш на тик: повторные чтения в одном тике бесплатны.
  *
  * 1.7.0.5: maxHp читает живые ключи attributes.hp.base-hp / per-str.
- * 1.7.6.1-fix: effectiveAvoidance применяет avoidance.dodge-mult (дефолт 0.5)
- * ПЕРЕД DR/split — Книга/PAPI//rc debug показывают ТО же уклонение, что и бой.
+ * 1.7.6.1: effectiveAvoidance применяет avoidance.dodge-mult (дисплей = бой).
+ * 1.8.0: levelOf по умолчанию берёт СВОНДНЫЙ уровень персонажа
+ * (CharacterLevelService, топ-N скиллов с потолком attributes.level-cap);
+ * attributes.level-source = class-skill|vanilla — рубильники отката к 1.7.x.
  */
 public final class AttributeService {
 
@@ -100,15 +102,25 @@ public final class AttributeService {
         };
     }
 
-    /** PlayerLevel для формул: class-skill (дефолт) или vanilla. */
+    /**
+     * Уровень для формул атрибутов (1.8.0):
+     *  - character (дефолт): сводный уровень персонажа (топ-N скиллов, кап level-cap);
+     *  - class-skill: профильный скилл класса (поведение 1.7.x, рубильник отката);
+     *  - vanilla: ванильный уровень игрока.
+     * Анлоки способностей НЕ используют этот метод — они остаются на профильном
+     * скилле (AbilityRegistry), чтобы класс-фэнтези не ломалось от сводного уровня.
+     */
     public double levelOf(UUID uuid, PlayerClass pc) {
-        String source = plugin.getConfig().getString("attributes.level-source", "class-skill");
+        String source = plugin.getConfig().getString("attributes.level-source", "character");
         if ("vanilla".equalsIgnoreCase(source)) {
             Player player = Bukkit.getPlayer(uuid);
             return player != null ? Math.max(0, player.getLevel()) : 0;
         }
-        int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-        return level == SkillLevelProvider.NO_SKILL_SYSTEM ? 0 : Math.max(0, level);
+        if ("class-skill".equalsIgnoreCase(source)) {
+            int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
+            return level == SkillLevelProvider.NO_SKILL_SYSTEM ? 0 : Math.max(0, level);
+        }
+        return plugin.getCharacterLevels().characterLevel(uuid);
     }
 
     public double value(UUID uuid, AttributeType type) {
@@ -211,7 +223,6 @@ public final class AttributeService {
     /**
      * Эффективные dodge/parry после dodge-mult, DR и split — ЕДИНЫЙ источник
      * для боя (AvoidanceService), симулятора, Книги, PAPI и /rc debug.
-     * 1.7.6.1-fix: dodge ×= avoidance.dodge-mult (дефолт 0.5) до DR/split.
      */
     public double[] effectiveAvoidance(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
@@ -224,13 +235,12 @@ public final class AttributeService {
         boolean agiMain = mainOf(pc) == AttributeType.AGI;
 
         double dodge = AttributeMath.dodgeRaw(agi, cfgD("avoidance.dodge-k", 100.0));
-        double parryFull = AttributeMath.parryRaw(str, cfgD("avoidance.parry-k", 150.0));
+        double parryFull = AttributeMath.parryRaw(str, cfgD("avoidance.parry-k", 300.0));
         double micro = cfgD("avoidance.agi-main-parry-micro", 0.5);
         if (agiMain) {
             dodge += Math.max(0.0, parryFull - micro)
                     * cfgD("avoidance.agi-main-dodge-refund", 0.5);
         }
-        // 1.7.6.1-fix: халв уклонения — дисплей совпадает с боем
         dodge *= cfgD("avoidance.dodge-mult", 0.5);
 
         double parryChance;
