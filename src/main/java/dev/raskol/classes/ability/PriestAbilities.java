@@ -4,6 +4,7 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.passive.PassiveListener;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.attribute.Attribute;
@@ -12,13 +13,14 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
+import java.util.UUID;
+
 /**
  * 1.7.4: КИТ ЖРЕЦА (католика/паладинство). Хилы = base + HPow×coeff, финишер от SP.
- * Таргет-хилы: себя или союзника (одна непустая фракция); полный HP → отказ + refund.
- * 1.8.1 (S3): «Кара Небес» проверяет canHit ДО урона и execute-сообщения —
- * финишер по союзнику отклоняется без траты ресурса/КД и без тега.
- * 1.8.1 (нейминг): execute-тег жреца — собственный ключ tag.execute-priest
- * («Кара Небес ×3!»), чтобы не пересекаться с талантом воина «Казнь».
+ * Таргет-хилы: себя или союзника; полный HP → отказ + refund.
+ * 1.8.1: canHit-гейт на «Каре Небес»; execute-тег tag.execute-priest.
+ * 1.9.0: талантовые хуки baseBonus/coeffMult; markHealer перед heal()
+ * (благодать в PassiveListener + ресурс за лечение в ResourceService).
  */
 public final class PriestAbilities {
 
@@ -56,14 +58,20 @@ public final class PriestAbilities {
         return v > 0 ? v : defv;
     }
 
+    /** 1.9.0: хил с талантовыми хуками. */
     private double healAmount(Player caster, AbilityDef def, double defBase, double defCoeff) {
-        return plugin.getCombat().powers().abilityHeal(
-                caster.getUniqueId(), base(def, defBase), coeff(def, defCoeff));
+        UUID uuid = caster.getUniqueId();
+        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        return plugin.getCombat().powers().abilityHeal(uuid, b, c);
     }
 
+    /** 1.9.0: урон с талантовыми хуками. */
     private double dmg(Player caster, AbilityDef def, double defBase, double defCoeff) {
-        return plugin.getCombat().powers().abilityDamage(
-                caster.getUniqueId(), power(def), base(def, defBase), coeff(def, defCoeff));
+        UUID uuid = caster.getUniqueId();
+        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
     private void noTarget(Player p) {
@@ -111,6 +119,8 @@ public final class PriestAbilities {
             return false;
         }
         double amount = Math.min(healAmount(caster, def, defBase, defCoeff), missing);
+        // 1.9.0: маркер хилера — благодать (PassiveListener) и ресурс за лечение (ResourceService)
+        PassiveListener.markHealer(caster.getUniqueId());
         target.heal(amount);
         if (!target.getUniqueId().equals(caster.getUniqueId())) {
             target.sendMessage(Component.text(plugin.getRaskolConfig()
@@ -142,13 +152,14 @@ public final class PriestAbilities {
         return applyHeal(caster, tp, def, 20.0, 0.6);
     }
 
-    /** 3. «Эгида Веры» — грант ФИЗ+МАГ резиста (self, гейт не нужен). */
+    /** 3. «Эгида Веры» — грант ФИЗ+МАГ резиста (self). 1.9.0: талантовые хуки. */
     public boolean aegisFaith(Player p, AbilityDef def) {
-        double hpow = plugin.getCombat().powers().healPower(p.getUniqueId());
-        double grant = base(def, 12.0) + hpow * coeff(def, 0.04);
+        UUID uuid = p.getUniqueId();
+        double b = base(def, 12.0) + plugin.getTalentService().baseBonus(uuid, def.id());
+        double c = coeff(def, 0.04) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double grant = b + plugin.getCombat().powers().healPower(uuid) * c;
         int secs = duration(def, 5);
-        plugin.getResists().addTimedModifier(
-                p.getUniqueId(), def.id(), grant, grant, secs * 1000L);
+        plugin.getResists().addTimedModifier(uuid, def.id(), grant, grant, secs * 1000L);
         return true;
     }
 
@@ -167,7 +178,7 @@ public final class PriestAbilities {
         return healed;
     }
 
-    /** 5. «Кара Небес» — execute-финишер от SP. 1.8.1: гейт союзника; тег — tag.execute-priest. */
+    /** 5. «Кара Небес» — execute-финишер от SP. 1.8.1: гейт союзника; тег execute-priest. */
     public boolean wrathHeaven(Player p, AbilityDef def) {
         Entity e = p.getTargetEntity(20);
         if (!(e instanceof LivingEntity t)) {
