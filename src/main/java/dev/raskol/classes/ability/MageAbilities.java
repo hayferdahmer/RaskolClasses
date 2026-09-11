@@ -21,6 +21,8 @@ import org.bukkit.util.Vector;
  * 1.8.1 (S4): «Шаг Гермеса» не блинкует в чужой клейм Towny
  * (wilderness и свой город/резидентство — можно; чужой город — нет; fail closed
  * при сломанной рефлексии TownyHook).
+ * 1.8.1 (нейминг): execute-тег мага — собственный ключ tag.execute-mage
+ * («Кара Зевса ×3!»), чтобы не пересекаться с талантом воина «Казнь».
  */
 public final class MageAbilities {
 
@@ -154,13 +156,14 @@ public final class MageAbilities {
 
     /** 4. «Эгида Афины» — грант МАГ-резиста (self, гейт не нужен). */
     public boolean athenaAegis(Player p, AbilityDef def) {
-        double grant = base(def, 15.0) + plugin.getCombat().powers().spellPower(p.getUniqueId()) * coeff(def, 0.05);
+        double grant = base(def, 15.0)
+                + plugin.getCombat().powers().spellPower(p.getUniqueId()) * coeff(def, 0.05);
         int secs = duration(def, 5);
         plugin.getResists().addTimedModifier(p.getUniqueId(), def.id(), 0.0, grant, secs * 1000L);
         return true;
     }
 
-    /** 5. «Гнев Зевса» — execute-финишер. 1.8.1: гейт союзника ДО урона/тега. */
+    /** 5. «Гнев Зевса» — execute-финишер. 1.8.1: гейт союзника; тег — tag.execute-mage. */
     public boolean zeusWrath(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -179,7 +182,7 @@ public final class MageAbilities {
             dmg *= cfgD("classes.MAGE.abilities." + def.id() + ".execute-mult", 3.0);
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "tag.execute", "Казнь ×3!"), NamedTextColor.RED));
+                    "tag.execute-mage", "Кара Зевса ×3!"), NamedTextColor.RED));
         } else {
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
         }
