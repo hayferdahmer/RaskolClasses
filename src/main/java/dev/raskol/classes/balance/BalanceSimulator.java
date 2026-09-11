@@ -7,6 +7,8 @@ import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Random;
@@ -14,18 +16,12 @@ import java.util.Random;
 /**
  * 1.7.6: HEADLESS-СИМУЛЯТОР ДУЭЛЕЙ (баланс-харнесс, вариант A).
  * Модель: два виртуальных игрока уровня level; атрибуты/HP/WP/SP/HPow/резисты/
- * avoidance/криты/STR-реген/анти-ваншот — ТЕ ЖЕ формулы, что в бою
- * (AttributeMath / PowerService.*Formula / CombatService.cappedDamage).
- * 1.7.6.1-fix: dodge ×= avoidance.dodge-mult (дефолт 0.5) — как в AvoidanceService.
- *
- * Учитывает все 5 абилок кита каждого класса: урон/хил/гранты/баффы/execute
- * с реальными base/coeff/cooldown/cost/duration/threshold/execute-mult из конфига.
- * Упрощения (документированы): авто-атака каждые 0.8 с (weapon base по классу),
- * атака всегда во фронт (худший кейс для атакующего), защитник держит мили-оружие,
- * утилити-абилки (swallow/hermes_step/shadow_cloak) в симуляции не дают эффекта,
- * ресурс на старте 100, лимит дуэли 60 с (timeout = «не убивает»).
- *
- * Детерминированность: seed → Random; selftest использует seed=42.
+ * avoidance/криты/STR-реген/анти-ваншот — ТЕ ЖЕ формулы, что в бою.
+ * 1.7.6.1: симулятор моделирует burst-window cap (combat.burst-window-seconds/pct) —
+ * матрица честна относительно рантайма: веер+пронзающий за одно окно ≤ 50% maxHP.
+ * Упрощения (документированы): авто-атака каждые 0.8 с, атака всегда во фронт,
+ * защитник держит мили-оружие, утилити-абилки без эффекта, ресурс 100 на старте,
+ * лимит дуэли 60 с (timeout = «не убивает»). Детерминированность: seed → Random.
  */
 public final class BalanceSimulator {
 
@@ -163,6 +159,8 @@ public final class BalanceSimulator {
         double nextAuto = 0.0;
         double lastGain = -10.0;
         int casts, dodges;
+        /** 1.7.6.1: журнал урона по burst-окну: [simTime, amount]. */
+        final Deque<double[]> recent = new ArrayDeque<>();
     }
 
     private static double cfg(RaskolClasses plugin, String path, double def) {
@@ -269,7 +267,6 @@ public final class BalanceSimulator {
         } else {
             parry = parryFull; // допущение: атака всегда во фронт, мили в руке
         }
-        // 1.7.6.1-fix: уклонение урезано вдвое (дефолт 0.5) — как в AvoidanceService
         dodge *= cfg(plugin, "avoidance.dodge-mult", 0.5);
         double eff = AttributeMath.applyDR(dodge + parry,
                 cfg(plugin, "avoidance.soft-cap", 60.0),
@@ -448,6 +445,37 @@ public final class BalanceSimulator {
         }
     }
 
+    /**
+     * 1.7.6.1: burst-window cap внутри симуляции — то же окно, что в CombatService:
+     * суммарный урон за combat.burst-window-seconds ≤ combat.burst-window-pct% maxHP.
+     * Execute-удары (execute=true) окно не читают и не пишут (финишер по низкой цели).
+     */
+    private static double applyBurstWindow(RaskolClasses plugin, Fighter def,
+                                           double damage, double t, boolean execute) {
+        if (execute || damage <= 0.0) {
+            return damage;
+        }
+        double seconds = cfg(plugin, "combat.burst-window-seconds", 3.0);
+        double pct = cfg(plugin, "combat.burst-window-pct", 50.0);
+        if (seconds <= 0.0 || pct <= 0.0) {
+            return damage;
+        }
+        double cap = def.maxHp * pct / 100.0;
+        while (!def.recent.isEmpty() && t - def.recent.peekFirst()[0] > seconds) {
+            def.recent.pollFirst();
+        }
+        double sum = 0.0;
+        for (double[] e : def.recent) {
+            sum += e[1];
+        }
+        double allowed = Math.max(0.0, cap - sum);
+        double finalDmg = Math.min(damage, allowed);
+        if (finalDmg > 0.0) {
+            def.recent.addLast(new double[]{t, finalDmg});
+        }
+        return finalDmg;
+    }
+
     private static void hit(RaskolClasses plugin, Fighter att, Fighter def,
                             double phys, double magic, boolean execute,
                             double t, Random rnd, double pctCap) {
@@ -468,6 +496,8 @@ public final class BalanceSimulator {
         if (!execute) {
             total = CombatService.cappedDamage(total, def.maxHp, pctCap);
         }
+        // 1.7.6.1: burst-окно после одиночного капа
+        total = applyBurstWindow(plugin, def, total, t, execute);
         def.hp -= total;
         if (att.pc == PlayerClass.WARRIOR && t - att.lastGain >= 1.0) {
             att.lastGain = t;
