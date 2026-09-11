@@ -34,10 +34,10 @@ import java.util.UUID;
 /**
  * Команды 1.5.4+ /rc (инфо), /rc 1–7, /rc menu, /rc reload, /rc debug, /rc health.
  * 1.6.13: /rc selftest. 1.7.0 пакет 1: блоки атрибутов в /rc и /rc debug.
- * 1.7.5: слот 6 — инфо-сообщение (активки спеков удалены).
- * 1.7.6: /rc debug simulate [classA] [classB] — TTK-харнесс.
- * 1.7.6.1-fix: матрица выводится самоподписанными ячейками (В:25.4 О:5.9 …) —
- * в непропорциональном MC-шрифте колонки с пробелами всегда съезжали.
+ * 1.7.5: слот 6 — информационное сообщение (активки спеков удалены).
+ * 1.7.6: /rc debug simulate [A] [B] [level] — TTK-харнесс.
+ * 1.8.0: строка «Уровень персонажа» (сводный топ-N) в /rc и /rc debug;
+ * simulate принимает уровень (число) в любой позиции после классов.
  * Все строковые литералы однострочные (защита от поломки склеек при копировании).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
@@ -85,7 +85,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(Component.text("Каст доступен только игрокам", NamedTextColor.GRAY));
                     return true;
                 }
-                player.sendMessage(Component.text("Активки спеков удалены в 1.7.5: спека — пассивная идентичность. Таланты придут в 1.8.0.", NamedTextColor.GRAY));
+                player.sendMessage(Component.text("Активки специализаций удалены в 1.7.5: спека — пассивная идентичность. Таланты придут в 1.9.0.", NamedTextColor.GRAY));
             }
             case "7" -> {
                 if (!(sender instanceof Player player)) {
@@ -156,7 +156,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    /* ------------------------- 1.7.6: TTK-харнесс ------------------------- */
+    /* ------------------------- 1.7.6 + 1.8.0: TTK-харнесс ------------------------- */
 
     /** Буква класса для самоподписанных ячеек матрицы. */
     private static String letter(PlayerClass pc) {
@@ -170,20 +170,40 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
     }
 
     /**
-     * /rc debug simulate            → матрица 5×5 TTK (строка = атакующий).
-     * /rc debug simulate <A>        → дуэль класса отправителя (или WARRIOR из консоли) против A.
-     * /rc debug simulate <A> <B>    → дуэль A против B.
-     * Уровень 40, seed 42 (детерминированно). Формат ячеек: «Б:NN.N» — каждая
-     * цифра подписана буквой класса-цели, поэтому съезжать в чате нечему.
-     * Подсветка: зелёный = коридор anchor ±30%, жёлтый = вне, красный = >60 с.
+     * /rc debug simulate                 → матрица 5×5 на уровне 40;
+     * /rc debug simulate 60              → матрица на уровне 60;
+     * /rc debug simulate MAGE            → дуэль класса отправителя против MAGE;
+     * /rc debug simulate MAGE WARRIOR    → дуэль MAGE против WARRIOR;
+     * /rc debug simulate MAGE WARRIOR 60 → то же на уровне 60.
+     * Числовой токен = уровень (1..100), принимается в любой позиции после классов.
      */
     private void handleSimulate(CommandSender sender, String[] args) {
-        int level = 40;
-        long seed = 42L;
         double anchor = plugin.getRaskolConfig().targetTtkSeconds();
+        Integer levelArg = null;
+        PlayerClass a = null;
+        PlayerClass b = null;
+        for (int i = 2; i < args.length; i++) {
+            String token = args[i];
+            if (levelArg == null && token.matches("\\d+")) {
+                levelArg = Integer.parseInt(token);
+            } else if (a == null) {
+                a = parseClass(token);
+                if (a == null) {
+                    sender.sendMessage(Component.text("Классы: WARRIOR, HUNTER, PRIEST, MAGE, ROGUE", NamedTextColor.RED));
+                    return;
+                }
+            } else if (b == null) {
+                b = parseClass(token);
+                if (b == null) {
+                    sender.sendMessage(Component.text("Классы: WARRIOR, HUNTER, PRIEST, MAGE, ROGUE", NamedTextColor.RED));
+                    return;
+                }
+            }
+        }
+        int level = levelArg == null ? 40 : Math.max(1, Math.min(100, levelArg));
+        long seed = 42L;
 
-        // Матрица: аргументов класса нет (args = [debug, simulate])
-        if (args.length <= 2) {
+        if (a == null) {
             double[][] m = BalanceSimulator.matrix(plugin, level, seed);
             PlayerClass[] pcs = PlayerClass.values();
             sender.sendMessage(Component.text("─── TTK-матрица (сек), уровень " + level
@@ -200,24 +220,15 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(row);
             }
             sender.sendMessage(Component.text("Зелёный = якорь ±30% · жёлтый = вне коридора", NamedTextColor.DARK_GRAY));
-            sender.sendMessage(Component.text("Детали пары: /rc debug simulate <A> <B>", NamedTextColor.DARK_GRAY));
+            sender.sendMessage(Component.text("Детали пары: /rc debug simulate <A> <B> [level]", NamedTextColor.DARK_GRAY));
             return;
         }
 
-        PlayerClass a = parseClass(args[2]);
-        PlayerClass b;
-        if (args.length > 3) {
-            b = parseClass(args[3]);
-        } else if (sender instanceof Player p && plugin.getClassProvider().getClassOf(p) != null) {
+        if (b == null) {
             b = a;
-            a = plugin.getClassProvider().getClassOf(p);
-        } else {
-            b = a;
-            a = PlayerClass.WARRIOR;
-        }
-        if (a == null || b == null) {
-            sender.sendMessage(Component.text("Классы: WARRIOR, HUNTER, PRIEST, MAGE, ROGUE", NamedTextColor.RED));
-            return;
+            a = (sender instanceof Player p && plugin.getClassProvider().getClassOf(p) != null)
+                    ? plugin.getClassProvider().getClassOf(p)
+                    : PlayerClass.WARRIOR;
         }
         BalanceSimulator.DuelResult r = BalanceSimulator.duel(plugin, a, b, level, seed);
         sender.sendMessage(Component.text("─── Дуэль: " + shortName(a) + " vs " + shortName(b)
@@ -318,14 +329,20 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(Component.text(cfg.message("no-class", "Класс не выбран — посетите герольда"), NamedTextColor.GRAY));
             return;
         }
-        int level = plugin.getSkillLevels().getLevel(player.getUniqueId(), pc.profileSkillName());
+        UUID uuid = player.getUniqueId();
+        int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
 
         player.sendMessage(Component.text("Класс: ", NamedTextColor.GRAY).append(Component.text(pc.getDisplayName(), pc.getColor())));
         String levelText = level == SkillLevelProvider.NO_SKILL_SYSTEM ? "AuraSkills не подключён" : pc.profileSkillName() + " " + level;
         player.sendMessage(Component.text("Уровень: " + levelText, NamedTextColor.GRAY));
-        player.sendMessage(Component.text(pc.getResourceName() + ": " + (int) plugin.getResources().getValue(player.getUniqueId()) + "/100", pc.getColor()));
-
-        UUID uuid = player.getUniqueId();
+        // 1.8.0: сводный уровень персонажа
+        int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
+        int topN = Math.max(1, plugin.getConfig().getInt("character-level.top-n", 5));
+        int cap = (int) plugin.getConfig().getDouble("attributes.level-cap", 60.0);
+        player.sendMessage(Component.text("Уровень персонажа: " + charLevel
+                + " (топ-" + topN + " скиллов, кап " + cap + ")", NamedTextColor.AQUA));
+        player.sendMessage(Component.text(pc.getResourceName() + ": "
+                + (int) plugin.getResources().getValue(uuid) + "/100", pc.getColor()));
 
         AttributeService attrs = plugin.getAttributes();
         player.sendMessage(Component.text("Атрибуты: СИЛА " + (int) attrs.value(uuid, AttributeType.STR)
@@ -349,7 +366,9 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         if (spec != null) {
             player.sendMessage(Component.text("Специализация: " + spec.displayName() + " (пассивная идентичность)", pc.getColor()));
         } else {
-            String specStatus = plugin.getSpecService().canChoose(player) ? "доступна — Книга класса (/rc menu)" : "откроется на 40 уровне";
+            String specStatus = plugin.getSpecService().canChoose(player)
+                    ? "доступна — Книга класса (/rc menu)"
+                    : "откроется на 40 уровне";
             player.sendMessage(Component.text("Специализация: " + specStatus, NamedTextColor.DARK_GRAY));
         }
 
@@ -361,7 +380,10 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             player.sendMessage(Component.text("[" + def.slot() + "] ", NamedTextColor.DARK_GRAY)
                     .append(Component.text(def.displayName(), pc.getColor()))
                     .append(descComp)
-                    .append(Component.text(" · " + def.cost() + " рес. · " + def.cooldownMillis() / 1000L + "с кд · " + statusOf(player, def, level), NamedTextColor.GRAY)));
+                    .append(Component.text(" · " + def.cost() + " рес. · "
+                                    + def.cooldownMillis() / 1000L + "с кд · "
+                                    + statusOf(player, def, level),
+                            NamedTextColor.GRAY)));
         }
 
         for (String passiveId : RaskolConfig.passiveIds(pc)) {
@@ -401,6 +423,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
         AttributeService attrs = plugin.getAttributes();
         sender.sendMessage(Component.text("Атрибуты:", NamedTextColor.AQUA));
+        // 1.8.0: сводный уровень персонажа первой строкой блока
+        int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
+        int topN = Math.max(1, plugin.getConfig().getInt("character-level.top-n", 5));
+        int cap = (int) plugin.getConfig().getDouble("attributes.level-cap", 60.0);
+        String levelSource = plugin.getConfig().getString("attributes.level-source", "character");
+        sender.sendMessage(Component.text("  • уровень персонажа: " + charLevel
+                + " (топ-" + topN + ", кап " + cap + ", source=" + levelSource + ")", NamedTextColor.AQUA));
         for (AttributeType t : AttributeType.values()) {
             sender.sendMessage(Component.text("  • " + t.displayName() + ": " + fmt1(attrs.value(uuid, t))
                     + (attrs.mainOf(pc) == t ? " (основной)" : ""), NamedTextColor.GRAY));
@@ -506,7 +535,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         boolean visible = plugin.getHud().isVisible(target);
         sender.sendMessage(Component.text("HUD: ", NamedTextColor.GRAY).append(Component.text(visible ? "включён" : "выключен",
                 visible ? NamedTextColor.GREEN : NamedTextColor.RED)));
-        sender.sendMessage(Component.text("TTK-харнесс: /rc debug simulate [A] [B]", NamedTextColor.DARK_GRAY));
+        sender.sendMessage(Component.text("TTK-харнесс: /rc debug simulate [A] [B] [level]", NamedTextColor.DARK_GRAY));
     }
 
     private String passiveNumbers(PlayerClass pc, String id) {
