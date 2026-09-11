@@ -18,21 +18,11 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 /**
- * 1.7.2: КИТ ОХОТНИКА (средневековье других вселенных: Ведьмак/Skyrim-вайб).
- * Все способности масштабируются от Силы оружия (WP): base + WP×coeff.
- *
- * Кит (слоты 1–5):
- *  1. «Метка Волка» (wolf_mark)      — рей 20: урон + Slowness I 3 с + Glowing 6 с;
- *  2. «Ласточка» (swallow)           — Speed II + Regeneration I на 8 с;
- *  3. «Пронзающий выстрел» (piercing_shot) — рей 20: тяжёлый одиночный урон;
- *  4. «Веер стрел» (arrow_fan)       — 3 стрелы конусом, урон каждой base+WP×0.35;
- *  5. «Дождь стрел» (arrow_rain)     — AoE радиус 5 (LOS + фракции), урон base+WP×0.5.
- *
- * 1.7.4.1 фикс 4 (баг «стрелы возвращаются»):
- *  - pickupStatus = DISALLOWED сразу + повторно на 1-м и 2-м тиках
- *    (Paper может перезатереть статус, выставленный в тик спавна);
- *  - lifetime 600 тиков (30 с): застрявшая стрела исчезает сама;
- *  - PDC-метка raskolclasses:fan_arrow для отладки/будущих гардов.
+ * 1.7.2: КИТ ОХОТНИКА (средневековье других вселенных). Урон = base + WP×coeff.
+ * 1.7.6.3: стрелы веера неподбираемы (DISALLOWED + re-assert на 1–2 тиках + lifetime 30 с).
+ * 1.8.1 (S3): однотargetные урон-абилки проверяют canHit ДО траты ресурса/КД;
+ * AoE (arrow_fan/arrow_rain) фильтруют союзников через Targeting.isValidDamageTarget,
+ * а союзнические стрелы дополнительно отменяет CombatService.onDamage (S1).
  */
 public final class HunterAbilities {
 
@@ -87,13 +77,22 @@ public final class HunterAbilities {
                 "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
     }
 
+    private void allyTarget(Player p) {
+        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
+    }
+
     /* -------------------------------- способности -------------------------------- */
 
-    /** 1. «Метка Волка» — урон + Slowness I 3 с + подсветка цели 6 с. */
+    /** 1. «Метка Волка» — урон + Slowness I + Glowing. 1.8.1: гейт союзника ДО эффектов. */
     public boolean wolfMark(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
             return false;
         }
         double dmg = dmg(p, def, 8.0, 0.5);
@@ -108,7 +107,7 @@ public final class HunterAbilities {
         return true;
     }
 
-    /** 2. «Ласточка» — Speed II + Regeneration I на 8 с (ведьмачье зелье). */
+    /** 2. «Ласточка» — Speed II + Regeneration I (self). */
     public boolean swallow(Player p, AbilityDef def) {
         int secs = duration(def, 8);
         p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, secs * 20, 1));
@@ -116,19 +115,23 @@ public final class HunterAbilities {
         return true;
     }
 
-    /** 3. «Пронзающий выстрел» — тяжёлый одиночный выстрел (рей 20). */
+    /** 3. «Пронзающий выстрел» — тяжёлый одиночный. 1.8.1: гейт союзника. */
     public boolean piercingShot(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
             return false;
         }
-        double dmg = dmg(p, def, 12.0, 0.9);
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        double dmg = dmg(p, def, 12.0, 1.4);
         plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
         return true;
     }
 
-    /** 4. «Веер стрел» — 3 стрелы конусом; стрелы неподбираемы и самоисчезают (фикс 4). */
+    /** 4. «Веер стрел» — 3 стрелы конусом; стрелы неподбираемы и самоисчезают. */
     public boolean arrowFan(Player p, AbilityDef def) {
         double dmgEach = dmg(p, def, 6.0, 0.35);
         Vector dir = p.getLocation().getDirection().setY(0).normalize();
@@ -139,17 +142,12 @@ public final class HunterAbilities {
         return true;
     }
 
-    /**
-     * Спавн стрелы веера с гарантированным DISALLOWED-подбором и коротким lifetime.
-     * Повторное выставление статуса на 1-м и 2-м тиках закрывает перезапись Paper
-     * в тик спавна — стрела больше никогда не попадает в инвентарь и не «возвращается».
-     */
     private void launchFanArrow(Player p, Vector velocity, double damage) {
         AbstractArrow arrow = p.launchProjectile(AbstractArrow.class, velocity);
         arrow.setShooter(p);
         arrow.setDamage(damage);
         arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
-        arrow.setLifetimeTicks(600); // 30 с: застрявшая стрела исчезает сама
+        arrow.setLifetimeTicks(600);
         arrow.getPersistentDataContainer().set(fanArrowKey, PersistentDataType.BYTE, (byte) 1);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (arrow.isValid()) {
@@ -166,7 +164,7 @@ public final class HunterAbilities {
     /** 5. «Дождь стрел» — AoE радиус 5 с LOS и фракционным фильтром. */
     public boolean arrowRain(Player p, AbilityDef def) {
         double radius = cfgD("classes.HUNTER.abilities." + def.id() + ".radius", 5.0);
-        double dmg = dmg(p, def, 10.0, 0.5);
+        double dmg = dmg(p, def, 10.0, 0.9);
         boolean hit = false;
         for (Entity e : p.getNearbyEntities(radius, radius, radius)) {
             if (!(e instanceof LivingEntity t) || e.equals(p)) {
