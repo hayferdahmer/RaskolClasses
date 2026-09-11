@@ -17,12 +17,13 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
+import java.util.UUID;
+
 /**
  * 1.7.2: КИТ ОХОТНИКА (средневековье других вселенных). Урон = base + WP×coeff.
- * 1.7.6.3: стрелы веера неподбираемы (DISALLOWED + re-assert на 1–2 тиках + lifetime 30 с).
- * 1.8.1 (S3): однотargetные урон-абилки проверяют canHit ДО траты ресурса/КД;
- * AoE (arrow_fan/arrow_rain) фильтруют союзников через Targeting.isValidDamageTarget,
- * а союзнические стрелы дополнительно отменяет CombatService.onDamage (S1).
+ * 1.7.6.3: стрелы веера неподбираемы (DISALLOWED + re-assert 1–2 тика + lifetime 30 с).
+ * 1.8.1: canHit-гейты на однотargetных урон-абилках.
+ * 1.9.0: талантовые хуки baseBonus/coeffMult.
  */
 public final class HunterAbilities {
 
@@ -62,9 +63,12 @@ public final class HunterAbilities {
         return v > 0 ? v : defv;
     }
 
+    /** 1.9.0: base/coeff с талантовыми хуками. */
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        return plugin.getCombat().powers().abilityDamage(
-                p.getUniqueId(), power(def), base(def, defBase), coeff(def, defCoeff));
+        UUID uuid = p.getUniqueId();
+        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
     private LivingEntity rayTarget(Player p, double range) {
