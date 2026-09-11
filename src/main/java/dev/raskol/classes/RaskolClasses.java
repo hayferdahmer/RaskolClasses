@@ -4,6 +4,7 @@ package dev.raskol.classes;
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
 import dev.raskol.classes.attribute.AttributeService;
+import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
@@ -53,17 +54,17 @@ import java.util.Locale;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.7.5: спеки = пассивная идентичность. Убраны: SpecBindListener-регистрация,
- * SpecActiveCaster (инициализация+геттер), таск specNotify. SpecToken остаётся
- * только для санитизатора (сжигание свитков спеков на join).
- * Файлы spec/SpecActiveCaster.java и hotbar/SpecBindListener.java больше не
- * используются — их можно удалить из репозитория (компиляции они не мешают).
+ * 1.7.5: спеки = пассивная идентичность (SpecBindListener/SpecActiveCaster удалены).
+ * 1.8.0: CharacterLevelService — сводный уровень персонажа (топ-N скиллов, кап);
+ * атрибуты растут от него (attributes.level-source=character), анлоки абилок
+ * остаются на профильном скилле.
  */
 public final class RaskolClasses extends JavaPlugin {
 
     private RaskolConfig raskolConfig;
     private ClassProvider classProvider;
     private SkillLevelProvider skillLevels;
+    private CharacterLevelService characterLevels;
     private ResourceService resources;
     private CooldownManager cooldowns;
     private AbilityRegistry abilities;
@@ -113,6 +114,8 @@ public final class RaskolClasses extends JavaPlugin {
         }
 
         this.skillLevels = new SkillLevelProvider(this);
+        // 1.8.0: сводный уровень персонажа (до AttributeService — levelOf читает его)
+        this.characterLevels = new CharacterLevelService(this);
         this.resources = new ResourceService(this, raskolConfig, classProvider);
 
         classProvider.setResourceService(resources);
@@ -143,7 +146,9 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.validate();
         configValidator.logSummary();
 
+        // 1.7.0 пакет 1: классовые атрибуты (1.8.0: level-source=character по умолчанию)
         this.attributes = new AttributeService(this);
+        // 1.7.0 пакет 2 + 1.7.4.1: HP-бар, применение maxHP, персист здоровья
         this.hpBarService = new HpBarService(this);
 
         this.specRegistry = new SpecRegistry(this);
@@ -166,7 +171,6 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new PassiveListener(this), this);
         pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
-        // 1.7.5: SpecBindListener больше не регистрируется (активки спеков удалены)
         pluginManager.registerEvents(new SpecListener(this), this);
         pluginManager.registerEvents(flavorService, this);
         pluginManager.registerEvents(new TrailListener(this), this);
@@ -179,6 +183,7 @@ public final class RaskolClasses extends JavaPlugin {
             public void onQuit(PlayerQuitEvent event) {
                 resists.clear(event.getPlayer().getUniqueId());
                 attributes.clear(event.getPlayer().getUniqueId());
+                characterLevels.invalidate(event.getPlayer().getUniqueId());
             }
         }, this);
         pluginManager.registerEvents(new Listener() {
@@ -200,6 +205,7 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
 
+        // HUD-ресурс только в vanilla-режиме; в actionbar-режиме строку шлёт HpBarService
         boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
         boolean hpVanilla = "vanilla".equalsIgnoreCase(
                 getConfig().getString("hp-display.mode", "actionbar"));
@@ -211,7 +217,6 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(bossBars.start());
         activeTasks.add(flavorService.startAuraTask());
         activeTasks.add(installations.startSweepTask());
-        // 1.7.5: таск specNotify не стартует (активок спеков больше нет)
         activeTasks.add(new ScrollCooldownTask(this).start());
         activeTasks.add(manaSoaked.start());
         int purgeInterval = raskolConfig.purgeIntervalTicks();
@@ -224,6 +229,7 @@ public final class RaskolClasses extends JavaPlugin {
             installations.purgeStale();
             resists.purgeExpired();
             attributes.purgeExpired();
+            characterLevels.purgeStale();
             lastPurgeMillis = System.currentTimeMillis();
         }, purgeInterval, purgeInterval));
         long autosaveTicks = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
@@ -308,6 +314,7 @@ public final class RaskolClasses extends JavaPlugin {
     public RaskolConfig getRaskolConfig() { return raskolConfig; }
     public ClassProvider getClassProvider() { return classProvider; }
     public SkillLevelProvider getSkillLevels() { return skillLevels; }
+    public CharacterLevelService getCharacterLevels() { return characterLevels; }
     public ResourceService getResources() { return resources; }
     public CooldownManager getCooldowns() { return cooldowns; }
     public AbilityRegistry getAbilities() { return abilities; }
