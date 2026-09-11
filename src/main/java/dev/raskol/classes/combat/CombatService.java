@@ -32,29 +32,24 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.6.0: боевой сервис урона и резистов. Путь A (ваниль) + путь B (наши способности).
- * 1.7.1: производные статы и анти-ваншот (одиночный.hit ≤ max-single-hit-pct%).
- * 1.7.6.1: burst-окно (combat.burst-window-seconds/pct) — суммарный урон по игроку
- * за окно ≤ pct% maxHP; среда и execute-финишеры исключены.
+ * 1.7.1: производные статы и анти-ваншот. 1.7.6.1: burst-окно.
  * 1.8.1 (S1+S2): ЕДИНЫЙ фракционный гейт:
- *  - canHit(source, target) — публичный предикат для китов (ранний return);
- *  - dealDamage отклоняет урон по союзнику при combat.friendly-fire=false;
- *  - path-A (ванильное событие) отменяется для «союзник бьёт союзника»,
- *    включая наш WP-бонус исходящего офенса (раньше он бил союзников в wilderness).
+ *  - canHit(source, target) — публичный предикат для китов;
+ *  - dealDamage отклоняет урон по союзнику при friendly-fire=false;
+ *  - path-A отменяет «союзник бьёт союзника», ВКЛЮЧАЯ урон стрелами
+ *    (атакующий резолвится из шутера проджектайла — фикс чанка 2/4).
  */
 public final class CombatService implements Listener {
 
-    /** 1.7.5.1: фолбэк, если damage-types.env-lethal отсутствует/пуст в конфиге. */
     private static final List<String> DEFAULT_ENV =
             List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION");
 
-    /** 1.7.5.1: фолбэк, если combat.cap-exempt-causes отсутствует/пуст в конфиге. */
     private static final List<String> DEFAULT_EXEMPT =
             List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION", "VOID", "SONIC_BOOM");
 
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
-    /** max_health из реестра атрибутов Paper (1.21.4-safe). */
     private static final Attribute MAX_HEALTH = RegistryAccess.registryAccess()
             .getRegistry(RegistryKey.ATTRIBUTE)
             .get(NamespacedKey.minecraft("max_health"));
@@ -64,7 +59,6 @@ public final class CombatService implements Listener {
     private final AvoidanceService avoidance;
     private final PowerService powers;
 
-    /** 1.7.6.1: журнал урона по burst-окну: uuid → deque of [timeMillis, amount]. */
     private final Map<UUID, Deque<double[]>> burstLog = new ConcurrentHashMap<>();
 
     public CombatService(RaskolClasses plugin, ResistService resists) {
@@ -130,16 +124,16 @@ public final class CombatService implements Listener {
             return false;
         }
         if (!(target instanceof Player tp)) {
-            return true; // мобы валидны всегда
+            return true;
         }
         if (source == null) {
-            return true; // среда
+            return true;
         }
         if (!(source instanceof Player sp)) {
-            return true; // моб бьёт игрока
+            return true;
         }
         if (sp.getUniqueId().equals(tp.getUniqueId())) {
-            return true; // сам себя (служебные симуляции)
+            return true;
         }
         if (plugin.getConfig().getBoolean("combat.friendly-fire", false)) {
             return true;
@@ -156,16 +150,26 @@ public final class CombatService implements Listener {
             SUPPRESS.set(Boolean.FALSE);
         }
 
-        // 1.8.1 (S1): союзник бьёт союзника — отменяем ДО офенс-математики,
-        // чтобы наш WP/SP-бонус исходящего урона не доходил до союзника.
-        if (!suppressed && event instanceof EntityDamageByEntityEvent by
-                && by.getDamager() instanceof Player attacker
-                && event.getEntity() instanceof Player victimTarget
-                && !attacker.getUniqueId().equals(victimTarget.getUniqueId())
-                && !plugin.getConfig().getBoolean("combat.friendly-fire", false)
-                && Targeting.isAlly(plugin, attacker.getUniqueId(), victimTarget.getUniqueId())) {
-            event.setCancelled(true);
-            return;
+        // 1.8.1 (S1, фикс 2/4): союзник бьёт союзника — отменяем ДО офенс-математики.
+        // Атакующий резолвится и из проджектайла: стрелы охотника по союзнику
+        // больше не наносят урон и не несут WP-бонус.
+        if (!suppressed && event instanceof EntityDamageByEntityEvent by) {
+            Player attacker = null;
+            Entity damager = by.getDamager();
+            if (damager instanceof Player pa) {
+                attacker = pa;
+            } else if (damager instanceof Projectile proj
+                    && proj.getShooter() instanceof Player ps) {
+                attacker = ps;
+            }
+            if (attacker != null
+                    && event.getEntity() instanceof Player victimTarget
+                    && !attacker.getUniqueId().equals(victimTarget.getUniqueId())
+                    && !plugin.getConfig().getBoolean("combat.friendly-fire", false)
+                    && Targeting.isAlly(plugin, attacker.getUniqueId(), victimTarget.getUniqueId())) {
+                event.setCancelled(true);
+                return;
+            }
         }
 
         if (!suppressed) {
@@ -185,7 +189,7 @@ public final class CombatService implements Listener {
             if (!suppressed) {
                 applyEnvLethalScale(event, target);
             }
-            return; // среда: ни резистов, ни avoidance, ни burst-капа (летальна по дизайну)
+            return;
         }
         if (type == DamageType.PHYSICAL && avoidance.tryAvoid(target, event)) {
             event.setCancelled(true);
@@ -331,7 +335,6 @@ public final class CombatService implements Listener {
 
     /* --------------------- анти-ваншот одиночный (1.7.1) --------------------- */
 
-    /** Pure-статик капа одиночного удара: damage ≤ maxHp × pct/100. */
     public static double cappedDamage(double damage, double maxHp, double pct) {
         if (!Double.isFinite(damage) || damage <= 0.0) {
             return 0.0;
@@ -404,7 +407,6 @@ public final class CombatService implements Listener {
         }
     }
 
-    /** Чистка журнала burst-капа (вызывается из purge-таска RaskolClasses). */
     public void purgeBurstLog() {
         long now = System.currentTimeMillis();
         burstLog.entrySet().removeIf(entry -> {
