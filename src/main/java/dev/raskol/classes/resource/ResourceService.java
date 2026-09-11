@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.storage.SafeStorage;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
@@ -33,7 +34,9 @@ import java.util.logging.Logger;
  * жрец +5 за событие лечения (кап 1 раз/с).
  *
  * 1.7.4.1: персист resources.yml через SafeStorage (сейв на quit + автосейв).
- * 1.9.0: реген-бонус талантов (TalentService.regenBonus) добавляется к класс-регену.
+ * 1.9.0: реген-бонус талантов (TalentService.regenBonus) добавляется к класс-регену;
+ *        ресурс за лечение начисляется ХИЛЕРУ через маркер PassiveListener.
+ * 1.9.0-fix: маркер хилера (UUID) резолвится в Player через сервер перед getClassOf.
  */
 public final class ResourceService implements Listener {
 
@@ -189,15 +192,20 @@ public final class ResourceService implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
-        if (!(event.getEntity() instanceof Player healed)) {
+        if (!(event.getEntity() instanceof Player)) {
             return;
         }
-        // прибавка ресурса за событие лечения — тому, КТО лечит (маркер хилера из PassiveListener)
-        UUID healer = dev.raskol.classes.passive.PassiveListener.pollHealerMark();
+        // Прибавка ресурса за событие лечения — тому, КТО лечил (маркер из PriestAbilities).
+        UUID healer = PassiveListener.pollHealerMark();
         if (healer == null) {
             return;
         }
-        PlayerClass pc = classProvider.getClassOf(healer);
+        // 1.9.0-fix: UUID → Player через сервер (getClassOf принимает Player)
+        Player healerPlayer = plugin.getServer().getPlayer(healer);
+        if (healerPlayer == null) {
+            return;
+        }
+        PlayerClass pc = classProvider.getClassOf(healerPlayer);
         if (pc == null) {
             return;
         }
