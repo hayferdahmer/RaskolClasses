@@ -2,7 +2,6 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.PowerService;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -23,15 +22,22 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.6.0: боевой сервис урона и резистов. Путь A (ваниль) + путь B (наши способности).
- * 1.7.1: производные статы и анти-ваншот.
- * 1.7.5.1: кодовые фолбэк-списки летальной среды и исключений капа —
- * летальность падения/утопления работает даже если конфиг битый/пустой.
+ * 1.7.1: производные статы и анти-ваншот (одиночный.hit ≤ max-single-hit-pct%).
+ * 1.7.6.1: BURST-WINDOW CAP — скользящее окно combat.burst-window-seconds (3 с)
+ * суммирует урон по игроку-цели и ограничивает его combat.burst-window-pct (50%)
+ * от maxHP: веер стрел + пронзающий + авто за одно окно больше не сносят стеклянному
+ * классу весь пул (кейсы матрицы: охотник→маг 1.7 с, воин→маг 3.3 с).
+ * Исключения: среда (TRUE-причины из cap-exempt) и execute-финишеры (allowOverCap).
  */
 public final class CombatService implements Listener {
 
@@ -55,6 +61,9 @@ public final class CombatService implements Listener {
     private final ResistService resists;
     private final AvoidanceService avoidance;
     private final PowerService powers;
+
+    /** 1.7.6.1: журнал урона по окнам: uuid → deque of [timeMillis, amount]. */
+    private final Map<UUID, Deque<double[]>> burstLog = new ConcurrentHashMap<>();
 
     public CombatService(RaskolClasses plugin, ResistService resists) {
         this.plugin = plugin;
@@ -130,7 +139,7 @@ public final class CombatService implements Listener {
             if (!suppressed) {
                 applyEnvLethalScale(event, target);
             }
-            return;
+            return; // среда: ни резистов, ни avoidance, ни burst-капа (летальна по дизайну)
         }
         if (type == DamageType.PHYSICAL && avoidance.tryAvoid(target, event)) {
             event.setCancelled(true);
@@ -149,6 +158,8 @@ public final class CombatService implements Listener {
         }
         event.setDamage(event.getDamage() * factor);
         applySingleHitCap(event);
+        // 1.7.6.1: burst-window cap после одиночного капа
+        event.setDamage(applyBurstCap(target, event.getDamage()));
     }
 
     /* --------------------- исходящий офенс (путь A, 1.7.1) --------------------- */
@@ -247,13 +258,8 @@ public final class CombatService implements Listener {
         }
     }
 
-    /* ------------------------- летальная среда (1.7.0.2 + 1.7.5.1) ------------------------- */
+    /* ------------------------- летальная среда (1.7.0.2) ------------------------- */
 
-    /**
-     * Масштаб летальности среды: урон причин из env-lethal × maxHP/20.
-     * 1.7.5.1: если список в конфиге отсутствует/пуст — берём кодовый фолбэк,
-     * чтобы падение/утопление оставались смертельны при любом состоянии конфига.
-     */
     private void applyEnvLethalScale(EntityDamageEvent event, Player target) {
         if (!plugin.getConfig().getBoolean("damage-types.env-lethal-scale", true)) {
             return;
@@ -278,14 +284,9 @@ public final class CombatService implements Listener {
         }
     }
 
-    /* ------------------------- анти-ваншот (1.7.1 + 1.7.5.1) ------------------------- */
+    /* --------------------- анти-ваншот одиночный (1.7.1) --------------------- */
 
-    /**
-     * Pure-статик капа одиночного удара: damage ≤ maxHp × pct/100.
-     * pct ≤ 0 (или NaN/∞) = кап выключен, возвращается damage.
-     * Тот же, что применяет applySingleHitCap() в боевом пути.
-     * Используется /rc selftest (чек 16) — поэтому формулы теста и боя идентичны.
-     */
+    /** Pure-статик капа одиночного удара: damage ≤ maxHp × pct/100. */
     public static double cappedDamage(double damage, double maxHp, double pct) {
         if (!Double.isFinite(damage) || damage <= 0.0) {
             return 0.0;
@@ -300,11 +301,6 @@ public final class CombatService implements Listener {
         return damage > limit ? limit : damage;
     }
 
-    /**
-     * Одиночный.hit по игроку ≤ max-single-hit-pct% от max HP.
-     * 1.7.5.1: если cap-exempt-causes отсутствует/пуст — кодовый фолбэк
-     * (среда не каппится, остаётся летальной).
-     */
     private void applySingleHitCap(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player target)) {
             return;
@@ -321,11 +317,62 @@ public final class CombatService implements Listener {
             return;
         }
         double max = plugin.getAttributes().maxHp(target.getUniqueId());
-        double limit = max * pct / 100.0;
-        double dmg = event.getDamage();
-        if (dmg > limit) {
-            event.setDamage(limit);
+        double capped = cappedDamage(event.getDamage(), max, pct);
+        if (capped != event.getDamage()) {
+            event.setDamage(capped);
         }
+    }
+
+    /* --------------------- burst-window cap (1.7.6.1) --------------------- */
+
+    /**
+     * Скользящее окно: суммарный урон по игроку за combat.burst-window-seconds (3 с)
+     * ≤ combat.burst-window-pct (50%) от maxHP. Возвращает разрешённую часть урона
+     * (0, если окно уже выбрано). Журнал пишется только по фактически пропущенному урону.
+     */
+    private double applyBurstCap(Player target, double damage) {
+        if (damage <= 0.0) {
+            return damage;
+        }
+        double seconds = cfgD("combat.burst-window-seconds", 3.0);
+        double pct = cfgD("combat.burst-window-pct", 50.0);
+        if (seconds <= 0.0 || pct <= 0.0) {
+            return damage;
+        }
+        double max = plugin.getAttributes().maxHp(target.getUniqueId());
+        double cap = max * pct / 100.0;
+        long now = System.currentTimeMillis();
+        long windowMillis = (long) (seconds * 1000.0);
+        Deque<double[]> dq = burstLog.computeIfAbsent(target.getUniqueId(), k -> new ArrayDeque<>());
+        synchronized (dq) {
+            while (!dq.isEmpty() && now - dq.peekFirst()[0] > windowMillis) {
+                dq.pollFirst();
+            }
+            double sum = 0.0;
+            for (double[] e : dq) {
+                sum += e[1];
+            }
+            double allowed = Math.max(0.0, cap - sum);
+            double finalDmg = Math.min(damage, allowed);
+            if (finalDmg > 0.0) {
+                dq.addLast(new double[]{now, finalDmg});
+            }
+            if (dq.isEmpty()) {
+                burstLog.remove(target.getUniqueId());
+            }
+            return finalDmg;
+        }
+    }
+
+    /** Чистка журнала burst-капа (вызывается из purge-таска RaskolClasses). */
+    public void purgeBurstLog() {
+        long now = System.currentTimeMillis();
+        burstLog.entrySet().removeIf(entry -> {
+            synchronized (entry.getValue()) {
+                entry.getValue().removeIf(e -> now - e[0] > 10_000L);
+                return entry.getValue().isEmpty();
+            }
+        });
     }
 
     /* ------------------------- симулятор (1.6.4) ------------------------- */
@@ -412,6 +459,14 @@ public final class CombatService implements Listener {
                     magicTruePart *= f;
                     taken = limit;
                 }
+            }
+            // 1.7.6.1: burst-window cap (execute-финишеры исключены через allowOverCap)
+            double burstAllowed = applyBurstCap(tp2, taken);
+            if (burstAllowed < taken && taken > 0.0) {
+                double f = burstAllowed / taken;
+                physPart *= f;
+                magicTruePart *= f;
+                taken = burstAllowed;
             }
         }
         debugLog(target, source, safe, taken);
