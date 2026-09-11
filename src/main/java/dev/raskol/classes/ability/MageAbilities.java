@@ -4,30 +4,23 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.Targeting;
+import dev.raskol.classes.hook.TownyHook;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
-import java.util.UUID;
-
 /**
- * 1.7.3: КИТ МАГА (греческая мифология). Всё масштабируется от Силы заклинаний (SP):
- * урон/гранты = base + SP × coeff (конфиг classes.MAGE.abilities.<id>.*).
- *
- * Кит (слоты 1–5):
- *  1. «Огонь Прометея» (fire_prometheus) — гибрид 30/70 (физ/маг) + поджог 3 с;
- *  2. «Шаг Гермеса» (hermes_step)        — телепорт на distance блоков с проверкой безопасности;
- *  3. «Дыхание Борея» (boreas_breath)   — AoE радиус 5 (LOS): маг-урон + Slowness II 4 с;
- *  4. «Эгида Афины» (athena_aegis)      — грант МАГ-резиста (15 + SP×0.05)% на duration;
- *  5. «Гнев Зевса» (zeus_wrath)         — execute: цель <25% HP → ×3 через allowOverCap.
+ * 1.7.3: КИТ МАГА (греческая мифология). Урон/гранты = base + SP×coeff.
+ * 1.8.1 (S3): однотargetные урон-абилки проверяют canHit ДО урона и побочных
+ * эффектов (поджог/execute-тег) — каст по союзнику отклоняется чисто.
+ * 1.8.1 (S4): «Шаг Гермеса» не блинкует в чужой клейм Towny
+ * (wilderness и свой город/резидентство — можно; чужой город — нет; fail closed
+ * при сломанной рефлексии TownyHook).
  */
 public final class MageAbilities {
 
@@ -77,25 +70,34 @@ public final class MageAbilities {
 
     private void noTarget(Player p) {
         p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.RED));
+                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
+    }
+
+    private void allyTarget(Player p) {
+        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
     /* -------------------------------- способности -------------------------------- */
 
-    /** 1. «Огонь Прометея» — гибрид 30/70 + поджог. */
+    /** 1. «Огонь Прометея» — гибрид 30/70 + поджог 3 с. 1.8.1: гейт союзника ДО поджога. */
     public boolean firePrometheus(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
             return false;
         }
-        double dmg = dmg(p, def, 15.0, 0.8);
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        double dmg = dmg(p, def, 15.0, 1.2);
         plugin.getCombat().dealDamage(t, p, DamageProfile.hybrid(dmg * 0.3, dmg * 0.7));
         t.setFireTicks(3 * 20);
         return true;
     }
 
-    /** 2. «Шаг Гермеса» — телепорт с проверкой безопасности. */
+    /** 2. «Шаг Гермеса» — телепорт 8 блоков. 1.8.1: гейт клеймов Towny (S4). */
     public boolean hermesStep(Player p, AbilityDef def) {
         double dist = cfgD("classes.MAGE.abilities." + def.id() + ".distance", 8.0);
         Location loc = p.getLocation();
@@ -104,6 +106,13 @@ public final class MageAbilities {
         if (!isSafe(target)) {
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                     "blink-unsafe", "Скачок невозможен: нет безопасной точки"),
+                    NamedTextColor.RED));
+            return false;
+        }
+        // 1.8.1 (S4): нельзя блинковаться в чужой клейм в обход ворот/осад
+        if (!TownyHook.canBlink(plugin, p, loc, target)) {
+            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "blink-claim", "Скачок невозможен: чужие владения"),
                     NamedTextColor.RED));
             return false;
         }
@@ -119,51 +128,53 @@ public final class MageAbilities {
                 && l.clone().subtract(0, 1, 0).getBlock().getType().isSolid();
     }
 
-    /** 3. «Дыхание Борея» — AoE маг-урон + slow (LOS). */
+    /** 3. «Дыхание Борея» — AoE маг + Slowness II (LOS + фракционный фильтр). */
     public boolean boreasBreath(Player p, AbilityDef def) {
         double radius = cfgD("classes.MAGE.abilities." + def.id() + ".radius", 5.0);
         int secs = duration(def, 4);
-        double dmg = dmg(p, def, 12.0, 0.6);
+        double dmg = dmg(p, def, 12.0, 1.0);
         boolean hit = false;
         for (Entity e : p.getNearbyEntities(radius, radius, radius)) {
             if (!(e instanceof LivingEntity t) || e.equals(p)) {
                 continue;
             }
-            if (!dev.raskol.classes.combat.Targeting.isValidDamageTarget(plugin, p, t)) {
+            if (!Targeting.isValidDamageTarget(plugin, p, t)) {
                 continue;
             }
-            if (!dev.raskol.classes.combat.Targeting.hasLineOfSight(plugin, p, t)) {
+            if (!Targeting.hasLineOfSight(plugin, p, t)) {
                 continue;
             }
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
-            t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, secs * 20, 1));
+            t.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                    org.bukkit.potion.PotionEffectType.SLOWNESS, secs * 20, 1));
             hit = true;
         }
         return hit;
     }
 
-    /** 4. «Эгида Афины» — грант МАГ-резиста, скалируется от SP. */
+    /** 4. «Эгида Афины» — грант МАГ-резиста (self, гейт не нужен). */
     public boolean athenaAegis(Player p, AbilityDef def) {
-        UUID uuid = p.getUniqueId();
-        double sp = plugin.getCombat().powers().spellPower(uuid);
-        double grant = base(def, 15.0) + sp * coeff(def, 0.05);
+        double grant = base(def, 15.0) + plugin.getCombat().powers().spellPower(p.getUniqueId()) * coeff(def, 0.05);
         int secs = duration(def, 5);
-        plugin.getResists().addTimedModifier(uuid, def.id(), 0.0, grant, secs * 1000L);
+        plugin.getResists().addTimedModifier(p.getUniqueId(), def.id(), 0.0, grant, secs * 1000L);
         return true;
     }
 
-    /** 5. «Гнев Зевса» — execute-финишер: цель <25% HP → ×3 через allowOverCap. */
+    /** 5. «Гнев Зевса» — execute-финишер. 1.8.1: гейт союзника ДО урона/тега. */
     public boolean zeusWrath(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
             return false;
         }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
         double threshold = cfgD("classes.MAGE.abilities." + def.id() + ".threshold", 0.25);
-        AttributeInstance maxAttr = t.getAttribute(Attribute.MAX_HEALTH);
-        double max = maxAttr != null ? maxAttr.getValue() : 20.0;
+        double max = maxOf(t);
         double frac = max > 0 ? t.getHealth() / max : 1.0;
-        double dmg = dmg(p, def, 25.0, 1.4);
+        double dmg = dmg(p, def, 25.0, 2.0);
         if (frac < threshold) {
             dmg *= cfgD("classes.MAGE.abilities." + def.id() + ".execute-mult", 3.0);
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
@@ -173,5 +184,11 @@ public final class MageAbilities {
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
         }
         return true;
+    }
+
+    private double maxOf(LivingEntity e) {
+        org.bukkit.attribute.AttributeInstance attr =
+                e.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        return attr != null ? attr.getValue() : 20.0;
     }
 }
