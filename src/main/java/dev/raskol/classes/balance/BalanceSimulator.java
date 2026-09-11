@@ -16,9 +16,10 @@ import java.util.Random;
 /**
  * 1.7.6: HEADLESS-СИМУЛЯТОР ДУЭЛЕЙ (баланс-харнесс, вариант A).
  * Модель: два виртуальных игрока уровня level; атрибуты/HP/WP/SP/HPow/резисты/
- * avoidance/криты/STR-реген/анти-ваншот — ТЕ ЖЕ формулы, что в бою.
- * 1.7.6.1: симулятор моделирует burst-window cap (combat.burst-window-seconds/pct) —
- * матрица честна относительно рантайма: веер+пронзающий за одно окно ≤ 50% maxHP.
+ * avoidance/криты/STR-реген/анти-ваншот/burst-окно — ТЕ ЖЕ формулы, что в бою.
+ * 1.7.6.3: прибавка ресурса за попадание/получение урона читается из конфига
+ * по классу (resource-on-deal / resource-on-take, кап 1 раз/с) вместо хардкода
+ * воина — охотник больше не голодает в длинных дуэлях.
  * Упрощения (документированы): авто-атака каждые 0.8 с, атака всегда во фронт,
  * защитник держит мили-оружие, утилити-абилки без эффекта, ресурс 100 на старте,
  * лимит дуэли 60 с (timeout = «не убивает»). Детерминированность: seed → Random.
@@ -73,22 +74,22 @@ public final class BalanceSimulator {
             Map.entry("ragnarok", new Ab(20, 1.8, 60, 60, 0, 0.25, 3)),
             Map.entry("wolf_mark", new Ab(8, 0.5, 12, 20, 6, 1, 1)),
             Map.entry("swallow", new Ab(0, 0, 40, 15, 8, 1, 1)),
-            Map.entry("piercing_shot", new Ab(12, 0.9, 20, 30, 0, 1, 1)),
+            Map.entry("piercing_shot", new Ab(12, 1.4, 20, 30, 0, 1, 1)),
             Map.entry("arrow_fan", new Ab(6, 0.35, 22, 35, 0, 1, 1)),
-            Map.entry("arrow_rain", new Ab(10, 0.5, 90, 60, 0, 1, 1)),
+            Map.entry("arrow_rain", new Ab(10, 0.9, 90, 60, 0, 1, 1)),
             Map.entry("saint_tear", new Ab(10, 0.35, 3, 10, 0, 1, 1)),
             Map.entry("word_of_life", new Ab(20, 0.6, 6, 20, 0, 1, 1)),
             Map.entry("aegis_faith", new Ab(12, 0.04, 30, 30, 5, 1, 1)),
             Map.entry("circle_elysium", new Ab(15, 0.45, 60, 50, 0, 1, 1)),
-            Map.entry("wrath_heaven", new Ab(20, 1.2, 90, 60, 0, 0.25, 3)),
-            Map.entry("fire_prometheus", new Ab(15, 0.8, 6, 15, 0, 1, 1)),
+            Map.entry("wrath_heaven", new Ab(20, 1.6, 90, 60, 0, 0.25, 3)),
+            Map.entry("fire_prometheus", new Ab(15, 1.2, 6, 15, 0, 1, 1)),
             Map.entry("hermes_step", new Ab(0, 0, 20, 20, 0, 1, 1)),
-            Map.entry("boreas_breath", new Ab(12, 0.6, 45, 40, 4, 1, 1)),
+            Map.entry("boreas_breath", new Ab(12, 1.0, 45, 40, 4, 1, 1)),
             Map.entry("athena_aegis", new Ab(15, 0.05, 30, 30, 5, 1, 1)),
-            Map.entry("zeus_wrath", new Ab(25, 1.4, 90, 60, 0, 0.25, 3)),
+            Map.entry("zeus_wrath", new Ab(25, 2.0, 90, 60, 0, 0.25, 3)),
             Map.entry("shadow_cloak", new Ab(0, 0, 30, 30, 15, 1, 1)),
-            Map.entry("blade_fan", new Ab(8, 0.5, 15, 25, 0, 1, 1)),
-            Map.entry("strangle", new Ab(10, 0.6, 40, 40, 0, 1, 1)),
+            Map.entry("blade_fan", new Ab(8, 0.8, 15, 25, 0, 1, 1)),
+            Map.entry("strangle", new Ab(10, 0.9, 40, 40, 0, 1, 1)),
             Map.entry("borgia_poison", new Ab(5, 0.3, 30, 35, 0, 1, 1)),
             Map.entry("shadow_dance", new Ab(30, 0, 120, 60, 4, 1, 1)));
 
@@ -157,9 +158,10 @@ public final class BalanceSimulator {
         double agiBonus, agiBonusUntil;
         final double[] cd = new double[5];
         double nextAuto = 0.0;
-        double lastGain = -10.0;
+        double lastGainDeal = -10.0;
+        double lastGainTake = -10.0;
         int casts, dodges;
-        /** 1.7.6.1: журнал урона по burst-окну: [simTime, amount]. */
+        /** Журнал урона по burst-окну: [simTime, amount]. */
         final Deque<double[]> recent = new ArrayDeque<>();
     }
 
@@ -257,7 +259,7 @@ public final class BalanceSimulator {
     private static void recomputeAvoidance(RaskolClasses plugin, Fighter f, double t) {
         double agi = agiOf(f, t);
         double dodge = AttributeMath.dodgeRaw(agi, cfg(plugin, "avoidance.dodge-k", 100.0));
-        double parryFull = AttributeMath.parryRaw(f.str, cfg(plugin, "avoidance.parry-k", 150.0));
+        double parryFull = AttributeMath.parryRaw(f.str, cfg(plugin, "avoidance.parry-k", 300.0));
         double parry;
         if (mainIsAgi(plugin, f.pc)) {
             double micro = cfg(plugin, "avoidance.agi-main-parry-micro", 0.5);
@@ -289,7 +291,7 @@ public final class BalanceSimulator {
                         : v < 75 ? cfg(plugin, "classes.MAGE.regen-tier-3", 5.0)
                         : cfg(plugin, "classes.MAGE.regen-tier-4", 6.0);
             }
-            default -> rate = 0.0; // воин/охотник в бою: только от попаданий
+            default -> rate = cfg(plugin, "classes." + f.pc.name() + ".resource-regen", 0.0);
         }
         f.resource = Math.max(0.0, Math.min(100.0, f.resource + rate * TICK));
         double regen = AttributeMath.strRegenPerSecond(f.str,
@@ -446,9 +448,8 @@ public final class BalanceSimulator {
     }
 
     /**
-     * 1.7.6.1: burst-window cap внутри симуляции — то же окно, что в CombatService:
-     * суммарный урон за combat.burst-window-seconds ≤ combat.burst-window-pct% maxHP.
-     * Execute-удары (execute=true) окно не читают и не пишут (финишер по низкой цели).
+     * Burst-window cap внутри симуляции: суммарный урон за combat.burst-window-seconds
+     * ≤ combat.burst-window-pct% maxHP. Execute-удары окно не читают и не пишут.
      */
     private static double applyBurstWindow(RaskolClasses plugin, Fighter def,
                                            double damage, double t, boolean execute) {
@@ -456,7 +457,7 @@ public final class BalanceSimulator {
             return damage;
         }
         double seconds = cfg(plugin, "combat.burst-window-seconds", 3.0);
-        double pct = cfg(plugin, "combat.burst-window-pct", 50.0);
+        double pct = cfg(plugin, "combat.burst-window-pct", 18.0);
         if (seconds <= 0.0 || pct <= 0.0) {
             return damage;
         }
@@ -496,12 +497,18 @@ public final class BalanceSimulator {
         if (!execute) {
             total = CombatService.cappedDamage(total, def.maxHp, pctCap);
         }
-        // 1.7.6.1: burst-окно после одиночного капа
         total = applyBurstWindow(plugin, def, total, t, execute);
         def.hp -= total;
-        if (att.pc == PlayerClass.WARRIOR && t - att.lastGain >= 1.0) {
-            att.lastGain = t;
-            att.resource = Math.min(100.0, att.resource + 10.0);
+        // 1.7.6.3: прибавка ресурса за попадание/получение — из конфига по классу
+        double onDeal = cfg(plugin, "classes." + att.pc.name() + ".resource-on-deal", 0.0);
+        if (onDeal > 0.0 && t - att.lastGainDeal >= 1.0) {
+            att.lastGainDeal = t;
+            att.resource = Math.min(100.0, att.resource + onDeal);
+        }
+        double onTake = cfg(plugin, "classes." + def.pc.name() + ".resource-on-take", 0.0);
+        if (onTake > 0.0 && t - def.lastGainTake >= 1.0) {
+            def.lastGainTake = t;
+            def.resource = Math.min(100.0, def.resource + onTake);
         }
     }
 }
