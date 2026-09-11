@@ -40,8 +40,9 @@ import java.util.logging.Logger;
  *    (ADD_NUMBER-модификатор raskolclasses:max_hp) на join/respawn/каждый тик;
  *  - ПЕРСИСТ ЗДОРОВЬЯ: на quit сохраняем ДОЛЮ HP в health.yml, на join восстанавливаем
  *    долю × новый max; без записи — полный пул;
- *  - 1.8.1 (S7): доля клампится в [0,1] И при сохранении, И при загрузке —
- *    битый/руками правленный health.yml не даст переполнения или нежданного фулл-хила.
+ *  - 1.8.1 (S7): доля клампится в [0,1] И при сохранении, И при загрузке;
+ *  - 1.8.1-fix: ресурс-полоса gradientBar вызывается с полным набором из 6 аргументов
+ *    (fraction, len, start, end, empty, spark) — ранее терялся end-цвет.
  * Сердца = один ряд (healthScale 20); STR-реген тикает здесь же.
  */
 public final class HpBarService implements Listener {
@@ -318,8 +319,9 @@ public final class HpBarService implements Listener {
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
+            // 1.8.1-fix: полный набор аргументов (fraction, len, start, end, empty, spark)
             line = line.append(gradientBar(res / 100.0, len,
-                    gradientEnabled() ? resStart : resEnd, empty,
+                    gradientEnabled() ? resStart : resEnd, resEnd, empty,
                     resRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
