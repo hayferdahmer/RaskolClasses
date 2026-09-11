@@ -8,7 +8,9 @@ import dev.raskol.classes.balance.BalanceSimulator;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.talent.TalentModel;
+import dev.raskol.classes.talent.TalentsRegistry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -17,13 +19,16 @@ import org.bukkit.entity.Player;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
  * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
- * Чеки 17–18: TTK-санити. Чеки 19–20: сводный уровень topNAverage (1.8.0).
+ * Чеки 17–18: TTK-санити (воин-зеркало ∈ [10,60]; жрец-зеркало heal-war ≥30/timeout).
+ * Чеки 19–20: сводный уровень topNAverage (1.8.0).
  * Чек 21: фракционный гейт canHit (1.8.1).
- * Чеки 22–23 (1.9.0): экономика очков талантов и стоимость дерева.
+ * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
+ * Чек 24: reconcile-цикл талантов — тестовая покупка/откат без рассинхрона (1.9.0).
  */
 public final class SelftestRunner {
 
@@ -174,6 +179,67 @@ public final class SelftestRunner {
             passed++;
         } else {
             failed++;
+        }
+
+        // 24 (1.9.0): reconcile-цикл — тестовая покупка узла активной спеки,
+        // reconcile без исключений, откат восстанавливает прежнее состояние.
+        if (probe == null) {
+            if (check(report, "24", "reconcile-цикл (пропущено: нет онлайн-игрока)",
+                    true, "reconcile", "skip")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        } else {
+            boolean ok24 = false;
+            String got24 = "no-spec";
+            UUID probeUuid = probe.getUniqueId();
+            Spec probeSpec = plugin.getSpecService().getSpec(probeUuid);
+            if (probeSpec != null) {
+                String specId = probeSpec.id();
+                TalentModel.TalentTree tree = TalentsRegistry.treeOf(specId);
+                if (tree != null) {
+                    TalentModel.TalentNode t1a = null;
+                    for (TalentModel.TalentNode node : tree.nodes()) {
+                        if (node.tier() == 1 && "A".equals(node.branch())
+                                && node.prereqs().isEmpty()) {
+                            t1a = node;
+                            break;
+                        }
+                    }
+                    if (t1a != null) {
+                        List<String> before = plugin.getTalentsStorage()
+                                .getPurchased(probeUuid, specId);
+                        boolean cycleOk;
+                        try {
+                            plugin.getTalentService()
+                                    .forcePurchaseForTest(probeUuid, specId, t1a.id());
+                            boolean bought = plugin.getTalentsStorage()
+                                    .getPurchased(probeUuid, specId).contains(t1a.id());
+                            plugin.getTalentsStorage().setPurchased(probeUuid, specId, before);
+                            plugin.getTalentService().reconcile(probeUuid);
+                            boolean restored = plugin.getTalentsStorage()
+                                    .getPurchased(probeUuid, specId).equals(before);
+                            cycleOk = bought && restored;
+                            got24 = bought + "/" + restored;
+                        } catch (RuntimeException ex) {
+                            cycleOk = false;
+                            got24 = "exception: " + ex.getMessage();
+                        }
+                        ok24 = cycleOk;
+                    } else {
+                        got24 = "no-t1a-node";
+                    }
+                } else {
+                    got24 = "no-tree:" + specId;
+                }
+            }
+            if (check(report, "24", "reconcile-цикл: покупка→reconcile→откат без рассинхрона",
+                    ok24, "reconcile", got24)) {
+                passed++;
+            } else {
+                failed++;
+            }
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
