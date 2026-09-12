@@ -22,7 +22,6 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.RayTraceResult;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -39,13 +38,13 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - LIGHT_WARD: +HP/с союзникам в радиусе;
  *  - SMOKE_BOMB: враг в радиусе → Blindness врагам + Speed владельцу, расходуется.
  *
- * 1.9.0: FROST_RUNE переделана в ЗОНУ (без блочного предмета):
+ * 1.9.0: FROST_RUNE = ЗОНА (без блочного предмета):
  *  - радиус 8, жизнь 30 с, КД постановки 60 с, одна активная руна на мага;
  *  - враги/мобы внутри: урон каждую секунду = base + ramp×(секунды_внутри−1), кап damage-cap;
  *    замедление Slowness I..(1+max-tier): тир растёт каждые slow-ramp-every секунд пребывания;
  *  - магу внутри: +mage-mana-per-sec маны/с и ИНТ ×2 (модификатор source frost_rune_int);
- *  - визуал: рунное кольцо партиклов на блоке + искажённый эмбиент-звук портала
- *    (ENTITY_ENDERMAN_TELEPORT, низкий pitch) от самой руны; на истечении — звук снятия.
+ *  - визуал: рунное кольцо из столбов партиклов PORTAL по периметру (границы видны),
+ *    эмбиент искажённого портала от самой руны, звук снятия на истечении.
  *
  * 1.9.0-fix: звук trapdoor в Paper 1.21 = BLOCK_IRON_TRAPDOOR_CLOSE (не ENTITY_).
  */
@@ -122,7 +121,6 @@ public final class InstallationService {
         }
         UUID uuid = p.getUniqueId();
 
-        // анлок по уровню персонажа
         int unlock = cfgI("installations.unlock-level", 50);
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
         if (charLevel < unlock) {
@@ -130,7 +128,6 @@ public final class InstallationService {
                     + unlock + " (у вас " + charLevel + ")", NamedTextColor.RED));
             return false;
         }
-        // кулдаун постановки по типу
         String cdKey = uuid + ":" + type.name();
         long now = System.currentTimeMillis();
         Long next = placeCooldowns.get(cdKey);
@@ -139,7 +136,6 @@ public final class InstallationService {
                     + ((next - now) / 1000L + 1) + " с", NamedTextColor.GRAY));
             return false;
         }
-        // лимиты
         if (countOf(uuid) >= cfgI("installations.max-per-player", 2)) {
             p.sendMessage(Component.text("Достигнут лимит активных инсталляций на игрока.",
                     NamedTextColor.RED));
@@ -149,7 +145,6 @@ public final class InstallationService {
             p.sendMessage(Component.text("Серверный лимит инсталляций достигнут.", NamedTextColor.RED));
             return false;
         }
-        // точка: блок под прицелом (до 6) или под ногами
         Location loc;
         RayTraceResult hit = p.getWorld().rayTraceBlocks(p.getEyeLocation(),
                 p.getLocation().getDirection(), 6.0, FluidCollisionMode.NEVER);
@@ -159,7 +154,6 @@ public final class InstallationService {
             loc = p.getLocation();
         }
         loc = loc.getBlock().getLocation().add(0.5, 0.1, 0.5);
-        // гейты зоны: граница мира и радиус спавна
         if (!p.getWorld().getWorldBorder().isInside(loc)) {
             p.sendMessage(Component.text("За границей мира ставить нельзя.", NamedTextColor.RED));
             return false;
@@ -200,7 +194,6 @@ public final class InstallationService {
 
     private boolean placeRune(Player p, Location loc, int cooldown) {
         UUID uuid = p.getUniqueId();
-        // одна активная руна на владельца
         for (FrostRune r : runes.values()) {
             if (r.owner.equals(uuid)) {
                 p.sendMessage(Component.text("У вас уже есть активная Ледяная руна.", NamedTextColor.RED));
@@ -217,8 +210,26 @@ public final class InstallationService {
                 plugin.getConfig().getString("vfx.frost_rune.ambient-particle", "REVERSE_PORTAL"),
                 duration * 20, 40);
         runes.put(rune.id, rune);
-        // рунное кольцо на блоке
-        ringParticles(loc, cfgD("installations.frost_rune.radius", 8.0), 48);
+
+        // 1.9.0-fix: визуальное кольцо по периметру (столбы партиклов каждые 20 тиков),
+        // самоотменяется, когда руна исчезает из карты
+        double radius = cfgD("installations.frost_rune.radius", 8.0);
+        plugin.getServer().getScheduler().runTaskTimer(plugin, task -> {
+            if (!runes.containsKey(rune.id) || loc.getWorld() == null) {
+                task.cancel();
+                return;
+            }
+            for (int i = 0; i < 32; i++) {
+                double angle = (Math.PI * 2 * i) / 32;
+                Location ringLoc = loc.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
+                for (int y = 0; y < 4; y++) {
+                    loc.getWorld().spawnParticle(Particle.PORTAL,
+                            ringLoc.clone().add(0.0, y * 0.5, 0.0), 2, 0.0, 0.0, 0.0, 0.0);
+                }
+            }
+        }, 0L, 20L);
+
+        ringParticles(loc, radius, 48);
         fx.impactBurst(loc, Particle.PORTAL, 24, Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 0.7f);
         if (plugin.getConfig().getBoolean("installations.notify-owner", true)) {
             p.sendMessage(Component.text("Ледяная руна начертана: действует " + duration
@@ -263,7 +274,7 @@ public final class InstallationService {
             if (owner != null) {
                 enemy = plugin.getCombat().canHit(owner, t);
             } else {
-                enemy = !(t instanceof Player); // владелец оффлайн: бьём только мобов
+                enemy = !(t instanceof Player);
             }
             if (!enemy) {
                 continue;
@@ -280,14 +291,12 @@ public final class InstallationService {
         }
         rune.staySeconds.keySet().removeIf(id -> !inside.contains(id));
 
-        // бафф владельца внутри руны: мана + ИНТ×2
         if (owner != null) {
             boolean ownerInside = owner.getWorld().equals(rune.location.getWorld())
                     && owner.getLocation().distanceSquared(rune.location) <= radius * radius;
             if (ownerInside) {
                 plugin.getResources().add(rune.owner, manaPerSec);
                 if (rune.ownerIntBase < 0) {
-                    // фиксируем базовый ИНТ в момент входа (без модификатора руны)
                     rune.ownerIntBase = plugin.getAttributes().value(rune.owner,
                             dev.raskol.classes.attribute.AttributeType.INT);
                 }
@@ -350,7 +359,6 @@ public final class InstallationService {
                         }
                         t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2 * 20, 5));
                         installations.remove(inst.id());
-                        // 1.9.0-fix: Paper 1.21 = BLOCK_IRON_TRAPDOOR_CLOSE
                         plugin.getFx().impactBurst(inst.location(), Particle.CRIT, 12,
                                 Sound.BLOCK_IRON_TRAPDOOR_CLOSE, 0.5f, 1.0f);
                         notifyOwner(inst.owner(), "Капкан сработал!");
@@ -484,12 +492,10 @@ public final class InstallationService {
         return installations.size() + runes.size();
     }
 
-    /** Снапшот для /rc debug: блочные + руны одним списком. */
     public List<Installation> snapshot() {
         return new ArrayList<>(installations.values());
     }
 
-    /** Число активных рун владельца (для отладки/лимитов). */
     public int runeCountOf(UUID uuid) {
         int c = 0;
         for (FrostRune r : runes.values()) {
