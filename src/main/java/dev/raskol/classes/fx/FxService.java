@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * через NamespacedKey("entity_player_levelup"), чего в реестре НЕТ, поэтому
  * способности звучали заглушкой или молчали.
  *
+ * 1.9.0-fix 2: Particle.SMOKE_LARGE переименован в Particle.SMOKE в Paper 1.21 API.
+ *
  * Новые API визуала:
  *  - chargeProjectile(...) + ProjectileHitEvent: заряженный снаряд (огненный шар)
  *    наносит гибрид-урон и поджигает при попадании, вспышка/звук — всегда;
@@ -61,7 +63,8 @@ public final class FxService implements Listener {
     private final RaskolClasses plugin;
     private final Set<String> warnedSounds = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedParticles = ConcurrentHashMap.newKeySet();
-    private final Map<UUID, Long> procVisualCd = new ConcurrentHashMap<>();
+    /** Ключ — id проки (строка), не UUID игрока. */
+    private final Map<String, Long> procVisualCd = new ConcurrentHashMap<>();
     private final Map<UUID, ChargedShot> chargedShots = new ConcurrentHashMap<>();
     private final Map<UUID, AuraTask> auras = new ConcurrentHashMap<>();
     private final Map<UUID, AmbientTask> ambients = new ConcurrentHashMap<>();
@@ -131,7 +134,7 @@ public final class FxService implements Listener {
         }
     }
 
-    /** Proc-тег сабтайтлом + proc-визуал из vfx.proc.* (анти-спам: 1 тег/2 с на proc). */
+    /** Proc-тег сабтайтлом + proc-визуал из vfx.proc.* (анти-спам: 1 тег/2 с на procId). */
     public void procByKey(Player player, String fallbackTag, String procId) {
         long now = System.currentTimeMillis();
         Long prev = procVisualCd.get(procId);
@@ -178,9 +181,10 @@ public final class FxService implements Listener {
 
         // Вспышка и звук попадания — всегда (и по блоку, и по сущности)
         Particle impact = resolveParticle(plugin.getConfig().getString(base + "impact-particle", "FLAME"));
-        if (impact != null) {
+        if (impact != null && hitLoc.getWorld() != null) {
             hitLoc.getWorld().spawnParticle(impact, hitLoc, 24, 0.4, 0.3, 0.4, 0.05);
-            hitLoc.getWorld().spawnParticle(Particle.SMOKE_LARGE, hitLoc, 10, 0.3, 0.2, 0.3, 0.02);
+            // Paper 1.21: SMOKE заменяет SMOKE_LARGE/SMOKE_NORMAL — берём больший count для густоты
+            hitLoc.getWorld().spawnParticle(Particle.SMOKE, hitLoc, 20, 0.3, 0.2, 0.3, 0.03);
         }
         Sound impactSound = resolveSound(plugin.getConfig().getString(base + "impact-sound",
                 "ENTITY_GENERIC_EXPLODE"));
