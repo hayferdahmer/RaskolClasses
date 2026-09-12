@@ -12,7 +12,6 @@ import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.gui.ClassBook;
-import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.spec.Spec;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -24,35 +23,36 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Исполнитель и автодополнение команды /rc (1.4.0 + 1.5.4 + 1.6.4 + 1.6.12
- * + 1.7.6 + 1.8.0).
+ * Исполнитель и автодополнение команды /rc (1.4.0 → 1.9.0).
+ *
+ * 1.9.0-fix: /rc 1–5 БОЛЬШЕ НЕ применяют способности — только справка;
+ * применение исключительно через свитки/бинды в хотбаре (решение владельца).
+ * Команд талантов нет: управление деревом — только в Книге класса (вкладка TALENTS).
  *
  * Подкоманды:
- *  /rc [1-5]                    — применить способность слота N
- *  /rc 6                        — справка: спека = пассивная идентичность (таланты в Книге)
- *  /rc 7                        — поставить инсталляцию класса
- *  /rc menu                     — открыть Книгу класса (вкладка ABILITIES)
- *  /rc reload                   — перезагрузить конфиг (permission raskolclasses.admin)
- *  /rc debug [player]           — диагностика
- *  /rc debug simulate [A] [B] [level] — headless-дуэль в TTK-харнессе
- *  /rc debug simulate matrix [level]  — матрица 5×5 TTK
- *  /rc health                   — здоровье сервера (MSPT/TPS/purge/аптайм)
- *  /rc selftest                 — headless-проверка формул (28 чеков)
- *
- * 1.9.0: ОТДЕЛЬНЫХ КОМАНД ТАЛАНТОВ НЕТ — дерево, покупка и сброс только
- * через Книгу класса (вкладка TALENTS, слот-таб 46, кристалл сброса 40).
+ *  /rc            — сводка игрока;
+ *  /rc 1–5        — справка «применение только через бинды»;
+ *  /rc 6          — справка по спеке (пассивная идентичность);
+ *  /rc 7          — постановка инсталляции своего класса;
+ *  /rc menu       — Книга класса (4 вкладки);
+ *  /rc reload     — перезагрузка конфигурации (admin);
+ *  /rc debug [player] — диагностика;
+ *  /rc debug simulate [A] [B] [level] — headless-дуэль TTK-харнесса;
+ *  /rc debug simulate matrix [level]  — матрица 5×5 TTK;
+ *  /rc health     — метрики живого сервера (debug);
+ *  /rc selftest   — headless-самотестирование (debug).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUBS = List.of(
-            "1", "2", "3", "4", "5", "6", "7", "menu", "reload",
-            "debug", "health", "selftest");
+            "6", "7", "menu", "reload", "debug", "health", "selftest");
 
     private final RaskolClasses plugin;
 
@@ -68,9 +68,15 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
 
-        // /rc [1-5] — применить способность слота
+        // /rc 1–5 — справка (применение только через бинды/свитки)
         if (sub.length() == 1 && Character.isDigit(sub.charAt(0)) && sender instanceof Player p) {
             int slot = sub.charAt(0) - '0';
+            if (slot >= 1 && slot <= 5) {
+                p.sendMessage(Component.text(
+                        "Способности применяются только через свитки в хотбаре (ПКМ — свиток, ЛКМ по цели/себе).",
+                        NamedTextColor.GRAY));
+                return true;
+            }
             if (slot == 6) {
                 p.sendMessage(Component.text(
                         "Спека — пассивная идентичность: резисты и проки работают постоянно. "
@@ -82,22 +88,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 plugin.getInstallations().tryPlace(p);
                 return true;
             }
-            PlayerClass pc = plugin.getClassProvider().getClassOf(p);
-            if (pc == null) {
-                p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                        "no-class-cast", "Класс не выбран — способности недоступны"),
-                        NamedTextColor.GRAY));
-                return true;
-            }
-            AbilityDef def = plugin.getAbilities().getBySlot(pc, slot);
-            if (def == null) {
-                p.sendMessage(Component.text("Слот " + slot + " пуст.", NamedTextColor.GRAY));
-                return true;
-            }
-            if (plugin.getAbilities().tryCast(p, def)) {
-                plugin.getFx().onAttempt(p, def.id(), def.cooldownMillis());
-            }
-            return true;
         }
 
         switch (sub) {
@@ -115,10 +105,10 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 plugin.reloadPlugin();
-                sender.sendMessage(Component.text("RaskolClasses: конфиг перезагружен.",
+                sender.sendMessage(Component.text("RaskolClasses: конфигурация перезагружена.",
                         NamedTextColor.GREEN));
             }
-            case "debug" -> handleDebug(sender, java.util.Arrays.copyOfRange(args, 1, args.length));
+            case "debug" -> handleDebug(sender, Arrays.copyOfRange(args, 1, args.length));
             case "health" -> handleHealth(sender);
             case "selftest" -> {
                 if (!sender.hasPermission("raskolclasses.debug")) {
@@ -141,7 +131,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     "no-permission", "Недостаточно прав"), NamedTextColor.RED));
             return;
         }
-        // /rc debug simulate [A] [B] [level] | /rc debug simulate matrix [level]
         if (args.length >= 1 && "simulate".equalsIgnoreCase(args[0])) {
             if (args.length >= 2 && "matrix".equalsIgnoreCase(args[1])) {
                 int level = parseLevel(args, 2);
@@ -156,7 +145,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             PlayerClass a = null;
             PlayerClass b = null;
             int level = 40;
-            for (String tok : java.util.Arrays.copyOfRange(args, 1, args.length)) {
+            for (String tok : Arrays.copyOfRange(args, 1, args.length)) {
                 PlayerClass pc = parseClass(tok.toUpperCase(Locale.ROOT));
                 if (pc != null) {
                     if (a == null) {
@@ -200,7 +189,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             printMatrix(sender, level);
             return;
         }
-        // /rc debug [player]
         Player target = args.length > 0 ? Bukkit.getPlayer(args[0])
                 : (sender instanceof Player p ? p : null);
         if (target == null) {
@@ -346,31 +334,35 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Онлайн: " + Bukkit.getOnlinePlayers().size() + " игроков",
                 NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("Fx: активных " + plugin.getFx().activeCount()
+                + ", битых ключей " + plugin.getFx().brokenSoundCount(), NamedTextColor.GRAY));
     }
 
     /* ------------------------------ HELP ------------------------------ */
 
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Component.text("=== /rc ===", NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("/rc [1-5] — применить способность слота",
+        sender.sendMessage(Component.text("/rc — сводка: класс, уровень персонажа, ресурс, резисты",
                 NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("/rc menu — Книга класса (способности, спеки, таланты)",
+        sender.sendMessage(Component.text("/rc menu — Книга класса (способности, спеки, класс, таланты)",
                 NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("/rc 6 — справка по спеке · /rc 7 — инсталляция",
+        sender.sendMessage(Component.text("/rc 7 — постановка инсталляции своего класса",
+                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("Способности 1–5 — только через свитки в хотбаре",
                 NamedTextColor.GRAY));
         if (sender.hasPermission("raskolclasses.debug")) {
             sender.sendMessage(Component.text("/rc debug [player] — диагностика",
                     NamedTextColor.YELLOW));
-            sender.sendMessage(Component.text("/rc debug simulate [A] [B] [level] — дуэль",
+            sender.sendMessage(Component.text("/rc debug simulate [A] [B] [level] — дуэль TTK",
                     NamedTextColor.YELLOW));
-            sender.sendMessage(Component.text("/rc debug simulate matrix [level] — TTK-матрица",
+            sender.sendMessage(Component.text("/rc debug simulate matrix [level] — матрица 5×5",
                     NamedTextColor.YELLOW));
             sender.sendMessage(Component.text("/rc health — MSPT/TPS/purge", NamedTextColor.YELLOW));
-            sender.sendMessage(Component.text("/rc selftest — 28 headless-чеков формул",
+            sender.sendMessage(Component.text("/rc selftest — headless-чеки формул",
                     NamedTextColor.YELLOW));
         }
         if (sender.hasPermission("raskolclasses.admin")) {
-            sender.sendMessage(Component.text("/rc reload — перезагрузить конфиг",
+            sender.sendMessage(Component.text("/rc reload — перезагрузить конфигурацию",
                     NamedTextColor.RED));
         }
     }
