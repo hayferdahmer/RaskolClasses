@@ -57,6 +57,8 @@ import java.util.List;
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
  * 1.9.0: TalentsStorage + TalentService — персист и рантайм дерева талантов спеки;
  * reconcile талантов на join и /rc reload, очистка кэша на quit.
+ * 1.9.0-fix: FxService теперь Listener (onProjectileHit для заряженных снарядов
+ * китов); регистрация слушателя fx добавлена в блок pluginManager.registerEvents.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -181,6 +183,8 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(combat, this);
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
         pluginManager.registerEvents(hpBarService, this);
+        // 1.9.0-fix: FxService слушает ProjectileHitEvent для заряженных снарядов (Prometheus)
+        pluginManager.registerEvents(fx, this);
         pluginManager.registerEvents(new Listener() {
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
