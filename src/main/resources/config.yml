@@ -4,6 +4,9 @@
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
 #  1.9.0: дерево талантов спеки (Книга класса, вкладка TALENTS):
 #         секция talents + сообщения book.tab.talents / talents.reset.*.
+#         Ледяная руна = зона (радиус 8, 30 с, КД 60 с) + vfx.frost_rune.
+#         Маг: редизайн визуала (снаряд Прометея, блинк Гермеса,
+#         аура Афины, молния Зевса).
 # ============================================================
 
 hud:
@@ -329,7 +332,7 @@ messages:
         war_banner: "Аура: Resistance I союзникам в радиусе 6 на 8 с"
         bear_trap: "Мина: Slowness VI 2 с + 3 урона шагнувшему врагу"
         light_ward: "Зона: +2 HP/с союзникам в радиусе 4 на 6 с"
-        frost_rune: "Мина: 4 урона + Slowness II 3 с врагам в радиусе 3"
+        frost_rune: "Руна-зона 8 блоков 30 с: урон+замедление врагам; магу +3 маны/с и ИНТ×2"
         smoke_bomb: "Мина: Blindness 2 с врагам + Speed I себе 3 с"
     spec:
       passive: "Пассив: {text}"
@@ -395,6 +398,7 @@ messages:
 
 # ------------------------------------------------------------
 # Классы: ресурсы, темы, киты (1.7.2–1.7.4) + тюнинг 1.7.6.2/1.7.6.3
+# + 1.9.0: редизайн мага (скорость снаряда, радиусы, ауры)
 # ------------------------------------------------------------
 classes:
   WARRIOR:
@@ -619,23 +623,24 @@ classes:
     abilities:
       fire_prometheus:
         name: "Огонь Прометея"
-        description: "Дар титана: гибридный урон 30/70 (физ/маг) + поджог 3 с"
+        description: "Огненный шар по направлению: быстрая скорость; гибрид 30/70 + поджог 3 с при попадании. Промах расходует ресурс."
         unlock: 10
         cost: 15
         cooldown: 6
         power: sp
         base: 15
         coeff: 1.2
+        projectile-speed: 2.6
       hermes_step:
         name: "Шаг Гермеса"
-        description: "Мгновенный рывок вперёд на 8 блоков (проверяет безопасность точки и клеймы Towny)"
+        description: "Блинк до 16 блоков вперёд (безопасности/тауни-гейта нет): сквозь блоки не проходит, упирается перед блоком; сущности на пути получают маг-урон."
         unlock: 25
         cost: 20
         cooldown: 20
-        distance: 8.0
+        distance: 16.0
       boreas_breath:
         name: "Дыхание Борея"
-        description: "Ледяной шквал: маг-урон по площади радиусом 5 + Slowness II 4 с (не сквозь стены)"
+        description: "Ледяная nova: маг-урон по площади радиусом 5 + Slowness II 4 с (не сквозь стены). Без целей — отказ с refund."
         unlock: 50
         cost: 40
         cooldown: 45
@@ -646,7 +651,7 @@ classes:
         duration: 4
       athena_aegis:
         name: "Эгида Афины"
-        description: "Щит богини: +магрезист на 5 с (скалируется от Силы заклинаний)"
+        description: "Щит богини: +магрезист на 5 с (скалируется от Силы заклинаний) + аура партиклов и звук снятия."
         unlock: 65
         cost: 30
         cooldown: 30
@@ -654,9 +659,10 @@ classes:
         base: 15
         coeff: 0.05
         duration: 5
+        expire-sound: BLOCK_AMETHYST_BLOCK_CHIME
       zeus_wrath:
         name: "Гнев Зевса"
-        description: "Карая молния: тяжёлый маг-урон; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)"
+        description: "Визуальная молния в цель: маг-урон + поджог 3 с; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)."
         unlock: 75
         cost: 60
         cooldown: 90
@@ -665,6 +671,7 @@ classes:
         coeff: 2.0
         threshold: 0.25
         execute-mult: 3.0
+        fire-ticks: 60
     passives:
       mana_soaked:
         enabled: false
@@ -767,7 +774,7 @@ flavors:
       ROGUE: "Тень Вальрадиса"
 
 # ------------------------------------------------------------
-# Инсталляции (1.5.0)
+# Инсталляции (1.5.0 + 1.9.0 Ледяная руна = зона)
 # ------------------------------------------------------------
 installations:
   unlock-level: 50
@@ -789,22 +796,30 @@ installations:
     damage-physical: 3
     slow-duration: 2
   frost_rune:
-    radius: 3.0
-    damage-magic: 4
-    slow-duration: 3
+    radius: 8.0            # радиус зоны
+    duration: 30           # время жизни руны, сек
+    cooldown: 60           # КД постановки следующей руны, сек
+    damage-base: 4.0       # урон в секунду при входе
+    damage-ramp: 1.0       # +N урона за каждую секунду непрерывного пребывания
+    damage-cap: 12.0       # потолок урона в секунду
+    slow-ramp-every: 5     # каждые N секунд пребывания замедление +1 тир
+    slow-max-tier: 3       # максимум Slowness IV (тир 3)
+    mage-mana-per-sec: 3.0 # магу внутри: +N маны в секунду
+    mage-int-mult: 2.0     # магу внутри: ИНТ ×N
   smoke_bomb:
     radius: 3.0
     blind-duration: 2
     speed-duration: 3
 
 # ------------------------------------------------------------
-# VFX/SFX-каталог (1.5.0 + киты 1.7.2–1.7.4)
+# VFX/SFX-каталог (1.5.0 + киты 1.7.2–1.7.4 + 1.9.0 редизайн мага + руна)
 # ------------------------------------------------------------
 vfx:
   proc-actionbar: true
   trails:
     fireball: true
     arrows: true
+  # ---- касты и попадания способностей (1.9.0 редизайн мага) ----
   tyr_strike:
     cast-sound: ENTITY_IRON_GOLEM_ATTACK
     cast-particle: SWEEP_ATTACK
@@ -850,21 +865,27 @@ vfx:
   wrath_heaven:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: FLASH
+  # 1.9.0: маг (снаряд/блинк/нова/аура/молния)
   fire_prometheus:
     cast-sound: ITEM_FIRECHARGE_USE
     cast-particle: FLAME
+    impact-sound: ENTITY_GENERIC_EXPLODE
+    impact-particle: FLAME
   hermes_step:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
-    cast-particle: PORTAL
+    cast-particle: REVERSE_PORTAL
   boreas_breath:
-    cast-sound: ENTITY_PLAYER_HURT_FREEZE
+    cast-sound: BLOCK_SNOW_BLOCK_BREAK
     cast-particle: SNOWFLAKE
   athena_aegis:
     cast-sound: ITEM_ARMOR_EQUIP_DIAMOND
     cast-particle: ENCHANTED_HIT
+    expire-sound: BLOCK_AMETHYST_BLOCK_CHIME
   zeus_wrath:
-    cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
-    cast-particle: FLASH
+    cast-sound: ENTITY_EVOKER_CAST_SPELL
+    cast-particle: ELECTRIC_SPARK
+    impact-sound: ENTITY_LIGHTNING_BOLT_IMPACT
+    impact-particle: FLASH
   shadow_cloak:
     cast-sound: ENTITY_PHANTOM_FLAP
     cast-particle: SMOKE
@@ -910,6 +931,13 @@ vfx:
   smoke_bomb:
     cast-sound: BLOCK_FIRE_EXTINGUISH
     cast-particle: SMOKE
+  # 1.9.0: Ледяная руна — эмбиент искажённого портала
+  frost_rune:
+    ambient-sound: ENTITY_ENDERMAN_TELEPORT
+    ambient-volume: 0.35
+    ambient-pitch: 0.5
+    ambient-particle: REVERSE_PORTAL
+  # ---- проки ----
   proc:
     execute_passive:
       cast-sound: ENTITY_PLAYER_ATTACK_CRIT
