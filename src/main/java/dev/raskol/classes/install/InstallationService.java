@@ -46,6 +46,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - магу внутри: +mage-mana-per-sec маны/с и ИНТ ×2 (модификатор source frost_rune_int);
  *  - визуал: рунное кольцо партиклов на блоке + искажённый эмбиент-звук портала
  *    (ENTITY_ENDERMAN_TELEPORT, низкий pitch) от самой руны; на истечении — звук снятия.
+ *
+ * 1.9.0-fix: звук trapdoor в Paper 1.21 = BLOCK_IRON_TRAPDOOR_CLOSE (не ENTITY_).
  */
 public final class InstallationService {
 
@@ -348,8 +350,9 @@ public final class InstallationService {
                         }
                         t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2 * 20, 5));
                         installations.remove(inst.id());
+                        // 1.9.0-fix: Paper 1.21 = BLOCK_IRON_TRAPDOOR_CLOSE
                         plugin.getFx().impactBurst(inst.location(), Particle.CRIT, 12,
-                                Sound.ENTITY_IRON_TRAPDOOR_CLOSE, 0.5f, 1.0f);
+                                Sound.BLOCK_IRON_TRAPDOOR_CLOSE, 0.5f, 1.0f);
                         notifyOwner(inst.owner(), "Капкан сработал!");
                         return;
                     }
