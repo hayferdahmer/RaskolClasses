@@ -2,11 +2,9 @@
 #  RaskolClasses v1.9.0 — «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
-#  1.9.0: дерево талантов спеки (Книга класса, вкладка TALENTS):
-#         секция talents + сообщения book.tab.talents / talents.reset.*.
-#         Ледяная руна = зона (радиус 8, 30 с, КД 60 с) + vfx.frost_rune.
-#         Маг: редизайн визуала (снаряд Прометея, блинк Гермеса,
-#         аура Афины, молния Зевса).
+#  1.9.0: дерево талантов спеки (Книга, вкладка TALENTS); Ледяная руна = зона
+#  (радиус 8, 30 с, КД 60 с); редизайн мага (снаряд/блинк/нова/аура/молния);
+#  применение способностей — только через бинды/свитки.
 # ============================================================
 
 hud:
@@ -83,9 +81,6 @@ balance:
 
 # ------------------------------------------------------------
 # 1.8.0: УРОВЕНЬ ПЕРСОНАЖА — сводная прогрессия
-# Уровень = floor(среднее топ-N скиллов AuraSkills), зажат в [0, level-cap].
-# Атрибуты растут от него; одиночное дерево до 99 не раздувает статы.
-# Анлоки способностей остаются на профильном скилле.
 # ------------------------------------------------------------
 character-level:
   top-n: 5
@@ -103,11 +98,7 @@ character-level:
     - forging
 
 # ------------------------------------------------------------
-# 1.9.0: ТАЛАНТЫ СПЕКИ (дерево в Книге класса, вкладка TALENTS)
-# Очки: earned = clamp(charLevel − start-level + 1, 0, max-points) × points-per-level.
-# Полное дерево = 21 очко (2×1 + 4×2 + 2×3 + 1×5) = max-points.
-# Сброс: кристалл в Книге (ПКМ ×2, окно 30 с); цена = reset-base + reset-per-point × потрачено.
-# Админ с raskolclasses.admin сбрасывает бесплатно.
+# 1.9.0: ТАЛАНТЫ СПЕКИ (Книга класса, вкладка TALENTS)
 # ------------------------------------------------------------
 talents:
   enabled: true
@@ -163,7 +154,7 @@ resist:
       physical: 10
 
 # ------------------------------------------------------------
-# Атрибуты (1.7.0 + 1.8.0: level-source/level-cap + 1.8.1: parry-k 300, dodge-mult 0.5)
+# Атрибуты (1.7.0 + 1.8.0 + 1.8.1: parry-k 300, dodge-mult 0.5)
 # ------------------------------------------------------------
 attributes:
   level-source: character   # character | class-skill | vanilla
@@ -332,7 +323,7 @@ messages:
         war_banner: "Аура: Resistance I союзникам в радиусе 6 на 8 с"
         bear_trap: "Мина: Slowness VI 2 с + 3 урона шагнувшему врагу"
         light_ward: "Зона: +2 HP/с союзникам в радиусе 4 на 6 с"
-        frost_rune: "Руна-зона 8 блоков 30 с: урон+замедление врагам; магу +3 маны/с и ИНТ×2"
+        frost_rune: "Руна-зона 8 блоков 30 с: урон+замедление врагам с нарастанием; магу внутри +3 маны/с и ИНТ×2"
         smoke_bomb: "Мина: Blindness 2 с врагам + Speed I себе 3 с"
     spec:
       passive: "Пассив: {text}"
@@ -397,8 +388,7 @@ messages:
       poor: "Не хватает монет на сброс талантов: нужно {cost}."
 
 # ------------------------------------------------------------
-# Классы: ресурсы, темы, киты (1.7.2–1.7.4) + тюнинг 1.7.6.2/1.7.6.3
-# + 1.9.0: редизайн мага (скорость снаряда, радиусы, ауры)
+# Классы: ресурсы, темы, киты + 1.9.0 редизайн мага
 # ------------------------------------------------------------
 classes:
   WARRIOR:
@@ -633,14 +623,14 @@ classes:
         projectile-speed: 2.6
       hermes_step:
         name: "Шаг Гермеса"
-        description: "Блинк до 16 блоков вперёд (безопасности/тауни-гейта нет): сквозь блоки не проходит, упирается перед блоком; сущности на пути получают маг-урон."
+        description: "Блинк до 16 блоков вперёд: сквозь блоки не проходит, упирается перед блоком; сущности на пути получают маг-урон."
         unlock: 25
         cost: 20
         cooldown: 20
         distance: 16.0
       boreas_breath:
         name: "Дыхание Борея"
-        description: "Ледяная nova: маг-урон по площади радиусом 5 + Slowness II 4 с (не сквозь стены). Без целей — отказ с refund."
+        description: "Ледяная nova: маг-урон по площади радиусом 5 + Slowness II 4 с. Без целей — отказ с возвратом ресурса."
         unlock: 50
         cost: 40
         cooldown: 45
@@ -651,7 +641,7 @@ classes:
         duration: 4
       athena_aegis:
         name: "Эгида Афины"
-        description: "Щит богини: +магрезист на 5 с (скалируется от Силы заклинаний) + аура партиклов и звук снятия."
+        description: "Щит богини: +магрезист на 5 с + аура партиклов на кастере и звук снятия."
         unlock: 65
         cost: 30
         cooldown: 30
@@ -662,7 +652,7 @@ classes:
         expire-sound: BLOCK_AMETHYST_BLOCK_CHIME
       zeus_wrath:
         name: "Гнев Зевса"
-        description: "Визуальная молния в цель: маг-урон + поджог 3 с; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)."
+        description: "Сцена: гром → затемнение цели → подбрасывание на 3 блока → молния с маг-уроном + поджог 3 с; цель <25% HP → ×3."
         unlock: 75
         cost: 60
         cooldown: 90
@@ -796,30 +786,29 @@ installations:
     damage-physical: 3
     slow-duration: 2
   frost_rune:
-    radius: 8.0            # радиус зоны
-    duration: 30           # время жизни руны, сек
-    cooldown: 60           # КД постановки следующей руны, сек
-    damage-base: 4.0       # урон в секунду при входе
-    damage-ramp: 1.0       # +N урона за каждую секунду непрерывного пребывания
-    damage-cap: 12.0       # потолок урона в секунду
-    slow-ramp-every: 5     # каждые N секунд пребывания замедление +1 тир
-    slow-max-tier: 3       # максимум Slowness IV (тир 3)
-    mage-mana-per-sec: 3.0 # магу внутри: +N маны в секунду
-    mage-int-mult: 2.0     # магу внутри: ИНТ ×N
+    radius: 8.0
+    duration: 30
+    cooldown: 60
+    damage-base: 4.0
+    damage-ramp: 1.0
+    damage-cap: 12.0
+    slow-ramp-every: 5
+    slow-max-tier: 3
+    mage-mana-per-sec: 3.0
+    mage-int-mult: 2.0
   smoke_bomb:
     radius: 3.0
     blind-duration: 2
     speed-duration: 3
 
 # ------------------------------------------------------------
-# VFX/SFX-каталог (1.5.0 + киты 1.7.2–1.7.4 + 1.9.0 редизайн мага + руна)
+# VFX/SFX-каталог (1.5.0 + киты + 1.9.0 редизайн мага + руна)
 # ------------------------------------------------------------
 vfx:
   proc-actionbar: true
   trails:
     fireball: true
     arrows: true
-  # ---- касты и попадания способностей (1.9.0 редизайн мага) ----
   tyr_strike:
     cast-sound: ENTITY_IRON_GOLEM_ATTACK
     cast-particle: SWEEP_ATTACK
@@ -865,12 +854,12 @@ vfx:
   wrath_heaven:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: FLASH
-  # 1.9.0: маг (снаряд/блинк/нова/аура/молния)
+  # 1.9.0: маг — попадание Прометея = магический огонь (не взрыв TNT)
   fire_prometheus:
     cast-sound: ITEM_FIRECHARGE_USE
     cast-particle: FLAME
-    impact-sound: ENTITY_GENERIC_EXPLODE
-    impact-particle: FLAME
+    impact-sound: ENTITY_BLAZE_SHOOT
+    impact-particle: LAVA
   hermes_step:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
     cast-particle: REVERSE_PORTAL
@@ -931,13 +920,11 @@ vfx:
   smoke_bomb:
     cast-sound: BLOCK_FIRE_EXTINGUISH
     cast-particle: SMOKE
-  # 1.9.0: Ледяная руна — эмбиент искажённого портала
   frost_rune:
     ambient-sound: ENTITY_ENDERMAN_TELEPORT
     ambient-volume: 0.35
     ambient-pitch: 0.5
     ambient-particle: REVERSE_PORTAL
-  # ---- проки ----
   proc:
     execute_passive:
       cast-sound: ENTITY_PLAYER_ATTACK_CRIT
