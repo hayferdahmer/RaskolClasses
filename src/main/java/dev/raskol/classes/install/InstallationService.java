@@ -3,454 +3,495 @@ package dev.raskol.classes.install;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.compat.AuthGate;
-import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.spec.TrapVisual;
+import dev.raskol.classes.fx.FxService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.FluidCollisionMode;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
-import org.bukkit.World;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.util.Transformation;
-import org.joml.AxisAngle4f;
-import org.joml.Vector3f;
+import org.bukkit.util.RayTraceResult;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Фреймворк инсталляций (1.5.0 … 1.6.8).
- * 1.6.8: килл-кредит владельцу — если владелец онлайн, он передаётся как source
- * в CombatService.dealDamage: дроп, статистика убийств и килл-трекинг AuraSkills
- * видят смерть от капкана/руны как убийство владельцем. Владелец оффлайн —
- * source null (урон без кредита, как раньше).
+ * Инсталляции классов (1.5.0 → 1.9.0): ставящиеся мины/варды + Ледяная руна-зона.
+ *
+ * Блочные типы (TTL, триггер, notify, килл-кредит владельцу):
+ *  - WAR_BANNER: аура Resistance I союзникам в радиусе;
+ *  - BEAR_TRAP: враг в радиусе 1.2 → урон + Slowness VI 2 с, мина расходуется;
+ *  - LIGHT_WARD: +HP/с союзникам в радиусе;
+ *  - SMOKE_BOMB: враг в радиусе → Blindness врагам + Speed владельцу, расходуется.
+ *
+ * 1.9.0: FROST_RUNE переделана в ЗОНУ (без блочного предмета):
+ *  - радиус 8, жизнь 30 с, КД постановки 60 с, одна активная руна на мага;
+ *  - враги/мобы внутри: урон каждую секунду = base + ramp×(секунды_внутри−1), кап damage-cap;
+ *    замедление Slowness I..(1+max-tier): тир растёт каждые slow-ramp-every секунд пребывания;
+ *  - магу внутри: +mage-mana-per-sec маны/с и ИНТ ×2 (модификатор source frost_rune_int);
+ *  - визуал: рунное кольцо партиклов на блоке + искажённый эмбиент-звук портала
+ *    (ENTITY_ENDERMAN_TELEPORT, низкий pitch) от самой руны; на истечении — звук снятия.
  */
 public final class InstallationService {
 
+    /** Source модификатора ИНТ от руны. */
+    public static final String RUNE_INT_MOD = "frost_rune_int";
+
+    private record Installation(UUID id, InstallationType type, UUID owner,
+                                Location location, long expiresAt) {
+    }
+
+    /** Руна-зона: владелец, точка, срок, эмбиент, база ИНТ и секунды пребывания врагов. */
+    private static final class FrostRune {
+        final UUID id = UUID.randomUUID();
+        final UUID owner;
+        final Location location;
+        final long expiresAt;
+        UUID ambientId;
+        double ownerIntBase = -1;
+        final Map<UUID, Integer> staySeconds = new ConcurrentHashMap<>();
+
+        FrostRune(UUID owner, Location location, long expiresAt) {
+            this.owner = owner;
+            this.location = location;
+            this.expiresAt = expiresAt;
+        }
+    }
+
     private final RaskolClasses plugin;
-    private final List<Installation> active = new CopyOnWriteArrayList<>();
-    private final Map<UUID, Long> lastPlace = new ConcurrentHashMap<>();
+    private final Map<UUID, Installation> installations = new ConcurrentHashMap<>();
+    private final Map<UUID, FrostRune> runes = new ConcurrentHashMap<>();
+    private final Map<String, Long> placeCooldowns = new ConcurrentHashMap<>();
+    private BukkitTask sweepTask;
 
     public InstallationService(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
-    public int countOf(UUID owner) {
-        int count = 0;
-        for (Installation inst : active) {
-            if (inst.getOwner().equals(owner)) {
-                count++;
-            }
-        }
-        return count;
+    /* -------------------------------- конфиг -------------------------------- */
+
+    private double cfgD(String path, double def) {
+        double v = plugin.getConfig().getDouble(path, def);
+        return Double.isFinite(v) ? v : def;
     }
 
-    public int countGlobal() {
-        return active.size();
+    private int cfgI(String path, int def) {
+        return plugin.getConfig().getInt(path, def);
     }
 
-    public List<Installation> snapshot() {
-        return new ArrayList<>(active);
-    }
+    /* ------------------------------ постановка ------------------------------ */
 
-    /** Попытка поставить инсталляцию своего класса. Все проверки и сообщения здесь. */
-    public boolean tryPlace(Player player) {
-        RaskolConfig cfg = plugin.getRaskolConfig();
-        // 1.5.8: auth + creative гейт
-        if (!AuthGate.canAct(plugin, player)) {
-            player.sendMessage(Component.text(cfg.message("gate.blocked.install",
-                    "Инсталляции недоступны в этом режиме или до входа в аккаунт."),
+    public boolean tryPlace(Player p) {
+        if (!AuthGate.canAct(plugin, p)) {
+            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "gate.blocked.install", "Инсталляции недоступны в этом режиме или до входа в аккаунт."),
                     NamedTextColor.RED));
             return false;
         }
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+        if (p.getGameMode() == GameMode.CREATIVE
+                && plugin.getConfig().getBoolean("compat.block-casts-in-creative", true)) {
+            p.sendMessage(Component.text("В творческом режиме инсталляции запрещены.", NamedTextColor.RED));
+            return false;
+        }
+        PlayerClass pc = plugin.getClassProvider().getClassOf(p);
         if (pc == null) {
-            player.sendMessage(Component.text(cfg.message("install.msg.noclass",
-                    "Класс не выбран — посетите герольда"), NamedTextColor.GRAY));
+            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "no-class", "Класс не выбран — посетите герольда"), NamedTextColor.GRAY));
             return false;
         }
         InstallationType type = InstallationType.forClass(pc);
         if (type == null) {
             return false;
         }
-        UUID uuid = player.getUniqueId();
+        UUID uuid = p.getUniqueId();
 
-        if (!player.hasPermission("raskolclasses.admin")) {
-            int unlock = plugin.getConfig().getInt("installations.unlock-level", 50);
-            int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-            if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < unlock) {
-                player.sendMessage(Component.text(cfg.message("install.msg.unlock",
-                        "Инсталляции откроются на уровне {level} ({skill})")
-                        .replace("{level}", String.valueOf(unlock))
-                        .replace("{skill}", pc.profileSkillName()), NamedTextColor.RED));
-                return false;
-            }
-        }
-
-        int max = plugin.getConfig().getInt("installations.max-per-player", 2);
-        if (countOf(uuid) >= max) {
-            player.sendMessage(Component.text(cfg.message("install.msg.limit",
-                    "Лимит активных инсталляций: {max}")
-                    .replace("{max}", String.valueOf(max)), NamedTextColor.RED));
+        // анлок по уровню персонажа
+        int unlock = cfgI("installations.unlock-level", 50);
+        int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
+        if (charLevel < unlock) {
+            p.sendMessage(Component.text("Инсталляции откроются на уровне персонажа "
+                    + unlock + " (у вас " + charLevel + ")", NamedTextColor.RED));
             return false;
         }
-
-        int maxGlobal = plugin.getConfig().getInt("installations.max-global", 200);
-        if (active.size() >= maxGlobal) {
-            player.sendMessage(Component.text(cfg.message("install.msg.global",
-                    "Земля насыщена инсталляциями: глобальный лимит {max}. Подожди, пока истечёт чужой TTL.")
-                    .replace("{max}", String.valueOf(maxGlobal)), NamedTextColor.RED));
-            return false;
-        }
-
+        // кулдаун постановки по типу
+        String cdKey = uuid + ":" + type.name();
         long now = System.currentTimeMillis();
-        int window = plugin.getConfig().getInt("installations.place-anti-spam-ms", 1000);
-        Long prev = lastPlace.get(uuid);
-        if (prev != null && now - prev < window) {
-            player.sendMessage(Component.text(cfg.message("install.msg.spam",
-                    "Слишком часто: пауза между постановками {sec} с")
-                    .replace("{sec}", String.valueOf(window / 1000L)), NamedTextColor.GRAY));
+        Long next = placeCooldowns.get(cdKey);
+        if (next != null && next > now) {
+            p.sendMessage(Component.text(type.displayName() + ": готовность через "
+                    + ((next - now) / 1000L + 1) + " с", NamedTextColor.GRAY));
             return false;
         }
-        lastPlace.put(uuid, now);
-
-        Location loc = player.getLocation();
-        World world = loc.getWorld();
-
-        // 1.5.8: пустота и лимит высоты — всегда запрет
-        if (world != null) {
-            int y = loc.getBlockY();
-            if (y <= world.getMinHeight() || y >= world.getMaxHeight() - 1) {
-                player.sendMessage(Component.text(cfg.message("install.msg.void",
-                        "Нельзя ставить инсталляции в пустоте или на лимите высоты."),
-                        NamedTextColor.RED));
-                return false;
-            }
-            // 1.5.8: за мировой границей — запрет (гейт в конфиге)
-            if (plugin.getConfig().getBoolean("installations.deny-outside-border", true)
-                    && !world.getWorldBorder().isInside(loc)) {
-                player.sendMessage(Component.text(cfg.message("install.msg.border",
-                        "Нельзя ставить инсталляции за мировой границей."),
-                        NamedTextColor.RED));
-                return false;
-            }
+        // лимиты
+        if (countOf(uuid) >= cfgI("installations.max-per-player", 2)) {
+            p.sendMessage(Component.text("Достигнут лимит активных инсталляций на игрока.",
+                    NamedTextColor.RED));
+            return false;
         }
-
-        int deny = plugin.getConfig().getInt("installations.deny-radius-spawn", 100);
-        if (world != null
-                && world.getSpawnLocation().distanceSquared(loc) < (long) deny * deny) {
-            player.sendMessage(Component.text(cfg.message("install.msg.spawn",
-                    "Нельзя ставить инсталляции рядом со спавном."), NamedTextColor.RED));
+        if (countGlobal() >= cfgI("installations.max-global", 200)) {
+            p.sendMessage(Component.text("Серверный лимит инсталляций достигнут.", NamedTextColor.RED));
+            return false;
+        }
+        // точка: блок под прицелом (до 6) или под ногами
+        Location loc;
+        RayTraceResult hit = p.getWorld().rayTraceBlocks(p.getEyeLocation(),
+                p.getLocation().getDirection(), 6.0, FluidCollisionMode.NEVER);
+        if (hit != null) {
+            loc = hit.getHitPosition().toLocation(p.getWorld());
+        } else {
+            loc = p.getLocation();
+        }
+        loc = loc.getBlock().getLocation().add(0.5, 0.1, 0.5);
+        // гейты зоны: граница мира и радиус спавна
+        if (!p.getWorld().getWorldBorder().isInside(loc)) {
+            p.sendMessage(Component.text("За границей мира ставить нельзя.", NamedTextColor.RED));
+            return false;
+        }
+        double spawnDeny = cfgD("installations.deny-radius-spawn", 100.0);
+        if (spawnDeny > 0 && loc.distanceSquared(p.getWorld().getSpawnLocation()) < spawnDeny * spawnDeny) {
+            p.sendMessage(Component.text("Слишком близко к спавну: постановка запрещена.", NamedTextColor.RED));
             return false;
         }
 
-        if (plugin.getConfig().getBoolean("installations.deny-in-claims", true)
-                && isInClaim(loc)) {
-            player.sendMessage(Component.text(cfg.message("install.msg.claim",
-                    "Нельзя ставить инсталляции на заклэймленной земле."), NamedTextColor.RED));
-            return false;
-        }
+        int cooldown = typeCooldownSeconds(type);
+        placeCooldowns.put(cdKey, now + cooldown * 1000L);
 
-        long ttl = plugin.getConfig().getInt("installations.ttl-seconds", 60) * 1000L;
-        Installation inst = new Installation(uuid, type, loc, now + ttl);
-        spawnDisplay(inst);
-        active.add(inst);
-
-        plugin.getFx().playSound(loc, placeSound(type), 0.6f, 1.0f);
-        if (world != null) {
-            world.spawnParticle(Particle.CLOUD,
-                    loc.clone().add(0.5, 0.4, 0.5), 10, 0.4, 0.3, 0.4, 0.0);
+        if (type == InstallationType.FROST_RUNE) {
+            return placeRune(p, loc, cooldown);
         }
-        player.sendMessage(Component.text(cfg.message("install.msg.placed",
-                "Инсталляция установлена: "), NamedTextColor.GREEN)
-                .append(Component.text(type.displayName(), pc.getColor()))
-                .append(Component.text(cfg.message("install.msg.ttl", " · живёт {sec} с")
-                        .replace("{sec}", String.valueOf(ttl / 1000L)), NamedTextColor.GRAY)));
+        int ttl = cfgI("installations.ttl-seconds", 60);
+        Installation inst = new Installation(UUID.randomUUID(), type, uuid, loc,
+                now + ttl * 1000L);
+        installations.put(inst.id(), inst);
+        FxService fx = plugin.getFx();
+        fx.impactBurst(loc, Particle.CLOUD, 10, Sound.BLOCK_BEACON_ACTIVATE, 0.4f, 1.1f);
+        if (plugin.getConfig().getBoolean("installations.notify-owner", true)) {
+            p.sendMessage(Component.text(type.displayName() + " установлена на "
+                    + ttl + " с", NamedTextColor.GREEN));
+        }
         return true;
     }
 
-    /** Свип: сроки, зоны, триггеры мин. 1.5.7: адаптивный (пусто = ноль работы). */
-    public BukkitTask startSweepTask() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::sweep, 10L, 10L);
+    private int typeCooldownSeconds(InstallationType type) {
+        if (type == InstallationType.FROST_RUNE) {
+            return cfgI("installations.frost_rune.cooldown", 60);
+        }
+        return cfgI("installations.ttl-seconds", 60);
     }
 
-    private void sweep() {
-        if (active.isEmpty()) {
+    /* ------------------------------ руна-зона ------------------------------ */
+
+    private boolean placeRune(Player p, Location loc, int cooldown) {
+        UUID uuid = p.getUniqueId();
+        // одна активная руна на владельца
+        for (FrostRune r : runes.values()) {
+            if (r.owner.equals(uuid)) {
+                p.sendMessage(Component.text("У вас уже есть активная Ледяная руна.", NamedTextColor.RED));
+                return false;
+            }
+        }
+        int duration = cfgI("installations.frost_rune.duration", 30);
+        FrostRune rune = new FrostRune(uuid, loc, System.currentTimeMillis() + duration * 1000L);
+        FxService fx = plugin.getFx();
+        rune.ambientId = fx.startAmbient(loc,
+                plugin.getConfig().getString("vfx.frost_rune.ambient-sound", "ENTITY_ENDERMAN_TELEPORT"),
+                (float) cfgD("vfx.frost_rune.ambient-volume", 0.35),
+                (float) cfgD("vfx.frost_rune.ambient-pitch", 0.5),
+                plugin.getConfig().getString("vfx.frost_rune.ambient-particle", "REVERSE_PORTAL"),
+                duration * 20, 40);
+        runes.put(rune.id, rune);
+        // рунное кольцо на блоке
+        ringParticles(loc, cfgD("installations.frost_rune.radius", 8.0), 48);
+        fx.impactBurst(loc, Particle.PORTAL, 24, Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 0.7f);
+        if (plugin.getConfig().getBoolean("installations.notify-owner", true)) {
+            p.sendMessage(Component.text("Ледяная руна начертана: действует " + duration
+                    + " с, следующая через " + cooldown + " с", NamedTextColor.AQUA));
+        }
+        return true;
+    }
+
+    private void ringParticles(Location center, double radius, int count) {
+        for (int i = 0; i < count; i++) {
+            double angle = (Math.PI * 2 * i) / count;
+            Location p = center.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
+            center.getWorld().spawnParticle(Particle.PORTAL, p, 2, 0.0, 0.2, 0.0, 0.0);
+        }
+    }
+
+    private void tickRune(FrostRune rune) {
+        long now = System.currentTimeMillis();
+        FxService fx = plugin.getFx();
+        if (now > rune.expiresAt) {
+            expireRune(rune);
             return;
         }
-        long now = System.currentTimeMillis();
-        for (Installation inst : active) {
-            if (now >= inst.getExpiresAt()) {
-                notifyOwner(inst, plugin.getRaskolConfig().message("install.notify.expired",
-                        "⚙ {name}: истекла")
-                        .replace("{name}", inst.getType().displayName()));
-                despawn(inst, true);
-                active.remove(inst);
+        double radius = cfgD("installations.frost_rune.radius", 8.0);
+        double base = cfgD("installations.frost_rune.damage-base", 4.0);
+        double ramp = cfgD("installations.frost_rune.damage-ramp", 1.0);
+        double cap = cfgD("installations.frost_rune.damage-cap", 12.0);
+        int rampEvery = Math.max(1, cfgI("installations.frost_rune.slow-ramp-every", 5));
+        int maxTier = cfgI("installations.frost_rune.slow-max-tier", 3);
+        double manaPerSec = cfgD("installations.frost_rune.mage-mana-per-sec", 3.0);
+        double intMult = cfgD("installations.frost_rune.mage-int-mult", 2.0);
+
+        Player owner = plugin.getServer().getPlayer(rune.owner);
+        Set<UUID> inside = new HashSet<>();
+
+        for (Entity e : rune.location.getWorld().getNearbyEntities(
+                rune.location, radius, radius, radius)) {
+            if (!(e instanceof LivingEntity t) || t.getUniqueId().equals(rune.owner)) {
                 continue;
             }
-            if (inst.getType().mode() == InstallationType.Mode.ZONE) {
-                if (now - inst.getLastTick() >= 1000L) {
-                    inst.setLastTick(now);
-                    zoneTick(inst);
-                }
+            boolean enemy;
+            if (owner != null) {
+                enemy = plugin.getCombat().canHit(owner, t);
             } else {
-                Entity trigger = findTrigger(inst);
-                if (trigger != null) {
-                    triggerMine(inst, trigger);
-                    despawn(inst, false);
-                    active.remove(inst);
+                enemy = !(t instanceof Player); // владелец оффлайн: бьём только мобов
+            }
+            if (!enemy) {
+                continue;
+            }
+            int stay = rune.staySeconds.merge(t.getUniqueId(), 1, Integer::sum);
+            inside.add(t.getUniqueId());
+            double dmg = Math.min(cap, base + ramp * Math.max(0, stay - 1));
+            int tier = Math.min(maxTier, Math.max(0, stay - 1) / rampEvery);
+            if (owner != null) {
+                plugin.getCombat().dealDamage(t, owner, DamageProfile.magic(dmg));
+            }
+            t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2 * 20, tier));
+            t.getWorld().spawnParticle(Particle.SNOWFLAKE, t.getLocation().add(0.0, 0.5, 0.0), 6, 0.3, 0.4, 0.3, 0.02);
+        }
+        rune.staySeconds.keySet().removeIf(id -> !inside.contains(id));
+
+        // бафф владельца внутри руны: мана + ИНТ×2
+        if (owner != null) {
+            boolean ownerInside = owner.getWorld().equals(rune.location.getWorld())
+                    && owner.getLocation().distanceSquared(rune.location) <= radius * radius;
+            if (ownerInside) {
+                plugin.getResources().add(rune.owner, manaPerSec);
+                if (rune.ownerIntBase < 0) {
+                    // фиксируем базовый ИНТ в момент входа (без модификатора руны)
+                    rune.ownerIntBase = plugin.getAttributes().value(rune.owner,
+                            dev.raskol.classes.attribute.AttributeType.INT);
                 }
+                double add = rune.ownerIntBase * (intMult - 1.0);
+                plugin.getAttributes().addTimedModifier(rune.owner, RUNE_INT_MOD,
+                        0.0, 0.0, add, 2000L);
             }
         }
     }
 
-    /** 1.5.7: чистка анти-спам карты общим purge-таском. */
-    public void purgeStale() {
+    private void expireRune(FrostRune rune) {
+        runes.remove(rune.id);
+        plugin.getFx().stopAmbient(rune.ambientId);
+        plugin.getAttributes().removeModifiersBySource(rune.owner, RUNE_INT_MOD);
+        plugin.getFx().impactBurst(rune.location, Particle.CLOUD, 16,
+                Sound.ENTITY_ENDERMAN_TELEPORT, 0.4f, 1.6f);
+        Player owner = plugin.getServer().getPlayer(rune.owner);
+        if (owner != null && plugin.getConfig().getBoolean("installations.notify-owner", true)) {
+            owner.sendMessage(Component.text("Ледяная руна растаяла.", NamedTextColor.GRAY));
+        }
+    }
+
+    /* ------------------------------ блочные типы ------------------------------ */
+
+    private void tickInstallation(Installation inst) {
         long now = System.currentTimeMillis();
-        lastPlace.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L);
-    }
-
-    private Entity findTrigger(Installation inst) {
-        Location loc = inst.getLocation();
-        for (Entity entity : loc.getNearbyEntities(1.2, 1.2, 1.2)) {
-            if (entity instanceof Player p) {
-                if (!p.getUniqueId().equals(inst.getOwner())
-                        && !isAlly(inst.getOwner(), p.getUniqueId())) {
-                    return entity;
-                }
-            } else if (entity instanceof Mob) {
-                return entity;
-            }
+        if (now > inst.expiresAt()) {
+            installations.remove(inst.id());
+            plugin.getFx().impactBurst(inst.location(), Particle.CLOUD, 8, null, 0f, 1f);
+            return;
         }
-        return null;
-    }
-
-    /**
-     * Триггер мины. 1.6.8: онлайн-владелец передаётся как source урона —
-     * килл-кредит, дроп и килл-трекинг навыков работают на убийствах ловушками.
-     */
-    private void triggerMine(Installation inst, Entity trigger) {
-        Location loc = inst.getLocation();
-        World world = loc.getWorld();
-        // 1.6.8: килл-кредит владельцу (оффлайн-владелец → null, урон без кредита)
-        Player ownerPlayer = plugin.getServer().getPlayer(inst.getOwner());
-        switch (inst.getType()) {
-            case BEAR_TRAP -> {
-                double phys = plugin.getConfig().getDouble(
-                        "installations.bear_trap.damage-physical", 3.0);
-                if (trigger instanceof LivingEntity living) {
-                    plugin.getCombat().dealDamage(living, ownerPlayer,
-                            DamageProfile.physical(phys));
-                    living.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,
-                            (int) num(inst, "slow-duration", 2.0) * 20, 5));
-                }
-                TrapVisual.show(plugin, loc, 40);
-                if (world != null) {
-                    world.playSound(loc, Sound.BLOCK_TRIPWIRE_ATTACH, 0.8f, 1.2f);
-                }
-            }
-            case FROST_RUNE -> {
-                double magic = plugin.getConfig().getDouble(
-                        "installations.frost_rune.damage-magic", 4.0);
-                double radius = num(inst, "radius", 3.0);
-                for (Entity e : loc.getNearbyEntities(radius, radius, radius)) {
-                    if (e instanceof LivingEntity living && isEnemyOf(inst, e)) {
-                        plugin.getCombat().dealDamage(living, ownerPlayer,
-                                DamageProfile.magic(magic));
-                        living.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS,
-                                (int) num(inst, "slow-duration", 3.0) * 20, 1));
-                    }
-                }
-                if (world != null) {
-                    world.spawnParticle(Particle.SNOWFLAKE,
-                            loc.clone().add(0.5, 0.4, 0.5), 24, radius * 0.6, 0.3, radius * 0.6, 0.0);
-                    world.playSound(loc, Sound.ENTITY_PLAYER_HURT_FREEZE, 0.7f, 1.2f);
-                }
-            }
-            case SMOKE_BOMB -> {
-                double radius = num(inst, "radius", 3.0);
-                for (Entity e : loc.getNearbyEntities(radius, radius, radius)) {
-                    if (e instanceof LivingEntity living && isEnemyOf(inst, e)) {
-                        living.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS,
-                                (int) num(inst, "blind-duration", 2.0) * 20, 0));
-                    }
-                }
-                Player owner = plugin.getServer().getPlayer(inst.getOwner());
-                if (owner != null) {
-                    owner.addPotionEffect(new PotionEffect(PotionEffectType.SPEED,
-                            (int) num(inst, "speed-duration", 3.0) * 20, 0));
-                }
-                if (world != null) {
-                    world.spawnParticle(Particle.SMOKE,
-                            loc.clone().add(0.5, 0.5, 0.5), 30, 0.6, 0.4, 0.6, 0.0);
-                    world.playSound(loc, Sound.BLOCK_FIRE_EXTINGUISH, 0.8f, 0.8f);
-                }
-            }
-            default -> { }
-        }
-        notifyOwner(inst, plugin.getRaskolConfig().message("install.notify.trigger",
-                "⚙ {name}: сработала на {target}")
-                .replace("{name}", inst.getType().displayName())
-                .replace("{target}", trigger.getName()));
-    }
-
-    private void zoneTick(Installation inst) {
-        Location loc = inst.getLocation();
-        World world = loc.getWorld();
-        switch (inst.getType()) {
+        double radius = typeRadius(inst.type());
+        Player owner = plugin.getServer().getPlayer(inst.owner());
+        switch (inst.type()) {
             case WAR_BANNER -> {
-                double radius = num(inst, "radius", 6.0);
-                int duration = (int) num(inst, "duration", 8.0);
-                for (Entity e : loc.getNearbyEntities(radius, radius, radius)) {
-                    if (e instanceof Player p
-                            && (p.getUniqueId().equals(inst.getOwner())
-                            || isAlly(inst.getOwner(), p.getUniqueId()))) {
-                        p.addPotionEffect(new PotionEffect(
-                                PotionEffectType.RESISTANCE, duration * 20, 0));
+                for (Entity e : nearby(inst.location(), radius)) {
+                    if (e instanceof Player t && isAllyOf(inst.owner(), t)) {
+                        t.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, 2 * 20, 0));
                     }
-                }
-                if (world != null) {
-                    world.spawnParticle(Particle.FLAME,
-                            loc.clone().add(0.5, 0.6, 0.5), 3, 0.2, 0.3, 0.2, 0.0);
                 }
             }
             case LIGHT_WARD -> {
-                double radius = num(inst, "radius", 4.0);
-                double heal = num(inst, "heal", 2.0);
-                for (Entity e : loc.getNearbyEntities(radius, radius, radius)) {
-                    if (e instanceof Player p
-                            && (p.getUniqueId().equals(inst.getOwner())
-                            || isAlly(inst.getOwner(), p.getUniqueId()))) {
-                        p.heal(heal);
+                double heal = cfgD("installations.light_ward.heal", 2.0);
+                for (Entity e : nearby(inst.location(), radius)) {
+                    if (e instanceof Player t && isAllyOf(inst.owner(), t)) {
+                        var attr = t.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+                        double max = attr != null ? attr.getValue() : 20.0;
+                        if (t.getHealth() < max) {
+                            t.setHealth(Math.min(max, t.getHealth() + heal));
+                        }
                     }
                 }
-                if (world != null) {
-                    world.spawnParticle(Particle.HEART,
-                            loc.clone().add(0.5, 0.6, 0.5), 3, radius * 0.4, 0.3, radius * 0.4, 0.0);
+            }
+            case BEAR_TRAP -> {
+                for (Entity e : nearby(inst.location(), 1.2)) {
+                    if (e instanceof LivingEntity t && isEnemyOf(inst.owner(), t)) {
+                        if (owner != null) {
+                            plugin.getCombat().dealDamage(t, owner,
+                                    DamageProfile.physical(cfgD("installations.bear_trap.damage-physical", 3.0)));
+                        }
+                        t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2 * 20, 5));
+                        installations.remove(inst.id());
+                        plugin.getFx().impactBurst(inst.location(), Particle.CRIT, 12,
+                                Sound.ENTITY_IRON_TRAPDOOR_CLOSE, 0.5f, 1.0f);
+                        notifyOwner(inst.owner(), "Капкан сработал!");
+                        return;
+                    }
                 }
             }
-            default -> { }
+            case SMOKE_BOMB -> {
+                boolean triggered = false;
+                for (Entity e : nearby(inst.location(), radius)) {
+                    if (e instanceof LivingEntity t && isEnemyOf(inst.owner(), t)) {
+                        triggered = true;
+                        break;
+                    }
+                }
+                if (triggered) {
+                    for (Entity e : nearby(inst.location(), radius)) {
+                        if (e instanceof LivingEntity t && isEnemyOf(inst.owner(), t)) {
+                            t.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 2 * 20, 0));
+                        }
+                    }
+                    if (owner != null) {
+                        owner.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 3 * 20, 0));
+                    }
+                    installations.remove(inst.id());
+                    plugin.getFx().impactBurst(inst.location(), Particle.SMOKE, 40,
+                            Sound.BLOCK_FIRE_EXTINGUISH, 0.6f, 0.8f);
+                    notifyOwner(inst.owner(), "Дымовая шашка сработала!");
+                }
+            }
+            default -> {
+                // FROST_RUNE обрабатывается отдельно
+            }
         }
     }
 
-    private boolean isEnemyOf(Installation inst, Entity entity) {
-        if (entity instanceof Player p) {
-            return !p.getUniqueId().equals(inst.getOwner())
-                    && !isAlly(inst.getOwner(), p.getUniqueId());
-        }
-        return entity instanceof Mob;
+    private List<Entity> nearby(Location loc, double radius) {
+        return new ArrayList<>(loc.getWorld().getNearbyEntities(loc, radius, radius, radius));
     }
 
-    private boolean isAlly(UUID a, UUID b) {
-        if (a.equals(b)) {
+    private boolean isAllyOf(UUID ownerId, Player target) {
+        if (target.getUniqueId().equals(ownerId)) {
             return true;
         }
-        String fa = plugin.getFactionHook().factionOf(a);
-        String fb = plugin.getFactionHook().factionOf(b);
-        return !fa.isEmpty() && fa.equals(fb);
+        Player owner = plugin.getServer().getPlayer(ownerId);
+        if (owner == null) {
+            return false;
+        }
+        return !plugin.getCombat().canHit(owner, target);
     }
 
-    private void notifyOwner(Installation inst, String text) {
+    private boolean isEnemyOf(UUID ownerId, LivingEntity target) {
+        if (target instanceof Player tp) {
+            Player owner = plugin.getServer().getPlayer(ownerId);
+            return owner != null && plugin.getCombat().canHit(owner, tp);
+        }
+        return true;
+    }
+
+    private void notifyOwner(UUID ownerId, String text) {
         if (!plugin.getConfig().getBoolean("installations.notify-owner", true)) {
             return;
         }
-        Player owner = plugin.getServer().getPlayer(inst.getOwner());
+        Player owner = plugin.getServer().getPlayer(ownerId);
         if (owner != null) {
-            owner.sendActionBar(Component.text(text, NamedTextColor.YELLOW));
+            owner.sendMessage(Component.text(text, NamedTextColor.YELLOW));
         }
     }
 
-    private void spawnDisplay(Installation inst) {
-        World world = inst.getLocation().getWorld();
-        if (world == null) {
-            return;
-        }
-        ItemDisplay display = (ItemDisplay) world.spawnEntity(
-                inst.getLocation().clone().add(0.5, 0.25, 0.5), EntityType.ITEM_DISPLAY);
-        display.setItemStack(new ItemStack(inst.getType().displayItem()));
-        display.setTransformation(new Transformation(
-                new Vector3f(0f, 0f, 0f),
-                new AxisAngle4f(),
-                new Vector3f(1.6f, 1.6f, 1.6f),
-                new AxisAngle4f()));
-        display.setViewRange(24f);
-        display.setPersistent(false);
-        display.setInvulnerable(true);
-        inst.setDisplay(display);
+    private double typeRadius(InstallationType type) {
+        return switch (type) {
+            case WAR_BANNER -> cfgD("installations.war_banner.radius", 6.0);
+            case LIGHT_WARD -> cfgD("installations.light_ward.radius", 4.0);
+            case SMOKE_BOMB -> cfgD("installations.smoke_bomb.radius", 3.0);
+            case FROST_RUNE -> cfgD("installations.frost_rune.radius", 8.0);
+            default -> 1.2;
+        };
     }
 
-    private void despawn(Installation inst, boolean expired) {
-        if (inst.getDisplay() != null && !inst.getDisplay().isDead()) {
-            Location loc = inst.getDisplay().getLocation();
-            inst.getDisplay().remove();
-            if (loc != null && loc.getWorld() != null) {
-                loc.getWorld().spawnParticle(Particle.CLOUD,
-                        loc.clone().add(0.0, 0.3, 0.0), 6, 0.3, 0.2, 0.3, 0.0);
-                if (expired) {
-                    loc.getWorld().playSound(loc, expireSound(inst.getType()), 0.5f, 1.0f);
-                }
+    /* ------------------------------ задачи/счётчики ------------------------------ */
+
+    public BukkitTask startSweepTask() {
+        sweepTask = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            for (Installation inst : new ArrayList<>(installations.values())) {
+                tickInstallation(inst);
             }
-        }
+            for (FrostRune rune : new ArrayList<>(runes.values())) {
+                tickRune(rune);
+            }
+        }, 20L, 20L);
+        return sweepTask;
+    }
+
+    public void purgeStale() {
+        long now = System.currentTimeMillis();
+        installations.entrySet().removeIf(e -> e.getValue().expiresAt() < now);
+        runes.entrySet().removeIf(e -> {
+            boolean expired = e.getValue().expiresAt < now;
+            if (expired) {
+                expireRune(e.getValue());
+            }
+            return expired;
+        });
+        placeCooldowns.entrySet().removeIf(e -> e.getValue() < now);
     }
 
     public void shutdown() {
-        for (Installation inst : active) {
-            despawn(inst, false);
+        if (sweepTask != null) {
+            sweepTask.cancel();
         }
-        active.clear();
-    }
-
-    private Sound placeSound(InstallationType type) {
-        return switch (type) {
-            case WAR_BANNER -> Sound.BLOCK_BELL_USE;
-            case BEAR_TRAP -> Sound.BLOCK_TRIPWIRE_ATTACH;
-            case LIGHT_WARD -> Sound.BLOCK_BEACON_ACTIVATE;
-            case FROST_RUNE -> Sound.ENTITY_PLAYER_HURT_FREEZE;
-            case SMOKE_BOMB -> Sound.BLOCK_FIRE_EXTINGUISH;
-        };
-    }
-
-    private Sound expireSound(InstallationType type) {
-        return switch (type) {
-            case WAR_BANNER -> Sound.BLOCK_WOOD_BREAK;
-            case BEAR_TRAP -> Sound.BLOCK_TRIPWIRE_DETACH;
-            case LIGHT_WARD -> Sound.BLOCK_BEACON_DEACTIVATE;
-            case FROST_RUNE -> Sound.BLOCK_GLASS_BREAK;
-            case SMOKE_BOMB -> Sound.ENTITY_GENERIC_EXTINGUISH_FIRE;
-        };
-    }
-
-    private boolean isInClaim(Location loc) {
-        try {
-            Class<?> api = Class.forName("com.palmergames.bukkit.towny.TownyAPI");
-            Object instance = api.getMethod("getInstance").invoke(null);
-            Object townBlock = api.getMethod("getTownBlock", Location.class)
-                    .invoke(instance, loc);
-            return townBlock != null;
-        } catch (Throwable t) {
-            return false;
+        for (FrostRune rune : runes.values()) {
+            plugin.getFx().stopAmbient(rune.ambientId);
+            plugin.getAttributes().removeModifiersBySource(rune.owner, RUNE_INT_MOD);
         }
+        runes.clear();
+        installations.clear();
     }
 
-    private double num(Installation inst, String key, double def) {
-        return plugin.getConfig().getDouble(
-                "installations." + inst.getType().id() + "." + key, def);
+    public int countOf(UUID uuid) {
+        int c = 0;
+        for (Installation i : installations.values()) {
+            if (i.owner().equals(uuid)) c++;
+        }
+        for (FrostRune r : runes.values()) {
+            if (r.owner.equals(uuid)) c++;
+        }
+        return c;
+    }
+
+    public int countGlobal() {
+        return installations.size() + runes.size();
+    }
+
+    /** Снапшот для /rc debug: блочные + руны одним списком. */
+    public List<Installation> snapshot() {
+        return new ArrayList<>(installations.values());
+    }
+
+    /** Число активных рун владельца (для отладки/лимитов). */
+    public int runeCountOf(UUID uuid) {
+        int c = 0;
+        for (FrostRune r : runes.values()) {
+            if (r.owner.equals(uuid)) c++;
+        }
+        return c;
     }
 }
