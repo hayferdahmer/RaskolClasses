@@ -12,9 +12,9 @@ import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.Fireball;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Snowball;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.RayTraceResult;
@@ -23,18 +23,17 @@ import org.bukkit.util.Vector;
 import java.util.UUID;
 
 /**
- * 1.7.3 → 1.9.0-fix: КИТ МАГА, редизайн визуала + фикс урона Зевса.
- *
- * 1. «Огонь Прометея» — быстрый огненный шар; попадание = магический огонь (LAVA+SOUL_FIRE_FLAME,
- *    звук ENTITY_BLAZE_SHOOT, не взрыв TNT).
- * 2. «Шаг Гермеса» — блинк до 16 блоков (безопасности/тауни-гейта нет); урон сквозь мобов.
- * 3. «Дыхание Борея» — AoE-нова; без целей = refund.
- * 4. «Эгида Афины» — грант маг-резиста + аура партиклов.
- * 5. «Гнев Зевса» — сцена: гром → Darkness на цель → подбрасывание 3 блока → молния + урон.
+ * КИТ МАГА (1.9.0-fix3):
+ *  1. «Огонь Прометея» — ЧИСТО магический урон (физ-компонент убран);
+ *     снаряд = Snowball без взрыва + огненный трейл от FxService (не TNT-взрыв);
+ *     КД из конфига (3 с — основной дамаг-скилл).
+ *  2. «Шаг Гермеса» — блинк 16 блоков, упор в блок, урон сквозь мобов на пути.
+ *  3. «Дыхание Борея» — nova: маг-урон + Slowness II; без целей = refund.
+ *  4. «Эгида Афины» — грант маг-резиста + аура + звук снятия.
+ *  5. «Гнев Зевса» — сцена гром→Darkness→подброс→молния; урон бьёт МИМО
+ *     burst-окна и капа (allowOverCap): ульт с КД 90 с не съедается окном.
  */
 public final class MageAbilities {
-
-    private static final PlayerClass PC = PlayerClass.MAGE;
 
     private final RaskolClasses plugin;
 
@@ -88,26 +87,20 @@ public final class MageAbilities {
                 "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
-    /**
-     * 1. «Огонь Прометея»: огненный шар по направлению; попадание = магический огонь
-     * (LAVA+SOUL_FIRE_FLAME, звук шипения, не взрыв).
-     */
+    /** 1. «Огонь Прометея»: чистая магия, снаряд без взрыва. */
     public boolean firePrometheus(Player p, AbilityDef def) {
         double speed = cfgD("classes.MAGE.abilities." + def.id() + ".projectile-speed", 2.6);
         double dmg = dmg(p, def, 15.0, 1.2);
         Vector dir = p.getLocation().getDirection().normalize();
-        Fireball fb = p.launchProjectile(Fireball.class, dir.multiply(speed));
-        fb.setShooter(p);
-        fb.setIsIncendiary(false);
-        fb.setYield(0.0f);
-        plugin.getFx().chargeProjectile(fb.getUniqueId(), p.getUniqueId(), def.id(),
-                dmg * 0.3, dmg * 0.7, 3 * 20);
+        Snowball sb = p.launchProjectile(Snowball.class, dir.multiply(speed));
+        sb.setShooter(p);
+        // phys = 0: урон полностью магический
+        plugin.getFx().chargeProjectile(sb.getUniqueId(), p.getUniqueId(), def.id(),
+                0.0, dmg, 3 * 20);
         return true;
     }
 
-    /**
-     * 2. «Шаг Гермеса»: блинк до 16 блоков; урон сквозь мобов.
-     */
+    /** 2. «Шаг Гермеса». */
     public boolean hermesStep(Player p, AbilityDef def) {
         double maxDist = cfgD("classes.MAGE.abilities." + def.id() + ".distance", 16.0);
         Vector dir = p.getLocation().getDirection().setY(0).normalize();
@@ -167,9 +160,7 @@ public final class MageAbilities {
         return point.toVector().distance(closest);
     }
 
-    /**
-     * 3. «Дыхание Борея»: AoE-нова; без целей = refund.
-     */
+    /** 3. «Дыхание Борея». */
     public boolean boreasBreath(Player p, AbilityDef def) {
         double radius = cfgD("classes.MAGE.abilities." + def.id() + ".radius", 5.0);
         int secs = duration(def, 4);
@@ -217,9 +208,7 @@ public final class MageAbilities {
         return true;
     }
 
-    /**
-     * 4. «Эгида Афины»: грант маг-резиста + аура партиклов.
-     */
+    /** 4. «Эгида Афины». */
     public boolean athenaAegis(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
         double b = base(def, 15.0) + plugin.getTalentService().baseBonus(uuid, def.id());
@@ -242,12 +231,7 @@ public final class MageAbilities {
         return true;
     }
 
-    /**
-     * 5. «Гнев Зевса»: сцена с задержкой:
-     *    1) гром + Darkness на цель;
-     *    2) через 10 тиков — подбрасывание вверх на 3 блока;
-     *    3) через 20 тиков — молния + урон + поджог.
-     */
+    /** 5. «Гнев Зевса»: сцена; урон бьёт мимо burst-окна и капа (allowOverCap). */
     public boolean zeusWrath(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -265,22 +249,18 @@ public final class MageAbilities {
         int fireTicks = (int) cfgD("classes.MAGE.abilities." + def.id() + ".fire-ticks", 60);
 
         Location targetLoc = t.getLocation().add(0.0, 1.0, 0.0);
-
-        // Фаза 1: гром + затемнение (Darkness на 2 секунды)
         plugin.getFx().playSound(targetLoc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 0.6f);
         if (t instanceof Player tp) {
             tp.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 2 * 20, 0));
         }
         plugin.getFx().impactBurst(targetLoc, Particle.ELECTRIC_SPARK, 30, null, 0f, 1f);
 
-        // Фаза 2: через 10 тиков — подбрасывание вверх
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (t.isValid()) {
-                t.setVelocity(new Vector(0.0, 1.2, 0.0)); // ~3 блока вверх
+                t.setVelocity(new Vector(0.0, 1.2, 0.0));
             }
         }, 10L);
 
-        // Фаза 3: через 20 тиков — молния + урон
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!t.isValid()) {
                 return;
@@ -292,16 +272,18 @@ public final class MageAbilities {
                     Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.8f, 1.0f);
 
             double finalDmg = dmg;
-            if (frac < threshold) {
+            boolean execute = frac < threshold;
+            if (execute) {
                 finalDmg *= cfgD("classes.MAGE.abilities." + def.id() + ".execute-mult", 3.0);
-                plugin.getCombat().dealDamage(t, p, DamageProfile.magic(finalDmg), true);
+            }
+            // allowOverCap = true: ульт не съедается burst-окном и одиночным капом
+            plugin.getCombat().dealDamage(t, p, DamageProfile.magic(finalDmg), true);
+            if (execute) {
                 plugin.getFx().strikeLightningVisual(strikeLoc);
                 p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                         "tag.execute-mage", "Кара Зевса ×3!"), NamedTextColor.RED));
-            } else {
-                plugin.getCombat().dealDamage(t, p, DamageProfile.magic(finalDmg));
             }
-            if (plugin.getCombat().canHit(p, t)) {
+            if (t.isValid() && plugin.getCombat().canHit(p, t)) {
                 t.setFireTicks(fireTicks);
             }
         }, 20L);
