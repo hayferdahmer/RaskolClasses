@@ -23,15 +23,17 @@ import org.bukkit.util.Vector;
 import java.util.UUID;
 
 /**
- * КИТ МАГА (1.9.0-fix3):
- *  1. «Огонь Прометея» — ЧИСТО магический урон (физ-компонент убран);
- *     снаряд = Snowball без взрыва + огненный трейл от FxService (не TNT-взрыв);
- *     КД из конфига (3 с — основной дамаг-скилл).
+ * КИТ МАГА (1.9.0-fix6).
+ *  1. «Огонь Прометея» — чистая магия; снаряд Snowball без взрыва + огненный трейл.
  *  2. «Шаг Гермеса» — блинк 16 блоков, упор в блок, урон сквозь мобов на пути.
  *  3. «Дыхание Борея» — nova: маг-урон + Slowness II; без целей = refund.
  *  4. «Эгида Афины» — грант маг-резиста + аура + звук снятия.
- *  5. «Гнев Зевса» — сцена гром→Darkness→подброс→молния; урон бьёт МИМО
- *     burst-окна и капа (allowOverCap): ульт с КД 90 с не съедается окном.
+ *  5. «Гнев Зевса» — сцена гром→Darkness→подброс→молния.
+ *     1.9.0-fix6 (баг «не убил курицу»): цель перезолвится по UUID в момент удара
+ *     (живая ссылка на LivingEntity в отложенной задаче могла отваливаться);
+ *     тело удара в try/catch с warning, если урон=0 — причина станет видна в логе.
+ *     Burst-окно и кап по мобам НЕ действуют (капы только по игрокам), ульта идёт
+ *     с allowOverCap=true — ограничение не является причиной нулевого урона.
  */
 public final class MageAbilities {
 
@@ -94,7 +96,6 @@ public final class MageAbilities {
         Vector dir = p.getLocation().getDirection().normalize();
         Snowball sb = p.launchProjectile(Snowball.class, dir.multiply(speed));
         sb.setShooter(p);
-        // phys = 0: урон полностью магический
         plugin.getFx().chargeProjectile(sb.getUniqueId(), p.getUniqueId(), def.id(),
                 0.0, dmg, 3 * 20);
         return true;
@@ -231,7 +232,10 @@ public final class MageAbilities {
         return true;
     }
 
-    /** 5. «Гнев Зевса»: сцена; урон бьёт мимо burst-окна и капа (allowOverCap). */
+    /**
+     * 5. «Гнев Зевса»: сцена с перезолвом цели по UUID (1.9.0-fix6).
+     * Урон и execute-порог пересчитываются в момент удара, а не на касте.
+     */
     public boolean zeusWrath(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -242,57 +246,73 @@ public final class MageAbilities {
             allyTarget(p);
             return false;
         }
-        double threshold = cfgD("classes.MAGE.abilities." + def.id() + ".threshold", 0.25);
-        double max = maxOf(t);
-        double frac = max > 0 ? t.getHealth() / max : 1.0;
+        UUID casterId = p.getUniqueId();
+        UUID targetId = t.getUniqueId();
         double dmg = dmg(p, def, 25.0, 2.0);
         int fireTicks = (int) cfgD("classes.MAGE.abilities." + def.id() + ".fire-ticks", 60);
+        double threshold = cfgD("classes.MAGE.abilities." + def.id() + ".threshold", 0.25);
+        double execMult = cfgD("classes.MAGE.abilities." + def.id() + ".execute-mult", 3.0);
 
-        Location targetLoc = t.getLocation().add(0.0, 1.0, 0.0);
-        plugin.getFx().playSound(targetLoc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 0.6f);
+        // Фаза 1: гром + затемнение
+        Location castLoc = t.getLocation().add(0.0, 1.0, 0.0);
+        plugin.getFx().playSound(castLoc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 0.6f);
         if (t instanceof Player tp) {
             tp.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 2 * 20, 0));
         }
-        plugin.getFx().impactBurst(targetLoc, Particle.ELECTRIC_SPARK, 30, null, 0f, 1f);
+        plugin.getFx().impactBurst(castLoc, Particle.ELECTRIC_SPARK, 30, null, 0f, 1f);
 
+        // Фаза 2: подброс
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (t.isValid()) {
-                t.setVelocity(new Vector(0.0, 1.2, 0.0));
+            Entity e = plugin.getServer().getEntity(targetId);
+            if (e instanceof LivingEntity living && living.isValid()) {
+                living.setVelocity(new Vector(0.0, 1.2, 0.0));
             }
         }, 10L);
 
+        // Фаза 3: молния + урон (цель перезолвлена по UUID)
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (!t.isValid()) {
-                return;
-            }
-            Location strikeLoc = t.getLocation().add(0.0, 1.0, 0.0);
-            plugin.getFx().strikeLightningVisual(strikeLoc);
-            plugin.getFx().impactBurst(strikeLoc, Particle.FLASH, 12, null, 0f, 1f);
-            plugin.getFx().impactBurst(strikeLoc, Particle.ELECTRIC_SPARK, 30,
-                    Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.8f, 1.0f);
-
-            double finalDmg = dmg;
-            boolean execute = frac < threshold;
-            if (execute) {
-                finalDmg *= cfgD("classes.MAGE.abilities." + def.id() + ".execute-mult", 3.0);
-            }
-            // allowOverCap = true: ульт не съедается burst-окном и одиночным капом
-            plugin.getCombat().dealDamage(t, p, DamageProfile.magic(finalDmg), true);
-            if (execute) {
+            try {
+                Entity e = plugin.getServer().getEntity(targetId);
+                if (!(e instanceof LivingEntity living) || living.isDead()) {
+                    return;
+                }
+                Player caster = plugin.getServer().getPlayer(casterId);
+                if (caster == null) {
+                    return;
+                }
+                Location strikeLoc = living.getLocation().add(0.0, 1.0, 0.0);
                 plugin.getFx().strikeLightningVisual(strikeLoc);
-                p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                        "tag.execute-mage", "Кара Зевса ×3!"), NamedTextColor.RED));
-            }
-            if (t.isValid() && plugin.getCombat().canHit(p, t)) {
-                t.setFireTicks(fireTicks);
+                plugin.getFx().impactBurst(strikeLoc, Particle.FLASH, 12, null, 0f, 1f);
+                plugin.getFx().impactBurst(strikeLoc, Particle.ELECTRIC_SPARK, 30,
+                        Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.8f, 1.0f);
+
+                var attr = living.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+                double max = attr != null ? attr.getValue() : 20.0;
+                double frac = max > 0 ? living.getHealth() / max : 1.0;
+                double finalDmg = dmg;
+                boolean execute = frac < threshold;
+                if (execute) {
+                    finalDmg *= execMult;
+                }
+                double dealt = plugin.getCombat().dealDamage(living, caster,
+                        DamageProfile.magic(finalDmg), true);
+                if (dealt <= 0.0) {
+                    plugin.getLogger().warning("zeus_wrath: урон 0 по " + living.getType()
+                            + " (возможно, событие отменено внешним плагином: WG/Towny/GrimAC)");
+                }
+                if (execute && living.isValid()) {
+                    plugin.getFx().strikeLightningVisual(strikeLoc);
+                    caster.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                            "tag.execute-mage", "Кара Зевса ×3!"), NamedTextColor.RED));
+                }
+                if (living.isValid() && plugin.getCombat().canHit(caster, living)) {
+                    living.setFireTicks(fireTicks);
+                }
+            } catch (RuntimeException ex) {
+                plugin.getLogger().warning("zeus_wrath: исключение в фазе удара: " + ex.getMessage());
             }
         }, 20L);
 
         return true;
-    }
-
-    private double maxOf(LivingEntity e) {
-        var attr = e.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
-        return attr != null ? attr.getValue() : 20.0;
     }
 }
