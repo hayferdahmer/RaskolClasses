@@ -10,7 +10,6 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.Fireball;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -30,26 +29,13 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * VFX/SFX-слой плагина (1.5.0 → 1.9.0).
- *
- * 1.9.0-fix: звуки резолвятся через Sound.valueOf(ENUM_NAME) — раньше искались
- * через NamespacedKey("entity_player_levelup"), чего в реестре НЕТ, поэтому
- * способности звучали заглушкой или молчали.
- *
- * 1.9.0-fix 2: Particle.SMOKE_LARGE переименован в Particle.SMOKE в Paper 1.21 API.
- *
- * Новые API визуала:
- *  - chargeProjectile(...) + ProjectileHitEvent: заряженный снаряд (огненный шар)
- *    наносит гибрид-урон и поджигает при попадании, вспышка/звук — всегда;
- *  - impactBurst(...): партиклы + звук в точке;
- *  - startAura(...): аура партиклов на игроке с таймером и звуком снятия;
- *  - strikeLightningVisual(...): визуальная молния без урона/пожара;
- *  - startAmbient(...): эмбиент-луп звука+партиклов в точке (для руны).
- * Каст-звуки НЕ входят в звуковой бюджет: каст обязан звучать всегда.
+ * VFX/SFX-слой (1.5.0 → 1.9.0-fix3).
+ * 1.9.0-fix3: заряженные снаряды больше НЕ Fireball (он взрывается как TNT):
+ * киты пускают Snowball/Egg, а FxService рисует огненный трейл партиклами
+ * и вспышку/звук попадания; взрывов и разрушения блоков нет вообще.
  */
 public final class FxService implements Listener {
 
-    /** Заряженный снаряд: урон и поджог применяются при попадании. */
     private record ChargedShot(UUID caster, String abilityId,
                                double phys, double magic, int fireTicks, long expiresAt) {
     }
@@ -63,9 +49,9 @@ public final class FxService implements Listener {
     private final RaskolClasses plugin;
     private final Set<String> warnedSounds = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedParticles = ConcurrentHashMap.newKeySet();
-    /** Ключ — id проки (строка), не UUID игрока. */
     private final Map<String, Long> procVisualCd = new ConcurrentHashMap<>();
     private final Map<UUID, ChargedShot> chargedShots = new ConcurrentHashMap<>();
+    private final Map<UUID, BukkitTask> trailTasks = new ConcurrentHashMap<>();
     private final Map<UUID, AuraTask> auras = new ConcurrentHashMap<>();
     private final Map<UUID, AmbientTask> ambients = new ConcurrentHashMap<>();
     private final AtomicInteger staleCount = new AtomicInteger();
@@ -76,7 +62,6 @@ public final class FxService implements Listener {
 
     /* -------------------------------- резолв -------------------------------- */
 
-    /** Имя звука (ENUM Bukkit) → Sound; битое имя → WARNING один раз + null. */
     public Sound resolveSound(String name) {
         if (name == null || name.isEmpty()) {
             return null;
@@ -85,15 +70,13 @@ public final class FxService implements Listener {
             return Sound.valueOf(name.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             if (warnedSounds.add(name)) {
-                plugin.getLogger().warning("vfx: неизвестный звук '" + name
-                        + "' — нужна константа Bukkit Sound (например ENTITY_GENERIC_EXPLODE)");
+                plugin.getLogger().warning("vfx: неизвестный звук '" + name + "'");
                 staleCount.incrementAndGet();
             }
             return null;
         }
     }
 
-    /** Имя партикла (ENUM Bukkit) → Particle; битое → WARNING один раз + null. */
     public Particle resolveParticle(String name) {
         if (name == null || name.isEmpty()) {
             return null;
@@ -121,7 +104,6 @@ public final class FxService implements Listener {
 
     /* ------------------------------ каст-визуал ------------------------------ */
 
-    /** Визуал каста из vfx-конфига (звук + партикл у кастера). Вызывается конвейером один раз. */
     public void onAttempt(Player caster, String abilityId, long cooldownMillis) {
         String base = "vfx." + abilityId + ".";
         Sound sound = resolveSound(plugin.getConfig().getString(base + "cast-sound", ""));
@@ -134,7 +116,6 @@ public final class FxService implements Listener {
         }
     }
 
-    /** Proc-тег сабтайтлом + proc-визуал из vfx.proc.* (анти-спам: 1 тег/2 с на procId). */
     public void procByKey(Player player, String fallbackTag, String procId) {
         long now = System.currentTimeMillis();
         Long prev = procVisualCd.get(procId);
@@ -162,11 +143,26 @@ public final class FxService implements Listener {
 
     /* --------------------------- заряженные снаряды --------------------------- */
 
-    /** Зарядить снаряд уроном/поджогом; применится в ProjectileHitEvent. */
+    /**
+     * Зарядить снаряд уроном/поджогом. Снаряд — ЛЮБОЙ небомбовый (Snowball/Egg):
+     * FxService сам рисует трейл и попадание, взрыва нет.
+     */
     public void chargeProjectile(UUID projectileId, UUID caster, String abilityId,
                                  double phys, double magic, int fireTicks) {
         chargedShots.put(projectileId, new ChargedShot(caster, abilityId, phys, magic, fireTicks,
                 System.currentTimeMillis() + 6000L));
+        // огненный трейл: партиклы по позиции снаряда каждые 2 тика до смерти/попадания
+        BukkitTask trail = plugin.getServer().getScheduler().runTaskTimer(plugin, task -> {
+            Entity e = plugin.getServer().getEntity(projectileId);
+            if (e == null || e.isDead() || !chargedShots.containsKey(projectileId)) {
+                task.cancel();
+                trailTasks.remove(projectileId);
+                return;
+            }
+            e.getWorld().spawnParticle(Particle.FLAME, e.getLocation(), 3, 0.05, 0.05, 0.05, 0.01);
+            e.getWorld().spawnParticle(Particle.SMOKE, e.getLocation(), 1, 0.02, 0.02, 0.02, 0.005);
+        }, 0L, 2L);
+        trailTasks.put(projectileId, trail);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -176,31 +172,32 @@ public final class FxService implements Listener {
         if (shot == null) {
             return;
         }
+        BukkitTask trail = trailTasks.remove(projectile.getUniqueId());
+        if (trail != null) {
+            trail.cancel();
+        }
         Location hitLoc = projectile.getLocation();
         String base = "vfx." + shot.abilityId() + ".";
 
-        // Вспышка и звук попадания — всегда (и по блоку, и по сущности)
         Particle impact = resolveParticle(plugin.getConfig().getString(base + "impact-particle", "FLAME"));
         if (impact != null && hitLoc.getWorld() != null) {
             hitLoc.getWorld().spawnParticle(impact, hitLoc, 24, 0.4, 0.3, 0.4, 0.05);
-            // Paper 1.21: SMOKE заменяет SMOKE_LARGE/SMOKE_NORMAL — берём больший count для густоты
-            hitLoc.getWorld().spawnParticle(Particle.SMOKE, hitLoc, 20, 0.3, 0.2, 0.3, 0.03);
+            hitLoc.getWorld().spawnParticle(Particle.SMOKE, hitLoc, 10, 0.3, 0.2, 0.3, 0.03);
         }
         Sound impactSound = resolveSound(plugin.getConfig().getString(base + "impact-sound",
-                "ENTITY_GENERIC_EXPLODE"));
+                "ENTITY_BLAZE_SHOOT"));
         if (impactSound != null) {
-            playSound(hitLoc, impactSound, 0.4f, 0.9f);
+            playSound(hitLoc, impactSound, 0.5f, 0.9f);
         }
 
         Entity hitEntity = event.getHitEntity();
         if (!(hitEntity instanceof LivingEntity target)) {
-            return; // попадание в блок — только визуал
+            return;
         }
         Player caster = plugin.getServer().getPlayer(shot.caster());
         if (caster == null) {
             return;
         }
-        // Фракционный гейт и резисты — внутри dealDamage; по союзнику урон 0, вспышка остаётся
         plugin.getCombat().dealDamage(target, caster,
                 DamageProfile.hybrid(shot.phys(), shot.magic()));
         if (shot.fireTicks() > 0 && plugin.getCombat().canHit(caster, target)) {
@@ -210,10 +207,6 @@ public final class FxService implements Listener {
 
     /* --------------------------------- ауры --------------------------------- */
 
-    /**
-     * Аура партиклов на игроке: тик каждые 10 тиков, частицы кольцом вокруг тела.
-     * По окончании — звук снятия (expireSoundKey, может быть null).
-     */
     public void startAura(UUID playerUuid, Particle particle, int ticks, int perTick,
                           String expireSoundKey) {
         stopAura(playerUuid);
@@ -235,7 +228,6 @@ public final class FxService implements Listener {
             }
         }, 0L, 10L);
         auras.put(playerUuid, new AuraTask(task, expiresAt));
-        // звук снятия по истечении
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             AuraTask at = auras.remove(playerUuid);
             if (at != null) {
@@ -260,14 +252,12 @@ public final class FxService implements Listener {
 
     /* ------------------------------ молния/вспышки ------------------------------ */
 
-    /** Визуальная молния (гром + вспышка) без урона и пожара. */
     public void strikeLightningVisual(Location loc) {
         if (loc.getWorld() != null) {
             loc.getWorld().strikeLightningEffect(loc);
         }
     }
 
-    /** Вспышка партиклов + звук в точке. */
     public void impactBurst(Location loc, Particle main, int count,
                             Sound sound, float volume, float pitch) {
         if (loc.getWorld() == null) {
@@ -281,10 +271,6 @@ public final class FxService implements Listener {
 
     /* ------------------------------ эмбиент-лупы ------------------------------ */
 
-    /**
-     * Эмбиент-луп в точке (руны/зоны): звук + партиклы каждые periodTicks до expiry.
-     * Возвращает id задачи для ручной остановки (или null).
-     */
     public UUID startAmbient(Location loc, String soundKey, float volume, float pitch,
                              String particleKey, int ticks, int periodTicks) {
         UUID id = UUID.randomUUID();
@@ -325,7 +311,7 @@ public final class FxService implements Listener {
     public void appendDebug(CommandSender sender, List<String> abilityIds) {
         sender.sendMessage(Component.text("FxService: битых звуков " + warnedSounds.size()
                 + ", битых партиклов " + warnedParticles.size()
-                + ", заряженных снарядов " + chargedShots.size()
+                + ", снарядов " + chargedShots.size()
                 + ", аур " + auras.size() + ", эмбиентов " + ambients.size(),
                 NamedTextColor.GRAY));
         for (String id : abilityIds) {
@@ -345,6 +331,13 @@ public final class FxService implements Listener {
     public void purgeStale() {
         long now = System.currentTimeMillis();
         chargedShots.entrySet().removeIf(e -> e.getValue().expiresAt() < now);
+        trailTasks.entrySet().removeIf(e -> {
+            if (!chargedShots.containsKey(e.getKey())) {
+                e.getValue().cancel();
+                return true;
+            }
+            return false;
+        });
         auras.entrySet().removeIf(e -> {
             boolean expired = e.getValue().expiresAt() < now;
             if (expired) {
@@ -374,7 +367,6 @@ public final class FxService implements Listener {
         return warnedSounds.size() + warnedParticles.size();
     }
 
-    /** Стартовая валидация vfx-каталога: битые ключи = WARNING, не краш. */
     public void validateConfig() {
         var section = plugin.getConfig().getConfigurationSection("vfx");
         if (section == null) {
