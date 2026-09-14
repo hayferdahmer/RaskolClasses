@@ -23,17 +23,13 @@ import org.bukkit.util.Vector;
 import java.util.UUID;
 
 /**
- * КИТ МАГА (1.9.0-fix6).
+ * КИТ МАГА (1.9.0-fix7).
  *  1. «Огонь Прометея» — чистая магия; снаряд Snowball без взрыва + огненный трейл.
  *  2. «Шаг Гермеса» — блинк 16 блоков, упор в блок, урон сквозь мобов на пути.
  *  3. «Дыхание Борея» — nova: маг-урон + Slowness II; без целей = refund.
  *  4. «Эгида Афины» — грант маг-резиста + аура + звук снятия.
- *  5. «Гнев Зевса» — сцена гром→Darkness→подброс→молния.
- *     1.9.0-fix6 (баг «не убил курицу»): цель перезолвится по UUID в момент удара
- *     (живая ссылка на LivingEntity в отложенной задаче могла отваливаться);
- *     тело удара в try/catch с warning, если урон=0 — причина станет видна в логе.
- *     Burst-окно и кап по мобам НЕ действуют (капы только по игрокам), ульта идёт
- *     с allowOverCap=true — ограничение не является причиной нулевого урона.
+ *  5. «Гнев Зевса» — урон применяется МГНОВЕННО при касте (как у Прометея,
+ *     гарантированно доходит), сцена (гром→Darkness→подброс→молния) играется поверх.
  */
 public final class MageAbilities {
 
@@ -232,11 +228,9 @@ public final class MageAbilities {
         return true;
     }
 
-        /**
-     * 5. «Гнев Зевса»: урон применяется МГНОВЕННО при касте (гарантированно доходит,
-     * как у Прометея), а сцена (гром → Darkness → подброс → молния) играется поверх
-     * как визуальный оверлей. Burst-окно по мобам не действует; по игрокам ульт
-     * идёт с allowOverCap=true (не режется окном/капом).
+    /**
+     * 5. «Гнев Зевса»: урон применяется МГНОВЕННО при касте (как у Прометея —
+     * гарантированно доходит), сцена молнии/подброса играется поверх как оверлей.
      */
     public boolean zeusWrath(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
@@ -277,7 +271,7 @@ public final class MageAbilities {
         // визуальная сцена поверх уже нанесённого урона
         Location castLoc = t.getLocation().add(0.0, 1.0, 0.0);
         plugin.getFx().playSound(castLoc, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 0.6f);
-        if (t instanceof Player tp) {
+        if (t instanceof Player tp && tp.isValid()) {
             tp.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 2 * 20, 0));
         }
         plugin.getFx().impactBurst(castLoc, Particle.ELECTRIC_SPARK, 30, null, 0f, 1f);
@@ -310,3 +304,4 @@ public final class MageAbilities {
 
         return true;
     }
+}
