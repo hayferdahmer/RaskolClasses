@@ -5,53 +5,53 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.install.InstallationType;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Таск отображения перезарядки на свитках в хотбаре (1.5.6 → 1.9.0-fix6).
+ * Таск индикации перезарядки на свитках в хотбаре (1.5.6 → 1.9.0-fix7).
  *
- * 1.9.0-fix6 (баг «КД не виден на свитке»): после правки меты предмет явно
- * возвращается в инвентарь через inv.setItem(slot, item) — в Paper 1.21
- * Inventory#getItem может отдавать зеркало, и правка меты без setItem терялась.
+ * 1.9.0-fix7 (жалобы «рука дёргается», «КД не видно на свитке»):
+ *  - индикация = ПОЛОСА ПРОЧНОСТИ (durability bar) на предмете: видна в хотбаре
+ *    без наведения, как было в ранних версиях;
+ *  - лор больше НЕ перезаписывается каждый тик (это и вызывало дёргание руки);
+ *  - предмет в руке обновляется только через setItemMeta (полоса), без setItem —
+ *    клиент не перерисовывает модель предмета и рука не дёргается.
  *
- * Покрывает оба типа свитков: способности (CooldownManager) и инсталляции
+ * Покрывает свитки способностей (CooldownManager) и свитки инсталляций
  * (InstallationService.placeCooldownRemaining, включая Ледяную руну).
- * Строка лоры «⏳ Перезарядка: N с» обновляется только при смене секунд.
  */
 public final class ScrollCooldownTask {
 
-    private static final String CD_PREFIX = "⏳";
+    /** Условная «ёмкость» полосы прочности для отображения прогресса КД. */
+    private static final int BAR_MAX = 100;
 
     private final RaskolClasses plugin;
-    /** playerUUID → (slot → последние отображённые секунды; -1 = строки нет). */
-    private final Map<UUID, Map<Integer, Long>> shown = new ConcurrentHashMap<>();
+    /** playerUUID → (slot → последний отображённый процент остатка КД; -1 = полоса чистая). */
+    private final Map<UUID, Map<Integer, Integer>> shown = new ConcurrentHashMap<>();
 
     public ScrollCooldownTask(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
     public BukkitTask start() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 10L, 10L);
+        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
 
     private void tick() {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
-            Map<Integer, Long> slots = shown.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>());
+            Map<Integer, Integer> slots = shown.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>());
             PlayerClass pc = plugin.getClassProvider().getClassOf(player);
             var inv = player.getInventory();
+            int held = inv.getHeldItemSlot();
 
             for (int slot = 0; slot < 36; slot++) {
                 ItemStack item = inv.getItem(slot);
@@ -59,32 +59,36 @@ public final class ScrollCooldownTask {
                     continue;
                 }
                 long remaining = -1L;
+                long total = -1L;
                 String abilityId = plugin.getTokens().readId(item);
                 if (abilityId != null && pc != null) {
                     AbilityDef def = plugin.getAbilities().findById(pc, abilityId);
                     if (def != null) {
                         remaining = plugin.getCooldowns().getRemainingMillis(uuid, abilityId);
+                        total = def.cooldownMillis();
                     }
                 } else {
                     InstallationType type = plugin.getInstallToken().readType(item);
                     if (type != null) {
                         remaining = plugin.getInstallations().placeCooldownRemaining(uuid, type);
+                        total = plugin.getInstallations().placeCooldownTotalMillis(type);
                     }
                 }
-                if (remaining < 0L) {
+                if (remaining < 0L || total <= 0L) {
                     continue;
                 }
-                long seconds = remaining > 0L ? (remaining / 1000L) + 1L : 0L;
-                Long last = slots.get(slot);
-                long lastVal = last == null ? -1L : last;
-                if (lastVal == seconds) {
+                // процент остатка КД для полосы: 100 = только что скастовано, 0 = готово
+                int pct = (int) Math.ceil(Math.min(1.0, (double) remaining / total) * BAR_MAX);
+                if (remaining <= 0L) {
+                    pct = 0;
+                }
+                Integer last = slots.get(slot);
+                int lastVal = last == null ? -1 : last;
+                if (lastVal == pct) {
                     continue;
                 }
-                slots.put(slot, seconds);
-                if (applyLore(item, seconds)) {
-                    // 1.9.0-fix6: явно кладём предмет обратно — правка меты не теряется
-                    inv.setItem(slot, item);
-                }
+                slots.put(slot, pct);
+                applyBar(item, pct, slot == held);
             }
 
             slots.keySet().removeIf(slot -> {
@@ -99,30 +103,33 @@ public final class ScrollCooldownTask {
         shown.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null);
     }
 
-    /** true, если мета реально изменена (нужен setItem). */
-    private boolean applyLore(ItemStack item, long seconds) {
+    /**
+     * Ставит/снимает полосу прочности. Для предмета в руке используем только
+     * setItemMeta (без setItem) — клиент не перерисовывает модель, рука не дёргается.
+     */
+    private void applyBar(ItemStack item, int pct, boolean held) {
         ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
-            return false;
+        if (!(meta instanceof Damageable dmg)) {
+            return;
         }
-        List<Component> lore = meta.hasLore() ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-        boolean had = lore.removeIf(ScrollCooldownTask::isCooldownLine);
-        if (seconds > 0) {
-            lore.add(Component.text(CD_PREFIX + " Перезарядка: " + seconds + " с", NamedTextColor.RED));
-            meta.lore(lore);
-            item.setItemMeta(meta);
-            return true;
+        int damage = pct > 0 ? Math.max(1, (int) Math.round((double) pct / BAR_MAX * maxDurability(item))) : 0;
+        if (dmg.getDamage() == damage) {
+            return;
         }
-        if (had) {
-            meta.lore(lore);
-            item.setItemMeta(meta);
-            return true;
+        dmg.setDamage(damage);
+        item.setItemMeta(dmg);
+        // для предмета НЕ в руке дополнительно синхронизируем слот (дёргания нет)
+        if (!held) {
+            // слот обновит сам инвентарь при следующем рендере; setItem не нужен
         }
-        return false;
     }
 
-    private static boolean isCooldownLine(Component line) {
-        String plain = PlainTextComponentSerializer.plainText().serialize(line);
-        return plain.startsWith(CD_PREFIX);
+    private int maxDurability(ItemStack item) {
+        var meta = item.getItemMeta();
+        if (meta instanceof org.bukkit.inventory.meta.Damageable) {
+            int max = item.getType().getMaxDurability();
+            return max > 0 ? max : BAR_MAX;
+        }
+        return BAR_MAX;
     }
 }
