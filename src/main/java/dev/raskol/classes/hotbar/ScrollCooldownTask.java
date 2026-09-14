@@ -20,16 +20,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Таск отображения перезарядки на свитках в хотбаре (1.5.6 → 1.9.0-fix5).
+ * Таск отображения перезарядки на свитках в хотбаре (1.5.6 → 1.9.0-fix6).
  *
- * 1.9.0-fix5 (пункт 7): теперь покрывает ОБА типа свитков:
- *  - свитки способностей — остаток КД из CooldownManager;
- *  - свитки инсталляций (включая Ледяную руну) — остаток КД постановки
- *    из InstallationService.placeCooldownRemaining.
+ * 1.9.0-fix6 (баг «КД не виден на свитке»): после правки меты предмет явно
+ * возвращается в инвентарь через inv.setItem(slot, item) — в Paper 1.21
+ * Inventory#getItem может отдавать зеркало, и правка меты без setItem терялась.
  *
- * Механика: строка лоры «⏳ Перезарядка: N с» добавляется/обновляется/удаляется
- * только при смене отображаемых секунд (без лишнего перезаписывания меты каждый тик).
- * Тик 10 тиков (0.5 с) — компромисс точности и нагрузки.
+ * Покрывает оба типа свитков: способности (CooldownManager) и инсталляции
+ * (InstallationService.placeCooldownRemaining, включая Ледяную руну).
+ * Строка лоры «⏳ Перезарядка: N с» обновляется только при смене секунд.
  */
 public final class ScrollCooldownTask {
 
@@ -73,20 +72,21 @@ public final class ScrollCooldownTask {
                     }
                 }
                 if (remaining < 0L) {
-                    // не свиток плагина — слот очищается ниже
                     continue;
                 }
                 long seconds = remaining > 0L ? (remaining / 1000L) + 1L : 0L;
                 Long last = slots.get(slot);
                 long lastVal = last == null ? -1L : last;
                 if (lastVal == seconds) {
-                    continue; // ничего не изменилось — мету не трогаем
+                    continue;
                 }
                 slots.put(slot, seconds);
-                applyLore(item, seconds);
+                if (applyLore(item, seconds)) {
+                    // 1.9.0-fix6: явно кладём предмет обратно — правка меты не теряется
+                    inv.setItem(slot, item);
+                }
             }
 
-            // чистим слоты, где больше нет свитков плагина
             slots.keySet().removeIf(slot -> {
                 ItemStack it = inv.getItem(slot);
                 if (it == null) {
@@ -99,18 +99,26 @@ public final class ScrollCooldownTask {
         shown.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null);
     }
 
-    private void applyLore(ItemStack item, long seconds) {
+    /** true, если мета реально изменена (нужен setItem). */
+    private boolean applyLore(ItemStack item, long seconds) {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {
-            return;
+            return false;
         }
         List<Component> lore = meta.hasLore() ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-        lore.removeIf(ScrollCooldownTask::isCooldownLine);
+        boolean had = lore.removeIf(ScrollCooldownTask::isCooldownLine);
         if (seconds > 0) {
             lore.add(Component.text(CD_PREFIX + " Перезарядка: " + seconds + " с", NamedTextColor.RED));
+            meta.lore(lore);
+            item.setItemMeta(meta);
+            return true;
         }
-        meta.lore(lore);
-        item.setItemMeta(meta);
+        if (had) {
+            meta.lore(lore);
+            item.setItemMeta(meta);
+            return true;
+        }
+        return false;
     }
 
     private static boolean isCooldownLine(Component line) {
