@@ -49,7 +49,7 @@ target-cast:
 
 compat:
   authme-gate: true
-  block-casts-in-creative: true
+  block-casts-in-creative: false
 
 # ------------------------------------------------------------
 # Бой: резист-гейты, анти-ваншот, burst-окно, LOS
