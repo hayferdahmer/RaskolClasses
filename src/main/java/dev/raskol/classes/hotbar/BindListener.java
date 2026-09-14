@@ -9,6 +9,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -17,16 +18,16 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * Слушатель свитков в хотбаре (1.5.x → 1.9.0-fix2).
+ * Слушатель свитков в хотбаре (1.5.x → 1.9.0-fix6).
  *
- * 1.9.0-fix2 (причина «способности не применяются»):
- *  - убран ignoreCancelled=true: правый клик по блоку в WG-регионе/на спавне
- *    отменяется другими плагинами как block-interact, но каст свитком —
- *    не взаимодействие с блоком, поэтому событие обрабатываем даже отменённым;
- *  - ПКМ — каст в себя (конвейер tryCast: гейты, списание ресурса, кулдаун, VFX);
- *  - ЛКМ по живой цели под прицелом — точечный каст (жрец и прочие targeted-абилки);
- *    если свиток не targeted или цель не живая — ЛКМ не перехватываем (обычная атака/лом);
- *  - событие гасим только когда реально перехватили каст.
+ * 1.9.0-fix6 (баг «дёргается рука»): вместо полного setCancelled(true) используем
+ * точечные DENY: setUseInteractedBlock(DENY) + setUseItemInHand(DENY). Полный cancel
+ * давал клиентский десинк предсказания использования предмета (визуальное дёргание
+ * руки); точечные DENY гасят только взаимодействие с блоком/использование предмета,
+ * не ломая событие для других плагинов и клиента.
+ *
+ * ПКМ — каст в себя (конвейер tryCast); ЛКМ по живой цели — точечный каст
+ * (targeted-абилки); остальное не перехватываем.
  */
 public final class BindListener implements Listener {
 
@@ -54,7 +55,7 @@ public final class BindListener implements Listener {
         }
         String abilityId = tokens.readId(item);
         if (abilityId == null) {
-            return; // не свиток способности — не трогаем
+            return;
         }
         Player player = event.getPlayer();
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
@@ -70,25 +71,29 @@ public final class BindListener implements Listener {
         }
 
         if (right) {
-            // ПКМ — каст в себя через конвейер (ресурс, кулдаун, гейты, VFX)
-            event.setCancelled(true);
+            denyUse(event);
             if (plugin.getAbilities().tryCast(player, def)) {
                 plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
             }
             return;
         }
 
-        // ЛКМ — точечный каст только если абилка targeted и под прицелом живая цель
         if (!plugin.getAbilities().isTargeted(def.id())) {
-            return; // обычная атака/лом блока свитком в руке
+            return;
         }
         Entity target = player.getTargetEntity((int) TARGET_RANGE);
         if (!(target instanceof LivingEntity living)) {
-            return; // цели нет — не перехватываем, пусть идёт обычная атака
+            return;
         }
-        event.setCancelled(true);
+        denyUse(event);
         if (plugin.getAbilities().tryCastTargeted(player, living, def)) {
             plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
         }
+    }
+
+    /** 1.9.0-fix6: точечный отказ вместо полного cancel — без десинка руки. */
+    private void denyUse(PlayerInteractEvent event) {
+        event.setUseInteractedBlock(Event.Result.DENY);
+        event.setUseItemInHand(Event.Result.DENY);
     }
 }
