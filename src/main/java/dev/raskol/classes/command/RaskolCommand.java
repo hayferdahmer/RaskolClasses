@@ -2,7 +2,6 @@
 package dev.raskol.classes.command;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.balance.BalanceSimulator;
@@ -10,7 +9,6 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
-import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.spec.Spec;
 import net.kyori.adventure.text.Component;
@@ -30,29 +28,17 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Исполнитель и автодополнение команды /rc (1.4.0 → 1.9.0).
+ * Исполнитель и автодополнение команды /rc (1.4.0 → 1.9.0-fix4).
  *
- * 1.9.0-fix: /rc 1–5 БОЛЬШЕ НЕ применяют способности — только справка;
- * применение исключительно через свитки/бинды в хотбаре (решение владельца).
- * Команд талантов нет: управление деревом — только в Книге класса (вкладка TALENTS).
- *
- * Подкоманды:
- *  /rc            — сводка игрока;
- *  /rc 1–5        — справка «применение только через бинды»;
- *  /rc 6          — справка по спеке (пассивная идентичность);
- *  /rc 7          — постановка инсталляции своего класса;
- *  /rc menu       — Книга класса (4 вкладки);
- *  /rc reload     — перезагрузка конфигурации (admin);
- *  /rc debug [player] — диагностика;
- *  /rc debug simulate [A] [B] [level] — headless-дуэль TTK-харнесса;
- *  /rc debug simulate matrix [level]  — матрица 5×5 TTK;
- *  /rc health     — метрики живого сервера (debug);
- *  /rc selftest   — headless-самотестирование (debug).
+ * 1.9.0-fix4: ЦИФРОВЫХ ПОДКОМАНД НЕТ ВООБЩЕ (1–7 удалены по решению владельца):
+ * способности и инсталляции применяются ТОЛЬКО свитками в хотбаре.
+ * Команды: /rc (сводка), /rc menu, /rc reload, /rc debug…, /rc health, /rc selftest.
+ * Управления талантами через команды нет — только Книга класса (вкладка TALENTS).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUBS = List.of(
-            "6", "7", "menu", "reload", "debug", "health", "selftest");
+            "menu", "reload", "debug", "health", "selftest");
 
     private final RaskolClasses plugin;
 
@@ -67,28 +53,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         String sub = args[0].toLowerCase(Locale.ROOT);
-
-        // /rc 1–5 — справка (применение только через бинды/свитки)
-        if (sub.length() == 1 && Character.isDigit(sub.charAt(0)) && sender instanceof Player p) {
-            int slot = sub.charAt(0) - '0';
-            if (slot >= 1 && slot <= 5) {
-                p.sendMessage(Component.text(
-                        "Способности применяются только через свитки в хотбаре (ПКМ — свиток, ЛКМ по цели/себе).",
-                        NamedTextColor.GRAY));
-                return true;
-            }
-            if (slot == 6) {
-                p.sendMessage(Component.text(
-                        "Спека — пассивная идентичность: резисты и проки работают постоянно. "
-                                + "Дерево талантов спеки — в Книге класса (/rc menu → вкладка «Таланты»).",
-                        NamedTextColor.GRAY));
-                return true;
-            }
-            if (slot == 7) {
-                plugin.getInstallations().tryPlace(p);
-                return true;
-            }
-        }
 
         switch (sub) {
             case "menu" -> {
@@ -346,9 +310,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 NamedTextColor.GRAY));
         sender.sendMessage(Component.text("/rc menu — Книга класса (способности, спеки, класс, таланты)",
                 NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("/rc 7 — постановка инсталляции своего класса",
-                NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("Способности 1–5 — только через свитки в хотбаре",
+        sender.sendMessage(Component.text("Способности 1–5 и инсталляции — только свитками в хотбаре",
                 NamedTextColor.GRAY));
         if (sender.hasPermission("raskolclasses.debug")) {
             sender.sendMessage(Component.text("/rc debug [player] — диагностика",
