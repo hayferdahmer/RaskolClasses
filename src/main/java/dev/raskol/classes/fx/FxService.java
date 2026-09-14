@@ -29,10 +29,10 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * VFX/SFX-слой (1.5.0 → 1.9.0-fix3).
- * 1.9.0-fix3: заряженные снаряды больше НЕ Fireball (он взрывается как TNT):
- * киты пускают Snowball/Egg, а FxService рисует огненный трейл партиклами
- * и вспышку/звук попадания; взрывов и разрушения блоков нет вообще.
+ * VFX/SFX-слой (1.5.0 → 1.9.0-fix4).
+ * 1.9.0-fix4: трейл заряженного снаряда переписан на Runnable + holder-массив
+ * (фикс «void cannot be converted to BukkitTask»); снаряды — Snowball/Egg,
+ * взрывов и разрушения блоков нет; попадание = вспышка + звук из vfx-конфига.
  */
 public final class FxService implements Listener {
 
@@ -145,24 +145,27 @@ public final class FxService implements Listener {
 
     /**
      * Зарядить снаряд уроном/поджогом. Снаряд — ЛЮБОЙ небомбовый (Snowball/Egg):
-     * FxService сам рисует трейл и попадание, взрыва нет.
+     * FxService рисует огненный трейл и вспышку попадания; взрыва нет.
+     * 1.9.0-fix4: трейл-таск создаётся через Runnable + holder-массив (самоотмена).
      */
     public void chargeProjectile(UUID projectileId, UUID caster, String abilityId,
                                  double phys, double magic, int fireTicks) {
         chargedShots.put(projectileId, new ChargedShot(caster, abilityId, phys, magic, fireTicks,
                 System.currentTimeMillis() + 6000L));
-        // огненный трейл: партиклы по позиции снаряда каждые 2 тика до смерти/попадания
-        BukkitTask trail = plugin.getServer().getScheduler().runTaskTimer(plugin, task -> {
+        final BukkitTask[] holder = new BukkitTask[1];
+        holder[0] = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
             Entity e = plugin.getServer().getEntity(projectileId);
             if (e == null || e.isDead() || !chargedShots.containsKey(projectileId)) {
-                task.cancel();
                 trailTasks.remove(projectileId);
+                if (holder[0] != null) {
+                    holder[0].cancel();
+                }
                 return;
             }
             e.getWorld().spawnParticle(Particle.FLAME, e.getLocation(), 3, 0.05, 0.05, 0.05, 0.01);
             e.getWorld().spawnParticle(Particle.SMOKE, e.getLocation(), 1, 0.02, 0.02, 0.02, 0.005);
         }, 0L, 2L);
-        trailTasks.put(projectileId, trail);
+        trailTasks.put(projectileId, holder[0]);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
