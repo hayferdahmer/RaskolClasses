@@ -15,9 +15,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Свиток постановки инсталляции (1.5.x → 1.9.0-fix3).
- * 1.9.0-fix3: честная лора: для Ледяной руны — зона 8 блоков, 30 с,
- * нарастающий урон/замедление, бафф мага внутри, КД 60 с (а не старое «TTL 60»).
+ * Свиток постановки инсталляции (1.5.x → 1.9.0-fix4).
+ * 1.9.0-fix4: добавлен isInstallScroll(ItemStack) — его вызывает ScrollSanitizer
+ * для сжигания устаревших свитков инсталляций на join.
+ * Лора честная: для Ледяной руны — зона 8 блоков, 30 с, нарастающий урон/замедление,
+ * бафф мага внутри, КД 60 с.
  */
 public final class InstallToken {
 
@@ -74,6 +76,7 @@ public final class InstallToken {
         };
     }
 
+    /** Тип инсталляции из свитка; null если предмет не свиток инсталляции. */
     public InstallationType readType(ItemStack item) {
         if (item == null || !item.hasItemMeta()) {
             return null;
@@ -87,5 +90,10 @@ public final class InstallToken {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    /** true, если предмет — свиток инсталляции (для ScrollSanitizer). */
+    public boolean isInstallScroll(ItemStack item) {
+        return readType(item) != null;
     }
 }
