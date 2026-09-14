@@ -29,14 +29,15 @@ import java.util.logging.Logger;
 /**
  * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия), 0–100.
  * Реген-правила по классам (тик 1 раз/с): воин −5/с вне боя; охотник +5/с вне боя;
- * жрец +2/с всегда; маг тиры 3/4/5/6 по порогам 25/50/75; разбойник +10/с.
+ * жрец +2/с всегда; маг тиры 1.0/1.5/2.0/2.5 по порогам 25/50/75; разбойник +10/с.
  * Боевые прибавки: воин +10 за нанесённый/полученный урон (кап 1 раз/с),
  * жрец +5 за событие лечения (кап 1 раз/с).
  *
  * 1.7.4.1: персист resources.yml через SafeStorage (сейв на quit + автосейв).
- * 1.9.0: реген-бонус талантов (TalentService.regenBonus) добавляется к класс-регену;
- *        ресурс за лечение начисляется ХИЛЕРУ через маркер PassiveListener.
- * 1.9.0-fix: маркер хилера (UUID) резолвится в Player через сервер перед getClassOf.
+ * 1.9.0: реген-бонус талантов; ресурс за лечение начисляется ХИЛЕРУ через маркер.
+ * 1.9.0-fix6 (баг «мана не тратится»): consume делегирует в ResourceState.consume.
+ * Ранее здесь было st.add(-amount), а add() игнорирует отрицательные числа —
+ * списание возвращало true, но значение не менялось (замкнутый круг защиты).
  */
 public final class ResourceService implements Listener {
 
@@ -69,13 +70,9 @@ public final class ResourceService implements Listener {
         return stateOf(uuid).getValue();
     }
 
+    /** 1.9.0-fix6: единственная точка списания — ResourceState.consume. */
     public boolean consume(UUID uuid, double amount) {
-        ResourceState st = stateOf(uuid);
-        if (st.getValue() < amount) {
-            return false;
-        }
-        st.add(-amount);
-        return true;
+        return stateOf(uuid).consume(amount);
     }
 
     public void refund(UUID uuid, double amount) {
@@ -146,7 +143,6 @@ public final class ResourceService implements Listener {
                 }
                 default -> rate = config.resourceRegen(pc); // PRIEST, ROGUE
             }
-            // 1.9.0: реген-бонус талантов (regen-узлы дерева)
             rate += plugin.getTalentService().regenBonus(uuid);
 
             if (rate != 0.0) {
@@ -195,12 +191,10 @@ public final class ResourceService implements Listener {
         if (!(event.getEntity() instanceof Player)) {
             return;
         }
-        // Прибавка ресурса за событие лечения — тому, КТО лечил (маркер из PriestAbilities).
         UUID healer = PassiveListener.pollHealerMark();
         if (healer == null) {
             return;
         }
-        // 1.9.0-fix: UUID → Player через сервер (getClassOf принимает Player)
         Player healerPlayer = plugin.getServer().getPlayer(healer);
         if (healerPlayer == null) {
             return;
