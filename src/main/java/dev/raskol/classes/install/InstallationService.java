@@ -46,7 +46,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - визуал: рунное кольцо из столбов партиклов PORTAL по периметру (границы видны),
  *    эмбиент искажённого портала от самой руны, звук снятия на истечении.
  *
- * 1.9.0-fix: звук trapdoor в Paper 1.21 = BLOCK_IRON_TRAPDOOR_CLOSE (не ENTITY_).
+ * 1.9.0-fix5 (пункт 7): публичные placeCooldownRemaining/placeCooldownTotalMillis —
+ * ScrollCooldownTask рисует строку КД на свитке инсталляции в хотбаре.
  */
 public final class InstallationService {
 
@@ -190,6 +191,22 @@ public final class InstallationService {
         return cfgI("installations.ttl-seconds", 60);
     }
 
+    /* ------------------- 1.9.0-fix5: КД для бара на свитке ------------------- */
+
+    /** Остаток КД постановки в мс (0 = готова). */
+    public long placeCooldownRemaining(UUID uuid, InstallationType type) {
+        Long next = placeCooldowns.get(uuid + ":" + type.name());
+        if (next == null) {
+            return 0L;
+        }
+        return Math.max(0L, next - System.currentTimeMillis());
+    }
+
+    /** Полный КД постановки в мс (для прогресс-бара/строки). */
+    public long placeCooldownTotalMillis(InstallationType type) {
+        return typeCooldownSeconds(type) * 1000L;
+    }
+
     /* ------------------------------ руна-зона ------------------------------ */
 
     private boolean placeRune(Player p, Location loc, int cooldown) {
@@ -211,7 +228,7 @@ public final class InstallationService {
                 duration * 20, 40);
         runes.put(rune.id, rune);
 
-        // 1.9.0-fix: визуальное кольцо по периметру (столбы партиклов каждые 20 тиков),
+        // визуальное кольцо по периметру (столбы партиклов каждые 20 тиков),
         // самоотменяется, когда руна исчезает из карты
         double radius = cfgD("installations.frost_rune.radius", 8.0);
         plugin.getServer().getScheduler().runTaskTimer(plugin, task -> {
