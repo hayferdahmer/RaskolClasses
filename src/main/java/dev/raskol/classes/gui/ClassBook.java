@@ -6,11 +6,9 @@ import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
 import dev.raskol.classes.talent.TalentModel;
 import dev.raskol.classes.talent.TalentService;
@@ -20,6 +18,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -30,21 +29,18 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.enchantments.Enchantment;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Книга класса (1.5.4 + 1.6.6 + 1.7.0 + 1.8.0 + 1.9.0).
- * 1.9.0 (инкремент 3/4): вкладка TALENTS — дерево талантов активной спеки:
- *  сетка 9 узлов (T1a=2, T1b=6, T2a1=10, T2a2=12, T2b1=14, T2b2=16,
- *  T3a=20, T3b=24, T4=31), инфо-предмет очков (4), кристалл сброса (40).
- *  Покупка — клик по узлу, вся валидация серверная (TalentService.purchase).
- *  Сброс — ПКМ по кристаллу дважды с окном 30 с (анти-мисклик).
+ * Книга класса (1.5.4 → 1.9.2): 4 вкладки (способности, спеки, класс, таланты).
+ * 1.9.2: покупка/сброс талантов обрабатывают RATE_LIMITED (пакет-спам кликами);
+ * инфо-предмет очков помечает, что очки — ОБЩИЙ бюджет персонажа (все деревья).
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -197,9 +193,9 @@ public final class ClassBook implements InventoryHolder {
             meta.displayName(Component.text("Таланты: " + spec.displayName(), NamedTextColor.GOLD));
             meta.lore(List.of(
                     Component.text("Очков доступно: " + available, NamedTextColor.AQUA),
-                    Component.text("Потрачено: " + talents.spentPoints(uuid, spec.id())
-                            + " / заработано: " + talents.earnedPoints(uuid), NamedTextColor.GRAY),
-                    Component.text("Очки растут с уровнем персонажа (топ-5 скиллов)", NamedTextColor.DARK_GRAY),
+                    Component.text("Потрачено всего: " + talents.spentGlobal(uuid)
+                            + " · заработано: " + talents.earnedPoints(uuid), NamedTextColor.GRAY),
+                    Component.text("Очки — общий бюджет персонажа (все деревья)", NamedTextColor.DARK_GRAY),
                     Component.text("Клик по узлу — купить талант", NamedTextColor.GREEN)));
         });
         inventory.setItem(SLOT_TALENT_INFO, info);
@@ -218,7 +214,7 @@ public final class ClassBook implements InventoryHolder {
                     Component.text("Цена: " + plugin.getConfig().getInt("talents.reset-base", 500)
                             + " + " + plugin.getConfig().getInt("talents.reset-per-point", 25)
                             + "×потрачено монет", NamedTextColor.RED),
-                    Component.text("Очки возвращаются в пул", NamedTextColor.GRAY)));
+                    Component.text("Очки возвращаются в общий пул", NamedTextColor.GRAY)));
         });
         inventory.setItem(SLOT_TALENT_RESET, reset);
     }
@@ -341,10 +337,8 @@ public final class ClassBook implements InventoryHolder {
                 meta.addEnchant(Enchantment.LURE, 1, true);
                 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             }
-            List<Component> lore = new ArrayList<>();
-            lore.add(Component.text(msg(plugin, "book.tab.hint", "Клик — открыть вкладку"),
-                    NamedTextColor.DARK_GRAY));
-            meta.lore(lore);
+            meta.lore(List.of(Component.text(msg(plugin, "book.tab.hint", "Клик — открыть вкладку"),
+                    NamedTextColor.DARK_GRAY)));
         });
         return item;
     }
@@ -367,7 +361,7 @@ public final class ClassBook implements InventoryHolder {
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text(msg(plugin,
-                    "book.resource." + pc.name().toLowerCase(), resourceRulesDef(pc)),
+                    "book.resource." + pc.name().toLowerCase(Locale.ROOT), resourceRulesDef(pc)),
                     NamedTextColor.GRAY));
             lore.add(Component.text(msg(plugin, "book.emblem.resource", "Ресурс сейчас: {value}/100")
                     .replace("{value}", String.valueOf(
@@ -387,14 +381,14 @@ public final class ClassBook implements InventoryHolder {
             case WARRIOR -> "Ярость: −5/с вне боя; +10 за урон (нанёс/получил)";
             case HUNTER -> "Концентрация: +5/с вне боя; +4 за попадание в бою";
             case PRIEST -> "Свет: +2/с всегда; +5 за событие лечения";
-            case MAGE -> "Мана: +3/4/5/6 в секунду по порогам 25/50/75";
+            case MAGE -> "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75";
             case ROGUE -> "Энергия: +10/с";
         };
     }
 
     private ItemStack resistItem(RaskolClasses plugin, Player player, PlayerClass pc) {
         UUID uuid = player.getUniqueId();
-        ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
+        var rb = plugin.getResists().breakdown(uuid);
         ItemStack item = new ItemStack(Material.SHIELD);
         item.editMeta(meta -> {
             meta.displayName(TextFx.gradient(msg(plugin, "book.resist.title", "Сопротивления"),
@@ -414,7 +408,7 @@ public final class ClassBook implements InventoryHolder {
                 lore.add(Component.text(msg(plugin, "book.resist.none",
                         "Активных модификаторов нет"), NamedTextColor.DARK_GRAY));
             } else {
-                for (ResistService.Modifier m : rb.active()) {
+                for (var m : rb.active()) {
                     lore.add(Component.text(msg(plugin, "book.resist.mod",
                             "• {source}: +{phys} физ / +{magic} маг")
                             .replace("{source}", m.source())
@@ -431,7 +425,6 @@ public final class ClassBook implements InventoryHolder {
         return item;
     }
 
-    /** 1.8.0: первая строка лора — уровень персонажа (топ-N скиллов, кап). */
     private ItemStack attributesItem(RaskolClasses plugin, Player player, PlayerClass pc) {
         UUID uuid = player.getUniqueId();
         AttributeService attrs = plugin.getAttributes();
@@ -522,24 +515,6 @@ public final class ClassBook implements InventoryHolder {
             lore.add(Component.text(msg(plugin, "book.unlock", "Открытие: уровень {level}")
                     .replace("{level}", String.valueOf(def.unlockLevel())),
                     unlocked ? NamedTextColor.GREEN : NamedTextColor.RED));
-            double grantPhys = plugin.getConfig()
-                    .getDouble("resist.grants." + def.id() + ".physical", 0.0);
-            double grantMagic = plugin.getConfig()
-                    .getDouble("resist.grants." + def.id() + ".magic", 0.0);
-            if (grantPhys > 0.0) {
-                int secs = cfg.durationSeconds(pc, def.id(), 0);
-                lore.add(Component.text(msg(plugin, "book.resist.grant",
-                        "Даёт: +{phys}% физрезиста на {sec} с")
-                        .replace("{phys}", String.valueOf((int) grantPhys))
-                        .replace("{sec}", String.valueOf(secs)), NamedTextColor.AQUA));
-            }
-            if (grantMagic > 0.0) {
-                int secs = cfg.durationSeconds(pc, def.id(), 0);
-                lore.add(Component.text(msg(plugin, "book.resist.grant-magic",
-                        "Даёт: +{magic}% магрезиста на {sec} с")
-                        .replace("{magic}", String.valueOf((int) grantMagic))
-                        .replace("{sec}", String.valueOf(secs)), NamedTextColor.AQUA));
-            }
             lore.add(Component.text(scrolls > 0
                     ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
                             .replace("{count}", String.valueOf(scrolls))
@@ -568,7 +543,8 @@ public final class ClassBook implements InventoryHolder {
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text(msg(plugin,
-                    "book.install.desc." + type.id(), installDescDef(type)), NamedTextColor.WHITE));
+                    "book.install.desc." + type.id().toLowerCase(Locale.ROOT), installDescDef(type)),
+                    NamedTextColor.WHITE));
             lore.add(Component.text(msg(plugin, "book.install.active", "Активно: {count}/2 · TTL {ttl} с")
                     .replace("{count}", String.valueOf(
                             plugin.getInstallations().countOf(player.getUniqueId())))
@@ -595,13 +571,13 @@ public final class ClassBook implements InventoryHolder {
             case WAR_BANNER -> "Аура: Resistance I союзникам в радиусе 6 на 8 с";
             case BEAR_TRAP -> "Мина: Slowness VI 2 с + 3 урона шагнувшему врагу";
             case LIGHT_WARD -> "Зона: +2 HP/с союзникам в радиусе 4 на 6 с";
-            case FROST_RUNE -> "Мина: 4 урона + Slowness II 3 с врагам в радиусе 3";
+            case FROST_RUNE -> "Руна-зона 8 блоков 30 с: урон+замедление врагам с нарастанием; магу внутри +3 маны/с и ИНТ×2";
             case SMOKE_BOMB -> "Мина: Blindness 2 с врагам + Speed I себе 3 с";
         };
     }
 
     private ItemStack specItem(RaskolClasses plugin, Player player, PlayerClass pc, Spec spec) {
-        SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(spec);
+        var def = plugin.getSpecRegistry().get(spec);
         Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         item.editMeta(meta -> {
@@ -612,21 +588,12 @@ public final class ClassBook implements InventoryHolder {
             if (def != null) {
                 lore.add(Component.text(msg(plugin, "book.spec.passive", "Пассив: {text}")
                         .replace("{text}", def.passiveDescription()), NamedTextColor.WHITE));
-                if (spec == Spec.GUARDIAN) {
-                    double g = plugin.getConfig()
-                            .getDouble("resist.specs.guardian.physical", 10.0);
-                    lore.add(Component.text(msg(plugin, "book.resist.spec",
-                            "Пассив: +{phys}% физрезиста постоянно")
-                            .replace("{phys}", String.valueOf((int) g)),
-                            NamedTextColor.AQUA));
-                }
             }
             lore.add(Component.text(""));
             if (current == spec) {
                 lore.add(Component.text(msg(plugin, "book.spec.chosen", "Выбрана тобой"),
                         NamedTextColor.GREEN));
-                lore.add(Component.text("Пассивка работает постоянно",
-                        NamedTextColor.DARK_GRAY));
+                lore.add(Component.text("Пассивка работает постоянно", NamedTextColor.DARK_GRAY));
             } else if (current == null) {
                 lore.add(Component.text(msg(plugin, "book.spec.notchosen",
                         "Не выбрана · ПКМ — выбрать (уровень 40+)"), NamedTextColor.YELLOW));
@@ -676,7 +643,7 @@ public final class ClassBook implements InventoryHolder {
                     NamedTextColor.AQUA));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text(cfg.passiveDescription(pc, id, ""), NamedTextColor.WHITE));
-            lore.add(Component.text(passiveNumbers(pc, id), NamedTextColor.GRAY));
+            lore.add(Component.text(passiveNumbers(id), NamedTextColor.GRAY));
             meta.lore(lore);
         });
         return item;
@@ -702,7 +669,7 @@ public final class ClassBook implements InventoryHolder {
         return item;
     }
 
-    private static String passiveNumbers(PlayerClass pc, String id) {
+    private static String passiveNumbers(String id) {
         return switch (id) {
             case "execute_passive" -> "20% шанс · ×3 · порог HP 20% · КД 6 с";
             case "predator" -> "порог HP 80% · ×1.2";
@@ -723,10 +690,10 @@ public final class ClassBook implements InventoryHolder {
         return -1;
     }
 
-    /** Обработчик кликов книги. 1.9.0: вкладка TALENTS — покупка/сброс талантов. */
+    /** Обработчик кликов книги. 1.9.2: RATE_LIMITED в покупке и сбросе талантов. */
     public static final class ClickHandler implements Listener {
 
-        private static final Map<UUID, Long> RESET_ARM = new java.util.concurrent.ConcurrentHashMap<>();
+        private static final Map<UUID, Long> RESET_ARM = new ConcurrentHashMap<>();
 
         private final RaskolClasses plugin;
 
@@ -895,11 +862,12 @@ public final class ClassBook implements InventoryHolder {
                             TalentService.ResetResult result =
                                     plugin.getTalentService().reset(player, free);
                             player.sendMessage(Component.text(switch (result) {
-                                case OK -> "Дерево талантов сброшено: очки возвращены в пул.";
+                                case OK -> "Дерево талантов сброшено: очки возвращены в общий пул.";
                                 case NO_SPEC -> "Спека не выбрана — сбрасывать нечего.";
                                 case NO_PURCHASED -> "В дереве нет купленных узлов.";
                                 case POOR -> "Не хватает монет на сброс талантов.";
                                 case NO_ECONOMY -> "Экономика недоступна — сброс отключён.";
+                                case RATE_LIMITED -> "Слишком часто: подожди мгновение и повтори.";
                             }, result == TalentService.ResetResult.OK
                                     ? NamedTextColor.GREEN : NamedTextColor.RED));
                         }
@@ -929,6 +897,7 @@ public final class ClassBook implements InventoryHolder {
                             case PREREQ_MISSING -> "Сначала изучи предыдущие узлы ветки.";
                             case NOT_ENOUGH_POINTS -> "Не хватает очков талантов.";
                             case ALREADY_OWNED -> "Талант уже изучен.";
+                            case RATE_LIMITED -> "Слишком часто: подожди мгновение и повтори.";
                         }, result == TalentService.PurchaseResult.OK
                                 ? NamedTextColor.GREEN : NamedTextColor.GRAY));
                         book.refresh(plugin, player);
