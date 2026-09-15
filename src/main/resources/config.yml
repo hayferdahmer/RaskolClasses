@@ -42,6 +42,7 @@ hotbar-bind:
   enabled: true
   material: AMETHYST_SHARD
   cooldown-bar: true
+  cooldown-mode: both   # both | bossbar | lore
 
 target-cast:
   enabled: true
