@@ -13,6 +13,7 @@ import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.ConfigValidator;
 import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.flavor.CrownFlavorService;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
@@ -31,6 +32,7 @@ import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
 import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.resource.ResourceService;
+import dev.raskol.classes.spec.SpecEffects;
 import dev.raskol.classes.spec.SpecListener;
 import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
@@ -57,8 +59,8 @@ import java.util.List;
  * reconcile талантов на join и /rc reload, очистка кэша на quit.
  * 1.9.0-fix: FxService теперь Listener (onProjectileHit для заряженных снарядов
  * китов); регистрация слушателя fx добавлена в блок pluginManager.registerEvents.
- * 1.9.1: удалены мёртвые ActiveEffectManager и SpecEffects (не использовались
- * после переписывания китов 1.7.x и удаления активных спеков 1.7.5).
+ * 1.9.1: боевое окно markCombat в ResourceService, регресс-чеки selftest 29–30,
+ * расширение ConfigValidator.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -69,6 +71,7 @@ public final class RaskolClasses extends JavaPlugin {
     private ResourceService resources;
     private CooldownManager cooldowns;
     private AbilityRegistry abilities;
+    private ActiveEffectManager effects;
     private HudService hud;
     private BossBarService bossBars;
     private HpBarService hpBarService;
@@ -77,6 +80,7 @@ public final class RaskolClasses extends JavaPlugin {
     private SpecRegistry specRegistry;
     private SpecStorage specStorage;
     private SpecService specService;
+    private SpecEffects specEffects;
     private SpecToken specToken;
 
     private TalentsStorage talentsStorage;
@@ -127,6 +131,7 @@ public final class RaskolClasses extends JavaPlugin {
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
                 raskolConfig.readyNotifyMessage());
+        this.effects = new ActiveEffectManager();
 
         this.abilities = new AbilityRegistry(this);
         abilities.loadFromConfig(raskolConfig);
@@ -153,6 +158,7 @@ public final class RaskolClasses extends JavaPlugin {
         specRegistry.load();
         this.specStorage = new SpecStorage(this);
         specStorage.load();
+        this.specEffects = new SpecEffects(this);
         this.specService = new SpecService(this, specStorage, specRegistry);
         this.specToken = new SpecToken(this);
 
@@ -167,6 +173,7 @@ public final class RaskolClasses extends JavaPlugin {
         this.installToken = new InstallToken(this);
 
         pluginManager.registerEvents(resources, this);
+        pluginManager.registerEvents(effects, this);
         pluginManager.registerEvents(cooldowns, this);
         pluginManager.registerEvents(new PassiveListener(this), this);
         pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
@@ -227,6 +234,8 @@ public final class RaskolClasses extends JavaPlugin {
         int purgeInterval = raskolConfig.purgeIntervalTicks();
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
+            effects.purgeExpired();
+            specEffects.purgeExpired();
             abilities.purgeStaleAttempts();
             fx.purgeStale();
             installations.purgeStale();
@@ -270,6 +279,9 @@ public final class RaskolClasses extends JavaPlugin {
         }
         if (classProvider != null) {
             classProvider.shutdown();
+        }
+        if (effects != null) {
+            effects.clear();
         }
         if (specStorage != null) {
             specStorage.save();
@@ -326,6 +338,7 @@ public final class RaskolClasses extends JavaPlugin {
     public ResourceService getResources() { return resources; }
     public CooldownManager getCooldowns() { return cooldowns; }
     public AbilityRegistry getAbilities() { return abilities; }
+    public ActiveEffectManager getEffects() { return effects; }
     public HudService getHud() { return hud; }
     public BossBarService getBossBars() { return bossBars; }
     public HpBarService getHpBarService() { return hpBarService; }
@@ -333,6 +346,7 @@ public final class RaskolClasses extends JavaPlugin {
     public SpecRegistry getSpecRegistry() { return specRegistry; }
     public SpecStorage getSpecStorage() { return specStorage; }
     public SpecService getSpecService() { return specService; }
+    public SpecEffects getSpecEffects() { return specEffects; }
     public SpecToken getSpecToken() { return specToken; }
     public TalentsStorage getTalentsStorage() { return talentsStorage; }
     public TalentService getTalentService() { return talentService; }
