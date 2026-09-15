@@ -5,116 +5,98 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.install.InstallationType;
-import net.kyori.adventure.bossbar.BossBar;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Индикация перезарядки на свитках (1.5.6 → 1.9.0-fix10, v10).
+ * Индикатор кулдауна на свитке = ПОЛОСА ПРОЧНОСТИ (1.5.6 → 1.9.0-fix12, v12).
  *
- * РЕЖИМЫ (hotbar-bind.cooldown-mode), дефолт = legacy (выбор владельца):
- *  - legacy  : ТО САМОЕ «КАК РАНЬШЕ». Мутація меты живого ItemStack БЕЗ пакета
- *              set slot: рука НЕ дёргается никогда; строка «⏳ N с» видна на свитке
- *              при открытии инвентаря (E) и ресинке клиента. Босс-бара нет.
- *  - lore    : строка «⏳ N с» обновляется пакетом каждую секунду везде,
- *              включая предмет в руке (рука дёргается раз в секунду).
- *  - bossbar : живой счётчик босс-баром над хотбаром; свиток в руке не трогается;
- *              цифры на свитке — когда он не в руке.
- *  - both    : босс-бар живой + цифры на свитке, когда он НЕ в руке; в руке свиток
- *              обновляется только 2 раза за каст (старт и готовность).
+ * Возвращает поведение «как было»: полоса прочности на аметисте как КД.
+ * Работает через Damageable#setMaxDamage/setDamage — с 1.20.5 прочность является
+ * компонентом и рисуется клиентом на ЛЮБОМ предмете, включая AMETHYST_SHARD.
+ * (Прежнее утверждение «на аметисте невозможно» было ошибочным.)
  *
- * Техническая база legacy: CraftInventoryPlayer.getItem отдаёт write-through mirror —
- * setItemMeta на нём пишет в серверное состояние без пакета клиенту, поэтому
- * дёргания нет, а при открытии окна инвентаря клиент забирает актуальную лору.
+ * Анти-дёргание: состояние бара обновляется каждую секунду БЕЗ пакета
+ * (мутация зеркала ItemStack). Пакет setItem уходит только в три момента:
+ *  1) старт каста (маскируется кликом),
+ *  2) готовность (одно мигание как сигнал «готово»),
+ *  3) переключение на свиток (маскируется переключением).
+ * Посекундного дёргания руки нет. При открытом инвентаре клиент сам забирает
+ * актуальное состояние окна — бар виден и там.
  *
- * Маркер деплоя: при старте печатает «ScrollCooldownTask v10 active (mode=…)».
+ * МАРКЕР ДЕПЛОЯ: строка «ScrollCooldownTask v12 (durability-bar) active» в логе старта.
+ * Если её нет — на сервере стоит не этот jar, и чинить надо деплой, а не код.
  */
 public final class ScrollCooldownTask {
 
-    private static final String CD_PREFIX = "⏳";
-
     private final RaskolClasses plugin;
-    /** playerUUID → (slot → последние отображённые секунды). */
-    private final Map<UUID, Map<Integer, Long>> shown = new ConcurrentHashMap<>();
-    /** playerUUID → босс-бар кулдауна свитка в руке (только режимы bossbar/both). */
-    private final Map<UUID, BossBar> bars = new ConcurrentHashMap<>();
+    /** player → slot → последние секунды, записанные в бар. */
+    private final Map<UUID, Map<Integer, Long>> barState = new ConcurrentHashMap<>();
+    /** player → последний held-слот (ловим переключения). */
+    private final Map<UUID, Integer> lastHeld = new ConcurrentHashMap<>();
 
     public ScrollCooldownTask(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
     public BukkitTask start() {
-        plugin.getLogger().info("ScrollCooldownTask v10 active (mode=" + mode() + ")");
+        plugin.getLogger().info("ScrollCooldownTask v12 (durability-bar) active");
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 10L, 10L);
     }
 
-    private String mode() {
-        String m = plugin.getConfig().getString("hotbar-bind.cooldown-mode", "legacy");
-        return m == null ? "legacy" : m.toLowerCase(Locale.ROOT);
-    }
-
     private void tick() {
-        String mode = mode();
-        boolean barOn = mode.equals("bossbar") || mode.equals("both");
-
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
-            Map<Integer, Long> slots = shown.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>());
-            PlayerClass pc = plugin.getClassProvider().getClassOf(player);
+            Map<Integer, Long> slots = barState.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>());
             var inv = player.getInventory();
             int held = inv.getHeldItemSlot();
+            Integer prevHeld = lastHeld.get(uuid);
+            boolean heldChanged = prevHeld == null || prevHeld != held;
+            lastHeld.put(uuid, held);
 
-            long heldRemaining = -1L;
-            long heldTotal = -1L;
-            String heldName = null;
+            PlayerClass pc = plugin.getClassProvider().getClassOf(player);
 
             for (int slot = 0; slot < 36; slot++) {
                 ItemStack item = inv.getItem(slot);
                 if (item == null) {
+                    slots.remove(slot);
                     continue;
                 }
                 long remaining = -1L;
                 long total = -1L;
-                String name = null;
                 String abilityId = plugin.getTokens().readId(item);
                 if (abilityId != null && pc != null) {
                     AbilityDef def = plugin.getAbilities().findById(pc, abilityId);
                     if (def != null) {
                         remaining = plugin.getCooldowns().getRemainingMillis(uuid, abilityId);
                         total = def.cooldownMillis();
-                        name = def.displayName();
                     }
                 } else {
                     InstallationType type = plugin.getInstallToken().readType(item);
                     if (type != null) {
                         remaining = plugin.getInstallations().placeCooldownRemaining(uuid, type);
                         total = plugin.getInstallations().placeCooldownTotalMillis(type);
-                        name = type.displayName();
                     }
                 }
-                if (remaining < 0L || total <= 0L) {
+
+                // кулдауна нет (или предмет не свиток): гасим бар, если он был
+                if (remaining <= 0L || total <= 0L) {
+                    Long had = slots.remove(slot);
+                    if (had != null && had > 0L) {
+                        writeBar(item, 0L, 1L, true, inv, slot); // одно мигание «готово»
+                    }
                     continue;
                 }
-                boolean heldSlot = slot == held;
-                if (heldSlot) {
-                    heldRemaining = remaining;
-                    heldTotal = total;
-                    heldName = name;
-                }
 
-                long seconds = remaining > 0L ? (remaining / 1000L) + 1L : 0L;
+                long seconds = (remaining + 999L) / 1000L;              // ceil
+                long totalSec = Math.max(1L, (total + 999L) / 1000L);
                 Long last = slots.get(slot);
                 long lastVal = last == null ? -1L : last;
                 if (lastVal == seconds) {
@@ -122,93 +104,68 @@ public final class ScrollCooldownTask {
                 }
                 slots.put(slot, seconds);
 
-                switch (mode) {
-                    case "legacy" ->
-                        // мутация меты без пакета: рука не дёргается, клиент заберёт при ресинке
-                            applyLore(item, seconds);
-                    case "lore" -> {
-                        applyLore(item, seconds);
-                        inv.setItem(slot, item);
-                    }
-                    case "bossbar" -> {
-                        if (!heldSlot) {
-                            applyLore(item, seconds);
-                            inv.setItem(slot, item);
-                        }
-                    }
-                    case "both" -> {
-                        if (!heldSlot || seconds == 0L || lastVal == -1L) {
-                            applyLore(item, seconds);
-                            inv.setItem(slot, item);
-                        }
-                    }
-                    default -> applyLore(item, seconds);
-                }
+                boolean packet =
+                        (lastVal <= 0L && seconds > 0L)   // старт каста
+                        || (slot == held && heldChanged); // переключились на этот свиток
+                writeBar(item, seconds, totalSec, packet, inv, slot);
             }
 
-            // босс-бар только в режимах bossbar/both
-            if (barOn) {
-                BossBar bar = bars.get(uuid);
-                if (heldRemaining > 0L && heldName != null && heldTotal > 0L) {
-                    long secs = heldRemaining / 1000L + 1L;
-                    float progress = (float) Math.max(0.0, Math.min(1.0, (double) heldRemaining / heldTotal));
-                    Component title = Component.text(CD_PREFIX + " " + heldName + " — " + secs + " с",
-                            NamedTextColor.AQUA);
-                    if (bar == null) {
-                        bar = BossBar.bossBar(title, progress, BossBar.Color.BLUE,
-                                BossBar.Overlay.PROGRESS);
-                        bars.put(uuid, bar);
-                        player.showBossBar(bar);
-                    } else {
-                        bar.name(title);
-                        bar.progress(progress);
+            // переключились на свиток с КД — освежаем бар пакетом (маскируется переключением)
+            if (heldChanged) {
+                ItemStack heldItem = inv.getItem(held);
+                if (heldItem != null) {
+                    Long s = slots.get(held);
+                    if (s != null && s > 0L) {
+                        writeBar(heldItem, s, totalSecOf(uuid, pc, heldItem), true, inv, held);
                     }
-                } else if (bar != null) {
-                    player.hideBossBar(bar);
-                    bars.remove(uuid);
-                }
-            } else {
-                BossBar bar = bars.remove(uuid);
-                if (bar != null) {
-                    player.hideBossBar(bar);
                 }
             }
-
-            slots.keySet().removeIf(slot -> {
-                ItemStack it = inv.getItem(slot);
-                if (it == null) {
-                    return true;
-                }
-                return plugin.getTokens().readId(it) == null
-                        && plugin.getInstallToken().readType(it) == null;
-            });
         }
-
-        shown.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null);
-        bars.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null);
+        barState.keySet().removeIf(u -> plugin.getServer().getPlayer(u) == null);
+        lastHeld.keySet().removeIf(u -> plugin.getServer().getPlayer(u) == null);
     }
 
-    private void applyLore(ItemStack item, long seconds) {
+    private long totalSecOf(UUID uuid, PlayerClass pc, ItemStack item) {
+        String abilityId = plugin.getTokens().readId(item);
+        if (abilityId != null && pc != null) {
+            AbilityDef def = plugin.getAbilities().findById(pc, abilityId);
+            if (def != null) {
+                return Math.max(1L, (def.cooldownMillis() + 999L) / 1000L);
+            }
+        }
+        InstallationType type = plugin.getInstallToken().readType(item);
+        if (type != null) {
+            return Math.max(1L,
+                    (plugin.getInstallations().placeCooldownTotalMillis(type) + 999L) / 1000L);
+        }
+        return 1L;
+    }
+
+    /**
+     * Пишет бар. packet=true → inv.setItem (обновление клиента);
+     * packet=false → мутация на месте без пакета (без дёргания).
+     */
+    private void writeBar(ItemStack item, long seconds, long totalSec, boolean packet,
+                          org.bukkit.inventory.PlayerInventory inv, int slot) {
         ItemMeta meta = item.getItemMeta();
-        if (meta == null) {
+        if (!(meta instanceof Damageable dmg)) {
             return;
         }
-        List<Component> lore = meta.hasLore() ? new ArrayList<>(meta.lore()) : new ArrayList<>();
-        boolean had = lore.removeIf(ScrollCooldownTask::isCooldownLine);
-        if (seconds > 0) {
-            lore.add(Component.text(CD_PREFIX + " Перезарядка: " + seconds + " с", NamedTextColor.RED));
-            meta.lore(lore);
+        if (seconds <= 0L) {
+            if (dmg.hasMaxDamage() || dmg.hasDamage()) {
+                dmg.resetMaxDamage();
+                dmg.setDamage(0);
+                item.setItemMeta(meta);
+            }
+        } else {
+            int max = (int) Math.max(1L, totalSec);
+            int cur = (int) Math.max(1L, Math.min(max, seconds));
+            dmg.setMaxDamage(max);
+            dmg.setDamage(cur);
             item.setItemMeta(meta);
-            return;
         }
-        if (had) {
-            meta.lore(lore);
-            item.setItemMeta(meta);
+        if (packet) {
+            inv.setItem(slot, item);
         }
-    }
-
-    private static boolean isCooldownLine(Component line) {
-        String plain = PlainTextComponentSerializer.plainText().serialize(line);
-        return plain.startsWith(CD_PREFIX);
     }
 }
