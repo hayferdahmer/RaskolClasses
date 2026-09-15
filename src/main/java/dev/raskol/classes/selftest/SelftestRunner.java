@@ -18,7 +18,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -30,8 +30,8 @@ import java.util.UUID;
  * Чек 21: фракционный гейт canHit (1.8.1).
  * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
  * Чек 24: reconcile-цикл талантов (1.9.0).
- * Чек 29: боевое окно markCombat/isInCombat (1.9.1).
- * Чек 30: семантика consume — регресс-замок бага «ресурс не списывается» (1.9.1).
+ * Чеки 29–30: боевое окно и семантика consume (1.9.1).
+ * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг битых узлов (1.9.2).
  */
 public final class SelftestRunner {
 
@@ -198,14 +198,7 @@ public final class SelftestRunner {
                 String specId = probeSpec.id();
                 TalentModel.TalentTree tree = TalentsRegistry.treeOf(specId);
                 if (tree != null) {
-                    TalentModel.TalentNode t1a = null;
-                    for (TalentModel.TalentNode node : tree.nodes()) {
-                        if (node.tier() == 1 && "A".equals(node.branch())
-                                && node.prereqs().isEmpty()) {
-                            t1a = node;
-                            break;
-                        }
-                    }
+                    TalentModel.TalentNode t1a = firstT1(tree);
                     if (t1a != null) {
                         List<String> before = plugin.getTalentsStorage()
                                 .getPurchased(probeUuid, specId);
@@ -241,7 +234,7 @@ public final class SelftestRunner {
             }
         }
 
-        // 29 (1.9.1): боевое окно: свежее состояние вне боя, после markCombat — в бою
+        // 29 (1.9.1): боевое окно
         ResourceState rsWindow = new ResourceState();
         boolean freshOut = !rsWindow.isInCombat(5000L);
         rsWindow.markCombat();
@@ -253,7 +246,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 30 (1.9.1): семантика consume — регресс-замок бага «ресурс не списывается»
+        // 30 (1.9.1): семантика consume
         ResourceState rsConsume = new ResourceState();
         rsConsume.setValue(10.0);
         boolean overDenied = !rsConsume.consume(15.0);
@@ -268,6 +261,107 @@ public final class SelftestRunner {
             passed++;
         } else {
             failed++;
+        }
+
+        // 31 (1.9.2): ГЛОБАЛЬНЫЙ бюджет очков: покупки в двух деревьях съедают общий пул
+        if (probe == null) {
+            if (check(report, "31", "глобальный бюджет очков (пропущено: нет онлайн-игрока)",
+                    true, "spentGlobal", "skip")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        } else {
+            boolean ok31 = false;
+            String got31 = "need-2-specs";
+            UUID pu = probe.getUniqueId();
+            Spec[] all = Spec.values();
+            if (all.length >= 2) {
+                String specA = all[0].id();
+                String specB = all[1].id();
+                TalentModel.TalentTree treeA = TalentsRegistry.treeOf(specA);
+                TalentModel.TalentTree treeB = TalentsRegistry.treeOf(specB);
+                if (treeA != null && treeB != null) {
+                    List<String> beforeA = new ArrayList<>(plugin.getTalentsStorage().getPurchased(pu, specA));
+                    List<String> beforeB = new ArrayList<>(plugin.getTalentsStorage().getPurchased(pu, specB));
+                    TalentModel.TalentNode nA = firstT1(treeA);
+                    TalentModel.TalentNode nB = firstT1(treeB);
+                    if (nA != null && nB != null) {
+                        int earned = plugin.getTalentService().earnedPoints(pu);
+                        plugin.getTalentService().forcePurchaseForTest(pu, specA, nA.id());
+                        plugin.getTalentService().forcePurchaseForTest(pu, specB, nB.id());
+                        int spent = plugin.getTalentService().spentGlobal(pu);
+                        int availA = plugin.getTalentService().availablePoints(pu, specA);
+                        int availB = plugin.getTalentService().availablePoints(pu, specB);
+                        ok31 = availA == availB
+                                && availA == Math.max(0, earned - spent)
+                                && spent >= nA.cost() + nB.cost();
+                        got31 = availA + "/" + availB + "/spent=" + spent;
+                    } else {
+                        got31 = "no-t1-nodes";
+                    }
+                    plugin.getTalentsStorage().setPurchased(pu, specA, beforeA);
+                    plugin.getTalentsStorage().setPurchased(pu, specB, beforeB);
+                    plugin.getTalentService().reconcile(pu);
+                }
+            }
+            if (check(report, "31", "глобальный бюджет: покупки в 2 деревьях съедают общий пул",
+                    ok31, "spentGlobal", got31)) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+
+        // 32 (1.9.2): reconcile-прунинг: неизвестный узел и узел без пререквизитов удаляются
+        if (probe == null) {
+            if (check(report, "32", "reconcile-прунинг битых узлов (пропущено: нет онлайн-игрока)",
+                    true, "validatePurchased", "skip")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        } else {
+            boolean ok32 = false;
+            String got32 = "no-spec";
+            UUID pu = probe.getUniqueId();
+            Spec spec = plugin.getSpecService().getSpec(pu);
+            if (spec == null) {
+                spec = Spec.values()[0];
+            }
+            TalentModel.TalentTree tree = TalentsRegistry.treeOf(spec.id());
+            if (tree != null) {
+                List<String> before = new ArrayList<>(plugin.getTalentsStorage().getPurchased(pu, spec.id()));
+                plugin.getTalentsStorage().setPurchased(pu, spec.id(),
+                        new ArrayList<>(List.of("nonexistent_node_xyz")));
+                plugin.getTalentService().reconcile(pu);
+                boolean prunedUnknown = plugin.getTalentsStorage().getPurchased(pu, spec.id()).isEmpty();
+
+                TalentModel.TalentNode withPrereq = null;
+                for (TalentModel.TalentNode n : tree.nodes()) {
+                    if (!n.prereqs().isEmpty()) {
+                        withPrereq = n;
+                        break;
+                    }
+                }
+                boolean prunedPrereq = true;
+                if (withPrereq != null) {
+                    plugin.getTalentsStorage().setPurchased(pu, spec.id(),
+                            new ArrayList<>(List.of(withPrereq.id())));
+                    plugin.getTalentService().reconcile(pu);
+                    prunedPrereq = plugin.getTalentsStorage().getPurchased(pu, spec.id()).isEmpty();
+                }
+                plugin.getTalentsStorage().setPurchased(pu, spec.id(), before);
+                plugin.getTalentService().reconcile(pu);
+                ok32 = prunedUnknown && prunedPrereq;
+                got32 = prunedUnknown + "/" + prunedPrereq;
+            }
+            if (check(report, "32", "reconcile-прунинг: неизвестный узел и узел без пререквизитов удаляются",
+                    ok32, "validatePurchased", got32)) {
+                passed++;
+            } else {
+                failed++;
+            }
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
@@ -287,6 +381,16 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
         plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
+    }
+
+    /** Первый узел тира 1 без пререквизитов (для тестов). */
+    private static TalentModel.TalentNode firstT1(TalentModel.TalentTree tree) {
+        for (TalentModel.TalentNode node : tree.nodes()) {
+            if (node.tier() == 1 && node.prereqs().isEmpty()) {
+                return node;
+            }
+        }
+        return null;
     }
 
     private static boolean check(StringBuilder report, String num, String desc,
