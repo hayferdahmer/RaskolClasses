@@ -33,12 +33,12 @@ import java.util.logging.Logger;
  * Боевые прибавки: воин +10 за нанесённый/полученный урон (кап 1 раз/с),
  * жрец +5 за событие лечения (кап 1 раз/с).
  *
- * 1.7.4.1: персист resources.yml через SafeStorage (сейв на quit + автосейв).
- * 1.9.0: реген-бонус талантов; ресурс за лечение начисляется ХИЛЕРУ через маркер;
- *        consume делегирует в ResourceState.consume (фикс «ресурс не тратится»).
- * 1.9.1: БОЕВОЕ ОКНО НАКОНЕЦ ВЫСТАВЛЯЕТСЯ: markCombat() на нанёсшем и получившем
- *        урон в EntityDamageByEntityEvent. Ранее markCombat не вызывался нигде,
- *        из-за чего воин терял ярость в бою, а охотник регенерировал концентрацию в бою.
+ * 1.9.1: markCombat() на нанёсшем и получившем урон — боевое окно работает.
+ * 1.9.2 (эксплойт-свип): ФАРМ-ГЕЙТЫ ресурса:
+ *  - урон по СЕБЕ не даёт прибавок (on-deal и on-take);
+ *  - урон по СОЮЗНИКУ (friendly-fire выкл / одна фракция) не даёт прибавок обеим
+ *    сторонам — спарринг-фарм ярости/концентрации закрыт;
+ *  - урон по мобам/врагам-игрокам даёт прибавки как раньше (фарм на мобах — дизайн).
  */
 public final class ResourceService implements Listener {
 
@@ -164,28 +164,46 @@ public final class ResourceService implements Listener {
         return true;
     }
 
+    /**
+     * 1.9.2: true, если пара damager→victim является фарм-парой (себя/союзник)
+     * и прибавки ресурса за этот hit давать нельзя.
+     */
+    private boolean isFarmPair(Player damager, Entity victim) {
+        if (!(victim instanceof Player victimPlayer)) {
+            return false; // мобы/средства — легитимный фарм/бой
+        }
+        if (victimPlayer.getUniqueId().equals(damager.getUniqueId())) {
+            return true; // самоурон
+        }
+        return !plugin.getCombat().canHit(damager, victimPlayer); // союзник
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         Player damager = resolvePlayer(event.getDamager());
         if (damager != null) {
-            // 1.9.1: нанёсший урон входит в боевое окно (независимо от прибавки ресурса)
-            stateOf(damager.getUniqueId()).markCombat();
-            PlayerClass pc = classProvider.getClassOf(damager);
-            if (pc != null) {
-                double onDeal = config.resourceOnDeal(pc);
-                if (onDeal != 0.0 && gainAllowed(damager.getUniqueId())) {
-                    stateOf(damager.getUniqueId()).add(onDeal);
+            boolean farm = isFarmPair(damager, event.getEntity());
+            if (!farm) {
+                stateOf(damager.getUniqueId()).markCombat();
+                PlayerClass pc = classProvider.getClassOf(damager);
+                if (pc != null) {
+                    double onDeal = config.resourceOnDeal(pc);
+                    if (onDeal != 0.0 && gainAllowed(damager.getUniqueId())) {
+                        stateOf(damager.getUniqueId()).add(onDeal);
+                    }
                 }
             }
         }
         if (event.getEntity() instanceof Player victim) {
-            // 1.9.1: получивший урон входит в боевое окно
-            stateOf(victim.getUniqueId()).markCombat();
-            PlayerClass pc = classProvider.getClassOf(victim);
-            if (pc != null) {
-                double onTake = config.resourceOnTake(pc);
-                if (onTake != 0.0 && gainAllowed(victim.getUniqueId())) {
-                    stateOf(victim.getUniqueId()).add(onTake);
+            boolean farm = damager != null && isFarmPair(damager, victim);
+            if (!farm) {
+                stateOf(victim.getUniqueId()).markCombat();
+                PlayerClass pc = classProvider.getClassOf(victim);
+                if (pc != null) {
+                    double onTake = config.resourceOnTake(pc);
+                    if (onTake != 0.0 && gainAllowed(victim.getUniqueId())) {
+                        stateOf(victim.getUniqueId()).add(onTake);
+                    }
                 }
             }
         }
