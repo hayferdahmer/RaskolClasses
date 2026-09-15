@@ -22,21 +22,24 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Индикация перезарядки на свитках (1.5.6 → 1.9.0-fix9, v9).
+ * Индикация перезарядки на свитках (1.5.6 → 1.9.0-fix10, v10).
  *
- * РЕЖИМЫ (hotbar-bind.cooldown-mode):
- *  - lore    : как раньше — строка «⏳ N с» на свитке обновляется каждую секунду,
- *              включая предмет в руке (рука дёргается раз в секунду);
- *  - bossbar : живой счётчик босс-баром над хотбаром; свиток в руке не трогается
- *              вообще (рука НЕ дёргается); цифры на свитке — когда он не в руке;
+ * РЕЖИМЫ (hotbar-bind.cooldown-mode), дефолт = legacy (выбор владельца):
+ *  - legacy  : ТО САМОЕ «КАК РАНЬШЕ». Мутація меты живого ItemStack БЕЗ пакета
+ *              set slot: рука НЕ дёргается никогда; строка «⏳ N с» видна на свитке
+ *              при открытии инвентаря (E) и ресинке клиента. Босс-бара нет.
+ *  - lore    : строка «⏳ N с» обновляется пакетом каждую секунду везде,
+ *              включая предмет в руке (рука дёргается раз в секунду).
+ *  - bossbar : живой счётчик босс-баром над хотбаром; свиток в руке не трогается;
+ *              цифры на свитке — когда он не в руке.
  *  - both    : босс-бар живой + цифры на свитке, когда он НЕ в руке; в руке свиток
  *              обновляется только 2 раза за каст (старт и готовность).
  *
- * Ванильное ограничение: живое число на предмете В РУКЕ невозможно без
- * пересылки предмета клиенту (= дёргание модели). Режимы дают выбор компромисса.
+ * Техническая база legacy: CraftInventoryPlayer.getItem отдаёт write-through mirror —
+ * setItemMeta на нём пишет в серверное состояние без пакета клиенту, поэтому
+ * дёргания нет, а при открытии окна инвентаря клиент забирает актуальную лору.
  *
- * Маркер деплоя: при старте печатает «ScrollCooldownTask v9 active (mode=…)» —
- * по этой строке в логе старта видно, какой код реально стоит на сервере.
+ * Маркер деплоя: при старте печатает «ScrollCooldownTask v10 active (mode=…)».
  */
 public final class ScrollCooldownTask {
 
@@ -45,7 +48,7 @@ public final class ScrollCooldownTask {
     private final RaskolClasses plugin;
     /** playerUUID → (slot → последние отображённые секунды). */
     private final Map<UUID, Map<Integer, Long>> shown = new ConcurrentHashMap<>();
-    /** playerUUID → босс-бар кулдауна свитка в руке. */
+    /** playerUUID → босс-бар кулдауна свитка в руке (только режимы bossbar/both). */
     private final Map<UUID, BossBar> bars = new ConcurrentHashMap<>();
 
     public ScrollCooldownTask(RaskolClasses plugin) {
@@ -53,19 +56,18 @@ public final class ScrollCooldownTask {
     }
 
     public BukkitTask start() {
-        plugin.getLogger().info("ScrollCooldownTask v9 active (mode=" + mode() + ")");
+        plugin.getLogger().info("ScrollCooldownTask v10 active (mode=" + mode() + ")");
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 10L, 10L);
     }
 
     private String mode() {
-        String m = plugin.getConfig().getString("hotbar-bind.cooldown-mode", "both");
-        return m == null ? "both" : m.toLowerCase(Locale.ROOT);
+        String m = plugin.getConfig().getString("hotbar-bind.cooldown-mode", "legacy");
+        return m == null ? "legacy" : m.toLowerCase(Locale.ROOT);
     }
 
     private void tick() {
         String mode = mode();
-        boolean loreOn = !mode.equals("bossbar");
-        boolean barOn = !mode.equals("lore");
+        boolean barOn = mode.equals("bossbar") || mode.equals("both");
 
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
@@ -120,19 +122,31 @@ public final class ScrollCooldownTask {
                 }
                 slots.put(slot, seconds);
 
-                boolean updateLore;
-                if (!heldSlot) {
-                    updateLore = loreOn;
-                } else {
-                    updateLore = mode.equals("lore") || seconds == 0L || lastVal == -1L;
-                }
-                if (updateLore) {
-                    applyLore(item, seconds);
-                    inv.setItem(slot, item);
+                switch (mode) {
+                    case "legacy" ->
+                        // мутация меты без пакета: рука не дёргается, клиент заберёт при ресинке
+                            applyLore(item, seconds);
+                    case "lore" -> {
+                        applyLore(item, seconds);
+                        inv.setItem(slot, item);
+                    }
+                    case "bossbar" -> {
+                        if (!heldSlot) {
+                            applyLore(item, seconds);
+                            inv.setItem(slot, item);
+                        }
+                    }
+                    case "both" -> {
+                        if (!heldSlot || seconds == 0L || lastVal == -1L) {
+                            applyLore(item, seconds);
+                            inv.setItem(slot, item);
+                        }
+                    }
+                    default -> applyLore(item, seconds);
                 }
             }
 
-            // босс-бар для свитка в руке
+            // босс-бар только в режимах bossbar/both
             if (barOn) {
                 BossBar bar = bars.get(uuid);
                 if (heldRemaining > 0L && heldName != null && heldTotal > 0L) {
@@ -141,7 +155,6 @@ public final class ScrollCooldownTask {
                     Component title = Component.text(CD_PREFIX + " " + heldName + " — " + secs + " с",
                             NamedTextColor.AQUA);
                     if (bar == null) {
-                        // 1.9.0-fix10: BossBar.Overlay.PROGRESS (не ProgressStyle)
                         bar = BossBar.bossBar(title, progress, BossBar.Color.BLUE,
                                 BossBar.Overlay.PROGRESS);
                         bars.put(uuid, bar);
