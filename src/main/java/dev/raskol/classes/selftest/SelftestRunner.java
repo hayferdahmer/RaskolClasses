@@ -29,9 +29,12 @@ import java.util.UUID;
  * Чеки 17–18: TTK-санити. Чеки 19–20: сводный уровень topNAverage (1.8.0).
  * Чек 21: фракционный гейт canHit (1.8.1).
  * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
- * Чек 24: reconcile-цикл талантов (1.9.0).
+ * Чек 24: reconcile-цикл талантов (1.9.0; 1.9.2-fix: фолбэк на Spec.values()[0],
+ *         цикл не зависит от активной спеки игрока-зонда).
  * Чеки 29–30: боевое окно и семантика consume (1.9.1).
  * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг битых узлов (1.9.2).
+ * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
+ * прунинг, а не ошибка.
  */
 public final class SelftestRunner {
 
@@ -182,6 +185,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // 24 (1.9.0, 1.9.2-fix): reconcile-цикл не зависит от активной спеки зонда
         if (probe == null) {
             if (check(report, "24", "reconcile-цикл (пропущено: нет онлайн-игрока)",
                     true, "reconcile", "skip")) {
@@ -191,40 +195,41 @@ public final class SelftestRunner {
             }
         } else {
             boolean ok24 = false;
-            String got24 = "no-spec";
+            String got24 = "no-tree";
             UUID probeUuid = probe.getUniqueId();
             Spec probeSpec = plugin.getSpecService().getSpec(probeUuid);
-            if (probeSpec != null) {
-                String specId = probeSpec.id();
-                TalentModel.TalentTree tree = TalentsRegistry.treeOf(specId);
-                if (tree != null) {
-                    TalentModel.TalentNode t1a = firstT1(tree);
-                    if (t1a != null) {
-                        List<String> before = plugin.getTalentsStorage()
-                                .getPurchased(probeUuid, specId);
-                        boolean cycleOk;
-                        try {
-                            plugin.getTalentService()
-                                    .forcePurchaseForTest(probeUuid, specId, t1a.id());
-                            boolean bought = plugin.getTalentsStorage()
-                                    .getPurchased(probeUuid, specId).contains(t1a.id());
-                            plugin.getTalentsStorage().setPurchased(probeUuid, specId, before);
-                            plugin.getTalentService().reconcile(probeUuid);
-                            boolean restored = plugin.getTalentsStorage()
-                                    .getPurchased(probeUuid, specId).equals(before);
-                            cycleOk = bought && restored;
-                            got24 = bought + "/" + restored;
-                        } catch (RuntimeException ex) {
-                            cycleOk = false;
-                            got24 = "exception: " + ex.getMessage();
-                        }
-                        ok24 = cycleOk;
-                    } else {
-                        got24 = "no-t1a-node";
+            if (probeSpec == null) {
+                probeSpec = Spec.values()[0]; // фолбэк: цикл работает с хранилищем напрямую
+            }
+            String specId = probeSpec.id();
+            TalentModel.TalentTree tree = TalentsRegistry.treeOf(specId);
+            if (tree != null) {
+                TalentModel.TalentNode t1a = firstT1(tree);
+                if (t1a != null) {
+                    List<String> before = new ArrayList<>(
+                            plugin.getTalentsStorage().getPurchased(probeUuid, specId));
+                    boolean cycleOk;
+                    try {
+                        plugin.getTalentService()
+                                .forcePurchaseForTest(probeUuid, specId, t1a.id());
+                        boolean bought = plugin.getTalentsStorage()
+                                .getPurchased(probeUuid, specId).contains(t1a.id());
+                        plugin.getTalentsStorage().setPurchased(probeUuid, specId, before);
+                        plugin.getTalentService().reconcile(probeUuid);
+                        boolean restored = plugin.getTalentsStorage()
+                                .getPurchased(probeUuid, specId).equals(before);
+                        cycleOk = bought && restored;
+                        got24 = bought + "/" + restored;
+                    } catch (RuntimeException ex) {
+                        cycleOk = false;
+                        got24 = "exception: " + ex.getMessage();
                     }
+                    ok24 = cycleOk;
                 } else {
-                    got24 = "no-tree:" + specId;
+                    got24 = "no-t1a-node";
                 }
+            } else {
+                got24 = "no-tree:" + specId;
             }
             if (check(report, "24", "reconcile-цикл: покупка→reconcile→откат без рассинхрона",
                     ok24, "reconcile", got24)) {
@@ -263,7 +268,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 31 (1.9.2): ГЛОБАЛЬНЫЙ бюджет очков: покупки в двух деревьях съедают общий пул
+        // 31 (1.9.2): ГЛОБАЛЬНЫЙ бюджет очков
         if (probe == null) {
             if (check(report, "31", "глобальный бюджет очков (пропущено: нет онлайн-игрока)",
                     true, "spentGlobal", "skip")) {
@@ -313,7 +318,7 @@ public final class SelftestRunner {
             }
         }
 
-        // 32 (1.9.2): reconcile-прунинг: неизвестный узел и узел без пререквизитов удаляются
+        // 32 (1.9.2): reconcile-прунинг битых узлов
         if (probe == null) {
             if (check(report, "32", "reconcile-прунинг битых узлов (пропущено: нет онлайн-игрока)",
                     true, "validatePurchased", "skip")) {
@@ -323,7 +328,7 @@ public final class SelftestRunner {
             }
         } else {
             boolean ok32 = false;
-            String got32 = "no-spec";
+            String got32 = "no-tree";
             UUID pu = probe.getUniqueId();
             Spec spec = plugin.getSpecService().getSpec(pu);
             if (spec == null) {
