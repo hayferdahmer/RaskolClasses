@@ -13,12 +13,18 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 1.6.7: харденинг конфига резистов и урона.
+ * 1.9.1: харденинг конфига (расширение с 1.6.7).
  * Проверяет на старте и при /rc reload:
  *  - resist.cap, resist.classes.*, resist.grants.*, resist.mana-soaked.*,
  *    resist.specs.* — диапазон 0..100 и конечность (ловит .nan/.inf);
  *  - damage-types.vanilla-map.* — значение из {physical, magic, true};
- *  - classes.*.abilities.*.damage-physical/magic и installations.*.damage-* — ≥ 0.
+ *  - classes.*.abilities.*.damage-physical/magic и installations.*.damage-* — ≥ 0;
+ *  - talents.* — start-level ≥ 0, points-per-level ≥ 1, max-points ≥ 0,
+ *    reset-base/reset-per-point ≥ 0;
+ *  - character-level.* — top-n ≥ 1, fallback ≥ 0;
+ *  - combat.burst-* — window-seconds ≥ 0, window-pct 0..100;
+ *  - installations.frost_rune.* — radius ≥ 0, duration ≥ 0, cooldown ≥ 0,
+ *    damage-* ≥ 0, slow-ramp-every ≥ 1, slow-max-tier ≥ 0, mage-* ≥ 0.
  * Каждое нарушение = WARNING с путём ключа; рантайм-безопасность обеспечивается
  * клампом итога в ResistService и фолбэками в CombatService.typeOf, поэтому
  * битое значение не роняет бой, а подменяется дефолтом/зажимом.
@@ -39,6 +45,7 @@ public final class ConfigValidator {
         problems = 0;
         FileConfiguration cfg = plugin.getConfig();
 
+        // === resist ===
         checkRange(cfg, "resist.cap", 0.0, 100.0);
 
         ConfigurationSection classes = cfg.getConfigurationSection("resist.classes");
@@ -68,6 +75,7 @@ public final class ConfigValidator {
             }
         }
 
+        // === damage-types ===
         ConfigurationSection map = cfg.getConfigurationSection("damage-types.vanilla-map");
         if (map != null) {
             for (String cause : map.getKeys(false)) {
@@ -79,6 +87,7 @@ public final class ConfigValidator {
             }
         }
 
+        // === classes.*.abilities ===
         ConfigurationSection cls = cfg.getConfigurationSection("classes");
         if (cls != null) {
             for (String pc : cls.getKeys(false)) {
@@ -93,6 +102,7 @@ public final class ConfigValidator {
             }
         }
 
+        // === installations ===
         ConfigurationSection installs = cfg.getConfigurationSection("installations");
         if (installs != null) {
             for (String id : installs.getKeys(false)) {
@@ -101,10 +111,37 @@ public final class ConfigValidator {
             }
         }
 
+        // === 1.9.0: talents ===
+        checkNonNegative(cfg, "talents.start-level");
+        checkPositive(cfg, "talents.points-per-level", 1);
+        checkNonNegative(cfg, "talents.max-points");
+        checkNonNegative(cfg, "talents.reset-base");
+        checkNonNegative(cfg, "talents.reset-per-point");
+
+        // === 1.8.0: character-level ===
+        checkPositive(cfg, "character-level.top-n", 1);
+        checkNonNegative(cfg, "character-level.fallback");
+
+        // === combat.burst-* ===
+        checkNonNegative(cfg, "combat.burst-window-seconds");
+        checkRange(cfg, "combat.burst-window-pct", 0.0, 100.0);
+
+        // === installations.frost_rune ===
+        checkNonNegative(cfg, "installations.frost_rune.radius");
+        checkNonNegative(cfg, "installations.frost_rune.duration");
+        checkNonNegative(cfg, "installations.frost_rune.cooldown");
+        checkNonNegative(cfg, "installations.frost_rune.damage-base");
+        checkNonNegative(cfg, "installations.frost_rune.damage-ramp");
+        checkNonNegative(cfg, "installations.frost_rune.damage-cap");
+        checkPositive(cfg, "installations.frost_rune.slow-ramp-every", 1);
+        checkNonNegative(cfg, "installations.frost_rune.slow-max-tier");
+        checkNonNegative(cfg, "installations.frost_rune.mage-mana-per-sec");
+        checkNonNegative(cfg, "installations.frost_rune.mage-int-mult");
+
         if (problems == 0) {
-            plugin.getLogger().info("ConfigValidator: конфиг резистов/урона валиден.");
+            plugin.getLogger().info("ConfigValidator: конфиг валиден (resist/damage/talents/character-level/burst/frost_rune).");
         } else {
-            plugin.getLogger().warning("ConfigValidator: проблем в конфиге резистов/урона: "
+            plugin.getLogger().warning("ConfigValidator: проблем в конфиге: "
                     + problems + " (см. WARNING выше; значения подменены дефолтом/зажимом).");
         }
         return problems;
@@ -153,6 +190,16 @@ public final class ConfigValidator {
         double v = cfg.getDouble(path, 0.0);
         if (!Double.isFinite(v) || v < 0.0) {
             warn(path, String.valueOf(v), ">= 0");
+        }
+    }
+
+    private void checkPositive(FileConfiguration cfg, String path, int min) {
+        if (!cfg.isSet(path)) {
+            return;
+        }
+        int v = cfg.getInt(path, min);
+        if (v < min) {
+            warn(path, String.valueOf(v), ">= " + min);
         }
     }
 
