@@ -21,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Возвращает поведение «как было»: полоса прочности на аметисте как КД.
  * Работает через Damageable#setMaxDamage/setDamage — с 1.20.5 прочность является
  * компонентом и рисуется клиентом на ЛЮБОМ предмете, включая AMETHYST_SHARD.
- * (Прежнее утверждение «на аметисте невозможно» было ошибочным.)
  *
  * Анти-дёргание: состояние бара обновляется каждую секунду БЕЗ пакета
  * (мутация зеркала ItemStack). Пакет setItem уходит только в три момента:
@@ -153,7 +152,7 @@ public final class ScrollCooldownTask {
         }
         if (seconds <= 0L) {
             if (dmg.hasMaxDamage() || dmg.hasDamage()) {
-                dmg.resetMaxDamage();
+                dmg.setMaxDamage(0);  // сброс кастомной прочности
                 dmg.setDamage(0);
                 item.setItemMeta(meta);
             }
