@@ -1,16 +1,16 @@
 name: RaskolClasses
-version: '1.9.0'
+version: '1.9.1'
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
-description: Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), уровень персонажа (топ-N скиллов), дерево талантов спеки в Книге класса, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно и TTK-харнесс
+description: Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), уровень персонажа (топ-N скиллов), дерево талантов спеки в Книге класса, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно, боевое окно ресурсов и TTK-харнесс
 
 softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, AuthMe]
 
 commands:
   rc:
     description: Команды классов RaskolClasses
-    usage: /rc [1-7|menu|reload|debug|health|selftest]
+    usage: /rc [menu|reload|debug|health|selftest]
 
 permissions:
   raskolclasses.admin:
