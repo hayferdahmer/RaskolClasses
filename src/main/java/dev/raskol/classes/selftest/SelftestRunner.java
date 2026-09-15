@@ -8,6 +8,7 @@ import dev.raskol.classes.balance.BalanceSimulator;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.talent.TalentModel;
 import dev.raskol.classes.talent.TalentsRegistry;
@@ -17,6 +18,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -24,11 +26,12 @@ import java.util.UUID;
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
  * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
- * Чеки 17–18: TTK-санити (воин-зеркало ∈ [10,60]; жрец-зеркало heal-war ≥30/timeout).
- * Чеки 19–20: сводный уровень topNAverage (1.8.0).
+ * Чеки 17–18: TTK-санити. Чеки 19–20: сводный уровень topNAverage (1.8.0).
  * Чек 21: фракционный гейт canHit (1.8.1).
  * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
- * Чек 24: reconcile-цикл талантов — тестовая покупка/откат без рассинхрона (1.9.0).
+ * Чек 24: reconcile-цикл талантов (1.9.0).
+ * Чек 29: боевое окно markCombat/isInCombat (1.9.1).
+ * Чек 30: семантика consume — регресс-замок бага «ресурс не списывается» (1.9.1).
  */
 public final class SelftestRunner {
 
@@ -154,7 +157,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 22 (1.9.0): экономика очков талантов
         int e39 = TalentModel.earnedPoints(39, 40, 1, 21);
         int e40 = TalentModel.earnedPoints(40, 40, 1, 21);
         int e60 = TalentModel.earnedPoints(60, 40, 1, 21);
@@ -167,7 +169,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 23 (1.9.0): стоимость полного дерева = 21 (2×1 + 4×2 + 2×3 + 1×5)
         int cost = TalentModel.treeCost(List.of(
                 TalentModel.node("t1a", 1), TalentModel.node("t1b", 1),
                 TalentModel.node("t2a1", 2), TalentModel.node("t2a2", 2),
@@ -181,8 +182,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 24 (1.9.0): reconcile-цикл — тестовая покупка узла активной спеки,
-        // reconcile без исключений, откат восстанавливает прежнее состояние.
         if (probe == null) {
             if (check(report, "24", "reconcile-цикл (пропущено: нет онлайн-игрока)",
                     true, "reconcile", "skip")) {
@@ -240,6 +239,35 @@ public final class SelftestRunner {
             } else {
                 failed++;
             }
+        }
+
+        // 29 (1.9.1): боевое окно: свежее состояние вне боя, после markCombat — в бою
+        ResourceState rsWindow = new ResourceState();
+        boolean freshOut = !rsWindow.isInCombat(5000L);
+        rsWindow.markCombat();
+        boolean nowIn = rsWindow.isInCombat(5000L);
+        if (check(report, "29", "боевое окно: свежее вне боя, после markCombat в бою",
+                freshOut && nowIn, "ResourceState", freshOut + "/" + nowIn)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 30 (1.9.1): семантика consume — регресс-замок бага «ресурс не списывается»
+        ResourceState rsConsume = new ResourceState();
+        rsConsume.setValue(10.0);
+        boolean overDenied = !rsConsume.consume(15.0);
+        boolean overIntact = rsConsume.getValue() == 10.0;
+        boolean exactOk = rsConsume.consume(10.0);
+        boolean zeroed = rsConsume.getValue() == 0.0;
+        boolean freeOk = rsConsume.consume(0.0);
+        if (check(report, "30", "consume: сверх отказа без изменений, точное обнуляет, 0 бесплатна",
+                overDenied && overIntact && exactOk && zeroed && freeOk,
+                "ResourceState.consume",
+                overDenied + "/" + overIntact + "/" + exactOk + "/" + zeroed + "/" + freeOk)) {
+            passed++;
+        } else {
+            failed++;
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
