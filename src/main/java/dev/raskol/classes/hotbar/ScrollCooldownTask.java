@@ -122,10 +122,8 @@ public final class ScrollCooldownTask {
 
                 boolean updateLore;
                 if (!heldSlot) {
-                    updateLore = loreOn;                 // не в руке — цифры без дёргания
+                    updateLore = loreOn;
                 } else {
-                    // в руке: lore-режим = каждую секунду (как раньше);
-                    // both = только старт (lastVal==-1) и готовность (seconds==0)
                     updateLore = mode.equals("lore") || seconds == 0L || lastVal == -1L;
                 }
                 if (updateLore) {
@@ -143,8 +141,9 @@ public final class ScrollCooldownTask {
                     Component title = Component.text(CD_PREFIX + " " + heldName + " — " + secs + " с",
                             NamedTextColor.AQUA);
                     if (bar == null) {
+                        // 1.9.0-fix10: BossBar.Overlay.PROGRESS (не ProgressStyle)
                         bar = BossBar.bossBar(title, progress, BossBar.Color.BLUE,
-                                BossBar.ProgressStyle.PROGRESS);
+                                BossBar.Overlay.PROGRESS);
                         bars.put(uuid, bar);
                         player.showBossBar(bar);
                     } else {
