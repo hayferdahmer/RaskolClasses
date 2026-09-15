@@ -34,10 +34,11 @@ import java.util.logging.Logger;
  * жрец +5 за событие лечения (кап 1 раз/с).
  *
  * 1.7.4.1: персист resources.yml через SafeStorage (сейв на quit + автосейв).
- * 1.9.0: реген-бонус талантов; ресурс за лечение начисляется ХИЛЕРУ через маркер.
- * 1.9.0-fix6 (баг «мана не тратится»): consume делегирует в ResourceState.consume.
- * Ранее здесь было st.add(-amount), а add() игнорирует отрицательные числа —
- * списание возвращало true, но значение не менялось (замкнутый круг защиты).
+ * 1.9.0: реген-бонус талантов; ресурс за лечение начисляется ХИЛЕРУ через маркер;
+ *        consume делегирует в ResourceState.consume (фикс «ресурс не тратится»).
+ * 1.9.1: БОЕВОЕ ОКНО НАКОНЕЦ ВЫСТАВЛЯЕТСЯ: markCombat() на нанёсшем и получившем
+ *        урон в EntityDamageByEntityEvent. Ранее markCombat не вызывался нигде,
+ *        из-за чего воин терял ярость в бою, а охотник регенерировал концентрацию в бою.
  */
 public final class ResourceService implements Listener {
 
@@ -70,7 +71,7 @@ public final class ResourceService implements Listener {
         return stateOf(uuid).getValue();
     }
 
-    /** 1.9.0-fix6: единственная точка списания — ResourceState.consume. */
+    /** Единственная точка списания — ResourceState.consume (регресс заперт чеком 30). */
     public boolean consume(UUID uuid, double amount) {
         return stateOf(uuid).consume(amount);
     }
@@ -167,6 +168,8 @@ public final class ResourceService implements Listener {
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         Player damager = resolvePlayer(event.getDamager());
         if (damager != null) {
+            // 1.9.1: нанёсший урон входит в боевое окно (независимо от прибавки ресурса)
+            stateOf(damager.getUniqueId()).markCombat();
             PlayerClass pc = classProvider.getClassOf(damager);
             if (pc != null) {
                 double onDeal = config.resourceOnDeal(pc);
@@ -176,6 +179,8 @@ public final class ResourceService implements Listener {
             }
         }
         if (event.getEntity() instanceof Player victim) {
+            // 1.9.1: получивший урон входит в боевое окно
+            stateOf(victim.getUniqueId()).markCombat();
             PlayerClass pc = classProvider.getClassOf(victim);
             if (pc != null) {
                 double onTake = config.resourceOnTake(pc);
