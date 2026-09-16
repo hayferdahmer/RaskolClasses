@@ -1,12 +1,10 @@
 # ============================================================
-#  RaskolClasses v1.9.0 — «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.9.2 — «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
-#  1.9.0: дерево талантов спеки (Книга, вкладка TALENTS); Ледяная руна = зона
-#  (радиус 8, 30 с, КД 60 с); редизайн мага: Прометей = чистая магия, КД 3 с,
-#  снаряд без взрыва; реген мага 1.0/1.5/2.0/2.5 (чтобы расход был ощутим);
-#  описания способностей с формулами урона.
-#  Применение способностей и инсталляций — только свитками в хотбаре.
+#  ВАЖНО: inline-маппинги пишутся ТОЛЬКО с пробелом после двоеточия
+#  («key: { a: 1 }»), иначе snakeyaml падает с «mapping values are
+#  not allowed here».
 # ============================================================
 
 hud:
@@ -42,7 +40,6 @@ hotbar-bind:
   enabled: true
   material: AMETHYST_SHARD
   cooldown-bar: true
-  cooldown-mode: legacy   # legacy | lore | bossbar | both
 
 target-cast:
   enabled: true
@@ -102,6 +99,7 @@ character-level:
 
 # ------------------------------------------------------------
 # 1.9.0: ТАЛАНТЫ СПЕКИ (Книга класса, вкладка TALENTS)
+# 1.9.2: очки = ОБЩИЙ бюджет персонажа (spentGlobal по всем деревьям)
 # ------------------------------------------------------------
 talents:
   enabled: true
@@ -163,11 +161,11 @@ attributes:
   level-source: character   # character | class-skill | vanilla
   level-cap: 60
   classes:
-    WARRIOR: { main: STR, base-str: 12, base-agi: 6,  base-int: 4,  growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
-    HUNTER:  { main: AGI, base-str: 6,  base-agi: 12, base-int: 4,  growth-str: 0.5, growth-agi: 1.2, growth-int: 0.3 }
-    ROGUE:   { main: AGI, base-str: 7,  base-agi: 11, base-int: 4,  growth-str: 0.6, growth-agi: 1.1, growth-int: 0.3 }
-    MAGE:    { main: INT, base-str: 4,  base-agi: 6,  base-int: 12, growth-str: 0.3, growth-agi: 0.5, growth-int: 1.2 }
-    PRIEST:  { main: INT, base-str: 5,  base-agi: 5,  base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
+    WARRIOR: { main: STR, base-str: 12, base-agi: 6, base-int: 4, growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
+    HUNTER: { main: AGI, base-str: 6, base-agi: 12, base-int: 4, growth-str: 0.5, growth-agi: 1.2, growth-int: 0.3 }
+    ROGUE: { main: AGI, base-str: 7, base-agi: 11, base-int: 4, growth-str: 0.6, growth-agi: 1.1, growth-int: 0.3 }
+    MAGE: { main: INT, base-str: 4, base-agi: 6, base-int: 12, growth-str: 0.3, growth-agi: 0.5, growth-int: 1.2 }
+    PRIEST: { main: INT, base-str: 5, base-agi: 5, base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
   hp:
     base-hp: 100
     per-str: 20
@@ -181,9 +179,9 @@ attributes:
     agi-to-wp: 0.5
     int-to-sp: 1.5
     int-to-hpow: 1.4
-    base-wp:  { WARRIOR: 30, HUNTER: 35, ROGUE: 30, MAGE: 5,  PRIEST: 10 }
-    base-sp:  { WARRIOR: 5,  HUNTER: 5,  ROGUE: 5,  MAGE: 30, PRIEST: 25 }
-    base-hpow:{ WARRIOR: 0,  HUNTER: 0,  ROGUE: 0,  MAGE: 15, PRIEST: 25 }
+    base-wp: { WARRIOR: 30, HUNTER: 35, ROGUE: 30, MAGE: 5, PRIEST: 10 }
+    base-sp: { WARRIOR: 5, HUNTER: 5, ROGUE: 5, MAGE: 30, PRIEST: 25 }
+    base-hpow: { WARRIOR: 0, HUNTER: 0, ROGUE: 0, MAGE: 15, PRIEST: 25 }
   offense:
     basic-coeff: 0.35
     basic-coeff-magic: 0.35
@@ -376,7 +374,7 @@ messages:
       warrior: "Ярость: −5/с вне боя; +10 за урон (нанёс/получил)"
       hunter: "Концентрация: +5/с вне боя; +4 за попадание в бою"
       priest: "Свет: +2/с всегда; +5 за событие лечения"
-      mage: "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75 (устойчивый поток даёт Ледяная руна)"
+      mage: "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75"
       rogue: "Энергия: +10/с"
     emblem:
       resource: "Ресурс сейчас: {value}/100"
@@ -602,9 +600,6 @@ classes:
     resource-on-deal: 0.0
     resource-on-take: 0.0
     resource-on-heal: 0.0
-    # 1.9.0-fix: реген мага снижен с 3/4/5/6 до 1.0/1.5/2.0/2.5 — чтобы расход
-    # маны был ощутим (15 маны Прометея = ~7 с регена вместо 3).
-    # Устойчивый поток маны даёт Ледяная руна (+3/с внутри).
     regen-tier-1: 1.0
     regen-tier-2: 1.5
     regen-tier-3: 2.0
@@ -860,7 +855,6 @@ vfx:
   wrath_heaven:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: FLASH
-  # 1.9.0: Прометей — попадание = магический огонь (шипение блаза + лава), НЕ взрыв TNT
   fire_prometheus:
     cast-sound: ITEM_FIRECHARGE_USE
     cast-particle: FLAME
@@ -926,7 +920,6 @@ vfx:
   smoke_bomb:
     cast-sound: BLOCK_FIRE_EXTINGUISH
     cast-particle: SMOKE
-  # 1.9.0: Ледяная руна — эмбиент искажённого портала
   frost_rune:
     ambient-sound: ENTITY_ENDERMAN_TELEPORT
     ambient-volume: 0.35
