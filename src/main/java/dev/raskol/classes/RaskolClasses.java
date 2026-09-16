@@ -18,12 +18,14 @@ import dev.raskol.classes.flavor.CrownFlavorService;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
+import dev.raskol.classes.hook.EconomyHook;
+import dev.raskol.classes.hook.FactionHook;
+import dev.raskol.classes.hook.FlavorPlaceholder;
+import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
 import dev.raskol.classes.hotbar.ScrollSanitizer;
-import dev.raskol.classes.hook.FactionHook;
-import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HpBarService;
 import dev.raskol.classes.hud.HudService;
@@ -61,6 +63,9 @@ import java.util.List;
  * китов); регистрация слушателя fx добавлена в блок pluginManager.registerEvents.
  * 1.9.1: боевое окно markCombat в ResourceService, регресс-чеки selftest 29–30,
  * расширение ConfigValidator.
+ * 1.9.2: интеграция с RaskolCore 1.3.0 — PassportChangeListener (мгновенный
+ * reconcile на смену паспорта), EconomyHook через контракт Core, стартовая
+ * проверка версии Core (warn-only, не fail-closed).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -100,6 +105,9 @@ public final class RaskolClasses extends JavaPlugin {
     private ConfigValidator configValidator;
     private AttributeService attributes;
 
+    /** 1.9.2: слушатель смены паспорта из RaskolCore. */
+    private PassportChangeListener passportListener;
+
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
 
@@ -111,6 +119,9 @@ public final class RaskolClasses extends JavaPlugin {
 
         getLogger().info(() -> "Paper: " + getServer().getVersion()
                 + " / Bukkit: " + getServer().getBukkitVersion());
+
+        // 1.9.2: стартовая проверка версии RaskolCore (warn-only, не fail-closed)
+        checkCoreVersion();
 
         PluginManager pluginManager = getServer().getPluginManager();
 
@@ -187,6 +198,11 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(hpBarService, this);
         // 1.9.0-fix: FxService слушает ProjectileHitEvent для заряженных снарядов (Prometheus)
         pluginManager.registerEvents(fx, this);
+
+        // 1.9.2: PassportChangeListener (мгновенный reconcile на смену паспорта)
+        this.passportListener = new PassportChangeListener(this);
+        passportListener.register();
+
         pluginManager.registerEvents(new Listener() {
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
@@ -256,10 +272,40 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
     }
 
+    /**
+     * 1.9.2: стартовая проверка версии RaskolCore.
+     * Warn-only: старый Core не ломает бой (все нужные API есть с 1.0–1.1),
+     * но в логе будет явная инструкция обновить.
+     */
+    private void checkCoreVersion() {
+        try {
+            Class<?> api = Class.forName("dev.raskol.core.RaskolCoreAPI");
+            Object versionObj = api.getMethod("coreVersion").invoke(null);
+            String version = versionObj == null ? "" : versionObj.toString();
+            if (version.isEmpty()) {
+                getLogger().warning("RaskolCore: плагин не включён или версия недоступна — "
+                        + "мгновенный reconcile на смену паспорта может не работать");
+            } else {
+                getLogger().info("RaskolCore: версия " + version);
+                // Проверка минимальной версии (1.3.0 — когда появился coreVersion)
+                if ("1.0.0".equals(version) || "1.1.0".equals(version) || "1.2.0".equals(version)) {
+                    getLogger().warning("RaskolCore: версия " + version + " устарела — "
+                            + "рекомендуется обновить до 1.3.0 для мгновенного reconcile");
+                }
+            }
+        } catch (Throwable t) {
+            getLogger().info("RaskolCore: не найден — плагин работает в автономном режиме "
+                    + "(мгновенный reconcile на смену паспорта отключён)");
+        }
+    }
+
     @Override
     public void onDisable() {
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
+        if (passportListener != null) {
+            passportListener.unregister();
+        }
         if (resources != null) {
             resources.saveAll();
         }
