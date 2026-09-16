@@ -32,6 +32,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * МАРКЕР ДЕПЛОЯ: строка «ScrollCooldownTask v12 (durability-bar) active» в логе старта.
  * Если её нет — на сервере стоит не этот jar, и чинить надо деплой, а не код.
+ *
+ * 1.9.2-fix: Paper 1.21.4 требует maxDamage > 0 — при сбросе прочности устанавливаем
+ * setDamage(0) без изменения maxDamage (бар становится полным).
  */
 public final class ScrollCooldownTask {
 
@@ -143,6 +146,9 @@ public final class ScrollCooldownTask {
     /**
      * Пишет бар. packet=true → inv.setItem (обновление клиента);
      * packet=false → мутация на месте без пакета (без дёргания).
+     * 
+     * 1.9.2-fix: Paper 1.21.4 требует maxDamage > 0. При сбросе (seconds <= 0)
+     * устанавливаем setDamage(0) без изменения maxDamage — бар становится полным.
      */
     private void writeBar(ItemStack item, long seconds, long totalSec, boolean packet,
                           org.bukkit.inventory.PlayerInventory inv, int slot) {
@@ -151,8 +157,8 @@ public final class ScrollCooldownTask {
             return;
         }
         if (seconds <= 0L) {
-            if (dmg.hasMaxDamage() || dmg.hasDamage()) {
-                dmg.setMaxDamage(0);  // сброс кастомной прочности
+            // Сброс бара: damage = 0 (полная прочность), maxDamage не трогаем
+            if (dmg.hasDamage()) {
                 dmg.setDamage(0);
                 item.setItemMeta(meta);
             }
