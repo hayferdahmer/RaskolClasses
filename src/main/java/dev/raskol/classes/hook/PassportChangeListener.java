@@ -20,32 +20,38 @@ import java.util.UUID;
  *
  * На Reason.CLASS / FACTION → немедленный reconcile талантов/резистов/боевых
  * кэшей + снятие спеки при mismatch класса. Закрывает 5-секундное окно
- * эксплойта «сменил группу → 5 секунд старых гейтов/резистов/спеки» (TTL кэша
- * Core).
+ * эксплойта «сменил группу → 5 секунд старых гейтов/резистов/спеки» (TTL кэша Core).
  *
  * Регистрация через pluginManager.registerEvent(Class, Listener, Priority,
  * EventExecutor, Plugin) — позволяет слушать событие без compile-time
  * зависимости. Без Core слушатель молча отключается.
+ *
+ * 1.9.2-fix: generics — класс события приводится к Class<? extends Event>
+ * через asSubclass(Event.class) после проверки isAssignableFrom, иначе
+ * registerEvent не компилируется (Class<capture#1 of ?>).
  */
 public final class PassportChangeListener implements Listener {
 
     private final RaskolClasses plugin;
     private final boolean active;
-    private final Class<?> eventClass;
+    private final Class<? extends Event> eventClass;
     private final Method getUuid;
     private final Method getReason;
     private final Method reasonName;
 
     public PassportChangeListener(RaskolClasses plugin) {
         this.plugin = plugin;
-        Class<?> clazz = null;
+        Class<? extends Event> clazz = null;
         Method mUuid = null;
         Method mReason = null;
         Method mName = null;
         try {
-            clazz = Class.forName("dev.raskol.core.event.RaskolPassportChangeEvent");
-            mUuid = clazz.getMethod("getUuid");
-            mReason = clazz.getMethod("getReason");
+            Class<?> raw = Class.forName("dev.raskol.core.event.RaskolPassportChangeEvent");
+            if (Event.class.isAssignableFrom(raw)) {
+                clazz = raw.asSubclass(Event.class);
+            }
+            mUuid = raw.getMethod("getUuid");
+            mReason = raw.getMethod("getReason");
             Class<?> reasonEnum = Class.forName(
                     "dev.raskol.core.event.RaskolPassportChangeEvent$Reason");
             mName = reasonEnum.getMethod("name");
@@ -64,7 +70,7 @@ public final class PassportChangeListener implements Listener {
         return active;
     }
 
-    public Class<?> getEventClass() {
+    public Class<? extends Event> getEventClass() {
         return eventClass;
     }
 
@@ -73,7 +79,7 @@ public final class PassportChangeListener implements Listener {
      * на CLASS/FACTION запускает немедленный reconcile.
      */
     public void onEvent(Event event) {
-        if (!active || !eventClass.isInstance(event)) {
+        if (!active || eventClass == null || !eventClass.isInstance(event)) {
             return;
         }
         try {
@@ -107,7 +113,6 @@ public final class PassportChangeListener implements Listener {
         // спека автоматически сбрасывается (SpecService.getSpec сам это делает)
         if ("CLASS".equals(reason) && player != null) {
             Spec spec = plugin.getSpecService().getSpec(uuid);
-            // getSpec уже валидирует и сбрасывает при mismatch — ничего больше не делаем
             if (spec != null) {
                 plugin.getLogger().info("PassportChange CLASS: reconcile для " + player.getName()
                         + " (спека " + spec.id() + " сохранена)");
@@ -126,7 +131,7 @@ public final class PassportChangeListener implements Listener {
      * Без Core — тихий выход.
      */
     public void register() {
-        if (!active) {
+        if (!active || eventClass == null) {
             return;
         }
         plugin.getServer().getPluginManager().registerEvent(
