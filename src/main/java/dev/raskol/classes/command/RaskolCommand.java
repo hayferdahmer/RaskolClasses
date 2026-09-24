@@ -10,6 +10,7 @@ import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.gui.ClassBook;
+import dev.raskol.classes.hook.GearHook;
 import dev.raskol.classes.spec.Spec;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -28,12 +29,10 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Исполнитель и автодополнение команды /rc (1.4.0 → 1.9.0-fix4).
+ * Исполнитель и автодополнение команды /rc (1.4.0 → 1.9.3).
  *
- * 1.9.0-fix4: ЦИФРОВЫХ ПОДКОМАНД НЕТ ВООБЩЕ (1–7 удалены по решению владельца):
- * способности и инсталляции применяются ТОЛЬКО свитками в хотбаре.
- * Команды: /rc (сводка), /rc menu, /rc reload, /rc debug…, /rc health, /rc selftest.
- * Управления талантами через команды нет — только Книга класса (вкладка TALENTS).
+ * 1.9.3: /rc debug выводит gear-статы RaskolGear (физ/маг резист, +HP, шипы)
+ *         — читаются через GearHook из PDC.
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
@@ -124,7 +123,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             level = v;
                         }
                     } catch (NumberFormatException ignored) {
-                        // пропустить
                     }
                 }
             }
@@ -227,6 +225,24 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Component.text("  • " + m.source() + ": +" + (int) m.physicalPct()
                     + " физ / +" + (int) m.magicPct() + " маг", NamedTextColor.GRAY));
         }
+
+        // 1.9.3: статы шмота RaskolGear (читаются из PDC через GearHook)
+        GearHook gearHook = plugin.getGearHook();
+        if (gearHook != null && gearHook.isAvailable() && gearHook.hasGear(uuid)) {
+            double gearPhys = gearHook.physResist(uuid);
+            double gearMagic = gearHook.magicResist(uuid);
+            double gearHp = gearHook.hpBonus(uuid);
+            double gearReflect = gearHook.reflect(uuid);
+            StringBuilder gearLine = new StringBuilder("Шмот RaskolGear: +")
+                    .append((int) gearPhys).append(" физ / +")
+                    .append((int) gearMagic).append(" маг / +")
+                    .append((int) gearHp).append(" HP");
+            if (gearReflect > 0.0) {
+                gearLine.append(" / шипы ").append((int) gearReflect).append("%");
+            }
+            sender.sendMessage(Component.text(gearLine.toString(), NamedTextColor.DARK_AQUA));
+        }
+
         sender.sendMessage(Component.text("Ресурс: " + (int) plugin.getResources().getValue(uuid)
                 + "/100", NamedTextColor.AQUA));
 
@@ -248,7 +264,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     return v;
                 }
             } catch (NumberFormatException ignored) {
-                // дефолт
             }
         }
         return 40;
