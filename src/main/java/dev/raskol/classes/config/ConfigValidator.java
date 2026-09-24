@@ -13,21 +13,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 1.9.1: харденинг конфига (расширение с 1.6.7).
- * Проверяет на старте и при /rc reload:
- *  - resist.cap, resist.classes.*, resist.grants.*, resist.mana-soaked.*,
- *    resist.specs.* — диапазон 0..100 и конечность (ловит .nan/.inf);
- *  - damage-types.vanilla-map.* — значение из {physical, magic, true};
- *  - classes.*.abilities.*.damage-physical/magic и installations.*.damage-* — ≥ 0;
- *  - talents.* — start-level ≥ 0, points-per-level ≥ 1, max-points ≥ 0,
- *    reset-base/reset-per-point ≥ 0;
- *  - character-level.* — top-n ≥ 1, fallback ≥ 0;
- *  - combat.burst-* — window-seconds ≥ 0, window-pct 0..100;
- *  - installations.frost_rune.* — radius ≥ 0, duration ≥ 0, cooldown ≥ 0,
- *    damage-* ≥ 0, slow-ramp-every ≥ 1, slow-max-tier ≥ 0, mage-* ≥ 0.
- * Каждое нарушение = WARNING с путём ключа; рантайм-безопасность обеспечивается
- * клампом итога в ResistService и фолбэками в CombatService.typeOf, поэтому
- * битое значение не роняет бой, а подменяется дефолтом/зажимом.
+ * 1.9.3: расширены проверки hp-ключей (base-hp, per-str, per-level, main-str-bonus, regen-*).
  */
 public final class ConfigValidator {
 
@@ -40,7 +26,6 @@ public final class ConfigValidator {
         this.plugin = plugin;
     }
 
-    /** Полный прогон проверок. Возвращает число проблем. */
     public int validate() {
         problems = 0;
         FileConfiguration cfg = plugin.getConfig();
@@ -138,8 +123,17 @@ public final class ConfigValidator {
         checkNonNegative(cfg, "installations.frost_rune.mage-mana-per-sec");
         checkNonNegative(cfg, "installations.frost_rune.mage-int-mult");
 
+        // === 1.9.3: attributes.hp ===
+        checkNonNegative(cfg, "attributes.hp.base-hp");
+        checkNonNegative(cfg, "attributes.hp.per-str");
+        checkNonNegative(cfg, "attributes.hp.per-level");
+        checkNonNegative(cfg, "attributes.hp.main-str-bonus");
+        checkNonNegative(cfg, "attributes.hp.regen-per-str");
+        checkNonNegative(cfg, "attributes.hp.regen-combat-factor");
+        checkNonNegative(cfg, "attributes.hp.regen-cap-pct");
+
         if (problems == 0) {
-            plugin.getLogger().info("ConfigValidator: конфиг валиден (resist/damage/talents/character-level/burst/frost_rune).");
+            plugin.getLogger().info("ConfigValidator: конфиг валиден (resist/damage/talents/character-level/burst/frost_rune/hp).");
         } else {
             plugin.getLogger().warning("ConfigValidator: проблем в конфиге: "
                     + problems + " (см. WARNING выше; значения подменены дефолтом/зажимом).");
@@ -147,11 +141,6 @@ public final class ConfigValidator {
         return problems;
     }
 
-    /**
-     * Стартовая сводка эффективных баз резистов по классам.
-     * Читает базы через breakdown() первого онлайн-игрока каждого класса;
-     * если онлайн-игрока класса нет — печатает 0/0 для этого класса.
-     */
     public void logSummary() {
         StringBuilder sb = new StringBuilder("Базы резистов (маг/физ): ");
         for (PlayerClass pc : PlayerClass.values()) {
