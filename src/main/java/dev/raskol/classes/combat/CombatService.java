@@ -33,12 +33,12 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.9.3 (интеграция RaskolGear без правок чужой репы):
- * - applyOutgoingOffense: пропускаем надбавку WP/SP, если оружие имеет PDC-тег "WEAPON"
- *   (RaskolGear уже применил base + power*coeff).
- * - onDamage: пропускаем применение классовых резистов (factor), если на жертве есть
- *   шмот RaskolGear (PDC-тег "ARMOR") — RaskolGear сам применяет резисты шмота.
- *   Burst/single-hit cap остаются всегда (это защита от ваншота, не дублируется).
+ * 1.9.3 (интеграция RaskolGear, финал):
+ *  - applyOutgoingOffense: пропускаем надбавку WP/SP ТОЛЬКО если в руке оружие RaskolGear
+ *    (его WeaponDamageListener уже посчитал base+Power×coeff) — иначе двойной скейл.
+ *  - onDamage: классовые резисты применяются ВСЕГДА (резисты шмота применяет сам
+ *    RaskolGear своим слушателем; стек мультипликативный, дубля нет).
+ *  - Burst/single-hit cap — всегда (защита от ваншота, RaskolGear её не дублирует).
  */
 public final class CombatService implements Listener {
 
@@ -131,7 +131,7 @@ public final class CombatService implements Listener {
         return damager instanceof Projectile proj && proj.getShooter() instanceof Player;
     }
 
-    /** Проверка: оружие атакующего имеет PDC-тег "WEAPON" (RaskolGear). */
+    /** Оружие атакующего имеет PDC-тег raskolgear:gear_type=WEAPON. */
     private boolean hasGearWeaponTag(Player attacker) {
         ItemStack weapon = attacker.getInventory().getItemInMainHand();
         if (weapon == null) {
@@ -143,33 +143,9 @@ public final class CombatService implements Listener {
         }
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         for (NamespacedKey key : pdc.getKeys()) {
-            if (key.getKey().equals("gear_type")) {
-                String type = pdc.get(key, PersistentDataType.STRING);
-                if ("WEAPON".equals(type)) {
+            if ("gear_type".equals(key.getKey())) {
+                if ("WEAPON".equals(pdc.get(key, PersistentDataType.STRING))) {
                     return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /** Проверка: на жертве есть шмот RaskolGear (PDC-тег "ARMOR" на любом элементе брони). */
-    private boolean hasGearArmorTag(Player target) {
-        for (ItemStack armor : target.getInventory().getArmorContents()) {
-            if (armor == null) {
-                continue;
-            }
-            ItemMeta meta = armor.getItemMeta();
-            if (meta == null) {
-                continue;
-            }
-            PersistentDataContainer pdc = meta.getPersistentDataContainer();
-            for (NamespacedKey key : pdc.getKeys()) {
-                if (key.getKey().equals("gear_type")) {
-                    String type = pdc.get(key, PersistentDataType.STRING);
-                    if ("ARMOR".equals(type)) {
-                        return true;
-                    }
                 }
             }
         }
@@ -254,22 +230,16 @@ public final class CombatService implements Listener {
         if (suppressed) {
             return;
         }
-
-        // 1.9.3 (интеграция RaskolGear): если на жертве есть шмот RaskolGear,
-        // пропускаем применение классовых резистов (RaskolGear сам применяет резисты шмота).
-        // Burst/single-hit cap остаются — это защита от ваншота, не дублируется.
-        boolean hasGearArmor = hasGearArmorTag(target);
-        if (!hasGearArmor) {
-            double cap = isPvp(event) ? resists.pvpCap() : resists.cap();
-            UUID uuid = target.getUniqueId();
-            double factor = type == DamageType.PHYSICAL
-                    ? resists.physicalFactor(uuid, cap)
-                    : resists.magicFactor(uuid, cap);
-            if (Double.isFinite(factor) && factor < 1.0 && factor >= 0.0) {
-                event.setDamage(event.getDamage() * factor);
-            }
+        // 1.9.3-fix: классовые резисты применяются ВСЕГДА (шмот снимает свой % отдельно)
+        double cap = isPvp(event) ? resists.pvpCap() : resists.cap();
+        UUID uuid = target.getUniqueId();
+        double factor = type == DamageType.PHYSICAL
+                ? resists.physicalFactor(uuid, cap)
+                : resists.magicFactor(uuid, cap);
+        if (!Double.isFinite(factor) || factor >= 1.0 || factor < 0.0) {
+            return;
         }
-
+        event.setDamage(event.getDamage() * factor);
         applySingleHitCapCarrier(event, target);
         double scale = scaleOf(target);
         double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
@@ -296,8 +266,7 @@ public final class CombatService implements Listener {
         if (attacker == null) {
             return;
         }
-        // 1.9.3 (интеграция RaskolGear): если оружие имеет PDC-тег "WEAPON",
-        // пропускаем надбавку WP/SP (WeaponDamageListener уже применил base + power*coeff)
+        // Оружие RaskolGear уже посчитало base+Power×coeff — не добавляем WP/SP поверх
         if (hasGearWeaponTag(attacker)) {
             return;
         }
