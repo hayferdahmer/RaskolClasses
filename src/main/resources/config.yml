@@ -1,10 +1,14 @@
 # ============================================================
-#  RaskolClasses v1.9.2 — «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.9.3 — «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
 #  ВАЖНО: inline-маппинги пишутся ТОЛЬКО с пробелом после двоеточия
 #  («key: { a: 1 }»), иначе snakeyaml падает с «mapping values are
 #  not allowed here».
+#
+#  1.9.3: ПОЛНАЯ формула HP возвращена — baseHp + STR×perStr
+#         + level×perLevel + (STR-main ? level×main-str-bonus : 0).
+#         Ключи per-level и main-str-bonus теперь ЖИВЫЕ.
 # ============================================================
 
 hud:
@@ -156,6 +160,7 @@ resist:
 
 # ------------------------------------------------------------
 # Атрибуты (1.7.0 + 1.8.0 + 1.8.1: parry-k 300, dodge-mult 0.5)
+# 1.9.3: hp.per-level и hp.main-str-bonus — ЖИВЫЕ ключи
 # ------------------------------------------------------------
 attributes:
   level-source: character   # character | class-skill | vanilla
@@ -167,10 +172,10 @@ attributes:
     MAGE: { main: INT, base-str: 4, base-agi: 6, base-int: 12, growth-str: 0.3, growth-agi: 0.5, growth-int: 1.2 }
     PRIEST: { main: INT, base-str: 5, base-agi: 5, base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
   hp:
-    base-hp: 100
-    per-str: 20
-    per-level: 0
-    main-str-bonus: 0
+    base-hp: 100            # базовое HP любого класса
+    per-str: 20             # HP за единицу СИЛЫ
+    per-level: 5            # HP за уровень (1.9.3 — ЖИВОЙ ключ)
+    main-str-bonus: 8       # доп. HP за уровень для STR-main классов (1.9.3 — ЖИВОЙ ключ)
     regen-per-str: 0.025
     regen-combat-factor: 0.35
     regen-cap-pct: 1.5
