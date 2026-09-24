@@ -19,6 +19,10 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -29,12 +33,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.6.0: боевой сервис урона и резистов. Путь A (ваниль) + путь B (наши способности).
- * 1.7.1: производные статы и анти-ваншот. 1.7.6.1: burst-окно.
- * 1.8.1 (S1+S2): ЕДИНЫЙ фракционный гейт.
- * 1.9.3 (план B): виртуальный пул HP (carrier/effective/scale).
- * 1.9.3-r (РЕФАКТОРИНГ): математика единиц НЕ дублируется — carrierMaxOf/formulaMaxOf/
- * scaleOf делегируют в HpBarService→AttributeService (единый источник правды).
+ * 1.9.3 (интеграция RaskolGear): applyOutgoingOffense пропускает события с PDC-тегом
+ * "WEAPON" на оружии атакующего (чтобы не удваивать урон, т.к. WeaponDamageListener
+ * уже применил base + power*coeff).
  */
 public final class CombatService implements Listener {
 
@@ -94,8 +95,6 @@ public final class CombatService implements Listener {
         return v >= 0.0 ? v : 1000.0;
     }
 
-    /* --------- 1.9.3-r: тонкие делегаты единиц (математика в AttributeService) --------- */
-
     private double carrierMaxOf(LivingEntity target) {
         if (target instanceof Player p) {
             return plugin.getHpBarService().carrierMaxHp(p);
@@ -127,6 +126,29 @@ public final class CombatService implements Listener {
             return true;
         }
         return damager instanceof Projectile proj && proj.getShooter() instanceof Player;
+    }
+
+    /** Проверка: оружие атакующего имеет PDC-тег "WEAPON" (RaskolGear). */
+    private boolean hasGearWeaponTag(Player attacker) {
+        ItemStack weapon = attacker.getInventory().getItemInMainHand();
+        if (weapon == null) {
+            return false;
+        }
+        ItemMeta meta = weapon.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        // Ищем NamespacedKey "raskolgear:gear_type" (плагин RaskolGear)
+        for (NamespacedKey key : pdc.getKeys()) {
+            if (key.getKey().equals("gear_type")) {
+                String type = pdc.get(key, PersistentDataType.STRING);
+                if ("WEAPON".equals(type)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /* ------------------------- 1.8.1: фракционный гейт ------------------------- */
@@ -242,6 +264,11 @@ public final class CombatService implements Listener {
         if (attacker == null) {
             return;
         }
+        // 1.9.3 (интеграция RaskolGear): если оружие имеет PDC-тег "WEAPON",
+        // пропускаем надбавку WP/SP (WeaponDamageListener уже применил base + power*coeff)
+        if (hasGearWeaponTag(attacker)) {
+            return;
+        }
         DamageType type = typeOf(event.getCause());
         if (type == DamageType.TRUE) {
             return;
@@ -320,8 +347,6 @@ public final class CombatService implements Listener {
         }
     }
 
-    /* ------------------------- летальная среда (carrier) ------------------------- */
-
     private void applyEnvLethalScale(EntityDamageEvent event, Player target) {
         if (!plugin.getConfig().getBoolean("damage-types.env-lethal-scale", true)) {
             return;
@@ -339,8 +364,6 @@ public final class CombatService implements Listener {
             event.setDamage(event.getDamage() * scale);
         }
     }
-
-    /* --------------------- анти-ваншот одиночный (carrier) --------------------- */
 
     public static double cappedDamage(double damage, double maxHp, double pct) {
         if (!Double.isFinite(damage) || damage <= 0.0) {
@@ -374,8 +397,6 @@ public final class CombatService implements Listener {
             event.setDamage(capped);
         }
     }
-
-    /* --------------------- burst-window cap (effective) --------------------- */
 
     private double applyBurstCap(Player target, double damage, double maxHp) {
         if (damage <= 0.0) {
@@ -420,8 +441,6 @@ public final class CombatService implements Listener {
         });
     }
 
-    /* ------------------------- симулятор (effective) ------------------------- */
-
     public double simulateTaken(LivingEntity target, DamageProfile profile) {
         if (profile == null || target == null) {
             return 0.0;
@@ -441,8 +460,6 @@ public final class CombatService implements Listener {
         }
         return safe.physical() + safe.magic() + truePart;
     }
-
-    /* ------------------------- путь B (effective → carrier) ------------------------- */
 
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
         return dealDamage(target, source, profile, false);
