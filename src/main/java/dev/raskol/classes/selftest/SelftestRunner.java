@@ -3,6 +3,7 @@ package dev.raskol.classes.selftest;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeMath;
+import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.balance.BalanceSimulator;
 import dev.raskol.classes.classsystem.CharacterLevelService;
@@ -24,17 +25,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest).
- * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
- * Чеки 17–18: TTK-санити. Чеки 19–20: сводный уровень topNAverage (1.8.0).
- * Чек 21: фракционный гейт canHit (1.8.1).
- * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
- * Чек 24: reconcile-цикл талантов (1.9.0; 1.9.2-fix: фолбэк на Spec.values()[0],
- *         цикл не зависит от активной спеки игрока-зонда).
- * Чеки 29–30: боевое окно и семантика consume (1.9.1).
- * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг битых узлов (1.9.2).
- * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
- * прунинг, а не ошибка.
+ * 1.9.3: добавлены чеки 33–35 плана B (scale/heal/carrier).
  */
 public final class SelftestRunner {
 
@@ -64,8 +55,8 @@ public final class SelftestRunner {
         double dr2 = AttributeMath.applyDR(80.0, 60.0, 0.5, 75.0);
         double dr3 = AttributeMath.applyDR(200.0, 60.0, 0.5, 75.0);
         if (check(report, "7", "applyDR(0)=0", dr1 == 0.0, "applyDR", dr1)) passed++; else failed++;
-        if (check(report, "8", "applyDR(80)=70 (наклон DR после soft-cap)", Math.abs(dr2 - 70.0) < 1e-6, "applyDR", dr2)) passed++; else failed++;
-        if (check(report, "9", "applyDR(200)=75 (hard-cap)", dr3 == 75.0, "applyDR", dr3)) passed++; else failed++;
+        if (check(report, "8", "applyDR(80)=70", Math.abs(dr2 - 70.0) < 1e-6, "applyDR", dr2)) passed++; else failed++;
+        if (check(report, "9", "applyDR(200)=75", dr3 == 75.0, "applyDR", dr3)) passed++; else failed++;
 
         double[] sp1 = AttributeMath.splitEff(50.0, 50.0, 50.0);
         boolean sp1ok = sp1 != null && sp1.length == 2 && sp1[0] == 25.0 && sp1[1] == 25.0;
@@ -100,14 +91,13 @@ public final class SelftestRunner {
                 "cappedDamage", c1)) passed++; else failed++;
         if (check(report, "16b", "capped(100,1300,35)=100", c2 == 100.0,
                 "cappedDamage", c2)) passed++; else failed++;
-        if (check(report, "16c", "capped(500,1000,0)=500 (кап выкл)", c3 == 500.0,
+        if (check(report, "16c", "capped(500,1000,0)=500", c3 == 500.0,
                 "cappedDamage", c3)) passed++; else failed++;
 
         BalanceSimulator.DuelResult ww = BalanceSimulator.duel(
                 plugin, PlayerClass.WARRIOR, PlayerClass.WARRIOR, 40, 42L);
         boolean ok17 = !ww.timeout() && ww.ttkSeconds() >= 10.0 && ww.ttkSeconds() <= 60.0;
-        if (check(report, "17", "TTK воин↔воин ∈ [10,60] с (получено "
-                + fmt(ww.ttkSeconds()) + " с)", ok17, "BalanceSimulator", ww.ttkSeconds())) {
+        if (check(report, "17", "TTK воин↔воин ∈ [10,60] с", ok17, "BalanceSimulator", ww.ttkSeconds())) {
             passed++;
         } else {
             failed++;
@@ -116,8 +106,7 @@ public final class SelftestRunner {
         BalanceSimulator.DuelResult pp = BalanceSimulator.duel(
                 plugin, PlayerClass.PRIEST, PlayerClass.PRIEST, 40, 42L);
         boolean ok18 = pp.timeout() || pp.ttkSeconds() >= 30.0;
-        if (check(report, "18", "жрец↔жрец ≥30 с или timeout (получено "
-                + fmt(pp.ttkSeconds()) + " с)", ok18, "BalanceSimulator", pp.ttkSeconds())) {
+        if (check(report, "18", "жрец↔жрец ≥30 с или timeout", ok18, "BalanceSimulator", pp.ttkSeconds())) {
             passed++;
         } else {
             failed++;
@@ -143,8 +132,7 @@ public final class SelftestRunner {
                 ? sp
                 : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
         if (probe == null) {
-            if (check(report, "21", "canHit: self/среда (пропущено: нет онлайн-игрока)",
-                    true, "canHit", "skip")) {
+            if (check(report, "21", "canHit: self/среда (пропущено)", true, "canHit", "skip")) {
                 passed++;
             } else {
                 failed++;
@@ -165,7 +153,7 @@ public final class SelftestRunner {
         int e60 = TalentModel.earnedPoints(60, 40, 1, 21);
         int e99 = TalentModel.earnedPoints(99, 40, 1, 21);
         boolean ok22 = e39 == 0 && e40 == 1 && e60 == 21 && e99 == 21;
-        if (check(report, "22", "очки талантов: 39→0, 40→1, 60→21, 99→21 (кап)",
+        if (check(report, "22", "очки талантов: 39→0, 40→1, 60→21, 99→21",
                 ok22, "earnedPoints", e39 + "/" + e40 + "/" + e60 + "/" + e99)) {
             passed++;
         } else {
@@ -185,10 +173,8 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 24 (1.9.0, 1.9.2-fix): reconcile-цикл не зависит от активной спеки зонда
         if (probe == null) {
-            if (check(report, "24", "reconcile-цикл (пропущено: нет онлайн-игрока)",
-                    true, "reconcile", "skip")) {
+            if (check(report, "24", "reconcile-цикл (пропущено)", true, "reconcile", "skip")) {
                 passed++;
             } else {
                 failed++;
@@ -199,7 +185,7 @@ public final class SelftestRunner {
             UUID probeUuid = probe.getUniqueId();
             Spec probeSpec = plugin.getSpecService().getSpec(probeUuid);
             if (probeSpec == null) {
-                probeSpec = Spec.values()[0]; // фолбэк: цикл работает с хранилищем напрямую
+                probeSpec = Spec.values()[0];
             }
             String specId = probeSpec.id();
             TalentModel.TalentTree tree = TalentsRegistry.treeOf(specId);
@@ -231,7 +217,7 @@ public final class SelftestRunner {
             } else {
                 got24 = "no-tree:" + specId;
             }
-            if (check(report, "24", "reconcile-цикл: покупка→reconcile→откат без рассинхрона",
+            if (check(report, "24", "reconcile-цикл: покупка→reconcile→откат",
                     ok24, "reconcile", got24)) {
                 passed++;
             } else {
@@ -239,19 +225,16 @@ public final class SelftestRunner {
             }
         }
 
-        // 29 (1.9.1): боевое окно
         ResourceState rsWindow = new ResourceState();
         boolean freshOut = !rsWindow.isInCombat(5000L);
         rsWindow.markCombat();
         boolean nowIn = rsWindow.isInCombat(5000L);
-        if (check(report, "29", "боевое окно: свежее вне боя, после markCombat в бою",
-                freshOut && nowIn, "ResourceState", freshOut + "/" + nowIn)) {
+        if (check(report, "29", "боевое окно", freshOut && nowIn, "ResourceState", freshOut + "/" + nowIn)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 30 (1.9.1): семантика consume
         ResourceState rsConsume = new ResourceState();
         rsConsume.setValue(10.0);
         boolean overDenied = !rsConsume.consume(15.0);
@@ -259,7 +242,7 @@ public final class SelftestRunner {
         boolean exactOk = rsConsume.consume(10.0);
         boolean zeroed = rsConsume.getValue() == 0.0;
         boolean freeOk = rsConsume.consume(0.0);
-        if (check(report, "30", "consume: сверх отказа без изменений, точное обнуляет, 0 бесплатна",
+        if (check(report, "30", "consume: сверх отказа, точное обнуляет, 0 бесплатна",
                 overDenied && overIntact && exactOk && zeroed && freeOk,
                 "ResourceState.consume",
                 overDenied + "/" + overIntact + "/" + exactOk + "/" + zeroed + "/" + freeOk)) {
@@ -268,10 +251,8 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 31 (1.9.2): ГЛОБАЛЬНЫЙ бюджет очков
         if (probe == null) {
-            if (check(report, "31", "глобальный бюджет очков (пропущено: нет онлайн-игрока)",
-                    true, "spentGlobal", "skip")) {
+            if (check(report, "31", "глобальный бюджет очков (пропущено)", true, "spentGlobal", "skip")) {
                 passed++;
             } else {
                 failed++;
@@ -318,10 +299,8 @@ public final class SelftestRunner {
             }
         }
 
-        // 32 (1.9.2): reconcile-прунинг битых узлов
         if (probe == null) {
-            if (check(report, "32", "reconcile-прунинг битых узлов (пропущено: нет онлайн-игрока)",
-                    true, "validatePurchased", "skip")) {
+            if (check(report, "32", "reconcile-прунинг (пропущено)", true, "validatePurchased", "skip")) {
                 passed++;
             } else {
                 failed++;
@@ -369,6 +348,47 @@ public final class SelftestRunner {
             }
         }
 
+        // 1.9.3: чеки 33–35 плана B (scale/heal/carrier)
+        if (probe == null) {
+            if (check(report, "33", "scale (пропущено)", true, "scale", "skip")) passed++; else failed++;
+            if (check(report, "34", "healFormula (пропущено)", true, "healFormula", "skip")) passed++; else failed++;
+            if (check(report, "35", "targetCarrier (пропущено)", true, "targetCarrier", "skip")) passed++; else failed++;
+        } else {
+            AttributeService attrs = plugin.getAttributes();
+            UUID pu = probe.getUniqueId();
+            double formula = attrs.maxHp(pu);
+            double carrier = attrs.carrierMaxHp(probe);
+            double scale = attrs.scale(probe);
+            boolean ok33 = Math.abs(scale - carrier / formula) < 1e-6;
+            if (check(report, "33", "scale = carrier/formula", ok33, "scale",
+                    String.format(Locale.ROOT, "%.4f", scale))) {
+                passed++;
+            } else {
+                failed++;
+            }
+
+            double hpBefore = probe.getHealth();
+            attrs.healFormula(probe, formula * 0.5);
+            double hpAfter = probe.getHealth();
+            boolean ok34 = hpAfter <= carrier + 0.01;
+            probe.setHealth(hpBefore);
+            if (check(report, "34", "healFormula не превышает carrier", ok34, "healFormula",
+                    String.format(Locale.ROOT, "%.1f→%.1f (carrier=%.1f)", hpBefore, hpAfter, carrier))) {
+                passed++;
+            } else {
+                failed++;
+            }
+
+            double target = attrs.targetCarrier(pu);
+            boolean ok35 = target == Math.min(formula, AttributeService.VANILLA_MAX_HEALTH_CAP);
+            if (check(report, "35", "targetCarrier = min(formula, 1024)", ok35, "targetCarrier",
+                    String.format(Locale.ROOT, "%.1f", target))) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
         for (String line : report.toString().split("\n")) {
             if (!line.isEmpty()) {
@@ -382,13 +402,12 @@ public final class SelftestRunner {
         sender.sendMessage(Component.text("Итог: " + passed + "/" + total + " PASS", color));
         if (failed > 0) {
             sender.sendMessage(Component.text(
-                    "Есть проблемы — смотри виновника в каждой строке. Проверь конфиг/формулы.",
+                    "Есть проблемы — смотри виновника в каждой строке.",
                     NamedTextColor.RED));
         }
         plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
     }
 
-    /** Первый узел тира 1 без пререквизитов (для тестов). */
     private static TalentModel.TalentNode firstT1(TalentModel.TalentTree tree) {
         for (TalentModel.TalentNode node : tree.nodes()) {
             if (node.tier() == 1 && node.prereqs().isEmpty()) {
