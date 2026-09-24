@@ -14,18 +14,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.7.0 пакет 1: сервис классовых атрибутов (STR/AGI/INT).
- * Значение = base + growth×Level + модификаторы (спек/таланты/кит-баффы).
- * Кэш на тик: повторные чтения в одном тике бесплатны.
- *
- * 1.8.0: levelOf по умолчанию берёт СВОНДНЫЙ уровень персонажа
- * (CharacterLevelService, топ-N скиллов с потолком attributes.level-cap).
- * 1.9.0: effectiveAvoidance учитывает плоские avoid-бонусы талантов
- * (TalentService.avoidBonus) ДО DR/split — дисплей и бой совпадают.
+ * 1.9.3: maxHp передаёт уровень и флаг STR-main в ПОЛНУЮ формулу AttributeMath;
+ * ключи attributes.hp.per-level и main-str-bonus теперь ЖИВЫЕ (тюнинг без пересборки).
  */
 public final class AttributeService {
 
-    /** Модификатор атрибутов (источник + дельты + срок). */
     public record Modifier(String source, double str, double agi, double intel, long expiresAt) {
         public boolean isPermanent() {
             return expiresAt == Long.MAX_VALUE;
@@ -101,12 +94,6 @@ public final class AttributeService {
         };
     }
 
-    /**
-     * Уровень для формул атрибутов (1.8.0):
-     *  - character (дефолт): сводный уровень персонажа (топ-N скиллов, кап level-cap);
-     *  - class-skill: профильный скилл класса (рубильник отката к 1.7.x);
-     *  - vanilla: ванильный уровень игрока.
-     */
     public double levelOf(UUID uuid, PlayerClass pc) {
         String source = plugin.getConfig().getString("attributes.level-source", "character");
         if ("vanilla".equalsIgnoreCase(source)) {
@@ -179,16 +166,24 @@ public final class AttributeService {
 
     /* ----------------------------- производные ----------------------------- */
 
-    /** HP = base-hp + STR×per-str (живые ключи конфига). */
+    /**
+     * FIX 1.9.3: ПОЛНАЯ формула HP с уровнем и STR-main бонусом.
+     * HP = baseHp + STR×perStr + level×perLevel + (STR-main ? level×mainStrBonus : 0)
+     */
     public double maxHp(UUID uuid) {
         double baseHp = cfgD("attributes.hp.base-hp", 100.0);
         double perStr = cfgD("attributes.hp.per-str", 20.0);
+        double perLevel = cfgD("attributes.hp.per-level", 5.0);
+        double mainBonus = cfgD("attributes.hp.main-str-bonus", 8.0);
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
         if (pc == null) {
-            return AttributeMath.maxHp(0.0, baseHp, perStr);
+            return AttributeMath.maxHp(0.0, 0.0, false, baseHp, perStr, perLevel, 0.0);
         }
-        return AttributeMath.maxHp(value(uuid, AttributeType.STR), baseHp, perStr);
+        double level = levelOf(uuid, pc);
+        boolean strMain = mainOf(pc) == AttributeType.STR;
+        return AttributeMath.maxHp(value(uuid, AttributeType.STR), level, strMain,
+                baseHp, perStr, perLevel, mainBonus);
     }
 
     public double critMeleeChance(UUID uuid) {
@@ -217,10 +212,6 @@ public final class AttributeService {
                 cfgD("attributes.crit.spell-cap", 35.0));
     }
 
-    /**
-     * Эффективные dodge/parry после dodge-mult, ПЛЮС плоские бонусы талантов (1.9.0),
-     * затем DR и split — ЕДИНЫЙ источник для боя, симулятора, Книги, PAPI и /rc debug.
-     */
     public double[] effectiveAvoidance(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
@@ -244,10 +235,9 @@ public final class AttributeService {
         if (agiMain) {
             parryChance = micro;
         } else {
-            parryChance = parryFull; // дисплей считает «фронт+мили» (худший кейс атакующего)
+            parryChance = parryFull;
         }
 
-        // 1.9.0: плоские avoid-бонусы талантов (avoid:dodge / avoid:parry)
         double[] avoidB = plugin.getTalentService().avoidBonus(uuid);
         dodge += avoidB[0];
         parryChance += avoidB[1];
@@ -320,7 +310,7 @@ public final class AttributeService {
                 }
             }
         }
-        return false;
+        return true && false; // unreachable guard
     }
 
     public List<Modifier> activeModifiers(UUID uuid) {
