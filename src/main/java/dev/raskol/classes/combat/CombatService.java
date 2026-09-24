@@ -32,15 +32,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.6.0: боевой сервис урона и резистов. Путь A (ваниль) + путь B (наши способности).
  * 1.7.1: производные статы и анти-ваншот. 1.7.6.1: burst-окно.
  * 1.8.1 (S1+S2): ЕДИНЫЙ фракционный гейт.
- * 1.9.3 (план B — виртуальный пул HP):
- *   - ванильный max_health = carrier = min(formula, 1024);
- *   - боевой пул = formula (effective);
- *   - scale = carrier / formula — единый множитель на границе с ванилью;
- *   - путь A: капы в carrier, burst-лог в effective (конвертация через scale);
- *   - путь B: taken в effective, в target.damage уходит ×scale;
- *   - исходящий офенс (WP/SP) конвертируется в carrier через scaleOf(цели);
- *   - env-lethal масштабируется от carrier.
- * 1.9.3-fix: scaleOf принимает Entity (by.getEntity() статически Entity, не LivingEntity).
+ * 1.9.3 (план B): виртуальный пул HP (carrier/effective/scale).
+ * 1.9.3-r (РЕФАКТОРИНГ): математика единиц НЕ дублируется — carrierMaxOf/formulaMaxOf/
+ * scaleOf делегируют в HpBarService→AttributeService (единый источник правды).
  */
 public final class CombatService implements Listener {
 
@@ -100,39 +94,28 @@ public final class CombatService implements Listener {
         return v >= 0.0 ? v : 1000.0;
     }
 
-    /* --------------------- 1.9.3 (план B): единицы и scale --------------------- */
+    /* --------- 1.9.3-r: тонкие делегаты единиц (математика в AttributeService) --------- */
 
-    /** Ванильный max_health (носитель, ≤1024). */
     private double carrierMaxOf(LivingEntity target) {
+        if (target instanceof Player p) {
+            return plugin.getHpBarService().carrierMaxHp(p);
+        }
         double m = target.getMaxHealth();
         return Double.isFinite(m) && m > 0.0 ? m : 20.0;
     }
 
-    /** Формульный maxHp (effective). Для мобов = их реальному max. */
     private double formulaMaxOf(LivingEntity target) {
         if (target instanceof Player p) {
-            double f = plugin.getAttributes().maxHp(p.getUniqueId());
-            return Double.isFinite(f) && f > 0.0 ? f : 20.0;
+            return plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
         }
         return carrierMaxOf(target);
     }
 
-    /**
-     * scale = carrier / formula (1.0 для мобов и когда formula≤carrier).
-     * 1.9.3-fix: параметр Entity — вызовы передают и Player, и LivingEntity,
-     * и статически Entity (by.getEntity() в applyOutgoingOffense).
-     */
     private double scaleOf(Entity target) {
-        if (!(target instanceof Player p)) {
-            return 1.0;
+        if (target instanceof Player p) {
+            return plugin.getHpBarService().scale(p);
         }
-        double formula = formulaMaxOf(p);
-        double carrier = carrierMaxOf(p);
-        if (formula <= 0.0) {
-            return 1.0;
-        }
-        double s = carrier / formula;
-        return (Double.isFinite(s) && s > 0.0) ? s : 1.0;
+        return 1.0;
     }
 
     private static boolean isPvp(EntityDamageEvent event) {
@@ -233,9 +216,7 @@ public final class CombatService implements Listener {
             return;
         }
         event.setDamage(event.getDamage() * factor);
-        // 1.9.3 (план B): одиночный кап в carrier-единицах
         applySingleHitCapCarrier(event, target);
-        // 1.9.3 (план B): burst-кап в effective-единицах (конвертация через scale)
         double scale = scaleOf(target);
         double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
         effective = applyBurstCap(target, effective, formulaMaxOf(target));
@@ -285,8 +266,6 @@ public final class CombatService implements Listener {
             }
             crit = rollSpellCrit(attacker);
         }
-        // 1.9.3 (план B): надбавка в effective-единицах → конвертируем в carrier цели.
-        // 1.9.3-fix: scaleOf(Entity) — by.getEntity() статически Entity.
         add *= scaleOf(by.getEntity());
         double base = event.getDamage();
         double total = base + add;
@@ -341,11 +320,8 @@ public final class CombatService implements Listener {
         }
     }
 
-    /* ------------------------- летальная среда (1.7.0.2, 1.9.3 план B) ------------------------- */
+    /* ------------------------- летальная среда (carrier) ------------------------- */
 
-    /**
-     * 1.9.3 (план B): скейлинг от CARRIER (носителя), т.к. event-урон среды — в carrier-единицах.
-     */
     private void applyEnvLethalScale(EntityDamageEvent event, Player target) {
         if (!plugin.getConfig().getBoolean("damage-types.env-lethal-scale", true)) {
             return;
@@ -364,7 +340,7 @@ public final class CombatService implements Listener {
         }
     }
 
-    /* --------------------- анти-ваншот одиночный (1.7.1, 1.9.3 carrier) --------------------- */
+    /* --------------------- анти-ваншот одиночный (carrier) --------------------- */
 
     public static double cappedDamage(double damage, double maxHp, double pct) {
         if (!Double.isFinite(damage) || damage <= 0.0) {
@@ -380,7 +356,6 @@ public final class CombatService implements Listener {
         return damage > limit ? limit : damage;
     }
 
-    /** Путь A: кап в carrier-единицах (event-урон ванильный). */
     private void applySingleHitCapCarrier(EntityDamageEvent event, Player target) {
         double pct = cfgD("combat.max-single-hit-pct", 35.0);
         if (pct <= 0.0) {
@@ -400,12 +375,8 @@ public final class CombatService implements Listener {
         }
     }
 
-    /* --------------------- burst-window cap (1.7.6.1, 1.9.3 effective) --------------------- */
+    /* --------------------- burst-window cap (effective) --------------------- */
 
-    /**
-     * Burst-кап в EFFECTIVE-единицах (лог хранит effective). maxHp передаётся явно:
-     * путь A → formulaMaxOf (после конвертации), путь B → formula.
-     */
     private double applyBurstCap(Player target, double damage, double maxHp) {
         if (damage <= 0.0) {
             return damage;
@@ -449,7 +420,7 @@ public final class CombatService implements Listener {
         });
     }
 
-    /* ------------------------- симулятор (1.6.4, effective) ------------------------- */
+    /* ------------------------- симулятор (effective) ------------------------- */
 
     public double simulateTaken(LivingEntity target, DamageProfile profile) {
         if (profile == null || target == null) {
@@ -471,7 +442,7 @@ public final class CombatService implements Listener {
         return safe.physical() + safe.magic() + truePart;
     }
 
-    /* ------------------------- путь B (наши способности, effective) ------------------------- */
+    /* ------------------------- путь B (effective → carrier) ------------------------- */
 
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
         return dealDamage(target, source, profile, false);
@@ -525,7 +496,7 @@ public final class CombatService implements Listener {
             physPart = physBase;
             magicTruePart = magicBase + truePart;
         }
-        double taken = physPart + magicTruePart;   // effective-единицы
+        double taken = physPart + magicTruePart;
         if (!allowOverCap && target instanceof Player tp2) {
             double pct = cfgD("combat.max-single-hit-pct", 35.0);
             if (pct > 0.0 && taken > 0.0) {
@@ -546,7 +517,6 @@ public final class CombatService implements Listener {
             }
         }
         debugLog(target, source, safe, taken);
-        // 1.9.3 (план B): конвертация effective → carrier на границе с ванилью
         double scale = scaleOf(target);
         double applyPhys = physPart * scale;
         double applyMagic = magicTruePart * scale;
@@ -615,7 +585,6 @@ public final class CombatService implements Listener {
             try {
                 return DamageType.valueOf(override.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException ignored) {
-                // опечатка в конфиге — падаем в дефолт
             }
         }
         return DamageType.defaultFor(cause);
