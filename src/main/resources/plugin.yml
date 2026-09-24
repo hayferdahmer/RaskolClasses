@@ -1,21 +1,21 @@
 name: RaskolClasses
-version: '1.9.2'
+version: '1.9.3'
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
-description: Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), уровень персонажа (топ-N скиллов), дерево талантов спеки в Книге класса, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно, боевое окно ресурсов и TTK-харнесс
+description: 'Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), уровень персонажа (топ-N скиллов), дерево талантов спеки в Книге класса, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно, боевое окно ресурсов, TTK-харнесс и синхронизация max_health с формулой HP (1.9.3)'
 
-softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, AuthMe]
+softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, AuthMe, Vault]
 
 commands:
   rc:
-    description: Команды классов RaskolClasses
-    usage: /rc [menu|reload|debug|health|selftest]
+    description: 'Команды классов RaskolClasses'
+    usage: '/rc [menu|reload|debug|debug simulate|health|selftest]'
 
 permissions:
   raskolclasses.admin:
-    description: Перезагрузка конфигурации, бесплатный сброс талантов/респец, инсталляции без анлока, касты в creative
+    description: 'Перезагрузка конфигурации, бесплатный сброс талантов/респец, инсталляции без анлока, касты в creative'
     default: op
   raskolclasses.debug:
-    description: Диагностика (/rc debug [player|simulate A B level], /rc health, /rc selftest, боевой лог combat.debug-damage)
+    description: 'Диагностика (/rc debug [player|simulate A B level], /rc health, /rc selftest, боевой лог combat.debug-damage)'
     default: op
