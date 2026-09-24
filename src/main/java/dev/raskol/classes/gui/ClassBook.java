@@ -38,9 +38,22 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Книга класса (1.5.4 → 1.9.2): 4 вкладки (способности, спеки, класс, таланты).
- * 1.9.2: покупка/сброс талантов обрабатывают RATE_LIMITED (пакет-спам кликами);
- * инфо-предмет очков помечает, что очки — ОБЩИЙ бюджет персонажа (все деревья).
+ * Книга класса (1.9.3-gui): ЕДИНАЯ мрачная строгая дизайн-система.
+ *
+ * Каркас (все вкладки одинаковы):
+ *   Row0: panes + [4 ЭМБЛЕМА] + panes
+ *   Row1-4: контент вкладки
+ *   Row5: [45 Способности][46 Спеки][47 Класс][48 Таланты][49 Закрыть] + panes
+ *
+ * Правила системы:
+ *  - Рамка/фон: BLACK_STAINED_GLASS_PANE (тёмная, строгая).
+ *  - Навигация всегда видима → нет тупиков; активная вкладка = glow + §6, неактивная = §7.
+ *  - Деструктив (респец / сброс талантов) ВСЕГДА в слоте 40.
+ *  - Состояния предметов: готово = glow + §6/§a; кулдаун = §7 + §c; замок = §7/DARK_GRAY + §c;
+ *    нет ресурса = §7 + §c. Никаких случайных цветов.
+ *  - Лор-шаблон: desc(§7) → пусто → статы(§7 label: §f value) → пусто → hint(§e ЛКМ / §7 ПКМ).
+ *  - Клики: ЛКМ = основное, ПКМ = вторичное, двойное ПКМ+30с = деструктив.
+ *  - Таланты: инфо очков перенесено с 4 (где жила эмблема) на 22; эмблема больше не исчезает.
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -48,22 +61,27 @@ public final class ClassBook implements InventoryHolder {
 
     private static final int SIZE = 54;
     private static final int SLOT_EMBLEM = 4;
-    private static final int SLOT_TAB_TALENTS = 46;
-    private static final int SLOT_TAB_ABILITIES = 48;
-    private static final int SLOT_TAB_SPECS = 50;
-    private static final int SLOT_TAB_CLASS = 52;
-    private static final int[] ABILITY_SLOTS = {10, 11, 12, 13, 14};
-    private static final int SLOT_INSTALL = 16;
-    private static final int[] SPEC_SLOTS = {11, 15};
-    private static final int SLOT_RESPEC = 22;
-    private static final int[] PASSIVE_SLOTS = {10, 11, 12, 13};
-    private static final int SLOT_CROWN = 15;
-    private static final int SLOT_RESIST = 14;
-    private static final int SLOT_ATTRIBUTES = 16;
 
-    /** 1.9.0: слоты узлов дерева (порядок = порядок узлов в TalentTree). */
+    private static final int SLOT_TAB_ABILITIES = 45;
+    private static final int SLOT_TAB_SPECS = 46;
+    private static final int SLOT_TAB_CLASS = 47;
+    private static final int SLOT_TAB_TALENTS = 48;
+    private static final int SLOT_CLOSE = 49;
+
+    private static final int[] ABILITY_SLOTS = {11, 12, 13, 14, 15};
+    private static final int SLOT_INSTALL = 22;
+
+    private static final int[] SPEC_SLOTS = {20, 24};
+    private static final int SLOT_RESPEC = 40;
+
+    private static final int[] PASSIVE_SLOTS = {29, 30, 31, 32};
+    private static final int SLOT_ATTRIBUTES = 20;
+    private static final int SLOT_RESIST = 22;
+    private static final int SLOT_CROWN = 24;
+
+    /** Порядок = порядок узлов TalentTree (ветви/тиры/капстоун/ульт). */
     private static final int[] TALENT_NODE_SLOTS = {2, 6, 10, 12, 14, 16, 20, 24, 31};
-    private static final int SLOT_TALENT_INFO = 4;
+    private static final int SLOT_TALENT_INFO = 22;
     private static final int SLOT_TALENT_RESET = 40;
     private static final long RESET_ARM_MILLIS = 30_000L;
 
@@ -109,11 +127,10 @@ public final class ClassBook implements InventoryHolder {
         fill(plugin, player, pc);
     }
 
+    /* --------------------------------- каркас --------------------------------- */
+
     private void fill(RaskolClasses plugin, Player player, PlayerClass pc) {
-        for (int i = 9; i < 36; i++) {
-            inventory.setItem(i, filler());
-        }
-        for (int i = 45; i < 54; i++) {
+        for (int i = 0; i < SIZE; i++) {
             inventory.setItem(i, filler());
         }
         inventory.setItem(SLOT_EMBLEM, emblem(plugin, player, pc));
@@ -125,6 +142,8 @@ public final class ClassBook implements InventoryHolder {
                 "book.tab.class", "Класс и пассивки", tab == Tab.CLASS));
         inventory.setItem(SLOT_TAB_TALENTS, tabIcon(plugin, Material.END_CRYSTAL,
                 "book.tab.talents", "Таланты спеки", tab == Tab.TALENTS));
+        inventory.setItem(SLOT_CLOSE, closeIcon(plugin));
+
         switch (tab) {
             case ABILITIES -> {
                 for (int i = 0; i < ABILITY_SLOTS.length; i++) {
@@ -150,15 +169,15 @@ public final class ClassBook implements InventoryHolder {
                 for (int i = 0; i < passives.size() && i < PASSIVE_SLOTS.length; i++) {
                     inventory.setItem(PASSIVE_SLOTS[i], passiveItem(plugin, pc, passives.get(i)));
                 }
+                inventory.setItem(SLOT_ATTRIBUTES, attributesItem(plugin, player, pc));
                 inventory.setItem(SLOT_RESIST, resistItem(plugin, player, pc));
                 inventory.setItem(SLOT_CROWN, crownItem(plugin, player, pc));
-                inventory.setItem(SLOT_ATTRIBUTES, attributesItem(plugin, player, pc));
             }
             case TALENTS -> fillTalents(plugin, player);
         }
     }
 
-    /* ------------------------------ 1.9.0: TALENTS ------------------------------ */
+    /* ------------------------------ TALENTS ------------------------------ */
 
     private void fillTalents(RaskolClasses plugin, Player player) {
         UUID uuid = player.getUniqueId();
@@ -191,12 +210,20 @@ public final class ClassBook implements InventoryHolder {
         ItemStack info = new ItemStack(Material.EXPERIENCE_BOTTLE);
         info.editMeta(meta -> {
             meta.displayName(Component.text("Таланты: " + spec.displayName(), NamedTextColor.GOLD));
-            meta.lore(List.of(
-                    Component.text("Очков доступно: " + available, NamedTextColor.AQUA),
-                    Component.text("Потрачено всего: " + talents.spentGlobal(uuid)
-                            + " · заработано: " + talents.earnedPoints(uuid), NamedTextColor.GRAY),
-                    Component.text("Очки — общий бюджет персонажа (все деревья)", NamedTextColor.DARK_GRAY),
-                    Component.text("Клик по узлу — купить талант", NamedTextColor.GREEN)));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.empty());
+            lore.add(Component.text("Очков доступно: ", NamedTextColor.GRAY)
+                    .append(Component.text(String.valueOf(available), NamedTextColor.WHITE)));
+            lore.add(Component.text("Потрачено всего: ", NamedTextColor.GRAY)
+                    .append(Component.text(String.valueOf(talents.spentGlobal(uuid)), NamedTextColor.WHITE))
+                    .append(Component.text(" · заработано: ", NamedTextColor.GRAY))
+                    .append(Component.text(String.valueOf(talents.earnedPoints(uuid)), NamedTextColor.WHITE)));
+            lore.add(Component.text("Очки — общий бюджет персонажа (все деревья)", NamedTextColor.DARK_GRAY));
+            lore.add(Component.empty());
+            lore.add(Component.text("ЛКМ по узлу — купить талант", NamedTextColor.YELLOW));
+            meta.lore(lore);
+            meta.addEnchant(Enchantment.LURE, 1, true);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         });
         inventory.setItem(SLOT_TALENT_INFO, info);
 
@@ -209,12 +236,17 @@ public final class ClassBook implements InventoryHolder {
         ItemStack reset = new ItemStack(Material.END_CRYSTAL);
         reset.editMeta(meta -> {
             meta.displayName(Component.text("Сброс дерева талантов", NamedTextColor.LIGHT_PURPLE));
-            meta.lore(List.of(
-                    Component.text("ПКМ №1 — взвести, ПКМ №2 (30 с) — сбросить", NamedTextColor.YELLOW),
-                    Component.text("Цена: " + plugin.getConfig().getInt("talents.reset-base", 500)
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.empty());
+            lore.add(Component.text("Цена: ", NamedTextColor.GRAY)
+                    .append(Component.text(plugin.getConfig().getInt("talents.reset-base", 500)
                             + " + " + plugin.getConfig().getInt("talents.reset-per-point", 25)
-                            + "×потрачено монет", NamedTextColor.RED),
-                    Component.text("Очки возвращаются в общий пул", NamedTextColor.GRAY)));
+                            + "×потрачено", NamedTextColor.RED))
+                    .append(Component.text(" монет", NamedTextColor.GRAY)));
+            lore.add(Component.text("Очки возвращаются в общий пул", NamedTextColor.GRAY));
+            lore.add(Component.empty());
+            lore.add(Component.text("ПКМ №1 — взвести · ПКМ №2 (30 с) — сбросить", NamedTextColor.YELLOW));
+            meta.lore(lore);
         });
         inventory.setItem(SLOT_TALENT_RESET, reset);
     }
@@ -234,15 +266,16 @@ public final class ClassBook implements InventoryHolder {
         item.editMeta(meta -> {
             NamedTextColor nameColor = isOwned ? NamedTextColor.GREEN
                     : (!tierOk || !prereqOk) ? NamedTextColor.DARK_GRAY
-                    : affordable ? NamedTextColor.YELLOW : NamedTextColor.RED;
+                    : affordable ? NamedTextColor.GOLD : NamedTextColor.RED;
             meta.displayName(Component.text(node.name(), nameColor));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text(node.lore(), NamedTextColor.WHITE));
-            lore.add(Component.text(describeEffect(node.effect()), NamedTextColor.AQUA));
+            lore.add(Component.text(node.lore(), NamedTextColor.GRAY));
+            lore.add(Component.text(describeEffect(node.effect()), NamedTextColor.WHITE));
             lore.add(Component.text("Тир " + node.tier() + " · цена " + node.cost() + " очк.",
                     NamedTextColor.GRAY));
+            lore.add(Component.empty());
             if (isOwned) {
-                lore.add(Component.text("✔ КУПЛЕНО", NamedTextColor.GREEN));
+                lore.add(Component.text("✔ ИЗУЧЕНО", NamedTextColor.GREEN));
             } else if (!tierOk) {
                 lore.add(Component.text("Нужен уровень персонажа " + gate, NamedTextColor.RED));
             } else if (!prereqOk) {
@@ -250,7 +283,7 @@ public final class ClassBook implements InventoryHolder {
             } else if (!affordable) {
                 lore.add(Component.text("Не хватает очков", NamedTextColor.RED));
             } else {
-                lore.add(Component.text("Клик — купить", NamedTextColor.GREEN));
+                lore.add(Component.text("ЛКМ — купить", NamedTextColor.YELLOW));
             }
             meta.lore(lore);
             if (isOwned) {
@@ -322,7 +355,7 @@ public final class ClassBook implements InventoryHolder {
     }
 
     private static ItemStack filler() {
-        ItemStack item = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
+        ItemStack item = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
         item.editMeta(meta -> meta.displayName(Component.empty()));
         return item;
     }
@@ -332,7 +365,7 @@ public final class ClassBook implements InventoryHolder {
         ItemStack item = new ItemStack(material);
         item.editMeta(meta -> {
             meta.displayName(Component.text(msg(plugin, key, def),
-                    active ? NamedTextColor.GREEN : NamedTextColor.GRAY));
+                    active ? NamedTextColor.GOLD : NamedTextColor.GRAY));
             if (active) {
                 meta.addEnchant(Enchantment.LURE, 1, true);
                 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
@@ -340,6 +373,12 @@ public final class ClassBook implements InventoryHolder {
             meta.lore(List.of(Component.text(msg(plugin, "book.tab.hint", "Клик — открыть вкладку"),
                     NamedTextColor.DARK_GRAY)));
         });
+        return item;
+    }
+
+    private static ItemStack closeIcon(RaskolClasses plugin) {
+        ItemStack item = new ItemStack(Material.BARRIER);
+        item.editMeta(meta -> meta.displayName(Component.text("Закрыть", NamedTextColor.RED)));
         return item;
     }
 
@@ -366,12 +405,14 @@ public final class ClassBook implements InventoryHolder {
             lore.add(Component.text(msg(plugin, "book.emblem.resource", "Ресурс сейчас: {value}/100")
                     .replace("{value}", String.valueOf(
                             (int) plugin.getResources().getValue(player.getUniqueId()))),
-                    NamedTextColor.AQUA));
+                    NamedTextColor.WHITE));
             lore.add(Component.text(msg(plugin, "book.emblem.crown", "Корона: {name}")
                     .replace("{name}", plugin.getFlavorService()
                             .crownDisplayName(player.getUniqueId())),
                     NamedTextColor.GOLD));
             meta.lore(lore);
+            meta.addEnchant(Enchantment.LURE, 1, true);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         });
         return item;
     }
@@ -398,12 +439,12 @@ public final class ClassBook implements InventoryHolder {
             lore.add(Component.text(msg(plugin, "book.resist.phys", "Физ: {total}% (база {base}%)")
                     .replace("{total}", String.valueOf((int) rb.physicalTotal()))
                     .replace("{base}", String.valueOf((int) rb.basePhysical())),
-                    NamedTextColor.GREEN));
+                    NamedTextColor.WHITE));
             lore.add(Component.text(msg(plugin, "book.resist.magic", "Маг: {total}% (база {base}%)")
                     .replace("{total}", String.valueOf((int) rb.magicTotal()))
                     .replace("{base}", String.valueOf((int) rb.baseMagic())),
-                    NamedTextColor.LIGHT_PURPLE));
-            lore.add(Component.text(""));
+                    NamedTextColor.WHITE));
+            lore.add(Component.empty());
             if (rb.active().isEmpty()) {
                 lore.add(Component.text(msg(plugin, "book.resist.none",
                         "Активных модификаторов нет"), NamedTextColor.DARK_GRAY));
@@ -447,33 +488,33 @@ public final class ClassBook implements InventoryHolder {
                     "Уровень персонажа: {value} (топ-{n} скиллов, кап {cap})")
                     .replace("{value}", String.valueOf(charLevel))
                     .replace("{n}", String.valueOf(topN))
-                    .replace("{cap}", String.valueOf(cap)), NamedTextColor.AQUA));
-            lore.add(Component.text(""));
+                    .replace("{cap}", String.valueOf(cap)), NamedTextColor.WHITE));
+            lore.add(Component.empty());
             lore.add(Component.text((main == AttributeType.STR ? "★ " : "  ")
                     + msg(plugin, "book.attributes.str", "СИЛА: {value}")
-                    .replace("{value}", String.valueOf((int) str)), NamedTextColor.RED));
+                    .replace("{value}", String.valueOf((int) str)), NamedTextColor.WHITE));
             lore.add(Component.text((main == AttributeType.AGI ? "★ " : "  ")
                     + msg(plugin, "book.attributes.agi", "ЛОВКОСТЬ: {value}")
-                    .replace("{value}", String.valueOf((int) agi)), NamedTextColor.GREEN));
+                    .replace("{value}", String.valueOf((int) agi)), NamedTextColor.WHITE));
             lore.add(Component.text((main == AttributeType.INT ? "★ " : "  ")
                     + msg(plugin, "book.attributes.int", "ИНТЕЛЛЕКТ: {value}")
-                    .replace("{value}", String.valueOf((int) intel)), NamedTextColor.AQUA));
-            lore.add(Component.text(""));
+                    .replace("{value}", String.valueOf((int) intel)), NamedTextColor.WHITE));
+            lore.add(Component.empty());
             lore.add(Component.text(msg(plugin, "book.attributes.hp", "Макс. HP: {value}")
                     .replace("{value}", String.valueOf((int) attrs.maxHp(uuid))),
                     NamedTextColor.WHITE));
             lore.add(Component.text(msg(plugin, "book.attributes.dodge", "Уклонение: {value}%")
                     .replace("{value}", String.format(Locale.ROOT, "%.1f", eff[0])),
-                    NamedTextColor.GREEN));
+                    NamedTextColor.WHITE));
             lore.add(Component.text(msg(plugin, "book.attributes.parry", "Парирование: {value}%")
                     .replace("{value}", String.format(Locale.ROOT, "%.1f", eff[1])),
-                    NamedTextColor.YELLOW));
+                    NamedTextColor.WHITE));
             lore.add(Component.text(msg(plugin, "book.attributes.crit-melee", "Крит мили: {value}%")
                     .replace("{value}", String.format(Locale.ROOT, "%.1f",
-                            attrs.critMeleeChance(uuid))), NamedTextColor.RED));
+                            attrs.critMeleeChance(uuid))), NamedTextColor.WHITE));
             lore.add(Component.text(msg(plugin, "book.attributes.crit-spell", "Крит магии: {value}%")
                     .replace("{value}", String.format(Locale.ROOT, "%.1f",
-                            attrs.critSpellChance(uuid))), NamedTextColor.AQUA));
+                            attrs.critSpellChance(uuid))), NamedTextColor.WHITE));
             meta.lore(lore);
         });
         return item;
@@ -492,17 +533,20 @@ public final class ClassBook implements InventoryHolder {
 
         ItemStack item = new ItemStack(Material.BOOK);
         item.editMeta(meta -> {
-            meta.displayName(TextFx.gradient("[" + def.slot() + "] " + def.displayName(),
-                    cfg.themeOf(pc).primary(), cfg.themeOf(pc).secondary()));
+            Component name = unlocked
+                    ? TextFx.gradient("[" + def.slot() + "] " + def.displayName(),
+                            cfg.themeOf(pc).primary(), cfg.themeOf(pc).secondary())
+                    : Component.text("[" + def.slot() + "] " + def.displayName(), NamedTextColor.DARK_GRAY);
+            meta.displayName(name);
             List<Component> lore = new ArrayList<>();
             String desc = cfg.abilityDescription(pc, def.id(), "");
             if (!desc.isEmpty()) {
-                lore.add(Component.text(desc, NamedTextColor.WHITE));
+                lore.add(Component.text(desc, NamedTextColor.GRAY));
             }
-            lore.add(Component.text(msg(plugin, "book.cost", "Цена: {cost} {resource}")
-                    .replace("{cost}", String.valueOf(def.cost()))
-                    .replace("{resource}", pc.getResourceName()),
-                    resource >= def.cost() ? NamedTextColor.GREEN : NamedTextColor.RED));
+            lore.add(Component.empty());
+            lore.add(Component.text("Цена: ", NamedTextColor.GRAY)
+                    .append(Component.text(def.cost() + " " + pc.getResourceName(),
+                            resource >= def.cost() ? NamedTextColor.WHITE : NamedTextColor.RED)));
             if (remaining > 0) {
                 lore.add(Component.text(msg(plugin, "book.recharging", "Перезарядка: {sec} с")
                         .replace("{sec}", String.valueOf(remaining / 1000L + 1)),
@@ -514,17 +558,19 @@ public final class ClassBook implements InventoryHolder {
             }
             lore.add(Component.text(msg(plugin, "book.unlock", "Открытие: уровень {level}")
                     .replace("{level}", String.valueOf(def.unlockLevel())),
-                    unlocked ? NamedTextColor.GREEN : NamedTextColor.RED));
+                    unlocked ? NamedTextColor.GRAY : NamedTextColor.RED));
             lore.add(Component.text(scrolls > 0
                     ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
                             .replace("{count}", String.valueOf(scrolls))
                     : msg(plugin, "book.scroll.none", "Свиток: нет"),
-                    scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
-            lore.add(Component.text(""));
-            lore.add(Component.text(msg(plugin, "book.use.left", "ЛКМ — применить"),
-                    NamedTextColor.GREEN));
-            lore.add(Component.text(msg(plugin, "book.use.right", "ПКМ — свиток в хотбар"),
-                    NamedTextColor.YELLOW));
+                    scrolls > 0 ? NamedTextColor.WHITE : NamedTextColor.DARK_GRAY));
+            lore.add(Component.empty());
+            if (!unlocked) {
+                lore.add(Component.text("Заблокировано до уровня " + def.unlockLevel(), NamedTextColor.RED));
+            } else {
+                lore.add(Component.text(msg(plugin, "book.use.left", "ЛКМ — применить"), NamedTextColor.YELLOW));
+                lore.add(Component.text(msg(plugin, "book.use.right", "ПКМ — свиток в хотбар"), NamedTextColor.GRAY));
+            }
             meta.lore(lore);
             if (ready) {
                 meta.addEnchant(Enchantment.LURE, 1, true);
@@ -544,23 +590,22 @@ public final class ClassBook implements InventoryHolder {
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text(msg(plugin,
                     "book.install.desc." + type.id().toLowerCase(Locale.ROOT), installDescDef(type)),
-                    NamedTextColor.WHITE));
+                    NamedTextColor.GRAY));
+            lore.add(Component.empty());
             lore.add(Component.text(msg(plugin, "book.install.active", "Активно: {count}/2 · TTL {ttl} с")
                     .replace("{count}", String.valueOf(
                             plugin.getInstallations().countOf(player.getUniqueId())))
                     .replace("{ttl}", String.valueOf(
                             plugin.getConfig().getInt("installations.ttl-seconds", 60))),
-                    NamedTextColor.GRAY));
+                    NamedTextColor.WHITE));
             lore.add(Component.text(scrolls > 0
                     ? msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
                             .replace("{count}", String.valueOf(scrolls))
                     : msg(plugin, "book.scroll.none", "Свиток: нет"),
-                    scrolls > 0 ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
-            lore.add(Component.text(""));
-            lore.add(Component.text(msg(plugin, "book.place.left", "ЛКМ — поставить здесь"),
-                    NamedTextColor.GREEN));
-            lore.add(Component.text(msg(plugin, "book.place.right", "ПКМ — свиток постановки"),
-                    NamedTextColor.YELLOW));
+                    scrolls > 0 ? NamedTextColor.WHITE : NamedTextColor.DARK_GRAY));
+            lore.add(Component.empty());
+            lore.add(Component.text(msg(plugin, "book.place.left", "ЛКМ — поставить здесь"), NamedTextColor.YELLOW));
+            lore.add(Component.text(msg(plugin, "book.place.right", "ПКМ — свиток постановки"), NamedTextColor.GRAY));
             meta.lore(lore);
         });
         return item;
@@ -581,15 +626,14 @@ public final class ClassBook implements InventoryHolder {
         Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         item.editMeta(meta -> {
-            meta.displayName(TextFx.gradient(spec.displayName(),
-                    plugin.getRaskolConfig().themeOf(pc).primary(),
-                    plugin.getRaskolConfig().themeOf(pc).secondary()));
+            meta.displayName(Component.text(spec.displayName(),
+                    current == spec ? NamedTextColor.GOLD : NamedTextColor.GRAY));
             List<Component> lore = new ArrayList<>();
             if (def != null) {
                 lore.add(Component.text(msg(plugin, "book.spec.passive", "Пассив: {text}")
-                        .replace("{text}", def.passiveDescription()), NamedTextColor.WHITE));
+                        .replace("{text}", def.passiveDescription()), NamedTextColor.GRAY));
             }
-            lore.add(Component.text(""));
+            lore.add(Component.empty());
             if (current == spec) {
                 lore.add(Component.text(msg(plugin, "book.spec.chosen", "Выбрана тобой"),
                         NamedTextColor.GREEN));
@@ -622,11 +666,12 @@ public final class ClassBook implements InventoryHolder {
                 lore.add(Component.text(msg(plugin, "book.respec.nospec",
                         "Спеки нет — отрекаться не от чего"), NamedTextColor.GRAY));
             } else {
+                lore.add(Component.empty());
                 lore.add(Component.text(msg(plugin, "book.respec.current", "Текущая спека: {name}")
                         .replace("{name}", current.displayName()), NamedTextColor.WHITE));
                 lore.add(Component.text(msg(plugin, "book.respec.price", "Цена: {price} монет (сжигаются)")
                         .replace("{price}", String.valueOf(cost)), NamedTextColor.RED));
-                lore.add(Component.text(""));
+                lore.add(Component.empty());
                 lore.add(Component.text(msg(plugin, "book.respec.hint",
                         "ПКМ №1 — взвести, ПКМ №2 (30 с) — отречься"), NamedTextColor.YELLOW));
             }
@@ -640,10 +685,10 @@ public final class ClassBook implements InventoryHolder {
         ItemStack item = new ItemStack(Material.EXPERIENCE_BOTTLE);
         item.editMeta(meta -> {
             meta.displayName(Component.text(cfg.passiveDisplayName(pc, id, id),
-                    NamedTextColor.AQUA));
+                    NamedTextColor.GOLD));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text(cfg.passiveDescription(pc, id, ""), NamedTextColor.WHITE));
-            lore.add(Component.text(passiveNumbers(id), NamedTextColor.GRAY));
+            lore.add(Component.text(cfg.passiveDescription(pc, id, ""), NamedTextColor.GRAY));
+            lore.add(Component.text(passiveNumbers(id), NamedTextColor.WHITE));
             meta.lore(lore);
         });
         return item;
@@ -657,9 +702,10 @@ public final class ClassBook implements InventoryHolder {
             meta.displayName(Component.text(msg(plugin, "book.crown.title", "Корона и титул"),
                     NamedTextColor.GOLD));
             List<Component> lore = new ArrayList<>();
+            lore.add(Component.empty());
             lore.add(Component.text(msg(plugin, "book.crown.crown", "Корона: {name}")
                     .replace("{name}", plugin.getFlavorService().crownDisplayName(uuid)),
-                    NamedTextColor.GOLD));
+                    NamedTextColor.WHITE));
             lore.add(Component.text(msg(plugin, "book.crown.titleline", "Титул: {name}")
                     .replace("{name}", title.isEmpty() ? "—" : title), NamedTextColor.WHITE));
             lore.add(Component.text(msg(plugin, "book.crown.aura",
@@ -690,7 +736,7 @@ public final class ClassBook implements InventoryHolder {
         return -1;
     }
 
-    /** Обработчик кликов книги. 1.9.2: RATE_LIMITED в покупке и сбросе талантов. */
+    /** Обработчик кликов книги (1.9.3-gui): единая семантика ЛКМ/ПКМ + деструктив. */
     public static final class ClickHandler implements Listener {
 
         private static final Map<UUID, Long> RESET_ARM = new ConcurrentHashMap<>();
@@ -723,22 +769,15 @@ public final class ClassBook implements InventoryHolder {
             if (pc == null) {
                 return;
             }
-            if (slot == SLOT_TAB_ABILITIES) {
-                open(plugin, player, Tab.ABILITIES);
+            if (slot == SLOT_CLOSE) {
+                player.closeInventory();
                 return;
             }
-            if (slot == SLOT_TAB_SPECS) {
-                open(plugin, player, Tab.SPECS);
-                return;
-            }
-            if (slot == SLOT_TAB_CLASS) {
-                open(plugin, player, Tab.CLASS);
-                return;
-            }
-            if (slot == SLOT_TAB_TALENTS) {
-                open(plugin, player, Tab.TALENTS);
-                return;
-            }
+            if (slot == SLOT_TAB_ABILITIES) { open(plugin, player, Tab.ABILITIES); return; }
+            if (slot == SLOT_TAB_SPECS) { open(plugin, player, Tab.SPECS); return; }
+            if (slot == SLOT_TAB_CLASS) { open(plugin, player, Tab.CLASS); return; }
+            if (slot == SLOT_TAB_TALENTS) { open(plugin, player, Tab.TALENTS); return; }
+
             switch (book.tab) {
                 case ABILITIES -> {
                     int idx = indexOf(ABILITY_SLOTS, slot);
@@ -904,7 +943,7 @@ public final class ClassBook implements InventoryHolder {
                     }
                 }
                 case CLASS -> {
-                    // информационная вкладка — клики ничего не делают
+                    // информационная вкладка — клики по контенту ничего не делают
                 }
             }
         }
