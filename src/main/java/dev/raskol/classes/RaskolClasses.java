@@ -4,6 +4,7 @@ package dev.raskol.classes;
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
 import dev.raskol.classes.attribute.AttributeService;
+import dev.raskol.classes.attribute.HpAttributeSync;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
@@ -57,15 +58,12 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.9.0: TalentsStorage + TalentService — персист и рантайм дерева талантов спеки;
- * reconcile талантов на join и /rc reload, очистка кэша на quit.
- * 1.9.0-fix: FxService теперь Listener (onProjectileHit для заряженных снарядов
- * китов); регистрация слушателя fx добавлена в блок pluginManager.registerEvents.
- * 1.9.1: боевое окно markCombat в ResourceService, регресс-чеки selftest 29–30,
- * расширение ConfigValidator.
- * 1.9.2: интеграция с RaskolCore 1.3.0 — PassportChangeListener (мгновенный
- * reconcile на смену паспорта), EconomyHook через контракт Core, стартовая
- * проверка версии Core (warn-only, не fail-closed).
+ * 1.9.0: TalentsStorage + TalentService; reconcile талантов на join и /rc reload.
+ * 1.9.0-fix: FxService теперь Listener (onProjectileHit для заряженных снарядов).
+ * 1.9.1: боевое окно markCombat в ResourceService, регресс-чеки selftest 29–30.
+ * 1.9.2: интеграция с RaskolCore 1.3.0 — PassportChangeListener, EconomyHook через Core.
+ * 1.9.3: HpAttributeSync — синхронизация ванильного MAX_HEALTH с формулой HP
+ *        (join/respawn/reload/invalidate + периодический sweep 5 с).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -105,6 +103,9 @@ public final class RaskolClasses extends JavaPlugin {
     private ConfigValidator configValidator;
     private AttributeService attributes;
 
+    /** 1.9.3: синхронизация ванильного MAX_HEALTH с формулой HP. */
+    private HpAttributeSync hpSync;
+
     /** 1.9.2: слушатель смены паспорта из RaskolCore. */
     private PassportChangeListener passportListener;
 
@@ -120,7 +121,6 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info(() -> "Paper: " + getServer().getVersion()
                 + " / Bukkit: " + getServer().getBukkitVersion());
 
-        // 1.9.2: стартовая проверка версии RaskolCore (warn-only, не fail-closed)
         checkCoreVersion();
 
         PluginManager pluginManager = getServer().getPluginManager();
@@ -163,6 +163,10 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.logSummary();
 
         this.attributes = new AttributeService(this);
+        // 1.9.3: синхронизация ванильного MAX_HEALTH с формулой HP
+        this.hpSync = new HpAttributeSync(this);
+        pluginManager.registerEvents(hpSync, this);
+        hpSync.startSweep(100L);   // каждые 5 сек страховочный sweep
         this.hpBarService = new HpBarService(this);
 
         this.specRegistry = new SpecRegistry(this);
@@ -173,7 +177,6 @@ public final class RaskolClasses extends JavaPlugin {
         this.specService = new SpecService(this, specStorage, specRegistry);
         this.specToken = new SpecToken(this);
 
-        // 1.9.0: персист + рантайм талантов
         this.talentsStorage = new TalentsStorage(this);
         this.talentService = new TalentService(this, talentsStorage);
 
@@ -196,10 +199,8 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(combat, this);
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
         pluginManager.registerEvents(hpBarService, this);
-        // 1.9.0-fix: FxService слушает ProjectileHitEvent для заряженных снарядов (Prometheus)
         pluginManager.registerEvents(fx, this);
 
-        // 1.9.2: PassportChangeListener (мгновенный reconcile на смену паспорта)
         this.passportListener = new PassportChangeListener(this);
         passportListener.register();
 
@@ -216,13 +217,14 @@ public final class RaskolClasses extends JavaPlugin {
             @EventHandler
             public void onJoin(PlayerJoinEvent event) {
                 specService.restorePassiveResists(event.getPlayer());
-                // 1.9.0: применить таланты на login
                 talentService.reconcile(event.getPlayer().getUniqueId());
+                hpSync.sync(event.getPlayer());   // 1.9.3: синхронизация HP на join
             }
         }, this);
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             specService.restorePassiveResists(online);
             talentService.reconcile(online.getUniqueId());
+            hpSync.sync(online);   // 1.9.3: синхронизация HP для уже онлайн
         }
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
@@ -273,9 +275,7 @@ public final class RaskolClasses extends JavaPlugin {
     }
 
     /**
-     * 1.9.2: стартовая проверка версии RaskolCore.
-     * Warn-only: старый Core не ломает бой (все нужные API есть с 1.0–1.1),
-     * но в логе будет явная инструкция обновить.
+     * 1.9.2: стартовая проверка версии RaskolCore (warn-only).
      */
     private void checkCoreVersion() {
         try {
@@ -287,7 +287,6 @@ public final class RaskolClasses extends JavaPlugin {
                         + "мгновенный reconcile на смену паспорта может не работать");
             } else {
                 getLogger().info("RaskolCore: версия " + version);
-                // Проверка минимальной версии (1.3.0 — когда появился coreVersion)
                 if ("1.0.0".equals(version) || "1.1.0".equals(version) || "1.2.0".equals(version)) {
                     getLogger().warning("RaskolCore: версия " + version + " устарела — "
                             + "рекомендуется обновить до 1.3.0 для мгновенного reconcile");
@@ -301,6 +300,9 @@ public final class RaskolClasses extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (hpSync != null) {
+            hpSync.stopSweep();   // 1.9.3: остановить sweep
+        }
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
         if (passportListener != null) {
@@ -362,9 +364,12 @@ public final class RaskolClasses extends JavaPlugin {
         }
         fx.validateConfig();
         configValidator.validate();
-        // 1.9.0: пересобрать таланты всех онлайн после /rc reload
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             talentService.reconcile(online.getUniqueId());
+        }
+        // 1.9.3: после reload синхронизировать MAX_HEALTH всех онлайн
+        if (hpSync != null) {
+            hpSync.syncAll();
         }
         getLogger().info("Конфигурация перезагружена");
     }
@@ -406,4 +411,5 @@ public final class RaskolClasses extends JavaPlugin {
     public ManaSoakedService getManaSoaked() { return manaSoaked; }
     public ConfigValidator getConfigValidator() { return configValidator; }
     public AttributeService getAttributes() { return attributes; }
+    public HpAttributeSync getHpSync() { return hpSync; }
 }
