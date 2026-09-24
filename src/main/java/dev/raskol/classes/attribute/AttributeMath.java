@@ -2,68 +2,71 @@
 package dev.raskol.classes.attribute;
 
 /**
- * 1.7.0: ВСЯ боевая математика атрибутов — чистые статические функции без Bukkit.
- * Никакого состояния, никаких side-эффектов: это позволяет гонять формулы
- * в /rc selftest headless-проверками и переиспользовать их в бою, HUD и PAPI
- * без расхождений (единый источник правды).
- *
- * 1.7.0.5: HP-ФОРМУЛА ПЕРЕСЧИТАНА:
- *   HP = baseHp + STR × perStr
- *   (дефолты: baseHp=100, perStr=20 → воин STR 60 = 1300 HP, маг STR 16 = 420 HP).
- *   Параметры level/strMain/perLevel/mainBonus сохранены в сигнатуре для
- *   совместимости вызовов, но не используются (legacy).
- *
- * 1.7.0.3: strRegenPerSecond — Dota-подобный реген HP от СИЛЫ.
+ * 1.9.3: ПОЛНАЯ формула HP возвращена и сделана конфигурируемой:
+ *   HP = baseHp + STR×perStr + level×perLevel + (strMain ? level×mainBonus : 0)
+ * Все слагаемые читаются из конфига (attributes.hp.*), мёртвых ключей больше нет.
+ * Legacy 6-arg maxHp сохранён для совместимости, но делегирует в полную формулу
+ * (baseHp=100) — больше никакого молчаливого хардкода в боевых вызовах.
+ * Чистые статические функции без Bukkit: единый источник правды для боя, HUD, PAPI, selftest.
  */
 public final class AttributeMath {
 
     private AttributeMath() {
     }
 
+    private static double fin(double v, double def) {
+        return Double.isFinite(v) ? v : def;
+    }
+
     /* ------------------------------- здоровье ------------------------------- */
 
     /**
-     * Максимум HP: baseHp + STR × perStr.
-     * Параметры level/strMain/perLevel/mainBonus — legacy, не используются
-     * (сохранены для совместимости вызовов AttributeService).
-     * 1.7.0.5: baseHp=100, perStr=20 (было: 20 + STR×perStr + level×perLevel + mainBonus).
+     * Каноническая ПОЛНАЯ формула HP (1.9.3).
+     * @param str        значение СИЛЫ
+     * @param level      уровень для формул (сводный/профильный/ванильный)
+     * @param strMain    true если главный атрибут класса — STR (танк-бонус)
+     * @param baseHp     базовое HP
+     * @param perStr     HP за единицу STR
+     * @param perLevel   HP за уровень
+     * @param mainBonus  доп. HP за уровень для STR-main классов
      */
-    @SuppressWarnings("unused")
     public static double maxHp(double str, double level, boolean strMain,
-                               double perStr, double perLevel, double mainBonus) {
-        return maxHp(str, 100.0, perStr);
-    }
-
-    /**
-     * Каноническая формула HP (1.7.0.5): HP = baseHp + STR × perStr.
-     * Кламп снизу на 1.0 (живой игрок всегда имеет хотя бы 1 HP в модели).
-     * Все входы защищены от NaN/отрицательных.
-     */
-    public static double maxHp(double str, double baseHp, double perStr) {
-        double safeStr = Double.isFinite(str) && str >= 0 ? str : 0.0;
-        double safePerStr = Double.isFinite(perStr) && perStr >= 0 ? perStr : 0.0;
-        double safeBase = Double.isFinite(baseHp) && baseHp >= 0 ? baseHp : 100.0;
-        double hp = safeBase + safeStr * safePerStr;
+                               double baseHp, double perStr, double perLevel, double mainBonus) {
+        double sStr = Math.max(0.0, fin(str, 0.0));
+        double sLvl = Math.max(0.0, fin(level, 0.0));
+        double sBase = Math.max(0.0, fin(baseHp, 100.0));
+        double sPerStr = Math.max(0.0, fin(perStr, 0.0));
+        double sPerLvl = Math.max(0.0, fin(perLevel, 0.0));
+        double sMain = Math.max(0.0, fin(mainBonus, 0.0));
+        double hp = sBase + sStr * sPerStr + sLvl * sPerLvl + (strMain ? sLvl * sMain : 0.0);
         return Math.max(1.0, hp);
     }
 
+    /** 3-arg совместимость: HP только от STR (level=0, без main-бонуса). */
+    public static double maxHp(double str, double baseHp, double perStr) {
+        return maxHp(str, 0.0, false, baseHp, perStr, 0.0, 0.0);
+    }
+
+    /** Legacy 6-arg совместимость: делегирует в полную формулу с baseHp=100. */
+    @SuppressWarnings("unused")
+    public static double maxHp(double str, double level, boolean strMain,
+                               double perStr, double perLevel, double mainBonus) {
+        return maxHp(str, level, strMain, 100.0, perStr, perLevel, mainBonus);
+    }
+
     /**
-     * 1.7.0.3: реген HP от СИЛЫ, HP/сек.
-     *   rate = STR × perStr;
-     *   в бою rate ×= combatFactor (толпа всё равно убивает);
-     *   кап: rate ≤ maxHp × capPct / 100 (реген не скейлится в абсурд с пулом).
-     * Все входы защищены от NaN/отрицательных.
+     * Реген HP от СИЛЫ, HP/сек (1.7.0.3, без изменений).
      */
     public static double strRegenPerSecond(double str, double perStr, double maxHp,
                                            boolean inCombat, double combatFactor, double capPct) {
-        double rate = Math.max(0.0, str) * Math.max(0.0, perStr);
+        double rate = Math.max(0.0, fin(str, 0.0)) * Math.max(0.0, fin(perStr, 0.0));
         if (!Double.isFinite(rate)) {
             return 0.0;
         }
         if (inCombat) {
-            rate *= Math.max(0.0, combatFactor);
+            rate *= Math.max(0.0, fin(combatFactor, 0.0));
         }
-        double cap = Math.max(0.0, maxHp) * Math.max(0.0, capPct) / 100.0;
+        double cap = Math.max(0.0, fin(maxHp, 0.0)) * Math.max(0.0, fin(capPct, 0.0)) / 100.0;
         if (!Double.isFinite(cap)) {
             return 0.0;
         }
@@ -72,36 +75,31 @@ public final class AttributeMath {
 
     /* -------------------------------- урон ----------------------------------- */
 
-    /** Плоская добавка к физ-компоненте исходящего урона: STR + level. */
     public static double physicalBonus(double str, double level) {
-        return Math.max(0.0, str + level);
+        return Math.max(0.0, fin(str, 0.0) + fin(level, 0.0));
     }
 
-    /** Плоская добавка к маг-компоненте исходящего урона: INT + level. */
     public static double spellBonus(double intel, double level) {
-        return Math.max(0.0, intel + level);
+        return Math.max(0.0, fin(intel, 0.0) + fin(level, 0.0));
     }
 
     /* -------------------------------- крит ----------------------------------- */
 
-    /** Крит мили: base + AGI×perAgi, кламп в [0, cap]. */
     public static double critMelee(double agi, double base, double perAgi, double cap) {
-        return clampPct(base + Math.max(0.0, agi) * perAgi, cap);
+        return clampPct(base + Math.max(0.0, fin(agi, 0.0)) * fin(perAgi, 0.0), cap);
     }
 
-    /** Крит магии: (base + INT×perInt) × (intMain ? mainMult : 1), кламп в [0, cap]. */
     public static double critSpell(double intel, boolean intMain,
                                    double base, double perInt, double mainMult, double cap) {
-        double v = base + Math.max(0.0, intel) * perInt;
+        double v = base + Math.max(0.0, fin(intel, 0.0)) * fin(perInt, 0.0);
         if (intMain) {
-            v *= mainMult;
+            v *= fin(mainMult, 1.0);
         }
         return clampPct(v, cap);
     }
 
     /* ------------------------------ защита ----------------------------------- */
 
-    /** Уклонение (raw, %): гипербола 100×AGI/(AGI+k) — убывающая отдача из коробки. */
     public static double dodgeRaw(double agi, double k) {
         if (agi <= 0.0 || k <= 0.0) {
             return 0.0;
@@ -109,7 +107,6 @@ public final class AttributeMath {
         return 100.0 * agi / (agi + k);
     }
 
-    /** Парирование (raw, %): гипербола 100×STR/(STR+k), только фронт + мили/щит. */
     public static double parryRaw(double str, double k) {
         if (str <= 0.0 || k <= 0.0) {
             return 0.0;
@@ -117,23 +114,14 @@ public final class AttributeMath {
         return 100.0 * str / (str + k);
     }
 
-    /**
-     * Закон убывающей отдачи (DR): до softCap эффективность полная,
-     * свыше — каждый процент за drFactor; жёсткий предел hardCap.
-     */
     public static double applyDR(double total, double softCap, double drFactor, double hardCap) {
         if (total <= 0.0) {
             return 0.0;
         }
-        double eff = total <= softCap
-                ? total
-                : softCap + (total - softCap) * drFactor;
+        double eff = total <= softCap ? total : softCap + (total - softCap) * drFactor;
         return Math.min(eff, hardCap);
     }
 
-    /**
-     * Пропорциональное распределение эффективного шанса между уклоном и парированием.
-     */
     public static double[] splitEff(double dodgeRaw, double parryRaw, double effTotal) {
         double raw = dodgeRaw + parryRaw;
         if (raw <= 0.0 || effTotal <= 0.0) {
@@ -182,6 +170,6 @@ public final class AttributeMath {
     }
 
     private static double clampPct(double v, double cap) {
-        return Math.max(0.0, Math.min(cap, v));
+        return Math.max(0.0, Math.min(fin(cap, 100.0), v));
     }
 }
