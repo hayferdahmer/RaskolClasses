@@ -18,11 +18,11 @@ import java.util.Map;
 /**
  * Конфиг-слой плагина.
  * 1.7.5.1: самолечение битых значений damage-types.vanilla-map при reload.
- * 1.7.6: ключ balance.target-ttk-seconds — якорь TTK-харнесса (подсветка матрицы).
+ * 1.7.6: ключ balance.target-ttk-seconds — якорь TTK-харнесса.
+ * 1.9.3: addDefault для attributes.hp.per-level и main-str-bonus (ЖИВЫЕ ключи).
  */
 public final class RaskolConfig {
 
-    /** Канонические значения vanilla-map для самолечения. */
     private static final Map<String, String> VANILLA_MAP_DEFAULTS = Map.ofEntries(
             Map.entry("SONIC_BOOM", "true"),
             Map.entry("VOID", "true"),
@@ -96,10 +96,8 @@ public final class RaskolConfig {
         config.addDefault("class-accept.enabled", true);
         config.addDefault("class-accept.subtitle", "Твой путь избран");
 
-        // 1.7.6: якорь TTK-харнесса
         config.addDefault("balance.target-ttk-seconds", 20.0);
 
-        // 1.6.0: резисты
         config.addDefault("resist.cap", 90.0);
         config.addDefault("resist.classes.WARRIOR.magic", 12.0);
         config.addDefault("resist.classes.WARRIOR.physical", 27.0);
@@ -112,7 +110,6 @@ public final class RaskolConfig {
         config.addDefault("resist.classes.HUNTER.magic", 12.0);
         config.addDefault("resist.classes.HUNTER.physical", 16.0);
 
-        // 1.7.5.1: летальная среда и анти-ваншот — с addDefault
         config.addDefault("damage-types.env-lethal-scale", true);
         config.addDefault("damage-types.env-lethal",
                 List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION"));
@@ -126,9 +123,11 @@ public final class RaskolConfig {
         config.addDefault("installations.bear_trap.damage-physical", 3.0);
         config.addDefault("installations.frost_rune.damage-magic", 4.0);
 
-        // 1.7.0.5: HP-формула — живые ключи с addDefault
+        // 1.7.0.5 + 1.9.3: HP-формула — живые ключи с addDefault
         config.addDefault("attributes.hp.base-hp", 100.0);
         config.addDefault("attributes.hp.per-str", 20.0);
+        config.addDefault("attributes.hp.per-level", 5.0);          // 1.9.3
+        config.addDefault("attributes.hp.main-str-bonus", 8.0);     // 1.9.3
         config.addDefault("attributes.hp.regen-per-str", 0.025);
         config.addDefault("attributes.hp.regen-combat-factor", 0.35);
         config.addDefault("attributes.hp.regen-cap-pct", 1.5);
@@ -255,7 +254,6 @@ public final class RaskolConfig {
         rebuildThemes();
     }
 
-    /** 1.7.5.1: пустые/битые значения vanilla-map восстанавливаются до канона. */
     private void healVanillaMap(FileConfiguration config) {
         boolean dirty = false;
         for (Map.Entry<String, String> e : VANILLA_MAP_DEFAULTS.entrySet()) {
@@ -271,7 +269,6 @@ public final class RaskolConfig {
         }
     }
 
-    /** 1.7.6: якорь TTK для подсветки матрицы симулятора. */
     public double targetTtkSeconds() {
         double v = plugin.getConfig().getDouble("balance.target-ttk-seconds", 20.0);
         return Double.isFinite(v) && v > 0.0 ? v : 20.0;
@@ -528,26 +525,4 @@ public final class RaskolConfig {
                 case MAGE -> Map.of(
                         "fire_prometheus", new AbilityDefaults(10, 15, 6, "Огонь Прометея", 0,
                                 "Дар титана: гибридный урон 30/70 (физ/маг) + поджог 3 с"),
-                        "hermes_step", new AbilityDefaults(25, 20, 20, "Шаг Гермеса", 0,
-                                "Мгновенный рывок вперёд на 8 блоков (проверяет безопасность точки)"),
-                        "boreas_breath", new AbilityDefaults(50, 40, 45, "Дыхание Борея", 4,
-                                "Ледяной шквал: маг-урон по площади радиусом 5 + Slowness II 4 с (не сквозь стены)"),
-                        "athena_aegis", new AbilityDefaults(65, 30, 30, "Эгида Афины", 5,
-                                "Щит богини: +магрезист на 5 с (скалируется от Силы заклинаний)"),
-                        "zeus_wrath", new AbilityDefaults(75, 60, 90, "Гнев Зевса", 0,
-                                "Карая молния: тяжёлый маг-урон; цель ниже 25% HP получает ×3"));
-                case ROGUE -> Map.of(
-                        "shadow_cloak", new AbilityDefaults(10, 30, 30, "Плащ теней", 15,
-                                "Слиться с тенью: Невидимость 15 с"),
-                        "blade_fan", new AbilityDefaults(25, 25, 15, "Веер клинков", 0,
-                                "Вихрь ножей по площади радиусом 3 (не сквозь стены)"),
-                        "strangle", new AbilityDefaults(50, 40, 40, "Удушение палача", 0,
-                                "Хватка палача: урон + Blind 2 с + Slowness 2 с"),
-                        "borgia_poison", new AbilityDefaults(65, 35, 30, "Яд Борджа", 0,
-                                "Отравленный клинок: урон + Яд I 5 с"),
-                        "shadow_dance", new AbilityDefaults(75, 60, 120, "Танец теней", 4,
-                                "Танец клинков: +30 ЛОВКОСТИ на 4 с (всплеск уклонения через avoidance)"));
-            };
-        }
-    }
-}
+                        "hermes_step", new AbilityDefaults(25, 20, 20, "Ша
