@@ -22,6 +22,7 @@ import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.hook.EconomyHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
+import dev.raskol.classes.hook.GearHook;
 import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
@@ -59,7 +60,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.9.3: HpAttributeSync, полная формула HP, crash-guard китов, мрачный баннер.
+ * 1.9.3: план B (виртуальный пул HP), GearHook (RaskolGear), баннер, hpSync.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -88,6 +89,9 @@ public final class RaskolClasses extends JavaPlugin {
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
 
+    /** 1.9.3: хук RaskolGear (статы шмота: резисты/HP/сеты). */
+    private GearHook gearHook;
+
     private FxService fx;
 
     private InstallationService installations;
@@ -99,10 +103,8 @@ public final class RaskolClasses extends JavaPlugin {
     private ConfigValidator configValidator;
     private AttributeService attributes;
 
-    /** 1.9.3: синхронизация ванильного MAX_HEALTH с формулой HP. */
     private HpAttributeSync hpSync;
 
-    /** 1.9.2: слушатель смены паспорта из RaskolCore. */
     private PassportChangeListener passportListener;
 
     private volatile long lastPurgeMillis = System.currentTimeMillis();
@@ -124,6 +126,15 @@ public final class RaskolClasses extends JavaPlugin {
         this.classProvider = new ClassProvider(this, raskolConfig);
         if (!classProvider.isAvailable()) {
             getLogger().warning("LuckPerms не найден — определение классов отключено");
+        }
+
+        // 1.9.3: хук RaskolGear (до AttributeService, т.к. maxHp читает gearHp)
+        this.gearHook = new GearHook(this);
+        pluginManager.registerEvents(gearHook, this);
+        if (gearHook.isAvailable()) {
+            getLogger().info("RaskolGear: хук активен (статы шмота читаются из PDC)");
+        } else {
+            getLogger().info("RaskolGear: не найден — хук отключён (gear-статы = 0)");
         }
 
         this.skillLevels = new SkillLevelProvider(this);
@@ -270,11 +281,7 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
     }
 
-    /**
-     * 1.9.3: мрачный стартовый баннер (стиль SiegeWar, тёмная палитра).
-     * FIX: арт «CLASSES» из 7 букв (ранее терялась финальная S → «CLASES»).
-     * Градиент: §8 сталь → §4 кровь → §5 тень; снизу классы, автор, версия.
-     */
+    /** 1.9.3: мрачный стартовый баннер. */
     private void printBanner() {
         String v = getPluginMeta().getVersion();
         String[] art = {
@@ -297,9 +304,6 @@ public final class RaskolClasses extends JavaPlugin {
         }
     }
 
-    /**
-     * 1.9.2: стартовая проверка версии RaskolCore (warn-only).
-     */
     private void checkCoreVersion() {
         try {
             Class<?> api = Class.forName("dev.raskol.core.RaskolCoreAPI");
@@ -389,6 +393,9 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.validate();
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             talentService.reconcile(online.getUniqueId());
+            if (gearHook != null) {
+                gearHook.refresh(online);
+            }
         }
         if (hpSync != null) {
             hpSync.syncAll();
@@ -425,6 +432,7 @@ public final class RaskolClasses extends JavaPlugin {
     public TalentService getTalentService() { return talentService; }
     public FactionHook getFactionHook() { return factionHook; }
     public CrownFlavorService getFlavorService() { return flavorService; }
+    public GearHook getGearHook() { return gearHook; }
     public FxService getFx() { return fx; }
     public InstallationService getInstallations() { return installations; }
     public InstallToken getInstallToken() { return installToken; }
