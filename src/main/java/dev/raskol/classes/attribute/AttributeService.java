@@ -4,6 +4,7 @@ package dev.raskol.classes.attribute;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.hook.GearHook;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
@@ -20,25 +21,17 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.7.0: сервис классовых атрибутов (STR/AGI/INT).
- * 1.8.0: levelOf по умолчанию берёт сводный уровень персонажа.
- * 1.9.0: effectiveAvoidance учитывает плоские avoid-бонусы талантов.
- * 1.9.3: maxHp — ПОЛНАЯ формула; invalidate синхронизирует carrier.
- * 1.9.3-r (РЕФАКТОРИНГ): ЕДИНЫЙ источник правды по единицам HP (план B):
- *   VANILLA_MAX_HEALTH_CAP, maxHealthAttr(), carrierMaxHp(), targetCarrier(),
- *   scale(), currentFormulaHp(), healFormula().
- *   HpBarService и CombatService больше не считают это сами — только делегируют.
+ * 1.9.3-r: единый источник правды по единицам HP (план B) + gear-HP из GearHook.
+ * maxHp = формула(base+STR×perStr+level×perLevel+STR-main×level×bonus) + GearHook.hpBonus.
  */
 public final class AttributeService {
 
-    /** Движковый потолок ванильного max_health (без datapack-оверрайда). */
     public static final double VANILLA_MAX_HEALTH_CAP = 1024.0;
 
     private static final Attribute MAX_HEALTH = RegistryAccess.registryAccess()
             .getRegistry(RegistryKey.ATTRIBUTE)
             .get(NamespacedKey.minecraft("max_health"));
 
-    /** Публичный доступ к атрибуту max_health (для HpBarService/модификаторов). */
     public static Attribute maxHealthAttr() {
         return MAX_HEALTH;
     }
@@ -186,7 +179,7 @@ public final class AttributeService {
         if (c != null) {
             c.tick = -1;
         }
-        dev.raskol.classes.attribute.HpAttributeSync sync = plugin.getHpSync();
+        HpAttributeSync sync = plugin.getHpSync();
         if (sync != null) {
             sync.syncByUuid(uuid);
         }
@@ -194,7 +187,10 @@ public final class AttributeService {
 
     /* ----------------------------- производные ----------------------------- */
 
-    /** ПОЛНАЯ формула HP (1.9.3): base + STR×perStr + level×perLevel + (STR-main ? level×mainBonus). */
+    /**
+     * ПОЛНАЯ формула HP (1.9.3) + gear-HP из GearHook:
+     * HP = base + STR×perStr + level×perLevel + (STR-main ? level×mainBonus : 0) + gearHp.
+     */
     public double maxHp(UUID uuid) {
         double baseHp = cfgD("attributes.hp.base-hp", 100.0);
         double perStr = cfgD("attributes.hp.per-str", 20.0);
@@ -202,13 +198,23 @@ public final class AttributeService {
         double mainBonus = cfgD("attributes.hp.main-str-bonus", 8.0);
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
+        double formula;
         if (pc == null) {
-            return AttributeMath.maxHp(0.0, 0.0, false, baseHp, perStr, perLevel, 0.0);
+            formula = AttributeMath.maxHp(0.0, 0.0, false, baseHp, perStr, perLevel, 0.0);
+        } else {
+            double level = levelOf(uuid, pc);
+            boolean strMain = mainOf(pc) == AttributeType.STR;
+            formula = AttributeMath.maxHp(value(uuid, AttributeType.STR), level, strMain,
+                    baseHp, perStr, perLevel, mainBonus);
         }
-        double level = levelOf(uuid, pc);
-        boolean strMain = mainOf(pc) == AttributeType.STR;
-        return AttributeMath.maxHp(value(uuid, AttributeType.STR), level, strMain,
-                baseHp, perStr, perLevel, mainBonus);
+        GearHook gear = plugin.getGearHook();
+        if (gear != null && gear.isAvailable()) {
+            double gearHp = gear.hpBonus(uuid);
+            if (Double.isFinite(gearHp) && gearHp > 0.0) {
+                formula += gearHp;
+            }
+        }
+        return Math.max(1.0, formula);
     }
 
     public double critMeleeChance(UUID uuid) {
@@ -288,7 +294,6 @@ public final class AttributeService {
 
     /* --------------- 1.9.3-r: ЕДИНЫЕ ЕДИНИЦЫ HP (план B) --------------- */
 
-    /** Ванильный max_health (носитель): base + все модификаторы, уже клампнуто движком. */
     public double carrierMaxHp(Player player) {
         if (player == null || MAX_HEALTH == null) {
             return 20.0;
@@ -298,12 +303,10 @@ public final class AttributeService {
         return Double.isFinite(v) && v > 0.0 ? v : 20.0;
     }
 
-    /** Целевой carrier, который выставляем: min(formula, движковый потолок). */
     public double targetCarrier(UUID uuid) {
         return Math.max(1.0, Math.min(maxHp(uuid), VANILLA_MAX_HEALTH_CAP));
     }
 
-    /** scale = carrier / formula (1.0, если formula ≤ потолка или не игрок). */
     public double scale(Player player) {
         double formula = maxHp(player.getUniqueId());
         if (formula <= 0.0) {
@@ -313,16 +316,11 @@ public final class AttributeService {
         return (Double.isFinite(s) && s > 0.0) ? s : 1.0;
     }
 
-    /** Текущее HP в формульных (effective) единицах. */
     public double currentFormulaHp(Player player) {
         double s = scale(player);
         return s > 0.0 ? player.getHealth() / s : player.getHealth();
     }
 
-    /**
-     * Хил в формульных единицах: конвертация в carrier (×scale) + clamp к carrier.
-     * Единственная точка, где хил касается ванильного здоровья.
-     */
     public void healFormula(LivingEntity target, double formulaAmount) {
         if (target == null || target.isDead() || formulaAmount <= 0.0 || MAX_HEALTH == null) {
             return;
