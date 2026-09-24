@@ -1,21 +1,39 @@
 name: RaskolClasses
-version: '1.9.3'
+version: ${project.version}
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
-description: 'Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), уровень персонажа (топ-N скиллов), дерево талантов спеки в Книге класса, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно, боевое окно ресурсов, TTK-харнесс и синхронизация max_health с формулой HP (1.9.3)'
+description: "«РАСКОЛ | ДВЕ КОРОНЫ» — классы, спеки, таланты, инсталляции, бой."
+website: https://github.com/hayferdahmer/RaskolClasses
 
-softdepend: [LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, AuthMe, Vault]
+softdepend:
+  - LuckPerms
+  - AuraSkills
+  - PlaceholderAPI
+  - RaskolCore
+  - Towny
+  - Vault
+  - RaskolGear
+  - AuthMe
+  - Essentials
+  - packetevents
 
 commands:
   rc:
-    description: 'Команды классов RaskolClasses'
-    usage: '/rc [menu|reload|debug|debug simulate|health|selftest]'
+    description: "Главная команда RaskolClasses"
+    usage: "/rc [menu|reload|debug|health|selftest]"
+    aliases: [raskol, raskolclasses]
 
 permissions:
-  raskolclasses.admin:
-    description: 'Перезагрузка конфигурации, бесплатный сброс талантов/респец, инсталляции без анлока, касты в creative'
-    default: op
+  raskolclasses.use:
+    description: "Базовое использование системы классов"
+    default: true
+  raskolclasses.menu:
+    description: "Открытие Книги класса (/rc menu)"
+    default: true
   raskolclasses.debug:
-    description: 'Диагностика (/rc debug [player|simulate A B level], /rc health, /rc selftest, боевой лог combat.debug-damage)'
+    description: "Диагностика: /rc debug, /rc health, /rc selftest"
+    default: op
+  raskolclasses.admin:
+    description: "Админские команды: /rc reload"
     default: op
