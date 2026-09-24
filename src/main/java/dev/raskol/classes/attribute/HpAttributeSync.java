@@ -19,21 +19,15 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.UUID;
 
 /**
- * 1.9.3: СИНХРОНИЗАЦИЯ ванильного MAX_HEALTH с формулой AttributeService.
- *
- * Архитектурный дефект 1.9.2 и ранее:
- *   - AttributeService.maxHp(uuid) считает по формуле (2560 у воина L60/STR84).
- *   - player.getAttribute(MAX_HEALTH).getValue() остаётся на ванильных 20.
- *   - warrior.fenrirBlood/ragnarok, CombatService.applyEnvLethalScale и плагины-
- *     партнёры читали ВАНИЛЬНЫЙ атрибут → хилы лечили только до 20 HP,
- *     execute-пороги считались от 20, падения не масштабировались.
- *
- * Фикс: на join/respawn/class-change/level-up/talents-apply — устанавливать
- * ванильный MAX_HEALTH = AttributeService.maxHp(uuid).
- * Плюс периодический таск (5 с) для страховки на случай, если где-то кэш
- * не инвалидирован.
+ * 1.9.3 (план B — виртуальный пул HP):
+ * Ванильный MAX_HEALTH = carrier = min(formula, 1024) — носитель-пропорция.
+ * Реальный боевой пул = formula (effective), живёт в HpBarService/CombatService.
+ * Sync устанавливает carrier на join/respawn/reload/invalidate + sweep 5 с.
+ * Datapack больше НЕ требуется: потолок 1024 обходится масштабированием, а не оверрайдом.
  */
 public final class HpAttributeSync implements Listener {
+
+    private static final double VANILLA_MAX_HEALTH_CAP = 1024.0;
 
     private static final Attribute MAX_HEALTH = RegistryAccess.registryAccess()
             .getRegistry(RegistryKey.ATTRIBUTE)
@@ -46,7 +40,7 @@ public final class HpAttributeSync implements Listener {
         this.plugin = plugin;
     }
 
-    /** Установить ванильный MAX_HEALTH игрока = формульному значению. */
+    /** Установить ванильный MAX_HEALTH = carrier = min(formula, 1024). */
     public void sync(Player player) {
         if (player == null || MAX_HEALTH == null) {
             return;
@@ -56,14 +50,15 @@ public final class HpAttributeSync implements Listener {
             return;
         }
         double formula = plugin.getAttributes().maxHp(player.getUniqueId());
-        double safe = Double.isFinite(formula) && formula >= 1.0 ? formula : 20.0;
-        if (Math.abs(inst.getBaseValue() - safe) > 0.0001) {
-            inst.setBaseValue(safe);
+        double safeFormula = Double.isFinite(formula) && formula >= 1.0 ? formula : 20.0;
+        double carrier = Math.min(safeFormula, VANILLA_MAX_HEALTH_CAP);
+        if (Math.abs(inst.getBaseValue() - carrier) > 0.0001) {
+            inst.setBaseValue(carrier);
         }
-        // clamp текущего HP, чтобы не было "HP > MAX" после уменьшения пула
-        if (player.getHealth() > safe) {
+        // clamp текущего HP к carrier, чтобы не было "HP > MAX"
+        if (player.getHealth() > carrier) {
             try {
-                player.setHealth(safe);
+                player.setHealth(carrier);
             } catch (IllegalArgumentException ignored) {
                 // игрок мёртв/оффлайн — пропускаем
             }
@@ -92,7 +87,6 @@ public final class HpAttributeSync implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onRespawn(PlayerRespawnEvent event) {
-        // отложенный тик: после респавна атрибуты ещё не восстановлены
         Bukkit.getScheduler().runTaskLater(plugin, () -> sync(event.getPlayer()), 2L);
     }
 
