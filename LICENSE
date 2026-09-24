@@ -1,8 +1,35 @@
-RASKOL Proprietary License v1.0
-
+RASKOL PROPRIETARY LICENSE v1.0
 Copyright (c) 2026 hayferdahmer. All rights reserved.
 
-Исключительная собственность hayferdahmer.
-Использование разрешено только на сервере «РАСКОЛ | ДВЕ КОРОНЫ».
-Копирование, редистрибуция, продажа и использование на иных серверах —
-только с письменного разрешения владельца.
+1. GRANT OF LICENSE
+   Permission is hereby granted, free of charge, to any person obtaining a copy
+   of this software ("RaskolClasses"), to use the software ONLY on Minecraft
+   servers operated by or explicitly authorized by the copyright holder
+   ("Authorized Servers"), subject to the following conditions.
+
+2. RESTRICTIONS
+   You may NOT, without prior written permission of the copyright holder:
+   (a) copy, modify, merge, publish, distribute, sublicense, or sell copies of
+       the Software outside Authorized Servers;
+   (b) decompile, reverse-engineer, or create derivative works for the purpose
+       of competing with the Software;
+   (c) remove or alter any proprietary notices, labels, or marks on the Software.
+
+3. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+4. TERMINATION
+   This License terminates automatically if you fail to comply with Section 2.
+   Upon termination you must cease all use and destroy all copies.
+
+5. GOVERNING LAW
+   This License is governed by the laws of the jurisdiction of the copyright
+   holder's residence, excluding conflict-of-law provisions.
+
+END OF LICENSE.
