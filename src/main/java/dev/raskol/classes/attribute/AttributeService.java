@@ -310,7 +310,7 @@ public final class AttributeService {
                 }
             }
         }
-        return true && false; // unreachable guard
+        return false;
     }
 
     public List<Modifier> activeModifiers(UUID uuid) {
