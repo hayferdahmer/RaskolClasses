@@ -17,6 +17,7 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -34,29 +35,28 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
- * 1.7.0 пакет 2 + 1.7.4.1 фикс 2 + 1.8.1 фикс S7:
- *  - совмещённый HUD (HP + ресурс) с градиентными полосами и искрой регена;
- *  - применение формульного maxHP к ванильному Attribute.MAX_HEALTH
- *    (ADD_NUMBER-модификатор raskolclasses:max_hp) на join/respawn/каждый тик;
- *  - ПЕРСИСТ ЗДОРОВЬЯ: на quit сохраняем ДОЛЮ HP в health.yml, на join восстанавливаем
- *    долю × новый max; без записи — полный пул;
- *  - 1.8.1 (S7): доля клампится в [0,1] И при сохранении, И при загрузке;
- *  - 1.8.1-fix: ресурс-полоса gradientBar вызывается с полным набором из 6 аргументов
- *    (fraction, len, start, end, empty, spark) — ранее терялся end-цвет.
- * Сердца = один ряд (healthScale 20); STR-реген тикает здесь же.
+ * 1.9.3 (план B — виртуальный пул HP):
+ * Ванильный max_health = носитель-пропорция (≤ 1024, движковый потолок).
+ * Реальный пул HP = формула AttributeService (1080/2560/...).
+ * Все боевые операции (урон, хил, капы, HUD) работают в формульных единицах.
+ * Коэффициент scale = carrier / formula — единый множитель для всех операций.
+ *
+ * Публичное API:
+ *  - formulaMaxHp(uuid) → формульный maxHp (из AttributeService)
+ *  - carrierMaxHp(player) → ванильный max (min(formula, 1024))
+ *  - scale(player) → carrier / formula
+ *  - heal(target, formulaAmount) → применяет хил с масштабированием
  */
 public final class HpBarService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
+    private static final double VANILLA_MAX_HEALTH_CAP = 1024.0;
 
-    /** max_health из реестра атрибутов Paper (1.21.4-safe). */
     private static final Attribute MAX_HEALTH = RegistryAccess.registryAccess()
             .getRegistry(RegistryKey.ATTRIBUTE)
             .get(NamespacedKey.minecraft("max_health"));
 
-    /** Состояние игрока для детекта регена (рост HP/ресурса). */
-    private record State(double lastHp, double lastRes) {
-    }
+    private record State(double lastHp, double lastRes) {}
 
     private final RaskolClasses plugin;
     private final NamespacedKey maxHpKey;
@@ -69,6 +69,57 @@ public final class HpBarService implements Listener {
         this.maxHpKey = new NamespacedKey(plugin, "max_hp");
         this.healthFile = new File(plugin.getDataFolder(), "health.yml");
         this.healthStore = SafeStorage.loadWithFallback(healthFile, LOGGER);
+    }
+
+    /* ------------------------------ публичное API ------------------------------ */
+
+    /** Формульный maxHp из AttributeService (реальный пул). */
+    public double formulaMaxHp(UUID uuid) {
+        double v = plugin.getAttributes().maxHp(uuid);
+        return Double.isFinite(v) && v > 0.0 ? v : 20.0;
+    }
+
+    /** Ванильный max_health (носитель, ≤ 1024). */
+    public double carrierMaxHp(Player player) {
+        if (MAX_HEALTH == null) {
+            return 20.0;
+        }
+        AttributeInstance instance = player.getAttribute(MAX_HEALTH);
+        double v = instance != null ? instance.getValue() : 20.0;
+        return Double.isFinite(v) && v > 0.0 ? v : 20.0;
+    }
+
+    /** Коэффициент масштабирования: carrier / formula. */
+    public double scale(Player player) {
+        double formula = formulaMaxHp(player.getUniqueId());
+        double carrier = carrierMaxHp(player);
+        if (formula <= 0.0) {
+            return 1.0;
+        }
+        return carrier / formula;
+    }
+
+    /** Применить хил в формульных единицах (масштабируется в ванильные). */
+    public void heal(LivingEntity target, double formulaAmount) {
+        if (formulaAmount <= 0.0 || target.isDead()) {
+            return;
+        }
+        Player targetPlayer = target instanceof Player p ? p : null;
+        double formula = formulaMaxHp(target.getUniqueId());
+        double carrier;
+        if (targetPlayer != null) {
+            carrier = carrierMaxHp(targetPlayer);
+        } else {
+            AttributeInstance attr = target.getAttribute(MAX_HEALTH);
+            carrier = attr != null ? attr.getValue() : 20.0;
+            if (!Double.isFinite(carrier) || carrier <= 0.0) {
+                carrier = 20.0;
+            }
+        }
+        double scale = formula > 0.0 ? carrier / formula : 1.0;
+        double vanillaAmount = formulaAmount * scale;
+        double newHp = Math.min(carrier, target.getHealth() + vanillaAmount);
+        target.setHealth(Math.max(0.0, newHp));
     }
 
     /* -------------------------------- конфиг -------------------------------- */
@@ -114,9 +165,7 @@ public final class HpBarService implements Listener {
                 if (parsed != null) {
                     return parsed;
                 }
-            } catch (IllegalArgumentException ignored) {
-                // битый hex → фолбэк
-            }
+            } catch (IllegalArgumentException ignored) {}
         }
         return TextColor.fromHexString(fallback);
     }
@@ -145,6 +194,10 @@ public final class HpBarService implements Listener {
 
     /* ----------------------------- применение maxHP ----------------------------- */
 
+    /**
+     * 1.9.3 (план B): ставим base = min(formula, 1024) — носитель-пропорция.
+     * Реальный пул = formula, используется везде через formulaMaxHp().
+     */
     private void applyMaxHealth(Player player) {
         if (MAX_HEALTH == null) {
             return;
@@ -153,7 +206,8 @@ public final class HpBarService implements Listener {
         if (instance == null) {
             return;
         }
-        double target = plugin.getAttributes().maxHp(player.getUniqueId());
+        double formula = formulaMaxHp(player.getUniqueId());
+        double target = Math.min(formula, VANILLA_MAX_HEALTH_CAP);
         if (!Double.isFinite(target) || target < 1.0) {
             target = 20.0;
         }
@@ -177,51 +231,56 @@ public final class HpBarService implements Listener {
                         EquipmentSlotGroup.ANY));
             }
         }
-        double max = instance.getValue();
-        if (player.getHealth() > max) {
-            player.setHealth(max);
+        double carrier = instance.getValue();
+        if (player.getHealth() > carrier) {
+            player.setHealth(carrier);
         }
     }
 
-    /* ------------------------- персист здоровья + S7 ------------------------- */
+    /* ------------------------- персист здоровья ------------------------- */
 
-    /** На quit: сохраняем ДОЛЮ HP, кламп [0,1] (S7). */
     private void saveHealth(Player player) {
-        double max = maxOf(player);
-        if (max <= 0.0) {
+        double formula = formulaMaxHp(player.getUniqueId());
+        if (formula <= 0.0) {
             return;
         }
-        double ratio = Math.max(0.0, Math.min(1.0, player.getHealth() / max));
+        double scale = scale(player);
+        double hpFormula = scale > 0.0 ? player.getHealth() / scale : player.getHealth();
+        double ratio = Math.max(0.0, Math.min(1.0, hpFormula / formula));
         healthStore.set(player.getUniqueId().toString(), ratio);
         SafeStorage.saveAtomic(healthStore, healthFile, LOGGER);
     }
 
-    /** На join: доля × новый max; доля клампится [0,1] (S7); без записи — полный пул. */
     private void restoreHealth(Player player) {
-        double max = maxOf(player);
-        if (max <= 0.0) {
+        double formula = formulaMaxHp(player.getUniqueId());
+        if (formula <= 0.0) {
             return;
         }
         String key = player.getUniqueId().toString();
-        double health;
+        double ratio;
         if (healthStore.isSet(key)) {
-            double ratio = Math.max(0.0, Math.min(1.0, healthStore.getDouble(key, 1.0)));
-            health = Math.max(1.0, ratio * max);
+            ratio = Math.max(0.0, Math.min(1.0, healthStore.getDouble(key, 1.0)));
         } else {
-            health = max; // первый вход под систему — начинаем с полного пула
+            ratio = 1.0;
         }
-        player.setHealth(Math.min(health, max));
+        double hpFormula = Math.max(1.0, ratio * formula);
+        double scale = scale(player);
+        double hpVanilla = hpFormula * scale;
+        double carrier = carrierMaxHp(player);
+        player.setHealth(Math.min(hpVanilla, carrier));
     }
 
-    /* --------------------------- STR-реген (1.7.0.3) --------------------------- */
+    /* --------------------------- STR-реген --------------------------- */
 
     private void applyStrRegen(Player player) {
         if (player.isDead()) {
             return;
         }
-        double max = maxOf(player);
-        double hp = player.getHealth();
-        if (hp >= max) {
+        double formula = formulaMaxHp(player.getUniqueId());
+        double carrier = carrierMaxHp(player);
+        double scale = scale(player);
+        double hpFormula = scale > 0.0 ? player.getHealth() / scale : player.getHealth();
+        if (hpFormula >= formula) {
             return;
         }
         UUID uuid = player.getUniqueId();
@@ -237,14 +296,15 @@ public final class HpBarService implements Listener {
         boolean inCombat = plugin.getResources().stateOf(uuid).isInCombat(windowMs);
 
         double perSec = AttributeMath.strRegenPerSecond(
-                str, perStr, max, inCombat, combatFactor, capPct);
+                str, perStr, formula, inCombat, combatFactor, capPct);
         if (perSec <= 0.0) {
             return;
         }
         double perTick = perSec * period() / 20.0;
-        double newHp = Math.min(max, hp + perTick);
-        if (newHp > hp) {
-            player.setHealth(newHp);
+        double newHpFormula = Math.min(formula, hpFormula + perTick);
+        double newHpVanilla = newHpFormula * scale;
+        if (newHpVanilla > player.getHealth()) {
+            player.setHealth(Math.min(newHpVanilla, carrier));
         }
     }
 
@@ -271,22 +331,21 @@ public final class HpBarService implements Listener {
     /* --------------------------- совмещённая строка --------------------------- */
 
     private void sendUnifiedActionbar(Player player) {
-        double max = maxOf(player);
-        double hp = Math.max(0.0, player.getHealth());
+        double formula = formulaMaxHp(player.getUniqueId());
+        double scale = scale(player);
+        double hpFormula = scale > 0.0 ? player.getHealth() / scale : player.getHealth();
         double res = plugin.getResources().getValue(player.getUniqueId());
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         int len = gaugeLength();
         boolean gauge = gaugeEnabled();
-        double hpFraction = max <= 0 ? 0 : hp / max;
+        double hpFraction = formula <= 0 ? 0 : hpFormula / formula;
 
         TextColor frame = color("hp-display.colors.frame", "#8B5A3C");
         TextColor empty = color("hp-display.colors.gauge-empty", "#6E5232");
-        TextColor hpFill = color("hp-display.colors.hp-fill", "#A32020");
+        TextColor hpEnd = color("hp-display.gradient.hp-end", "#C82020");
         TextColor numbers = color("hp-display.colors.numbers", "#D6CDBE");
         TextColor spark = color("hp-display.regen-spark.color", "#F5E6B8");
-
         TextColor hpStart = color("hp-display.gradient.hp-start", "#5C0F0F");
-        TextColor hpEnd = color("hp-display.gradient.hp-end", "#C82020");
 
         RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
         TextColor resStart = theme != null && theme.primary() != null
@@ -303,9 +362,9 @@ public final class HpBarService implements Listener {
         UUID uuid = player.getUniqueId();
         State prev = lastTick.get(uuid);
         boolean sparkActive = sparkEnabled() && prev != null;
-        boolean hpRegen = sparkActive && hp > prev.lastHp() + 0.5;
+        boolean hpRegen = sparkActive && hpFormula > prev.lastHp() + 0.5;
         boolean resRegen = sparkActive && res > prev.lastRes() + 0.5;
-        lastTick.put(uuid, new State(hp, res));
+        lastTick.put(uuid, new State(hpFormula, res));
 
         Component line = Component.text("❬ ", frame)
                 .append(Component.text("❤ ", hpEnd));
@@ -315,11 +374,10 @@ public final class HpBarService implements Listener {
                     hpRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
-        line = line.append(Component.text((int) hp + "/" + (int) max, numbers))
+        line = line.append(Component.text((int) hpFormula + "/" + (int) formula, numbers))
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
-            // 1.8.1-fix: полный набор аргументов (fraction, len, start, end, empty, spark)
             line = line.append(gradientBar(res / 100.0, len,
                     gradientEnabled() ? resStart : resEnd, resEnd, empty,
                     resRegen ? spark : null))
@@ -384,15 +442,6 @@ public final class HpBarService implements Listener {
         };
     }
 
-    private double maxOf(Player player) {
-        if (MAX_HEALTH == null) {
-            return 20.0;
-        }
-        AttributeInstance instance = player.getAttribute(MAX_HEALTH);
-        double max = instance != null ? instance.getValue() : 20.0;
-        return Double.isFinite(max) && max > 0.0 ? max : 20.0;
-    }
-
     /* -------------------------------- события -------------------------------- */
 
     @EventHandler
@@ -401,8 +450,8 @@ public final class HpBarService implements Listener {
         if (player.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
-        applyMaxHealth(player);   // макс ДО восстановления доли
-        restoreHealth(player);    // доля × новый max (или полный пул), кламп [0,1]
+        applyMaxHealth(player);
+        restoreHealth(player);
         applyHearts(player, !"vanilla".equals(mode()));
     }
 
@@ -413,14 +462,14 @@ public final class HpBarService implements Listener {
         lastTick.remove(player.getUniqueId());
     }
 
-    /** Респавн: пересчёт maxHP + полное здоровье через 1 тик (после завершения респавна). */
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (player.isOnline() && player.getGameMode() != GameMode.SPECTATOR) {
                 applyMaxHealth(player);
-                player.setHealth(maxOf(player));
+                double carrier = carrierMaxHp(player);
+                player.setHealth(carrier);
                 applyHearts(player, !"vanilla".equals(mode()));
             }
         });
