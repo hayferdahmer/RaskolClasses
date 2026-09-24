@@ -43,6 +43,7 @@ import dev.raskol.classes.spec.SpecStorage;
 import dev.raskol.classes.spec.SpecToken;
 import dev.raskol.classes.talent.TalentService;
 import dev.raskol.classes.talent.TalentsStorage;
+import org.bukkit.ChatColor;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -59,11 +60,9 @@ import java.util.List;
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
  * 1.9.0: TalentsStorage + TalentService; reconcile талантов на join и /rc reload.
- * 1.9.0-fix: FxService теперь Listener (onProjectileHit для заряженных снарядов).
- * 1.9.1: боевое окно markCombat в ResourceService, регресс-чеки selftest 29–30.
  * 1.9.2: интеграция с RaskolCore 1.3.0 — PassportChangeListener, EconomyHook через Core.
- * 1.9.3: HpAttributeSync — синхронизация ванильного MAX_HEALTH с формулой HP
- *        (join/respawn/reload/invalidate + периодический sweep 5 с).
+ * 1.9.3: HpAttributeSync (синхронизация ванильного MAX_HEALTH с формулой HP),
+ *        полная формула HP, crash-guard китов, мрачный стартовый баннер.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -166,7 +165,7 @@ public final class RaskolClasses extends JavaPlugin {
         // 1.9.3: синхронизация ванильного MAX_HEALTH с формулой HP
         this.hpSync = new HpAttributeSync(this);
         pluginManager.registerEvents(hpSync, this);
-        hpSync.startSweep(100L);   // каждые 5 сек страховочный sweep
+        hpSync.startSweep(100L);
         this.hpBarService = new HpBarService(this);
 
         this.specRegistry = new SpecRegistry(this);
@@ -224,7 +223,7 @@ public final class RaskolClasses extends JavaPlugin {
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             specService.restorePassiveResists(online);
             talentService.reconcile(online.getUniqueId());
-            hpSync.sync(online);   // 1.9.3: синхронизация HP для уже онлайн
+            hpSync.sync(online);
         }
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
@@ -271,7 +270,35 @@ public final class RaskolClasses extends JavaPlugin {
         }, autosaveTicks, autosaveTicks));
 
         registerCommand();
+        printBanner();
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
+    }
+
+    /**
+     * 1.9.3: мрачный стартовый баннер в консоль (стиль SiegeWar, тёмная палитра).
+     * Градиент арта: серый → тёмно-красный → тёмно-фиолетовый.
+     * Снизу — пять классов, автор и версия.
+     */
+    private void printBanner() {
+        String v = getPluginMeta().getVersion();
+        String[] art = {
+            "&8  ██████╗██╗     █████╗ ███████╗███████╗███████╗",
+            "&8  ██╔════╝██║    ██╔══██╗██╔════╝██╔════╝██╔════╝",
+            "&4  ██║     ██║    ███████║███████╗█████╗  ███████╗",
+            "&4  ██║     ██║    ██╔══██║╚════██║██╔══╝  ╚════██║",
+            "&5  ╚██████╗███████╗██║  ██║███████║███████╗███████║",
+            "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝",
+            "&8  ────────────────────────────────────────────────────",
+            "&7     RASKOL &8· &7CLASSES    &8|    &5пять путей &8· &4одна война",
+            "&8     ⚔ &4Воин &8· &2➳ Охотник &8· &f✚ Жрец &8· &9✦ Маг &8· &5☠ Разбойник",
+            "&8  ────────────────────────────────────────────────────",
+            "&8     by &fhayferdahmer &8· &7v" + v + " &8· &7Paper 1.21+ &8· &7Java 21",
+            "&8  ────────────────────────────────────────────────────"
+        };
+        var console = getServer().getConsoleSender();
+        for (String line : art) {
+            console.sendMessage(ChatColor.translateAlternateColorCodes('&', line));
+        }
     }
 
     /**
@@ -301,7 +328,7 @@ public final class RaskolClasses extends JavaPlugin {
     @Override
     public void onDisable() {
         if (hpSync != null) {
-            hpSync.stopSweep();   // 1.9.3: остановить sweep
+            hpSync.stopSweep();
         }
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
@@ -367,7 +394,6 @@ public final class RaskolClasses extends JavaPlugin {
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             talentService.reconcile(online.getUniqueId());
         }
-        // 1.9.3: после reload синхронизировать MAX_HEALTH всех онлайн
         if (hpSync != null) {
             hpSync.syncAll();
         }
