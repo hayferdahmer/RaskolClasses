@@ -40,6 +40,7 @@ import java.util.logging.Logger;
  *   - отдаёт публичный API heal/formulaMaxHp/carrierMaxHp/scale ДЕЛЕГИРОВАНИЕМ.
  * applyMaxHealth учитывает ЧУЖИЕ модификаторы (gear и т.п.): наш модификатор
  * дозируется так, чтобы итоговый carrier = targetCarrier, независимо от шмота.
+ * 1.9.3-r fix: восстановлены 6 аргументов gradientBar (start, end, empty, spark).
  */
 public final class HpBarService implements Listener {
 
@@ -54,7 +55,7 @@ public final class HpBarService implements Listener {
     private final YamlConfiguration healthStore;
     private final Map<UUID, State> lastTick = new ConcurrentHashMap<>();
 
-    /** Обёртка над NamespacedKey, чтобы не тащить импорт в каждый вызов. */
+    /** Обёртка над NamespacedKey. */
     private record NamespacedKeyHolder(org.bukkit.NamespacedKey key) {
     }
 
@@ -329,8 +330,9 @@ public final class HpBarService implements Listener {
         Component line = Component.text("❬ ", frame)
                 .append(Component.text("❤ ", hpEnd));
         if (gauge) {
+            // FIX 1.9.3-r: 6 аргументов (fraction, len, start, end, empty, spark)
             line = line.append(gradientBar(hpFraction, len,
-                    gradientEnabled() ? hpStart : hpEnd, empty,
+                    gradientEnabled() ? hpStart : hpEnd, hpEnd, empty,
                     hpRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
@@ -338,8 +340,9 @@ public final class HpBarService implements Listener {
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
+            // FIX 1.9.3-r: 6 аргументов (fraction, len, start, end, empty, spark)
             line = line.append(gradientBar(res / 100.0, len,
-                    gradientEnabled() ? resStart : resEnd, empty,
+                    gradientEnabled() ? resStart : resEnd, resEnd, empty,
                     resRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
