@@ -39,7 +39,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   - путь A: капы в carrier, burst-лог в effective (конвертация через scale);
  *   - путь B: taken в effective, в target.damage уходит ×scale;
  *   - исходящий офенс (WP/SP) конвертируется в carrier через scaleOf(цели);
- *   - env-lethal масштабируется от carrier (падения летальны относительно носителя).
+ *   - env-lethal масштабируется от carrier.
+ * 1.9.3-fix: scaleOf принимает Entity (by.getEntity() статически Entity, не LivingEntity).
  */
 public final class CombatService implements Listener {
 
@@ -116,8 +117,12 @@ public final class CombatService implements Listener {
         return carrierMaxOf(target);
     }
 
-    /** scale = carrier / formula (1.0 для мобов и когда formula≤carrier). */
-    private double scaleOf(LivingEntity target) {
+    /**
+     * scale = carrier / formula (1.0 для мобов и когда formula≤carrier).
+     * 1.9.3-fix: параметр Entity — вызовы передают и Player, и LivingEntity,
+     * и статически Entity (by.getEntity() в applyOutgoingOffense).
+     */
+    private double scaleOf(Entity target) {
         if (!(target instanceof Player p)) {
             return 1.0;
         }
@@ -280,7 +285,8 @@ public final class CombatService implements Listener {
             }
             crit = rollSpellCrit(attacker);
         }
-        // 1.9.3 (план B): надбавка в effective-единицах → конвертируем в carrier цели
+        // 1.9.3 (план B): надбавка в effective-единицах → конвертируем в carrier цели.
+        // 1.9.3-fix: scaleOf(Entity) — by.getEntity() статически Entity.
         add *= scaleOf(by.getEntity());
         double base = event.getDamage();
         double total = base + add;
@@ -339,7 +345,6 @@ public final class CombatService implements Listener {
 
     /**
      * 1.9.3 (план B): скейлинг от CARRIER (носителя), т.к. event-урон среды — в carrier-единицах.
-     * scale = carrier/20 → падения летальны относительно реального пула-носителя.
      */
     private void applyEnvLethalScale(EntityDamageEvent event, Player target) {
         if (!plugin.getConfig().getBoolean("damage-types.env-lethal-scale", true)) {
