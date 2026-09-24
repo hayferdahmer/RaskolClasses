@@ -2,6 +2,7 @@
 package dev.raskol.classes.classsystem;
 
 import dev.raskol.classes.RaskolClasses;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
@@ -70,7 +71,7 @@ public final class CharacterLevelService {
         // 1.9.3 FIX: фолбэк = character-level.fallback, а НЕ player.getLevel()
         if (!anySystem) {
             int fallback = (int) plugin.getConfig().getDouble("character-level.fallback", 40.0);
-            Player player = org.bukkit.Bukkit.getPlayer(uuid);
+            Player player = Bukkit.getPlayer(uuid);
             if (player == null) {
                 return Math.max(0, Math.min(cap(), fallback));
             }
@@ -116,6 +117,6 @@ public final class CharacterLevelService {
     public void purgeStale() {
         long now = System.currentTimeMillis();
         cache.entrySet().removeIf(entry ->
-                entry.getValue().expiresAt() <= now && org.bukkit.Bukkit.getPlayer(entry.getKey()) == null);
+                entry.getValue().expiresAt() <= now && Bukkit.getPlayer(entry.getKey()) == null);
     }
 }
