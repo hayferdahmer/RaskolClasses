@@ -29,10 +29,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * VFX/SFX-слой (1.5.0 → 1.9.0-fix4).
- * 1.9.0-fix4: трейл заряженного снаряда переписан на Runnable + holder-массив
- * (фикс «void cannot be converted to BukkitTask»); снаряды — Snowball/Egg,
- * взрывов и разрушения блоков нет; попадание = вспышка + звук из vfx-конфига.
+ * VFX/SFX-слой (1.5.0 → 1.9.3).
+ * 1.9.3: алиасы старых звуков (ENTITY_WOLF_HOWL → ENTITY_WOLF_AMBIENT,
+ *        BLOCK_SNOW_BLOCK_BREAK → BLOCK_SNOW_BREAK) — фикс битых ключей в логе.
  */
 public final class FxService implements Listener {
 
@@ -62,15 +61,24 @@ public final class FxService implements Listener {
 
     /* -------------------------------- резолв -------------------------------- */
 
+    /**
+     * 1.9.3: алиасы старых звуков (Paper 1.21+ переименовал некоторые ключи).
+     */
     public Sound resolveSound(String name) {
         if (name == null || name.isEmpty()) {
             return null;
         }
+        String mapped = switch (name.toUpperCase(Locale.ROOT)) {
+            case "ENTITY_WOLF_HOWL" -> "ENTITY_WOLF_AMBIENT";
+            case "BLOCK_SNOW_BLOCK_BREAK" -> "BLOCK_SNOW_BREAK";
+            default -> name;
+        };
         try {
-            return Sound.valueOf(name.toUpperCase(Locale.ROOT));
+            return Sound.valueOf(mapped.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             if (warnedSounds.add(name)) {
-                plugin.getLogger().warning("vfx: неизвестный звук '" + name + "'");
+                plugin.getLogger().warning("vfx: неизвестный звук '" + name + "'"
+                        + (mapped.equals(name) ? "" : " (mapped: " + mapped + ")"));
                 staleCount.incrementAndGet();
             }
             return null;
@@ -143,11 +151,6 @@ public final class FxService implements Listener {
 
     /* --------------------------- заряженные снаряды --------------------------- */
 
-    /**
-     * Зарядить снаряд уроном/поджогом. Снаряд — ЛЮБОЙ небомбовый (Snowball/Egg):
-     * FxService рисует огненный трейл и вспышку попадания; взрыва нет.
-     * 1.9.0-fix4: трейл-таск создаётся через Runnable + holder-массив (самоотмена).
-     */
     public void chargeProjectile(UUID projectileId, UUID caster, String abilityId,
                                  double phys, double magic, int fireTicks) {
         chargedShots.put(projectileId, new ChargedShot(caster, abilityId, phys, magic, fireTicks,
