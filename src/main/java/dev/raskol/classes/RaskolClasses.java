@@ -59,10 +59,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.9.0: TalentsStorage + TalentService; reconcile талантов на join и /rc reload.
- * 1.9.2: интеграция с RaskolCore 1.3.0 — PassportChangeListener, EconomyHook через Core.
- * 1.9.3: HpAttributeSync (синхронизация ванильного MAX_HEALTH с формулой HP),
- *        полная формула HP, crash-guard китов, мрачный стартовый баннер.
+ * 1.9.3: HpAttributeSync, полная формула HP, crash-guard китов, мрачный баннер.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -162,7 +159,6 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.logSummary();
 
         this.attributes = new AttributeService(this);
-        // 1.9.3: синхронизация ванильного MAX_HEALTH с формулой HP
         this.hpSync = new HpAttributeSync(this);
         pluginManager.registerEvents(hpSync, this);
         hpSync.startSweep(100L);
@@ -217,7 +213,7 @@ public final class RaskolClasses extends JavaPlugin {
             public void onJoin(PlayerJoinEvent event) {
                 specService.restorePassiveResists(event.getPlayer());
                 talentService.reconcile(event.getPlayer().getUniqueId());
-                hpSync.sync(event.getPlayer());   // 1.9.3: синхронизация HP на join
+                hpSync.sync(event.getPlayer());
             }
         }, this);
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
@@ -275,19 +271,19 @@ public final class RaskolClasses extends JavaPlugin {
     }
 
     /**
-     * 1.9.3: мрачный стартовый баннер в консоль (стиль SiegeWar, тёмная палитра).
-     * Градиент арта: серый → тёмно-красный → тёмно-фиолетовый.
-     * Снизу — пять классов, автор и версия.
+     * 1.9.3: мрачный стартовый баннер (стиль SiegeWar, тёмная палитра).
+     * FIX: арт «CLASSES» из 7 букв (ранее терялась финальная S → «CLASES»).
+     * Градиент: §8 сталь → §4 кровь → §5 тень; снизу классы, автор, версия.
      */
     private void printBanner() {
         String v = getPluginMeta().getVersion();
         String[] art = {
-            "&8  ██████╗██╗     █████╗ ███████╗███████╗███████╗",
-            "&8  ██╔════╝██║    ██╔══██╗██╔════╝██╔════╝██╔════╝",
-            "&4  ██║     ██║    ███████║███████╗█████╗  ███████╗",
-            "&4  ██║     ██║    ██╔══██║╚════██║██╔══╝  ╚════██║",
-            "&5  ╚██████╗███████╗██║  ██║███████║███████╗███████║",
-            "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝",
+            "&8  ██████╗██╗     █████╗ ███████╗███████╗███████╗███████╗",
+            "&8  ██╔════╝██║    ██╔══██╗██╔════╝██╔════╝██╔════╝██╔════╝",
+            "&4  ██║     ██║    ███████║███████╗███████╗█████╗  ███████╗",
+            "&4  ██║     ██║    ██╔══██║╚════██║╚════██║██╔══╝  ╚════██║",
+            "&5  ╚██████╗███████╗██║  ██║███████║███████║███████╗███████║",
+            "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝╚══════╝",
             "&8  ────────────────────────────────────────────────────",
             "&7     RASKOL &8· &7CLASSES    &8|    &5пять путей &8· &4одна война",
             "&8     ⚔ &4Воин &8· &2➳ Охотник &8· &f✚ Жрец &8· &9✦ Маг &8· &5☠ Разбойник",
