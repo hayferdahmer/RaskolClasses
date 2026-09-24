@@ -2,7 +2,6 @@
 package dev.raskol.classes.classsystem;
 
 import dev.raskol.classes.RaskolClasses;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
@@ -14,25 +13,17 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.8.0: УРОВЕНЬ ПЕРСОНАЖА = среднее (floor) топ-N скиллов AuraSkills,
- * зажатое в [0, attributes.level-cap]. Прогрессия привязана к ШИРИНЕ прокачки:
- * одиночное дерево до 99 больше не раздувает атрибуты (кейс 1.7.x: жрец с
- * healing 99 имел INT 130.8 / HP 992 / dodge 30% без единой вещи).
+ * зажатое в [0, attributes.level-cap].
  *
- * Источник списка скиллов: character-level.skills (дефолт — 10 деревьев билда).
- * Не тронутые игроком деревья учитываются как 0 (топ-N честно падает у новичков).
- * Кэш 1 с на игрока (паттерн SkillLevelProvider).
- *
- * Фолбэки:
- *  - AuraSkills отсутствует вообще → vanilla-уровень игрока (или character-level.fallback
- *    для оффлайна/консоли);
- *  - attributes.level-source = class-skill / vanilla в AttributeService откатывает
- *    систему целиком (рубильник отката 1.7.x-поведения).
+ * 1.9.3 FIX: фолбэк когда AuraSkills отсутствует/не отвечает —
+ * character-level.fallback (дефолт 40), а НЕ player.getLevel() (ванильный XP,
+ * часто 0). Раньше у игроков без AuraSkills level=0 → HP = 100 + STR×20,
+ * что давало воину всего ~1000 HP вместо расчётных 2500+.
  */
 public final class CharacterLevelService {
 
     private static final long CACHE_TTL_MILLIS = 1_000L;
 
-    /** Дефолтный список деревьев билда (совпадает с Этапом 2 сервера). */
     private static final List<String> DEFAULT_SKILLS = List.of(
             "fighting", "defense", "archery", "agility", "healing",
             "sorcery", "alchemy", "enchanting", "mining", "forging");
@@ -47,7 +38,6 @@ public final class CharacterLevelService {
         this.plugin = plugin;
     }
 
-    /** Сводный уровень персонажа (кэш 1 с). */
     public int characterLevel(UUID uuid) {
         long now = System.currentTimeMillis();
         CacheEntry entry = cache.get(uuid);
@@ -72,20 +62,24 @@ public final class CharacterLevelService {
         for (String name : names) {
             int lv = skills.getLevel(uuid, name);
             if (lv == SkillLevelProvider.NO_SKILL_SYSTEM) {
-                continue; // дерево/система не отвечает — пропускаем
+                continue;
             }
             anySystem = true;
             levels.add(Math.max(0, lv));
         }
+        // 1.9.3 FIX: фолбэк = character-level.fallback, а НЕ player.getLevel()
         if (!anySystem) {
-            // AuraSkills нет: vanilla-уровень игрока или конфиг-фолбэк
-            Player player = Bukkit.getPlayer(uuid);
-            if (player != null) {
-                return Math.max(0, player.getLevel());
+            int fallback = (int) plugin.getConfig().getDouble("character-level.fallback", 40.0);
+            Player player = org.bukkit.Bukkit.getPlayer(uuid);
+            if (player == null) {
+                return Math.max(0, Math.min(cap(), fallback));
             }
-            return Math.max(0, plugin.getConfig().getInt("character-level.fallback", 40));
+            String src = plugin.getConfig().getString("attributes.level-source", "character");
+            if ("vanilla".equalsIgnoreCase(src)) {
+                return Math.max(0, Math.min(cap(), player.getLevel()));
+            }
+            return Math.max(0, Math.min(cap(), fallback));
         }
-        // не тронутые деревья = 0: топ-N у новичка честно низкий
         while (levels.size() < names.size()) {
             levels.add(0);
         }
@@ -94,14 +88,13 @@ public final class CharacterLevelService {
             arr[i] = levels.get(i);
         }
         int raw = topNAverage(arr, n);
-        int cap = (int) plugin.getConfig().getDouble("attributes.level-cap", 60.0);
-        return Math.max(0, Math.min(cap, raw));
+        return Math.max(0, Math.min(cap(), raw));
     }
 
-    /**
-     * Pure: среднее (floor) топ-N значений; N > length → среднее всех.
-     * Тот же код вызывает /rc selftest (чеки 19–20) — тест и рантайм идентичны.
-     */
+    private int cap() {
+        return (int) plugin.getConfig().getDouble("attributes.level-cap", 60.0);
+    }
+
     public static int topNAverage(int[] levels, int n) {
         if (levels == null || levels.length == 0 || n <= 0) {
             return 0;
@@ -116,15 +109,13 @@ public final class CharacterLevelService {
         return (int) (sum / take);
     }
 
-    /** Сброс кэша (смена класса/респец/quit). */
     public void invalidate(UUID uuid) {
         cache.remove(uuid);
     }
 
-    /** Чистка кэша оффлайна (purge-таск). */
     public void purgeStale() {
         long now = System.currentTimeMillis();
         cache.entrySet().removeIf(entry ->
-                entry.getValue().expiresAt() <= now && Bukkit.getPlayer(entry.getKey()) == null);
+                entry.getValue().expiresAt() <= now && org.bukkit.Bukkit.getPlayer(entry.getKey()) == null);
     }
 }
