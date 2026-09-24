@@ -9,8 +9,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -33,11 +31,10 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 1.6.0: боевой сервис урона и резистов. Путь A (ваниль) + путь B (наши способности).
  * 1.7.1: производные статы и анти-ваншот. 1.7.6.1: burst-окно.
- * 1.8.1 (S1+S2): ЕДИНЫЙ фракционный гейт:
- *  - canHit(source, target) — публичный предикат для китов;
- *  - dealDamage отклоняет урон по союзнику при friendly-fire=false;
- *  - path-A отменяет «союзник бьёт союзника», ВКЛЮЧАЯ урон стрелами
- *    (атакующий резолвится из шутера проджектайла — фикс чанка 2/4).
+ * 1.8.1 (S1+S2): ЕДИНЫЙ фракционный гейт.
+ * 1.9.3 FIX: applyEnvLethalScale читает HP из AttributeService (формула),
+ * а НЕ из ванильного MAX_HEALTH (который не синхронизирован с формулой).
+ * Константа MAX_HEALTH и импорты Attribute/AttributeInstance удалены.
  */
 public final class CombatService implements Listener {
 
@@ -49,10 +46,6 @@ public final class CombatService implements Listener {
 
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
-
-    private static final Attribute MAX_HEALTH = RegistryAccess.registryAccess()
-            .getRegistry(RegistryKey.ATTRIBUTE)
-            .get(NamespacedKey.minecraft("max_health"));
 
     private final RaskolClasses plugin;
     private final ResistService resists;
@@ -114,11 +107,6 @@ public final class CombatService implements Listener {
 
     /* ------------------------- 1.8.1: фракционный гейт ------------------------- */
 
-    /**
-     * Может ли source наносить урон target с учётом combat.friendly-fire.
-     * Мобы и среда проходят всегда; PvP-союзники (одна непустая фракция) — нет,
-     * если friendly-fire=false. Публичный предикат для кит-файлов (S3).
-     */
     public boolean canHit(Entity source, LivingEntity target) {
         if (target == null) {
             return false;
@@ -150,9 +138,6 @@ public final class CombatService implements Listener {
             SUPPRESS.set(Boolean.FALSE);
         }
 
-        // 1.8.1 (S1, фикс 2/4): союзник бьёт союзника — отменяем ДО офенс-математики.
-        // Атакующий резолвится и из проджектайла: стрелы охотника по союзнику
-        // больше не наносят урон и не несут WP-бонус.
         if (!suppressed && event instanceof EntityDamageByEntityEvent by) {
             Player attacker = null;
             Entity damager = by.getDamager();
@@ -307,8 +292,13 @@ public final class CombatService implements Listener {
         }
     }
 
-    /* ------------------------- летальная среда (1.7.0.2) ------------------------- */
+    /* ------------------------- летальная среда (1.7.0.2, 1.9.3 fix) ------------------------- */
 
+    /**
+     * 1.9.3 FIX: скейлинг от формульного HP (AttributeService), а не от ванильного
+     * MAX_HEALTH. Раньше scale = 20/20 = 1 → падения не масштабировались для
+     * воина с 2560 HP.
+     */
     private void applyEnvLethalScale(EntityDamageEvent event, Player target) {
         if (!plugin.getConfig().getBoolean("damage-types.env-lethal-scale", true)) {
             return;
@@ -320,14 +310,8 @@ public final class CombatService implements Listener {
         if (!env.contains(event.getCause().name())) {
             return;
         }
-        if (MAX_HEALTH == null) {
-            return;
-        }
-        AttributeInstance instance = target.getAttribute(MAX_HEALTH);
-        if (instance == null) {
-            return;
-        }
-        double scale = instance.getValue() / 20.0;
+        double max = plugin.getAttributes().maxHp(target.getUniqueId());
+        double scale = max / 20.0;
         if (scale > 1.0 && Double.isFinite(scale)) {
             event.setDamage(event.getDamage() * scale);
         }
@@ -450,7 +434,6 @@ public final class CombatService implements Listener {
         if (profile == null || target == null || target.isDead()) {
             return 0.0;
         }
-        // 1.8.1 (S2): центральный фракционный гейт — абилки не бьют союзников
         if (!canHit(source, target)) {
             return 0.0;
         }
