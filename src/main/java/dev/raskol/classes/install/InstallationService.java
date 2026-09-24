@@ -30,35 +30,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Инсталляции классов (1.5.0 → 1.9.0): ставящиеся мины/варды + Ледяная руна-зона.
- *
- * Блочные типы (TTL, триггер, notify, килл-кредит владельцу):
- *  - WAR_BANNER: аура Resistance I союзникам в радиусе;
- *  - BEAR_TRAP: враг в радиусе 1.2 → урон + Slowness VI 2 с, мина расходуется;
- *  - LIGHT_WARD: +HP/с союзникам в радиусе;
- *  - SMOKE_BOMB: враг в радиусе → Blindness врагам + Speed владельцу, расходуется.
- *
- * 1.9.0: FROST_RUNE = ЗОНА (без блочного предмета):
- *  - радиус 8, жизнь 30 с, КД постановки 60 с, одна активная руна на мага;
- *  - враги/мобы внутри: урон каждую секунду = base + ramp×(секунды_внутри−1), кап damage-cap;
- *    замедление Slowness I..(1+max-tier): тир растёт каждые slow-ramp-every секунд пребывания;
- *  - магу внутри: +mage-mana-per-sec маны/с и ИНТ ×2 (модификатор source frost_rune_int);
- *  - визуал: рунное кольцо из столбов партиклов PORTAL по периметру (границы видны),
- *    эмбиент искажённого портала от самой руны, звук снятия на истечении.
- *
- * 1.9.0-fix5 (пункт 7): публичные placeCooldownRemaining/placeCooldownTotalMillis —
- * ScrollCooldownTask рисует строку КД на свитке инсталляции в хотбаре.
+ * 1.9.3 (план B): LIGHT_WARD использует HpBarService.heal().
  */
 public final class InstallationService {
 
-    /** Source модификатора ИНТ от руны. */
     public static final String RUNE_INT_MOD = "frost_rune_int";
 
     private record Installation(UUID id, InstallationType type, UUID owner,
-                                Location location, long expiresAt) {
-    }
+                                Location location, long expiresAt) {}
 
-    /** Руна-зона: владелец, точка, срок, эмбиент, база ИНТ и секунды пребывания врагов. */
     private static final class FrostRune {
         final UUID id = UUID.randomUUID();
         final UUID owner;
@@ -85,8 +65,6 @@ public final class InstallationService {
         this.plugin = plugin;
     }
 
-    /* -------------------------------- конфиг -------------------------------- */
-
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
         return Double.isFinite(v) ? v : def;
@@ -95,8 +73,6 @@ public final class InstallationService {
     private int cfgI(String path, int def) {
         return plugin.getConfig().getInt(path, def);
     }
-
-    /* ------------------------------ постановка ------------------------------ */
 
     public boolean tryPlace(Player p) {
         if (!AuthGate.canAct(plugin, p)) {
@@ -191,9 +167,6 @@ public final class InstallationService {
         return cfgI("installations.ttl-seconds", 60);
     }
 
-    /* ------------------- 1.9.0-fix5: КД для бара на свитке ------------------- */
-
-    /** Остаток КД постановки в мс (0 = готова). */
     public long placeCooldownRemaining(UUID uuid, InstallationType type) {
         Long next = placeCooldowns.get(uuid + ":" + type.name());
         if (next == null) {
@@ -202,12 +175,9 @@ public final class InstallationService {
         return Math.max(0L, next - System.currentTimeMillis());
     }
 
-    /** Полный КД постановки в мс (для прогресс-бара/строки). */
     public long placeCooldownTotalMillis(InstallationType type) {
         return typeCooldownSeconds(type) * 1000L;
     }
-
-    /* ------------------------------ руна-зона ------------------------------ */
 
     private boolean placeRune(Player p, Location loc, int cooldown) {
         UUID uuid = p.getUniqueId();
@@ -228,8 +198,6 @@ public final class InstallationService {
                 duration * 20, 40);
         runes.put(rune.id, rune);
 
-        // визуальное кольцо по периметру (столбы партиклов каждые 20 тиков),
-        // самоотменяется, когда руна исчезает из карты
         double radius = cfgD("installations.frost_rune.radius", 8.0);
         plugin.getServer().getScheduler().runTaskTimer(plugin, task -> {
             if (!runes.containsKey(rune.id) || loc.getWorld() == null) {
@@ -336,8 +304,6 @@ public final class InstallationService {
         }
     }
 
-    /* ------------------------------ блочные типы ------------------------------ */
-
     private void tickInstallation(Installation inst) {
         long now = System.currentTimeMillis();
         if (now > inst.expiresAt()) {
@@ -359,11 +325,8 @@ public final class InstallationService {
                 double heal = cfgD("installations.light_ward.heal", 2.0);
                 for (Entity e : nearby(inst.location(), radius)) {
                     if (e instanceof Player t && isAllyOf(inst.owner(), t)) {
-                        var attr = t.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
-                        double max = attr != null ? attr.getValue() : 20.0;
-                        if (t.getHealth() < max) {
-                            t.setHealth(Math.min(max, t.getHealth() + heal));
-                        }
+                        // 1.9.3 (план B): heal через HpBarService
+                        plugin.getHpBarService().heal(t, heal);
                     }
                 }
             }
@@ -406,9 +369,7 @@ public final class InstallationService {
                     notifyOwner(inst.owner(), "Дымовая шашка сработала!");
                 }
             }
-            default -> {
-                // FROST_RUNE обрабатывается отдельно
-            }
+            default -> {}
         }
     }
 
@@ -454,8 +415,6 @@ public final class InstallationService {
             default -> 1.2;
         };
     }
-
-    /* ------------------------------ задачи/счётчики ------------------------------ */
 
     public BukkitTask startSweepTask() {
         sweepTask = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
