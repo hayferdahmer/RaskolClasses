@@ -14,8 +14,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.9.3: maxHp передаёт уровень и флаг STR-main в ПОЛНУЮ формулу AttributeMath;
- * ключи attributes.hp.per-level и main-str-bonus теперь ЖИВЫЕ (тюнинг без пересборки).
+ * 1.7.0 пакет 1: сервис классовых атрибутов (STR/AGI/INT).
+ * 1.8.0: levelOf по умолчанию берёт СВODНЫЙ уровень персонажа.
+ * 1.9.0: effectiveAvoidance учитывает плоские avoid-бонусы талантов.
+ * 1.9.3: maxHp — ПОЛНАЯ формула (base + STR×perStr + level×perLevel + STR-main×level×bonus);
+ *        invalidate() синхронизирует ванильный MAX_HEALTH через HpAttributeSync.
  */
 public final class AttributeService {
 
@@ -157,10 +160,18 @@ public final class AttributeService {
         c.intel = Math.max(0.0, intel);
     }
 
+    /**
+     * 1.9.3: инвалидация кэша + синхронизация ванильного MAX_HEALTH,
+     * чтобы HUD, бой, хилы и плагины-партнёры видели одно и то же HP.
+     */
     public void invalidate(UUID uuid) {
         Cache c = cache.get(uuid);
         if (c != null) {
             c.tick = -1;
+        }
+        HpAttributeSync sync = plugin.getHpSync();
+        if (sync != null) {
+            sync.syncByUuid(uuid);
         }
     }
 
