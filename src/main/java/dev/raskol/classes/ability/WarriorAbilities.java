@@ -15,10 +15,12 @@ import org.bukkit.potion.PotionEffectType;
 import java.util.UUID;
 
 /**
- * 1.7.2: КИТ ВОИНА. Урон/хил/гранты = base + WP×coeff.
+ * 1.7.2: КИТ ВОИНА (нордика). Урон/хил/гранты = base + WP×coeff.
  * 1.8.1: canHit-гейты на однотargetных урон-абилках.
  * 1.9.0: талантовые хуки baseBonus/coeffMult.
- * 1.9.3: HP читается из AttributeService (формула), а НЕ из ванильного MAX_HEALTH.
+ * 1.9.3: HP читается как EFFECTIVE max = min(формула, ванильный getMaxHealth) —
+ *        crash-guard против IllegalArgumentException и консистентные execute-пороги
+ *        независимо от того, поднят ли потолок max_health datapack'ом raskol_hp.
  */
 public final class WarriorAbilities {
 
@@ -29,6 +31,8 @@ public final class WarriorAbilities {
     public WarriorAbilities(RaskolClasses plugin) {
         this.plugin = plugin;
     }
+
+    /* ------------------------------ конфиг-хелперы ------------------------------ */
 
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
@@ -77,21 +81,29 @@ public final class WarriorAbilities {
     }
 
     /**
-     * 1.9.3: читаем HP из AttributeService (единый источник правды).
-     * Раньше читали player.getAttribute(MAX_HEALTH) — ванильный атрибут,
-     * который не синхронизирован с формулой (оставался 20 HP).
+     * 1.9.3: EFFECTIVE максимум HP = min(формула AttributeService, ванильный getMaxHealth).
+     * С datapack raskol_hp ванильный = формуле (2560); без него ванильный клампится
+     * движком (1024) — тогда effective = 1024 и хилы/пороги не падают и не врут.
      */
-    private double maxHp(LivingEntity target) {
+    private double effectiveMaxHp(LivingEntity target) {
+        double formula;
         if (target instanceof Player tp) {
-            return plugin.getAttributes().maxHp(tp.getUniqueId());
+            formula = plugin.getAttributes().maxHp(tp.getUniqueId());
+        } else {
+            org.bukkit.attribute.AttributeInstance ai = target.getAttribute(
+                    io.papermc.paper.registry.RegistryAccess.registryAccess()
+                            .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
+                            .get(org.bukkit.NamespacedKey.minecraft("max_health")));
+            formula = ai != null ? ai.getValue() : 20.0;
         }
-        org.bukkit.attribute.AttributeInstance ai = target.getAttribute(
-                io.papermc.paper.registry.RegistryAccess.registryAccess()
-                        .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
-                        .get(org.bukkit.NamespacedKey.minecraft("max_health")));
-        return ai != null ? ai.getValue() : 20.0;
+        double vanilla = target.getMaxHealth();
+        double eff = Math.min(formula, vanilla);
+        return Double.isFinite(eff) && eff > 0.0 ? eff : 20.0;
     }
 
+    /* -------------------------------- способности -------------------------------- */
+
+    /** 1. «Удар Тира» — одиночный физ-нуку. 1.8.1: гейт союзника. */
     public boolean tyrStrike(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -107,6 +119,7 @@ public final class WarriorAbilities {
         return true;
     }
 
+    /** 2. «Шкура Бальдра» — грант физ-резиста (self). 1.9.0: талантовые хуки. */
     public boolean balderSkin(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
         double b = base(def, 15.0) + plugin.getTalentService().baseBonus(uuid, def.id());
@@ -117,6 +130,7 @@ public final class WarriorAbilities {
         return true;
     }
 
+    /** 3. «Берсеркерганг» — Сила II + Сопротивление I (self). */
     public boolean berserkergang(Player p, AbilityDef def) {
         int secs = duration(def, 6);
         p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, secs * 20, 1));
@@ -124,20 +138,21 @@ public final class WarriorAbilities {
         return true;
     }
 
-    /** 4. «Кровь Фенрира» — self-хил от WP. 1.9.3: HP из формулы, не из ванили. */
+    /** 4. «Кровь Фенрира» — self-хил от WP. 1.9.3: crash-guard (effective max). */
     public boolean fenrirBlood(Player p, AbilityDef def) {
-        double max = maxHp(p);
-        if (p.getHealth() >= max) {
+        double effectiveMax = effectiveMaxHp(p);
+        if (p.getHealth() >= effectiveMax - 0.001) {
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                     "target-full-hp", "Цель здорова"), NamedTextColor.GRAY));
             return false;
         }
         double amount = dmg(p, def, 15.0, 0.5);
-        p.setHealth(Math.min(max, p.getHealth() + amount));
+        double newHp = Math.min(effectiveMax, p.getHealth() + amount);
+        p.setHealth(Math.max(0.0, newHp));
         return true;
     }
 
-    /** 5. «Рагнарёк» — execute. 1.9.3: threshold считает от формульного HP, не ванильного. */
+    /** 5. «Рагнарёк» — execute-финишер. 1.9.3: порог от effective max (консистентно). */
     public boolean ragnarok(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -149,7 +164,7 @@ public final class WarriorAbilities {
             return false;
         }
         double threshold = cfgD("classes.WARRIOR.abilities." + def.id() + ".threshold", 0.25);
-        double max = maxHp(t);
+        double max = effectiveMaxHp(t);
         double frac = max > 0 ? t.getHealth() / max : 1.0;
         double dmg = dmg(p, def, 20.0, 1.8);
         if (frac < threshold) {
