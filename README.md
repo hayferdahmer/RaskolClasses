@@ -6,9 +6,19 @@
   <img src="https://img.shields.io/badge/1.9.3.2-ff003c?style=flat-square&label=release&labelColor=0a0a0a"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-1c1c1c?style=flat-square&label=paper&labelColor=0a0a0a"/>
   <img src="https://img.shields.io/badge/21-1c1c1c?style=flat-square&label=java&labelColor=0a0a0a"/>
-  <img src="https://img.shields.io/badge/36%2F36-00ff41?style=flat-square&label=selftest&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/36%2F36-ccff00?style=flat-square&label=selftest&labelColor=0a0a0a"/>
   <img src="https://img.shields.io/badge/proprietary-000000?style=flat-square&label=license&labelColor=0a0a0a"/>
 </p>
+
+```
+[  ok  ] raskol-classes 1.9.3.2 :: node joined
+[  ok  ] virtual hp pool ............ online (carrier <= 1024, formula unlimited)
+[  ok  ] gear hook .................. linked (raskolgear pdc)
+[  ok  ] set bonus service .......... armed (4/4)
+[ warn ] flicker in sector 7 ........ ignored
+[  ok  ] selftest ................... 36/36 pass
+[ fail ] mercy ...................... not found
+```
 
 <p align="center">
   <sub>Боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ»: классы, специализации, таланты, инсталляции, боевая математика, TTK-харнесс.</sub>
