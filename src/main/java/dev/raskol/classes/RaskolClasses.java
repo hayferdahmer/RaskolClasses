@@ -62,8 +62,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.10.0: FoliantService (переход Маг/Жрец → Чернокнижник), PassiveListener хранится
- *         в поле (геттер getPassives() для FoliantService).
+ * 1.10.1: Чернокнижник — СКРЫТЫЙ класс: баннер и стартовые логи перечисляют 5 основных путей.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -199,7 +198,6 @@ public final class RaskolClasses extends JavaPlugin {
         this.installations = new InstallationService(this);
         this.installToken = new InstallToken(this);
 
-        // 1.10.0: фолиант перехода
         this.foliantService = new FoliantService(this);
 
         pluginManager.registerEvents(resources, this);
@@ -293,6 +291,7 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
     }
 
+    /** 1.10.1: баннер перечисляет ТОЛЬКО пять основных путей (Чернокнижник скрыт). */
     private void printBanner() {
         String v = getPluginMeta().getVersion();
         String[] art = {
@@ -304,7 +303,7 @@ public final class RaskolClasses extends JavaPlugin {
             "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝╚══════╝",
             "&8  ────────────────────────────────────────────────────",
             "&7     RASKOL &8· &7CLASSES    &8|    &5пять путей &8· &4одна война",
-            "&8     ⚔ &4Воин &8· &2➳ Охотник &8· &f✚ Жрец &8· &9✦ Маг &8· &5☠ Разбойник &8· &d☾ Чернокнижник",
+            "&8     ⚔ &4Воин &8· &2➳ Охотник &8· &f✚ Жрец &8· &9✦ Маг &8· &5☠ Разбойник",
             "&8  ────────────────────────────────────────────────────",
             "&8     by &fhayferdahmer &8· &7v" + v + " &8· &7Paper 1.21+ &8· &7Java 21",
             "&8  ────────────────────────────────────────────────────"
