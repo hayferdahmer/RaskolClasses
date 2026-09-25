@@ -6,11 +6,11 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.9.3</version>
+    <version>1.9.3.1</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), уровень персонажа (топ-N скиллов), дерево талантов спеки в Книге класса, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно, боевое окно ресурсов и TTK-харнесс</description>
+    <description>Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), уровень персонажа (топ-N скиллов), дерево талантов спеки в Книге класса, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно, боевое окно ресурсов, TTK-харнесс, виртуальный пул HP и хук RaskolGear</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -52,6 +52,27 @@
 
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
+
+        <!-- 1.9.3.1 FIX: подстановка ${project.version} в plugin.yml.
+             Фильтруем ТОЛЬКО plugin.yml; остальные ресурсы (config.yml и т.д.)
+             копируются без фильтрации, чтобы не трогать их содержимое. -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>plugin.yml</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>plugin.yml</exclude>
+                </excludes>
+            </resource>
+        </resources>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
