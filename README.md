@@ -1,194 +1,197 @@
 <div align="center">
 
-![RASKOL CLASSES — Две Короны](assets/banner.png)
+<img src="https://capsule-render.vercel.app/api?type=venom&color=0:050505,30:140000,65:2e0000,100:520000&height=240&section=header&text=RASKOL%20CLASSES&fontSize=56&fontColor=c9c9c9&fontAlignY=36&desc=%E2%80%A0%20%D0%9F%D1%8F%D1%82%D1%8C%20%D0%BF%D1%83%D1%82%D0%B5%D0%B9%20%C2%B7%20%D0%9E%D0%B4%D0%BD%D0%B0%20%D0%B2%D0%BE%D0%B9%D0%BD%D0%B0%20%C2%B7%20%D0%91%D0%B5%D0%B7%20%D0%BF%D0%BE%D1%88%D0%B0%D0%B4%D1%8B%20%E2%80%A0&descAlignY=62&descFontColor=7a7a7a&animation=fadeIn"/>
 
-# RASKOL CLASSES
+<p>
+  <img src="https://img.shields.io/badge/RELEASE-1.9.3.2-520000?style=for-the-badge&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/PAPER-1.21.4%2B-1c1c1c?style=for-the-badge&labelColor=0a0a0a&color=3d3d3d"/>
+  <img src="https://img.shields.io/badge/JAVA-21-1c1c1c?style=for-the-badge&labelColor=0a0a0a&color=3d3d3d"/>
+  <img src="https://img.shields.io/badge/SELFTEST-36%2F36-3d0000?style=for-the-badge&labelColor=0a0a0a&color=520000"/>
+  <img src="https://img.shields.io/badge/LICENSE-PROPRIETARY-000000?style=for-the-badge&labelColor=0a0a0a&color=2a2a2a"/>
+</p>
 
-**Боевое ядро сервера «РАСКОЛ | ДВЕ КОРОНЫ»**
-*Пять путей. Одна война. Слабым здесь не место.*
+<p>
+  <code>⸸</code>&nbsp; Боевой слой сервера **«РАСКОЛ | ДВЕ КОРОНЫ»** &nbsp;<code>⸸</code><br/>
+  <sub>Классы · Специализации · Таланты · Инсталляции · Боевая математика · TTK-харнесс</sub>
+</p>
 
-[![Version](https://img.shields.io/badge/VERSION-1.9.3.2-8b0000?style=for-the-badge)](CHANGELOG.md)
-[![Build](https://img.shields.io/github/actions/workflow/status/hayferdahmer/RaskolClasses/build.yml?branch=main&style=for-the-badge&label=BUILD&color=1a1a1a)](../../actions)
-[![Java](https://img.shields.io/badge/JAVA-21-1a1a1a?style=for-the-badge&logo=openjdk&logoColor=b0b0b0)](#)
-[![Paper](https://img.shields.io/badge/PAPER-1.21.4%2B-0b0b0b?style=for-the-badge)](#)
-[![License](https://img.shields.io/badge/LICENSE-PROPRIETARY-000000?style=for-the-badge)](LICENSE)
+<p><sub>✠──────────⚔──────────✠</sub></p>
 
-> *«Рассвет даёт свет. Вальрадис даёт пламя.*
-> *Оба дают смерть тем, кто выбрал неверно».*
-> — Хроника Раскола, третья эпоха
+> ☠ *«Героев здесь нет. Есть выжившие — и есть уже забытые.»*
 
 </div>
 
 ---
 
-## ☠ СУТЬ
-
-RaskolClasses — не «плагин способностей». Это **боевая конституция** сервера:
-пять классов с ресурсом и китами, специализации как пассивная идентичность,
-дерево талантов, сводный уровень персонажа и полная боевая математика —
-четыре вида урона, резисты, модификаторы, burst-окно, анти-ваншот и TTK-харнесс.
-
-Всё, что чувствует игрок в бою, считается здесь. Всё, что видит админ,
-тюнится конфигом **без пересборки**.
-
----
-
 ## ⚔ ПЯТЬ ПУТЕЙ
 
-| | Класс | Ресурс | Главный атрибут | Роль в бою |
-|---|---|---|---|---|
-| ⚔ | **Воин** | Ярость *(−5/с вне боя, +10 за урон)* | STR | танк, execute-финишеры |
-| ➳ | **Охотник** | Концентрация *(+5/с вне боя)* | AGI | дальний бой, контроль |
-| ✚ | **Жрец** | Свет *(+2/с всегда)* | INT | лечение, щиты веры |
-| ✦ | **Маг** | Мана *(тиры по порогам 25/50/75)* | INT | магический бурст, зоны |
-| ☠ | **Разбойник** | Энергия *(+10/с)* | AGI | инвиз, яды, удар в спину |
+| Сигил | Класс | Ресурс | Главный атрибут | Роль в бою |
+|:---:|---|---|:---:|---|
+| ⚔ | **Воин** | Ярость *(−5/с вне боя)* | `STR` | Передовая линия, execute-финишеры |
+| ➳ | **Охотник** | Концентрация *(+5/с вне боя)* | `AGI` | Дистанционное давление, метки |
+| ✚ | **Жрец** | Свет *(+2/с всегда)* | `INT` | Лечение, щиты, кары |
+| ✦ | **Маг** | Мана *(тиры по порогам)* | `INT` | Бурст, контроль, зоны |
+| ☠ | **Разбойник** | Энергия *(+10/с)* | `AGI` | Скрытность, яды, спина |
 
-Способности — слоты 1–5 (лестница 10/25/50/65/75), применяются **только свитками
-в хотбаре**. Все числа китов = `base + Power × coeff` (WP / SP / HPow).
+Ресурс — **0…100**, правила регена индивидуальны; боевое окно 5 с разделяет
+«в бою» и «вне боя» для каждого класса по-своему.
 
----
+<p align="center"><sub>─────────⸸─────────</sub></p>
 
-## 🩸 БОЕВАЯ МАТЕМАТИКА
-
-### Здоровье (1.9.3, виртуальный пул)
+## † МОДЕЛЬ ЗДОРОВЬЯ (1.9.3)
 
 ```
 HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bonus : 0) + gear-hp
 ```
 
-- Ванильный `max_health` — лишь **носитель пропорции** (потолок движка 1024).
-- Реальный пул = формула: воин L60/STR84 держит **2560 HP**, и это не предел.
-- Урон, хилы, капы и HUD работают в формульных единицах через `scale = carrier / formula`.
-- Датпаки и оверрайды атрибутов **не требуются** — потолок снят архитектурно.
+- **Виртуальный пул:** ванильный `max_health` — лишь носитель-пропорция (≤ 1024,
+  предел движка). Реальный пул = формула; урон, хилы, капы и HUD живут в
+  формульных единицах через единый `scale = carrier / formula`.
+- **Потолок 1024 снят без датапаков:** воин L60·STR84 держит **2560 HP**,
+  HUD честно показывает `…/2560`.
+- Воин L20·STR36 = 1080 HP; +35 HP от нагрудника RaskolGear входят в формулу.
 
-### Урон и защита
+| Класс | Референс L40 | Референс L60 |
+|---|---:|---:|
+| Воин (STR-main) | ≈ 1780 | ≈ 2560 |
+| Жрец / Маг | ≈ 700 | ≈ 840 |
 
-- **Типы:** physical / magic / hybrid / true; среда = true + масштаб × maxHP/20.
-- **Резисты:** база класса + спека + таланты + шмот RaskolGear; кап 90 (PvP-кап отдельный).
-- **Анти-ваншот:** одиночный.hit ≤ 35% maxHP (исключения: среда, execute-финишеры).
-- **Burst-окно:** ≤ 18% maxHP за 3 секунды — связки и бурст-открытия не убивают мгновенно.
-- **Уклонение/парирование:** гиперболы с убывающей отдачей, DR, углы фронт/спина, стаггер.
-- **TTK-харнесс:** `/rc debug simulate [A] [B] [level]` и матрица 5×5; якорь 20 с, коридор ±30%.
+<p align="center"><sub>─────────⸸─────────</sub></p>
 
----
+## ✠ МОДУЛИ
 
-## 🛡 RASKOLGEAR: СТАЛЬ, КОТОРАЯ СЧИТАЕТ
-
-Интеграция с плагином снаряжения **без правок чужой репозиторий** — чтение PDC-тегов:
-
-| Слой | Кто применяет в бою | Кто считает и показывает |
-|---|---|---|
-| Урон оружия (base + Power×coeff, крит, проки) | RaskolGear | RaskolGear |
-| Резисты шмота и сет-бонусы 4/4 | RaskolGear | RaskolClasses (`/rc debug`, `/rc gear`, Книга) |
-| +HP от шмота | RaskolClasses (входит в формулу HP) | RaskolClasses |
-| Классовые резисты и таланты | RaskolClasses | RaskolClasses |
-| Burst / анти-ваншот | RaskolClasses | RaskolClasses |
-
-Двойного применения нет: исходящий офенс классовых статов пропускается для оружия
-с тегом `WEAPON`, резисты шмота и класса стекаются мультипликативно.
-
----
-
-## 📖 КНИГА КЛАССА
-
-Единое мрачное окно управления персонажем — пять вкладок, строгая сетка,
-чёрная рамка, состояния предметов без разнобоя:
-
-![Книга класса](assets/book.png)
-
-| Вкладка | Содержимое |
+| Модуль | Назначение |
 |---|---|
-| Способности | 5 слотов + инсталляция; глоу готовых, КД, цена, свитки |
-| Специализации | выбор с 40 ур., пассивки, отречение (двойное ПКМ, 30 с) |
-| Класс и пассивки | атрибуты, резисты с breakdown, корона и титул |
-| Таланты спеки | дерево 9 узлов: тиры, пререквизиты, капстоун, ульт; сброс кристаллом |
-| Шмот и сеты | оружие, 4 слота брони, статус сетов N/4, сводка статов |
+| **Способности (слоты 1–5)** | Свитки в хотбар, КД-полоса прочностью, `base + Power×coeff` (WP/SP/HPow) |
+| **Специализации** | Пассивная идентичность с 40 ур.; резисты/проки постоянны; платный респец с двойным подтверждением |
+| **Дерево талантов** | 10 деревьев × 9 узлов (ветви A/B, 4 тира, капстоун, ульт); только в Книге класса |
+| **Уровень персонажа** | floor(среднее топ-5 скиллов AuraSkills), кап 60; ширина прокачки, а не гринд одного дерева |
+| **Инсталляции** | Мины/варды/руна-зона: TTL, лимиты 2/200, килл-кредит, гейты зон |
+| **Короны** | Рассвет / Вальрадис: титулы классов и партикл-ауры `%raskolcrown_*%` |
+| **Бой** | 4 типа урона, резисты, модификаторы, burst-окно (3 с ≤ 18%), анти-ваншот (≤ 35%), LOS для AoE, летальность среды |
+| **TTK-харнесс** | `/rc debug simulate`, матрица 5×5, якорь 20 с ±30% |
+| **RaskolGear-хук** | Статы шмота из PDC: резисты/HP/сеты/шипы — без правок чужого плагина |
+| **Надёжность** | Атомарные сейвы с `.bak`, автосейв, ConfigValidator, NaN-гарды, 36 headless-чеков |
 
-Управление талантами и спеками — **только здесь**. Команд нет: решение владельца.
+<p align="center"><sub>─────────⸸─────────</sub></p>
 
----
-
-## 🧩 КОМАНДЫ И ПРАВА
+## ☠ КОМАНДЫ
 
 | Команда | Право | Назначение |
 |---|---|---|
-| `/rc` | — | сводка: класс, уровень персонажа, ресурс, резисты |
-| `/rc menu` | — | Книга класса |
-| `/rc gear [player]` | `raskolclasses.debug` | экипировка, сеты, статы шмота |
-| `/rc debug [player]` | `raskolclasses.debug` | атрибуты, резисты, симулятор урона, таланты |
-| `/rc debug simulate …` | `raskolclasses.debug` | headless-дуэль / матрица TTK |
-| `/rc health` | `raskolclasses.debug` | MSPT/TPS, purge, аптайм |
-| `/rc selftest` | `raskolclasses.debug` | 36 headless-чеков формул |
-| `/rc reload` | `raskolclasses.admin` | перезагрузка конфига + reconcile |
+| `/rc` | — | Сводка: класс, уровень, ресурс, резисты, корона, спека |
+| `/rc menu` | — | Книга класса: способности · спеки · класс · таланты · **шмот** |
+| `/rc gear [player]` | `debug` | Экипировка, статы шмота, активные сеты N/4 |
+| `/rc debug [player]` | `debug` | Атрибуты, резисты, симулятор урона, таланты, gear-строка |
+| `/rc debug simulate [A] [B] [lvl]` | `debug` | Headless-дуэль на боевых формулах |
+| `/rc debug simulate matrix [lvl]` | `debug` | Матрица 5×5 TTK |
+| `/rc health` | `debug` | MSPT/TPS, purge, аптайм, Fx-счётчики |
+| `/rc selftest` | `debug` | 36 headless-чеков формул |
+| `/rc reload` | `admin` | Перезагрузка конфига + reconcile талантов и шмота |
 
----
+Способности и инсталляции применяются **только свитками в хотбаре**: цифровых
+подкоманд нет — осознанное решение владельца.
 
-## 📡 ПЛЕЙСХОЛДЕРЫ (PlaceholderAPI)
+<p align="center"><sub>─────────⸸─────────</sub></p>
 
-<details>
-<summary><b>%raskolclasses_*% и %raskolcrown_*% — развернуть</b></summary>
+## ⸸ ПЛЕЙСХОЛДЕРЫ (PlaceholderAPI)
 
 ```
-%raskolclasses_class%        %raskolclasses_class_id%
-%raskolclasses_level%        %raskolclasses_char_level%     %raskolclasses_skill_level%
-%raskolclasses_resource%     %raskolclasses_resource_max%
-%raskolclasses_hp%           %raskolclasses_hp_max%
-%raskolclasses_phys_resist%  %raskolclasses_magic_resist%
-%raskolclasses_dodge%        %raskolclasses_parry%
-%raskolclasses_crit_melee%   %raskolclasses_crit_spell%
-%raskolclasses_spec%         %raskolclasses_spec_id%
-%raskolclasses_talent_points%  %raskolclasses_talents%
-%raskolcrown_*%              — короны, титулы, ауры
+%raskolclasses_class%        %raskolclasses_class_id%      %raskolclasses_level%
+%raskolclasses_char_level%   %raskolclasses_skill_level%   %raskolclasses_resource%
+%raskolclasses_resource_max% %raskolclasses_hp%            %raskolclasses_hp_max%
+%raskolclasses_phys_resist%  %raskolclasses_magic_resist%  %raskolclasses_dodge%
+%raskolclasses_parry%        %raskolclasses_crit_melee%    %raskolclasses_crit_spell%
+%raskolclasses_spec%         %raskolclasses_spec_id%       %raskolclasses_talent_points%
+%raskolclasses_talents%      %raskolcrown_*%
 ```
 
-</details>
+<p align="center"><sub>─────────⸸─────────</sub></p>
 
----
+## ✦ RASKOLGEAR: РАЗДЕЛЕНИЕ ОТВЕТСТВЕННОСТИ
+
+Хук читает статы шмота из PDC (`raskolgear:*`) и **не дублирует** чужую логику:
+
+| Что | Кто применяет в бою | Кто считает/показывает |
+|---|---|---|
+| Урон оружия (`base + Power×coeff`, крит, проки) | RaskolGear | — |
+| Резисты шмота и сет-бонусы 4/4 | RaskolGear | RaskolClasses (дисплей, `/rc gear`, Книга) |
+| `+HP` шмота | RaskolClasses (входит в формулу `maxHp`) | HUD, `/rc debug` |
+| Классовые резисты (18/12…) | RaskolClasses | ResistService, breakdown в Книге |
+| Burst / single-hit cap | RaskolClasses | CombatService |
+| Исходящий офенс WP/SP | RaskolClasses — **пропускается**, если в руке оружие RaskolGear | — |
+
+Циклический softdepend разруливается событием `PluginEnableEvent`: хук
+активируется, когда RaskolGear включился позже нас.
+
+<p align="center"><sub>─────────⸸─────────</sub></p>
 
 ## ⚙ УСТАНОВКА
 
 1. `mvn -B clean package` → `target/raskol-classes-1.9.3.2.jar`
-2. jar в `plugins/`, рестарт сервера
+2. jar в `plugins/`, **рестарт** сервера
 3. `config.yml` создаётся автоматически; правки — через `/rc reload`
    (кроме `hp-display.mode`)
-4. Softdepend (каждый опционален, деградация graceful): LuckPerms, AuraSkills,
-   PlaceholderAPI, RaskolCore, Towny, Vault, **RaskolGear**, AuthMe, Essentials, packetevents
-5. Проверка: `/rc selftest` → **36/36 PASS**
+4. Хранилища: `cooldowns.yml`, `spec-choices.yml`, `talents.yml`,
+   `resources.yml`, `health.yml` — атомарная запись, `.bak`, автосейв 5 мин
+5. `/rc selftest` → **36/36 PASS**
 
-Хранилища: `cooldowns.yml`, `spec-choices.yml`, `talents.yml`, `resources.yml`,
-`health.yml` — атомарная запись, `.bak`-копии, автосейв каждые `storage.autosave-minutes`.
+<details>
+<summary><b>☩ Softdepend (каждый опционален, деградация graceful)</b></summary>
 
----
+| Плагин | Зачем |
+|---|---|
+| LuckPerms | определение классов |
+| AuraSkills | уровни скиллов и сводный уровень персонажа |
+| PlaceholderAPI | плейсхолдеры |
+| RaskolCore | паспорта классов, мгновенный reconcile |
+| Towny | клеймы инсталляций, гейт блинка |
+| AuthMe | гейт до логина |
+| Vault / Economy | плата респеца и сброса талантов |
+| RaskolGear | статы шмота, сеты, шипы |
+| RaskolEnchant | чертежи и крафт (каркас BlueprintHook) |
 
-## 🧪 КАЧЕСТВО
+</details>
 
-- **36 headless-чеков** `/rc selftest`: формулы, DR, криты, капы, TTK-санити,
-  экономика талантов, reconcile-циклы, план B (scale/heal/carrier), декэй ярости.
-- **Регресс-матрица 30 пунктов** в RUNBOOK — полный прогон перед любым хотфиксом.
-- CI: workflow «RaskolClasses Build» на каждый пуш; красный ран = блок релиза.
-- NaN-гарды, SafeStorage с фолбэком, санитизация устаревших свитков, rate-limit GUI.
+<details>
+<summary><b>☩ Регресс-матрица (36 чеков selftest + живой прогон)</b></summary>
 
----
+Порядок прогона перед любым хотфиксом и релизом: диагностики (1–5),
+бой (6–16), контент (17–30), план B и ресурсы (31–36).
 
-## 📚 ДОКУМЕНТАЦИЯ
+- Формулы dodge/parry/DR/split/углы — чеки 1–14
+- WP/SP/HPow и анти-ваншот — чеки 15–16
+- TTK-санити и матрица — чеки 17–18
+- Сводный уровень top-N — чеки 19–20
+- Фракционный гейт canHit — чек 21
+- Экономика талантов и reconcile — чеки 22–24
+- Боевое окно и семантика consume — чеки 29–30
+- Глобальный бюджет очков и прунинг — чеки 31–32
+- План B: scale / healFormula / targetCarrier — чеки 33–35
+- Декэй ярости воина (tickDelta) — чек 36
 
-- [`RUNBOOK.md`](RUNBOOK.md) — операторский справочник: аварии, гейты, тюнинг, чек-листы
-- [`CHANGELOG.md`](CHANGELOG.md) — история версий (Added/Changed/Fixed/Validate)
+</details>
 
----
+<p align="center"><sub>─────────⸸─────────</sub></p>
 
-## ⚖ ЛИЦЕНЗИЯ
+## ❦ ДОКУМЕНТАЦИЯ
+
+- [`RUNBOOK.md`](RUNBOOK.md) — аварии, гейты, тюнинг без пересборки, чек-лист оператора
+- [`CHANGELOG.md`](CHANGELOG.md) — история версий (Added/Changed/Fixed/Removed/Validate)
+- [`LICENSE`](LICENSE) — RASKOL Proprietary License v1.0
+
+<p align="center"><sub>─────────⸸─────────</sub></p>
+
+## ⸸ ЛИЦЕНЗИЯ
 
 **RASKOL Proprietary License v1.0** © 2026 hayferdahmer.
 Использование разрешено только на сервере «РАСКОЛ | ДВЕ КОРОНЫ».
 Копирование, редистрибуция и продажа — только с письменного разрешения владельца.
-См. [`LICENSE`](LICENSE).
-
----
 
 <div align="center">
 
-**РАСКОЛ · ДВЕ КОРОНЫ**
-*Рассвет судит днём. Вальрадис — ночью.*
+<img src="https://capsule-render.vercel.app/api?type=venom&color=0:520000,35:2e0000,70:140000,100:050505&height=150&section=footer&text=%C2%A9%202026%20hayferdahmer%20%C2%B7%20RASKOL&fontSize=22&fontColor=6f6f6f&fontAlignY=72&animation=fadeIn"/>
+
+<sub>☠ &nbsp;Пять путей. Одна война. Без пощады.&nbsp; ☠</sub>
 
 </div>
