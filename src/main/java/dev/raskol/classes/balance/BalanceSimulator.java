@@ -15,18 +15,14 @@ import java.util.Random;
 
 /**
  * 1.7.6: HEADLESS-СИМУЛЯТОР ДУЭЛЕЙ (баланс-харнесс, вариант A).
- * Модель: два виртуальных игрока уровня level; атрибуты/HP/WP/SP/HPow/резисты/
- * avoidance/криты/STR-реген/анти-ваншот/burst-окно — ТЕ ЖЕ формулы, что в бою.
- * 1.7.6.3: прибавка ресурса за попадание/получение урона читается из конфига
- * по классу (resource-on-deal / resource-on-take, кап 1 раз/с) вместо хардкода
- * воина — охотник больше не голодает в длинных дуэлях.
- * Упрощения (документированы): авто-атака каждые 0.8 с, атака всегда во фронт,
- * защитник держит мили-оружие, утилити-абилки без эффекта, ресурс 100 на старте,
- * лимит дуэли 60 с (timeout = «не убивает»). Детерминированность: seed → Random.
+ * 1.10.0: WARLOCK полностью включён в симуляцию:
+ *  - атрибуты/HP/SP/WP/HPow из конфига (через defaultWp/Sp/Hp и attrBase/Growth);
+ *  - способности 1–5 со своими формулами (дрейн, mark, откат 6.66% HP себе);
+ *  - множитель ×1.2 при Скверне ≥75 (открытая страница);
+ *  - «Печать Погибели» даёт ×1.26 входящего урона по цели на 66.6 с.
  */
 public final class BalanceSimulator {
 
-    /** Результат дуэли: победитель, время до смерти проигравшего, флаги и счётчики. */
     public record DuelResult(PlayerClass winner, double ttkSeconds, boolean timeout,
                              int castsA, int castsB, int dodgesA, int dodgesB) {
     }
@@ -37,15 +33,15 @@ public final class BalanceSimulator {
     private static final double BERSERK_MULT = 1.25;
     private static final double MARK_MULT = 1.10;
 
-    /** База ванильного оружия для авто-атаки (допущение симулятора). */
+    /** 1.10.0: WARLOCK с базой 5.0 (маг-класс, слабое мили). */
     private static final Map<PlayerClass, Double> WEAPON_BASE = Map.of(
             PlayerClass.WARRIOR, 7.0,
             PlayerClass.HUNTER, 6.0,
             PlayerClass.PRIEST, 5.0,
             PlayerClass.MAGE, 5.0,
-            PlayerClass.ROGUE, 6.0);
+            PlayerClass.ROGUE, 6.0,
+            PlayerClass.WARLOCK, 5.0);
 
-    /** Порядок абилок = слотам 1–5 (совпадает с AbilityRegistry DEFAULTS). */
     private static final Map<PlayerClass, String[]> IDS = new EnumMap<>(PlayerClass.class);
 
     static {
@@ -59,46 +55,52 @@ public final class BalanceSimulator {
                 "fire_prometheus", "hermes_step", "boreas_breath", "athena_aegis", "zeus_wrath"});
         IDS.put(PlayerClass.ROGUE, new String[]{
                 "shadow_cloak", "blade_fan", "strangle", "borgia_poison", "shadow_dance"});
+        // 1.10.0: WARLOCK
+        IDS.put(PlayerClass.WARLOCK, new String[]{
+                "black_word", "ruin_seal", "hunger_corruption", "unwriting", "soul_rift"});
     }
 
-    /** Числа способности: base, coeff, cooldown, cost, duration, threshold, execute-mult. */
     private record Ab(double base, double coeff, double cd, double cost,
-                      double duration, double threshold, double exec) {
+                      double duration, double threshold, double exec, double drain) {
     }
 
+    /** 1.10.0: добавлено поле drain (lifesteal) — 0.0 для классов без дрейна. */
     private static final Map<String, Ab> DEFAULT_AB = Map.ofEntries(
-            Map.entry("tyr_strike", new Ab(10, 0.6, 8, 20, 0, 1, 1)),
-            Map.entry("balder_skin", new Ab(15, 0.05, 30, 25, 5, 1, 1)),
-            Map.entry("berserkergang", new Ab(0, 0, 45, 35, 6, 1, 1)),
-            Map.entry("fenrir_blood", new Ab(15, 0.5, 25, 30, 0, 1, 1)),
-            Map.entry("ragnarok", new Ab(20, 1.8, 60, 60, 0, 0.25, 3)),
-            Map.entry("wolf_mark", new Ab(8, 0.5, 12, 20, 6, 1, 1)),
-            Map.entry("swallow", new Ab(0, 0, 40, 15, 8, 1, 1)),
-            Map.entry("piercing_shot", new Ab(12, 1.4, 20, 30, 0, 1, 1)),
-            Map.entry("arrow_fan", new Ab(6, 0.35, 22, 35, 0, 1, 1)),
-            Map.entry("arrow_rain", new Ab(10, 0.9, 90, 60, 0, 1, 1)),
-            Map.entry("saint_tear", new Ab(10, 0.35, 3, 10, 0, 1, 1)),
-            Map.entry("word_of_life", new Ab(20, 0.6, 6, 20, 0, 1, 1)),
-            Map.entry("aegis_faith", new Ab(12, 0.04, 30, 30, 5, 1, 1)),
-            Map.entry("circle_elysium", new Ab(15, 0.45, 60, 50, 0, 1, 1)),
-            Map.entry("wrath_heaven", new Ab(20, 1.6, 90, 60, 0, 0.25, 3)),
-            Map.entry("fire_prometheus", new Ab(15, 1.2, 6, 15, 0, 1, 1)),
-            Map.entry("hermes_step", new Ab(0, 0, 20, 20, 0, 1, 1)),
-            Map.entry("boreas_breath", new Ab(12, 1.0, 45, 40, 4, 1, 1)),
-            Map.entry("athena_aegis", new Ab(15, 0.05, 30, 30, 5, 1, 1)),
-            Map.entry("zeus_wrath", new Ab(25, 2.0, 90, 60, 0, 0.25, 3)),
-            Map.entry("shadow_cloak", new Ab(0, 0, 30, 30, 15, 1, 1)),
-            Map.entry("blade_fan", new Ab(8, 0.8, 15, 25, 0, 1, 1)),
-            Map.entry("strangle", new Ab(10, 0.9, 40, 40, 0, 1, 1)),
-            Map.entry("borgia_poison", new Ab(5, 0.3, 30, 35, 0, 1, 1)),
-            Map.entry("shadow_dance", new Ab(30, 0, 120, 60, 4, 1, 1)));
+            Map.entry("tyr_strike", new Ab(10, 0.6, 8, 20, 0, 1, 1, 0)),
+            Map.entry("balder_skin", new Ab(15, 0.05, 30, 25, 5, 1, 1, 0)),
+            Map.entry("berserkergang", new Ab(0, 0, 45, 35, 6, 1, 1, 0)),
+            Map.entry("fenrir_blood", new Ab(15, 0.5, 25, 30, 0, 1, 1, 0)),
+            Map.entry("ragnarok", new Ab(20, 1.8, 60, 60, 0, 0.25, 3, 0)),
+            Map.entry("wolf_mark", new Ab(8, 0.5, 12, 20, 6, 1, 1, 0)),
+            Map.entry("swallow", new Ab(0, 0, 40, 15, 8, 1, 1, 0)),
+            Map.entry("piercing_shot", new Ab(12, 1.4, 20, 30, 0, 1, 1, 0)),
+            Map.entry("arrow_fan", new Ab(6, 0.35, 22, 35, 0, 1, 1, 0)),
+            Map.entry("arrow_rain", new Ab(10, 0.9, 90, 60, 0, 1, 1, 0)),
+            Map.entry("saint_tear", new Ab(10, 0.35, 3, 10, 0, 1, 1, 0)),
+            Map.entry("word_of_life", new Ab(20, 0.6, 6, 20, 0, 1, 1, 0)),
+            Map.entry("aegis_faith", new Ab(12, 0.04, 30, 30, 5, 1, 1, 0)),
+            Map.entry("circle_elysium", new Ab(15, 0.45, 60, 50, 0, 1, 1, 0)),
+            Map.entry("wrath_heaven", new Ab(20, 1.6, 90, 60, 0, 0.25, 3, 0)),
+            Map.entry("fire_prometheus", new Ab(15, 1.2, 6, 15, 0, 1, 1, 0)),
+            Map.entry("hermes_step", new Ab(0, 0, 20, 20, 0, 1, 1, 0)),
+            Map.entry("boreas_breath", new Ab(12, 1.0, 45, 40, 4, 1, 1, 0)),
+            Map.entry("athena_aegis", new Ab(15, 0.05, 30, 30, 5, 1, 1, 0)),
+            Map.entry("zeus_wrath", new Ab(25, 2.0, 90, 60, 0, 0.25, 3, 0)),
+            Map.entry("shadow_cloak", new Ab(0, 0, 30, 30, 15, 1, 1, 0)),
+            Map.entry("blade_fan", new Ab(8, 0.8, 15, 25, 0, 1, 1, 0)),
+            Map.entry("strangle", new Ab(10, 0.9, 40, 40, 0, 1, 1, 0)),
+            Map.entry("borgia_poison", new Ab(5, 0.3, 30, 35, 0, 1, 1, 0)),
+            Map.entry("shadow_dance", new Ab(30, 0, 120, 60, 4, 1, 1, 0)),
+            // 1.10.0: WARLOCK (drain = lifesteal от нанесённого)
+            Map.entry("black_word", new Ab(18, 1.5, 4, 10, 0, 1, 1, 0.666)),
+            Map.entry("ruin_seal", new Ab(0, 0, 16, 15, 66.6, 1, 1, 0)),
+            Map.entry("hunger_corruption", new Ab(20, 1.2, 26, 25, 0, 1, 1, 0.666)),
+            Map.entry("unwriting", new Ab(16, 0.8, 22, 30, 0, 1, 1, 0)),
+            Map.entry("soul_rift", new Ab(30, 2.4, 80, 50, 0, 1, 1, 0)));
 
     private BalanceSimulator() {
     }
 
-    /* ------------------------------ публичный API ------------------------------ */
-
-    /** Дуэль A против B; ttkSeconds = время до смерти проигравшего (LIMIT = timeout). */
     public static DuelResult duel(RaskolClasses plugin, PlayerClass ca, PlayerClass cb,
                                   int level, long seed) {
         Random rnd = new Random(seed);
@@ -125,10 +127,6 @@ public final class BalanceSimulator {
         return new DuelResult(leader, LIMIT, true, a.casts, b.casts, a.dodges, b.dodges);
     }
 
-    /**
-     * Матрица TTK: m[i][j] = секунды, за которые класс i убивает класс j в дуэли.
-     * POSITIVE_INFINITY = i не убил j за 60 с (или сам погиб первым).
-     */
     public static double[][] matrix(RaskolClasses plugin, int level, long seed) {
         PlayerClass[] pcs = PlayerClass.values();
         double[][] m = new double[pcs.length][pcs.length];
@@ -142,8 +140,6 @@ public final class BalanceSimulator {
         }
         return m;
     }
-
-    /* -------------------------------- модель -------------------------------- */
 
     private static final class Fighter {
         PlayerClass pc;
@@ -161,7 +157,6 @@ public final class BalanceSimulator {
         double lastGainDeal = -10.0;
         double lastGainTake = -10.0;
         int casts, dodges;
-        /** Журнал урона по burst-окну: [simTime, amount]. */
         final Deque<double[]> recent = new ArrayDeque<>();
     }
 
@@ -170,6 +165,7 @@ public final class BalanceSimulator {
         return Double.isFinite(v) ? v : def;
     }
 
+    /** 1.10.0: +WARLOCK (base-str 4, base-agi 4, base-int 14). */
     private static final Map<PlayerClass, double[]> BASES = new EnumMap<>(PlayerClass.class);
     private static final Map<PlayerClass, double[]> GROWTHS = new EnumMap<>(PlayerClass.class);
 
@@ -179,11 +175,13 @@ public final class BalanceSimulator {
         BASES.put(PlayerClass.PRIEST, new double[]{5, 5, 12});
         BASES.put(PlayerClass.MAGE, new double[]{4, 6, 12});
         BASES.put(PlayerClass.ROGUE, new double[]{7, 11, 4});
+        BASES.put(PlayerClass.WARLOCK, new double[]{4, 4, 14});
         GROWTHS.put(PlayerClass.WARRIOR, new double[]{1.2, 0.5, 0.3});
         GROWTHS.put(PlayerClass.HUNTER, new double[]{0.5, 1.2, 0.3});
         GROWTHS.put(PlayerClass.PRIEST, new double[]{0.4, 0.4, 1.2});
         GROWTHS.put(PlayerClass.MAGE, new double[]{0.3, 0.5, 1.2});
         GROWTHS.put(PlayerClass.ROGUE, new double[]{0.6, 1.1, 0.3});
+        GROWTHS.put(PlayerClass.WARLOCK, new double[]{0.2, 0.3, 1.4});
     }
 
     private static double attrBase(RaskolClasses plugin, PlayerClass pc, int idx) {
@@ -234,21 +232,35 @@ public final class BalanceSimulator {
         return f;
     }
 
+    /** 1.10.0: +WARLOCK (base-wp 5). */
     private static double defaultWp(PlayerClass pc) {
         return switch (pc) {
-            case WARRIOR -> 30; case HUNTER -> 35; case ROGUE -> 30; case MAGE -> 5; case PRIEST -> 10;
+            case WARRIOR -> 30;
+            case HUNTER -> 35;
+            case ROGUE -> 30;
+            case MAGE -> 5;
+            case PRIEST -> 10;
+            case WARLOCK -> 5;
         };
     }
 
+    /** 1.10.0: +WARLOCK (base-sp 40). */
     private static double defaultSp(PlayerClass pc) {
         return switch (pc) {
-            case WARRIOR, HUNTER, ROGUE -> 5; case MAGE -> 30; case PRIEST -> 25;
+            case WARRIOR, HUNTER, ROGUE -> 5;
+            case MAGE -> 30;
+            case PRIEST -> 25;
+            case WARLOCK -> 40;
         };
     }
 
+    /** 1.10.0: +WARLOCK (base-hpow 0 — не лечит). */
     private static double defaultHp(PlayerClass pc) {
         return switch (pc) {
-            case WARRIOR, HUNTER, ROGUE -> 0; case MAGE -> 15; case PRIEST -> 25;
+            case WARRIOR, HUNTER, ROGUE -> 0;
+            case MAGE -> 15;
+            case PRIEST -> 25;
+            case WARLOCK -> 0;
         };
     }
 
@@ -267,7 +279,7 @@ public final class BalanceSimulator {
                     * cfg(plugin, "avoidance.agi-main-dodge-refund", 0.5);
             parry = micro;
         } else {
-            parry = parryFull; // допущение: атака всегда во фронт, мили в руке
+            parry = parryFull;
         }
         dodge *= cfg(plugin, "avoidance.dodge-mult", 0.5);
         double eff = AttributeMath.applyDR(dodge + parry,
@@ -312,7 +324,8 @@ public final class BalanceSimulator {
                 cfg(plugin, p + "cost", def.cost),
                 cfg(plugin, p + "duration", def.duration),
                 cfg(plugin, p + "threshold", def.threshold),
-                cfg(plugin, p + "execute-mult", def.exec));
+                cfg(plugin, p + "execute-mult", def.exec),
+                cfg(plugin, p + "drain", def.drain));
     }
 
     private static void act(RaskolClasses plugin, Fighter f, Fighter foe,
@@ -339,6 +352,7 @@ public final class BalanceSimulator {
         }
     }
 
+    /** 1.10.0: WARLOCK-касты (дрейн, mark Печати, откат). */
     private static void tryCast(RaskolClasses plugin, Fighter f, Fighter foe,
                                 int slot, String id, double t, Random rnd, double pctCap) {
         if (t < f.cd[slot]) {
@@ -436,8 +450,47 @@ public final class BalanceSimulator {
                     cast = true;
                 }
             }
+            // 1.10.0: WARLOCK
+            case "black_word" -> {
+                double dmg = a.base + f.sp * a.coeff;
+                double dealt = hit(plugin, f, foe, 0.0, dmg, false, t, rnd, pctCap);
+                // Дрейн: 66.6% нанесённого → HP себе
+                if (dealt > 0.0 && a.drain > 0.0) {
+                    f.hp = Math.min(f.maxHp, f.hp + dealt * a.drain);
+                }
+                cast = true;
+            }
+            case "ruin_seal" -> {
+                // Печать Погибели: mark ×1.26 входящего урона на цель
+                foe.markMult = 1.26;
+                foe.markUntil = t + a.duration;
+                cast = true;
+            }
+            case "hunger_corruption" -> {
+                double dmg = a.base + f.sp * a.coeff;
+                // AoE в симуляции = один таргет
+                double dealt = hit(plugin, f, foe, 0.0, dmg, false, t, rnd, pctCap);
+                if (dealt > 0.0 && a.drain > 0.0) {
+                    f.hp = Math.min(f.maxHp, f.hp + dealt * a.drain);
+                }
+                // +12 Скверны (в симуляторе это resource)
+                f.resource = Math.min(100.0, f.resource + 12.0);
+                cast = true;
+            }
+            case "unwriting" -> {
+                double dmg = a.base + f.sp * a.coeff;
+                // В симуляции без диспела — просто маг-урон
+                hit(plugin, f, foe, 0.0, dmg, false, t, rnd, pctCap);
+                cast = true;
+            }
+            case "soul_rift" -> {
+                double dmg = a.base + f.sp * a.coeff;
+                // Упрощение: канал 2.5 с → мгновенный урон ×1.5 (средний missing-HP бонус)
+                hit(plugin, f, foe, 0.0, dmg * 1.5, false, t, rnd, pctCap);
+                cast = true;
+            }
             default -> {
-                // swallow / hermes_step / shadow_cloak — утилити, в симуляции без эффекта
+                // swallow / hermes_step / shadow_cloak — утилити
             }
         }
         if (cast) {
@@ -447,10 +500,6 @@ public final class BalanceSimulator {
         }
     }
 
-    /**
-     * Burst-window cap внутри симуляции: суммарный урон за combat.burst-window-seconds
-     * ≤ combat.burst-window-pct% maxHP. Execute-удары окно не читают и не пишут.
-     */
     private static double applyBurstWindow(RaskolClasses plugin, Fighter def,
                                            double damage, double t, boolean execute) {
         if (execute || damage <= 0.0) {
@@ -477,21 +526,30 @@ public final class BalanceSimulator {
         return finalDmg;
     }
 
-    private static void hit(RaskolClasses plugin, Fighter att, Fighter def,
+    /**
+     * Применяет урон и возвращает фактически дошедшее значение (для дрейна).
+     * 1.10.0: WARLOCK-множитель ×1.2 при Скверне ≥75 + откат 6.66% HP себе.
+     */
+    private static double hit(RaskolClasses plugin, Fighter att, Fighter def,
                             double phys, double magic, boolean execute,
                             double t, Random rnd, double pctCap) {
         if (phys > 0.0) {
             double r = rnd.nextDouble() * 100.0;
             if (r < def.dodgeEff + def.parryEff) {
                 def.dodges++;
-                return;
+                return 0.0;
             }
         }
         double rp = Math.min(90.0, def.resistPhysBase + (t < def.grantUntil ? def.grantPhys : 0.0));
         double rm = Math.min(90.0, def.resistMagicBase + (t < def.grantUntil ? def.grantMagic : 0.0));
         double p = phys * (1.0 - rp / 100.0);
         double m = magic * (1.0 - rm / 100.0);
-        double mult = (t < att.dmgMultUntil ? att.dmgMult : 1.0)
+
+        // 1.10.0: WARLOCK ×1.2 при Скверне ≥75 (открытая страница)
+        double warlockMult = (att.pc == PlayerClass.WARLOCK && att.resource >= 75.0) ? 1.2 : 1.0;
+
+        double mult = warlockMult
+                * (t < att.dmgMultUntil ? att.dmgMult : 1.0)
                 * (t < def.markUntil ? def.markMult : 1.0);
         double total = (p + m) * mult;
         if (!execute) {
@@ -499,7 +557,13 @@ public final class BalanceSimulator {
         }
         total = applyBurstWindow(plugin, def, total, t, execute);
         def.hp -= total;
-        // 1.7.6.3: прибавка ресурса за попадание/получение — из конфига по классу
+
+        // 1.10.0: WARLOCK-откат 6.66% от нанесённого урона (true-урон себе)
+        if (att.pc == PlayerClass.WARLOCK && total > 0.0) {
+            double recoil = total * 0.0666;
+            att.hp -= recoil;
+        }
+
         double onDeal = cfg(plugin, "classes." + att.pc.name() + ".resource-on-deal", 0.0);
         if (onDeal > 0.0 && t - att.lastGainDeal >= 1.0) {
             att.lastGainDeal = t;
@@ -510,5 +574,7 @@ public final class BalanceSimulator {
             def.lastGainTake = t;
             def.resource = Math.min(100.0, def.resource + onTake);
         }
+
+        return total;
     }
 }
