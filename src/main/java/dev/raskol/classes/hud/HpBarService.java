@@ -32,15 +32,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
- * 1.9.3-r (РЕФАКТОРИНГ): вся математика единиц HP (formula/carrier/scale/heal)
- * живёт в AttributeService; HpBarService только:
- *   - держит HUD (actionbar + сердца + искра регена);
- *   - тикает STR-реген и применение carrier (applyMaxHealth);
- *   - персист доли HP (health.yml, кламп [0,1]);
- *   - отдаёт публичный API heal/formulaMaxHp/carrierMaxHp/scale ДЕЛЕГИРОВАНИЕМ.
- * applyMaxHealth учитывает ЧУЖИЕ модификаторы (gear и т.п.): наш модификатор
- * дозируется так, чтобы итоговый carrier = targetCarrier, независимо от шмота.
- * 1.9.3-r fix: восстановлены 6 аргументов gradientBar (start, end, empty, spark).
+ * 1.9.3-r: математика единиц HP живёт в AttributeService; здесь HUD, реген, персист.
+ * 1.10.0: symbolOf покрывает WARLOCK (☾).
  */
 public final class HpBarService implements Listener {
 
@@ -55,7 +48,6 @@ public final class HpBarService implements Listener {
     private final YamlConfiguration healthStore;
     private final Map<UUID, State> lastTick = new ConcurrentHashMap<>();
 
-    /** Обёртка над NamespacedKey. */
     private record NamespacedKeyHolder(org.bukkit.NamespacedKey key) {
     }
 
@@ -69,8 +61,6 @@ public final class HpBarService implements Listener {
     private AttributeService attrs() {
         return plugin.getAttributes();
     }
-
-    /* ---------------- публичный API (делегирование в AttributeService) ---------------- */
 
     public double formulaMaxHp(UUID uuid) {
         return attrs().maxHp(uuid);
@@ -91,8 +81,6 @@ public final class HpBarService implements Listener {
     public void heal(LivingEntity target, double formulaAmount) {
         attrs().healFormula(target, formulaAmount);
     }
-
-    /* -------------------------------- конфиг -------------------------------- */
 
     private String mode() {
         return plugin.getConfig().getString("hp-display.mode", "actionbar")
@@ -141,8 +129,6 @@ public final class HpBarService implements Listener {
         return TextColor.fromHexString(fallback);
     }
 
-    /* -------------------------------- задача -------------------------------- */
-
     public BukkitTask start() {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, period(), period());
     }
@@ -163,8 +149,6 @@ public final class HpBarService implements Listener {
         lastTick.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null);
     }
 
-    /* ---------------- применение carrier (с учётом чужих модификаторов) ---------------- */
-
     private void applyMaxHealth(Player player) {
         if (AttributeService.maxHealthAttr() == null) {
             return;
@@ -183,7 +167,6 @@ public final class HpBarService implements Listener {
             }
         }
         double ourAmount = ours != null ? ours.getAmount() : 0.0;
-        // base + чужие модификаторы (gear и т.п.) без нашего
         double othersValue = instance.getValue() - ourAmount;
         double delta = target - othersValue;
 
@@ -202,8 +185,6 @@ public final class HpBarService implements Listener {
             player.setHealth(carrier);
         }
     }
-
-    /* ------------------------- персист здоровья (S7) ------------------------- */
 
     private void saveHealth(Player player) {
         double formula = attrs().maxHp(player.getUniqueId());
@@ -232,8 +213,6 @@ public final class HpBarService implements Listener {
         double carrier = attrs().carrierMaxHp(player);
         player.setHealth(Math.min(hpVanilla, carrier));
     }
-
-    /* --------------------------- STR-реген (effective) --------------------------- */
 
     private void applyStrRegen(Player player) {
         if (player.isDead()) {
@@ -270,8 +249,6 @@ public final class HpBarService implements Listener {
         }
     }
 
-    /* -------------------------------- сердца -------------------------------- */
-
     private void applyHearts(Player player, boolean unified) {
         if (!unified) {
             if (player.isHealthScaled()) {
@@ -289,8 +266,6 @@ public final class HpBarService implements Listener {
             }
         }
     }
-
-    /* --------------------------- совмещённая строка --------------------------- */
 
     private void sendUnifiedActionbar(Player player) {
         double formula = attrs().maxHp(player.getUniqueId());
@@ -330,7 +305,6 @@ public final class HpBarService implements Listener {
         Component line = Component.text("❬ ", frame)
                 .append(Component.text("❤ ", hpEnd));
         if (gauge) {
-            // FIX 1.9.3-r: 6 аргументов (fraction, len, start, end, empty, spark)
             line = line.append(gradientBar(hpFraction, len,
                     gradientEnabled() ? hpStart : hpEnd, hpEnd, empty,
                     hpRegen ? spark : null))
@@ -340,7 +314,6 @@ public final class HpBarService implements Listener {
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
-            // FIX 1.9.3-r: 6 аргументов (fraction, len, start, end, empty, spark)
             line = line.append(gradientBar(res / 100.0, len,
                     gradientEnabled() ? resStart : resEnd, resEnd, empty,
                     resRegen ? spark : null))
@@ -387,6 +360,7 @@ public final class HpBarService implements Listener {
         return TextColor.color(r, g, bl);
     }
 
+    /** 1.10.0: покрыт WARLOCK (☾). */
     private String symbolOf(PlayerClass pc) {
         if (pc == null) {
             return "✦";
@@ -402,10 +376,9 @@ public final class HpBarService implements Listener {
             case PRIEST -> "✚";
             case MAGE -> "✦";
             case ROGUE -> "☠";
+            case WARLOCK -> "☾";
         };
     }
-
-    /* -------------------------------- события -------------------------------- */
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
