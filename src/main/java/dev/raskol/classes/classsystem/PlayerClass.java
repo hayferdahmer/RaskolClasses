@@ -5,14 +5,18 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 import java.util.Locale;
 
-/** Пять классов сервера «РАСКОЛ». Цвета сообщений и скиллы — по ТЗ. */
+/**
+ * Шесть классов сервера «РАСКОЛ». Цвета сообщений и скиллы — по ТЗ.
+ * 1.10.0: добавлен WARLOCK (скрытый класс, переход через Фолиант Раскола с 40 ур.).
+ */
 public enum PlayerClass {
 
     WARRIOR("Воин", NamedTextColor.RED, "fighting"),
     HUNTER("Охотник", NamedTextColor.DARK_GREEN, "archery"),
     PRIEST("Жрец", NamedTextColor.WHITE, "healing"),
     MAGE("Маг", NamedTextColor.BLUE, "sorcery"),
-    ROGUE("Разбойник", NamedTextColor.DARK_PURPLE, "agility");
+    ROGUE("Разбойник", NamedTextColor.DARK_PURPLE, "agility"),
+    WARLOCK("Чернокнижник", NamedTextColor.LIGHT_PURPLE, "occult");
 
     private final String displayName;
     private final NamedTextColor color;
@@ -25,7 +29,7 @@ public enum PlayerClass {
         this.profileSkillName = profileSkillName;
     }
 
-    /** class_warrior → WARRIOR; всё остальное → null. */
+    /** class_warrior → WARRIOR; class_warlock → WARLOCK; всё остальное → null. */
     public static PlayerClass fromLuckPermsGroup(String group) {
         if (group == null || !group.startsWith("class_")) {
             return null;
@@ -39,7 +43,7 @@ public enum PlayerClass {
         return null;
     }
 
-    /** 1.3.2: "warrior" / "mage" / ... → WARRIOR / MAGE / ...; пусто/unknown → null. */
+    /** 1.3.2: "warrior" / "mage" / "warlock" / ... → enum; пусто/unknown → null. */
     public static PlayerClass fromCoreId(String id) {
         if (id == null || id.isEmpty()) {
             return null;
@@ -72,6 +76,7 @@ public enum PlayerClass {
             case PRIEST -> "Свет";
             case MAGE -> "Мана";
             case ROGUE -> "Энергия";
+            case WARLOCK -> "Скверна";
         };
     }
 }
