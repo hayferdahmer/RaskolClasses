@@ -2,305 +2,312 @@
 package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
-import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.passive.PassiveListener;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
+import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.World;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.util.Vector;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.10.0: способности Чернокнижника (5 слотов + пассивка «Чёрная Месса»).
- * Все способности используют SP (маг-урон), дрейн (lifesteal) и откат 6.66% от нанесённого.
- * В аду (Nether) урон ×6 (конфиг nether-mult).
+ * 1.10.0: КИТ ЧЕРНОКНИЖНИКА (5 способностей, power = SP).
+ *
+ * 1.10.0-fix (компиляция):
+ *  - Печать Погибели больше НЕ лезет в ResistService (там нет амплификации):
+ *    собственный статический реестр SEAL → CombatService домножает урон на (1+amp);
+ *  - партиклы спавмятся напрямую world.spawnParticle (у FxService нет spawnParticles);
+ *  - getNearbyEntities итерируется как Entity + instanceof LivingEntity;
+ *  - анти-хил — статический реестр ANTIHEAL, проверяется в CombatService (ванильные
+ *    события) и в HpBarService.healFormula (наш хил-пайплайн).
+ *
+ * Все хилы/дрейн идут через HpBarService.heal (formula-единицы плана B).
+ * Откат 6.66% применяется централизованно в CombatService.dealDamage.
  */
 public final class WarlockAbilities {
 
+    private static final PlayerClass PC = PlayerClass.WARLOCK;
+
+    /* Статические реестры дебафов (доступны CombatService/HpBarService без проводки). */
+    private static final Map<UUID, Long> SEAL_EXPIRY = new ConcurrentHashMap<>();
+    private static final Map<UUID, Double> SEAL_AMP = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> ANTIHEAL_EXPIRY = new ConcurrentHashMap<>();
+
+    /** Амплификация урона по цели от «Печати Погибели» (0.0 если печати нет). */
+    public static double sealAmplifyOf(UUID uuid) {
+        Long expiry = SEAL_EXPIRY.get(uuid);
+        if (expiry == null) {
+            return 0.0;
+        }
+        if (System.currentTimeMillis() > expiry) {
+            SEAL_EXPIRY.remove(uuid);
+            SEAL_AMP.remove(uuid);
+            return 0.0;
+        }
+        return SEAL_AMP.getOrDefault(uuid, 0.0);
+    }
+
+    /** true если цель под анти-хилом «Раскола Души». */
+    public static boolean isAntihealed(UUID uuid) {
+        Long expiry = ANTIHEAL_EXPIRY.get(uuid);
+        if (expiry == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() > expiry) {
+            ANTIHEAL_EXPIRY.remove(uuid);
+            return false;
+        }
+        return true;
+    }
+
+    private static void purgeStaleDebuffs() {
+        long now = System.currentTimeMillis();
+        SEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
+        SEAL_AMP.keySet().removeIf(id -> !SEAL_EXPIRY.containsKey(id));
+        ANTIHEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
+    }
+
     private final RaskolClasses plugin;
-    private final Map<UUID, Long> antihealTargets = new ConcurrentHashMap<>();
 
     public WarlockAbilities(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
-    /**
-     * Слот 1: Чёрное Слово (black_word)
-     * Маг-урон одной цели; 66.6% урона → HP; откат 6.66% от нанесённого.
-     */
-    public boolean blackWord(Player caster, LivingEntity target, AbilityDef def) {
-        if (target == null || target.isDead()) {
-            return false;
-        }
-        RaskolConfig cfg = plugin.getRaskolConfig();
-        UUID uuid = caster.getUniqueId();
-        double sp = plugin.getCombat().powers().spellPower(uuid);
-        double drain = cfg.abilityDrain(dev.raskol.classes.classsystem.PlayerClass.WARLOCK, def.id());
+    /* ------------------------------ конфиг-хелперы ------------------------------ */
 
-        double baseDmg = 18 + sp * 1.5;
-        double mult = getDamageMult(caster);
-        baseDmg *= mult;
-
-        DamageProfile profile = new DamageProfile(0, baseDmg, 0);
-        double dealt = plugin.getCombat().dealDamage(target, caster, profile);
-
-        if (dealt > 0) {
-            double healAmount = dealt * drain;
-            caster.setHealth(Math.min(caster.getMaxHealth(),
-                    caster.getHealth() + healAmount));
-            applyRecoil(caster, dealt, def.id());
-            return true;
-        }
-        return false;
+    private double cfgD(String path, double def) {
+        double v = plugin.getConfig().getDouble(path, def);
+        return Double.isFinite(v) ? v : def;
     }
 
-    /**
-     * Слот 2: Печать Погибели (ruin_seal)
-     * Проклятие 66.6 с: цель получает +26% урона от всех источников (неснимаемо, кроме смерти).
-     */
-    public boolean ruinSeal(Player caster, LivingEntity target, AbilityDef def) {
-        if (target == null || target.isDead()) {
-            return false;
-        }
-        RaskolConfig cfg = plugin.getRaskolConfig();
-        int duration = cfg.durationSeconds(dev.raskol.classes.classsystem.PlayerClass.WARLOCK, def.id(), 67);
-        double amplify = cfg.abilityAmplify(dev.raskol.classes.classsystem.PlayerClass.WARLOCK, def.id());
-
-        target.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, duration * 20, 0, false, false, false));
-        plugin.getResists().addModifier(target.getUniqueId(), "ruin_seal",
-                0, 0, duration * 20L, "ruin_seal");
-        plugin.getFx().playSound(target.getLocation(), Sound.BLOCK_SOUL_SAND_BREAK, 1.0f, 0.8f);
-        plugin.getFx().spawnParticles(target.getLocation().add(0, 1, 0),
-                org.bukkit.Particle.SCULK_SOUL, 30, 0.5, 0.5, 0.5, 0.02);
-        return true;
+    private double base(AbilityDef def, double defv) {
+        return cfgD("classes.WARLOCK.abilities." + def.id() + ".base", defv);
     }
 
-    /**
-     * Слот 3: Голод Скверны (hunger_corruption)
-     * Маг-урон по площади 6 блоков; 66.6% урона → HP; +12 Скверны.
-     */
-    public boolean hungerCorruption(Player caster, AbilityDef def) {
-        RaskolConfig cfg = plugin.getRaskolConfig();
-        UUID uuid = caster.getUniqueId();
-        double sp = plugin.getCombat().powers().spellPower(uuid);
-        double radius = 6.0;
-        double drain = cfg.abilityDrain(dev.raskol.classes.classsystem.PlayerClass.WARLOCK, def.id());
-        int corruptionGain = cfg.abilityCorruptionGain(dev.raskol.classes.classsystem.PlayerClass.WARLOCK, def.id());
-
-        double baseDmg = 20 + sp * 1.2;
-        double mult = getDamageMult(caster);
-        baseDmg *= mult;
-
-        Location center = caster.getLocation();
-        double totalHeal = 0;
-
-        for (LivingEntity entity : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
-            if (entity instanceof Player p && !plugin.getCombat().canHit(caster, p)) {
-                continue;
-            }
-            if (entity.isDead() || entity.equals(caster)) {
-                continue;
-            }
-            DamageProfile profile = new DamageProfile(0, baseDmg, 0);
-            double dealt = plugin.getCombat().dealDamage(entity, caster, profile);
-            if (dealt > 0) {
-                totalHeal += dealt * drain;
-            }
-        }
-
-        if (totalHeal > 0) {
-            caster.setHealth(Math.min(caster.getMaxHealth(),
-                    caster.getHealth() + totalHeal));
-            applyRecoil(caster, totalHeal / drain, def.id());
-        }
-
-        plugin.getResources().add(uuid, corruptionGain);
-        plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_ROAR, 1.0f, 1.2f);
-        plugin.getFx().spawnParticles(center.add(0, 1, 0),
-                org.bukkit.Particle.SCULK_CHARGE, 50, radius, 1, radius, 0.1);
-        return totalHeal > 0;
+    private double coeff(AbilityDef def, double defv) {
+        return cfgD("classes.WARLOCK.abilities." + def.id() + ".coeff", defv);
     }
 
-    /**
-     * Слот 4: Небытие (unwriting)
-     * Диспел положительных эффектов; маг-урон +16 за каждый снятый.
-     */
-    public boolean unwriting(Player caster, LivingEntity target, AbilityDef def) {
-        if (target == null || target.isDead()) {
-            return false;
-        }
-        RaskolConfig cfg = plugin.getRaskolConfig();
-        UUID uuid = caster.getUniqueId();
-        double sp = plugin.getCombat().powers().spellPower(uuid);
-        int perPurged = cfg.abilityPerPurged(dev.raskol.classes.classsystem.PlayerClass.WARLOCK, def.id());
-
-        int purgedCount = 0;
-        for (PotionEffect effect : target.getActivePotionEffects()) {
-            PotionEffectType type = effect.getType();
-            if (type.equals(PotionEffectType.SPEED) ||
-                type.equals(PotionEffectType.STRENGTH) ||
-                type.equals(PotionEffectType.REGENERATION) ||
-                type.equals(PotionEffectType.INVISIBILITY) ||
-                type.equals(PotionEffectType.RESISTANCE) ||
-                type.equals(PotionEffectType.ABSORPTION)) {
-                target.removePotionEffect(type);
-                purgedCount++;
-            }
-        }
-
-        double baseDmg = 16 + sp * 0.8 + perPurged * purgedCount;
-        double mult = getDamageMult(caster);
-        baseDmg *= mult;
-
-        DamageProfile profile = new DamageProfile(0, baseDmg, 0);
-        double dealt = plugin.getCombat().dealDamage(target, caster, profile);
-
-        if (dealt > 0) {
-            applyRecoil(caster, dealt, def.id());
-            return true;
-        }
-        return false;
+    private double drain(AbilityDef def, double defv) {
+        return cfgD("classes.WARLOCK.abilities." + def.id() + ".drain", defv);
     }
 
-    /**
-     * Слот 5: Раскол Души (soul_rift)
-     * Канал 2.5 с r8: тик маг-урона + анти-хил 6 с; взрыв до +66.6% missing-HP.
-     */
-    public boolean soulRift(Player caster, AbilityDef def) {
-        RaskolConfig cfg = plugin.getRaskolConfig();
-        UUID uuid = caster.getUniqueId();
-        double sp = plugin.getCombat().powers().spellPower(uuid);
-        double radius = 8.0;
-        double channelSec = cfg.abilityChannel(dev.raskol.classes.classsystem.PlayerClass.WARLOCK, def.id());
-        double antihealSec = cfg.abilityAntiheal(dev.raskol.classes.classsystem.PlayerClass.WARLOCK, def.id());
-        double missingHpBonus = cfg.abilityMissingHpBonus(dev.raskol.classes.classsystem.PlayerClass.WARLOCK, def.id());
-
-        int ticks = (int) (channelSec * 20);
-        for (int i = 0; i < ticks; i++) {
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                if (caster.isDead() || !caster.isOnline()) {
-                    return;
-                }
-                Location center = caster.getLocation();
-                double tickDmg = 6;
-                double mult = getDamageMult(caster);
-                tickDmg *= mult;
-
-                for (LivingEntity entity : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
-                    if (entity instanceof Player p && !plugin.getCombat().canHit(caster, p)) {
-                        continue;
-                    }
-                    if (entity.isDead() || entity.equals(caster)) {
-                        continue;
-                    }
-                    DamageProfile profile = new DamageProfile(0, tickDmg, 0);
-                    plugin.getCombat().dealDamage(entity, caster, profile);
-                    antihealTargets.put(entity.getUniqueId(),
-                            System.currentTimeMillis() + (long) (antihealSec * 1000));
-                }
-                plugin.getFx().spawnParticles(center.add(0, 1, 0),
-                        org.bukkit.Particle.SCULK_CHARGE, 20, radius, 1, radius, 0.05);
-            }, i);
-        }
-
-        // Финальный взрыв
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (caster.isDead() || !caster.isOnline()) {
-                return;
-            }
-            Location center = caster.getLocation();
-            double baseDmg = 30 + sp * 2.4;
-            double mult = getDamageMult(caster);
-            baseDmg *= mult;
-
-            for (LivingEntity entity : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
-                if (entity instanceof Player p && !plugin.getCombat().canHit(caster, p)) {
-                    continue;
-                }
-                if (entity.isDead() || entity.equals(caster)) {
-                    continue;
-                }
-                double missingHp = Math.max(0, entity.getMaxHealth() - entity.getHealth());
-                double bonus = missingHp * missingHpBonus;
-                double finalDmg = baseDmg + bonus;
-
-                DamageProfile profile = new DamageProfile(0, finalDmg, 0);
-                double dealt = plugin.getCombat().dealDamage(entity, caster, profile);
-                if (dealt > 0) {
-                    applyRecoil(caster, dealt, def.id());
-                }
-            }
-            plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_DEATH, 1.5f, 0.8f);
-            plugin.getFx().spawnParticles(center.add(0, 1, 0),
-                    org.bukkit.Particle.SCULK_SOUL, 100, radius, 1, radius, 0.2);
-        }, ticks);
-
-        return true;
+    private double radius(AbilityDef def, double defv) {
+        return cfgD("classes.WARLOCK.abilities." + def.id() + ".radius", defv);
     }
 
-    /**
-     * Множитель урона: если WARLOCK и Скверна ≥ 75 → ×1.2; в аду ×6.
-     */
-    private double getDamageMult(Player caster) {
-        RaskolConfig cfg = plugin.getRaskolConfig();
-        UUID uuid = caster.getUniqueId();
-        double corruption = plugin.getResources().getValue(uuid);
-        double thresholdOpen = cfg.warlockThresholdOpen();
-        double netherMult = cfg.warlockNetherMult();
-
+    /** Множитель урона: Скверна ≥ порога → ×1.2; ад (NETHER) → ×nether-mult. */
+    private double damageMult(Player caster) {
         double mult = 1.0;
-        if (corruption >= thresholdOpen) {
+        double corruption = plugin.getResources().getValue(caster.getUniqueId());
+        if (corruption >= plugin.getRaskolConfig().warlockThresholdOpen()) {
             mult *= 1.2;
         }
-        if (caster.getWorld().getEnvironment() == org.bukkit.World.Environment.NETHER) {
-            mult *= netherMult;
+        if (caster.getWorld().getEnvironment() == World.Environment.NETHER) {
+            mult *= plugin.getRaskolConfig().warlockNetherMult();
         }
         return mult;
     }
 
-    /**
-     * Откат 6.66% от нанесённого урона (true-урон себе).
-     * Предохранители: не ниже 1 HP, не более 30% maxHP за каст.
-     */
-    private void applyRecoil(Player caster, double dealt, String abilityId) {
-        RaskolConfig cfg = plugin.getRaskolConfig();
-        double recoilPct = cfg.warlockRecoilPercent();
-        double recoilCapPct = cfg.warlockRecoilCapPct();
-        double recoilMinHp = cfg.warlockRecoilMinHp();
-
-        double recoil = dealt * recoilPct / 100.0;
-        double maxRecoil = caster.getMaxHealth() * recoilCapPct / 100.0;
-        recoil = Math.min(recoil, maxRecoil);
-
-        double newHp = caster.getHealth() - recoil;
-        if (newHp < recoilMinHp) {
-            newHp = recoilMinHp;
-        }
-        caster.setHealth(newHp);
+    private double spellDamage(Player caster, AbilityDef def, double defBase, double defCoeff) {
+        double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
+        return (base(def, defBase) + sp * coeff(def, defCoeff)) * damageMult(caster);
     }
 
-    /**
-     * Проверка анти-хила: true если цель под анти-хилом от soul_rift.
-     */
-    public boolean isAntihealed(UUID targetUuid) {
-        Long expiry = antihealTargets.get(targetUuid);
-        if (expiry == null) {
+    private LivingEntity rayTarget(Player p, double range) {
+        Entity e = p.getTargetEntity((int) range);
+        return e instanceof LivingEntity le ? le : null;
+    }
+
+    private void burst(Location loc, Particle particle, int count, double spread) {
+        if (loc.getWorld() != null) {
+            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 1.0, 0.0),
+                    count, spread, 0.6, spread, 0.05);
+        }
+    }
+
+    /* -------------------------------- способности -------------------------------- */
+
+    /** 1. «Чёрное Слово» — дрейн-болт: маг-урон, 66.6% урона → HP себе. */
+    public boolean blackWord(Player caster, LivingEntity target, AbilityDef def) {
+        LivingEntity t = target != null ? target : rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
             return false;
         }
-        if (System.currentTimeMillis() > expiry) {
-            antihealTargets.remove(targetUuid);
+        if (!plugin.getCombat().canHit(caster, t)) {
             return false;
         }
+        double dmg = spellDamage(caster, def, 18.0, 1.5);
+        double dealt = plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
+        if (dealt <= 0.0) {
+            return false;
+        }
+        plugin.getHpBarService().heal(caster, dealt * drain(def, 0.666));
+        plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 0.5f, 1.0f);
+        burst(t.getLocation(), Particle.SCULK_CHARGE, 12, 0.4);
         return true;
+    }
+
+    /** 2. «Печать Погибели» — амплификация +26% входящего урона, Glowing, неснимаемо. */
+    public boolean ruinSeal(Player caster, LivingEntity target, AbilityDef def) {
+        LivingEntity t = target != null ? target : rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            return false;
+        }
+        double durationSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".duration", 66.6);
+        double amplify = cfgD("classes.WARLOCK.abilities." + def.id() + ".amplify", 0.26);
+        UUID id = t.getUniqueId();
+        SEAL_EXPIRY.put(id, System.currentTimeMillis() + (long) (durationSec * 1000.0));
+        SEAL_AMP.put(id, amplify);
+        t.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING,
+                (int) (durationSec * 20.0), 0, false, false, false));
+        plugin.getFx().playSound(t.getLocation(), Sound.BLOCK_SOUL_SAND_BREAK, 0.6f, 0.8f);
+        burst(t.getLocation(), Particle.SCULK_SOUL, 20, 0.5);
+        return true;
+    }
+
+    /** 3. «Голод Скверны» — AoE r6: урон, 66.6% суммы → HP, +12 Скверны. */
+    public boolean hungerCorruption(Player caster, AbilityDef def) {
+        double radius = radius(def, 6.0);
+        double dmg = spellDamage(caster, def, 20.0, 1.2);
+        Location center = caster.getLocation();
+        double totalDealt = 0.0;
+
+        for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+            if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
+                continue;
+            }
+            if (!plugin.getCombat().canHit(caster, t)) {
+                continue;
+            }
+            totalDealt += plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
+        }
+        if (totalDealt <= 0.0) {
+            return false;
+        }
+        plugin.getHpBarService().heal(caster, totalDealt * drain(def, 0.666));
+        plugin.getResources().add(caster.getUniqueId(),
+                cfgD("classes.WARLOCK.abilities." + def.id() + ".corruption-gain", 12.0));
+        plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_ROAR, 0.7f, 1.2f);
+        burst(center, Particle.SCULK_CHARGE, 40, radius * 0.5);
+        return true;
+    }
+
+    /** 4. «Небытие» — диспел положительных эффектов; урон +16 за каждый снятый. */
+    public boolean unwriting(Player caster, LivingEntity target, AbilityDef def) {
+        LivingEntity t = target != null ? target : rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            return false;
+        }
+        int purged = 0;
+        for (PotionEffect effect : java.util.List.copyOf(t.getActivePotionEffects())) {
+            PotionEffectType type = effect.getType();
+            if (type == PotionEffectType.SPEED || type == PotionEffectType.STRENGTH
+                    || type == PotionEffectType.REGENERATION || type == PotionEffectType.INVISIBILITY
+                    || type == PotionEffectType.RESISTANCE || type == PotionEffectType.ABSORPTION
+                    || type == PotionEffectType.FIRE_RESISTANCE || type == PotionEffectType.HASTE) {
+                t.removePotionEffect(type);
+                purged++;
+            }
+        }
+        double perPurged = cfgD("classes.WARLOCK.abilities." + def.id() + ".per-purged", 16.0);
+        double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
+        double dmg = (base(def, 16.0) + sp * coeff(def, 0.8) + perPurged * purged) * damageMult(caster);
+        double dealt = plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
+        if (dealt <= 0.0) {
+            return purged > 0;
+        }
+        plugin.getFx().playSound(t.getLocation(), Sound.BLOCK_SCULK_BREAK, 0.6f, 1.0f);
+        burst(t.getLocation(), Particle.SCULK_SOUL, 16, 0.5);
+        return true;
+    }
+
+    /** 5. «Раскол Души» — канал 2.5 с: зона r8 тик-урон + анти-хил; финальный взрыв по missing-HP. */
+    public boolean soulRift(Player caster, AbilityDef def) {
+        double radius = radius(def, 8.0);
+        double channelSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".channel", 2.5);
+        double antihealSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".antiheal", 6.0);
+        double missingBonus = cfgD("classes.WARLOCK.abilities." + def.id() + ".missing-hp-bonus", 0.666);
+        int ticks = Math.max(1, (int) (channelSec * 20.0));
+
+        for (int i = 1; i <= ticks; i += 5) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!caster.isOnline() || caster.isDead()) {
+                    return;
+                }
+                Location center = caster.getLocation();
+                double tickDmg = 6.0 * damageMult(caster);
+                for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+                    if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
+                        continue;
+                    }
+                    if (!plugin.getCombat().canHit(caster, t)) {
+                        continue;
+                    }
+                    plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(tickDmg));
+                    ANTIHEAL_EXPIRY.put(t.getUniqueId(),
+                            System.currentTimeMillis() + (long) (antihealSec * 1000.0));
+                }
+                burst(center, Particle.SCULK_CHARGE, 16, radius * 0.4);
+            }, i);
+        }
+
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!caster.isOnline() || caster.isDead()) {
+                return;
+            }
+            Location center = caster.getLocation();
+            double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
+            double baseDmg = (base(def, 30.0) + sp * coeff(def, 2.4)) * damageMult(caster);
+            for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+                if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
+                    continue;
+                }
+                if (!plugin.getCombat().canHit(caster, t)) {
+                    continue;
+                }
+                double missing = Math.max(0.0, formulaMax(t) - currentFormulaHp(t));
+                double dmg = baseDmg + missing * missingBonus;
+                plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg), true);
+                ANTIHEAL_EXPIRY.put(t.getUniqueId(),
+                        System.currentTimeMillis() + (long) (antihealSec * 1000.0));
+            }
+            plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_ROAR, 1.0f, 0.7f);
+            burst(center, Particle.SCULK_SOUL, 60, radius * 0.5);
+            purgeStaleDebuffs();
+        }, ticks + 1L);
+
+        return true;
+    }
+
+    /* ------------------------------ unit-хелперы (план B) ------------------------------ */
+
+    private double formulaMax(LivingEntity t) {
+        if (t instanceof Player p) {
+            return plugin.getAttributes().maxHp(p.getUniqueId());
+        }
+        double m = t.getMaxHealth();
+        return Double.isFinite(m) && m > 0.0 ? m : 20.0;
+    }
+
+    private double currentFormulaHp(LivingEntity t) {
+        if (t instanceof Player p) {
+            return plugin.getAttributes().currentFormulaHp(p);
+        }
+        return t.getHealth();
     }
 }
