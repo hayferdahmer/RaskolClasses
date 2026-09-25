@@ -2,6 +2,7 @@
 package dev.raskol.classes.selftest;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.PowerService;
@@ -9,6 +10,8 @@ import dev.raskol.classes.balance.BalanceSimulator;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.talent.TalentModel;
@@ -34,7 +37,14 @@ import java.util.UUID;
  * Чеки 29–30: боевое окно и семантика consume (1.9.1).
  * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг (1.9.2).
  * Чеки 33–35: план B — scale/healFormula/targetCarrier (1.9.3).
- * Чек 36: tickDelta — знаковый реген-тик, декей ярости воина (1.9.3.2).
+ * Чек 36: tickDelta — декэй ярости воина вне боя (1.9.3.2).
+ * Чеки 37–40 (1.10.0): чернокнижник —
+ *   37: реестры печати/анти-хила пусты + все 9 кодов гейтов фолианта дают непустое сообщение;
+ *   38: sanity-диапазоны конфига WARLOCK (пороги, откат, ад, декэй, on-kill);
+ *   39: дуэль WARLOCK↔WARRIOR в симуляторе без падений (Map.of-пробелы = NPE);
+ *   40: TTK-матрица 6×6 (шестой класс включён в харнесс).
+ * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
+ * прунинг, а не ошибка.
  */
 public final class SelftestRunner {
 
@@ -396,7 +406,7 @@ public final class SelftestRunner {
             }
 
             double target = attrs.targetCarrier(pu);
-            boolean ok35 = target == Math.min(formula, AttributeService.VANILLA_MAX_HEALTH_CAP);
+            boolean ok35 = Math.abs(target - Math.min(formula, AttributeService.VANILLA_MAX_HEALTH_CAP)) < 1e-6;
             if (check(report, "35", "targetCarrier = min(formula, 1024)", ok35, "targetCarrier",
                     String.format(Locale.ROOT, "%.1f", target))) {
                 passed++;
@@ -405,7 +415,7 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.9.3.2: чек 36 — знаковый реген-тик (декей ярости воина вне боя)
+        // 1.9.3.2: чек 36 — знаковый tickDelta (декэй ярости воина вне боя)
         ResourceState rsDecay = new ResourceState();
         rsDecay.setValue(40.0);
         rsDecay.tickDelta(-5.0);
@@ -418,9 +428,90 @@ public final class SelftestRunner {
         rsDecay.setValue(100.0);
         rsDecay.tickDelta(5.0);
         boolean clampedHigh = rsDecay.getValue() == 100.0;
-        if (check(report, "36", "tickDelta: −5 декей, +5 набор, клампы 0/100 (ярость воина вне боя)",
+        if (check(report, "36", "tickDelta: декэй −5, набор +5, клампы 0/100 (ярость воина вне боя)",
                 decayed && gained && clampedLow && clampedHigh, "ResourceState.tickDelta",
                 decayed + "/" + gained + "/" + clampedLow + "/" + clampedHigh)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.10.0: чек 37 — реестры чернокнижника пусты + гейты фолианта дают сообщения
+        UUID stranger = UUID.randomUUID();
+        boolean sealEmpty = WarlockAbilities.sealAmplifyOf(stranger) == 0.0;
+        boolean antiEmpty = !WarlockAbilities.isAntihealed(stranger);
+        boolean gatesMsgOk = true;
+        int gateCodes = 0;
+        for (FoliantService.TransitionResult r : FoliantService.TransitionResult.values()) {
+            gateCodes++;
+            String m = r.message(plugin);
+            if (m == null || m.isEmpty()) {
+                gatesMsgOk = false;
+            }
+        }
+        boolean ok37 = sealEmpty && antiEmpty && gatesMsgOk && gateCodes == 9;
+        if (check(report, "37", "чернокнижник: реестры печати/анти-хила пусты; 9 кодов гейтов фолианта с сообщениями",
+                ok37, "WarlockAbilities/FoliantService",
+                sealEmpty + "/" + antiEmpty + "/" + gatesMsgOk + "/" + gateCodes)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.10.0: чек 38 — sanity-диапазоны конфига WARLOCK (не канон, а корректность)
+        RaskolConfig cfg = plugin.getRaskolConfig();
+        double open = cfg.warlockThresholdOpen();
+        double overflow = cfg.warlockThresholdOverflow();
+        double recoil = cfg.warlockRecoilPercent();
+        double recoilCap = cfg.warlockRecoilCapPct();
+        double nether = cfg.warlockNetherMult();
+        double decay = cfg.warlockResourceDecay();
+        double onKill = cfg.warlockResourceOnKill();
+        boolean ok38 = open > 0.0 && overflow > open
+                && recoil > 0.0 && recoil <= 100.0
+                && recoilCap > 0.0 && recoilCap <= 100.0
+                && nether >= 1.0 && decay < 0.0 && onKill > 0.0;
+        if (check(report, "38", "конфиг WARLOCK: пороги 0<open<overflow, откат/кап в (0,100], ад ≥1, декэй <0, on-kill >0",
+                ok38, "RaskolConfig.warlock*",
+                String.format(Locale.ROOT, "%.1f/%.1f/%.2f/%.1f/%.1f/%.1f/%.1f",
+                        open, overflow, recoil, recoilCap, nether, decay, onKill))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.10.0: чек 39 — дуэль WARLOCK в симуляторе без падений (Map.of-пробелы = NPE)
+        String got39;
+        boolean ok39;
+        try {
+            BalanceSimulator.DuelResult wl = BalanceSimulator.duel(
+                    plugin, PlayerClass.WARLOCK, PlayerClass.WARRIOR, 40, 42L);
+            ok39 = wl.timeout() || (wl.ttkSeconds() >= 5.0 && wl.ttkSeconds() <= 60.0);
+            got39 = wl.timeout() ? "timeout" : fmt(wl.ttkSeconds()) + "s";
+        } catch (RuntimeException ex) {
+            ok39 = false;
+            got39 = "exception: " + ex.getClass().getSimpleName();
+        }
+        if (check(report, "39", "симулятор: WARLOCK↔WARRIOR считается без падений, TTK ∈ [5,60] или timeout",
+                ok39, "BalanceSimulator", got39)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.10.0: чек 40 — TTK-матрица 6×6 (шестой класс в харнессе)
+        String got40;
+        boolean ok40;
+        try {
+            double[][] m6 = BalanceSimulator.matrix(plugin, 40, 42L);
+            ok40 = m6.length == 6 && m6[0].length == 6;
+            got40 = m6.length + "x" + (m6.length > 0 ? m6[0].length : 0);
+        } catch (RuntimeException ex) {
+            ok40 = false;
+            got40 = "exception: " + ex.getClass().getSimpleName();
+        }
+        if (check(report, "40", "TTK-матрица 6×6 (WARLOCK включён в харнесс)",
+                ok40, "BalanceSimulator.matrix", got40)) {
             passed++;
         } else {
             failed++;
@@ -445,6 +536,7 @@ public final class SelftestRunner {
         plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
     }
 
+    /** Первый узел тира 1 без пререквизитов (для тестов). */
     private static TalentModel.TalentNode firstT1(TalentModel.TalentTree tree) {
         for (TalentModel.TalentNode node : tree.nodes()) {
             if (node.tier() == 1 && node.prereqs().isEmpty()) {
