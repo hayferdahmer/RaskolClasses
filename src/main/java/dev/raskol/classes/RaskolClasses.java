@@ -19,11 +19,13 @@ import dev.raskol.classes.flavor.CrownFlavorService;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
+import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.EconomyHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.GearHook;
 import dev.raskol.classes.hook.PassportChangeListener;
+import dev.raskol.classes.hook.SetBonusService;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
@@ -60,7 +62,7 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.9.3: план B (виртуальный пул HP), GearHook (RaskolGear), баннер, hpSync.
+ * 1.9.3: план B (виртуальный пул HP), GearHook (RaskolGear), SetBonusService, BlueprintHook.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -89,8 +91,9 @@ public final class RaskolClasses extends JavaPlugin {
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
 
-    /** 1.9.3: хук RaskolGear (статы шмота: резисты/HP/сеты). */
     private GearHook gearHook;
+    private SetBonusService setBonusService;
+    private BlueprintHook blueprintHook;
 
     private FxService fx;
 
@@ -136,6 +139,14 @@ public final class RaskolClasses extends JavaPlugin {
         } else {
             getLogger().info("RaskolGear: не найден — хук отключён (gear-статы = 0)");
         }
+
+        // 1.9.3-r2: SetBonusService (управление сет-бонусами)
+        this.setBonusService = new SetBonusService(this);
+        pluginManager.registerEvents(setBonusService, this);
+
+        // 1.9.3-r2: BlueprintHook (чертежи из RaskolEnchant)
+        this.blueprintHook = new BlueprintHook(this);
+        blueprintHook.registerBlueprints();
 
         this.skillLevels = new SkillLevelProvider(this);
         this.characterLevels = new CharacterLevelService(this);
@@ -330,6 +341,9 @@ public final class RaskolClasses extends JavaPlugin {
         if (hpSync != null) {
             hpSync.stopSweep();
         }
+        if (blueprintHook != null) {
+            blueprintHook.unregisterBlueprints();
+        }
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
         if (passportListener != null) {
@@ -433,6 +447,8 @@ public final class RaskolClasses extends JavaPlugin {
     public FactionHook getFactionHook() { return factionHook; }
     public CrownFlavorService getFlavorService() { return flavorService; }
     public GearHook getGearHook() { return gearHook; }
+    public SetBonusService getSetBonusService() { return setBonusService; }
+    public BlueprintHook getBlueprintHook() { return blueprintHook; }
     public FxService getFx() { return fx; }
     public InstallationService getInstallations() { return installations; }
     public InstallToken getInstallToken() { return installToken; }
