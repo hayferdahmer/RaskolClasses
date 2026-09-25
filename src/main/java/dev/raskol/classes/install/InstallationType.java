@@ -5,9 +5,9 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import org.bukkit.Material;
 
 /**
- * Пять классовых инсталляций (1.5.0, Пакет 2).
+ * Шесть классовых инсталляций (1.5.0, Пакет 2; 1.10.0 +HERESY_CIRCLE).
  * MINE — срабатывает один раз по шагу врага/моба и расходуется.
- * ZONE — тикает до конца TTL, влияет на союзников.
+ * ZONE — тикает до конца TTL, влияет на союзников/врагов.
  */
 public enum InstallationType {
 
@@ -15,7 +15,8 @@ public enum InstallationType {
     BEAR_TRAP(PlayerClass.HUNTER, Mode.MINE, Material.TRIPWIRE_HOOK, "Капкан"),
     LIGHT_WARD(PlayerClass.PRIEST, Mode.ZONE, Material.END_CRYSTAL, "Световой вард"),
     FROST_RUNE(PlayerClass.MAGE, Mode.MINE, Material.BLUE_ICE, "Ледяная руна"),
-    SMOKE_BOMB(PlayerClass.ROGUE, Mode.MINE, Material.GUNPOWDER, "Дымовая шашка");
+    SMOKE_BOMB(PlayerClass.ROGUE, Mode.MINE, Material.GUNPOWDER, "Дымовая шашка"),
+    HERESY_CIRCLE(PlayerClass.WARLOCK, Mode.ZONE, Material.SOUL_CAMPFIRE, "Круг Хулы");
 
     public enum Mode { MINE, ZONE }
 
