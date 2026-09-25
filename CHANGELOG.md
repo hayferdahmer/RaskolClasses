@@ -3,62 +3,87 @@
 Формат: [версия] — дата — имя. Секции Added / Changed / Fixed / Removed / Reverted / Validate.
 Линия 1.9.x активна; 1.8.x закрыта с 1.8.1; 1.7.x и 1.6.x заморожены.
 
-## [1.9.3] — 2026-09-24 · «Снятие потолка HP + синхронизация max_health»
-
-### Added
-- **HpAttributeSync:** синхронизация ванильного `MAX_HEALTH` с формулой
-  AttributeService на join/respawn/reload/invalidate + sweep каждые 5 с.
-  HUD, бой, хилы и плагины-партнёры видят одно и то же HP.
-- **Полная формула HP:** `base + STR×per-str + level×per-level + (STR-main ?
-  level×main-str-bonus)`. Ключи `attributes.hp.per-level` (5) и
-  `main-str-bonus` (8) стали ЖИВЫМИ (ранее мёртвые).
-- **Datapack `raskol_hp`** (серверный): оверрайд `minecraft:max_health`
-  (max_value 1 000 000) — снимает движковый потолок 1024.
-- **Crash-guard китов:** `effectiveMaxHp = min(формула, ванильный getMaxHealth)`
-  в fenrirBlood/ragnarok — `setHealth` больше не бросает IllegalArgumentException.
-- `RaskolConfig`: addDefault для `attributes.hp.per-level` и `main-str-bonus`.
-
-### Changed
-- **CharacterLevelService:** фолбэк без AuraSkills = `character-level.fallback`
-  (40), а НЕ `player.getLevel()` (ванильный XP, часто 0). Устранён провал HP
-  к «100 + STR×20» у игроков без скилл-системы.
-- **CombatService.applyEnvLethalScale:** масштаб среды от формульного HP,
-  а не от ванильного MAX_HEALTH.
-- **WarriorAbilities:** fenrirBlood/ragnarok читают HP из AttributeService
-  (через effectiveMaxHp), а не из ванильного атрибута.
-- **AttributeMath:** каноническая 7-арг формула maxHp; legacy 6-arg делегирует
-  в неё (baseHp=100) — убран молчаливый хардкод.
+## [1.9.3.2] — 2026-09-25 · «Хотфикс: декей ярости воина вне боя»
 
 ### Fixed
-- Воин упирался в 1024 HP (движковый кламп max_health) при формульных 2560.
-- `fenrirBlood` мог бросить IllegalArgumentException при formula > vanilla max.
-- `ragnarok` execute-порог считался от ванильного max (20/1024), а не от пула.
+- **Воин: ярость не падала вне боя.** `ResourceService.tick()` передавал отрицательный
+  rate (−5/с) в `ResourceState.add()`, который по контракту игнорирует всё ≤ 0
+  (регресс-замок чека 30: списание только через consume). Введён знаковый путь
+  `ResourceState.tickDelta(delta)` для реген-тика; семантика `add()`/`consume()` не тронута.
+  Баг был невидим с 1.6.x: у остальных классов rate положительный.
+
+### Added
+- Selftest чек 36: tickDelta (−5 декей, +5 набор, клампы 0/100) — регресс-замок ярости.
+
+### Validate
+- `/rc selftest` → 36/36 PASS.
+- Живая проверка: воин бьёт мобов → окно 5 с → ярость −5/с до 0; в бою не падает.
+
+## [1.9.3.1] — 2026-09-25 · «Хотфикс: версия, старт GearHook, Книга»
+
+### Fixed
+- `plugin.yml` version не подставлялся (`${project.version}` в логах и PAPI):
+  в pom добавлен resource-filtering ТОЛЬКО для plugin.yml.
+- GearHook печатал «RaskolGear: не найден» на старте из-за циклического softdepend
+  (RaskolClasses ↔ RaskolGear): стартовый лог теперь по presence, реальная активация —
+  на `PluginEnableEvent` с прогревом кэша онлайн-игроков; деактивация на `PluginDisableEvent`.
+- Книга класса открывалась пустой: на сервер попал стаб из обрезанного батча.
+  Восстановлена полная Книга (5 вкладок, рабочие клики, корректный holder).
+
+### Added
+- Вкладка Книги GEAR (слот 50): оружие, 4 слота брони, статус сетов (N/4), статы шмота.
+- `/rc gear [player]`: детальная экипировка и активные сеты.
+
+### Changed
+- Версия 1.9.3.1; баннер и PAPI печатают реальную версию.
+
+## [1.9.3] — 2026-09-24 · «Виртуальный пул HP + интеграция RaskolGear + редизайн Книги»
+
+### Added
+- **План B (виртуальный пул HP):** ванильный max_health = носитель ≤ 1024; боевой пул =
+  формула. Единый масштаб scale = carrier/formula; урон/хилы/капы/HUD в формульных единицах.
+  Потолок 1024 больше не ограничивает HP (воин L60 = 2560).
+- **GearHook:** чтение статов шмота RaskolGear из PDC (резисты/HP/сеты/шипы);
+  +HP шмота входит в формулу maxHp; резисты шмота применяет сам RaskolGear (без дубля).
+- **SetBonusService:** сет-бонусы 4/4 как модификаторы ResistService (source `set-bonus-*`).
+- **BlueprintHook:** softdepend-хук RaskolEnchant (задел под чертежи/рецепты).
+- CombatService: пропуск надбавки WP/SP для оружия с PDC-тегом WEAPON (нет двойного скейла).
+- Книга класса: мрачная строгая дизайн-система (чёрная рамка, навигация 45–50,
+  деструктив в 40, единый лор-шаблон, состояния предметов).
+- ConfigValidator: проверки attributes.hp.*; FxService: алиасы битых звуков
+  (ENTITY_WOLF_HOWL→ENTITY_WOLF_AMBIENT, BLOCK_SNOW_BLOCK_BREAK→BLOCK_SNOW_BREAK).
+- Selftest чеки 33–35 (scale/healFormula/targetCarrier).
+- Мрачный стартовый баннер (ASCII «CLASSES», автор, версия).
+
+### Changed
+- Полная формула HP: base + STR×per-str + level×per-level + (STR-main ? level×main-str-bonus);
+  ключи per-level/main-str-bonus живые.
+- CharacterLevelService: фолбэк без AuraSkills = character-level.fallback (не ванильный XP).
+- HpAttributeSync: base = min(formula, 1024); учёт чужих модификаторов (gear) в carrier.
+
+### Fixed
+- Воин упирался в 1024 HP при формульных 2560.
+- fenrirBlood/execute-пороги считались от ванильного max (20/1024), а не от пула.
 - Игроки без AuraSkills получали level=0 → HP только от STR.
 
 ### Validate
-- `/rc debug` воин L60/STR84 → `maxHP 2560`.
-- `/attribute <ник> minecraft:max_health` → 2560 при enabled `raskol_hp`.
-- `/rc selftest` → 32/32 PASS.
-- Fenrir Blood лечит до effective max без исключений (с datapack и без).
+- `/rc selftest` → 35/35 PASS; `/rc debug` воин L60/STR84 → maxHP 2560; HUD 2560/2560.
 
 ## [1.9.2] — 2026-09-16 · «Интеграция с RaskolCore 1.3.0 + эксплойт-свип»
 
 ### Added
-- **PassportChangeListener:** мгновенный reconcile талантов/резистов/боевых кэшей
-  на Reason.CLASS/FACTION из RaskolCore — закрыто 5-секундное окно эксплойта.
-- **EconomyHook:** первично `RaskolCoreAPI.economy()` (контракт Core), фолбэк Vault.
-- **Глобальный бюджет талантов:** `spentGlobal()` по ВСЕМ деревьям; респец не печатает очки.
-- **Reconcile-валидация talents.yml:** битые узлы удаляются сервером с WARNING.
-- **Rate-limit покупок/сброса талантов.**
-- **Фарм-гейты ресурса:** урон по себе/союзнику не фармит ярость/концентрацию.
-- **Selftest чеки 31–32.** Итого 32 чека.
-- **Стартовая проверка RaskolCore** (warn-only).
+- PassportChangeListener: мгновенный reconcile на Reason.CLASS/FACTION из RaskolCore.
+- EconomyHook: первично RaskolCoreAPI.economy(), фолбэк Vault.
+- Глобальный бюджет талантов spentGlobal(); респец не печатает очки.
+- Reconcile-валидация talents.yml (прунинг битых узлов с WARNING).
+- Rate-limit покупок/сброса талантов; фарм-гейты ресурса (себя/союзник).
+- Selftest чеки 31–32. Стартовая проверка версии RaskolCore (warn-only).
 
 ### Changed
 - ClassBook: инфо-предмет очков = «общий бюджет персонажа»; обработка RATE_LIMITED.
 
 ### Fixed
-- YAML `config.yml` (строка 186): пробел после `base-hpow:` перед `{`.
+- YAML config.yml (строка 186): пробел после `base-hpow:` перед `{`.
 
 ### Validate
 - `/rc selftest` → 32/32 PASS; живые эксплойт-проверки.
@@ -66,7 +91,7 @@
 ## [1.9.1] — 2026-09-15 · «Стабилизация: боевое окно, регресс-замки, валидатор»
 
 ### Added
-- Selftest чеки 29–30 (боевое окно, семантика consume). Итого 30 чеков.
+- Selftest чеки 29–30 (боевое окно, семантика consume).
 - ConfigValidator: talents.*, character-level.*, combat.burst-*, frost_rune.*.
 
 ### Changed
