@@ -16,9 +16,7 @@ import java.util.List;
 
 /**
  * Свиток постановки инсталляции (1.5.x → 1.9.0-fix4).
- * 1.9.0-fix4: добавлен isInstallScroll(ItemStack) — его вызывает ScrollSanitizer
- * для сжигания устаревших свитков инсталляций на join.
- * 1.10.0: description() покрывает HERESY_CIRCLE (Круг Хулы, чернокнижник).
+ * 1.10.4: лор Пентаграммы (бывш. Круг Хулы) + понятная строка лимита.
  */
 public final class InstallToken {
 
@@ -42,14 +40,14 @@ public final class InstallToken {
         }
         lore.add(Component.text(""));
         lore.add(Component.text("ПКМ в хотбаре — установить", NamedTextColor.GREEN));
-        lore.add(Component.text("Лимит: 2 активных · КД руны 60 с", NamedTextColor.GRAY));
+        lore.add(Component.text("Лимит: 2 активных инсталляции на игрока", NamedTextColor.GRAY));
         meta.lore(lore);
         meta.getPersistentDataContainer().set(typeKey, PersistentDataType.STRING, type.name());
         item.setItemMeta(meta);
         return item;
     }
 
-    /** 1.10.0: покрыт HERESY_CIRCLE. */
+    /** 1.10.4: покрыт HERESY_CIRCLE = «Пентаграмма». */
     private List<String> description(InstallationType type) {
         return switch (type) {
             case WAR_BANNER -> List.of(
@@ -74,11 +72,13 @@ public final class InstallToken {
                     "на 2 с; владелец получает Speed I на 3 с.",
                     "Расходуется при срабатывании.");
             case HERESY_CIRCLE -> List.of(
-                    "Круг Хулы: осквернённая зона радиусом 6",
-                    "блоков на 25 секунд.",
-                    "Враги внутри: 4 маг-урона/с и запрет лечения.",
+                    "Пентаграмма: осквернённый круг радиусом 6",
+                    "блоков на 25 секунд. Видима всем: кольцо",
+                    "огней душ и пятилучевая звезда спор.",
+                    "Враги внутри: маг-урон и запрет лечения.",
                     "Чернокнижнику внутри: +3 Скверны/с.",
-                    "В аду урон круга умножается на шесть.");
+                    "В аду урон пентаграммы умножается на шесть.",
+                    "Постановка: звук призыва визора.");
         };
     }
 
