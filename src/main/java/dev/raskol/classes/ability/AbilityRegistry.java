@@ -22,7 +22,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Реестр способностей пяти классов.
+ * Реестр способностей шести классов (1.10.0: +WARLOCK).
  * 1.7.4.1: кулдаун стартует ТОЛЬКО после успешного каста.
  * 1.9.0: кулдаун умножается на TalentService.cooldownMult (таланты ветки «cd»).
  */
@@ -71,6 +71,13 @@ public final class AbilityRegistry {
                 def("strangle", "Удушение палача", 3, 50, 40, 40),
                 def("borgia_poison", "Яд Борджа", 4, 65, 35, 30),
                 def("shadow_dance", "Танец теней", 5, 75, 60, 120)));
+        // 1.10.0: WARLOCK (5 способностей)
+        DEFAULTS.put(PlayerClass.WARLOCK, List.of(
+                def("black_word", "Чёрное Слово", 1, 10, 10, 4),
+                def("ruin_seal", "Печать Погибели", 2, 25, 15, 16),
+                def("hunger_corruption", "Голод Скверны", 3, 50, 25, 26),
+                def("unwriting", "Небытие", 4, 65, 30, 22),
+                def("soul_rift", "Раскол Души", 5, 75, 50, 80)));
     }
 
     private static AbilityDef def(String id, String name, int slot,
@@ -95,6 +102,7 @@ public final class AbilityRegistry {
         PriestAbilities priest = new PriestAbilities(plugin);
         MageAbilities mage = new MageAbilities(plugin);
         RogueAbilities rogue = new RogueAbilities(plugin);
+        WarlockAbilities warlock = new WarlockAbilities(plugin);  // 1.10.0
 
         casters.put("tyr_strike", warrior::tyrStrike);
         casters.put("balder_skin", warrior::balderSkin);
@@ -127,6 +135,14 @@ public final class AbilityRegistry {
         casters.put("strangle", rogue::strangle);
         casters.put("borgia_poison", rogue::borgiaPoison);
         casters.put("shadow_dance", rogue::shadowDance);
+
+        // 1.10.0: WARLOCK-кастеры
+        targetedCasters.put("black_word", warlock::blackWord);
+        casters.put("ruin_seal", (p, d) -> warlock.ruinSeal(p, null, d));
+        targetedCasters.put("ruin_seal", warlock::ruinSeal);
+        casters.put("hunger_corruption", warlock::hungerCorruption);
+        targetedCasters.put("unwriting", warlock::unwriting);
+        casters.put("soul_rift", warlock::soulRift);
     }
 
     public void loadFromConfig(RaskolConfig cfg) {
