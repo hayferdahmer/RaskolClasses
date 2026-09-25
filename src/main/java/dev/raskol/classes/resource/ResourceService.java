@@ -15,6 +15,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -27,16 +28,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
- * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия), 0–100.
+ * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), 0–100.
  * Реген-правила по классам (тик 1 раз/с): воин −5/с вне боя; охотник +5/с вне боя;
- * жрец +2/с всегда; маг тиры 1.0/1.5/2.0/2.5 по порогам 25/50/75; разбойник +10/с.
- * Боевые прибавки: воин +10 за нанесённый/полученный урон (кап 1 раз/с),
- * жрец +5 за событие лечения (кап 1 раз/с).
+ * жрец +2/с всегда; маг тиры 1.0/1.5/2.0/2.5 по порогам 25/50/75; разбойник +10/с;
+ * чернокнижник: событийный рост (on-deal/on-take/on-kill) + декэй −4/с вне боя.
  *
  * 1.9.1: markCombat() на нанёсшем и получившем урон — боевое окно работает.
  * 1.9.2: ФАРМ-ГЕЙТЫ ресурса (себя/союзник не фармят).
  * 1.9.3.2 FIX: реген-тик применяет ЗНАКОВУЮ дельту через ResourceState.tickDelta() —
  *        ранее add(−5) воина вне боя молча игнорировался и ярость не падала.
+ * 1.10.0: Скверна чернокнижника (пороги 75/100, on-kill +10, декэй −4/с).
  */
 public final class ResourceService implements Listener {
 
@@ -140,6 +141,7 @@ public final class ResourceService implements Listener {
                             : v < 75 ? config.mageRegenTier3()
                             : config.mageRegenTier4();
                 }
+                case WARLOCK -> rate = inCombat ? 0.0 : config.warlockResourceDecay();  // 1.10.0
                 default -> rate = config.resourceRegen(pc); // PRIEST, ROGUE
             }
             rate += plugin.getTalentService().regenBonus(uuid);
@@ -147,6 +149,17 @@ public final class ResourceService implements Listener {
             // 1.9.3.2 FIX: знаковая дельта (воин −5/с вне боя теперь реально decay'ит)
             if (rate != 0.0) {
                 st.tickDelta(rate);
+            }
+
+            // 1.10.0: тик Переполнения (Скверна = 100 → 1% maxHP/с себе)
+            if (pc == PlayerClass.WARLOCK) {
+                double thresholdOverflow = config.warlockThresholdOverflow();
+                if (st.getValue() >= thresholdOverflow) {
+                    double maxHp = player.getMaxHealth();
+                    double tickDmg = maxHp * 0.01;
+                    double newHp = Math.max(1.0, player.getHealth() - tickDmg);
+                    player.setHealth(newHp);
+                }
             }
         }
     }
@@ -231,6 +244,28 @@ public final class ResourceService implements Listener {
         }
     }
 
+    /** 1.10.0: on-kill для WARLOCK (+10 Скверны за смерть врага в радиусе 10). */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityDeath(EntityDeathEvent event) {
+        LivingEntity entity = event.getEntity();
+        if (entity == null) {
+            return;
+        }
+        Location deathLoc = entity.getLocation();
+        for (Player player : entity.getWorld().getPlayers()) {
+            PlayerClass pc = classProvider.getClassOf(player);
+            if (pc != PlayerClass.WARLOCK) {
+                continue;
+            }
+            if (player.getLocation().distance(deathLoc) <= 10.0) {
+                double onKill = config.warlockResourceOnKill();
+                if (onKill != 0.0 && gainAllowed(player.getUniqueId())) {
+                    stateOf(player.getUniqueId()).add(onKill);
+                }
+            }
+        }
+    }
+
     private Player resolvePlayer(Entity damager) {
         if (damager instanceof Player p) {
             return p;
@@ -239,5 +274,27 @@ public final class ResourceService implements Listener {
             return p;
         }
         return null;
+    }
+
+    private static class Location {
+        private final double x, y, z;
+        private final org.bukkit.World world;
+
+        Location(org.bukkit.Location loc) {
+            this.x = loc.getX();
+            this.y = loc.getY();
+            this.z = loc.getZ();
+            this.world = loc.getWorld();
+        }
+
+        double distance(org.bukkit.Location other) {
+            if (other.getWorld() != world) {
+                return Double.MAX_VALUE;
+            }
+            double dx = x - other.getX();
+            double dy = y - other.getY();
+            double dz = z - other.getZ();
+            return Math.sqrt(dx * dx + dy * dy + dz * dz);
+        }
     }
 }
