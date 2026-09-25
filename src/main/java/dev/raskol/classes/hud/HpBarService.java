@@ -2,6 +2,7 @@
 package dev.raskol.classes.hud;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
@@ -33,7 +34,8 @@ import java.util.logging.Logger;
 
 /**
  * 1.9.3-r: математика единиц HP живёт в AttributeService; здесь HUD, реген, персист.
- * 1.10.0: symbolOf покрывает WARLOCK (☾).
+ * 1.10.0: healFormula уважает анти-хил «Раскола Души» (WarlockAbilities.isAntihealed) —
+ *         иначе наш setHealth-пайплайн обходил бы запрет лечения.
  */
 public final class HpBarService implements Listener {
 
@@ -78,7 +80,11 @@ public final class HpBarService implements Listener {
         return attrs().currentFormulaHp(player);
     }
 
+    /** 1.10.0: анти-хил блокирует и наш пайплайн. */
     public void heal(LivingEntity target, double formulaAmount) {
+        if (target instanceof Player p && WarlockAbilities.isAntihealed(p.getUniqueId())) {
+            return;
+        }
         attrs().healFormula(target, formulaAmount);
     }
 
@@ -360,7 +366,6 @@ public final class HpBarService implements Listener {
         return TextColor.color(r, g, bl);
     }
 
-    /** 1.10.0: покрыт WARLOCK (☾). */
     private String symbolOf(PlayerClass pc) {
         if (pc == null) {
             return "✦";
