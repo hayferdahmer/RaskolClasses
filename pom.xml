@@ -6,7 +6,7 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.9.3.1</version>
+    <version>1.9.3.2</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
@@ -53,9 +53,7 @@
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
 
-        <!-- 1.9.3.1 FIX: подстановка ${project.version} в plugin.yml.
-             Фильтруем ТОЛЬКО plugin.yml; остальные ресурсы (config.yml и т.д.)
-             копируются без фильтрации, чтобы не трогать их содержимое. -->
+        <!-- Filtering ТОЛЬКО для plugin.yml (${project.version}); остальное без фильтрации. -->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
