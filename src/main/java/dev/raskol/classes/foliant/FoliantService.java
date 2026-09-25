@@ -8,6 +8,11 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.luckperms.api.LuckPerms;
+import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.model.user.User;
+import net.luckperms.api.node.InheritanceNode;
+import net.luckperms.api.node.NodeType;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -27,33 +32,33 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
 /**
- * 1.10.0: ФОЛИАНТ РАСКОЛА — скрытый механизм перехода Маг/Жрец → Чернокнижник.
+ * 1.10.0: ФОЛИАНТ РАСКОЛА — переход Маг/Жрец → Чернокнижник.
  *
- * Флоу: ПКМ по фолианту → гейты → GUI двойного подтверждения → переход.
- * Гейты (v2, без принудительных сбросов):
- *   1) класс МАГ или ЖРЕЦ (не WARLOCK);
- *   2) уровень персонажа ≥ 40;
- *   3) спека НЕ выбрана (сначала отречение кристаллом в Книге);
- *   4) таланты НЕ потрачены (spentGlobal == 0, сначала сброс кристаллом);
- *   5) AuthGate.canAct.
- * Миграция: LP-группа class_* → class_warlock; очистка модификаторов атрибутов/
- * резистов/ресурса/пассивок; удаление инсталляций; грант occult=10 (AuraSkills,
- * reflection, graceful); предмет сгорает только при подтверждении.
- * Кулдауны/эффекты старой спеки не чистим: ключи привязаны к id старых абилок
- * и истекают сами, на кит WARLOCK не влияют.
+ * v3 (фиксы живого прогона):
+ *  - LP-миграция через LuckPerms API (без console-команд → нет спама «ожидание команды»);
+ *    группа class_warlock СОЗДАЁТСЯ автоматически, если отсутствует (createAndLoadGroup);
+ *    фолбэк на console-команды, если LP API недоступен;
+ *  - фолиант сгорает ТОЛЬКО после успешного перехода (иначе остаётся для повтора);
+ *  - грант occult: мульти-стратегия reflection (getUser/getGlobalRegistry/getSkills/
+ *    setSkillLevel-addSkillLevel) + command-fallback через foliant.occult-grant-command;
+ *  - пост-проверка: после swap класс обязан читаться как WARLOCK, иначе LP_FAILED.
+ *
+ * Гейты: класс МАГ/ЖРЕЦ, уровень персонажа ≥40, спека сброшена, таланты сброшены, AuthGate.
  */
 public final class FoliantService implements Listener {
 
     private static final LegacyComponentSerializer LEGACY =
             LegacyComponentSerializer.legacySection();
 
-    /** Маркер-GUI: отдельный holder, без парсинга заголовков. */
+    private static final String WARLOCK_GROUP = "class_warlock";
+
     private static final class FoliantHolder implements InventoryHolder {
         private Inventory inventory;
 
@@ -73,7 +78,6 @@ public final class FoliantService implements Listener {
 
     /* -------------------------------- публичное API -------------------------------- */
 
-    /** Создать предмет Фолианта Раскола. */
     public ItemStack createItem() {
         ItemStack item = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta meta = item.getItemMeta();
@@ -100,12 +104,10 @@ public final class FoliantService implements Listener {
         return item;
     }
 
-    /** Положить фолиант в инвентарь. false — нет места. */
     public boolean giveTo(Player player) {
         return player.getInventory().addItem(createItem()).isEmpty();
     }
 
-    /** true, если ItemStack — фолиант. */
     public boolean isFoliant(ItemStack item) {
         if (item == null || item.getType() != Material.WRITABLE_BOOK || !item.hasItemMeta()) {
             return false;
@@ -149,8 +151,10 @@ public final class FoliantService implements Listener {
     private TransitionResult executeTransition(Player player) {
         UUID uuid = player.getUniqueId();
 
-        // 1) LP-группа: снять все class_*, выдать class_warlock
-        boolean lpOk = swapLuckPermsGroup(player);
+        // 1) LP-миграция (API → авто-создание группы → фолбэк console)
+        if (!swapLuckPermsGroup(player)) {
+            return TransitionResult.LP_FAILED;
+        }
 
         // 2) Инсталляции владельца сгорают
         plugin.getInstallations().removeAllOf(uuid);
@@ -165,56 +169,170 @@ public final class FoliantService implements Listener {
             plugin.getPassives().clear(uuid);
         }
 
-        // 5) Грант occult=10 (AuraSkills, reflection, graceful)
+        // 5) Грант occult=10 (AuraSkills, мульти-стратегия + command-fallback)
         grantOccultSkill(player, 10);
 
         // 6) Инвалидация кэшей + синхронизация carrier
         plugin.getAttributes().invalidate(uuid);
 
-        // 7) Визуал и сообщение
+        // 7) Пост-проверка: провайдер обязан увидеть WARLOCK
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            PlayerClass now = plugin.getClassProvider().getClassOf(player);
+            if (now != PlayerClass.WARLOCK) {
+                plugin.getLogger().severe("Foliant: после миграции класс " + player.getName()
+                        + " = " + now + " (ожидался WARLOCK). Проверь LP-группу "
+                        + WARLOCK_GROUP + " и веса.");
+            }
+        });
+
+        // 8) Визуал и сообщение
         player.sendMessage(LEGACY.deserialize(plugin.getRaskolConfig().message(
                 "foliant.transitioned", "§5§lФолиант сгорел. Ты — Чернокнижник.")));
         plugin.getFx().playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 0.5f);
         plugin.getFx().playSound(player.getLocation(), Sound.ENTITY_WARDEN_ROAR, 0.6f, 1.5f);
         burstParticles(player);
 
-        return lpOk ? TransitionResult.OK : TransitionResult.LP_FAILED;
+        return TransitionResult.OK;
     }
 
+    /* ------------------------------ LuckPerms-миграция ------------------------------ */
+
     private boolean swapLuckPermsGroup(Player player) {
+        try {
+            return swapViaApi(player.getUniqueId());
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Foliant: LP API недоступен ("
+                    + t.getClass().getSimpleName() + ") — фолбэк на console-команды");
+            return swapViaConsole(player);
+        }
+    }
+
+    /** Чистый API-путь: без console-спама, с авто-созданием группы. */
+    private boolean swapViaApi(UUID uuid) {
+        LuckPerms lp = LuckPermsProvider.get();
+        if (lp.getGroupManager().getGroup(WARLOCK_GROUP) == null) {
+            lp.getGroupManager().createAndLoadGroup(WARLOCK_GROUP).join();
+            plugin.getLogger().info("Foliant: создана LP-группа " + WARLOCK_GROUP
+                    + " (поставь ей weight 15 и префикс вручную, см. RUNBOOK X.1)");
+        }
+        User user = lp.getUserManager().loadUser(uuid).join();
+        user.data().clear(NodeType.INHERITANCE, node -> {
+            String group = node.getGroupName();
+            return group != null && group.startsWith("class_");
+        });
+        user.data().add(InheritanceNode.builder(WARLOCK_GROUP).build());
+        lp.getUserManager().saveUser(user).join();
+        return true;
+    }
+
+    /** Фолбэк: console-команды (если LP API нет в рантайме). */
+    private boolean swapViaConsole(Player player) {
         String name = player.getName();
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp creategroup " + WARLOCK_GROUP);
         for (PlayerClass pc : PlayerClass.values()) {
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
                     "lp user " + name + " parent remove class_"
                             + pc.name().toLowerCase(Locale.ROOT));
         }
-        boolean ok = Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
-                "lp user " + name + " parent add class_warlock");
-        if (!ok) {
-            plugin.getLogger().severe("Foliant: не удалось выдать class_warlock игроку " + name);
+        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                "lp user " + name + " parent add " + WARLOCK_GROUP);
+    }
+
+    /* ------------------------------ грант occult ------------------------------ */
+
+    private static final Object VOID_OK = new Object();
+
+    private static Object invokeQuiet(Object target, String name, Object... args) {
+        if (target == null) {
+            return null;
         }
-        return ok;
+        for (Method m : target.getClass().getMethods()) {
+            if (!m.getName().equals(name) || m.getParameterCount() != args.length) {
+                continue;
+            }
+            try {
+                Object r = m.invoke(target, args);
+                return r != null ? r : VOID_OK;
+            } catch (Exception ignored) {
+                // неверные типы/недоступно — пробуем следующую перегрузку
+            }
+        }
+        return null;
+    }
+
+    private static Object invokeFirstExisting(Object target, String[] names, Object... args) {
+        for (String n : names) {
+            Object r = invokeQuiet(target, n, args);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
+    }
+
+    private Object findOccultSkill(Object api) {
+        Object registry = invokeFirstExisting(api,
+                new String[]{"getGlobalRegistry", "getSkillRegistry", "getRegistry"});
+        if (registry == null) {
+            return null;
+        }
+        Object direct = invokeFirstExisting(registry,
+                new String[]{"getSkill", "getSkillById", "getSkillByName"}, "occult");
+        if (direct != null && direct != VOID_OK) {
+            return direct;
+        }
+        Object collection = invokeQuiet(registry, "getSkills");
+        if (collection instanceof Iterable<?> it) {
+            for (Object sk : it) {
+                Object id = invokeQuiet(sk, "getId");
+                String idStr = id != null ? id.toString().toLowerCase(Locale.ROOT) : "";
+                if (idStr.contains("occult")) {
+                    return sk;
+                }
+            }
+        }
+        return null;
     }
 
     private void grantOccultSkill(Player player, int level) {
+        // Стратегия 1: AuraSkills API (мульти-версионный reflection)
         try {
             Class<?> apiClass = Class.forName("dev.aurelium.auraskills.api.AuraSkillsApi");
             Object api = apiClass.getMethod("get").invoke(null);
-            Object user = apiClass.getMethod("getUser", UUID.class)
-                    .invoke(api, player.getUniqueId());
-            Object registry = apiClass.getMethod("getSkillRegistry").invoke(api);
-            Object skill = registry.getClass().getMethod("getSkill", String.class)
-                    .invoke(registry, "occult");
-            if (skill != null) {
-                user.getClass().getMethod("setSkillLevel", skill.getClass(), int.class)
-                        .invoke(user, skill, level);
-                plugin.getLogger().info("Foliant: выдан occult=" + level
-                        + " игроку " + player.getName());
+            Object user = invokeQuiet(api, "getUser", player.getUniqueId());
+            Object skill = findOccultSkill(api);
+            if (user != null && skill != null && skill != VOID_OK) {
+                Object done = invokeFirstExisting(user,
+                        new String[]{"setSkillLevel", "setLevel", "addSkillLevel"}, skill, level);
+                if (done != null) {
+                    plugin.getLogger().info("Foliant: выдан occult=" + level
+                            + " игроку " + player.getName() + " (AuraSkills API)");
+                    return;
+                }
             }
-        } catch (ReflectiveOperationException e) {
-            plugin.getLogger().info("Foliant: AuraSkills API недоступен ("
-                    + e.getClass().getSimpleName() + "), occult не выдан автоматически.");
+            if (skill == null || skill == VOID_OK) {
+                plugin.getLogger().warning("Foliant: дерево occult не найдено в AuraSkills — "
+                        + "добавь его в skills.yml (см. RUNBOOK X.1), грант пропущен");
+                return;
+            }
+        } catch (Throwable ignored) {
+            // переходим к command-fallback
         }
+        // Стратегия 2: console-команда из конфига (синтаксис под твой билд AuraSkills)
+        String cmd = plugin.getConfig().getString("foliant.occult-grant-command", "");
+        if (cmd != null && !cmd.isEmpty()) {
+            String exec = cmd.replace("{player}", player.getName())
+                    .replace("{level}", String.valueOf(level));
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), exec);
+            plugin.getLogger().info("Foliant: occult выдан командой: " + exec);
+            return;
+        }
+        // Стратегия 3: честное предупреждение с инструкцией
+        plugin.getLogger().warning("Foliant: не удалось выдать occult автоматически. "
+                + "Варианты: (а) добавь дерево occult в skills.yml и проверь API; "
+                + "(б) пропиши в config.yml ключ foliant.occult-grant-command, например "
+                + "\"auraskills addlevel {player} occult {level}\" (синтаксис твоего билда); "
+                + "(в) выдай вручную. Игрок: " + player.getName());
     }
 
     private void burstParticles(Player player) {
@@ -310,9 +428,11 @@ public final class FoliantService implements Listener {
                 player.sendMessage(Component.text(gate.message(plugin), NamedTextColor.RED));
                 return;
             }
-            consumeFoliant(player);
+            // v3: фолиант сгорает ТОЛЬКО после успешного перехода
             TransitionResult result = executeTransition(player);
-            if (result == TransitionResult.LP_FAILED) {
+            if (result == TransitionResult.OK) {
+                consumeFoliant(player);
+            } else {
                 player.sendMessage(Component.text(result.message(plugin), NamedTextColor.RED));
             }
         } else if (slot == 15) {
@@ -331,7 +451,8 @@ public final class FoliantService implements Listener {
         public String message(RaskolClasses plugin) {
             return switch (this) {
                 case OK -> "Переход завершён.";
-                case LP_FAILED -> "Переход завершён, но LP-группа не сменилась (см. консоль).";
+                case LP_FAILED -> "Ошибка миграции LuckPerms: группа " + WARLOCK_GROUP
+                        + " не создана. Обратись к владельцу (см. лог).";
                 case NO_CLASS -> plugin.getRaskolConfig().message(
                         "no-class", "Класс не выбран — посетите герольда");
                 case ALREADY_WARLOCK -> plugin.getRaskolConfig().message(
