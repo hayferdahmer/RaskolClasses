@@ -6,9 +6,9 @@
 #  («key: { a: 1 }»), иначе snakeyaml падает с «mapping values are
 #  not allowed here».
 #
-#  1.10.0: добавлен класс ЧЕРНОКНИЖНИК (WARLOCK) — скрытый класс,
-#          доступный магу/жрецу от 40 ур. через Фолиант Раскола.
-#          Ресурс «Скверна», дрейн-кит, ад-множитель ×6.
+#  1.10.0: класс ЧЕРНОКНИЖНИК (WARLOCK): ресурс Скверна, откат 6.66%,
+#          ад ×6, пороги 75/100, VFX от глубинных/адских сущностей
+#          (Warden, Elder Guardian, Evoker, Vex).
 # ============================================================
 
 hud:
@@ -79,13 +79,11 @@ class-accept:
   enabled: true
   subtitle: "Твой путь избран"
 
-# 1.7.6: якорь TTK-харнесса (подсветка матрицы ±30%)
 balance:
   target-ttk-seconds: 20.0
 
 # ------------------------------------------------------------
-# 1.8.0: УРОВЕНЬ ПЕРСОНАЖА — сводная прогрессия
-# 1.10.0: добавлен occult в список сводных скиллов
+# Уровень персонажа (топ-N скиллов)
 # ------------------------------------------------------------
 character-level:
   top-n: 5
@@ -104,8 +102,7 @@ character-level:
     - occult
 
 # ------------------------------------------------------------
-# 1.9.0: ТАЛАНТЫ СПЕКИ (Книга класса, вкладка TALENTS)
-# 1.9.2: очки = ОБЩИЙ бюджет персонажа (spentGlobal по всем деревьям)
+# Таланты спеки
 # ------------------------------------------------------------
 talents:
   enabled: true
@@ -120,7 +117,7 @@ spec:
   respec-per-level: 10
 
 # ------------------------------------------------------------
-# Резисты (1.6.0 + 1.7.6.2: воин физ 18 + 1.10.0: WARLOCK)
+# Резисты
 # ------------------------------------------------------------
 resist:
   cap: 90
@@ -164,10 +161,10 @@ resist:
       physical: 10
 
 # ------------------------------------------------------------
-# Атрибуты (1.7.0 + 1.8.0 + 1.8.1 + 1.9.3 + 1.10.0: WARLOCK)
+# Атрибуты
 # ------------------------------------------------------------
 attributes:
-  level-source: character   # character | class-skill | vanilla
+  level-source: character
   level-cap: 60
   classes:
     WARRIOR: { main: STR, base-str: 12, base-agi: 6, base-int: 4, growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
@@ -248,7 +245,7 @@ attributes:
   boss-no-avoidance: []
 
 # ------------------------------------------------------------
-# Типы урона ванильных причин (среда = TRUE)
+# Типы урона ванильных причин
 # ------------------------------------------------------------
 damage-types:
   env-lethal-scale: true
@@ -347,7 +344,7 @@ messages:
         light_ward: "Зона: +2 HP/с союзникам в радиусе 4 на 6 с"
         frost_rune: "Руна-зона 8 блоков 30 с: урон+замедление врагам с нарастанием; магу внутри +3 маны/с и ИНТ×2"
         smoke_bomb: "Мина: Blindness 2 с врагам + Speed I себе 3 с"
-        heresy_circle: "Осквернённый круг радиусом 6 блоков на 25 секунд: врагам — маг-урон и запрет лечения; чернокнижнику +3 Скверны/с. В аду урон ×6."
+        heresy_circle: "Осквернённый круг 6 блоков 25 с: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6"
     spec:
       passive: "Пассив: {text}"
       chosen: "Выбрана тобой"
@@ -398,7 +395,7 @@ messages:
       priest: "Свет: +2/с всегда; +5 за событие лечения"
       mage: "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75"
       rogue: "Энергия: +10/с"
-      warlock: "Скверна: 0 в покое; +6 за урон, +3 при получении; −4/с вне боя. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с."
+      warlock: "Скверна: 0 в покое; +6 за урон, +3 при получении; −4/с вне боя. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с"
     emblem:
       resource: "Ресурс сейчас: {value}/100"
       crown: "Корона: {name}"
@@ -412,7 +409,7 @@ messages:
       poor: "Не хватает монет на сброс талантов: нужно {cost}."
 
 # ------------------------------------------------------------
-# Классы: ресурсы, темы, киты + 1.9.0 редизайн мага + 1.10.0 WARLOCK
+# Классы
 # ------------------------------------------------------------
 classes:
   WARRIOR:
@@ -860,7 +857,7 @@ classes:
         corruption-per-sec: 3
 
 # ------------------------------------------------------------
-# Короны и титулы (1.10.0: + WARLOCK)
+# Короны и титулы
 # ------------------------------------------------------------
 flavors:
   rassvet:
@@ -885,7 +882,7 @@ flavors:
       WARLOCK: "Голос Раскола"
 
 # ------------------------------------------------------------
-# Инсталляции (1.5.0 + 1.9.0 Ледяная руна = зона + 1.10.0 Круг Хулы)
+# Инсталляции
 # ------------------------------------------------------------
 installations:
   unlock-level: 50
@@ -930,7 +927,10 @@ installations:
     corruption-per-sec: 3
 
 # ------------------------------------------------------------
-# VFX/SFX-каталог (1.5.0 + киты + 1.9.0 редизайн мага + руна + 1.10.0 WARLOCK)
+# VFX/SFX-каталог
+# 1.10.0: WARLOCK — тема глубин/ада: Warden (визор), Elder Guardian (страж),
+#         Evoker/Vex (призыватель/досаждатель). Все ключи проверены по enum'ам
+#         Sound/Particle Paper 1.21.4 — битых значений нет.
 # ------------------------------------------------------------
 vfx:
   proc-actionbar: true
@@ -1017,27 +1017,28 @@ vfx:
   shadow_dance:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
     cast-particle: CLOUD
+  # ---------- WARLOCK: глубины и ад ----------
   black_word:
-    cast-sound: ITEM_BOOK_PAGE_TURN
+    cast-sound: ENTITY_WARDEN_HEARTBEAT
     cast-particle: SCULK_CHARGE
-    impact-sound: ENTITY_WARDEN_HEARTBEAT
-    impact-particle: DRIPPING_OBSIDIAN_TEAR
+    impact-sound: ENTITY_WARDEN_ATTACK_IMPACT
+    impact-particle: SCULK_SOUL
   ruin_seal:
-    cast-sound: BLOCK_SOUL_SAND_BREAK
-    cast-particle: SCULK_SOUL
+    cast-sound: ENTITY_EVOKER_PREPARE_ATTACK
+    cast-particle: SHRIEK
   hunger_corruption:
     cast-sound: ENTITY_WARDEN_ROAR
     cast-particle: SCULK_CHARGE
   unwriting:
-    cast-sound: BLOCK_SCULK_BREAK
-    cast-particle: SCULK_SOUL
+    cast-sound: ENTITY_VEX_CHARGE
+    cast-particle: SOUL
   soul_rift:
-    cast-sound: ENTITY_ENDER_DRAGON_GROWL
-    cast-particle: SCULK_CHARGE
-    impact-sound: ENTITY_WARDEN_DEATH
-    impact-particle: SCULK_SOUL
+    cast-sound: ENTITY_WARDEN_SONIC_CHARGE
+    cast-particle: SHRIEK
+    impact-sound: ENTITY_WARDEN_SONIC_BOOM
+    impact-particle: SONIC_BOOM
   heresy_circle:
-    cast-sound: BLOCK_SOUL_SAND_PLACE
+    cast-sound: ENTITY_ELDER_GUARDIAN_CURSE
     cast-particle: SCULK_SOUL
     ambient-sound: ENTITY_WARDEN_HEARTBEAT
     ambient-volume: 0.4
@@ -1084,7 +1085,7 @@ vfx:
       tag: "⚡ Казнь ×3!"
     execute_warlock:
       cast-sound: ENTITY_WARDEN_ROAR
-      cast-particle: SCULK_CHARGE
+      cast-particle: SONIC_BOOM
       tag: "☾ Раскол души ×1.666!"
     predator:
       cast-sound: ENTITY_PLAYER_ATTACK_STRONG
@@ -1119,6 +1120,6 @@ vfx:
       cast-particle: HEART
       tag: "♥ Лифстил"
     black_mass:
-      cast-sound: BLOCK_SCULK_BREAK
-      cast-particle: SCULK_CHARGE
+      cast-sound: ENTITY_VEX_DEATH
+      cast-particle: SOUL
       tag: "☾ Чёрная Месса"
