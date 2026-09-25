@@ -16,6 +16,7 @@ import dev.raskol.classes.config.ConfigValidator;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.flavor.CrownFlavorService;
+import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
@@ -61,8 +62,8 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.9.3.1: фикс подстановки версии (pom filtering), корректный старт-лог GearHook
- *          при циклическом softdepend, восстановлена полная Книга класса.
+ * 1.10.0: FoliantService (переход Маг/Жрец → Чернокнижник), PassiveListener хранится
+ *         в поле (геттер getPassives() для FoliantService).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -94,6 +95,7 @@ public final class RaskolClasses extends JavaPlugin {
     private GearHook gearHook;
     private SetBonusService setBonusService;
     private BlueprintHook blueprintHook;
+    private FoliantService foliantService;
 
     private FxService fx;
 
@@ -108,6 +110,7 @@ public final class RaskolClasses extends JavaPlugin {
 
     private HpAttributeSync hpSync;
 
+    private PassiveListener passiveListener;
     private PassportChangeListener passportListener;
 
     private volatile long lastPurgeMillis = System.currentTimeMillis();
@@ -131,10 +134,9 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("LuckPerms не найден — определение классов отключено");
         }
 
-        // 1.9.3: хук RaskolGear (до AttributeService, т.к. maxHp читает gearHp)
         this.gearHook = new GearHook(this);
         pluginManager.registerEvents(gearHook, this);
-        gearHook.logStartup();   // 1.9.3.1: лог по presence, активация на PluginEnableEvent
+        gearHook.logStartup();
 
         this.setBonusService = new SetBonusService(this);
         pluginManager.registerEvents(setBonusService, this);
@@ -197,10 +199,14 @@ public final class RaskolClasses extends JavaPlugin {
         this.installations = new InstallationService(this);
         this.installToken = new InstallToken(this);
 
+        // 1.10.0: фолиант перехода
+        this.foliantService = new FoliantService(this);
+
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
         pluginManager.registerEvents(cooldowns, this);
-        pluginManager.registerEvents(new PassiveListener(this), this);
+        this.passiveListener = new PassiveListener(this);
+        pluginManager.registerEvents(passiveListener, this);
         pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
         pluginManager.registerEvents(new SpecListener(this), this);
@@ -211,6 +217,7 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
         pluginManager.registerEvents(hpBarService, this);
         pluginManager.registerEvents(fx, this);
+        pluginManager.registerEvents(foliantService, this);
 
         this.passportListener = new PassportChangeListener(this);
         passportListener.register();
@@ -286,7 +293,6 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
     }
 
-    /** 1.9.3: мрачный стартовый баннер. */
     private void printBanner() {
         String v = getPluginMeta().getVersion();
         String[] art = {
@@ -298,7 +304,7 @@ public final class RaskolClasses extends JavaPlugin {
             "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝╚══════╝",
             "&8  ────────────────────────────────────────────────────",
             "&7     RASKOL &8· &7CLASSES    &8|    &5пять путей &8· &4одна война",
-            "&8     ⚔ &4Воин &8· &2➳ Охотник &8· &f✚ Жрец &8· &9✦ Маг &8· &5☠ Разбойник",
+            "&8     ⚔ &4Воин &8· &2➳ Охотник &8· &f✚ Жрец &8· &9✦ Маг &8· &5☠ Разбойник &8· &d☾ Чернокнижник",
             "&8  ────────────────────────────────────────────────────",
             "&8     by &fhayferdahmer &8· &7v" + v + " &8· &7Paper 1.21+ &8· &7Java 21",
             "&8  ────────────────────────────────────────────────────"
@@ -443,6 +449,7 @@ public final class RaskolClasses extends JavaPlugin {
     public GearHook getGearHook() { return gearHook; }
     public SetBonusService getSetBonusService() { return setBonusService; }
     public BlueprintHook getBlueprintHook() { return blueprintHook; }
+    public FoliantService getFoliantService() { return foliantService; }
     public FxService getFx() { return fx; }
     public InstallationService getInstallations() { return installations; }
     public InstallToken getInstallToken() { return installToken; }
@@ -452,4 +459,5 @@ public final class RaskolClasses extends JavaPlugin {
     public ConfigValidator getConfigValidator() { return configValidator; }
     public AttributeService getAttributes() { return attributes; }
     public HpAttributeSync getHpSync() { return hpSync; }
+    public PassiveListener getPassives() { return passiveListener; }
 }
