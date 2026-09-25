@@ -1,16 +1,13 @@
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=venom&height=320&section=header&animation=twinkling&color=0:%23050505,20:%238B0000,40:%231B4D1B,60:%23101A6E,80:%232A0A3A,100:%23050505"/>
+  <img src="banner.svg" width="100%"/>
 </p>
 
 <p align="center">
-  <img src="https://readme-typing-svg.demolab.com/?font=Cormorant+Gothic&size=56&color=%23C9C9C9&background=00000000&center=true&vCenter=true&width=1000&height=140&lines=RASKOL+CLASSES&repeat=true&pause=2500&duration=900"/>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/1.9.3.2-520000?style=flat-square&label=release&labelColor=0a0a0a"/>
-  <img src="https://img.shields.io/badge/1.21.4%2B-3d3d3d?style=flat-square&label=paper&labelColor=0a0a0a"/>
-  <img src="https://img.shields.io/badge/21-3d3d3d?style=flat-square&label=java&labelColor=0a0a0a"/>
-  <img src="https://img.shields.io/badge/36%2F36-520000?style=flat-square&label=selftest&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/1.9.3.2-ff003c?style=flat-square&label=release&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/1.21.4%2B-1c1c1c?style=flat-square&label=paper&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/21-1c1c1c?style=flat-square&label=java&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/36%2F36-00ff41?style=flat-square&label=selftest&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/proprietary-000000?style=flat-square&label=license&labelColor=0a0a0a"/>
 </p>
 
 <p align="center">
@@ -19,7 +16,7 @@
 
 ---
 
-## Классы
+## [01] КЛАССЫ
 
 | Класс | Ресурс | Атрибут | Роль |
 |---|---|:---:|---|
@@ -33,7 +30,7 @@
 
 ---
 
-## Здоровье
+## [02] ЗДОРОВЬЕ
 
 ```
 HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bonus : 0) + gear-hp
@@ -50,7 +47,7 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 
 ---
 
-## Модули
+## [03] МОДУЛИ
 
 | Модуль | Назначение |
 |---|---|
@@ -67,7 +64,7 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 
 ---
 
-## Команды
+## [04] КОМАНДЫ
 
 | Команда | Право | Назначение |
 |---|---|---|
@@ -84,19 +81,19 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 
 ---
 
-## Плейсхолдеры
+## [05] ПЛЕЙСХОЛДЕРЫ
 
 ```
-%raskolclasses_class%        %raskolclasses_level%        %raskolclasses_hp%
-%raskolclasses_hp_max%       %raskolclasses_resource%     %raskolclasses_phys_resist%
-%raskolclasses_magic_resist% %raskolclasses_dodge%        %raskolclasses_parry%
-%raskolclasses_crit_melee%   %raskolclasses_crit_spell%   %raskolclasses_spec%
-%raskolclasses_talent_points%%raskolclasses_talents%      %raskolcrown_*%
+%raskolclasses_class%         %raskolclasses_level%         %raskolclasses_hp%
+%raskolclasses_hp_max%        %raskolclasses_resource%      %raskolclasses_phys_resist%
+%raskolclasses_magic_resist%  %raskolclasses_dodge%         %raskolclasses_parry%
+%raskolclasses_crit_melee%    %raskolclasses_crit_spell%    %raskolclasses_spec%
+%raskolclasses_talent_points% %raskolclasses_talents%       %raskolcrown_*%
 ```
 
 ---
 
-## RaskolGear
+## [06] RASKOLGEAR
 
 | Что | Применяет в бою | Считает и показывает |
 |---|---|---|
@@ -111,12 +108,16 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 
 ---
 
-## Установка
+## [07] УСТАНОВКА
 
-1. `mvn -B clean package` → `target/raskol-classes-1.9.3.2.jar`
-2. jar в `plugins/`, рестарт
-3. Правки конфига — `/rc reload` (кроме `hp-display.mode`)
-4. `/rc selftest` → 36/36
+```
+$ mvn -B clean package
+[INFO] BUILD SUCCESS
+$ cp target/raskol-classes-1.9.3.2.jar plugins/
+$ restart
+$ rc selftest
+Итог: 36/36 PASS
+```
 
 <details>
 <summary>Softdepend</summary>
@@ -134,12 +135,12 @@ LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, AuthMe, Vault, RaskolG
 
 ---
 
-## Документация
+## [08] ДОКУМЕНТАЦИЯ
 
 - [`RUNBOOK.md`](RUNBOOK.md) — аварии, гейты, тюнинг без пересборки
 - [`CHANGELOG.md`](CHANGELOG.md) — история версий
-- [`LICENSE`](LICENSE) — RASKOL Proprietary License v1.0, © 2026 hayferdahmer
+- [`LICENSE`](LICENSE) — RASKOL Proprietary License v1.0
 
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=venom&height=140&section=footer&color=0:%23050505,20:%232A0A3A,40:%23101A6E,60:%231B4D1B,80:%238B0000,100:%23050505"/>
+  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v1.0 · использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
 </p>
