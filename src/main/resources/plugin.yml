@@ -4,9 +4,9 @@ main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
 description: >-
-  Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»:
-  специализации, таланты, инсталляции, боевая математика, виртуальный пул HP,
-  хук RaskolGear и скрытый путь — Чернокнижник (Фолиант Раскола).
+  Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»:
+  специализации, таланты, инсталляции, боевая математика,
+  виртуальный пул HP, хук RaskolGear.
 website: https://github.com/hayferdahmer/RaskolClasses
 
 softdepend:
