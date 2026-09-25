@@ -2,7 +2,10 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.PowerService;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.RaskolConfig;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
@@ -19,6 +22,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -39,6 +43,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - onDamage: классовые резисты применяются ВСЕГДА (резисты шмота применяет сам
  *    RaskolGear своим слушателем; стек мультипликативный, дубля нет).
  *  - Burst/single-hit cap — всегда (защита от ваншота, RaskolGear её не дублирует).
+ * 1.10.0: WARLOCK-интеграция:
+ *  - откат 6.66% от нанесённого урона (true-урон себе);
+ *  - множитель урона в аду ×6 (nether-mult);
+ *  - анти-хил проверка (soul_rift блокирует лечение цели).
  */
 public final class CombatService implements Listener {
 
@@ -55,6 +63,7 @@ public final class CombatService implements Listener {
     private final ResistService resists;
     private final AvoidanceService avoidance;
     private final PowerService powers;
+    private WarlockAbilities warlockAbilities;  // 1.10.0
 
     private final Map<UUID, Deque<double[]>> burstLog = new ConcurrentHashMap<>();
 
@@ -63,6 +72,11 @@ public final class CombatService implements Listener {
         this.resists = resists;
         this.avoidance = new AvoidanceService(plugin);
         this.powers = new PowerService(plugin);
+    }
+
+    /** 1.10.0: установка ссылки на WarlockAbilities (вызывается из RaskolClasses.onEnable). */
+    public void setWarlockAbilities(WarlockAbilities warlockAbilities) {
+        this.warlockAbilities = warlockAbilities;
     }
 
     public ResistService resists() {
@@ -462,6 +476,10 @@ public final class CombatService implements Listener {
         return safe.physical() + safe.magic() + truePart;
     }
 
+    /**
+     * Основной метод нанесения урона (путь B: наши способности).
+     * 1.10.0: WARLOCK-интеграция — откат 6.66% от нанесённого урона (true-урон себе).
+     */
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
         return dealDamage(target, source, profile, false);
     }
@@ -567,7 +585,42 @@ public final class CombatService implements Listener {
                 SUPPRESS.set(Boolean.FALSE);
             }
         }
+
+        // 1.10.0: WARLOCK-откат (6.66% от нанесённого урона → true-урон себе)
+        if (source instanceof Player attacker) {
+            PlayerClass attackerClass = plugin.getClassProvider().getClassOf(attacker);
+            if (attackerClass == PlayerClass.WARLOCK && taken > 0) {
+                RaskolConfig cfg = plugin.getRaskolConfig();
+                double recoilPct = cfg.warlockRecoilPercent();
+                double recoilCapPct = cfg.warlockRecoilCapPct();
+                double recoilMinHp = cfg.warlockRecoilMinHp();
+
+                double recoil = taken * recoilPct / 100.0;
+                double maxRecoil = attacker.getMaxHealth() * recoilCapPct / 100.0;
+                recoil = Math.min(recoil, maxRecoil);
+
+                double newHp = attacker.getHealth() - recoil;
+                if (newHp < recoilMinHp) {
+                    newHp = recoilMinHp;
+                }
+                attacker.setHealth(newHp);
+            }
+        }
+
         return taken;
+    }
+
+    /**
+     * 1.10.0: анти-хил проверка (soul_rift блокирует лечение цели).
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onRegainHealth(EntityRegainHealthEvent event) {
+        if (!(event.getEntity() instanceof Player target)) {
+            return;
+        }
+        if (warlockAbilities != null && warlockAbilities.isAntihealed(target.getUniqueId())) {
+            event.setCancelled(true);
+        }
     }
 
     private void debugLog(LivingEntity target, Entity source, DamageProfile profile, double taken) {
