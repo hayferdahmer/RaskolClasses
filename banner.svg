@@ -70,9 +70,7 @@
     <circle cx="664" cy="244" r="4" fill="#6e6a66" stroke="none"/>
   </g>
 
-  <!-- имя: выкованная капитель.
-       FIX 1: textLength=820 + lengthAdjust — строка ВСЕГДА внутри рамки,
-       независимо от метрики шрифта зрителя (ранее обрезалась по краям). -->
+  <!-- имя: выкованная капитель (textLength гарантирует посадку в рамку) -->
   <g font-family="Georgia, 'Times New Roman', serif" font-size="80" letter-spacing="6"
      text-anchor="middle" font-weight="bold">
     <text x="500" y="172" fill="#000000" opacity="0.8"
@@ -87,14 +85,18 @@
   <rect x="320" y="210" width="360" height="2" fill="url(#bloodline)"/>
   <polygon points="500,206 506,211 500,216 494,211" fill="#8b0000"/>
 
-  <!-- две короны. FIX 2: ВАЛЬРАДИС (мягкий знак восстановлен по flavors: valradis) -->
-  <g transform="translate(286,238) scale(1.1)" fill="url(#gold)">
+  <!-- ДВЕ КОРОНЫ: симметрично и метрико-независимо.
+       Имена якорятся от ромба наружу с равными зазорами (466 / 534),
+       ромб 494–506 никогда не перекрывается; короны — зеркальные фланги 150 / 824. -->
+  <g transform="translate(150,242) scale(1.1)" fill="url(#gold)">
     <path d="M0,12 L4,3 L8,9 L12,0 L16,9 L20,3 L24,12 Z M0,13 h24 v3 h-24 z"/>
   </g>
-  <text x="324" y="256" font-family="Georgia, serif" font-size="19" letter-spacing="6" fill="#d8b45a">РАССВЕТ</text>
-  <polygon points="500,246 506,252 500,258 494,252" fill="#6b5a2e"/>
-  <text x="676" y="256" text-anchor="end" font-family="Georgia, serif" font-size="19" letter-spacing="6" fill="#b03030">ВАЛЬРАДИС</text>
-  <g transform="translate(690,238) scale(1.1)" fill="#b03030">
+  <text x="466" y="256" text-anchor="end" font-family="Georgia, serif" font-size="19"
+        letter-spacing="6" fill="#d8b45a">РАССВЕТ</text>
+  <polygon points="500,244 506,250 500,256 494,250" fill="#6b5a2e"/>
+  <text x="534" y="256" text-anchor="start" font-family="Georgia, serif" font-size="19"
+        letter-spacing="6" fill="#b03030">ВАЛЬРАДИС</text>
+  <g transform="translate(824,242) scale(1.1)" fill="#b03030">
     <path d="M0,12 L4,3 L8,9 L12,0 L16,9 L20,3 L24,12 Z M0,13 h24 v3 h-24 z"/>
   </g>
 
