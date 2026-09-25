@@ -20,6 +20,7 @@ import java.util.Map;
  * 1.7.5.1: самолечение битых значений damage-types.vanilla-map при reload.
  * 1.7.6: ключ balance.target-ttk-seconds — якорь TTK-харнесса (подсветка матрицы).
  * 1.9.3: addDefault для attributes.hp.per-level и main-str-bonus (ЖИВЫЕ ключи).
+ * 1.10.0: класс WARLOCK (Скверна, откат 6.66%, ад ×6, пороги 75/100).
  */
 public final class RaskolConfig {
 
@@ -112,6 +113,8 @@ public final class RaskolConfig {
         config.addDefault("resist.classes.PRIEST.physical", 16.0);
         config.addDefault("resist.classes.HUNTER.magic", 12.0);
         config.addDefault("resist.classes.HUNTER.physical", 16.0);
+        config.addDefault("resist.classes.WARLOCK.magic", 26.0);  // 1.10.0
+        config.addDefault("resist.classes.WARLOCK.physical", 10.0);  // 1.10.0
 
         // 1.7.5.1: летальная среда и анти-ваншот — с addDefault
         config.addDefault("damage-types.env-lethal-scale", true);
@@ -149,6 +152,7 @@ public final class RaskolConfig {
         config.addDefault("messages.tag.predator", "Хищник!");
         config.addDefault("messages.tag.poison", "Яд!");
         config.addDefault("messages.tag.backstab", "В спину +3!");
+        config.addDefault("messages.tag.execute-warlock", "Раскол души ×1.666!");  // 1.10.0
         config.addDefault("messages.healed-target", "✚ {target}: +{amount} HP");
         config.addDefault("messages.healed-you", "{caster} исцелил тебя");
         config.addDefault("messages.shield-target", "Щит на: {target}");
@@ -160,6 +164,8 @@ public final class RaskolConfig {
         config.addDefault("messages.book.tab.abilities", "Способности");
         config.addDefault("messages.book.tab.specs", "Специализации");
         config.addDefault("messages.book.tab.class", "Класс и пассивки");
+        config.addDefault("messages.book.tab.talents", "Таланты спеки");
+        config.addDefault("messages.book.tab.gear", "Шмот и сеты");
         config.addDefault("messages.book.tab.hint", "Клик — открыть вкладку");
         config.addDefault("messages.book.cost", "Цена: {cost} {resource}");
         config.addDefault("messages.book.cooldown", "Кулдаун: {sec} с");
@@ -194,12 +200,15 @@ public final class RaskolConfig {
         config.addDefault("messages.book.resource.priest", "Свет: +2/с всегда; +5 за событие лечения");
         config.addDefault("messages.book.resource.mage", "Мана: +3/4/5/6 в секунду по порогам 25/50/75");
         config.addDefault("messages.book.resource.rogue", "Энергия: +10/с");
+        config.addDefault("messages.book.resource.warlock", "Скверна: 0 в покое; +6 за урон, +3 при получении; −4/с вне боя. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с");  // 1.10.0
         config.addDefault("messages.book.emblem.resource", "Ресурс сейчас: {value}/100");
         config.addDefault("messages.book.emblem.crown", "Корона: {name}");
         config.addDefault("messages.book.crown.title", "Корона и титул");
         config.addDefault("messages.book.crown.crown", "Корона: {name}");
         config.addDefault("messages.book.crown.titleline", "Титул: {name}");
         config.addDefault("messages.book.crown.aura", "Аура-партикл видна союзникам и врагам");
+        config.addDefault("messages.book.install.desc.heresy_circle", "Осквернённый круг 6 блоков 25 с: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6");  // 1.10.0
+        config.addDefault("messages.talents.reset.poor", "Не хватает монет на сброс талантов: нужно {cost}.");  // 1.10.0
 
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
@@ -230,6 +239,17 @@ public final class RaskolConfig {
         config.addDefault("classes.MAGE.regen-tier-3", 5.0);
         config.addDefault("classes.MAGE.regen-tier-4", 6.0);
 
+        // 1.10.0: WARLOCK-специфичные параметры
+        config.addDefault("classes.WARLOCK.resource-on-kill", 10.0);
+        config.addDefault("classes.WARLOCK.resource-decay-out-of-combat", -4.0);
+        config.addDefault("classes.WARLOCK.threshold-open", 75.0);
+        config.addDefault("classes.WARLOCK.threshold-overflow", 100.0);
+        config.addDefault("classes.WARLOCK.recoil-percent", 6.66);
+        config.addDefault("classes.WARLOCK.recoil-cap-pct", 30.0);
+        config.addDefault("classes.WARLOCK.recoil-min-hp", 1.0);
+        config.addDefault("classes.WARLOCK.nether-mult", 6.0);
+        config.addDefault("classes.WARLOCK.lifesteal-cap", 0.85);
+
         config.addDefault("classes.WARRIOR.passives.execute_passive.enabled", true);
         config.addDefault("classes.WARRIOR.passives.execute_passive.chance", 0.20);
         config.addDefault("classes.WARRIOR.passives.execute_passive.multiplier", 3.0);
@@ -251,6 +271,10 @@ public final class RaskolConfig {
         config.addDefault("classes.ROGUE.passives.sadism.enabled", true);
         config.addDefault("classes.ROGUE.passives.sadism.bonus", 3.0);
         config.addDefault("classes.ROGUE.passives.sadism.cooldown-seconds", 2);
+        config.addDefault("classes.WARLOCK.passives.black_mass.enabled", true);  // 1.10.0
+        config.addDefault("classes.WARLOCK.passives.black_mass.lifesteal", 0.0666);  // 1.10.0
+        config.addDefault("classes.WARLOCK.passives.black_mass.reflect", 0.0666);  // 1.10.0
+        config.addDefault("classes.WARLOCK.passives.black_mass.reflect-radius", 8.0);  // 1.10.0
 
         config.options().copyDefaults(true);
         healVanillaMap(config);
@@ -325,6 +349,17 @@ public final class RaskolConfig {
     public double mageRegenTier3() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-3", 5.0); }
     public double mageRegenTier4() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-4", 6.0); }
 
+    // 1.10.0: WARLOCK-специфичные параметры
+    public double warlockResourceOnKill() { return plugin.getConfig().getDouble("classes.WARLOCK.resource-on-kill", 10.0); }
+    public double warlockResourceDecay() { return plugin.getConfig().getDouble("classes.WARLOCK.resource-decay-out-of-combat", -4.0); }
+    public double warlockThresholdOpen() { return plugin.getConfig().getDouble("classes.WARLOCK.threshold-open", 75.0); }
+    public double warlockThresholdOverflow() { return plugin.getConfig().getDouble("classes.WARLOCK.threshold-overflow", 100.0); }
+    public double warlockRecoilPercent() { return plugin.getConfig().getDouble("classes.WARLOCK.recoil-percent", 6.66); }
+    public double warlockRecoilCapPct() { return plugin.getConfig().getDouble("classes.WARLOCK.recoil-cap-pct", 30.0); }
+    public double warlockRecoilMinHp() { return plugin.getConfig().getDouble("classes.WARLOCK.recoil-min-hp", 1.0); }
+    public double warlockNetherMult() { return plugin.getConfig().getDouble("classes.WARLOCK.nether-mult", 6.0); }
+    public double warlockLifestealCap() { return plugin.getConfig().getDouble("classes.WARLOCK.lifesteal-cap", 0.85); }
+
     public boolean passiveEnabled(PlayerClass pc, String id) {
         return plugin.getConfig().getBoolean(passivePath(pc, id, "enabled"), true);
     }
@@ -342,6 +377,7 @@ public final class RaskolConfig {
         return plugin.getConfig().getString(passivePath(pc, id, "description"),
                 DEFAULTS.passiveDescription(pc, id, fallback));
     }
+    /** 1.10.0: покрыт WARLOCK (black_mass). */
     public static List<String> passiveIds(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> List.of("execute_passive");
@@ -349,6 +385,7 @@ public final class RaskolConfig {
             case PRIEST -> List.of("grace");
             case MAGE -> List.of("mana_soaked");
             case ROGUE -> List.of("poisoned_blades", "sadism");
+            case WARLOCK -> List.of("black_mass");
         };
     }
     private String passivePath(PlayerClass pc, String id, String key) {
@@ -370,6 +407,32 @@ public final class RaskolConfig {
         String codeDefault = d != null ? d.description() : "";
         return plugin.getConfig().getString(path(pc, id, "description"),
                 codeDefault.isEmpty() ? fallback : codeDefault);
+    }
+
+    // 1.10.0: дополнительные поля способностей WARLOCK
+    public double abilityDrain(PlayerClass pc, String id) {
+        return plugin.getConfig().getDouble(path(pc, id, "drain"), 0.0);
+    }
+    public double abilityAmplify(PlayerClass pc, String id) {
+        return plugin.getConfig().getDouble(path(pc, id, "amplify"), 0.0);
+    }
+    public boolean abilityUnremovable(PlayerClass pc, String id) {
+        return plugin.getConfig().getBoolean(path(pc, id, "unremovable"), false);
+    }
+    public int abilityPerPurged(PlayerClass pc, String id) {
+        return plugin.getConfig().getInt(path(pc, id, "per-purged"), 0);
+    }
+    public int abilityCorruptionGain(PlayerClass pc, String id) {
+        return plugin.getConfig().getInt(path(pc, id, "corruption-gain"), 0);
+    }
+    public double abilityMissingHpBonus(PlayerClass pc, String id) {
+        return plugin.getConfig().getDouble(path(pc, id, "missing-hp-bonus"), 0.0);
+    }
+    public double abilityAntiheal(PlayerClass pc, String id) {
+        return plugin.getConfig().getDouble(path(pc, id, "antiheal"), 0.0);
+    }
+    public double abilityChannel(PlayerClass pc, String id) {
+        return plugin.getConfig().getDouble(path(pc, id, "channel"), 0.0);
     }
 
     public int durationSeconds(PlayerClass pc, String abilityId, int fallbackSeconds) {
@@ -417,17 +480,41 @@ public final class RaskolConfig {
     }
 
     private static final class DEFAULTS {
+        /** 1.10.0: покрыт WARLOCK. */
         static double resourceRegen(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> -5.0;
                 case HUNTER -> 5.0;
                 case PRIEST, MAGE -> 2.0;
                 case ROGUE -> 10.0;
+                case WARLOCK -> 0.0;
             };
         }
-        static double resourceOnDeal(PlayerClass pc) { return pc == PlayerClass.WARRIOR ? 10.0 : 0.0; }
-        static double resourceOnTake(PlayerClass pc) { return pc == PlayerClass.WARRIOR ? 10.0 : 0.0; }
-        static double resourceOnHeal(PlayerClass pc) { return pc == PlayerClass.PRIEST ? 5.0 : 0.0; }
+        /** 1.10.0: покрыт WARLOCK. */
+        static double resourceOnDeal(PlayerClass pc) {
+            return switch (pc) {
+                case WARRIOR -> 10.0;
+                case WARLOCK -> 6.0;
+                default -> 0.0;
+            };
+        }
+        /** 1.10.0: покрыт WARLOCK. */
+        static double resourceOnTake(PlayerClass pc) {
+            return switch (pc) {
+                case WARRIOR -> 10.0;
+                case WARLOCK -> 3.0;
+                default -> 0.0;
+            };
+        }
+        /** 1.10.0: покрыт WARLOCK. */
+        static double resourceOnHeal(PlayerClass pc) {
+            return switch (pc) {
+                case PRIEST -> 5.0;
+                case WARLOCK -> 0.0;
+                default -> 0.0;
+            };
+        }
+        /** 1.10.0: покрыт WARLOCK. */
         static String primary(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> "#8B0000";
@@ -435,8 +522,10 @@ public final class RaskolConfig {
                 case PRIEST -> "#B8B8B8";
                 case MAGE -> "#101A6E";
                 case ROGUE -> "#2A0A3A";
+                case WARLOCK -> "#1B0022";
             };
         }
+        /** 1.10.0: покрыт WARLOCK. */
         static String secondary(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> "#FF4500";
@@ -444,8 +533,10 @@ public final class RaskolConfig {
                 case PRIEST -> "#FFF6D8";
                 case MAGE -> "#3F6FFF";
                 case ROGUE -> "#8B2FBF";
+                case WARLOCK -> "#9B30FF";
             };
         }
+        /** 1.10.0: покрыт WARLOCK. */
         static String symbol(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> "⚔";
@@ -453,8 +544,10 @@ public final class RaskolConfig {
                 case PRIEST -> "✚";
                 case MAGE -> "✦";
                 case ROGUE -> "☠";
+                case WARLOCK -> "☾";
             };
         }
+        /** 1.10.0: покрыт WARLOCK. */
         static Particle particle(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> Particle.FLAME;
@@ -462,8 +555,10 @@ public final class RaskolConfig {
                 case PRIEST -> Particle.ENCHANTED_HIT;
                 case MAGE -> Particle.PORTAL;
                 case ROGUE -> Particle.SOUL_FIRE_FLAME;
+                case WARLOCK -> Particle.SCULK_CHARGE;
             };
         }
+        /** 1.10.0: покрыт WARLOCK. */
         static String passiveDisplayName(PlayerClass pc, String id, String fallback) {
             String name = switch (pc) {
                 case WARRIOR -> "execute_passive".equals(id) ? "Казнь" : null;
@@ -475,9 +570,11 @@ public final class RaskolConfig {
                     case "sadism" -> "Садизм";
                     default -> null;
                 };
+                case WARLOCK -> "black_mass".equals(id) ? "Чёрная Месса" : null;
             };
             return name != null ? name : fallback;
         }
+        /** 1.10.0: покрыт WARLOCK. */
         static String passiveDescription(PlayerClass pc, String id, String fallback) {
             String desc = switch (pc) {
                 case WARRIOR -> "execute_passive".equals(id)
@@ -490,9 +587,12 @@ public final class RaskolConfig {
                     case "sadism" -> "+3 урона при атаке со спины";
                     default -> null;
                 };
+                case WARLOCK -> "black_mass".equals(id)
+                        ? "6.66% lifesteal · 6.66% рефлекта чистым уроном в r8" : null;
             };
             return desc != null ? desc : fallback;
         }
+        /** 1.10.0: покрыт WARLOCK (5 способностей). */
         static Map<String, AbilityDefaults> abilities(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> Map.of(
@@ -550,6 +650,17 @@ public final class RaskolConfig {
                                 "Отравленный клинок: урон + Яд I 5 с"),
                         "shadow_dance", new AbilityDefaults(75, 60, 120, "Танец теней", 4,
                                 "Танец клинков: +30 ЛОВКОСТИ на 4 с (всплеск уклонения через avoidance)"));
+                case WARLOCK -> Map.of(
+                        "black_word", new AbilityDefaults(10, 10, 4, "Чёрное Слово", 0,
+                                "Маг-урон одной цели; 66.6% урона → HP; откат 6.66%"),
+                        "ruin_seal", new AbilityDefaults(25, 15, 16, "Печать Погибели", 67,
+                                "Проклятие 66.6 с: цель получает +26% урона (неснимаемо, кроме смерти)"),
+                        "hunger_corruption", new AbilityDefaults(50, 25, 26, "Голод Скверны", 0,
+                                "Маг-урон r6; 66.6% урона → HP; +12 Скверны"),
+                        "unwriting", new AbilityDefaults(65, 30, 22, "Небытие", 0,
+                                "Диспел положительных эффектов; маг-урон +16 за каждый снятый"),
+                        "soul_rift", new AbilityDefaults(75, 50, 80, "Раскол Души", 0,
+                                "Канал 2.5 с r8: тик маг-урона + анти-хил 6 с; взрыв до +66.6% missing-HP"));
             };
         }
     }
