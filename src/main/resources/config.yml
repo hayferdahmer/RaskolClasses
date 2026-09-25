@@ -1,17 +1,14 @@
 # ============================================================
-#  RaskolClasses v1.9.3 — «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.10.0 — «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
 #  ВАЖНО: inline-маппинги пишутся ТОЛЬКО с пробелом после двоеточия
 #  («key: { a: 1 }»), иначе snakeyaml падает с «mapping values are
 #  not allowed here».
 #
-#  1.9.3: ПОЛНАЯ формула HP: baseHp + STR×per-str + level×per-level
-#         + (STR-main ? level×main-str-bonus : 0). Виртуальный пул HP
-#         (план B): ванильный max_health = носитель ≤1024, бой/хил/HUD
-#         работают в формульных единицах через scale.
-#  1.9.3-r2: вкладка Книги «Шмот и сеты» (messages.book.tab.gear),
-#            исправлены битые звуки vfx.
+#  1.10.0: добавлен класс ЧЕРНОКНИЖНИК (WARLOCK) — скрытый класс,
+#          доступный магу/жрецу от 40 ур. через Фолиант Раскола.
+#          Ресурс «Скверна», дрейн-кит, ад-множитель ×6.
 # ============================================================
 
 hud:
@@ -88,6 +85,7 @@ balance:
 
 # ------------------------------------------------------------
 # 1.8.0: УРОВЕНЬ ПЕРСОНАЖА — сводная прогрессия
+# 1.10.0: добавлен occult в список сводных скиллов
 # ------------------------------------------------------------
 character-level:
   top-n: 5
@@ -103,6 +101,7 @@ character-level:
     - enchanting
     - mining
     - forging
+    - occult
 
 # ------------------------------------------------------------
 # 1.9.0: ТАЛАНТЫ СПЕКИ (Книга класса, вкладка TALENTS)
@@ -121,7 +120,7 @@ spec:
   respec-per-level: 10
 
 # ------------------------------------------------------------
-# Резисты (1.6.0 + 1.7.6.2: воин физ 18)
+# Резисты (1.6.0 + 1.7.6.2: воин физ 18 + 1.10.0: WARLOCK)
 # ------------------------------------------------------------
 resist:
   cap: 90
@@ -143,6 +142,9 @@ resist:
     HUNTER:
       magic: 12
       physical: 16
+    WARLOCK:
+      magic: 26
+      physical: 10
   grants:
     steel_skin:
       physical: 15
@@ -162,22 +164,23 @@ resist:
       physical: 10
 
 # ------------------------------------------------------------
-# Атрибуты (1.7.0 + 1.8.0 + 1.8.1 + 1.9.3)
+# Атрибуты (1.7.0 + 1.8.0 + 1.8.1 + 1.9.3 + 1.10.0: WARLOCK)
 # ------------------------------------------------------------
 attributes:
   level-source: character   # character | class-skill | vanilla
   level-cap: 60
   classes:
     WARRIOR: { main: STR, base-str: 12, base-agi: 6, base-int: 4, growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
-    HUNTER: { main: AGI, base-str: 6, base-agi: 12, base-int: 4, growth-str: 0.5, growth-agi: 1.2, growth-int: 0.3 }
-    ROGUE: { main: AGI, base-str: 7, base-agi: 11, base-int: 4, growth-str: 0.6, growth-agi: 1.1, growth-int: 0.3 }
-    MAGE: { main: INT, base-str: 4, base-agi: 6, base-int: 12, growth-str: 0.3, growth-agi: 0.5, growth-int: 1.2 }
-    PRIEST: { main: INT, base-str: 5, base-agi: 5, base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
+    HUNTER:  { main: AGI, base-str: 6, base-agi: 12, base-int: 4, growth-str: 0.5, growth-agi: 1.2, growth-int: 0.3 }
+    ROGUE:   { main: AGI, base-str: 7, base-agi: 11, base-int: 4, growth-str: 0.6, growth-agi: 1.1, growth-int: 0.3 }
+    MAGE:    { main: INT, base-str: 4, base-agi: 6, base-int: 12, growth-str: 0.3, growth-agi: 0.5, growth-int: 1.2 }
+    PRIEST:  { main: INT, base-str: 5, base-agi: 5, base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
+    WARLOCK: { main: INT, base-str: 4, base-agi: 4, base-int: 14, growth-str: 0.2, growth-agi: 0.3, growth-int: 1.4 }
   hp:
-    base-hp: 100            # базовое HP любого класса
-    per-str: 20             # HP за единицу СИЛЫ
-    per-level: 5            # HP за уровень (1.9.3 — ЖИВОЙ ключ)
-    main-str-bonus: 8       # доп. HP за уровень для STR-main классов (1.9.3 — ЖИВОЙ ключ)
+    base-hp: 100
+    per-str: 20
+    per-level: 5
+    main-str-bonus: 8
     regen-per-str: 0.025
     regen-combat-factor: 0.35
     regen-cap-pct: 1.5
@@ -186,9 +189,9 @@ attributes:
     agi-to-wp: 0.5
     int-to-sp: 1.5
     int-to-hpow: 1.4
-    base-wp: { WARRIOR: 30, HUNTER: 35, ROGUE: 30, MAGE: 5, PRIEST: 10 }
-    base-sp: { WARRIOR: 5, HUNTER: 5, ROGUE: 5, MAGE: 30, PRIEST: 25 }
-    base-hpow: { WARRIOR: 0, HUNTER: 0, ROGUE: 0, MAGE: 15, PRIEST: 25 }
+    base-wp:   { WARRIOR: 30, HUNTER: 35, ROGUE: 30, MAGE: 5,  PRIEST: 10, WARLOCK: 5  }
+    base-sp:   { WARRIOR: 5,  HUNTER: 5,  ROGUE: 5,  MAGE: 30, PRIEST: 25, WARLOCK: 40 }
+    base-hpow: { WARRIOR: 0,  HUNTER: 0,  ROGUE: 0,  MAGE: 15, PRIEST: 25, WARLOCK: 0  }
   offense:
     basic-coeff: 0.35
     basic-coeff-magic: 0.35
@@ -290,6 +293,7 @@ messages:
     execute: "Казнь ×3!"
     execute-mage: "Кара Зевса ×3!"
     execute-priest: "Кара Небес ×3!"
+    execute-warlock: "Раскол души ×1.666!"
     predator: "Хищник!"
     poison: "Яд!"
     backstab: "В спину +3!"
@@ -304,6 +308,15 @@ messages:
   gate:
     blocked: "Способности недоступны в этом режиме или до входа в аккаунт."
     blocked.install: "Инсталляции недоступны в этом режиме или до входа в аккаунт."
+  foliant:
+    not-mage-priest: "Фолиант может прочесть только Маг или Жрец"
+    too-low-level: "Для перехода нужен уровень персонажа 40"
+    already-warlock: "Ты уже Чернокнижник"
+    confirm-title: "§4§lФОЛИАНТ РАСКОЛА"
+    confirm-lore: "§7Навсегда станет Чернокнижником.\n§7Спека будет сброшена, таланты возвращены.\n§7Отменить переход нельзя."
+    confirm-yes: "§c§lПрочесть страницу"
+    confirm-no: "§7Отмена"
+    transitioned: "§5§lФолиант сгорел. Ты — Чернокнижник."
   book:
     title: "Книга класса: "
     tab:
@@ -311,7 +324,7 @@ messages:
       specs: "Специализации"
       class: "Класс и пассивки"
       talents: "Таланты спеки"
-      gear: "Шмот и сеты"          # 1.9.3-r2: новая вкладка
+      gear: "Шмот и сеты"
       hint: "Клик — открыть вкладку"
     cost: "Цена: {cost} {resource}"
     cooldown: "Кулдаун: {sec} с"
@@ -334,6 +347,7 @@ messages:
         light_ward: "Зона: +2 HP/с союзникам в радиусе 4 на 6 с"
         frost_rune: "Руна-зона 8 блоков 30 с: урон+замедление врагам с нарастанием; магу внутри +3 маны/с и ИНТ×2"
         smoke_bomb: "Мина: Blindness 2 с врагам + Speed I себе 3 с"
+        heresy_circle: "Осквернённый круг радиусом 6 блоков на 25 секунд: врагам — маг-урон и запрет лечения; чернокнижнику +3 Скверны/с. В аду урон ×6."
     spec:
       passive: "Пассив: {text}"
       chosen: "Выбрана тобой"
@@ -384,6 +398,7 @@ messages:
       priest: "Свет: +2/с всегда; +5 за событие лечения"
       mage: "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75"
       rogue: "Энергия: +10/с"
+      warlock: "Скверна: 0 в покое; +6 за урон, +3 при получении; −4/с вне боя. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с."
     emblem:
       resource: "Ресурс сейчас: {value}/100"
       crown: "Корона: {name}"
@@ -397,7 +412,7 @@ messages:
       poor: "Не хватает монет на сброс талантов: нужно {cost}."
 
 # ------------------------------------------------------------
-# Классы: ресурсы, темы, киты + 1.9.0 редизайн мага
+# Классы: ресурсы, темы, киты + 1.9.0 редизайн мага + 1.10.0 WARLOCK
 # ------------------------------------------------------------
 classes:
   WARRIOR:
@@ -749,8 +764,103 @@ classes:
         bonus: 3.0
         cooldown-seconds: 2
 
+  WARLOCK:
+    resource-name: "Скверна"
+    resource-regen: 0.0
+    resource-decay-out-of-combat: -4.0
+    resource-on-deal: 6.0
+    resource-on-take: 3.0
+    resource-on-kill: 10.0
+    combat-window-seconds: 5
+    threshold-open: 75
+    threshold-overflow: 100
+    recoil-percent: 6.66
+    recoil-cap-pct: 30
+    recoil-min-hp: 1
+    nether-mult: 6.0
+    lifesteal-cap: 0.85
+    theme:
+      primary: "#1B0022"
+      secondary: "#9B30FF"
+      symbol: "☾"
+    cast-sound: ITEM_BOOK_PAGE_TURN
+    cast-particle: SCULK_CHARGE
+    abilities:
+      black_word:
+        name: "Чёрное Слово"
+        description: "Слово с запретной страницы: маг-урон одной цели; 66.6% нанесённого урона возвращаются чернокнижнику здоровьем. Откат 6.66% от нанесённого урона."
+        unlock: 10
+        cost: 10
+        cooldown: 4
+        power: sp
+        base: 18
+        coeff: 1.5
+        drain: 0.666
+      ruin_seal:
+        name: "Печать Погибели"
+        description: "Метка погибели на душе: цель получает +26% урона от всех источников на 66.6 секунд. Снимается только смертью."
+        unlock: 25
+        cost: 15
+        cooldown: 16
+        duration: 66.6
+        amplify: 0.26
+        unremovable: true
+      hunger_corruption:
+        name: "Голод Скверны"
+        description: "Фолиант жадно читает округу: маг-урон по площади 6 блоков; 66.6% суммарного урона обращаются в здоровье чернокнижника, +12 Скверны."
+        unlock: 50
+        cost: 25
+        cooldown: 26
+        power: sp
+        base: 20
+        coeff: 1.2
+        radius: 6.0
+        drain: 0.666
+        corruption-gain: 12
+      unwriting:
+        name: "Небытие"
+        description: "Вычеркнуть из истории: снимает с цели все положительные зелья и эффекты; маг-урон и +16 урона за каждый стёртый эффект."
+        unlock: 65
+        cost: 30
+        cooldown: 22
+        power: sp
+        base: 16
+        coeff: 0.8
+        per-purged: 16
+      soul_rift:
+        name: "Раскол Души"
+        description: "Канал 2.5 секунды: зона 8 блоков сеет маг-урон и запрет лечения; финальный взрыв бьёт тем сильнее, чем ближе цель к смерти (до +66.6% от недостающего HP)."
+        unlock: 75
+        cost: 50
+        cooldown: 80
+        power: sp
+        base: 30
+        coeff: 2.4
+        radius: 8.0
+        channel: 2.5
+        antiheal: 6
+        missing-hp-bonus: 0.666
+    passives:
+      black_mass:
+        display-name: "Чёрная Месса"
+        description: "6.66% урона способностей — здоровьем; 6.66% полученного урона — чистым уроном всем в радиусе 8 блоков."
+        enabled: true
+        lifesteal: 0.0666
+        reflect: 0.0666
+        reflect-radius: 8.0
+    installations:
+      heresy_circle:
+        name: "Круг Хулы"
+        description: "Осквернённый круг радиусом 6 блоков на 25 секунд: врагам — маг-урон и запрет лечения; чернокнижнику +3 Скверны/с. В аду урон ×6."
+        radius: 6.0
+        duration: 25
+        cooldown: 60
+        tick-damage: 4
+        antiheal: true
+        corruption-per-sec: 3
+
 # ------------------------------------------------------------
-# Короны и титулы
+# Короны и титулы (1.10.0: + WARLOCK)
 # ------------------------------------------------------------
 flavors:
   rassvet:
@@ -762,6 +872,7 @@ flavors:
       PRIEST: "Светоносец"
       MAGE: "Заревая звезда"
       ROGUE: "Рассветная тень"
+      WARLOCK: "Тень на Рассвете"
   valradis:
     crown: "Вальрадис"
     particle: SOUL_FIRE_FLAME
@@ -771,9 +882,10 @@ flavors:
       PRIEST: "Пламенный жрец"
       MAGE: "Аркан Дракона"
       ROGUE: "Тень Вальрадиса"
+      WARLOCK: "Голос Раскола"
 
 # ------------------------------------------------------------
-# Инсталляции (1.5.0 + 1.9.0 Ледяная руна = зона)
+# Инсталляции (1.5.0 + 1.9.0 Ледяная руна = зона + 1.10.0 Круг Хулы)
 # ------------------------------------------------------------
 installations:
   unlock-level: 50
@@ -809,11 +921,16 @@ installations:
     radius: 3.0
     blind-duration: 2
     speed-duration: 3
+  heresy_circle:
+    radius: 6.0
+    duration: 25
+    cooldown: 60
+    damage-magic: 4
+    antiheal: true
+    corruption-per-sec: 3
 
 # ------------------------------------------------------------
-# VFX/SFX-каталог (1.5.0 + киты + 1.9.0 редизайн мага + руна)
-# 1.9.3-r2: исправлены битые звуки (WOLF_HOWL → WOLF_AMBIENT,
-#           SNOW_BLOCK_BREAK → SNOW_BREAK)
+# VFX/SFX-каталог (1.5.0 + киты + 1.9.0 редизайн мага + руна + 1.10.0 WARLOCK)
 # ------------------------------------------------------------
 vfx:
   proc-actionbar: true
@@ -900,6 +1017,31 @@ vfx:
   shadow_dance:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
     cast-particle: CLOUD
+  black_word:
+    cast-sound: ITEM_BOOK_PAGE_TURN
+    cast-particle: SCULK_CHARGE
+    impact-sound: ENTITY_WARDEN_HEARTBEAT
+    impact-particle: DRIPPING_OBSIDIAN_TEAR
+  ruin_seal:
+    cast-sound: BLOCK_SOUL_SAND_BREAK
+    cast-particle: SCULK_SOUL
+  hunger_corruption:
+    cast-sound: ENTITY_WARDEN_ROAR
+    cast-particle: SCULK_CHARGE
+  unwriting:
+    cast-sound: BLOCK_SCULK_BREAK
+    cast-particle: SCULK_SOUL
+  soul_rift:
+    cast-sound: ENTITY_ENDER_DRAGON_GROWL
+    cast-particle: SCULK_CHARGE
+    impact-sound: ENTITY_WARDEN_DEATH
+    impact-particle: SCULK_SOUL
+  heresy_circle:
+    cast-sound: BLOCK_SOUL_SAND_PLACE
+    cast-particle: SCULK_SOUL
+    ambient-sound: ENTITY_WARDEN_HEARTBEAT
+    ambient-volume: 0.4
+    ambient-pitch: 0.6
   challenge:
     cast-sound: BLOCK_BELL_USE
     cast-particle: ANGRY_VILLAGER
@@ -940,6 +1082,10 @@ vfx:
       cast-sound: ENTITY_PLAYER_ATTACK_CRIT
       cast-particle: DAMAGE_INDICATOR
       tag: "⚡ Казнь ×3!"
+    execute_warlock:
+      cast-sound: ENTITY_WARDEN_ROAR
+      cast-particle: SCULK_CHARGE
+      tag: "☾ Раскол души ×1.666!"
     predator:
       cast-sound: ENTITY_PLAYER_ATTACK_STRONG
       cast-particle: CRIT
@@ -972,3 +1118,7 @@ vfx:
       cast-sound: ENTITY_PLAYER_LEVELUP
       cast-particle: HEART
       tag: "♥ Лифстил"
+    black_mass:
+      cast-sound: BLOCK_SCULK_BREAK
+      cast-particle: SCULK_CHARGE
+      tag: "☾ Чёрная Месса"
