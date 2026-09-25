@@ -13,7 +13,9 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 1.9.3: расширены проверки hp-ключей (base-hp, per-str, per-level, main-str-bonus, regen-*).
+ * 1.9.1: харденинг конфига (расширение с 1.6.7).
+ * 1.10.1: logSummary печатает ТОЛЬКО пять основных классов —
+ *         Чернокнижник скрыт из стартовых логов.
  */
 public final class ConfigValidator {
 
@@ -30,7 +32,6 @@ public final class ConfigValidator {
         problems = 0;
         FileConfiguration cfg = plugin.getConfig();
 
-        // === resist ===
         checkRange(cfg, "resist.cap", 0.0, 100.0);
 
         ConfigurationSection classes = cfg.getConfigurationSection("resist.classes");
@@ -60,7 +61,6 @@ public final class ConfigValidator {
             }
         }
 
-        // === damage-types ===
         ConfigurationSection map = cfg.getConfigurationSection("damage-types.vanilla-map");
         if (map != null) {
             for (String cause : map.getKeys(false)) {
@@ -72,7 +72,6 @@ public final class ConfigValidator {
             }
         }
 
-        // === classes.*.abilities ===
         ConfigurationSection cls = cfg.getConfigurationSection("classes");
         if (cls != null) {
             for (String pc : cls.getKeys(false)) {
@@ -87,7 +86,6 @@ public final class ConfigValidator {
             }
         }
 
-        // === installations ===
         ConfigurationSection installs = cfg.getConfigurationSection("installations");
         if (installs != null) {
             for (String id : installs.getKeys(false)) {
@@ -96,22 +94,18 @@ public final class ConfigValidator {
             }
         }
 
-        // === 1.9.0: talents ===
         checkNonNegative(cfg, "talents.start-level");
         checkPositive(cfg, "talents.points-per-level", 1);
         checkNonNegative(cfg, "talents.max-points");
         checkNonNegative(cfg, "talents.reset-base");
         checkNonNegative(cfg, "talents.reset-per-point");
 
-        // === 1.8.0: character-level ===
         checkPositive(cfg, "character-level.top-n", 1);
         checkNonNegative(cfg, "character-level.fallback");
 
-        // === combat.burst-* ===
         checkNonNegative(cfg, "combat.burst-window-seconds");
         checkRange(cfg, "combat.burst-window-pct", 0.0, 100.0);
 
-        // === installations.frost_rune ===
         checkNonNegative(cfg, "installations.frost_rune.radius");
         checkNonNegative(cfg, "installations.frost_rune.duration");
         checkNonNegative(cfg, "installations.frost_rune.cooldown");
@@ -123,7 +117,6 @@ public final class ConfigValidator {
         checkNonNegative(cfg, "installations.frost_rune.mage-mana-per-sec");
         checkNonNegative(cfg, "installations.frost_rune.mage-int-mult");
 
-        // === 1.9.3: attributes.hp ===
         checkNonNegative(cfg, "attributes.hp.base-hp");
         checkNonNegative(cfg, "attributes.hp.per-str");
         checkNonNegative(cfg, "attributes.hp.per-level");
@@ -131,6 +124,9 @@ public final class ConfigValidator {
         checkNonNegative(cfg, "attributes.hp.regen-per-str");
         checkNonNegative(cfg, "attributes.hp.regen-combat-factor");
         checkNonNegative(cfg, "attributes.hp.regen-cap-pct");
+
+        // 1.10.1: sanity-ключи фолианта (дроп в аду)
+        checkRange(cfg, "foliant.drop-chance-percent", 0.0, 100.0);
 
         if (problems == 0) {
             plugin.getLogger().info("ConfigValidator: конфиг валиден (resist/damage/talents/character-level/burst/frost_rune/hp).");
@@ -141,9 +137,13 @@ public final class ConfigValidator {
         return problems;
     }
 
+    /** 1.10.1: сводка только по пяти основным классам (Чернокнижник скрыт). */
     public void logSummary() {
         StringBuilder sb = new StringBuilder("Базы резистов (маг/физ): ");
         for (PlayerClass pc : PlayerClass.values()) {
+            if (pc == PlayerClass.WARLOCK) {
+                continue;
+            }
             double baseMagic = 0;
             double basePhys = 0;
             for (Player online : Bukkit.getOnlinePlayers()) {
