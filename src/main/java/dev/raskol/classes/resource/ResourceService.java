@@ -2,10 +2,12 @@
 package dev.raskol.classes.resource;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.passive.PassiveListener;
+import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.storage.SafeStorage;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
@@ -30,16 +32,17 @@ import java.util.logging.Logger;
 
 /**
  * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), 0–100.
- * 1.9.3.2: реген-тик через знаковую tickDelta (декэй воина работает).
- * 1.10.0: Скверна — событийный рост + Переполнение; on-kill +10.
- * 1.10.1: ПОЛ Скверны: ниже floor(25) сама восстанавливается до floor;
- *         выше floor вне боя падает −4/с, но останавливается НА floor (не до 0);
- *         траты способностями могут уронить до 0 — пол поднимет обратно.
+ * 1.9.3.2: знаковый tickDelta (декэй воина работает).
+ * 1.10.x: Скверна — событийный рост, пол 0, Переполнение, on-kill.
+ * 1.11.1: декэй Скверны у Адского Канала берётся из classes.WARLOCK.specs.hell_channel.decay;
+ *         плановый purge реестров печати/анти-хила раз в 30 с (утечка закрыта).
  */
 public final class ResourceService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
     private static final double MAX_VALUE = 100.0;
+    /** 1.11.1: период purge дебафов чернокнижника в тиках (30 с). */
+    private static final long DEBUFF_PURGE_TICKS = 600L;
 
     private final RaskolClasses plugin;
     private final RaskolConfig config;
@@ -48,6 +51,8 @@ public final class ResourceService implements Listener {
     private final Map<UUID, Long> lastGainMs = new ConcurrentHashMap<>();
     private final File file;
     private final YamlConfiguration store;
+
+    private long tickCounter = 0L;
 
     public ResourceService(RaskolClasses plugin, RaskolConfig config, ClassProvider classProvider) {
         this.plugin = plugin;
@@ -98,9 +103,6 @@ public final class ResourceService implements Listener {
         if (store.isSet(key)) {
             double v = Math.max(0.0, Math.min(MAX_VALUE, store.getDouble(key, 0.0)));
             stateOf(uuid).setValue(v);
-        } else if (classProvider.getClassOf(event.getPlayer()) == PlayerClass.WARLOCK) {
-            // 1.10.1: новый чернокнижник стартует с пола, а не с нуля
-            stateOf(uuid).setValue(config.warlockResourceFloor());
         }
     }
 
@@ -119,6 +121,10 @@ public final class ResourceService implements Listener {
     }
 
     private void tick() {
+        tickCounter++;
+        if (tickCounter % DEBUFF_PURGE_TICKS == 0) {
+            WarlockAbilities.purgeStaleDebuffs(); // 1.11.1: защита от утечки записей оффлайн-целей
+        }
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
             PlayerClass pc = classProvider.getClassOf(player);
@@ -141,13 +147,16 @@ public final class ResourceService implements Listener {
                             : config.mageRegenTier4();
                 }
                 case WARLOCK -> {
-                    // 1.10.1: пол 25 — вниз восстанавливаемся, сверху вне боя падаем ДО пола
                     double v = st.getValue();
                     double floor = config.warlockResourceFloor();
-                    if (v < floor) {
+                    if (floor > 0.0 && v < floor) {
                         rate = config.warlockResourceFloorRegen();
                     } else if (v > floor && !inCombat) {
-                        rate = config.warlockResourceDecay();
+                        // 1.11.1: Адский Канал рассеивает Скверну вдвое медленнее
+                        rate = (plugin.getSpecService().getSpec(uuid) == Spec.HELL_CHANNEL)
+                                ? plugin.getConfig().getDouble(
+                                        "classes.WARLOCK.specs.hell_channel.decay", -2.0)
+                                : config.warlockResourceDecay();
                     } else {
                         rate = 0.0;
                     }
@@ -157,7 +166,6 @@ public final class ResourceService implements Listener {
             rate += plugin.getTalentService().regenBonus(uuid);
 
             if (pc == PlayerClass.WARLOCK) {
-                // клампы пола: декэй не пробивает floor вниз, пол-реген не перелетает floor вверх
                 double floor = config.warlockResourceFloor();
                 double v = st.getValue();
                 double next = v + rate;
@@ -172,7 +180,6 @@ public final class ResourceService implements Listener {
                 st.tickDelta(rate);
             }
 
-            // Переполнение: Скверна = 100 → тик 1% carrier-HP/с себе (не убивает)
             if (pc == PlayerClass.WARLOCK && st.getValue() >= config.warlockThresholdOverflow()) {
                 double carrier = player.getMaxHealth();
                 double tickDmg = carrier * 0.01;
@@ -258,7 +265,7 @@ public final class ResourceService implements Listener {
         }
     }
 
-    /** 1.10.0: on-kill для WARLOCK (+10 Скверны за смерть врага в радиусе 10). */
+    /** Скверна: +on-kill за смерть врага в радиусе 10 (только WARLOCK). */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
