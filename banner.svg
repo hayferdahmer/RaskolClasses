@@ -10,11 +10,6 @@
       <stop offset="0" stop-color="#d8b45a"/>
       <stop offset="1" stop-color="#8a6a2a"/>
     </linearGradient>
-    <linearGradient id="bloodline" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#520000"/>
-      <stop offset="0.5" stop-color="#8b0000"/>
-      <stop offset="1" stop-color="#520000"/>
-    </linearGradient>
     <radialGradient id="candle" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0" stop-color="#ffb347" stop-opacity="0.20"/>
       <stop offset="0.6" stop-color="#c47a2a" stop-opacity="0.07"/>
@@ -60,44 +55,16 @@
     <path d="M0,12 L4,3 L8,9 L12,0 L16,9 L20,3 L24,12 Z M0,13 h24 v3 h-24 z"/>
   </g>
 
-  <!-- перекрещённые мечи за именем -->
-  <g stroke="#6e6a66" opacity="0.20" stroke-linecap="round">
-    <line x1="340" y1="238" x2="660" y2="92" stroke-width="4"/>
-    <line x1="660" y1="238" x2="340" y2="92" stroke-width="4"/>
-    <line x1="352" y1="214" x2="376" y2="238" stroke-width="3"/>
-    <line x1="648" y1="214" x2="624" y2="238" stroke-width="3"/>
-    <circle cx="336" cy="244" r="4" fill="#6e6a66" stroke="none"/>
-    <circle cx="664" cy="244" r="4" fill="#6e6a66" stroke="none"/>
-  </g>
-
-  <!-- имя: выкованная капитель (textLength гарантирует посадку в рамку) -->
+  <!-- ИМЯ: ровно по центру полотна (x=500 + textLength; оптический центр капители y=180).
+       УДАЛЕНО: мечи, кровавая черта, ромб, боковые короны, имена фракций. -->
   <g font-family="Georgia, 'Times New Roman', serif" font-size="80" letter-spacing="6"
      text-anchor="middle" font-weight="bold">
-    <text x="500" y="172" fill="#000000" opacity="0.8"
+    <text x="500" y="211" fill="#000000" opacity="0.8"
           textLength="820" lengthAdjust="spacingAndGlyphs">RASKOL CLASSES</text>
-    <text x="500" y="166" fill="#cfcfcf" opacity="0.30"
+    <text x="500" y="205" fill="#cfcfcf" opacity="0.30"
           textLength="820" lengthAdjust="spacingAndGlyphs">RASKOL CLASSES</text>
-    <text x="500" y="169" fill="url(#iron)" stroke="#520000" stroke-width="1.2"
+    <text x="500" y="208" fill="url(#iron)" stroke="#520000" stroke-width="1.2"
           textLength="820" lengthAdjust="spacingAndGlyphs">RASKOL CLASSES</text>
-  </g>
-
-  <!-- кровавая черта раскола -->
-  <rect x="320" y="210" width="360" height="2" fill="url(#bloodline)"/>
-  <polygon points="500,206 506,211 500,216 494,211" fill="#8b0000"/>
-
-  <!-- ДВЕ КОРОНЫ: симметрично и метрико-независимо.
-       Имена якорятся от ромба наружу с равными зазорами (466 / 534),
-       ромб 494–506 никогда не перекрывается; короны — зеркальные фланги 150 / 824. -->
-  <g transform="translate(150,242) scale(1.1)" fill="url(#gold)">
-    <path d="M0,12 L4,3 L8,9 L12,0 L16,9 L20,3 L24,12 Z M0,13 h24 v3 h-24 z"/>
-  </g>
-  <text x="466" y="256" text-anchor="end" font-family="Georgia, serif" font-size="19"
-        letter-spacing="6" fill="#d8b45a">РАССВЕТ</text>
-  <polygon points="500,244 506,250 500,256 494,250" fill="#6b5a2e"/>
-  <text x="534" y="256" text-anchor="start" font-family="Georgia, serif" font-size="19"
-        letter-spacing="6" fill="#b03030">ВАЛЬРАДИС</text>
-  <g transform="translate(824,242) scale(1.1)" fill="#b03030">
-    <path d="M0,12 L4,3 L8,9 L12,0 L16,9 L20,3 L24,12 Z M0,13 h24 v3 h-24 z"/>
   </g>
 
   <!-- угли костра -->
