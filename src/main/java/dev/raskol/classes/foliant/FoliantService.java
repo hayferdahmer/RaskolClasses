@@ -43,14 +43,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 1.10.0: ФОЛИАНТ ДУШ (скрытый путь Чернокнижника).
- * 1.10.1: предмет «Фолиант Душ. Том I», криптованный лор, дроп в аду.
- * 1.10.2-fix: LP-миграция через user.getNodes(NodeType.INHERITANCE)
- *         (типизированный getNodes живёт на PermissionHolder, не на NodeMap)
- *         + удаление через data().remove(node); дроп-фильтр foliant.drop-mobs
- *         (по умолчанию семейство пиглинов; пустой список = все мобы ада).
- *
- * Гейты чтения: МАГ или ЖРЕЦ, уровень персонажа ≥40, спека сброшена,
- * таланты сброшены, AuthGate. Фолиант сгорает ТОЛЬКО после успешного перехода.
+ * 1.10.3: грант при переходе — sorcery=10 (дерево мага, у чернокнижника
+ *         нет собственного дерева, прогрессия через общие источники AuraSkills).
  */
 public final class FoliantService implements Listener {
 
@@ -115,11 +109,6 @@ public final class FoliantService implements Listener {
 
     /* ------------------------------ дроп в аду ------------------------------ */
 
-    /**
-     * Шанс foliant.drop-chance-percent (0.001 = 1 к 100 000) на смерть моба.
-     * Мир: только NETHER (foliant.drop-nether-only).
-     * Мобы: белый список foliant.drop-mobs; пустой список = все мобы ада.
-     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         if (!plugin.getConfig().getBoolean("foliant.drop-enabled", true)) {
@@ -194,7 +183,8 @@ public final class FoliantService implements Listener {
             plugin.getPassives().clear(uuid);
         }
 
-        grantOccultSkill(player, 10);
+        // 1.10.3: грант sorcery=10 (дерево мага, у чернокнижника нет своего)
+        grantSorcerySkill(player, 10);
 
         plugin.getAttributes().invalidate(uuid);
 
@@ -228,10 +218,6 @@ public final class FoliantService implements Listener {
         }
     }
 
-    /**
-     * 1.10.2-fix: типизированный getNodes(NodeType) берём с User (PermissionHolder),
-     * НЕ с NodeMap — там его нет в LP v5. Удаление — data().remove(node).
-     */
     private boolean swapViaApi(UUID uuid) {
         LuckPerms lp = LuckPermsProvider.get();
         if (lp.getGroupManager().getGroup(WARLOCK_GROUP) == null) {
@@ -266,7 +252,7 @@ public final class FoliantService implements Listener {
                 "lp user " + name + " parent add " + WARLOCK_GROUP);
     }
 
-    /* ------------------------------ грант occult ------------------------------ */
+    /* ------------------------------ грант sorcery (1.10.3) ------------------------------ */
 
     private static final Object VOID_OK = new Object();
 
@@ -297,14 +283,14 @@ public final class FoliantService implements Listener {
         return null;
     }
 
-    private Object findOccultSkill(Object api) {
+    private Object findSorcerySkill(Object api) {
         Object registry = invokeFirstExisting(api,
                 new String[]{"getGlobalRegistry", "getSkillRegistry", "getRegistry"});
         if (registry == null) {
             return null;
         }
         Object direct = invokeFirstExisting(registry,
-                new String[]{"getSkill", "getSkillById", "getSkillByName"}, "occult");
+                new String[]{"getSkill", "getSkillById", "getSkillByName"}, "sorcery");
         if (direct != null && direct != VOID_OK) {
             return direct;
         }
@@ -313,7 +299,7 @@ public final class FoliantService implements Listener {
             for (Object sk : it) {
                 Object id = invokeQuiet(sk, "getId");
                 String idStr = id != null ? id.toString().toLowerCase(Locale.ROOT) : "";
-                if (idStr.contains("occult")) {
+                if (idStr.contains("sorcery")) {
                     return sk;
                 }
             }
@@ -321,37 +307,36 @@ public final class FoliantService implements Listener {
         return null;
     }
 
-    private void grantOccultSkill(Player player, int level) {
+    private void grantSorcerySkill(Player player, int level) {
         try {
             Class<?> apiClass = Class.forName("dev.aurelium.auraskills.api.AuraSkillsApi");
             Object api = apiClass.getMethod("get").invoke(null);
             Object user = invokeQuiet(api, "getUser", player.getUniqueId());
-            Object skill = findOccultSkill(api);
+            Object skill = findSorcerySkill(api);
             if (user != null && skill != null && skill != VOID_OK) {
                 Object done = invokeFirstExisting(user,
                         new String[]{"setSkillLevel", "setLevel", "addSkillLevel"}, skill, level);
                 if (done != null) {
-                    plugin.getLogger().info("Foliant: выдан occult=" + level
+                    plugin.getLogger().info("Foliant: выдан sorcery=" + level
                             + " игроку " + player.getName() + " (AuraSkills API)");
                     return;
                 }
             }
             if (skill == null || skill == VOID_OK) {
-                plugin.getLogger().warning("Foliant: дерево occult не найдено в AuraSkills — "
-                        + "добавь auraskills/occult в skills.yml");
+                plugin.getLogger().warning("Foliant: дерево sorcery не найдено в AuraSkills");
                 return;
             }
         } catch (Throwable ignored) {
         }
-        String cmd = plugin.getConfig().getString("foliant.occult-grant-command", "");
+        String cmd = plugin.getConfig().getString("foliant.sorcery-grant-command", "");
         if (cmd != null && !cmd.isEmpty()) {
             String exec = cmd.replace("{player}", player.getName())
                     .replace("{level}", String.valueOf(level));
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), exec);
-            plugin.getLogger().info("Foliant: occult выдан командой: " + exec);
+            plugin.getLogger().info("Foliant: sorcery выдан командой: " + exec);
             return;
         }
-        plugin.getLogger().warning("Foliant: не удалось выдать occult автоматически. Игрок: "
+        plugin.getLogger().warning("Foliant: не удалось выдать sorcery автоматически. Игрок: "
                 + player.getName());
     }
 
