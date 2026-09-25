@@ -31,12 +31,12 @@ import java.util.UUID;
 
 /**
  * Исполнитель и автодополнение /rc (1.4.0 → 1.10.0).
- * 1.10.0: shortName покрывает WARLOCK для TTK-матрицы.
+ * 1.10.0: подкоманда /rc foliant give <ник> (admin) — выдача Фолианта Раскола.
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUBS = List.of(
-            "menu", "reload", "debug", "health", "selftest", "gear");
+            "menu", "reload", "debug", "health", "selftest", "gear", "foliant");
 
     private final RaskolClasses plugin;
 
@@ -81,9 +81,41 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 dev.raskol.classes.selftest.SelftestRunner.run(plugin, sender);
             }
             case "gear" -> handleGear(sender, args.length > 1 ? args[1] : null);
+            case "foliant" -> handleFoliant(sender, Arrays.copyOfRange(args, 1, args.length));
             default -> sendHelp(sender);
         }
         return true;
+    }
+
+    /* ------------------------------ FOLIANT (1.10.0) ------------------------------ */
+
+    private void handleFoliant(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("raskolclasses.admin")) {
+            sender.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "no-permission", "Недостаточно прав"), NamedTextColor.RED));
+            return;
+        }
+        if (args.length < 2 || !"give".equalsIgnoreCase(args[0])) {
+            sender.sendMessage(Component.text("Использование: /rc foliant give <ник>",
+                    NamedTextColor.GRAY));
+            return;
+        }
+        Player target = Bukkit.getPlayer(args[1]);
+        if (target == null) {
+            sender.sendMessage(Component.text("Игрок «" + args[1] + "» не найден онлайн.",
+                    NamedTextColor.RED));
+            return;
+        }
+        if (!plugin.getFoliantService().giveTo(target)) {
+            sender.sendMessage(Component.text("У " + target.getName()
+                    + " нет места в инвентаре.", NamedTextColor.RED));
+            return;
+        }
+        sender.sendMessage(Component.text("Фолиант Раскола выдан игроку "
+                + target.getName() + ".", NamedTextColor.GREEN));
+        target.sendMessage(Component.text(
+                "Тебе вручили Фолиант Раскола. ПКМ — прочесть страницу.",
+                NamedTextColor.LIGHT_PURPLE));
     }
 
     /* ------------------------------ GEAR ------------------------------ */
@@ -343,7 +375,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    /** 1.10.0: покрыт WARLOCK. */
     private static String shortName(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> "воин";
@@ -400,7 +431,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     NamedTextColor.YELLOW));
             sender.sendMessage(Component.text("/rc debug simulate [A] [B] [level] — дуэль TTK",
                     NamedTextColor.YELLOW));
-            sender.sendMessage(Component.text("/rc debug simulate matrix [level] — матрица 5×5",
+            sender.sendMessage(Component.text("/rc debug simulate matrix [level] — матрица 6×6",
                     NamedTextColor.YELLOW));
             sender.sendMessage(Component.text("/rc gear [player] — экипировка и сеты",
                     NamedTextColor.YELLOW));
@@ -410,6 +441,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         }
         if (sender.hasPermission("raskolclasses.admin")) {
             sender.sendMessage(Component.text("/rc reload — перезагрузить конфигурацию",
+                    NamedTextColor.RED));
+            sender.sendMessage(Component.text("/rc foliant give <ник> — выдать Фолиант Раскола",
                     NamedTextColor.RED));
         }
     }
@@ -455,6 +488,17 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 out.add(p.getName());
             }
             return filter(out, args[1]);
+        }
+        if (args.length == 2 && "foliant".equalsIgnoreCase(args[0])) {
+            return filter(List.of("give"), args[1]);
+        }
+        if (args.length == 3 && "foliant".equalsIgnoreCase(args[0])
+                && "give".equalsIgnoreCase(args[1])) {
+            List<String> out = new ArrayList<>();
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                out.add(p.getName());
+            }
+            return filter(out, args[2]);
         }
         return Collections.emptyList();
     }
