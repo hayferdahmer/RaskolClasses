@@ -25,12 +25,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.8.0: levelOf по умолчанию берёт сводный уровень персонажа.
  * 1.9.0: effectiveAvoidance учитывает плоские avoid-бонусы талантов.
  * 1.9.3: maxHp — ПОЛНАЯ формула; invalidate синхронизирует carrier.
- * 1.9.3-r: ЕДИНЫЙ источник правды по единицам HP (план B):
- *   VANILLA_MAX_HEALTH_CAP, maxHealthAttr(), carrierMaxHp(), targetCarrier(),
- *   scale(), currentFormulaHp(), healFormula().
+ * 1.9.3-r: ЕДИНЫЙ источник правды по единицам HP (план B).
  * 1.9.3-r2: maxHp += GearHook.hpBonus (статы шмота RaskolGear).
- * 1.10.0-fix: mainOf/defaultBase/defaultGrowth покрывают WARLOCK
- *   (main INT; базы 4/4/14; рост 0.2/0.3/1.4 — канон config.yml).
+ * 1.10.0: mainOf/defaultBase/defaultGrowth покрывают WARLOCK
+ *         (main INT; базы 4/4/14; рост 0.2/0.3/1.4 — канон config.yml).
  */
 public final class AttributeService {
 
@@ -74,7 +72,6 @@ public final class AttributeService {
 
     /* -------------------------------- значения -------------------------------- */
 
-    /** 1.10.0-fix: покрыт WARLOCK (INT — дрейн-кастер). */
     public AttributeType mainOf(PlayerClass pc) {
         String cfg = plugin.getConfig().getString("attributes.classes." + pc.name() + ".main");
         AttributeType parsed = AttributeType.fromId(cfg);
@@ -103,7 +100,6 @@ public final class AttributeService {
         return Double.isFinite(v) && v >= 0 ? v : defaultGrowth(pc, type);
     }
 
-    /** 1.10.0-fix: покрыт WARLOCK (базы 4/4/14 — канон конфига). */
     private static double defaultBase(PlayerClass pc, AttributeType type) {
         return switch (pc) {
             case WARRIOR -> type == AttributeType.STR ? 12 : type == AttributeType.AGI ? 6 : 4;
@@ -115,7 +111,6 @@ public final class AttributeService {
         };
     }
 
-    /** 1.10.0-fix: покрыт WARLOCK (рост 0.2/0.3/1.4 — канон конфига). */
     private static double defaultGrowth(PlayerClass pc, AttributeType type) {
         return switch (pc) {
             case WARRIOR -> type == AttributeType.STR ? 1.2 : type == AttributeType.AGI ? 0.5 : 0.3;
@@ -310,7 +305,6 @@ public final class AttributeService {
 
     /* --------------- 1.9.3-r: ЕДИНЫЕ ЕДИНИЦЫ HP (план B) --------------- */
 
-    /** Ванильный max_health (носитель): base + все модификаторы, уже клампнуто движком. */
     public double carrierMaxHp(Player player) {
         if (player == null || MAX_HEALTH == null) {
             return 20.0;
@@ -320,12 +314,10 @@ public final class AttributeService {
         return Double.isFinite(v) && v > 0.0 ? v : 20.0;
     }
 
-    /** Целевой carrier, который выставляем: min(formula, движковый потолок). */
     public double targetCarrier(UUID uuid) {
         return Math.max(1.0, Math.min(maxHp(uuid), VANILLA_MAX_HEALTH_CAP));
     }
 
-    /** scale = carrier / formula (1.0, если formula ≤ потолка или не игрок). */
     public double scale(Player player) {
         double formula = maxHp(player.getUniqueId());
         if (formula <= 0.0) {
@@ -335,16 +327,11 @@ public final class AttributeService {
         return (Double.isFinite(s) && s > 0.0) ? s : 1.0;
     }
 
-    /** Текущее HP в формульных (effective) единицах. */
     public double currentFormulaHp(Player player) {
         double s = scale(player);
         return s > 0.0 ? player.getHealth() / s : player.getHealth();
     }
 
-    /**
-     * Хил в формульных единицах: конвертация в carrier (×scale) + clamp к carrier.
-     * Единственная точка, где хил касается ванильного здоровья.
-     */
     public void healFormula(LivingEntity target, double formulaAmount) {
         if (target == null || target.isDead() || formulaAmount <= 0.0 || MAX_HEALTH == null) {
             return;
@@ -448,4 +435,12 @@ public final class AttributeService {
                 return entry.getValue().isEmpty();
             }
         });
-        cache.keySet().removeIf(uuid -> Bukkit.getPlayer
+        cache.keySet().removeIf(uuid -> Bukkit.getPlayer(uuid) == null
+                && !modifiers.containsKey(uuid));
+    }
+
+    public void clear(UUID uuid) {
+        modifiers.remove(uuid);
+        cache.remove(uuid);
+    }
+}
