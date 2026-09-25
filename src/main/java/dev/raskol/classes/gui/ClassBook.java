@@ -40,17 +40,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Книга класса (1.9.3-r2): ЕДИНАЯ мрачная строгая дизайн-система + вкладка GEAR.
- *
- * Каркас (все вкладки одинаковы):
- *   Row0: panes + [4 ЭМБЛЕМА] + panes
- *   Row1-4: контент вкладки
- *   Row5: [45 Способности][46 Спеки][47 Класс][48 Таланты][49 Закрыть][50 Шмот] + panes
- *
- * Правила: рамка BLACK_STAINED_GLASS_PANE; активная вкладка = glow + §6;
- * деструктив всегда в 40; ЛКМ = основное, ПКМ = вторичное, двойное ПКМ+30с = деструктив;
- * лор: desc(§7) → пусто → статы(§7 label: §f value) → пусто → hint(§e/§7).
- * Вкладка GEAR — информационная (клики не действуют), читает GearHook/SetBonusService.
+ * Книга класса: 5 вкладок, мрачная строгая система.
+ * 1.10.0: emblemMaterial/resourceRulesDef/installDescDef покрывают WARLOCK и HERESY_CIRCLE.
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -82,7 +73,6 @@ public final class ClassBook implements InventoryHolder {
     private static final int SLOT_TALENT_RESET = 40;
     private static final long RESET_ARM_MILLIS = 30_000L;
 
-    // GEAR
     private static final int SLOT_GEAR_WEAPON = 10;
     private static final int SLOT_GEAR_STATS = 13;
     private static final int[] GEAR_ARMOR_SLOTS = {19, 20, 21, 22};
@@ -129,8 +119,6 @@ public final class ClassBook implements InventoryHolder {
         }
         fill(plugin, player, pc);
     }
-
-    /* --------------------------------- каркас --------------------------------- */
 
     private void fill(RaskolClasses plugin, Player player, PlayerClass pc) {
         for (int i = 0; i < SIZE; i++) {
@@ -190,8 +178,8 @@ public final class ClassBook implements InventoryHolder {
         if (gear == null || !gear.isAvailable()) {
             inventory.setItem(SLOT_GEAR_STATS, infoItem(Material.BARRIER,
                     "RaskolGear не установлен", List.of(
-                            "§7Плагин снаряжения не найден.",
-                            "§7Статы и сеты недоступны.")));
+                            "Плагин снаряжения не найден.",
+                            "Статы и сеты недоступны.")));
             return;
         }
         UUID uuid = player.getUniqueId();
@@ -202,7 +190,7 @@ public final class ClassBook implements InventoryHolder {
                     weapon.className(), weapon.rarity(), "оружие"));
         } else {
             inventory.setItem(SLOT_GEAR_WEAPON, infoItem(Material.WOODEN_SWORD,
-                    "Оружие: нет", List.of("§7Возьмите оружие класса в руку.")));
+                    "Оружие: нет", List.of("Возьмите оружие класса в руку.")));
         }
 
         List<GearHook.EquippedItem> armor = gear.getEquippedArmor(player);
@@ -213,29 +201,29 @@ public final class ClassBook implements InventoryHolder {
                         a.className(), a.rarity(), a.slot()));
             } else {
                 inventory.setItem(GEAR_ARMOR_SLOTS[i], infoItem(Material.GRAY_STAINED_GLASS_PANE,
-                        "Слот пуст", List.of("§7Наденьте предмет сета.")));
+                        "Слот пуст", List.of("Наденьте предмет сета.")));
             }
         }
 
         inventory.setItem(SLOT_GEAR_STATS, infoItem(Material.NETHERITE_INGOT,
                 "Статы шмота", List.of(
-                        "§7Физ. резист: §f+" + (int) gear.physResist(uuid) + "%",
-                        "§7Маг. резист: §f+" + (int) gear.magicResist(uuid) + "%",
-                        "§7Здоровье: §f+" + (int) gear.hpBonus(uuid),
+                        "Физ. резист: +" + (int) gear.physResist(uuid) + "%",
+                        "Маг. резист: +" + (int) gear.magicResist(uuid) + "%",
+                        "Здоровье: +" + (int) gear.hpBonus(uuid),
                         gear.reflect(uuid) > 0
-                                ? "§7Шипы: §f" + (int) gear.reflect(uuid) + "% §7(полный сет)"
-                                : "§7Шипы: §f—")));
+                                ? "Шипы: " + (int) gear.reflect(uuid) + "% (полный сет)"
+                                : "Шипы: —")));
 
         SetBonusService sets = plugin.getSetBonusService();
         List<SetBonusService.ActiveSet> active = sets.getActiveSets(uuid);
         for (int i = 0; i < GEAR_SET_SLOTS.length && i < active.size(); i++) {
             SetBonusService.ActiveSet s = active.get(i);
             List<String> lore = new ArrayList<>();
-            lore.add("§7Предметов: §f" + s.count() + "/4");
+            lore.add("Предметов: " + s.count() + "/4");
             if (s.full()) {
-                lore.add("§a✔ Сет активен — бонусы применены");
+                lore.add("✔ Сет активен — бонусы применены");
             } else {
-                lore.add("§c✘ Неполный: нужно ещё " + (4 - s.count()));
+                lore.add("✘ Неполный: нужно ещё " + (4 - s.count()));
             }
             inventory.setItem(GEAR_SET_SLOTS[i], infoItem(
                     s.full() ? Material.NETHERITE_CHESTPLATE : Material.IRON_CHESTPLATE,
@@ -261,8 +249,7 @@ public final class ClassBook implements InventoryHolder {
             meta.displayName(Component.text(title, NamedTextColor.GOLD));
             List<Component> lore = new ArrayList<>();
             for (String line : loreLines) {
-                lore.add(Component.text(line.replace("§7", "").replace("§f", "")
-                        .replace("§a", "").replace("§c", ""), NamedTextColor.GRAY));
+                lore.add(Component.text(line, NamedTextColor.GRAY));
             }
             meta.lore(lore);
         });
@@ -466,6 +453,7 @@ public final class ClassBook implements InventoryHolder {
         return item;
     }
 
+    /** 1.10.0: покрыт WARLOCK (фолиант). */
     private static Material emblemMaterial(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> Material.IRON_SWORD;
@@ -473,6 +461,7 @@ public final class ClassBook implements InventoryHolder {
             case PRIEST -> Material.BELL;
             case MAGE -> Material.BLAZE_ROD;
             case ROGUE -> Material.SHEARS;
+            case WARLOCK -> Material.WRITABLE_BOOK;
         };
     }
 
@@ -501,6 +490,7 @@ public final class ClassBook implements InventoryHolder {
         return item;
     }
 
+    /** 1.10.0: покрыт WARLOCK (Скверна). */
     private static String resourceRulesDef(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> "Ярость: −5/с вне боя; +10 за урон (нанёс/получил)";
@@ -508,6 +498,7 @@ public final class ClassBook implements InventoryHolder {
             case PRIEST -> "Свет: +2/с всегда; +5 за событие лечения";
             case MAGE -> "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75";
             case ROGUE -> "Энергия: +10/с";
+            case WARLOCK -> "Скверна: 0 в покое; +6 за урон, +3 при получении; −4/с вне боя. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с";
         };
     }
 
@@ -695,6 +686,7 @@ public final class ClassBook implements InventoryHolder {
         return item;
     }
 
+    /** 1.10.0: покрыт HERESY_CIRCLE. */
     private static String installDescDef(InstallationType type) {
         return switch (type) {
             case WAR_BANNER -> "Аура: Resistance I союзникам в радиусе 6 на 8 с";
@@ -702,6 +694,7 @@ public final class ClassBook implements InventoryHolder {
             case LIGHT_WARD -> "Зона: +2 HP/с союзникам в радиусе 4 на 6 с";
             case FROST_RUNE -> "Руна-зона 8 блоков 30 с: урон+замедление врагам с нарастанием; магу внутри +3 маны/с и ИНТ×2";
             case SMOKE_BOMB -> "Мина: Blindness 2 с врагам + Speed I себе 3 с";
+            case HERESY_CIRCLE -> "Осквернённый круг 6 блоков 25 с: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6";
         };
     }
 
@@ -807,6 +800,7 @@ public final class ClassBook implements InventoryHolder {
             case "mana_soaked" -> "порог маны 50 · −15% входящего урона";
             case "poisoned_blades" -> "30% шанс · Яд I 2 с · КД 3 с";
             case "sadism" -> "+3 урона со спины · КД 2 с";
+            case "black_mass" -> "6.66% lifesteal · 6.66% рефлекта чистым уроном в r8";
             default -> "";
         };
     }
@@ -820,7 +814,7 @@ public final class ClassBook implements InventoryHolder {
         return -1;
     }
 
-    /** Обработчик кликов книги (1.9.3-r2): + навигация на вкладку GEAR (слот 50). */
+    /** Обработчик кликов книги. */
     public static final class ClickHandler implements Listener {
 
         private static final Map<UUID, Long> RESET_ARM = new ConcurrentHashMap<>();
@@ -1028,7 +1022,7 @@ public final class ClassBook implements InventoryHolder {
                     }
                 }
                 case CLASS, GEAR -> {
-                    // информационные вкладки — клики по контенту ничего не делают
+                    // информационные вкладки
                 }
             }
         }
