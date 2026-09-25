@@ -9,6 +9,7 @@ import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.storage.SafeStorage;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
@@ -29,15 +30,11 @@ import java.util.logging.Logger;
 
 /**
  * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), 0–100.
- * Реген-правила по классам (тик 1 раз/с): воин −5/с вне боя; охотник +5/с вне боя;
- * жрец +2/с всегда; маг тиры 1.0/1.5/2.0/2.5 по порогам 25/50/75; разбойник +10/с;
- * чернокнижник: событийный рост (on-deal/on-take/on-kill) + декэй −4/с вне боя.
- *
- * 1.9.1: markCombat() на нанёсшем и получившем урон — боевое окно работает.
- * 1.9.2: ФАРМ-ГЕЙТЫ ресурса (себя/союзник не фармят).
- * 1.9.3.2 FIX: реген-тик применяет ЗНАКОВУЮ дельту через ResourceState.tickDelta() —
- *        ранее add(−5) воина вне боя молча игнорировался и ярость не падала.
- * 1.10.0: Скверна чернокнижника (пороги 75/100, on-kill +10, декэй −4/с).
+ * 1.9.3.2 FIX: реген-тик применяет ЗНАКОВУЮ дельту через ResourceState.tickDelta().
+ * 1.10.0: Скверна чернокнижника — событийный рост (on-deal/on-take/on-kill),
+ *         декэй −4/с вне боя, тик Переполнения (Скверна=100 → 1% maxHP/с себе).
+ * 1.10.0-fix: удалён внутренний класс-паразит Location (тенил org.bukkit.Location),
+ *         добавлен импорт LivingEntity; дистанция смерти считается distanceSquared.
  */
 public final class ResourceService implements Listener {
 
@@ -141,25 +138,21 @@ public final class ResourceService implements Listener {
                             : v < 75 ? config.mageRegenTier3()
                             : config.mageRegenTier4();
                 }
-                case WARLOCK -> rate = inCombat ? 0.0 : config.warlockResourceDecay();  // 1.10.0
+                case WARLOCK -> rate = inCombat ? 0.0 : config.warlockResourceDecay();
                 default -> rate = config.resourceRegen(pc); // PRIEST, ROGUE
             }
             rate += plugin.getTalentService().regenBonus(uuid);
 
-            // 1.9.3.2 FIX: знаковая дельта (воин −5/с вне боя теперь реально decay'ит)
             if (rate != 0.0) {
                 st.tickDelta(rate);
             }
 
-            // 1.10.0: тик Переполнения (Скверна = 100 → 1% maxHP/с себе)
-            if (pc == PlayerClass.WARLOCK) {
-                double thresholdOverflow = config.warlockThresholdOverflow();
-                if (st.getValue() >= thresholdOverflow) {
-                    double maxHp = player.getMaxHealth();
-                    double tickDmg = maxHp * 0.01;
-                    double newHp = Math.max(1.0, player.getHealth() - tickDmg);
-                    player.setHealth(newHp);
-                }
+            // 1.10.0: тик Переполнения (Скверна = 100 → 1% carrier-HP/с себе, не убивает)
+            if (pc == PlayerClass.WARLOCK && st.getValue() >= config.warlockThresholdOverflow()) {
+                double carrier = player.getMaxHealth();
+                double tickDmg = carrier * 0.01;
+                double newHp = Math.max(1.0, player.getHealth() - tickDmg);
+                player.setHealth(newHp);
             }
         }
     }
@@ -176,18 +169,14 @@ public final class ResourceService implements Listener {
         return true;
     }
 
-    /**
-     * 1.9.2: true, если пара damager→victim является фарм-парой (себя/союзник)
-     * и прибавки ресурса за этот hit давать нельзя.
-     */
     private boolean isFarmPair(Player damager, Entity victim) {
         if (!(victim instanceof Player victimPlayer)) {
-            return false; // мобы/средства — легитимный фарм/бой
+            return false;
         }
         if (victimPlayer.getUniqueId().equals(damager.getUniqueId())) {
-            return true; // самоурон
+            return true;
         }
-        return !plugin.getCombat().canHit(damager, victimPlayer); // союзник
+        return !plugin.getCombat().canHit(damager, victimPlayer);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -248,18 +237,20 @@ public final class ResourceService implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
-        if (entity == null) {
+        if (entity == null || entity.getWorld() == null) {
             return;
         }
-        Location deathLoc = entity.getLocation();
+        org.bukkit.Location deathLoc = entity.getLocation();
+        double radiusSq = 10.0 * 10.0;
         for (Player player : entity.getWorld().getPlayers()) {
             PlayerClass pc = classProvider.getClassOf(player);
             if (pc != PlayerClass.WARLOCK) {
                 continue;
             }
-            if (player.getLocation().distance(deathLoc) <= 10.0) {
+            if (player.getLocation().distanceSquared(deathLoc) <= radiusSq) {
                 double onKill = config.warlockResourceOnKill();
                 if (onKill != 0.0 && gainAllowed(player.getUniqueId())) {
+                    stateOf(player.getUniqueId()).markCombat();
                     stateOf(player.getUniqueId()).add(onKill);
                 }
             }
@@ -274,27 +265,5 @@ public final class ResourceService implements Listener {
             return p;
         }
         return null;
-    }
-
-    private static class Location {
-        private final double x, y, z;
-        private final org.bukkit.World world;
-
-        Location(org.bukkit.Location loc) {
-            this.x = loc.getX();
-            this.y = loc.getY();
-            this.z = loc.getZ();
-            this.world = loc.getWorld();
-        }
-
-        double distance(org.bukkit.Location other) {
-            if (other.getWorld() != world) {
-                return Double.MAX_VALUE;
-            }
-            double dx = x - other.getX();
-            double dy = y - other.getY();
-            double dz = z - other.getZ();
-            return Math.sqrt(dx * dx + dy * dy + dz * dz);
-        }
     }
 }
