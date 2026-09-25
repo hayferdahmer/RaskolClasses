@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="340" viewBox="0 0 1000 340">
+  <defs>
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="2" fill="#000000" opacity="0.55"/>
+      <rect y="2" width="4" height="2" fill="#0a0a0a" opacity="0.35"/>
+    </pattern>
+    <radialGradient id="vig" cx="0.5" cy="0.5" r="0.75">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.85"/>
+    </radialGradient>
+    <linearGradient id="blood" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#520000"/>
+      <stop offset="0.5" stop-color="#8b0000"/>
+      <stop offset="1" stop-color="#520000"/>
+    </linearGradient>
+    <linearGradient id="spikeL" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#00ff41" stop-opacity="0"/>
+      <stop offset="1" stop-color="#00ff41" stop-opacity="0.9"/>
+    </linearGradient>
+    <linearGradient id="spikeR" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#00ff41" stop-opacity="0"/>
+      <stop offset="1" stop-color="#00ff41" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1000" height="340" fill="#050505"/>
+  <rect width="1000" height="340" fill="url(#scan)"/>
+
+  <!-- бегущие hex-потоки (дарквеб-дата) -->
+  <g font-family="Consolas, 'Courier New', monospace" font-size="12" fill="#00ff41" opacity="0.12">
+    <text x="-320" y="42">0x52 0x41 0x53 0x4B 0x4F 0x4C :: 0x43 0x4C 0x41 0x53 0x53 :: 0xDE 0xAD 0xBE 0xEF
+      <animateTransform attributeName="transform" type="translate" values="0 0;1340 0" dur="18s" repeatCount="indefinite"/>
+    </text>
+    <text x="1020" y="312">:: 0x00 0xFF 0x41 :: 0xFF 0x00 0x3C :: 0x05 0x05 0x05 :: 0x00 0xFF 0x41 ::
+      <animateTransform attributeName="transform" type="translate" values="0 0;-1360 0" dur="26s" repeatCount="indefinite"/>
+    </text>
+  </g>
+
+  <!-- острые угловые скобки-прицелы -->
+  <g stroke="#ff003c" stroke-width="3" fill="none">
+    <path d="M18,64 L18,18 L64,18"/>
+    <path d="M936,18 L982,18 L982,64"/>
+    <path d="M18,276 L18,322 L64,322"/>
+    <path d="M936,322 L982,322 L982,276"/>
+    <animate attributeName="opacity" values="1;1;0.4;1;1" dur="5s" repeatCount="indefinite"/>
+  </g>
+
+  <!-- длинные острые шипы по бокам имени -->
+  <polygon points="60,150 250,144 250,156" fill="url(#spikeL)"/>
+  <polygon points="940,150 750,144 750,156" fill="url(#spikeR)"/>
+
+  <!-- глитч-заголовок: вытянутый, скошенный, острый -->
+  <g transform="translate(500,150) skewX(-8) scale(1,1.5)"
+     font-family="Impact, 'Arial Black', Haettenschweiler, sans-serif"
+     font-size="86" letter-spacing="16" text-anchor="middle">
+    <text x="-4" y="0" fill="#ff003c" opacity="0.75">RASKOL CLASSES
+      <animate attributeName="x" values="-4;3;-6;-4" dur="0.8s" repeatCount="indefinite"/>
+    </text>
+    <text x="4" y="0" fill="#00fff2" opacity="0.55">RASKOL CLASSES
+      <animate attributeName="x" values="4;-3;6;4" dur="1.1s" repeatCount="indefinite"/>
+    </text>
+    <text x="0" y="0" fill="#ececec">RASKOL CLASSES</text>
+    <animate attributeName="opacity" values="1;1;0.82;1;0.55;1;1" dur="4s" repeatCount="indefinite"/>
+  </g>
+
+  <!-- кровавая линия под именем -->
+  <rect x="300" y="212" width="400" height="3" fill="url(#blood)"/>
+
+  <!-- терминальная строка с мигающим курсором -->
+  <g font-family="Consolas, 'Courier New', monospace" font-size="17" fill="#00ff41">
+    <text x="500" y="268" text-anchor="middle">root@raskol:~# ./classes --init --force</text>
+    <rect x="676" y="253" width="9" height="18" fill="#00ff41">
+      <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.5;0.5;1" dur="1.2s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <rect width="1000" height="340" fill="url(#vig)"/>
+</svg>
