@@ -3,44 +3,47 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/1.9.3.2-ff003c?style=flat-square&label=release&labelColor=0a0a0a"/>
-  <img src="https://img.shields.io/badge/1.21.4%2B-1c1c1c?style=flat-square&label=paper&labelColor=0a0a0a"/>
-  <img src="https://img.shields.io/badge/21-1c1c1c?style=flat-square&label=java&labelColor=0a0a0a"/>
-  <img src="https://img.shields.io/badge/36%2F36-ccff00?style=flat-square&label=selftest&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/1.9.3.2-8b0000?style=flat-square&label=release&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/36%2F36-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a"/>
   <img src="https://img.shields.io/badge/proprietary-000000?style=flat-square&label=license&labelColor=0a0a0a"/>
 </p>
 
-```
-[  ok  ] raskol-classes 1.9.3.2 :: node joined
-[  ok  ] virtual hp pool ............ online (carrier <= 1024, formula unlimited)
-[  ok  ] gear hook .................. linked (raskolgear pdc)
-[  ok  ] set bonus service .......... armed (4/4)
-[ warn ] flicker in sector 7 ........ ignored
-[  ok  ] selftest ................... 36/36 pass
-[ fail ] mercy ...................... not found
-```
-
 <p align="center">
-  <sub>Боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ»: классы, специализации, таланты, инсталляции, боевая математика, TTK-харнесс.</sub>
+  <sub>Боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ»: пять классов, две короны, одна война.</sub>
 </p>
 
 ---
 
-## [01] КЛАССЫ
+## I. ДВЕ КОРОНЫ
 
-| Класс | Ресурс | Атрибут | Роль |
-|---|---|:---:|---|
-| Воин | Ярость, −5/с вне боя | STR | Передовая линия, execute-финишеры |
-| Охотник | Концентрация, +5/с вне боя | AGI | Дистанционное давление, метки |
-| Жрец | Свет, +2/с всегда | INT | Лечение, щиты, кары |
-| Маг | Мана, тиры по порогам | INT | Бурст, контроль, зоны |
-| Разбойник | Энергия, +10/с | AGI | Скрытность, яды, атака со спины |
+Земли Раскола разорваны надвое. Каждый класс служит одной из корон — и несёт её цвет в титуле и ауре.
+
+| Корона | Цвет и аура | Природа |
+|---|---|---|
+| **Рассвет** | золото · `END_ROD` | Свет, порядок, клятва |
+| **Вальрадис** | багрянец · `SOUL_FIRE_FLAME` | Дракон, пепел, долг |
+
+Корона даёт классу титул (Рассветный клинок, Коготь Вальрадиса, …) и партикл-ауру, видимую союзникам и врагам.
+
+---
+
+## II. КЛАССЫ И ТРАДИЦИИ
+
+| Класс | Традиция | Ресурс | Атрибут | Роль |
+|---|---|---|:---:|---|
+| Воин | Нордика | Ярость, −5/с вне боя | STR | Передовая линия, execute-финишеры |
+| Охотник | Путь ведьмака | Концентрация, +5/с вне боя | AGI | Дистанционное давление, метки |
+| Жрец | Католика | Свет, +2/с всегда | INT | Лечение, щиты, кары |
+| Маг | Эллада | Мана, тиры по порогам | INT | Бурст, контроль, зоны |
+| Разбойник | Ночные гильдии | Энергия, +10/с | AGI | Скрытность, яды, атака со спины |
 
 Ресурс 0–100. Боевое окно 5 с разделяет режимы регена по классам.
 
 ---
 
-## [02] ЗДОРОВЬЕ
+## III. ЗДОРОВЬЕ И БОЙ
 
 ```
 HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bonus : 0) + gear-hp
@@ -49,6 +52,7 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 - Ванильный `max_health` — носитель-пропорция (предел движка 1024).
 - Боевой пул, урон, хилы, капы и HUD работают в формульных единицах через `scale = carrier / formula`.
 - Потолок 1024 снят без датапаков: воин L60·STR84 = 2560 HP.
+- Четыре типа урона, резисты класса и шмота, burst-окно 3 с ≤ 18%, анти-ваншот ≤ 35%, LOS для площадей, летальность среды.
 
 | Класс | L40 | L60 |
 |---|---:|---:|
@@ -57,7 +61,7 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 
 ---
 
-## [03] МОДУЛИ
+## IV. МОДУЛИ
 
 | Модуль | Назначение |
 |---|---|
@@ -67,14 +71,13 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 | Уровень персонажа | Среднее топ-5 скиллов AuraSkills, кап 60 |
 | Инсталляции | Мины, варды, руна-зона; TTL, лимиты 2/200, килл-кредит |
 | Короны | Рассвет / Вальрадис: титулы и партикл-ауры |
-| Бой | 4 типа урона, резисты, burst-окно, анти-ваншот, LOS, летальность среды |
 | TTK-харнесс | `/rc debug simulate`, матрица 5×5, якорь 20 с |
 | RaskolGear-хук | Статы шмота из PDC без правок чужого плагина |
 | Надёжность | Атомарные сейвы с `.bak`, автосейв, ConfigValidator, NaN-гарды |
 
 ---
 
-## [04] КОМАНДЫ
+## V. КОМАНДЫ
 
 | Команда | Право | Назначение |
 |---|---|---|
@@ -91,7 +94,7 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 
 ---
 
-## [05] ПЛЕЙСХОЛДЕРЫ
+## VI. ПЛЕЙСХОЛДЕРЫ
 
 ```
 %raskolclasses_class%         %raskolclasses_level%         %raskolclasses_hp%
@@ -103,7 +106,7 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 
 ---
 
-## [06] RASKOLGEAR
+## VII. RASKOLGEAR
 
 | Что | Применяет в бою | Считает и показывает |
 |---|---|---|
@@ -118,15 +121,13 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 
 ---
 
-## [07] УСТАНОВКА
+## VIII. УСТАНОВКА
 
 ```
-$ mvn -B clean package
-[INFO] BUILD SUCCESS
-$ cp target/raskol-classes-1.9.3.2.jar plugins/
-$ restart
-$ rc selftest
-Итог: 36/36 PASS
+mvn -B clean package
+cp target/raskol-classes-1.9.3.2.jar plugins/
+restart
+rc selftest   →  36/36 PASS
 ```
 
 <details>
@@ -145,12 +146,12 @@ LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, AuthMe, Vault, RaskolG
 
 ---
 
-## [08] ДОКУМЕНТАЦИЯ
+## IX. ДОКУМЕНТАЦИЯ
 
 - [`RUNBOOK.md`](RUNBOOK.md) — аварии, гейты, тюнинг без пересборки
 - [`CHANGELOG.md`](CHANGELOG.md) — история версий
 - [`LICENSE`](LICENSE) — RASKOL Proprietary License v1.0
 
 <p align="center">
-  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v1.0 · использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
+  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v1.0 · земли Раскола не терпят чужаков</sub>
 </p>
