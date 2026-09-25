@@ -18,8 +18,7 @@ import java.util.List;
  * Свиток постановки инсталляции (1.5.x → 1.9.0-fix4).
  * 1.9.0-fix4: добавлен isInstallScroll(ItemStack) — его вызывает ScrollSanitizer
  * для сжигания устаревших свитков инсталляций на join.
- * Лора честная: для Ледяной руны — зона 8 блоков, 30 с, нарастающий урон/замедление,
- * бафф мага внутри, КД 60 с.
+ * 1.10.0: description() покрывает HERESY_CIRCLE (Круг Хулы, чернокнижник).
  */
 public final class InstallToken {
 
@@ -50,6 +49,7 @@ public final class InstallToken {
         return item;
     }
 
+    /** 1.10.0: покрыт HERESY_CIRCLE. */
     private List<String> description(InstallationType type) {
         return switch (type) {
             case WAR_BANNER -> List.of(
@@ -73,6 +73,12 @@ public final class InstallToken {
                     "Дымовая шашка: враг в радиусе 3 слепнет",
                     "на 2 с; владелец получает Speed I на 3 с.",
                     "Расходуется при срабатывании.");
+            case HERESY_CIRCLE -> List.of(
+                    "Круг Хулы: осквернённая зона радиусом 6",
+                    "блоков на 25 секунд.",
+                    "Враги внутри: 4 маг-урона/с и запрет лечения.",
+                    "Чернокнижнику внутри: +3 Скверны/с.",
+                    "В аду урон круга умножается на шесть.");
         };
     }
 
