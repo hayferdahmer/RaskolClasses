@@ -30,11 +30,11 @@ import java.util.logging.Logger;
 
 /**
  * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), 0–100.
- * 1.9.3.2 FIX: реген-тик применяет ЗНАКОВУЮ дельту через ResourceState.tickDelta().
- * 1.10.0: Скверна чернокнижника — событийный рост (on-deal/on-take/on-kill),
- *         декэй −4/с вне боя, тик Переполнения (Скверна=100 → 1% maxHP/с себе).
- * 1.10.0-fix: удалён внутренний класс-паразит Location (тенил org.bukkit.Location),
- *         добавлен импорт LivingEntity; дистанция смерти считается distanceSquared.
+ * 1.9.3.2: реген-тик через знаковую tickDelta (декэй воина работает).
+ * 1.10.0: Скверна — событийный рост + Переполнение; on-kill +10.
+ * 1.10.1: ПОЛ Скверны: ниже floor(25) сама восстанавливается до floor;
+ *         выше floor вне боя падает −4/с, но останавливается НА floor (не до 0);
+ *         траты способностями могут уронить до 0 — пол поднимет обратно.
  */
 public final class ResourceService implements Listener {
 
@@ -67,7 +67,6 @@ public final class ResourceService implements Listener {
         return stateOf(uuid).getValue();
     }
 
-    /** Единственная точка списания — ResourceState.consume (регресс заперт чеком 30). */
     public boolean consume(UUID uuid, double amount) {
         return stateOf(uuid).consume(amount);
     }
@@ -99,6 +98,9 @@ public final class ResourceService implements Listener {
         if (store.isSet(key)) {
             double v = Math.max(0.0, Math.min(MAX_VALUE, store.getDouble(key, 0.0)));
             stateOf(uuid).setValue(v);
+        } else if (classProvider.getClassOf(event.getPlayer()) == PlayerClass.WARLOCK) {
+            // 1.10.1: новый чернокнижник стартует с пола, а не с нуля
+            stateOf(uuid).setValue(config.warlockResourceFloor());
         }
     }
 
@@ -138,16 +140,39 @@ public final class ResourceService implements Listener {
                             : v < 75 ? config.mageRegenTier3()
                             : config.mageRegenTier4();
                 }
-                case WARLOCK -> rate = inCombat ? 0.0 : config.warlockResourceDecay();
+                case WARLOCK -> {
+                    // 1.10.1: пол 25 — вниз восстанавливаемся, сверху вне боя падаем ДО пола
+                    double v = st.getValue();
+                    double floor = config.warlockResourceFloor();
+                    if (v < floor) {
+                        rate = config.warlockResourceFloorRegen();
+                    } else if (v > floor && !inCombat) {
+                        rate = config.warlockResourceDecay();
+                    } else {
+                        rate = 0.0;
+                    }
+                }
                 default -> rate = config.resourceRegen(pc); // PRIEST, ROGUE
             }
             rate += plugin.getTalentService().regenBonus(uuid);
 
-            if (rate != 0.0) {
+            if (pc == PlayerClass.WARLOCK) {
+                // клампы пола: декэй не пробивает floor вниз, пол-реген не перелетает floor вверх
+                double floor = config.warlockResourceFloor();
+                double v = st.getValue();
+                double next = v + rate;
+                if (rate < 0.0 && v >= floor && next < floor) {
+                    next = floor;
+                }
+                if (rate > 0.0 && v <= floor && next > floor) {
+                    next = floor;
+                }
+                st.setValue(next);
+            } else if (rate != 0.0) {
                 st.tickDelta(rate);
             }
 
-            // 1.10.0: тик Переполнения (Скверна = 100 → 1% carrier-HP/с себе, не убивает)
+            // Переполнение: Скверна = 100 → тик 1% carrier-HP/с себе (не убивает)
             if (pc == PlayerClass.WARLOCK && st.getValue() >= config.warlockThresholdOverflow()) {
                 double carrier = player.getMaxHealth();
                 double tickDmg = carrier * 0.01;
