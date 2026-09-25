@@ -24,6 +24,8 @@ import java.util.UUID;
  *
  * Урон способности (киты 1.7.2+): dmg = base + Power × coeff (тег wp|sp|hpow).
  * Базовый удар класса: ванильное оружие + WP × basic-coeff.
+ *
+ * 1.10.0: defaultWp/defaultSp/defaultHp покрывают WARLOCK (5/40/0 — канон конфига).
  */
 public final class PowerService {
 
@@ -68,6 +70,7 @@ public final class PowerService {
         return Double.isFinite(v) ? v : def;
     }
 
+    /** 1.10.0: покрыт WARLOCK (5 — слабый WP, дрейн-кастер). */
     private static double defaultWp(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> 30;
@@ -75,22 +78,27 @@ public final class PowerService {
             case ROGUE -> 30;
             case MAGE -> 5;
             case PRIEST -> 10;
+            case WARLOCK -> 5;
         };
     }
 
+    /** 1.10.0: покрыт WARLOCK (40 — основной урон магический). */
     private static double defaultSp(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR, HUNTER, ROGUE -> 5;
             case MAGE -> 30;
             case PRIEST -> 25;
+            case WARLOCK -> 40;
         };
     }
 
+    /** 1.10.0: покрыт WARLOCK (0 — не лечит). */
     private static double defaultHp(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR, HUNTER, ROGUE -> 0;
             case MAGE -> 15;
             case PRIEST -> 25;
+            case WARLOCK -> 0;
         };
     }
 
