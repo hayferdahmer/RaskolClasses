@@ -6,9 +6,12 @@
 #  («key: { a: 1 }»), иначе snakeyaml падает с «mapping values are
 #  not allowed here».
 #
-#  1.9.3: ПОЛНАЯ формула HP возвращена — baseHp + STR×perStr
-#         + level×perLevel + (STR-main ? level×main-str-bonus : 0).
-#         Ключи per-level и main-str-bonus теперь ЖИВЫЕ.
+#  1.9.3: ПОЛНАЯ формула HP: baseHp + STR×per-str + level×per-level
+#         + (STR-main ? level×main-str-bonus : 0). Виртуальный пул HP
+#         (план B): ванильный max_health = носитель ≤1024, бой/хил/HUD
+#         работают в формульных единицах через scale.
+#  1.9.3-r2: вкладка Книги «Шмот и сеты» (messages.book.tab.gear),
+#            исправлены битые звуки vfx.
 # ============================================================
 
 hud:
@@ -159,8 +162,7 @@ resist:
       physical: 10
 
 # ------------------------------------------------------------
-# Атрибуты (1.7.0 + 1.8.0 + 1.8.1: parry-k 300, dodge-mult 0.5)
-# 1.9.3: hp.per-level и hp.main-str-bonus — ЖИВЫЕ ключи
+# Атрибуты (1.7.0 + 1.8.0 + 1.8.1 + 1.9.3)
 # ------------------------------------------------------------
 attributes:
   level-source: character   # character | class-skill | vanilla
@@ -309,6 +311,7 @@ messages:
       specs: "Специализации"
       class: "Класс и пассивки"
       talents: "Таланты спеки"
+      gear: "Шмот и сеты"          # 1.9.3-r2: новая вкладка
       hint: "Клик — открыть вкладку"
     cost: "Цена: {cost} {resource}"
     cooldown: "Кулдаун: {sec} с"
@@ -809,6 +812,8 @@ installations:
 
 # ------------------------------------------------------------
 # VFX/SFX-каталог (1.5.0 + киты + 1.9.0 редизайн мага + руна)
+# 1.9.3-r2: исправлены битые звуки (WOLF_HOWL → WOLF_AMBIENT,
+#           SNOW_BLOCK_BREAK → SNOW_BREAK)
 # ------------------------------------------------------------
 vfx:
   proc-actionbar: true
@@ -825,7 +830,7 @@ vfx:
     cast-sound: ENTITY_RAVAGER_ROAR
     cast-particle: CRIMSON_SPORE
   fenrir_blood:
-    cast-sound: ENTITY_WOLF_HOWL
+    cast-sound: ENTITY_WOLF_AMBIENT
     cast-particle: CRIMSON_SPORE
   ragnarok:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
@@ -869,7 +874,7 @@ vfx:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
     cast-particle: REVERSE_PORTAL
   boreas_breath:
-    cast-sound: BLOCK_SNOW_BLOCK_BREAK
+    cast-sound: BLOCK_SNOW_BREAK
     cast-particle: SNOWFLAKE
   athena_aegis:
     cast-sound: ITEM_ARMOR_EQUIP_DIAMOND
