@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.10.0 — «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.10.1 — «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
 #  ВАЖНО: inline-маппинги пишутся ТОЛЬКО с пробелом после двоеточия
@@ -7,8 +7,10 @@
 #  not allowed here».
 #
 #  1.10.0: класс ЧЕРНОКНИЖНИК (WARLOCK): ресурс Скверна, откат 6.66%,
-#          ад ×6, пороги 75/100, VFX от глубинных/адских сущностей
-#          (Warden, Elder Guardian, Evoker, Vex).
+#          ад ×6, пороги 75/100, фолиант перехода, Круг Хулы.
+#  1.10.1: пол Скверны 25 (resource-floor / resource-floor-regen);
+#          VFX чернокнижника переведены на plain-партиклы
+#          (SCULK_CHARGE/SHRIEK требуют data и молча не спавнились).
 # ============================================================
 
 hud:
@@ -79,11 +81,13 @@ class-accept:
   enabled: true
   subtitle: "Твой путь избран"
 
+# 1.7.6: якорь TTK-харнесса (подсветка матрицы ±30%)
 balance:
   target-ttk-seconds: 20.0
 
 # ------------------------------------------------------------
-# Уровень персонажа (топ-N скиллов)
+# 1.8.0: УРОВЕНЬ ПЕРСОНАЖА — сводная прогрессия
+# 1.10.0: + occult (дерево чернокнижника)
 # ------------------------------------------------------------
 character-level:
   top-n: 5
@@ -102,7 +106,8 @@ character-level:
     - occult
 
 # ------------------------------------------------------------
-# Таланты спеки
+# 1.9.0: ТАЛАНТЫ СПЕКИ (Книга класса, вкладка TALENTS)
+# 1.9.2: очки = ОБЩИЙ бюджет персонажа (spentGlobal по всем деревьям)
 # ------------------------------------------------------------
 talents:
   enabled: true
@@ -117,7 +122,7 @@ spec:
   respec-per-level: 10
 
 # ------------------------------------------------------------
-# Резисты
+# Резисты (1.6.0 + 1.7.6.2 + 1.10.0 WARLOCK)
 # ------------------------------------------------------------
 resist:
   cap: 90
@@ -161,10 +166,10 @@ resist:
       physical: 10
 
 # ------------------------------------------------------------
-# Атрибуты
+# Атрибуты (1.7.0 → 1.9.3 → 1.10.0 WARLOCK)
 # ------------------------------------------------------------
 attributes:
-  level-source: character
+  level-source: character   # character | class-skill | vanilla
   level-cap: 60
   classes:
     WARRIOR: { main: STR, base-str: 12, base-agi: 6, base-int: 4, growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
@@ -245,7 +250,7 @@ attributes:
   boss-no-avoidance: []
 
 # ------------------------------------------------------------
-# Типы урона ванильных причин
+# Типы урона ванильных причин (среда = TRUE)
 # ------------------------------------------------------------
 damage-types:
   env-lethal-scale: true
@@ -309,8 +314,9 @@ messages:
     not-mage-priest: "Фолиант может прочесть только Маг или Жрец"
     too-low-level: "Для перехода нужен уровень персонажа 40"
     already-warlock: "Ты уже Чернокнижник"
+    spec-chosen: "Сначала отрекись от пути: кристалл во вкладке «Специализации»"
+    talents-spent: "Сначала сбрось таланты: кристалл во вкладке «Таланты спеки»"
     confirm-title: "§4§lФОЛИАНТ РАСКОЛА"
-    confirm-lore: "§7Навсегда станет Чернокнижником.\n§7Спека будет сброшена, таланты возвращены.\n§7Отменить переход нельзя."
     confirm-yes: "§c§lПрочесть страницу"
     confirm-no: "§7Отмена"
     transitioned: "§5§lФолиант сгорел. Ты — Чернокнижник."
@@ -344,7 +350,7 @@ messages:
         light_ward: "Зона: +2 HP/с союзникам в радиусе 4 на 6 с"
         frost_rune: "Руна-зона 8 блоков 30 с: урон+замедление врагам с нарастанием; магу внутри +3 маны/с и ИНТ×2"
         smoke_bomb: "Мина: Blindness 2 с врагам + Speed I себе 3 с"
-        heresy_circle: "Осквернённый круг 6 блоков 25 с: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6"
+        heresy_circle: "Осквернённый круг 6 блоков: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6"
     spec:
       passive: "Пассив: {text}"
       chosen: "Выбрана тобой"
@@ -395,7 +401,7 @@ messages:
       priest: "Свет: +2/с всегда; +5 за событие лечения"
       mage: "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75"
       rogue: "Энергия: +10/с"
-      warlock: "Скверна: 0 в покое; +6 за урон, +3 при получении; −4/с вне боя. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с"
+      warlock: "Скверна: пол 25 (восстанавливается сама); +6 за урон, +3 при получении; выше 25 вне боя −4/с до 25. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с"
     emblem:
       resource: "Ресурс сейчас: {value}/100"
       crown: "Корона: {name}"
@@ -409,7 +415,7 @@ messages:
       poor: "Не хватает монет на сброс талантов: нужно {cost}."
 
 # ------------------------------------------------------------
-# Классы
+# Классы: ресурсы, темы, киты, пассивки
 # ------------------------------------------------------------
 classes:
   WARRIOR:
@@ -765,6 +771,8 @@ classes:
     resource-name: "Скверна"
     resource-regen: 0.0
     resource-decay-out-of-combat: -4.0
+    resource-floor: 25.0            # 1.10.1: базовый уровень Скверны
+    resource-floor-regen: 2.0       # 1.10.1: скорость восстановления до пола
     resource-on-deal: 6.0
     resource-on-take: 3.0
     resource-on-kill: 10.0
@@ -781,7 +789,7 @@ classes:
       secondary: "#9B30FF"
       symbol: "☾"
     cast-sound: ITEM_BOOK_PAGE_TURN
-    cast-particle: SCULK_CHARGE
+    cast-particle: SCULK_SOUL
     abilities:
       black_word:
         name: "Чёрное Слово"
@@ -848,7 +856,7 @@ classes:
     installations:
       heresy_circle:
         name: "Круг Хулы"
-        description: "Осквернённый круг радиусом 6 блоков на 25 секунд: врагам — маг-урон и запрет лечения; чернокнижнику +3 Скверны/с. В аду урон ×6."
+        description: "Осквернённый круг радиусом 6 блоков: врагам — маг-урон и запрет лечения; чернокнижнику +3 Скверны/с. В аду урон ×6."
         radius: 6.0
         duration: 25
         cooldown: 60
@@ -857,7 +865,7 @@ classes:
         corruption-per-sec: 3
 
 # ------------------------------------------------------------
-# Короны и титулы
+# Короны и титулы (1.10.0: + WARLOCK)
 # ------------------------------------------------------------
 flavors:
   rassvet:
@@ -882,7 +890,7 @@ flavors:
       WARLOCK: "Голос Раскола"
 
 # ------------------------------------------------------------
-# Инсталляции
+# Инсталляции (1.5.0 → 1.10.0 Круг Хулы)
 # ------------------------------------------------------------
 installations:
   unlock-level: 50
@@ -928,9 +936,9 @@ installations:
 
 # ------------------------------------------------------------
 # VFX/SFX-каталог
-# 1.10.0: WARLOCK — тема глубин/ада: Warden (визор), Elder Guardian (страж),
-#         Evoker/Vex (призыватель/досаждатель). Все ключи проверены по enum'ам
-#         Sound/Particle Paper 1.21.4 — битых значений нет.
+# 1.10.1: WARLOCK — plain-партиклы глубин/ада (SCULK_CHARGE/SHRIEK
+#         требуют data и молча не спавнились — заменены на SCULK_SOUL,
+#         SONIC_BOOM, SOUL_FIRE_FLAME, CRIMSON_SPORE, WARPED_SPORE, SOUL).
 # ------------------------------------------------------------
 vfx:
   proc-actionbar: true
@@ -1017,24 +1025,24 @@ vfx:
   shadow_dance:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
     cast-particle: CLOUD
-  # ---------- WARLOCK: глубины и ад ----------
+  # ---------- WARLOCK: глубины и ад (визор, страж, призыватель, досаждатель) ----------
   black_word:
     cast-sound: ENTITY_WARDEN_HEARTBEAT
-    cast-particle: SCULK_CHARGE
+    cast-particle: SCULK_SOUL
     impact-sound: ENTITY_WARDEN_ATTACK_IMPACT
-    impact-particle: SCULK_SOUL
+    impact-particle: SONIC_BOOM
   ruin_seal:
     cast-sound: ENTITY_EVOKER_PREPARE_ATTACK
-    cast-particle: SHRIEK
+    cast-particle: SOUL_FIRE_FLAME
   hunger_corruption:
     cast-sound: ENTITY_WARDEN_ROAR
-    cast-particle: SCULK_CHARGE
+    cast-particle: SCULK_SOUL
   unwriting:
     cast-sound: ENTITY_VEX_CHARGE
     cast-particle: SOUL
   soul_rift:
     cast-sound: ENTITY_WARDEN_SONIC_CHARGE
-    cast-particle: SHRIEK
+    cast-particle: CRIMSON_SPORE
     impact-sound: ENTITY_WARDEN_SONIC_BOOM
     impact-particle: SONIC_BOOM
   heresy_circle:
