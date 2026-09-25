@@ -43,11 +43,11 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 1.10.0: ФОЛИАНТ ДУШ (скрытый путь Чернокнижника).
- * 1.10.1: LP-миграция через getNodes(INHERITANCE)+remove (без clear-перегрузок);
- *         предмет переименован в «Фолиант Душ. Том I», лор криптованный
- *         (НИГДЕ не пишем «необратимо» и «класс сменится»);
- *         дроп 0.001% с мобов в аду (foliant.drop-chance-percent);
- *         чернокнижник скрыт из стартовых логов (баннер/logSummary = 5 классов).
+ * 1.10.1: предмет «Фолиант Душ. Том I», криптованный лор, дроп в аду.
+ * 1.10.2-fix: LP-миграция через user.getNodes(NodeType.INHERITANCE)
+ *         (типизированный getNodes живёт на PermissionHolder, не на NodeMap)
+ *         + удаление через data().remove(node); дроп-фильтр foliant.drop-mobs
+ *         (по умолчанию семейство пиглинов; пустой список = все мобы ада).
  *
  * Гейты чтения: МАГ или ЖРЕЦ, уровень персонажа ≥40, спека сброшена,
  * таланты сброшены, AuthGate. Фолиант сгорает ТОЛЬКО после успешного перехода.
@@ -113,9 +113,13 @@ public final class FoliantService implements Listener {
                 .has(foliantKey, PersistentDataType.BYTE);
     }
 
-    /* ------------------------------ дроп в аду (1.10.1) ------------------------------ */
+    /* ------------------------------ дроп в аду ------------------------------ */
 
-    /** 0.001% по умолчанию: foliant.drop-chance-percent; только NETHER: foliant.drop-nether-only. */
+    /**
+     * Шанс foliant.drop-chance-percent (0.001 = 1 к 100 000) на смерть моба.
+     * Мир: только NETHER (foliant.drop-nether-only).
+     * Мобы: белый список foliant.drop-mobs; пустой список = все мобы ада.
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         if (!plugin.getConfig().getBoolean("foliant.drop-enabled", true)) {
@@ -123,6 +127,10 @@ public final class FoliantService implements Listener {
         }
         if (plugin.getConfig().getBoolean("foliant.drop-nether-only", true)
                 && event.getEntity().getWorld().getEnvironment() != World.Environment.NETHER) {
+            return;
+        }
+        List<String> mobs = plugin.getConfig().getStringList("foliant.drop-mobs");
+        if (!mobs.isEmpty() && !mobs.contains(event.getEntity().getType().name())) {
             return;
         }
         double chancePercent = plugin.getConfig().getDouble("foliant.drop-chance-percent", 0.001);
@@ -221,8 +229,8 @@ public final class FoliantService implements Listener {
     }
 
     /**
-     * 1.10.1-fix: без NodeMap.clear(NodeType, Predicate) — перегрузки гуляют по билдам.
-     * Читаем типизированную коллекцию нод наследования и удаляем class_* через remove(Node).
+     * 1.10.2-fix: типизированный getNodes(NodeType) берём с User (PermissionHolder),
+     * НЕ с NodeMap — там его нет в LP v5. Удаление — data().remove(node).
      */
     private boolean swapViaApi(UUID uuid) {
         LuckPerms lp = LuckPermsProvider.get();
@@ -233,7 +241,7 @@ public final class FoliantService implements Listener {
         }
         User user = lp.getUserManager().loadUser(uuid).join();
         List<InheritanceNode> toRemove = new ArrayList<>();
-        for (InheritanceNode node : user.data().getNodes(NodeType.INHERITANCE)) {
+        for (InheritanceNode node : user.getNodes(NodeType.INHERITANCE)) {
             if (node.getGroupName().startsWith("class_")) {
                 toRemove.add(node);
             }
