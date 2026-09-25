@@ -30,9 +30,8 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Исполнитель и автодополнение команды /rc (1.4.0 → 1.9.3-r2).
- *
- * 1.9.3-r2: добавлена подкоманда /rc gear [player] — детальное отображение экипировки.
+ * Исполнитель и автодополнение /rc (1.4.0 → 1.10.0).
+ * 1.10.0: shortName покрывает WARLOCK для TTK-матрицы.
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
@@ -116,7 +115,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        // Оружие
         GearHook.EquippedItem weapon = gearHook.getEquippedWeapon(target);
         if (weapon != null) {
             sender.sendMessage(Component.text("Оружие: " + weapon.className() + " " + weapon.rarity(),
@@ -125,7 +123,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Component.text("Оружие: нет", NamedTextColor.GRAY));
         }
 
-        // Броня
         List<GearHook.EquippedItem> armor = gearHook.getEquippedArmor(target);
         if (!armor.isEmpty()) {
             sender.sendMessage(Component.text("Броня:", NamedTextColor.AQUA));
@@ -135,7 +132,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        // Активные сеты
         List<SetBonusService.ActiveSet> sets = setBonusService.getActiveSets(uuid);
         if (!sets.isEmpty()) {
             sender.sendMessage(Component.text("Активные сеты:", NamedTextColor.YELLOW));
@@ -147,7 +143,6 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        // Статы
         sender.sendMessage(Component.text("Статы шмота:", NamedTextColor.LIGHT_PURPLE));
         sender.sendMessage(Component.text("  Физ. резист: +" + (int) gearHook.physResist(uuid) + "%",
                 NamedTextColor.GRAY));
@@ -302,19 +297,14 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     + " физ / +" + (int) m.magicPct() + " маг", NamedTextColor.GRAY));
         }
 
-        // 1.9.3: статы шмота RaskolGear (читаются из PDC через GearHook)
         GearHook gearHook = plugin.getGearHook();
         if (gearHook != null && gearHook.isAvailable() && gearHook.hasGear(uuid)) {
-            double gearPhys = gearHook.physResist(uuid);
-            double gearMagic = gearHook.magicResist(uuid);
-            double gearHp = gearHook.hpBonus(uuid);
-            double gearReflect = gearHook.reflect(uuid);
             StringBuilder gearLine = new StringBuilder("Шмот RaskolGear: +")
-                    .append((int) gearPhys).append(" физ / +")
-                    .append((int) gearMagic).append(" маг / +")
-                    .append((int) gearHp).append(" HP");
-            if (gearReflect > 0.0) {
-                gearLine.append(" / шипы ").append((int) gearReflect).append("%");
+                    .append((int) gearHook.physResist(uuid)).append(" физ / +")
+                    .append((int) gearHook.magicResist(uuid)).append(" маг / +")
+                    .append((int) gearHook.hpBonus(uuid)).append(" HP");
+            if (gearHook.reflect(uuid) > 0.0) {
+                gearLine.append(" / шипы ").append((int) gearHook.reflect(uuid)).append("%");
             }
             sender.sendMessage(Component.text(gearLine.toString(), NamedTextColor.DARK_AQUA));
         }
@@ -353,6 +343,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    /** 1.10.0: покрыт WARLOCK. */
     private static String shortName(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> "воин";
@@ -360,6 +351,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             case PRIEST -> "жрец";
             case MAGE -> "маг";
             case ROGUE -> "разбойник";
+            case WARLOCK -> "чернокн.";
         };
     }
 
@@ -399,7 +391,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Component.text("=== /rc ===", NamedTextColor.GOLD));
         sender.sendMessage(Component.text("/rc — сводка: класс, уровень персонажа, ресурс, резисты",
                 NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("/rc menu — Книга класса (способности, спеки, класс, таланты)",
+        sender.sendMessage(Component.text("/rc menu — Книга класса (способности, спеки, класс, таланты, шмот)",
                 NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Способности 1–5 и инсталляции — только свитками в хотбаре",
                 NamedTextColor.GRAY));
