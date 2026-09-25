@@ -20,7 +20,6 @@ import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.hook.BlueprintHook;
-import dev.raskol.classes.hook.EconomyHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.GearHook;
@@ -62,7 +61,8 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.9.3: план B (виртуальный пул HP), GearHook (RaskolGear), SetBonusService, BlueprintHook.
+ * 1.9.3.1: фикс подстановки версии (pom filtering), корректный старт-лог GearHook
+ *          при циклическом softdepend, восстановлена полная Книга класса.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -134,17 +134,11 @@ public final class RaskolClasses extends JavaPlugin {
         // 1.9.3: хук RaskolGear (до AttributeService, т.к. maxHp читает gearHp)
         this.gearHook = new GearHook(this);
         pluginManager.registerEvents(gearHook, this);
-        if (gearHook.isAvailable()) {
-            getLogger().info("RaskolGear: хук активен (статы шмота читаются из PDC)");
-        } else {
-            getLogger().info("RaskolGear: не найден — хук отключён (gear-статы = 0)");
-        }
+        gearHook.logStartup();   // 1.9.3.1: лог по presence, активация на PluginEnableEvent
 
-        // 1.9.3-r2: SetBonusService (управление сет-бонусами)
         this.setBonusService = new SetBonusService(this);
         pluginManager.registerEvents(setBonusService, this);
 
-        // 1.9.3-r2: BlueprintHook (чертежи из RaskolEnchant)
         this.blueprintHook = new BlueprintHook(this);
         blueprintHook.registerBlueprints();
 
