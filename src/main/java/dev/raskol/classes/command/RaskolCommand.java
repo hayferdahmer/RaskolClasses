@@ -11,6 +11,7 @@ import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.hook.GearHook;
+import dev.raskol.classes.hook.SetBonusService;
 import dev.raskol.classes.spec.Spec;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -29,15 +30,14 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Исполнитель и автодополнение команды /rc (1.4.0 → 1.9.3).
+ * Исполнитель и автодополнение команды /rc (1.4.0 → 1.9.3-r2).
  *
- * 1.9.3: /rc debug выводит gear-статы RaskolGear (физ/маг резист, +HP, шипы)
- *         — читаются через GearHook из PDC.
+ * 1.9.3-r2: добавлена подкоманда /rc gear [player] — детальное отображение экипировки.
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> ROOT_SUBS = List.of(
-            "menu", "reload", "debug", "health", "selftest");
+            "menu", "reload", "debug", "health", "selftest", "gear");
 
     private final RaskolClasses plugin;
 
@@ -81,9 +81,85 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 }
                 dev.raskol.classes.selftest.SelftestRunner.run(plugin, sender);
             }
+            case "gear" -> handleGear(sender, args.length > 1 ? args[1] : null);
             default -> sendHelp(sender);
         }
         return true;
+    }
+
+    /* ------------------------------ GEAR ------------------------------ */
+
+    private void handleGear(CommandSender sender, String targetName) {
+        if (!sender.hasPermission("raskolclasses.debug")) {
+            sender.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "no-permission", "Недостаточно прав"), NamedTextColor.RED));
+            return;
+        }
+        Player target = targetName != null ? Bukkit.getPlayer(targetName)
+                : (sender instanceof Player p ? p : null);
+        if (target == null) {
+            sender.sendMessage(Component.text("Игрок не найден.", NamedTextColor.RED));
+            return;
+        }
+        printGearInfo(sender, target);
+    }
+
+    private void printGearInfo(CommandSender sender, Player target) {
+        UUID uuid = target.getUniqueId();
+        GearHook gearHook = plugin.getGearHook();
+        SetBonusService setBonusService = plugin.getSetBonusService();
+
+        sender.sendMessage(Component.text("=== Экипировка " + target.getName() + " ===", NamedTextColor.GOLD));
+
+        if (gearHook == null || !gearHook.isAvailable()) {
+            sender.sendMessage(Component.text("RaskolGear не установлен.", NamedTextColor.RED));
+            return;
+        }
+
+        // Оружие
+        GearHook.EquippedItem weapon = gearHook.getEquippedWeapon(target);
+        if (weapon != null) {
+            sender.sendMessage(Component.text("Оружие: " + weapon.className() + " " + weapon.rarity(),
+                    NamedTextColor.AQUA));
+        } else {
+            sender.sendMessage(Component.text("Оружие: нет", NamedTextColor.GRAY));
+        }
+
+        // Броня
+        List<GearHook.EquippedItem> armor = gearHook.getEquippedArmor(target);
+        if (!armor.isEmpty()) {
+            sender.sendMessage(Component.text("Броня:", NamedTextColor.AQUA));
+            for (GearHook.EquippedItem item : armor) {
+                sender.sendMessage(Component.text("  • " + item.slot() + ": "
+                        + item.className() + " " + item.rarity(), NamedTextColor.GRAY));
+            }
+        }
+
+        // Активные сеты
+        List<SetBonusService.ActiveSet> sets = setBonusService.getActiveSets(uuid);
+        if (!sets.isEmpty()) {
+            sender.sendMessage(Component.text("Активные сеты:", NamedTextColor.YELLOW));
+            for (SetBonusService.ActiveSet set : sets) {
+                String status = set.full() ? "✔ активен" : "✘ неполный";
+                sender.sendMessage(Component.text("  • " + set.className() + " " + set.rarity()
+                        + " (" + set.count() + "/4) — " + status,
+                        set.full() ? NamedTextColor.GREEN : NamedTextColor.RED));
+            }
+        }
+
+        // Статы
+        sender.sendMessage(Component.text("Статы шмота:", NamedTextColor.LIGHT_PURPLE));
+        sender.sendMessage(Component.text("  Физ. резист: +" + (int) gearHook.physResist(uuid) + "%",
+                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  Маг. резист: +" + (int) gearHook.magicResist(uuid) + "%",
+                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("  HP: +" + (int) gearHook.hpBonus(uuid),
+                NamedTextColor.GRAY));
+        double reflect = gearHook.reflect(uuid);
+        if (reflect > 0.0) {
+            sender.sendMessage(Component.text("  Шипы: " + (int) reflect + "%",
+                    NamedTextColor.GRAY));
+        }
     }
 
     /* ------------------------------ DEBUG ------------------------------ */
@@ -334,6 +410,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     NamedTextColor.YELLOW));
             sender.sendMessage(Component.text("/rc debug simulate matrix [level] — матрица 5×5",
                     NamedTextColor.YELLOW));
+            sender.sendMessage(Component.text("/rc gear [player] — экипировка и сеты",
+                    NamedTextColor.YELLOW));
             sender.sendMessage(Component.text("/rc health — MSPT/TPS/purge", NamedTextColor.YELLOW));
             sender.sendMessage(Component.text("/rc selftest — headless-чеки формул",
                     NamedTextColor.YELLOW));
@@ -378,6 +456,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         if (args.length == 5 && "debug".equalsIgnoreCase(args[0])
                 && "simulate".equalsIgnoreCase(args[1])) {
             return filter(List.of("10", "20", "30", "40", "50", "60"), args[4]);
+        }
+        if (args.length == 2 && "gear".equalsIgnoreCase(args[0])) {
+            List<String> out = new ArrayList<>();
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                out.add(p.getName());
+            }
+            return filter(out, args[1]);
         }
         return Collections.emptyList();
     }
