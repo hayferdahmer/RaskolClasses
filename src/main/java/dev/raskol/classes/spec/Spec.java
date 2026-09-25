@@ -7,27 +7,34 @@ import dev.raskol.classes.classsystem.PlayerClass;
  * Специализации классов (1.4.0, Пакет 1).
  * Выбор на 40 уровне профильного скилла AuraSkills, один раз, бесплатно.
  * Респец — платный (Пакет 3).
+ *
+ * 1.10.0: две спеки Чернокнижника (BLACK_MAGE, HELL_CHANNEL) — выбор с occult 40,
+ * оба specId указывают на одно общее дерево талантов «occult» в TalentsRegistry.
  */
 public enum Spec {
     // Воин
     GUARDIAN(PlayerClass.WARRIOR, "Страж", "⚔", "Таунт + защита"),
     BERSERKER(PlayerClass.WARRIOR, "Берсерк", "⚔", "Урон при ярости"),
-    
+
     // Охотник
     MARKSMAN(PlayerClass.HUNTER, "Стрелок", "➳", "Крит с дистанции"),
     TRACKER(PlayerClass.HUNTER, "Следопыт", "➳", "Контроль"),
-    
+
     // Жрец
     LIGHTBEARER(PlayerClass.PRIEST, "Светоносец", "✚", "Усиленное лечение"),
     SHADOWWEAVER(PlayerClass.PRIEST, "Тенеплёт", "✚", "Лечение от урона"),
-    
+
     // Маг
     ARCANE(PlayerClass.MAGE, "Аркана", "✦", "Усиленные заклинания"),
     FROST(PlayerClass.MAGE, "Мороз", "✦", "Контроль льдом"),
-    
+
     // Разбойник
     LIQUIDATOR(PlayerClass.ROGUE, "Ликвидатор", "☠", "Критические удары"),
-    TRICKSTER(PlayerClass.ROGUE, "Трюкач", "☠", "Уклонение");
+    TRICKSTER(PlayerClass.ROGUE, "Трюкач", "☠", "Уклонение"),
+
+    // Чернокнижник (1.10.0)
+    BLACK_MAGE(PlayerClass.WARLOCK, "Чёрный Маг", "☾", "Усиление способностей"),
+    HELL_CHANNEL(PlayerClass.WARLOCK, "Адский Канал", "☾", "Контроль и выживаемость");
 
     private final PlayerClass playerClass;
     private final String displayName;
@@ -67,6 +74,7 @@ public enum Spec {
             case PRIEST -> new Spec[]{LIGHTBEARER, SHADOWWEAVER};
             case MAGE -> new Spec[]{ARCANE, FROST};
             case ROGUE -> new Spec[]{LIQUIDATOR, TRICKSTER};
+            case WARLOCK -> new Spec[]{BLACK_MAGE, HELL_CHANNEL};
         };
     }
 }
