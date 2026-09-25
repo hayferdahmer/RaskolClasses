@@ -55,19 +55,8 @@
     <path d="M0,12 L4,3 L8,9 L12,0 L16,9 L20,3 L24,12 Z M0,13 h24 v3 h-24 z"/>
   </g>
 
-  <!-- перекрещённые мечи за именем (перецентрованы под имя в центре полотна) -->
-  <g stroke="#6e6a66" opacity="0.20" stroke-linecap="round">
-    <line x1="350" y1="262" x2="650" y2="118" stroke-width="4"/>
-    <line x1="650" y1="262" x2="350" y2="118" stroke-width="4"/>
-    <line x1="362" y1="238" x2="386" y2="262" stroke-width="3"/>
-    <line x1="638" y1="238" x2="614" y2="262" stroke-width="3"/>
-    <circle cx="346" cy="268" r="4" fill="#6e6a66" stroke="none"/>
-    <circle cx="654" cy="268" r="4" fill="#6e6a66" stroke="none"/>
-  </g>
-
-  <!-- ИМЯ: ровно по центру полотна (горизонталь x=500 + textLength,
-       вертикаль: оптический центр капители = y 180).
-       УДАЛЕНО: кровавая черта, ромб, боковые короны, имена фракций. -->
+  <!-- ИМЯ: ровно по центру полотна (x=500 + textLength; оптический центр капители y=180).
+       УДАЛЕНО: мечи, кровавая черта, ромб, боковые короны, имена фракций. -->
   <g font-family="Georgia, 'Times New Roman', serif" font-size="80" letter-spacing="6"
      text-anchor="middle" font-weight="bold">
     <text x="500" y="211" fill="#000000" opacity="0.8"
