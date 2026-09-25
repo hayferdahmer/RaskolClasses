@@ -4,6 +4,7 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.spec.Spec;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -21,9 +22,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.10.0: КИТ ЧЕРНОКНИЖНИКА (5 способностей, power = SP).
- * 1.10.4: «Чёрное Слово» v2 — БЕСПЛАТНО по Скверне, плата 10% макс HP себе,
- *         БЕЗ лечения (дрейн снят), +25 Скверны за применение, КД 3 с.
- *         Визуалы — plain-партиклы ада/глубин (safeFx с фолбэком).
+ * 1.10.4: «Чёрное Слово» v2 (бесплатно, плата 10% HP, +25 Скверны, без лечения, КД 3 с).
+ * 1.11.1: ПРОВОДКА СПЕК — числовые трейты читаются из config
+ *         (classes.WARLOCK.specs.*): урон/радиус/диспел-резиста у Чёрного Мага,
+ *         длительность печати/анти-хил у Адского Канала. Реестры дебафов
+ *         purge'ятся по расписанию (purgeStaleDebuffs public static).
  */
 public final class WarlockAbilities {
 
@@ -58,7 +61,8 @@ public final class WarlockAbilities {
         return true;
     }
 
-    private static void purgeStaleDebuffs() {
+    /** 1.11.1: плановая чистка протухших дебафов (вызывает ResourceService раз в 30 с). */
+    public static void purgeStaleDebuffs() {
         long now = System.currentTimeMillis();
         SEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
         SEAL_AMP.keySet().removeIf(id -> !SEAL_EXPIRY.containsKey(id));
@@ -78,6 +82,10 @@ public final class WarlockAbilities {
         return Double.isFinite(v) ? v : def;
     }
 
+    private int cfgI(String path, int def) {
+        return plugin.getConfig().getInt(path, def);
+    }
+
     private double base(AbilityDef def, double defv) {
         return cfgD("classes.WARLOCK.abilities." + def.id() + ".base", defv);
     }
@@ -94,6 +102,52 @@ public final class WarlockAbilities {
         return cfgD("classes.WARLOCK.abilities." + def.id() + ".radius", defv);
     }
 
+    /* ------------------------------ спеки (1.11.1) ------------------------------ */
+
+    private Spec specOf(Player p) {
+        return plugin.getSpecService().getSpec(p.getUniqueId());
+    }
+
+    private boolean isBlackMage(Player p) {
+        return specOf(p) == Spec.BLACK_MAGE;
+    }
+
+    private boolean isHellChannel(Player p) {
+        return specOf(p) == Spec.HELL_CHANNEL;
+    }
+
+    private double specDamageMult(Player p) {
+        return isBlackMage(p)
+                ? 1.0 + cfgD("classes.WARLOCK.specs.black_mage.damage-mult", 0.10)
+                : 1.0;
+    }
+
+    private double specRiftRadiusBonus(Player p) {
+        return isBlackMage(p)
+                ? cfgD("classes.WARLOCK.specs.black_mage.soul-rift-radius-bonus", 2.0)
+                : 0.0;
+    }
+
+    private int specUnwritingStrips(Player p) {
+        return isBlackMage(p)
+                ? cfgI("classes.WARLOCK.specs.black_mage.unwriting-strips-resist", 1)
+                : 0;
+    }
+
+    private double specSealDuration(Player p, double baseDuration) {
+        return isHellChannel(p)
+                ? cfgD("classes.WARLOCK.specs.hell_channel.seal-duration", 86.6)
+                : baseDuration;
+    }
+
+    private double specAntihealBonus(Player p) {
+        return isHellChannel(p)
+                ? cfgD("classes.WARLOCK.specs.hell_channel.antiheal-bonus", 3.0)
+                : 0.0;
+    }
+
+    /* ------------------------------ урон/множители ------------------------------ */
+
     private double damageMult(Player caster) {
         double mult = 1.0;
         double corruption = plugin.getResources().getValue(caster.getUniqueId());
@@ -103,6 +157,7 @@ public final class WarlockAbilities {
         if (caster.getWorld().getEnvironment() == World.Environment.NETHER) {
             mult *= plugin.getRaskolConfig().warlockNetherMult();
         }
+        mult *= specDamageMult(caster); // 1.11.1: Чёрный Маг +10%
         return mult;
     }
 
@@ -157,7 +212,6 @@ public final class WarlockAbilities {
         }
     }
 
-    /** 1.10.4: плата здоровьем: pct от макс HP (formula), не убивает (мин 1 HP). */
     private void paySelfCost(Player caster, double pct) {
         double maxFormula = formulaMax(caster);
         double cost = maxFormula * pct / 100.0;
@@ -170,10 +224,7 @@ public final class WarlockAbilities {
 
     /* -------------------------------- способности -------------------------------- */
 
-    /**
-     * 1. «Чёрное Слово» v2 (1.10.4): бесплатно по Скверне; плата 10% макс HP;
-     * БЕЗ лечения; +25 Скверны за применение; КД 3 с (конфиг).
-     */
+    /** 1. «Чёрное Слово» v2: бесплатно, плата 10% HP, +25 Скверны, без лечения, КД 3 с. */
     public boolean blackWord(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
@@ -182,9 +233,7 @@ public final class WarlockAbilities {
         if (!plugin.getCombat().canHit(caster, t)) {
             return false;
         }
-        // плата здоровьем ДО урона (каст состоялся даже если цель уклонится)
         paySelfCost(caster, cfgD("classes.WARLOCK.abilities." + def.id() + ".self-cost-pct", 10.0));
-        // +25 Скверны за применение
         plugin.getResources().add(caster.getUniqueId(),
                 cfgD("classes.WARLOCK.abilities." + def.id() + ".corruption-gain", 25.0));
 
@@ -197,7 +246,7 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 2. «Печать Погибели»: амплификация +26%, Glowing, неснимаемо. */
+    /** 2. «Печать Погибели»: +26% входящего урона, Glowing; АК — длительность 86.6 с. */
     public boolean ruinSeal(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
@@ -206,7 +255,8 @@ public final class WarlockAbilities {
         if (!plugin.getCombat().canHit(caster, t)) {
             return false;
         }
-        double durationSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".duration", 66.6);
+        double baseDuration = cfgD("classes.WARLOCK.abilities." + def.id() + ".duration", 66.6);
+        double durationSec = specSealDuration(caster, baseDuration); // 1.11.1
         double amplify = cfgD("classes.WARLOCK.abilities." + def.id() + ".amplify", 0.26);
         UUID id = t.getUniqueId();
         SEAL_EXPIRY.put(id, System.currentTimeMillis() + (long) (durationSec * 1000.0));
@@ -253,7 +303,7 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 4. «Небытие»: диспел положительных эффектов; +16 урона за каждый снятый. */
+    /** 4. «Небытие»: диспел зелий + урон за каждый; ЧМ дополнительно стирает резист-модификаторы. */
     public boolean unwriting(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
@@ -273,6 +323,16 @@ public final class WarlockAbilities {
                 purged++;
             }
         }
+        // 1.11.1: Чёрный Маг стирает также timed-модификаторы резистов (гранты/руны/сеты-таймеры)
+        int strips = specUnwritingStrips(caster);
+        for (int i = 0; i < strips; i++) {
+            String src = plugin.getResists().stripOneTimedModifier(t.getUniqueId());
+            if (src == null) {
+                break;
+            }
+            purged++;
+            safeFx(t.getLocation(), Particle.REVERSE_PORTAL, 8, 0.4);
+        }
         double perPurged = cfgD("classes.WARLOCK.abilities." + def.id() + ".per-purged", 16.0);
         double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
         double dmg = (base(def, 16.0) + sp * coeff(def, 0.8) + perPurged * purged) * damageMult(caster);
@@ -286,11 +346,12 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 5. «Раскол Души»: канал 2.5 с, зона r8, анти-хил, взрыв по missing-HP. */
+    /** 5. «Раскол Души»: канал 2.5 с, зона r8 (+2 ЧМ), анти-хил 6 с (+3 АК), взрыв по missing-HP. */
     public boolean soulRift(Player caster, AbilityDef def) {
-        double radius = radius(def, 8.0);
+        double radius = radius(def, 8.0) + specRiftRadiusBonus(caster); // 1.11.1
         double channelSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".channel", 2.5);
-        double antihealSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".antiheal", 6.0);
+        double antihealSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".antiheal", 6.0)
+                + specAntihealBonus(caster); // 1.11.1
         double missingBonus = cfgD("classes.WARLOCK.abilities." + def.id() + ".missing-hp-bonus", 0.666);
         int ticks = Math.max(1, (int) (channelSec * 20.0));
 
