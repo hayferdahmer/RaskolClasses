@@ -13,6 +13,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -30,8 +31,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Инсталляции классов (1.5.0 → 1.10.0).
- * 1.10.0: removeAllOf(uuid) — сгорание инсталляций и рун при переходе через Фолиант.
+ * Инсталляции классов (1.5.0 → 1.10.4).
+ * 1.10.4: HERESY_CIRCLE переименован в «Пентаграмма»:
+ *   - TTL берётся из installations.heresy_circle.duration (25 с), не общий ttl-seconds;
+ *   - постановка: звук призыва визора (ENTITY_WARDEN_EMERGE) + отрисовка пентаграммы
+ *     (кольцо огней душ + пятилучевая звезда багровых спор);
+ *   - тик: видимая пентаграмма + эмбиент ада (ENTITY_BLAZE_AMBIENT) каждую секунду;
+ *   - урон/анти-хил/+3 Скверны/с как ранее; в аду урон ×6.
  */
 public final class InstallationService {
 
@@ -76,9 +82,8 @@ public final class InstallationService {
         return plugin.getConfig().getInt(path, def);
     }
 
-    /* ------------------------------ 1.10.0: removeAllOf ------------------------------ */
+    /* ------------------------------ removeAllOf ------------------------------ */
 
-    /** Удалить все инсталляции и руны владельца (переход через Фолиант). */
     public void removeAllOf(UUID uuid) {
         installations.values().removeIf(i -> i.owner().equals(uuid));
         List<UUID> runeIds = new ArrayList<>();
@@ -138,7 +143,7 @@ public final class InstallationService {
             return false;
         }
         if (countOf(uuid) >= cfgI("installations.max-per-player", 2)) {
-            p.sendMessage(Component.text("Достигнут лимит активных инсталляций на игрока.",
+            p.sendMessage(Component.text("Достигнут лимит активных инсталляций на игрока (2).",
                     NamedTextColor.RED));
             return false;
         }
@@ -171,6 +176,9 @@ public final class InstallationService {
         if (type == InstallationType.FROST_RUNE) {
             return placeRune(p, loc, cooldown);
         }
+        if (type == InstallationType.HERESY_CIRCLE) {
+            return placePentagram(p, loc);
+        }
         int ttl = cfgI("installations.ttl-seconds", 60);
         Installation inst = new Installation(UUID.randomUUID(), type, uuid, loc,
                 now + ttl * 1000L);
@@ -185,10 +193,11 @@ public final class InstallationService {
     }
 
     private int typeCooldownSeconds(InstallationType type) {
-        if (type == InstallationType.FROST_RUNE) {
-            return cfgI("installations.frost_rune.cooldown", 60);
-        }
-        return cfgI("installations.ttl-seconds", 60);
+        return switch (type) {
+            case FROST_RUNE -> cfgI("installations.frost_rune.cooldown", 60);
+            case HERESY_CIRCLE -> cfgI("installations.heresy_circle.cooldown", 60);
+            default -> cfgI("installations.ttl-seconds", 60);
+        };
     }
 
     public long placeCooldownRemaining(UUID uuid, InstallationType type) {
@@ -201,6 +210,63 @@ public final class InstallationService {
 
     public long placeCooldownTotalMillis(InstallationType type) {
         return typeCooldownSeconds(type) * 1000L;
+    }
+
+    /* ------------------------------ Пентаграмма (1.10.4) ------------------------------ */
+
+    private boolean placePentagram(Player p, Location loc) {
+        int duration = cfgI("installations.heresy_circle.duration", 25);
+        Installation inst = new Installation(UUID.randomUUID(), InstallationType.HERESY_CIRCLE,
+                p.getUniqueId(), loc, System.currentTimeMillis() + duration * 1000L);
+        installations.put(inst.id(), inst);
+
+        FxService fx = plugin.getFx();
+        // звук призыва визора + отрисовка пентаграммы
+        fx.playSound(loc, Sound.ENTITY_WARDEN_EMERGE, 1.0f, 0.8f);
+        drawPentagram(loc, cfgD("installations.heresy_circle.radius", 6.0), true);
+
+        if (plugin.getConfig().getBoolean("installations.notify-owner", true)) {
+            p.sendMessage(Component.text("Пентаграмма начертана: действует "
+                    + duration + " с", NamedTextColor.LIGHT_PURPLE));
+        }
+        return true;
+    }
+
+    /** Кольцо огней душ + пятилучевая звезда багровых спор (видима всем). */
+    private void drawPentagram(Location center, double radius, boolean full) {
+        World w = center.getWorld();
+        if (w == null) {
+            return;
+        }
+        try {
+            int ringPts = full ? 48 : 24;
+            for (int i = 0; i < ringPts; i++) {
+                double angle = (Math.PI * 2 * i) / ringPts;
+                Location p = center.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius);
+                w.spawnParticle(Particle.SOUL_FIRE_FLAME, p, full ? 2 : 1, 0.0, 0.15, 0.0, 0.005);
+            }
+            // пятилучевая звезда: вершины k соединяем с k+2
+            double[] vx = new double[5];
+            double[] vz = new double[5];
+            for (int k = 0; k < 5; k++) {
+                double a = Math.PI / 2.0 + k * (Math.PI * 2.0 / 5.0);
+                vx[k] = Math.cos(a) * radius * 0.85;
+                vz[k] = Math.sin(a) * radius * 0.85;
+            }
+            int samples = full ? 12 : 6;
+            for (int k = 0; k < 5; k++) {
+                int j = (k + 2) % 5;
+                for (int s = 0; s <= samples; s++) {
+                    double t = (double) s / samples;
+                    double x = vx[k] + (vx[j] - vx[k]) * t;
+                    double z = vz[k] + (vz[j] - vz[k]) * t;
+                    w.spawnParticle(Particle.CRIMSON_SPORE,
+                            center.clone().add(x, 0.25, z), 1, 0.0, 0.1, 0.0, 0.004);
+                }
+            }
+        } catch (IllegalArgumentException ignored) {
+            // партикл недоступен на этом билде — молча пропускаем визуал
+        }
     }
 
     /* ------------------------------ руна-зона ------------------------------ */
@@ -336,7 +402,12 @@ public final class InstallationService {
         long now = System.currentTimeMillis();
         if (now > inst.expiresAt()) {
             installations.remove(inst.id());
-            plugin.getFx().impactBurst(inst.location(), Particle.CLOUD, 8, null, 0f, 1f);
+            if (inst.type() == InstallationType.HERESY_CIRCLE) {
+                plugin.getFx().impactBurst(inst.location(), Particle.SMOKE, 14,
+                        Sound.ENTITY_BLAZE_DEATH, 0.3f, 0.8f);
+            } else {
+                plugin.getFx().impactBurst(inst.location(), Particle.CLOUD, 8, null, 0f, 1f);
+            }
             return;
         }
         double radius = typeRadius(inst.type());
@@ -358,6 +429,10 @@ public final class InstallationService {
                 }
             }
             case HERESY_CIRCLE -> {
+                // 1.10.4: видимая пентаграмма + эмбиент ада каждую секунду
+                drawPentagram(inst.location(), radius, false);
+                plugin.getFx().playSound(inst.location(), Sound.ENTITY_BLAZE_AMBIENT, 0.18f, 0.9f);
+
                 double tick = cfgD("installations.heresy_circle.damage-magic", 4.0);
                 double corr = cfgD("installations.heresy_circle.corruption-per-sec", 3.0);
                 for (Entity e : nearby(inst.location(), radius)) {
@@ -367,11 +442,12 @@ public final class InstallationService {
                     if (e instanceof LivingEntity t && isEnemyOf(inst.owner(), t)) {
                         double dmg = tick;
                         if (owner != null && owner.getWorld().getEnvironment()
-                                == org.bukkit.World.Environment.NETHER) {
+                                == World.Environment.NETHER) {
                             dmg *= plugin.getRaskolConfig().warlockNetherMult();
                         }
                         if (owner != null) {
                             plugin.getCombat().dealDamage(t, owner, DamageProfile.magic(dmg));
+                            riseSoul(t.getLocation());
                         }
                     }
                 }
@@ -423,6 +499,17 @@ public final class InstallationService {
             default -> {
                 // FROST_RUNE обрабатывается отдельно
             }
+        }
+    }
+
+    private void riseSoul(Location loc) {
+        if (loc.getWorld() == null) {
+            return;
+        }
+        try {
+            loc.getWorld().spawnParticle(Particle.SOUL, loc.clone().add(0.0, 0.4, 0.0),
+                    3, 0.25, 0.6, 0.25, 0.05);
+        } catch (IllegalArgumentException ignored) {
         }
     }
 
