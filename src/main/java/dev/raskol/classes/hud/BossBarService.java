@@ -27,15 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Пакет 5: босс-бар V2 для активных эффектов.
- * Порог min-duration-seconds применяется к ПОЛНОЙ длительности эффекта
- * (решает, показывать ли бар), бар живёт до конца эффекта.
- * Визуал: символ класса + имя градиентом темы + секунды серым,
- * сегментированная шкала, цвет по классу. Заголовок сериализуется
- * в legacy-строку с hex-кодами (Bukkit BossBar принимает String).
+ * 1.10.0-fix: barColor покрывает WARLOCK (BarColor.PURPLE).
  */
 public final class BossBarService {
 
-    /** Градиент/цвета → legacy §-коды (включая §x-hex) для setTitle(String). */
     private static final LegacyComponentSerializer LEGACY =
             LegacyComponentSerializer.legacySection();
 
@@ -58,13 +53,11 @@ public final class BossBarService {
         return this.task;
     }
 
-    /** /rc reload: чистим всё и перезапускаем с новыми параметрами. */
     public void applyConfig() {
         shutdown();
         start();
     }
 
-    /** onDisable: убираем все бары и отменяем тик. */
     public void shutdown() {
         if (task != null) {
             task.cancel();
@@ -94,7 +87,6 @@ public final class BossBarService {
         for (Player player : Bukkit.getOnlinePlayers()) {
             UUID id = player.getUniqueId();
 
-            // Уважаем флаг /rc hud
             if (plugin.getHud() != null && !plugin.getHud().isVisible(player)) {
                 cleanupPlayer(id);
                 continue;
@@ -109,8 +101,6 @@ public final class BossBarService {
             Map<EffectType, Long> active =
                     plugin.getEffects().getActiveEffects(id);
 
-            // Кандидаты: displayName != null (legacy скрыт) и
-            // ПОЛНАЯ длительность >= порога (или one-shot).
             List<Map.Entry<EffectType, Long>> candidates = new ArrayList<>();
             for (Map.Entry<EffectType, Long> e : active.entrySet()) {
                 EffectType type = e.getKey();
@@ -123,7 +113,6 @@ public final class BossBarService {
                 }
             }
 
-            // top-N по оставшемуся времени (убывание)
             candidates.sort(Comparator.<Map.Entry<EffectType, Long>, Long>comparing(
                     e -> e.getValue() == Long.MAX_VALUE
                             ? Long.MAX_VALUE : e.getValue() - now).reversed());
@@ -168,7 +157,6 @@ public final class BossBarService {
                 kept++;
             }
 
-            // Убираем бары, не вошедшие в top-N или исчезнувшие из эффектов
             List<EffectType> toRemove = new ArrayList<>();
             for (Map.Entry<EffectType, BossBar> entry : playerBars.entrySet()) {
                 if (!visible.contains(entry.getKey())) {
@@ -184,7 +172,6 @@ public final class BossBarService {
             }
         }
 
-        // Бары игроков, вышедших с сервера
         List<UUID> offline = new ArrayList<>();
         for (UUID id : bars.keySet()) {
             if (Bukkit.getPlayer(id) == null) {
@@ -196,11 +183,6 @@ public final class BossBarService {
         }
     }
 
-    /**
-     * Заголовок: «☠ Скрытность — 12с» — символ цветом темы, имя градиентом,
-     * хвост шаблона (из конфига) серым. {name} из шаблона вырезается
-     * (имя уже отрисовано градиентом), {sec} подставляется.
-     */
     private Component buildTitle(RaskolConfig.ClassTheme theme, EffectType type,
                                  String template, String secText) {
         String suffix = template.replace("{name}", "").replace("{sec}", secText);
@@ -211,8 +193,8 @@ public final class BossBarService {
     }
 
     /**
-     * Начальная длительность эффекта (для порога и прогресса бара) —
-     * из конфига связанной активки. 0 = one-shot/legacy: бар полный.
+     * Длительность эффекта для прогресс-бара.
+     * 1.10.0: WARLOCK-эффекты пока не входят в EffectType — возвращаем 0 (бар полный).
      */
     private double totalDurationMillis(PlayerClass pc, EffectType type) {
         return switch (type) {
@@ -230,7 +212,7 @@ public final class BossBarService {
         };
     }
 
-    /** Цвет полосы по классу. */
+    /** 1.10.0: покрыт WARLOCK (PURPLE — вторичный цвет темы #9B30FF). */
     private static BarColor barColor(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> BarColor.RED;
@@ -238,6 +220,7 @@ public final class BossBarService {
             case PRIEST -> BarColor.WHITE;
             case MAGE -> BarColor.BLUE;
             case ROGUE -> BarColor.PURPLE;
+            case WARLOCK -> BarColor.PURPLE;
         };
     }
 
