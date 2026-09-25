@@ -6,6 +6,7 @@ import org.bukkit.Material;
 
 /**
  * Шесть классовых инсталляций (1.5.0, Пакет 2; 1.10.0 +HERESY_CIRCLE).
+ * 1.10.4: HERESY_CIRCLE отображается как «Пентаграмма».
  * MINE — срабатывает один раз по шагу врага/моба и расходуется.
  * ZONE — тикает до конца TTL, влияет на союзников/врагов.
  */
@@ -16,7 +17,7 @@ public enum InstallationType {
     LIGHT_WARD(PlayerClass.PRIEST, Mode.ZONE, Material.END_CRYSTAL, "Световой вард"),
     FROST_RUNE(PlayerClass.MAGE, Mode.MINE, Material.BLUE_ICE, "Ледяная руна"),
     SMOKE_BOMB(PlayerClass.ROGUE, Mode.MINE, Material.GUNPOWDER, "Дымовая шашка"),
-    HERESY_CIRCLE(PlayerClass.WARLOCK, Mode.ZONE, Material.SOUL_CAMPFIRE, "Круг Хулы");
+    HERESY_CIRCLE(PlayerClass.WARLOCK, Mode.ZONE, Material.SOUL_CAMPFIRE, "Пентаграмма");
 
     public enum Mode { MINE, ZONE }
 
