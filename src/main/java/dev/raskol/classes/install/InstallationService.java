@@ -30,14 +30,16 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.9.3 (план B): LIGHT_WARD использует HpBarService.heal().
+ * Инсталляции классов (1.5.0 → 1.10.0).
+ * 1.10.0: removeAllOf(uuid) — сгорание инсталляций и рун при переходе через Фолиант.
  */
 public final class InstallationService {
 
     public static final String RUNE_INT_MOD = "frost_rune_int";
 
     private record Installation(UUID id, InstallationType type, UUID owner,
-                                Location location, long expiresAt) {}
+                                Location location, long expiresAt) {
+    }
 
     private static final class FrostRune {
         final UUID id = UUID.randomUUID();
@@ -73,6 +75,28 @@ public final class InstallationService {
     private int cfgI(String path, int def) {
         return plugin.getConfig().getInt(path, def);
     }
+
+    /* ------------------------------ 1.10.0: removeAllOf ------------------------------ */
+
+    /** Удалить все инсталляции и руны владельца (переход через Фолиант). */
+    public void removeAllOf(UUID uuid) {
+        installations.values().removeIf(i -> i.owner().equals(uuid));
+        List<UUID> runeIds = new ArrayList<>();
+        runes.forEach((id, r) -> {
+            if (r.owner.equals(uuid)) {
+                runeIds.add(id);
+            }
+        });
+        for (UUID id : runeIds) {
+            FrostRune r = runes.get(id);
+            if (r != null) {
+                expireRune(r);
+            }
+        }
+        placeCooldowns.keySet().removeIf(key -> key.startsWith(uuid + ":"));
+    }
+
+    /* ------------------------------ постановка ------------------------------ */
 
     public boolean tryPlace(Player p) {
         if (!AuthGate.canAct(plugin, p)) {
@@ -178,6 +202,8 @@ public final class InstallationService {
     public long placeCooldownTotalMillis(InstallationType type) {
         return typeCooldownSeconds(type) * 1000L;
     }
+
+    /* ------------------------------ руна-зона ------------------------------ */
 
     private boolean placeRune(Player p, Location loc, int cooldown) {
         UUID uuid = p.getUniqueId();
@@ -304,6 +330,8 @@ public final class InstallationService {
         }
     }
 
+    /* ------------------------------ блочные типы ------------------------------ */
+
     private void tickInstallation(Installation inst) {
         long now = System.currentTimeMillis();
         if (now > inst.expiresAt()) {
@@ -325,9 +353,32 @@ public final class InstallationService {
                 double heal = cfgD("installations.light_ward.heal", 2.0);
                 for (Entity e : nearby(inst.location(), radius)) {
                     if (e instanceof Player t && isAllyOf(inst.owner(), t)) {
-                        // 1.9.3 (план B): heal через HpBarService
                         plugin.getHpBarService().heal(t, heal);
                     }
+                }
+            }
+            case HERESY_CIRCLE -> {
+                double tick = cfgD("installations.heresy_circle.damage-magic", 4.0);
+                double corr = cfgD("installations.heresy_circle.corruption-per-sec", 3.0);
+                for (Entity e : nearby(inst.location(), radius)) {
+                    if (e instanceof Player t && isAllyOf(inst.owner(), t)) {
+                        continue;
+                    }
+                    if (e instanceof LivingEntity t && isEnemyOf(inst.owner(), t)) {
+                        double dmg = tick;
+                        if (owner != null && owner.getWorld().getEnvironment()
+                                == org.bukkit.World.Environment.NETHER) {
+                            dmg *= plugin.getRaskolConfig().warlockNetherMult();
+                        }
+                        if (owner != null) {
+                            plugin.getCombat().dealDamage(t, owner, DamageProfile.magic(dmg));
+                        }
+                    }
+                }
+                if (owner != null
+                        && owner.getWorld().equals(inst.location().getWorld())
+                        && owner.getLocation().distanceSquared(inst.location()) <= radius * radius) {
+                    plugin.getResources().add(owner.getUniqueId(), corr);
                 }
             }
             case BEAR_TRAP -> {
@@ -369,7 +420,9 @@ public final class InstallationService {
                     notifyOwner(inst.owner(), "Дымовая шашка сработала!");
                 }
             }
-            default -> {}
+            default -> {
+                // FROST_RUNE обрабатывается отдельно
+            }
         }
     }
 
@@ -412,9 +465,12 @@ public final class InstallationService {
             case LIGHT_WARD -> cfgD("installations.light_ward.radius", 4.0);
             case SMOKE_BOMB -> cfgD("installations.smoke_bomb.radius", 3.0);
             case FROST_RUNE -> cfgD("installations.frost_rune.radius", 8.0);
+            case HERESY_CIRCLE -> cfgD("installations.heresy_circle.radius", 6.0);
             default -> 1.2;
         };
     }
+
+    /* ------------------------------ задачи/счётчики ------------------------------ */
 
     public BukkitTask startSweepTask() {
         sweepTask = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
@@ -445,7 +501,7 @@ public final class InstallationService {
         if (sweepTask != null) {
             sweepTask.cancel();
         }
-        for (FrostRune rune : runes.values()) {
+        for (FrostRune rune : new ArrayList<>(runes.values())) {
             plugin.getFx().stopAmbient(rune.ambientId);
             plugin.getAttributes().removeModifiersBySource(rune.owner, RUNE_INT_MOD);
         }
