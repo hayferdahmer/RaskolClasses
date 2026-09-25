@@ -21,17 +21,27 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.9.3-r: единый источник правды по единицам HP (план B) + gear-HP из GearHook.
- * maxHp = формула(base+STR×perStr+level×perLevel+STR-main×level×bonus) + GearHook.hpBonus.
+ * 1.7.0: сервис классовых атрибутов (STR/AGI/INT).
+ * 1.8.0: levelOf по умолчанию берёт сводный уровень персонажа.
+ * 1.9.0: effectiveAvoidance учитывает плоские avoid-бонусы талантов.
+ * 1.9.3: maxHp — ПОЛНАЯ формула; invalidate синхронизирует carrier.
+ * 1.9.3-r: ЕДИНЫЙ источник правды по единицам HP (план B):
+ *   VANILLA_MAX_HEALTH_CAP, maxHealthAttr(), carrierMaxHp(), targetCarrier(),
+ *   scale(), currentFormulaHp(), healFormula().
+ * 1.9.3-r2: maxHp += GearHook.hpBonus (статы шмота RaskolGear).
+ * 1.10.0-fix: mainOf/defaultBase/defaultGrowth покрывают WARLOCK
+ *   (main INT; базы 4/4/14; рост 0.2/0.3/1.4 — канон config.yml).
  */
 public final class AttributeService {
 
+    /** Движковый потолок ванильного max_health (без datapack-оверрайда). */
     public static final double VANILLA_MAX_HEALTH_CAP = 1024.0;
 
     private static final Attribute MAX_HEALTH = RegistryAccess.registryAccess()
             .getRegistry(RegistryKey.ATTRIBUTE)
             .get(NamespacedKey.minecraft("max_health"));
 
+    /** Публичный доступ к атрибуту max_health (для HpBarService/модификаторов). */
     public static Attribute maxHealthAttr() {
         return MAX_HEALTH;
     }
@@ -64,6 +74,7 @@ public final class AttributeService {
 
     /* -------------------------------- значения -------------------------------- */
 
+    /** 1.10.0-fix: покрыт WARLOCK (INT — дрейн-кастер). */
     public AttributeType mainOf(PlayerClass pc) {
         String cfg = plugin.getConfig().getString("attributes.classes." + pc.name() + ".main");
         AttributeType parsed = AttributeType.fromId(cfg);
@@ -74,6 +85,7 @@ public final class AttributeService {
             case WARRIOR -> AttributeType.STR;
             case HUNTER, ROGUE -> AttributeType.AGI;
             case MAGE, PRIEST -> AttributeType.INT;
+            case WARLOCK -> AttributeType.INT;
         };
     }
 
@@ -91,6 +103,7 @@ public final class AttributeService {
         return Double.isFinite(v) && v >= 0 ? v : defaultGrowth(pc, type);
     }
 
+    /** 1.10.0-fix: покрыт WARLOCK (базы 4/4/14 — канон конфига). */
     private static double defaultBase(PlayerClass pc, AttributeType type) {
         return switch (pc) {
             case WARRIOR -> type == AttributeType.STR ? 12 : type == AttributeType.AGI ? 6 : 4;
@@ -98,9 +111,11 @@ public final class AttributeService {
             case ROGUE -> type == AttributeType.STR ? 7 : type == AttributeType.AGI ? 11 : 4;
             case MAGE -> type == AttributeType.STR ? 4 : type == AttributeType.AGI ? 6 : 12;
             case PRIEST -> type == AttributeType.STR ? 5 : type == AttributeType.AGI ? 5 : 12;
+            case WARLOCK -> type == AttributeType.STR ? 4 : type == AttributeType.AGI ? 4 : 14;
         };
     }
 
+    /** 1.10.0-fix: покрыт WARLOCK (рост 0.2/0.3/1.4 — канон конфига). */
     private static double defaultGrowth(PlayerClass pc, AttributeType type) {
         return switch (pc) {
             case WARRIOR -> type == AttributeType.STR ? 1.2 : type == AttributeType.AGI ? 0.5 : 0.3;
@@ -108,6 +123,7 @@ public final class AttributeService {
             case ROGUE -> type == AttributeType.STR ? 0.6 : type == AttributeType.AGI ? 1.1 : 0.3;
             case MAGE -> type == AttributeType.STR ? 0.3 : type == AttributeType.AGI ? 0.5 : 1.2;
             case PRIEST -> type == AttributeType.STR ? 0.4 : type == AttributeType.AGI ? 0.4 : 1.2;
+            case WARLOCK -> type == AttributeType.STR ? 0.2 : type == AttributeType.AGI ? 0.3 : 1.4;
         };
     }
 
@@ -188,7 +204,7 @@ public final class AttributeService {
     /* ----------------------------- производные ----------------------------- */
 
     /**
-     * ПОЛНАЯ формула HP (1.9.3) + gear-HP из GearHook:
+     * ПОЛНАЯ формула HP (1.9.3) + gear-HP из GearHook (1.9.3-r2):
      * HP = base + STR×perStr + level×perLevel + (STR-main ? level×mainBonus : 0) + gearHp.
      */
     public double maxHp(UUID uuid) {
@@ -294,6 +310,7 @@ public final class AttributeService {
 
     /* --------------- 1.9.3-r: ЕДИНЫЕ ЕДИНИЦЫ HP (план B) --------------- */
 
+    /** Ванильный max_health (носитель): base + все модификаторы, уже клампнуто движком. */
     public double carrierMaxHp(Player player) {
         if (player == null || MAX_HEALTH == null) {
             return 20.0;
@@ -303,10 +320,12 @@ public final class AttributeService {
         return Double.isFinite(v) && v > 0.0 ? v : 20.0;
     }
 
+    /** Целевой carrier, который выставляем: min(formula, движковый потолок). */
     public double targetCarrier(UUID uuid) {
         return Math.max(1.0, Math.min(maxHp(uuid), VANILLA_MAX_HEALTH_CAP));
     }
 
+    /** scale = carrier / formula (1.0, если formula ≤ потолка или не игрок). */
     public double scale(Player player) {
         double formula = maxHp(player.getUniqueId());
         if (formula <= 0.0) {
@@ -316,11 +335,16 @@ public final class AttributeService {
         return (Double.isFinite(s) && s > 0.0) ? s : 1.0;
     }
 
+    /** Текущее HP в формульных (effective) единицах. */
     public double currentFormulaHp(Player player) {
         double s = scale(player);
         return s > 0.0 ? player.getHealth() / s : player.getHealth();
     }
 
+    /**
+     * Хил в формульных единицах: конвертация в carrier (×scale) + clamp к carrier.
+     * Единственная точка, где хил касается ванильного здоровья.
+     */
     public void healFormula(LivingEntity target, double formulaAmount) {
         if (target == null || target.isDead() || formulaAmount <= 0.0 || MAX_HEALTH == null) {
             return;
@@ -424,12 +448,4 @@ public final class AttributeService {
                 return entry.getValue().isEmpty();
             }
         });
-        cache.keySet().removeIf(uuid -> Bukkit.getPlayer(uuid) == null
-                && !modifiers.containsKey(uuid));
-    }
-
-    public void clear(UUID uuid) {
-        modifiers.remove(uuid);
-        cache.remove(uuid);
-    }
-}
+        cache.keySet().removeIf(uuid -> Bukkit.getPlayer
