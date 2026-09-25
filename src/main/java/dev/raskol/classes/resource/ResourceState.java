@@ -10,8 +10,12 @@ package dev.raskol.classes.resource;
  *   add(N>0)     → набор с клампом до MAX_VALUE; add(N<=0) игнорируется
  *                   (списание идёт ТОЛЬКО через consume — один путь мутации).
  *
- * 1.9.1: удалён мёртвый allowGainEvent()/lastGainEventMillis (кап «1 событие урона
- * в секунду» живёт в ResourceService.lastGainMs; метод не вызывался нигде с 1.7.x).
+ * 1.9.3.2 FIX: добавлен tickDelta(delta) — ЗНАКОВЫЙ путь реген-тика.
+ *   Воин вне боя имеет rate = −5/с; ранее tick() звал add(−5), который молча
+ *   игнорировал отрицательные → ярость не падала никогда. tickDelta применяет
+ *   знак и клампит через setValue; это НЕ путь списания (consume не трогаем).
+ *
+ * 1.9.1: удалён мёртвый allowGainEvent()/lastGainEventMillis.
  */
 public final class ResourceState {
 
@@ -39,6 +43,17 @@ public final class ResourceState {
             return;
         }
         setValue(value + amount);
+    }
+
+    /**
+     * 1.9.3.2: знаковая дельта реген-тика (декей ярости воина вне боя, тиры маны и т.д.).
+     * Кламп [0,100] через setValue. Не является путём списания способностей.
+     */
+    public void tickDelta(double delta) {
+        if (delta == 0.0) {
+            return;
+        }
+        setValue(value + delta);
     }
 
     /** Списывает amount. amount <= 0 → всегда успех без мутации. */
