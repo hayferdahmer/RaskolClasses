@@ -19,6 +19,7 @@ import java.util.Map;
  * Конфиг-слой плагина.
  * 1.10.0: класс WARLOCK (Скверна, откат 6.66%, ад ×6, пороги 75/100).
  * 1.10.1: пол Скверны (resource-floor 25 + resource-floor-regen 2).
+ * 1.10.3: occult убран из character-level.skills (чернокнижник использует sorcery как маг).
  */
 public final class RaskolConfig {
 
@@ -153,15 +154,15 @@ public final class RaskolConfig {
         config.addDefault("messages.target-full-hp", "Цель здорова");
         config.addDefault("messages.gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
         config.addDefault("messages.gate.blocked.install", "Инсталляции недоступны в этом режиме или до входа в аккаунт.");
-        config.addDefault("messages.foliant.not-mage-priest", "Фолиант может прочесть только Маг или Жрец");
-        config.addDefault("messages.foliant.too-low-level", "Для перехода нужен уровень персонажа 40");
-        config.addDefault("messages.foliant.already-warlock", "Ты уже Чернокнижник");
-        config.addDefault("messages.foliant.spec-chosen", "Сначала отрекись от пути: кристалл во вкладке «Специализации»");
-        config.addDefault("messages.foliant.talents-spent", "Сначала сбрось таланты: кристалл во вкладке «Таланты спеки»");
-        config.addDefault("messages.foliant.confirm-title", "§4§lФОЛИАНТ РАСКОЛА");
+        config.addDefault("messages.foliant.not-mage-priest", "Страницы не отвечают тебе. Том ждёт знающих письмена света или веры.");
+        config.addDefault("messages.foliant.too-low-level", "Том тяжёл для твоего разума: нужен уровень персонажа 40.");
+        config.addDefault("messages.foliant.already-warlock", "Том уже прочитан тобой.");
+        config.addDefault("messages.foliant.spec-chosen", "Том не откроется, пока ты держишься старого пути.");
+        config.addDefault("messages.foliant.talents-spent", "Том не откроется, пока в тебе живы старые знания.");
+        config.addDefault("messages.foliant.confirm-title", "§5§lФолиант Душ · Том I");
         config.addDefault("messages.foliant.confirm-yes", "§c§lПрочесть страницу");
-        config.addDefault("messages.foliant.confirm-no", "§7Отмена");
-        config.addDefault("messages.foliant.transitioned", "§5§lФолиант сгорел. Ты — Чернокнижник.");
+        config.addDefault("messages.foliant.confirm-no", "§7Закрыть том");
+        config.addDefault("messages.foliant.transitioned", "§5§lТом рассыпался пеплом. Что-то внутри тебя проснулось.");
         config.addDefault("messages.book.title", "Книга класса: ");
         config.addDefault("messages.book.tab.abilities", "Способности");
         config.addDefault("messages.book.tab.specs", "Специализации");
@@ -181,7 +182,7 @@ public final class RaskolConfig {
         config.addDefault("messages.book.place.right", "ПКМ — свиток постановки");
         config.addDefault("messages.book.install.active", "Активно: {count}/2 · TTL {ttl} с");
         config.addDefault("messages.book.install.desc.heresy_circle",
-                "Осквернённый круг 6 блоков 25 с: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6");
+                "Осквернённый круг 6 блоков: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6");
         config.addDefault("messages.book.spec.passive", "Пассив: {text}");
         config.addDefault("messages.book.spec.chosen", "Выбрана тобой");
         config.addDefault("messages.book.spec.notchosen", "Не выбрана · ПКМ — выбрать (уровень 40+)");
@@ -205,7 +206,7 @@ public final class RaskolConfig {
         config.addDefault("messages.book.resource.mage", "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75");
         config.addDefault("messages.book.resource.rogue", "Энергия: +10/с");
         config.addDefault("messages.book.resource.warlock",
-                "Скверна: пол 25 (восстанавливается сама); +6 за урон, +3 при получении, +10 за_kill; выше 25 вне боя −4/с до 25. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с");
+                "Скверна: пол 25 (восстанавливается сама); +6 за урон, +3 при получении; выше 25 вне боя −4/с до 25. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с");
         config.addDefault("messages.book.emblem.resource", "Ресурс сейчас: {value}/100");
         config.addDefault("messages.book.emblem.crown", "Корона: {name}");
         config.addDefault("messages.book.crown.title", "Корона и титул");
@@ -243,11 +244,10 @@ public final class RaskolConfig {
         config.addDefault("classes.MAGE.regen-tier-3", 5.0);
         config.addDefault("classes.MAGE.regen-tier-4", 6.0);
 
-        // 1.10.0: WARLOCK-параметры
         config.addDefault("classes.WARLOCK.resource-on-kill", 10.0);
         config.addDefault("classes.WARLOCK.resource-decay-out-of-combat", -4.0);
-        config.addDefault("classes.WARLOCK.resource-floor", 25.0);          // 1.10.1
-        config.addDefault("classes.WARLOCK.resource-floor-regen", 2.0);     // 1.10.1
+        config.addDefault("classes.WARLOCK.resource-floor", 25.0);
+        config.addDefault("classes.WARLOCK.resource-floor-regen", 2.0);
         config.addDefault("classes.WARLOCK.threshold-open", 75.0);
         config.addDefault("classes.WARLOCK.threshold-overflow", 100.0);
         config.addDefault("classes.WARLOCK.recoil-percent", 6.66);
@@ -353,7 +353,6 @@ public final class RaskolConfig {
     public double mageRegenTier3() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-3", 5.0); }
     public double mageRegenTier4() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-4", 6.0); }
 
-    // 1.10.0 / 1.10.1: WARLOCK-параметры
     public double warlockResourceOnKill() { return plugin.getConfig().getDouble("classes.WARLOCK.resource-on-kill", 10.0); }
     public double warlockResourceDecay() { return plugin.getConfig().getDouble("classes.WARLOCK.resource-decay-out-of-combat", -4.0); }
     public double warlockResourceFloor() { return plugin.getConfig().getDouble("classes.WARLOCK.resource-floor", 25.0); }
