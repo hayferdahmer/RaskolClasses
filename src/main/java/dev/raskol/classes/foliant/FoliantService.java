@@ -3,81 +3,77 @@ package dev.raskol.classes.foliant;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.talent.TalentService;
+import dev.raskol.classes.compat.AuthGate;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.10.0: Фолиант Раскола — скрытый механизм перехода Маг/Жрец → Чернокнижник.
+ * 1.10.0: ФОЛИАНТ РАСКОЛА — скрытый механизм перехода Маг/Жрец → Чернокнижник.
  *
- * Флоу:
- *   1) Админ выдаёт предмет: /rc foliant give <ник>
- *   2) Игрок (только МАГ или ЖРЕЦ, уровень персонажа ≥40) кликает ПКМ по фолианту
- *   3) Открывается GUI двойного подтверждения: «Прочесть страницу» / «Отмена»
- *   4) При подтверждении:
- *      - смена LP-группы class_mage/class_priest → class_warlock
- *      - сброс спеки (возврат очков талантов в общий пул)
- *      - грант occult=10 в AuraSkills (если API доступен)
- *      - очистка инсталляций/дебаффов старой спеки
- *      - предмет сгорает, сообщение «Фолиант сгорел. Ты — Чернокнижник.»
- *
- * Гейты (все проверяются ДО GUI):
- *   - класс МАГ или ЖРЕЦ (не воин/охотник/разбойник/уже чернокнижник)
- *   - уровень персонажа ≥ 40 (топ-N сводных скиллов)
- *   - AuthGate.canAct (если включён)
- *   - игрок онлайн
- *
- * Защита от дубля: предмет удаляется из инвентаря при любом исходе (успех/отмена/закрытие GUI).
+ * Флоу: ПКМ по фолианту → гейты → GUI двойного подтверждения → переход.
+ * Гейты (v2, без принудительных сбросов):
+ *   1) класс МАГ или ЖРЕЦ (не WARLOCK);
+ *   2) уровень персонажа ≥ 40;
+ *   3) спека НЕ выбрана (сначала отречение кристаллом в Книге);
+ *   4) таланты НЕ потрачены (spentGlobal == 0, сначала сброс кристаллом);
+ *   5) AuthGate.canAct.
+ * Миграция: LP-группа class_* → class_warlock; очистка модификаторов атрибутов/
+ * резистов/ресурса/пассивок; удаление инсталляций; грант occult=10 (AuraSkills,
+ * reflection, graceful); предмет сгорает только при подтверждении.
+ * Кулдауны/эффекты старой спеки не чистим: ключи привязаны к id старых абилок
+ * и истекают сами, на кит WARLOCK не влияют.
  */
 public final class FoliantService implements Listener {
 
-    /** Тег PDC, по которому отличаем фолиант от обычного WRITABLE_BOOK. */
-    private static final String PDC_KEY = "raskol_foliant";
+    private static final LegacyComponentSerializer LEGACY =
+            LegacyComponentSerializer.legacySection();
 
-    /** Ключ GUI-инвентаря для отличия от других инвентарей. */
-    private static final String GUI_TITLE_RAW = "§4§lФОЛИАНТ РАСКОЛА";
+    /** Маркер-GUI: отдельный holder, без парсинга заголовков. */
+    private static final class FoliantHolder implements InventoryHolder {
+        private Inventory inventory;
+
+        @Override
+        public Inventory getInventory() {
+            return inventory;
+        }
+    }
 
     private final RaskolClasses plugin;
     private final NamespacedKey foliantKey;
 
-    /** Игроки с открытым GUI (чтобы не обрабатывать случайные клики). */
-    private final Set<UUID> pending = ConcurrentHashMap.newKeySet();
-
     public FoliantService(RaskolClasses plugin) {
         this.plugin = plugin;
-        this.foliantKey = new NamespacedKey(plugin, PDC_KEY);
+        this.foliantKey = new NamespacedKey(plugin, "raskol_foliant");
     }
 
     /* -------------------------------- публичное API -------------------------------- */
 
-    /** Создать предмет Фолианта Раскола (не кладёт в инвентарь — возвращает ItemStack). */
+    /** Создать предмет Фолианта Раскола. */
     public ItemStack createItem() {
         ItemStack item = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta meta = item.getItemMeta();
@@ -85,17 +81,17 @@ public final class FoliantService implements Listener {
                 .decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
-        lore.add(Component.text("§7Древний том, запечатанный кровью", NamedTextColor.GRAY));
-        lore.add(Component.text("§7расколотого бога. Читается только", NamedTextColor.GRAY));
-        lore.add(Component.text("§7Магом или Жрецом от 40 уровня.", NamedTextColor.GRAY));
+        lore.add(Component.text("Древний том, запечатанный кровью", NamedTextColor.GRAY));
+        lore.add(Component.text("расколотого бога. Читается только", NamedTextColor.GRAY));
+        lore.add(Component.text("Магом или Жрецом от 40 уровня.", NamedTextColor.GRAY));
         lore.add(Component.empty());
-        lore.add(Component.text("§c§l⚠ Переход необратим:", NamedTextColor.RED));
-        lore.add(Component.text("§7  • Класс станет §5Чернокнижник§7", NamedTextColor.GRAY));
-        lore.add(Component.text("§7  • Спека будет сброшена", NamedTextColor.GRAY));
-        lore.add(Component.text("§7  • Очки талантов вернутся в пул", NamedTextColor.GRAY));
-        lore.add(Component.text("§7  • Открыть occult и начать заново", NamedTextColor.GRAY));
+        lore.add(Component.text("⚠ Переход необратим:", NamedTextColor.RED));
+        lore.add(Component.text("  • Класс станет Чернокнижник", NamedTextColor.GRAY));
+        lore.add(Component.text("  • Спека и таланты должны быть", NamedTextColor.GRAY));
+        lore.add(Component.text("    сброшены ДО чтения", NamedTextColor.GRAY));
+        lore.add(Component.text("  • Откроется дерево occult", NamedTextColor.GRAY));
         lore.add(Component.empty());
-        lore.add(Component.text("§eПКМ — прочесть страницу", NamedTextColor.YELLOW));
+        lore.add(Component.text("ПКМ — прочесть страницу", NamedTextColor.YELLOW));
         meta.lore(lore);
         meta.addEnchant(Enchantment.LURE, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
@@ -104,10 +100,9 @@ public final class FoliantService implements Listener {
         return item;
     }
 
-    /** Положить фолиант в инвентарь игрока. false — нет места. */
+    /** Положить фолиант в инвентарь. false — нет места. */
     public boolean giveTo(Player player) {
-        Map<Integer, ItemStack> overflow = player.getInventory().addItem(createItem());
-        return overflow.isEmpty();
+        return player.getInventory().addItem(createItem()).isEmpty();
     }
 
     /** true, если ItemStack — фолиант. */
@@ -115,24 +110,14 @@ public final class FoliantService implements Listener {
         if (item == null || item.getType() != Material.WRITABLE_BOOK || !item.hasItemMeta()) {
             return false;
         }
-        PersistentDataContainer pdc = item.getItemMeta().getPersistentDataContainer();
-        return pdc.has(foliantKey, PersistentDataType.BYTE);
-    }
-
-    /** Программный переход (для /rc debug simulate или внешнего API). Возвращает результат. */
-    public TransitionResult transition(Player player, boolean bypassGates) {
-        if (!bypassGates) {
-            TransitionResult gate = checkGates(player);
-            if (gate != TransitionResult.OK) {
-                return gate;
-            }
-        }
-        return executeTransition(player);
+        return item.getItemMeta().getPersistentDataContainer()
+                .has(foliantKey, PersistentDataType.BYTE);
     }
 
     /* -------------------------------- гейты -------------------------------- */
 
     private TransitionResult checkGates(Player player) {
+        UUID uuid = player.getUniqueId();
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
             return TransitionResult.NO_CLASS;
@@ -143,12 +128,17 @@ public final class FoliantService implements Listener {
         if (pc != PlayerClass.MAGE && pc != PlayerClass.PRIEST) {
             return TransitionResult.NOT_MAGE_OR_PRIEST;
         }
-        int charLevel = plugin.getCharacterLevels().characterLevel(player.getUniqueId());
-        if (charLevel < 40) {
+        if (plugin.getCharacterLevels().characterLevel(uuid) < 40) {
             return TransitionResult.TOO_LOW_LEVEL;
         }
+        if (plugin.getSpecService().getSpec(uuid) != null) {
+            return TransitionResult.SPEC_CHOSEN;
+        }
+        if (plugin.getTalentService().spentGlobal(uuid) > 0) {
+            return TransitionResult.TALENTS_SPENT;
+        }
         if (plugin.getConfig().getBoolean("compat.authme-gate", true)
-                && !dev.raskol.classes.compat.AuthGate.canAct(plugin, player)) {
+                && !AuthGate.canAct(plugin, player)) {
             return TransitionResult.AUTH_GATE;
         }
         return TransitionResult.OK;
@@ -159,75 +149,45 @@ public final class FoliantService implements Listener {
     private TransitionResult executeTransition(Player player) {
         UUID uuid = player.getUniqueId();
 
-        // 1) Смена LP-группы: class_mage/class_priest → class_warlock
+        // 1) LP-группа: снять все class_*, выдать class_warlock
         boolean lpOk = swapLuckPermsGroup(player);
 
-        // 2) Сброс спеки и возврат очков талантов
-        Spec currentSpec = plugin.getSpecService().getSpec(uuid);
-        if (currentSpec != null) {
-            // Тихий сброс: bypass-флаг true обходит стоимость
-            TalentService.ResetResult resetResult =
-                    plugin.getTalentService().reset(player, true);
-            plugin.getSpecService().forceReset(uuid);
-            plugin.getTalentService().resetSpecTree(uuid, currentSpec.id());
-            if (resetResult != TalentService.ResetResult.OK
-                    && resetResult != TalentService.ResetResult.NO_PURCHASED) {
-                plugin.getLogger().warning("Foliant: сброс талантов " + uuid
-                        + " вернул " + resetResult);
-            }
-        }
-
-        // 3) Очистка инсталляций
+        // 2) Инсталляции владельца сгорают
         plugin.getInstallations().removeAllOf(uuid);
 
-        // 4) Очистка атрибутов-модификаторов и резистов (старые гранты)
+        // 3) Модификаторы атрибутов/резистов (таланты, спеки, сеты, руны) — снять
         plugin.getAttributes().clear(uuid);
         plugin.getResists().clear(uuid);
 
-        // 5) Грант occult=10 в AuraSkills (если API доступен)
-        grantOccultSkill(player, 10);
-
-        // 6) Очистка кастомных данных
-        plugin.getCooldowns().clear(uuid);
+        // 4) Ресурс и маркеры пассивок — обнулить
         plugin.getResources().clear(uuid);
-        if (plugin.getEffects() != null) {
-            plugin.getEffects().clear(uuid);
-        }
-
-        // 7) Сброс маркеров пассивок
         if (plugin.getPassives() != null) {
             plugin.getPassives().clear(uuid);
         }
 
-        // 8) Инвалидация кэшей атрибутов и синхронизация carrier
+        // 5) Грант occult=10 (AuraSkills, reflection, graceful)
+        grantOccultSkill(player, 10);
+
+        // 6) Инвалидация кэшей + синхронизация carrier
         plugin.getAttributes().invalidate(uuid);
 
-        // 9) Сообщения
-        String msg = plugin.getRaskolConfig().message("foliant.transitioned",
-                "§5§lФолиант сгорел. Ты — Чернокнижник.");
-        player.sendMessage(parseLegacy(msg));
-        plugin.getFx().playSound(player.getLocation(),
-                org.bukkit.Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 0.5f);
-        plugin.getFx().playSound(player.getLocation(),
-                org.bukkit.Sound.ENTITY_WARDEN_ROAR, 0.6f, 1.5f);
+        // 7) Визуал и сообщение
+        player.sendMessage(LEGACY.deserialize(plugin.getRaskolConfig().message(
+                "foliant.transitioned", "§5§lФолиант сгорел. Ты — Чернокнижник.")));
+        plugin.getFx().playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 0.5f);
+        plugin.getFx().playSound(player.getLocation(), Sound.ENTITY_WARDEN_ROAR, 0.6f, 1.5f);
         burstParticles(player);
-
-        // 10) Обновление провайдера класса
-        plugin.getClassProvider().invalidate(uuid);
 
         return lpOk ? TransitionResult.OK : TransitionResult.LP_FAILED;
     }
 
-    /** Смена LP-группы через exec-команду (надёжнее прямого API — работает всегда). */
     private boolean swapLuckPermsGroup(Player player) {
         String name = player.getName();
-        // Снять старые class_* группы
         for (PlayerClass pc : PlayerClass.values()) {
-            String group = "class_" + pc.name().toLowerCase(Locale.ROOT);
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
-                    "lp user " + name + " parent remove " + group);
+                    "lp user " + name + " parent remove class_"
+                            + pc.name().toLowerCase(Locale.ROOT));
         }
-        // Поставить новую
         boolean ok = Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
                 "lp user " + name + " parent add class_warlock");
         if (!ok) {
@@ -236,7 +196,6 @@ public final class FoliantService implements Listener {
         return ok;
     }
 
-    /** Попытка выставить уровень occult=10 через AuraSkills API (безопасно — try/catch). */
     private void grantOccultSkill(Player player, int level) {
         try {
             Class<?> apiClass = Class.forName("dev.aurelium.auraskills.api.AuraSkillsApi");
@@ -253,90 +212,62 @@ public final class FoliantService implements Listener {
                         + " игроку " + player.getName());
             }
         } catch (ReflectiveOperationException e) {
-            // AuraSkills отсутствует или API изменился — молча пропускаем,
-            // игрок сможет прокачать occult вручную через /sk
             plugin.getLogger().info("Foliant: AuraSkills API недоступен ("
                     + e.getClass().getSimpleName() + "), occult не выдан автоматически.");
         }
     }
 
     private void burstParticles(Player player) {
-        org.bukkit.Location loc = player.getLocation().add(0, 1, 0);
+        org.bukkit.Location loc = player.getLocation().add(0.0, 1.0, 0.0);
         try {
-            player.getWorld().spawnParticle(org.bukkit.Particle.SCULK_SOUL, loc,
-                    60, 0.6, 0.6, 0.6, 0.1);
-            player.getWorld().spawnParticle(org.bukkit.Particle.SOUL, loc,
-                    40, 0.8, 0.8, 0.8, 0.05);
-            player.getWorld().spawnParticle(org.bukkit.Particle.LARGE_SMOKE, loc,
-                    30, 0.5, 0.5, 0.5, 0.02);
-        } catch (IllegalArgumentException ignored) {
-            // fallback: любой доступный партикл
-            player.getWorld().spawnParticle(org.bukkit.Particle.EXPLOSION, loc, 5, 0.3, 0.3, 0.3, 0.0);
+            player.getWorld().spawnParticle(Particle.SCULK_SOUL, loc, 60, 0.6, 0.6, 0.6, 0.1);
+            player.getWorld().spawnParticle(Particle.SOUL, loc, 40, 0.8, 0.8, 0.8, 0.05);
+            player.getWorld().spawnParticle(Particle.LARGE_SMOKE, loc, 30, 0.5, 0.5, 0.5, 0.02);
+        } catch (IllegalArgumentException e) {
+            player.getWorld().spawnParticle(Particle.EXPLOSION, loc, 5, 0.3, 0.3, 0.3, 0.0);
         }
-    }
-
-    private Component parseLegacy(String text) {
-        return net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
-                .legacySection().deserialize(text);
     }
 
     /* -------------------------------- GUI -------------------------------- */
 
     private void openConfirmGui(Player player) {
-        Inventory gui = Bukkit.createInventory(null, 27,
-                parseLegacy(plugin.getRaskolConfig().message(
-                        "foliant.confirm-title", GUI_TITLE_RAW)));
+        FoliantHolder holder = new FoliantHolder();
+        Inventory gui = Bukkit.createInventory(holder, 27,
+                LEGACY.deserialize(plugin.getRaskolConfig().message(
+                        "foliant.confirm-title", "§4§lФОЛИАНТ РАСКОЛА")));
+        holder.inventory = gui;
 
         ItemStack filler = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
-        ItemMeta fillerMeta = filler.getItemMeta();
-        fillerMeta.displayName(Component.empty());
-        filler.setItemMeta(fillerMeta);
+        filler.editMeta(m -> m.displayName(Component.empty()));
         for (int i = 0; i < 27; i++) {
             gui.setItem(i, filler);
         }
 
-        // Слот 11 — «Прочесть страницу»
         ItemStack yes = new ItemStack(Material.WRITTEN_BOOK);
-        ItemMeta yesMeta = yes.getItemMeta();
-        yesMeta.displayName(parseLegacy(plugin.getRaskolConfig().message(
-                "foliant.confirm-yes", "§c§lПрочесть страницу")));
-        yesMeta.lore(List.of(
-                Component.text("§7Стать Чернокнижником", NamedTextColor.GRAY),
-                Component.text("§7необратимо.", NamedTextColor.GRAY)));
-        yesMeta.addEnchant(Enchantment.LURE, 1, true);
-        yesMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-        yes.setItemMeta(yesMeta);
+        yes.editMeta(m -> {
+            m.displayName(LEGACY.deserialize(plugin.getRaskolConfig().message(
+                    "foliant.confirm-yes", "§c§lПрочесть страницу")));
+            m.lore(List.of(
+                    Component.text("Стать Чернокнижником", NamedTextColor.GRAY),
+                    Component.text("необратимо.", NamedTextColor.GRAY)));
+            m.addEnchant(Enchantment.LURE, 1, true);
+            m.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        });
         gui.setItem(11, yes);
 
-        // Слот 15 — «Отмена»
         ItemStack no = new ItemStack(Material.BARRIER);
-        ItemMeta noMeta = no.getItemMeta();
-        noMeta.displayName(parseLegacy(plugin.getRaskolConfig().message(
-                "foliant.confirm-no", "§7Отмена")));
-        noMeta.lore(List.of(
-                Component.text("§7Закрыть фолиант.", NamedTextColor.GRAY),
-                Component.text("§7Предмет не сгорит.", NamedTextColor.GRAY)));
-        no.setItemMeta(noMeta);
+        no.editMeta(m -> {
+            m.displayName(LEGACY.deserialize(plugin.getRaskolConfig().message(
+                    "foliant.confirm-no", "§7Отмена")));
+            m.lore(List.of(
+                    Component.text("Закрыть фолиант.", NamedTextColor.GRAY),
+                    Component.text("Предмет не сгорит.", NamedTextColor.GRAY)));
+        });
         gui.setItem(15, no);
 
-        pending.add(player.getUniqueId());
         player.openInventory(gui);
     }
 
-    private boolean isFoliantGui(Inventory inv) {
-        if (inv == null) {
-            return false;
-        }
-        Component title = inv.getTitle();
-        if (title == null) {
-            return false;
-        }
-        String plain = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
-                .plainText().serialize(title);
-        return plain.contains("ФОЛИАНТ РАСКОЛА");
-    }
-
-    /** Удалить все фолианты из инвентаря игрока. */
     private void consumeFoliant(Player player) {
         for (ItemStack item : player.getInventory().getContents()) {
             if (isFoliant(item)) {
@@ -349,11 +280,7 @@ public final class FoliantService implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onInteract(PlayerInteractEvent event) {
-        ItemStack item = event.getItem();
-        if (!isFoliant(item)) {
-            return;
-        }
-        if (!event.getAction().isRightClick()) {
+        if (!isFoliant(event.getItem()) || !event.getAction().isRightClick()) {
             return;
         }
         event.setCancelled(true);
@@ -368,59 +295,43 @@ public final class FoliantService implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onGuiClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) {
-            return;
-        }
-        if (!isFoliantGui(event.getInventory())) {
+        if (!(event.getInventory().getHolder() instanceof FoliantHolder)) {
             return;
         }
         event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            return;
+        }
         int slot = event.getRawSlot();
         if (slot == 11) {
-            // «Прочесть страницу»
             player.closeInventory();
+            TransitionResult gate = checkGates(player);
+            if (gate != TransitionResult.OK) {
+                player.sendMessage(Component.text(gate.message(plugin), NamedTextColor.RED));
+                return;
+            }
             consumeFoliant(player);
-            TransitionResult result = transition(player, false);
-            if (result != TransitionResult.OK && result != TransitionResult.LP_FAILED) {
-                // Гейт сломался между открытием GUI и кликом (маловероятно, но на всякий случай)
+            TransitionResult result = executeTransition(player);
+            if (result == TransitionResult.LP_FAILED) {
                 player.sendMessage(Component.text(result.message(plugin), NamedTextColor.RED));
-                // Возвращаем фолиант
-                giveTo(player);
             }
         } else if (slot == 15) {
-            // «Отмена»
             player.closeInventory();
-            player.sendMessage(Component.text("Фолиант закрыт. Предмет остался в инвентаре.",
-                    NamedTextColor.GRAY));
+            player.sendMessage(Component.text(
+                    "Фолиант закрыт. Предмет остался в инвентаре.", NamedTextColor.GRAY));
         }
     }
 
-    @EventHandler
-    public void onGuiClose(InventoryCloseEvent event) {
-        if (!(event.getPlayer() instanceof Player player)) {
-            return;
-        }
-        if (!isFoliantGui(event.getInventory())) {
-            return;
-        }
-        pending.remove(player.getUniqueId());
-    }
-
-    /* -------------------------------- enum результатов -------------------------------- */
+    /* -------------------------------- результаты -------------------------------- */
 
     public enum TransitionResult {
-        OK,
-        LP_FAILED,
-        NO_CLASS,
-        ALREADY_WARLOCK,
-        NOT_MAGE_OR_PRIEST,
-        TOO_LOW_LEVEL,
-        AUTH_GATE;
+        OK, LP_FAILED, NO_CLASS, ALREADY_WARLOCK, NOT_MAGE_OR_PRIEST,
+        TOO_LOW_LEVEL, SPEC_CHOSEN, TALENTS_SPENT, AUTH_GATE;
 
         public String message(RaskolClasses plugin) {
             return switch (this) {
                 case OK -> "Переход завершён.";
-                case LP_FAILED -> "Переход завершён, но LP-группа не сменилась (проверь консоль).";
+                case LP_FAILED -> "Переход завершён, но LP-группа не сменилась (см. консоль).";
                 case NO_CLASS -> plugin.getRaskolConfig().message(
                         "no-class", "Класс не выбран — посетите герольда");
                 case ALREADY_WARLOCK -> plugin.getRaskolConfig().message(
@@ -429,6 +340,12 @@ public final class FoliantService implements Listener {
                         "foliant.not-mage-priest", "Фолиант может прочесть только Маг или Жрец");
                 case TOO_LOW_LEVEL -> plugin.getRaskolConfig().message(
                         "foliant.too-low-level", "Для перехода нужен уровень персонажа 40");
+                case SPEC_CHOSEN -> plugin.getRaskolConfig().message(
+                        "foliant.spec-chosen",
+                        "Сначала отрекись от пути: кристалл во вкладке «Специализации»");
+                case TALENTS_SPENT -> plugin.getRaskolConfig().message(
+                        "foliant.talents-spent",
+                        "Сначала сбрось таланты: кристалл во вкладке «Таланты спеки»");
                 case AUTH_GATE -> plugin.getRaskolConfig().message(
                         "gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
             };
