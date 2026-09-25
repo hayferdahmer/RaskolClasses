@@ -22,9 +22,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Реестр способностей шести классов (1.10.0: +WARLOCK).
+ * Реестр способностей шести классов.
  * 1.7.4.1: кулдаун стартует ТОЛЬКО после успешного каста.
- * 1.9.0: кулдаун умножается на TalentService.cooldownMult (таланты ветки «cd»).
+ * 1.9.0: кулдаун умножается на TalentService.cooldownMult.
+ * 1.10.0-fix: black_word и unwriting получили SELF-кастеры (ray-таргет),
+ *         иначе каст из Книги/свитка (targeted=false) не находил реализацию.
  */
 public final class AbilityRegistry {
 
@@ -71,7 +73,6 @@ public final class AbilityRegistry {
                 def("strangle", "Удушение палача", 3, 50, 40, 40),
                 def("borgia_poison", "Яд Борджа", 4, 65, 35, 30),
                 def("shadow_dance", "Танец теней", 5, 75, 60, 120)));
-        // 1.10.0: WARLOCK (5 способностей)
         DEFAULTS.put(PlayerClass.WARLOCK, List.of(
                 def("black_word", "Чёрное Слово", 1, 10, 10, 4),
                 def("ruin_seal", "Печать Погибели", 2, 25, 15, 16),
@@ -102,7 +103,7 @@ public final class AbilityRegistry {
         PriestAbilities priest = new PriestAbilities(plugin);
         MageAbilities mage = new MageAbilities(plugin);
         RogueAbilities rogue = new RogueAbilities(plugin);
-        WarlockAbilities warlock = new WarlockAbilities(plugin);  // 1.10.0
+        WarlockAbilities warlock = new WarlockAbilities(plugin);
 
         casters.put("tyr_strike", warrior::tyrStrike);
         casters.put("balder_skin", warrior::balderSkin);
@@ -136,11 +137,14 @@ public final class AbilityRegistry {
         casters.put("borgia_poison", rogue::borgiaPoison);
         casters.put("shadow_dance", rogue::shadowDance);
 
-        // 1.10.0: WARLOCK-кастеры
+        // 1.10.0-fix: SELF-кастеры для targeted-абилкок чернокнижника (ray-таргет внутри),
+        // иначе ЛКМ в Книге и свитки не находили реализацию.
+        casters.put("black_word", (p, d) -> warlock.blackWord(p, null, d));
         targetedCasters.put("black_word", warlock::blackWord);
         casters.put("ruin_seal", (p, d) -> warlock.ruinSeal(p, null, d));
         targetedCasters.put("ruin_seal", warlock::ruinSeal);
         casters.put("hunger_corruption", warlock::hungerCorruption);
+        casters.put("unwriting", (p, d) -> warlock.unwriting(p, null, d));
         targetedCasters.put("unwriting", warlock::unwriting);
         casters.put("soul_rift", warlock::soulRift);
     }
@@ -243,10 +247,6 @@ public final class AbilityRegistry {
         return castOn(caster, target, def, true);
     }
 
-    /**
-     * Ядро каста (порядок 1.7.4.1): гейты → попытка каста → при провале refund и
-     * БЕЗ кулдауна → при успехе кулдаун с учётом талантов (1.9.0) + сообщение.
-     */
     private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
         RaskolConfig cfg = plugin.getRaskolConfig();
         if (!AuthGate.canAct(plugin, caster)) {
@@ -312,7 +312,6 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.9.0: кулдаун с учётом талантов ветки «cd» (пол −90% внутри TalentService)
         long cdMillis = Math.max(0L, (long) (def.cooldownMillis()
                 * plugin.getTalentService().cooldownMult(id, def.id())));
         plugin.getCooldowns().start(id, def.id(), cdMillis, def.displayName());
