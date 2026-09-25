@@ -1,19 +1,87 @@
 # CHANGELOG — RaskolClasses
 
 Формат: [версия] — дата — имя. Секции Added / Changed / Fixed / Removed / Reverted / Validate.
-Линия 1.9.x активна; 1.8.x закрыта с 1.8.1; 1.7.x и 1.6.x заморожены.
+Линия 1.10.x активна; 1.9.x закрыта с 1.9.3.2; 1.8.x и ниже заморожены.
 
-## [1.9.3.2] — 2026-09-25 · «Хотфикс: декей ярости воина вне боя»
+## [1.10.0] — 2026-09-25 · «Чернокнижник: шестой путь Раскола»
+
+### Added
+- **Класс WARLOCK (Чернокнижник)** — скрытый шестой класс: переход только из MAGE/PRIEST
+  через «Фолиант Раскола» (уровень персонажа 40+, необратимо).
+- **Ресурс «Скверна»** (0–100): событийный рост (+6 урон, +3 получение, +10 смерть врага
+  в r10, +12 «Голод Скверны»), декэй −4/с вне боя; порог 75 «Распахнутая страница» (+20% урона),
+  порог 100 «Переполнение» (тик 1% maxHP/с себе, набор заблокирован до <85).
+- **Кит (5 способностей, power=SP):** Чёрное Слово (дрейн 66.6%), Печать Погибели
+  (+26% входящего урона, 66.6 с, неснимаемо), Голод Скверны (AoE r6 + дрейн + Скверна),
+  Небытие (диспел положительных эффектов + урон за каждый), Раскол Души (канал 2.5 с,
+  зона r8, анти-хил 6 с, взрыв до +66.6% missing-HP).
+- **Пассивка «Чёрная Месса»:** 6.66% lifesteal со способностей; 6.66% полученного урона
+  возвращается чистым уроном всем в r8 (фракционный гейт на игроков-союзников).
+- **Цена силы:** откат 6.66% от нанесённого урона (true-урон себе; предохранители:
+  кап 30% maxHP за каст, не ниже 1 HP); ад (NETHER) ×6 ко всему киту (`nether-mult`).
+- **Спеки:** Чёрный Маг (урон/диспел) и Адский Канал (контроль/выживаемость);
+  общее дерево талантов `occult` (9 узлов, 21 очко, ульт «Последняя Страница»).
+- **Инсталляция «Круг Хулы»:** зона r6 25 с — врагам маг-урон + анти-хил,
+  владельцу +3 Скверны/с; в аду урон ×6.
+- **FoliantService:** предмет-ключ (PDC-тег, WRITABLE_BOOK), GUI двойного подтверждения
+  (holder-маркер, без парсинга заголовков), гейты: класс, уровень 40, спека сброшена,
+  таланты сброшены, AuthGate; миграция: LP-группа class_* → class_warlock, очистка
+  модификаторов/резистов/ресурса/пассивок, сгорание инсталляций и рун (removeAllOf),
+  грант occult=10 через AuraSkills API (reflection, graceful).
+- **Команда:** `/rc foliant give <ник>` (admin) + таб-комплит.
+- **Баланс-харнесс:** WARLOCK в BalanceSimulator (атрибуты 4/4/14, рост 0.2/0.3/1.4,
+  WP 5 / SP 40 / HPow 0, дрейн, откат, амплификация печати, множитель Скверны ≥75);
+  матрица TTK стала 6×6.
+- **VFX:** адская тема чернокнижника — Warden (heartbeat/roar/sonic), Elder Guardian
+  (curse), Evoker (prepare_attack), Vex (charge/death); партиклы SCULK_CHARGE,
+  SCULK_SOUL, SHRIEK, SOUL, SONIC_BOOM.
+- **Конфиг:** секция classes.WARLOCK (ресурс, пороги, откат, ад, lifesteal-cap),
+  резисты 10/26, тема #1B0022/#9B30FF/☾, титулы корон «Тень на Рассвете» /
+  «Голос Раскола», messages.foliant.*, messages.book.resource.warlock,
+  installations.heresy_circle.*, vfx-блок, character-level.skills += occult.
+- **Selftest:** чеки 37–40 (реестры печати/анти-хила + 9 кодов гейтов; sanity-диапазоны
+  конфига WARLOCK; дуэль WARLOCK без падений; матрица 6×6). Итого 40 чеков.
+
+### Changed
+- Книга класса: эмблема WARLOCK = WRITABLE_BOOK, правила Скверны в лоре, описание
+  Круга Хулы; баннер-баннер-бар: BarColor.PURPLE; матрица /rc debug — короткое имя «чернокн.».
+- Баннер репозитория и README: шестой класс в строке путей (☾ Чернокнижник).
+
+### Fixed
+- Каскад exhaustiveness после добавления WARLOCK/HERESY_CIRCLE/новых Spec: покрыты
+  switch-выражения в RaskolConfig (9), ClassBook (3), HpBarService, RaskolCommand,
+  BossBarService, BalanceSimulator (3 switch + 4 Map.of), InstallToken, ResistService (2),
+  AttributeService (3), PowerService (3).
+- ResourceService: удалён внутренний класс-паразит Location (тенил org.bukkit.Location),
+  добавлен импорт LivingEntity; on-kill считает дистанцию через distanceSquared.
+- WarlockAbilities: печать перенесена из несуществующего ResistService.addModifier
+  в собственный статический реестр (sealAmplifyOf); партиклы — напрямую world.spawnParticle
+  (у FxService нет spawnParticles); итерация getNearbyEntities через instanceof LivingEntity;
+  анти-хил проверяется и в ванильных RegainHealth (CombatService), и в нашем хил-пайплайне
+  (HpBarService.heal).
+- CombatService: амплификация «Печати Погибели» применяется в обоих путях урона
+  (A: event-урон универсально, B: phys/magic части) до капов; откат чернокнижника —
+  после применения урона, в formula-единицах через scale.
+
+### Validate
+- `/rc selftest` → 40/40 PASS.
+- `/rc debug simulate matrix 40` → 6×6, строка/колонка WARLOCK без NaN/∞-аномалий.
+- Живой сценарий перехода: маг 40+ без спеки и талантов → фолиант → GUI → подтверждение
+  → class_warlock в LP, occult=10, Книга = ☾, ресурс «Скверна», инсталляции мага сгорели.
+- Отказные пути: воин / маг<40 / с спекой / с талантами / уже чернокнижник — красные сообщения.
+
+## [1.9.3.2] — 2026-09-25 · «Хотфикс: декэй ярости воина вне боя»
 
 ### Fixed
 - **Воин: ярость не падала вне боя.** `ResourceService.tick()` передавал отрицательный
-  rate (−5/с) в `ResourceState.add()`, который по контракту игнорирует всё ≤ 0
-  (регресс-замок чека 30: списание только через consume). Введён знаковый путь
-  `ResourceState.tickDelta(delta)` для реген-тика; семантика `add()`/`consume()` не тронута.
-  Баг был невидим с 1.6.x: у остальных классов rate положительный.
+  rate (−5/с) в `ResourceState.add()`, который игнорирует отрицательные числа
+  (регресс-замок чека 30: списание только через consume). Декэй молча отбрасывался
+  каждый тик → ярость зависала на значении после боя.
+- Введён `ResourceState.tickDelta()` — знаковый путь реген-тика (реген И декэй)
+  с клампом [0,100]. Семантика `add()`/`consume()` не тронута (замок чека 30 цел).
 
 ### Added
-- Selftest чек 36: tickDelta (−5 декей, +5 набор, клампы 0/100) — регресс-замок ярости.
+- Selftest чек 36: tickDelta (декэй −5, набор +5, клампы 0/100). Итого 36 чеков.
 
 ### Validate
 - `/rc selftest` → 36/36 PASS.
@@ -22,62 +90,64 @@
 ## [1.9.3.1] — 2026-09-25 · «Хотфикс: версия, старт GearHook, Книга»
 
 ### Fixed
-- `plugin.yml` version не подставлялся (`${project.version}` в логах и PAPI):
+- `plugin.yml` версия не подставлялась (`${project.version}` в логах и PAPI):
   в pom добавлен resource-filtering ТОЛЬКО для plugin.yml.
 - GearHook печатал «RaskolGear: не найден» на старте из-за циклического softdepend
-  (RaskolClasses ↔ RaskolGear): стартовый лог теперь по presence, реальная активация —
-  на `PluginEnableEvent` с прогревом кэша онлайн-игроков; деактивация на `PluginDisableEvent`.
-- Книга класса открывалась пустой: на сервер попал стаб из обрезанного батча.
+  (RaskolClasses↔RaskolGear): лог по presence, активация на PluginEnableEvent
+  с прогревом кэша онлайн, деактивация на PluginDisableEvent.
+- Книга класса открывалась пустой: на сервере лежал стаб из обрезанного батча.
   Восстановлена полная Книга (5 вкладок, рабочие клики, корректный holder).
 
 ### Added
-- Вкладка Книги GEAR (слот 50): оружие, 4 слота брони, статус сетов (N/4), статы шмота.
-- `/rc gear [player]`: детальная экипировка и активные сеты.
+- Книга: вкладка GEAR (оружие, 4 слота брони, статус сетов N/4, статы шмота).
+- `/rc gear [player]` — детальная экипировка и сеты.
 
 ### Changed
-- Версия 1.9.3.1; баннер и PAPI печатают реальную версию.
+- Версия 1.9.3.1.
 
-## [1.9.3] — 2026-09-24 · «Виртуальный пул HP + интеграция RaskolGear + редизайн Книги»
+## [1.9.3] — 2026-09-24 · «Виртуальный пул HP + RaskolGear + редизайн Книги»
 
 ### Added
-- **План B (виртуальный пул HP):** ванильный max_health = носитель ≤ 1024; боевой пул =
-  формула. Единый масштаб scale = carrier/formula; урон/хилы/капы/HUD в формульных единицах.
-  Потолок 1024 больше не ограничивает HP (воин L60 = 2560).
-- **GearHook:** чтение статов шмота RaskolGear из PDC (резисты/HP/сеты/шипы);
-  +HP шмота входит в формулу maxHp; резисты шмота применяет сам RaskolGear (без дубля).
-- **SetBonusService:** сет-бонусы 4/4 как модификаторы ResistService (source `set-bonus-*`).
-- **BlueprintHook:** softdepend-хук RaskolEnchant (задел под чертежи/рецепты).
-- CombatService: пропуск надбавки WP/SP для оружия с PDC-тегом WEAPON (нет двойного скейла).
-- Книга класса: мрачная строгая дизайн-система (чёрная рамка, навигация 45–50,
+- **План B (виртуальный пул HP):** ванильный max_health = носитель ≤1024,
+  боевой пул = формула; scale = carrier/formula; урон/хилы/капы/HUD в формульных
+  единицах. Потолок 1024 больше не ограничивает HP (datapack не нужен).
+- **HpAttributeSync:** base = min(formula,1024) на join/respawn/reload/invalidate + sweep 5 с.
+- **GearHook (RaskolGear):** чтение статов шмота из PDC (резисты/HP/сеты/шипы),
+  +HP шмота входит в формулу maxHp; исходящий офенс WP/SP пропускается для оружия
+  с тегом WEAPON (без двойного скейла).
+- **SetBonusService:** сеты 4/4 → модификаторы резистов source `set-bonus-*`.
+- **BlueprintHook:** softdepend RaskolEnchant (каркас под чертежи/рецепты).
+- Редизайн Книги класса: мрачная строгая система (чёрная рамка, навигация 45–50,
   деструктив в 40, единый лор-шаблон, состояния предметов).
-- ConfigValidator: проверки attributes.hp.*; FxService: алиасы битых звуков
-  (ENTITY_WOLF_HOWL→ENTITY_WOLF_AMBIENT, BLOCK_SNOW_BLOCK_BREAK→BLOCK_SNOW_BREAK).
-- Selftest чеки 33–35 (scale/healFormula/targetCarrier).
-- Мрачный стартовый баннер (ASCII «CLASSES», автор, версия).
+- Мрачный стартовый баннер в консоли (CLASSES, 5 классов, автор, версия).
+- ConfigValidator: проверки attributes.hp.*; FxService: алиасы старых звуков.
+- Selftest чеки 33–35 (scale/healFormula/targetCarrier). Итого 35 чеков.
 
 ### Changed
-- Полная формула HP: base + STR×per-str + level×per-level + (STR-main ? level×main-str-bonus);
-  ключи per-level/main-str-bonus живые.
-- CharacterLevelService: фолбэк без AuraSkills = character-level.fallback (не ванильный XP).
-- HpAttributeSync: base = min(formula, 1024); учёт чужих модификаторов (gear) в carrier.
+- Полная формула HP: base + STR×per-str + level×per-level + (STR-main ? level×main-str-bonus).
+- CharacterLevelService: фолбэк без AuraSkills = character-level.fallback (не vanilla XP).
+- CombatService: applyEnvLethalScale и капы от carrier; burst-лог в effective-единицах.
 
 ### Fixed
-- Воин упирался в 1024 HP при формульных 2560.
-- fenrirBlood/execute-пороги считались от ванильного max (20/1024), а не от пула.
+- Воин упирался в 1024 HP при формульных 2560 (движковый кламп).
+- fenrirBlood/ragnarok/хилы жреца считали от ванильного max (20/1024) — crash-guard и execute-пороги от формулы.
 - Игроки без AuraSkills получали level=0 → HP только от STR.
 
 ### Validate
-- `/rc selftest` → 35/35 PASS; `/rc debug` воин L60/STR84 → maxHP 2560; HUD 2560/2560.
+- `/rc debug` воин L60/STR84 → maxHP 2560; HUD `…/2560`.
+- `/rc selftest` → 35/35 PASS.
 
 ## [1.9.2] — 2026-09-16 · «Интеграция с RaskolCore 1.3.0 + эксплойт-свип»
 
 ### Added
-- PassportChangeListener: мгновенный reconcile на Reason.CLASS/FACTION из RaskolCore.
+- PassportChangeListener: мгновенный reconcile на Reason.CLASS/FACTION.
 - EconomyHook: первично RaskolCoreAPI.economy(), фолбэк Vault.
 - Глобальный бюджет талантов spentGlobal(); респец не печатает очки.
 - Reconcile-валидация talents.yml (прунинг битых узлов с WARNING).
-- Rate-limit покупок/сброса талантов; фарм-гейты ресурса (себя/союзник).
-- Selftest чеки 31–32. Стартовая проверка версии RaskolCore (warn-only).
+- Rate-limit покупок/сброса талантов.
+- Фарм-гейты ресурса (себя/союзник не фармят ярость/концентрацию).
+- Selftest чеки 31–32. Итого 32 чека.
+- Стартовая проверка версии RaskolCore (warn-only).
 
 ### Changed
 - ClassBook: инфо-предмет очков = «общий бюджет персонажа»; обработка RATE_LIMITED.
@@ -91,7 +161,7 @@
 ## [1.9.1] — 2026-09-15 · «Стабилизация: боевое окно, регресс-замки, валидатор»
 
 ### Added
-- Selftest чеки 29–30 (боевое окно, семантика consume).
+- Selftest чеки 29–30 (боевое окно, семантика consume). Итого 30 чеков.
 - ConfigValidator: talents.*, character-level.*, combat.burst-*, frost_rune.*.
 
 ### Changed
