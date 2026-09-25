@@ -1,213 +1,126 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="340" viewBox="0 0 1000 340">
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="360" viewBox="0 0 1000 360">
   <defs>
-    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
-      <rect width="4" height="2" fill="#000000" opacity="0.6"/>
-      <rect y="2" width="4" height="2" fill="#0a0a0a" opacity="0.35"/>
-    </pattern>
-    <radialGradient id="vig" cx="0.5" cy="0.5" r="0.75">
-      <stop offset="0.5" stop-color="#000000" stop-opacity="0"/>
-      <stop offset="1" stop-color="#000000" stop-opacity="0.92"/>
-    </radialGradient>
-    <radialGradient id="lamp" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#d8ff9e" stop-opacity="0.18"/>
-      <stop offset="0.6" stop-color="#7aa030" stop-opacity="0.06"/>
-      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="blood" x1="0" y1="0" x2="1" y2="0">
+    <linearGradient id="iron" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e0e0e0"/>
+      <stop offset="0.35" stop-color="#9a9a9a"/>
+      <stop offset="0.7" stop-color="#4a4a4a"/>
+      <stop offset="1" stop-color="#232323"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d8b45a"/>
+      <stop offset="1" stop-color="#8a6a2a"/>
+    </linearGradient>
+    <linearGradient id="bloodline" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0" stop-color="#520000"/>
       <stop offset="0.5" stop-color="#8b0000"/>
       <stop offset="1" stop-color="#520000"/>
     </linearGradient>
-    <linearGradient id="drip" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2e0000"/>
-      <stop offset="1" stop-color="#8b0000"/>
-    </linearGradient>
-    <linearGradient id="spikeL" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#ccff00" stop-opacity="0"/>
-      <stop offset="1" stop-color="#ccff00" stop-opacity="0.9"/>
-    </linearGradient>
-    <linearGradient id="spikeR" x1="1" y1="0" x2="0" y2="0">
-      <stop offset="0" stop-color="#ccff00" stop-opacity="0"/>
-      <stop offset="1" stop-color="#ccff00" stop-opacity="0.9"/>
-    </linearGradient>
-
+    <radialGradient id="candle" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffb347" stop-opacity="0.20"/>
+      <stop offset="0.6" stop-color="#c47a2a" stop-opacity="0.07"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.5" r="0.75">
+      <stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.9"/>
+    </radialGradient>
     <filter id="grain">
-      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3" stitchTiles="stitch">
-        <animate attributeName="seed" values="3;11;23;37;51;67" dur="0.5s" repeatCount="indefinite" calcMode="discrete"/>
-      </feTurbulence>
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" stitchTiles="stitch"/>
       <feColorMatrix type="saturate" values="0"/>
-      <feComponentTransfer><feFuncA type="linear" slope="0.55" intercept="0"/></feComponentTransfer>
+      <feComponentTransfer><feFuncA type="linear" slope="0.5" intercept="0"/></feComponentTransfer>
     </filter>
-    <filter id="fog"><feGaussianBlur stdDeviation="8"/></filter>
-    <filter id="soft"><feGaussianBlur stdDeviation="1.6"/></filter>
-    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
-      <feDropShadow dx="0" dy="0" stdDeviation="10" flood-color="#ccff00" flood-opacity="0.5"/>
-      <feDropShadow dx="0" dy="0" stdDeviation="24" flood-color="#8b0000" flood-opacity="0.45"/>
-    </filter>
-
-    <clipPath id="tearA"><rect x="0" y="138" width="1000" height="12"/></clipPath>
-    <clipPath id="tearB"><rect x="0" y="166" width="1000" height="7"/></clipPath>
+    <filter id="mist"><feGaussianBlur stdDeviation="10"/></filter>
   </defs>
 
-  <rect width="1000" height="340" fill="#020202"/>
+  <rect width="1000" height="360" fill="#0b0a08"/>
+  <rect width="1000" height="360" filter="url(#grain)" opacity="0.05"/>
 
-  <!-- туман в нижних углах -->
-  <ellipse cx="280" cy="308" rx="360" ry="62" fill="#223022" opacity="0.05" filter="url(#fog)">
-    <animateTransform attributeName="transform" type="translate" values="0 0;60 0;0 0" dur="30s" repeatCount="indefinite"/>
-  </ellipse>
-  <ellipse cx="740" cy="322" rx="330" ry="54" fill="#302222" opacity="0.05" filter="url(#fog)">
-    <animateTransform attributeName="transform" type="translate" values="0 0;-70 0;0 0" dur="37s" repeatCount="indefinite"/>
+  <!-- свет свечи над залой -->
+  <ellipse cx="500" cy="60" rx="460" ry="120" fill="url(#candle)">
+    <animate attributeName="opacity" values="0.85;0.55;0.9;0.4;0.8;0.65;0.85" dur="5s" repeatCount="indefinite"/>
   </ellipse>
 
-  <!-- умирающая люминесцентная лампа -->
-  <ellipse cx="500" cy="30" rx="430" ry="95" fill="url(#lamp)">
-    <animate attributeName="opacity" values="0.9;0.12;0.7;0.06;0.85;0.2;0.55;0.9" dur="3.4s" repeatCount="indefinite"/>
+  <!-- туман земель по низу -->
+  <ellipse cx="260" cy="330" rx="340" ry="46" fill="#232326" opacity="0.35" filter="url(#mist)">
+    <animateTransform attributeName="transform" type="translate" values="0 0;50 0;0 0" dur="34s" repeatCount="indefinite"/>
+  </ellipse>
+  <ellipse cx="760" cy="336" rx="320" ry="42" fill="#241d1a" opacity="0.30" filter="url(#mist)">
+    <animateTransform attributeName="transform" type="translate" values="0 0;-60 0;0 0" dur="41s" repeatCount="indefinite"/>
   </ellipse>
 
-  <rect width="1000" height="340" fill="url(#scan)"/>
-
-  <!-- подтёки крови сверху -->
-  <rect x="212" y="0" width="2.5" height="0" fill="url(#drip)">
-    <animate attributeName="height" values="0;84;84" keyTimes="0;0.55;1" dur="8s" begin="0.8s" repeatCount="indefinite"/>
-  </rect>
-  <rect x="556" y="0" width="2" height="0" fill="url(#drip)">
-    <animate attributeName="height" values="0;58;58" keyTimes="0;0.5;1" dur="11s" begin="3.4s" repeatCount="indefinite"/>
-  </rect>
-  <rect x="842" y="0" width="3" height="0" fill="url(#drip)">
-    <animate attributeName="height" values="0;96;96" keyTimes="0;0.6;1" dur="9.5s" begin="6s" repeatCount="indefinite"/>
-  </rect>
-
-  <!-- бегущие hex-потоки -->
-  <g font-family="Consolas, 'Courier New', monospace" font-size="12" opacity="0.10" fill="#ccff00">
-    <text x="-320" y="42">0x52 0x41 0x53 0x4B 0x4F 0x4C :: 0x43 0x4C 0x41 0x53 0x53 :: 0xDE 0xAD 0xBE 0xEF
-      <animateTransform attributeName="transform" type="translate" values="0 0;1340 0" dur="18s" repeatCount="indefinite"/>
-    </text>
-  </g>
-  <g font-family="Consolas, 'Courier New', monospace" font-size="12" opacity="0.08" fill="#ff003c">
-    <text x="1020" y="312">:: 0x00 0xFF 0x41 :: 0xFF 0x00 0x3C :: 0x02 0x02 0x02 :: 0xCC 0xFF 0x00 ::
-      <animateTransform attributeName="transform" type="translate" values="0 0;-1360 0" dur="26s" repeatCount="indefinite"/>
-    </text>
+  <!-- гербовая двойная рамка -->
+  <rect x="14" y="14" width="972" height="332" fill="none" stroke="#35322d" stroke-width="1"/>
+  <rect x="22" y="22" width="956" height="316" fill="none" stroke="#6b5a2e" stroke-width="1" opacity="0.7"/>
+  <polygon points="22,16 28,22 22,28 16,22" fill="#8a6a2a"/>
+  <polygon points="978,16 984,22 978,28 972,22" fill="#8a6a2a"/>
+  <polygon points="22,332 28,338 22,344 16,338" fill="#8a6a2a"/>
+  <polygon points="978,332 984,338 978,344 972,338" fill="#8a6a2a"/>
+  <!-- корона над рамкой -->
+  <g transform="translate(488,6) scale(0.95)" fill="url(#gold)">
+    <path d="M0,12 L4,3 L8,9 L12,0 L16,9 L20,3 L24,12 Z M0,13 h24 v3 h-24 z"/>
   </g>
 
-  <!-- шёпот: hex-столбцы ползут снизу вверх по краям -->
-  <g font-family="Consolas, 'Courier New', monospace" font-size="11" fill="#ccff00" opacity="0.07">
-    <g>
-      <text x="880" y="330">0x66 0x65 0x61 0x72</text>
-      <text x="880" y="310">0x6E 0x6F 0x74 0x20</text>
-      <text x="880" y="290">0x66 0x6F 0x75 0x6E</text>
-      <text x="880" y="270">0x64 0x00 0x66 0x65</text>
-      <text x="880" y="250">0x61 0x72 0x00 0x6E</text>
-      <text x="880" y="230">0x6F 0x74 0x20 0x66</text>
-      <animateTransform attributeName="transform" type="translate" values="0 40;0 -380" dur="16s" repeatCount="indefinite"/>
-    </g>
-  </g>
-  <g font-family="Consolas, 'Courier New', monospace" font-size="11" fill="#ff003c" opacity="0.05">
-    <g>
-      <text x="96" y="336">0x68 0x65 0x6C 0x70</text>
-      <text x="96" y="316">0x00 0x68 0x65 0x6C</text>
-      <text x="96" y="296">0x70 0x00 0x68 0x65</text>
-      <text x="96" y="276">0x6C 0x70 0x00 0x00</text>
-      <text x="96" y="256">0x68 0x65 0x6C 0x70</text>
-      <animateTransform attributeName="transform" type="translate" values="0 40;0 -380" dur="21s" begin="3s" repeatCount="indefinite"/>
-    </g>
+  <!-- перекрещённые мечи за именем -->
+  <g stroke="#6e6a66" opacity="0.20" stroke-linecap="round">
+    <line x1="340" y1="238" x2="660" y2="92" stroke-width="4"/>
+    <line x1="660" y1="238" x2="340" y2="92" stroke-width="4"/>
+    <line x1="352" y1="214" x2="376" y2="238" stroke-width="3"/>
+    <line x1="648" y1="214" x2="624" y2="238" stroke-width="3"/>
+    <circle cx="336" cy="244" r="4" fill="#6e6a66" stroke="none"/>
+    <circle cx="664" cy="244" r="4" fill="#6e6a66" stroke="none"/>
   </g>
 
-  <!-- СИЛУЭТ: стоит в зерне, появляется на долю секунды -->
-  <g fill="#0c0c0c" stroke="#260000" stroke-opacity="0.35" filter="url(#soft)" opacity="0">
-    <circle cx="780" cy="118" r="13"/>
-    <path d="M766,132 Q780,126 794,132 L798,196 Q780,204 762,196 Z"/>
-    <rect x="770" y="196" width="8" height="62"/>
-    <rect x="782" y="196" width="8" height="62"/>
-    <animate attributeName="opacity" values="0;0;0.55;0.55;0" keyTimes="0;0.86;0.9;0.96;1" dur="9s" repeatCount="indefinite"/>
+  <!-- имя: выкованная капитель -->
+  <g font-family="Georgia, 'Times New Roman', serif" font-size="96" letter-spacing="12" text-anchor="middle" font-weight="bold">
+    <text x="500" y="172" fill="#000000" opacity="0.8">RASKOL CLASSES</text>
+    <text x="500" y="166" fill="#cfcfcf" opacity="0.30">RASKOL CLASSES</text>
+    <text x="500" y="169" fill="url(#iron)" stroke="#520000" stroke-width="1.2">RASKOL CLASSES</text>
   </g>
 
-  <!-- угловые скобки-прицелы -->
-  <g stroke="#ccff00" stroke-width="3" fill="none">
-    <path d="M18,64 L18,18 L64,18"/>
-    <path d="M936,18 L982,18 L982,64"/>
-    <path d="M18,276 L18,322 L64,322"/>
-    <path d="M936,322 L982,322 L982,276"/>
-    <animate attributeName="opacity" values="1;1;0.35;1;1;0.6;1" dur="4.6s" repeatCount="indefinite"/>
+  <!-- кровавая черта раскола -->
+  <rect x="320" y="210" width="360" height="2" fill="url(#bloodline)"/>
+  <polygon points="500,206 506,211 500,216 494,211" fill="#8b0000"/>
+
+  <!-- две короны -->
+  <g transform="translate(292,238) scale(1.1)" fill="url(#gold)">
+    <path d="M0,12 L4,3 L8,9 L12,0 L16,9 L20,3 L24,12 Z M0,13 h24 v3 h-24 z"/>
+  </g>
+  <text x="330" y="256" font-family="Georgia, serif" font-size="19" letter-spacing="6" fill="#d8b45a">РАССВЕТ</text>
+  <polygon points="500,246 506,252 500,258 494,252" fill="#6b5a2e"/>
+  <text x="670" y="256" text-anchor="end" font-family="Georgia, serif" font-size="19" letter-spacing="6" fill="#b03030">ВАЛРАДИС</text>
+  <g transform="translate(684,238) scale(1.1)" fill="#b03030">
+    <path d="M0,12 L4,3 L8,9 L12,0 L16,9 L20,3 L24,12 Z M0,13 h24 v3 h-24 z"/>
   </g>
 
-  <!-- кислотные шипы -->
-  <polygon points="60,150 250,144 250,156" fill="url(#spikeL)"/>
-  <polygon points="940,150 750,144 750,156" fill="url(#spikeR)"/>
+  <!-- угли костра -->
+  <circle cx="180" cy="340" r="1.6" fill="#ff9a3c" opacity="0">
+    <animateTransform attributeName="transform" type="translate" values="0 0;14 -250" dur="7s" begin="0s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0.85;0.5;0" keyTimes="0;0.15;0.6;1" dur="7s" begin="0s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="320" cy="340" r="1.2" fill="#ff6b35" opacity="0">
+    <animateTransform attributeName="transform" type="translate" values="0 0;-10 -270" dur="9s" begin="2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0.8;0.4;0" keyTimes="0;0.15;0.6;1" dur="9s" begin="2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="500" cy="340" r="2" fill="#d8b45a" opacity="0">
+    <animateTransform attributeName="transform" type="translate" values="0 0;6 -240" dur="6.5s" begin="4s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0.9;0.5;0" keyTimes="0;0.15;0.6;1" dur="6.5s" begin="4s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="660" cy="340" r="1.4" fill="#ff9a3c" opacity="0">
+    <animateTransform attributeName="transform" type="translate" values="0 0;12 -260" dur="8.5s" begin="1.2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0.8;0.45;0" keyTimes="0;0.15;0.6;1" dur="8.5s" begin="1.2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="810" cy="340" r="1.8" fill="#ff6b35" opacity="0">
+    <animateTransform attributeName="transform" type="translate" values="0 0;-8 -250" dur="7.5s" begin="3.1s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0.85;0.5;0" keyTimes="0;0.15;0.6;1" dur="7.5s" begin="3.1s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="420" cy="340" r="1.1" fill="#d8b45a" opacity="0">
+    <animateTransform attributeName="transform" type="translate" values="0 0;10 -280" dur="10s" begin="5.5s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0.7;0.4;0" keyTimes="0;0.15;0.6;1" dur="10s" begin="5.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="740" cy="340" r="1.3" fill="#ff9a3c" opacity="0">
+    <animateTransform attributeName="transform" type="translate" values="0 0;-12 -270" dur="9.5s" begin="6.8s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0.8;0.4;0" keyTimes="0;0.15;0.6;1" dur="9.5s" begin="6.8s" repeatCount="indefinite"/>
+  </circle>
 
-  <!-- глитч-заголовок с рваным сдвигом и блэкаутом -->
-  <g>
-    <animateTransform attributeName="transform" type="translate" values="0 0;0 0;-7 0;5 0;0 0" keyTimes="0;0.68;0.7;0.74;1" dur="5.2s" repeatCount="indefinite"/>
-    <g transform="translate(500,150) skewX(-8) scale(1,1.5)"
-       font-family="Impact, 'Arial Black', Haettenschweiler, sans-serif"
-       font-size="86" letter-spacing="16" text-anchor="middle">
-      <text x="-4" y="0" fill="#ff003c" opacity="0.75">RASKOL CLASSES
-        <animate attributeName="x" values="-4;3;-6;-4" dur="0.8s" repeatCount="indefinite"/>
-      </text>
-      <text x="4" y="0" fill="#00fff2" opacity="0.5">RASKOL CLASSES
-        <animate attributeName="x" values="4;-3;6;4" dur="1.1s" repeatCount="indefinite"/>
-      </text>
-      <text x="0" y="0" fill="#ececec" filter="url(#glow)">RASKOL CLASSES
-        <animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;0.42;0.44;0.5;0.52;1" dur="6.5s" repeatCount="indefinite"/>
-      </text>
-    </g>
-  </g>
-
-  <!-- VHS-разрывы -->
-  <g clip-path="url(#tearA)">
-    <g transform="translate(500,150) skewX(-8) scale(1,1.5)"
-       font-family="Impact, 'Arial Black', Haettenschweiler, sans-serif"
-       font-size="86" letter-spacing="16" text-anchor="middle">
-      <text x="0" y="0" fill="#ccff00" opacity="0.85">RASKOL CLASSES
-        <animate attributeName="x" values="0;22;-16;0" dur="0.9s" repeatCount="indefinite" calcMode="discrete"/>
-      </text>
-    </g>
-  </g>
-  <g clip-path="url(#tearB)">
-    <g transform="translate(500,150) skewX(-8) scale(1,1.5)"
-       font-family="Impact, 'Arial Black', Haettenschweiler, sans-serif"
-       font-size="86" letter-spacing="16" text-anchor="middle">
-      <text x="0" y="0" fill="#ffffff" opacity="0.8">RASKOL CLASSES
-        <animate attributeName="x" values="0;-26;14;0" dur="1.3s" repeatCount="indefinite" calcMode="discrete"/>
-      </text>
-    </g>
-  </g>
-
-  <!-- кровавая линия: двойной удар пульса -->
-  <rect x="300" y="212" width="400" height="3" fill="url(#blood)">
-    <animate attributeName="opacity" values="1;0.35;1;0.7;1" keyTimes="0;0.12;0.24;0.36;1" dur="1.5s" repeatCount="indefinite"/>
-  </rect>
-
-  <!-- терминальная строка -->
-  <g font-family="Consolas, 'Courier New', monospace" font-size="17" fill="#00ff41">
-    <text x="500" y="268" text-anchor="middle">root@raskol:~# ./classes --init --force</text>
-    <rect x="676" y="253" width="9" height="18" fill="#00ff41">
-      <animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.5;0.5;1" dur="1.2s" repeatCount="indefinite"/>
-    </rect>
-  </g>
-
-  <!-- ползущая CRT-полоса -->
-  <rect x="0" y="-70" width="1000" height="70" fill="#ffffff" opacity="0.035">
-    <animateTransform attributeName="transform" type="translate" values="0 0;0 410" dur="7s" repeatCount="indefinite"/>
-  </rect>
-
-  <!-- статик-вспышки -->
-  <rect x="120" y="88" width="180" height="3" fill="#e8ffe8" opacity="0">
-    <animate attributeName="opacity" values="0;0;0.7;0;0" keyTimes="0;0.46;0.5;0.54;1" dur="3.1s" begin="0.4s" repeatCount="indefinite"/>
-  </rect>
-  <rect x="640" y="204" width="240" height="2" fill="#ffe8e8" opacity="0">
-    <animate attributeName="opacity" values="0;0;0.6;0;0" keyTimes="0;0.62;0.66;0.7;1" dur="4.3s" begin="1.7s" repeatCount="indefinite"/>
-  </rect>
-  <rect x="300" y="296" width="140" height="2" fill="#f4ffe0" opacity="0">
-    <animate attributeName="opacity" values="0;0;0.5;0;0" keyTimes="0;0.3;0.34;0.38;1" dur="5.2s" begin="2.9s" repeatCount="indefinite"/>
-  </rect>
-
-  <!-- ВСПЫШКА КАМЕРЫ: раз в ~9 c кадр выбеливает -->
-  <rect width="1000" height="340" fill="#ffffff" opacity="0">
-    <animate attributeName="opacity" values="0;0;0.26;0;0" keyTimes="0;0.62;0.64;0.68;1" dur="9.3s" begin="2.2s" repeatCount="indefinite"/>
-  </rect>
-
-  <!-- зерно плёнки плотнее -->
-  <rect width="1000" height="340" filter="url(#grain)" opacity="0.14"/>
-
-  <rect width="1000" height="340" fill="url(#vig)"/>
+  <rect width="1000" height="360" fill="url(#vig)"/>
 </svg>
