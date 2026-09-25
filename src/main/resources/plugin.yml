@@ -3,7 +3,10 @@ version: ${project.version}
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
-description: "«РАСКОЛ | ДВЕ КОРОНЫ» — классы, спеки, таланты, инсталляции, бой."
+description: >-
+  Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»:
+  специализации, таланты, инсталляции, боевая математика, виртуальный пул HP,
+  хук RaskolGear и скрытый путь — Чернокнижник (Фолиант Раскола).
 website: https://github.com/hayferdahmer/RaskolClasses
 
 softdepend:
@@ -21,7 +24,7 @@ softdepend:
 commands:
   rc:
     description: "Главная команда RaskolClasses"
-    usage: "/rc [menu|reload|debug|health|selftest]"
+    usage: "/rc [menu|reload|debug|health|selftest|gear|foliant]"
     aliases: [raskol, raskolclasses]
 
 permissions:
@@ -32,8 +35,8 @@ permissions:
     description: "Открытие Книги класса (/rc menu)"
     default: true
   raskolclasses.debug:
-    description: "Диагностика: /rc debug, /rc health, /rc selftest"
+    description: "Диагностика: /rc debug, /rc gear, /rc health, /rc selftest"
     default: op
   raskolclasses.admin:
-    description: "Админские команды: /rc reload"
+    description: "Админские команды: /rc reload, /rc foliant give"
     default: op
