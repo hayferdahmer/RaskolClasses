@@ -23,10 +23,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.persistence.PersistentDataContainer;
-import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -37,16 +33,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.9.3 (интеграция RaskolGear, финал):
- *  - applyOutgoingOffense: пропускаем надбавку WP/SP ТОЛЬКО если в руке оружие RaskolGear
- *    (его WeaponDamageListener уже посчитал base+Power×coeff) — иначе двойной скейл.
- *  - onDamage: классовые резисты применяются ВСЕГДА (резисты шмота применяет сам
- *    RaskolGear своим слушателем; стек мультипликативный, дубля нет).
- *  - Burst/single-hit cap — всегда (защита от ваншота, RaskolGear её не дублирует).
+ * 1.9.3: интеграция RaskolGear (пропуск WP/SP для оружия с тегом WEAPON).
  * 1.10.0: WARLOCK-интеграция:
- *  - откат 6.66% от нанесённого урона (true-урон себе);
- *  - множитель урона в аду ×6 (nether-mult);
- *  - анти-хил проверка (soul_rift блокирует лечение цели).
+ *  - «Печать Погибели»: входящий урон цели домножается на (1 + sealAmplifyOf)
+ *    в ОБЕИХ путях (A: event-урон, B: dealDamage) — до капов;
+ *  - «Раскол Души»: анти-хил блокирует ванильные события лечения (HIGHEST);
+ *    наш хил-пайплайн блокируется в HpBarService.healFormula;
+ *  - откат 6.66%: после применения урона в dealDamage чернокнижник теряет
+ *    6.66% от дошедшего (true-урон себе, предохранители: кап 30% maxHP, не ниже 1 HP).
+ * 1.10.0-fix: убран instance-поле WarlockAbilities (реестры статические).
  */
 public final class CombatService implements Listener {
 
@@ -63,7 +58,6 @@ public final class CombatService implements Listener {
     private final ResistService resists;
     private final AvoidanceService avoidance;
     private final PowerService powers;
-    private WarlockAbilities warlockAbilities;  // 1.10.0
 
     private final Map<UUID, Deque<double[]>> burstLog = new ConcurrentHashMap<>();
 
@@ -72,11 +66,6 @@ public final class CombatService implements Listener {
         this.resists = resists;
         this.avoidance = new AvoidanceService(plugin);
         this.powers = new PowerService(plugin);
-    }
-
-    /** 1.10.0: установка ссылки на WarlockAbilities (вызывается из RaskolClasses.onEnable). */
-    public void setWarlockAbilities(WarlockAbilities warlockAbilities) {
-        this.warlockAbilities = warlockAbilities;
     }
 
     public ResistService resists() {
@@ -145,20 +134,19 @@ public final class CombatService implements Listener {
         return damager instanceof Projectile proj && proj.getShooter() instanceof Player;
     }
 
-    /** Оружие атакующего имеет PDC-тег raskolgear:gear_type=WEAPON. */
     private boolean hasGearWeaponTag(Player attacker) {
-        ItemStack weapon = attacker.getInventory().getItemInMainHand();
+        var weapon = attacker.getInventory().getItemInMainHand();
         if (weapon == null) {
             return false;
         }
-        ItemMeta meta = weapon.getItemMeta();
+        var meta = weapon.getItemMeta();
         if (meta == null) {
             return false;
         }
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        var pdc = meta.getPersistentDataContainer();
         for (NamespacedKey key : pdc.getKeys()) {
             if ("gear_type".equals(key.getKey())) {
-                if ("WEAPON".equals(pdc.get(key, PersistentDataType.STRING))) {
+                if ("WEAPON".equals(pdc.get(key, org.bukkit.persistence.PersistentDataType.STRING))) {
                     return true;
                 }
             }
@@ -220,6 +208,11 @@ public final class CombatService implements Listener {
 
         if (!suppressed) {
             applyOutgoingOffense(event);
+            // 1.10.0: «Печать Погибели» — +26% урона от ВСЕХ источников (универсально)
+            double amp = WarlockAbilities.sealAmplifyOf(event.getEntity().getUniqueId());
+            if (amp > 0.0 && event.getDamage() > 0.0) {
+                event.setDamage(event.getDamage() * (1.0 + amp));
+            }
         }
         if (!(event.getEntity() instanceof Player target)) {
             return;
@@ -244,7 +237,6 @@ public final class CombatService implements Listener {
         if (suppressed) {
             return;
         }
-        // 1.9.3-fix: классовые резисты применяются ВСЕГДА (шмот снимает свой % отдельно)
         double cap = isPvp(event) ? resists.pvpCap() : resists.cap();
         UUID uuid = target.getUniqueId();
         double factor = type == DamageType.PHYSICAL
@@ -280,7 +272,6 @@ public final class CombatService implements Listener {
         if (attacker == null) {
             return;
         }
-        // Оружие RaskolGear уже посчитало base+Power×coeff — не добавляем WP/SP поверх
         if (hasGearWeaponTag(attacker)) {
             return;
         }
@@ -456,6 +447,8 @@ public final class CombatService implements Listener {
         });
     }
 
+    /* ------------------------- симулятор (effective) ------------------------- */
+
     public double simulateTaken(LivingEntity target, DamageProfile profile) {
         if (profile == null || target == null) {
             return 0.0;
@@ -476,10 +469,8 @@ public final class CombatService implements Listener {
         return safe.physical() + safe.magic() + truePart;
     }
 
-    /**
-     * Основной метод нанесения урона (путь B: наши способности).
-     * 1.10.0: WARLOCK-интеграция — откат 6.66% от нанесённого урона (true-урон себе).
-     */
+    /* ------------------------- путь B (наши способности) ------------------------- */
+
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
         return dealDamage(target, source, profile, false);
     }
@@ -532,6 +523,14 @@ public final class CombatService implements Listener {
             physPart = physBase;
             magicTruePart = magicBase + truePart;
         }
+
+        // 1.10.0: «Печать Погибели» — амплификация входящего урона (путь B)
+        double amp = WarlockAbilities.sealAmplifyOf(target.getUniqueId());
+        if (amp > 0.0) {
+            physPart *= (1.0 + amp);
+            magicTruePart *= (1.0 + amp);
+        }
+
         double taken = physPart + magicTruePart;
         if (!allowOverCap && target instanceof Player tp2) {
             double pct = cfgD("combat.max-single-hit-pct", 35.0);
@@ -586,39 +585,26 @@ public final class CombatService implements Listener {
             }
         }
 
-        // 1.10.0: WARLOCK-откат (6.66% от нанесённого урона → true-урон себе)
-        if (source instanceof Player attacker) {
-            PlayerClass attackerClass = plugin.getClassProvider().getClassOf(attacker);
-            if (attackerClass == PlayerClass.WARLOCK && taken > 0) {
-                RaskolConfig cfg = plugin.getRaskolConfig();
-                double recoilPct = cfg.warlockRecoilPercent();
-                double recoilCapPct = cfg.warlockRecoilCapPct();
-                double recoilMinHp = cfg.warlockRecoilMinHp();
-
-                double recoil = taken * recoilPct / 100.0;
-                double maxRecoil = attacker.getMaxHealth() * recoilCapPct / 100.0;
-                recoil = Math.min(recoil, maxRecoil);
-
-                double newHp = attacker.getHealth() - recoil;
-                if (newHp < recoilMinHp) {
-                    newHp = recoilMinHp;
-                }
-                attacker.setHealth(newHp);
-            }
+        // 1.10.0: откат чернокнижника 6.66% от дошедшего урона (true-урон себе)
+        if (source instanceof Player attacker && taken > 0.0
+                && plugin.getClassProvider().getClassOf(attacker) == PlayerClass.WARLOCK) {
+            RaskolConfig cfg = plugin.getRaskolConfig();
+            double recoil = taken * cfg.warlockRecoilPercent() / 100.0;
+            double maxRecoil = formulaMaxOf(attacker) * cfg.warlockRecoilCapPct() / 100.0;
+            recoil = Math.min(recoil, maxRecoil);
+            double scaleA = scaleOf(attacker);
+            double carrierNow = attacker.getHealth();
+            double newCarrier = carrierNow - recoil * scaleA;
+            attacker.setHealth(Math.max(cfg.warlockRecoilMinHp(), newCarrier));
         }
 
         return taken;
     }
 
-    /**
-     * 1.10.0: анти-хил проверка (soul_rift блокирует лечение цели).
-     */
+    /** 1.10.0: анти-хил «Раскола Души» блокирует ванильные события лечения. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
-        if (!(event.getEntity() instanceof Player target)) {
-            return;
-        }
-        if (warlockAbilities != null && warlockAbilities.isAntihealed(target.getUniqueId())) {
+        if (WarlockAbilities.isAntihealed(event.getEntity().getUniqueId())) {
             event.setCancelled(true);
         }
     }
