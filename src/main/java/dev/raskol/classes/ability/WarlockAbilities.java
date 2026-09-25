@@ -21,11 +21,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.10.0: КИТ ЧЕРНОКНИЖНИКА (5 способностей, power = SP).
- * 1.10.1-fix: визуалы — ТОЛЬКО plain-партиклы адских/глубинных мобов
- *   (SCULK_SOUL, SONIC_BOOM, SOUL_FIRE_FLAME, CRIMSON_SPORE, WARPED_SPORE, SOUL,
- *    LARGE_SMOKE, ASH): SCULK_CHARGE/SHRIEK требуют data и молча не спавнились.
- *   Визуалы бьют ПО ЦЕЛИ и ПО КОЛЬЦУ зоны, а не только на кастере.
- *   safeFx() с try/catch: битый партикл больше не роняет каст.
+ * 1.10.4: «Чёрное Слово» v2 — БЕСПЛАТНО по Скверне, плата 10% макс HP себе,
+ *         БЕЗ лечения (дрейн снят), +25 Скверны за применение, КД 3 с.
+ *         Визуалы — plain-партиклы ада/глубин (safeFx с фолбэком).
  */
 public final class WarlockAbilities {
 
@@ -118,9 +116,8 @@ public final class WarlockAbilities {
         return e instanceof LivingEntity le ? le : null;
     }
 
-    /* ------------------------------ визуал-хелперы (1.10.1) ------------------------------ */
+    /* ------------------------------ визуал-хелперы ------------------------------ */
 
-    /** Безопасный спавн plain-партикла; битый ключ → фолбэк SOUL_FIRE_FLAME, каст не роняем. */
     private void safeFx(Location loc, Particle particle, int count, double spread) {
         if (loc == null || loc.getWorld() == null) {
             return;
@@ -134,7 +131,6 @@ public final class WarlockAbilities {
         }
     }
 
-    /** Кольцо партиклов по радиусу (зоны, печати). */
     private void ringFx(Location center, double radius, Particle particle, int perPoint) {
         if (center == null || center.getWorld() == null) {
             return;
@@ -147,11 +143,9 @@ public final class WarlockAbilities {
                 center.getWorld().spawnParticle(particle, p, perPoint, 0.0, 0.3, 0.0, 0.01);
             }
         } catch (IllegalArgumentException ignored) {
-            // data-партикль в конфиге — молча пропускаем кольцо
         }
     }
 
-    /** Восходящие споры/души над точкой (эффект «ад дышит»). */
     private void riseFx(Location loc, Particle particle, int count) {
         if (loc == null || loc.getWorld() == null) {
             return;
@@ -163,9 +157,23 @@ public final class WarlockAbilities {
         }
     }
 
+    /** 1.10.4: плата здоровьем: pct от макс HP (formula), не убивает (мин 1 HP). */
+    private void paySelfCost(Player caster, double pct) {
+        double maxFormula = formulaMax(caster);
+        double cost = maxFormula * pct / 100.0;
+        double cur = currentFormulaHp(caster);
+        double next = Math.max(1.0, cur - cost);
+        double scale = plugin.getAttributes().scale(caster);
+        caster.setHealth(Math.max(1.0, next * scale));
+        safeFx(caster.getLocation(), Particle.SCULK_SOUL, 10, 0.4);
+    }
+
     /* -------------------------------- способности -------------------------------- */
 
-    /** 1. «Чёрное Слово»: дрейн-болт. Визуал: sculk-вспышка на цели + sonic-импакт. */
+    /**
+     * 1. «Чёрное Слово» v2 (1.10.4): бесплатно по Скверне; плата 10% макс HP;
+     * БЕЗ лечения; +25 Скверны за применение; КД 3 с (конфиг).
+     */
     public boolean blackWord(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
@@ -174,13 +182,14 @@ public final class WarlockAbilities {
         if (!plugin.getCombat().canHit(caster, t)) {
             return false;
         }
+        // плата здоровьем ДО урона (каст состоялся даже если цель уклонится)
+        paySelfCost(caster, cfgD("classes.WARLOCK.abilities." + def.id() + ".self-cost-pct", 10.0));
+        // +25 Скверны за применение
+        plugin.getResources().add(caster.getUniqueId(),
+                cfgD("classes.WARLOCK.abilities." + def.id() + ".corruption-gain", 25.0));
+
         double dmg = spellDamage(caster, def, 18.0, 1.5);
-        safeFx(caster.getLocation(), Particle.SCULK_SOUL, 10, 0.3);
-        double dealt = plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
-        if (dealt <= 0.0) {
-            return false;
-        }
-        plugin.getHpBarService().heal(caster, dealt * drain(def, 0.666));
+        plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
         safeFx(t.getLocation(), Particle.SCULK_SOUL, 18, 0.5);
         safeFx(t.getLocation(), Particle.SONIC_BOOM, 1, 0.0);
         riseFx(t.getLocation(), Particle.SOUL, 6);
@@ -188,7 +197,7 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 2. «Печать Погибели»: амплификация +26%, Glowing. Визуал: кольцо огня душ + споры. */
+    /** 2. «Печать Погибели»: амплификация +26%, Glowing, неснимаемо. */
     public boolean ruinSeal(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
@@ -210,7 +219,7 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 3. «Голод Скверны»: AoE r6 + дрейн +12 Скверны. Визуал: кольцо sculk + споры варпа. */
+    /** 3. «Голод Скверны»: AoE r6 + дрейн 66.6% + 12 Скверны. */
     public boolean hungerCorruption(Player caster, AbilityDef def) {
         double radius = radius(def, 6.0);
         double dmg = spellDamage(caster, def, 20.0, 1.2);
@@ -244,7 +253,7 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 4. «Небытие»: диспел + урон за каждый снятый. Визуал: души-испарение + дым. */
+    /** 4. «Небытие»: диспел положительных эффектов; +16 урона за каждый снятый. */
     public boolean unwriting(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
