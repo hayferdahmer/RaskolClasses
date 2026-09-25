@@ -17,7 +17,9 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -37,12 +39,18 @@ import java.util.concurrent.ConcurrentHashMap;
  *    оружие RaskolGear (его WeaponDamageListener уже посчитал base+Power×coeff).
  *
  * Кэш per-player обновляется на join/respawn/InventoryClick(MONITOR)/quit.
+ *
+ * 1.9.3-r2: добавлен API для GUI (getEquippedWeapon, getEquippedArmor, getActiveSets).
  */
 public final class GearHook implements Listener {
 
     /** Агрегированные статы шмота игрока. */
     public record GearStats(double phys, double magic, double hp, double reflect, boolean any) {
         public static final GearStats EMPTY = new GearStats(0, 0, 0, 0, false);
+    }
+
+    /** Экипированный предмет (для GUI). */
+    public record EquippedItem(ItemStack item, String className, String rarity, String slot) {
     }
 
     private final RaskolClasses plugin;
@@ -55,6 +63,7 @@ public final class GearHook implements Listener {
     private final NamespacedKey kMagic;
     private final NamespacedKey kHp;
     private final NamespacedKey kReflect;
+    private final NamespacedKey kSlot;
 
     private final Map<UUID, GearStats> cache = new ConcurrentHashMap<>();
 
@@ -68,6 +77,7 @@ public final class GearHook implements Listener {
         kMagic = new NamespacedKey("raskolgear", "magic_resist");
         kHp = new NamespacedKey("raskolgear", "hp_bonus");
         kReflect = new NamespacedKey("raskolgear", "reflect");
+        kSlot = new NamespacedKey("raskolgear", "armor_slot");
     }
 
     public boolean isAvailable() {
@@ -105,7 +115,6 @@ public final class GearHook implements Listener {
         GearStats next = compute(player);
         GearStats prev = cache.put(uuid, next);
         if (prev == null || prev.hp() != next.hp()) {
-            // изменился пул HP → инвалидировать атрибуты и синхронизировать carrier
             plugin.getAttributes().invalidate(uuid);
         }
     }
@@ -136,7 +145,6 @@ public final class GearHook implements Listener {
         }
 
         double reflect = 0.0;
-        // сет-бонусы и шипы читаем из конфига RaskolGear (PDC их не хранит)
         if (isAvailable()) {
             for (Map.Entry<String, Integer> e : setCount.entrySet()) {
                 if (e.getValue() < 4) {
@@ -169,6 +177,48 @@ public final class GearHook implements Listener {
             return null;
         }
         return pdc;
+    }
+
+    /* -------------------------------- API для GUI -------------------------------- */
+
+    public EquippedItem getEquippedWeapon(Player player) {
+        ItemStack weapon = player.getInventory().getItemInMainHand();
+        if (weapon == null) {
+            return null;
+        }
+        ItemMeta meta = weapon.getItemMeta();
+        if (meta == null) {
+            return null;
+        }
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        if (!"WEAPON".equals(pdc.get(kType, PersistentDataType.STRING))) {
+            return null;
+        }
+        String cls = pdc.get(kClass, PersistentDataType.STRING);
+        String rar = pdc.get(kRarity, PersistentDataType.STRING);
+        return new EquippedItem(weapon, cls, rar, "mainhand");
+    }
+
+    public List<EquippedItem> getEquippedArmor(Player player) {
+        List<EquippedItem> armor = new ArrayList<>();
+        for (ItemStack item : player.getInventory().getArmorContents()) {
+            if (item == null) {
+                continue;
+            }
+            ItemMeta meta = item.getItemMeta();
+            if (meta == null) {
+                continue;
+            }
+            PersistentDataContainer pdc = meta.getPersistentDataContainer();
+            if (!"ARMOR".equals(pdc.get(kType, PersistentDataType.STRING))) {
+                continue;
+            }
+            String cls = pdc.get(kClass, PersistentDataType.STRING);
+            String rar = pdc.get(kRarity, PersistentDataType.STRING);
+            String slot = pdc.get(kSlot, PersistentDataType.STRING);
+            armor.add(new EquippedItem(item, cls, rar, slot));
+        }
+        return armor;
     }
 
     /* -------------------------------- события -------------------------------- */
