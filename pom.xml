@@ -6,11 +6,11 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.10.0</version>
+    <version>1.11.0</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ» + специализации (пассивная идентичность), уровень персонажа (топ-N скиллов), дерево талантов спеки в Книге класса, инсталляции, королевские вкусы, классовые атрибуты, производные статы WP/SP/HPow, анти-ваншот, burst-окно, боевое окно ресурсов, TTK-харнесс, виртуальный пул HP, хук RaskolGear и скрытый класс Чернокнижник (Фолиант Раскола)</description>
+    <description>Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»: специализации, таланты, инсталляции (включая Пентаграмму), боевая математика, виртуальный пул HP, хук RaskolGear и скрытый путь Чернокнижника (Фолиант Душ, дроп 0.001% с пиглинов ада)</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -53,8 +53,7 @@
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
 
-        <!-- 1.9.3.1: подстановка ${project.version} в plugin.yml;
-             остальные ресурсы копируются без фильтрации. -->
+        <!-- подстановка ${project.version} в plugin.yml; остальные ресурсы без фильтрации -->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
