@@ -7,7 +7,9 @@ import java.util.Locale;
 
 /**
  * Шесть классов сервера «РАСКОЛ». Цвета сообщений и скиллы — по ТЗ.
- * 1.10.0: добавлен WARLOCK (скрытый класс, переход через Фолиант Раскола с 40 ур.).
+ * 1.10.0: добавлен WARLOCK (скрытый класс, переход через Фолиант Душ).
+ * 1.10.3-fix: профильный скилл WARLOCK = sorcery (как у мага); дерево occult
+ *         удалено из AuraSkills, и ссылки на него блокировали все способности.
  */
 public enum PlayerClass {
 
@@ -16,7 +18,7 @@ public enum PlayerClass {
     PRIEST("Жрец", NamedTextColor.WHITE, "healing"),
     MAGE("Маг", NamedTextColor.BLUE, "sorcery"),
     ROGUE("Разбойник", NamedTextColor.DARK_PURPLE, "agility"),
-    WARLOCK("Чернокнижник", NamedTextColor.LIGHT_PURPLE, "occult");
+    WARLOCK("Чернокнижник", NamedTextColor.LIGHT_PURPLE, "sorcery");
 
     private final String displayName;
     private final NamedTextColor color;
@@ -29,7 +31,7 @@ public enum PlayerClass {
         this.profileSkillName = profileSkillName;
     }
 
-    /** class_warrior → WARRIOR; class_warlock → WARLOCK; всё остальное → null. */
+    /** class_warrior → WARRIOR; всё остальное → null. */
     public static PlayerClass fromLuckPermsGroup(String group) {
         if (group == null || !group.startsWith("class_")) {
             return null;
@@ -43,7 +45,7 @@ public enum PlayerClass {
         return null;
     }
 
-    /** 1.3.2: "warrior" / "mage" / "warlock" / ... → enum; пусто/unknown → null. */
+    /** 1.3.2: "warrior" / "mage" / ... → WARRIOR / MAGE / ...; пусто/unknown → null. */
     public static PlayerClass fromCoreId(String id) {
         if (id == null || id.isEmpty()) {
             return null;
