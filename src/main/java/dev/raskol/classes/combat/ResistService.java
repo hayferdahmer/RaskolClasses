@@ -17,6 +17,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 1.6.0: сопротивления урону (РЕЗИСТ).
  * 1.6.3: кэш факторов на тик. 1.6.9: pvp-cap / disabled-worlds.
  * 1.6.11: NaN-защита. 1.6.12: метрики размеров карт для /rc health.
+ * 1.10.0-fix: defaultPhysical/defaultMagic покрывают WARLOCK (phys 10 / magic 26 —
+ *         канон config.yml; стеклянный дрейн-кастер).
  */
 public final class ResistService {
 
@@ -73,6 +75,7 @@ public final class ResistService {
         return Double.isFinite(v) ? v : defaultMagic(pc);
     }
 
+    /** 1.10.0-fix: покрыт WARLOCK (10 физ — канон конфига). */
     private static double defaultPhysical(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> 27.0;
@@ -80,9 +83,11 @@ public final class ResistService {
             case MAGE -> 12.0;
             case PRIEST -> 16.0;
             case HUNTER -> 16.0;
+            case WARLOCK -> 10.0;
         };
     }
 
+    /** 1.10.0-fix: покрыт WARLOCK (26 маг — канон конфига). */
     private static double defaultMagic(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> 12.0;
@@ -90,6 +95,7 @@ public final class ResistService {
             case MAGE -> 26.0;
             case PRIEST -> 30.0;
             case HUNTER -> 12.0;
+            case WARLOCK -> 26.0;
         };
     }
 
