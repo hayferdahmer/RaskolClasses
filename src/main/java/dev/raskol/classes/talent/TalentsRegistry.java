@@ -10,34 +10,31 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 1.9.0 инкремент 2A: СТАТИЧЕСКИЙ КАТАЛОГ 10 деревьев × 9 узлов.
+ * 1.9.0 инкремент 2A: СТАТИЧЕСКИЙ КАТАЛОГ 12 деревьев × 9 узлов.
  * Реальные id спеков (Spec.id() — lowercase enum name) ключуют деревья.
  *
- * Маппинг (реальный specId → дерево):
- *  guardian   → GUARDIAN  (g_)  — Страж-танк
- *  berserker  → BERSERKER (b_)  — Ярость-дамагер
- *  marksman   → LIQUIDATOR (l_) — Крит с дистанции (моё лор-название LIQUIDATOR)
- *  tracker    → TRAPPER    (t_) — Контроль (моё лор-название TRAPPER)
- *  lightbearer → ORACLE    (o_) — Усиленное лечение (ORACLE)
- *  shadowweaver → INQUISITOR (i_) — Лечение от урона (INQUISITOR)
- *  arcane     → ELEMENTALIST (e_) — Усиленные заклинания (ELEMENTALIST)
- *  frost      → FROST       (f_) — Контроль льдом (НОВОЕ дерево)
- *  liquidator → ASSASSIN    (a_) — Критические удары (ASSASSIN)
- *  trickster  → TRICKSTER   (t2_) — Уклонение (TRICKSTER)
+ * 1.10.0: +дерево «occult» для Чернокнижника (оба specId — black_mage/hell_channel —
+ * указывают на ОДИН TalentTree, т.к. дерево общее для обеих спек; покупки хранятся
+ * раздельно по specId в talents.yml, spentGlobal — общий по персонажу).
  *
- * Шаблоны эффектов:
- *  attr      = ATTR  (+STR/AGI/INT)
- *  resist    = RESIST (phys/magic/both; value=phys, value2=magic если both)
- *  kit_base  = +base к абилке (target = id абилки)
- *  kit_mult  = ×(1+value) к coeff абилки (value в долях: 0.25 = +25%)
- *  cd        = −% кулдауна абилки (value в долях: 0.15 = −15%)
- *  regen     = +ресурс/с (аддитивно к класс-регену)
- *  avoid     = +dodge/parry flat % (target = "dodge" | "parry")
- *  proc      = +шанс класс-пассива (target = id проки)
+ * Маппинг (реальный specId → дерево):
+ *  guardian      → g_    — Страж-танк
+ *  berserker     → b_    — Ярость-дамагер
+ *  marksman      → l_    — Крит с дистанции
+ *  tracker       → t_    — Контроль
+ *  lightbearer   → o_    — Усиленное лечение
+ *  shadowweaver  → i_    — Лечение от урона
+ *  arcane        → e_    — Усиленные заклинания
+ *  frost         → f_    — Контроль льдом
+ *  liquidator    → a_    — Критические удары
+ *  trickster     → t2_   — Уклонение
+ *  black_mage    → w_    — occult (общее)
+ *  hell_channel  → w_    — occult (общее)
  */
 public final class TalentsRegistry {
 
     private static final Map<String, TalentTree> TREES = new HashMap<>();
+    private static final TalentTree OCCULT_TREE = occult();
 
     static {
         TREES.put("guardian", guardian());
@@ -50,6 +47,8 @@ public final class TalentsRegistry {
         TREES.put("frost", frost());
         TREES.put("liquidator", liquidator());
         TREES.put("trickster", trickster());
+        TREES.put("black_mage", OCCULT_TREE);
+        TREES.put("hell_channel", OCCULT_TREE);
     }
 
     private TalentsRegistry() {
@@ -78,14 +77,12 @@ public final class TalentsRegistry {
     }
 
     /* =============================== WARRIOR: GUARDIAN =============================== */
-    /* Ветка A = стена (RESIST + AVOID + KIT_BASE balder_skin), B = контрудар (KIT_BASE/MULT tyr/ragnarok) */
     private static TalentTree guardian() {
         final String S = "guardian";
         return tree(S,
                 n("g_bulwark", S, 1, "A", List.of(), 1,
                         "Бастионная стойка", "+4% физрезиста постоянно",
-                        TalentModel.node("g_bulwark", 0).effect().equals(TalentEffect.of("resist", "phys", 4.0)) ? null
-                                : new TalentEffect("resist", "phys", 4.0, 0.0)),
+                        new TalentEffect("resist", "phys", 4.0, 0.0)),
                 n("g_vigil", S, 1, "B", List.of(), 1,
                         "Дозорная выправка", "+4 СИЛЫ постоянно",
                         new TalentEffect("attr", "str", 4.0, 0.0)),
@@ -110,7 +107,6 @@ public final class TalentsRegistry {
                 n("g_crown_aegis", S, 4, "A", List.of("g_bastion", "g_juggernaut"), 5,
                         "Эгида Короны", "+6 СИЛЫ, +4% физ, +4% маг резиста",
                         new TalentEffect("attr", "str", 6.0, 0.0))
-                        /* composite — см. примечание ниже */
         );
     }
 
@@ -148,7 +144,7 @@ public final class TalentsRegistry {
         );
     }
 
-    /* =============================== HUNTER: MARKSMAN (≡ LIQUIDATOR из дизайна) =============================== */
+    /* =============================== HUNTER: MARKSMAN =============================== */
     private static TalentTree marksman() {
         final String S = "marksman";
         return tree(S,
@@ -182,7 +178,7 @@ public final class TalentsRegistry {
         );
     }
 
-    /* =============================== HUNTER: TRACKER (≡ TRAPPER из дизайна) =============================== */
+    /* =============================== HUNTER: TRACKER =============================== */
     private static TalentTree tracker() {
         final String S = "tracker";
         return tree(S,
@@ -216,7 +212,7 @@ public final class TalentsRegistry {
         );
     }
 
-    /* =============================== PRIEST: LIGHTBEARER (≡ ORACLE) =============================== */
+    /* =============================== PRIEST: LIGHTBEARER =============================== */
     private static TalentTree lightbearer() {
         final String S = "lightbearer";
         return tree(S,
@@ -250,7 +246,7 @@ public final class TalentsRegistry {
         );
     }
 
-    /* =============================== PRIEST: SHADOWWEAVER (≡ INQUISITOR) =============================== */
+    /* =============================== PRIEST: SHADOWWEAVER =============================== */
     private static TalentTree shadowweaver() {
         final String S = "shadowweaver";
         return tree(S,
@@ -284,7 +280,7 @@ public final class TalentsRegistry {
         );
     }
 
-    /* =============================== MAGE: ARCANE (≡ ELEMENTALIST) =============================== */
+    /* =============================== MAGE: ARCANE =============================== */
     private static TalentTree arcane() {
         final String S = "arcane";
         return tree(S,
@@ -318,7 +314,7 @@ public final class TalentsRegistry {
         );
     }
 
-    /* =============================== MAGE: FROST (НОВОЕ дерево — «Контроль льдом») =============================== */
+    /* =============================== MAGE: FROST =============================== */
     private static TalentTree frost() {
         final String S = "frost";
         return tree(S,
@@ -352,7 +348,7 @@ public final class TalentsRegistry {
         );
     }
 
-    /* =============================== ROGUE: LIQUIDATOR (≡ ASSASSIN) =============================== */
+    /* =============================== ROGUE: LIQUIDATOR =============================== */
     private static TalentTree liquidator() {
         final String S = "liquidator";
         return tree(S,
@@ -418,6 +414,46 @@ public final class TalentsRegistry {
                         List.of("t2_untouchable", "t2_blade_storm"), 5,
                         "Танец тысячи порезов", "«Веер клинков»: +30% коэф., dodge proc",
                         new TalentEffect("kit_mult", "blade_fan", 0.30, 0.0))
+        );
+    }
+
+    /* =============================== WARLOCK: OCCULT (1.10.0) =============================== */
+    /* Одно общее дерево для обеих спек (black_mage / hell_channel).
+       Схема: 2 T1 + 4 T2 + 2 T3 + 1 ульт = 21 очко.
+       Ветка A = «Чернила» (урон/дрейн), ветка B = «Переплёт» (контроль/цена). */
+    private static TalentTree occult() {
+        final String S = "black_mage"; // ключ-якорь для TalentNode.specId; в TREES оба ключа указывают сюда
+        return tree(S,
+                n("w_acid_ink", S, 1, "A", List.of(), 1,
+                        "Едкие Чернила", "«Чёрное Слово»: +10% коэффициента",
+                        new TalentEffect("kit_mult", "black_word", 0.10, 0.0)),
+                n("w_sturdy_binding", S, 1, "B", List.of(), 1,
+                        "Крепкий Переплёт", "+4 ИНТЕЛЛЕКТА (больше SP — меньше относительный откат)",
+                        new TalentEffect("attr", "int", 4.0, 0.0)),
+
+                n("w_greedy_word", S, 2, "A", List.of("w_acid_ink"), 2,
+                        "Жадное Слово", "«Чёрное Слово»: ещё +15% коэффициента",
+                        new TalentEffect("kit_mult", "black_word", 0.15, 0.0)),
+                n("w_slow_close", S, 2, "A", List.of("w_acid_ink"), 2,
+                        "Медленное Закрытие", "Скверна регенерирует на +1/с быстрее вне боя",
+                        new TalentEffect("regen", "resource", 1.0, 0.0)),
+                n("w_deep_seal", S, 2, "B", List.of("w_sturdy_binding"), 2,
+                        "Глубокая Печать", "«Печать Погибели»: −15% кулдауна",
+                        new TalentEffect("cd", "ruin_seal", 0.15, 0.0)),
+                n("w_long_ban", S, 2, "B", List.of("w_sturdy_binding"), 2,
+                        "Долгий Запрет", "+4 ИНТЕЛЛЕКТА (усиление Небытия и Главы)",
+                        new TalentEffect("attr", "int", 4.0, 0.0)),
+
+                n("w_open_book", S, 3, "A", List.of("w_greedy_word", "w_slow_close"), 3,
+                        "Открытая Книга", "«Раскол Души»: +25% коэффициента",
+                        new TalentEffect("kit_mult", "soul_rift", 0.25, 0.0)),
+                n("w_punishing_corruption", S, 3, "B", List.of("w_deep_seal", "w_long_ban"), 3,
+                        "Карающая Скверна", "+6% магрезиста постоянно",
+                        new TalentEffect("resist", "magic", 6.0, 0.0)),
+
+                n("w_last_page", S, 4, "A", List.of("w_open_book", "w_punishing_corruption"), 5,
+                        "Последняя Страница", "«Раскол Души»: −20% кулдауна; лор: «раз в 60 с пережить летальный урон с 15% HP»",
+                        new TalentEffect("cd", "soul_rift", 0.20, 0.0))
         );
     }
 }
