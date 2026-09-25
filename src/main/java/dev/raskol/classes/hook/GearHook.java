@@ -11,6 +11,8 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.server.PluginDisableEvent;
+import org.bukkit.event.server.PluginEnableEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
@@ -25,31 +27,27 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.9.3: ХУК RaskolGear (softdepend, без правок чужой репы).
- * Читает статы шмота из PDC (namespace "raskolgear") и агрегирует per-player:
- * физ/маг резист, +HP, шипы (reflect, только полный сет 4/4), факт наличия шмота.
+ * 1.9.3: ХУК RaskolGear (без правок чужой репы): читает статы шмота из PDC
+ * (namespace "raskolgear") и агрегирует per-player.
+ *
+ * 1.9.3.1 FIX (циклический softdepend RaskolClasses↔RaskolGear):
+ *  - порядок enable не определён, поэтому стартовый лог печатается по PRESENCE
+ *    (плагин загружен), а не по enabled;
+ *  - реальная активация логируется на PluginEnableEvent(RaskolGear) + прогрев кэша
+ *    всех онлайн-игроков; деактивация — на PluginDisableEvent;
+ *  - isAvailable() остаётся динамической проверкой enabled (рантайм-гейт статов).
  *
  * Разделение ответственности (без двойного применения):
- *  - Резисты шмота В БОЮ применяет сам RaskolGear (его ArmorDefenseListener).
- *    GearHook только читает их для ДИСПЛЕЯ (/rc debug, Книга) и сет-подсчёта.
- *  - +HP шмота применяет RaskolClasses: GearHook.hpBonus добавляется в формулу
- *    AttributeService.maxHp (ванильный AttributeModifier от RaskolGear при этом
- *    нейтрализуется carrier-логикой HpBarService, чтобы не было двойного HP).
- *  - Исходящий офенс: CombatService пропускает надбавку WP/SP, если в руке
- *    оружие RaskolGear (его WeaponDamageListener уже посчитал base+Power×coeff).
- *
- * Кэш per-player обновляется на join/respawn/InventoryClick(MONITOR)/quit.
- *
- * 1.9.3-r2: добавлен API для GUI (getEquippedWeapon, getEquippedArmor, getActiveSets).
+ *  - резисты шмота В БОЮ применяет сам RaskolGear; GearHook читает их для дисплея;
+ *  - +HP шмота применяет RaskolClasses через AttributeService.maxHp (gearHp);
+ *  - исходящий офенс WP/SP пропускается CombatService для оружия с тегом WEAPON.
  */
 public final class GearHook implements Listener {
 
-    /** Агрегированные статы шмота игрока. */
     public record GearStats(double phys, double magic, double hp, double reflect, boolean any) {
         public static final GearStats EMPTY = new GearStats(0, 0, 0, 0, false);
     }
 
-    /** Экипированный предмет (для GUI). */
     public record EquippedItem(ItemStack item, String className, String rarity, String slot) {
     }
 
@@ -80,8 +78,26 @@ public final class GearHook implements Listener {
         kSlot = new NamespacedKey("raskolgear", "armor_slot");
     }
 
+    /** Плагин RaskolGear присутствует (загружен), независимо от enabled. */
+    public boolean isPresent() {
+        return gear != null;
+    }
+
+    /** Плагин присутствует И включён — стат-чтение разрешено. */
     public boolean isAvailable() {
         return gear != null && gear.isEnabled();
+    }
+
+    /** 1.9.3.1: стартовый лог по presence (enable может прийти позже из-за цикла softdepend). */
+    public void logStartup() {
+        if (gear == null) {
+            plugin.getLogger().info("RaskolGear: не найден — хук отключён (gear-статы = 0)");
+        } else if (gear.isEnabled()) {
+            plugin.getLogger().info("RaskolGear: хук активен (статы шмота читаются из PDC)");
+        } else {
+            plugin.getLogger().info("RaskolGear: найден (v" + gear.getDescription().getVersion()
+                    + ") — хук активируется после его включения (порядок softdepend)");
+        }
     }
 
     /* -------------------------------- кэш -------------------------------- */
@@ -106,7 +122,6 @@ public final class GearHook implements Listener {
     public double reflect(UUID uuid) { return stats(uuid).reflect(); }
     public boolean hasGear(UUID uuid) { return stats(uuid).any(); }
 
-    /** Пересчёт кэша + инвалидация атрибутов/HP (вызывается событиями). */
     public void refresh(Player player) {
         if (!isAvailable()) {
             return;
@@ -116,6 +131,12 @@ public final class GearHook implements Listener {
         GearStats prev = cache.put(uuid, next);
         if (prev == null || prev.hp() != next.hp()) {
             plugin.getAttributes().invalidate(uuid);
+        }
+    }
+
+    private void refreshAll() {
+        for (Player p : plugin.getServer().getOnlinePlayers()) {
+            refresh(p);
         }
     }
 
@@ -194,9 +215,10 @@ public final class GearHook implements Listener {
         if (!"WEAPON".equals(pdc.get(kType, PersistentDataType.STRING))) {
             return null;
         }
-        String cls = pdc.get(kClass, PersistentDataType.STRING);
-        String rar = pdc.get(kRarity, PersistentDataType.STRING);
-        return new EquippedItem(weapon, cls, rar, "mainhand");
+        return new EquippedItem(weapon,
+                pdc.get(kClass, PersistentDataType.STRING),
+                pdc.get(kRarity, PersistentDataType.STRING),
+                "mainhand");
     }
 
     public List<EquippedItem> getEquippedArmor(Player player) {
@@ -213,15 +235,34 @@ public final class GearHook implements Listener {
             if (!"ARMOR".equals(pdc.get(kType, PersistentDataType.STRING))) {
                 continue;
             }
-            String cls = pdc.get(kClass, PersistentDataType.STRING);
-            String rar = pdc.get(kRarity, PersistentDataType.STRING);
-            String slot = pdc.get(kSlot, PersistentDataType.STRING);
-            armor.add(new EquippedItem(item, cls, rar, slot));
+            armor.add(new EquippedItem(item,
+                    pdc.get(kClass, PersistentDataType.STRING),
+                    pdc.get(kRarity, PersistentDataType.STRING),
+                    pdc.get(kSlot, PersistentDataType.STRING)));
         }
         return armor;
     }
 
     /* -------------------------------- события -------------------------------- */
+
+    /** 1.9.3.1: активация хука, когда RaskolGear включился позже нас. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPluginEnable(PluginEnableEvent event) {
+        if (!"RaskolGear".equals(event.getPlugin().getName())) {
+            return;
+        }
+        plugin.getLogger().info("RaskolGear: хук активирован (статы шмота читаются из PDC)");
+        refreshAll();
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPluginDisable(PluginDisableEvent event) {
+        if (!"RaskolGear".equals(event.getPlugin().getName())) {
+            return;
+        }
+        plugin.getLogger().warning("RaskolGear: выключен — хук деактивирован (gear-статы = 0)");
+        cache.clear();
+    }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
