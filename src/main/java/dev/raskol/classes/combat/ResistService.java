@@ -17,8 +17,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 1.6.0: сопротивления урону (РЕЗИСТ).
  * 1.6.3: кэш факторов на тик. 1.6.9: pvp-cap / disabled-worlds.
  * 1.6.11: NaN-защита. 1.6.12: метрики размеров карт для /rc health.
- * 1.10.0-fix: defaultPhysical/defaultMagic покрывают WARLOCK (phys 10 / magic 26 —
- *         канон config.yml; стеклянный дрейн-кастер).
+ * 1.10.0-fix: defaultPhysical/defaultMagic покрывают WARLOCK (10 / 26).
+ * 1.11.1: stripOneTimedModifier(uuid) — снятие одного timed-модификатора
+ *         (для «Небытия» Чёрного Мага).
  */
 public final class ResistService {
 
@@ -75,7 +76,6 @@ public final class ResistService {
         return Double.isFinite(v) ? v : defaultMagic(pc);
     }
 
-    /** 1.10.0-fix: покрыт WARLOCK (10 физ — канон конфига). */
     private static double defaultPhysical(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> 27.0;
@@ -87,7 +87,6 @@ public final class ResistService {
         };
     }
 
-    /** 1.10.0-fix: покрыт WARLOCK (26 маг — канон конфига). */
     private static double defaultMagic(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> 12.0;
@@ -148,12 +147,40 @@ public final class ResistService {
         invalidate(uuid);
     }
 
-    /** 1.6.12: число игроков с модификаторами (для /rc health). */
+    /**
+     * 1.11.1: снять ОДИН ближайший к истечению timed-модификатор (не permanent).
+     * Возвращает source снятого модификатора или null, если timed-модификаторов нет.
+     * Используется «Небытием» Чёрного Мага.
+     */
+    public String stripOneTimedModifier(UUID uuid) {
+        CopyOnWriteArrayList<Modifier> list = modifiers.get(uuid);
+        if (list == null || list.isEmpty()) {
+            return null;
+        }
+        long now = System.currentTimeMillis();
+        Modifier victim = null;
+        for (Modifier m : list) {
+            if (!m.isPermanent() && m.expiresAt() > now) {
+                if (victim == null || m.expiresAt() < victim.expiresAt()) {
+                    victim = m;
+                }
+            }
+        }
+        if (victim == null) {
+            return null;
+        }
+        list.remove(victim);
+        if (list.isEmpty()) {
+            modifiers.remove(uuid);
+        }
+        invalidate(uuid);
+        return victim.source();
+    }
+
     public int trackedPlayers() {
         return modifiers.size();
     }
 
-    /** 1.6.12: суммарное число модификаторов (для /rc health). */
     public int totalModifiers() {
         int total = 0;
         for (CopyOnWriteArrayList<Modifier> list : modifiers.values()) {
@@ -162,7 +189,6 @@ public final class ResistService {
         return total;
     }
 
-    /** 1.6.12: размер кэша факторов (для /rc health). */
     public int factorCacheSize() {
         return factorCache.size();
     }
