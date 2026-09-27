@@ -31,13 +31,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Инсталляции классов (1.5.0 → 1.10.4).
- * 1.10.4: HERESY_CIRCLE переименован в «Пентаграмма»:
- *   - TTL берётся из installations.heresy_circle.duration (25 с), не общий ttl-seconds;
- *   - постановка: звук призыва визора (ENTITY_WARDEN_EMERGE) + отрисовка пентаграммы
- *     (кольцо огней душ + пятилучевая звезда багровых спор);
- *   - тик: видимая пентаграмма + эмбиент ада (ENTITY_BLAZE_AMBIENT) каждую секунду;
- *   - урон/анти-хил/+3 Скверны/с как ранее; в аду урон ×6.
+ * Инсталляции классов (1.5.0 → 1.11.2).
+ * 1.11.2: Пентаграмма v2 — читаемая геопентограмма (кольцо огней душ +
+ *         пятилучевая звезда, шаг 0.5 блока, недрейфующие партиклы),
+ *         перерисовка каждые 10 тиков отдельной задачей с самоотменой.
+ *         WG-гейт НЕ добавлен (решение S6: способности в чужих регионах легальны).
  */
 public final class InstallationService {
 
@@ -67,6 +65,7 @@ public final class InstallationService {
     private final Map<UUID, Installation> installations = new ConcurrentHashMap<>();
     private final Map<UUID, FrostRune> runes = new ConcurrentHashMap<>();
     private final Map<String, Long> placeCooldowns = new ConcurrentHashMap<>();
+    private final Map<UUID, BukkitTask> pentagramTasks = new ConcurrentHashMap<>();
     private BukkitTask sweepTask;
 
     public InstallationService(RaskolClasses plugin) {
@@ -85,7 +84,15 @@ public final class InstallationService {
     /* ------------------------------ removeAllOf ------------------------------ */
 
     public void removeAllOf(UUID uuid) {
-        installations.values().removeIf(i -> i.owner().equals(uuid));
+        List<UUID> removed = new ArrayList<>();
+        installations.values().removeIf(i -> {
+            boolean own = i.owner().equals(uuid);
+            if (own) {
+                removed.add(i.id());
+            }
+            return own;
+        });
+        removed.forEach(this::cancelPentagram);
         List<UUID> runeIds = new ArrayList<>();
         runes.forEach((id, r) -> {
             if (r.owner.equals(uuid)) {
@@ -212,7 +219,7 @@ public final class InstallationService {
         return typeCooldownSeconds(type) * 1000L;
     }
 
-    /* ------------------------------ Пентаграмма (1.10.4) ------------------------------ */
+    /* ------------------------------ Пентаграмма (1.11.2 v2) ------------------------------ */
 
     private boolean placePentagram(Player p, Location loc) {
         int duration = cfgI("installations.heresy_circle.duration", 25);
@@ -221,9 +228,10 @@ public final class InstallationService {
         installations.put(inst.id(), inst);
 
         FxService fx = plugin.getFx();
-        // звук призыва визора + отрисовка пентаграммы
         fx.playSound(loc, Sound.ENTITY_WARDEN_EMERGE, 1.0f, 0.8f);
-        drawPentagram(loc, cfgD("installations.heresy_circle.radius", 6.0), true);
+        double radius = cfgD("installations.heresy_circle.radius", 6.0);
+        drawPentagram(loc, radius);
+        startPentagramTask(inst.id(), loc, radius);
 
         if (plugin.getConfig().getBoolean("installations.notify-owner", true)) {
             p.sendMessage(Component.text("Пентаграмма начертана: действует "
@@ -232,40 +240,73 @@ public final class InstallationService {
         return true;
     }
 
-    /** Кольцо огней душ + пятилучевая звезда багровых спор (видима всем). */
-    private void drawPentagram(Location center, double radius, boolean full) {
+    private void startPentagramTask(UUID instId, Location loc, double radius) {
+        BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
+            @Override
+            public void run() {
+                if (installations.containsKey(instId) && loc.getWorld() != null) {
+                    drawPentagram(loc, radius);
+                } else {
+                    BukkitTask self = pentagramTasks.remove(instId);
+                    if (self != null) {
+                        self.cancel();
+                    }
+                }
+            }
+        }, 10L, 10L);
+        pentagramTasks.put(instId, task);
+    }
+
+    private void cancelPentagram(UUID instId) {
+        BukkitTask task = pentagramTasks.remove(instId);
+        if (task != null) {
+            task.cancel();
+        }
+    }
+
+    /**
+     * Читаемая пентаграмма: внешнее кольцо + пятилучевая звезда (вершина k → k+2),
+     * шаг 0.5 блока, партикл SOUL_FIRE_FLAME (не дрейфует, держит форму).
+     */
+    private void drawPentagram(Location center, double radius) {
         World w = center.getWorld();
         if (w == null) {
             return;
         }
+        double y = center.getY() + 0.06;
+        double cx = center.getX();
+        double cz = center.getZ();
         try {
-            int ringPts = full ? 48 : 24;
-            for (int i = 0; i < ringPts; i++) {
-                double angle = (Math.PI * 2 * i) / ringPts;
-                Location p = center.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius);
-                w.spawnParticle(Particle.SOUL_FIRE_FLAME, p, full ? 2 : 1, 0.0, 0.15, 0.0, 0.005);
+            int ring = Math.max(24, (int) (Math.PI * 2 * radius / 0.5));
+            for (int i = 0; i < ring; i++) {
+                double angle = (Math.PI * 2 * i) / ring;
+                w.spawnParticle(Particle.SOUL_FIRE_FLAME,
+                        cx + Math.cos(angle) * radius, y, cz + Math.sin(angle) * radius,
+                        1, 0, 0, 0, 0.0);
             }
-            // пятилучевая звезда: вершины k соединяем с k+2
             double[] vx = new double[5];
             double[] vz = new double[5];
+            double starR = radius * 0.95;
             for (int k = 0; k < 5; k++) {
                 double a = Math.PI / 2.0 + k * (Math.PI * 2.0 / 5.0);
-                vx[k] = Math.cos(a) * radius * 0.85;
-                vz[k] = Math.sin(a) * radius * 0.85;
+                vx[k] = Math.cos(a) * starR;
+                vz[k] = Math.sin(a) * starR;
             }
-            int samples = full ? 12 : 6;
             for (int k = 0; k < 5; k++) {
                 int j = (k + 2) % 5;
-                for (int s = 0; s <= samples; s++) {
-                    double t = (double) s / samples;
-                    double x = vx[k] + (vx[j] - vx[k]) * t;
-                    double z = vz[k] + (vz[j] - vz[k]) * t;
-                    w.spawnParticle(Particle.CRIMSON_SPORE,
-                            center.clone().add(x, 0.25, z), 1, 0.0, 0.1, 0.0, 0.004);
+                double dx = vx[j] - vx[k];
+                double dz = vz[j] - vz[k];
+                double len = Math.sqrt(dx * dx + dz * dz);
+                int steps = Math.max(8, (int) (len / 0.5));
+                for (int s = 0; s <= steps; s++) {
+                    double t = (double) s / steps;
+                    w.spawnParticle(Particle.SOUL_FIRE_FLAME,
+                            cx + vx[k] + dx * t, y, cz + vz[k] + dz * t,
+                            1, 0, 0, 0, 0.0);
                 }
             }
         } catch (IllegalArgumentException ignored) {
-            // партикл недоступен на этом билде — молча пропускаем визуал
+            // партикл недоступен на билде — молча пропускаем визуал
         }
     }
 
@@ -299,9 +340,9 @@ public final class InstallationService {
             for (int i = 0; i < 32; i++) {
                 double angle = (Math.PI * 2 * i) / 32;
                 Location ringLoc = loc.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
-                for (int y = 0; y < 4; y++) {
+                for (int yy = 0; yy < 4; yy++) {
                     loc.getWorld().spawnParticle(Particle.PORTAL,
-                            ringLoc.clone().add(0.0, y * 0.5, 0.0), 2, 0.0, 0.0, 0.0, 0.0);
+                            ringLoc.clone().add(0.0, yy * 0.5, 0.0), 2, 0.0, 0.0, 0.0, 0.0);
                 }
             }
         }, 0L, 20L);
@@ -402,6 +443,7 @@ public final class InstallationService {
         long now = System.currentTimeMillis();
         if (now > inst.expiresAt()) {
             installations.remove(inst.id());
+            cancelPentagram(inst.id());
             if (inst.type() == InstallationType.HERESY_CIRCLE) {
                 plugin.getFx().impactBurst(inst.location(), Particle.SMOKE, 14,
                         Sound.ENTITY_BLAZE_DEATH, 0.3f, 0.8f);
@@ -429,8 +471,7 @@ public final class InstallationService {
                 }
             }
             case HERESY_CIRCLE -> {
-                // 1.10.4: видимая пентаграмма + эмбиент ада каждую секунду
-                drawPentagram(inst.location(), radius, false);
+                // визуал живёт в отдельной задаче перерисовки (startPentagramTask)
                 plugin.getFx().playSound(inst.location(), Sound.ENTITY_BLAZE_AMBIENT, 0.18f, 0.9f);
 
                 double tick = cfgD("installations.heresy_circle.damage-magic", 4.0);
@@ -573,7 +614,13 @@ public final class InstallationService {
 
     public void purgeStale() {
         long now = System.currentTimeMillis();
-        installations.entrySet().removeIf(e -> e.getValue().expiresAt() < now);
+        installations.entrySet().removeIf(e -> {
+            boolean expired = e.getValue().expiresAt() < now;
+            if (expired) {
+                cancelPentagram(e.getKey());
+            }
+            return expired;
+        });
         runes.entrySet().removeIf(e -> {
             boolean expired = e.getValue().expiresAt < now;
             if (expired) {
@@ -588,6 +635,8 @@ public final class InstallationService {
         if (sweepTask != null) {
             sweepTask.cancel();
         }
+        pentagramTasks.values().forEach(BukkitTask::cancel);
+        pentagramTasks.clear();
         for (FrostRune rune : new ArrayList<>(runes.values())) {
             plugin.getFx().stopAmbient(rune.ambientId);
             plugin.getAttributes().removeModifiersBySource(rune.owner, RUNE_INT_MOD);
