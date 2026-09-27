@@ -31,8 +31,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;   // FIX 1.11.2: entity.*, а не player.*
 import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.event.player.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
@@ -64,6 +64,7 @@ import java.util.logging.Logger;
  *         инвентарь) несёт PDC-владельца и поднимается только им.
  *         Продажа (аукцион/ChestShop) НЕ блокируется.
  * 1.11.2: авто-созданной группе class_warlock копируется вес класс-группы.
+ * 1.11.2-fix: импорт PlayerDeathEvent из org.bukkit.event.entity.
  */
 public final class FoliantService implements Listener {
 
