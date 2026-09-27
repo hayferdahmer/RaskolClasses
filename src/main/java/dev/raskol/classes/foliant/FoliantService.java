@@ -4,13 +4,16 @@ package dev.raskol.classes.foliant;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.compat.AuthGate;
+import dev.raskol.classes.storage.SafeStorage;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
+import net.luckperms.api.node.Node;
 import net.luckperms.api.node.NodeType;
 import net.luckperms.api.node.types.InheritanceNode;
 import org.bukkit.Bukkit;
@@ -19,13 +22,18 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
@@ -34,24 +42,46 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.io.File;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Logger;
 
 /**
  * 1.10.0: ФОЛИАНТ ДУШ (скрытый путь Чернокнижника).
- * 1.10.3: грант при переходе — sorcery=10 (дерево мага, у чернокнижника
- *         нет собственного дерева, прогрессия через общие источники AuraSkills).
+ * 1.11.2 (S1): санитайзер ника в console-фолбэке LP-миграции (инъекции).
+ * 1.11.2 (S2): дроп только с пиглинов ада и только при уроне игрока (getKiller);
+ *         скрытый релок-цикл после выпадения: ≥1 моб вне ада + ≥1 смерть +
+ *         ≥1000 пиглинов без шанса (foliant-lock.yml, персист).
+ * 1.11.2 (S3): том не падает с игрока на смерть, не выбрасывается (Q),
+ *         дроп-ролл идёт напрямую в инвентарь; наземный экземпляр (полный
+ *         инвентарь) несёт PDC-владельца и поднимается только им.
+ *         Продажа (аукцион/ChestShop) НЕ блокируется.
+ * 1.11.2: авто-созданной группе class_warlock копируется вес класс-группы.
  */
 public final class FoliantService implements Listener {
 
+    private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
     private static final LegacyComponentSerializer LEGACY =
             LegacyComponentSerializer.legacySection();
 
     private static final String WARLOCK_GROUP = "class_warlock";
+    private static final java.util.regex.Pattern SAFE_NAME =
+            java.util.regex.Pattern.compile("^[A-Za-z0-9_]{3,16}$");
+
+    /** Скрытое состояние релок-цикла игрока. */
+    private static final class RelockState {
+        boolean locked;
+        int outKills;
+        int deaths;
+        int noKills;
+    }
 
     private static final class FoliantHolder implements InventoryHolder {
         private Inventory inventory;
@@ -64,10 +94,79 @@ public final class FoliantService implements Listener {
 
     private final RaskolClasses plugin;
     private final NamespacedKey foliantKey;
+    private final NamespacedKey ownerKey;
+
+    private final Map<UUID, RelockState> locks = new ConcurrentHashMap<>();
+    private final File lockFile;
+    private final YamlConfiguration lockStore;
+    private volatile boolean lockDirty = false;
 
     public FoliantService(RaskolClasses plugin) {
         this.plugin = plugin;
         this.foliantKey = new NamespacedKey(plugin, "raskol_foliant");
+        this.ownerKey = new NamespacedKey(plugin, "raskol_foliant_owner");
+        this.lockFile = new File(plugin.getDataFolder(), "foliant-lock.yml");
+        this.lockStore = SafeStorage.loadWithFallback(lockFile, LOGGER);
+        loadLocks();
+        plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+            if (lockDirty) {
+                saveLocks();
+            }
+        }, 1200L, 1200L);
+    }
+
+    /* -------------------------------- персист релока -------------------------------- */
+
+    private void loadLocks() {
+        for (String key : lockStore.getKeys(false)) {
+            try {
+                UUID uuid = UUID.fromString(key);
+                RelockState st = new RelockState();
+                st.locked = lockStore.getBoolean(key + ".locked", false);
+                st.outKills = lockStore.getInt(key + ".out-kills", 0);
+                st.deaths = lockStore.getInt(key + ".deaths", 0);
+                st.noKills = lockStore.getInt(key + ".no-kills", 0);
+                if (st.locked) {
+                    locks.put(uuid, st);
+                }
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+    }
+
+    private synchronized void saveLocks() {
+        for (Map.Entry<UUID, RelockState> e : locks.entrySet()) {
+            String k = e.getKey().toString();
+            lockStore.set(k + ".locked", e.getValue().locked);
+            lockStore.set(k + ".out-kills", e.getValue().outKills);
+            lockStore.set(k + ".deaths", e.getValue().deaths);
+            lockStore.set(k + ".no-kills", e.getValue().noKills);
+        }
+        SafeStorage.saveAtomic(lockStore, lockFile, LOGGER);
+        lockDirty = false;
+    }
+
+    private RelockState lockState(UUID uuid) {
+        return locks.computeIfAbsent(uuid, k -> new RelockState());
+    }
+
+    private boolean relockEnabled() {
+        return plugin.getConfig().getBoolean("foliant.relock.enabled", true);
+    }
+
+    private void checkUnlock(Player p, RelockState st) {
+        int needOut = Math.max(1, plugin.getConfig().getInt("foliant.relock.kills-outside-nether", 1));
+        int needDeaths = Math.max(1, plugin.getConfig().getInt("foliant.relock.deaths", 1));
+        int needNo = Math.max(1, plugin.getConfig().getInt("foliant.relock.piglin-kills-no-chance", 1000));
+        if (st.outKills >= needOut && st.deaths >= needDeaths && st.noKills >= needNo) {
+            st.locked = false;
+            st.outKills = 0;
+            st.deaths = 0;
+            st.noKills = 0;
+            saveLocks();
+            LOGGER.info("Foliant: релок-цикл завершён игроком " + p.getName()
+                    + " (шанс дропа восстановлен)");
+        }
     }
 
     /* -------------------------------- предмет -------------------------------- */
@@ -107,30 +206,130 @@ public final class FoliantService implements Listener {
                 .has(foliantKey, PersistentDataType.BYTE);
     }
 
-    /* ------------------------------ дроп в аду ------------------------------ */
+    private String ownerOf(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
+        }
+        return item.getItemMeta().getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
+    }
+
+    private void spillGround(Player p, ItemStack item) {
+        ItemStack tagged = item.clone();
+        tagged.editMeta(m -> m.getPersistentDataContainer().set(
+                ownerKey, PersistentDataType.STRING, p.getUniqueId().toString()));
+        Item dropped = p.getWorld().dropItem(p.getLocation(), tagged);
+        dropped.setPickupDelay(20);
+    }
+
+    /* ------------------------------ дроп и релок (S2) ------------------------------ */
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
+        Player killer = event.getKiller(); // урон нанёс именно игрок
+        if (killer == null) {
+            return;
+        }
+        boolean nether = event.getEntity().getWorld().getEnvironment() == World.Environment.NETHER;
+        List<String> mobs = plugin.getConfig().getStringList("foliant.drop-mobs");
+        boolean eligibleMob = mobs.isEmpty() || mobs.contains(event.getEntity().getType().name());
+
+        RelockState st = locks.get(killer.getUniqueId());
+        if (st != null && st.locked) {
+            if (relockEnabled()) {
+                if (!nether) {
+                    st.outKills++;
+                } else if (eligibleMob) {
+                    st.noKills++;
+                }
+                checkUnlock(killer, st);
+                lockDirty = true;
+            }
+            return; // шанс заблокирован до конца цикла
+        }
+
         if (!plugin.getConfig().getBoolean("foliant.drop-enabled", true)) {
             return;
         }
-        if (plugin.getConfig().getBoolean("foliant.drop-nether-only", true)
-                && event.getEntity().getWorld().getEnvironment() != World.Environment.NETHER) {
+        if (plugin.getConfig().getBoolean("foliant.drop-nether-only", true) && !nether) {
             return;
         }
-        List<String> mobs = plugin.getConfig().getStringList("foliant.drop-mobs");
-        if (!mobs.isEmpty() && !mobs.contains(event.getEntity().getType().name())) {
+        if (!eligibleMob) {
             return;
         }
         double chancePercent = plugin.getConfig().getDouble("foliant.drop-chance-percent", 0.001);
         if (chancePercent <= 0.0) {
             return;
         }
-        if (ThreadLocalRandom.current().nextDouble(100.0) < chancePercent) {
-            event.getDrops().add(createItem());
-            plugin.getLogger().info("Foliant: том выпал с "
-                    + event.getEntity().getType().name() + " в "
-                    + event.getEntity().getWorld().getName());
+        if (ThreadLocalRandom.current().nextDouble(100.0) >= chancePercent) {
+            return;
+        }
+
+        // Дроп: напрямую в инвентарь (S3); переполнение → наземный экземпляр с владельцем
+        ItemStack item = createItem();
+        Map<Integer, ItemStack> overflow = killer.getInventory().addItem(item);
+        if (!overflow.isEmpty()) {
+            spillGround(killer, overflow.values().iterator().next());
+        }
+        if (relockEnabled()) {
+            RelockState fresh = lockState(killer.getUniqueId());
+            fresh.locked = true;
+            fresh.outKills = 0;
+            fresh.deaths = 0;
+            fresh.noKills = 0;
+            saveLocks();
+        }
+        plugin.getFx().playSound(killer.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 0.5f, 0.8f);
+        if (killer.getWorld() != null) {
+            killer.getWorld().spawnParticle(Particle.SCULK_SOUL,
+                    killer.getLocation().add(0.0, 1.0, 0.0), 20, 0.4, 0.6, 0.4, 0.05);
+        }
+        LOGGER.info("Foliant: том выпал с " + event.getEntity().getType().name()
+                + " игроку " + killer.getName());
+    }
+
+    /* ------------------------------ soulbound (S3) ------------------------------ */
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        UUID uuid = event.getEntity().getUniqueId();
+        RelockState st = locks.get(uuid);
+        if (st != null && st.locked && relockEnabled()) {
+            st.deaths++;
+            checkUnlock(event.getEntity(), st);
+            lockDirty = true;
+        }
+        if (plugin.getConfig().getBoolean("foliant.soulbound.keep-on-death", true)) {
+            event.getDrops().removeIf(this::isFoliant);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onDropItem(PlayerDropItemEvent event) {
+        if (!isFoliant(event.getItemDrop().getItemStack())) {
+            return;
+        }
+        if (plugin.getConfig().getBoolean("foliant.soulbound.prevent-drop", true)) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(Component.text(
+                    "Том не выпускает себя из рук.", NamedTextColor.DARK_PURPLE));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPickup(EntityPickupItemEvent event) {
+        if (!(event.getEntity() instanceof Player p)) {
+            return;
+        }
+        if (!plugin.getConfig().getBoolean("foliant.soulbound.owner-lock-pickup", true)) {
+            return;
+        }
+        ItemStack it = event.getItem().getItemStack();
+        if (!isFoliant(it)) {
+            return;
+        }
+        String owner = ownerOf(it);
+        if (owner != null && !owner.equals(p.getUniqueId().toString())) {
+            event.setCancelled(true);
         }
     }
 
@@ -183,7 +382,6 @@ public final class FoliantService implements Listener {
             plugin.getPassives().clear(uuid);
         }
 
-        // 1.10.3: грант sorcery=10 (дерево мага, у чернокнижника нет своего)
         grantSorcerySkill(player, 10);
 
         plugin.getAttributes().invalidate(uuid);
@@ -208,6 +406,11 @@ public final class FoliantService implements Listener {
 
     /* ------------------------------ LuckPerms-миграция ------------------------------ */
 
+    /** S1: ник из консоли/оффлайн-режима может содержать что угодно — фильтр. */
+    public static boolean isSafeName(String name) {
+        return name != null && SAFE_NAME.matcher(name).matches();
+    }
+
     private boolean swapLuckPermsGroup(Player player) {
         try {
             return swapViaApi(player.getUniqueId());
@@ -220,11 +423,7 @@ public final class FoliantService implements Listener {
 
     private boolean swapViaApi(UUID uuid) {
         LuckPerms lp = LuckPermsProvider.get();
-        if (lp.getGroupManager().getGroup(WARLOCK_GROUP) == null) {
-            lp.getGroupManager().createAndLoadGroup(WARLOCK_GROUP).join();
-            plugin.getLogger().info("Foliant: создана LP-группа " + WARLOCK_GROUP
-                    + " (поставь weight 15 и префикс вручную, см. RUNBOOK X.1)");
-        }
+        ensureGroup(lp);
         User user = lp.getUserManager().loadUser(uuid).join();
         List<InheritanceNode> toRemove = new ArrayList<>();
         for (InheritanceNode node : user.getNodes(NodeType.INHERITANCE)) {
@@ -240,8 +439,34 @@ public final class FoliantService implements Listener {
         return true;
     }
 
+    /** Создаёт class_warlock при отсутствии и копирует вес существующей класс-группы. */
+    private void ensureGroup(LuckPerms lp) {
+        Group group = lp.getGroupManager().getGroup(WARLOCK_GROUP);
+        if (group != null) {
+            return;
+        }
+        group = lp.getGroupManager().createAndLoadGroup(WARLOCK_GROUP).join();
+        int weight = 15;
+        for (String src : new String[]{"class_mage", "class_priest", "class_warrior"}) {
+            Group s = lp.getGroupManager().getGroup(src);
+            if (s != null && s.getWeight().isPresent()) {
+                weight = s.getWeight().get();
+                break;
+            }
+        }
+        group.data().add(Node.builder("weight").value(String.valueOf(weight)).build());
+        lp.getGroupManager().saveGroup(group).join();
+        plugin.getLogger().info("Foliant: создана LP-группа " + WARLOCK_GROUP
+                + " с весом " + weight);
+    }
+
     private boolean swapViaConsole(Player player) {
         String name = player.getName();
+        if (!isSafeName(name)) { // S1: защита от инъекций в консольные команды
+            plugin.getLogger().severe("Foliant: небезопасный ник '" + name
+                    + "' — console-миграция отклонена (используй LP API)");
+            return false;
+        }
         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp creategroup " + WARLOCK_GROUP);
         for (PlayerClass pc : PlayerClass.values()) {
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
@@ -252,7 +477,7 @@ public final class FoliantService implements Listener {
                 "lp user " + name + " parent add " + WARLOCK_GROUP);
     }
 
-    /* ------------------------------ грант sorcery (1.10.3) ------------------------------ */
+    /* ------------------------------ грант sorcery ------------------------------ */
 
     private static final Object VOID_OK = new Object();
 
@@ -351,7 +576,7 @@ public final class FoliantService implements Listener {
         }
     }
 
-    /* -------------------------------- GUI (криптованное) -------------------------------- */
+    /* -------------------------------- GUI -------------------------------- */
 
     private void openConfirmGui(Player player) {
         FoliantHolder holder = new FoliantHolder();
