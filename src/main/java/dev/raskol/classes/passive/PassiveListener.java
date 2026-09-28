@@ -4,9 +4,12 @@ package dev.raskol.classes.passive;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.config.RaskolConfig;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -25,13 +28,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Пассивки классов (1.6.x) + бонусы талантов (1.9.0).
- *  - execute_passive (воин): шанс ×3 урона по цели ≤20% HP, КД 6 с;
- *  - predator (охотник): ×1.2 урона, пока HP атакующего ≥80%;
- *  - poisoned_blades (разбойник): шанс Яд I 2 с, КД 3 с;
- *  - sadism (разбойник): +N урона при атаке со спины, КД 2 с;
- *  - grace (жрец): ×M к исходящему лечению (через маркер хилера).
- * Шансы/бонусы читаются из конфига ПЛЮС TalentService.procBonus (узлы «proc»).
- * Визуал проков — FxService.procByKey (теги vfx.proc.*).
+ *  - execute_passive (воин), predator (охотник), poisoned_blades/sadism (разбойник),
+ *    grace (жрец) — как ранее.
+ *  - 1.11.2: black_mass (чернокнижник):
+ *      • лифстил 6.66% ТОЛЬКО с урона способностей (маркер CombatService.abilitySourceMark);
+ *      • рефлект 6.66% полученного урона чистым уроном по всем в радиусе 8
+ *        (союзники-игроки защищены фракционным гейтом), внутренний КД 1 с;
+ *      • S4: recoil/overflow/плата «Чёрного Слова» идут через прямой setHealth
+ *        без EntityDamageByEntityEvent → рефлект на них не срабатывает;
+ *        рефлект-урон помечен CombatService.beginReflect() и не цепляет
+ *        лифстил/рефлект/откат по цепочке.
  */
 public final class PassiveListener implements Listener {
 
@@ -100,7 +106,6 @@ public final class PassiveListener implements Listener {
 
         switch (pc) {
             case WARRIOR -> {
-                // Казнь: шанс ×3 по цели ≤ порога HP
                 if (enabled(pc, "execute_passive")) {
                     double threshold = cfgD(pc, "execute_passive", "threshold", 0.20);
                     double frac = hpFraction(target);
@@ -117,7 +122,6 @@ public final class PassiveListener implements Listener {
                 }
             }
             case HUNTER -> {
-                // Хищник: ×1.2, пока HP атакующего ≥ порога
                 if (enabled(pc, "predator")) {
                     double threshold = cfgD(pc, "predator", "threshold", 0.80);
                     if (hpFraction(attacker) >= threshold) {
@@ -128,7 +132,6 @@ public final class PassiveListener implements Listener {
                 }
             }
             case ROGUE -> {
-                // Отравленные клинки: шанс Яд I
                 if (enabled(pc, "poisoned_blades")) {
                     double chance = cfgD(pc, "poisoned_blades", "chance", 0.30)
                             + plugin.getTalentService().procBonus(uuid, "poisoned_blades");
@@ -139,7 +142,6 @@ public final class PassiveListener implements Listener {
                         plugin.getFx().procByKey(attacker, "☠ Яд!", "poisoned_blades");
                     }
                 }
-                // Садизм: +N урона при атаке со спины
                 if (enabled(pc, "sadism") && isBehind(target, attacker)) {
                     double bonus = cfgD(pc, "sadism", "bonus", 3.0)
                             + plugin.getTalentService().procBonus(uuid, "sadism");
@@ -150,8 +152,57 @@ public final class PassiveListener implements Listener {
                     }
                 }
             }
+            case WARLOCK -> {
+                // 1.11.2: лифстил 6.66% только с урона способностей, не с авто-атак
+                if (enabled(pc, "black_mass")
+                        && !CombatService.reflectSuppressed()
+                        && uuid.equals(CombatService.abilitySourceMark())) {
+                    double ls = damage * cfgD(pc, "black_mass", "lifesteal", 0.0666);
+                    double scale = plugin.getAttributes().scale(attacker);
+                    if (scale > 0.0 && ls > 0.0) {
+                        plugin.getHpBarService().heal(attacker, ls / scale);
+                        plugin.getFx().procByKey(attacker, "☾ Чёрная Месса", "black_mass");
+                    }
+                }
+            }
             default -> {
                 // PRIEST, MAGE: исходящих проков урона нет
+            }
+        }
+
+        // 1.11.2: рефлект Чёрной Мессы — 6.66% полученного урона чистым по всем в радиусе
+        if (event.getEntity() instanceof Player victim
+                && plugin.getClassProvider().getClassOf(victim) == PlayerClass.WARLOCK
+                && enabled(PlayerClass.WARLOCK, "black_mass")
+                && !CombatService.reflectSuppressed()
+                && event.getDamager() instanceof LivingEntity) {
+            UUID vid = victim.getUniqueId();
+            int cd = cfgI(PlayerClass.WARLOCK, "black_mass", "cooldown-seconds", 1);
+            if (procCdOk(vid, "black_mass_reflect", cd)) {
+                double reflCarrier = event.getDamage()
+                        * cfgD(PlayerClass.WARLOCK, "black_mass", "reflect", 0.0666);
+                double radius = cfgD(PlayerClass.WARLOCK, "black_mass", "reflect-radius", 8.0);
+                double scaleV = plugin.getAttributes().scale(victim);
+                double reflFormula = scaleV > 0.0 ? reflCarrier / scaleV : reflCarrier;
+                if (reflFormula > 0.0) {
+                    CombatService.beginReflect();
+                    try {
+                        for (Entity e : victim.getWorld().getNearbyEntities(
+                                victim.getLocation(), radius, radius, radius)) {
+                            if (!(e instanceof LivingEntity t) || t.equals(victim) || t.isDead()) {
+                                continue;
+                            }
+                            if (!plugin.getCombat().canHit(victim, t)) {
+                                continue; // союзники-игроки не страдают
+                            }
+                            plugin.getCombat().dealDamage(t, victim,
+                                    DamageProfile.trueDamage(reflFormula));
+                        }
+                    } finally {
+                        CombatService.endReflect();
+                    }
+                    plugin.getFx().procByKey(victim, "☾ Чёрная Месса", "black_mass");
+                }
             }
         }
     }
@@ -160,7 +211,6 @@ public final class PassiveListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
-        // Благодать: ×M к лечению, исходящему от жреца (маркер ставит PriestAbilities)
         UUID healer = healerMark; // читаем без poll: poll делает ResourceService
         if (healer == null) {
             return;
@@ -191,7 +241,6 @@ public final class PassiveListener implements Listener {
         return max > 0 ? e.getHealth() / max : 1.0;
     }
 
-    /** Атакующий за спиной цели: угол между направлением цели и вектором на атакующего ≥ back-angle. */
     private boolean isBehind(LivingEntity target, Player attacker) {
         Vector facing = target.getLocation().getDirection();
         Vector toAtt = attacker.getLocation().toVector().subtract(target.getLocation().toVector());
@@ -201,7 +250,7 @@ public final class PassiveListener implements Listener {
                 plugin.getConfig().getDouble("avoidance.back-angle", 135.0));
     }
 
-    private Player resolvePlayer(org.bukkit.entity.Entity damager) {
+    private Player resolvePlayer(Entity damager) {
         if (damager instanceof Player p) {
             return p;
         }
