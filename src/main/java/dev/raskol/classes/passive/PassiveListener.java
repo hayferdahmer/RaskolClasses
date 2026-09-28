@@ -38,6 +38,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *        без EntityDamageByEntityEvent → рефлект на них не срабатывает;
  *        рефлект-урон помечен CombatService.beginReflect() и не цепляет
  *        лифстил/рефлект/откат по цепочке.
+ *  - 1.11.2-fix: рефлект-урон использует new DamageProfile(0,0,refl) вместо
+ *    несуществующего DamageProfile.trueDamage(double).
  */
 public final class PassiveListener implements Listener {
 
@@ -196,7 +198,7 @@ public final class PassiveListener implements Listener {
                                 continue; // союзники-игроки не страдают
                             }
                             plugin.getCombat().dealDamage(t, victim,
-                                    DamageProfile.trueDamage(reflFormula));
+                                    new DamageProfile(0.0, 0.0, reflFormula));
                         }
                     } finally {
                         CombatService.endReflect();
