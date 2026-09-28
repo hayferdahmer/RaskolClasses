@@ -3,10 +3,7 @@ version: ${project.version}
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
-description: >-
-  Активные способности пяти классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»:
-  специализации, таланты, инсталляции, боевая математика,
-  виртуальный пул HP, хук RaskolGear.
+description: Классовый плагин сервера «РАСКОЛ | ДВЕ КОРОНЫ»
 website: https://github.com/hayferdahmer/RaskolClasses
 
 softdepend:
