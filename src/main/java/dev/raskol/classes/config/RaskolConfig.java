@@ -19,9 +19,9 @@ import java.util.Map;
  * Конфиг-слой плагина.
  * 1.10.0: WARLOCK. 1.10.1: пол Скверны. 1.10.3: occult убран.
  * 1.11.4 (P5): FUNNEL-чтение: kits/<class>.yml → classes.<CLASS> config.yml → код-дефолт.
- *         Все классовые геттеры (ресурсы, пороги, откат, темы, кит-мета, пассивки)
- *         идут через KitConfigCache; прямые чтения base/coeff/drain/radius/specs.*
- *         в китах остаются за config.yml до переезда в 1.12.x.
+ * 1.12.1-fix: kitLoader/kitCache создаются ДО первого reload() —
+ *         reload() завершается rebuildThemes(), который читает через kitCache
+ *         (прежний порядок давал NPE на старте и отключал плагин).
  */
 public final class RaskolConfig {
 
@@ -50,9 +50,10 @@ public final class RaskolConfig {
 
     public RaskolConfig(RaskolClasses plugin) {
         this.plugin = plugin;
-        reload();
+        // 1.12.1-fix: порядок критичен — funnel должен существовать до rebuildThemes()
         this.kitLoader = new KitConfigLoader(plugin);
         this.kitCache = new KitConfigCache(kitLoader);
+        reload();
     }
 
     public record ClassTheme(TextColor primary, TextColor secondary, String symbol,
