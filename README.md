@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/1.12.1-8b0000?style=flat-square&label=release&labelColor=0a0a0a"/>
+  <img src="https://img.shields.io/badge/1.11.4-8b0000?style=flat-square&label=release&labelColor=0a0a0a"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a"/>
   <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a"/>
   <img src="https://img.shields.io/badge/48%2F48-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a"/>
@@ -67,7 +67,7 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 ```
 
 - План B: carrier ≤ 1024 (ванильный max_health), formula без потолка, scale = carrier/formula.
-- HpPool (1.12.0): единые точки входа healFormula/currentFormulaHp/targetCarrier.
+- HpPool (1.11.4): единые точки входа healFormula/currentFormulaHp/targetCarrier.
 - Четыре типа урона, резисты (класс+гранты+спеки+таланты+сеты), burst-окно 3 с ≤ 18%,
   анти-ваншот ≤ 35%, LOS для площадей, летальность среды.
 - Спеки-резисты (F7): генерик `resist.specs.*` для всех 12 спек + self-reconcile 20 тиков.
@@ -79,7 +79,7 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 
 ---
 
-## V. МОДУЛИ И АРХИТЕКТУРА (линия 1.12.0)
+## V. МОДУЛИ И АРХИТЕКТУРА (линия 1.11.4)
 
 | Слой | Структура |
 |---|---|
@@ -142,7 +142,7 @@ WARLOCK-сеты добавляются секциями `weapons.WARLOCK.*` / `
 
 ```
 mvn -B clean package
-cp target/raskol-classes-1.12.1.jar plugins/
+cp target/raskol-classes-1.11.4.jar plugins/
 restart
 rc selftest   →  48/48 PASS
 ```
@@ -166,7 +166,7 @@ pure-формулы и sanity 41–48. Полный прогон перед лю
 
 ## X. ДОКУМЕНТАЦИЯ
 
-- [`RUNBOOK.md`](RUNBOOK.md) — аварии, гейты, тюнинг без пересборки, операторские заметки 1.12.0
+- [`RUNBOOK.md`](RUNBOOK.md) — аварии, гейты, тюнинг без пересборки, операторские заметки 1.11.4
 - [`CHANGELOG.md`](CHANGELOG.md) — история версий
 - [`LICENSE`](LICENSE) — RASKOL Proprietary License v1.0
 
