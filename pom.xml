@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Классовый плагин сервера «РАСКОЛ | ДВЕ КОРОНЫ»</description>
+    <description>Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»: специализации, таланты, инсталляции (Пентаграмма), боевая математика (школы-задел), виртуальный пул HP, хук RaskolGear, скрытый путь Чернокнижника (Фолиант Душ) и per-class конфиги kits/*.yml</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
