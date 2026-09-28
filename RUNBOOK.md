@@ -1,7 +1,7 @@
 # RUNBOOK — RaskolClasses
 
 Операторский справочник сервера «РАСКОЛ | ДВЕ КОРОНЫ».
-Актуально для линии **1.12.1**. Всё, что тюнится без пересборки, помечено `/rc reload`.
+Актуально для линии **1.11.4**. Всё, что тюнится без пересборки, помечено `/rc reload`.
 
 ---
 
@@ -21,7 +21,7 @@ formula — боевой пул; carrier = min(formula, 1024) в ванильн�
 selftest чеки 33–35.
 
 ### 0.4 Аварийный порядок при «странном HP»
-1. `/version RaskolClasses` ≥ 1.12.1. 2. selftest 33–35. 3. WARNING ConfigValidator.
+1. `/version RaskolClasses` ≥ 1.11.4. 2. selftest 33–35. 3. WARNING ConfigValidator.
 4. Sweep HpAttributeSync чинит рассинхрон ≤5 с; принудительно `/rc reload`. 5. Откат jar по I.1.
 
 ---
@@ -64,12 +64,12 @@ resources/health/**foliant-lock**; старт.
 
 ## II. ТЮНИНГ БЕЗ ПЕРЕСБОРКИ
 
-### 2.0 Per-class конфиги kits/ (1.12.0, P5)
+### 2.0 Per-class конфиги kits/ (1.11.4, P5)
 - `plugins/RaskolClasses/kits/<class>.yml` имеет приоритет над `classes.<CLASS>` в config.yml.
 - Перечитывается на `/rc reload`; строка «Per-class конфиги: N/6» в `/rc health`.
 - Сейчас поддерживаются ключи: resource.*, thresholds.*, recoil.*, nether-mult,
   lifesteal-cap, theme.*, cast.*, passives.*, abilities.* (name/description/unlock/cost/cooldown).
-- base/coeff/drain/radius/self-cost/specs.* — пока только config.yml (переезд в 1.13.x).
+- base/coeff/drain/radius/self-cost/specs.* — пока только config.yml (переезд в 1.12.0).
 - Дубли ключей в обоих местах → WARN при загрузке (источник правды — kits/).
 
 ### 2.1 Резисты и урон
@@ -85,8 +85,8 @@ resources/health/**foliant-lock**; старт.
 
 ### 2.4 TTK-харнесс
 `/rc debug simulate matrix [level]`; якорь `balance.target-ttk-seconds` (20 с), коридор ±30%.
-**Внимание 1.12.0:** фиксы F1/F2/F4/F6 изменили DPS/выживаемость спек разбойника и воина —
-ожидаются сдвиги строк ROGUE/WARRIOR; калибровка в 1.13.7.
+**Внимание 1.11.4:** фиксы F1/F2/F4/F6 изменили DPS/выживаемость спек разбойника и воина —
+ожидаются сдвиги строк ROGUE/WARRIOR; калибровка в 1.12.1 (баланс школ).
 
 ### 2.5 Экономика талантов/респека
 `talents.*`, `spec.respec-*`; формула цены заперта чеком 47.
@@ -95,7 +95,7 @@ resources/health/**foliant-lock**; старт.
 
 ## III. ЧЕК-ЛИСТ ПЕРЕД ИВЕНТОМ / ОСАДОЙ
 
-1. `/version RaskolClasses` = 1.12.1; лог старта: баннер 5 путей, «Per-class конфиги: N/6»,
+1. `/version RaskolClasses` = 1.11.4; лог старта: баннер 5 путей, «Per-class конфиги: N/6»,
    `ConfigValidator: конфиг валиден`.
 2. `/rc selftest` → **48/48 PASS** (SKIP 21/24/31/32 без онлайн-зонда допустимы).
 3. `/rc health` → MSPT ≤ 50, purge ≤ 60 с.
@@ -109,11 +109,11 @@ resources/health/**foliant-lock**; старт.
 
 ---
 
-## IV. ОПЕРАТОРСКИЕ ЗАМЕТКИ 1.12.0 (F-фиксы)
+## IV. ОПЕРАТОРСКИЕ ЗАМЕТКИ 1.11.4 (F-фиксы)
 
 | Спека | Было (баг) | Стало | Что увидят игроки |
 |---|---|---|---|
-| Ликвидатор | крит 100% | крит 15% ×1.5 | просадка DPS разбойника-ликвидатора |
+| Ликвидатор | крит 100% | крит 15% | просадка DPS разбойника-ликвидатора |
 | Трюкач | додж 100% | додж 15% | трюкач снова смертен |
 | Ткач теней | хил мимо анти-хила | хил через HpBarService | под Расколом Души не лечится |
 | Берсерк | по ярости ≥50 | по HP ≥60% | совпало с описанием |
@@ -144,9 +144,10 @@ HP-вопрос: раздел 0. Фолиант-вопрос: I.4. Per-class к�
 
 ---
 
-## VII. ДОРОЖНАЯ КАРТА (после 1.12.1)
+## VII. ДОРОЖНАЯ КАРТА
 
-- 1.13.1–1.13.7: школы урона и DoT (School/SchoolProfile, penetration, DoT-контейнер,
-  триггеры, иммунитеты, атрибуция, баланс-прогон матрицы с DoT).
-- 1.14.x: BlueprintHook → рабочие рецепты чертежей; данж «Катакомбы Зари».
+- **1.12.0:** каркас школ урона (School enum, SchoolProfile, vanilla-school map,
+  legacy-адаптер DamageProfile → SchoolProfile, конфиг `schools.*`, selftest 49–51).
+- **1.12.1:** баланс школ, DoT-контейнер, penetration, матрица TTK с DoT.
+- **1.13.x:** BlueprintHook → рабочие рецепты чертежей; данж «Катакомбы Зари».
 - Опционально: P5-доводка (переезд base/coeff/specs.* в kits/), per-class config для всех классов.
