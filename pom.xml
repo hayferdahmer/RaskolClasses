@@ -6,11 +6,11 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.12.1</version>
+    <version>1.11.4</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»: специализации, таланты, инсталляции (Пентаграмма), боевая математика (школы-задел), виртуальный пул HP, хук RaskolGear, скрытый путь Чернокнижника (Фолиант Душ) и per-class конфиги kits/*.yml</description>
+    <description>Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»: специализации, таланты, инсталляции (Пентаграмма), виртуальный пул HP, хук RaskolGear, скрытый путь Чернокнижника (Фолиант Душ) и per-class конфиги kits/*.yml</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
@@ -52,8 +52,6 @@
 
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>
-
-        <!-- подстановка ${project.version} в plugin.yml; остальные ресурсы без фильтрации -->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -70,7 +68,6 @@
                 </excludes>
             </resource>
         </resources>
-
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
