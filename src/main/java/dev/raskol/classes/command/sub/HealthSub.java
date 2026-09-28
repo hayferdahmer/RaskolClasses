@@ -2,12 +2,13 @@
 package dev.raskol.classes.command.sub;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 
-/** 1.11.4 (P4d): /rc health — MSPT/TPS, purge, аптайм, онлайн, Fx-счётчики. */
+/** 1.11.4 (P4d+P5): /rc health — MSPT/TPS, purge, аптайм, онлайн, Fx, per-class конфиги. */
 public final class HealthSub implements CommandSub {
 
     private final RaskolClasses plugin;
@@ -44,6 +45,10 @@ public final class HealthSub implements CommandSub {
                 NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Fx: активных " + plugin.getFx().activeCount()
                 + ", битых ключей " + plugin.getFx().brokenSoundCount(), NamedTextColor.GRAY));
+        sender.sendMessage(Component.text("Per-class конфиги: "
+                + plugin.getRaskolConfig().kitLoader().loadedCount()
+                + "/" + PlayerClass.values().length
+                + " (папка kits/, фолбэк config.yml)", NamedTextColor.GRAY));
         return true;
     }
 }
