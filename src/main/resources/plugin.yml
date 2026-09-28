@@ -3,7 +3,13 @@ version: ${project.version}
 main: dev.raskol.classes.RaskolClasses
 api-version: '1.21'
 author: hayferdahmer
-description: Классовый плагин сервера «РАСКОЛ | ДВЕ КОРОНЫ»
+description: >-
+  Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»:
+  специализации, таланты, инсталляции (Пентаграмма), боевая математика,
+  виртуальный пул HP, хук RaskolGear, скрытый путь — Чернокнижник
+  (Фолиант Душ: дроп 0.001% с пиглинов ада, чтение Магом/Жрецом 40+),
+  per-class конфиги kits/*.yml. Линия 1.12: сверхстабильность (рефакторинг
+  P1–P5, эксплойт-фиксы S1–S5/F1–F10, selftest 48 чеков).
 website: https://github.com/hayferdahmer/RaskolClasses
 
 softdepend:
