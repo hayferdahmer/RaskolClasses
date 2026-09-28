@@ -12,9 +12,15 @@ import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,18 +29,19 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 1.10.0: КИТ ЧЕРНОКНИЖНИКА (5 способностей, power = SP).
  * 1.10.4: «Чёрное Слово» v2 (бесплатно, плата 10% HP, +25 Скверны, без лечения, КД 3 с).
- * 1.11.1: ПРОВОДКА СПЕК — числовые трейты читаются из config
- *         (classes.WARLOCK.specs.*): урон/радиус/диспел-резиста у Чёрного Мага,
- *         длительность печати/анти-хил у Адского Канала. Реестры дебафов
- *         purge'ятся по расписанию (purgeStaleDebuffs public static).
+ * 1.11.1: ПРОВОДКА СПЕК — числовые трейты из config (classes.WARLOCK.specs.*).
+ * 1.11.2 (T2): задачи канала «Раскола Души» регистрируются и отменяются при выходе
+ *         кастера (PlayerQuit) и на onDisable. Утечка runTaskLater закрыта.
  */
-public final class WarlockAbilities {
+public final class WarlockAbilities implements Listener {
 
     private static final PlayerClass PC = PlayerClass.WARLOCK;
 
     private static final Map<UUID, Long> SEAL_EXPIRY = new ConcurrentHashMap<>();
     private static final Map<UUID, Double> SEAL_AMP = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> ANTIHEAL_EXPIRY = new ConcurrentHashMap<>();
+    /** 1.11.2 (T2): задачи канала Раскола Души, indexed by caster UUID. */
+    private static final Map<UUID, List<BukkitTask>> CHANNEL_TASKS = new ConcurrentHashMap<>();
 
     public static double sealAmplifyOf(UUID uuid) {
         Long expiry = SEAL_EXPIRY.get(uuid);
@@ -61,12 +68,32 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 1.11.1: плановая чистка протухших дебафов (вызывает ResourceService раз в 30 с). */
+    /** 1.11.1: плановая чистка протухших дебафов. */
     public static void purgeStaleDebuffs() {
         long now = System.currentTimeMillis();
         SEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
         SEAL_AMP.keySet().removeIf(id -> !SEAL_EXPIRY.containsKey(id));
         ANTIHEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
+    }
+
+    /** 1.11.2 (T2): отмена всех задач канала конкретного кастера. */
+    public static void cancelChannelTasks(UUID caster) {
+        List<BukkitTask> tasks = CHANNEL_TASKS.remove(caster);
+        if (tasks == null) {
+            return;
+        }
+        for (BukkitTask t : tasks) {
+            if (t != null && !t.isCancelled()) {
+                t.cancel();
+            }
+        }
+    }
+
+    /** 1.11.2 (T2): отмена всех задач всех кастеров (onDisable). */
+    public static void cancelAllChannelTasks() {
+        for (UUID uuid : new ArrayList<>(CHANNEL_TASKS.keySet())) {
+            cancelChannelTasks(uuid);
+        }
     }
 
     private final RaskolClasses plugin;
@@ -157,7 +184,7 @@ public final class WarlockAbilities {
         if (caster.getWorld().getEnvironment() == World.Environment.NETHER) {
             mult *= plugin.getRaskolConfig().warlockNetherMult();
         }
-        mult *= specDamageMult(caster); // 1.11.1: Чёрный Маг +10%
+        mult *= specDamageMult(caster);
         return mult;
     }
 
@@ -224,7 +251,6 @@ public final class WarlockAbilities {
 
     /* -------------------------------- способности -------------------------------- */
 
-    /** 1. «Чёрное Слово» v2: бесплатно, плата 10% HP, +25 Скверны, без лечения, КД 3 с. */
     public boolean blackWord(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
@@ -246,7 +272,6 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 2. «Печать Погибели»: +26% входящего урона, Glowing; АК — длительность 86.6 с. */
     public boolean ruinSeal(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
@@ -256,7 +281,7 @@ public final class WarlockAbilities {
             return false;
         }
         double baseDuration = cfgD("classes.WARLOCK.abilities." + def.id() + ".duration", 66.6);
-        double durationSec = specSealDuration(caster, baseDuration); // 1.11.1
+        double durationSec = specSealDuration(caster, baseDuration);
         double amplify = cfgD("classes.WARLOCK.abilities." + def.id() + ".amplify", 0.26);
         UUID id = t.getUniqueId();
         SEAL_EXPIRY.put(id, System.currentTimeMillis() + (long) (durationSec * 1000.0));
@@ -269,7 +294,6 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 3. «Голод Скверны»: AoE r6 + дрейн 66.6% + 12 Скверны. */
     public boolean hungerCorruption(Player caster, AbilityDef def) {
         double radius = radius(def, 6.0);
         double dmg = spellDamage(caster, def, 20.0, 1.2);
@@ -303,7 +327,6 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 4. «Небытие»: диспел зелий + урон за каждый; ЧМ дополнительно стирает резист-модификаторы. */
     public boolean unwriting(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
@@ -323,7 +346,6 @@ public final class WarlockAbilities {
                 purged++;
             }
         }
-        // 1.11.1: Чёрный Маг стирает также timed-модификаторы резистов (гранты/руны/сеты-таймеры)
         int strips = specUnwritingStrips(caster);
         for (int i = 0; i < strips; i++) {
             String src = plugin.getResists().stripOneTimedModifier(t.getUniqueId());
@@ -346,20 +368,22 @@ public final class WarlockAbilities {
         return true;
     }
 
-    /** 5. «Раскол Души»: канал 2.5 с, зона r8 (+2 ЧМ), анти-хил 6 с (+3 АК), взрыв по missing-HP. */
+    /** 1.11.2 (T2): задачи канала регистрируются в CHANNEL_TASKS и отменяются на выход. */
     public boolean soulRift(Player caster, AbilityDef def) {
-        double radius = radius(def, 8.0) + specRiftRadiusBonus(caster); // 1.11.1
+        double radius = radius(def, 8.0) + specRiftRadiusBonus(caster);
         double channelSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".channel", 2.5);
         double antihealSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".antiheal", 6.0)
-                + specAntihealBonus(caster); // 1.11.1
+                + specAntihealBonus(caster);
         double missingBonus = cfgD("classes.WARLOCK.abilities." + def.id() + ".missing-hp-bonus", 0.666);
         int ticks = Math.max(1, (int) (channelSec * 20.0));
 
         plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.9f, 0.7f);
         ringFx(caster.getLocation(), radius, Particle.CRIMSON_SPORE, 2);
 
+        List<BukkitTask> tasks = new ArrayList<>();
+
         for (int i = 1; i <= ticks; i += 5) {
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (!caster.isOnline() || caster.isDead()) {
                     return;
                 }
@@ -379,9 +403,10 @@ public final class WarlockAbilities {
                             System.currentTimeMillis() + (long) (antihealSec * 1000.0));
                 }
             }, i);
+            tasks.add(task);
         }
 
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        BukkitTask finalTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!caster.isOnline() || caster.isDead()) {
                 return;
             }
@@ -407,9 +432,20 @@ public final class WarlockAbilities {
             }
             plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
             purgeStaleDebuffs();
+            // 1.11.2 (T2): канал завершился штатно — чистим карту
+            CHANNEL_TASKS.remove(caster.getUniqueId());
         }, ticks + 1L);
+        tasks.add(finalTask);
 
+        CHANNEL_TASKS.put(caster.getUniqueId(), tasks);
         return true;
+    }
+
+    /* ------------------------------ 1.11.2 (T2): отмена на выход ------------------------------ */
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        cancelChannelTasks(event.getPlayer().getUniqueId());
     }
 
     /* ------------------------------ unit-хелперы (план B) ------------------------------ */
