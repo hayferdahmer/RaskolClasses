@@ -32,6 +32,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.11.1: ПРОВОДКА СПЕК — числовые трейты из config (classes.WARLOCK.specs.*).
  * 1.11.2 (T2): задачи канала «Раскола Души» регистрируются и отменяются при выходе
  *         кастера (PlayerQuit) и на onDisable. Утечка runTaskLater закрыта.
+ * 1.11.2 (S5): при наложении анти-хила опционально снимается Absorption
+ *         (гейт classes.WARLOCK.antiheal-strip-absorption).
  */
 public final class WarlockAbilities implements Listener {
 
@@ -249,6 +251,25 @@ public final class WarlockAbilities implements Listener {
         safeFx(caster.getLocation(), Particle.SCULK_SOUL, 10, 0.4);
     }
 
+    /**
+     * 1.11.2 (S5): опциональное снятие Absorption при наложении анти-хила.
+     * Гейт: classes.WARLOCK.antiheal-strip-absorption (false по умолчанию —
+     * жёсткая мера, включается по жалобам на «яблочных танков»).
+     */
+    private void maybeStripAbsorption(LivingEntity target) {
+        if (!(target instanceof Player tp)) {
+            return;
+        }
+        if (!plugin.getConfig().getBoolean(
+                "classes.WARLOCK.antiheal-strip-absorption", false)) {
+            return;
+        }
+        PotionEffect abs = tp.getPotionEffect(PotionEffectType.ABSORPTION);
+        if (abs != null) {
+            tp.removePotionEffect(PotionEffectType.ABSORPTION);
+        }
+    }
+
     /* -------------------------------- способности -------------------------------- */
 
     public boolean blackWord(Player caster, LivingEntity target, AbilityDef def) {
@@ -368,7 +389,7 @@ public final class WarlockAbilities implements Listener {
         return true;
     }
 
-    /** 1.11.2 (T2): задачи канала регистрируются в CHANNEL_TASKS и отменяются на выход. */
+    /** 1.11.2 (T2 + S5): задачи канала + опциональное снятие Absorption. */
     public boolean soulRift(Player caster, AbilityDef def) {
         double radius = radius(def, 8.0) + specRiftRadiusBonus(caster);
         double channelSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".channel", 2.5);
@@ -401,6 +422,8 @@ public final class WarlockAbilities implements Listener {
                     riseFx(t.getLocation(), Particle.SOUL, 3);
                     ANTIHEAL_EXPIRY.put(t.getUniqueId(),
                             System.currentTimeMillis() + (long) (antihealSec * 1000.0));
+                    // 1.11.2 (S5): опциональное снятие Absorption
+                    maybeStripAbsorption(t);
                 }
             }, i);
             tasks.add(task);
@@ -429,6 +452,8 @@ public final class WarlockAbilities implements Listener {
                 riseFx(t.getLocation(), Particle.SOUL, 8);
                 ANTIHEAL_EXPIRY.put(t.getUniqueId(),
                         System.currentTimeMillis() + (long) (antihealSec * 1000.0));
+                // 1.11.2 (S5): опциональное снятие Absorption
+                maybeStripAbsorption(t);
             }
             plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
             purgeStaleDebuffs();
