@@ -1,6 +1,7 @@
 // © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
 package dev.raskol.classes.config;
 
+import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import net.kyori.adventure.text.format.TextColor;
 import org.bukkit.NamespacedKey;
@@ -8,7 +9,6 @@ import org.bukkit.Particle;
 import org.bukkit.Registry;
 import org.bukkit.Sound;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -17,9 +17,11 @@ import java.util.Map;
 
 /**
  * Конфиг-слой плагина.
- * 1.10.0: класс WARLOCK (Скверна, откат 6.66%, ад ×6, пороги 75/100).
- * 1.10.1: пол Скверны (resource-floor 25 + resource-floor-regen 2).
- * 1.10.3: occult убран из character-level.skills (чернокнижник использует sorcery как маг).
+ * 1.10.0: WARLOCK. 1.10.1: пол Скверны. 1.10.3: occult убран.
+ * 1.11.4 (P5): FUNNEL-чтение: kits/<class>.yml → classes.<CLASS> config.yml → код-дефолт.
+ *         Все классовые геттеры (ресурсы, пороги, откат, темы, кит-мета, пассивки)
+ *         идут через KitConfigCache; прямые чтения base/coeff/drain/radius/specs.*
+ *         в китах остаются за config.yml до переезда в 1.12.x.
  */
 public final class RaskolConfig {
 
@@ -41,17 +43,57 @@ public final class RaskolConfig {
             Map.entry("FREEZING", "magic"),
             Map.entry("LIGHTNING", "magic"));
 
-    private final JavaPlugin plugin;
+    private final RaskolClasses plugin;
+    private final KitConfigLoader kitLoader;
+    private final KitConfigCache kitCache;
     private final Map<PlayerClass, ClassTheme> themes = new EnumMap<>(PlayerClass.class);
 
-    public RaskolConfig(JavaPlugin plugin) {
+    public RaskolConfig(RaskolClasses plugin) {
         this.plugin = plugin;
         reload();
+        this.kitLoader = new KitConfigLoader(plugin);
+        this.kitCache = new KitConfigCache(kitLoader);
     }
 
     public record ClassTheme(TextColor primary, TextColor secondary, String symbol,
                              Particle particle, Sound sound) {
     }
+
+    /* ------------------------------ P5 funnel ------------------------------ */
+
+    public KitConfigLoader kitLoader() {
+        return kitLoader;
+    }
+
+    public KitConfigCache kitCache() {
+        return kitCache;
+    }
+
+    /** Перечитать kits/*.yml и сбросить кэш (вызывает /rc reload). */
+    public void reloadKits() {
+        kitLoader.reload();
+        kitCache.invalidate();
+        rebuildThemes();
+    }
+
+    public double classDouble(PlayerClass pc, String path, double def) {
+        return kitCache.getD(pc, path, def);
+    }
+
+    public int classInt(PlayerClass pc, String path, int def) {
+        return kitCache.getI(pc, path, def);
+    }
+
+    public boolean classBool(PlayerClass pc, String path, boolean def) {
+        return kitCache.getB(pc, path, def);
+    }
+
+    public String classString(PlayerClass pc, String path, String def) {
+        String v = kitCache.getS(pc, path, def);
+        return v.isEmpty() ? def : v;
+    }
+
+    /* ------------------------------ reload config.yml ------------------------------ */
 
     public final void reload() {
         plugin.saveDefaultConfig();
@@ -180,9 +222,9 @@ public final class RaskolConfig {
         config.addDefault("messages.book.use.right", "ПКМ — свиток в хотбар");
         config.addDefault("messages.book.place.left", "ЛКМ — поставить здесь");
         config.addDefault("messages.book.place.right", "ПКМ — свиток постановки");
-        config.addDefault("messages.book.install.active", "Активно: {count}/2 · TTL {ttl} с");
+        config.addDefault("messages.book.install.active", "Активных инсталляций: {count} из 2 · Время жизни: {ttl} с");
         config.addDefault("messages.book.install.desc.heresy_circle",
-                "Осквернённый круг 6 блоков: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6");
+                "Пентаграмма: круг 6 блоков 25 с: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6");
         config.addDefault("messages.book.spec.passive", "Пассив: {text}");
         config.addDefault("messages.book.spec.chosen", "Выбрана тобой");
         config.addDefault("messages.book.spec.notchosen", "Не выбрана · ПКМ — выбрать (уровень 40+)");
@@ -206,7 +248,7 @@ public final class RaskolConfig {
         config.addDefault("messages.book.resource.mage", "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75");
         config.addDefault("messages.book.resource.rogue", "Энергия: +10/с");
         config.addDefault("messages.book.resource.warlock",
-                "Скверна: пол 25 (восстанавливается сама); +6 за урон, +3 при получении; выше 25 вне боя −4/с до 25. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с");
+                "Скверна: +9 за урон, +5 при получении, +15 за убийство, +25 за Чёрное Слово; вне боя −4/с до 0. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с");
         config.addDefault("messages.book.emblem.resource", "Ресурс сейчас: {value}/100");
         config.addDefault("messages.book.emblem.crown", "Корона: {name}");
         config.addDefault("messages.book.crown.title", "Корона и титул");
@@ -246,7 +288,7 @@ public final class RaskolConfig {
 
         config.addDefault("classes.WARLOCK.resource-on-kill", 10.0);
         config.addDefault("classes.WARLOCK.resource-decay-out-of-combat", -4.0);
-        config.addDefault("classes.WARLOCK.resource-floor", 25.0);
+        config.addDefault("classes.WARLOCK.resource-floor", 0.0);
         config.addDefault("classes.WARLOCK.resource-floor-regen", 2.0);
         config.addDefault("classes.WARLOCK.threshold-open", 75.0);
         config.addDefault("classes.WARLOCK.threshold-overflow", 100.0);
@@ -303,6 +345,8 @@ public final class RaskolConfig {
         }
     }
 
+    /* ------------------------------ общие геттеры ------------------------------ */
+
     public double targetTtkSeconds() {
         double v = plugin.getConfig().getDouble("balance.target-ttk-seconds", 20.0);
         return Double.isFinite(v) && v > 0.0 ? v : 20.0;
@@ -353,35 +397,92 @@ public final class RaskolConfig {
     public double mageRegenTier3() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-3", 5.0); }
     public double mageRegenTier4() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-4", 6.0); }
 
-    public double warlockResourceOnKill() { return plugin.getConfig().getDouble("classes.WARLOCK.resource-on-kill", 10.0); }
-    public double warlockResourceDecay() { return plugin.getConfig().getDouble("classes.WARLOCK.resource-decay-out-of-combat", -4.0); }
-    public double warlockResourceFloor() { return plugin.getConfig().getDouble("classes.WARLOCK.resource-floor", 25.0); }
-    public double warlockResourceFloorRegen() { return plugin.getConfig().getDouble("classes.WARLOCK.resource-floor-regen", 2.0); }
-    public double warlockThresholdOpen() { return plugin.getConfig().getDouble("classes.WARLOCK.threshold-open", 75.0); }
-    public double warlockThresholdOverflow() { return plugin.getConfig().getDouble("classes.WARLOCK.threshold-overflow", 100.0); }
-    public double warlockRecoilPercent() { return plugin.getConfig().getDouble("classes.WARLOCK.recoil-percent", 6.66); }
-    public double warlockRecoilCapPct() { return plugin.getConfig().getDouble("classes.WARLOCK.recoil-cap-pct", 30.0); }
-    public double warlockRecoilMinHp() { return plugin.getConfig().getDouble("classes.WARLOCK.recoil-min-hp", 1.0); }
-    public double warlockNetherMult() { return plugin.getConfig().getDouble("classes.WARLOCK.nether-mult", 6.0); }
-    public double warlockLifestealCap() { return plugin.getConfig().getDouble("classes.WARLOCK.lifesteal-cap", 0.85); }
+    /* ------------------------------ WARLOCK (funnel P5) ------------------------------ */
+
+    public double warlockResourceOnKill() {
+        return classDouble(PlayerClass.WARLOCK, "resource.on-kill",
+                plugin.getConfig().getDouble("classes.WARLOCK.resource-on-kill", 10.0));
+    }
+
+    public double warlockResourceDecay() {
+        return classDouble(PlayerClass.WARLOCK, "resource.decay-out-of-combat",
+                plugin.getConfig().getDouble("classes.WARLOCK.resource-decay-out-of-combat", -4.0));
+    }
+
+    public double warlockResourceFloor() {
+        return classDouble(PlayerClass.WARLOCK, "resource.floor",
+                plugin.getConfig().getDouble("classes.WARLOCK.resource-floor", 0.0));
+    }
+
+    public double warlockResourceFloorRegen() {
+        return classDouble(PlayerClass.WARLOCK, "resource.floor-regen",
+                plugin.getConfig().getDouble("classes.WARLOCK.resource-floor-regen", 2.0));
+    }
+
+    public double warlockThresholdOpen() {
+        return classDouble(PlayerClass.WARLOCK, "thresholds.open",
+                plugin.getConfig().getDouble("classes.WARLOCK.threshold-open", 75.0));
+    }
+
+    public double warlockThresholdOverflow() {
+        return classDouble(PlayerClass.WARLOCK, "thresholds.overflow",
+                plugin.getConfig().getDouble("classes.WARLOCK.threshold-overflow", 100.0));
+    }
+
+    public double warlockRecoilPercent() {
+        return classDouble(PlayerClass.WARLOCK, "recoil.percent",
+                plugin.getConfig().getDouble("classes.WARLOCK.recoil-percent", 6.66));
+    }
+
+    public double warlockRecoilCapPct() {
+        return classDouble(PlayerClass.WARLOCK, "recoil.cap-percent",
+                plugin.getConfig().getDouble("classes.WARLOCK.recoil-cap-pct", 30.0));
+    }
+
+    public double warlockRecoilMinHp() {
+        return classDouble(PlayerClass.WARLOCK, "recoil.min-hp",
+                plugin.getConfig().getDouble("classes.WARLOCK.recoil-min-hp", 1.0));
+    }
+
+    public double warlockNetherMult() {
+        return classDouble(PlayerClass.WARLOCK, "nether-mult",
+                plugin.getConfig().getDouble("classes.WARLOCK.nether-mult", 6.0));
+    }
+
+    public double warlockLifestealCap() {
+        return classDouble(PlayerClass.WARLOCK, "lifesteal-cap",
+                plugin.getConfig().getDouble("classes.WARLOCK.lifesteal-cap", 0.85));
+    }
+
+    /* ------------------------------ пассивки (funnel P5) ------------------------------ */
 
     public boolean passiveEnabled(PlayerClass pc, String id) {
-        return plugin.getConfig().getBoolean(passivePath(pc, id, "enabled"), true);
+        return classBool(pc, "passives." + id + ".enabled",
+                plugin.getConfig().getBoolean(passivePath(pc, id, "enabled"), true));
     }
+
     public double passiveDouble(PlayerClass pc, String id, String key, double fallback) {
-        return plugin.getConfig().getDouble(passivePath(pc, id, key), fallback);
+        return classDouble(pc, "passives." + id + "." + key,
+                plugin.getConfig().getDouble(passivePath(pc, id, key), fallback));
     }
+
     public int passiveInt(PlayerClass pc, String id, String key, int fallback) {
-        return plugin.getConfig().getInt(passivePath(pc, id, key), fallback);
+        return classInt(pc, "passives." + id + "." + key,
+                plugin.getConfig().getInt(passivePath(pc, id, key), fallback));
     }
+
     public String passiveDisplayName(PlayerClass pc, String id, String fallback) {
-        return plugin.getConfig().getString(passivePath(pc, id, "display-name"),
-                DEFAULTS.passiveDisplayName(pc, id, fallback));
+        return classString(pc, "passives." + id + ".display-name",
+                plugin.getConfig().getString(passivePath(pc, id, "display-name"),
+                        DEFAULTS.passiveDisplayName(pc, id, fallback)));
     }
+
     public String passiveDescription(PlayerClass pc, String id, String fallback) {
-        return plugin.getConfig().getString(passivePath(pc, id, "description"),
-                DEFAULTS.passiveDescription(pc, id, fallback));
+        return classString(pc, "passives." + id + ".description",
+                plugin.getConfig().getString(passivePath(pc, id, "description"),
+                        DEFAULTS.passiveDescription(pc, id, fallback)));
     }
+
     public static List<String> passiveIds(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> List.of("execute_passive");
@@ -392,70 +493,165 @@ public final class RaskolConfig {
             case WARLOCK -> List.of("black_mass");
         };
     }
+
     private String passivePath(PlayerClass pc, String id, String key) {
         return "classes." + pc.name() + ".passives." + id + "." + key;
     }
 
-    public double resourceRegen(PlayerClass pc) { return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-regen", DEFAULTS.resourceRegen(pc)); }
-    public double resourceOnDeal(PlayerClass pc) { return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-deal", DEFAULTS.resourceOnDeal(pc)); }
-    public double resourceOnTake(PlayerClass pc) { return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-take", DEFAULTS.resourceOnTake(pc)); }
-    public double resourceOnHeal(PlayerClass pc) { return plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-heal", DEFAULTS.resourceOnHeal(pc)); }
-    public int combatWindowSeconds(PlayerClass pc) { return plugin.getConfig().getInt("classes." + pc.name() + ".combat-window-seconds", 5); }
+    /* ------------------------------ ресурсы (funnel P5) ------------------------------ */
 
-    public int abilityUnlock(PlayerClass pc, String id, int fallback) { return plugin.getConfig().getInt(path(pc, id, "unlock"), fallback); }
-    public int abilityCost(PlayerClass pc, String id, int fallback) { return plugin.getConfig().getInt(path(pc, id, "cost"), fallback); }
-    public int abilityCooldownSeconds(PlayerClass pc, String id, int fallback) { return plugin.getConfig().getInt(path(pc, id, "cooldown"), fallback); }
-    public String abilityName(PlayerClass pc, String id, String fallback) { return plugin.getConfig().getString(path(pc, id, "name"), fallback); }
+    public double resourceRegen(PlayerClass pc) {
+        return classDouble(pc, "resource.regen",
+                plugin.getConfig().getDouble("classes." + pc.name() + ".resource-regen",
+                        DEFAULTS.resourceRegen(pc)));
+    }
+
+    public double resourceOnDeal(PlayerClass pc) {
+        return classDouble(pc, "resource.on-deal",
+                plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-deal",
+                        DEFAULTS.resourceOnDeal(pc)));
+    }
+
+    public double resourceOnTake(PlayerClass pc) {
+        return classDouble(pc, "resource.on-take",
+                plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-take",
+                        DEFAULTS.resourceOnTake(pc)));
+    }
+
+    public double resourceOnHeal(PlayerClass pc) {
+        return classDouble(pc, "resource.on-heal",
+                plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-heal",
+                        DEFAULTS.resourceOnHeal(pc)));
+    }
+
+    public int combatWindowSeconds(PlayerClass pc) {
+        return plugin.getConfig().getInt("classes." + pc.name() + ".combat-window-seconds", 5);
+    }
+
+    /* ------------------------------ кит-мета (funnel P5) ------------------------------ */
+
+    public int abilityUnlock(PlayerClass pc, String id, int fallback) {
+        return classInt(pc, "abilities." + id + ".unlock",
+                plugin.getConfig().getInt(path(pc, id, "unlock"), fallback));
+    }
+
+    public int abilityCost(PlayerClass pc, String id, int fallback) {
+        return classInt(pc, "abilities." + id + ".cost",
+                plugin.getConfig().getInt(path(pc, id, "cost"), fallback));
+    }
+
+    public int abilityCooldownSeconds(PlayerClass pc, String id, int fallback) {
+        return classInt(pc, "abilities." + id + ".cooldown",
+                plugin.getConfig().getInt(path(pc, id, "cooldown"), fallback));
+    }
+
+    public String abilityName(PlayerClass pc, String id, String fallback) {
+        return classString(pc, "abilities." + id + ".name",
+                plugin.getConfig().getString(path(pc, id, "name"), fallback));
+    }
+
     public String abilityDescription(PlayerClass pc, String id, String fallback) {
         AbilityDefaults d = DEFAULTS.abilities(pc).get(id);
         String codeDefault = d != null ? d.description() : "";
-        return plugin.getConfig().getString(path(pc, id, "description"),
-                codeDefault.isEmpty() ? fallback : codeDefault);
+        return classString(pc, "abilities." + id + ".description",
+                plugin.getConfig().getString(path(pc, id, "description"),
+                        codeDefault.isEmpty() ? fallback : codeDefault));
     }
 
-    public double abilityDrain(PlayerClass pc, String id) { return plugin.getConfig().getDouble(path(pc, id, "drain"), 0.0); }
-    public double abilityAmplify(PlayerClass pc, String id) { return plugin.getConfig().getDouble(path(pc, id, "amplify"), 0.0); }
-    public boolean abilityUnremovable(PlayerClass pc, String id) { return plugin.getConfig().getBoolean(path(pc, id, "unremovable"), false); }
-    public int abilityPerPurged(PlayerClass pc, String id) { return plugin.getConfig().getInt(path(pc, id, "per-purged"), 0); }
-    public int abilityCorruptionGain(PlayerClass pc, String id) { return plugin.getConfig().getInt(path(pc, id, "corruption-gain"), 0); }
-    public double abilityMissingHpBonus(PlayerClass pc, String id) { return plugin.getConfig().getDouble(path(pc, id, "missing-hp-bonus"), 0.0); }
-    public double abilityAntiheal(PlayerClass pc, String id) { return plugin.getConfig().getDouble(path(pc, id, "antiheal"), 0.0); }
-    public double abilityChannel(PlayerClass pc, String id) { return plugin.getConfig().getDouble(path(pc, id, "channel"), 0.0); }
+    public double abilityDrain(PlayerClass pc, String id) {
+        return classDouble(pc, "abilities." + id + ".drain",
+                plugin.getConfig().getDouble(path(pc, id, "drain"), 0.0));
+    }
+
+    public double abilityAmplify(PlayerClass pc, String id) {
+        return classDouble(pc, "abilities." + id + ".amplify",
+                plugin.getConfig().getDouble(path(pc, id, "amplify"), 0.0));
+    }
+
+    public boolean abilityUnremovable(PlayerClass pc, String id) {
+        return classBool(pc, "abilities." + id + ".unremovable",
+                plugin.getConfig().getBoolean(path(pc, id, "unremovable"), false));
+    }
+
+    public int abilityPerPurged(PlayerClass pc, String id) {
+        return classInt(pc, "abilities." + id + ".per-purged",
+                plugin.getConfig().getInt(path(pc, id, "per-purged"), 0));
+    }
+
+    public int abilityCorruptionGain(PlayerClass pc, String id) {
+        return classInt(pc, "abilities." + id + ".corruption-gain",
+                plugin.getConfig().getInt(path(pc, id, "corruption-gain"), 0));
+    }
+
+    public double abilityMissingHpBonus(PlayerClass pc, String id) {
+        return classDouble(pc, "abilities." + id + ".missing-hp-bonus",
+                plugin.getConfig().getDouble(path(pc, id, "missing-hp-bonus"), 0.0));
+    }
+
+    public double abilityAntiheal(PlayerClass pc, String id) {
+        return classDouble(pc, "abilities." + id + ".antiheal",
+                plugin.getConfig().getDouble(path(pc, id, "antiheal"), 0.0));
+    }
+
+    public double abilityChannel(PlayerClass pc, String id) {
+        return classDouble(pc, "abilities." + id + ".channel",
+                plugin.getConfig().getDouble(path(pc, id, "channel"), 0.0));
+    }
 
     public int durationSeconds(PlayerClass pc, String abilityId, int fallbackSeconds) {
-        return plugin.getConfig().getInt(path(pc, abilityId, "duration"), fallbackSeconds);
+        return classInt(pc, "abilities." + abilityId + ".duration",
+                plugin.getConfig().getInt(path(pc, abilityId, "duration"), fallbackSeconds));
     }
+
     public int durationSeconds(PlayerClass pc, String abilityId, String subKey, int fallbackSeconds) {
         return plugin.getConfig().getInt(path(pc, abilityId, "duration-" + subKey), fallbackSeconds);
     }
+
     private String path(PlayerClass pc, String abilityId, String key) {
         return "classes." + pc.name() + ".abilities." + abilityId + "." + key;
     }
 
-    public ClassTheme themeOf(PlayerClass pc) { return themes.get(pc); }
+    /* ------------------------------ темы (funnel P5) ------------------------------ */
+
+    public ClassTheme themeOf(PlayerClass pc) {
+        return themes.get(pc);
+    }
+
     private void rebuildThemes() {
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
             FileConfiguration config = plugin.getConfig();
             themes.put(pc, new ClassTheme(
-                    parseColor(config.getString(base + ".theme.primary"), DEFAULTS.primary(pc)),
-                    parseColor(config.getString(base + ".theme.secondary"), DEFAULTS.secondary(pc)),
-                    config.getString(base + ".theme.symbol", DEFAULTS.symbol(pc)),
-                    parseParticle(config.getString(base + ".cast-particle"), DEFAULTS.particle(pc)),
-                    parseSound(config.getString(base + ".cast-sound"), Sound.ENTITY_PLAYER_LEVELUP)));
+                    parseColor(classString(pc, "theme.primary",
+                            config.getString(base + ".theme.primary", DEFAULTS.primary(pc))),
+                            DEFAULTS.primary(pc)),
+                    parseColor(classString(pc, "theme.secondary",
+                            config.getString(base + ".theme.secondary", DEFAULTS.secondary(pc))),
+                            DEFAULTS.secondary(pc)),
+                    classString(pc, "theme.symbol",
+                            config.getString(base + ".theme.symbol", DEFAULTS.symbol(pc))),
+                    parseParticle(classString(pc, "cast-particle",
+                            config.getString(base + ".cast-particle", DEFAULTS.particle(pc).name())),
+                            DEFAULTS.particle(pc)),
+                    parseSound(classString(pc, "cast-sound",
+                            config.getString(base + ".cast-sound", "ENTITY_PLAYER_LEVELUP")),
+                            Sound.ENTITY_PLAYER_LEVELUP)));
         }
     }
+
     private TextColor parseColor(String hex, String fallbackHex) {
         TextColor parsed = hex == null ? null : TextColor.fromHexString(hex);
         if (parsed != null) return parsed;
         TextColor fallback = TextColor.fromHexString(fallbackHex);
         return fallback != null ? fallback : TextColor.color(0x45E08A);
     }
+
     private Particle parseParticle(String name, Particle fallback) {
         if (name == null) return fallback;
-        try { return Particle.valueOf(name.toUpperCase()); }
+        try { return Particle.valueOf(name.toUpperCase(Locale.ROOT)); }
         catch (IllegalArgumentException e) { return fallback; }
     }
+
     private Sound parseSound(String name, Sound fallback) {
         if (name == null) return fallback;
         Sound parsed = Registry.SOUNDS.get(NamespacedKey.minecraft(name.toLowerCase(Locale.ROOT)));
