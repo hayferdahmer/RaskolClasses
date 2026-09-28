@@ -8,6 +8,7 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.storage.SafeStorage;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
@@ -34,8 +35,9 @@ import java.util.logging.Logger;
  * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), 0–100.
  * 1.9.3.2: знаковый tickDelta (декэй воина работает).
  * 1.10.x: Скверна — событийный рост, пол 0, Переполнение, on-kill.
- * 1.11.1: декэй Скверны у Адского Канала берётся из classes.WARLOCK.specs.hell_channel.decay;
- *         плановый purge реестров печати/анти-хила раз в 30 с (утечка закрыта).
+ * 1.11.1: декэй Скверны у Адского Канала из classes.WARLOCK.specs.hell_channel.decay;
+ *         плановый purge реестров печати/анти-хила раз в 30 с.
+ * 1.11.4 (P4e, F5): спека ARCANE даёт +mana_regen/с сверх регена маны (по specs.yml).
  */
 public final class ResourceService implements Listener {
 
@@ -123,7 +125,7 @@ public final class ResourceService implements Listener {
     private void tick() {
         tickCounter++;
         if (tickCounter % DEBUFF_PURGE_TICKS == 0) {
-            WarlockAbilities.purgeStaleDebuffs(); // 1.11.1: защита от утечки записей оффлайн-целей
+            WarlockAbilities.purgeStaleDebuffs();
         }
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
@@ -145,6 +147,13 @@ public final class ResourceService implements Listener {
                             : v < 50 ? config.mageRegenTier2()
                             : v < 75 ? config.mageRegenTier3()
                             : config.mageRegenTier4();
+                    // 1.11.4 (P4e, F5): ARCANE = +mana_regen/с сверх тиров маны
+                    if (plugin.getSpecService().getSpec(uuid) == Spec.ARCANE) {
+                        SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(Spec.ARCANE);
+                        if (def != null) {
+                            rate += def.passiveDouble("mana_regen", 1.0);
+                        }
+                    }
                 }
                 case WARLOCK -> {
                     double v = st.getValue();
@@ -152,7 +161,6 @@ public final class ResourceService implements Listener {
                     if (floor > 0.0 && v < floor) {
                         rate = config.warlockResourceFloorRegen();
                     } else if (v > floor && !inCombat) {
-                        // 1.11.1: Адский Канал рассеивает Скверну вдвое медленнее
                         rate = (plugin.getSpecService().getSpec(uuid) == Spec.HELL_CHANNEL)
                                 ? plugin.getConfig().getDouble(
                                         "classes.WARLOCK.specs.hell_channel.decay", -2.0)
