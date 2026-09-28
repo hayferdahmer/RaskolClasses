@@ -13,7 +13,6 @@ import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
-import net.luckperms.api.node.Node;
 import net.luckperms.api.node.NodeType;
 import net.luckperms.api.node.types.InheritanceNode;
 import org.bukkit.Bukkit;
@@ -31,7 +30,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
-import org.bukkit.event.entity.PlayerDeathEvent;   // FIX 1.11.2: entity.*, а не player.*
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -56,15 +55,18 @@ import java.util.logging.Logger;
 /**
  * 1.10.0: ФОЛИАНТ ДУШ (скрытый путь Чернокнижника).
  * 1.11.2 (S1): санитайзер ника в console-фолбэке LP-миграции (инъекции).
- * 1.11.2 (S2): дроп только с пиглинов ада и только при уроне игрока (getKiller);
- *         скрытый релок-цикл после выпадения: ≥1 моб вне ада + ≥1 смерть +
- *         ≥1000 пиглинов без шанса (foliant-lock.yml, персист).
+ * 1.11.2 (S2): дроп только с пиглинов ада и только при уроне игрока
+ *         (LivingEntity#getKiller); скрытый релок-цикл после выпадения:
+ *         ≥1 моб вне ада + ≥1 смерть + ≥1000 пиглинов без шанса
+ *         (foliant-lock.yml, персист).
  * 1.11.2 (S3): том не падает с игрока на смерть, не выбрасывается (Q),
  *         дроп-ролл идёт напрямую в инвентарь; наземный экземпляр (полный
  *         инвентарь) несёт PDC-владельца и поднимается только им.
  *         Продажа (аукцион/ChestShop) НЕ блокируется.
- * 1.11.2: авто-созданной группе class_warlock копируется вес класс-группы.
- * 1.11.2-fix: импорт PlayerDeathEvent из org.bukkit.event.entity.
+ * 1.11.2: авто-создание группы class_warlock с копированием веса
+ *         (OptionalInt#getAsInt + console setweight, один раз).
+ * 1.11.2-fix2: getKiller() берётся с LivingEntity; вес группы — командой
+ *         setweight (у weight-ноды LP v5 нет string-value API).
  */
 public final class FoliantService implements Listener {
 
@@ -226,7 +228,8 @@ public final class FoliantService implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
-        Player killer = event.getKiller(); // урон нанёс именно игрок
+        // 1.11.2-fix2: killer живёт на LivingEntity, не на EntityDeathEvent
+        Player killer = event.getEntity().getKiller();
         if (killer == null) {
             return;
         }
@@ -440,23 +443,27 @@ public final class FoliantService implements Listener {
         return true;
     }
 
-    /** Создаёт class_warlock при отсутствии и копирует вес существующей класс-группы. */
+    /**
+     * Создаёт class_warlock при отсутствии и копирует вес существующей класс-группы.
+     * 1.11.2-fix2: вес читается через OptionalInt#getAsInt и ставится консольной
+     * командой setweight (один раз за жизнь сервера; в строке нет имён игроков).
+     */
     private void ensureGroup(LuckPerms lp) {
         Group group = lp.getGroupManager().getGroup(WARLOCK_GROUP);
         if (group != null) {
             return;
         }
-        group = lp.getGroupManager().createAndLoadGroup(WARLOCK_GROUP).join();
+        lp.getGroupManager().createAndLoadGroup(WARLOCK_GROUP).join();
         int weight = 15;
         for (String src : new String[]{"class_mage", "class_priest", "class_warrior"}) {
             Group s = lp.getGroupManager().getGroup(src);
             if (s != null && s.getWeight().isPresent()) {
-                weight = s.getWeight().get();
+                weight = s.getWeight().getAsInt();
                 break;
             }
         }
-        group.data().add(Node.builder("weight").value(String.valueOf(weight)).build());
-        lp.getGroupManager().saveGroup(group).join();
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
+                "lp group " + WARLOCK_GROUP + " setweight " + weight);
         plugin.getLogger().info("Foliant: создана LP-группа " + WARLOCK_GROUP
                 + " с весом " + weight);
     }
