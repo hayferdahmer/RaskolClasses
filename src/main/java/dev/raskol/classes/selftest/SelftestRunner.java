@@ -3,6 +3,7 @@ package dev.raskol.classes.selftest;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.ability.WarlockMath;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.PowerService;
@@ -38,11 +39,8 @@ import java.util.UUID;
  * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг (1.9.2).
  * Чеки 33–35: план B — scale/healFormula/targetCarrier (1.9.3).
  * Чек 36: tickDelta — декэй ярости воина вне боя (1.9.3.2).
- * Чеки 37–40 (1.10.0): чернокнижник —
- *   37: реестры печати/анти-хила пусты + все 9 кодов гейтов фолианта дают непустое сообщение;
- *   38: sanity-диапазоны конфига WARLOCK (пороги, откат, ад, декэй, on-kill);
- *   39: дуэль WARLOCK↔WARRIOR в симуляторе без падений (Map.of-пробелы = NPE);
- *   40: TTK-матрица 6×6 (шестой класс включён в харнесс).
+ * Чеки 37–40: чернокнижник — реестры/гейты/конфиг-диапазоны/симулятор/матрица (1.10.0).
+ * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
  * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
  * прунинг, а не ошибка.
  */
@@ -458,7 +456,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 38 — sanity-диапазоны конфига WARLOCK (не канон, а корректность)
+        // 1.10.0: чек 38 — sanity-диапазоны конфига WARLOCK
         RaskolConfig cfg = plugin.getRaskolConfig();
         double open = cfg.warlockThresholdOpen();
         double overflow = cfg.warlockThresholdOverflow();
@@ -480,7 +478,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 39 — дуэль WARLOCK в симуляторе без падений (Map.of-пробелы = NPE)
+        // 1.10.0: чек 39 — дуэль WARLOCK в симуляторе без падений
         String got39;
         boolean ok39;
         try {
@@ -499,7 +497,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 40 — TTK-матрица 6×6 (шестой класс в харнессе)
+        // 1.10.0: чек 40 — TTK-матрица 6×6
         String got40;
         boolean ok40;
         try {
@@ -512,6 +510,55 @@ public final class SelftestRunner {
         }
         if (check(report, "40", "TTK-матрица 6×6 (WARLOCK включён в харнесс)",
                 ok40, "BalanceSimulator.matrix", got40)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.11.4 (P4a): чек 41 — откат (recoil): величина, кап 30% maxHP, пол minHp
+        double r1 = WarlockMath.recoilAmount(100.0, 6.66, 840.0, 30.0);
+        double r2 = WarlockMath.recoilAmount(10000.0, 6.66, 840.0, 30.0);
+        double rHp = WarlockMath.applyRecoil(5.0, 10.0, 1.0);
+        boolean ok41 = Math.abs(r1 - 6.66) < 1e-6
+                && Math.abs(r2 - 252.0) < 1e-6
+                && rHp == 1.0;
+        if (check(report, "41", "recoil: 100×6.66%=6.66; кап 30% от 840=252; пол minHp=1",
+                ok41, "WarlockMath.recoil",
+                String.format(Locale.ROOT, "%.2f/%.1f/%.1f", r1, r2, rHp))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.11.4 (P4a): чек 42 — дрейн (lifesteal) с капом lifesteal-cap
+        double dH1 = WarlockMath.drainHeal(100.0, 0.666, 0.85);
+        double dH2 = WarlockMath.drainHeal(100.0, 1.0, 0.85);
+        double dH3 = WarlockMath.drainHeal(0.0, 0.666, 0.85);
+        boolean ok42 = Math.abs(dH1 - 66.6) < 1e-6
+                && Math.abs(dH2 - 85.0) < 1e-6
+                && dH3 == 0.0;
+        if (check(report, "42", "drain: 100×0.666=66.6; кап 0.85 режет 1.0→85; dealt=0→0",
+                ok42, "WarlockMath.drainHeal",
+                String.format(Locale.ROOT, "%.1f/%.1f/%.1f", dH1, dH2, dH3))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.11.4 (P4a): чек 43 — множители урона и порог игнора маг-резиста
+        double m1 = WarlockMath.damageMult(80.0, 75.0, 6.0, 1.1, false);
+        double m2 = WarlockMath.damageMult(80.0, 75.0, 6.0, 1.1, true);
+        double m3 = WarlockMath.damageMult(50.0, 75.0, 6.0, 1.0, false);
+        boolean ig1 = WarlockMath.ignoreMagicResist(0.20, 1.0, 0.25);
+        boolean ig2 = WarlockMath.ignoreMagicResist(1.0, 0.25, 0.25);
+        boolean ig3 = !WarlockMath.ignoreMagicResist(1.0, 1.0, 0.25);
+        boolean ok43 = Math.abs(m1 - 1.32) < 1e-6
+                && Math.abs(m2 - 7.92) < 1e-6
+                && m3 == 1.0
+                && ig1 && ig2 && ig3;
+        if (check(report, "43", "mult: Скверна80→×1.2×спек1.1=1.32; +ад→7.92; без порогов→1.0; ignore: цель/кастер ≤25%→true, оба здоровы→false",
+                ok43, "WarlockMath.damageMult/ignore",
+                String.format(Locale.ROOT, "%.2f/%.2f/%.1f/%s%s%s", m1, m2, m3, ig1, ig2, ig3))) {
             passed++;
         } else {
             failed++;
