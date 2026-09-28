@@ -44,6 +44,7 @@ import java.util.UUID;
  * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
  * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
  * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
+ * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
  * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
  * прунинг, а не ошибка.
  */
@@ -616,6 +617,21 @@ public final class SelftestRunner {
         boolean ok47 = rc40 == 650 && rc60 == 850;
         if (check(report, "47", "respecCost: 40→650, 60→850 (base 250 + 10×level)",
                 ok47, "SpecMath.respecCost", rc40 + "/" + rc60)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.11.4 (P5): чек 48 — per-class yml loader с фолбэком в config.yml
+        int perClassCount = plugin.getRaskolConfig().kitLoader().loadedCount();
+        double recoilFromLoader = plugin.getRaskolConfig().classDouble(
+                PlayerClass.WARLOCK, "recoil.percent", 6.66);
+        boolean ok48 = recoilFromLoader >= 0.0 && Double.isFinite(recoilFromLoader);
+        if (check(report, "48", "per-class yml loader: loaded=" + perClassCount
+                + ", warlock recoil.percent=" + recoilFromLoader
+                + " (фолбэк в config.yml работает)",
+                ok48, "KitConfigLoader/classDouble",
+                perClassCount + "/" + recoilFromLoader)) {
             passed++;
         } else {
             failed++;
