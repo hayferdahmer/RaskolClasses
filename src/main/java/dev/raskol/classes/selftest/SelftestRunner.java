@@ -11,6 +11,11 @@ import dev.raskol.classes.balance.BalanceSimulator;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.DamageType;
+import dev.raskol.classes.combat.School;
+import dev.raskol.classes.combat.SchoolConfig;
+import dev.raskol.classes.combat.SchoolProfile;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.resource.ResourceState;
@@ -23,6 +28,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityDamageEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,6 +51,8 @@ import java.util.UUID;
  * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
  * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
  * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
+ * Чеки 49–51 (1.12.0): школы урона — School→channel, vanilla-school map,
+ *         SchoolProfile legacy round-trip с множителями школ.
  * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
  * прунинг, а не ошибка.
  */
@@ -632,6 +640,63 @@ public final class SelftestRunner {
                 + " (фолбэк в config.yml работает)",
                 ok48, "KitConfigLoader/classDouble",
                 perClassCount + "/" + recoilFromLoader)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.0: чек 49 — маппинг School→channel (ТЗ п.2: школа → один канал)
+        boolean ok49 = School.PHYSICAL.channel() == DamageType.PHYSICAL
+                && School.TRUE.channel() == DamageType.TRUE
+                && School.FIRE.channel() == DamageType.MAGIC
+                && School.FROST.channel() == DamageType.MAGIC
+                && School.NATURE.channel() == DamageType.MAGIC
+                && School.SHADOW.channel() == DamageType.MAGIC
+                && School.HOLY.channel() == DamageType.MAGIC
+                && School.ARCANE.channel() == DamageType.MAGIC;
+        if (check(report, "49", "School→channel: PHYSICAL→PHYS, FIRE/FROST/NATURE/SHADOW/HOLY/ARCANE→MAGIC, TRUE→TRUE",
+                ok49, "School.channel",
+                School.PHYSICAL.channel() + "/" + School.FIRE.channel() + "/" + School.TRUE.channel())) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.0: чек 50 — vanilla-school map + фолбэк через канал
+        SchoolConfig sc = new SchoolConfig(plugin);
+        boolean ok50 = sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) == School.FIRE
+                && sc.schoolOf(EntityDamageEvent.DamageCause.POISON) == School.NATURE
+                && sc.schoolOf(EntityDamageEvent.DamageCause.WITHER) == School.SHADOW
+                && sc.schoolOf(EntityDamageEvent.DamageCause.FREEZING) == School.FROST
+                && sc.schoolOf(EntityDamageEvent.DamageCause.LIGHTNING) == School.ARCANE
+                && sc.schoolOf(EntityDamageEvent.DamageCause.ENTITY_ATTACK) == School.PHYSICAL
+                && sc.schoolOf(EntityDamageEvent.DamageCause.FALL) == School.TRUE;
+        if (check(report, "50", "vanilla-school: FIRE→FIRE, POISON→NATURE, WITHER→SHADOW, FREEZING→FROST, LIGHTNING→ARCANE, ENTITY_ATTACK→PHYSICAL, FALL→TRUE (fallback канала)",
+                ok50, "SchoolConfig.schoolOf",
+                sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) + "/"
+                        + sc.schoolOf(EntityDamageEvent.DamageCause.POISON) + "/"
+                        + sc.schoolOf(EntityDamageEvent.DamageCause.FALL))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.0: чек 51 — SchoolProfile legacy round-trip + множители школ
+        SchoolProfile legacy = SchoolProfile.fromLegacy(new DamageProfile(10.0, 20.0, 5.0));
+        DamageProfile back = legacy.toLegacy(sc);
+        SchoolProfile fireOnly = SchoolProfile.builder().add(School.FIRE, 30.0).build();
+        DamageProfile fireLegacy = fireOnly.toLegacy(sc);
+        boolean ok51 = Math.abs(back.physical() - 10.0) < 1e-9
+                && Math.abs(back.magic() - 20.0) < 1e-9
+                && Math.abs(back.trueDamage() - 5.0) < 1e-9
+                && legacy.dominant() == School.ARCANE
+                && Math.abs(fireLegacy.magic() - 30.0) < 1e-9
+                && fireLegacy.physical() == 0.0
+                && fireLegacy.trueDamage() == 0.0;
+        if (check(report, "51", "SchoolProfile: fromLegacy(10/20/5)→toLegacy = 10/20/5; dominant=ARCANE; FIRE30→magic30 (multiplier 1.0)",
+                ok51, "SchoolProfile.toLegacy",
+                String.format(Locale.ROOT, "%.1f/%.1f/%.1f dom=%s",
+                        back.physical(), back.magic(), back.trueDamage(), legacy.dominant()))) {
             passed++;
         } else {
             failed++;
