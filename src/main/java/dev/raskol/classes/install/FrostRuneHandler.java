@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.11.4 (P2): Ледяная руна — зона с нарастающим уроном/замедлением,
  * бафф мага внутри (+мана/с, ИНТ×2 таймерным модификатором).
  * Одна руна на владельца; эмбиент и кольцо-партиклы — собственные задачи.
+ * 1.11.4-fix: ring-task через анонимный Runnable (совместимость с Paper API 1.21).
  */
 public final class FrostRuneHandler extends BaseInstallationHandler {
 
@@ -88,17 +89,23 @@ public final class FrostRuneHandler extends BaseInstallationHandler {
                 plugin.getConfig().getString("vfx.frost_rune.ambient-particle", "REVERSE_PORTAL"),
                 duration * 20, 40);
         double radius = radius();
-        st.ringTask = plugin.getServer().getScheduler().runTaskTimer(plugin, task -> {
-            if (!states.containsKey(instId) || loc.getWorld() == null) {
-                task.cancel();
-                return;
-            }
-            for (int i = 0; i < 32; i++) {
-                double angle = (Math.PI * 2 * i) / 32;
-                Location ringLoc = loc.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
-                for (int y = 0; y < 4; y++) {
-                    loc.getWorld().spawnParticle(Particle.PORTAL,
-                            ringLoc.clone().add(0.0, y * 0.5, 0.0), 2, 0.0, 0.0, 0.0, 0.0);
+        st.ringTask = plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
+            @Override
+            public void run() {
+                if (!states.containsKey(instId) || loc.getWorld() == null) {
+                    BukkitTask self = st.ringTask;
+                    if (self != null) {
+                        self.cancel();
+                    }
+                    return;
+                }
+                for (int i = 0; i < 32; i++) {
+                    double angle = (Math.PI * 2 * i) / 32;
+                    Location ringLoc = loc.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
+                    for (int y = 0; y < 4; y++) {
+                        loc.getWorld().spawnParticle(Particle.PORTAL,
+                                ringLoc.clone().add(0.0, y * 0.5, 0.0), 2, 0.0, 0.0, 0.0, 0.0);
+                    }
                 }
             }
         }, 0L, 20L);
