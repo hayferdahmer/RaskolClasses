@@ -34,17 +34,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.9.3: интеграция RaskolGear (пропуск WP/SP для оружия с тегом WEAPON).
- * 1.10.0: WARLOCK-интеграция:
- *  - «Печать Погибели»: входящий урон цели домножается на (1 + sealAmplifyOf)
- *    в ОБЕИХ путях (A: event-урон, B: dealDamage) — до капов;
- *  - «Раскол Души»: анти-хил блокирует ванильные события лечения (HIGHEST);
- *    наш хил-пайплайн блокируется в HpBarService.healFormula;
- *  - откат 6.66%: после применения урона в dealDamage чернокнижник теряет
- *    6.66% от дошедшего (true-урон себе, предохранители: кап 30% maxHP, не ниже 1 HP).
- * 1.10.0-fix: убран instance-поле WarlockAbilities (реестры статические).
- * 1.11.2 (S5): onRegainHealth блокирует ВСЕ причины (включая SATIATED —
- *              еда-реген от золотых яблок); опциональное снятие Absorption
- *              при наложении анти-хила — в WarlockAbilities.soulRift.
+ * 1.10.0: WARLOCK: Печать (амплификация), анти-хил, откат 6.66%.
+ * 1.11.2 (S5): onRegainHealth блокирует ВСЕ причины лечения под анти-хилом.
+ * 1.11.3: игнор маг-резиста чернокнижником: если HP цели ≤ порога ИЛИ HP
+ *         чернокнижника ≤ порога (config classes.WARLOCK.ignore-magic-resist-below-hp,
+ *         дефолт 0.25) — маг-часть урона способностей проходит без маг-резиста.
+ *         Маркеры для PassiveListener: abilitySourceMark (лифстил только со
+ *         способностей) и beginReflect/endReflect (анти-цепочка рефлекта/отката).
  */
 public final class CombatService implements Listener {
 
@@ -55,6 +51,10 @@ public final class CombatService implements Listener {
             List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION", "VOID", "SONIC_BOOM");
 
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    /** 1.11.2: UUID игрока-источника внутри dealDamage (синхронно видно в событии). */
+    private static final ThreadLocal<UUID> ABILITY_SOURCE = new ThreadLocal<>();
+    /** 1.11.2: флаг рефлект-урона (глушит откат, лифстил и цепной рефлект). */
+    private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
     private final RaskolClasses plugin;
@@ -69,6 +69,23 @@ public final class CombatService implements Listener {
         this.resists = resists;
         this.avoidance = new AvoidanceService(plugin);
         this.powers = new PowerService(plugin);
+    }
+
+    /** Маркер источника способности (для лифстила Чёрной Мессы). */
+    public static UUID abilitySourceMark() {
+        return ABILITY_SOURCE.get();
+    }
+
+    public static boolean reflectSuppressed() {
+        return Boolean.TRUE.equals(REFLECT_SUPPRESS.get());
+    }
+
+    public static void beginReflect() {
+        REFLECT_SUPPRESS.set(Boolean.TRUE);
+    }
+
+    public static void endReflect() {
+        REFLECT_SUPPRESS.set(Boolean.FALSE);
     }
 
     public ResistService resists() {
@@ -124,6 +141,16 @@ public final class CombatService implements Listener {
             return plugin.getHpBarService().scale(p);
         }
         return 1.0;
+    }
+
+    /** 1.11.3: доля HP (formula для игроков) для порога игнора маг-резиста. */
+    private double hpFractionOf(LivingEntity e) {
+        if (e instanceof Player p) {
+            double max = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
+            return max > 0.0 ? plugin.getHpBarService().currentFormulaHp(p) / max : 1.0;
+        }
+        double max = e.getMaxHealth();
+        return max > 0.0 ? e.getHealth() / max : 1.0;
     }
 
     private static boolean isPvp(EntityDamageEvent event) {
@@ -211,7 +238,6 @@ public final class CombatService implements Listener {
 
         if (!suppressed) {
             applyOutgoingOffense(event);
-            // 1.10.0: «Печать Погибели» — +26% урона от ВСЕХ источников (универсально)
             double amp = WarlockAbilities.sealAmplifyOf(event.getEntity().getUniqueId());
             if (amp > 0.0 && event.getDamage() > 0.0) {
                 event.setDamage(event.getDamage() * (1.0 + amp));
@@ -509,6 +535,15 @@ public final class CombatService implements Listener {
                 critFeedback(sp, false);
             }
         }
+
+        // 1.11.3: игнор маг-резиста чернокнижником при HP ≤ порога (любая сторона)
+        boolean warlockIgnoreMagic = false;
+        if (source instanceof Player spSrc && magicBase > 0.0
+                && plugin.getClassProvider().getClassOf(spSrc) == PlayerClass.WARLOCK) {
+            double thr = cfgD("classes.WARLOCK.ignore-magic-resist-below-hp", 0.25);
+            warlockIgnoreMagic = hpFractionOf(target) <= thr || hpFractionOf(spSrc) <= thr;
+        }
+
         double physPart;
         double magicTruePart;
         if (resists.disabledIn(target.getWorld())) {
@@ -521,13 +556,15 @@ public final class CombatService implements Listener {
             double magicFactor = resists.magicFactor(uuid, cap);
             physPart = Double.isFinite(physFactor) ? physBase * physFactor : physBase;
             double magicScaled = Double.isFinite(magicFactor) ? magicBase * magicFactor : magicBase;
+            if (warlockIgnoreMagic) {
+                magicScaled = magicBase; // резист игнорируется полностью
+            }
             magicTruePart = magicScaled + truePart;
         } else {
             physPart = physBase;
             magicTruePart = magicBase + truePart;
         }
 
-        // 1.10.0: «Печать Погибели» — амплификация входящего урона (путь B)
         double amp = WarlockAbilities.sealAmplifyOf(target.getUniqueId());
         if (amp > 0.0) {
             physPart *= (1.0 + amp);
@@ -558,38 +595,46 @@ public final class CombatService implements Listener {
         double scale = scaleOf(target);
         double applyPhys = physPart * scale;
         double applyMagic = magicTruePart * scale;
-        if (applyPhys > 0.0) {
-            SUPPRESS.set(Boolean.TRUE);
-            try {
-                if (source != null) {
-                    target.damage(applyPhys, source);
-                } else {
-                    target.damage(applyPhys);
-                }
-            } finally {
-                SUPPRESS.set(Boolean.FALSE);
-            }
-        }
-        if (applyMagic > 0.0) {
-            SUPPRESS.set(Boolean.TRUE);
-            try {
-                org.bukkit.damage.DamageType magic = magicType();
-                if (magic != null) {
-                    DamageSource.Builder builder = DamageSource.builder(magic);
+
+        // маркер источника способности (синхронно виден в событии у PassiveListener)
+        ABILITY_SOURCE.set(source instanceof Player s2 ? s2.getUniqueId() : null);
+        try {
+            if (applyPhys > 0.0) {
+                SUPPRESS.set(Boolean.TRUE);
+                try {
                     if (source != null) {
-                        builder = builder.withDirectEntity(source).withCausingEntity(source);
+                        target.damage(applyPhys, source);
+                    } else {
+                        target.damage(applyPhys);
                     }
-                    target.damage(applyMagic, builder.build());
-                } else {
-                    target.damage(applyMagic);
+                } finally {
+                    SUPPRESS.set(Boolean.FALSE);
                 }
-            } finally {
-                SUPPRESS.set(Boolean.FALSE);
             }
+            if (applyMagic > 0.0) {
+                SUPPRESS.set(Boolean.TRUE);
+                try {
+                    org.bukkit.damage.DamageType magic = magicType();
+                    if (magic != null) {
+                        DamageSource.Builder builder = DamageSource.builder(magic);
+                        if (source != null) {
+                            builder = builder.withDirectEntity(source).withCausingEntity(source);
+                        }
+                        target.damage(applyMagic, builder.build());
+                    } else {
+                        target.damage(applyMagic);
+                    }
+                } finally {
+                    SUPPRESS.set(Boolean.FALSE);
+                }
+            }
+        } finally {
+            ABILITY_SOURCE.remove();
         }
 
-        // 1.10.0: откат чернокнижника 6.66% от дошедшего урона (true-урон себе)
+        // откат чернокнижника 6.66% (глушится для рефлект-урона)
         if (source instanceof Player attacker && taken > 0.0
+                && !reflectSuppressed()
                 && plugin.getClassProvider().getClassOf(attacker) == PlayerClass.WARLOCK) {
             RaskolConfig cfg = plugin.getRaskolConfig();
             double recoil = taken * cfg.warlockRecoilPercent() / 100.0;
@@ -604,14 +649,7 @@ public final class CombatService implements Listener {
         return taken;
     }
 
-    /**
-     * 1.10.0: анти-хил «Раскола Души» блокирует ванильные события лечения.
-     * 1.11.2 (S5): блокирует ВСЕ причины RegainHealth, включая SATIATED
-     *              (еда-реген, в т.ч. после золотых яблок) — это закрывает
-     *              основной обход анти-хила через еду. Absorption-сердца
-     *              снимаются в WarlockAbilities.soulRift при наложении
-     *              (опциональный гейт antiheal-strip-absorption).
-     */
+    /** 1.10.0 / 1.11.2 (S5): анти-хил блокирует ВСЕ причины лечения. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof LivingEntity le)) {
