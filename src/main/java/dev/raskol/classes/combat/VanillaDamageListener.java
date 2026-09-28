@@ -1,0 +1,271 @@
+// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+package dev.raskol.classes.combat;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.attribute.PowerService;
+import dev.raskol.classes.classsystem.PlayerClass;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.GameMode;
+import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+
+import java.util.Locale;
+import java.util.UUID;
+
+/**
+ * 1.11.4 (P3): ПУТЬ A — ванильные события урона.
+ *  - ally-гейт фракций;
+ *  - исходящий офенс (WP/SP × coeff, криты, пропуск оружия RaskolGear);
+ *  - seal-амплификация «Печати Погибели» (универсально, до резистов);
+ *  - резист-фактор канала, single-hit cap, burst-окно (через DamageCaps);
+ *  - avoidance (dodge/parry) для PHYSICAL.
+ * Регистрируется фасадом CombatService в конструкторе — RaskolClasses не трогаем.
+ */
+public final class VanillaDamageListener implements Listener {
+
+    private final RaskolClasses plugin;
+    private final CombatService combat;
+    private final ResistService resists;
+    private final AvoidanceService avoidance;
+    private final PowerService powers;
+    private final DamageCaps caps;
+
+    public VanillaDamageListener(RaskolClasses plugin, CombatService combat,
+                                 ResistService resists, AvoidanceService avoidance,
+                                 PowerService powers, DamageCaps caps) {
+        this.plugin = plugin;
+        this.combat = combat;
+        this.resists = resists;
+        this.avoidance = avoidance;
+        this.powers = powers;
+        this.caps = caps;
+    }
+
+    private double cfgD(String path, double def) {
+        double v = plugin.getConfig().getDouble(path, def);
+        return Double.isFinite(v) ? v : def;
+    }
+
+    /* ------------------------------ путь A ------------------------------ */
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onDamage(EntityDamageEvent event) {
+        boolean suppressed = CombatService.consumeSuppress();
+
+        if (!suppressed && event instanceof EntityDamageByEntityEvent by) {
+            Player attacker = resolveAttacker(by);
+            if (attacker != null
+                    && event.getEntity() instanceof Player victimTarget
+                    && !attacker.getUniqueId().equals(victimTarget.getUniqueId())
+                    && !plugin.getConfig().getBoolean("combat.friendly-fire", false)
+                    && Targeting.isAlly(plugin, attacker.getUniqueId(), victimTarget.getUniqueId())) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+
+        if (!suppressed) {
+            applyOutgoingOffense(event);
+            // «Печать Погибели»: +26% урона от ВСЕХ источников (универсально)
+            double amp = WarlockAbilities.sealAmplifyOf(event.getEntity().getUniqueId());
+            if (amp > 0.0 && event.getDamage() > 0.0) {
+                event.setDamage(event.getDamage() * (1.0 + amp));
+            }
+        }
+        if (!(event.getEntity() instanceof Player target)) {
+            return;
+        }
+        if (target.getGameMode() == GameMode.SPECTATOR) {
+            return;
+        }
+        if (resists.disabledIn(target.getWorld())) {
+            return;
+        }
+        DamageType type = typeOf(event.getCause());
+        if (type == DamageType.TRUE) {
+            if (!suppressed) {
+                caps.applyEnvLethalScale(event, target);
+            }
+            return;
+        }
+        if (type == DamageType.PHYSICAL && avoidance.tryAvoid(target, event)) {
+            event.setCancelled(true);
+            return;
+        }
+        if (suppressed) {
+            return;
+        }
+        double cap = isPvp(event) ? resists.pvpCap() : resists.cap();
+        UUID uuid = target.getUniqueId();
+        double factor = type == DamageType.PHYSICAL
+                ? resists.physicalFactor(uuid, cap)
+                : resists.magicFactor(uuid, cap);
+        if (!Double.isFinite(factor) || factor >= 1.0 || factor < 0.0) {
+            return;
+        }
+        event.setDamage(event.getDamage() * factor);
+        caps.applySingleHitCapCarrier(event, target);
+        double scale = caps.scaleOf(target);
+        double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
+        effective = caps.applyBurstCap(target, effective, caps.formulaMaxOf(target));
+        event.setDamage(effective * scale);
+    }
+
+    /* --------------------- исходящий офенс (1.7.1) --------------------- */
+
+    private void applyOutgoingOffense(EntityDamageEvent event) {
+        if (!(event instanceof EntityDamageByEntityEvent by)) {
+            return;
+        }
+        if (!(event.getEntity() instanceof LivingEntity)) {
+            return;
+        }
+        Player attacker = resolveAttacker(by);
+        if (attacker == null) {
+            return;
+        }
+        if (hasGearWeaponTag(attacker)) {
+            return;
+        }
+        DamageType type = typeOf(event.getCause());
+        if (type == DamageType.TRUE) {
+            return;
+        }
+        UUID uuid = attacker.getUniqueId();
+        double add = 0.0;
+        boolean crit = false;
+        if (type == DamageType.PHYSICAL) {
+            add += powers.weaponPower(uuid) * cfgD("attributes.offense.basic-coeff", 0.35);
+            if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", false)) {
+                add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.STR)
+                        + plugin.getAttributes().levelOf(uuid,
+                        plugin.getClassProvider().getClassOf(attacker));
+            }
+            crit = rollMeleeCrit(attacker);
+        } else {
+            add += powers.spellPower(uuid) * cfgD("attributes.offense.basic-coeff-magic", 0.35);
+            if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", false)) {
+                add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.INT)
+                        + plugin.getAttributes().levelOf(uuid,
+                        plugin.getClassProvider().getClassOf(attacker));
+            }
+            crit = rollSpellCrit(attacker);
+        }
+        add *= caps.scaleOf(by.getEntity());
+        double base = event.getDamage();
+        double total = base + add;
+        if (crit) {
+            total *= type == DamageType.PHYSICAL ? meleeMult() : spellMult();
+            critFeedback(attacker, type == DamageType.PHYSICAL);
+        }
+        if (total != base && Double.isFinite(total) && total >= 0.0) {
+            event.setDamage(total);
+        }
+    }
+
+    private Player resolveAttacker(EntityDamageByEntityEvent by) {
+        Entity damager = by.getDamager();
+        if (damager instanceof Player p) {
+            return p;
+        }
+        if (damager instanceof Projectile proj && proj.getShooter() instanceof Player ps) {
+            return ps;
+        }
+        return null;
+    }
+
+    private boolean hasGearWeaponTag(Player attacker) {
+        var weapon = attacker.getInventory().getItemInMainHand();
+        if (weapon == null) {
+            return false;
+        }
+        var meta = weapon.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+        var pdc = meta.getPersistentDataContainer();
+        for (NamespacedKey key : pdc.getKeys()) {
+            if ("gear_type".equals(key.getKey())) {
+                if ("WEAPON".equals(pdc.get(key, org.bukkit.persistence.PersistentDataType.STRING))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean rollMeleeCrit(Player player) {
+        return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0
+                < plugin.getAttributes().critMeleeChance(player.getUniqueId());
+    }
+
+    private boolean rollSpellCrit(Player player) {
+        return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0
+                < plugin.getAttributes().critSpellChance(player.getUniqueId());
+    }
+
+    private double meleeMult() {
+        return cfgD("attributes.crit.melee-mult", 1.5);
+    }
+
+    private double spellMult() {
+        return cfgD("attributes.crit.spell-mult", 1.5);
+    }
+
+    private void critFeedback(Player attacker, boolean melee) {
+        if (!plugin.getConfig().getBoolean("attributes.crit.visuals", true)) {
+            return;
+        }
+        String tag = melee
+                ? plugin.getConfig().getString("attributes.crit.melee-tag", "⚡ Крит!")
+                : plugin.getConfig().getString("attributes.crit.spell-tag", "✦ Магический крит!");
+        attacker.showTitle(net.kyori.adventure.title.Title.title(
+                Component.empty(),
+                Component.text(tag, melee ? NamedTextColor.RED : NamedTextColor.LIGHT_PURPLE),
+                net.kyori.adventure.title.Title.Times.times(
+                        java.time.Duration.ofMillis(50),
+                        java.time.Duration.ofMillis(550),
+                        java.time.Duration.ofMillis(150))));
+        dev.raskol.classes.fx.FxService fx = plugin.getFx();
+        String soundKey = melee
+                ? plugin.getConfig().getString("attributes.crit.melee-sound", "ENTITY_PLAYER_ATTACK_CRIT")
+                : plugin.getConfig().getString("attributes.crit.spell-sound", "ENTITY_EVOKER_CAST_SPELL");
+        org.bukkit.Sound s = fx.resolveSound(soundKey);
+        if (s != null) {
+            fx.playSound(attacker.getLocation(), s, 0.5f, melee ? 0.9f : 1.2f);
+        }
+    }
+
+    private static boolean isPvp(EntityDamageEvent event) {
+        if (!(event instanceof EntityDamageByEntityEvent byEntity)) {
+            return false;
+        }
+        Entity damager = byEntity.getDamager();
+        if (damager instanceof Player) {
+            return true;
+        }
+        return damager instanceof Projectile proj && proj.getShooter() instanceof Player;
+    }
+
+    private DamageType typeOf(EntityDamageEvent.DamageCause cause) {
+        String override = plugin.getConfig()
+                .getString("damage-types.vanilla-map." + cause.name());
+        if (override != null && !override.isEmpty()) {
+            try {
+                return DamageType.valueOf(override.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        return DamageType.defaultFor(cause);
+    }
+}
