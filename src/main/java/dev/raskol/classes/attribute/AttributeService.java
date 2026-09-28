@@ -10,11 +10,9 @@ import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -27,23 +25,26 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.9.3: maxHp — ПОЛНАЯ формула; invalidate синхронизирует carrier.
  * 1.9.3-r: ЕДИНЫЙ источник правды по единицам HP (план B).
  * 1.9.3-r2: maxHp += GearHook.hpBonus (статы шмота RaskolGear).
- * 1.10.0: mainOf/defaultBase/defaultGrowth покрывают WARLOCK
- *         (main INT; базы 4/4/14; рост 0.2/0.3/1.4 — канон config.yml).
+ * 1.10.0: mainOf/defaultBase/defaultGrowth покрывают WARLOCK.
+ * 1.11.4 (P4c): фасад. Модификаторы вынесены в AttributeModifiers,
+ *         план B — в HpPool; публичный API сохранён полностью
+ *         (HpBarService/CombatService/GearHook/InstallationService/selftest не меняются).
  */
 public final class AttributeService {
 
-    /** Движковый потолок ванильного max_health (без datapack-оверрайда). */
-    public static final double VANILLA_MAX_HEALTH_CAP = 1024.0;
+    /** Движковый потолок ванильного max_health (делегирует HpPool, имя сохранено для selftest). */
+    public static final double VANILLA_MAX_HEALTH_CAP = HpPool.VANILLA_CAP;
 
     private static final Attribute MAX_HEALTH = RegistryAccess.registryAccess()
             .getRegistry(RegistryKey.ATTRIBUTE)
             .get(NamespacedKey.minecraft("max_health"));
 
-    /** Публичный доступ к атрибуту max_health (для HpBarService/модификаторов). */
+    /** Публичный доступ к атрибуту max_health (для HpPool/HpBarService/модификаторов). */
     public static Attribute maxHealthAttr() {
         return MAX_HEALTH;
     }
 
+    /** record модификатора — делегат для совместимости внешних ссылок. */
     public record Modifier(String source, double str, double agi, double intel, long expiresAt) {
         public boolean isPermanent() {
             return expiresAt == Long.MAX_VALUE;
@@ -58,11 +59,23 @@ public final class AttributeService {
     }
 
     private final RaskolClasses plugin;
-    private final Map<UUID, List<Modifier>> modifiers = new ConcurrentHashMap<>();
+    private final AttributeModifiers modifiers = new AttributeModifiers();
+    private final HpPool hpPool;
     private final Map<UUID, Cache> cache = new ConcurrentHashMap<>();
 
     public AttributeService(RaskolClasses plugin) {
         this.plugin = plugin;
+        this.hpPool = new HpPool(plugin, this);
+    }
+
+    /** Доступ к слою модификаторов (для отладки/будущих сервисов). */
+    public AttributeModifiers modifiers() {
+        return modifiers;
+    }
+
+    /** Доступ к слою плана B (для отладки/будущих сервисов). */
+    public HpPool hpPool() {
+        return hpPool;
     }
 
     private double cfgD(String path, double def) {
@@ -167,18 +180,10 @@ public final class AttributeService {
         double str = baseOf(pc, AttributeType.STR) + growthOf(pc, AttributeType.STR) * level;
         double agi = baseOf(pc, AttributeType.AGI) + growthOf(pc, AttributeType.AGI) * level;
         double intel = baseOf(pc, AttributeType.INT) + growthOf(pc, AttributeType.INT) * level;
-        long now = System.currentTimeMillis();
-        List<Modifier> list = modifiers.get(uuid);
-        if (list != null) {
-            synchronized (list) {
-                for (Modifier m : list) {
-                    if (m.isPermanent() || m.expiresAt() > now) {
-                        str += m.str();
-                        agi += m.agi();
-                        intel += m.intel();
-                    }
-                }
-            }
+        for (AttributeModifiers.Modifier m : modifiers.activeModifiers(uuid)) {
+            str += m.str();
+            agi += m.agi();
+            intel += m.intel();
         }
         c.str = Math.max(0.0, str);
         c.agi = Math.max(0.0, agi);
@@ -190,7 +195,7 @@ public final class AttributeService {
         if (c != null) {
             c.tick = -1;
         }
-        HpAttributeSync sync = plugin.getHpSync();
+        dev.raskol.classes.attribute.HpAttributeSync sync = plugin.getHpSync();
         if (sync != null) {
             sync.syncByUuid(uuid);
         }
@@ -303,144 +308,67 @@ public final class AttributeService {
         return effectiveAvoidance(uuid)[1];
     }
 
-    /* --------------- 1.9.3-r: ЕДИНЫЕ ЕДИНИЦЫ HP (план B) --------------- */
+    /* --------------- план B (1.9.3-r): делегирование в HpPool --------------- */
 
     public double carrierMaxHp(Player player) {
-        if (player == null || MAX_HEALTH == null) {
-            return 20.0;
-        }
-        AttributeInstance inst = player.getAttribute(MAX_HEALTH);
-        double v = inst != null ? inst.getValue() : 20.0;
-        return Double.isFinite(v) && v > 0.0 ? v : 20.0;
+        return hpPool.carrierMaxHp(player);
     }
 
     public double targetCarrier(UUID uuid) {
-        return Math.max(1.0, Math.min(maxHp(uuid), VANILLA_MAX_HEALTH_CAP));
+        return hpPool.targetCarrier(uuid);
     }
 
     public double scale(Player player) {
-        double formula = maxHp(player.getUniqueId());
-        if (formula <= 0.0) {
-            return 1.0;
-        }
-        double s = carrierMaxHp(player) / formula;
-        return (Double.isFinite(s) && s > 0.0) ? s : 1.0;
+        return hpPool.scale(player);
     }
 
     public double currentFormulaHp(Player player) {
-        double s = scale(player);
-        return s > 0.0 ? player.getHealth() / s : player.getHealth();
+        return hpPool.currentFormulaHp(player);
     }
 
     public void healFormula(LivingEntity target, double formulaAmount) {
-        if (target == null || target.isDead() || formulaAmount <= 0.0 || MAX_HEALTH == null) {
-            return;
-        }
-        double carrier;
-        double formula;
-        if (target instanceof Player p) {
-            carrier = carrierMaxHp(p);
-            formula = maxHp(p.getUniqueId());
-        } else {
-            AttributeInstance inst = target.getAttribute(MAX_HEALTH);
-            carrier = inst != null ? inst.getValue() : 20.0;
-            formula = carrier;
-        }
-        if (!Double.isFinite(carrier) || carrier <= 0.0) {
-            carrier = 20.0;
-        }
-        if (!Double.isFinite(formula) || formula <= 0.0) {
-            formula = carrier;
-        }
-        double s = formula > 0.0 ? carrier / formula : 1.0;
-        double add = formulaAmount * s;
-        double newHp = Math.min(carrier, target.getHealth() + add);
-        target.setHealth(Math.max(0.0, newHp));
+        hpPool.healFormula(target, formulaAmount);
     }
 
-    /* ------------------------------- модификаторы ------------------------------- */
+    /* --------------- модификаторы: делегирование в AttributeModifiers --------------- */
 
     public void addTimedModifier(UUID uuid, String source,
                                  double str, double agi, double intel, long millis) {
-        removeModifiersBySource(uuid, source);
-        List<Modifier> list = modifiers.computeIfAbsent(uuid, k -> new ArrayList<>());
-        synchronized (list) {
-            list.add(new Modifier(source, str, agi, intel, System.currentTimeMillis() + millis));
-        }
+        modifiers.addTimedModifier(uuid, source, str, agi, intel, millis);
         invalidate(uuid);
     }
 
     public void addPermanentModifier(UUID uuid, String source,
                                      double str, double agi, double intel) {
-        removeModifiersBySource(uuid, source);
-        List<Modifier> list = modifiers.computeIfAbsent(uuid, k -> new ArrayList<>());
-        synchronized (list) {
-            list.add(new Modifier(source, str, agi, intel, Long.MAX_VALUE));
-        }
+        modifiers.addPermanentModifier(uuid, source, str, agi, intel);
         invalidate(uuid);
     }
 
     public void removeModifiersBySource(UUID uuid, String source) {
-        List<Modifier> list = modifiers.get(uuid);
-        if (list == null) {
-            return;
-        }
-        synchronized (list) {
-            list.removeIf(m -> m.source().equals(source));
-        }
-        if (list.isEmpty()) {
-            modifiers.remove(uuid);
-        }
+        modifiers.removeModifiersBySource(uuid, source);
         invalidate(uuid);
     }
 
     public boolean hasModifier(UUID uuid, String source) {
-        List<Modifier> list = modifiers.get(uuid);
-        if (list == null) {
-            return false;
-        }
-        long now = System.currentTimeMillis();
-        synchronized (list) {
-            for (Modifier m : list) {
-                if (m.source().equals(source) && (m.isPermanent() || m.expiresAt() > now)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return modifiers.hasModifier(uuid, source);
     }
 
-    public List<Modifier> activeModifiers(UUID uuid) {
-        List<Modifier> list = modifiers.get(uuid);
-        if (list == null) {
-            return List.of();
-        }
-        long now = System.currentTimeMillis();
-        synchronized (list) {
-            List<Modifier> out = new ArrayList<>();
-            for (Modifier m : list) {
-                if (m.isPermanent() || m.expiresAt() > now) {
-                    out.add(m);
-                }
-            }
-            return out;
-        }
+    public List<AttributeModifiers.Modifier> activeModifiers(UUID uuid) {
+        return modifiers.activeModifiers(uuid);
     }
 
     public void purgeExpired() {
-        long now = System.currentTimeMillis();
-        modifiers.entrySet().removeIf(entry -> {
-            synchronized (entry.getValue()) {
-                entry.getValue().removeIf(m -> !m.isPermanent() && m.expiresAt() <= now);
-                return entry.getValue().isEmpty();
-            }
-        });
+        modifiers.purgeExpired(System.currentTimeMillis());
         cache.keySet().removeIf(uuid -> Bukkit.getPlayer(uuid) == null
-                && !modifiers.containsKey(uuid));
+                && !modifiersTracked(uuid));
+    }
+
+    private boolean modifiersTracked(UUID uuid) {
+        return !modifiers.activeModifiers(uuid).isEmpty();
     }
 
     public void clear(UUID uuid) {
-        modifiers.remove(uuid);
+        modifiers.clear(uuid);
         cache.remove(uuid);
     }
 }
