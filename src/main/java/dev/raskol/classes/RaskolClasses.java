@@ -3,6 +3,7 @@ package dev.raskol.classes;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
+import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.HpAttributeSync;
 import dev.raskol.classes.classsystem.CharacterLevelService;
@@ -63,6 +64,10 @@ import java.util.List;
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
  * 1.10.1: Чернокнижник — СКРЫТЫЙ класс: баннер и стартовые логи перечисляют 5 основных путей.
+ * 1.11.2 (T2): регистрация WarlockAbilities как Listener (onPlayerQuit → cancelChannelTasks)
+ *         и onDisable → cancelAllChannelTasks().
+ * 1.11.2 (T5): cleanupTmpFiles() удаляет .yml.tmp старше 1 часа в onEnable
+ *         (защита от мусора после краха во время saveAll).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -112,6 +117,9 @@ public final class RaskolClasses extends JavaPlugin {
     private PassiveListener passiveListener;
     private PassportChangeListener passportListener;
 
+    /** 1.11.2 (T2): instance для onDisable и регистрации Listener. */
+    private WarlockAbilities warlockAbilities;
+
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
 
@@ -125,6 +133,11 @@ public final class RaskolClasses extends JavaPlugin {
                 + " / Bukkit: " + getServer().getBukkitVersion());
 
         checkCoreVersion();
+
+        // 1.11.2 (T5): удаление мусорных .yml.tmp от краха во время saveAll.
+        // Файлы старше 1 часа считаются мусором и удаляются. Свежие (<1ч)
+        // могут принадлежать текущему сейву — не трогаем.
+        cleanupTmpFiles();
 
         PluginManager pluginManager = getServer().getPluginManager();
 
@@ -200,6 +213,9 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.foliantService = new FoliantService(this);
 
+        // 1.11.2 (T2): WarlockAbilities теперь Listener (onPlayerQuit → cancelChannelTasks)
+        this.warlockAbilities = new WarlockAbilities(this);
+
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
         pluginManager.registerEvents(cooldowns, this);
@@ -216,6 +232,7 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(hpBarService, this);
         pluginManager.registerEvents(fx, this);
         pluginManager.registerEvents(foliantService, this);
+        pluginManager.registerEvents(warlockAbilities, this); // 1.11.2 (T2)
 
         this.passportListener = new PassportChangeListener(this);
         passportListener.register();
@@ -291,13 +308,43 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
     }
 
+    /**
+     * 1.11.2 (T5): удаляет .yml.tmp старше 1 часа в папке плагина.
+     * Эти файлы остаются от атомарного сейва (SafeStorage.saveAtomic)
+     * если сервер был убит между записью .tmp и rename в .yml.
+     */
+    private void cleanupTmpFiles() {
+        File folder = getDataFolder();
+        if (folder == null || !folder.isDirectory()) {
+            return;
+        }
+        File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml.tmp"));
+        if (files == null || files.length == 0) {
+            return;
+        }
+        long oneHourAgo = System.currentTimeMillis() - 3_600_000L;
+        int removed = 0;
+        for (File f : files) {
+            if (f.lastModified() < oneHourAgo) {
+                if (f.delete()) {
+                    removed++;
+                } else {
+                    getLogger().warning("Не удалось удалить устаревший .tmp: " + f.getName());
+                }
+            }
+        }
+        if (removed > 0) {
+            getLogger().info("Удалено устаревших .yml.tmp файлов: " + removed);
+        }
+    }
+
     /** 1.10.1: баннер перечисляет ТОЛЬКО пять основных путей (Чернокнижник скрыт). */
     private void printBanner() {
         String v = getPluginMeta().getVersion();
         String[] art = {
             "&8  ██████╗██╗     █████╗ ███████╗███████╗███████╗███████╗",
             "&8  ██╔════╝██║    ██╔══██╗██╔════╝██╔════╝██╔════╝██╔════╝",
-            "&4  ██║     ██║    ███████║███████╗███████╗█████╗  ███████╗",
+            "&4  ██║     ██║    ███████║███████╗███████╗█████╗  ███████║",
             "&4  ██║     ██║    ██╔══██║╚════██║╚════██║██╔══╝  ╚════██║",
             "&5  ╚██████╗███████╗██║  ██║███████║███████║███████╗███████║",
             "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝╚══════╝",
@@ -343,6 +390,8 @@ public final class RaskolClasses extends JavaPlugin {
         if (blueprintHook != null) {
             blueprintHook.unregisterBlueprints();
         }
+        // 1.11.2 (T2): отмена всех задач канала Раскола Души при shutdown
+        WarlockAbilities.cancelAllChannelTasks();
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
         if (passportListener != null) {
@@ -459,4 +508,5 @@ public final class RaskolClasses extends JavaPlugin {
     public AttributeService getAttributes() { return attributes; }
     public HpAttributeSync getHpSync() { return hpSync; }
     public PassiveListener getPassives() { return passiveListener; }
+    public WarlockAbilities getWarlockAbilities() { return warlockAbilities; } // 1.11.2 (T2)
 }
