@@ -4,6 +4,7 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.fx.WarlockFx;
 import dev.raskol.classes.spec.Spec;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -29,11 +30,10 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 1.10.0: КИТ ЧЕРНОКНИЖНИКА (5 способностей, power = SP).
  * 1.10.4: «Чёрное Слово» v2 (бесплатно, плата 10% HP, +25 Скверны, без лечения, КД 3 с).
- * 1.11.1: ПРОВОДКА СПЕК — числовые трейты из config (classes.WARLOCK.specs.*).
- * 1.11.2 (T2): задачи канала «Раскола Души» регистрируются и отменяются при выходе
- *         кастера (PlayerQuit) и на onDisable. Утечка runTaskLater закрыта.
- * 1.11.2 (S5): при наложении анти-хила опционально снимается Absorption
- *         (гейт classes.WARLOCK.antiheal-strip-absorption).
+ * 1.11.1: проводка спек (classes.WARLOCK.specs.*).
+ * 1.11.2: T2-задачи канала + S5 strip-absorption.
+ * 1.11.4 (P4a): математика вынесена в WarlockMath (pure, selftest 41–43),
+ *         визуал — в WarlockFx; здесь только оркестрация кита и реестры дебафов.
  */
 public final class WarlockAbilities implements Listener {
 
@@ -70,7 +70,7 @@ public final class WarlockAbilities implements Listener {
         return true;
     }
 
-    /** 1.11.1: плановая чистка протухших дебафов. */
+    /** Плановая чистка протухших дебафов (вызывает ResourceService раз в 30 с). */
     public static void purgeStaleDebuffs() {
         long now = System.currentTimeMillis();
         SEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
@@ -175,19 +175,17 @@ public final class WarlockAbilities implements Listener {
                 : 0.0;
     }
 
-    /* ------------------------------ урон/множители ------------------------------ */
+    /* ------------------------------ урон/множители (WarlockMath) ------------------------------ */
 
     private double damageMult(Player caster) {
-        double mult = 1.0;
         double corruption = plugin.getResources().getValue(caster.getUniqueId());
-        if (corruption >= plugin.getRaskolConfig().warlockThresholdOpen()) {
-            mult *= 1.2;
-        }
-        if (caster.getWorld().getEnvironment() == World.Environment.NETHER) {
-            mult *= plugin.getRaskolConfig().warlockNetherMult();
-        }
-        mult *= specDamageMult(caster);
-        return mult;
+        boolean nether = caster.getWorld().getEnvironment() == World.Environment.NETHER;
+        return WarlockMath.damageMult(
+                corruption,
+                plugin.getRaskolConfig().warlockThresholdOpen(),
+                plugin.getRaskolConfig().warlockNetherMult(),
+                specDamageMult(caster),
+                nether);
     }
 
     private double spellDamage(Player caster, AbilityDef def, double defBase, double defCoeff) {
@@ -200,62 +198,17 @@ public final class WarlockAbilities implements Listener {
         return e instanceof LivingEntity le ? le : null;
     }
 
-    /* ------------------------------ визуал-хелперы ------------------------------ */
-
-    private void safeFx(Location loc, Particle particle, int count, double spread) {
-        if (loc == null || loc.getWorld() == null) {
-            return;
-        }
-        try {
-            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 1.0, 0.0),
-                    count, spread, spread * 0.6, spread, 0.04);
-        } catch (IllegalArgumentException e) {
-            loc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0.0, 1.0, 0.0),
-                    Math.max(4, count / 2), spread, spread * 0.6, spread, 0.02);
-        }
-    }
-
-    private void ringFx(Location center, double radius, Particle particle, int perPoint) {
-        if (center == null || center.getWorld() == null) {
-            return;
-        }
-        try {
-            int points = 20;
-            for (int i = 0; i < points; i++) {
-                double angle = (Math.PI * 2 * i) / points;
-                Location p = center.clone().add(Math.cos(angle) * radius, 0.4, Math.sin(angle) * radius);
-                center.getWorld().spawnParticle(particle, p, perPoint, 0.0, 0.3, 0.0, 0.01);
-            }
-        } catch (IllegalArgumentException ignored) {
-        }
-    }
-
-    private void riseFx(Location loc, Particle particle, int count) {
-        if (loc == null || loc.getWorld() == null) {
-            return;
-        }
-        try {
-            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 0.3, 0.0),
-                    count, 0.35, 0.9, 0.35, 0.06);
-        } catch (IllegalArgumentException ignored) {
-        }
-    }
-
+    /** Плата «Чёрного Слова»: pct% от maxHP (formula), не ниже 1 HP. */
     private void paySelfCost(Player caster, double pct) {
         double maxFormula = formulaMax(caster);
-        double cost = maxFormula * pct / 100.0;
-        double cur = currentFormulaHp(caster);
-        double next = Math.max(1.0, cur - cost);
+        double curFormula = currentFormulaHp(caster);
+        double nextFormula = WarlockMath.selfCostNewHp(maxFormula, pct, curFormula, 1.0);
         double scale = plugin.getAttributes().scale(caster);
-        caster.setHealth(Math.max(1.0, next * scale));
-        safeFx(caster.getLocation(), Particle.SCULK_SOUL, 10, 0.4);
+        caster.setHealth(Math.max(1.0, nextFormula * scale));
+        WarlockFx.safeFx(caster.getLocation(), Particle.SCULK_SOUL, 10, 0.4);
     }
 
-    /**
-     * 1.11.2 (S5): опциональное снятие Absorption при наложении анти-хила.
-     * Гейт: classes.WARLOCK.antiheal-strip-absorption (false по умолчанию —
-     * жёсткая мера, включается по жалобам на «яблочных танков»).
-     */
+    /** 1.11.2 (S5): опциональное снятие Absorption при наложении анти-хила. */
     private void maybeStripAbsorption(LivingEntity target) {
         if (!(target instanceof Player tp)) {
             return;
@@ -286,9 +239,9 @@ public final class WarlockAbilities implements Listener {
 
         double dmg = spellDamage(caster, def, 18.0, 1.5);
         plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
-        safeFx(t.getLocation(), Particle.SCULK_SOUL, 18, 0.5);
-        safeFx(t.getLocation(), Particle.SONIC_BOOM, 1, 0.0);
-        riseFx(t.getLocation(), Particle.SOUL, 6);
+        WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 18, 0.5);
+        WarlockFx.safeFx(t.getLocation(), Particle.SONIC_BOOM, 1, 0.0);
+        WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 6);
         plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_WARDEN_ATTACK_IMPACT, 0.6f, 1.1f);
         return true;
     }
@@ -309,8 +262,8 @@ public final class WarlockAbilities implements Listener {
         SEAL_AMP.put(id, amplify);
         t.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING,
                 (int) (durationSec * 20.0), 0, false, false, false));
-        ringFx(t.getLocation(), 1.2, Particle.SOUL_FIRE_FLAME, 3);
-        riseFx(t.getLocation(), Particle.CRIMSON_SPORE, 12);
+        WarlockFx.ringFx(t.getLocation(), 1.2, Particle.SOUL_FIRE_FLAME, 3);
+        WarlockFx.riseFx(t.getLocation(), Particle.CRIMSON_SPORE, 12);
         plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_EVOKER_PREPARE_ATTACK, 0.7f, 0.9f);
         return true;
     }
@@ -321,8 +274,8 @@ public final class WarlockAbilities implements Listener {
         Location center = caster.getLocation();
         double totalDealt = 0.0;
 
-        ringFx(center, radius, Particle.SCULK_SOUL, 2);
-        riseFx(center, Particle.WARPED_SPORE, 16);
+        WarlockFx.ringFx(center, radius, Particle.SCULK_SOUL, 2);
+        WarlockFx.riseFx(center, Particle.WARPED_SPORE, 16);
 
         for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
             if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
@@ -334,14 +287,17 @@ public final class WarlockAbilities implements Listener {
             double dealt = plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
             if (dealt > 0.0) {
                 totalDealt += dealt;
-                safeFx(t.getLocation(), Particle.SCULK_SOUL, 10, 0.4);
-                riseFx(t.getLocation(), Particle.SOUL, 4);
+                WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 10, 0.4);
+                WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 4);
             }
         }
         if (totalDealt <= 0.0) {
             return false;
         }
-        plugin.getHpBarService().heal(caster, totalDealt * drain(def, 0.666));
+        // 1.11.4: дрейн через WarlockMath.drainHeal с капом lifesteal-cap
+        double heal = WarlockMath.drainHeal(totalDealt, drain(def, 0.666),
+                plugin.getRaskolConfig().warlockLifestealCap());
+        plugin.getHpBarService().heal(caster, heal);
         plugin.getResources().add(caster.getUniqueId(),
                 cfgD("classes.WARLOCK.abilities." + def.id() + ".corruption-gain", 12.0));
         plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_ROAR, 0.8f, 1.2f);
@@ -374,13 +330,13 @@ public final class WarlockAbilities implements Listener {
                 break;
             }
             purged++;
-            safeFx(t.getLocation(), Particle.REVERSE_PORTAL, 8, 0.4);
+            WarlockFx.safeFx(t.getLocation(), Particle.REVERSE_PORTAL, 8, 0.4);
         }
         double perPurged = cfgD("classes.WARLOCK.abilities." + def.id() + ".per-purged", 16.0);
         double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
         double dmg = (base(def, 16.0) + sp * coeff(def, 0.8) + perPurged * purged) * damageMult(caster);
-        safeFx(t.getLocation(), Particle.SOUL, 14, 0.5);
-        safeFx(t.getLocation(), Particle.LARGE_SMOKE, 10, 0.4);
+        WarlockFx.safeFx(t.getLocation(), Particle.SOUL, 14, 0.5);
+        WarlockFx.safeFx(t.getLocation(), Particle.LARGE_SMOKE, 10, 0.4);
         double dealt = plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
         plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_VEX_DEATH, 0.6f, 0.8f);
         if (dealt <= 0.0) {
@@ -389,7 +345,7 @@ public final class WarlockAbilities implements Listener {
         return true;
     }
 
-    /** 1.11.2 (T2 + S5): задачи канала + опциональное снятие Absorption. */
+    /** 1.11.2 (T2) + 1.11.4: канал с задачами в CHANNEL_TASKS; взрыв через WarlockMath. */
     public boolean soulRift(Player caster, AbilityDef def) {
         double radius = radius(def, 8.0) + specRiftRadiusBonus(caster);
         double channelSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".channel", 2.5);
@@ -399,7 +355,7 @@ public final class WarlockAbilities implements Listener {
         int ticks = Math.max(1, (int) (channelSec * 20.0));
 
         plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.9f, 0.7f);
-        ringFx(caster.getLocation(), radius, Particle.CRIMSON_SPORE, 2);
+        WarlockFx.ringFx(caster.getLocation(), radius, Particle.CRIMSON_SPORE, 2);
 
         List<BukkitTask> tasks = new ArrayList<>();
 
@@ -410,7 +366,7 @@ public final class WarlockAbilities implements Listener {
                 }
                 Location center = caster.getLocation();
                 double tickDmg = 6.0 * damageMult(caster);
-                ringFx(center, radius, Particle.SCULK_SOUL, 1);
+                WarlockFx.ringFx(center, radius, Particle.SCULK_SOUL, 1);
                 for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
                     if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
                         continue;
@@ -419,10 +375,9 @@ public final class WarlockAbilities implements Listener {
                         continue;
                     }
                     plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(tickDmg));
-                    riseFx(t.getLocation(), Particle.SOUL, 3);
+                    WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 3);
                     ANTIHEAL_EXPIRY.put(t.getUniqueId(),
                             System.currentTimeMillis() + (long) (antihealSec * 1000.0));
-                    // 1.11.2 (S5): опциональное снятие Absorption
                     maybeStripAbsorption(t);
                 }
             }, i);
@@ -436,8 +391,8 @@ public final class WarlockAbilities implements Listener {
             Location center = caster.getLocation();
             double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
             double baseDmg = (base(def, 30.0) + sp * coeff(def, 2.4)) * damageMult(caster);
-            ringFx(center, radius, Particle.SONIC_BOOM, 1);
-            ringFx(center, radius * 0.6, Particle.ASH, 3);
+            WarlockFx.ringFx(center, radius, Particle.SONIC_BOOM, 1);
+            WarlockFx.ringFx(center, radius * 0.6, Particle.ASH, 3);
             for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
                 if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
                     continue;
@@ -445,19 +400,18 @@ public final class WarlockAbilities implements Listener {
                 if (!plugin.getCombat().canHit(caster, t)) {
                     continue;
                 }
-                double missing = Math.max(0.0, formulaMax(t) - currentFormulaHp(t));
-                double dmg = baseDmg + missing * missingBonus;
+                double bonus = WarlockMath.missingHpBonus(
+                        currentFormulaHp(t), formulaMax(t), missingBonus);
+                double dmg = baseDmg + bonus;
                 plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg), true);
-                safeFx(t.getLocation(), Particle.SCULK_SOUL, 20, 0.6);
-                riseFx(t.getLocation(), Particle.SOUL, 8);
+                WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 20, 0.6);
+                WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 8);
                 ANTIHEAL_EXPIRY.put(t.getUniqueId(),
                         System.currentTimeMillis() + (long) (antihealSec * 1000.0));
-                // 1.11.2 (S5): опциональное снятие Absorption
                 maybeStripAbsorption(t);
             }
             plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
             purgeStaleDebuffs();
-            // 1.11.2 (T2): канал завершился штатно — чистим карту
             CHANNEL_TASKS.remove(caster.getUniqueId());
         }, ticks + 1L);
         tasks.add(finalTask);
