@@ -63,11 +63,9 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.10.1: Чернокнижник — СКРЫТЫЙ класс: баннер и стартовые логи перечисляют 5 основных путей.
- * 1.11.2 (T2): регистрация WarlockAbilities как Listener (onPlayerQuit → cancelChannelTasks)
- *         и onDisable → cancelAllChannelTasks().
- * 1.11.2 (T5): cleanupTmpFiles() удаляет .yml.tmp старше 1 часа в onEnable
- *         (защита от мусора после краха во время saveAll).
+ * 1.10.1: Чернокнижник — СКРЫТЫЙ класс (баннер и логи = 5 путей).
+ * 1.11.2: T2 (WarlockAbilities-listener, cancelAllChannelTasks) + T5 (cleanupTmpFiles).
+ * 1.11.4 (P5): reloadPlugin() перечитывает kits/*.yml через raskolConfig.reloadKits().
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -117,7 +115,6 @@ public final class RaskolClasses extends JavaPlugin {
     private PassiveListener passiveListener;
     private PassportChangeListener passportListener;
 
-    /** 1.11.2 (T2): instance для onDisable и регистрации Listener. */
     private WarlockAbilities warlockAbilities;
 
     private volatile long lastPurgeMillis = System.currentTimeMillis();
@@ -135,8 +132,6 @@ public final class RaskolClasses extends JavaPlugin {
         checkCoreVersion();
 
         // 1.11.2 (T5): удаление мусорных .yml.tmp от краха во время saveAll.
-        // Файлы старше 1 часа считаются мусором и удаляются. Свежие (<1ч)
-        // могут принадлежать текущему сейву — не трогаем.
         cleanupTmpFiles();
 
         PluginManager pluginManager = getServer().getPluginManager();
@@ -213,7 +208,6 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.foliantService = new FoliantService(this);
 
-        // 1.11.2 (T2): WarlockAbilities теперь Listener (onPlayerQuit → cancelChannelTasks)
         this.warlockAbilities = new WarlockAbilities(this);
 
         pluginManager.registerEvents(resources, this);
@@ -232,7 +226,7 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(hpBarService, this);
         pluginManager.registerEvents(fx, this);
         pluginManager.registerEvents(foliantService, this);
-        pluginManager.registerEvents(warlockAbilities, this); // 1.11.2 (T2)
+        pluginManager.registerEvents(warlockAbilities, this);
 
         this.passportListener = new PassportChangeListener(this);
         passportListener.register();
@@ -308,11 +302,7 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
     }
 
-    /**
-     * 1.11.2 (T5): удаляет .yml.tmp старше 1 часа в папке плагина.
-     * Эти файлы остаются от атомарного сейва (SafeStorage.saveAtomic)
-     * если сервер был убит между записью .tmp и rename в .yml.
-     */
+    /** 1.11.2 (T5): удаляет .yml.tmp старше 1 часа в папке плагина. */
     private void cleanupTmpFiles() {
         File folder = getDataFolder();
         if (folder == null || !folder.isDirectory()) {
@@ -344,7 +334,7 @@ public final class RaskolClasses extends JavaPlugin {
         String[] art = {
             "&8  ██████╗██╗     █████╗ ███████╗███████╗███████╗███████╗",
             "&8  ██╔════╝██║    ██╔══██╗██╔════╝██╔════╝██╔════╝██╔════╝",
-            "&4  ██║     ██║    ███████║███████╗███████╗█████╗  ███████║",
+            "&4  ██║     ██║    ███████║███████╗███████╗█████╗  ███████╗",
             "&4  ██║     ██║    ██╔══██║╚════██║╚════██║██╔══╝  ╚════██║",
             "&5  ╚██████╗███████╗██║  ██║███████║███████║███████╗███████║",
             "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝╚══════╝",
@@ -390,7 +380,6 @@ public final class RaskolClasses extends JavaPlugin {
         if (blueprintHook != null) {
             blueprintHook.unregisterBlueprints();
         }
-        // 1.11.2 (T2): отмена всех задач канала Раскола Души при shutdown
         WarlockAbilities.cancelAllChannelTasks();
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
@@ -438,6 +427,8 @@ public final class RaskolClasses extends JavaPlugin {
 
     public void reloadPlugin() {
         raskolConfig.reload();
+        // 1.11.4 (P5): перечитать kits/*.yml и сбросить кэш значений
+        raskolConfig.reloadKits();
         abilities.loadFromConfig(raskolConfig);
         hud.applyConfig();
         cooldowns.attachScheduler(this,
@@ -508,5 +499,5 @@ public final class RaskolClasses extends JavaPlugin {
     public AttributeService getAttributes() { return attributes; }
     public HpAttributeSync getHpSync() { return hpSync; }
     public PassiveListener getPassives() { return passiveListener; }
-    public WarlockAbilities getWarlockAbilities() { return warlockAbilities; } // 1.11.2 (T2)
+    public WarlockAbilities getWarlockAbilities() { return warlockAbilities; }
 }
