@@ -21,41 +21,40 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Бизнес-логика спеков (1.4.0 + 1.5.1 + 1.6.0 пакет 3 + 1.6.1).
- * 1.6.1: reconcilePassiveResists() — периодическая сверка спек-модификаторов
- * резиста с фактической спекой (закрывает админ-смену класса и ручные правки
- * storage при выключенном ready-notify, когда периодический getSpec не ходит);
- * choose() дополнительно снимает модификаторы старой спеки перед установкой
- * новых (защита от будущих кодовых путей).
+ * Бизнес-логика спеков (1.4.0 → 1.11.4).
+ * 1.11.4 (P4e): фасад. Резисты спек — в SpecPassives (генерик, F7),
+ * экономика/арм-окно — в SpecEconomy, формулы — в SpecMath.
+ * Публичный API сохранён: ClassBook/SpecListener/RaskolClasses/FoliantService не меняются.
+ * Legacy-dead: startSpecNotifyTask/clearNotifyState оставлены как заглушки
+ * (активки спек удалены в 1.7.5; задача никогда не стартовала).
  */
 public final class SpecService {
 
     private static final int REQUIRED_LEVEL = 40;
-    private static final long PENDING_MILLIS = 30_000L;
-    private static final String GUARDIAN_SOURCE = "guardian";
 
     public enum RespecResult { OK, NO_SPEC, NO_ECONOMY, POOR, NOT_PENDING }
 
     private final RaskolClasses plugin;
     private final SpecStorage storage;
     private final SpecRegistry registry;
-    private final EconomyHook economy;
-    private final Map<UUID, Long> pendingUntil = new ConcurrentHashMap<>();
+    private final SpecPassives passives;
+    private final SpecEconomy economyPart;
     private final Map<UUID, Map<String, Long>> notifyPrev = new ConcurrentHashMap<>();
 
     public SpecService(RaskolClasses plugin, SpecStorage storage, SpecRegistry registry) {
         this.plugin = plugin;
         this.storage = storage;
         this.registry = registry;
-        this.economy = new EconomyHook(plugin);
+        this.passives = new SpecPassives(plugin);
+        this.economyPart = new SpecEconomy(plugin, new EconomyHook(plugin));
     }
 
     public EconomyHook economy() {
-        return economy;
+        return economyPart.economy();
     }
 
-    private double guardianPhys() {
-        return plugin.getConfig().getDouble("resist.specs.guardian.physical", 10.0);
+    public SpecPassives passives() {
+        return passives;
     }
 
     /** Проверка: может ли игрок выбрать спеку? */
@@ -95,12 +94,7 @@ public final class SpecService {
         storage.set(player.getUniqueId(), spec);
         syncToLuckPerms(player, spec);
         plugin.getSpecEffects().applyAttributes(player, spec);
-        // 1.6.1: защитное снятие модификаторов старой спеки перед установкой новых
-        plugin.getResists().removeModifiersBySource(player.getUniqueId(), GUARDIAN_SOURCE);
-        if (spec == Spec.GUARDIAN) {
-            plugin.getResists().addPermanentModifier(player.getUniqueId(),
-                    GUARDIAN_SOURCE, guardianPhys(), 0.0);
-        }
+        passives.applySpecResists(player, spec); // 1.11.4: генерик (F7)
         player.sendMessage(Component.text("Специализация выбрана: ", NamedTextColor.GREEN)
                 .append(Component.text(spec.displayName(), pc.getColor())));
         return true;
@@ -132,92 +126,51 @@ public final class SpecService {
         storage.remove(uuid);
         clearSpecFromLuckPerms(player, spec);
         plugin.getSpecEffects().removeAttributes(player);
-        plugin.getResists().removeModifiersBySource(uuid, GUARDIAN_SOURCE);
+        passives.removeAllSpecResists(uuid);
         return null;
     }
 
-    /**
-     * 1.6.0 пакет 3: восстановление permanent-резистов спек-пассивок на входе
-     * (на quit ResistService чистит все модификаторы).
-     */
+    /** Восстановление permanent-резистов спек-пассивок на входе. */
     public void restorePassiveResists(Player player) {
-        Spec spec = getSpec(player.getUniqueId());
-        if (spec == Spec.GUARDIAN) {
-            plugin.getResists().addPermanentModifier(player.getUniqueId(),
-                    GUARDIAN_SOURCE, guardianPhys(), 0.0);
-        }
+        passives.restorePassiveResists(player);
     }
 
-    /**
-     * 1.6.1: сверка спек-модификаторов резиста с фактической спекой по всем
-     * онлайн-игрокам (раз в 20 тиков). Закрывает кейсы: админ-смена класса при
-     * выключенном ready-notify, ручные правки spec-choices.yml, рассинхрон
-     * после рестарта с изменёнными данными.
-     */
+    /** Сверка спек-модификаторов по онлайну (теперь self-scheduled в SpecPassives). */
     public void reconcilePassiveResists() {
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            UUID uuid = player.getUniqueId();
-            Spec spec = getSpec(uuid); // валидация сама сбросит спеку при mismatch
-            boolean has = plugin.getResists().hasModifier(uuid, GUARDIAN_SOURCE);
-            if (spec == Spec.GUARDIAN && !has) {
-                plugin.getResists().addPermanentModifier(uuid, GUARDIAN_SOURCE,
-                        guardianPhys(), 0.0);
-            } else if (spec != Spec.GUARDIAN && has) {
-                plugin.getResists().removeModifiersBySource(uuid, GUARDIAN_SOURCE);
-            }
-        }
+        passives.reconcilePassiveResists();
     }
 
-    // --- Пакет 3 (1.4.0): платный респец ---
+    // --- Платный респец (Пакет 3, 1.4.0) ---
 
     public int respecCost(Player player) {
-        PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        int level = pc == null
-                ? REQUIRED_LEVEL
-                : plugin.getSkillLevels().getLevel(player.getUniqueId(), pc.profileSkillName());
-        if (level == SkillLevelProvider.NO_SKILL_SYSTEM || level < 1) {
-            level = REQUIRED_LEVEL;
-        }
-        int base = plugin.getConfig().getInt("spec.respec-base-cost", 250);
-        int per = plugin.getConfig().getInt("spec.respec-per-level", 10);
-        return base + level * per;
+        return economyPart.respecCost(player);
     }
 
     public void requestRespec(Player player) {
-        pendingUntil.put(player.getUniqueId(), System.currentTimeMillis() + PENDING_MILLIS);
+        economyPart.requestRespec(player);
     }
 
     public RespecResult confirmRespec(Player player) {
         UUID uuid = player.getUniqueId();
-        Long until = pendingUntil.get(uuid);
-        if (until == null || until <= System.currentTimeMillis()) {
+        if (!economyPart.isPending(uuid)) {
             return RespecResult.NOT_PENDING;
         }
-        pendingUntil.remove(uuid);
+        economyPart.clearPending(uuid);
 
         Spec old = storage.get(uuid);
         if (old == null) {
             return RespecResult.NO_SPEC;
         }
 
-        boolean admin = player.hasPermission("raskolclasses.admin");
-        if (!admin) {
-            if (!economy.available()) {
-                return RespecResult.NO_ECONOMY;
-            }
-            int cost = respecCost(player);
-            if (economy.balance(uuid) < cost) {
-                return RespecResult.POOR;
-            }
-            if (!economy.withdraw(uuid, cost)) {
-                return RespecResult.POOR;
-            }
+        RespecResult payFail = economyPart.pay(player);
+        if (payFail != null) {
+            return payFail;
         }
 
         clearSpecFromLuckPerms(player, old);
         storage.remove(uuid);
         plugin.getSpecEffects().removeAttributes(player);
-        plugin.getResists().removeModifiersBySource(uuid, GUARDIAN_SOURCE);
+        passives.removeAllSpecResists(uuid);
         notifyPrev.remove(uuid);
         int stripped = plugin.getSpecToken().stripScrolls(player, old);
         if (stripped > 0) {
@@ -227,44 +180,10 @@ public final class SpecService {
         return RespecResult.OK;
     }
 
-    // --- Ready-notify спек-абилок (1.5.1) ---
+    // --- Legacy-dead (1.5.1 ready-notify спек-абилок; активки удалены в 1.7.5) ---
 
     public BukkitTask startSpecNotifyTask() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            if (!plugin.getRaskolConfig().isReadyNotifyEnabled()) {
-                return;
-            }
-            if (!plugin.getConfig().getBoolean("performance.ready-notify.spec-enabled", true)) {
-                return;
-            }
-            long minMillis = plugin.getRaskolConfig().readyNotifyMinCooldownSeconds() * 1000L;
-            String soundKey = plugin.getRaskolConfig().readyNotifySoundKey();
-            String template = plugin.getRaskolConfig().readyNotifyMessage();
-            for (Player player : plugin.getServer().getOnlinePlayers()) {
-                UUID uuid = player.getUniqueId();
-                Spec spec = getSpec(uuid);
-                Map<String, Long> prev = notifyPrev.computeIfAbsent(uuid, k -> new HashMap<>());
-                if (spec == null) {
-                    prev.clear();
-                    continue;
-                }
-                String cdId = "spec_" + spec.id();
-                prev.keySet().removeIf(k -> !k.equals(cdId));
-                long remaining = plugin.getCooldowns().getRemainingMillis(uuid, cdId);
-                Long before = prev.get(cdId);
-                if (before != null && before > 0 && remaining <= 0 && before >= minMillis) {
-                    SpecRegistry.SpecDef def = registry.get(spec);
-                    String name = def != null ? def.activeDescription() : spec.displayName();
-                    Sound sound = plugin.getFx().resolveSound(soundKey);
-                    if (sound != null) {
-                        plugin.getFx().playSound(player.getLocation(), sound, 0.6f, 1.0f);
-                    }
-                    player.sendActionBar(Component.text(
-                            template.replace("{ability}", name), NamedTextColor.GREEN));
-                }
-                prev.put(cdId, remaining);
-            }
-        }, 20L, 20L);
+        return null; // задача не стартует: спек-активок нет с 1.7.5
     }
 
     public void clearNotifyState(UUID uuid) {
