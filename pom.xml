@@ -6,11 +6,11 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.11.0</version>
+    <version>1.12.1</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»: специализации, таланты, инсталляции (включая Пентаграмму), боевая математика, виртуальный пул HP, хук RaskolGear и скрытый путь Чернокнижника (Фолиант Душ, дроп 0.001% с пиглинов ада)</description>
+    <description>Классовый плагин сервера «РАСКОЛ | ДВЕ КОРОНЫ»</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
