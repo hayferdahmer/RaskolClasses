@@ -14,7 +14,8 @@
 #  1.10.4: «Чёрное Слово» v2; Скверна пол 0; Пентаграмма.
 #  1.11.1: проводка спек (classes.WARLOCK.specs.*, resist.specs.hell_channel).
 #  1.11.2: foliant.relock (скрытый анти-фарм цикл) + foliant.soulbound
-#          (том не падает на смерть, не выбрасывается, owner-lock подбор).
+#          (том не падает на смерть, не выбрасывается, owner-lock подбор);
+#          classes.WARLOCK.antiheal-strip-absorption (S5, дефолт false).
 # ============================================================
 
 hud:
@@ -86,6 +87,7 @@ class-accept:
   enabled: true
   subtitle: "Твой путь избран"
 
+# 1.7.6: якорь TTK-харнесса (подсветка матрицы ±30%)
 balance:
   target-ttk-seconds: 20.0
 
@@ -818,6 +820,7 @@ classes:
     recoil-min-hp: 1
     nether-mult: 6.0
     lifesteal-cap: 0.85
+    antiheal-strip-absorption: false   # 1.11.2 (S5): жёсткая мера против «яблочных танков»
     theme:
       primary: "#1B0022"
       secondary: "#9B30FF"
@@ -981,6 +984,8 @@ installations:
 
 # ------------------------------------------------------------
 # VFX/SFX-каталог
+# 1.10.4: Пентаграмма — постановка = призыв визора (ENTITY_WARDEN_EMERGE),
+#         эмбиент = ад (ENTITY_BLAZE_AMBIENT), партиклы SOUL_FIRE_FLAME.
 # ------------------------------------------------------------
 vfx:
   proc-actionbar: true
