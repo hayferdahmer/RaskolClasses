@@ -41,6 +41,7 @@ import java.util.UUID;
  * Чек 36: tickDelta — декэй ярости воина вне боя (1.9.3.2).
  * Чеки 37–40: чернокнижник — реестры/гейты/конфиг-диапазоны/симулятор/матрица (1.10.0).
  * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
+ * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
  * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
  * прунинг, а не ошибка.
  */
@@ -562,6 +563,34 @@ public final class SelftestRunner {
             passed++;
         } else {
             failed++;
+        }
+
+        // 1.11.4 (чек 44): sanity конфиговых чисел всех способностей 6 классов
+        List<String> kitProblems = dev.raskol.classes.config.KitSanity.validateAbilities(plugin);
+        boolean ok44 = kitProblems.isEmpty();
+        String got44 = ok44 ? "OK" : kitProblems.size() + " проблем: " + kitProblems.get(0);
+        if (check(report, "44", "sanity китов: base/coeff/cost/cooldown/unlock/duration/power всех способностей",
+                ok44, "KitSanity.validateAbilities", got44)) {
+            passed++;
+        } else {
+            failed++;
+            for (String p : kitProblems) {
+                report.append("   — ").append(p).append('\n');
+            }
+        }
+
+        // 1.11.4 (чек 45): RUNBOOK-замки пассив-мультипликаторов
+        List<String> multProblems = dev.raskol.classes.config.KitSanity.validatePassiveMults(plugin);
+        boolean ok45 = multProblems.isEmpty();
+        String got45 = ok45 ? "OK" : multProblems.size() + " проблем: " + multProblems.get(0);
+        if (check(report, "45", "RUNBOOK пассив-мульты: execute 3.0, predator 1.2, grace 1.15, sadism +3, black_mass 6.66%",
+                ok45, "KitSanity.validatePassiveMults", got45)) {
+            passed++;
+        } else {
+            failed++;
+            for (String p : multProblems) {
+                report.append("   — ").append(p).append('\n');
+            }
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
