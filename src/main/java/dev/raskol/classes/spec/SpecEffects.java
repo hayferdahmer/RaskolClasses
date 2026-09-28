@@ -14,49 +14,21 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Состояние боевых эффектов спеков (1.4.0, Пакет 2):
- * временные бафы, armed-флаги, атрибутные модификаторы.
- * Чистится в общем purge-таске (purgeExpired).
+ * Состояние боевых эффектов спек (1.4.0 → 1.11.4).
+ * 1.11.4 (P4e, F8): удалены мёртвые с 1.7.5 ветки rageBurst/preciseArmed
+ * (активки спек удалены, взводить их некому); остались:
+ *  - внутренний КД заморозки (пассивка FROST);
+ *  - атрибутные модификаторы GUARDIAN (броня) / TRACKER (скорость).
  */
 public final class SpecEffects {
 
     private final RaskolClasses plugin;
-
-    /** Берсерк: «Вспышка ярости» — +N урона до момента. */
-    private final Map<UUID, Long> rageBurstUntil = new ConcurrentHashMap<>();
-    private final Map<UUID, Double> rageBurstBonus = new ConcurrentHashMap<>();
-
-    /** Стрелок: «Точный выстрел» — следующая стрела крит. */
-    private final Map<UUID, Boolean> preciseArmed = new ConcurrentHashMap<>();
 
     /** Мороз: внутренний кд замедления по цели. */
     private final Map<UUID, Long> frostSlowUntil = new ConcurrentHashMap<>();
 
     public SpecEffects(RaskolClasses plugin) {
         this.plugin = plugin;
-    }
-
-    // --- rage burst ---
-    public void startRageBurst(UUID uuid, long millis, double bonus) {
-        rageBurstUntil.put(uuid, System.currentTimeMillis() + millis);
-        rageBurstBonus.put(uuid, bonus);
-    }
-
-    public double rageBurstBonus(UUID uuid) {
-        Long until = rageBurstUntil.get(uuid);
-        if (until == null || until <= System.currentTimeMillis()) {
-            return 0.0;
-        }
-        return rageBurstBonus.getOrDefault(uuid, 0.0);
-    }
-
-    // --- precise shot ---
-    public void armPrecise(UUID uuid) {
-        preciseArmed.put(uuid, true);
-    }
-
-    public boolean consumePrecise(UUID uuid) {
-        return preciseArmed.remove(uuid) != null;
     }
 
     // --- frost slow internal cd ---
@@ -127,8 +99,6 @@ public final class SpecEffects {
     /** Вызывается из общего purge-таска. */
     public void purgeExpired() {
         long now = System.currentTimeMillis();
-        rageBurstUntil.entrySet().removeIf(e -> e.getValue() <= now);
-        rageBurstBonus.entrySet().removeIf(e -> !rageBurstUntil.containsKey(e.getKey()));
         frostSlowUntil.entrySet().removeIf(e -> e.getValue() <= now);
     }
 }
