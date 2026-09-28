@@ -1,0 +1,80 @@
+# ============================================================
+#  RaskolClasses — per-class конфиг Чернокнижника (1.11.4 P5)
+#  Приоритет над classes.WARLOCK в config.yml для ключей ниже.
+#  /rc reload — перечитать без рестарта.
+#  ВАЖНО: base/coeff/drain/radius/self-cost-pct/corruption-gain/specs.*
+#  пока читаются напрямую из config.yml (переезд в 1.12.x) — не дублируем здесь.
+# ============================================================
+
+resource:
+  name: "Скверна"
+  regen: 0.0
+  decay-out-of-combat: -4.0
+  floor: 0.0
+  floor-regen: 2.0
+  on-deal: 9.0
+  on-take: 5.0
+  on-kill: 15.0
+
+thresholds:
+  open: 75
+  overflow: 100
+
+recoil:
+  percent: 6.66
+  cap-percent: 30
+  min-hp: 1
+
+nether-mult: 6.0
+lifesteal-cap: 0.85
+
+theme:
+  primary: "#1B0022"
+  secondary: "#9B30FF"
+  symbol: "☾"
+
+cast:
+  sound: ITEM_BOOK_PAGE_TURN
+  particle: SCULK_SOUL
+
+passives:
+  black_mass:
+    enabled: true
+    display-name: "Чёрная Месса"
+    description: "6.66% урона способностей — здоровьем; 6.66% полученного урона — чистым уроном всем в радиусе 8 блоков."
+    lifesteal: 0.0666
+    reflect: 0.0666
+    reflect-radius: 8.0
+    cooldown-seconds: 1
+
+abilities:
+  black_word:
+    name: "Чёрное Слово"
+    description: "Запретное слово бьёт цель магией; плата — 10% собственного здоровья; взамен +25 Скверны. Не лечит. Откат 3 с."
+    unlock: 10
+    cost: 0
+    cooldown: 3
+  ruin_seal:
+    name: "Печать Погибели"
+    description: "Метка погибели на душе: цель получает +26% урона от всех источников на 66.6 секунд. Снимается только смертью."
+    unlock: 25
+    cost: 15
+    cooldown: 16
+  hunger_corruption:
+    name: "Голод Скверны"
+    description: "Фолиант жадно читает округу: маг-урон по площади 6 блоков; 66.6% суммарного урона обращаются в здоровье чернокнижника, +12 Скверны."
+    unlock: 50
+    cost: 25
+    cooldown: 26
+  unwriting:
+    name: "Небытие"
+    description: "Вычеркнуть из истории: снимает с цели все положительные зелья и эффекты; маг-урон и +16 урона за каждый стёртый эффект."
+    unlock: 65
+    cost: 30
+    cooldown: 22
+  soul_rift:
+    name: "Раскол Души"
+    description: "Канал 2.5 секунды: зона 8 блоков сеет маг-урон и запрет лечения; финальный взрыв бьёт тем сильнее, чем ближе цель к смерти (до +66.6% от недостающего HP)."
+    unlock: 75
+    cost: 50
+    cooldown: 80
