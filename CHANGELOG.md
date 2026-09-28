@@ -1,110 +1,80 @@
 # CHANGELOG — RaskolClasses
 
 Формат: [версия] — дата — имя. Секции Added / Changed / Fixed / Removed / Validate.
-Линия 1.12.x активна (консолидация + школы урона в 1.13.x); 1.11.x и ниже заморожены.
+Линия 1.11.x активна (консолидация); 1.12.0 = каркас школ урона (следующая линия).
+Линии 1.10.x и ниже заморожены.
 
-## [1.12.1] — 2026-09-28 · «Версия консолидации»
+## [1.12.0] — в разработке · «Каркас школ урона»
+### Added (план)
+- School enum + toChannel — 6–8 типов урона (PHYSICAL_SLASH, PHYSICAL_PIERCE,
+  MAGIC_FIRE/ICE/LIGHTNING, PURE, TRUE, ENV_FALLBACK) с каналами через резисты.
+- SchoolProfile — профиль школы (канал, игнорирует ли armor/резисты, множители).
+- Vanilla-school map — маппинг ванильных DamageCause на наши школы.
+- Legacy-адаптер DamageProfile → SchoolProfile (обратная совместимость китов).
+- Конфиг-секция `schools.*` для балансировки каналов.
+- Selftest чеки 49–51 (матрица школ, маппинг vanilla→school, legacy-адаптер).
 
-### Changed
-- Версия 1.11.0 → 1.12.1 (pom, plugin.yml через ${project.version}).
-- README/RUNBOOK/CHANGELOG синхронизированы с линией 1.12.0.
-- Школы урона и DoT перенумерованы в линию 1.13.x (1.13.1 каркас → 1.13.7 баланс),
-  чтобы не конфликтовать с консолидационным релизом.
-
-### Validate
-- `/rc selftest` → 48/48; TTK-матрица 6×6 без дрейфа против 1.11.3.
-
-## [1.12.0] — 2026-09-28 · «Сверхстабильность: рефакторинг P1–P5 + харденинг S/F/T»
-(в коде батчи помечены 1.11.4 (P1–P5); релизная линия консолидирована здесь)
+## [1.11.4] — 2026-09-29 · «Сверхстабильность: рефакторинг P1–P5 + харденинг S/F/T»
 
 ### Added
-- P1: пассивки по классам — `ClassPassive`/`BaseClassPassive` + WarriorPassives…WarlockPassives;
+- **P1:** пассивки по классам — `ClassPassive`/`BaseClassPassive` + 5 файлов по классам;
   PassiveListener = тонкий диспетчер (маркер хилера сохранён).
-- P2: инсталляции по типам — `InstallationHandler` + 6 обработчиков (WarBanner…Pentagram);
-  InstallationService = реестр; Пентаграмма v2 (гео-отрисовка, задача перерисовки 10 тиков);
-  кулдаун ставится только после успешной постановки.
-- P3: боевое ядро разложено — VanillaDamageListener (путь A), DamageCaps (капы/burst/env),
-  CombatMath (pure: cappedDamage/sanitize/pen-задел); CombatService = фасад (API сохранён).
-- P4a: WarlockMath (pure-формулы кита) + WarlockFx (визуал); selftest чеки 41–43.
+- **P2:** инсталляции по типам — `InstallationHandler` + 6 обработчиков
+  (WarBanner…Pentagram); InstallationService = реестр; Пентаграмма v2 (гео-отрисовка,
+  задача перерисовки 10 тиков); кулдаун ставится только после успешной постановки.
+- **P3:** боевое ядро разложено — VanillaDamageListener (путь A), DamageCaps
+  (капы/burst/env), CombatMath (pure: cappedDamage/sanitize/pen-задел);
+  CombatService = фасад (API сохранён).
+- **P4a:** WarlockMath (pure-формулы кита) + WarlockFx (визуал); selftest чеки 41–43.
 - Чеки 44–45: KitSanity (sanity китов 6 классов + RUNBOOK-замки пассив-мультов).
-- P4b: Книга класса → `gui/book/*` (BookSlots/BookItems/RenderCtx/BookTabView + 5 таб-файлов).
-- P4c: AttributeService → HpPool (план B) + AttributeModifiers; фасад сохранён.
-- P4d: команды → `command/sub/*` (DebugSub/GearSub/FoliantSub/HealthSub + CommandSub/SubUtil).
-- P4e: spec-слой — SpecMath/SpecPassives/SpecEconomy; аудит F1–F10; чеки 46–47.
-- P5: per-class конфиги `kits/<class>.yml` (KitConfigLoader/KitConfigCache) с фолбэком
-  в config.yml; /rc reload перечитывает; чек 48; строка в /rc health.
-- Безопасность: S1 санитайзер ников в LP-console-фолбэке; S2 скрытый релок-цикл фолианта
-  (≥1 моб вне ада + ≥1 смерть + ≥1000 пиглинов без шанса, foliant-lock.yml);
-  S3 soulbound-том (keep-on-death, запрет Q-дропа, owner-lock подбор; продажа НЕ блокируется);
-  S4 рефлект Чёрной Мессы не срабатывает на self-урон; S5 анти-хил блокирует ВСЕ причины
-  RegainHealth (+опц. strip-absorption).
+- **P4b:** Книга класса → `gui/book/*` (BookSlots/BookItems/RenderCtx/BookTabView
+  + 5 таб-файлов).
+- **P4c:** AttributeService → HpPool (план B) + AttributeModifiers; фасад сохранён.
+- **P4d:** команды → `command/sub/*` (DebugSub/GearSub/FoliantSub/HealthSub +
+  CommandSub/SubUtil).
+- **P4e:** spec-слой — SpecMath/SpecPassives/SpecEconomy; аудит F1–F10; чеки 46–47.
+- **P5:** per-class конфиги `kits/<class>.yml` (KitConfigLoader/KitConfigCache)
+  с фолбэком в config.yml; /rc reload перечитывает; чек 48; строка в /rc health.
+- **Безопасность:** S1 санитайзер ников в LP-console-фолбэке; S2 скрытый релок-цикл
+  фолианта (≥1 моб вне ада + ≥1 смерть + ≥1000 пиглинов без шанса, foliant-lock.yml);
+  S3 soulbound-том (keep-on-death, запрет Q-дропа, owner-lock подбор; продажа НЕ
+  блокируется); S4 рефлект Чёрной Мессы не срабатывает на self-урон; S5 анти-хил
+  блокирует ВСЕ причины RegainHealth (+опц. strip-absorption).
 
 ### Fixed (эксплойты и семантика, F1–F10)
-- F1: Ликвидатор — крит 100% → 15% (проценты читались как доли; SpecMath.asFraction).
-- F2: Трюкач — уклонение 100% → 15% (та же ошибка единиц).
-- F3: Ткач теней — лифстил через HpBarService.heal (уважает анти-хил Раскола Души).
-- F4: Берсерк — условие по HP ≥ 60% (как в specs.yml/лоре), а не по ярости ≥ 50.
-- F5: Аркана — +1 мана/с (ResourceService), снят неверный ×1.15 урона.
-- F6: Стрелок — крит стрелами по crit_bonus (как в лоре), снят дистанционный множитель.
-- F7: Адский Канал — +6% маг-резиста теперь реально применяется (генерик resist.specs.*
-  для всех 12 спек + self-reconcile каждые 20 тиков).
-- F9: убран двойной actionbar-тег «Благодать» у жреца-светоносца.
-- F10: reconcilePassiveResists самопланируется (ранее не вызывался).
-- T2: задачи канала Раскола Души отменяются на quit/disable; T3: invalidate резист-кэша
-  на смене сетов; T5: чистка .yml.tmp старше часа на onEnable.
+- **F1:** Ликвидатор — крит 100% → 15% (проценты читались как доли;
+  SpecMath.asFraction).
+- **F2:** Трюкач — уклонение 100% → 15% (та же ошибка единиц).
+- **F3:** Ткач теней — лифстил через HpBarService.heal (уважает анти-хил Раскола Души).
+- **F4:** Берсерк — условие по HP ≥ 60% (как в specs.yml/лоре), а не по ярости ≥ 50.
+- **F5:** Аркана — +1 мана/с (ResourceService), снят неверный ×1.15 урона.
+- **F6:** Стрелок — крит стрелами по crit_bonus (как в лоре), снят дистанционный множитель.
+- **F7:** Адский Канал — +6% маг-резиста теперь реально применяется (генерик
+  resist.specs.* для всех 12 спек + self-reconcile каждые 20 тиков).
+- **F9:** убран двойной actionbar-тег «Благодать» у жреца-светоносца.
+- **F10:** reconcilePassiveResists самопланируется (ранее не вызывался).
+- **T2:** задачи канала Раскола Души отменяются на quit/disable; T3: invalidate
+  резист-кэша на смене сетов; T5: чистка .yml.tmp старше часа на onEnable.
 
 ### Changed (баланс-влияние, задокументировано в RUNBOOK)
 - DPS разбойника-ликвидатора и выживаемость трюкача снижены до проектных 15%;
-  берсерк/аркана/стрелок работают по specs.yml-семантике. Ожидается сдвиг строк ROGUE
-  в TTK-матрице — калибровка в 1.13.7.
+  берсерк/аркана/стрелок работают по specs.yml-семантике. Ожидается сдвиг строк
+  ROGUE в TTK-матрице — калибровка в 1.12.1 (баланс-пакет школ).
 
 ### Removed
 - SpecMenu.java, TrapVisual.java (мёртвые с 1.7.5/1.9.x); dead-ветки precise/rageBurst;
   install/Installation.java (дубликат ActiveInstallation).
 
 ### Validate
-- `/rc selftest` → 48/48; CI зелёный; живой регресс: киты, спеки, инсталляции, фолиант, книга.
+- `/rc selftest` → 48/48; CI зелёный; живой регресс: киты, спеки, инсталляции,
+  фолиант, книга.
 
 ## [1.11.0] — 2026-09-25 · «Публичный релиз линии Чернокнижника»
-### Changed
-- Версия 1.10.4 → 1.11.0; README/RUNBOOK/plugin.yml/pom синхронизированы.
-### Validate
-- selftest 40/40; матрица 6×6; живой переход и Пентаграмма.
-
 ## [1.10.4] — 2026-09-25 · «Чёрное Слово v2, Скверна пол 0, Пентаграмма»
-### Changed
-- Чёрное Слово: cost 0, плата 10% макс HP, без лечения, +25 Скверны, КД 3 с.
-- Скверна: пол 0; набор ускорен (on-deal 9 / on-take 5 / on-kill 15).
-- Круг Хулы → Пентаграмма: видимая геопентаграмма, WARDEN_EMERGE на постановку, TTL 25 с.
-### Fixed
-- TTL Пентаграммы игнорировал собственный duration (жил 60 с).
-
 ## [1.10.3] — 2026-09-25 · «Прогрессия чернокнижника = sorcery»
-### Changed
-- Профильный скилл WARLOCK: occult → sorcery; фолиант грантит sorcery=10; occult убран
-  из character-level.skills и AuraSkills skills.yml.
-
 ## [1.10.2] — 2026-09-25 · «Дроп фолианта, LP-миграция без clear-перегрузок»
-### Added
-- Дроп тома в аду (whitelist drop-mobs, только при уроне игрока); криптованный лор.
-### Fixed
-- LP-миграция через user.getNodes(NodeType.INHERITANCE) + data().remove(node);
-  чернокнижник скрыт из стартовых логов (баннер/logSummary = 5 классов).
-
 ## [1.10.1] — 2026-09-25 · «Пол Скверны, plain-партиклы, self-кастеры»
-### Added
-- Пол Скверны 25 с самовосстановлением (отменён в 1.10.4); plain-партиклы VFX.
-### Fixed
-- self-кастеры black_word/unwriting (книга/свитки «не нажимались»); визуалы по цели/кольцу.
-
 ## [1.10.0] — 2026-09-25 · «Чернокнижник: шестой путь Раскола»
-### Added
-- Класс WARLOCK (Скверна, пороги 75/100, откат 6.66%, ад ×6), кит 5 способностей,
-  Чёрная Месса, спеки Чёрный Маг/Адский Канал, дерево талантов occult, Круг Хулы,
-  Фолиант Раскола (GUI, LP-миграция, грант), /rc foliant give, матрица 6×6, чеки 37–40.
-### Fixed
-- Каскад exhaustiveness после расширения enum'ов (10 файлов).
-
 ## [1.9.3.2] — 2026-09-25 · «Хотфикс: декэй ярости воина вне боя»
 ## [1.9.3.1] — 2026-09-25 · «Хотфикс: версия, старт GearHook, Книга»
 ## [1.9.3] — 2026-09-24 · «Виртуальный пул HP + RaskolGear + редизайн Книги»
