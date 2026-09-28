@@ -1,6 +1,6 @@
 # ============================================================
 #  RaskolClasses v1.11.4 — «РАСКОЛ | ДВЕ КОРОНЫ»
-#  Весь баланс, стилистика и длительности — в этом файле.
+#  Весь баланс, стилизация и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
 #  ВАЖНО: inline-маппинги пишутся ТОЛЬКО с пробелом после двоеточия
@@ -10,6 +10,8 @@
 #  1.10.x: чернокнижник, Скверна, Пентаграмма, фолиант-дроп, sorcery-прогрессия.
 #  1.11.x: soulbound/релок фолианта, спек-трейты, игнор маг-резиста ≤25% HP,
 #          рефакторинг P1–P5, эксплойт-фиксы S1–S5/F1–F10, selftest 48.
+#  1.12.0: каркас школ урона (секция schools.*; множители 1.0 — поведение
+#          не меняется; механика митигации/пробития/DoT в 1.12.1+).
 # ============================================================
 
 hud:
@@ -72,7 +74,7 @@ combat:
     - SONIC_BOOM
   burst-window-seconds: 3.0
   burst-window-pct: 18.0
-  dot-dps-cap-pct: 6.0   # резерв 1.12.x (DoT); сейчас не читается
+  dot-dps-cap-pct: 6.0   # резерв 1.12.4 (DoT); сейчас не читается
 
 storage:
   autosave-minutes: 5
@@ -306,6 +308,43 @@ damage-types:
     DRAGON_BREATH: magic
     FREEZING: magic
     LIGHTNING: magic
+
+# ------------------------------------------------------------
+# 1.12.0: ШКОЛЫ УРОНА (каркас; механика в 1.12.1+)
+# Школа = природа урона (визуал/иммунитеты/триггеры);
+# канал (PHYSICAL/MAGIC/TRUE) = чем защищаются.
+# multiplier — глобальный нерф/бафф школы (применяется при сворачивании
+# SchoolProfile в каналы); vanilla-school — маппинг ванильных причин,
+# фолбэк — канал из damage-types.vanilla-map.
+# mitigation-cap / pen-pct-cap / elemental.* — резерв 1.12.1–1.12.2.
+# ------------------------------------------------------------
+schools:
+  enabled: true
+  mitigation-cap: 0.80
+  pen-pct-cap: 0.40
+  elemental:
+    enabled: false
+    resist-cap: 60
+  multiplier:
+    PHYSICAL: 1.0
+    FIRE: 1.0
+    FROST: 1.0
+    NATURE: 1.0
+    SHADOW: 1.0
+    HOLY: 1.0
+    ARCANE: 1.0
+    TRUE: 1.0
+  vanilla-school:
+    FIRE: FIRE
+    FIRE_TICK: FIRE
+    LAVA: FIRE
+    HOT_FLOOR: FIRE
+    DRAGON_BREATH: FIRE
+    POISON: NATURE
+    WITHER: SHADOW
+    FREEZING: FROST
+    LIGHTNING: ARCANE
+    MAGIC: ARCANE
 
 # ------------------------------------------------------------
 # Игровые тексты
