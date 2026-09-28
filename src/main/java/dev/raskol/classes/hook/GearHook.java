@@ -41,6 +41,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - резисты шмота В БОЮ применяет сам RaskolGear; GearHook читает их для дисплея;
  *  - +HP шмота применяет RaskolClasses через AttributeService.maxHp (gearHp);
  *  - исходящий офенс WP/SP пропускается CombatService для оружия с тегом WEAPON.
+ *
+ * 1.11.2 (T3): refresh() инвалидирует кэш резист-факторов в ResistService,
+ *         чтобы breakdown в /rc debug и Книге класса обновлялся в тот же тик
+ *         после смены сетов RaskolGear в бою.
  */
 public final class GearHook implements Listener {
 
@@ -132,6 +136,11 @@ public final class GearHook implements Listener {
         if (prev == null || prev.hp() != next.hp()) {
             plugin.getAttributes().invalidate(uuid);
         }
+        // 1.11.2 (T3): смена сетов в бою должна инвалидировать кэш резист-факторов
+        // в ResistService — иначе breakdown отстаёт на 1 тик. Резисты шмота
+        // в бою применяет сам RaskolGear (слой ниже нас); здесь мы только
+        // синхронизируем отображение в /rc debug и Книге класса.
+        plugin.getResists().invalidate(uuid);
     }
 
     private void refreshAll() {
