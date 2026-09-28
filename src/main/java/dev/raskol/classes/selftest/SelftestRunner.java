@@ -15,6 +15,7 @@ import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.spec.SpecMath;
 import dev.raskol.classes.talent.TalentModel;
 import dev.raskol.classes.talent.TalentsRegistry;
 import net.kyori.adventure.text.Component;
@@ -42,6 +43,7 @@ import java.util.UUID;
  * Чеки 37–40: чернокнижник — реестры/гейты/конфиг-диапазоны/симулятор/матрица (1.10.0).
  * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
  * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
+ * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
  * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
  * прунинг, а не ошибка.
  */
@@ -591,6 +593,32 @@ public final class SelftestRunner {
             for (String p : multProblems) {
                 report.append("   — ").append(p).append('\n');
             }
+        }
+
+        // 1.11.4 (P4e): чек 46 — допуск единиц asFraction (проценты ИЛИ доли)
+        double a1 = SpecMath.asFraction(15.0);
+        double a2 = SpecMath.asFraction(0.15);
+        double a3 = SpecMath.asFraction(100.0);
+        boolean ok46 = Math.abs(a1 - 0.15) < 1e-9
+                && Math.abs(a2 - 0.15) < 1e-9
+                && Math.abs(a3 - 1.0) < 1e-9;
+        if (check(report, "46", "asFraction: 15→0.15, 0.15→0.15, 100→1.0 (эксплойты F1/F2 закрыты)",
+                ok46, "SpecMath.asFraction",
+                String.format(Locale.ROOT, "%.3f/%.3f/%.3f", a1, a2, a3))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.11.4 (P4e): чек 47 — формула цены отречения
+        int rc40 = SpecMath.respecCost(40, 250, 10);
+        int rc60 = SpecMath.respecCost(60, 250, 10);
+        boolean ok47 = rc40 == 650 && rc60 == 850;
+        if (check(report, "47", "respecCost: 40→650, 60→850 (base 250 + 10×level)",
+                ok47, "SpecMath.respecCost", rc40 + "/" + rc60)) {
+            passed++;
+        } else {
+            failed++;
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
