@@ -35,6 +35,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *         + снарядные Dot'ы: PDC-тег rc_dot на снаряде → применение по попаданию;
  *         + средовые триггеры: вода/пушистый снег гасят FIRE, огонь/лава плавят FROST;
  *         + тик-VFX по школам (vfx.dot.<school>.particle).
+ * 1.12.5-fix: getHitEntity() → instanceof LivingEntity (API возвращает Entity);
+ *         puff-партикл таяния = CLOUD (EVAPORATE отсутствует в Paper 1.21.4).
  *
  * Пайплайн тика: валидация (цель/владелец/canHit) → иммунитет школы → триггер среды →
  * dps = def.dps × stacks × schoolMult × immunity × (1+seal) → митигация по школе
@@ -208,7 +210,10 @@ public final class DotService implements Listener {
 
     /* ------------------------------ снарядные Dot'ы ------------------------------ */
 
-    /** 1.12.5: снаряд с PDC-тегом rc_dot накладывает Dot по попаданию. */
+    /**
+     * 1.12.5: снаряд с PDC-тегом rc_dot накладывает Dot по попаданию.
+     * 1.12.5-fix: getHitEntity() возвращает Entity — сужаем через instanceof.
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent event) {
         Entity entity = event.getEntity();
@@ -225,9 +230,9 @@ public final class DotService implements Listener {
         if (!(proj.getShooter() instanceof Player owner)) {
             return;
         }
-        LivingEntity hit = event.getHitEntity();
-        if (hit == null) {
-            return;
+        Entity hitEntity = event.getHitEntity();
+        if (!(hitEntity instanceof LivingEntity hit)) {
+            return; // попадание в блок/не-живую сущность — Dot не вешаем
         }
         applyById(owner, hit, dotId);
     }
@@ -342,9 +347,12 @@ public final class DotService implements Listener {
         }
     }
 
-    /** Пuff при гашении триггером среды. */
+    /**
+     * Puff при гашении триггером среды.
+     * 1.12.5-fix: Particle.EVAPORATE отсутствует в Paper 1.21.4 → CLOUD для таяния.
+     */
     private void puff(LivingEntity target, School school) {
-        Particle p = school == School.FIRE ? Particle.SMOKE : Particle.EVAPORATE;
+        Particle p = school == School.FIRE ? Particle.SMOKE : Particle.CLOUD;
         target.getWorld().spawnParticle(p, target.getLocation().add(0.0, 1.0, 0.0),
                 6, 0.3, 0.4, 0.3, 0.01);
     }
