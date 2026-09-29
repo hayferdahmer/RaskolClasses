@@ -47,34 +47,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-/**
- * Headless-самотестирование формул плагина (/rc selftest).
- * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
- * Чеки 17–18: TTK-санити. Чеки 19–20: сводный уровень topNAverage (1.8.0).
- * Чек 21: фракционный гейт canHit (1.8.1).
- * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
- * Чек 24: reconcile-цикл талантов (1.9.0; 1.9.2-fix фолбэк).
- * Чеки 29–30: боевое окно и семантика consume (1.9.1).
- * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг (1.9.2).
- * Чеки 33–35: план B — scale/healFormula/targetCarrier (1.9.3).
- * Чек 36: tickDelta — декэй ярости воина вне боя (1.9.3.2).
- * Чеки 37–40: чернокнижник — реестры/гейты/конфиг-диапазоны/симулятор/матрица (1.10.0).
- * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
- * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
- * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
- * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
- * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
- * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
- * Чеки 55–56 (1.12.2 Блок 1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
- * Чеки 57–58 (1.12.2 Блок 2): gear-pen кламп и цепочка pen→mitigation.
- * Чеки 59–60 (1.12.2 Блок 3): pen-трейты талантов/спек — clampSumPercent и нулевые читатели.
- * Чеки 61–62 (1.12.2 Блок 4): проводка neutral и связка school-pen→elemental.
- * Чеки 63–65 (1.12.3): ThreadLocal cast-school, полнота школ 30/30, конкретные школы китов.
- * Чеки 66–68 (1.12.4): DoT-математика — capFactor, withMults, dpsLimit + живой DotService.
- * Чеки 69–71 (1.12.5): средовые триггеры гашения, реестр dots.*, стеки/refresh/expiry Dot.
- * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
- * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
- */
 public final class SelftestRunner {
 
     private SelftestRunner() {
@@ -103,8 +75,8 @@ public final class SelftestRunner {
         double dr2 = AttributeMath.applyDR(80.0, 60.0, 0.5, 75.0);
         double dr3 = AttributeMath.applyDR(200.0, 60.0, 0.5, 75.0);
         if (check(report, "7", "applyDR(0)=0", dr1 == 0.0, "applyDR", dr1)) passed++; else failed++;
-        if (check(report, "8", "applyDR(80)=70 (наклон DR после soft-cap)", Math.abs(dr2 - 70.0) < 1e-6, "applyDR", dr2)) passed++; else failed++;
-        if (check(report, "9", "applyDR(200)=75 (hard-cap)", dr3 == 75.0, "applyDR", dr3)) passed++; else failed++;
+        if (check(report, "8", "applyDR(80)=70", Math.abs(dr2 - 70.0) < 1e-6, "applyDR", dr2)) passed++; else failed++;
+        if (check(report, "9", "applyDR(200)=75", dr3 == 75.0, "applyDR", dr3)) passed++; else failed++;
 
         double[] sp1 = AttributeMath.splitEff(50.0, 50.0, 50.0);
         boolean sp1ok = sp1 != null && sp1.length == 2 && sp1[0] == 25.0 && sp1[1] == 25.0;
@@ -139,14 +111,13 @@ public final class SelftestRunner {
                 "cappedDamage", c1)) passed++; else failed++;
         if (check(report, "16b", "capped(100,1300,35)=100", c2 == 100.0,
                 "cappedDamage", c2)) passed++; else failed++;
-        if (check(report, "16c", "capped(500,1000,0)=500 (кап выкл)", c3 == 500.0,
+        if (check(report, "16c", "capped(500,1000,0)=500", c3 == 500.0,
                 "cappedDamage", c3)) passed++; else failed++;
 
         BalanceSimulator.DuelResult ww = BalanceSimulator.duel(
                 plugin, PlayerClass.WARRIOR, PlayerClass.WARRIOR, 40, 42L);
         boolean ok17 = !ww.timeout() && ww.ttkSeconds() >= 10.0 && ww.ttkSeconds() <= 60.0;
-        if (check(report, "17", "TTK воин↔воин ∈ [10,60] с (получено "
-                + fmt(ww.ttkSeconds()) + " с)", ok17, "BalanceSimulator", ww.ttkSeconds())) {
+        if (check(report, "17", "TTK воин↔воин ∈ [10,60] с", ok17, "BalanceSimulator", ww.ttkSeconds())) {
             passed++;
         } else {
             failed++;
@@ -155,24 +126,21 @@ public final class SelftestRunner {
         BalanceSimulator.DuelResult pp = BalanceSimulator.duel(
                 plugin, PlayerClass.PRIEST, PlayerClass.PRIEST, 40, 42L);
         boolean ok18 = pp.timeout() || pp.ttkSeconds() >= 30.0;
-        if (check(report, "18", "жрец↔жрец ≥30 с или timeout (получено "
-                + fmt(pp.ttkSeconds()) + " с)", ok18, "BalanceSimulator", pp.ttkSeconds())) {
+        if (check(report, "18", "жрец↔жрец ≥30 с или timeout", ok18, "BalanceSimulator", pp.ttkSeconds())) {
             passed++;
         } else {
             failed++;
         }
 
         int cl1 = CharacterLevelService.topNAverage(new int[]{99, 70, 40, 20, 10, 5, 0}, 5);
-        if (check(report, "19", "topNAverage([99,70,40,20,10,5,0],5)=47", cl1 == 47,
-                "topNAverage", cl1)) {
+        if (check(report, "19", "topNAverage([99..0],5)=47", cl1 == 47, "topNAverage", cl1)) {
             passed++;
         } else {
             failed++;
         }
 
         int cl2 = CharacterLevelService.topNAverage(new int[]{15, 0, 0, 0, 0}, 5);
-        if (check(report, "20", "topNAverage([15,0,0,0,0],5)=3", cl2 == 3,
-                "topNAverage", cl2)) {
+        if (check(report, "20", "topNAverage([15,0,0,0,0],5)=3", cl2 == 3, "topNAverage", cl2)) {
             passed++;
         } else {
             failed++;
@@ -182,8 +150,7 @@ public final class SelftestRunner {
                 ? sp
                 : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
         if (probe == null) {
-            if (check(report, "21", "canHit: self/среда (пропущено: нет онлайн-игрока)",
-                    true, "canHit", "skip")) {
+            if (check(report, "21", "canHit: self/среда (пропущено)", true, "canHit", "skip")) {
                 passed++;
             } else {
                 failed++;
@@ -204,7 +171,7 @@ public final class SelftestRunner {
         int e60 = TalentModel.earnedPoints(60, 40, 1, 21);
         int e99 = TalentModel.earnedPoints(99, 40, 1, 21);
         boolean ok22 = e39 == 0 && e40 == 1 && e60 == 21 && e99 == 21;
-        if (check(report, "22", "очки талантов: 39→0, 40→1, 60→21, 99→21 (кап)",
+        if (check(report, "22", "очки талантов: 39→0, 40→1, 60→21, 99→21",
                 ok22, "earnedPoints", e39 + "/" + e40 + "/" + e60 + "/" + e99)) {
             passed++;
         } else {
@@ -217,7 +184,7 @@ public final class SelftestRunner {
                 TalentModel.node("t2b1", 2), TalentModel.node("t2b2", 2),
                 TalentModel.node("t3a", 3), TalentModel.node("t3b", 3),
                 TalentModel.node("t4", 5)));
-        if (check(report, "23", "стоимость полного дерева талантов = 21", cost == 21,
+        if (check(report, "23", "стоимость дерева талантов = 21", cost == 21,
                 "treeCost", cost)) {
             passed++;
         } else {
@@ -225,8 +192,7 @@ public final class SelftestRunner {
         }
 
         if (probe == null) {
-            if (check(report, "24", "reconcile-цикл (пропущено: нет онлайн-игрока)",
-                    true, "reconcile", "skip")) {
+            if (check(report, "24", "reconcile-цикл (пропущено)", true, "reconcile", "skip")) {
                 passed++;
             } else {
                 failed++;
@@ -269,7 +235,7 @@ public final class SelftestRunner {
             } else {
                 got24 = "no-tree:" + specId;
             }
-            if (check(report, "24", "reconcile-цикл: покупка→reconcile→откат без рассинхрона",
+            if (check(report, "24", "reconcile-цикл: покупка→reconcile→откат",
                     ok24, "reconcile", got24)) {
                 passed++;
             } else {
@@ -281,8 +247,7 @@ public final class SelftestRunner {
         boolean freshOut = !rsWindow.isInCombat(5000L);
         rsWindow.markCombat();
         boolean nowIn = rsWindow.isInCombat(5000L);
-        if (check(report, "29", "боевое окно: свежее вне боя, после markCombat в бою",
-                freshOut && nowIn, "ResourceState", freshOut + "/" + nowIn)) {
+        if (check(report, "29", "боевое окно", freshOut && nowIn, "ResourceState", freshOut + "/" + nowIn)) {
             passed++;
         } else {
             failed++;
@@ -295,7 +260,7 @@ public final class SelftestRunner {
         boolean exactOk = rsConsume.consume(10.0);
         boolean zeroed = rsConsume.getValue() == 0.0;
         boolean freeOk = rsConsume.consume(0.0);
-        if (check(report, "30", "consume: сверх отказа без изменений, точное обнуляет, 0 бесплатна",
+        if (check(report, "30", "consume: сверх/точное/обнуление/0",
                 overDenied && overIntact && exactOk && zeroed && freeOk,
                 "ResourceState.consume",
                 overDenied + "/" + overIntact + "/" + exactOk + "/" + zeroed + "/" + freeOk)) {
@@ -305,8 +270,7 @@ public final class SelftestRunner {
         }
 
         if (probe == null) {
-            if (check(report, "31", "глобальный бюджет очков (пропущено: нет онлайн-игрока)",
-                    true, "spentGlobal", "skip")) {
+            if (check(report, "31", "глобальный бюджет (пропущено)", true, "spentGlobal", "skip")) {
                 passed++;
             } else {
                 failed++;
@@ -345,7 +309,7 @@ public final class SelftestRunner {
                     plugin.getTalentService().reconcile(pu);
                 }
             }
-            if (check(report, "31", "глобальный бюджет: покупки в 2 деревьях съедают общий пул",
+            if (check(report, "31", "глобальный бюджет: 2 дерева съедают общий пул",
                     ok31, "spentGlobal", got31)) {
                 passed++;
             } else {
@@ -354,8 +318,7 @@ public final class SelftestRunner {
         }
 
         if (probe == null) {
-            if (check(report, "32", "reconcile-прунинг (пропущено: нет онлайн-игрока)",
-                    true, "validatePurchased", "skip")) {
+            if (check(report, "32", "reconcile-прунинг (пропущено)", true, "validatePurchased", "skip")) {
                 passed++;
             } else {
                 failed++;
@@ -395,7 +358,7 @@ public final class SelftestRunner {
                 ok32 = prunedUnknown && prunedPrereq;
                 got32 = prunedUnknown + "/" + prunedPrereq;
             }
-            if (check(report, "32", "reconcile-прунинг: неизвестный узел и узел без пререквизитов удаляются",
+            if (check(report, "32", "reconcile-прунинг",
                     ok32, "validatePurchased", got32)) {
                 passed++;
             } else {
@@ -403,7 +366,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.9.3: чеки 33–35 плана B (scale/heal/carrier)
         if (probe == null) {
             if (check(report, "33", "scale (пропущено)", true, "scale", "skip")) passed++; else failed++;
             if (check(report, "34", "healFormula (пропущено)", true, "healFormula", "skip")) passed++; else failed++;
@@ -428,7 +390,7 @@ public final class SelftestRunner {
             boolean ok34 = hpAfter <= carrier + 0.01;
             probe.setHealth(hpBefore);
             if (check(report, "34", "healFormula не превышает carrier", ok34, "healFormula",
-                    String.format(Locale.ROOT, "%.1f→%.1f (carrier=%.1f)", hpBefore, hpAfter, carrier))) {
+                    String.format(Locale.ROOT, "%.1f→%.1f", hpBefore, hpAfter))) {
                 passed++;
             } else {
                 failed++;
@@ -444,7 +406,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.9.3.2: чек 36 — знаковый tickDelta (декэй ярости воина вне боя)
         ResourceState rsDecay = new ResourceState();
         rsDecay.setValue(40.0);
         rsDecay.tickDelta(-5.0);
@@ -457,7 +418,7 @@ public final class SelftestRunner {
         rsDecay.setValue(100.0);
         rsDecay.tickDelta(5.0);
         boolean clampedHigh = rsDecay.getValue() == 100.0;
-        if (check(report, "36", "tickDelta: декэй −5, набор +5, клампы 0/100 (ярость воина вне боя)",
+        if (check(report, "36", "tickDelta: декэй/набор/клампы",
                 decayed && gained && clampedLow && clampedHigh, "ResourceState.tickDelta",
                 decayed + "/" + gained + "/" + clampedLow + "/" + clampedHigh)) {
             passed++;
@@ -465,7 +426,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 37 — реестры чернокнижника пусты + гейты фолианта дают сообщения
         UUID stranger = UUID.randomUUID();
         boolean sealEmpty = WarlockAbilities.sealAmplifyOf(stranger) == 0.0;
         boolean antiEmpty = !WarlockAbilities.isAntihealed(stranger);
@@ -479,7 +439,7 @@ public final class SelftestRunner {
             }
         }
         boolean ok37 = sealEmpty && antiEmpty && gatesMsgOk && gateCodes == 9;
-        if (check(report, "37", "чернокнижник: реестры печати/анти-хила пусты; 9 кодов гейтов фолианта с сообщениями",
+        if (check(report, "37", "чернокнижник: реестры пусты; 9 кодов гейтов",
                 ok37, "WarlockAbilities/FoliantService",
                 sealEmpty + "/" + antiEmpty + "/" + gatesMsgOk + "/" + gateCodes)) {
             passed++;
@@ -487,7 +447,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 38 — sanity-диапазоны конфига WARLOCK
         RaskolConfig cfg = plugin.getRaskolConfig();
         double open = cfg.warlockThresholdOpen();
         double overflow = cfg.warlockThresholdOverflow();
@@ -500,7 +459,7 @@ public final class SelftestRunner {
                 && recoil > 0.0 && recoil <= 100.0
                 && recoilCap > 0.0 && recoilCap <= 100.0
                 && nether >= 1.0 && decay < 0.0 && onKill > 0.0;
-        if (check(report, "38", "конфиг WARLOCK: пороги 0<open<overflow, откат/кап в (0,100], ад ≥1, декэй <0, on-kill >0",
+        if (check(report, "38", "конфиг WARLOCK sanity",
                 ok38, "RaskolConfig.warlock*",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.2f/%.1f/%.1f/%.1f/%.1f",
                         open, overflow, recoil, recoilCap, nether, decay, onKill))) {
@@ -509,7 +468,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 39 — дуэль WARLOCK в симуляторе без падений
         String got39;
         boolean ok39;
         try {
@@ -521,14 +479,13 @@ public final class SelftestRunner {
             ok39 = false;
             got39 = "exception: " + ex.getClass().getSimpleName();
         }
-        if (check(report, "39", "симулятор: WARLOCK↔WARRIOR считается без падений, TTK ∈ [5,60] или timeout",
+        if (check(report, "39", "WARLOCK↔WARRIOR без падений",
                 ok39, "BalanceSimulator", got39)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.10.0: чек 40 — TTK-матрица 6×6
         String got40;
         boolean ok40;
         try {
@@ -539,21 +496,19 @@ public final class SelftestRunner {
             ok40 = false;
             got40 = "exception: " + ex.getClass().getSimpleName();
         }
-        if (check(report, "40", "TTK-матрица 6×6 (WARLOCK включён в харнесс)",
-                ok40, "BalanceSimulator.matrix", got40)) {
+        if (check(report, "40", "TTK-матрица 6×6", ok40, "BalanceSimulator.matrix", got40)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.11.4 (P4a): чек 41 — откат (recoil): величина, кап 30% maxHP, пол minHp
         double r1 = WarlockMath.recoilAmount(100.0, 6.66, 840.0, 30.0);
         double r2 = WarlockMath.recoilAmount(10000.0, 6.66, 840.0, 30.0);
         double rHp = WarlockMath.applyRecoil(5.0, 10.0, 1.0);
         boolean ok41 = Math.abs(r1 - 6.66) < 1e-6
                 && Math.abs(r2 - 252.0) < 1e-6
                 && rHp == 1.0;
-        if (check(report, "41", "recoil: 100×6.66%=6.66; кап 30% от 840=252; пол minHp=1",
+        if (check(report, "41", "recoil: 6.66/252/minHp1",
                 ok41, "WarlockMath.recoil",
                 String.format(Locale.ROOT, "%.2f/%.1f/%.1f", r1, r2, rHp))) {
             passed++;
@@ -561,14 +516,13 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.11.4 (P4a): чек 42 — дрейн (lifesteal) с капом lifesteal-cap
         double dH1 = WarlockMath.drainHeal(100.0, 0.666, 0.85);
         double dH2 = WarlockMath.drainHeal(100.0, 1.0, 0.85);
         double dH3 = WarlockMath.drainHeal(0.0, 0.666, 0.85);
         boolean ok42 = Math.abs(dH1 - 66.6) < 1e-6
                 && Math.abs(dH2 - 85.0) < 1e-6
                 && dH3 == 0.0;
-        if (check(report, "42", "drain: 100×0.666=66.6; кап 0.85 режет 1.0→85; dealt=0→0",
+        if (check(report, "42", "drain: 66.6/85/0",
                 ok42, "WarlockMath.drainHeal",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f", dH1, dH2, dH3))) {
             passed++;
@@ -576,7 +530,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.11.4 (P4a): чек 43 — множители урона и порог игнора маг-резиста
         double m1 = WarlockMath.damageMult(80.0, 75.0, 6.0, 1.1, false);
         double m2 = WarlockMath.damageMult(80.0, 75.0, 6.0, 1.1, true);
         double m3 = WarlockMath.damageMult(50.0, 75.0, 6.0, 1.0, false);
@@ -587,7 +540,7 @@ public final class SelftestRunner {
                 && Math.abs(m2 - 7.92) < 1e-6
                 && m3 == 1.0
                 && ig1 && ig2 && ig3;
-        if (check(report, "43", "mult: Скверна80→×1.2×спек1.1=1.32; +ад→7.92; без порогов→1.0; ignore: цель/кастер ≤25%→true, оба здоровы→false",
+        if (check(report, "43", "damageMult/ignore sanity",
                 ok43, "WarlockMath.damageMult/ignore",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f/%s%s%s", m1, m2, m3, ig1, ig2, ig3))) {
             passed++;
@@ -595,12 +548,10 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.11.4 (чек 44): sanity конфиговых чисел всех способностей 6 классов
         List<String> kitProblems = dev.raskol.classes.config.KitSanity.validateAbilities(plugin);
         boolean ok44 = kitProblems.isEmpty();
         String got44 = ok44 ? "OK" : kitProblems.size() + " проблем: " + kitProblems.get(0);
-        if (check(report, "44", "sanity китов: base/coeff/cost/cooldown/unlock/duration/power всех способностей",
-                ok44, "KitSanity.validateAbilities", got44)) {
+        if (check(report, "44", "sanity китов", ok44, "KitSanity.validateAbilities", got44)) {
             passed++;
         } else {
             failed++;
@@ -609,12 +560,10 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.11.4 (чек 45): RUNBOOK-замки пассив-мультипликаторов
         List<String> multProblems = dev.raskol.classes.config.KitSanity.validatePassiveMults(plugin);
         boolean ok45 = multProblems.isEmpty();
         String got45 = ok45 ? "OK" : multProblems.size() + " проблем: " + multProblems.get(0);
-        if (check(report, "45", "RUNBOOK пассив-мульты: execute 3.0, predator 1.2, grace 1.15, sadism +3, black_mass 6.66%",
-                ok45, "KitSanity.validatePassiveMults", got45)) {
+        if (check(report, "45", "RUNBOOK пассив-мульты", ok45, "KitSanity.validatePassiveMults", got45)) {
             passed++;
         } else {
             failed++;
@@ -623,48 +572,39 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.11.4 (P4e): чек 46 — допуск единиц asFraction (проценты ИЛИ доли)
         double a1 = SpecMath.asFraction(15.0);
         double a2 = SpecMath.asFraction(0.15);
         double a3 = SpecMath.asFraction(100.0);
         boolean ok46 = Math.abs(a1 - 0.15) < 1e-9
                 && Math.abs(a2 - 0.15) < 1e-9
                 && Math.abs(a3 - 1.0) < 1e-9;
-        if (check(report, "46", "asFraction: 15→0.15, 0.15→0.15, 100→1.0 (эксплойты F1/F2 закрыты)",
-                ok46, "SpecMath.asFraction",
+        if (check(report, "46", "asFraction sanity", ok46, "SpecMath.asFraction",
                 String.format(Locale.ROOT, "%.3f/%.3f/%.3f", a1, a2, a3))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.11.4 (P4e): чек 47 — формула цены отречения
         int rc40 = SpecMath.respecCost(40, 250, 10);
         int rc60 = SpecMath.respecCost(60, 250, 10);
         boolean ok47 = rc40 == 650 && rc60 == 850;
-        if (check(report, "47", "respecCost: 40→650, 60→850 (base 250 + 10×level)",
-                ok47, "SpecMath.respecCost", rc40 + "/" + rc60)) {
+        if (check(report, "47", "respecCost: 40→650, 60→850", ok47, "SpecMath.respecCost", rc40 + "/" + rc60)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.11.4 (P5): чек 48 — per-class yml loader с фолбэком в config.yml
         int perClassCount = plugin.getRaskolConfig().kitLoader().loadedCount();
         double recoilFromLoader = plugin.getRaskolConfig().classDouble(
                 PlayerClass.WARLOCK, "recoil.percent", 6.66);
         boolean ok48 = recoilFromLoader >= 0.0 && Double.isFinite(recoilFromLoader);
-        if (check(report, "48", "per-class yml loader: loaded=" + perClassCount
-                + ", warlock recoil.percent=" + recoilFromLoader
-                + " (фолбэк в config.yml работает)",
-                ok48, "KitConfigLoader/classDouble",
+        if (check(report, "48", "per-class loader sanity", ok48, "KitConfigLoader/classDouble",
                 perClassCount + "/" + recoilFromLoader)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.0: чек 49 — маппинг School→channel (ТЗ п.2: школа → один канал)
         boolean ok49 = School.PHYSICAL.channel() == DamageType.PHYSICAL
                 && School.TRUE.channel() == DamageType.TRUE
                 && School.FIRE.channel() == DamageType.MAGIC
@@ -673,15 +613,13 @@ public final class SelftestRunner {
                 && School.SHADOW.channel() == DamageType.MAGIC
                 && School.HOLY.channel() == DamageType.MAGIC
                 && School.ARCANE.channel() == DamageType.MAGIC;
-        if (check(report, "49", "School→channel: PHYSICAL→PHYS, FIRE/FROST/NATURE/SHADOW/HOLY/ARCANE→MAGIC, TRUE→TRUE",
-                ok49, "School.channel",
+        if (check(report, "49", "School→channel", ok49, "School.channel",
                 School.PHYSICAL.channel() + "/" + School.FIRE.channel() + "/" + School.TRUE.channel())) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.0: чек 50 — vanilla-school map + фолбэк через канал
         SchoolConfig sc = new SchoolConfig(plugin);
         boolean ok50 = sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) == School.FIRE
                 && sc.schoolOf(EntityDamageEvent.DamageCause.POISON) == School.NATURE
@@ -690,8 +628,7 @@ public final class SelftestRunner {
                 && sc.schoolOf(EntityDamageEvent.DamageCause.LIGHTNING) == School.ARCANE
                 && sc.schoolOf(EntityDamageEvent.DamageCause.ENTITY_ATTACK) == School.PHYSICAL
                 && sc.schoolOf(EntityDamageEvent.DamageCause.FALL) == School.TRUE;
-        if (check(report, "50", "vanilla-school: FIRE→FIRE, POISON→NATURE, WITHER→SHADOW, FREEZE→FROST, LIGHTNING→ARCANE, ENTITY_ATTACK→PHYSICAL, FALL→TRUE (fallback канала)",
-                ok50, "SchoolConfig.schoolOf",
+        if (check(report, "50", "vanilla-school map", ok50, "SchoolConfig.schoolOf",
                 sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) + "/"
                         + sc.schoolOf(EntityDamageEvent.DamageCause.POISON) + "/"
                         + sc.schoolOf(EntityDamageEvent.DamageCause.FALL))) {
@@ -700,7 +637,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.0: чек 51 — SchoolProfile legacy round-trip + множители школ
         SchoolProfile legacy = SchoolProfile.fromLegacy(new DamageProfile(10.0, 20.0, 5.0));
         DamageProfile back = legacy.toLegacy(sc);
         SchoolProfile fireOnly = SchoolProfile.builder().add(School.FIRE, 30.0).build();
@@ -712,8 +648,7 @@ public final class SelftestRunner {
                 && Math.abs(fireLegacy.magic() - 30.0) < 1e-9
                 && fireLegacy.physical() == 0.0
                 && fireLegacy.trueDamage() == 0.0;
-        if (check(report, "51", "SchoolProfile: fromLegacy(10/20/5)→toLegacy = 10/20/5; dominant=ARCANE; FIRE30→magic30 (multiplier 1.0)",
-                ok51, "SchoolProfile.toLegacy",
+        if (check(report, "51", "SchoolProfile legacy round-trip", ok51, "SchoolProfile.toLegacy",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f dom=%s",
                         back.physical(), back.magic(), back.trueDamage(), legacy.dominant()))) {
             passed++;
@@ -721,7 +656,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.1: чек 52 — митигация с пробитием: порядок flat→pct, стихийный слой, кап
         Penetration pen52 = Penetration.of(20.0, 0.25);
         double mit1 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 0.0, false, 0.80);
         double mit2 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 30.0, true, 0.80);
@@ -729,23 +663,20 @@ public final class SelftestRunner {
         boolean ok52 = Math.abs(mit1 - 0.225) < 1e-6
                 && Math.abs(mit2 - 0.4575) < 1e-6
                 && Math.abs(mit3 - 0.80) < 1e-6;
-        if (check(report, "52", "mitigation: (50−20)×0.75=22.5→0.225; +стихия30→0.4575; резист95 без pen→кап 0.80",
-                ok52, "SchoolMitigation.mitigationFor",
+        if (check(report, "52", "mitigation с pen/elemental/cap", ok52, "SchoolMitigation",
                 String.format(Locale.ROOT, "%.4f/%.4f/%.4f", mit1, mit2, mit3))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.1: чек 53 — иммунитеты/уязвимости EntityType (schools.entities.*)
         SchoolImmunity imm = new SchoolImmunity(plugin);
         boolean ok53 = imm.multiplierFor(EntityType.BLAZE, School.FIRE) == 0.0
                 && Math.abs(imm.multiplierFor(EntityType.BLAZE, School.FROST) - 1.5) < 1e-9
                 && imm.multiplierFor(EntityType.BLAZE, School.HOLY) == 1.0
                 && imm.multiplierFor(EntityType.ZOMBIE, School.FIRE) == 1.0
                 && Math.abs(imm.multiplierFor(EntityType.WITHER_SKELETON, School.SHADOW) - 0.5) < 1e-9;
-        if (check(report, "53", "immunity: BLAZE FIRE=0 (иммун), FROST=1.5 (уязв), HOLY=1.0; ZOMBIE FIRE=1.0; WITHER_SKELETON SHADOW=0.5",
-                ok53, "SchoolImmunity.multiplierFor",
+        if (check(report, "53", "immunity sanity", ok53, "SchoolImmunity",
                 imm.multiplierFor(EntityType.BLAZE, School.FIRE) + "/"
                         + imm.multiplierFor(EntityType.BLAZE, School.FROST) + "/"
                         + imm.multiplierFor(EntityType.WITHER_SKELETON, School.SHADOW))) {
@@ -754,22 +685,19 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.1: чек 54 — Penetration-клампы и taken()
         Penetration p54 = Penetration.of(10.0, 0.6).clamped(0.40);
         double taken54 = SchoolMitigation.taken(100.0, 0.25, 1.5);
         boolean ok54 = p54.flat() == 10.0
                 && Math.abs(p54.pct() - 0.40) < 1e-9
                 && Penetration.NONE.pct() == 0.0
                 && Math.abs(taken54 - 112.5) < 1e-6;
-        if (check(report, "54", "penetration: pct 0.6→кап 0.40, flat цел; taken(100, mit0.25, ×1.5)=112.5",
-                ok54, "Penetration/SchoolMitigation.taken",
+        if (check(report, "54", "penetration clamp + taken", ok54, "Penetration/SchoolMitigation",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f", p54.flat(), p54.pct(), taken54))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.2 (Блок 1): чек 55 — стихийный слой: суммирование, кап, снятие по источнику
         var elem = plugin.getCombat().elemental();
         UUID eu = UUID.randomUUID();
         elem.addPermanent(eu, "selftest_t1", School.FIRE, 40.0);
@@ -782,15 +710,13 @@ public final class SelftestRunner {
         boolean ok55 = Math.abs(cappedRes - 60.0) < 1e-9
                 && Math.abs(singleRes - 40.0) < 1e-9
                 && zeroRes == 0.0;
-        if (check(report, "55", "elemental: 40+30→кап 60; снятие источника→40; removeAll→0",
-                ok55, "ElementalResistService.resistOf",
+        if (check(report, "55", "elemental: суммирование/кап/снятие", ok55, "ElementalResistService",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f", cappedRes, singleRes, zeroRes))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.2 (Блок 1): чек 56 — связка resistOf → SchoolMitigation (множитель слоев)
         UUID eu2 = UUID.randomUUID();
         elem.addPermanent(eu2, "selftest_t3", School.FROST, 40.0);
         double elPct = elem.resistOf(eu2, School.FROST);
@@ -799,15 +725,13 @@ public final class SelftestRunner {
         elem.removeAll(eu2);
         boolean ok56 = Math.abs(elPct - 40.0) < 1e-9
                 && Math.abs(mitCombined - 0.70) < 1e-6;
-        if (check(report, "56", "elemental→mitigation: резист50 канала + стихия40 → поглощение 0.70 (кап 0.80 не режет)",
-                ok56, "SchoolMitigation.mitigationFor(elemental)",
+        if (check(report, "56", "elemental→mitigation связка", ok56, "SchoolMitigation(elemental)",
                 String.format(Locale.ROOT, "%.1f/%.4f", elPct, mitCombined))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.2 (Блок 2): чек 57 — gear-pen кламп: проценты→доля, кап pen-pct-cap, санитария
         double g1 = GearHook.clampPenFraction(60.0, 0.40);
         double g2 = GearHook.clampPenFraction(10.0, 0.40);
         double g3 = GearHook.clampPenFraction(-5.0, 0.40);
@@ -816,85 +740,73 @@ public final class SelftestRunner {
                 && Math.abs(g2 - 0.10) < 1e-9
                 && g3 == 0.0
                 && g4 == 0.0;
-        if (check(report, "57", "gear-pen кламп: 60%→0.40 (кап), 10%→0.10, −5%→0, NaN→0",
-                ok57, "GearHook.clampPenFraction",
+        if (check(report, "57", "gear-pen clamp", ok57, "GearHook.clampPenFraction",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f/%.1f", g1, g2, g3, g4))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.2 (Блок 2): чек 58 — цепочка gear-pen → mitigation (pen съедает резист канала)
         Penetration gearPen = Penetration.of(0.0, GearHook.clampPenFraction(25.0, 0.40));
         double mitGear = SchoolMitigation.mitigationFor(60.0, gearPen, 0.40, 0.0, false, 0.80);
         boolean ok58 = Math.abs(mitGear - 0.45) < 1e-6;
-        if (check(report, "58", "gear-pen→mitigation: резист60 × pen25% → поглощение 0.45",
-                ok58, "SchoolMitigation.mitigationFor(gearPen)",
+        if (check(report, "58", "gear-pen→mitigation", ok58, "SchoolMitigation(gearPen)",
                 String.format(Locale.ROOT, "%.4f", mitGear))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.2 (Блок 3): чек 59 — clampSumPercent: сумма источников pen с капом
         double pc1 = PenTraitsService.clampSumPercent(45.0, 0.40);
         double pc2 = PenTraitsService.clampSumPercent(15.0, 0.40);
         double pc3 = PenTraitsService.clampSumPercent(-3.0, 0.40);
         boolean ok59 = Math.abs(pc1 - 0.40) < 1e-9
                 && Math.abs(pc2 - 0.15) < 1e-9
                 && pc3 == 0.0;
-        if (check(report, "59", "pen-сумма: 45%→кап 0.40; 15%→0.15; −3%→0",
-                ok59, "PenTraitsService.clampSumPercent",
+        if (check(report, "59", "pen-сумма clamp", ok59, "PenTraitsService.clampSumPercent",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f", pc1, pc2, pc3))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.2 (Блок 3): чек 60 — читатели pen-трейтов на живом конфиге без контента = 0
         PenTraitsService pts = new PenTraitsService(plugin);
         UUID pu60 = UUID.randomUUID();
         double t60 = pts.talentPenPercent(pu60, "phys");
         double s60 = pts.specPenPercent(Spec.GUARDIAN, "phys");
         double g60 = pts.schoolPenFraction(pu60, School.FIRE, plugin.getGearHook(), 0.40);
         boolean ok60 = t60 == 0.0 && s60 == 0.0 && g60 == 0.0;
-        if (check(report, "60", "pen-трейты без контента: talent=0, spec=0, school(FIRE)+gear=0 (поведение 1.12.1)",
-                ok60, "PenTraitsService.*",
+        if (check(report, "60", "pen-трейты без контента = 0", ok60, "PenTraitsService.*",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f", t60, s60, g60))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.2 (Блок 4): чек 61 — проводка вырождается в legacy при pen=0/elemental=0
         double l1 = SchoolMitigation.mitigationFor(0.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
         double l2 = SchoolMitigation.mitigationFor(35.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
         double l3 = SchoolMitigation.mitigationFor(90.0, Penetration.NONE, 0.40, 0.0, false, 0.90);
         boolean ok61 = l1 == 0.0
                 && Math.abs(l2 - 0.35) < 1e-9
                 && Math.abs(l3 - 0.90) < 1e-9;
-        if (check(report, "61", "проводка neutral: mitigation(0)=0, (35)=0.35, (90, cap0.90)=0.90 → множитель = старому резист-фактору",
-                ok61, "SchoolMitigation.mitigationFor(legacy)",
+        if (check(report, "61", "legacy проводка при pen=0", ok61, "SchoolMitigation(legacy)",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.2f", l1, l2, l3))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.2 (Блок 4): чек 62 — school-pen режет стихийный резист, слои мультипликативны
         double el62 = CombatMath.effectiveResist(40.0, 0.0, 0.25, 0.40);
         double mit62 = SchoolMitigation.mitigationFor(45.0, Penetration.NONE, 0.40, el62, true, 0.90);
         boolean ok62 = Math.abs(el62 - 30.0) < 1e-9
                 && Math.abs(mit62 - 0.615) < 1e-6;
-        if (check(report, "62", "school-pen→elemental: резист40 × pen25% → 30; канал45+стихия30 → поглощение 0.615",
-                ok62, "CombatMath.effectiveResist/SchoolMitigation",
+        if (check(report, "62", "school-pen→elemental", ok62, "CombatMath/SchoolMitigation",
                 String.format(Locale.ROOT, "%.1f/%.4f", el62, mit62))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.3: чек 63 — ThreadLocal-контекст школы: set/get/clear
         CombatService.setCurrentCastSchool(School.FIRE);
         School s63a = CombatService.currentCastSchool();
         CombatService.clearCastSchool();
@@ -903,25 +815,21 @@ public final class SelftestRunner {
         School s63c = CombatService.currentCastSchool();
         CombatService.clearCastSchool();
         boolean ok63 = s63a == School.FIRE && s63b == null && s63c == School.PHYSICAL;
-        if (check(report, "63", "cast-school ThreadLocal: set→get, clear→null, re-set→новое",
-                ok63, "CombatService.setCurrentCastSchool",
+        if (check(report, "63", "cast-school ThreadLocal", ok63, "CombatService",
                 s63a + "/" + s63b + "/" + s63c)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.3: чек 64 — полнота школ: 30 способностей × 6 классов = 30 покрыты
         int covered = plugin.getAbilityRegistry().schoolCoverage();
         boolean ok64 = covered == 30;
-        if (check(report, "64", "schoolCoverage: 30/30 способностей имеют школу (DEFAULT_SCHOOLS + override)",
-                ok64, "AbilityRegistry.schoolCoverage", covered)) {
+        if (check(report, "64", "schoolCoverage: 30/30", ok64, "AbilityRegistry", covered)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.3: чек 65 — конкретные школы китов по карте 1.12.3
         boolean fp65 = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "fire_prometheus").school() == School.FIRE;
         boolean bb65 = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "boreas_breath").school() == School.FROST;
         boolean zw65 = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "zeus_wrath").school() == School.ARCANE;
@@ -931,70 +839,60 @@ public final class SelftestRunner {
         boolean rk65 = plugin.getAbilityRegistry().findById(PlayerClass.WARRIOR, "ragnarok").school() == School.PHYSICAL;
         boolean bw65 = plugin.getAbilityRegistry().findById(PlayerClass.WARLOCK, "black_word").school() == School.SHADOW;
         boolean ok65 = fp65 && bb65 && zw65 && bp65 && scCloak65 && wh65 && rk65 && bw65;
-        if (check(report, "65", "школы китов: prometheus=FIRE, boreas=FROST, zeus=ARCANE, borgia=NATURE, cloak=SHADOW, wrath=HOLY, ragnarok=PHYSICAL, black_word=SHADOW",
-                ok65, "AbilityRegistry.findById().school",
+        if (check(report, "65", "школы китов по карте", ok65, "AbilityRegistry.findById",
                 fp65 + "/" + bb65 + "/" + zw65 + "/" + bp65 + "/" + scCloak65 + "/" + wh65 + "/" + rk65 + "/" + bw65)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.4: чек 66 — DotMath.capFactor: суммарный DPS режется под лимит пропорционально
         double[] raw66 = {40.0, 30.0};
         double f66 = DotMath.capFactor(raw66, 60.0);
         double f66b = DotMath.capFactor(new double[]{10.0}, 60.0);
         double f66c = DotMath.capFactor(new double[]{0.0}, 60.0);
         boolean ok66 = Math.abs(f66 - 60.0 / 70.0) < 1e-9 && f66b == 1.0 && f66c == 1.0;
-        if (check(report, "66", "dot-cap: [40,30] при лимите 60 → factor 6/7; 10→1.0; 0→1.0",
-                ok66, "DotMath.capFactor",
+        if (check(report, "66", "dot-cap: [40,30]→6/7; 10→1; 0→1", ok66, "DotMath.capFactor",
                 String.format(Locale.ROOT, "%.4f/%.1f/%.1f", f66, f66b, f66c))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.4: чек 67 — DotMath.withMults: school × immunity × seal
         double w67 = DotMath.withMults(10.0, 1.5, 0.5, 0.26);
         double w67b = DotMath.withMults(10.0, 1.0, 0.0, 0.0);
         double w67c = DotMath.withMults(-5.0, 2.0, 1.0, 0.0);
         boolean ok67 = Math.abs(w67 - 9.45) < 1e-9 && w67b == 0.0 && w67c == 0.0;
-        if (check(report, "67", "dot-mults: 10×1.5×0.5×1.26=9.45; immunity0→0; dps<0→0",
-                ok67, "DotMath.withMults",
+        if (check(report, "67", "dot-mults: school×immunity×seal", ok67, "DotMath.withMults",
                 String.format(Locale.ROOT, "%.2f/%.1f/%.1f", w67, w67b, w67c))) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.4: чек 68 — DotService живой + кап-конфиг читается
         boolean svc68 = plugin.getCombat().dots() != null;
         double capCfg = plugin.getConfig().getDouble("combat.dot-dps-cap-pct", 0.0);
         double lim68 = DotMath.dpsLimit(1000.0, capCfg);
         boolean ok68 = svc68 && Math.abs(capCfg - 6.0) < 1e-9 && Math.abs(lim68 - 60.0) < 1e-9;
-        if (check(report, "68", "DotService зарегистрирован; combat.dot-dps-cap-pct=6.0 → лимит 60 DPS на 1000 HP",
-                ok68, "CombatService.dots/DotMath.dpsLimit",
+        if (check(report, "68", "DotService + cap=6%→60 DPS/1000HP", ok68, "CombatService/DotMath",
                 svc68 + "/" + capCfg + "/" + lim68)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.5: чек 69 — средовые триггеры: вода/снег гасят FIRE, огонь/лава плавят FROST
         boolean ex1 = DotService.shouldExtinguish(School.FIRE, Material.WATER);
         boolean ex2 = DotService.shouldExtinguish(School.FIRE, Material.POWDER_SNOW);
         boolean ex3 = DotService.shouldExtinguish(School.FIRE, Material.STONE);
         boolean ex4 = DotService.shouldExtinguish(School.FROST, Material.LAVA);
         boolean ex5 = DotService.shouldExtinguish(School.FROST, Material.WATER);
         boolean ok69 = ex1 && ex2 && !ex3 && ex4 && !ex5;
-        if (check(report, "69", "триггеры среды: FIRE+вода/пушистый снег→гаснет, FIRE+камень→нет; FROST+лава→тает, FROST+вода→нет",
-                ok69, "DotService.shouldExtinguish",
+        if (check(report, "69", "средовые триггеры", ok69, "DotService.shouldExtinguish",
                 ex1 + "/" + ex2 + "/" + ex3 + "/" + ex4 + "/" + ex5)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.12.5: чек 70 — реестр dots.* читает 4 определения с позитивным dps и верной школой
         var dots70 = plugin.getCombat().dots();
         boolean ok70 = dots70.defById("burning") != null
                 && dots70.defById("burning").dps() > 0.0
@@ -1005,8 +903,7 @@ public final class SelftestRunner {
                 && dots70.defById("bleed").school() == School.PHYSICAL
                 && dots70.defById("chilled") != null
                 && dots70.defById("chilled").school() == School.FROST;
-        if (check(report, "70", "dots-реестр: burning=FIRE, poison=NATURE, bleed=PHYSICAL, chilled=FROST, dps>0",
-                ok70, "DotService.defById",
+        if (check(report, "70", "dots-реестр: 4 школы", ok70, "DotService.defById",
                 (dots70.defById("burning") != null) + "/" + (dots70.defById("poison") != null)
                         + "/" + (dots70.defById("bleed") != null) + "/" + (dots70.defById("chilled") != null))) {
             passed++;
@@ -1014,7 +911,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.5: чек 71 — стеки/refresh/expiry экземпляра Dot
         UUID uuid71 = UUID.randomUUID();
         DotInstance inst71 = new DotInstance(
                 DotDef.of("selftest_dot", School.FIRE, 5.0, 3000L, 3, "selftest"),
@@ -1022,13 +918,43 @@ public final class SelftestRunner {
         long t71 = System.currentTimeMillis();
         inst71.refresh(t71);
         inst71.refresh(t71);
-        inst71.refresh(t71);   // 4-е наложение при maxStacks=3 → стеки не растут
+        inst71.refresh(t71);
         boolean stacksOk = inst71.stacks() == 3;
         boolean expiryOk = !inst71.expired(t71 + 2999L) && inst71.expired(t71 + 3001L);
         boolean ok71 = stacksOk && expiryOk;
-        if (check(report, "71", "DotInstance: 4 наложения при maxStacks=3 → 3 стека; expiry на границе duration",
-                ok71, "DotInstance.refresh/expired",
+        if (check(report, "71", "DotInstance: refresh/expiry", ok71, "DotInstance",
                 inst71.stacks() + "/" + stacksOk + "/" + expiryOk)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.6: чек 72 — HUD-API: activeDotsOf возвращает snapshot, пустой на свежей цели
+        UUID fresh72 = UUID.randomUUID();
+        List<DotInstance> empty72 = plugin.getCombat().dots().activeDotsOf(fresh72);
+        boolean ok72 = empty72 != null && empty72.isEmpty();
+        if (check(report, "72", "DotService.activeDotsOf: пустой snapshot на свежей цели",
+                ok72, "DotService.activeDotsOf",
+                empty72 == null ? "null" : String.valueOf(empty72.size()))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.6: чек 73 — poison_passive: duration=2s (отличается от poison=5s), school=NATURE
+        DotDef ppDef = plugin.getCombat().dots().defById("poison_passive");
+        DotDef poisonDef = plugin.getCombat().dots().defById("poison");
+        boolean ok73 = ppDef != null
+                && poisonDef != null
+                && ppDef.school() == School.NATURE
+                && ppDef.durationMillis() == 2000L
+                && poisonDef.durationMillis() == 5000L
+                && ppDef.maxStacks() == 1
+                && poisonDef.maxStacks() == 3;
+        if (check(report, "73", "dots: poison_passive (2s/×1) vs poison (5s/×3) — разделение абилки и пассивки",
+                ok73, "DotService.defById",
+                (ppDef != null ? ppDef.durationMillis() + "/stacks=" + ppDef.maxStacks() : "null")
+                        + " vs " + (poisonDef != null ? poisonDef.durationMillis() + "/stacks=" + poisonDef.maxStacks() : "null"))) {
             passed++;
         } else {
             failed++;
@@ -1047,13 +973,12 @@ public final class SelftestRunner {
         sender.sendMessage(Component.text("Итог: " + passed + "/" + total + " PASS", color));
         if (failed > 0) {
             sender.sendMessage(Component.text(
-                    "Есть проблемы — смотри виновника в каждой строке. Проверь конфиг/формулы.",
+                    "Есть проблемы — смотри виновника в каждой строке.",
                     NamedTextColor.RED));
         }
         plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
     }
 
-    /** Первый узел тира 1 без пререквизитов (для тестов). */
     private static TalentModel.TalentNode firstT1(TalentModel.TalentTree tree) {
         for (TalentModel.TalentNode node : tree.nodes()) {
             if (node.tier() == 1 && node.prereqs().isEmpty()) {
