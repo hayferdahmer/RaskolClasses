@@ -23,8 +23,9 @@ import java.util.UUID;
  * 1.7.3: КИТ РАЗБОЙНИКА (средневековый реализм). Урон = base + WP×coeff.
  * 1.8.1: canHit-гейты на однотargetных урон-абилках (до наложения blind/slow/poison).
  * 1.9.0: талантовые хуки baseBonus/coeffMult.
- * 1.12.3 (Батч 6): школы SHADOW/PHYSICAL/NATURE из cast-контекста; VFX (cast/impact)
- *         из vfx.<id>.* конфига с дефолтами; механика (LOS, дебаффы, +AGI) без изменений.
+ * 1.12.3 (Батч 6): школы SHADOW/PHYSICAL/NATURE, каст/impact-VFX конфиг-драйвен.
+ * 1.12.5: яд = школьный DoT poison (NATURE), удушение добавляет DoT bleed (PHYSICAL);
+ *         ванильный PotionEffect POISON убран (атрибуция/стеки/капы через DotService).
  */
 public final class RogueAbilities {
 
@@ -92,7 +93,6 @@ public final class RogueAbilities {
 
     /* ------------------------------ VFX-хелперы ------------------------------ */
 
-    /** Каст-VFX: звук + партикл в точке кастера (голова). */
     private void castFx(Player p, String id, String soundDef, String particleDef,
                         float volume, float pitch, int count) {
         Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
@@ -106,7 +106,6 @@ public final class RogueAbilities {
         }
     }
 
-    /** Impact-VFX: звук + партикл в точке цели (или себя для self-абилкок). */
     private void impactFx(LivingEntity target, String id,
                           String soundDef, String particleDef,
                           float volume, float pitch, int count) {
@@ -121,7 +120,6 @@ public final class RogueAbilities {
         }
     }
 
-    /** Безопасный резолв Particle по имени: неизвестное имя → null (без падения). */
     private Particle resolveParticle(String name) {
         if (name == null || name.isEmpty()) {
             return null;
@@ -167,7 +165,7 @@ public final class RogueAbilities {
         return hit;
     }
 
-    /** 3. «Удушение палача» — урон + Blind + Slowness. 1.8.1: гейт союзника ДО дебаффов. */
+    /** 3. «Удушение палача» — урон + Blind + Slowness + DoT bleed (1.12.5). */
     public boolean strangle(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
@@ -184,10 +182,11 @@ public final class RogueAbilities {
         impactFx(t, "strangle", "ENTITY_PLAYER_HURT", "SMOKE", 0.4f, 0.8f, 10);
         t.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 2 * 20, 0));
         t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2 * 20, 1));
+        plugin.getCombat().dots().applyById(p, t, "bleed");
         return true;
     }
 
-    /** 4. «Яд Борджа» — урон + Яд I 5 с. 1.8.1: гейт союзника ДО яда. */
+    /** 4. «Яд Борджа» — урон + DoT poison (1.12.5, вместо ванильного POISON). */
     public boolean borgiaPoison(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
@@ -202,7 +201,7 @@ public final class RogueAbilities {
         double dmg = dmg(p, def, 5.0, 0.3);
         plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
         impactFx(t, "borgia_poison", "ENTITY_SPIDER_HURT", "COMPOSTER", 0.4f, 0.9f, 12);
-        t.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 5 * 20, 0));
+        plugin.getCombat().dots().applyById(p, t, "poison");
         return true;
     }
 
