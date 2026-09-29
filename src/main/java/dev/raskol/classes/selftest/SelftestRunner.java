@@ -58,6 +58,7 @@ import java.util.UUID;
  * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
  * Чеки 52–54 (1.12.1): митигация с пробитием (порядок flat→pct, стихийный слой, кап),
  *         иммунитеты/уязвимости EntityType, Penetration-клампы и taken().
+ * 1.12.1-fix: в чеке 50 используется DamageCause.FREEZE (в Bukkit нет FREEZING).
  * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
  * прунинг, а не ошибка.
  */
@@ -668,15 +669,16 @@ public final class SelftestRunner {
         }
 
         // 1.12.0: чек 50 — vanilla-school map + фолбэк через канал
+        // 1.12.1-fix: DamageCause.FREEZE (в Bukkit нет константы FREEZING)
         SchoolConfig sc = new SchoolConfig(plugin);
         boolean ok50 = sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) == School.FIRE
                 && sc.schoolOf(EntityDamageEvent.DamageCause.POISON) == School.NATURE
                 && sc.schoolOf(EntityDamageEvent.DamageCause.WITHER) == School.SHADOW
-                && sc.schoolOf(EntityDamageEvent.DamageCause.FREEZING) == School.FROST
+                && sc.schoolOf(EntityDamageEvent.DamageCause.FREEZE) == School.FROST
                 && sc.schoolOf(EntityDamageEvent.DamageCause.LIGHTNING) == School.ARCANE
                 && sc.schoolOf(EntityDamageEvent.DamageCause.ENTITY_ATTACK) == School.PHYSICAL
                 && sc.schoolOf(EntityDamageEvent.DamageCause.FALL) == School.TRUE;
-        if (check(report, "50", "vanilla-school: FIRE→FIRE, POISON→NATURE, WITHER→SHADOW, FREEZING→FROST, LIGHTNING→ARCANE, ENTITY_ATTACK→PHYSICAL, FALL→TRUE (fallback канала)",
+        if (check(report, "50", "vanilla-school: FIRE→FIRE, POISON→NATURE, WITHER→SHADOW, FREEZE→FROST, LIGHTNING→ARCANE, ENTITY_ATTACK→PHYSICAL, FALL→TRUE (fallback канала)",
                 ok50, "SchoolConfig.schoolOf",
                 sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) + "/"
                         + sc.schoolOf(EntityDamageEvent.DamageCause.POISON) + "/"
