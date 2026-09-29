@@ -10,6 +10,7 @@ import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.balance.BalanceSimulator;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.CombatMath;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.DamageType;
@@ -61,8 +62,9 @@ import java.util.UUID;
  * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
  * Чеки 55–56 (1.12.2 Блок 1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
  * Чеки 57–58 (1.12.2 Блок 2): gear-pen кламп (clampPenFraction) и цепочка pen→mitigation.
- * Чеки 59–60 (1.12.2 Блок 3): pen-трейты талантов/спек — clampSumPercent и нулевые
- *         читатели на живом конфиге без pen-контента.
+ * Чеки 59–60 (1.12.2 Блок 3): pen-трейты талантов/спек — clampSumPercent и нулевые читатели.
+ * Чеки 61–62 (1.12.2 Блок 4): проводка neutral (mitigation = resist/100 при pen=0/elemental=0)
+ *         и связка school-pen→elemental→митигация.
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
  * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
  */
@@ -852,6 +854,34 @@ public final class SelftestRunner {
         if (check(report, "60", "pen-трейты без контента: talent=0, spec=0, school(FIRE)+gear=0 (поведение 1.12.1)",
                 ok60, "PenTraitsService.*",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f", t60, s60, g60))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.2 (Блок 4): чек 61 — проводка вырождается в legacy при pen=0/elemental=0
+        double l1 = SchoolMitigation.mitigationFor(0.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
+        double l2 = SchoolMitigation.mitigationFor(35.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
+        double l3 = SchoolMitigation.mitigationFor(90.0, Penetration.NONE, 0.40, 0.0, false, 0.90);
+        boolean ok61 = l1 == 0.0
+                && Math.abs(l2 - 0.35) < 1e-9
+                && Math.abs(l3 - 0.90) < 1e-9;   // кап 0.90 = resist.cap: танки не нерфятся
+        if (check(report, "61", "проводка neutral: mitigation(0)=0, (35)=0.35, (90, cap0.90)=0.90 → множитель = старому резист-фактору",
+                ok61, "SchoolMitigation.mitigationFor(legacy)",
+                String.format(Locale.ROOT, "%.2f/%.2f/%.2f", l1, l2, l3))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.2 (Блок 4): чек 62 — school-pen режет стихийный резист, слои мультипликативны
+        double el62 = CombatMath.effectiveResist(40.0, 0.0, 0.25, 0.40);      // 40×0.75=30
+        double mit62 = SchoolMitigation.mitigationFor(45.0, Penetration.NONE, 0.40, el62, true, 0.90);
+        boolean ok62 = Math.abs(el62 - 30.0) < 1e-9
+                && Math.abs(mit62 - 0.615) < 1e-6;   // 1−(1−0.45)×(1−0.30)=0.615
+        if (check(report, "62", "school-pen→elemental: резист40 × pen25% → 30; канал45+стихия30 → поглощение 0.615",
+                ok62, "CombatMath.effectiveResist/SchoolMitigation",
+                String.format(Locale.ROOT, "%.1f/%.4f", el62, mit62))) {
             passed++;
         } else {
             failed++;
