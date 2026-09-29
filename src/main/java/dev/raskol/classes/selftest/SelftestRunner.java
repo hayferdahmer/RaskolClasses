@@ -75,6 +75,9 @@ import java.util.UUID;
  * Чеки 69–71 (1.12.5): средовые триггеры гашения, реестр dots.*, стеки/refresh/expiry Dot.
  * Чеки 72–73 (1.12.6): HUD-API activeDotsOf + разделение пассивка/абилка DoT.
  * Чек 74 (1.12.6): миграция poisoned_blades на DotService (конфиг + реестр).
+ * Чек 75 (1.12.7): sanity баланс-прогона — матрица 6×6 чистая (без NaN/отрицательных),
+ *         конечные диагональные TTK ∈ [10,60], средняя по конечным ∈ [15,25];
+ *         бесконечность на диагонали = дизайн-стейлмейт хилеров (допустима).
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
  * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
  */
@@ -1019,6 +1022,47 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // 1.12.7: чек 75 — sanity баланс-прогона: матрица 6×6 чистая (без NaN/отрицательных),
+        // конечные диагональные TTK ∈ [10,60], средняя по конечным ∈ [15,25];
+        // бесконечность на диагонали = дизайн-стейлмейт хилеров (допустима, в среднюю не идёт)
+        String got75;
+        boolean ok75;
+        try {
+            double[][] m75 = BalanceSimulator.matrix(plugin, 40, 42L);
+            boolean clean = true;
+            boolean diagOk = true;
+            double sum = 0.0;
+            int cnt = 0;
+            for (int i = 0; i < m75.length; i++) {
+                for (int j = 0; j < m75[i].length; j++) {
+                    double v = m75[i][j];
+                    if (Double.isNaN(v) || v < 0.0) {
+                        clean = false;
+                    }
+                    if (i == j && Double.isFinite(v)) {
+                        cnt++;
+                        sum += v;
+                        if (v < 10.0 || v > 60.0) {
+                            diagOk = false;
+                        }
+                    }
+                }
+            }
+            double avg = cnt > 0 ? sum / cnt : 0.0;
+            ok75 = clean && diagOk && cnt >= 4 && avg >= 15.0 && avg <= 25.0;
+            got75 = "clean=" + clean + " diag=" + diagOk + " n=" + cnt
+                    + " avg=" + String.format(Locale.ROOT, "%.1f", avg);
+        } catch (RuntimeException ex) {
+            ok75 = false;
+            got75 = "exception: " + ex.getClass().getSimpleName();
+        }
+        if (check(report, "75", "balance-sanity: матрица 6×6 чистая, конечная диагональ в [10,60], avg в [15,25]",
+                ok75, "BalanceSimulator.matrix", got75)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
         for (String line : report.toString().split("\n")) {
             if (!line.isEmpty()) {
@@ -1038,6 +1082,7 @@ public final class SelftestRunner {
         plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
     }
 
+    /** Первый узел тира 1 без пререквизитов (для тестов). */
     private static TalentModel.TalentNode firstT1(TalentModel.TalentTree tree) {
         for (TalentModel.TalentNode node : tree.nodes()) {
             if (node.tier() == 1 && node.prereqs().isEmpty()) {
