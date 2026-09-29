@@ -177,7 +177,7 @@ resist:
       physical: 16
     WARLOCK:
       magic: 26
-      physical: 10
+      physical: 16
   grants:
     steel_skin:
       physical: 15
@@ -213,7 +213,7 @@ attributes:
     PRIEST:  { main: INT, base-str: 5, base-agi: 5, base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
     WARLOCK: { main: INT, base-str: 4, base-agi: 4, base-int: 14, growth-str: 0.2, growth-agi: 0.3, growth-int: 1.4 }
   hp:
-    base-hp: 100
+    base-hp: 120
     per-str: 20
     per-level: 5
     main-str-bonus: 8
@@ -970,7 +970,7 @@ classes:
       black_mass:
         display-name: "Чёрная Месса"
         description: "6.66% урона способностей — здоровьем; 6.66% полученного урона — чистым уроном всем в радиусе 8 блоков."
-        enabled: true
+        enabled: false
         lifesteal: 0.0666
         reflect: 0.0666
         reflect-radius: 8.0
