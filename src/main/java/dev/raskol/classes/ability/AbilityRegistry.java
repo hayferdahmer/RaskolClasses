@@ -18,7 +18,6 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -40,37 +39,31 @@ public final class AbilityRegistry {
     /** Дефолтная школа каждой способности (override в конфиге имеет приоритет). */
     private static final Map<String, School> DEFAULT_SCHOOLS = new HashMap<>();
     static {
-        // Воин: всё PHYSICAL
         DEFAULT_SCHOOLS.put("tyr_strike", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("balder_skin", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("berserkergang", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("fenrir_blood", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("ragnarok", School.PHYSICAL);
-        // Охотник: всё PHYSICAL
         DEFAULT_SCHOOLS.put("wolf_mark", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("swallow", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("piercing_shot", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("arrow_fan", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("arrow_rain", School.PHYSICAL);
-        // Жрец: всё HOLY
         DEFAULT_SCHOOLS.put("saint_tear", School.HOLY);
         DEFAULT_SCHOOLS.put("word_of_life", School.HOLY);
         DEFAULT_SCHOOLS.put("aegis_faith", School.HOLY);
         DEFAULT_SCHOOLS.put("circle_elysium", School.HOLY);
         DEFAULT_SCHOOLS.put("wrath_heaven", School.HOLY);
-        // Маг: огонь/лёд/аркана
         DEFAULT_SCHOOLS.put("fire_prometheus", School.FIRE);
         DEFAULT_SCHOOLS.put("hermes_step", School.ARCANE);
         DEFAULT_SCHOOLS.put("boreas_breath", School.FROST);
         DEFAULT_SCHOOLS.put("athena_aegis", School.ARCANE);
         DEFAULT_SCHOOLS.put("zeus_wrath", School.ARCANE);
-        // Разбойник: тень/физика/природа
         DEFAULT_SCHOOLS.put("shadow_cloak", School.SHADOW);
         DEFAULT_SCHOOLS.put("blade_fan", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("strangle", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("borgia_poison", School.NATURE);
         DEFAULT_SCHOOLS.put("shadow_dance", School.SHADOW);
-        // Чернокнижник: всё SHADOW
         DEFAULT_SCHOOLS.put("black_word", School.SHADOW);
         DEFAULT_SCHOOLS.put("ruin_seal", School.SHADOW);
         DEFAULT_SCHOOLS.put("hunger_corruption", School.SHADOW);
@@ -185,8 +178,6 @@ public final class AbilityRegistry {
         casters.put("borgia_poison", rogue::borgiaPoison);
         casters.put("shadow_dance", rogue::shadowDance);
 
-        // 1.10.0-fix: SELF-кастеры для targeted-абилкок чернокнижника (ray-таргет внутри),
-        // иначе ЛКМ в Книге и свитки не находили реализацию.
         casters.put("black_word", (p, d) -> warlock.blackWord(p, null, d));
         targetedCasters.put("black_word", warlock::blackWord);
         casters.put("ruin_seal", (p, d) -> warlock.ruinSeal(p, null, d));
@@ -209,16 +200,20 @@ public final class AbilityRegistry {
                             cfg.abilityCost(pc, base.id(), base.cost()),
                             cfg.abilityCooldownSeconds(pc, base.id(),
                                     (int) (base.cooldownMillis() / 1000L)) * 1000L,
-                            readSchool(cfg, pc, base.id())
+                            readSchool(pc, base.id())
                     ))
                     .toList();
             byClass.put(pc, defs);
         }
     }
 
-    /** 1.12.3: школа из конфига (override) либо из DEFAULT_SCHOOLS. */
-    private static School readSchool(RaskolConfig cfg, PlayerClass pc, String id) {
-        String override = cfg.rawStringOrNull(
+    /**
+     * 1.12.3: школа из конфига (override) либо из DEFAULT_SCHOOLS.
+     * FIX: используется plugin.getConfig().getString() вместо несуществующего
+     * RaskolConfig.rawStringOrNull() — хелпер не нужен, прямой доступ к Bukkit config.
+     */
+    private School readSchool(PlayerClass pc, String id) {
+        String override = plugin.getConfig().getString(
                 "classes." + pc.name() + ".abilities." + id + ".school");
         if (override != null && !override.isEmpty()) {
             School parsed = School.fromId(override);
@@ -300,7 +295,6 @@ public final class AbilityRegistry {
                 problems.add("кастер " + id + " — сирота (нет в DEFAULTS)");
             }
         }
-        // 1.12.3: полнота DEFAULT_SCHOOLS — все 30 способностей покрыты
         for (PlayerClass pc : PlayerClass.values()) {
             for (AbilityDef base : DEFAULTS.get(pc)) {
                 if (!DEFAULT_SCHOOLS.containsKey(base.id())) {
@@ -387,7 +381,6 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.12.3: установка ThreadLocal-контекста школы для пути B в CombatService
         CombatService.setCurrentCastSchool(def.school());
         boolean ok;
         try {
