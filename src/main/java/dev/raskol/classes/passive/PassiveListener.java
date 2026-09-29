@@ -20,6 +20,11 @@ import java.util.UUID;
  * 1.11.4 (P1): ТОНКИЙ диспетчер пассивок. Вся логика — в ClassPassive-файлах
  * (WarriorPassives…WarlockPassives). Маркер хилера остаётся здесь статическим:
  * его ставят PriestAbilities и читает ResourceService (контракт не меняем).
+ *
+ * 1.12.6: миграция PotionEffect-пассивок на DotService НЕ затрагивает этот
+ * файл — логика proc-шансов живёт в RoguePassives.onDamageOut(), которая
+ * теперь вызывает dots().applyById(owner, target, "poison_passive") вместо
+ * PotionEffectType.POISON.
  */
 public final class PassiveListener implements Listener {
 
@@ -30,7 +35,6 @@ public final class PassiveListener implements Listener {
         healerMark = priestUuid;
     }
 
-    /** Одноразовое чтение маркера (null если не стоял). */
     public static UUID pollHealerMark() {
         UUID v = healerMark;
         healerMark = null;
@@ -56,7 +60,6 @@ public final class PassiveListener implements Listener {
         }
     }
 
-    /** Сброс proc-счётчиков всех пассивок игрока (выход, фолиант). */
     public void clear(UUID uuid) {
         passives.values().forEach(p -> p.clear(uuid));
     }
@@ -80,7 +83,7 @@ public final class PassiveListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
-        UUID healer = peekHealerMark(); // poll делает ResourceService
+        UUID healer = peekHealerMark();
         if (healer == null) {
             return;
         }
