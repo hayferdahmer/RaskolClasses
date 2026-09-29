@@ -10,6 +10,7 @@ import dev.raskol.classes.combat.school.PenTraitsService;
 import dev.raskol.classes.combat.school.Penetration;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.combat.school.SchoolConfig;
+import dev.raskol.classes.combat.school.SchoolImmunity;
 import dev.raskol.classes.combat.school.SchoolMitigation;
 import dev.raskol.classes.config.RaskolConfig;
 import io.papermc.paper.registry.RegistryAccess;
@@ -31,21 +32,21 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * 1.11.4 (P3): ТОНКИЙ ФАСАД боевого ядра. Публичный API сохранён полностью:
- *   dealDamage / canHit / simulateTaken / powers / resists / avoidance / caps,
- *   статик-маркеры (SUPPRESS / ABILITY_SOURCE / REFLECT_SUPPRESS), cappedDamage.
- * Путь A вынесен в VanillaDamageListener (регистрируется здесь же, в конструкторе);
- * капы и burst-окно — в DamageCaps; pure-математика — в CombatMath.
- * 1.12.2 (Блок 1): ElementalResistService (стихийный слой резистов).
- * 1.12.2 (Блок 4): живая проводка pen/elemental в путь B: phys→School.PHYSICAL,
- *         magic→School.ARCANE (соглашение legacy-адаптера); pen=0 и elemental=0 →
- *         множители равны старым резист-факторам (нейтрально к 1.12.1).
+ * 1.11.4 (P3): ТОНКИЙ ФАСАД боевого ядра.
+ * 1.12.2 (Блок 1/3/4): ElementalResistService, PenTraitsService, живая проводка.
+ * 1.12.3: ThreadLocal-контекст школы (currentCastSchool) — устанавливается
+ *         AbilityRegistry при tryCast; читается в dealDamage для применения
+ *         иммунитетов (schools.entities.*) и множителей (schools.multiplier.*).
+ *         Pen/elemental работают по legacy-каналу (phys/magic) как в 1.12.2 —
+ *         полный school-aware профиль появится в 1.12.4.
  */
 public final class CombatService implements Listener {
 
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final ThreadLocal<UUID> ABILITY_SOURCE = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
+    private static final ThreadLocal<School> CURRENT_CAST_SCHOOL = new ThreadLocal<>();
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
     private final RaskolClasses plugin;
@@ -56,6 +57,7 @@ public final class CombatService implements Listener {
     private final VanillaDamageListener vanillaListener;
     private final ElementalResistService elemental;
     private final SchoolConfig schoolConfig;
+    private final SchoolImmunity schoolImmunity;
     private final PenTraitsService penTraits;
 
     public CombatService(RaskolClasses plugin, ResistService resists) {
@@ -68,13 +70,13 @@ public final class CombatService implements Listener {
                 plugin, this, resists, avoidance, powers, caps);
         plugin.getServer().getPluginManager().registerEvents(vanillaListener, plugin);
         this.schoolConfig = new SchoolConfig(plugin);
+        this.schoolImmunity = new SchoolImmunity(plugin);
         this.elemental = new ElementalResistService(plugin, schoolConfig);
         this.penTraits = new PenTraitsService(plugin);
     }
 
     /* ------------------------------ статик-маркеры ------------------------------ */
 
-    /** Читает и сбрасывает флаг «урон применён нами» (путь B → путь A). */
     public static boolean consumeSuppress() {
         boolean v = Boolean.TRUE.equals(SUPPRESS.get());
         if (v) {
@@ -87,7 +89,6 @@ public final class CombatService implements Listener {
         SUPPRESS.set(value);
     }
 
-    /** UUID игрока-источника внутри dealDamage (синхронно виден в событии). */
     public static UUID abilitySourceMark() {
         return ABILITY_SOURCE.get();
     }
@@ -104,39 +105,35 @@ public final class CombatService implements Listener {
         REFLECT_SUPPRESS.set(Boolean.FALSE);
     }
 
+    /** 1.12.3: школа текущего каста; null = каст вне AbilityRegistry (legacy-вывод). */
+    public static void setCurrentCastSchool(School school) {
+        if (school == null) {
+            CURRENT_CAST_SCHOOL.remove();
+        } else {
+            CURRENT_CAST_SCHOOL.set(school);
+        }
+    }
+
+    public static School currentCastSchool() {
+        return CURRENT_CAST_SCHOOL.get();
+    }
+
+    public static void clearCastSchool() {
+        CURRENT_CAST_SCHOOL.remove();
+    }
+
     /* ------------------------------ геттеры слоёв ------------------------------ */
 
-    public ResistService resists() {
-        return resists;
-    }
+    public ResistService resists() { return resists; }
+    public AvoidanceService avoidance() { return avoidance; }
+    public PowerService powers() { return powers; }
+    public DamageCaps caps() { return caps; }
+    public VanillaDamageListener vanillaListener() { return vanillaListener; }
+    public ElementalResistService elemental() { return elemental; }
+    public PenTraitsService penTraits() { return penTraits; }
+    public SchoolConfig schoolConfig() { return schoolConfig; }
+    public SchoolImmunity schoolImmunity() { return schoolImmunity; }
 
-    public AvoidanceService avoidance() {
-        return avoidance;
-    }
-
-    public PowerService powers() {
-        return powers;
-    }
-
-    public DamageCaps caps() {
-        return caps;
-    }
-
-    public VanillaDamageListener vanillaListener() {
-        return vanillaListener;
-    }
-
-    /** 1.12.2 (Блок 1): стихийный слой резистов школ. */
-    public ElementalResistService elemental() {
-        return elemental;
-    }
-
-    /** 1.12.2 (Блок 3): агрегатор pen-трейтов (gear+таланты+спеки). */
-    public PenTraitsService penTraits() {
-        return penTraits;
-    }
-
-    /** Делегат для BalanceSimulator/selftest (внешний API не меняем). */
     public static double cappedDamage(double damage, double maxHp, double pct) {
         return CombatMath.cappedDamage(damage, maxHp, pct);
     }
@@ -168,19 +165,10 @@ public final class CombatService implements Listener {
         return v >= 0.0 ? v : 1000.0;
     }
 
-    public double carrierMaxOf(LivingEntity target) {
-        return caps.carrierMaxOf(target);
-    }
+    public double carrierMaxOf(LivingEntity target) { return caps.carrierMaxOf(target); }
+    public double formulaMaxOf(LivingEntity target) { return caps.formulaMaxOf(target); }
+    public double scaleOf(Entity target) { return caps.scaleOf(target); }
 
-    public double formulaMaxOf(LivingEntity target) {
-        return caps.formulaMaxOf(target);
-    }
-
-    public double scaleOf(Entity target) {
-        return caps.scaleOf(target);
-    }
-
-    /** Доля HP (formula для игроков) для порога игнора маг-резиста. */
     private double hpFractionOf(LivingEntity e) {
         if (e instanceof Player p) {
             double max = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
@@ -193,33 +181,19 @@ public final class CombatService implements Listener {
     /* ------------------------- фракционный гейт ------------------------- */
 
     public boolean canHit(Entity source, LivingEntity target) {
-        if (target == null) {
-            return false;
-        }
-        if (!(target instanceof Player tp)) {
-            return true;
-        }
-        if (source == null) {
-            return true;
-        }
-        if (!(source instanceof Player sp)) {
-            return true;
-        }
-        if (sp.getUniqueId().equals(tp.getUniqueId())) {
-            return true;
-        }
-        if (plugin.getConfig().getBoolean("combat.friendly-fire", false)) {
-            return true;
-        }
+        if (target == null) return false;
+        if (!(target instanceof Player tp)) return true;
+        if (source == null) return true;
+        if (!(source instanceof Player sp)) return true;
+        if (sp.getUniqueId().equals(tp.getUniqueId())) return true;
+        if (plugin.getConfig().getBoolean("combat.friendly-fire", false)) return true;
         return !Targeting.isAlly(plugin, sp.getUniqueId(), tp.getUniqueId());
     }
 
     /* ------------------------- симулятор (effective) ------------------------- */
 
     public double simulateTaken(LivingEntity target, DamageProfile profile) {
-        if (profile == null || target == null) {
-            return 0.0;
-        }
+        if (profile == null || target == null) return 0.0;
         DamageProfile safe = CombatMath.sanitize(profile);
         double truePart = Math.min(safe.trueDamage(), trueCap());
         if (resists.disabledIn(target.getWorld())) {
@@ -260,6 +234,19 @@ public final class CombatService implements Listener {
                 return 0.0;
             }
         }
+
+        // 1.12.3: школа каста → иммунитеты и множители школ
+        School castSchool = currentCastSchool();
+        double schoolMult = 1.0;
+        if (castSchool != null && schoolConfig.enabled()) {
+            schoolMult *= schoolConfig.multiplier(castSchool);
+            double immMult = schoolImmunity.multiplierFor(target.getType(), castSchool);
+            if (immMult <= 0.0) {
+                return 0.0; // иммунная школа: урон 0, триггеры молчат
+            }
+            schoolMult *= immMult;
+        }
+
         double truePart = Math.min(safe.trueDamage(), trueCap());
         double physBase = safe.physical();
         double magicBase = safe.magic();
@@ -274,7 +261,6 @@ public final class CombatService implements Listener {
             }
         }
 
-        // 1.11.3: игнор маг-резиста чернокнижником при HP ≤ порога (любая сторона)
         boolean warlockIgnoreMagic = false;
         if (source instanceof Player spSrc && magicBase > 0.0
                 && plugin.getClassProvider().getClassOf(spSrc) == PlayerClass.WARLOCK) {
@@ -293,7 +279,6 @@ public final class CombatService implements Listener {
             double physFactor = resists.physicalFactor(uuid, cap);
             double magicFactor = resists.magicFactor(uuid, cap);
             if (!schoolConfig.enabled()) {
-                // legacy-ветка: рубильник школ выключен
                 physPart = Double.isFinite(physFactor) ? physBase * physFactor : physBase;
                 double magicScaled = Double.isFinite(magicFactor) ? magicBase * magicFactor : magicBase;
                 if (warlockIgnoreMagic) {
@@ -301,7 +286,6 @@ public final class CombatService implements Listener {
                 }
                 magicTruePart = magicScaled + truePart;
             } else {
-                // 1.12.2 (Блок 4): pen атакующего + стихийный слой цели
                 double physResistPct = Double.isFinite(physFactor) ? (1.0 - physFactor) * 100.0 : 0.0;
                 double magicResistPct = Double.isFinite(magicFactor) ? (1.0 - magicFactor) * 100.0 : 0.0;
                 if (warlockIgnoreMagic) {
@@ -341,7 +325,12 @@ public final class CombatService implements Listener {
             magicTruePart = magicBase + truePart;
         }
 
-        // «Печать Погибели»: амплификация входящего урона (путь B)
+        // 1.12.3: множитель школы (включая immunity-mult) применяется ПОСЛЕ защиты
+        if (schoolMult != 1.0) {
+            physPart *= schoolMult;
+            magicTruePart *= schoolMult;
+        }
+
         double amp = WarlockAbilities.sealAmplifyOf(target.getUniqueId());
         if (amp > 0.0) {
             physPart *= (1.0 + amp);
@@ -368,7 +357,7 @@ public final class CombatService implements Listener {
                 taken = burstAllowed;
             }
         }
-        debugLog(target, source, safe, taken);
+        debugLog(target, source, safe, taken, castSchool);
         double scale = caps.scaleOf(target);
         double applyPhys = physPart * scale;
         double applyMagic = magicTruePart * scale;
@@ -378,11 +367,8 @@ public final class CombatService implements Listener {
             if (applyPhys > 0.0) {
                 setSuppress(true);
                 try {
-                    if (source != null) {
-                        target.damage(applyPhys, source);
-                    } else {
-                        target.damage(applyPhys);
-                    }
+                    if (source != null) target.damage(applyPhys, source);
+                    else target.damage(applyPhys);
                 } finally {
                     setSuppress(false);
                 }
@@ -408,7 +394,6 @@ public final class CombatService implements Listener {
             ABILITY_SOURCE.remove();
         }
 
-        // откат чернокнижника 6.66% (глушится для рефлект-урона)
         if (source instanceof Player attacker && taken > 0.0
                 && !reflectSuppressed()
                 && plugin.getClassProvider().getClassOf(attacker) == PlayerClass.WARLOCK) {
@@ -469,15 +454,10 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ анти-хил (S5) ------------------------------ */
 
-    /** 1.10.0 / 1.11.2 (S5): анти-хил блокирует ВСЕ причины лечения. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
-        if (!(event.getEntity() instanceof LivingEntity le)) {
-            return;
-        }
-        if (!WarlockAbilities.isAntihealed(le.getUniqueId())) {
-            return;
-        }
+        if (!(event.getEntity() instanceof LivingEntity le)) return;
+        if (!WarlockAbilities.isAntihealed(le.getUniqueId())) return;
         event.setCancelled(true);
         if (plugin.getConfig().getBoolean("combat.debug-damage", false)) {
             String reason = event.getRegainReason() != null ? event.getRegainReason().name() : "UNKNOWN";
@@ -495,7 +475,8 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ debug-лог ------------------------------ */
 
-    private void debugLog(LivingEntity target, Entity source, DamageProfile profile, double taken) {
+    private void debugLog(LivingEntity target, Entity source, DamageProfile profile,
+                          double taken, School school) {
         if (!plugin.getConfig().getBoolean("combat.debug-damage", false)) {
             return;
         }
@@ -507,12 +488,13 @@ public final class CombatService implements Listener {
         } else {
             resistInfo = "резисты: физ 0% / маг 0%";
         }
+        String schoolTag = school != null ? " · school=" + school.id() : "";
         String line = String.format(Locale.ROOT,
-                "[dmg] %s → %s: профиль %.1f физ / %.1f маг / %.1f чист → дошло %.1f (%s)",
+                "[dmg] %s → %s: профиль %.1f физ / %.1f маг / %.1f чист → дошло %.1f (%s)%s",
                 source != null ? source.getName() : "env",
                 target.getName(),
                 profile.physical(), profile.magic(), profile.trueDamage(),
-                taken, resistInfo);
+                taken, resistInfo, schoolTag);
         Component message = Component.text(line, NamedTextColor.DARK_GRAY);
         for (Player online : plugin.getServer().getOnlinePlayers()) {
             if (online.hasPermission("raskolclasses.debug")) {
