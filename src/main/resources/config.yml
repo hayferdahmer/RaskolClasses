@@ -15,11 +15,9 @@
 #  1.12.2: стихийный резист-слой (elemental.enabled: true), pen-трейты
 #          gear/талантов/спек, живая проводка pen+elemental в пути A/B;
 #          mitigation-cap 0.90 = resist.cap (нейтрально к 1.12.1).
-#  1.12.3: школы в способностях (ключ school: в каждом ability);
-#          ThreadLocal-контекст школы в AbilityRegistry.tryCast;
-#          immunity/multiplier-применение в пути B;
-#          VFX-стандарт чернокнижника для всех 6 китов (батчи 2–6):
-#          cast/impact/execute/expire-ключи в vfx.* по каждой способности.
+#  1.12.3: школы в способностях (ключ school:), cast-контекст в AbilityRegistry,
+#          immunity/multiplier в пути B; VFX-стандарт чернокнижника на всех 6 китах.
+#  1.12.4: DoT-ядро (combat/dot/): dot-dps-cap-pct теперь живой.
 # ============================================================
 
 hud:
@@ -66,6 +64,7 @@ compat:
 
 # ------------------------------------------------------------
 # Бой: резист-гейты, анти-ваншот, burst-окно, LOS
+# 1.12.4: dot-dps-cap-pct — живой кап суммарного DoT-DPS по цели
 # ------------------------------------------------------------
 combat:
   friendly-fire: false
@@ -82,7 +81,7 @@ combat:
     - SONIC_BOOM
   burst-window-seconds: 3.0
   burst-window-pct: 18.0
-  dot-dps-cap-pct: 6.0   # резерв 1.12.4 (DoT); сейчас не читается
+  dot-dps-cap-pct: 6.0
 
 storage:
   autosave-minutes: 5
@@ -149,7 +148,7 @@ foliant:
     prevent-drop: true
     owner-lock-pickup: true
   item-name: "§5§lФолиант Душ. Том I"
-    gui-title: "§5§lФолиант Душ · Том I"
+  gui-title: "§5§lФолиант Душ · Том I"
   gui-yes: "§c§lПрочесть страницу"
   gui-no: "§7Закрыть том"
 
@@ -178,7 +177,7 @@ resist:
       physical: 16
     WARLOCK:
       magic: 26
-      physical: 16
+      physical: 10
   grants:
     steel_skin:
       physical: 15
@@ -313,7 +312,7 @@ damage-types:
     LIGHTNING: magic
 
 # ------------------------------------------------------------
-# 1.12.0–1.12.3: ШКОЛЫ УРОНА
+# 1.12.0–1.12.4: ШКОЛЫ УРОНА
 # ------------------------------------------------------------
 schools:
   enabled: true
