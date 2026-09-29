@@ -16,6 +16,7 @@ import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.DamageType;
 import dev.raskol.classes.combat.dot.DotDef;
 import dev.raskol.classes.combat.dot.DotInstance;
+import dev.raskol.classes.combat.dot.DotMath;
 import dev.raskol.classes.combat.dot.DotService;
 import dev.raskol.classes.combat.school.PenTraitsService;
 import dev.raskol.classes.combat.school.Penetration;
