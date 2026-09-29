@@ -6,7 +6,11 @@ import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.school.ElementalResistService;
+import dev.raskol.classes.combat.school.PenTraitsService;
+import dev.raskol.classes.combat.school.Penetration;
+import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.combat.school.SchoolConfig;
+import dev.raskol.classes.combat.school.SchoolMitigation;
 import dev.raskol.classes.config.RaskolConfig;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -32,8 +36,10 @@ import java.util.UUID;
  *   статик-маркеры (SUPPRESS / ABILITY_SOURCE / REFLECT_SUPPRESS), cappedDamage.
  * Путь A вынесен в VanillaDamageListener (регистрируется здесь же, в конструкторе);
  * капы и burst-окно — в DamageCaps; pure-математика — в CombatMath.
- * 1.12.2 (Блок 1): создан и 노출 ElementalResistService (стихийный слой резистов);
- *         живая проводка слоя — в Блоке 4.
+ * 1.12.2 (Блок 1): ElementalResistService (стихийный слой резистов).
+ * 1.12.2 (Блок 4): живая проводка pen/elemental в путь B: phys→School.PHYSICAL,
+ *         magic→School.ARCANE (соглашение legacy-адаптера); pen=0 и elemental=0 →
+ *         множители равны старым резист-факторам (нейтрально к 1.12.1).
  */
 public final class CombatService implements Listener {
 
@@ -49,6 +55,8 @@ public final class CombatService implements Listener {
     private final DamageCaps caps;
     private final VanillaDamageListener vanillaListener;
     private final ElementalResistService elemental;
+    private final SchoolConfig schoolConfig;
+    private final PenTraitsService penTraits;
 
     public CombatService(RaskolClasses plugin, ResistService resists) {
         this.plugin = plugin;
@@ -59,7 +67,9 @@ public final class CombatService implements Listener {
         this.vanillaListener = new VanillaDamageListener(
                 plugin, this, resists, avoidance, powers, caps);
         plugin.getServer().getPluginManager().registerEvents(vanillaListener, plugin);
-        this.elemental = new ElementalResistService(plugin, new SchoolConfig(plugin));
+        this.schoolConfig = new SchoolConfig(plugin);
+        this.elemental = new ElementalResistService(plugin, schoolConfig);
+        this.penTraits = new PenTraitsService(plugin);
     }
 
     /* ------------------------------ статик-маркеры ------------------------------ */
@@ -119,6 +129,11 @@ public final class CombatService implements Listener {
     /** 1.12.2 (Блок 1): стихийный слой резистов школ. */
     public ElementalResistService elemental() {
         return elemental;
+    }
+
+    /** 1.12.2 (Блок 3): агрегатор pen-трейтов (gear+таланты+спеки). */
+    public PenTraitsService penTraits() {
+        return penTraits;
     }
 
     /** Делегат для BalanceSimulator/selftest (внешний API не меняем). */
@@ -277,12 +292,50 @@ public final class CombatService implements Listener {
             double cap = source instanceof Player ? resists.pvpCap() : resists.cap();
             double physFactor = resists.physicalFactor(uuid, cap);
             double magicFactor = resists.magicFactor(uuid, cap);
-            physPart = Double.isFinite(physFactor) ? physBase * physFactor : physBase;
-            double magicScaled = Double.isFinite(magicFactor) ? magicBase * magicFactor : magicBase;
-            if (warlockIgnoreMagic) {
-                magicScaled = magicBase;
+            if (!schoolConfig.enabled()) {
+                // legacy-ветка: рубильник школ выключен
+                physPart = Double.isFinite(physFactor) ? physBase * physFactor : physBase;
+                double magicScaled = Double.isFinite(magicFactor) ? magicBase * magicFactor : magicBase;
+                if (warlockIgnoreMagic) {
+                    magicScaled = magicBase;
+                }
+                magicTruePart = magicScaled + truePart;
+            } else {
+                // 1.12.2 (Блок 4): pen атакующего + стихийный слой цели
+                double physResistPct = Double.isFinite(physFactor) ? (1.0 - physFactor) * 100.0 : 0.0;
+                double magicResistPct = Double.isFinite(magicFactor) ? (1.0 - magicFactor) * 100.0 : 0.0;
+                if (warlockIgnoreMagic) {
+                    magicResistPct = 0.0;
+                }
+                double effElPhys = 0.0;
+                double effElMagic = 0.0;
+                if (source instanceof Player srcP) {
+                    UUID sUuid = srcP.getUniqueId();
+                    Penetration penPhys = penTraits.channelPen(
+                            sUuid, true, plugin.getGearHook(), schoolConfig.penPctCap());
+                    Penetration penMagic = penTraits.channelPen(
+                            sUuid, false, plugin.getGearHook(), schoolConfig.penPctCap());
+                    physResistPct = penPhys.effectiveResist(physResistPct, schoolConfig.penPctCap());
+                    magicResistPct = penMagic.effectiveResist(magicResistPct, schoolConfig.penPctCap());
+                    double elPhys = elemental.resistOf(uuid, School.PHYSICAL);
+                    double elMagic = elemental.resistOf(uuid, School.ARCANE);
+                    double spPhys = penTraits.schoolPenFraction(
+                            sUuid, School.PHYSICAL, plugin.getGearHook(), schoolConfig.penPctCap());
+                    double spMagic = penTraits.schoolPenFraction(
+                            sUuid, School.ARCANE, plugin.getGearHook(), schoolConfig.penPctCap());
+                    effElPhys = CombatMath.effectiveResist(elPhys, 0.0, spPhys, schoolConfig.penPctCap());
+                    effElMagic = CombatMath.effectiveResist(elMagic, 0.0, spMagic, schoolConfig.penPctCap());
+                }
+                double mitPhys = SchoolMitigation.mitigationFor(physResistPct, Penetration.NONE,
+                        schoolConfig.penPctCap(), effElPhys,
+                        schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
+                double mitMagic = SchoolMitigation.mitigationFor(magicResistPct, Penetration.NONE,
+                        schoolConfig.penPctCap(), effElMagic,
+                        schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
+                physPart = physBase * (1.0 - mitPhys);
+                double magicScaled = magicBase * (1.0 - mitMagic);
+                magicTruePart = magicScaled + truePart;
             }
-            magicTruePart = magicScaled + truePart;
         } else {
             physPart = physBase;
             magicTruePart = magicBase + truePart;
