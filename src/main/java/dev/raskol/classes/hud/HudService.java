@@ -3,6 +3,9 @@ package dev.raskol.classes.hud;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.dot.DotInstance;
+import dev.raskol.classes.combat.dot.DotService;
+import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.resource.ResourceState;
 import net.kyori.adventure.text.Component;
@@ -17,16 +20,21 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 /**
  * ActionBar-HUD в тёмной стилизации:
- * ❬ Энергия ☠ ▰▰▰▰▱▱▱▱▱▱ 30/100 ❭
+ * ❬ Энергия ☠ ▰▰▰▰▱▱▱▱▱▱ 30/100 ❭ 🔥×2·3с 🩸·1с
  *
  * 1.5.6: список активных кулдаунов убран из actionbar — теперь он живёт
  * полоской перезарядки на свитках в хотбаре (ScrollCooldownTask).
  * Строка стала фиксированной длины: не прыгает и не съезжает при кастах.
+ *
+ * 1.12.6: DoT-строка после ресурсного бара — активные школьные DoT'ы на
+ * носителе (сам игрок). Формат: иконка школы ×стеки ·секунды; разделитель
+ * из messages.hud.dot-separator; иконки из messages.hud.dot-icons.
  *
  * O1: dirty-rendering — sendActionBar не шлётся, пока кадр не изменился.
  * O4/O9: статика и сегменты бара кэшируются.
@@ -41,19 +49,20 @@ public final class HudService {
     private static final Component FRAME_OPEN = Component.text("❬ ", FRAME_COLOR);
     private static final Component FRAME_CLOSE = Component.text(" ❭", FRAME_COLOR);
     private static final Component EMPTY_CELL = Component.text('▱').color(NamedTextColor.DARK_GRAY);
+    private static final TextColor DOT_COLOR = TextColor.fromHexString("#D6CDBE");
+    private static final Component NO_DOTS = Component.empty();
 
     private final RaskolClasses plugin;
     private final Map<UUID, Boolean> overrides = new HashMap<>();
 
-    /** O1: последний ключ кадра на игрока. */
     private final Map<UUID, String> lastFrameKey = new HashMap<>();
-    /** Искра регена: позиция ▸ (0..9), null — нет. */
     private final Map<UUID, Integer> sparkPosition = new HashMap<>();
     private final Map<UUID, Integer> lastResourceInt = new HashMap<>();
 
-    /** O4/O9: кэши статики и сегментов бара. */
     private final Map<PlayerClass, Component> headCache = new EnumMap<>(PlayerClass.class);
     private final Map<PlayerClass, Component[]> cellCache = new EnumMap<>(PlayerClass.class);
+    /** 1.12.6: иконки школ кэшируются статически — читаются из messages.hud.dot-icons. */
+    private final Map<School, String> dotIconCache = new EnumMap<>(School.class);
 
     private boolean enabledInConfig = true;
     private long frame = 0;
@@ -63,14 +72,13 @@ public final class HudService {
         applyConfig();
     }
 
-    /** Перечитать hud.* и сбросить кэши тем (старт и /rc reload). */
     public final void applyConfig() {
         this.enabledInConfig = plugin.getRaskolConfig().isHudEnabled();
         headCache.clear();
         cellCache.clear();
+        dotIconCache.clear();
     }
 
-    /** Таск с периодом hud.update-period-ticks (O5). Ссылку отменяет onDisable. */
     public BukkitTask start() {
         long period = Math.max(1L, plugin.getRaskolConfig().hudUpdatePeriodTicks());
         return new BukkitRunnable() {
@@ -84,7 +92,6 @@ public final class HudService {
         }.runTaskTimer(plugin, period, period);
     }
 
-    /** API: инверсия персональной настройки (сохранено для /rc debug и будущего UI). */
     public boolean toggle(Player player) {
         boolean visible = isVisible(player);
         overrides.put(player.getUniqueId(), !visible);
@@ -100,13 +107,10 @@ public final class HudService {
         if (!isVisible(player)) {
             return;
         }
-        // O8: зрители и скрытые игроки actionbar не получают
         if (plugin.getRaskolConfig().hudSkipSpectator()
                 && player.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
-        // O8: vanish EssentialsX ("vanished") и CMI ("disappeared") — через
-        // метадату, потому что Player#isVanished в Bukkit API отсутствует
         if (player.hasMetadata("vanished") || player.hasMetadata("disappeared")) {
             return;
         }
@@ -120,7 +124,6 @@ public final class HudService {
         int valueInt = (int) value;
         int filled = (int) Math.round(value / ResourceState.MAX_VALUE * BAR_CELLS);
 
-        // Искра (§4.3): ресурс вырос с прошлого тика — запускаем ▸ по бару
         Integer previous = lastResourceInt.put(id, valueInt);
         if (previous != null && valueInt > previous) {
             sparkPosition.put(id, 0);
@@ -135,30 +138,32 @@ public final class HudService {
             }
         }
 
-        // 1.5.6: кулдауны больше не печатаются в actionbar — их показывает
-        // ScrollCooldownTask на свитках в хотбаре. Ключ кадра теперь зависит
-        // только от ресурса и искры — строка фиксированной длины.
+        // 1.12.6: DoT-строка на игроке-носителе
+        Component dotsComponent = renderDots(id);
+
+        // 1.12.6: хэш DoT-строки входит в ключ кадра — O1 dirty-rendering
+        // корректно реагирует на появление/снятие/тик DoT'ов
         boolean animating = spark != null;
-        StringBuilder keyBuilder = new StringBuilder(32)
+        StringBuilder keyBuilder = new StringBuilder(48)
                 .append(pc.name()).append('|').append(filled)
                 .append('|').append(valueInt);
         if (spark != null) {
             keyBuilder.append("|sp").append(spark);
         }
+        if (dotsComponent != NO_DOTS) {
+            keyBuilder.append("|d").append(dotSnapshotHash(id));
+        }
         if (animating) {
             keyBuilder.append("#f").append(frame);
         }
         String key = keyBuilder.toString();
-        // O1-фикс: статичный кадр всё равно повторяем каждые 2 тика-кадра (~1 с),
-        // иначе actionbar гаснет и HUD «исчезает» в простое.
         if (key.equals(lastFrameKey.get(id)) && frame % 2 != 0) {
             return;
         }
         lastFrameKey.put(id, key);
 
-        player.sendActionBar(render(pc, valueInt, filled, spark));
+        player.sendActionBar(render(pc, valueInt, filled, spark, dotsComponent));
 
-        // §4.5: аура полного ресурса — 1 партикл темы раз в 20 тиков (каждый 2-й кадр)
         if (plugin.getRaskolConfig().hudFullResourceAura()
                 && valueInt >= ResourceState.MAX_VALUE && frame % 2 == 0) {
             player.getWorld().spawnParticle(plugin.getRaskolConfig().themeOf(pc).particle(),
@@ -166,11 +171,8 @@ public final class HudService {
         }
     }
 
-    /**
-     * Фиксированный формат: ❬ Энергия ☠ ▰▰▰▰▱▱▱▱▱▱ 30/100 ❭
-     * Длина строки не меняется от количества/названий кулдаунов.
-     */
-    private Component render(PlayerClass pc, int valueInt, int filled, Integer spark) {
+    private Component render(PlayerClass pc, int valueInt, int filled,
+                             Integer spark, Component dotsComponent) {
         RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
         Component[] cells = cellsOf(pc, theme);
 
@@ -185,16 +187,18 @@ public final class HudService {
             }
         }
 
-        return Component.text()
+        ComponentBuilder<?, ?> out = Component.text()
                 .append(FRAME_OPEN)
                 .append(headOf(pc, theme))
                 .append(bar)
                 .append(Component.text(" " + valueInt + "/100", theme.primary()))
-                .append(FRAME_CLOSE)
-                .build();
+                .append(FRAME_CLOSE);
+        if (dotsComponent != NO_DOTS) {
+            out.append(Component.text(" ", DOT_COLOR)).append(dotsComponent);
+        }
+        return out.build();
     }
 
-    /** O4: «Энергия ☠ » — один раз на класс, сбрасывается при reload. */
     private Component headOf(PlayerClass pc, RaskolConfig.ClassTheme theme) {
         Component cached = headCache.get(pc);
         if (cached == null) {
@@ -205,7 +209,6 @@ public final class HudService {
         return cached;
     }
 
-    /** O9: 10 градиентных сегментов ▰ на класс, позиция → цвет (lerp темы). */
     private Component[] cellsOf(PlayerClass pc, RaskolConfig.ClassTheme theme) {
         Component[] cached = cellCache.get(pc);
         if (cached == null) {
@@ -218,5 +221,107 @@ public final class HudService {
             cellCache.put(pc, cached);
         }
         return cached;
+    }
+
+    /* ------------------------------ 1.12.6: DoT-строка ------------------------------ */
+
+    /**
+     * Иконка школы из messages.hud.dot-icons.<school>. Фолбэк:
+     * FIRE→🔥, FROST→❄, NATURE→🌿, PHYSICAL→🩸, SHADOW→☾, HOLY→✦, ARCANE→✧, TRUE→◈.
+     */
+    private String iconOf(School school) {
+        String cached = dotIconCache.get(school);
+        if (cached != null) {
+            return cached;
+        }
+        String path = "messages.hud.dot-icons." + school.id();
+        String fromCfg = plugin.getConfig().getString(path, null);
+        String icon = (fromCfg != null && !fromCfg.isEmpty()) ? fromCfg : defaultIcon(school);
+        dotIconCache.put(school, icon);
+        return icon;
+    }
+
+    private static String defaultIcon(School school) {
+        return switch (school) {
+            case FIRE -> "🔥";
+            case FROST -> "❄";
+            case NATURE -> "🌿";
+            case PHYSICAL -> "🩸";
+            case SHADOW -> "☾";
+            case HOLY -> "✦";
+            case ARCANE -> "✧";
+            case TRUE -> "◈";
+        };
+    }
+
+    /**
+     * Одна клетка DoT-строки: "🔥×2·3с". Формат из messages.hud.dot-format.
+     * {icon} — иконка школы; {stacks} — "×N" при стеках >1, пусто при 1; {sec} — ceil.
+     */
+    private Component dotCell(DotInstance inst, long now) {
+        School school = inst.def().school();
+        String icon = iconOf(school);
+        long sec = DotService.remainingSeconds(inst, now);
+        if (sec <= 0L) {
+            sec = 1L;
+        }
+        String stacksTpl = plugin.getConfig().getString(
+                "messages.hud.dot-stacks-x", "×{n}");
+        String stacksEmpty = plugin.getConfig().getString(
+                "messages.hud.dot-stacks-empty", "");
+        String stacksPart = inst.stacks() > 1
+                ? stacksTpl.replace("{n}", String.valueOf(inst.stacks()))
+                : stacksEmpty;
+        String tpl = plugin.getConfig().getString(
+                "messages.hud.dot-format", "{icon}{stacks}·{sec}с");
+        String text = tpl
+                .replace("{icon}", icon)
+                .replace("{stacks}", stacksPart)
+                .replace("{sec}", String.valueOf(sec));
+        return Component.text(text, DOT_COLOR);
+    }
+
+    /**
+     * DoT-строка для игрока-носителя: все активные Dot'ы, отсортированные
+     * по id (стабильный порядок), склеенные через messages.hud.dot-separator.
+     */
+    private Component renderDots(UUID targetUuid) {
+        List<DotInstance> dots = plugin.getCombat().dots().activeDotsOf(targetUuid);
+        if (dots.isEmpty()) {
+            return NO_DOTS;
+        }
+        dots.sort((a, b) -> a.def().id().compareTo(b.def().id()));
+        String sep = plugin.getConfig().getString("messages.hud.dot-separator", " ");
+        long now = System.currentTimeMillis();
+        ComponentBuilder<?, ?> out = Component.text();
+        boolean first = true;
+        for (DotInstance inst : dots) {
+            if (!first) {
+                out.append(Component.text(sep, DOT_COLOR));
+            }
+            out.append(dotCell(inst, now));
+            first = false;
+        }
+        return out.build();
+    }
+
+    /**
+     * Короткий хэш DoT-состояния для ключа кадра (O1 dirty-rendering).
+     * Состав: id|stacks|remainingSec для каждого Dot, склеенные ';'.
+     */
+    private String dotSnapshotHash(UUID targetUuid) {
+        List<DotInstance> dots = plugin.getCombat().dots().activeDotsOf(targetUuid);
+        if (dots.isEmpty()) {
+            return "";
+        }
+        long now = System.currentTimeMillis();
+        StringBuilder sb = new StringBuilder(dots.size() * 12);
+        for (DotInstance inst : dots) {
+            sb.append(inst.def().id())
+                    .append(':').append(inst.stacks())
+                    .append(':').append(DotService.remainingSeconds(inst, now))
+                    .append(';');
+        }
+        return sb.toString();
     }
 }
