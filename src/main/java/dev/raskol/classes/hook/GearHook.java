@@ -2,6 +2,7 @@
 package dev.raskol.classes.hook;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.school.School;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -20,6 +21,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,14 +44,30 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - +HP шмота применяет RaskolClasses через AttributeService.maxHp (gearHp);
  *  - исходящий офенс WP/SP пропускается CombatService для оружия с тегом WEAPON.
  *
- * 1.11.2 (T3): refresh() инвалидирует кэш резист-факторов в ResistService,
- *         чтобы breakdown в /rc debug и Книге класса обновлялся в тот же тик
- *         после смены сетов RaskolGear в бою.
+ * 1.11.2 (T3): refresh() инвалидирует кэш резист-факторов ResistService.
+ * 1.12.2 (Блок 2): PROBITE — PDC-ключи raskolgear:pen_phys_pct / pen_magic_pct /
+ *  pen_<school>_pct (проценты); агрегируются по броне И оружию, клампятся
+ *  в schools.pen-pct-cap через clampPenFraction (pure, selftest-чек 57).
+ *  Без ключей на предметах pen = 0 (поведение 1.12.1).
  */
 public final class GearHook implements Listener {
 
-    public record GearStats(double phys, double magic, double hp, double reflect, boolean any) {
-        public static final GearStats EMPTY = new GearStats(0, 0, 0, 0, false);
+    /** Школы со стихийными pen-ключами (pen_<id>_pct). */
+    private static final School[] PEN_SCHOOLS = {
+            School.FIRE, School.FROST, School.NATURE,
+            School.SHADOW, School.HOLY, School.ARCANE
+    };
+
+    public record GearStats(double phys, double magic, double hp, double reflect,
+                            double penPhys, double penMagic,
+                            Map<School, Double> penSchools, boolean any) {
+        public static final GearStats EMPTY =
+                new GearStats(0, 0, 0, 0, 0, 0, Map.of(), false);
+
+        /** Стихийное пробитие школы (доля, 0..cap). */
+        public double penSchool(School school) {
+            return penSchools.getOrDefault(school, 0.0);
+        }
     }
 
     public record EquippedItem(ItemStack item, String className, String rarity, String slot) {
@@ -66,6 +84,9 @@ public final class GearHook implements Listener {
     private final NamespacedKey kHp;
     private final NamespacedKey kReflect;
     private final NamespacedKey kSlot;
+    private final NamespacedKey kPenPhys;
+    private final NamespacedKey kPenMagic;
+    private final Map<School, NamespacedKey> kPenSchool = new EnumMap<>(School.class);
 
     private final Map<UUID, GearStats> cache = new ConcurrentHashMap<>();
 
@@ -80,6 +101,11 @@ public final class GearHook implements Listener {
         kHp = new NamespacedKey("raskolgear", "hp_bonus");
         kReflect = new NamespacedKey("raskolgear", "reflect");
         kSlot = new NamespacedKey("raskolgear", "armor_slot");
+        kPenPhys = new NamespacedKey("raskolgear", "pen_phys_pct");
+        kPenMagic = new NamespacedKey("raskolgear", "pen_magic_pct");
+        for (School s : PEN_SCHOOLS) {
+            kPenSchool.put(s, new NamespacedKey("raskolgear", "pen_" + s.id() + "_pct"));
+        }
     }
 
     /** Плагин RaskolGear присутствует (загружен), независимо от enabled. */
@@ -104,6 +130,26 @@ public final class GearHook implements Listener {
         }
     }
 
+    /* ------------------------------ pen-кламп (pure) ------------------------------ */
+
+    /**
+     * Сумма процентов пробития с предметов → доля с клампом в capFraction
+     * (schools.pen-pct-cap, дефолт 0.40). Отрицательное/NaN → 0.
+     * Pure-статика: selftest-чек 57.
+     */
+    public static double clampPenFraction(double percentSum, double capFraction) {
+        if (!Double.isFinite(percentSum) || percentSum <= 0.0) {
+            return 0.0;
+        }
+        double cap = Double.isFinite(capFraction) && capFraction > 0.0 ? capFraction : 0.40;
+        return Math.min(percentSum / 100.0, cap);
+    }
+
+    private double penCap() {
+        double v = plugin.getConfig().getDouble("schools.pen-pct-cap", 0.40);
+        return Double.isFinite(v) && v > 0.0 ? v : 0.40;
+    }
+
     /* -------------------------------- кэш -------------------------------- */
 
     public GearStats stats(UUID uuid) {
@@ -126,6 +172,11 @@ public final class GearHook implements Listener {
     public double reflect(UUID uuid) { return stats(uuid).reflect(); }
     public boolean hasGear(UUID uuid) { return stats(uuid).any(); }
 
+    /** 1.12.2 (Блок 2): пробитие каналов и школ из шмота. */
+    public double penPhys(UUID uuid) { return stats(uuid).penPhys(); }
+    public double penMagic(UUID uuid) { return stats(uuid).penMagic(); }
+    public double penSchool(UUID uuid, School school) { return stats(uuid).penSchool(school); }
+
     public void refresh(Player player) {
         if (!isAvailable()) {
             return;
@@ -136,10 +187,7 @@ public final class GearHook implements Listener {
         if (prev == null || prev.hp() != next.hp()) {
             plugin.getAttributes().invalidate(uuid);
         }
-        // 1.11.2 (T3): смена сетов в бою должна инвалидировать кэш резист-факторов
-        // в ResistService — иначе breakdown отстаёт на 1 тик. Резисты шмота
-        // в бою применяет сам RaskolGear (слой ниже нас); здесь мы только
-        // синхронизируем отображение в /rc debug и Книге класса.
+        // 1.11.2 (T3): смена сетов в бою инвалидирует кэш резист-факторов
         plugin.getResists().invalidate(uuid);
     }
 
@@ -156,6 +204,9 @@ public final class GearHook implements Listener {
         double magic = 0.0;
         double hp = 0.0;
         boolean any = false;
+        double penPhysPct = 0.0;
+        double penMagicPct = 0.0;
+        Map<School, Double> penSchoolPct = new EnumMap<>(School.class);
         Map<String, Integer> setCount = new HashMap<>();
 
         for (ItemStack armor : player.getInventory().getArmorContents()) {
@@ -167,10 +218,33 @@ public final class GearHook implements Listener {
             phys += pdc.getOrDefault(kPhys, PersistentDataType.DOUBLE, 0.0);
             magic += pdc.getOrDefault(kMagic, PersistentDataType.DOUBLE, 0.0);
             hp += pdc.getOrDefault(kHp, PersistentDataType.DOUBLE, 0.0);
+            penPhysPct += pdc.getOrDefault(kPenPhys, PersistentDataType.DOUBLE, 0.0);
+            penMagicPct += pdc.getOrDefault(kPenMagic, PersistentDataType.DOUBLE, 0.0);
+            for (School s : PEN_SCHOOLS) {
+                double v = pdc.getOrDefault(kPenSchool.get(s), PersistentDataType.DOUBLE, 0.0);
+                if (v != 0.0) {
+                    penSchoolPct.merge(s, v, Double::sum);
+                }
+            }
             String cls = pdc.get(kClass, PersistentDataType.STRING);
             String rar = pdc.get(kRarity, PersistentDataType.STRING);
             if (cls != null && rar != null) {
                 setCount.merge(cls + ":" + rar, 1, Integer::sum);
+            }
+        }
+
+        // 1.12.2: пробитие читается и с оружия (основная рука)
+        ItemStack weapon = player.getInventory().getItemInMainHand();
+        PersistentDataContainer wpdc = weaponPdc(weapon);
+        if (wpdc != null) {
+            any = true;
+            penPhysPct += wpdc.getOrDefault(kPenPhys, PersistentDataType.DOUBLE, 0.0);
+            penMagicPct += wpdc.getOrDefault(kPenMagic, PersistentDataType.DOUBLE, 0.0);
+            for (School s : PEN_SCHOOLS) {
+                double v = wpdc.getOrDefault(kPenSchool.get(s), PersistentDataType.DOUBLE, 0.0);
+                if (v != 0.0) {
+                    penSchoolPct.merge(s, v, Double::sum);
+                }
             }
         }
 
@@ -191,7 +265,19 @@ public final class GearHook implements Listener {
                         cfg.getDouble("armor." + parts[0] + "." + parts[1] + ".reflect", 0.0));
             }
         }
-        return new GearStats(phys, magic, hp, reflect, any);
+
+        double cap = penCap();
+        Map<School, Double> penSchoolsClamped = new EnumMap<>(School.class);
+        for (Map.Entry<School, Double> e : penSchoolPct.entrySet()) {
+            double clamped = clampPenFraction(e.getValue(), cap);
+            if (clamped > 0.0) {
+                penSchoolsClamped.put(e.getKey(), clamped);
+            }
+        }
+        return new GearStats(phys, magic, hp, reflect,
+                clampPenFraction(penPhysPct, cap),
+                clampPenFraction(penMagicPct, cap),
+                Map.copyOf(penSchoolsClamped), any);
     }
 
     private PersistentDataContainer armorPdc(ItemStack item) {
@@ -204,6 +290,22 @@ public final class GearHook implements Listener {
         }
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         if (!"ARMOR".equals(pdc.get(kType, PersistentDataType.STRING))) {
+            return null;
+        }
+        return pdc;
+    }
+
+    /** PDC оружия: только предметы с тегом WEAPON несут pen-трейты. */
+    private PersistentDataContainer weaponPdc(ItemStack item) {
+        if (item == null) {
+            return null;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return null;
+        }
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        if (!"WEAPON".equals(pdc.get(kType, PersistentDataType.STRING))) {
             return null;
         }
         return pdc;
