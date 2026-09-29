@@ -5,6 +5,8 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.school.ElementalResistService;
+import dev.raskol.classes.combat.school.SchoolConfig;
 import dev.raskol.classes.config.RaskolConfig;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -30,8 +32,8 @@ import java.util.UUID;
  *   статик-маркеры (SUPPRESS / ABILITY_SOURCE / REFLECT_SUPPRESS), cappedDamage.
  * Путь A вынесен в VanillaDamageListener (регистрируется здесь же, в конструкторе);
  * капы и burst-окно — в DamageCaps; pure-математика — в CombatMath.
- * Здесь остаются: путь B (dealDamage), анти-хил (onRegainHealth), откат чернокнижника,
- * игнор маг-резиста ≤25% HP, debug-лог.
+ * 1.12.2 (Блок 1): создан и 노출 ElementalResistService (стихийный слой резистов);
+ *         живая проводка слоя — в Блоке 4.
  */
 public final class CombatService implements Listener {
 
@@ -46,6 +48,7 @@ public final class CombatService implements Listener {
     private final PowerService powers;
     private final DamageCaps caps;
     private final VanillaDamageListener vanillaListener;
+    private final ElementalResistService elemental;
 
     public CombatService(RaskolClasses plugin, ResistService resists) {
         this.plugin = plugin;
@@ -56,6 +59,7 @@ public final class CombatService implements Listener {
         this.vanillaListener = new VanillaDamageListener(
                 plugin, this, resists, avoidance, powers, caps);
         plugin.getServer().getPluginManager().registerEvents(vanillaListener, plugin);
+        this.elemental = new ElementalResistService(plugin, new SchoolConfig(plugin));
     }
 
     /* ------------------------------ статик-маркеры ------------------------------ */
@@ -110,6 +114,11 @@ public final class CombatService implements Listener {
 
     public VanillaDamageListener vanillaListener() {
         return vanillaListener;
+    }
+
+    /** 1.12.2 (Блок 1): стихийный слой резистов школ. */
+    public ElementalResistService elemental() {
+        return elemental;
     }
 
     /** Делегат для BalanceSimulator/selftest (внешний API не меняем). */
