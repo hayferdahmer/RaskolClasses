@@ -12,6 +12,8 @@
 #          рефакторинг P1–P5, эксплойт-фиксы S1–S5/F1–F10, selftest 48.
 #  1.12.0: каркас школ урона (секция schools.*; множители 1.0 — поведение
 #          не меняется; механика митигации/пробития/DoT в 1.12.1+).
+#  1.12.1: митигация/пробитие/иммунитеты школ; фикс ключа FREEZING → FREEZE
+#          (реальное имя DamageCause в Bukkit).
 # ============================================================
 
 hud:
@@ -283,6 +285,7 @@ attributes:
 
 # ------------------------------------------------------------
 # Типы урона ванильных причин (среда = TRUE)
+# 1.12.1-fix: FREEZE (имя DamageCause в Bukkit), не FREEZING
 # ------------------------------------------------------------
 damage-types:
   env-lethal-scale: true
@@ -306,7 +309,7 @@ damage-types:
     WITHER: magic
     MAGIC: magic
     DRAGON_BREATH: magic
-    FREEZING: magic
+    FREEZE: magic
     LIGHTNING: magic
 
 # ------------------------------------------------------------
@@ -317,6 +320,7 @@ damage-types:
 # SchoolProfile в каналы); vanilla-school — маппинг ванильных причин,
 # фолбэк — канал из damage-types.vanilla-map.
 # mitigation-cap / pen-pct-cap / elemental.* — резерв 1.12.1–1.12.2.
+# 1.12.1: schools.entities — иммунитеты/уязвимости сущностей.
 # ------------------------------------------------------------
 schools:
   enabled: true
@@ -342,9 +346,23 @@ schools:
     DRAGON_BREATH: FIRE
     POISON: NATURE
     WITHER: SHADOW
-    FREEZING: FROST
+    FREEZE: FROST
     LIGHTNING: ARCANE
     MAGIC: ARCANE
+  entities:
+    BLAZE:
+      immune: [FIRE]
+      vulnerable: [FROST]
+    MAGMA_CUBE:
+      immune: [FIRE]
+    SNOW_GOLEM:
+      immune: [FROST]
+      vulnerable: [FIRE]
+    WITHER_SKELETON:
+      resistant: [SHADOW]
+      vulnerable: [HOLY]
+    ENDER_DRAGON:
+      resistant: [ARCANE]
 
 # ------------------------------------------------------------
 # Игровые тексты
