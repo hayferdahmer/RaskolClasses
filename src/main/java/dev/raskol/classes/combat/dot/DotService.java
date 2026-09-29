@@ -10,10 +10,20 @@ import dev.raskol.classes.combat.school.Penetration;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.combat.school.SchoolConfig;
 import dev.raskol.classes.combat.school.SchoolMitigation;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.persistence.PersistentDataType;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,38 +31,111 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 1.12.4: DoT-ядро. Реестр живых Dot'ов по целям + тик-задача 1 с.
+ * 1.12.5: + централизованный реестр определений dots.* (defById/applyById);
+ *         + снарядные Dot'ы: PDC-тег rc_dot на снаряде → применение по попаданию;
+ *         + средовые триггеры: вода/пушистый снег гасят FIRE, огонь/лава плавят FROST;
+ *         + тик-VFX по школам (vfx.dot.<school>.particle).
  *
- * Пайплайн тика по каждому экземпляру:
- *  1) цель жива, владелец онлайн, canHit(owner→target) — иначе снятие;
- *  2) иммунитет школы: multiplierFor == 0 → снятие молча (триггеры не работают);
- *  3) dps = def.dps × stacks × schoolMult × immunityMult × (1 + sealAmp(target));
- *  4) митигация по школе цели: канал-резист (pen владельца режет) ⊕ стихийный
- *     резист (school-pen владельца режет), кап schools.mitigation-cap;
- *  5) суммарный кап: Σ dps по цели ≤ combat.dot-dps-cap-pct% от formula-max
- *     (DotMath.capFactor масштабирует все Dot'ы пропорционально);
- *  6) применение: target.damage(dps × periodSec × factor × scale, owner) внутри
- *     setSuppress(true) + beginReflect()/endReflect() — путь A не применяет
- *     резисты/капы повторно, рефлект Чёрной Мессы на Dot-тики не срабатывает;
- *     burst-окно и single-hit кап DoT'ами не тратятся.
- *
- * Атрибуция: kill-кредит и статистика идут владельцу (damage с source=owner).
- * Стеки: повторное наложение тем же владельцем = +1 стек + refresh длительности.
+ * Пайплайн тика: валидация (цель/владелец/canHit) → иммунитет школы → триггер среды →
+ * dps = def.dps × stacks × schoolMult × immunity × (1+seal) → митигация по школе
+ * (pen владельца режет канал и стихию) → суммарный кап dot-dps-cap-pct →
+ * применение damage(amount, owner) внутри setSuppress+beginReflect (путь A не
+ * дублирует резисты, рефлект Мессы молчит, burst/single-hit капы не тратятся).
  */
-public final class DotService {
+public final class DotService implements Listener {
 
     private static final long TICK_MILLIS = 1000L;
 
     private final RaskolClasses plugin;
     private final CombatService combat;
+    private final NamespacedKey dotKey;
     private final Map<UUID, CopyOnWriteArrayList<DotInstance>> dots = new ConcurrentHashMap<>();
 
     public DotService(RaskolClasses plugin, CombatService combat) {
         this.plugin = plugin;
         this.combat = combat;
+        this.dotKey = new NamespacedKey(plugin, "rc_dot");
+        plugin.getServer().getPluginManager().registerEvents(this, plugin);
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
 
+    /* ------------------------------ реестр определений ------------------------------ */
+
+    /** Дефолтная школа Dot'а по id (фолбэк, если конфиг молчит). */
+    private static School defaultSchool(String id) {
+        return switch (id) {
+            case "burning" -> School.FIRE;
+            case "poison" -> School.NATURE;
+            case "bleed" -> School.PHYSICAL;
+            case "chilled" -> School.FROST;
+            default -> School.ARCANE;
+        };
+    }
+
+    private static double defaultDps(String id) {
+        return switch (id) {
+            case "burning" -> 4.0;
+            case "poison" -> 3.0;
+            case "bleed" -> 2.5;
+            case "chilled" -> 2.0;
+            default -> 1.0;
+        };
+    }
+
+    private static int defaultDurationSeconds(String id) {
+        return switch (id) {
+            case "burning" -> 3;
+            case "poison" -> 5;
+            case "bleed" -> 4;
+            case "chilled" -> 4;
+            default -> 3;
+        };
+    }
+
+    private static int defaultStacks(String id) {
+        return switch (id) {
+            case "burning", "poison" -> 3;
+            case "bleed", "chilled" -> 2;
+            default -> 1;
+        };
+    }
+
+    /** Определение Dot'а из конфига dots.<id>.* с кодовыми дефолтами. */
+    public DotDef defById(String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
+        String base = "dots." + id + ".";
+        School school = School.fromId(plugin.getConfig().getString(base + "school", ""));
+        if (school == null) {
+            school = defaultSchool(id);
+        }
+        double dps = plugin.getConfig().getDouble(base + "dps", defaultDps(id));
+        if (!Double.isFinite(dps) || dps <= 0.0) {
+            dps = defaultDps(id);
+        }
+        int dur = plugin.getConfig().getInt(base + "duration", defaultDurationSeconds(id));
+        if (dur <= 0) {
+            dur = defaultDurationSeconds(id);
+        }
+        int stacks = plugin.getConfig().getInt(base + "max-stacks", defaultStacks(id));
+        if (stacks <= 0) {
+            stacks = defaultStacks(id);
+        }
+        return DotDef.of(id, school, dps, dur * 1000L, stacks, id);
+    }
+
     /* ------------------------------ публичный API ------------------------------ */
+
+    /** Наложить именованный Dot (реестр dots.*); стекирование по id+owner. */
+    public boolean applyById(Player owner, LivingEntity target, String dotId) {
+        DotDef def = defById(dotId);
+        if (def == null) {
+            return false;
+        }
+        apply(owner, target, def);
+        return true;
+    }
 
     /** Наложить Dot на цель (стекирование по def.id + owner). */
     public void apply(Player owner, LivingEntity target, DotDef def) {
@@ -81,7 +164,7 @@ public final class DotService {
         dots.remove(targetUuid);
     }
 
-    /** Снять Dot'ы конкретной школы с цели (стихийный диспел 1.12.5). */
+    /** Снять Dot'ы конкретной школы с цели (очищение жреца, стихийный диспел). */
     public void removeSchoolOn(UUID targetUuid, School school) {
         CopyOnWriteArrayList<DotInstance> list = dots.get(targetUuid);
         if (list == null) {
@@ -102,6 +185,58 @@ public final class DotService {
         return dots.size();
     }
 
+    /* ------------------------------ средовые триггеры ------------------------------ */
+
+    /**
+     * Pure: среда гасит Dot. FIRE: вода/пузырьковая колонна/пушистый снег;
+     * FROST: огонь/огонь душ/лава. Selftest-чек 69.
+     */
+    public static boolean shouldExtinguish(School school, Material block) {
+        if (school == null || block == null) {
+            return false;
+        }
+        if (school == School.FIRE) {
+            return block == Material.WATER || block == Material.BUBBLE_COLUMN
+                    || block == Material.POWDER_SNOW;
+        }
+        if (school == School.FROST) {
+            return block == Material.FIRE || block == Material.SOUL_FIRE
+                    || block == Material.LAVA;
+        }
+        return false;
+    }
+
+    /* ------------------------------ снарядные Dot'ы ------------------------------ */
+
+    /** 1.12.5: снаряд с PDC-тегом rc_dot накладывает Dot по попаданию. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onProjectileHit(ProjectileHitEvent event) {
+        Entity entity = event.getEntity();
+        if (!(entity instanceof Projectile proj)) {
+            return;
+        }
+        if (!proj.getPersistentDataContainer().has(dotKey, PersistentDataType.STRING)) {
+            return;
+        }
+        String dotId = proj.getPersistentDataContainer().get(dotKey, PersistentDataType.STRING);
+        if (dotId == null || dotId.isEmpty()) {
+            return;
+        }
+        if (!(proj.getShooter() instanceof Player owner)) {
+            return;
+        }
+        LivingEntity hit = event.getHitEntity();
+        if (hit == null) {
+            return;
+        }
+        applyById(owner, hit, dotId);
+    }
+
+    /** Публичный ключ тега — киты помечают снаряды через него. */
+    public NamespacedKey dotTagKey() {
+        return dotKey;
+    }
+
     /* ------------------------------ тик ------------------------------ */
 
     private void tick() {
@@ -116,7 +251,6 @@ public final class DotService {
                 continue;
             }
 
-            // фаза 1–4: валидация и предварительный dps по каждому экземпляру
             int n = list.size();
             double[] pending = new double[n];
             double sum = 0.0;
@@ -124,6 +258,14 @@ public final class DotService {
             for (DotInstance inst : list) {
                 if (inst.expired(now)) {
                     list.remove(inst);
+                    pending[idx++] = 0.0;
+                    continue;
+                }
+                // 1.12.5: средовый триггер гасит Dot молча
+                if (shouldExtinguish(inst.def().school(),
+                        target.getLocation().getBlock().getType())) {
+                    list.remove(inst);
+                    puff(target, inst.def().school());
                     pending[idx++] = 0.0;
                     continue;
                 }
@@ -154,13 +296,11 @@ public final class DotService {
                 continue;
             }
 
-            // фаза 5: суммарный кап DoT-DPS по цели
             double maxHp = combat.caps().formulaMaxOf(target);
             double capPct = plugin.getConfig().getDouble("combat.dot-dps-cap-pct", 6.0);
             double limit = DotMath.dpsLimit(maxHp, capPct);
             double factor = DotMath.capFactor(pending, limit);
 
-            // фаза 6: применение
             double scale = combat.scaleOf(target);
             idx = 0;
             for (DotInstance inst : list) {
@@ -184,10 +324,49 @@ public final class DotService {
                     CombatService.endReflect();
                     CombatService.setSuppress(false);
                 }
+                tickVfx(target, inst.def().school());
             }
             if (list.isEmpty()) {
                 dots.remove(targetUuid);
             }
+        }
+    }
+
+    /** Тик-VFX школы (2 партикла, без звука — бережём sound-budget). */
+    private void tickVfx(LivingEntity target, School school) {
+        Particle p = resolveParticle(plugin.getConfig().getString(
+                "vfx.dot." + school.id() + ".particle", null), defaultDotParticle(school));
+        if (p != null) {
+            target.getWorld().spawnParticle(p, target.getLocation().add(0.0, 1.0, 0.0),
+                    2, 0.2, 0.3, 0.2, 0.01);
+        }
+    }
+
+    /** Пuff при гашении триггером среды. */
+    private void puff(LivingEntity target, School school) {
+        Particle p = school == School.FIRE ? Particle.SMOKE : Particle.EVAPORATE;
+        target.getWorld().spawnParticle(p, target.getLocation().add(0.0, 1.0, 0.0),
+                6, 0.3, 0.4, 0.3, 0.01);
+    }
+
+    private Particle defaultDotParticle(School school) {
+        return switch (school) {
+            case FIRE -> Particle.FLAME;
+            case FROST -> Particle.SNOWFLAKE;
+            case NATURE -> Particle.COMPOSTER;
+            case PHYSICAL -> Particle.DAMAGE_INDICATOR;
+            default -> null;
+        };
+    }
+
+    private Particle resolveParticle(String name, Particle fallback) {
+        if (name == null || name.isEmpty()) {
+            return fallback;
+        }
+        try {
+            return Particle.valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return fallback;
         }
     }
 
