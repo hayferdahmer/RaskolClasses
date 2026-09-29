@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.12.6 — «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.12.7 — «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -23,6 +23,8 @@
 #  1.12.6: UX/VFX школ — DoT-строка в HUD (🔥×2·3с 🩸·1с), разделение
 #          пассивка/абилка для DoT (poison_passive/bleed_passive/burning_passive),
 #          ключ dot: в пассивках для миграции на DotService.
+#  1.12.7: баланс-прогон матрицы 6×6 с DoT — калибровка dots.*.dps под
+#          TTK-якорь 20 с: burning 4→3.5, poison_passive 2.5→2.0, chilled 2→1.5.
 # ============================================================
 
 hud:
@@ -335,12 +337,13 @@ schools:
     ENDER_DRAGON:
       resistant: [ARCANE]
 
-# 1.12.4–1.12.6: DoT-реестр. Абилочные (5 с) и пассивочные (2 с) — отдельные записи,
-# чтобы пассивный proc-яд не стакался с ручным «Ядом Борджа».
+# 1.12.4–1.12.7: DoT-реестр. 1.12.7 — калибровка dps под TTK-якорь 20 с:
+# burning 4→3.5 (частый каст Прометея/Зевса), poison_passive 2.5→2.0 (частый proc 30%),
+# chilled 2→1.5 (AoE Борея). poison/bleed не менялись (редкие касты с большим КД).
 dots:
   burning:
     school: FIRE
-    dps: 4.0
+    dps: 3.5
     duration: 3
     max-stacks: 3
   poison:
@@ -355,7 +358,7 @@ dots:
     max-stacks: 2
   chilled:
     school: FROST
-    dps: 2.0
+    dps: 1.5
     duration: 4
     max-stacks: 2
   burning_passive:
@@ -365,7 +368,7 @@ dots:
     max-stacks: 1
   poison_passive:
     school: NATURE
-    dps: 2.5
+    dps: 2.0
     duration: 2
     max-stacks: 1
   bleed_passive:
@@ -385,7 +388,6 @@ messages:
   blink-unsafe: "Скачок невозможен: нет безопасной точки"
   blink-claim: "Скачок невозможен: чужие владения"
   cheap-shot-no-target: "Нет цели в радиусе действия"
-  # 1.12.6: DoT-строка в HUD — формат одной клетки и разделитель между клетками
   hud:
     dot-format: "{icon}{stacks}·{sec}с"
     dot-separator: " "
@@ -889,7 +891,6 @@ classes:
         description: "30% шанс — DoT poison_passive (NATURE, 2 с, без стака с Ядом Борджа)"
         chance: 0.30
         cooldown-seconds: 3
-        # 1.12.6: миграция PotionEffect POISON → DotService; ClassPassive читает этот ключ
         dot: poison_passive
       sadism:
         enabled: true
