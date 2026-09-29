@@ -5,6 +5,9 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.combat.school.SchoolConfig;
+import dev.raskol.classes.combat.school.SchoolImmunity;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
@@ -29,6 +32,9 @@ import java.util.UUID;
  *  - seal-амплификация «Печати Погибели» (универсально, до резистов);
  *  - резист-фактор канала, single-hit cap, burst-окно (через DamageCaps);
  *  - avoidance (dodge/parry) для PHYSICAL.
+ * 1.12.1: иммунитеты/уязвимости сущностей к школам + глобальный множитель школы
+ *         (schools.entities.* / schools.multiplier.*) применяются к ванильному урону;
+ *         immune → событие отменяется (урон 0).
  * Регистрируется фасадом CombatService в конструкторе — RaskolClasses не трогаем.
  */
 public final class VanillaDamageListener implements Listener {
@@ -39,6 +45,8 @@ public final class VanillaDamageListener implements Listener {
     private final AvoidanceService avoidance;
     private final PowerService powers;
     private final DamageCaps caps;
+    private final SchoolConfig schoolConfig;
+    private final SchoolImmunity immunity;
 
     public VanillaDamageListener(RaskolClasses plugin, CombatService combat,
                                  ResistService resists, AvoidanceService avoidance,
@@ -49,6 +57,8 @@ public final class VanillaDamageListener implements Listener {
         this.avoidance = avoidance;
         this.powers = powers;
         this.caps = caps;
+        this.schoolConfig = new SchoolConfig(plugin);
+        this.immunity = new SchoolImmunity(plugin);
     }
 
     private double cfgD(String path, double def) {
@@ -82,6 +92,21 @@ public final class VanillaDamageListener implements Listener {
                 event.setDamage(event.getDamage() * (1.0 + amp));
             }
         }
+
+        // 1.12.1: школы — иммунитеты/уязвимости сущности + глобальный множитель школы
+        if (!suppressed && event.getEntity() instanceof LivingEntity ent) {
+            School school = schoolConfig.schoolOf(event.getCause());
+            double mult = immunity.multiplierFor(ent.getType(), school)
+                    * schoolConfig.multiplier(school);
+            if (mult <= 0.0) {
+                event.setCancelled(true);
+                return;
+            }
+            if (mult != 1.0 && event.getDamage() > 0.0) {
+                event.setDamage(event.getDamage() * mult);
+            }
+        }
+
         if (!(event.getEntity() instanceof Player target)) {
             return;
         }
