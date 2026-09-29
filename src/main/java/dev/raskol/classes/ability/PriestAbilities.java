@@ -7,15 +7,24 @@ import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.passive.PassiveListener;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
  * 1.7.4: КИТ ЖРЕЦА. 1.9.3 (план B): maxOf() читает formulaMaxHp();
  * heal() через HpBarService.heal().
+ * 1.12.3 (Батч 4): школа HOLY из cast-контекста; VFX (cast/impact/execute/expire)
+ *         из vfx.<id>.* конфига с дефолтами; хил-VFX только на успешном хиле;
+ *         «Эгида Веры» получает ауру (startAura) как у магической «Эгиды Афины».
  */
 public final class PriestAbilities {
 
@@ -29,6 +38,11 @@ public final class PriestAbilities {
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
         return Double.isFinite(v) ? v : def;
+    }
+
+    private String cfgS(String path, String def) {
+        String v = plugin.getConfig().getString(path, def);
+        return v != null ? v : def;
     }
 
     private double base(AbilityDef def, double defv) {
@@ -96,6 +110,66 @@ public final class PriestAbilities {
         return attr != null ? attr.getValue() : 20.0;
     }
 
+    /* ------------------------------ VFX-хелперы ------------------------------ */
+
+    /** Каст-VFX: звук + партикл в точке кастера (голова). */
+    private void castFx(Player p, String id, String soundDef, String particleDef,
+                        float volume, float pitch, int count) {
+        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
+        Location loc = p.getLocation().add(0.0, 1.0, 0.0);
+        if (sound != null) {
+            plugin.getFx().playSound(loc, sound, volume, pitch);
+        }
+        Particle particle = resolveParticle(cfgS("vfx." + id + ".cast-particle", particleDef));
+        if (particle != null) {
+            p.getWorld().spawnParticle(particle, loc, count, 0.4, 0.6, 0.4, 0.02);
+        }
+    }
+
+    /** Impact/heal-VFX: звук + партикл в точки цели. */
+    private void impactFx(LivingEntity target, String id,
+                          String soundDef, String particleDef,
+                          float volume, float pitch, int count) {
+        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
+        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
+        if (sound != null) {
+            plugin.getFx().playSound(loc, sound, volume, pitch);
+        }
+        Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
+        if (particle != null) {
+            target.getWorld().spawnParticle(particle, loc, count, 0.3, 0.5, 0.3, 0.02);
+        }
+    }
+
+    /** Execute-VFX: Кара Небес по цели ниже порога HP. */
+    private void executeFx(LivingEntity target) {
+        Sound sound = plugin.getFx().resolveSound(
+                cfgS("vfx.wrath_heaven.execute-sound", "ENTITY_LIGHTNING_BOLT_IMPACT"));
+        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
+        if (sound != null) {
+            plugin.getFx().playSound(loc, sound, 0.9f, 0.7f);
+        }
+        Particle particle = resolveParticle(
+                cfgS("vfx.wrath_heaven.execute-particle", "FLASH"));
+        if (particle != null) {
+            target.getWorld().spawnParticle(particle, loc, 3, 0.2, 0.3, 0.2, 0.0);
+        }
+    }
+
+    /** Безопасный резолв Particle по имени: неизвестное имя → null (без падения). */
+    private Particle resolveParticle(String name) {
+        if (name == null || name.isEmpty()) {
+            return null;
+        }
+        try {
+            return Particle.valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    /* -------------------------------- способности -------------------------------- */
+
     /** 1.9.3 (план B): heal() через HpBarService.heal(). */
     private boolean applyHeal(Player caster, Player target, AbilityDef def,
                               double defBase, double defCoeff) {
@@ -130,7 +204,13 @@ public final class PriestAbilities {
                     "ally.no-heal", "Цель не союзник"), NamedTextColor.GRAY));
             return false;
         }
-        return applyHeal(caster, tp, def, 10.0, 0.35);
+        boolean ok = applyHeal(caster, tp, def, 10.0, 0.35);
+        if (!ok) {
+            return false;
+        }
+        castFx(caster, "saint_tear", "BLOCK_BELL_USE", "HEART", 0.5f, 1.1f, 10);
+        impactFx(tp, "saint_tear", "BLOCK_BELL_USE", "HEART", 0.4f, 1.2f, 8);
+        return true;
     }
 
     public boolean wordOfLife(Player caster, LivingEntity target, AbilityDef def) {
@@ -139,7 +219,13 @@ public final class PriestAbilities {
                     "ally.no-heal", "Цель не союзник"), NamedTextColor.GRAY));
             return false;
         }
-        return applyHeal(caster, tp, def, 20.0, 0.6);
+        boolean ok = applyHeal(caster, tp, def, 20.0, 0.6);
+        if (!ok) {
+            return false;
+        }
+        castFx(caster, "word_of_life", "BLOCK_AMETHYST_BLOCK_CHIME", "HEART", 0.6f, 1.0f, 14);
+        impactFx(tp, "word_of_life", "BLOCK_AMETHYST_BLOCK_CHIME", "HEART", 0.5f, 1.1f, 12);
+        return true;
     }
 
     public boolean aegisFaith(Player p, AbilityDef def) {
@@ -149,21 +235,37 @@ public final class PriestAbilities {
         double grant = b + plugin.getCombat().powers().healPower(uuid) * c;
         int secs = duration(def, 5);
         plugin.getResists().addTimedModifier(uuid, def.id(), grant, grant, secs * 1000L);
+        castFx(p, "aegis_faith", "ITEM_ARMOR_EQUIP_DIAMOND", "ENCHANTED_HIT", 0.6f, 1.0f, 20);
+        // 1.12.3: аура щита (паритет с Эгидой Афины) + expire-звук
+        plugin.getFx().startAura(uuid, Particle.ENCHANTED_HIT, secs * 20, 3,
+                cfgS("vfx.aegis_faith.expire-sound", "BLOCK_AMETHYST_BLOCK_CHIME"));
+        p.sendMessage(Component.text("Эгида Веры: +" + (int) grant
+                + "% физ/маг резиста на " + secs + " с", NamedTextColor.YELLOW));
         return true;
     }
 
     public boolean circleElysium(Player p, AbilityDef def) {
         double radius = cfgD("classes.PRIEST.abilities." + def.id() + ".radius", 6.0);
-        boolean healed = applyHeal(p, p, def, 15.0, 0.45);
+        List<Player> healed = new ArrayList<>();
+        if (applyHeal(p, p, def, 15.0, 0.45)) {
+            healed.add(p);
+        }
         for (Entity e : p.getNearbyEntities(radius, radius, radius)) {
             if (!(e instanceof Player t) || t.getUniqueId().equals(p.getUniqueId())) {
                 continue;
             }
             if (applyHeal(p, t, def, 15.0, 0.45)) {
-                healed = true;
+                healed.add(t);
             }
         }
-        return healed;
+        if (healed.isEmpty()) {
+            return false;
+        }
+        castFx(p, "circle_elysium", "BLOCK_BEACON_ACTIVATE", "HEART", 0.7f, 0.9f, 24);
+        for (Player t : healed) {
+            impactFx(t, "circle_elysium", "ENTITY_EXPERIENCE_ORB_PICKUP", "HEART", 0.4f, 1.2f, 8);
+        }
+        return true;
     }
 
     public boolean wrathHeaven(Player p, AbilityDef def) {
@@ -176,6 +278,7 @@ public final class PriestAbilities {
             allyTarget(p);
             return false;
         }
+        castFx(p, "wrath_heaven", "ENTITY_LIGHTNING_BOLT_THUNDER", "FLASH", 0.8f, 0.8f, 10);
         double threshold = cfgD("classes.PRIEST.abilities." + def.id() + ".threshold", 0.25);
         double max = maxOf(t);
         double frac = max > 0 ? t.getHealth() / max : 1.0;
@@ -183,10 +286,12 @@ public final class PriestAbilities {
         if (frac < threshold) {
             dmg *= cfgD("classes.PRIEST.abilities." + def.id() + ".execute-mult", 3.0);
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
+            executeFx(t);
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                     "tag.execute-priest", "Кара Небес ×3!"), NamedTextColor.RED));
         } else {
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
+            impactFx(t, "wrath_heaven", "ENTITY_FIREWORK_ROCKET_BLAST", "FLASH", 0.6f, 0.9f, 10);
         }
         return true;
     }
