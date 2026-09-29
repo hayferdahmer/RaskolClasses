@@ -4,6 +4,8 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.compat.AuthGate;
 import dev.raskol.classes.config.RaskolConfig;
 import net.kyori.adventure.text.Component;
@@ -16,6 +18,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -27,8 +30,53 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.9.0: кулдаун умножается на TalentService.cooldownMult.
  * 1.10.0-fix: black_word и unwriting получили SELF-кастеры (ray-таргет),
  *         иначе каст из Книги/свитка (targeted=false) не находил реализацию.
+ * 1.12.3: школа способности (school) читается из конфига (override) либо
+ *         берётся из DEFAULT_SCHOOLS; в castOn устанавливается ThreadLocal
+ *         контекст школы, который CombatService читает в dealDamage для
+ *         иммунитетов и множителей школ.
  */
 public final class AbilityRegistry {
+
+    /** Дефолтная школа каждой способности (override в конфиге имеет приоритет). */
+    private static final Map<String, School> DEFAULT_SCHOOLS = new HashMap<>();
+    static {
+        // Воин: всё PHYSICAL
+        DEFAULT_SCHOOLS.put("tyr_strike", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("balder_skin", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("berserkergang", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("fenrir_blood", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("ragnarok", School.PHYSICAL);
+        // Охотник: всё PHYSICAL
+        DEFAULT_SCHOOLS.put("wolf_mark", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("swallow", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("piercing_shot", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("arrow_fan", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("arrow_rain", School.PHYSICAL);
+        // Жрец: всё HOLY
+        DEFAULT_SCHOOLS.put("saint_tear", School.HOLY);
+        DEFAULT_SCHOOLS.put("word_of_life", School.HOLY);
+        DEFAULT_SCHOOLS.put("aegis_faith", School.HOLY);
+        DEFAULT_SCHOOLS.put("circle_elysium", School.HOLY);
+        DEFAULT_SCHOOLS.put("wrath_heaven", School.HOLY);
+        // Маг: огонь/лёд/аркана
+        DEFAULT_SCHOOLS.put("fire_prometheus", School.FIRE);
+        DEFAULT_SCHOOLS.put("hermes_step", School.ARCANE);
+        DEFAULT_SCHOOLS.put("boreas_breath", School.FROST);
+        DEFAULT_SCHOOLS.put("athena_aegis", School.ARCANE);
+        DEFAULT_SCHOOLS.put("zeus_wrath", School.ARCANE);
+        // Разбойник: тень/физика/природа
+        DEFAULT_SCHOOLS.put("shadow_cloak", School.SHADOW);
+        DEFAULT_SCHOOLS.put("blade_fan", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("strangle", School.PHYSICAL);
+        DEFAULT_SCHOOLS.put("borgia_poison", School.NATURE);
+        DEFAULT_SCHOOLS.put("shadow_dance", School.SHADOW);
+        // Чернокнижник: всё SHADOW
+        DEFAULT_SCHOOLS.put("black_word", School.SHADOW);
+        DEFAULT_SCHOOLS.put("ruin_seal", School.SHADOW);
+        DEFAULT_SCHOOLS.put("hunger_corruption", School.SHADOW);
+        DEFAULT_SCHOOLS.put("unwriting", School.SHADOW);
+        DEFAULT_SCHOOLS.put("soul_rift", School.SHADOW);
+    }
 
     @FunctionalInterface
     public interface Caster {
@@ -160,11 +208,26 @@ public final class AbilityRegistry {
                             cfg.abilityUnlock(pc, base.id(), base.unlockLevel()),
                             cfg.abilityCost(pc, base.id(), base.cost()),
                             cfg.abilityCooldownSeconds(pc, base.id(),
-                                    (int) (base.cooldownMillis() / 1000L)) * 1000L
+                                    (int) (base.cooldownMillis() / 1000L)) * 1000L,
+                            readSchool(cfg, pc, base.id())
                     ))
                     .toList();
             byClass.put(pc, defs);
         }
+    }
+
+    /** 1.12.3: школа из конфига (override) либо из DEFAULT_SCHOOLS. */
+    private static School readSchool(RaskolConfig cfg, PlayerClass pc, String id) {
+        String override = cfg.rawStringOrNull(
+                "classes." + pc.name() + ".abilities." + id + ".school");
+        if (override != null && !override.isEmpty()) {
+            School parsed = School.fromId(override);
+            if (parsed != null) {
+                return parsed;
+            }
+        }
+        School def = DEFAULT_SCHOOLS.get(id);
+        return def != null ? def : School.ARCANE;
     }
 
     public List<AbilityDef> getAbilities(PlayerClass pc) {
@@ -217,6 +280,11 @@ public final class AbilityRegistry {
                 if (!casters.containsKey(def.id()) && !targetedCasters.containsKey(def.id())) {
                     problems.add("способность " + def.id() + " (" + pc.name() + ") без кастера");
                 }
+                if (def.school() == null) {
+                    problems.add("способность " + def.id() + " (" + pc.name() + ") без школы");
+                } else if (!DEFAULT_SCHOOLS.containsKey(def.id())) {
+                    problems.add("способность " + def.id() + " не в DEFAULT_SCHOOLS");
+                }
             }
         }
         for (String id : targetedCasters.keySet()) {
@@ -232,7 +300,29 @@ public final class AbilityRegistry {
                 problems.add("кастер " + id + " — сирота (нет в DEFAULTS)");
             }
         }
+        // 1.12.3: полнота DEFAULT_SCHOOLS — все 30 способностей покрыты
+        for (PlayerClass pc : PlayerClass.values()) {
+            for (AbilityDef base : DEFAULTS.get(pc)) {
+                if (!DEFAULT_SCHOOLS.containsKey(base.id())) {
+                    problems.add("DEFAULT_SCHOOLS: нет школы для " + base.id()
+                            + " (" + pc.name() + ")");
+                }
+            }
+        }
         return problems;
+    }
+
+    /** 1.12.3: для selftest-чека 64 — все ли 30 способностей имеют школу. */
+    public int schoolCoverage() {
+        int count = 0;
+        for (PlayerClass pc : PlayerClass.values()) {
+            for (AbilityDef def : getAbilities(pc)) {
+                if (def.school() != null) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     public boolean isTargeted(String id) {
@@ -297,12 +387,16 @@ public final class AbilityRegistry {
             return false;
         }
 
+        // 1.12.3: установка ThreadLocal-контекста школы для пути B в CombatService
+        CombatService.setCurrentCastSchool(def.school());
         boolean ok;
         try {
             ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
         } catch (RuntimeException ex) {
             plugin.getLogger().warning("Каст " + def.id() + " бросил исключение: " + ex.getMessage());
             ok = false;
+        } finally {
+            CombatService.clearCastSchool();
         }
 
         if (!ok) {
