@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.util.TextFx;
@@ -19,7 +20,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-/** 1.11.4 (P4b): вкладка «Класс и пассивки»: пассивки, атрибуты, резисты, корона. */
+/**
+ * 1.11.4 (P4b): вкладка «Класс и пассивки»: пассивки, атрибуты, резисты, корона.
+ * 1.12.2 (Блок 5): в лоре щита — строки пробития и стихийных резистов.
+ */
 public final class ClassTab implements BookTabView {
 
     @Override
@@ -152,6 +156,22 @@ public final class ClassTab implements BookTabView {
                             NamedTextColor.GRAY));
                 }
             }
+            // 1.12.2 (Блок 5): пробитие и стихийный слой
+            var penTraits = plugin.getCombat().penTraits();
+            double penPhys = penTraits.totalPenPercent(uuid, "phys", plugin.getGearHook());
+            double penMagic = penTraits.totalPenPercent(uuid, "magic", plugin.getGearHook());
+            lore.add(Component.text("Пробитие: физ " + (int) penPhys + "% · маг " + (int) penMagic + "%",
+                    NamedTextColor.DARK_AQUA));
+            var elem = plugin.getCombat().elemental();
+            StringBuilder elLine = new StringBuilder();
+            for (School school : School.values()) {
+                double r = elem.resistOf(uuid, school);
+                if (r > 0.0) {
+                    elLine.append(school.id()).append(" ").append((int) r).append("%  ");
+                }
+            }
+            lore.add(Component.text("Стихии: " + (elLine.length() > 0 ? elLine.toString().trim() : "—"),
+                    NamedTextColor.DARK_AQUA));
             lore.add(Component.text(BookItems.msg(plugin, "book.resist.cap", "Кап: {cap}%")
                     .replace("{cap}", String.valueOf((int) plugin.getResists().cap())),
                     NamedTextColor.DARK_GRAY));
