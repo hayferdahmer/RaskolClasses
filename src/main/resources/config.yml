@@ -17,8 +17,9 @@
 #          mitigation-cap 0.90 = resist.cap (нейтрально к 1.12.1).
 #  1.12.3: школы в способностях (ключ school: в каждом ability);
 #          ThreadLocal-контекст школы в AbilityRegistry.tryCast;
-#          immunity/multiplier-применение в пути B.
-#          Батч 2: VFX воина — impact/execute-ключи в vfx.tyr_strike…ragnarok.
+#          immunity/multiplier-применение в пути B;
+#          VFX-стандарт чернокнижника для всех 6 китов (батчи 2–6):
+#          cast/impact/execute/expire-ключи в vfx.* по каждой способности.
 # ============================================================
 
 hud:
@@ -148,7 +149,7 @@ foliant:
     prevent-drop: true
     owner-lock-pickup: true
   item-name: "§5§lФолиант Душ. Том I"
-  gui-title: "§5§lФолиант Душ · Том I"
+    gui-title: "§5§lФолиант Душ · Том I"
   gui-yes: "§c§lПрочесть страницу"
   gui-no: "§7Закрыть том"
 
@@ -213,7 +214,7 @@ attributes:
     PRIEST:  { main: INT, base-str: 5, base-agi: 5, base-int: 12, growth-str: 0.4, growth-agi: 0.4, growth-int: 1.2 }
     WARLOCK: { main: INT, base-str: 4, base-agi: 4, base-int: 14, growth-str: 0.2, growth-agi: 0.3, growth-int: 1.4 }
   hp:
-    base-hp: 120
+    base-hp: 100
     per-str: 20
     per-level: 5
     main-str-bonus: 8
@@ -1057,8 +1058,8 @@ installations:
 
 # ------------------------------------------------------------
 # VFX/SFX-каталог
-# 1.12.3 Батч 2: воин получил impact/execute-ключи
-# (impact-sound/impact-particle на цели, execute-* для Казни Рагнарёка).
+# 1.12.3 (батчи 2–6): все 6 китов приведены к стандарту чернокнижника —
+# cast/impact (+execute/expire где нужно) по каждой способности.
 # ------------------------------------------------------------
 vfx:
   proc-actionbar: true
@@ -1091,33 +1092,52 @@ vfx:
   wolf_mark:
     cast-sound: ENTITY_WOLF_GROWL
     cast-particle: CRIT
+    impact-sound: ENTITY_WOLF_HOWL
+    impact-particle: END_ROD
   swallow:
     cast-sound: ENTITY_GENERIC_DRINK
     cast-particle: EFFECT
+    impact-sound: ENTITY_PLAYER_LEVELUP
+    impact-particle: HEART
   piercing_shot:
     cast-sound: ITEM_CROSSBOW_SHOOT
     cast-particle: CRIT
+    impact-sound: ENTITY_ARROW_HIT_PLAYER
+    impact-particle: CRIT
   arrow_fan:
     cast-sound: ENTITY_ARROW_SHOOT
     cast-particle: SWEEP_ATTACK
   arrow_rain:
     cast-sound: ENTITY_ARROW_SHOOT
     cast-particle: POOF
+    impact-sound: ENTITY_ARROW_HIT_PLAYER
+    impact-particle: POOF
   saint_tear:
     cast-sound: BLOCK_BELL_USE
     cast-particle: HEART
+    impact-sound: BLOCK_BELL_USE
+    impact-particle: HEART
   word_of_life:
     cast-sound: BLOCK_AMETHYST_BLOCK_CHIME
     cast-particle: HEART
+    impact-sound: BLOCK_AMETHYST_BLOCK_CHIME
+    impact-particle: HEART
   aegis_faith:
     cast-sound: ITEM_ARMOR_EQUIP_DIAMOND
     cast-particle: ENCHANTED_HIT
+    expire-sound: BLOCK_AMETHYST_BLOCK_CHIME
   circle_elysium:
     cast-sound: BLOCK_BEACON_ACTIVATE
     cast-particle: HEART
+    impact-sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    impact-particle: HEART
   wrath_heaven:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: FLASH
+    impact-sound: ENTITY_FIREWORK_ROCKET_BLAST
+    impact-particle: FLASH
+    execute-sound: ENTITY_LIGHTNING_BOLT_IMPACT
+    execute-particle: FLASH
   fire_prometheus:
     cast-sound: ITEM_FIRECHARGE_USE
     cast-particle: FLAME
@@ -1126,9 +1146,13 @@ vfx:
   hermes_step:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
     cast-particle: REVERSE_PORTAL
+    impact-sound: ENTITY_ENDERMAN_HURT
+    impact-particle: PORTAL
   boreas_breath:
     cast-sound: BLOCK_SNOW_BREAK
     cast-particle: SNOWFLAKE
+    impact-sound: ENTITY_PLAYER_HURT_FREEZE
+    impact-particle: SNOWFLAKE
   athena_aegis:
     cast-sound: ITEM_ARMOR_EQUIP_DIAMOND
     cast-particle: ENCHANTED_HIT
@@ -1138,21 +1162,33 @@ vfx:
     cast-particle: ELECTRIC_SPARK
     impact-sound: ENTITY_LIGHTNING_BOLT_IMPACT
     impact-particle: FLASH
+    execute-sound: ENTITY_LIGHTNING_BOLT_THUNDER
+    execute-particle: FLASH
   shadow_cloak:
     cast-sound: ENTITY_PHANTOM_FLAP
     cast-particle: SMOKE
+    impact-sound: ENTITY_ENDERMAN_TELEPORT
+    impact-particle: SMOKE
   blade_fan:
     cast-sound: ENTITY_PLAYER_ATTACK_SWEEP
     cast-particle: SWEEP_ATTACK
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: DAMAGE_INDICATOR
   strangle:
     cast-sound: ENTITY_PLAYER_ATTACK_WEAK
     cast-particle: DAMAGE_INDICATOR
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: SMOKE
   borgia_poison:
     cast-sound: ENTITY_SPIDER_STEP
     cast-particle: COMPOSTER
+    impact-sound: ENTITY_SPIDER_HURT
+    impact-particle: COMPOSTER
   shadow_dance:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
     cast-particle: CLOUD
+    impact-sound: ENTITY_ENDERMAN_TELEPORT
+    impact-particle: CLOUD
   black_word:
     cast-sound: ENTITY_WARDEN_HEARTBEAT
     cast-particle: SCULK_SOUL
