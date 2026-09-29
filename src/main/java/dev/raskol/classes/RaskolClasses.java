@@ -66,6 +66,7 @@ import java.util.List;
  * 1.10.1: Чернокнижник — СКРЫТЫЙ класс (баннер и логи = 5 путей).
  * 1.11.2: T2 (WarlockAbilities-listener, cancelAllChannelTasks) + T5 (cleanupTmpFiles).
  * 1.11.4 (P5): reloadPlugin() перечитывает kits/*.yml через raskolConfig.reloadKits().
+ * 1.12.3: getAbilityRegistry() — алиас к getAbilities() для selftest-чеков 64-65.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -471,6 +472,8 @@ public final class RaskolClasses extends JavaPlugin {
     public ResourceService getResources() { return resources; }
     public CooldownManager getCooldowns() { return cooldowns; }
     public AbilityRegistry getAbilities() { return abilities; }
+    /** 1.12.3: алиас getAbilities() — используется selftest-чеками 64-65. */
+    public AbilityRegistry getAbilityRegistry() { return abilities; }
     public ActiveEffectManager getEffects() { return effects; }
     public HudService getHud() { return hud; }
     public BossBarService getBossBars() { return bossBars; }
