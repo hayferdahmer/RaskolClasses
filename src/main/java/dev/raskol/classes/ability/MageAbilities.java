@@ -9,12 +9,14 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Snowball;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.RayTraceResult;
@@ -24,15 +26,14 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * КИТ МАГА (1.9.0-fix7).
- *  1. «Огонь Прометея» — чистая магия; снаряд Snowball без взрыва + огненный трейл.
+ * КИТ МАГА (1.9.0-fix7 → 1.12.5).
+ *  1. «Огонь Прометея» — снаряд Snowball: трейл/impact через FxService, горение =
+ *     школьный DoT burning (PDC-тег rc_dot), ванильный fire-ticks убран.
  *  2. «Шаг Гермеса» — блинк 16 блоков, упор в блок, урон сквозь мобов на пути.
- *  3. «Дыхание Борея» — nova: маг-урон + Slowness II; без целей = refund.
+ *  3. «Дыхание Борея» — nova: маг-урон + Slowness II + DoT chilled; без целей = refund.
  *  4. «Эгида Афины» — грант маг-резиста + аура + звук снятия.
- *  5. «Гнев Зевса» — урон применяется МГНОВЕННО при касте (как у Прометея,
- *     гарантированно доходит), сцена (гром→Darkness→подброс→молния) играется поверх.
- * 1.12.3 (Батч 5): школы FIRE/ARCANE/FROST из cast-контекста; каст-VFX у Прометея
- *         и Зевса; конфиг-драйвен партиклы/звуки блинка и новы; execute-ключи Зевса.
+ *  5. «Гнев Зевса» — мгновенный урон + сцена; поджог заменён на DoT burning.
+ * 1.12.3 (Батч 5): школы FIRE/ARCANE/FROST, каст/impact/execute-VFX конфиг-драйвен.
  */
 public final class MageAbilities {
 
@@ -122,7 +123,6 @@ public final class MageAbilities {
         }
     }
 
-    /** Execute-VFX: Гнев Зевса по цели ниже порога HP. */
     private void executeFx(LivingEntity target) {
         Sound sound = plugin.getFx().resolveSound(
                 cfgS("vfx.zeus_wrath.execute-sound", "ENTITY_LIGHTNING_BOLT_THUNDER"));
@@ -149,7 +149,7 @@ public final class MageAbilities {
 
     /* -------------------------------- способности -------------------------------- */
 
-    /** 1. «Огонь Прометея»: чистая магия, снаряд без взрыва; impact — в FxService. */
+    /** 1. «Огонь Прометея»: снаряд с тегом rc_dot=burning; ванильного поджога нет. */
     public boolean firePrometheus(Player p, AbilityDef def) {
         castFx(p, "fire_prometheus", "ITEM_FIRECHARGE_USE", "FLAME", 0.6f, 1.0f, 12);
         double speed = cfgD("classes.MAGE.abilities." + def.id() + ".projectile-speed", 2.6);
@@ -157,8 +157,10 @@ public final class MageAbilities {
         Vector dir = p.getLocation().getDirection().normalize();
         Snowball sb = p.launchProjectile(Snowball.class, dir.multiply(speed));
         sb.setShooter(p);
+        sb.getPersistentDataContainer().set(plugin.getCombat().dots().dotTagKey(),
+                PersistentDataType.STRING, "burning");
         plugin.getFx().chargeProjectile(sb.getUniqueId(), p.getUniqueId(), def.id(),
-                0.0, dmg, 3 * 20);
+                0.0, dmg, 0);
         return true;
     }
 
@@ -227,7 +229,7 @@ public final class MageAbilities {
         return point.toVector().distance(closest);
     }
 
-    /** 3. «Дыхание Борея»: nova с refund; impact-ключи конфига. */
+    /** 3. «Дыхание Борея»: nova + Slowness II + DoT chilled; без целей = refund. */
     public boolean boreasBreath(Player p, AbilityDef def) {
         double radius = cfgD("classes.MAGE.abilities." + def.id() + ".radius", 5.0);
         int secs = duration(def, 4);
@@ -271,6 +273,7 @@ public final class MageAbilities {
             }
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
             t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, secs * 20, 1));
+            plugin.getCombat().dots().applyById(p, t, "chilled");
             impactFx(t, "boreas_breath", "ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE", 0.4f, 1.0f, 12);
             hit++;
         }
@@ -307,8 +310,8 @@ public final class MageAbilities {
     }
 
     /**
-     * 5. «Гнев Зевса»: урон МГНОВЕННО при касте; сцена молнии/подброса поверх.
-     * Execute-ветка (<25% HP): ×3, ignore cap/burst, execute-VFX + тег.
+     * 5. «Гнев Зевса»: урон МГНОВЕННО при касте; сцена молнии/подброса поверх;
+     * поджог = DoT burning (1.12.5) вместо ванильного fire-ticks.
      */
     public boolean zeusWrath(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
@@ -324,7 +327,6 @@ public final class MageAbilities {
         UUID targetId = t.getUniqueId();
         castFx(p, "zeus_wrath", "ENTITY_EVOKER_CAST_SPELL", "ELECTRIC_SPARK", 0.7f, 0.9f, 14);
         double dmg = dmg(p, def, 25.0, 2.0);
-        int fireTicks = (int) cfgD("classes.MAGE.abilities." + def.id() + ".fire-ticks", 60);
         double threshold = cfgD("classes.MAGE.abilities." + def.id() + ".threshold", 0.25);
         double execMult = cfgD("classes.MAGE.abilities." + def.id() + ".execute-mult", 3.0);
 
@@ -390,8 +392,9 @@ public final class MageAbilities {
                                 : Particle.ELECTRIC_SPARK,
                         30, impactSound, 0.8f, 1.0f);
             }
+            // 1.12.5: поджог = школьный DoT burning (атрибуция, стеки, капы)
             if (plugin.getCombat().canHit(caster, living)) {
-                living.setFireTicks(fireTicks);
+                plugin.getCombat().dots().applyById(caster, living, "burning");
             }
         }, 20L);
 
