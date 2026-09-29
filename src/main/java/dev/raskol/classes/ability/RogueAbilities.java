@@ -7,18 +7,24 @@ import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.Targeting;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import java.util.Locale;
 import java.util.UUID;
 
 /**
  * 1.7.3: КИТ РАЗБОЙНИКА (средневековый реализм). Урон = base + WP×coeff.
  * 1.8.1: canHit-гейты на однотargetных урон-абилках (до наложения blind/slow/poison).
  * 1.9.0: талантовые хуки baseBonus/coeffMult.
+ * 1.12.3 (Батч 6): школы SHADOW/PHYSICAL/NATURE из cast-контекста; VFX (cast/impact)
+ *         из vfx.<id>.* конфига с дефолтами; механика (LOS, дебаффы, +AGI) без изменений.
  */
 public final class RogueAbilities {
 
@@ -35,6 +41,11 @@ public final class RogueAbilities {
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
         return Double.isFinite(v) ? v : def;
+    }
+
+    private String cfgS(String path, String def) {
+        String v = plugin.getConfig().getString(path, def);
+        return v != null ? v : def;
     }
 
     private double base(AbilityDef def, double defv) {
@@ -79,18 +90,64 @@ public final class RogueAbilities {
                 "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
+    /* ------------------------------ VFX-хелперы ------------------------------ */
+
+    /** Каст-VFX: звук + партикл в точке кастера (голова). */
+    private void castFx(Player p, String id, String soundDef, String particleDef,
+                        float volume, float pitch, int count) {
+        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
+        Location loc = p.getLocation().add(0.0, 1.0, 0.0);
+        if (sound != null) {
+            plugin.getFx().playSound(loc, sound, volume, pitch);
+        }
+        Particle particle = resolveParticle(cfgS("vfx." + id + ".cast-particle", particleDef));
+        if (particle != null) {
+            p.getWorld().spawnParticle(particle, loc, count, 0.4, 0.6, 0.4, 0.02);
+        }
+    }
+
+    /** Impact-VFX: звук + партикл в точке цели (или себя для self-абилкок). */
+    private void impactFx(LivingEntity target, String id,
+                          String soundDef, String particleDef,
+                          float volume, float pitch, int count) {
+        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
+        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
+        if (sound != null) {
+            plugin.getFx().playSound(loc, sound, volume, pitch);
+        }
+        Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
+        if (particle != null) {
+            target.getWorld().spawnParticle(particle, loc, count, 0.3, 0.5, 0.3, 0.02);
+        }
+    }
+
+    /** Безопасный резолв Particle по имени: неизвестное имя → null (без падения). */
+    private Particle resolveParticle(String name) {
+        if (name == null || name.isEmpty()) {
+            return null;
+        }
+        try {
+            return Particle.valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
     /* -------------------------------- способности -------------------------------- */
 
-    /** 1. «Плащ теней» — Невидимость 15 с (self). */
+    /** 1. «Плащ теней» — Невидимость 15 с (self) + дымовой уход. */
     public boolean shadowCloak(Player p, AbilityDef def) {
         int secs = duration(def, 15);
         p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, secs * 20, 0));
+        castFx(p, "shadow_cloak", "ENTITY_PHANTOM_FLAP", "SMOKE", 0.5f, 0.9f, 16);
+        impactFx(p, "shadow_cloak", "ENTITY_ENDERMAN_TELEPORT", "SMOKE", 0.4f, 1.2f, 12);
         return true;
     }
 
     /** 2. «Веер клинков» — AoE физ радиус 3 (LOS + фракционный фильтр). */
     public boolean bladeFan(Player p, AbilityDef def) {
         double radius = cfgD("classes.ROGUE.abilities." + def.id() + ".radius", 3.0);
+        castFx(p, "blade_fan", "ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK", 0.6f, 1.0f, 12);
         double dmg = dmg(p, def, 8.0, 0.8);
         boolean hit = false;
         for (Entity e : p.getNearbyEntities(radius, radius, radius)) {
@@ -104,6 +161,7 @@ public final class RogueAbilities {
                 continue;
             }
             plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
+            impactFx(t, "blade_fan", "ENTITY_PLAYER_HURT", "DAMAGE_INDICATOR", 0.4f, 1.0f, 8);
             hit = true;
         }
         return hit;
@@ -120,8 +178,10 @@ public final class RogueAbilities {
             allyTarget(p);
             return false;
         }
+        castFx(p, "strangle", "ENTITY_PLAYER_ATTACK_WEAK", "DAMAGE_INDICATOR", 0.5f, 0.9f, 8);
         double dmg = dmg(p, def, 10.0, 0.9);
         plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
+        impactFx(t, "strangle", "ENTITY_PLAYER_HURT", "SMOKE", 0.4f, 0.8f, 10);
         t.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 2 * 20, 0));
         t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2 * 20, 1));
         return true;
@@ -138,8 +198,10 @@ public final class RogueAbilities {
             allyTarget(p);
             return false;
         }
+        castFx(p, "borgia_poison", "ENTITY_SPIDER_STEP", "COMPOSTER", 0.5f, 1.0f, 10);
         double dmg = dmg(p, def, 5.0, 0.3);
         plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
+        impactFx(t, "borgia_poison", "ENTITY_SPIDER_HURT", "COMPOSTER", 0.4f, 0.9f, 12);
         t.addPotionEffect(new PotionEffect(PotionEffectType.POISON, 5 * 20, 0));
         return true;
     }
@@ -148,8 +210,10 @@ public final class RogueAbilities {
     public boolean shadowDance(Player p, AbilityDef def) {
         double agiBonus = base(def, 30.0);
         int secs = duration(def, 4);
+        castFx(p, "shadow_dance", "ENTITY_ENDERMAN_TELEPORT", "CLOUD", 0.6f, 1.1f, 20);
         plugin.getAttributes().addTimedModifier(
                 p.getUniqueId(), def.id(), 0.0, agiBonus, 0.0, secs * 1000L);
+        impactFx(p, "shadow_dance", "ENTITY_ENDERMAN_TELEPORT", "CLOUD", 0.4f, 1.3f, 16);
         return true;
     }
 }
