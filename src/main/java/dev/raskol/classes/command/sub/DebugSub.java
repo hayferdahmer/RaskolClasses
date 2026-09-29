@@ -9,6 +9,7 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
+import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.spec.Spec;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -19,11 +20,13 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
  * 1.11.4 (P4d): /rc debug [player] · /rc debug simulate [A] [B] [level] ·
  * /rc debug simulate matrix [level] · /rc debug matrix [level].
+ * 1.12.2 (Блок 5): в дампе игрока — строки пробития (pen) и стихийных резистов.
  * Логика идентична 1.11.3 (переехала из RaskolCommand.handleDebug).
  */
 public final class DebugSub implements CommandSub {
@@ -61,7 +64,7 @@ public final class DebugSub implements CommandSub {
             PlayerClass b = null;
             int level = 40;
             for (String tok : Arrays.copyOfRange(args, 1, args.length)) {
-                PlayerClass pc = SubUtil.parseClass(tok.toUpperCase(java.util.Locale.ROOT));
+                PlayerClass pc = SubUtil.parseClass(tok.toUpperCase(Locale.ROOT));
                 if (pc != null) {
                     if (a == null) {
                         a = pc;
@@ -100,6 +103,9 @@ public final class DebugSub implements CommandSub {
             int level = SubUtil.parseLevel(args, 1);
             sender.sendMessage(Component.text("=== TTK-матрица (seed 42, уровень "
                     + level + ") ===", NamedTextColor.GOLD));
+            sender.sendMessage(Component.text("Якорь balance.target-ttk-seconds = "
+                    + SubUtil.fmt1(plugin.getConfig().getDouble("balance.target-ttk-seconds", 20.0))
+                    + " с · «—» = не убивает за 60 с", NamedTextColor.GRAY));
             printMatrix(sender, level);
             return true;
         }
@@ -149,16 +155,16 @@ public final class DebugSub implements CommandSub {
         PlayerClass[] pcs = PlayerClass.values();
         StringBuilder header = new StringBuilder("атак\\защ ");
         for (PlayerClass pc : pcs) {
-            header.append(String.format(java.util.Locale.ROOT, "%8s", SubUtil.shortName(pc)));
+            header.append(String.format(Locale.ROOT, "%8s", SubUtil.shortName(pc)));
         }
         sender.sendMessage(Component.text(header.toString(), NamedTextColor.DARK_GRAY));
         for (int i = 0; i < pcs.length; i++) {
-            StringBuilder row = new StringBuilder(String.format(java.util.Locale.ROOT, "%-8s", SubUtil.shortName(pcs[i])));
+            StringBuilder row = new StringBuilder(String.format(Locale.ROOT, "%-8s", SubUtil.shortName(pcs[i])));
             for (int j = 0; j < pcs.length; j++) {
                 double v = m[i][j];
                 row.append(Double.isFinite(v)
-                        ? String.format(java.util.Locale.ROOT, "%8s", SubUtil.fmt1(v))
-                        : String.format(java.util.Locale.ROOT, "%8s", "—"));
+                        ? String.format(Locale.ROOT, "%8s", SubUtil.fmt1(v))
+                        : String.format(Locale.ROOT, "%8s", "—"));
             }
             sender.sendMessage(Component.text(row.toString(), NamedTextColor.WHITE));
         }
@@ -209,6 +215,26 @@ public final class DebugSub implements CommandSub {
             sender.sendMessage(Component.text("  • " + m.source() + ": +" + (int) m.physicalPct()
                     + " физ / +" + (int) m.magicPct() + " маг", NamedTextColor.GRAY));
         }
+
+        // 1.12.2 (Блок 5): пробитие и стихийный слой
+        var penTraits = plugin.getCombat().penTraits();
+        double penPhys = penTraits.totalPenPercent(uuid, "phys", plugin.getGearHook());
+        double penMagic = penTraits.totalPenPercent(uuid, "magic", plugin.getGearHook());
+        double penCapPct = plugin.getConfig().getDouble("schools.pen-pct-cap", 0.40) * 100.0;
+        sender.sendMessage(Component.text("Пробитие: физ " + SubUtil.fmt1(penPhys)
+                + "% · маг " + SubUtil.fmt1(penMagic) + "% (кап " + SubUtil.fmt1(penCapPct) + "%)",
+                NamedTextColor.DARK_AQUA));
+        var elem = plugin.getCombat().elemental();
+        StringBuilder elLine = new StringBuilder();
+        for (School school : School.values()) {
+            double r = elem.resistOf(uuid, school);
+            if (r > 0.0) {
+                elLine.append(school.id()).append(" ").append((int) r).append("%  ");
+            }
+        }
+        sender.sendMessage(Component.text("Стихии: "
+                + (elLine.length() > 0 ? elLine.toString().trim() : "—"),
+                NamedTextColor.DARK_AQUA));
 
         var gearHook = plugin.getGearHook();
         if (gearHook != null && gearHook.isAvailable() && gearHook.hasGear(uuid)) {
