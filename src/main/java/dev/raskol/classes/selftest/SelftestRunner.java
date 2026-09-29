@@ -61,10 +61,10 @@ import java.util.UUID;
  * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
  * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
  * Чеки 55–56 (1.12.2 Блок 1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
- * Чеки 57–58 (1.12.2 Блок 2): gear-pen кламп (clampPenFraction) и цепочка pen→mitigation.
+ * Чеки 57–58 (1.12.2 Блок 2): gear-pen кламп и цепочка pen→mitigation.
  * Чеки 59–60 (1.12.2 Блок 3): pen-трейты талантов/спек — clampSumPercent и нулевые читатели.
- * Чеки 61–62 (1.12.2 Блок 4): проводка neutral (mitigation = resist/100 при pen=0/elemental=0)
- *         и связка school-pen→elemental→митигация.
+ * Чеки 61–62 (1.12.2 Блок 4): проводка neutral и связка school-pen→elemental.
+ * Чеки 63–65 (1.12.3): ThreadLocal cast-school, полнота школ 30/30, конкретные школы китов.
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
  * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
  */
@@ -437,7 +437,7 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.9.3.2: чек 36 — знаковый tickDelta (декэй ярости воина вне боя)
+        // 1.9.3.2: чек 36 — tickDelta
         ResourceState rsDecay = new ResourceState();
         rsDecay.setValue(40.0);
         rsDecay.tickDelta(-5.0);
@@ -458,7 +458,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 37 — реестры чернокнижника пусты + гейты фолианта дают сообщения
+        // 1.10.0: чек 37 — чернокнижник
         UUID stranger = UUID.randomUUID();
         boolean sealEmpty = WarlockAbilities.sealAmplifyOf(stranger) == 0.0;
         boolean antiEmpty = !WarlockAbilities.isAntihealed(stranger);
@@ -480,7 +480,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 38 — sanity-диапазоны конфига WARLOCK
+        // 1.10.0: чек 38 — sanity WARLOCK
         RaskolConfig cfg = plugin.getRaskolConfig();
         double open = cfg.warlockThresholdOpen();
         double overflow = cfg.warlockThresholdOverflow();
@@ -502,7 +502,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 39 — дуэль WARLOCK в симуляторе без падений
+        // 1.10.0: чек 39
         String got39;
         boolean ok39;
         try {
@@ -521,7 +521,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.10.0: чек 40 — TTK-матрица 6×6
+        // 1.10.0: чек 40
         String got40;
         boolean ok40;
         try {
@@ -539,7 +539,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.11.4 (P4a): чек 41 — откат (recoil): величина, кап 30% maxHP, пол minHp
+        // 1.11.4: чек 41
         double r1 = WarlockMath.recoilAmount(100.0, 6.66, 840.0, 30.0);
         double r2 = WarlockMath.recoilAmount(10000.0, 6.66, 840.0, 30.0);
         double rHp = WarlockMath.applyRecoil(5.0, 10.0, 1.0);
@@ -554,7 +554,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.11.4 (P4a): чек 42 — дрейн (lifesteal) с капом lifesteal-cap
+        // 1.11.4: чек 42
         double dH1 = WarlockMath.drainHeal(100.0, 0.666, 0.85);
         double dH2 = WarlockMath.drainHeal(100.0, 1.0, 0.85);
         double dH3 = WarlockMath.drainHeal(0.0, 0.666, 0.85);
@@ -569,7 +569,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.11.4 (P4a): чек 43 — множители урона и порог игнора маг-резиста
+        // 1.11.4: чек 43
         double m1 = WarlockMath.damageMult(80.0, 75.0, 6.0, 1.1, false);
         double m2 = WarlockMath.damageMult(80.0, 75.0, 6.0, 1.1, true);
         double m3 = WarlockMath.damageMult(50.0, 75.0, 6.0, 1.0, false);
@@ -588,7 +588,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.11.4 (чек 44): sanity конфиговых чисел всех способностей 6 классов
+        // 1.11.4: чек 44
         List<String> kitProblems = dev.raskol.classes.config.KitSanity.validateAbilities(plugin);
         boolean ok44 = kitProblems.isEmpty();
         String got44 = ok44 ? "OK" : kitProblems.size() + " проблем: " + kitProblems.get(0);
@@ -602,7 +602,7 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.11.4 (чек 45): RUNBOOK-замки пассив-мультипликаторов
+        // 1.11.4: чек 45
         List<String> multProblems = dev.raskol.classes.config.KitSanity.validatePassiveMults(plugin);
         boolean ok45 = multProblems.isEmpty();
         String got45 = ok45 ? "OK" : multProblems.size() + " проблем: " + multProblems.get(0);
@@ -616,7 +616,7 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.11.4 (P4e): чек 46 — допуск единиц asFraction (проценты ИЛИ доли)
+        // 1.11.4: чек 46
         double a1 = SpecMath.asFraction(15.0);
         double a2 = SpecMath.asFraction(0.15);
         double a3 = SpecMath.asFraction(100.0);
@@ -631,7 +631,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.11.4 (P4e): чек 47 — формула цены отречения
+        // 1.11.4: чек 47
         int rc40 = SpecMath.respecCost(40, 250, 10);
         int rc60 = SpecMath.respecCost(60, 250, 10);
         boolean ok47 = rc40 == 650 && rc60 == 850;
@@ -642,7 +642,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.11.4 (P5): чек 48 — per-class yml loader с фолбэком в config.yml
+        // 1.11.4: чек 48
         int perClassCount = plugin.getRaskolConfig().kitLoader().loadedCount();
         double recoilFromLoader = plugin.getRaskolConfig().classDouble(
                 PlayerClass.WARLOCK, "recoil.percent", 6.66);
@@ -657,7 +657,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.0: чек 49 — маппинг School→channel (ТЗ п.2: школа → один канал)
+        // 1.12.0: чек 49
         boolean ok49 = School.PHYSICAL.channel() == DamageType.PHYSICAL
                 && School.TRUE.channel() == DamageType.TRUE
                 && School.FIRE.channel() == DamageType.MAGIC
@@ -674,7 +674,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.0: чек 50 — vanilla-school map + фолбэк через канал
+        // 1.12.0: чек 50
         SchoolConfig sc = new SchoolConfig(plugin);
         boolean ok50 = sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) == School.FIRE
                 && sc.schoolOf(EntityDamageEvent.DamageCause.POISON) == School.NATURE
@@ -693,7 +693,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.0: чек 51 — SchoolProfile legacy round-trip + множители школ
+        // 1.12.0: чек 51
         SchoolProfile legacy = SchoolProfile.fromLegacy(new DamageProfile(10.0, 20.0, 5.0));
         DamageProfile back = legacy.toLegacy(sc);
         SchoolProfile fireOnly = SchoolProfile.builder().add(School.FIRE, 30.0).build();
@@ -714,7 +714,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.1: чек 52 — митигация с пробитием: порядок flat→pct, стихийный слой, кап
+        // 1.12.1: чек 52
         Penetration pen52 = Penetration.of(20.0, 0.25);
         double mit1 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 0.0, false, 0.80);
         double mit2 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 30.0, true, 0.80);
@@ -730,7 +730,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.1: чек 53 — иммунитеты/уязвимости EntityType (schools.entities.*)
+        // 1.12.1: чек 53
         SchoolImmunity imm = new SchoolImmunity(plugin);
         boolean ok53 = imm.multiplierFor(EntityType.BLAZE, School.FIRE) == 0.0
                 && Math.abs(imm.multiplierFor(EntityType.BLAZE, School.FROST) - 1.5) < 1e-9
@@ -747,7 +747,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.1: чек 54 — Penetration-клампы и taken()
+        // 1.12.1: чек 54
         Penetration p54 = Penetration.of(10.0, 0.6).clamped(0.40);
         double taken54 = SchoolMitigation.taken(100.0, 0.25, 1.5);
         boolean ok54 = p54.flat() == 10.0
@@ -762,16 +762,16 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.2 (Блок 1): чек 55 — стихийный слой: суммирование, кап, снятие по источнику
+        // 1.12.2 Блок 1: чек 55
         var elem = plugin.getCombat().elemental();
         UUID eu = UUID.randomUUID();
         elem.addPermanent(eu, "selftest_t1", School.FIRE, 40.0);
         elem.addTimed(eu, "selftest_t2", School.FIRE, 30.0, 60_000L);
-        double cappedRes = elem.resistOf(eu, School.FIRE);   // 40+30=70 → кап 60
+        double cappedRes = elem.resistOf(eu, School.FIRE);
         elem.removeBySource(eu, "selftest_t2");
-        double singleRes = elem.resistOf(eu, School.FIRE);   // 40
+        double singleRes = elem.resistOf(eu, School.FIRE);
         elem.removeAll(eu);
-        double zeroRes = elem.resistOf(eu, School.FIRE);     // 0
+        double zeroRes = elem.resistOf(eu, School.FIRE);
         boolean ok55 = Math.abs(cappedRes - 60.0) < 1e-9
                 && Math.abs(singleRes - 40.0) < 1e-9
                 && zeroRes == 0.0;
@@ -783,7 +783,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.2 (Блок 1): чек 56 — связка resistOf → SchoolMitigation (множитель слоев)
+        // 1.12.2 Блок 1: чек 56
         UUID eu2 = UUID.randomUUID();
         elem.addPermanent(eu2, "selftest_t3", School.FROST, 40.0);
         double elPct = elem.resistOf(eu2, School.FROST);
@@ -791,7 +791,7 @@ public final class SelftestRunner {
                 50.0, Penetration.NONE, 0.40, elPct, true, 0.80);
         elem.removeAll(eu2);
         boolean ok56 = Math.abs(elPct - 40.0) < 1e-9
-                && Math.abs(mitCombined - 0.70) < 1e-6;   // 1−(1−0.5)×(1−0.4)=0.7
+                && Math.abs(mitCombined - 0.70) < 1e-6;
         if (check(report, "56", "elemental→mitigation: резист50 канала + стихия40 → поглощение 0.70 (кап 0.80 не режет)",
                 ok56, "SchoolMitigation.mitigationFor(elemental)",
                 String.format(Locale.ROOT, "%.1f/%.4f", elPct, mitCombined))) {
@@ -800,11 +800,11 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.2 (Блок 2): чек 57 — gear-pen кламп: проценты→доля, кап pen-pct-cap, санитария
-        double g1 = GearHook.clampPenFraction(60.0, 0.40);   // 60% → кап 40% → 0.40
-        double g2 = GearHook.clampPenFraction(10.0, 0.40);   // 10% → 0.10
-        double g3 = GearHook.clampPenFraction(-5.0, 0.40);   // отрицательное → 0
-        double g4 = GearHook.clampPenFraction(Double.NaN, 0.40); // NaN → 0
+        // 1.12.2 Блок 2: чек 57
+        double g1 = GearHook.clampPenFraction(60.0, 0.40);
+        double g2 = GearHook.clampPenFraction(10.0, 0.40);
+        double g3 = GearHook.clampPenFraction(-5.0, 0.40);
+        double g4 = GearHook.clampPenFraction(Double.NaN, 0.40);
         boolean ok57 = Math.abs(g1 - 0.40) < 1e-9
                 && Math.abs(g2 - 0.10) < 1e-9
                 && g3 == 0.0
@@ -817,10 +817,10 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.2 (Блок 2): чек 58 — цепочка gear-pen → mitigation (pen съедает резист канала)
+        // 1.12.2 Блок 2: чек 58
         Penetration gearPen = Penetration.of(0.0, GearHook.clampPenFraction(25.0, 0.40));
         double mitGear = SchoolMitigation.mitigationFor(60.0, gearPen, 0.40, 0.0, false, 0.80);
-        boolean ok58 = Math.abs(mitGear - 0.45) < 1e-6;   // (60−0)×(1−0.25)=45 → 0.45
+        boolean ok58 = Math.abs(mitGear - 0.45) < 1e-6;
         if (check(report, "58", "gear-pen→mitigation: резист60 × pen25% → поглощение 0.45",
                 ok58, "SchoolMitigation.mitigationFor(gearPen)",
                 String.format(Locale.ROOT, "%.4f", mitGear))) {
@@ -829,10 +829,10 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.2 (Блок 3): чек 59 — clampSumPercent: сумма источников pen с капом
-        double pc1 = PenTraitsService.clampSumPercent(45.0, 0.40);  // gear10+talent15+spec20 → кап 40
-        double pc2 = PenTraitsService.clampSumPercent(15.0, 0.40);  // 15% → 0.15
-        double pc3 = PenTraitsService.clampSumPercent(-3.0, 0.40);  // отрицательное → 0
+        // 1.12.2 Блок 3: чек 59
+        double pc1 = PenTraitsService.clampSumPercent(45.0, 0.40);
+        double pc2 = PenTraitsService.clampSumPercent(15.0, 0.40);
+        double pc3 = PenTraitsService.clampSumPercent(-3.0, 0.40);
         boolean ok59 = Math.abs(pc1 - 0.40) < 1e-9
                 && Math.abs(pc2 - 0.15) < 1e-9
                 && pc3 == 0.0;
@@ -844,7 +844,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.2 (Блок 3): чек 60 — читатели pen-трейтов на живом конфиге без контента = 0
+        // 1.12.2 Блок 3: чек 60
         PenTraitsService pts = new PenTraitsService(plugin);
         UUID pu60 = UUID.randomUUID();
         double t60 = pts.talentPenPercent(pu60, "phys");
@@ -859,13 +859,13 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.2 (Блок 4): чек 61 — проводка вырождается в legacy при pen=0/elemental=0
+        // 1.12.2 Блок 4: чек 61
         double l1 = SchoolMitigation.mitigationFor(0.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
         double l2 = SchoolMitigation.mitigationFor(35.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
         double l3 = SchoolMitigation.mitigationFor(90.0, Penetration.NONE, 0.40, 0.0, false, 0.90);
         boolean ok61 = l1 == 0.0
                 && Math.abs(l2 - 0.35) < 1e-9
-                && Math.abs(l3 - 0.90) < 1e-9;   // кап 0.90 = resist.cap: танки не нерфятся
+                && Math.abs(l3 - 0.90) < 1e-9;
         if (check(report, "61", "проводка neutral: mitigation(0)=0, (35)=0.35, (90, cap0.90)=0.90 → множитель = старому резист-фактору",
                 ok61, "SchoolMitigation.mitigationFor(legacy)",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.2f", l1, l2, l3))) {
@@ -874,14 +874,59 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.2 (Блок 4): чек 62 — school-pen режет стихийный резист, слои мультипликативны
-        double el62 = CombatMath.effectiveResist(40.0, 0.0, 0.25, 0.40);      // 40×0.75=30
+        // 1.12.2 Блок 4: чек 62
+        double el62 = CombatMath.effectiveResist(40.0, 0.0, 0.25, 0.40);
         double mit62 = SchoolMitigation.mitigationFor(45.0, Penetration.NONE, 0.40, el62, true, 0.90);
         boolean ok62 = Math.abs(el62 - 30.0) < 1e-9
-                && Math.abs(mit62 - 0.615) < 1e-6;   // 1−(1−0.45)×(1−0.30)=0.615
+                && Math.abs(mit62 - 0.615) < 1e-6;
         if (check(report, "62", "school-pen→elemental: резист40 × pen25% → 30; канал45+стихия30 → поглощение 0.615",
                 ok62, "CombatMath.effectiveResist/SchoolMitigation",
                 String.format(Locale.ROOT, "%.1f/%.4f", el62, mit62))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.3: чек 63 — ThreadLocal-контекст школы
+        CombatService.setCurrentCastSchool(School.FIRE);
+        School s63a = CombatService.currentCastSchool();
+        CombatService.clearCastSchool();
+        School s63b = CombatService.currentCastSchool();
+        CombatService.setCurrentCastSchool(School.PHYSICAL);
+        School s63c = CombatService.currentCastSchool();
+        CombatService.clearCastSchool();
+        boolean ok63 = s63a == School.FIRE && s63b == null && s63c == School.PHYSICAL;
+        if (check(report, "63", "cast-school ThreadLocal: set→get, clear→null, re-set→новое",
+                ok63, "CombatService.setCurrentCastSchool",
+                s63a + "/" + s63b + "/" + s63c)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.3: чек 64 — полнота школ: 30 способностей × 6 классов = 30 покрыты
+        int covered = plugin.getAbilityRegistry().schoolCoverage();
+        boolean ok64 = covered == 30;
+        if (check(report, "64", "schoolCoverage: 30/30 способностей имеют школу (DEFAULT_SCHOOLS + override)",
+                ok64, "AbilityRegistry.schoolCoverage", covered)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.3: чек 65 — конкретные школы китов
+        boolean fp = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "fire_prometheus").school() == School.FIRE;
+        boolean bb = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "boreas_breath").school() == School.FROST;
+        boolean zw = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "zeus_wrath").school() == School.ARCANE;
+        boolean bp = plugin.getAbilityRegistry().findById(PlayerClass.ROGUE, "borgia_poison").school() == School.NATURE;
+        boolean sc = plugin.getAbilityRegistry().findById(PlayerClass.ROGUE, "shadow_cloak").school() == School.SHADOW;
+        boolean wh = plugin.getAbilityRegistry().findById(PlayerClass.PRIEST, "wrath_heaven").school() == School.HOLY;
+        boolean rk = plugin.getAbilityRegistry().findById(PlayerClass.WARRIOR, "ragnarok").school() == School.PHYSICAL;
+        boolean bw = plugin.getAbilityRegistry().findById(PlayerClass.WARLOCK, "black_word").school() == School.SHADOW;
+        boolean ok65 = fp && bb && zw && bp && sc && wh && rk && bw;
+        if (check(report, "65", "школы китов: prometheus=FIRE, boreas=FROST, zeus=ARCANE, borgia=NATURE, cloak=SHADOW, wrath=HOLY, ragnarok=PHYSICAL, black_word=SHADOW",
+                ok65, "AbilityRegistry.findById().school",
+                fp + "/" + bb + "/" + zw + "/" + bp + "/" + sc + "/" + wh + "/" + rk + "/" + bw)) {
             passed++;
         } else {
             failed++;
