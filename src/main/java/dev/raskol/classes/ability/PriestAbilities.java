@@ -4,6 +4,7 @@ package dev.raskol.classes.ability;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.passive.PassiveListener;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -22,9 +23,8 @@ import java.util.UUID;
 /**
  * 1.7.4: КИТ ЖРЕЦА. 1.9.3 (план B): maxOf() читает formulaMaxHp();
  * heal() через HpBarService.heal().
- * 1.12.3 (Батч 4): школа HOLY из cast-контекста; VFX (cast/impact/execute/expire)
- *         из vfx.<id>.* конфига с дефолтами; хил-VFX только на успешном хиле;
- *         «Эгида Веры» получает ауру (startAura) как у магической «Эгиды Афины».
+ * 1.12.3 (Батч 4): школа HOLY, каст/impact/execute-VFX конфиг-драйвен, аура Эгиды.
+ * 1.12.5: очищение — успешный хил снимает Dot'ы школ NATURE и SHADOW с цели.
  */
 public final class PriestAbilities {
 
@@ -112,7 +112,6 @@ public final class PriestAbilities {
 
     /* ------------------------------ VFX-хелперы ------------------------------ */
 
-    /** Каст-VFX: звук + партикл в точке кастера (голова). */
     private void castFx(Player p, String id, String soundDef, String particleDef,
                         float volume, float pitch, int count) {
         Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
@@ -126,7 +125,6 @@ public final class PriestAbilities {
         }
     }
 
-    /** Impact/heal-VFX: звук + партикл в точки цели. */
     private void impactFx(LivingEntity target, String id,
                           String soundDef, String particleDef,
                           float volume, float pitch, int count) {
@@ -141,7 +139,6 @@ public final class PriestAbilities {
         }
     }
 
-    /** Execute-VFX: Кара Небес по цели ниже порога HP. */
     private void executeFx(LivingEntity target) {
         Sound sound = plugin.getFx().resolveSound(
                 cfgS("vfx.wrath_heaven.execute-sound", "ENTITY_LIGHTNING_BOLT_IMPACT"));
@@ -156,7 +153,6 @@ public final class PriestAbilities {
         }
     }
 
-    /** Безопасный резолв Particle по имени: неизвестное имя → null (без падения). */
     private Particle resolveParticle(String name) {
         if (name == null || name.isEmpty()) {
             return null;
@@ -170,7 +166,10 @@ public final class PriestAbilities {
 
     /* -------------------------------- способности -------------------------------- */
 
-    /** 1.9.3 (план B): heal() через HpBarService.heal(). */
+    /**
+     * 1.9.3 (план B): heal() через HpBarService.heal().
+     * 1.12.5: очищение — снимает Dot'ы NATURE и SHADOW с цели + искра-партикл.
+     */
     private boolean applyHeal(Player caster, Player target, AbilityDef def,
                               double defBase, double defCoeff) {
         if (!isAllyOrSelf(caster, target)) {
@@ -190,6 +189,18 @@ public final class PriestAbilities {
         double amount = Math.min(healAmount(caster, def, defBase, defCoeff), missing);
         PassiveListener.markHealer(caster.getUniqueId());
         plugin.getHpBarService().heal(target, amount);
+
+        // 1.12.5: очищение святой водой — яды и проклятия сгорают
+        UUID targetUuid = target.getUniqueId();
+        int before = plugin.getCombat().dots().activeOn(targetUuid);
+        plugin.getCombat().dots().removeSchoolOn(targetUuid, School.NATURE);
+        plugin.getCombat().dots().removeSchoolOn(targetUuid, School.SHADOW);
+        int after = plugin.getCombat().dots().activeOn(targetUuid);
+        if (after < before) {
+            target.getWorld().spawnParticle(Particle.ENCHANT,
+                    target.getLocation().add(0.0, 1.0, 0.0), 6, 0.3, 0.4, 0.3, 0.01);
+        }
+
         if (!target.getUniqueId().equals(caster.getUniqueId())) {
             target.sendMessage(Component.text(plugin.getRaskolConfig()
                     .message("healed-you", "{caster} исцелил тебя")
@@ -236,7 +247,6 @@ public final class PriestAbilities {
         int secs = duration(def, 5);
         plugin.getResists().addTimedModifier(uuid, def.id(), grant, grant, secs * 1000L);
         castFx(p, "aegis_faith", "ITEM_ARMOR_EQUIP_DIAMOND", "ENCHANTED_HIT", 0.6f, 1.0f, 20);
-        // 1.12.3: аура щита (паритет с Эгидой Афины) + expire-звук
         plugin.getFx().startAura(uuid, Particle.ENCHANTED_HIT, secs * 20, 3,
                 cfgS("vfx.aegis_faith.expire-sound", "BLOCK_AMETHYST_BLOCK_CHIME"));
         p.sendMessage(Component.text("Эгида Веры: +" + (int) grant
