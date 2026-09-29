@@ -18,6 +18,7 @@
 #  1.12.3: школы в способностях (ключ school: в каждом ability);
 #          ThreadLocal-контекст школы в AbilityRegistry.tryCast;
 #          immunity/multiplier-применение в пути B.
+#          Батч 2: VFX воина — impact/execute-ключи в vfx.tyr_strike…ragnarok.
 # ============================================================
 
 hud:
@@ -1056,6 +1057,8 @@ installations:
 
 # ------------------------------------------------------------
 # VFX/SFX-каталог
+# 1.12.3 Батч 2: воин получил impact/execute-ключи
+# (impact-sound/impact-particle на цели, execute-* для Казни Рагнарёка).
 # ------------------------------------------------------------
 vfx:
   proc-actionbar: true
@@ -1065,6 +1068,8 @@ vfx:
   tyr_strike:
     cast-sound: ENTITY_IRON_GOLEM_ATTACK
     cast-particle: SWEEP_ATTACK
+    impact-sound: ENTITY_PLAYER_ATTACK_CRIT
+    impact-particle: CRIT
   balder_skin:
     cast-sound: ITEM_ARMOR_EQUIP_GOLD
     cast-particle: ENCHANT
@@ -1074,9 +1079,15 @@ vfx:
   fenrir_blood:
     cast-sound: ENTITY_WOLF_AMBIENT
     cast-particle: CRIMSON_SPORE
+    impact-sound: ENTITY_PLAYER_LEVELUP
+    impact-particle: HEART
   ragnarok:
     cast-sound: ENTITY_LIGHTNING_BOLT_THUNDER
     cast-particle: EXPLOSION
+    impact-sound: ENTITY_GENERIC_EXPLODE
+    impact-particle: LARGE_SMOKE
+    execute-sound: ENTITY_GENERIC_EXPLODE
+    execute-particle: EXPLOSION
   wolf_mark:
     cast-sound: ENTITY_WOLF_GROWL
     cast-particle: CRIT
