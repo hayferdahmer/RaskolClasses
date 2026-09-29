@@ -47,6 +47,37 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+/**
+ * Headless-самотестирование формул плагина (/rc selftest).
+ * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
+ * Чеки 17–18: TTK-санити (якорь balance.target-ttk-seconds).
+ * Чеки 19–20: сводный уровень topNAverage (1.8.0).
+ * Чек 21: фракционный гейт canHit (1.8.1).
+ * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
+ * Чек 24: reconcile-цикл талантов (1.9.0; 1.9.2-fix фолбэк).
+ * Чеки 29–30: боевое окно и семантика consume (1.9.1).
+ * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг (1.9.2).
+ * Чеки 33–35: план B — scale/healFormula/targetCarrier (1.9.3).
+ * Чек 36: tickDelta — декэй ярости воина вне боя (1.9.3.2).
+ * Чеки 37–40: чернокнижник — реестры/гейты/конфиг-диапазоны/симулятор/матрица (1.10.0).
+ * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
+ * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
+ * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
+ * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
+ * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
+ * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
+ * Чеки 55–56 (1.12.2 Блок 1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
+ * Чеки 57–58 (1.12.2 Блок 2): gear-pen кламп и цепочка pen→mitigation.
+ * Чеки 59–60 (1.12.2 Блок 3): pen-трейты талантов/спек — clampSumPercent и нулевые читатели.
+ * Чеки 61–62 (1.12.2 Блок 4): проводка neutral и связка school-pen→elemental.
+ * Чеки 63–65 (1.12.3): ThreadLocal cast-school, полнота школ 30/30, конкретные школы китов.
+ * Чеки 66–68 (1.12.4): DoT-математика — capFactor, withMults, dpsLimit + живой DotService.
+ * Чеки 69–71 (1.12.5): средовые триггеры гашения, реестр dots.*, стеки/refresh/expiry Dot.
+ * Чеки 72–73 (1.12.6): HUD-API activeDotsOf + разделение пассивка/абилка DoT.
+ * Чек 74 (1.12.6): миграция poisoned_blades на DotService (конфиг + реестр).
+ * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
+ * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
+ */
 public final class SelftestRunner {
 
     private SelftestRunner() {
@@ -117,7 +148,7 @@ public final class SelftestRunner {
         BalanceSimulator.DuelResult ww = BalanceSimulator.duel(
                 plugin, PlayerClass.WARRIOR, PlayerClass.WARRIOR, 40, 42L);
         boolean ok17 = !ww.timeout() && ww.ttkSeconds() >= 10.0 && ww.ttkSeconds() <= 60.0;
-        if (check(report, "17", "TTK воин↔воин ∈ [10,60] с", ok17, "BalanceSimulator", ww.ttkSeconds())) {
+        if (check(report, "17", "TTK воин↔воин ∈ [10,60] с (якорь 20с)", ok17, "BalanceSimulator", ww.ttkSeconds())) {
             passed++;
         } else {
             failed++;
@@ -126,7 +157,7 @@ public final class SelftestRunner {
         BalanceSimulator.DuelResult pp = BalanceSimulator.duel(
                 plugin, PlayerClass.PRIEST, PlayerClass.PRIEST, 40, 42L);
         boolean ok18 = pp.timeout() || pp.ttkSeconds() >= 30.0;
-        if (check(report, "18", "жрец↔жрец ≥30 с или timeout", ok18, "BalanceSimulator", pp.ttkSeconds())) {
+        if (check(report, "18", "жрец↔жрец ≥30 с или timeout (хилеры не убивают друг друга)", ok18, "BalanceSimulator", pp.ttkSeconds())) {
             passed++;
         } else {
             failed++;
@@ -951,10 +982,38 @@ public final class SelftestRunner {
                 && poisonDef.durationMillis() == 5000L
                 && ppDef.maxStacks() == 1
                 && poisonDef.maxStacks() == 3;
-        if (check(report, "73", "dots: poison_passive (2s/×1) vs poison (5s/×3) — разделение абилки и пассивки",
+        if (check(report, "73", "dots: poison_passive (2s/×1) vs poison (5s/×3)",
                 ok73, "DotService.defById",
                 (ppDef != null ? ppDef.durationMillis() + "/stacks=" + ppDef.maxStacks() : "null")
                         + " vs " + (poisonDef != null ? poisonDef.durationMillis() + "/stacks=" + poisonDef.maxStacks() : "null"))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.6: чек 74 — миграция poisoned_blades: конфиг ссылается на DoT-определение
+        String poisonDotId = plugin.getConfig().getString(
+                "classes.ROGUE.passives.poisoned_blades.dot", "");
+        DotDef poisonPassiveDef = plugin.getCombat().dots().defById("poison_passive");
+        DotDef poisonActiveDef = plugin.getCombat().dots().defById("poison");
+        boolean ok74 = "poison_passive".equals(poisonDotId)
+                && poisonPassiveDef != null
+                && poisonPassiveDef.school() == School.NATURE
+                && poisonPassiveDef.durationMillis() == 2000L
+                && poisonPassiveDef.maxStacks() == 1
+                && poisonActiveDef != null
+                && poisonActiveDef.durationMillis() == 5000L
+                && poisonActiveDef.maxStacks() == 3;
+        if (check(report, "74", "миграция poisoned_blades: passive.dot=poison_passive (NATURE/2с/×1), "
+                + "abilочный poison (5с/×3) — стаки не пересекаются",
+                ok74, "RoguePassives/сonfig classes.ROGUE.passives.poisoned_blades",
+                "dot=" + poisonDotId
+                        + " passive=" + (poisonPassiveDef != null
+                                ? poisonPassiveDef.school() + "/" + poisonPassiveDef.durationMillis() + "ms/×" + poisonPassiveDef.maxStacks()
+                                : "null")
+                        + " abilka=" + (poisonActiveDef != null
+                                ? poisonActiveDef.school() + "/" + poisonActiveDef.durationMillis() + "ms/×" + poisonActiveDef.maxStacks()
+                                : "null"))) {
             passed++;
         } else {
             failed++;
