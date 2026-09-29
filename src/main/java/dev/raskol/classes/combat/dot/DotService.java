@@ -23,6 +23,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -31,18 +34,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 1.12.4: DoT-ядро. Реестр живых Dot'ов по целям + тик-задача 1 с.
- * 1.12.5: + централизованный реестр определений dots.* (defById/applyById);
- *         + снарядные Dot'ы: PDC-тег rc_dot на снаряде → применение по попаданию;
- *         + средовые триггеры: вода/пушистый снег гасят FIRE, огонь/лава плавят FROST;
- *         + тик-VFX по школам (vfx.dot.<school>.particle).
- * 1.12.5-fix: getHitEntity() → instanceof LivingEntity (API возвращает Entity);
- *         puff-партикл таяния = CLOUD (EVAPORATE отсутствует в Paper 1.21.4).
- *
- * Пайплайн тика: валидация (цель/владелец/canHit) → иммунитет школы → триггер среды →
- * dps = def.dps × stacks × schoolMult × immunity × (1+seal) → митигация по школе
- * (pen владельца режет канал и стихию) → суммарный кап dot-dps-cap-pct →
- * применение damage(amount, owner) внутри setSuppress+beginReflect (путь A не
- * дублирует резисты, рефлект Мессы молчит, burst/single-hit капы не тратятся).
+ * 1.12.5: реестр определений dots.*; снарядные Dot'ы; средовые триггеры; тик-VFX.
+ * 1.12.5-fix: getHitEntity() → instanceof; puff-партикл = CLOUD.
+ * 1.12.6: + публичный API для HUD: activeDotsOf() возвращает snapshot-список
+ *         с доступом к def/stacks/expiresAt; remainingSeconds() для таймера.
  */
 public final class DotService implements Listener {
 
@@ -63,12 +58,11 @@ public final class DotService implements Listener {
 
     /* ------------------------------ реестр определений ------------------------------ */
 
-    /** Дефолтная школа Dot'а по id (фолбэк, если конфиг молчит). */
     private static School defaultSchool(String id) {
         return switch (id) {
-            case "burning" -> School.FIRE;
-            case "poison" -> School.NATURE;
-            case "bleed" -> School.PHYSICAL;
+            case "burning", "burning_passive" -> School.FIRE;
+            case "poison", "poison_passive" -> School.NATURE;
+            case "bleed", "bleed_passive" -> School.PHYSICAL;
             case "chilled" -> School.FROST;
             default -> School.ARCANE;
         };
@@ -77,8 +71,11 @@ public final class DotService implements Listener {
     private static double defaultDps(String id) {
         return switch (id) {
             case "burning" -> 4.0;
+            case "burning_passive" -> 3.0;
             case "poison" -> 3.0;
+            case "poison_passive" -> 2.5;
             case "bleed" -> 2.5;
+            case "bleed_passive" -> 2.0;
             case "chilled" -> 2.0;
             default -> 1.0;
         };
@@ -87,8 +84,11 @@ public final class DotService implements Listener {
     private static int defaultDurationSeconds(String id) {
         return switch (id) {
             case "burning" -> 3;
+            case "burning_passive" -> 2;
             case "poison" -> 5;
+            case "poison_passive" -> 2;
             case "bleed" -> 4;
+            case "bleed_passive" -> 3;
             case "chilled" -> 4;
             default -> 3;
         };
@@ -98,11 +98,11 @@ public final class DotService implements Listener {
         return switch (id) {
             case "burning", "poison" -> 3;
             case "bleed", "chilled" -> 2;
+            case "burning_passive", "poison_passive", "bleed_passive" -> 1;
             default -> 1;
         };
     }
 
-    /** Определение Dot'а из конфига dots.<id>.* с кодовыми дефолтами. */
     public DotDef defById(String id) {
         if (id == null || id.isEmpty()) {
             return null;
@@ -129,7 +129,6 @@ public final class DotService implements Listener {
 
     /* ------------------------------ публичный API ------------------------------ */
 
-    /** Наложить именованный Dot (реестр dots.*); стекирование по id+owner. */
     public boolean applyById(Player owner, LivingEntity target, String dotId) {
         DotDef def = defById(dotId);
         if (def == null) {
@@ -139,7 +138,6 @@ public final class DotService implements Listener {
         return true;
     }
 
-    /** Наложить Dot на цель (стекирование по def.id + owner). */
     public void apply(Player owner, LivingEntity target, DotDef def) {
         if (owner == null || target == null || def == null || target.isDead()) {
             return;
@@ -161,12 +159,10 @@ public final class DotService implements Listener {
         list.add(new DotInstance(def, owner.getUniqueId(), now));
     }
 
-    /** Снять все Dot'ы с цели (диспел, смерть, очистка). */
     public void removeAllOn(UUID targetUuid) {
         dots.remove(targetUuid);
     }
 
-    /** Снять Dot'ы конкретной школы с цели (очищение жреца, стихийный диспел). */
     public void removeSchoolOn(UUID targetUuid, School school) {
         CopyOnWriteArrayList<DotInstance> list = dots.get(targetUuid);
         if (list == null) {
@@ -187,12 +183,31 @@ public final class DotService implements Listener {
         return dots.size();
     }
 
-    /* ------------------------------ средовые триггеры ------------------------------ */
+    /* ------------------------------ 1.12.6: HUD-API ------------------------------ */
 
     /**
-     * Pure: среда гасит Dot. FIRE: вода/пузырьковая колонна/пушистый снег;
-     * FROST: огонь/огонь душ/лава. Selftest-чек 69.
+     * Snapshot активных Dot'ов на цели. Пустой список, если цель не отслеживается.
+     * HUD вызывает этот метод раз в тик для построения DoT-строки.
      */
+    public List<DotInstance> activeDotsOf(UUID targetUuid) {
+        CopyOnWriteArrayList<DotInstance> list = dots.get(targetUuid);
+        if (list == null || list.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(list);
+    }
+
+    /** Оставшиеся секунды до истечения Dot'а (ceil — всегда ≥1 на живом Dot). */
+    public static long remainingSeconds(DotInstance inst, long nowMillis) {
+        long left = inst.expiresAt() - nowMillis;
+        if (left <= 0L) {
+            return 0L;
+        }
+        return (left + 999L) / 1000L;
+    }
+
+    /* ------------------------------ средовые триггеры ------------------------------ */
+
     public static boolean shouldExtinguish(School school, Material block) {
         if (school == null || block == null) {
             return false;
@@ -210,10 +225,6 @@ public final class DotService implements Listener {
 
     /* ------------------------------ снарядные Dot'ы ------------------------------ */
 
-    /**
-     * 1.12.5: снаряд с PDC-тегом rc_dot накладывает Dot по попаданию.
-     * 1.12.5-fix: getHitEntity() возвращает Entity — сужаем через instanceof.
-     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent event) {
         Entity entity = event.getEntity();
@@ -232,12 +243,11 @@ public final class DotService implements Listener {
         }
         Entity hitEntity = event.getHitEntity();
         if (!(hitEntity instanceof LivingEntity hit)) {
-            return; // попадание в блок/не-живую сущность — Dot не вешаем
+            return;
         }
         applyById(owner, hit, dotId);
     }
 
-    /** Публичный ключ тега — киты помечают снаряды через него. */
     public NamespacedKey dotTagKey() {
         return dotKey;
     }
@@ -258,7 +268,6 @@ public final class DotService implements Listener {
 
             int n = list.size();
             double[] pending = new double[n];
-            double sum = 0.0;
             int idx = 0;
             for (DotInstance inst : list) {
                 if (inst.expired(now)) {
@@ -266,7 +275,6 @@ public final class DotService implements Listener {
                     pending[idx++] = 0.0;
                     continue;
                 }
-                // 1.12.5: средовый триггер гасит Dot молча
                 if (shouldExtinguish(inst.def().school(),
                         target.getLocation().getBlock().getType())) {
                     list.remove(inst);
@@ -283,7 +291,7 @@ public final class DotService implements Listener {
                 School school = inst.def().school();
                 double immunity = combat.schoolImmunity().multiplierFor(target.getType(), school);
                 if (immunity <= 0.0) {
-                    list.remove(inst); // иммун: урон 0, триггеры молчат
+                    list.remove(inst);
                     pending[idx++] = 0.0;
                     continue;
                 }
@@ -293,7 +301,6 @@ public final class DotService implements Listener {
                         combat.schoolConfig().multiplier(school), immunity, seal);
                 dps *= 1.0 - mitigationFor(target, owner, school);
                 pending[idx] = dps;
-                sum += dps;
                 idx++;
             }
             if (list.isEmpty()) {
@@ -337,7 +344,6 @@ public final class DotService implements Listener {
         }
     }
 
-    /** Тик-VFX школы (2 партикла, без звука — бережём sound-budget). */
     private void tickVfx(LivingEntity target, School school) {
         Particle p = resolveParticle(plugin.getConfig().getString(
                 "vfx.dot." + school.id() + ".particle", null), defaultDotParticle(school));
@@ -347,10 +353,6 @@ public final class DotService implements Listener {
         }
     }
 
-    /**
-     * Puff при гашении триггером среды.
-     * 1.12.5-fix: Particle.EVAPORATE отсутствует в Paper 1.21.4 → CLOUD для таяния.
-     */
     private void puff(LivingEntity target, School school) {
         Particle p = school == School.FIRE ? Particle.SMOKE : Particle.CLOUD;
         target.getWorld().spawnParticle(p, target.getLocation().add(0.0, 1.0, 0.0),
@@ -378,7 +380,6 @@ public final class DotService implements Listener {
         }
     }
 
-    /** Митигация по школе цели: канал-резист (pen) ⊕ стихийный резист (school-pen). */
     private double mitigationFor(LivingEntity target, Player owner, School school) {
         SchoolConfig sc = combat.schoolConfig();
         if (!(target instanceof Player tp) || combat.resists().disabledIn(tp.getWorld())) {
