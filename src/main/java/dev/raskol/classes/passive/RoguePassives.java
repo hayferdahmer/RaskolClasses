@@ -14,6 +14,10 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
  *         идут через DotService; очищение жреца (School.NATURE) снимает яд.
  *         Длительность/стеки берутся из dots.poison_passive.*, конфиг пассивки
  *         читает только шанс и КД (plus ключ dot: для выбора DoT-определения).
+ * 1.12.6-fix (root): приватный cfgS() внутри класса — в иерархии ClassPassive
+ *         строкового хелпера нет (только cfgD/cfgI), прежний вызов cfgS(...)
+ *         ломал компиляцию. Конвенция путей идентична базовым хелперам:
+ *         classes.<CLASS>.passives.<id>.<key>.
  */
 public final class RoguePassives extends BaseClassPassive {
 
@@ -24,6 +28,17 @@ public final class RoguePassives extends BaseClassPassive {
     @Override
     public PlayerClass playerClass() {
         return PlayerClass.ROGUE;
+    }
+
+    /**
+     * 1.12.6-fix: строковый конфиг-хелпер пассивки (локальный, до подъёма в базу).
+     * Путь: classes.ROGUE.passives.<passiveId>.<key>; null/пусто → def.
+     */
+    private String cfgS(String passiveId, String key, String def) {
+        String v = plugin.getConfig().getString(
+                "classes." + playerClass().name() + ".passives." + passiveId + "." + key,
+                def);
+        return (v != null && !v.isEmpty()) ? v : def;
     }
 
     @Override
