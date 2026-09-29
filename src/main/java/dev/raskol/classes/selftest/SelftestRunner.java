@@ -56,11 +56,11 @@ import java.util.UUID;
  * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
  * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
  * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
- * Чеки 52–54 (1.12.1): митигация с пробитием (порядок flat→pct, стихийный слой, кап),
- *         иммунитеты/уязвимости EntityType, Penetration-клампы и taken().
- * 1.12.1-fix: в чеке 50 используется DamageCause.FREEZE (в Bukkit нет FREEZING).
- * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
- * прунинг, а не ошибка.
+ * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
+ * Чеки 55–56 (1.12.2 Блок 1): стихийный слой — суммирование/кап/снятие модификаторов,
+ *         связка resistOf → SchoolMitigation.mitigationFor.
+ * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
+ * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
  */
 public final class SelftestRunner {
 
@@ -669,7 +669,6 @@ public final class SelftestRunner {
         }
 
         // 1.12.0: чек 50 — vanilla-school map + фолбэк через канал
-        // 1.12.1-fix: DamageCause.FREEZE (в Bukkit нет константы FREEZING)
         SchoolConfig sc = new SchoolConfig(plugin);
         boolean ok50 = sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) == School.FIRE
                 && sc.schoolOf(EntityDamageEvent.DamageCause.POISON) == School.NATURE
@@ -752,6 +751,44 @@ public final class SelftestRunner {
         if (check(report, "54", "penetration: pct 0.6→кап 0.40, flat цел; taken(100, mit0.25, ×1.5)=112.5",
                 ok54, "Penetration/SchoolMitigation.taken",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f", p54.flat(), p54.pct(), taken54))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.2 (Блок 1): чек 55 — стихийный слой: суммирование, кап, снятие по источнику
+        var elem = plugin.getCombat().elemental();
+        UUID eu = UUID.randomUUID();
+        elem.addPermanent(eu, "selftest_t1", School.FIRE, 40.0);
+        elem.addTimed(eu, "selftest_t2", School.FIRE, 30.0, 60_000L);
+        double cappedRes = elem.resistOf(eu, School.FIRE);   // 40+30=70 → кап 60
+        elem.removeBySource(eu, "selftest_t2");
+        double singleRes = elem.resistOf(eu, School.FIRE);   // 40
+        elem.removeAll(eu);
+        double zeroRes = elem.resistOf(eu, School.FIRE);     // 0
+        boolean ok55 = Math.abs(cappedRes - 60.0) < 1e-9
+                && Math.abs(singleRes - 40.0) < 1e-9
+                && zeroRes == 0.0;
+        if (check(report, "55", "elemental: 40+30→кап 60; снятие источника→40; removeAll→0",
+                ok55, "ElementalResistService.resistOf",
+                String.format(Locale.ROOT, "%.1f/%.1f/%.1f", cappedRes, singleRes, zeroRes))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.2 (Блок 1): чек 56 — связка resistOf → SchoolMitigation (множитель слоев)
+        UUID eu2 = UUID.randomUUID();
+        elem.addPermanent(eu2, "selftest_t3", School.FROST, 40.0);
+        double elPct = elem.resistOf(eu2, School.FROST);
+        double mitCombined = SchoolMitigation.mitigationFor(
+                50.0, Penetration.NONE, 0.40, elPct, true, 0.80);
+        elem.removeAll(eu2);
+        boolean ok56 = Math.abs(elPct - 40.0) < 1e-9
+                && Math.abs(mitCombined - 0.70) < 1e-6;   // 1−(1−0.5)×(1−0.4)=0.7
+        if (check(report, "56", "elemental→mitigation: резист50 канала + стихия40 → поглощение 0.70 (кап 0.80 не режет)",
+                ok56, "SchoolMitigation.mitigationFor(elemental)",
+                String.format(Locale.ROOT, "%.1f/%.4f", elPct, mitCombined))) {
             passed++;
         } else {
             failed++;
