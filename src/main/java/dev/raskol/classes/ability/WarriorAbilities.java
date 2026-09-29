@@ -6,6 +6,9 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Location;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -17,6 +20,9 @@ import java.util.UUID;
 /**
  * 1.7.2: КИТ ВОИНА. 1.9.3 (план B): effectiveMaxHp() читает formulaMaxHp();
  * fenrirBlood() использует HpBarService.heal().
+ * 1.12.3: школа PHYSICAL идёт из AbilityDef через cast-контекст AbilityRegistry;
+ *         VFX (cast-sound/cast-particle/impact-sound/impact-particle) берётся
+ *         из vfx.<id>.* конфига с дефолтами.
  */
 public final class WarriorAbilities {
 
@@ -30,6 +36,11 @@ public final class WarriorAbilities {
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
         return Double.isFinite(v) ? v : def;
+    }
+
+    private String cfgS(String path, String def) {
+        String v = plugin.getConfig().getString(path, def);
+        return v != null ? v : def;
     }
 
     private double base(AbilityDef def, double defv) {
@@ -85,6 +96,72 @@ public final class WarriorAbilities {
         return ai != null ? ai.getValue() : 20.0;
     }
 
+    /* ------------------------------ VFX-хелперы ------------------------------ */
+
+    /** Каст-VFX: звук + партикл в точке кастера (голова). */
+    private void castFx(Player p, String id, String soundDef, String particleDef,
+                        float volume, float pitch, int count) {
+        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
+        Location loc = p.getLocation().add(0.0, 1.0, 0.0);
+        if (sound != null) {
+            plugin.getFx().playSound(loc, sound, volume, pitch);
+        }
+        Particle particle = resolveParticle(
+                cfgS("vfx." + id + ".cast-particle", particleDef));
+        if (particle != null) {
+            p.getWorld().spawnParticle(particle, loc, count, 0.4, 0.6, 0.4, 0.02);
+        }
+    }
+
+    /** Impact-VFX: звук + партикл в точке цели. */
+    private void impactFx(LivingEntity target, String id,
+                          String soundDef, String particleDef,
+                          float volume, float pitch, int count) {
+        Sound sound = plugin.getFx().resolveSound(
+                cfgS("vfx." + id + ".impact-sound", soundDef));
+        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
+        if (sound != null) {
+            plugin.getFx().playSound(loc, sound, volume, pitch);
+        }
+        Particle particle = resolveParticle(
+                cfgS("vfx." + id + ".impact-particle", particleDef));
+        if (particle != null) {
+            target.getWorld().spawnParticle(particle, loc, count, 0.3, 0.5, 0.3, 0.02);
+        }
+    }
+
+    /** Execute-VFX: отдельный звук и крупные партиклы для Рагнарёка/Казни. */
+    private void executeFx(Player caster, LivingEntity target) {
+        Sound sound = plugin.getFx().resolveSound(
+                cfgS("vfx.ragnarok.execute-sound", "ENTITY_GENERIC_EXPLODE"));
+        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
+        if (sound != null) {
+            plugin.getFx().playSound(loc, sound, 0.9f, 0.7f);
+        }
+        Particle particle = resolveParticle(
+                cfgS("vfx.ragnarok.execute-particle", "EXPLOSION"));
+        if (particle != null) {
+            target.getWorld().spawnParticle(particle, loc, 3, 0.2, 0.3, 0.2, 0.0);
+        }
+    }
+
+    /**
+     * Безопасный резолв Particle по имени: неизвестное имя → null (без падения).
+     * FxService не имеет универсального resolveParticle — делаем локально.
+     */
+    private Particle resolveParticle(String name) {
+        if (name == null || name.isEmpty()) {
+            return null;
+        }
+        try {
+            return Particle.valueOf(name.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    /* -------------------------------- способности -------------------------------- */
+
     public boolean tyrStrike(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -95,8 +172,12 @@ public final class WarriorAbilities {
             allyTarget(p);
             return false;
         }
+        castFx(p, "tyr_strike", "ENTITY_IRON_GOLEM_ATTACK", "SWEEP_ATTACK",
+                0.7f, 0.9f, 12);
         double dmg = dmg(p, def, 10.0, 0.6);
         plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
+        impactFx(t, "tyr_strike", "ENTITY_PLAYER_ATTACK_CRIT", "CRIT",
+                0.5f, 1.0f, 10);
         return true;
     }
 
@@ -107,6 +188,8 @@ public final class WarriorAbilities {
         double grant = b + plugin.getCombat().powers().weaponPower(uuid) * c;
         int secs = duration(def, 5);
         plugin.getResists().addTimedModifier(uuid, def.id(), grant, 0.0, secs * 1000L);
+        castFx(p, "balder_skin", "ITEM_ARMOR_EQUIP_GOLD", "ENCHANT",
+                0.6f, 1.0f, 20);
         return true;
     }
 
@@ -114,6 +197,8 @@ public final class WarriorAbilities {
         int secs = duration(def, 6);
         p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, secs * 20, 1));
         p.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 0));
+        castFx(p, "berserkergang", "ENTITY_RAVAGER_ROAR", "CRIMSON_SPORE",
+                0.8f, 0.8f, 24);
         return true;
     }
 
@@ -127,8 +212,18 @@ public final class WarriorAbilities {
                     "target-full-hp", "Цель здорова"), NamedTextColor.GRAY));
             return false;
         }
+        castFx(p, "fenrir_blood", "ENTITY_WOLF_AMBIENT", "CRIMSON_SPORE",
+                0.6f, 1.0f, 16);
         double amount = dmg(p, def, 15.0, 0.5);
         plugin.getHpBarService().heal(p, amount);
+        // heal-impact: сердечки
+        Sound healSound = plugin.getFx().resolveSound(
+                cfgS("vfx.fenrir_blood.impact-sound", "ENTITY_PLAYER_LEVELUP"));
+        Location loc = p.getLocation().add(0.0, 1.0, 0.0);
+        if (healSound != null) {
+            plugin.getFx().playSound(loc, healSound, 0.5f, 1.2f);
+        }
+        p.getWorld().spawnParticle(Particle.HEART, loc, 8, 0.3, 0.4, 0.3, 0.0);
         return true;
     }
 
@@ -142,6 +237,8 @@ public final class WarriorAbilities {
             allyTarget(p);
             return false;
         }
+        castFx(p, "ragnarok", "ENTITY_LIGHTNING_BOLT_THUNDER", "EXPLOSION",
+                0.9f, 0.7f, 8);
         double threshold = cfgD("classes.WARRIOR.abilities." + def.id() + ".threshold", 0.25);
         double max = effectiveMaxHp(t);
         double frac = max > 0 ? t.getHealth() / max : 1.0;
@@ -149,10 +246,13 @@ public final class WarriorAbilities {
         if (frac < threshold) {
             dmg *= cfgD("classes.WARRIOR.abilities." + def.id() + ".execute-mult", 3.0);
             plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg), true);
+            executeFx(p, t);
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                     "tag.execute", "Казнь ×3!"), NamedTextColor.RED));
         } else {
             plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
+            impactFx(t, "ragnarok", "ENTITY_GENERIC_EXPLODE", "LARGE_SMOKE",
+                    0.6f, 0.9f, 6);
         }
         return true;
     }
