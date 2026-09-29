@@ -13,9 +13,12 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.DamageType;
-import dev.raskol.classes.combat.School;
-import dev.raskol.classes.combat.SchoolConfig;
-import dev.raskol.classes.combat.SchoolProfile;
+import dev.raskol.classes.combat.school.Penetration;
+import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.combat.school.SchoolConfig;
+import dev.raskol.classes.combat.school.SchoolImmunity;
+import dev.raskol.classes.combat.school.SchoolMitigation;
+import dev.raskol.classes.combat.school.SchoolProfile;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.resource.ResourceState;
@@ -27,6 +30,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageEvent;
 
@@ -51,8 +55,9 @@ import java.util.UUID;
  * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
  * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
  * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
- * Чеки 49–51 (1.12.0): школы урона — School→channel, vanilla-school map,
- *         SchoolProfile legacy round-trip с множителями школ.
+ * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
+ * Чеки 52–54 (1.12.1): митигация с пробитием (порядок flat→pct, стихийный слой, кап),
+ *         иммунитеты/уязвимости EntityType, Penetration-клампы и taken().
  * Примечание: WARN «удалён из хранилища» во время прогона — это чек 32 тестирует
  * прунинг, а не ошибка.
  */
@@ -697,6 +702,54 @@ public final class SelftestRunner {
                 ok51, "SchoolProfile.toLegacy",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f dom=%s",
                         back.physical(), back.magic(), back.trueDamage(), legacy.dominant()))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.1: чек 52 — митигация с пробитием: порядок flat→pct, стихийный слой, кап
+        Penetration pen52 = Penetration.of(20.0, 0.25);
+        double mit1 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 0.0, false, 0.80);
+        double mit2 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 30.0, true, 0.80);
+        double mit3 = SchoolMitigation.mitigationFor(95.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
+        boolean ok52 = Math.abs(mit1 - 0.225) < 1e-6
+                && Math.abs(mit2 - 0.4575) < 1e-6
+                && Math.abs(mit3 - 0.80) < 1e-6;
+        if (check(report, "52", "mitigation: (50−20)×0.75=22.5→0.225; +стихия30→0.4575; резист95 без pen→кап 0.80",
+                ok52, "SchoolMitigation.mitigationFor",
+                String.format(Locale.ROOT, "%.4f/%.4f/%.4f", mit1, mit2, mit3))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.1: чек 53 — иммунитеты/уязвимости EntityType (schools.entities.*)
+        SchoolImmunity imm = new SchoolImmunity(plugin);
+        boolean ok53 = imm.multiplierFor(EntityType.BLAZE, School.FIRE) == 0.0
+                && Math.abs(imm.multiplierFor(EntityType.BLAZE, School.FROST) - 1.5) < 1e-9
+                && imm.multiplierFor(EntityType.BLAZE, School.HOLY) == 1.0
+                && imm.multiplierFor(EntityType.ZOMBIE, School.FIRE) == 1.0
+                && Math.abs(imm.multiplierFor(EntityType.WITHER_SKELETON, School.SHADOW) - 0.5) < 1e-9;
+        if (check(report, "53", "immunity: BLAZE FIRE=0 (иммун), FROST=1.5 (уязв), HOLY=1.0; ZOMBIE FIRE=1.0; WITHER_SKELETON SHADOW=0.5",
+                ok53, "SchoolImmunity.multiplierFor",
+                imm.multiplierFor(EntityType.BLAZE, School.FIRE) + "/"
+                        + imm.multiplierFor(EntityType.BLAZE, School.FROST) + "/"
+                        + imm.multiplierFor(EntityType.WITHER_SKELETON, School.SHADOW))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.1: чек 54 — Penetration-клампы и taken()
+        Penetration p54 = Penetration.of(10.0, 0.6).clamped(0.40);
+        double taken54 = SchoolMitigation.taken(100.0, 0.25, 1.5);
+        boolean ok54 = p54.flat() == 10.0
+                && Math.abs(p54.pct() - 0.40) < 1e-9
+                && Penetration.NONE.pct() == 0.0
+                && Math.abs(taken54 - 112.5) < 1e-6;
+        if (check(report, "54", "penetration: pct 0.6→кап 0.40, flat цел; taken(100, mit0.25, ×1.5)=112.5",
+                ok54, "Penetration/SchoolMitigation.taken",
+                String.format(Locale.ROOT, "%.2f/%.2f/%.1f", p54.flat(), p54.pct(), taken54))) {
             passed++;
         } else {
             failed++;
