@@ -1,73 +1,89 @@
 # CHANGELOG — RaskolClasses
 
 Формат: [версия] — дата — имя. Секции Added / Changed / Fixed / Removed / Validate.
-Линия 1.11.x активна (консолидация); 1.12.0 = каркас школ урона (следующая линия).
-Линии 1.10.x и ниже заморожены.
+Линия 1.12.x активна (школы урона); 1.11.x и ниже заморожены.
 
-## [1.12.0] — в разработке · «Каркас школ урона»
-### Added (план)
-- School enum + toChannel — 6–8 типов урона (PHYSICAL_SLASH, PHYSICAL_PIERCE,
-  MAGIC_FIRE/ICE/LIGHTNING, PURE, TRUE, ENV_FALLBACK) с каналами через резисты.
-- SchoolProfile — профиль школы (канал, игнорирует ли armor/резисты, множители).
-- Vanilla-school map — маппинг ванильных DamageCause на наши школы.
-- Legacy-адаптер DamageProfile → SchoolProfile (обратная совместимость китов).
-- Конфиг-секция `schools.*` для балансировки каналов.
-- Selftest чеки 49–51 (матрица школ, маппинг vanilla→school, legacy-адаптер).
+## [1.12.2] — 2026-09-30 · «Школы: пробитие и стихийный слой (живая проводка)»
+
+### Added
+- Блок 1: ElementalResistService — стихийный слой резистов поверх канала
+  (source-модификаторы по школам, кап schools.elemental.resist-cap, self-purge).
+- Блок 2: pen-трейты RaskolGear в GearHook: PDC-ключи raskolgear:pen_phys_pct /
+  pen_magic_pct / pen_<school>_pct (bronя + оружие), агрегация с клампом pen-pct-cap.
+- Блок 3: PenTraitsService — агрегатор pen из gear + талантов (kind "pen") +
+  спек (passive-ключи pen_* в specs.yml); clampSumPercent.
+- Блок 4: живая проводка pen+elemental в путь A (VanillaDamageListener) и путь B
+  (CombatService.dealDamage: phys→PHYSICAL, magic→ARCANE по legacy-соглашению);
+  порядок flat→pct, слои мультипликативно, кап mitigation-cap.
+- Блок 5: UX — строки «Пробитие» и «Стихии» в /rc debug и в Книге (вкладка CLASS);
+  настоящий раздел CHANGELOG и RUNBOOK-секция VIII.
+- Selftest чеки 55–62 (стихийный слой, gear-pen, pen-трейты, neutral-проводка).
+
+### Changed
+- schools.mitigation-cap: 0.80 → 0.90 (выравнивание с resist.cap: проводка нейтральна
+  к 1.12.1 для танков с 90% резиста).
+- schools.elemental.enabled: false → true (слой включён; без источников прозрачен).
+
+### Validate
+- /rc selftest → 62/62; TTK-матрица 6×6 без дельт против 1.12.1 (pen-контента нет).
+
+## [1.12.1] — 2026-09-29 · «Школы: митигация, пробитие, иммунитеты»
+
+### Added
+- SchoolMitigation (порядок flat→pct, стихийный слой, mitigation-cap), Penetration
+  (record, клампы), SchoolImmunity (schools.entities.*: immune/resistant/vulnerable).
+- Проводка иммунитетов/уязвимостей и глобальных множителей школ в путь A.
+- Selftest чеки 52–54.
+
+### Fixed
+- DamageCause FREEZE: ключи FREEZING в damage-types.vanilla-map и
+  schools.vanilla-school никогда не матчились (в Bukkit константа FREEZE).
+
+## [1.12.0] — 2026-09-28 · «Каркас школ урона»
+
+### Added
+- combat.school: School (8 школ → каналы PHYSICAL/MAGIC/TRUE), SchoolProfile
+  (immutable, legacy-адаптеры fromLegacy/toLegacy, dominant), SchoolConfig
+  (schools.*: enabled, multiplier, vanilla-school, резервные капы).
+- Секция schools.* в config.yml; school-reorg пакета (переезд School*).
+- Selftest чеки 49–51.
+
+### Changed
+- Поведение боя не менялось (множители 1.0, каркас без живой проводки).
 
 ## [1.11.4] — 2026-09-29 · «Сверхстабильность: рефакторинг P1–P5 + харденинг S/F/T»
 
 ### Added
-- **P1:** пассивки по классам — `ClassPassive`/`BaseClassPassive` + 5 файлов по классам;
-  PassiveListener = тонкий диспетчер (маркер хилера сохранён).
-- **P2:** инсталляции по типам — `InstallationHandler` + 6 обработчиков
-  (WarBanner…Pentagram); InstallationService = реестр; Пентаграмма v2 (гео-отрисовка,
-  задача перерисовки 10 тиков); кулдаун ставится только после успешной постановки.
-- **P3:** боевое ядро разложено — VanillaDamageListener (путь A), DamageCaps
-  (капы/burst/env), CombatMath (pure: cappedDamage/sanitize/pen-задел);
-  CombatService = фасад (API сохранён).
-- **P4a:** WarlockMath (pure-формулы кита) + WarlockFx (визуал); selftest чеки 41–43.
-- Чеки 44–45: KitSanity (sanity китов 6 классов + RUNBOOK-замки пассив-мультов).
-- **P4b:** Книга класса → `gui/book/*` (BookSlots/BookItems/RenderCtx/BookTabView
-  + 5 таб-файлов).
-- **P4c:** AttributeService → HpPool (план B) + AttributeModifiers; фасад сохранён.
-- **P4d:** команды → `command/sub/*` (DebugSub/GearSub/FoliantSub/HealthSub +
-  CommandSub/SubUtil).
-- **P4e:** spec-слой — SpecMath/SpecPassives/SpecEconomy; аудит F1–F10; чеки 46–47.
-- **P5:** per-class конфиги `kits/<class>.yml` (KitConfigLoader/KitConfigCache)
-  с фолбэком в config.yml; /rc reload перечитывает; чек 48; строка в /rc health.
-- **Безопасность:** S1 санитайзер ников в LP-console-фолбэке; S2 скрытый релок-цикл
-  фолианта (≥1 моб вне ада + ≥1 смерть + ≥1000 пиглинов без шанса, foliant-lock.yml);
-  S3 soulbound-том (keep-on-death, запрет Q-дропа, owner-lock подбор; продажа НЕ
-  блокируется); S4 рефлект Чёрной Мессы не срабатывает на self-урон; S5 анти-хил
-  блокирует ВСЕ причины RegainHealth (+опц. strip-absorption).
+- P1: пассивки по классам (ClassPassive/BaseClassPassive + 5 файлов); PassiveListener = диспетчер.
+- P2: инсталляции по типам (InstallationHandler + 6 обработчиков); InstallationService = реестр;
+  Пентаграмма v2; кулдаун только после успешной постановки.
+- P3: боевое ядро разложено (VanillaDamageListener, DamageCaps, CombatMath); CombatService = фасад.
+- P4a: WarlockMath + WarlockFx; чеки 41–43. Чеки 44–45: KitSanity.
+- P4b: Книга → gui/book/* (5 таб-файлов + каркас).
+- P4c: AttributeService → HpPool + AttributeModifiers.
+- P4d: команды → command/sub/* (4 сабкоманды + роутер).
+- P4e: spec-слой → SpecMath/SpecPassives/SpecEconomy; аудит F1–F10; чеки 46–47.
+- P5: per-class конфиги kits/<class>.yml (KitConfigLoader/KitConfigCache); чек 48.
+- Безопасность: S1 санитайзер ников; S2 релок-цикл фолианта; S3 soulbound;
+  S4 рефлект без self-урона; S5 анти-хил на все причины RegainHealth.
 
 ### Fixed (эксплойты и семантика, F1–F10)
-- **F1:** Ликвидатор — крит 100% → 15% (проценты читались как доли;
-  SpecMath.asFraction).
-- **F2:** Трюкач — уклонение 100% → 15% (та же ошибка единиц).
-- **F3:** Ткач теней — лифстил через HpBarService.heal (уважает анти-хил Раскола Души).
-- **F4:** Берсерк — условие по HP ≥ 60% (как в specs.yml/лоре), а не по ярости ≥ 50.
-- **F5:** Аркана — +1 мана/с (ResourceService), снят неверный ×1.15 урона.
-- **F6:** Стрелок — крит стрелами по crit_bonus (как в лоре), снят дистанционный множитель.
-- **F7:** Адский Канал — +6% маг-резиста теперь реально применяется (генерик
-  resist.specs.* для всех 12 спек + self-reconcile каждые 20 тиков).
-- **F9:** убран двойной actionbar-тег «Благодать» у жреца-светоносца.
-- **F10:** reconcilePassiveResists самопланируется (ранее не вызывался).
-- **T2:** задачи канала Раскола Души отменяются на quit/disable; T3: invalidate
-  резист-кэша на смене сетов; T5: чистка .yml.tmp старше часа на onEnable.
+- F1/F2: ликвидатор/трюкач — 100% крит/додж → 15% (проценты читались как доли).
+- F3: лифстил тенеплёта через HpBarService (уважает анти-хил).
+- F4/F5/F6: берсерк по HP≥60%, аркана = +1 мана/с, стрелок = крит стрелами (по specs.yml).
+- F7: +6% маг-резиста Адского Канала применяется (генерик resist.specs.* + reconcile).
+- F9/F10: двойной тег благодати убран; reconcile самопланируется.
+- T2/T3/T5: задачи канала отменяются; invalidate резист-кэша на смене сетов; чистка .tmp.
 
-### Changed (баланс-влияние, задокументировано в RUNBOOK)
-- DPS разбойника-ликвидатора и выживаемость трюкача снижены до проектных 15%;
-  берсерк/аркана/стрелок работают по specs.yml-семантике. Ожидается сдвиг строк
-  ROGUE в TTK-матрице — калибровка в 1.12.1 (баланс-пакет школ).
+### Changed (баланс-влияние)
+- DPS ликвидатора и выживаемость трюкача снижены до проектных 15%; семантики берсерка/
+  arkаны/стрелка приведены к specs.yml. Калибровка матрицы — в 1.12.7.
 
 ### Removed
-- SpecMenu.java, TrapVisual.java (мёртвые с 1.7.5/1.9.x); dead-ветки precise/rageBurst;
-  install/Installation.java (дубликат ActiveInstallation).
+- SpecMenu.java, TrapVisual.java, install/Installation.java, dead-ветки precise/rageBurst.
 
 ### Validate
-- `/rc selftest` → 48/48; CI зелёный; живой регресс: киты, спеки, инсталляции,
-  фолиант, книга.
+- /rc selftest → 48/48; CI зелёный; живой регресс китов/спек/инсталляций/фолианта/книги.
 
 ## [1.11.0] — 2026-09-25 · «Публичный релиз линии Чернокнижника»
 ## [1.10.4] — 2026-09-25 · «Чёрное Слово v2, Скверна пол 0, Пентаграмма»
