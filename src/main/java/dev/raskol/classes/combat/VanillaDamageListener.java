@@ -5,9 +5,11 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.school.Penetration;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.combat.school.SchoolConfig;
 import dev.raskol.classes.combat.school.SchoolImmunity;
+import dev.raskol.classes.combat.school.SchoolMitigation;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
@@ -32,9 +34,12 @@ import java.util.UUID;
  *  - seal-амплификация «Печати Погибели» (универсально, до резистов);
  *  - резист-фактор канала, single-hit cap, burst-окно (через DamageCaps);
  *  - avoidance (dodge/parry) для PHYSICAL.
- * 1.12.1: иммунитеты/уязвимости сущностей к школам + глобальный множитель школы
- *         (schools.entities.* / schools.multiplier.*) применяются к ванильному урону;
- *         immune → событие отменяется (урон 0).
+ * 1.12.1: иммунитеты/уязвимости сущностей к школам + глобальный множитель школы.
+ * 1.12.2 (Блок 4): живая проводка пробития и стихийного слоя:
+ *         канал-резист режется pen атакующего (flat→pct), стихийный резист цели
+ *         режется school-pen атакующего, слои складываются мультипликативно
+ *         (SchoolMitigation.mitigationFor, кап schools.mitigation-cap).
+ *         pen=0 и elemental=0 → множитель равен старому резист-фактору (нейтрально).
  * Регистрируется фасадом CombatService в конструкторе — RaskolClasses не трогаем.
  */
 public final class VanillaDamageListener implements Listener {
@@ -72,16 +77,18 @@ public final class VanillaDamageListener implements Listener {
     public void onDamage(EntityDamageEvent event) {
         boolean suppressed = CombatService.consumeSuppress();
 
-        if (!suppressed && event instanceof EntityDamageByEntityEvent by) {
-            Player attacker = resolveAttacker(by);
-            if (attacker != null
-                    && event.getEntity() instanceof Player victimTarget
-                    && !attacker.getUniqueId().equals(victimTarget.getUniqueId())
-                    && !plugin.getConfig().getBoolean("combat.friendly-fire", false)
-                    && Targeting.isAlly(plugin, attacker.getUniqueId(), victimTarget.getUniqueId())) {
-                event.setCancelled(true);
-                return;
-            }
+        Player attacker = null;
+        if (event instanceof EntityDamageByEntityEvent by) {
+            attacker = resolveAttacker(by);
+        }
+
+        if (!suppressed && attacker != null
+                && event.getEntity() instanceof Player victimTarget
+                && !attacker.getUniqueId().equals(victimTarget.getUniqueId())
+                && !plugin.getConfig().getBoolean("combat.friendly-fire", false)
+                && Targeting.isAlly(plugin, attacker.getUniqueId(), victimTarget.getUniqueId())) {
+            event.setCancelled(true);
+            return;
         }
 
         if (!suppressed) {
@@ -94,8 +101,8 @@ public final class VanillaDamageListener implements Listener {
         }
 
         // 1.12.1: школы — иммунитеты/уязвимости сущности + глобальный множитель школы
+        School school = schoolConfig.schoolOf(event.getCause());
         if (!suppressed && event.getEntity() instanceof LivingEntity ent) {
-            School school = schoolConfig.schoolOf(event.getCause());
             double mult = immunity.multiplierFor(ent.getType(), school)
                     * schoolConfig.multiplier(school);
             if (mult <= 0.0) {
@@ -138,7 +145,36 @@ public final class VanillaDamageListener implements Listener {
         if (!Double.isFinite(factor) || factor >= 1.0 || factor < 0.0) {
             return;
         }
-        event.setDamage(event.getDamage() * factor);
+
+        // 1.12.2 (Блок 4): пробитие атакующего + стихийный слой цели
+        double channelResistPct = (1.0 - factor) * 100.0;
+        double mitigation;
+        if (attacker != null && schoolConfig.enabled()) {
+            UUID aUuid = attacker.getUniqueId();
+            Penetration pen = combat.penTraits().channelPen(
+                    aUuid, type == DamageType.PHYSICAL,
+                    plugin.getGearHook(), schoolConfig.penPctCap());
+            double effChannel = pen.effectiveResist(channelResistPct, schoolConfig.penPctCap());
+            double elResist = combat.elemental().resistOf(uuid, school);
+            double schoolPen = combat.penTraits().schoolPenFraction(
+                    aUuid, school, plugin.getGearHook(), schoolConfig.penPctCap());
+            double effEl = CombatMath.effectiveResist(
+                    elResist, 0.0, schoolPen, schoolConfig.penPctCap());
+            mitigation = SchoolMitigation.mitigationFor(effChannel, Penetration.NONE,
+                    schoolConfig.penPctCap(), effEl,
+                    schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
+        } else {
+            mitigation = channelResistPct / 100.0; // legacy-поведение
+        }
+        double defenseMult = 1.0 - mitigation;
+        if (defenseMult <= 0.0) {
+            event.setCancelled(true);
+            return;
+        }
+        if (defenseMult < 1.0) {
+            event.setDamage(event.getDamage() * defenseMult);
+        }
+
         caps.applySingleHitCapCarrier(event, target);
         double scale = caps.scaleOf(target);
         double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
