@@ -21,6 +21,7 @@ import dev.raskol.classes.combat.school.SchoolMitigation;
 import dev.raskol.classes.combat.school.SchoolProfile;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
+import dev.raskol.classes.hook.GearHook;
 import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecMath;
@@ -57,8 +58,8 @@ import java.util.UUID;
  * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
  * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
  * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
- * Чеки 55–56 (1.12.2 Блок 1): стихийный слой — суммирование/кап/снятие модификаторов,
- *         связка resistOf → SchoolMitigation.mitigationFor.
+ * Чеки 55–56 (1.12.2 Блок 1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
+ * Чеки 57–58 (1.12.2 Блок 2): gear-pen кламп (clampPenFraction) и цепочка pen→mitigation.
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
  * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
  */
@@ -789,6 +790,35 @@ public final class SelftestRunner {
         if (check(report, "56", "elemental→mitigation: резист50 канала + стихия40 → поглощение 0.70 (кап 0.80 не режет)",
                 ok56, "SchoolMitigation.mitigationFor(elemental)",
                 String.format(Locale.ROOT, "%.1f/%.4f", elPct, mitCombined))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.2 (Блок 2): чек 57 — gear-pen кламп: проценты→доля, кап pen-pct-cap, санитария
+        double g1 = GearHook.clampPenFraction(60.0, 0.40);   // 60% → кап 40% → 0.40
+        double g2 = GearHook.clampPenFraction(10.0, 0.40);   // 10% → 0.10
+        double g3 = GearHook.clampPenFraction(-5.0, 0.40);   // отрицательное → 0
+        double g4 = GearHook.clampPenFraction(Double.NaN, 0.40); // NaN → 0
+        boolean ok57 = Math.abs(g1 - 0.40) < 1e-9
+                && Math.abs(g2 - 0.10) < 1e-9
+                && g3 == 0.0
+                && g4 == 0.0;
+        if (check(report, "57", "gear-pen кламп: 60%→0.40 (кап), 10%→0.10, −5%→0, NaN→0",
+                ok57, "GearHook.clampPenFraction",
+                String.format(Locale.ROOT, "%.2f/%.2f/%.1f/%.1f", g1, g2, g3, g4))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.2 (Блок 2): чек 58 — цепочка gear-pen → mitigation (pen съедает резист канала)
+        Penetration gearPen = Penetration.of(0.0, GearHook.clampPenFraction(25.0, 0.40));
+        double mitGear = SchoolMitigation.mitigationFor(60.0, gearPen, 0.40, 0.0, false, 0.80);
+        boolean ok58 = Math.abs(mitGear - 0.45) < 1e-6;   // (60−0)×(1−0.25)=45 → 0.45
+        if (check(report, "58", "gear-pen→mitigation: резист60 × pen25% → поглощение 0.45",
+                ok58, "SchoolMitigation.mitigationFor(gearPen)",
+                String.format(Locale.ROOT, "%.4f", mitGear))) {
             passed++;
         } else {
             failed++;
