@@ -14,7 +14,9 @@ import dev.raskol.classes.combat.CombatMath;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.DamageType;
-import dev.raskol.classes.combat.dot.DotMath;
+import dev.raskol.classes.combat.dot.DotDef;
+import dev.raskol.classes.combat.dot.DotInstance;
+import dev.raskol.classes.combat.dot.DotService;
 import dev.raskol.classes.combat.school.PenTraitsService;
 import dev.raskol.classes.combat.school.Penetration;
 import dev.raskol.classes.combat.school.School;
@@ -33,6 +35,7 @@ import dev.raskol.classes.talent.TalentsRegistry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -67,6 +70,7 @@ import java.util.UUID;
  * Чеки 61–62 (1.12.2 Блок 4): проводка neutral и связка school-pen→elemental.
  * Чеки 63–65 (1.12.3): ThreadLocal cast-school, полнота школ 30/30, конкретные школы китов.
  * Чеки 66–68 (1.12.4): DoT-математика — capFactor, withMults, dpsLimit + живой DotService.
+ * Чеки 69–71 (1.12.5): средовые триггеры гашения, реестр dots.*, стеки/refresh/expiry Dot.
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
  * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
  */
@@ -969,6 +973,61 @@ public final class SelftestRunner {
         if (check(report, "68", "DotService зарегистрирован; combat.dot-dps-cap-pct=6.0 → лимит 60 DPS на 1000 HP",
                 ok68, "CombatService.dots/DotMath.dpsLimit",
                 svc68 + "/" + capCfg + "/" + lim68)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.5: чек 69 — средовые триггеры: вода/снег гасят FIRE, огонь/лава плавят FROST
+        boolean ex1 = DotService.shouldExtinguish(School.FIRE, Material.WATER);
+        boolean ex2 = DotService.shouldExtinguish(School.FIRE, Material.POWDER_SNOW);
+        boolean ex3 = DotService.shouldExtinguish(School.FIRE, Material.STONE);
+        boolean ex4 = DotService.shouldExtinguish(School.FROST, Material.LAVA);
+        boolean ex5 = DotService.shouldExtinguish(School.FROST, Material.WATER);
+        boolean ok69 = ex1 && ex2 && !ex3 && ex4 && !ex5;
+        if (check(report, "69", "триггеры среды: FIRE+вода/пушистый снег→гаснет, FIRE+камень→нет; FROST+лава→тает, FROST+вода→нет",
+                ok69, "DotService.shouldExtinguish",
+                ex1 + "/" + ex2 + "/" + ex3 + "/" + ex4 + "/" + ex5)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.5: чек 70 — реестр dots.* читает 4 определения с позитивным dps и верной школой
+        var dots70 = plugin.getCombat().dots();
+        boolean ok70 = dots70.defById("burning") != null
+                && dots70.defById("burning").dps() > 0.0
+                && dots70.defById("burning").school() == School.FIRE
+                && dots70.defById("poison") != null
+                && dots70.defById("poison").school() == School.NATURE
+                && dots70.defById("bleed") != null
+                && dots70.defById("bleed").school() == School.PHYSICAL
+                && dots70.defById("chilled") != null
+                && dots70.defById("chilled").school() == School.FROST;
+        if (check(report, "70", "dots-реестр: burning=FIRE, poison=NATURE, bleed=PHYSICAL, chilled=FROST, dps>0",
+                ok70, "DotService.defById",
+                (dots70.defById("burning") != null) + "/" + (dots70.defById("poison") != null)
+                        + "/" + (dots70.defById("bleed") != null) + "/" + (dots70.defById("chilled") != null))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.5: чек 71 — стеки/refresh/expiry экземпляра Dot
+        UUID uuid71 = UUID.randomUUID();
+        DotInstance inst71 = new DotInstance(
+                DotDef.of("selftest_dot", School.FIRE, 5.0, 3000L, 3, "selftest"),
+                uuid71, System.currentTimeMillis());
+        long t71 = System.currentTimeMillis();
+        inst71.refresh(t71);
+        inst71.refresh(t71);
+        inst71.refresh(t71);   // 4-е наложение при maxStacks=3 → стеки не растут
+        boolean stacksOk = inst71.stacks() == 3;
+        boolean expiryOk = !inst71.expired(t71 + 2999L) && inst71.expired(t71 + 3001L);
+        boolean ok71 = stacksOk && expiryOk;
+        if (check(report, "71", "DotInstance: 4 наложения при maxStacks=3 → 3 стека; expiry на границе duration",
+                ok71, "DotInstance.refresh/expired",
+                inst71.stacks() + "/" + stacksOk + "/" + expiryOk)) {
             passed++;
         } else {
             failed++;
