@@ -13,6 +13,7 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.DamageType;
+import dev.raskol.classes.combat.school.PenTraitsService;
 import dev.raskol.classes.combat.school.Penetration;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.combat.school.SchoolConfig;
@@ -60,6 +61,8 @@ import java.util.UUID;
  * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
  * Чеки 55–56 (1.12.2 Блок 1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
  * Чеки 57–58 (1.12.2 Блок 2): gear-pen кламп (clampPenFraction) и цепочка pen→mitigation.
+ * Чеки 59–60 (1.12.2 Блок 3): pen-трейты талантов/спек — clampSumPercent и нулевые
+ *         читатели на живом конфиге без pen-контента.
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
  * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
  */
@@ -819,6 +822,36 @@ public final class SelftestRunner {
         if (check(report, "58", "gear-pen→mitigation: резист60 × pen25% → поглощение 0.45",
                 ok58, "SchoolMitigation.mitigationFor(gearPen)",
                 String.format(Locale.ROOT, "%.4f", mitGear))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.2 (Блок 3): чек 59 — clampSumPercent: сумма источников pen с капом
+        double pc1 = PenTraitsService.clampSumPercent(45.0, 0.40);  // gear10+talent15+spec20 → кап 40
+        double pc2 = PenTraitsService.clampSumPercent(15.0, 0.40);  // 15% → 0.15
+        double pc3 = PenTraitsService.clampSumPercent(-3.0, 0.40);  // отрицательное → 0
+        boolean ok59 = Math.abs(pc1 - 0.40) < 1e-9
+                && Math.abs(pc2 - 0.15) < 1e-9
+                && pc3 == 0.0;
+        if (check(report, "59", "pen-сумма: 45%→кап 0.40; 15%→0.15; −3%→0",
+                ok59, "PenTraitsService.clampSumPercent",
+                String.format(Locale.ROOT, "%.2f/%.2f/%.1f", pc1, pc2, pc3))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.12.2 (Блок 3): чек 60 — читатели pen-трейтов на живом конфиге без контента = 0
+        PenTraitsService pts = new PenTraitsService(plugin);
+        UUID pu60 = UUID.randomUUID();
+        double t60 = pts.talentPenPercent(pu60, "phys");
+        double s60 = pts.specPenPercent(Spec.GUARDIAN, "phys");
+        double g60 = pts.schoolPenFraction(pu60, School.FIRE, plugin.getGearHook(), 0.40);
+        boolean ok60 = t60 == 0.0 && s60 == 0.0 && g60 == 0.0;
+        if (check(report, "60", "pen-трейты без контента: talent=0, spec=0, school(FIRE)+gear=0 (поведение 1.12.1)",
+                ok60, "PenTraitsService.*",
+                String.format(Locale.ROOT, "%.1f/%.1f/%.1f", t60, s60, g60))) {
             passed++;
         } else {
             failed++;
