@@ -33,16 +33,12 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * 1.11.4 (P3): ТОНКИЙ ФАСАД боевого ядра. Публичный API сохранён полностью:
- *   dealDamage / canHit / simulateTaken / powers / resists / avoidance / caps,
- *   статик-маркеры (SUPPRESS / ABILITY_SOURCE / REFLECT_SUPPRESS), cappedDamage.
- * Путь A вынесен в VanillaDamageListener (регистрируется здесь же, в конструкторе);
- * капы и burst-окно — в DamageCaps; pure-математика — в CombatMath.
- * 1.12.2 (Блок 1/3/4): ElementalResistService, PenTraitsService, живая проводка.
- * 1.12.3: ThreadLocal-контекст школы (currentCastSchool) — устанавливается
- *         AbilityRegistry при tryCast; читается в dealDamage для применения
- *         иммунитетов (schools.entities.*) и множителей (schools.multiplier.*).
- * 1.12.4: DotService (реестр DoT + тик-задача 1 с) создан здесь и доступен через dots().
+ * 1.11.4 (P3): ТОНКИЙ ФАСАД боевого ядра. Публичный API сохранён полностью.
+ * 1.12.2: ElementalResistService, PenTraitsService, живая проводка pen+elemental.
+ * 1.12.3: ThreadLocal-контекст школы (currentCastSchool) — иммунитеты/множители в пути B.
+ * 1.12.4: DotService (реестр DoT + тик-задача) создан здесь, геттер dots().
+ * 1.13.0 (Б2): после применения урона пути B — CCService.breakOnDamage
+ *         (урон ≥ cc.breaks-on-damage-threshold-pct снимает ROOT/FEAR с цели).
  */
 public final class CombatService implements Listener {
 
@@ -83,7 +79,6 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ статик-маркеры ------------------------------ */
 
-    /** Читает и сбрасывает флаг «урон применён нами» (путь B → путь A). */
     public static boolean consumeSuppress() {
         boolean v = Boolean.TRUE.equals(SUPPRESS.get());
         if (v) {
@@ -96,7 +91,6 @@ public final class CombatService implements Listener {
         SUPPRESS.set(value);
     }
 
-    /** UUID игрока-источника внутри dealDamage (синхронно виден в событии). */
     public static UUID abilitySourceMark() {
         return ABILITY_SOURCE.get();
     }
@@ -113,7 +107,6 @@ public final class CombatService implements Listener {
         REFLECT_SUPPRESS.set(Boolean.FALSE);
     }
 
-    /** 1.12.3: школа текущего каста; null = каст вне AbilityRegistry (legacy-вывод). */
     public static void setCurrentCastSchool(School school) {
         if (school == null) {
             CURRENT_CAST_SCHOOL.remove();
@@ -137,20 +130,12 @@ public final class CombatService implements Listener {
     public PowerService powers() { return powers; }
     public DamageCaps caps() { return caps; }
     public VanillaDamageListener vanillaListener() { return vanillaListener; }
-
-    /** 1.12.2 (Блок 1): стихийный слой резистов школ. */
     public ElementalResistService elemental() { return elemental; }
-
-    /** 1.12.2 (Блок 3): агрегатор pen-трейтов (gear+таланты+спеки). */
     public PenTraitsService penTraits() { return penTraits; }
-
     public SchoolConfig schoolConfig() { return schoolConfig; }
     public SchoolImmunity schoolImmunity() { return schoolImmunity; }
-
-    /** 1.12.4: DoT-ядро (реестр + тик-задача). */
     public DotService dots() { return dots; }
 
-    /** Делегат для BalanceSimulator/selftest (внешний API не меняем). */
     public static double cappedDamage(double damage, double maxHp, double pct) {
         return CombatMath.cappedDamage(damage, maxHp, pct);
     }
@@ -186,7 +171,6 @@ public final class CombatService implements Listener {
     public double formulaMaxOf(LivingEntity target) { return caps.formulaMaxOf(target); }
     public double scaleOf(Entity target) { return caps.scaleOf(target); }
 
-    /** Доля HP (formula для игроков) для порога игнора маг-резиста. */
     private double hpFractionOf(LivingEntity e) {
         if (e instanceof Player p) {
             double max = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
@@ -260,7 +244,7 @@ public final class CombatService implements Listener {
             schoolMult *= schoolConfig.multiplier(castSchool);
             double immMult = schoolImmunity.multiplierFor(target.getType(), castSchool);
             if (immMult <= 0.0) {
-                return 0.0; // иммунная школа: урон 0, триггеры молчат
+                return 0.0;
             }
             schoolMult *= immMult;
         }
@@ -279,7 +263,6 @@ public final class CombatService implements Listener {
             }
         }
 
-        // 1.11.3: игнор маг-резиста чернокнижником при HP ≤ порога (любая сторона)
         boolean warlockIgnoreMagic = false;
         if (source instanceof Player spSrc && magicBase > 0.0
                 && plugin.getClassProvider().getClassOf(spSrc) == PlayerClass.WARLOCK) {
@@ -298,7 +281,6 @@ public final class CombatService implements Listener {
             double physFactor = resists.physicalFactor(uuid, cap);
             double magicFactor = resists.magicFactor(uuid, cap);
             if (!schoolConfig.enabled()) {
-                // legacy-ветка: рубильник школ выключен
                 physPart = Double.isFinite(physFactor) ? physBase * physFactor : physBase;
                 double magicScaled = Double.isFinite(magicFactor) ? magicBase * magicFactor : magicBase;
                 if (warlockIgnoreMagic) {
@@ -306,7 +288,6 @@ public final class CombatService implements Listener {
                 }
                 magicTruePart = magicScaled + truePart;
             } else {
-                // 1.12.2 (Блок 4): pen атакующего + стихийный слой цели
                 double physResistPct = Double.isFinite(physFactor) ? (1.0 - physFactor) * 100.0 : 0.0;
                 double magicResistPct = Double.isFinite(magicFactor) ? (1.0 - magicFactor) * 100.0 : 0.0;
                 if (warlockIgnoreMagic) {
@@ -346,13 +327,11 @@ public final class CombatService implements Listener {
             magicTruePart = magicBase + truePart;
         }
 
-        // 1.12.3: множитель школы (включая immunity-mult) применяется ПОСЛЕ защиты
         if (schoolMult != 1.0) {
             physPart *= schoolMult;
             magicTruePart *= schoolMult;
         }
 
-        // «Печать Погибели»: амплификация входящего урона (путь B)
         double amp = WarlockAbilities.sealAmplifyOf(target.getUniqueId());
         if (amp > 0.0) {
             physPart *= (1.0 + amp);
@@ -419,6 +398,11 @@ public final class CombatService implements Listener {
             ABILITY_SOURCE.remove();
         }
 
+        // 1.13.0 (Б2): breaksOnDamage — урон ≥ порога (% formula-maxHP) снимает ROOT/FEAR с цели
+        if (taken > 0.0) {
+            plugin.getCC().breakOnDamage(target, taken, caps.formulaMaxOf(target));
+        }
+
         // откат чернокнижника 6.66% (глушится для рефлект-урона)
         if (source instanceof Player attacker && taken > 0.0
                 && !reflectSuppressed()
@@ -480,7 +464,6 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ анти-хил (S5) ------------------------------ */
 
-    /** 1.10.0 / 1.11.2 (S5): анти-хил блокирует ВСЕ причины лечения. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof LivingEntity le)) {
