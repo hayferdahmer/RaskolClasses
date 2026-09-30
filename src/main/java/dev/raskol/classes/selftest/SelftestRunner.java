@@ -8,10 +8,12 @@ import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.balance.BalanceSimulator;
+import dev.raskol.classes.cc.CCFeedback;
 import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.CCType;
-import dev.raskol.classes.cc.CastGuard;
+import dev.raskol.classes.cc.CastChannels;
 import dev.raskol.classes.cc.DRCategory;
+import dev.raskol.classes.cc.VanillaCCWrapper;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatMath;
@@ -45,11 +47,13 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
@@ -63,27 +67,29 @@ import java.util.UUID;
  * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг (1.9.2).
  * Чеки 33–35: план B — scale/healFormula/targetCarrier (1.9.3).
  * Чек 36: tickDelta — декэй ярости воина вне боя (1.9.3.2).
- * Чеки 37–40: чернокнижник — реестры/гейты/конфиг/симулятор/матрица (1.10.0).
+ * Чеки 37–40: чернокнижник — реестры/гейты/конфиг-диапазоны/симулятор/матрица (1.10.0).
  * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
- * Чеки 44–45 (1.11.4): sanity китов + RUNBOOK пассив-мульты.
- * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction и respecCost.
- * Чек 48 (1.11.4 P5): per-class yml loader.
- * Чеки 49–51 (1.12.0): школы — channel, vanilla-school, legacy round-trip.
- * Чеки 52–54 (1.12.1): митигация/пробитие, иммунитеты, Penetration-клампы.
- * Чеки 55–56 (1.12.2 Б1): стихийный слой.
- * Чеки 57–58 (1.12.2 Б2): gear-pen.
- * Чеки 59–60 (1.12.2 Б3): pen-трейты талантов/спек.
- * Чеки 61–62 (1.12.2 Б4): проводка neutral, school-pen→elemental.
- * Чеки 63–65 (1.12.3): cast-school ThreadLocal, полнота школ, школы китов.
- * Чеки 66–68 (1.12.4): DoT-математика + живой DotService.
- * Чеки 69–71 (1.12.5): триггеры среды, реестр dots.*, стеки/expiry.
- * Чеки 72–74 (1.12.6): HUD-API, poison_passive, миграция poisoned_blades.
- * Чек 75 (1.12.7): sanity баланс-прогона матрицы 6×6.
- * Чеки 76–79 (1.13.0 Б1): DR-множители, окно, DR-иммунитет, категории CC.
- * Чеки 80–84 (1.13.0 Б2): CCService живой, breaksOnDamage-флаги и порог,
- *         STUN не ломается уроном, CastGuard.canCast (STUN/SILENCE/instant).
+ * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
+ * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
+ * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
+ * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
+ * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
+ * Чеки 55–56 (1.12.2 Б1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
+ * Чеки 57–58 (1.12.2 Б2): gear-pen кламп и цепочка pen→mitigation.
+ * Чеки 59–60 (1.12.2 Б3): pen-трейты талантов/спек — clampSumPercent и нулевые читатели.
+ * Чеки 61–62 (1.12.2 Б4): проводка neutral и связка school-pen→elemental.
+ * Чеки 63–65 (1.12.3): ThreadLocal cast-school, полнота школ 30/30, конкретные школы китов.
+ * Чеки 66–68 (1.12.4): DoT-математика — capFactor, withMults, dpsLimit + живой DotService.
+ * Чеки 69–71 (1.12.5): средовые триггеры гашения, реестр dots.*, стеки/refresh/expiry Dot.
+ * Чеки 72–74 (1.12.6): HUD-API activeDotsOf, poison_passive vs poison, миграция poisoned_blades.
+ * Чек 75 (1.12.7): sanity баланс-прогона матрицы 6×6 (чистая, диагональ, средняя).
+ * Чеки 76–79 (1.13.0 Б1): DR-множители, окно DR, DR-иммунитет, категории CC.
+ * Чеки 80–84 (1.13.0 Б2): CCService живой, breaksOnDamage-флаги и порог, STUN не ломается
+ *         уроном, CastGuard.canCast (STUN/SILENCE/instant).
+ * Чеки 85–87 (1.13.0 Б3): обёртка ванили (SLOWNESS/BLINDNESS/WEAKNESS), формат сообщения
+ *         CCFeedback.describeApply, CastChannels.interrupt (canceller + снятие регистрации).
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
- * чеки 55–56 требуют schools.elemental.enabled: true;
+ * чеки 55–56 требуют schools.elemental.enabled: true в config.yml;
  * чеки 82–84 используют retry-хелпер applyUntilOk (ccResist-бросок не флапает).
  */
 public final class SelftestRunner {
@@ -1097,7 +1103,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б2): чек 80 — CCService живой (создан в onEnable через RaskolClasses)
         CCService cc = plugin.getCC();
         boolean ok80 = cc != null && cc.enabled();
         if (check(report, "80", "CCService инициализирован и cc.enabled=true",
@@ -1108,7 +1113,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б2): чек 81 — breaksOnDamage-флаги типов: ROOT/FEAR=true, остальные=false
         boolean ok81 = CCType.ROOT.breaksOnDamage()
                 && CCType.FEAR.breaksOnDamage()
                 && !CCType.STUN.breaksOnDamage()
@@ -1125,7 +1129,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б2): чек 82 — breakOnDamage: урон 6% от maxHP снимает ROOT, 3% — оставляет
         if (probe == null || cc == null) {
             if (check(report, "82", "breakOnDamage (пропущено: нет онлайн-игрока)",
                     true, "CCService.breakOnDamage", "skip")) {
@@ -1139,11 +1142,11 @@ public final class SelftestRunner {
             cc.resetAllDr(u82);
             boolean applied1 = applyUntilOk(cc, probe, CCType.ROOT, 100);
             boolean hasBefore = cc.has(u82, CCType.ROOT);
-            cc.breakOnDamage(probe, 60.0, 1000.0);   // 6% ≥ порога 5% → снять
+            cc.breakOnDamage(probe, 60.0, 1000.0);
             boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
             cc.resetAllDr(u82);
             boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
-            cc.breakOnDamage(probe, 30.0, 1000.0);   // 3% < порога → оставить
+            cc.breakOnDamage(probe, 30.0, 1000.0);
             boolean hasAfterLow = cc.has(u82, CCType.ROOT);
             cc.removeAll(u82);
             cc.resetAllDr(u82);
@@ -1157,7 +1160,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.13.0 (Б2): чек 83 — STUN не снимается уроном (breaksOnDamage=false)
         if (probe == null || cc == null) {
             if (check(report, "83", "STUN breakOnDamage (пропущено)", true, "CCService.breakOnDamage", "skip")) {
                 passed++;
@@ -1184,7 +1186,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.13.0 (Б2): чек 84 — CastGuard.canCast: STUN/FEAR блок, SILENCE блок кроме instant
         if (probe == null || cc == null) {
             if (check(report, "84", "CastGuard.canCast (пропущено)", true, "CastGuard.canCast", "skip")) {
                 passed++;
@@ -1193,7 +1194,7 @@ public final class SelftestRunner {
             }
         } else {
             UUID u84 = probe.getUniqueId();
-            CastGuard cg = new CastGuard(plugin);
+            dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
             cc.removeAll(u84);
             cc.resetAllDr(u84);
             boolean canNormal = cg.canCast(probe, false);
@@ -1214,6 +1215,49 @@ public final class SelftestRunner {
             } else {
                 failed++;
             }
+        }
+
+        // 1.13.0 (Б3): чек 85 — обёртка ванили: SLOWNESS→SLOW, BLINDNESS→BLIND, WEAKNESS→SILENCE, прочее null
+        boolean ok85 = VanillaCCWrapper.wrapTarget(PotionEffectType.SLOWNESS) == CCType.SLOW
+                && VanillaCCWrapper.wrapTarget(PotionEffectType.BLINDNESS) == CCType.BLIND
+                && VanillaCCWrapper.wrapTarget(PotionEffectType.WEAKNESS) == CCType.SILENCE
+                && VanillaCCWrapper.wrapTarget(PotionEffectType.REGENERATION) == null;
+        if (check(report, "85", "wrapVanilla: SLOWNESS→SLOW, BLINDNESS→BLIND, WEAKNESS→SILENCE, REGEN→null",
+                ok85, "VanillaCCWrapper.wrapTarget",
+                VanillaCCWrapper.wrapTarget(PotionEffectType.SLOWNESS) + "/"
+                        + VanillaCCWrapper.wrapTarget(PotionEffectType.BLINDNESS) + "/"
+                        + VanillaCCWrapper.wrapTarget(PotionEffectType.WEAKNESS))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б3): чек 86 — CCFeedback.describeApply: ruName + секунды + DR-процент из messages.cc.applied
+        String d86 = CCFeedback.describeApply(plugin, CCType.STUN, 60, 0.5);
+        boolean ok86 = d86 != null
+                && d86.contains(CCType.STUN.ruName())
+                && d86.contains("3.0")
+                && d86.contains("50");
+        if (check(report, "86", "describeApply: «Оцепенение», 3.0с, DR 50% в строке сообщения",
+                ok86, "CCFeedback.describeApply", d86)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б3): чек 87 — CastChannels: interrupt выполняет canceller и снимает регистрацию
+        AtomicBoolean cancelled87 = new AtomicBoolean(false);
+        UUID ch87 = UUID.randomUUID();
+        CastChannels.register(ch87, () -> cancelled87.set(true));
+        boolean first87 = CastChannels.interrupt(ch87);
+        boolean second87 = CastChannels.interrupt(ch87);
+        boolean ok87 = first87 && cancelled87.get() && !second87 && !CastChannels.isChanneling(ch87);
+        if (check(report, "87", "CastChannels: interrupt→canceller выполнен, повторный interrupt=false",
+                ok87, "CastChannels.interrupt",
+                first87 + "/" + cancelled87.get() + "/" + second87)) {
+            passed++;
+        } else {
+            failed++;
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
