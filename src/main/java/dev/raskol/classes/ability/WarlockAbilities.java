@@ -2,6 +2,7 @@
 package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.cc.CastChannels;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.fx.WarlockFx;
@@ -34,6 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.11.2: T2-задачи канала + S5 strip-absorption.
  * 1.11.4 (P4a): математика вынесена в WarlockMath (pure, selftest 41–43),
  *         визуал — в WarlockFx; здесь только оркестрация кита и реестры дебафов.
+ * 1.13.0 (Б3): канал soul_rift регистрируется в CastChannels для прерывания
+ *         interruptible-CC (STUN/SILENCE/FEAR). Отмена через cancelChannelTasks
+ *         снимает и CastChannels-регистрацию (идемпотентно).
  */
 public final class WarlockAbilities implements Listener {
 
@@ -78,8 +82,15 @@ public final class WarlockAbilities implements Listener {
         ANTIHEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
     }
 
-    /** 1.11.2 (T2): отмена всех задач канала конкретного кастера. */
+    /**
+     * 1.11.2 (T2): отмена всех задач канала конкретного кастера.
+     * 1.13.0 (Б3): дополнительно снимает регистрацию в CastChannels —
+     *              idempotent (ConcurrentHashMap.remove по несуществующему ключу = no-op),
+     *              поэтому безопасно вызывается и из CastChannels.interrupt-canceller,
+     *              и из финальной задачи штатного завершения.
+     */
     public static void cancelChannelTasks(UUID caster) {
+        CastChannels.unregister(caster); // 1.13.0 (Б3): снять CastChannels-регистрацию
         List<BukkitTask> tasks = CHANNEL_TASKS.remove(caster);
         if (tasks == null) {
             return;
@@ -345,7 +356,13 @@ public final class WarlockAbilities implements Listener {
         return true;
     }
 
-    /** 1.11.2 (T2) + 1.11.4: канал с задачами в CHANNEL_TASKS; взрыв через WarlockMath. */
+    /**
+     * 1.11.2 (T2) + 1.11.4: канал с задачами в CHANNEL_TASKS; взрыв через WarlockMath.
+     * 1.13.0 (Б3): регистрация канала в CastChannels для прерывания interruptible-CC
+     *              (STUN/SILENCE/FEAR на кастере → cancelChannelTasks → отмена всех задач,
+     *              включая финальный взрыв). Antiheal-таймеры жертв уже применены —
+     *              не снимаются (это корректное поведение: зона уже нанесла дебафф).
+     */
     public boolean soulRift(Player caster, AbilityDef def) {
         double radius = radius(def, 8.0) + specRiftRadiusBonus(caster);
         double channelSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".channel", 2.5);
@@ -358,6 +375,9 @@ public final class WarlockAbilities implements Listener {
         WarlockFx.ringFx(caster.getLocation(), radius, Particle.CRIMSON_SPORE, 2);
 
         List<BukkitTask> tasks = new ArrayList<>();
+        // 1.13.0 (Б3): регистрация канала для прерывания CC (STUN/SILENCE/FEAR)
+        CastChannels.register(caster.getUniqueId(),
+                () -> cancelChannelTasks(caster.getUniqueId()));
 
         for (int i = 1; i <= ticks; i += 5) {
             BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
@@ -412,6 +432,8 @@ public final class WarlockAbilities implements Listener {
             }
             plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
             purgeStaleDebuffs();
+            // 1.13.0 (Б3): снятие CastChannels-регистрации при штатном завершении канала
+            CastChannels.unregister(caster.getUniqueId());
             CHANNEL_TASKS.remove(caster.getUniqueId());
         }, ticks + 1L);
         tasks.add(finalTask);
