@@ -8,6 +8,9 @@ import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.balance.BalanceSimulator;
+import dev.raskol.classes.cc.CCService;
+import dev.raskol.classes.cc.CCType;
+import dev.raskol.classes.cc.DRCategory;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatMath;
@@ -66,18 +69,17 @@ import java.util.UUID;
  * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
  * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
  * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
- * Чеки 55–56 (1.12.2 Блок 1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
- * Чеки 57–58 (1.12.2 Блок 2): gear-pen кламп и цепочка pen→mitigation.
- * Чеки 59–60 (1.12.2 Блок 3): pen-трейты талантов/спек — clampSumPercent и нулевые читатели.
- * Чеки 61–62 (1.12.2 Блок 4): проводка neutral и связка school-pen→elemental.
+ * Чеки 55–56 (1.12.2 Б1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
+ * Чеки 57–58 (1.12.2 Б2): gear-pen кламп и цепочка pen→mitigation.
+ * Чеки 59–60 (1.12.2 Б3): pen-трейты талантов/спек — clampSumPercent и нулевые читатели.
+ * Чеки 61–62 (1.12.2 Б4): проводка neutral и связка school-pen→elemental.
  * Чеки 63–65 (1.12.3): ThreadLocal cast-school, полнота школ 30/30, конкретные школы китов.
  * Чеки 66–68 (1.12.4): DoT-математика — capFactor, withMults, dpsLimit + живой DotService.
  * Чеки 69–71 (1.12.5): средовые триггеры гашения, реестр dots.*, стеки/refresh/expiry Dot.
  * Чеки 72–73 (1.12.6): HUD-API activeDotsOf + разделение пассивка/абилка DoT.
  * Чек 74 (1.12.6): миграция poisoned_blades на DotService (конфиг + реестр).
- * Чек 75 (1.12.7): sanity баланс-прогона — матрица 6×6 чистая (без NaN/отрицательных),
- *         конечные диагональные TTK ∈ [10,60], средняя по конечным ∈ [15,25];
- *         бесконечность на диагонали = дизайн-стейлмейт хилеров (допустима).
+ * Чек 75 (1.12.7): sanity баланс-прогона матрицы 6×6 (чистая, диагональ, средняя).
+ * Чеки 76–79 (1.13.0 Б1): DR-множители, окно DR, DR-иммунитет, категории CC.
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
  * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
  */
@@ -963,7 +965,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.6: чек 72 — HUD-API: activeDotsOf возвращает snapshot, пустой на свежей цели
         UUID fresh72 = UUID.randomUUID();
         List<DotInstance> empty72 = plugin.getCombat().dots().activeDotsOf(fresh72);
         boolean ok72 = empty72 != null && empty72.isEmpty();
@@ -975,7 +976,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.6: чек 73 — poison_passive: duration=2s (отличается от poison=5s), school=NATURE
         DotDef ppDef = plugin.getCombat().dots().defById("poison_passive");
         DotDef poisonDef = plugin.getCombat().dots().defById("poison");
         boolean ok73 = ppDef != null
@@ -994,7 +994,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.6: чек 74 — миграция poisoned_blades: конфиг ссылается на DoT-определение
         String poisonDotId = plugin.getConfig().getString(
                 "classes.ROGUE.passives.poisoned_blades.dot", "");
         DotDef poisonPassiveDef = plugin.getCombat().dots().defById("poison_passive");
@@ -1022,9 +1021,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.12.7: чек 75 — sanity баланс-прогона: матрица 6×6 чистая (без NaN/отрицательных),
-        // конечные диагональные TTK ∈ [10,60], средняя по конечным ∈ [15,25];
-        // бесконечность на диагонали = дизайн-стейлмейт хилеров (допустима, в среднюю не идёт)
         String got75;
         boolean ok75;
         try {
@@ -1058,6 +1054,61 @@ public final class SelftestRunner {
         }
         if (check(report, "75", "balance-sanity: матрица 6×6 чистая, конечная диагональ в [10,60], avg в [15,25]",
                 ok75, "BalanceSimulator.matrix", got75)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б1): чек 76 — DR-множители: [1.0, 0.5, 0.25, 0.0], вне диапазона → 0
+        double[] mults76 = {1.0, 0.5, 0.25, 0.0};
+        boolean ok76 = CCService.drMultiplier(0, mults76) == 1.0
+                && CCService.drMultiplier(1, mults76) == 0.5
+                && CCService.drMultiplier(2, mults76) == 0.25
+                && CCService.drMultiplier(3, mults76) == 0.0
+                && CCService.drMultiplier(4, mults76) == 0.0;
+        if (check(report, "76", "DR-множители: стек0=1.0, 1=0.5, 2=0.25, 3=0.0, 4=0.0",
+                ok76, "CCService.drMultiplier",
+                CCService.drMultiplier(0, mults76) + "/" + CCService.drMultiplier(3, mults76))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б1): чек 77 — окно DR: >15с сбрасывает стек, ≤15с сохраняет
+        long now77 = System.currentTimeMillis();
+        int reset77 = CCService.stackAfterWindow(now77, now77 - 20_000L, 15_000L, 3);
+        int keep77 = CCService.stackAfterWindow(now77, now77 - 5_000L, 15_000L, 3);
+        boolean ok77 = reset77 == 0 && keep77 == 3;
+        if (check(report, "77", "окно DR: пауза 20с→стек 0; пауза 5с→стек 3",
+                ok77, "CCService.stackAfterWindow", reset77 + "/" + keep77)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б1): чек 78 — DR-иммунитет: стек ≥ длины множителей
+        boolean ok78 = CCService.isDrImmune(4, mults76) && !CCService.isDrImmune(3, mults76);
+        if (check(report, "78", "DR-иммунитет: стек4=иммун, стек3=нет",
+                ok78, "CCService.isDrImmune",
+                CCService.isDrImmune(4, mults76) + "/" + CCService.isDrImmune(3, mults76))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б1): чек 79 — категории DR: STUN+KNOCKBACK, FEAR+CHARM, SILENCE+DISARM, ROOT, SLOW, BLIND
+        boolean ok79 = CCType.STUN.category() == DRCategory.STUN
+                && CCType.KNOCKBACK.category() == DRCategory.STUN
+                && CCType.FEAR.category() == DRCategory.FEAR
+                && CCType.CHARM.category() == DRCategory.FEAR
+                && CCType.SILENCE.category() == DRCategory.SILENCE
+                && CCType.DISARM.category() == DRCategory.SILENCE
+                && CCType.ROOT.category() == DRCategory.ROOT
+                && CCType.SLOW.category() == DRCategory.SLOW
+                && CCType.BLIND.category() == DRCategory.BLIND;
+        if (check(report, "79", "категории DR: STUN/KNOCKBACK, FEAR/CHARM, SILENCE/DISARM, ROOT, SLOW, BLIND",
+                ok79, "CCType.category",
+                CCType.KNOCKBACK.category() + "/" + CCType.CHARM.category() + "/" + CCType.DISARM.category())) {
             passed++;
         } else {
             failed++;
