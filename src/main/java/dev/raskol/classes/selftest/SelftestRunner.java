@@ -10,6 +10,7 @@ import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.balance.BalanceSimulator;
 import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.CCType;
+import dev.raskol.classes.cc.CastGuard;
 import dev.raskol.classes.cc.DRCategory;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -62,26 +63,28 @@ import java.util.UUID;
  * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг (1.9.2).
  * Чеки 33–35: план B — scale/healFormula/targetCarrier (1.9.3).
  * Чек 36: tickDelta — декэй ярости воина вне боя (1.9.3.2).
- * Чеки 37–40: чернокнижник — реестры/гейты/конфиг-диапазоны/симулятор/матрица (1.10.0).
+ * Чеки 37–40: чернокнижник — реестры/гейты/конфиг/симулятор/матрица (1.10.0).
  * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
- * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
- * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
- * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
- * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
- * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
- * Чеки 55–56 (1.12.2 Б1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
- * Чеки 57–58 (1.12.2 Б2): gear-pen кламп и цепочка pen→mitigation.
- * Чеки 59–60 (1.12.2 Б3): pen-трейты талантов/спек — clampSumPercent и нулевые читатели.
- * Чеки 61–62 (1.12.2 Б4): проводка neutral и связка school-pen→elemental.
- * Чеки 63–65 (1.12.3): ThreadLocal cast-school, полнота школ 30/30, конкретные школы китов.
- * Чеки 66–68 (1.12.4): DoT-математика — capFactor, withMults, dpsLimit + живой DotService.
- * Чеки 69–71 (1.12.5): средовые триггеры гашения, реестр dots.*, стеки/refresh/expiry Dot.
- * Чеки 72–73 (1.12.6): HUD-API activeDotsOf + разделение пассивка/абилка DoT.
- * Чек 74 (1.12.6): миграция poisoned_blades на DotService (конфиг + реестр).
- * Чек 75 (1.12.7): sanity баланс-прогона матрицы 6×6 (чистая, диагональ, средняя).
- * Чеки 76–79 (1.13.0 Б1): DR-множители, окно DR, DR-иммунитет, категории CC.
+ * Чеки 44–45 (1.11.4): sanity китов + RUNBOOK пассив-мульты.
+ * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction и respecCost.
+ * Чек 48 (1.11.4 P5): per-class yml loader.
+ * Чеки 49–51 (1.12.0): школы — channel, vanilla-school, legacy round-trip.
+ * Чеки 52–54 (1.12.1): митигация/пробитие, иммунитеты, Penetration-клампы.
+ * Чеки 55–56 (1.12.2 Б1): стихийный слой.
+ * Чеки 57–58 (1.12.2 Б2): gear-pen.
+ * Чеки 59–60 (1.12.2 Б3): pen-трейты талантов/спек.
+ * Чеки 61–62 (1.12.2 Б4): проводка neutral, school-pen→elemental.
+ * Чеки 63–65 (1.12.3): cast-school ThreadLocal, полнота школ, школы китов.
+ * Чеки 66–68 (1.12.4): DoT-математика + живой DotService.
+ * Чеки 69–71 (1.12.5): триггеры среды, реестр dots.*, стеки/expiry.
+ * Чеки 72–74 (1.12.6): HUD-API, poison_passive, миграция poisoned_blades.
+ * Чек 75 (1.12.7): sanity баланс-прогона матрицы 6×6.
+ * Чеки 76–79 (1.13.0 Б1): DR-множители, окно, DR-иммунитет, категории CC.
+ * Чеки 80–84 (1.13.0 Б2): CCService живой, breaksOnDamage-флаги и порог,
+ *         STUN не ломается уроном, CastGuard.canCast (STUN/SILENCE/instant).
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
- * чеки 55–56 требуют schools.elemental.enabled: true в config.yml.
+ * чеки 55–56 требуют schools.elemental.enabled: true;
+ * чеки 82–84 используют retry-хелпер applyUntilOk (ccResist-бросок не флапает).
  */
 public final class SelftestRunner {
 
@@ -162,7 +165,7 @@ public final class SelftestRunner {
         BalanceSimulator.DuelResult pp = BalanceSimulator.duel(
                 plugin, PlayerClass.PRIEST, PlayerClass.PRIEST, 40, 42L);
         boolean ok18 = pp.timeout() || pp.ttkSeconds() >= 30.0;
-        if (check(report, "18", "жрец↔жрец ≥30 с или timeout (хилеры не убивают друг друга)", ok18, "BalanceSimulator", pp.ttkSeconds())) {
+        if (check(report, "18", "жрец↔жрец ≥30 с или timeout", ok18, "BalanceSimulator", pp.ttkSeconds())) {
             passed++;
         } else {
             failed++;
@@ -968,7 +971,7 @@ public final class SelftestRunner {
         UUID fresh72 = UUID.randomUUID();
         List<DotInstance> empty72 = plugin.getCombat().dots().activeDotsOf(fresh72);
         boolean ok72 = empty72 != null && empty72.isEmpty();
-        if (check(report, "72", "DotService.activeDotsOf: пустой snapshot на свежей цели",
+        if (check(report, "72", "DotService.activeDotsOf: пустой snapshot",
                 ok72, "DotService.activeDotsOf",
                 empty72 == null ? "null" : String.valueOf(empty72.size()))) {
             passed++;
@@ -987,8 +990,8 @@ public final class SelftestRunner {
                 && poisonDef.maxStacks() == 3;
         if (check(report, "73", "dots: poison_passive (2s/×1) vs poison (5s/×3)",
                 ok73, "DotService.defById",
-                (ppDef != null ? ppDef.durationMillis() + "/stacks=" + ppDef.maxStacks() : "null")
-                        + " vs " + (poisonDef != null ? poisonDef.durationMillis() + "/stacks=" + poisonDef.maxStacks() : "null"))) {
+                (ppDef != null ? ppDef.durationMillis() + "/×" + ppDef.maxStacks() : "null")
+                        + " vs " + (poisonDef != null ? poisonDef.durationMillis() + "/×" + poisonDef.maxStacks() : "null"))) {
             passed++;
         } else {
             failed++;
@@ -996,26 +999,10 @@ public final class SelftestRunner {
 
         String poisonDotId = plugin.getConfig().getString(
                 "classes.ROGUE.passives.poisoned_blades.dot", "");
-        DotDef poisonPassiveDef = plugin.getCombat().dots().defById("poison_passive");
-        DotDef poisonActiveDef = plugin.getCombat().dots().defById("poison");
         boolean ok74 = "poison_passive".equals(poisonDotId)
-                && poisonPassiveDef != null
-                && poisonPassiveDef.school() == School.NATURE
-                && poisonPassiveDef.durationMillis() == 2000L
-                && poisonPassiveDef.maxStacks() == 1
-                && poisonActiveDef != null
-                && poisonActiveDef.durationMillis() == 5000L
-                && poisonActiveDef.maxStacks() == 3;
-        if (check(report, "74", "миграция poisoned_blades: passive.dot=poison_passive (NATURE/2с/×1), "
-                + "abilочный poison (5с/×3) — стаки не пересекаются",
-                ok74, "RoguePassives/сonfig classes.ROGUE.passives.poisoned_blades",
-                "dot=" + poisonDotId
-                        + " passive=" + (poisonPassiveDef != null
-                                ? poisonPassiveDef.school() + "/" + poisonPassiveDef.durationMillis() + "ms/×" + poisonPassiveDef.maxStacks()
-                                : "null")
-                        + " abilka=" + (poisonActiveDef != null
-                                ? poisonActiveDef.school() + "/" + poisonActiveDef.durationMillis() + "ms/×" + poisonActiveDef.maxStacks()
-                                : "null"))) {
+                && ppDef != null && poisonDef != null;
+        if (check(report, "74", "миграция poisoned_blades: dot=poison_passive",
+                ok74, "config classes.ROGUE.passives.poisoned_blades.dot", poisonDotId)) {
             passed++;
         } else {
             failed++;
@@ -1052,21 +1039,20 @@ public final class SelftestRunner {
             ok75 = false;
             got75 = "exception: " + ex.getClass().getSimpleName();
         }
-        if (check(report, "75", "balance-sanity: матрица 6×6 чистая, конечная диагональ в [10,60], avg в [15,25]",
+        if (check(report, "75", "balance-sanity: матрица чистая, диагональ [10,60], avg [15,25]",
                 ok75, "BalanceSimulator.matrix", got75)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.13.0 (Б1): чек 76 — DR-множители: [1.0, 0.5, 0.25, 0.0], вне диапазона → 0
         double[] mults76 = {1.0, 0.5, 0.25, 0.0};
         boolean ok76 = CCService.drMultiplier(0, mults76) == 1.0
                 && CCService.drMultiplier(1, mults76) == 0.5
                 && CCService.drMultiplier(2, mults76) == 0.25
                 && CCService.drMultiplier(3, mults76) == 0.0
                 && CCService.drMultiplier(4, mults76) == 0.0;
-        if (check(report, "76", "DR-множители: стек0=1.0, 1=0.5, 2=0.25, 3=0.0, 4=0.0",
+        if (check(report, "76", "DR-множители: 1.0/0.5/0.25/0.0/0.0",
                 ok76, "CCService.drMultiplier",
                 CCService.drMultiplier(0, mults76) + "/" + CCService.drMultiplier(3, mults76))) {
             passed++;
@@ -1074,19 +1060,17 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б1): чек 77 — окно DR: >15с сбрасывает стек, ≤15с сохраняет
         long now77 = System.currentTimeMillis();
         int reset77 = CCService.stackAfterWindow(now77, now77 - 20_000L, 15_000L, 3);
         int keep77 = CCService.stackAfterWindow(now77, now77 - 5_000L, 15_000L, 3);
         boolean ok77 = reset77 == 0 && keep77 == 3;
-        if (check(report, "77", "окно DR: пауза 20с→стек 0; пауза 5с→стек 3",
+        if (check(report, "77", "окно DR: 20с→0, 5с→3",
                 ok77, "CCService.stackAfterWindow", reset77 + "/" + keep77)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.13.0 (Б1): чек 78 — DR-иммунитет: стек ≥ длины множителей
         boolean ok78 = CCService.isDrImmune(4, mults76) && !CCService.isDrImmune(3, mults76);
         if (check(report, "78", "DR-иммунитет: стек4=иммун, стек3=нет",
                 ok78, "CCService.isDrImmune",
@@ -1096,7 +1080,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б1): чек 79 — категории DR: STUN+KNOCKBACK, FEAR+CHARM, SILENCE+DISARM, ROOT, SLOW, BLIND
         boolean ok79 = CCType.STUN.category() == DRCategory.STUN
                 && CCType.KNOCKBACK.category() == DRCategory.STUN
                 && CCType.FEAR.category() == DRCategory.FEAR
@@ -1112,6 +1095,125 @@ public final class SelftestRunner {
             passed++;
         } else {
             failed++;
+        }
+
+        // 1.13.0 (Б2): чек 80 — CCService живой (создан в onEnable через RaskolClasses)
+        CCService cc = plugin.getCC();
+        boolean ok80 = cc != null && cc.enabled();
+        if (check(report, "80", "CCService инициализирован и cc.enabled=true",
+                ok80, "RaskolClasses.onEnable/cc.enabled",
+                (cc != null) + "/" + (cc != null && cc.enabled()))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б2): чек 81 — breaksOnDamage-флаги типов: ROOT/FEAR=true, остальные=false
+        boolean ok81 = CCType.ROOT.breaksOnDamage()
+                && CCType.FEAR.breaksOnDamage()
+                && !CCType.STUN.breaksOnDamage()
+                && !CCType.SILENCE.breaksOnDamage()
+                && !CCType.DISARM.breaksOnDamage()
+                && !CCType.SLOW.breaksOnDamage()
+                && !CCType.BLIND.breaksOnDamage()
+                && !CCType.CHARM.breaksOnDamage();
+        if (check(report, "81", "CCType.breaksOnDamage: ROOT/FEAR=true, остальные=false",
+                ok81, "CCType.breaksOnDamage",
+                CCType.ROOT.breaksOnDamage() + "/" + CCType.STUN.breaksOnDamage())) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б2): чек 82 — breakOnDamage: урон 6% от maxHP снимает ROOT, 3% — оставляет
+        if (probe == null || cc == null) {
+            if (check(report, "82", "breakOnDamage (пропущено: нет онлайн-игрока)",
+                    true, "CCService.breakOnDamage", "skip")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        } else {
+            UUID u82 = probe.getUniqueId();
+            cc.removeAll(u82);
+            cc.resetAllDr(u82);
+            boolean applied1 = applyUntilOk(cc, probe, CCType.ROOT, 100);
+            boolean hasBefore = cc.has(u82, CCType.ROOT);
+            cc.breakOnDamage(probe, 60.0, 1000.0);   // 6% ≥ порога 5% → снять
+            boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
+            cc.resetAllDr(u82);
+            boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
+            cc.breakOnDamage(probe, 30.0, 1000.0);   // 3% < порога → оставить
+            boolean hasAfterLow = cc.has(u82, CCType.ROOT);
+            cc.removeAll(u82);
+            cc.resetAllDr(u82);
+            boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
+            if (check(report, "82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
+                    ok82, "CCService.breakOnDamage",
+                    applied1 + "/" + hasBefore + "/" + hasAfterHigh + "/" + applied2 + "/" + hasAfterLow)) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+
+        // 1.13.0 (Б2): чек 83 — STUN не снимается уроном (breaksOnDamage=false)
+        if (probe == null || cc == null) {
+            if (check(report, "83", "STUN breakOnDamage (пропущено)", true, "CCService.breakOnDamage", "skip")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        } else {
+            UUID u83 = probe.getUniqueId();
+            cc.removeAll(u83);
+            cc.resetAllDr(u83);
+            boolean applied = applyUntilOk(cc, probe, CCType.STUN, 100);
+            boolean hasBefore = cc.has(u83, CCType.STUN);
+            cc.breakOnDamage(probe, 60.0, 1000.0);
+            boolean hasAfter = cc.has(u83, CCType.STUN);
+            cc.removeAll(u83);
+            cc.resetAllDr(u83);
+            boolean ok83 = applied && hasBefore && hasAfter;
+            if (check(report, "83", "STUN не снимается уроном ≥ порога",
+                    ok83, "CCService.breakOnDamage",
+                    applied + "/" + hasBefore + "/" + hasAfter)) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+
+        // 1.13.0 (Б2): чек 84 — CastGuard.canCast: STUN/FEAR блок, SILENCE блок кроме instant
+        if (probe == null || cc == null) {
+            if (check(report, "84", "CastGuard.canCast (пропущено)", true, "CastGuard.canCast", "skip")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        } else {
+            UUID u84 = probe.getUniqueId();
+            CastGuard cg = new CastGuard(plugin);
+            cc.removeAll(u84);
+            cc.resetAllDr(u84);
+            boolean canNormal = cg.canCast(probe, false);
+            applyUntilOk(cc, probe, CCType.STUN, 100);
+            boolean canStun = cg.canCast(probe, false);
+            cc.removeAll(u84);
+            cc.resetAllDr(u84);
+            applyUntilOk(cc, probe, CCType.SILENCE, 100);
+            boolean canSilenceNormal = cg.canCast(probe, false);
+            boolean canSilenceInstant = cg.canCast(probe, true);
+            cc.removeAll(u84);
+            cc.resetAllDr(u84);
+            boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
+            if (check(report, "84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
+                    ok84, "CastGuard.canCast",
+                    canNormal + "/" + canStun + "/" + canSilenceNormal + "/" + canSilenceInstant)) {
+                passed++;
+            } else {
+                failed++;
+            }
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
@@ -1131,6 +1233,23 @@ public final class SelftestRunner {
                     NamedTextColor.RED));
         }
         plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
+    }
+
+    /**
+     * 1.13.0 (Б2): retry-обёртка tryApply: ccResist-бросок (10–20% у классов)
+     * не должен флапать чеки. DR-иммунитет = честный отказ без ретраев.
+     */
+    private static boolean applyUntilOk(CCService cc, Player target, CCType type, int ticks) {
+        for (int i = 0; i < 64; i++) {
+            CCService.ApplyResult r = cc.tryApply(null, target, type, ticks);
+            if (r.ok()) {
+                return true;
+            }
+            if (r.result() == CCService.CCResult.FAIL_DR_IMMUNE) {
+                return false;
+            }
+        }
+        return false;
     }
 
     /** Первый узел тира 1 без пререквизитов (для тестов). */
