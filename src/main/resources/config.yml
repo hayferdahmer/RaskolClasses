@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.12.7 — «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.13.0-b1 — «РАСКОЛ | ДВЕ КОРОНЫ»
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -12,19 +12,14 @@
 #          рефакторинг P1–P5, эксплойт-фиксы S1–S5/F1–F10, selftest 48.
 #  1.12.0: каркас школ урона (School/SchoolProfile/SchoolConfig, schools.*).
 #  1.12.1: митигация/пробитие/иммунитеты школ; фикс ключа FREEZING → FREEZE.
-#  1.12.2: стихийный резист-слой (elemental.enabled: true), pen-трейты
-#          gear/талантов/спек, живая проводка pen+elemental в пути A/B;
-#          mitigation-cap 0.90 = resist.cap (нейтрально к 1.12.1).
-#  1.12.3: школы в способностях (ключ school:), cast-контекст в AbilityRegistry,
-#          immunity/multiplier в пути B; VFX-стандарт чернокнижника на 6 китах.
+#  1.12.2: стихийный резист-слой, pen-трейты, живая проводка pen+elemental.
+#  1.12.3: школы в способностях, cast-контекст, VFX-стандарт на 6 китах.
 #  1.12.4: DoT-ядро (combat/dot/): dot-dps-cap-pct живой, атрибуция, стеки.
-#  1.12.5: реестр dots.* (burning/poison/bleed/chilled), средовые триггеры,
-#          очищение жреца (NATURE+SHADOW), тик-VFX школ.
-#  1.12.6: UX/VFX школ — DoT-строка в HUD (🔥×2·3с 🩸·1с), разделение
-#          пассивка/абилка для DoT (poison_passive/bleed_passive/burning_passive),
-#          ключ dot: в пассивках для миграции на DotService.
-#  1.12.7: баланс-прогон матрицы 6×6 с DoT — калибровка dots.*.dps под
-#          TTK-якорь 20 с: burning 4→3.5, poison_passive 2.5→2.0, chilled 2→1.5.
+#  1.12.5: реестр dots.*, средовые триггеры, очищение жреца, тик-VFX школ.
+#  1.12.6: HUD DoT-строка, миграция poisoned_blades на DotService.
+#  1.12.7: баланс-прогон матрицы с DoT (burning 3.5, poison_passive 2.0, chilled 1.5).
+#  1.13.0: КОНТРОЛЬ (CC) И УБЫВАЮЩАЯ ОТДАЧА (DR) — секция cc: + messages.cc.*
+#          (батч 1: модель + DR-ядро; проводка/обёртка/HUD/команды — батчи 2–4).
 # ============================================================
 
 hud:
@@ -337,9 +332,6 @@ schools:
     ENDER_DRAGON:
       resistant: [ARCANE]
 
-# 1.12.4–1.12.7: DoT-реестр. 1.12.7 — калибровка dps под TTK-якорь 20 с:
-# burning 4→3.5 (частый каст Прометея/Зевса), poison_passive 2.5→2.0 (частый proc 30%),
-# chilled 2→1.5 (AoE Борея). poison/bleed не менялись (редкие касты с большим КД).
 dots:
   burning:
     school: FIRE
@@ -377,6 +369,58 @@ dots:
     duration: 3
     max-stacks: 1
 
+# ------------------------------------------------------------
+# 1.13.0: КОНТРОЛЬ (CC) И УБЫВАЮЩАЯ ОТДАЧА (DR)
+# Окно DR 15 с; множители [1.0, 0.5, 0.25, 0.0] → 4-й CC в окне = иммунитет.
+# Категории: STUN+KNOCKBACK, FEAR+CHARM, SILENCE+DISARM, ROOT, SLOW, BLIND.
+# ccResist: класс + Скверна≥75 (чернокнижник); кап 60%.
+# ccPower: Скверна≥75 → +20% длительности накладываемого CC; кап 50%.
+# Батч 1: модель + DR-ядро. Запреты действий, обёртка ванили, HUD и команды —
+# батчи 2–4; до них cc.enabled=true безопасен (tryApply никто не зовёт).
+# ------------------------------------------------------------
+cc:
+  enabled: true
+  window-seconds: 15
+  dr-multipliers: [1.0, 0.5, 0.25, 0.0]
+  resist-cap: 0.60
+  duration-reduction-cap: 0.50
+  power-cap: 0.50
+  breaks-on-damage-threshold-pct: 0.05
+  corruption-resist-bonus: 0.10
+  corruption-power-bonus: 0.20
+  charm:
+    allow-on-players: false
+  class-resist:
+    WARRIOR: 0.20
+    HUNTER: 0.15
+    ROGUE: 0.15
+    PRIEST: 0.15
+    MAGE: 0.10
+    WARLOCK: 0.10
+  class-reduction:
+    WARRIOR: 0.0
+    HUNTER: 0.0
+    ROGUE: 0.0
+    PRIEST: 0.0
+    MAGE: 0.0
+    WARLOCK: 0.0
+  entity-immunity:
+    BOSS: [STUN, FEAR, CHARM, KNOCKBACK, ROOT]
+    MINION_ELITE: [CHARM, FEAR]
+    MINION: []
+    ENTITY_WITHER: [STUN, FEAR, CHARM, ROOT, SILENCE, DISARM, KNOCKBACK, BLIND]
+    ENTITY_ENDER_DRAGON: [STUN, FEAR, CHARM, ROOT, KNOCKBACK]
+  types:
+    STUN:     { duration-ticks: 60,  breaks-on-damage: false, particle: CRIT }
+    ROOT:     { duration-ticks: 80,  breaks-on-damage: true,  particle: HAPPY_VILLAGER }
+    SILENCE:  { duration-ticks: 100, breaks-on-damage: false, particle: SMOKE }
+    DISARM:   { duration-ticks: 80,  breaks-on-damage: false, particle: null }
+    FEAR:     { duration-ticks: 60,  breaks-on-damage: true,  particle: SCULK_SOUL }
+    CHARM:    { duration-ticks: 60,  breaks-on-damage: false, particle: HEART }
+    SLOW:     { duration-ticks: 120, breaks-on-damage: false, particle: SNOWFLAKE, slow-mult: 0.5 }
+    BLIND:    { duration-ticks: 100, breaks-on-damage: false, particle: SMOKE, miss-chance: 0.5, view-distance: 5 }
+    KNOCKBACK: { power: 1.5, vertical-boost: 0.4 }
+
 messages:
   no-class: "Класс не выбран — посетите герольда"
   no-class-cast: "Класс не выбран — способности недоступны"
@@ -402,6 +446,27 @@ messages:
       HOLY: "✦"
       ARCANE: "✧"
       TRUE: "◈"
+  # 1.13.0: тексты и иконки CC-слоя (consumed с батча 3: HUD/фидбек)
+  cc:
+    applied: "§c{type} §7на {duration}с (DR {dr-mult}×)"
+    applied-to-caster: "§a{target}: {type} §7на {duration}с"
+    immune: "§7{target} §cневосприимчив к контролю"
+    resisted: "§7{target} §eсопротивляется: {type}"
+    dr-immune: "§7{target} §cнечувствителен (DR-иммунитет)"
+    expired: "§7{type} §8рассеялся"
+    cast-interrupted: "§cКаст прерван: {type}"
+    hud-format: "{icon}·{sec}с"
+    hud-separator: " "
+    hud-icons:
+      STUN: "✦"
+      ROOT: "⛓"
+      SILENCE: "☒"
+      DISARM: ""
+      FEAR: "☠"
+      CHARM: "♥"
+      SLOW: "❄"
+      BLIND: "◐"
+      KNOCKBACK: "↗"
   tag:
     execute: "Казнь ×3!"
     execute-mage: "Кара Зевса ×3!"
