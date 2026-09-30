@@ -13,29 +13,14 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 /**
- * 1.13.0 (Батч 2): блокировка действий под CC.
- * 
- * STUN (Оцепенение):
- *  - Запрет атак (EntityDamageByEntityEvent, damager=Player)
- *  - Запрет использования предметов из хотбара (PlayerInteractEvent с item)
- *  - Запрет взаимодействия с блоками (сундуки, двери, печи)
- *  - Запрет питья зелий/еды (PlayerItemConsumeEvent)
- *  - Запрет взаимодействия с сущностями (PlayerInteractEntityEvent)
- *
- * DISARM (Обезоруживание):
- *  - Запрет атак оружием (EntityDamageByEntityEvent, damager=Player, item in hand ≠ AIR)
- *  - Атака кулаком разрешена (с штрафом −50% урона через CombatService)
- *
- * FEAR (Ужас):
- *  - Запрет атак (EntityDamageByEntityEvent)
- *  - Запрет использования предметов
- *
- * SILENCE (Немота):
- *  - Не блокирует действия здесь — блокировка кастов в CastGuard.canCast()
- *
- * Все блокировки тихие (без сообщений игроку — фидбек через партиклы/звуки в Батче 3).
- * CCService.has() проверяет активные CC-экземпляры (не DR-стек).
+ * 1.13.0 (Б2): блокировка действий под CC.
+ * 1.13.0 (Б3): + промах под BLIND — атакующий с CCType.BLIND с шансом
+ *         cc.types.BLIND.miss-chance (дефолт 50%) не наносит урон (событие гасится).
+ * STUN: запрет атак/хотбара/блоков/сущностей/зелий. FEAR: запрет атак/предметов.
+ * DISARM: запрет атак оружием, кулак разрешён. SILENCE: только гейт каста (CastGuard).
  */
 public final class CCGuard implements Listener {
 
@@ -46,7 +31,6 @@ public final class CCGuard implements Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    /** STUN/FEAR/DISARM блокируют атаки; DISARM разрешает кулаки (AIR). */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player attacker)) {
@@ -56,36 +40,38 @@ public final class CCGuard implements Listener {
             return;
         }
         CCService cc = plugin.getCC();
+        UUID-ish: // placeholder removed
         if (cc.has(attacker.getUniqueId(), CCType.STUN)
                 || cc.has(attacker.getUniqueId(), CCType.FEAR)) {
             event.setCancelled(true);
             return;
         }
+        // 1.13.0 (Б3): слепота — шанс промаха
+        if (cc.has(attacker.getUniqueId(), CCType.BLIND)
+                && ThreadLocalRandom.current().nextDouble() < cc.blindMissChance()) {
+            event.setCancelled(true);
+            return;
+        }
         if (cc.has(attacker.getUniqueId(), CCType.DISARM)) {
-            // DISARM: оружие запрещено, кулаки разрешены
             if (attacker.getInventory().getItemInMainHand().getType().isAir()) {
-                // Кулак — разрешено, но CombatService применит штраф −50% (Батч 3)
-                return;
+                return; // кулак: разрешено (штраф урона — задача кита/спек, не ядра)
             }
             event.setCancelled(true);
         }
     }
 
-    /** STUN/FEAR блокируют использование предметов (ПКМ по блокам/воздуху с предметом). */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         CCService cc = plugin.getCC();
         if (cc.has(player.getUniqueId(), CCType.STUN)
                 || cc.has(player.getUniqueId(), CCType.FEAR)) {
-            // Блокируем только если есть предмет в руке или взаимодействие с блоком
             if (event.getItem() != null || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
                 event.setCancelled(true);
             }
         }
     }
 
-    /** STUN блокирует взаимодействие с сущностями (торговля, приручение, etc). */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteractEntity(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
@@ -94,7 +80,6 @@ public final class CCGuard implements Listener {
         }
     }
 
-    /** STUN блокирует питьё зелий/еды. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onConsume(PlayerItemConsumeEvent event) {
         Player player = event.getPlayer();
