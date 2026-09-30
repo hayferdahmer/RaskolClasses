@@ -2,6 +2,7 @@
 package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.cc.CCType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
@@ -27,12 +28,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * Реестр способностей шести классов.
  * 1.7.4.1: кулдаун стартует ТОЛЬКО после успешного каста.
  * 1.9.0: кулдаун умножается на TalentService.cooldownMult.
- * 1.10.0-fix: black_word и unwriting получили SELF-кастеры (ray-таргет),
- *         иначе каст из Книги/свитка (targeted=false) не находил реализацию.
- * 1.12.3: школа способности (school) читается из конфига (override) либо
- *         берётся из DEFAULT_SCHOOLS; в castOn устанавливается ThreadLocal
- *         контекст школы, который CombatService читает в dealDamage для
- *         иммунитетов и множителей школ.
+ * 1.10.0-fix: black_word и unwriting получили SELF-кастеры (ray-таргет).
+ * 1.12.3: школа способности (school) из конфига/DEFAULT_SCHOOLS; ThreadLocal-контекст
+ *         школы вокруг вызова кастера (CombatService читает в dealDamage).
+ * 1.13.0 (Б2): CC-гейт каста — CastGuard.canCast (STUN/FEAR/SILENCE) до антискпа,
+ *         кулдаунов и списания ресурса: блокировка каста не тратит ничего.
  */
 public final class AbilityRegistry {
 
@@ -207,19 +207,13 @@ public final class AbilityRegistry {
         }
     }
 
-    /**
-     * 1.12.3: школа из конфига (override) либо из DEFAULT_SCHOOLS.
-     * FIX: используется plugin.getConfig().getString() вместо несуществующего
-     * RaskolConfig.rawStringOrNull() — хелпер не нужен, прямой доступ к Bukkit config.
-     */
+    /** 1.12.3: школа из конфига (override) либо из DEFAULT_SCHOOLS. */
     private School readSchool(PlayerClass pc, String id) {
         String override = plugin.getConfig().getString(
                 "classes." + pc.name() + ".abilities." + id + ".school");
-        if (override != null && !override.isEmpty()) {
-            School parsed = School.fromId(override);
-            if (parsed != null) {
-                return parsed;
-            }
+        School parsed = School.fromId(override);
+        if (parsed != null) {
+            return parsed;
         }
         School def = DEFAULT_SCHOOLS.get(id);
         return def != null ? def : School.ARCANE;
@@ -351,6 +345,20 @@ public final class AbilityRegistry {
             plugin.getLogger().warning("Способность " + def.id() + " не имеет реализации");
             return false;
         }
+
+        // 1.13.0 (Б2): CC-гейт каста ДО антискпа/кулдаунов/ресурса:
+        // блокировка контролем не тратит ресурс и не ставит кулдаун.
+        // instant-флага в AbilityDef пока нет → все способности кастуемые (false);
+        // мгновенные определятся в 1.14.0 через поля узла/кита.
+        if (!plugin.getCastGuard().canCast(caster, false)) {
+            CCType block = plugin.getCastGuard().blockReason(caster, false);
+            caster.sendMessage(Component.text(cfg.message("cc.cast-interrupted",
+                    "Каст прерван: {type}")
+                    .replace("{type}", block != null ? block.ruName() : "контроль"),
+                    NamedTextColor.RED));
+            return false;
+        }
+
         UUID id = caster.getUniqueId();
 
         long window = cfg.castClickCooldownMillis();
@@ -381,6 +389,7 @@ public final class AbilityRegistry {
             return false;
         }
 
+        // 1.12.3: установка ThreadLocal-контекста школы для пути B в CombatService
         CombatService.setCurrentCastSchool(def.school());
         boolean ok;
         try {
