@@ -21,6 +21,8 @@ import java.util.concurrent.ThreadLocalRandom;
  *         cc.types.BLIND.miss-chance (дефолт 50%) не наносит урон (событие гасится).
  * STUN: запрет атак/хотбара/блоков/сущностей/зелий. FEAR: запрет атак/предметов.
  * DISARM: запрет атак оружием, кулак разрешён. SILENCE: только гейт каста (CastGuard).
+ * 1.13.0-fix: удалена черновая строка-артефакт внутри onDamageByEntity
+ *         («UUID-ish:»), ломавшая компиляцию (ран #1056).
  */
 public final class CCGuard implements Listener {
 
@@ -31,6 +33,7 @@ public final class CCGuard implements Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
+    /** STUN/FEAR блокируют атаки; BLIND даёт шанс промаха; DISARM снимает оружие. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player attacker)) {
@@ -40,26 +43,27 @@ public final class CCGuard implements Listener {
             return;
         }
         CCService cc = plugin.getCC();
-        UUID-ish: // placeholder removed
         if (cc.has(attacker.getUniqueId(), CCType.STUN)
                 || cc.has(attacker.getUniqueId(), CCType.FEAR)) {
             event.setCancelled(true);
             return;
         }
-        // 1.13.0 (Б3): слепота — шанс промаха
+        // 1.13.0 (Б3): слепота — шанс промаха по любой цели
         if (cc.has(attacker.getUniqueId(), CCType.BLIND)
                 && ThreadLocalRandom.current().nextDouble() < cc.blindMissChance()) {
             event.setCancelled(true);
             return;
         }
         if (cc.has(attacker.getUniqueId(), CCType.DISARM)) {
+            // кулак (AIR) разрешён; оружие — нет
             if (attacker.getInventory().getItemInMainHand().getType().isAir()) {
-                return; // кулак: разрешено (штраф урона — задача кита/спек, не ядра)
+                return;
             }
             event.setCancelled(true);
         }
     }
 
+    /** STUN/FEAR блокируют использование предметов и взаимодействие с блоками. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
@@ -72,6 +76,7 @@ public final class CCGuard implements Listener {
         }
     }
 
+    /** STUN блокирует взаимодействие с сущностями (торговля, приручение и т.п.). */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteractEntity(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
@@ -80,6 +85,7 @@ public final class CCGuard implements Listener {
         }
     }
 
+    /** STUN блокирует питьё зелий и еду. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onConsume(PlayerItemConsumeEvent event) {
         Player player = event.getPlayer();
