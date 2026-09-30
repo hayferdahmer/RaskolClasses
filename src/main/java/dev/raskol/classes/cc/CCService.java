@@ -15,6 +15,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 import java.util.Collections;
@@ -30,26 +32,13 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 1.13.0: ядро системы контроля (CC) и убывающей отдачи (DR).
- *
- * Алгоритм tryApply (ТЗ п.5.4, адаптировано под наш стек):
- *  1) рубильник cc.enabled; 2) фракционный гейт canHit; 3) иммунитеты
- *  (теги BOSS/MINION_ELITE + явные ENTITY_* + CHARM на игроков при запрете);
- *  4) бросок ccResist (класс + Скверна≥75 у чернокнижника, кап cc.resist-cap);
- *  5) окно DR: истекло → стек 0; 6) стек ≥ длины multipliers → FAIL_DR_IMMUNE;
- *  7) duration = base × drMult × (1+ccPower) × (1−ccReduction), минимум 1 тик;
- *  8) стек +1; 9) экземпляр в реестр; 10) тик-поведение (ROOT/STUN — стоп-движение,
- *  FEAR — блуждание, SLOW — резист скорости).
- *
- * Запреты действий (каст/атака/хотбар) и прерывание кастов — батч 2 (шаги 4–6).
- * Ванильная обёртка — батч 3 (VanillaCCWrapper). HUD/фидбек — батчи 3–4.
- *
- * DR не персистится: окно 15 с переживает рестарт бессмысленно.
- * Смерть и выход снимают CC; смерть дополнительно сбрасывает DR (ТЗ п.5.5).
- *
- * 1.13.0-fix: удалена черновая строка-заглушка Set<EntityType-ish> (синтаксическая
- * ошибка строки 62); снятие атрибут-модификатора SLOW — через getModifiers()+
- * removeModifier(mod) со сравнением getKey() (removeModifier(NamespacedKey)
- * присутствует не во всех сборках Paper 1.21.4).
+ * Б1: tryApply по алгоритму ТЗ п.5.4, DR-математика, иммунитеты, ccResist/ccPower,
+ *     тик-поведения ROOT/STUN (стоп-движение), FEAR (блуждание), SLOW (скорость).
+ * Б3: CCFeedback на все исходы (apply/resist/immune/dr-immune/expire);
+ *     туман BLIND через ванильный BLINDNESS (particles=false, guard в Wrapper);
+ *     тик-партиклы CC раз в 10 тиков; interruptible-CC прерывает канал-касты
+ *     через CastChannels.interrupt.
+ * DR не персистится; смерть/выход снимают CC и сбрасывают DR (ТЗ п.5.5).
  */
 public final class CCService implements Listener {
 
@@ -70,6 +59,7 @@ public final class CCService implements Listener {
     private final Map<UUID, Float> slowWalkBase = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean> slowAttrApplied = new ConcurrentHashMap<>();
     private final NamespacedKey slowAttrKey;
+    private long tickCounter = 0L;
 
     public CCService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -131,7 +121,12 @@ public final class CCService implements Listener {
         return plugin.getConfig().getBoolean("cc.types." + type.id() + ".breaks-on-damage", type.breaksOnDamage());
     }
 
-    /** ccResist цели: класс (cc.class-resist.*) + Скверна≥порога у чернокнижника; кап resist-cap. */
+    /** Шанс промаха под BLIND (cc.types.BLIND.miss-chance, дефолт 0.5). */
+    public double blindMissChance() {
+        double v = plugin.getConfig().getDouble("cc.types.BLIND.miss-chance", 0.5);
+        return Double.isFinite(v) && v >= 0.0 && v <= 1.0 ? v : 0.5;
+    }
+
     public double ccResistOf(LivingEntity target) {
         double base = 0.0;
         if (target instanceof Player p) {
@@ -156,7 +151,6 @@ public final class CCService implements Listener {
         };
     }
 
-    /** ccPower кастера: Скверна≥порога у чернокнижника; кап power-cap. */
     public double ccPowerOf(Player caster) {
         double base = 0.0;
         if (caster != null
@@ -168,7 +162,6 @@ public final class CCService implements Listener {
         return Math.max(0.0, Math.min(base, powerCap()));
     }
 
-    /** Сокращение длительности у цели (1.14.0: спеки/роли; сейчас только конфиг-заготовка). */
     public double ccReductionOf(LivingEntity target) {
         double base = 0.0;
         if (target instanceof Player p) {
@@ -225,7 +218,6 @@ public final class CCService implements Listener {
 
     /* ------------------------------ DR-математика (pure, selftest 76–78) ------------------------------ */
 
-    /** Множитель DR для стека: вне диапазона → 0 (иммунитет). */
     public static double drMultiplier(int stack, double[] mults) {
         if (mults == null || mults.length == 0 || stack < 0) {
             return 1.0;
@@ -237,12 +229,10 @@ public final class CCService implements Listener {
         return Double.isFinite(v) && v >= 0.0 ? v : 0.0;
     }
 
-    /** Стек ≥ длины списка множителей → DR-иммунитет (selftest-чек 78). */
     public static boolean isDrImmune(int stack, double[] mults) {
         return mults != null && stack >= mults.length;
     }
 
-    /** Сброс стека по истечении окна (pure, selftest-чек 77). */
     public static int stackAfterWindow(long now, long lastApplied, long windowMillis, int current) {
         return (now - lastApplied) > windowMillis ? 0 : current;
     }
@@ -264,10 +254,12 @@ public final class CCService implements Listener {
             return new ApplyResult(CCResult.FAIL_ALLY, 0, 1.0);
         }
         if (isImmune(target, type)) {
+            CCFeedback.onImmune(plugin, caster, target, type);
             return new ApplyResult(CCResult.FAIL_IMMUNE, 0, 1.0);
         }
         double resist = ccResistOf(target);
         if (resist > 0.0 && ThreadLocalRandom.current().nextDouble() < resist) {
+            CCFeedback.onResist(plugin, caster, target, type);
             return new ApplyResult(CCResult.FAIL_RESIST, 0, 1.0);
         }
 
@@ -283,6 +275,7 @@ public final class CCService implements Listener {
         int stack = stackAfterWindow(now, state.lastAppliedAt(), window, state.stackCount());
         if (isDrImmune(stack, mults)) {
             byCat.put(cat, new DRState(stack, state.lastAppliedAt(), state.windowStart()));
+            CCFeedback.onDrImmune(plugin, caster, target, type);
             return new ApplyResult(CCResult.FAIL_DR_IMMUNE, 0, 0.0);
         }
         double drMult = drMultiplier(stack, mults);
@@ -303,7 +296,13 @@ public final class CCService implements Listener {
         UUID sourceUuid = caster != null ? caster.getUniqueId() : null;
         active.computeIfAbsent(targetUuid, k -> new CopyOnWriteArrayList<>())
                 .add(new CCInstance(type, sourceUuid, now, applied, drMult));
-        onApplyBehavior(target, type);
+        onApplyBehavior(target, type, applied);
+
+        // 1.13.0 (Б3): прерывание канал-кастов interruptible-контролем
+        if (type.interruptible() && CastChannels.interrupt(targetUuid)) {
+            CCFeedback.onInterruptCast(plugin, target, type);
+        }
+        CCFeedback.onApply(plugin, caster, target, type, applied, drMult);
         return new ApplyResult(CCResult.SUCCESS, applied, drMult);
     }
 
@@ -356,7 +355,6 @@ public final class CCService implements Listener {
         nextFearTurn.remove(targetUuid);
     }
 
-    /** breaksOnDamage: урон ≥ порога (% от maxHP) снимает соответствующие CC. */
     public void breakOnDamage(LivingEntity target, double damageFormula, double maxHpFormula) {
         if (maxHpFormula <= 0.0 || damageFormula <= 0.0) {
             return;
@@ -374,6 +372,7 @@ public final class CCService implements Listener {
             if (breaksOnDamage(inst.type())) {
                 list.remove(inst);
                 clearBehavior(uuid, inst.type());
+                CCFeedback.onExpire(plugin, target, inst.type());
             }
         }
         if (list.isEmpty()) {
@@ -399,15 +398,42 @@ public final class CCService implements Listener {
         drStates.remove(targetUuid);
     }
 
-    /* ------------------------------ тик-поведения ------------------------------ */
+    /* ------------------------------ поведения и туман BLIND ------------------------------ */
 
-    private void onApplyBehavior(LivingEntity target, CCType type) {
+    private void onApplyBehavior(LivingEntity target, CCType type, int appliedTicks) {
         if (type == CCType.SLOW) {
             applySlow(target);
+        }
+        if (type == CCType.BLIND) {
+            applyBlindFog(target, appliedTicks);
+        }
+    }
+
+    /** Ванильный туман слепоты без партиклей-эмиттеров; Wrapper его не оборачивает. */
+    private void applyBlindFog(LivingEntity target, int ticks) {
+        if (!(target instanceof Player p)) {
+            return;
+        }
+        if (p.hasPotionEffect(PotionEffectType.BLINDNESS)) {
+            return;
+        }
+        p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS,
+                Math.max(1, ticks), 0, false, false, true));
+    }
+
+    private void removeBlindFog(LivingEntity target) {
+        if (target instanceof Player p && p.hasPotionEffect(PotionEffectType.BLINDNESS)) {
+            p.removePotionEffect(PotionEffectType.BLINDNESS);
         }
     }
 
     private void clearBehavior(UUID targetUuid, CCType type) {
+        if (type == CCType.BLIND) {
+            Entity e = plugin.getServer().getEntity(targetUuid);
+            if (e instanceof LivingEntity le) {
+                removeBlindFog(le);
+            }
+        }
         if (type != CCType.SLOW) {
             return;
         }
@@ -423,10 +449,6 @@ public final class CCService implements Listener {
         }
     }
 
-    /**
-     * 1.13.0-fix: снятие модификатора SLOW без removeModifier(NamespacedKey) —
-     * обходим копию getModifiers() и сравниваем getKey() (портативно для 1.21.4).
-     */
     private void removeSlowModifier(LivingEntity le) {
         AttributeInstance ai = le.getAttribute(Attribute.MOVEMENT_SPEED);
         if (ai == null) {
@@ -461,7 +483,11 @@ public final class CCService implements Listener {
         }
     }
 
+    /* ------------------------------ тик ------------------------------ */
+
     private void tick() {
+        tickCounter++;
+        boolean particleFrame = tickCounter % 10L == 0L;
         if (active.isEmpty()) {
             return;
         }
@@ -480,7 +506,11 @@ public final class CCService implements Listener {
                 if (inst.expired(now)) {
                     list.remove(inst);
                     clearBehavior(uuid, inst.type());
+                    CCFeedback.onExpire(plugin, target, inst.type());
                     continue;
+                }
+                if (particleFrame) {
+                    CCFeedback.tickParticle(plugin, target, inst.type());
                 }
                 switch (inst.type()) {
                     case STUN, ROOT -> stunOrRoot = true;
