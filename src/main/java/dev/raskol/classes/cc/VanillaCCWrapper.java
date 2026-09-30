@@ -29,6 +29,9 @@ import org.bukkit.potion.PotionEffectType;
  *  - CLEARED (/effect clear) и молоко (MILK_BUCKET) снимают наши CC через
  *    CCService.removeAll, но DR-стеки НЕ сбрасывают (ТЗ п.5.5);
  *  - рекурсии нет: мы не накладываем ванильные эффекты кроме guard-тумана BLIND.
+ *
+ * 1.13.0-fix: event.getType() → event.getModifiedType() (Bukkit API:
+ *         EntityPotionEffectEvent использует getModifiedType, а не getType).
  */
 public final class VanillaCCWrapper implements Listener {
 
@@ -61,8 +64,10 @@ public final class VanillaCCWrapper implements Listener {
         if (!(event.getEntity() instanceof LivingEntity le)) {
             return;
         }
+        // 1.13.0-fix: event.getModifiedType() вместо event.getType()
+        PotionEffectType modifiedType = event.getModifiedType();
         // наш туман слепоты не оборачиваем и не даём ему уйти в DR повторно
-        if (PotionEffectType.BLINDNESS.equals(event.getType())
+        if (PotionEffectType.BLINDNESS.equals(modifiedType)
                 && plugin.getCC().has(le.getUniqueId(), CCType.BLIND)) {
             return;
         }
@@ -74,7 +79,7 @@ public final class VanillaCCWrapper implements Listener {
         if (event.getAction() != EntityPotionEffectEvent.Action.ADDED) {
             return;
         }
-        CCType cc = wrapTarget(event.getType());
+        CCType cc = wrapTarget(modifiedType);
         if (cc == null) {
             return;
         }
