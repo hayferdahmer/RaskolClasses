@@ -6,6 +6,9 @@ import dev.raskol.classes.ability.CooldownManager;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.HpAttributeSync;
+import dev.raskol.classes.cc.CCGuard;
+import dev.raskol.classes.cc.CCService;
+import dev.raskol.classes.cc.CastGuard;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
@@ -66,7 +69,9 @@ import java.util.List;
  * 1.10.1: Чернокнижник — СКРЫТЫЙ класс (баннер и логи = 5 путей).
  * 1.11.2: T2 (WarlockAbilities-listener, cancelAllChannelTasks) + T5 (cleanupTmpFiles).
  * 1.11.4 (P5): reloadPlugin() перечитывает kits/*.yml через raskolConfig.reloadKits().
- * 1.12.3: getAbilityRegistry() — алиас к getAbilities() для selftest-чеков 64-65.
+ * 1.12.3: getAbilityRegistry() — алиас getAbilities() для selftest-чеков 64-65.
+ * 1.13.0 (Б2): проводка CC-слоя — CCService (ядро DR), CCGuard (запреты действий),
+ *         CastGuard (гейт каста); геттеры getCC()/getCastGuard().
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -118,6 +123,11 @@ public final class RaskolClasses extends JavaPlugin {
 
     private WarlockAbilities warlockAbilities;
 
+    /** 1.13.0: CC-слой. */
+    private CCService ccService;
+    private CCGuard ccGuard;
+    private CastGuard castGuard;
+
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
 
@@ -132,7 +142,6 @@ public final class RaskolClasses extends JavaPlugin {
 
         checkCoreVersion();
 
-        // 1.11.2 (T5): удаление мусорных .yml.tmp от краха во время saveAll.
         cleanupTmpFiles();
 
         PluginManager pluginManager = getServer().getPluginManager();
@@ -179,6 +188,11 @@ public final class RaskolClasses extends JavaPlugin {
         this.resists = new ResistService(this);
         this.combat = new CombatService(this, resists);
         this.manaSoaked = new ManaSoakedService(this);
+
+        // 1.13.0 (Б2): CC-слой после combat (CombatService.dealDamage зовёт getCC())
+        this.ccService = new CCService(this);
+        this.ccGuard = new CCGuard(this);
+        this.castGuard = new CastGuard(this);
 
         this.configValidator = new ConfigValidator(this);
         configValidator.validate();
@@ -428,7 +442,6 @@ public final class RaskolClasses extends JavaPlugin {
 
     public void reloadPlugin() {
         raskolConfig.reload();
-        // 1.11.4 (P5): перечитать kits/*.yml и сбросить кэш значений
         raskolConfig.reloadKits();
         abilities.loadFromConfig(raskolConfig);
         hud.applyConfig();
@@ -503,4 +516,8 @@ public final class RaskolClasses extends JavaPlugin {
     public HpAttributeSync getHpSync() { return hpSync; }
     public PassiveListener getPassives() { return passiveListener; }
     public WarlockAbilities getWarlockAbilities() { return warlockAbilities; }
+    /** 1.13.0: CC-ядро (DR, иммунитеты, реестр активных CC). */
+    public CCService getCC() { return ccService; }
+    /** 1.13.0: гейт каста (STUN/SILENCE/FEAR). */
+    public CastGuard getCastGuard() { return castGuard; }
 }
