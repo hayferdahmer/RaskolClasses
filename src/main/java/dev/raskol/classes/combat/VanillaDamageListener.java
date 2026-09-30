@@ -39,7 +39,12 @@ import java.util.UUID;
  *         канал-резист режется pen атакующего (flat→pct), стихийный резист цели
  *         режется school-pen атакующего, слои складываются мультипликативно
  *         (SchoolMitigation.mitigationFor, кап schools.mitigation-cap).
- *         pen=0 и elemental=0 → множитель равен старому резист-фактору (нейтрально).
+ * 1.13.0 (Б2): breaksOnDamage-хуки — ванильный урон (включая среду и урон по мобам)
+ *         снимает ROOT/FEAR при превышении порога cc.breaks-on-damage-threshold-pct.
+ *         Урон берётся ФИНАЛЬНЫЙ (после митигации/капов); suppressed-события (путь B)
+ *         пропускаются — там CC ломает CombatService.dealDamage самостоятельно.
+ *         Ранний возврат «factor >= 1.0» заменён на defenseMult=1.0, чтобы хук
+ *         срабатывал и на игроков без резистов.
  * Регистрируется фасадом CombatService в конструкторе — RaskolClasses не трогаем.
  */
 public final class VanillaDamageListener implements Listener {
@@ -114,62 +119,76 @@ public final class VanillaDamageListener implements Listener {
             }
         }
 
+        // 1.13.0 (Б2): мобы — резист-митигации в пути A нет, урон финален уже здесь
         if (!(event.getEntity() instanceof Player target)) {
+            if (!suppressed && event.getEntity() instanceof LivingEntity mob
+                    && event.getDamage() > 0.0) {
+                hookBreaksCarrier(mob, event.getDamage());
+            }
             return;
         }
         if (target.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
         if (resists.disabledIn(target.getWorld())) {
+            // арена/мир без резистов: урон финален, CC ломаются как обычно
+            if (!suppressed && event.getDamage() > 0.0) {
+                hookBreaksCarrier(target, event.getDamage());
+            }
             return;
         }
         DamageType type = typeOf(event.getCause());
         if (type == DamageType.TRUE) {
             if (!suppressed) {
                 caps.applyEnvLethalScale(event, target);
+                hookBreaksCarrier(target, event.getDamage());
             }
             return;
         }
         if (type == DamageType.PHYSICAL && avoidance.tryAvoid(target, event)) {
+            // уклон/парирование: урона нет → CC не ломаются
             event.setCancelled(true);
             return;
         }
         if (suppressed) {
             return;
         }
+
         double cap = isPvp(event) ? resists.pvpCap() : resists.cap();
         UUID uuid = target.getUniqueId();
         double factor = type == DamageType.PHYSICAL
                 ? resists.physicalFactor(uuid, cap)
                 : resists.magicFactor(uuid, cap);
-        if (!Double.isFinite(factor) || factor >= 1.0 || factor < 0.0) {
-            return;
-        }
 
-        // 1.12.2 (Блок 4): пробитие атакующего + стихийный слой цели
-        double channelResistPct = (1.0 - factor) * 100.0;
-        double mitigation;
-        if (attacker != null && schoolConfig.enabled()) {
-            UUID aUuid = attacker.getUniqueId();
-            Penetration pen = combat.penTraits().channelPen(
-                    aUuid, type == DamageType.PHYSICAL,
-                    plugin.getGearHook(), schoolConfig.penPctCap());
-            double effChannel = pen.effectiveResist(channelResistPct, schoolConfig.penPctCap());
-            double elResist = combat.elemental().resistOf(uuid, school);
-            double schoolPen = combat.penTraits().schoolPenFraction(
-                    aUuid, school, plugin.getGearHook(), schoolConfig.penPctCap());
-            double effEl = CombatMath.effectiveResist(
-                    elResist, 0.0, schoolPen, schoolConfig.penPctCap());
-            mitigation = SchoolMitigation.mitigationFor(effChannel, Penetration.NONE,
-                    schoolConfig.penPctCap(), effEl,
-                    schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
-        } else {
-            mitigation = channelResistPct / 100.0; // legacy-поведение
-        }
-        double defenseMult = 1.0 - mitigation;
-        if (defenseMult <= 0.0) {
-            event.setCancelled(true);
-            return;
+        // 1.12.2 (Блок 4): пробитие атакующего + стихийный слой цели.
+        // 1.13.0 (Б2): невалидный/нулевой резист больше не выходит из метода —
+        // defenseMult = 1.0, чтобы breaksOnDamage-хук сработал и без резистов.
+        double defenseMult = 1.0;
+        if (Double.isFinite(factor) && factor >= 0.0 && factor < 1.0) {
+            double channelResistPct = (1.0 - factor) * 100.0;
+            double mitigation;
+            if (attacker != null && schoolConfig.enabled()) {
+                UUID aUuid = attacker.getUniqueId();
+                Penetration pen = combat.penTraits().channelPen(
+                        aUuid, type == DamageType.PHYSICAL,
+                        plugin.getGearHook(), schoolConfig.penPctCap());
+                double effChannel = pen.effectiveResist(channelResistPct, schoolConfig.penPctCap());
+                double elResist = combat.elemental().resistOf(uuid, school);
+                double schoolPen = combat.penTraits().schoolPenFraction(
+                        aUuid, school, plugin.getGearHook(), schoolConfig.penPctCap());
+                double effEl = CombatMath.effectiveResist(
+                        elResist, 0.0, schoolPen, schoolConfig.penPctCap());
+                mitigation = SchoolMitigation.mitigationFor(effChannel, Penetration.NONE,
+                        schoolConfig.penPctCap(), effEl,
+                        schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
+            } else {
+                mitigation = channelResistPct / 100.0; // legacy-поведение
+            }
+            defenseMult = 1.0 - mitigation;
+            if (defenseMult <= 0.0) {
+                event.setCancelled(true);
+                return;
+            }
         }
         if (defenseMult < 1.0) {
             event.setDamage(event.getDamage() * defenseMult);
@@ -180,6 +199,24 @@ public final class VanillaDamageListener implements Listener {
         double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
         effective = caps.applyBurstCap(target, effective, caps.formulaMaxOf(target));
         event.setDamage(effective * scale);
+
+        // 1.13.0 (Б2): финальный урон по игроку (после митигации и капов) → breaksOnDamage
+        hookBreaksCarrier(target, event.getDamage());
+    }
+
+    /**
+     * 1.13.0 (Б2): конвертация carrier-урона в formula-единицы и передача
+     * в CCService.breakOnDamage (порог сравнивается с formula-maxHP, план B).
+     */
+    private void hookBreaksCarrier(LivingEntity victim, double carrierDamage) {
+        if (carrierDamage <= 0.0) {
+            return;
+        }
+        double scale = caps.scaleOf(victim);
+        double formulaDamage = scale > 0.0 ? carrierDamage / scale : carrierDamage;
+        if (formulaDamage > 0.0) {
+            plugin.getCC().breakOnDamage(victim, formulaDamage, caps.formulaMaxOf(victim));
+        }
     }
 
     /* --------------------- исходящий офенс (1.7.1) --------------------- */
