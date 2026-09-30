@@ -3,17 +3,16 @@ package dev.raskol.classes.cc;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
-import org.bukkit.NamespacedKey;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.entity.Entity;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.util.Vector;
@@ -41,11 +40,16 @@ import java.util.concurrent.ThreadLocalRandom;
  *  8) стек +1; 9) экземпляр в реестр; 10) тик-поведение (ROOT/STUN — стоп-движение,
  *  FEAR — блуждание, SLOW — резист скорости).
  *
- * Запреты действий (каст/атака/хотбар) и прерывание кастов — шаги 6–7 (AbilityRegistry,
- * CombatService). Ванильная обёртка — шаг 8 (VanillaCCWrapper). HUD/фидбек — шаги 9–10.
+ * Запреты действий (каст/атака/хотбар) и прерывание кастов — батч 2 (шаги 4–6).
+ * Ванильная обёртка — батч 3 (VanillaCCWrapper). HUD/фидбек — батчи 3–4.
  *
  * DR не персистится: окно 15 с переживает рестарт бессмысленно.
- * Смерть и выход снимают CC; смерть additionally сбрасывает DR (ТЗ п.5.5).
+ * Смерть и выход снимают CC; смерть дополнительно сбрасывает DR (ТЗ п.5.5).
+ *
+ * 1.13.0-fix: удалена черновая строка-заглушка Set<EntityType-ish> (синтаксическая
+ * ошибка строки 62); снятие атрибут-модификатора SLOW — через getModifiers()+
+ * removeModifier(mod) со сравнением getKey() (removeModifier(NamespacedKey)
+ * присутствует не во всех сборках Paper 1.21.4).
  */
 public final class CCService implements Listener {
 
@@ -58,8 +62,6 @@ public final class CCService implements Listener {
     public record ApplyResult(CCResult result, int appliedTicks, double drMultiplier) {
         public boolean ok() { return result == CCResult.SUCCESS && appliedTicks > 0; }
     }
-
-    private static final Set<EntityType-ish> NONE = Set.of(); // placeholder removed below
 
     private final RaskolClasses plugin;
     private final Map<UUID, CopyOnWriteArrayList<CCInstance>> active = new ConcurrentHashMap<>();
@@ -416,11 +418,25 @@ public final class CCService implements Listener {
                 p.setWalkSpeed(base);
             }
         } else if (entity instanceof LivingEntity le) {
-            AttributeInstance ai = le.getAttribute(Attribute.MOVEMENT_SPEED);
-            if (ai != null) {
-                ai.removeModifier(slowAttrKey);
-            }
+            removeSlowModifier(le);
             slowAttrApplied.remove(targetUuid);
+        }
+    }
+
+    /**
+     * 1.13.0-fix: снятие модификатора SLOW без removeModifier(NamespacedKey) —
+     * обходим копию getModifiers() и сравниваем getKey() (портативно для 1.21.4).
+     */
+    private void removeSlowModifier(LivingEntity le) {
+        AttributeInstance ai = le.getAttribute(Attribute.MOVEMENT_SPEED);
+        if (ai == null) {
+            return;
+        }
+        for (AttributeModifier m : List.copyOf(ai.getModifiers())) {
+            NamespacedKey key = m.getKey();
+            if (key != null && key.equals(slowAttrKey)) {
+                ai.removeModifier(m);
+            }
         }
     }
 
