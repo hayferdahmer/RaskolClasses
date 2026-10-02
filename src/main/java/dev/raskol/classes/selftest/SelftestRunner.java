@@ -31,6 +31,8 @@ import dev.raskol.classes.combat.school.SchoolConfig;
 import dev.raskol.classes.combat.school.SchoolImmunity;
 import dev.raskol.classes.combat.school.SchoolMitigation;
 import dev.raskol.classes.combat.school.SchoolProfile;
+import dev.raskol.classes.command.sub.CcSub;
+import dev.raskol.classes.config.CcSanity;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.hook.GearHook;
@@ -58,8 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
  * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
- * Чеки 17–18: TTK-санити (якорь balance.target-ttk-seconds).
- * Чеки 19–20: сводный уровень topNAverage (1.8.0).
+ * Чеки 17–18: TTK-санити. Чеки 19–20: сводный уровень topNAverage (1.8.0).
  * Чек 21: фракционный гейт canHit (1.8.1).
  * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
  * Чек 24: reconcile-цикл талантов (1.9.0; 1.9.2-fix фолбэк).
@@ -67,30 +68,30 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг (1.9.2).
  * Чеки 33–35: план B — scale/healFormula/targetCarrier (1.9.3).
  * Чек 36: tickDelta — декэй ярости воина вне боя (1.9.3.2).
- * Чеки 37–40: чернокнижник — реестры/гейты/конфиг-диапазоны/симулятор/матрица (1.10.0).
+ * Чеки 37–40: чернокнижник — реестры/гейты/конфиг/симулятор/матрица (1.10.0).
  * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
- * Чеки 44–45 (1.11.4): sanity китов всех 6 классов + RUNBOOK пассив-мульты.
- * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction (эксплойты F1/F2) и respecCost.
- * Чек 48 (1.11.4 P5): per-class yml loader с фолбэком в config.yml.
- * Чеки 49–51 (1.12.0): школы — School→channel, vanilla-school map, legacy round-trip.
- * Чеки 52–54 (1.12.1): митигация с пробитием, иммунитеты EntityType, Penetration-клампы.
- * Чеки 55–56 (1.12.2 Б1): стихийный слой — суммирование/кап/снятие, связка с mitigation.
- * Чеки 57–58 (1.12.2 Б2): gear-pen кламп и цепочка pen→mitigation.
- * Чеки 59–60 (1.12.2 Б3): pen-трейты талантов/спек — clampSumPercent и нулевые читатели.
- * Чеки 61–62 (1.12.2 Б4): проводка neutral и связка school-pen→elemental.
- * Чеки 63–65 (1.12.3): ThreadLocal cast-school, полнота школ 30/30, конкретные школы китов.
- * Чеки 66–68 (1.12.4): DoT-математика — capFactor, withMults, dpsLimit + живой DotService.
- * Чеки 69–71 (1.12.5): средовые триггеры гашения, реестр dots.*, стеки/refresh/expiry Dot.
- * Чеки 72–74 (1.12.6): HUD-API activeDotsOf, poison_passive vs poison, миграция poisoned_blades.
- * Чек 75 (1.12.7): sanity баланс-прогона матрицы 6×6 (чистая, диагональ, средняя).
- * Чеки 76–79 (1.13.0 Б1): DR-множители, окно DR, DR-иммунитет, категории CC.
- * Чеки 80–84 (1.13.0 Б2): CCService живой, breaksOnDamage-флаги и порог, STUN не ломается
- *         уроном, CastGuard.canCast (STUN/SILENCE/instant).
- * Чеки 85–87 (1.13.0 Б3): обёртка ванили (SLOWNESS/BLINDNESS/WEAKNESS), формат сообщения
- *         CCFeedback.describeApply, CastChannels.interrupt (canceller + снятие регистрации).
+ * Чеки 44–45 (1.11.4): sanity китов + RUNBOOK пассив-мульты.
+ * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction и respecCost.
+ * Чек 48 (1.11.4 P5): per-class yml loader.
+ * Чеки 49–51 (1.12.0): школы — channel, vanilla-school, legacy round-trip.
+ * Чеки 52–54 (1.12.1): митигация/пробитие, иммунитеты, Penetration-клампы.
+ * Чеки 55–56 (1.12.2 Б1): стихийный слой.
+ * Чеки 57–58 (1.12.2 Б2): gear-pen.
+ * Чеки 59–60 (1.12.2 Б3): pen-трейты талантов/спек.
+ * Чеки 61–62 (1.12.2 Б4): проводка neutral, school-pen→elemental.
+ * Чеки 63–65 (1.12.3): cast-school ThreadLocal, полнота школ, школы китов.
+ * Чеки 66–68 (1.12.4): DoT-математика + живой DotService.
+ * Чеки 69–71 (1.12.5): триггеры среды, реестр dots.*, стеки/expiry.
+ * Чеки 72–74 (1.12.6): HUD-API, poison_passive, миграция poisoned_blades.
+ * Чек 75 (1.12.7): sanity баланс-прогона матрицы 6×6.
+ * Чеки 76–79 (1.13.0 Б1): DR-множители, окно, DR-иммунитет, категории CC.
+ * Чеки 80–84 (1.13.0 Б2): CCService живой, breaksOnDamage, STUN не ломается, CastGuard.
+ * Чеки 85–87 (1.13.0 Б3): обёртка ванили, describeApply, CastChannels.interrupt.
+ * Чеки 88–90 (1.13.0 Б4): /rc cc исполняется без исключений, CcSanity валидирует конфиг,
+ *         данные для debug-секции CC/DR согласованы (activeOf + drState + cleanup).
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
- * чеки 55–56 требуют schools.elemental.enabled: true в config.yml;
- * чеки 82–84 используют retry-хелпер applyUntilOk (ccResist-бросок не флапает).
+ * чеки 55–56 требуют schools.elemental.enabled: true;
+ * чеки 82–84/90 используют retry-хелпер applyUntilOk (ccResist не флапает).
  */
 public final class SelftestRunner {
 
@@ -1217,7 +1218,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.13.0 (Б3): чек 85 — обёртка ванили: SLOWNESS→SLOW, BLINDNESS→BLIND, WEAKNESS→SILENCE, прочее null
         boolean ok85 = VanillaCCWrapper.wrapTarget(PotionEffectType.SLOWNESS) == CCType.SLOW
                 && VanillaCCWrapper.wrapTarget(PotionEffectType.BLINDNESS) == CCType.BLIND
                 && VanillaCCWrapper.wrapTarget(PotionEffectType.WEAKNESS) == CCType.SILENCE
@@ -1232,7 +1232,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б3): чек 86 — CCFeedback.describeApply: ruName + секунды + DR-процент из messages.cc.applied
         String d86 = CCFeedback.describeApply(plugin, CCType.STUN, 60, 0.5);
         boolean ok86 = d86 != null
                 && d86.contains(CCType.STUN.ruName())
@@ -1245,7 +1244,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б3): чек 87 — CastChannels: interrupt выполняет canceller и снимает регистрацию
         AtomicBoolean cancelled87 = new AtomicBoolean(false);
         UUID ch87 = UUID.randomUUID();
         CastChannels.register(ch87, () -> cancelled87.set(true));
@@ -1258,6 +1256,72 @@ public final class SelftestRunner {
             passed++;
         } else {
             failed++;
+        }
+
+        // 1.13.0 (Б4): чек 88 — /rc cc исполняется без исключений: list + (test→status→clear на зонде)
+        boolean listOk = false;
+        boolean seqOk = true;
+        try {
+            CcSub ccSub = new CcSub(plugin);
+            listOk = ccSub.execute(Bukkit.getConsoleSender(), new String[]{"list"});
+            if (probe != null) {
+                seqOk = ccSub.execute(Bukkit.getConsoleSender(), new String[]{"test", probe.getName(), "STUN"})
+                        && ccSub.execute(Bukkit.getConsoleSender(), new String[]{"status", probe.getName()})
+                        && ccSub.execute(Bukkit.getConsoleSender(), new String[]{"clear", probe.getName()});
+            }
+        } catch (RuntimeException ex) {
+            listOk = false;
+            seqOk = false;
+        }
+        boolean ok88 = listOk && seqOk;
+        if (check(report, "88", "/rc cc list/status/test/clear исполняются без исключений",
+                ok88, "CcSub.execute", listOk + "/" + seqOk)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б4): чек 89 — CcSanity: живой конфиг cc.* валиден + pure inRange
+        List<String> ccProblems = CcSanity.validateCc(plugin);
+        boolean ok89 = ccProblems.isEmpty()
+                && CcSanity.inRange(0.5, 0.0, 1.0)
+                && !CcSanity.inRange(2.0, 0.0, 1.0)
+                && !CcSanity.inRange(Double.NaN, 0.0, 1.0);
+        if (check(report, "89", "CcSanity: конфиг cc.* без проблем; inRange(0.5)=true, (2.0)=false, (NaN)=false",
+                ok89, "CcSanity.validateCc",
+                ccProblems.isEmpty() ? "OK" : ccProblems.size() + ": " + ccProblems.get(0))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.13.0 (Б4): чек 90 — данные debug-секции CC/DR согласованы: apply → activeOf+drState → cleanup
+        if (probe == null || cc == null) {
+            if (check(report, "90", "debug CC/DR данные (пропущено: нет онлайн-игрока)",
+                    true, "CCService.activeOf/drState", "skip")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        } else {
+            UUID u90 = probe.getUniqueId();
+            cc.removeAll(u90);
+            cc.resetAllDr(u90);
+            boolean applied90 = applyUntilOk(cc, probe, CCType.STUN, 60);
+            boolean activeVisible = !cc.activeOf(u90).isEmpty();
+            boolean drVisible = cc.drState(u90, DRCategory.STUN).stackCount() >= 1;
+            cc.removeAll(u90);
+            cc.resetAllDr(u90);
+            boolean cleared90 = cc.activeOf(u90).isEmpty()
+                    && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
+            boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
+            if (check(report, "90", "debug-секция CC/DR: apply→activeOf+drState видны, cleanup пуст",
+                    ok90, "CCService.activeOf/drState",
+                    applied90 + "/" + activeVisible + "/" + drVisible + "/" + cleared90)) {
+                passed++;
+            } else {
+                failed++;
+            }
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
