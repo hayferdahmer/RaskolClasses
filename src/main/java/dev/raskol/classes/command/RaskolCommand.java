@@ -2,6 +2,7 @@
 package dev.raskol.classes.command;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.command.sub.CcSub;
 import dev.raskol.classes.command.sub.CommandSub;
 import dev.raskol.classes.command.sub.DebugSub;
 import dev.raskol.classes.command.sub.FoliantSub;
@@ -24,15 +25,18 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Исполнитель и автодополнение /rc (1.4.0 → 1.11.4).
+ * Исполнитель и автодополнение /rc (1.4.0 → 1.11.4 → 1.13.0).
  * 1.11.4 (P4d): РОУТЕР. menu/reload/selftest остаются здесь;
  * debug/gear/foliant/health вынесены в command/sub/*Sub (контракт CommandSub).
  * Права проверяются роутером через CommandSub.permission().
+ * 1.13.0 (Б4): добавлен CcSub — /rc cc status/clear/test/reset/list
+ *         (пермиссия raskolclasses.admin.cc).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
+    // 1.13.0 (Б4): "cc" добавлен для таб-комплита /rc <Tab>
     private static final List<String> ROOT_SUBS = List.of(
-            "menu", "reload", "debug", "health", "selftest", "gear", "foliant");
+            "menu", "reload", "debug", "health", "selftest", "gear", "foliant", "cc");
 
     private final RaskolClasses plugin;
     private final Map<String, CommandSub> subs = new LinkedHashMap<>();
@@ -43,7 +47,9 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 new DebugSub(plugin),
                 new GearSub(plugin),
                 new FoliantSub(plugin),
-                new HealthSub(plugin))) {
+                new HealthSub(plugin),
+                // 1.13.0 (Б4): подкоманда /rc cc — админ-поверхность CC/DR
+                new CcSub(plugin))) {
             subs.put(sub.name(), sub);
         }
     }
@@ -138,6 +144,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Component.text("/rc reload — перезагрузить конфигурацию",
                     NamedTextColor.RED));
             sender.sendMessage(Component.text("/rc foliant give <ник> — выдать Фолиант Раскола",
+                    NamedTextColor.RED));
+        }
+        // 1.13.0 (Б4): справка /rc cc для holders raskolclasses.admin.cc
+        if (sender.hasPermission("raskolclasses.admin.cc")) {
+            sender.sendMessage(Component.text("/rc cc status|clear|test|reset|list — CC/DR админка",
                     NamedTextColor.RED));
         }
     }
