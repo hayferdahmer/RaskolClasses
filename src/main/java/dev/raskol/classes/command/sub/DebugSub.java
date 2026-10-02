@@ -5,6 +5,10 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.balance.BalanceSimulator;
+import dev.raskol.classes.cc.CCInstance;
+import dev.raskol.classes.cc.CCService;
+import dev.raskol.classes.cc.DRCategory;
+import dev.raskol.classes.cc.DRState;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
@@ -27,7 +31,8 @@ import java.util.UUID;
  * 1.11.4 (P4d): /rc debug [player] · /rc debug simulate [A] [B] [level] ·
  * /rc debug simulate matrix [level] · /rc debug matrix [level].
  * 1.12.2 (Блок 5): в дампе игрока — строки пробития (pen) и стихийных резистов.
- * Логика идентична 1.11.3 (переехала из RaskolCommand.handleDebug).
+ * 1.13.0 (Б4): в дампе игрока — секция контроля: активные CC с остатком
+ *         и DR-стеки с таймером до сброса окна.
  */
 public final class DebugSub implements CommandSub {
 
@@ -216,7 +221,6 @@ public final class DebugSub implements CommandSub {
                     + " физ / +" + (int) m.magicPct() + " маг", NamedTextColor.GRAY));
         }
 
-        // 1.12.2 (Блок 5): пробитие и стихийный слой
         var penTraits = plugin.getCombat().penTraits();
         double penPhys = penTraits.totalPenPercent(uuid, "phys", plugin.getGearHook());
         double penMagic = penTraits.totalPenPercent(uuid, "magic", plugin.getGearHook());
@@ -234,6 +238,36 @@ public final class DebugSub implements CommandSub {
         }
         sender.sendMessage(Component.text("Стихии: "
                 + (elLine.length() > 0 ? elLine.toString().trim() : "—"),
+                NamedTextColor.DARK_AQUA));
+
+        // 1.13.0 (Б4): секция контроля — активные CC и DR-стеки с таймером окна
+        CCService ccSvc = plugin.getCC();
+        List<CCInstance> ccs = ccSvc.activeOf(uuid);
+        if (ccs.isEmpty()) {
+            sender.sendMessage(Component.text("Контроль: —", NamedTextColor.GRAY));
+        } else {
+            long now = System.currentTimeMillis();
+            StringBuilder ccLine = new StringBuilder();
+            for (CCInstance inst : ccs) {
+                ccLine.append(inst.type().ruName()).append(' ')
+                        .append(inst.remainingTicks(now) / 20L).append("с  ");
+            }
+            sender.sendMessage(Component.text("Контроль: " + ccLine.toString().trim(),
+                    NamedTextColor.RED));
+        }
+        long windowMs = (long) (plugin.getConfig().getDouble("cc.window-seconds", 15.0) * 1000.0);
+        StringBuilder drLine = new StringBuilder();
+        for (DRCategory cat : DRCategory.values()) {
+            DRState st = ccSvc.drState(uuid, cat);
+            if (st.stackCount() <= 0) {
+                continue;
+            }
+            long left = Math.max(0L, windowMs - (System.currentTimeMillis() - st.lastAppliedAt()));
+            drLine.append(cat.id()).append('=').append(st.stackCount())
+                    .append(" (сброс ").append(left / 1000L).append("с)  ");
+        }
+        sender.sendMessage(Component.text("DR-стеки: "
+                + (drLine.length() > 0 ? drLine.toString().trim() : "—"),
                 NamedTextColor.DARK_AQUA));
 
         var gearHook = plugin.getGearHook();
