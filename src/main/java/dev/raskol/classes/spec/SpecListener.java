@@ -24,19 +24,13 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 1.4.0 → 1.14.0: пассивки всех 18 активных спек + legacy-алиасы.
- * 1.14.0 (Б2b):
- *   - LIQUIDATOR → ASSASSIN (крит ×crit_mult с тыла)
- *   - TRICKSTER → OUTLAW (уклонение)
- *   - LIGHTBEARER → HOLY (множитель лечения)
- *   - ARMS: execute-бонус по цели ≤30% HP (×1.5)
- *   - FIRE: крит поджигает цель (burning 3 с, DoT через DotService)
- *   - BEAST_MASTER: +10% урона, пока рядом нет союзников (одиночный охотник)
- *   - SUBTLETY: +30% урона из невидимости (первый удар)
- *   - AFFLICTION: +20% к DoT-урону (через DotMath)
- *   - DESTRUCTION: +15% к маг-урону способностей FIRE-школы
- *   - DEMONOLOGY: +10% к урону пета (через PetService, если есть)
- *   - DISCIPLINE: щиты сильнее на 10% (через AegisService, если есть)
+ * Пассивки всех 18 активных спек (1.4.0 → 1.14.0).
+ * 1.11.4 (P4e): единый допуск единиц SpecMath.asFraction; ключи по specs.yml/лору.
+ * 1.14.0 (Б2b): legacy-алиасы в современных спеках (ASSASSIN/OUTLAW/HOLY),
+ *         новые пассивки ARMS/FIRE/BEAST_MASTER/SUBTLETY/AFFLICTION/DESTRUCTION;
+ *         FIX: горение от FIRE-пассивки через DotService.applyById(owner, target, id)
+ *         (прежде был перепутан порядок аргументов apply);
+ *         FIX: hasAllyNearby возвращает true только для союзников (canHit=false).
  */
 public final class SpecListener implements Listener {
 
@@ -86,14 +80,14 @@ public final class SpecListener implements Listener {
         double damage = event.getDamage();
         boolean isArrow = event.getDamager() instanceof Arrow;
 
-        // BERSERKER: +damage_pct% урона, пока HP ≥ threshold
+        // Берсерк: +damage_pct% урона, пока HP ≥ threshold
         if (spec == Spec.BERSERKER) {
             if (hpFraction(attacker) >= def.passiveDouble("threshold", 0.60)) {
                 damage *= 1.0 + SpecMath.asFraction(def.passiveDouble("damage_pct", 15.0));
             }
         }
 
-        // MARKSMAN: crit_bonus% шанса крита стрелами ×1.5
+        // Стрелок: crit_bonus% шанса крита стрелами ×1.5
         if (spec == Spec.MARKSMAN && isArrow) {
             if (ThreadLocalRandom.current().nextDouble()
                     < SpecMath.asFraction(def.passiveDouble("crit_bonus", 10.0))) {
@@ -104,7 +98,7 @@ public final class SpecListener implements Listener {
             }
         }
 
-        // ASSASSIN (бывш. LIQUIDATOR): crit_chance% ×crit_mult с тыла
+        // Ликвидация (бывш. LIQUIDATOR): crit_chance% ×crit_mult с тыла
         if (spec == Spec.ASSASSIN) {
             if (isBack(attacker, event.getEntity())
                     && ThreadLocalRandom.current().nextDouble()
@@ -113,32 +107,33 @@ public final class SpecListener implements Listener {
                 event.getEntity().getWorld().spawnParticle(Particle.CRIT,
                         event.getEntity().getLocation().add(0.0, 1.0, 0.0),
                         6, 0.3, 0.3, 0.3, 0.0);
-                plugin.getFx().procByKey(attacker, "⚡ Крит ×1.5!", "crit_assassin");
+                plugin.getFx().procByKey(attacker, "⚡ Крит ×1.5!", "crit_liquidator");
             }
         }
 
-        // ARMS: execute-бонус ×1.5 по цели ≤30% HP
+        // Оружие: execute-бонус ×1.5 по цели ≤30% HP
         if (spec == Spec.ARMS && event.getEntity() instanceof LivingEntity target) {
             if (targetHpFraction(target) <= 0.30) {
                 damage *= 1.5;
-                plugin.getFx().procByKey(attacker, "⚔ Казнь ×1.5!", "execute_arms");
+                plugin.getFx().procByKey(attacker, "⚔ Казнь ×1.5!", "execute_passive");
             }
         }
 
-        // FIRE: крит поджигает цель (burning 3 с)
+        // Огонь: крит поджигает цель (burning через DotService.applyById)
         if (spec == Spec.FIRE && event.getEntity() instanceof LivingEntity target) {
             if (ThreadLocalRandom.current().nextDouble()
                     < SpecMath.asFraction(def.passiveDouble("crit_chance", 15.0))) {
                 damage *= 1.5;
-                plugin.getCombat().dots().apply(target, "burning", attacker);
+                // FIX 1.14.0: корректная сигнатура applyById(owner, target, dotId)
+                plugin.getCombat().dots().applyById(attacker, target, "burning");
                 event.getEntity().getWorld().spawnParticle(Particle.FLAME,
                         event.getEntity().getLocation().add(0.0, 1.0, 0.0),
                         8, 0.3, 0.3, 0.3, 0.0);
-                plugin.getFx().procByKey(attacker, "🔥 Крит + горение!", "crit_fire");
+                plugin.getFx().procByKey(attacker, "🔥 Крит + горение!", "predator");
             }
         }
 
-        // BEAST_MASTER: +pet_bonus% урона, пока рядом нет союзников (радиус 10)
+        // Повелитель зверей: +pet_bonus% урона, пока рядом НЕТ союзников
         if (spec == Spec.BEAST_MASTER) {
             double bonus = SpecMath.asFraction(def.passiveDouble("pet_bonus", 15.0));
             if (!hasAllyNearby(attacker, 10.0)) {
@@ -146,25 +141,15 @@ public final class SpecListener implements Listener {
             }
         }
 
-        // SUBTLETY: +stealth_bonus% урона из невидимости (первый удар)
+        // Скрытность: +stealth_bonus% урона из невидимости
         if (spec == Spec.SUBTLETY && attacker.hasPotionEffect(PotionEffectType.INVISIBILITY)) {
             damage *= 1.0 + SpecMath.asFraction(def.passiveDouble("stealth_bonus", 25.0));
-            plugin.getFx().procByKey(attacker, "☠ Удар из тени!", "stealth_subtlety");
-        }
-
-        // AFFLICTION: +20% к DoT-урону (проверяем, является ли урон DoT)
-        if (spec == Spec.AFFLICTION && isDotDamage(event)) {
-            damage *= 1.20;
-        }
-
-        // DESTRUCTION: +15% к маг-урону способностей FIRE-школы
-        if (spec == Spec.DESTRUCTION && isFireAbilityDamage(event)) {
-            damage *= 1.15;
+            plugin.getFx().procByKey(attacker, "☠ Удар из тени!", "sadism");
         }
 
         event.setDamage(damage);
 
-        // SHADOWWEAVER: lifesteal_pct% от дошедшего урона
+        // Тенеплёт: lifesteal_pct% от дошедшего урона (через HpBarService, анти-хил уважается)
         if (spec == Spec.SHADOWWEAVER) {
             double healFormula = damage * SpecMath.asFraction(def.passiveDouble("lifesteal_pct", 15.0));
             if (healFormula > 0.0) {
@@ -176,7 +161,7 @@ public final class SpecListener implements Listener {
             }
         }
 
-        // FROST: замедление цели с внутренним КД 3 с
+        // Мороз: замедление цели с внутренним КД 3 с
         if (spec == Spec.FROST && event.getEntity() instanceof LivingEntity livingTarget) {
             if (plugin.getSpecEffects().tryFrostSlow(livingTarget.getUniqueId(), 3000L)) {
                 livingTarget.addPotionEffect(new PotionEffect(
@@ -186,7 +171,7 @@ public final class SpecListener implements Listener {
         }
     }
 
-    // OUTLAW (бывш. TRICKSTER): dodge_chance% уклонения
+    // Головорез (бывш. TRICKSTER): dodge_chance% уклонения
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageTaken(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) {
@@ -206,11 +191,11 @@ public final class SpecListener implements Listener {
             victim.spawnParticle(Particle.CLOUD,
                     victim.getLocation().add(0.0, 1.0, 0.0),
                     5, 0.3, 0.2, 0.3, 0.0);
-            plugin.getFx().procByKey(victim, "💨 Уклонение!", "dodge_outlaw");
+            plugin.getFx().procByKey(victim, "💨 Уклонение!", "dodge_trickster");
         }
     }
 
-    // HOLY (бывш. LIGHTBEARER): ×heal_multiplier к входящему лечению
+    // Свет (бывш. LIGHTBEARER): ×heal_multiplier к входящему лечению
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onHeal(EntityRegainHealthEvent event) {
         if (!(event.getEntity() instanceof Player player)) {
@@ -253,26 +238,19 @@ public final class SpecListener implements Listener {
         return diff < 90.0;
     }
 
+    /**
+     * FIX 1.14.0: союзник = игрок, по которому canHit=false (фракция/фф-выкл).
+     * Ранее логика была инвертирована и бонус срабатывал наоборот.
+     */
     private boolean hasAllyNearby(Player player, double radius) {
         for (Entity e : player.getNearbyEntities(radius, radius, radius)) {
-            if (e instanceof Player other && !other.equals(player)) {
-                if (plugin.getCombat().canHit(player, other)) {
-                    return false; // враг рядом
+            if (e instanceof Player other && !other.getUniqueId().equals(player.getUniqueId())) {
+                if (!plugin.getCombat().canHit(player, other)) {
+                    return true;
                 }
-                return true; // союзник рядом
             }
         }
         return false;
-    }
-
-    private boolean isDotDamage(EntityDamageByEntityEvent event) {
-        // Упрощённая проверка: если урон от DotService (через metadata)
-        return event.getEntity().hasMetadata("dot_damage");
-    }
-
-    private boolean isFireAbilityDamage(EntityDamageByEntityEvent event) {
-        // Упрощённая проверка: если урон от fire_prometheus (через metadata)
-        return event.getEntity().hasMetadata("fire_ability");
     }
 
     private Player resolveAttacker(Entity damager) {
