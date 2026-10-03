@@ -17,14 +17,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 1.11.4 (P1): ТОНКИЙ диспетчер пассивок. Вся логика — в ClassPassive-файлах
- * (WarriorPassives…WarlockPassives). Маркер хилера остаётся здесь статическим:
- * его ставят PriestAbilities и читает ResourceService (контракт не меняем).
- *
- * 1.12.6: миграция PotionEffect-пассивок на DotService НЕ затрагивает этот
- * файл — логика proc-шансов живёт в RoguePassives.onDamageOut(), которая
- * теперь вызывает dots().applyById(owner, target, "poison_passive") вместо
- * PotionEffectType.POISON.
+ * 1.11.4 (P1): ТОНКИЙ диспетчер пассивок. Вся логика — в ClassPassive-файлах.
+ * Маркер хилера статический: ставят PriestAbilities, читает ResourceService.
+ * 1.14.0 (Б8): +MagePassives (mana_soaked) — ранее файл отсутствовал.
  */
 public final class PassiveListener implements Listener {
 
@@ -55,6 +50,7 @@ public final class PassiveListener implements Listener {
                 new HunterPassives(plugin),
                 new RoguePassives(plugin),
                 new PriestPassives(plugin),
+                new MagePassives(plugin),
                 new WarlockPassives(plugin))) {
             passives.put(p.playerClass(), p);
         }
