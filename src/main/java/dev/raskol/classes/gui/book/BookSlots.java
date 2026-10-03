@@ -4,6 +4,10 @@ package dev.raskol.classes.gui.book;
 /**
  * 1.11.4 (P4b): карта слотов Книги класса (единый источник для всех таб-вью).
  * Каркас 54 слота: row0 рамка + эмблема (4); row1-4 контент; row5 навигация.
+ * 1.14.0 (Б3): SPEC_SLOTS расширены до 3 (три спеки на класс);
+ *         дерево талантов переложено на WoW-подобную вертикальную сетку:
+ *         тир1 (2 узла, cols 2/6) → тир2 (4 узла, cols 1/3/5/7) →
+ *         тир3 (2 узла, cols 2/6) → ульт (col 4); сброс уехал в col 8 row4.
  */
 public final class BookSlots {
 
@@ -23,7 +27,8 @@ public final class BookSlots {
     public static final int[] ABILITY_SLOTS = {11, 12, 13, 14, 15};
     public static final int SLOT_INSTALL = 22;
 
-    public static final int[] SPEC_SLOTS = {20, 24};
+    /** 1.14.0: три спеки на класс (legacy-константы в витрину не попадают). */
+    public static final int[] SPEC_SLOTS = {20, 22, 24};
     public static final int SLOT_RESPEC = 40;
 
     public static final int[] PASSIVE_SLOTS = {29, 30, 31, 32};
@@ -31,9 +36,15 @@ public final class BookSlots {
     public static final int SLOT_RESIST = 22;
     public static final int SLOT_CROWN = 24;
 
-    public static final int[] TALENT_NODE_SLOTS = {2, 6, 10, 12, 14, 16, 20, 24, 31};
+    /**
+     * 1.14.0: порядок слотов соответствует порядку узлов в TalentsRegistry:
+     * [t1A, t1B, t2A1, t2A2, t2B1, t2B2, t3A, t3B, ульт].
+     * Ветка A = левая половина (cols 1-3), ветка B = правая (cols 5-7),
+     * ульт сходится в центр (col 4) — читается как стрелки референса.
+     */
+    public static final int[] TALENT_NODE_SLOTS = {11, 15, 19, 21, 23, 25, 29, 33, 40};
     public static final int SLOT_TALENT_INFO = 22;
-    public static final int SLOT_TALENT_RESET = 40;
+    public static final int SLOT_TALENT_RESET = 44;
     public static final long RESET_ARM_MILLIS = 30_000L;
 
     public static final int SLOT_GEAR_WEAPON = 10;
