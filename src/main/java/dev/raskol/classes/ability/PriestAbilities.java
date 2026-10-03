@@ -14,28 +14,46 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Vex;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.7.4: КИТ ЖРЕЦА. 1.9.3 (план B): maxOf() читает formulaMaxHp();
  * heal() через HpBarService.heal().
- * 1.12.3 (Батч 4): школа HOLY, каст/impact/execute-VFX конфиг-драйвен, аура Эгиды.
+ * 1.12.3: школа HOLY, каст/impact/execute-VFX конфиг-драйвен, аура Эгиды.
  * 1.12.5: очищение — успешный хил снимает Dot'ы школ NATURE и SHADOW с цели.
- * 1.14.0 (Б4): хуки Spec2Service + ролевой множитель HEALER в applyHeal.
+ * 1.14.0 (Б4): хуки baseBonus/coeffMult из Spec2Service + роль HEALER в applyHeal.
+ * 1.14.0 (контент-долг 5): +9 древесных способностей Жреца:
+ *   discipline: purge, pain_suppression, spirit_shell (ульт);
+ *   holy: flash_heal, lightwell, divine_hymn (ульт);
+ *   shadow: withering_touch, mind_flay, shadowfiend.
+ *   Гейт — treeUnlocked(); целевые хилы/клинзы — self-каст с внутренним
+ *   ray-таргетом союзника (фолбэк на себя).
  */
 public final class PriestAbilities {
 
     private static final PlayerClass PC = PlayerClass.PRIEST;
+
+    /** 1.14.0: последний успешный хил кастера (formula-единицы) для spirit_shell. */
+    private static final Map<UUID, Double> LAST_HEAL = new ConcurrentHashMap<>();
+
     private final RaskolClasses plugin;
 
     public PriestAbilities(RaskolClasses plugin) {
         this.plugin = plugin;
     }
+
+    /* ------------------------------ конфиг-хелперы ------------------------------ */
 
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
@@ -66,7 +84,19 @@ public final class PriestAbilities {
         return v > 0 ? v : defv;
     }
 
-    /** 1.14.0 (Б4): хил с хуками Spec2Service. */
+    private double tbase(AbilityDef def, double defv) {
+        return cfgD("classes.PRIEST.treeAbilities." + def.id() + ".base", defv);
+    }
+
+    private double tcoeff(AbilityDef def, double defv) {
+        return cfgD("classes.PRIEST.treeAbilities." + def.id() + ".coeff", defv);
+    }
+
+    private String tpower(AbilityDef def) {
+        return plugin.getConfig().getString(
+                "classes.PRIEST.treeAbilities." + def.id() + ".power", "hpow");
+    }
+
     private double healAmount(Player caster, AbilityDef def, double defBase, double defCoeff) {
         UUID uuid = caster.getUniqueId();
         double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
@@ -74,12 +104,34 @@ public final class PriestAbilities {
         return plugin.getCombat().powers().abilityHeal(uuid, b, c);
     }
 
-    /** 1.14.0 (Б4): урон с хуками Spec2Service. */
+    private double thealAmount(Player caster, AbilityDef def, double defBase, double defCoeff) {
+        UUID uuid = caster.getUniqueId();
+        double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
+        return plugin.getCombat().powers().abilityHeal(uuid, b, c);
+    }
+
     private double dmg(Player caster, AbilityDef def, double defBase, double defCoeff) {
         UUID uuid = caster.getUniqueId();
         double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
         double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
+    }
+
+    private double tdmg(Player caster, AbilityDef def, double defBase, double defCoeff) {
+        UUID uuid = caster.getUniqueId();
+        double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
+        return plugin.getCombat().powers().abilityDamage(uuid, tpower(def), b, c);
+    }
+
+    private boolean treeUnlocked(Player p, AbilityDef def) {
+        if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
+            return true;
+        }
+        p.sendMessage(Component.text("«" + def.displayName()
+                + "» откроется узлом дерева путей Жреца.", NamedTextColor.GRAY));
+        return false;
     }
 
     private void noTarget(Player p) {
@@ -102,6 +154,20 @@ public final class PriestAbilities {
         String f1 = plugin.getFactionHook().factionOf(caster.getUniqueId());
         String f2 = plugin.getFactionHook().factionOf(target.getUniqueId());
         return f1 != null && !f1.isEmpty() && f1.equals(f2);
+    }
+
+    /** Союзник под прицелом (до 20 блоков) или null. */
+    private Player allyRayTarget(Player p, double range) {
+        Entity e = p.getTargetEntity((int) range);
+        if (e instanceof Player tp && isAllyOrSelf(p, tp)) {
+            return tp;
+        }
+        return null;
+    }
+
+    private LivingEntity rayTarget(Player p, double range) {
+        Entity e = p.getTargetEntity((int) range);
+        return e instanceof LivingEntity le ? le : null;
     }
 
     private double maxOf(LivingEntity e) {
@@ -167,15 +233,14 @@ public final class PriestAbilities {
         }
     }
 
-    /* -------------------------------- способности -------------------------------- */
+    /* -------------------------------- ядро лечения -------------------------------- */
 
     /**
-     * 1.9.3 (план B): heal() через HpBarService.heal().
-     * 1.12.5: очищение — снимает Dot'ы NATURE и SHADOW с цели + искра-партикл.
-     * 1.14.0 (Б4): роль HEALER — +5% исходящего лечения (spec2.role-passives).
+     * 1.9.3 (план B) + 1.12.5 (очищение) + 1.14.0 (роль HEALER, LAST_HEAL).
+     * treePath=true читает base/coeff из classes.PRIEST.treeAbilities.*.
      */
-    private boolean applyHeal(Player caster, Player target, AbilityDef def,
-                              double defBase, double defCoeff) {
+    private boolean applyHealWith(Player caster, Player target, AbilityDef def,
+                                  double defBase, double defCoeff, boolean treePath) {
         if (!isAllyOrSelf(caster, target)) {
             caster.sendMessage(Component.text(plugin.getRaskolConfig().message(
                     "ally.no-heal", "Цель не союзник"), NamedTextColor.GRAY));
@@ -190,13 +255,16 @@ public final class PriestAbilities {
                     "target-full-hp", "Цель здорова"), NamedTextColor.GRAY));
             return false;
         }
-        double amount = Math.min(healAmount(caster, def, defBase, defCoeff), missing);
+        double amount = Math.min(treePath
+                ? thealAmount(caster, def, defBase, defCoeff)
+                : healAmount(caster, def, defBase, defCoeff), missing);
         // 1.14.0 (Б4): ролевой множитель HEALER
         if (plugin.getSpec2Service().roleOfOwner(caster.getUniqueId()) == SpecRole.HEALER) {
             amount *= 1.0 + cfgD("spec2.role-passives.HEALER.heal-mult", 0.05);
         }
         PassiveListener.markHealer(caster.getUniqueId());
         plugin.getHpBarService().heal(target, amount);
+        LAST_HEAL.put(caster.getUniqueId(), amount);
 
         UUID targetUuid = target.getUniqueId();
         int before = plugin.getCombat().dots().activeOn(targetUuid);
@@ -215,6 +283,48 @@ public final class PriestAbilities {
         }
         return true;
     }
+
+    private boolean applyHeal(Player caster, Player target, AbilityDef def,
+                              double defBase, double defCoeff) {
+        return applyHealWith(caster, target, def, defBase, defCoeff, false);
+    }
+
+    /** Групповой хил без спама сообщений (lightwell/divine_hymn). */
+    private int groupHeal(Player caster, double radius, double amount) {
+        PassiveListener.markHealer(caster.getUniqueId());
+        LAST_HEAL.put(caster.getUniqueId(), amount);
+        int healed = 0;
+        for (Entity e : caster.getNearbyEntities(radius, radius, radius)) {
+            if (!(e instanceof Player t) || !isAllyOrSelf(caster, t)) {
+                continue;
+            }
+            double formula = plugin.getHpBarService().formulaMaxHp(t.getUniqueId());
+            double scale = plugin.getHpBarService().scale(t);
+            double hpFormula = scale > 0.0 ? t.getHealth() / scale : t.getHealth();
+            double missing = formula - hpFormula;
+            if (missing <= 0.0) {
+                continue;
+            }
+            plugin.getHpBarService().heal(t, Math.min(amount, missing));
+            t.getWorld().spawnParticle(Particle.HEART,
+                    t.getLocation().add(0.0, 1.2, 0.0), 2, 0.2, 0.3, 0.2, 0.0);
+            healed++;
+        }
+        // себя лечим отдельно, если в радиусе не попали (всегда попадаем, но страховка)
+        return healed;
+    }
+
+    private List<Player> alliesWithin(Player caster, double radius) {
+        List<Player> out = new ArrayList<>();
+        for (Entity e : caster.getNearbyEntities(radius, radius, radius)) {
+            if (e instanceof Player t && isAllyOrSelf(caster, t)) {
+                out.add(t);
+            }
+        }
+        return out;
+    }
+
+    /* -------------------------------- базовые способности -------------------------------- */
 
     public boolean saintTear(Player caster, LivingEntity target, AbilityDef def) {
         if (!(target instanceof Player tp)) {
@@ -246,7 +356,6 @@ public final class PriestAbilities {
         return true;
     }
 
-    /** 1.14.0 (Б4): грант с хуками Spec2Service. */
     public boolean aegisFaith(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
         double b = base(def, 12.0) + plugin.getSpec2Service().baseBonus(uuid, def.id());
@@ -312,5 +421,247 @@ public final class PriestAbilities {
             impactFx(t, "wrath_heaven", "ENTITY_FIREWORK_ROCKET_BLAST", "FLASH", 0.6f, 0.9f, 10);
         }
         return true;
+    }
+
+    /* --------------------- древесные способности (1.14.0, контент-долг 5) --------------------- */
+
+    /** discipline T2: очищение союзника (или себя): все CC + все DoT. */
+    public boolean purge(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        Player target = allyRayTarget(p, 20);
+        if (target == null) {
+            target = p;
+        }
+        UUID tid = target.getUniqueId();
+        plugin.getCC().removeAll(tid);
+        plugin.getCombat().dots().removeAllOn(tid);
+        castFx(p, "purge", "BLOCK_BELL_USE", "ENCHANTED_HIT", 0.7f, 1.1f, 16);
+        impactFx(target, "purge", "BLOCK_BELL_USE", "ENCHANTED_HIT", 0.5f, 1.2f, 12);
+        p.sendMessage(Component.text("Очищение: контроль и проклятия сняты с "
+                + target.getName(), NamedTextColor.GREEN));
+        return true;
+    }
+
+    /** discipline T4: −40% входящего урона цели на 5 с (Resistance II). */
+    public boolean painSuppression(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        Player target = allyRayTarget(p, 20);
+        if (target == null) {
+            target = p;
+        }
+        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 5);
+        target.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 1));
+        castFx(p, "pain_suppression", "BLOCK_BEACON_ACTIVATE", "ENCHANTED_HIT", 0.7f, 0.9f, 16);
+        impactFx(target, "pain_suppression", "BLOCK_BEACON_ACTIVATE", "ENCHANTED_HIT", 0.5f, 1.0f, 12);
+        p.sendMessage(Component.text("Подавление боли: " + target.getName()
+                + " получает −40% урона " + secs + " с", NamedTextColor.YELLOW));
+        return true;
+    }
+
+    /** discipline T6 (ульт): щит-пул = 30% последнего хила, себе и союзникам r6, 8 с. */
+    public boolean spiritShell(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
+        double last = LAST_HEAL.getOrDefault(p.getUniqueId(), 0.0);
+        double shieldFormula = last * 0.30;
+        if (shieldFormula < 4.0) {
+            p.sendMessage(Component.text("Оболочка духа: сначала соверши лечение.", NamedTextColor.GRAY));
+            return false;
+        }
+        double scale = plugin.getHpBarService().scale(p);
+        int shieldCarrier = (int) Math.max(4.0, Math.round(shieldFormula * scale));
+        int level = Math.max(0, (shieldCarrier + 3) / 4 - 1);
+        List<Player> targets = alliesWithin(p, 6.0);
+        if (!targets.contains(p)) {
+            targets.add(p);
+        }
+        for (Player t : targets) {
+            t.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, secs * 20, level));
+            t.getWorld().spawnParticle(Particle.ENCHANTED_HIT,
+                    t.getLocation().add(0.0, 1.2, 0.0), 8, 0.3, 0.4, 0.3, 0.02);
+        }
+        castFx(p, "spirit_shell", "BLOCK_BEACON_ACTIVATE", "ENCHANTED_HIT", 0.9f, 0.8f, 26);
+        p.sendMessage(Component.text("Оболочка духа: щит " + shieldCarrier + " HP на "
+                + targets.size() + " целей, " + secs + " с", NamedTextColor.YELLOW));
+        return true;
+    }
+
+    /** holy T2: быстрый хил союзника (или себя), сильнее Слезы, короче КД. */
+    public boolean flashHeal(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        Player target = allyRayTarget(p, 20);
+        if (target == null) {
+            target = p;
+        }
+        boolean ok = applyHealWith(p, target, def, 14.0, 0.5, true);
+        if (!ok) {
+            return false;
+        }
+        castFx(p, "flash_heal", "BLOCK_BELL_USE", "HEART", 0.6f, 1.2f, 12);
+        impactFx(target, "flash_heal", "BLOCK_BELL_USE", "HEART", 0.5f, 1.3f, 10);
+        return true;
+    }
+
+    /** holy T5: зона-хил: 4 тика по 2 с, +2 HP/с-эквивалент союзникам r4. */
+    public boolean lightwell(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 4.0);
+        double per = thealAmount(p, def, 6.0, 0.3);
+        UUID pid = p.getUniqueId();
+        Location spot = p.getLocation();
+        castFx(p, "lightwell", "BLOCK_BEACON_ACTIVATE", "ENCHANTED_HIT", 0.7f, 1.0f, 20);
+        for (int tick = 0; tick < 4; tick++) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                Player caster = plugin.getServer().getPlayer(pid);
+                if (caster == null || !caster.isOnline()) {
+                    return;
+                }
+                caster.getWorld().spawnParticle(Particle.ENCHANTED_HIT,
+                        spot.clone().add(0.0, 1.0, 0.0), 10, radius * 0.5, 0.4, radius * 0.5, 0.02);
+                groupHeal(caster, radius, per);
+            }, tick * 40L);
+        }
+        p.sendMessage(Component.text("Колодец Света: зона лечения " + radius
+                + " блоков на 8 с", NamedTextColor.YELLOW));
+        return true;
+    }
+
+    /** holy T6 (ульт): канал 3 с: 3 тика группового хила r8 + очищение DoT NATURE/SHADOW. */
+    public boolean divineHymn(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 8.0);
+        double per = thealAmount(p, def, 10.0, 0.5);
+        UUID pid = p.getUniqueId();
+        castFx(p, "divine_hymn", "BLOCK_BELL_USE", "ENCHANTED_HIT", 0.9f, 0.8f, 28);
+        for (int tick = 0; tick < 3; tick++) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                Player caster = plugin.getServer().getPlayer(pid);
+                if (caster == null || !caster.isOnline() || caster.isDead()) {
+                    return;
+                }
+                caster.getWorld().spawnParticle(Particle.ENCHANTED_HIT,
+                        caster.getLocation().add(0.0, 1.2, 0.0), 16, radius * 0.5, 0.5, radius * 0.5, 0.03);
+                int healed = groupHeal(caster, radius, per);
+                for (Player t : alliesWithin(caster, radius)) {
+                    plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.NATURE);
+                    plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.SHADOW);
+                }
+                if (healed > 0) {
+                    caster.sendMessage(Component.text("Гимн: исцелено " + healed, NamedTextColor.YELLOW));
+                }
+            }, tick * 20L);
+        }
+        return true;
+    }
+
+    /** shadow T2: маг-урон + DoT wither (SHADOW). */
+    public boolean witheringTouch(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        castFx(p, "withering_touch", "ENTITY_WITHER_SPAWN", "SCULK_SOUL", 0.6f, 0.9f, 12);
+        double dmg = tdmg(p, def, 8.0, 0.7);
+        plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
+        plugin.getCombat().dots().applyById(p, t, "wither");
+        impactFx(t, "withering_touch", "ENTITY_WITHER_HURT", "SCULK_SOUL", 0.4f, 0.9f, 10);
+        return true;
+    }
+
+    /** shadow T4: канал 3 с: 3 тика маг-урона + SLOW (cc.types.SLOW.slow-mult) на всё время. */
+    public boolean mindFlay(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        UUID pid = p.getUniqueId();
+        UUID tid = t.getUniqueId();
+        double per = tdmg(p, def, 5.0, 0.4);
+        plugin.getCC().tryApply(p, t, CCTypeSlowHolder.SLOW_TYPE, 80);
+        castFx(p, "mind_flay", "ENTITY_ENDERMAN_STARE", "REVERSE_PORTAL", 0.7f, 0.9f, 14);
+        for (int tick = 0; tick < 3; tick++) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                Player caster = plugin.getServer().getPlayer(pid);
+                Entity e = plugin.getServer().getEntity(tid);
+                if (caster == null || !(e instanceof LivingEntity living) || living.isDead()) {
+                    return;
+                }
+                if (!plugin.getCombat().canHit(caster, living)) {
+                    return;
+                }
+                plugin.getCombat().dealDamage(living, caster, DamageProfile.magic(per));
+                impactFx(living, "mind_flay", "ENTITY_ENDERMAN_HURT", "REVERSE_PORTAL", 0.35f, 1.0f, 6);
+            }, tick * 20L);
+        }
+        return true;
+    }
+
+    /** shadow T5: пет-мини: Vex 8 с атакует цель; +10 Света при призыве. */
+    public boolean shadowfiend(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
+        Vex vex = p.getWorld().spawn(p.getLocation().add(0.0, 1.0, 0.0), Vex.class, v -> {
+            v.setLimitedLifetime(true);
+            v.setLimitedLifetimeTicks(secs * 20);
+            v.setCustomName("Тенескот " + p.getName());
+            v.setCustomNameVisible(false);
+        });
+        vex.setTarget(t);
+        plugin.getResources().refund(p.getUniqueId(), 10.0);
+        castFx(p, "shadowfiend", "ENTITY_VEX_CHARGE", "SCULK_SOUL", 0.7f, 0.9f, 16);
+        p.sendMessage(Component.text("Тенескот призван на " + secs + " с (+10 Света)",
+                NamedTextColor.LIGHT_PURPLE));
+        return true;
+    }
+
+    /** 1.14.0: ids древесных способностей для сверки с TreeAbilities. */
+    public static List<String> treeAbilityIds() {
+        return List.of("purge", "pain_suppression", "spirit_shell",
+                "flash_heal", "lightwell", "divine_hymn",
+                "withering_touch", "mind_flay", "shadowfiend");
+    }
+
+    /** Внутренний держатель CCType.SLOW без прямого импорта в сигнатурах выше. */
+    private static final class CCTypeSlowHolder {
+        static final dev.raskol.classes.cc.CCType SLOW_TYPE = dev.raskol.classes.cc.CCType.SLOW;
     }
 }
