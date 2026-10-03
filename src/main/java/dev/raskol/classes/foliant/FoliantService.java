@@ -54,19 +54,10 @@ import java.util.logging.Logger;
 
 /**
  * 1.10.0: ФОЛИАНТ ДУШ (скрытый путь Чернокнижника).
- * 1.11.2 (S1): санитайзер ника в console-фолбэке LP-миграции (инъекции).
- * 1.11.2 (S2): дроп только с пиглинов ада и только при уроне игрока
- *         (LivingEntity#getKiller); скрытый релок-цикл после выпадения:
- *         ≥1 моб вне ада + ≥1 смерть + ≥1000 пиглинов без шанса
- *         (foliant-lock.yml, персист).
- * 1.11.2 (S3): том не падает с игрока на смерть, не выбрасывается (Q),
- *         дроп-ролл идёт напрямую в инвентарь; наземный экземпляр (полный
- *         инвентарь) несёт PDC-владельца и поднимается только им.
- *         Продажа (аукцион/ChestShop) НЕ блокируется.
- * 1.11.2: авто-создание группы class_warlock с копированием веса
- *         (OptionalInt#getAsInt + console setweight, один раз).
- * 1.11.2-fix2: getKiller() берётся с LivingEntity; вес группы — командой
- *         setweight (у weight-ноды LP v5 нет string-value API).
+ * 1.11.2: санитайзер ника, дроп только с пиглинов ада, релок-цикл,
+ *         том не падает/не выбрасывается, soulbound-подбор.
+ * 1.14.0 (Б3): гейт TALENTS_SPENT читает Spec2Service.spentGlobal (деревья путей),
+ *         TalentService больше не используется.
  */
 public final class FoliantService implements Listener {
 
@@ -78,7 +69,6 @@ public final class FoliantService implements Listener {
     private static final java.util.regex.Pattern SAFE_NAME =
             java.util.regex.Pattern.compile("^[A-Za-z0-9_]{3,16}$");
 
-    /** Скрытое состояние релок-цикла игрока. */
     private static final class RelockState {
         boolean locked;
         int outKills;
@@ -117,8 +107,6 @@ public final class FoliantService implements Listener {
             }
         }, 1200L, 1200L);
     }
-
-    /* -------------------------------- персист релока -------------------------------- */
 
     private void loadLocks() {
         for (String key : lockStore.getKeys(false)) {
@@ -172,8 +160,6 @@ public final class FoliantService implements Listener {
         }
     }
 
-    /* -------------------------------- предмет -------------------------------- */
-
     public ItemStack createItem() {
         ItemStack item = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta meta = item.getItemMeta();
@@ -224,11 +210,8 @@ public final class FoliantService implements Listener {
         dropped.setPickupDelay(20);
     }
 
-    /* ------------------------------ дроп и релок (S2) ------------------------------ */
-
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
-        // 1.11.2-fix2: killer живёт на LivingEntity, не на EntityDeathEvent
         Player killer = event.getEntity().getKiller();
         if (killer == null) {
             return;
@@ -248,7 +231,7 @@ public final class FoliantService implements Listener {
                 checkUnlock(killer, st);
                 lockDirty = true;
             }
-            return; // шанс заблокирован до конца цикла
+            return;
         }
 
         if (!plugin.getConfig().getBoolean("foliant.drop-enabled", true)) {
@@ -268,7 +251,6 @@ public final class FoliantService implements Listener {
             return;
         }
 
-        // Дроп: напрямую в инвентарь (S3); переполнение → наземный экземпляр с владельцем
         ItemStack item = createItem();
         Map<Integer, ItemStack> overflow = killer.getInventory().addItem(item);
         if (!overflow.isEmpty()) {
@@ -290,8 +272,6 @@ public final class FoliantService implements Listener {
         LOGGER.info("Foliant: том выпал с " + event.getEntity().getType().name()
                 + " игроку " + killer.getName());
     }
-
-    /* ------------------------------ soulbound (S3) ------------------------------ */
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerDeath(PlayerDeathEvent event) {
@@ -337,8 +317,7 @@ public final class FoliantService implements Listener {
         }
     }
 
-    /* -------------------------------- гейты -------------------------------- */
-
+    /** 1.14.0 (Б3): гейты проверяют Spec2Service.spentGlobal (деревья путей). */
     private TransitionResult checkGates(Player player) {
         UUID uuid = player.getUniqueId();
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
@@ -357,7 +336,8 @@ public final class FoliantService implements Listener {
         if (plugin.getSpecService().getSpec(uuid) != null) {
             return TransitionResult.SPEC_CHOSEN;
         }
-        if (plugin.getTalentService().spentGlobal(uuid) > 0) {
+        if (plugin.getSpec2Service() != null
+                && plugin.getSpec2Service().spentGlobal(uuid) > 0) {
             return TransitionResult.TALENTS_SPENT;
         }
         if (plugin.getConfig().getBoolean("compat.authme-gate", true)
@@ -366,8 +346,6 @@ public final class FoliantService implements Listener {
         }
         return TransitionResult.OK;
     }
-
-    /* -------------------------------- переход -------------------------------- */
 
     private TransitionResult executeTransition(Player player) {
         UUID uuid = player.getUniqueId();
@@ -408,9 +386,6 @@ public final class FoliantService implements Listener {
         return TransitionResult.OK;
     }
 
-    /* ------------------------------ LuckPerms-миграция ------------------------------ */
-
-    /** S1: ник из консоли/оффлайн-режима может содержать что угодно — фильтр. */
     public static boolean isSafeName(String name) {
         return name != null && SAFE_NAME.matcher(name).matches();
     }
@@ -443,11 +418,6 @@ public final class FoliantService implements Listener {
         return true;
     }
 
-    /**
-     * Создаёт class_warlock при отсутствии и копирует вес существующей класс-группы.
-     * 1.11.2-fix2: вес читается через OptionalInt#getAsInt и ставится консольной
-     * командой setweight (один раз за жизнь сервера; в строке нет имён игроков).
-     */
     private void ensureGroup(LuckPerms lp) {
         Group group = lp.getGroupManager().getGroup(WARLOCK_GROUP);
         if (group != null) {
@@ -470,7 +440,7 @@ public final class FoliantService implements Listener {
 
     private boolean swapViaConsole(Player player) {
         String name = player.getName();
-        if (!isSafeName(name)) { // S1: защита от инъекций в консольные команды
+        if (!isSafeName(name)) {
             plugin.getLogger().severe("Foliant: небезопасный ник '" + name
                     + "' — console-миграция отклонена (используй LP API)");
             return false;
@@ -484,8 +454,6 @@ public final class FoliantService implements Listener {
         return Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
                 "lp user " + name + " parent add " + WARLOCK_GROUP);
     }
-
-    /* ------------------------------ грант sorcery ------------------------------ */
 
     private static final Object VOID_OK = new Object();
 
@@ -584,8 +552,6 @@ public final class FoliantService implements Listener {
         }
     }
 
-    /* -------------------------------- GUI -------------------------------- */
-
     private void openConfirmGui(Player player) {
         FoliantHolder holder = new FoliantHolder();
         Inventory gui = Bukkit.createInventory(holder, 27,
@@ -631,8 +597,6 @@ public final class FoliantService implements Listener {
         }
     }
 
-    /* -------------------------------- события -------------------------------- */
-
     @EventHandler(priority = EventPriority.HIGH)
     public void onInteract(PlayerInteractEvent event) {
         if (!isFoliant(event.getItem()) || !event.getAction().isRightClick()) {
@@ -677,8 +641,6 @@ public final class FoliantService implements Listener {
                     "Том закрыт. Он останется ждать.", NamedTextColor.GRAY));
         }
     }
-
-    /* -------------------------------- результаты -------------------------------- */
 
     public enum TransitionResult {
         OK, LP_FAILED, NO_CLASS, ALREADY_WARLOCK, NOT_MAGE_OR_PRIEST,
