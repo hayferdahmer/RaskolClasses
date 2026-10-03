@@ -16,7 +16,8 @@ import java.util.Locale;
  * отдельно от базовых слотов 1–5 (selftest-чеки китов не меняются).
  * Гейт доступа — внутри методов кита: Spec2Service.hasUnlocked(uuid, id).
  *
- * Долг 1: Воин (9). Долг 2: Охотник (14). Долг 3: Разбойник (16). Долг 4: Маг (11).
+ * Долг 1: Воин (9). Долг 2: Охотник (14). Долг 3: Разбойник (16).
+ * Долг 4: Маг (11). Долг 5: Жрец (9).
  */
 public final class TreeAbilities {
 
@@ -43,7 +44,11 @@ public final class TreeAbilities {
                     "arcane_missiles", "counterspell", "presence_of_mind",
                     "scorch", "flamestrike", "combustion", "pyroblast",
                     "frostbolt", "blizzard", "ice_barrier", "ice_lance_shatter");
-            default -> List.of(); // Жрец/Чернокнижник — следующие долги
+            case PRIEST -> List.of(
+                    "purge", "pain_suppression", "spirit_shell",
+                    "flash_heal", "lightwell", "divine_hymn",
+                    "withering_touch", "mind_flay", "shadowfiend");
+            default -> List.of(); // Чернокнижник — последний долг
         };
     }
 
@@ -85,7 +90,7 @@ public final class TreeAbilities {
         return s != null ? s : School.PHYSICAL;
     }
 
-    /** Регистрация кастеров древесных способностей (Воин/Охотник/Разбойник/Маг). */
+    /** Регистрация кастеров древесных способностей (5 классов, 59 способностей). */
     public static void registerCasters(RaskolClasses plugin, AbilityRegistry registry) {
         WarriorAbilities warrior = new WarriorAbilities(plugin);
         registry.registerTreeCaster("whirlwind_slash", warrior::whirlwindSlash);
@@ -144,6 +149,17 @@ public final class TreeAbilities {
         registry.registerTreeCaster("blizzard", mage::blizzard);
         registry.registerTreeCaster("ice_barrier", mage::iceBarrier);
         registry.registerTreeCaster("ice_lance_shatter", mage::iceLanceShatter);
+
+        PriestAbilities priest = new PriestAbilities(plugin);
+        registry.registerTreeCaster("purge", priest::purge);
+        registry.registerTreeCaster("pain_suppression", priest::painSuppression);
+        registry.registerTreeCaster("spirit_shell", priest::spiritShell);
+        registry.registerTreeCaster("flash_heal", priest::flashHeal);
+        registry.registerTreeCaster("lightwell", priest::lightwell);
+        registry.registerTreeCaster("divine_hymn", priest::divineHymn);
+        registry.registerTreeCaster("withering_touch", priest::witheringTouch);
+        registry.registerTreeCaster("mind_flay", priest::mindFlay);
+        registry.registerTreeCaster("shadowfiend", priest::shadowfiend);
     }
 
     public static String displayName(RaskolClasses plugin, PlayerClass pc, String id) {
