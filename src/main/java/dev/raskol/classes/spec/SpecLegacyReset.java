@@ -10,28 +10,18 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * 1.14.0 (Б2): обнуление legacy-билдов талантов по решению гейм-дизайна
- * («миграция не нужна — обнулить старые и дать очки»).
- *
- * Механика: покупки талантов, лежащие под legacy-ключами деревьев
- * (tracker, lightbearer, liquidator, trickster, black_mage, hell_channel),
- * стираются из TalentsStorage; reconcile пересчитывает бюджет —
- * потраченные очки возвращаются игроку полностью (spentGlobal суммирует
- * только живые покупки). Выбор спеки не трогаем: legacy-выбор нормализуется
- * Spec.fromId в современную спеку, либо остаётся legacy-константой до респека
- * (оба пути безопасны, см. Spec.java 1.14.0).
- *
- * Идемпотентность: повторный вызов по игроку без legacy-покупок = 0 изменений,
- * без сообщений и без save. Лог — одна строка на факт обнуления (не спамит).
+ * 1.14.0 (Б2): обнуление legacy-билдов талантов + возврат очков.
+ * 1.14.0 (Б4-fix): переведён на Map-API TalentsStorage ({nodeId: rank}).
+ * Идемпотентно: повторный вызов без legacy-покупок = 0 изменений.
  */
 public final class SpecLegacyReset implements Listener {
 
-    /** Legacy-ключи деревьев, покупки под которыми обнуляются в 1.14.0. */
     private static final List<String> LEGACY_TREE_KEYS = List.of(
             "tracker", "lightbearer", "liquidator", "trickster",
             "black_mage", "hell_channel");
@@ -43,12 +33,10 @@ public final class SpecLegacyReset implements Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    /** Ключи для selftest-чека 93 и диагностики. */
     public static List<String> legacyTreeKeys() {
         return LEGACY_TREE_KEYS;
     }
 
-    /** Разовый прогон по всем онлайн-игрокам (вызывается из onEnable после талент-сервиса). */
     public void resetAllOnline() {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             resetPlayer(player);
@@ -60,10 +48,7 @@ public final class SpecLegacyReset implements Listener {
         resetPlayer(event.getPlayer());
     }
 
-    /**
-     * Обнулить legacy-покупки игрока. Возвращает число стёртых узлов
-     * (0 = ничего не тронуто). Публичный для selftest-чека 94.
-     */
+    /** Обнулить legacy-покупки; возвращает число стёртых узлов (0 = ничего не тронуто). */
     public int resetPlayer(Player player) {
         if (player == null) {
             return 0;
@@ -71,12 +56,12 @@ public final class SpecLegacyReset implements Listener {
         UUID uuid = player.getUniqueId();
         int freed = 0;
         for (String key : LEGACY_TREE_KEYS) {
-            List<String> purchased = plugin.getTalentsStorage().getPurchased(uuid, key);
+            Map<String, Integer> purchased = plugin.getTalentsStorage().getPurchased(uuid, key);
             if (purchased == null || purchased.isEmpty()) {
                 continue;
             }
             freed += purchased.size();
-            plugin.getTalentsStorage().setPurchased(uuid, key, new ArrayList<>());
+            plugin.getTalentsStorage().setPurchased(uuid, key, new HashMap<>());
         }
         if (freed <= 0) {
             return 0;
