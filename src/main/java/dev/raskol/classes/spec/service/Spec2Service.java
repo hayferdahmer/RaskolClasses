@@ -154,7 +154,7 @@ public final class Spec2Service {
             case PRIEST -> List.of("discipline", "holy", "shadow");
             case MAGE -> List.of("arcane", "fire", "frost");
             case ROGUE -> List.of("assassination", "outlaw", "subtlety");
-            case WARLOCK -> List.of("witchcraft", "destruction", "demonology");
+            case WARLOCK -> List.of("affliction", "destruction", "demonology");
         };
     }
 
