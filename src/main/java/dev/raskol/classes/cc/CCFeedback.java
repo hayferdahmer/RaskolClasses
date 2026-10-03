@@ -2,19 +2,25 @@
 package dev.raskol.classes.cc;
 
 import dev.raskol.classes.RaskolClasses;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
 
 import java.util.Locale;
 
 /**
  * 1.13.0 (Б3): обратная связь CC — звуки, партиклы, сообщения (messages.cc.*).
- * Дефолтные звуки/партиклы по типам — кодовая карта; конфиг-оверрайды:
+ * 1.14.0-fix: вместо CC-строки в HUD (убрана по решению гейм-дизайна) —
+ *         голограмма TextDisplay над целью при наложении: «✦ Оцепенение · 3.0с».
+ *         Рубильник cc.feedback-hologram (дефолт true); живёт до конца эффекта.
+ * Дефолтные звуки/партиклы по типам — кодовая карта; оверрайды:
  * cc.sounds.<TYPE>.apply / cc.sounds.<TYPE>.expire / cc.types.<TYPE>.particle.
- * Все сообщения проходят через RaskolConfig.message(...) → секция messages.cc.*.
  */
 public final class CCFeedback {
 
@@ -110,6 +116,51 @@ public final class CCFeedback {
                 .replace("{dr-mult}", String.valueOf((int) Math.round(drMult * 100.0)));
     }
 
+    /* ------------------------------ голограмма (1.14.0-fix) ------------------------------ */
+
+    /**
+     * TextDisplay над целью на время действия CC. Не блокирует HUD/actionbar,
+     * видна всем в радиусе отслеживания дисплея. Снимается сама по таймеру.
+     */
+    private static void hologram(RaskolClasses plugin, LivingEntity target, CCType type, int ticks) {
+        if (!plugin.getConfig().getBoolean("cc.feedback-hologram", true)) {
+            return;
+        }
+        if (ticks <= 0) {
+            return;
+        }
+        double seconds = ticks / 20.0;
+        Component text = Component.text(iconOf(type) + " " + type.ruName()
+                + " · " + String.format(Locale.ROOT, "%.1f", seconds) + "с",
+                NamedTextColor.RED);
+        Location loc = target.getLocation().add(0.0, 2.2, 0.0);
+        TextDisplay display = target.getWorld().spawn(loc, TextDisplay.class, td -> {
+            td.text(text);
+            td.setBillboard(Display.Billboard.CENTER);
+            td.setSeeThrough(true);
+            td.setShadowed(true);
+        });
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (display != null && !display.isDead()) {
+                display.remove();
+            }
+        }, Math.max(1L, ticks));
+    }
+
+    private static String iconOf(CCType type) {
+        return switch (type) {
+            case STUN -> "✦";
+            case ROOT -> "⛓";
+            case SILENCE -> "☒";
+            case DISARM -> "⚔";
+            case FEAR -> "☠";
+            case CHARM -> "♥";
+            case SLOW -> "❄";
+            case BLIND -> "◐";
+            case KNOCKBACK -> "↗";
+        };
+    }
+
     /* ------------------------------ события фидбека ------------------------------ */
 
     public static void onApply(RaskolClasses plugin, Player caster, LivingEntity target,
@@ -118,6 +169,7 @@ public final class CCFeedback {
                 soundOf(plugin, "cc.sounds." + type.id() + ".apply", defaultApplySound(type)),
                 0.7f, 1.0f);
         burstAt(plugin, target, particleOf(plugin, type), 14);
+        hologram(plugin, target, type, ticks);
         if (target instanceof Player tp) {
             tp.sendMessage(describeApply(plugin, type, ticks, drMult));
         }
