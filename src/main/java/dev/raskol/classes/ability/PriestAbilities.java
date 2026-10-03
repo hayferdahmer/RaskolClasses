@@ -6,6 +6,7 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.passive.PassiveListener;
+import dev.raskol.classes.spec.SpecRole;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
@@ -25,6 +26,7 @@ import java.util.UUID;
  * heal() через HpBarService.heal().
  * 1.12.3 (Батч 4): школа HOLY, каст/impact/execute-VFX конфиг-драйвен, аура Эгиды.
  * 1.12.5: очищение — успешный хил снимает Dot'ы школ NATURE и SHADOW с цели.
+ * 1.14.0 (Б4): хуки Spec2Service + ролевой множитель HEALER в applyHeal.
  */
 public final class PriestAbilities {
 
@@ -64,17 +66,19 @@ public final class PriestAbilities {
         return v > 0 ? v : defv;
     }
 
+    /** 1.14.0 (Б4): хил с хуками Spec2Service. */
     private double healAmount(Player caster, AbilityDef def, double defBase, double defCoeff) {
         UUID uuid = caster.getUniqueId();
-        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         return plugin.getCombat().powers().abilityHeal(uuid, b, c);
     }
 
+    /** 1.14.0 (Б4): урон с хуками Spec2Service. */
     private double dmg(Player caster, AbilityDef def, double defBase, double defCoeff) {
         UUID uuid = caster.getUniqueId();
-        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
@@ -100,7 +104,6 @@ public final class PriestAbilities {
         return f1 != null && !f1.isEmpty() && f1.equals(f2);
     }
 
-    /** 1.9.3 (план B): читает formulaMaxHp() из HpBarService. */
     private double maxOf(LivingEntity e) {
         if (e instanceof Player p) {
             return plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
@@ -169,6 +172,7 @@ public final class PriestAbilities {
     /**
      * 1.9.3 (план B): heal() через HpBarService.heal().
      * 1.12.5: очищение — снимает Dot'ы NATURE и SHADOW с цели + искра-партикл.
+     * 1.14.0 (Б4): роль HEALER — +5% исходящего лечения (spec2.role-passives).
      */
     private boolean applyHeal(Player caster, Player target, AbilityDef def,
                               double defBase, double defCoeff) {
@@ -187,10 +191,13 @@ public final class PriestAbilities {
             return false;
         }
         double amount = Math.min(healAmount(caster, def, defBase, defCoeff), missing);
+        // 1.14.0 (Б4): ролевой множитель HEALER
+        if (plugin.getSpec2Service().roleOfOwner(caster.getUniqueId()) == SpecRole.HEALER) {
+            amount *= 1.0 + cfgD("spec2.role-passives.HEALER.heal-mult", 0.05);
+        }
         PassiveListener.markHealer(caster.getUniqueId());
         plugin.getHpBarService().heal(target, amount);
 
-        // 1.12.5: очищение святой водой — яды и проклятия сгорают
         UUID targetUuid = target.getUniqueId();
         int before = plugin.getCombat().dots().activeOn(targetUuid);
         plugin.getCombat().dots().removeSchoolOn(targetUuid, School.NATURE);
@@ -239,10 +246,11 @@ public final class PriestAbilities {
         return true;
     }
 
+    /** 1.14.0 (Б4): грант с хуками Spec2Service. */
     public boolean aegisFaith(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
-        double b = base(def, 12.0) + plugin.getTalentService().baseBonus(uuid, def.id());
-        double c = coeff(def, 0.04) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double b = base(def, 12.0) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = coeff(def, 0.04) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         double grant = b + plugin.getCombat().powers().healPower(uuid) * c;
         int secs = duration(def, 5);
         plugin.getResists().addTimedModifier(uuid, def.id(), grant, grant, secs * 1000L);
