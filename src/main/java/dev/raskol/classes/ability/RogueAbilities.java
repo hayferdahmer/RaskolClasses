@@ -26,6 +26,7 @@ import java.util.UUID;
  * 1.12.3 (Батч 6): школы SHADOW/PHYSICAL/NATURE, каст/impact-VFX конфиг-драйвен.
  * 1.12.5: яд = школьный DoT poison (NATURE), удушение добавляет DoT bleed (PHYSICAL);
  *         ванильный PotionEffect POISON убран (атрибуция/стеки/капы через DotService).
+ * 1.14.0 (Б4): хуки baseBonus/coeffMult читаются из Spec2Service.
  */
 public final class RogueAbilities {
 
@@ -68,11 +69,11 @@ public final class RogueAbilities {
         return v > 0 ? v : defv;
     }
 
-    /** 1.9.0: base/coeff с талантовыми хуками. */
+    /** 1.14.0 (Б4): хуки Spec2Service. */
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
         UUID uuid = p.getUniqueId();
-        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
