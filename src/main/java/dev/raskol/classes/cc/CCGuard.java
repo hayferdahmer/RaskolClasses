@@ -3,17 +3,22 @@ package dev.raskol.classes.cc;
 
 import dev.raskol.classes.RaskolClasses;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityShootBowEvent;
+import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -26,7 +31,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *         повороты головы разрешены (yaw/pitch из to). FEAR не локируется
  *         (там принудительный бег через velocity в CCService.tick).
  * STUN: атаки/хотбар/блоки/сущности/зелья + движение. FEAR: атаки/предметы.
- * DISARM: оружие (кулак разрешён). SILENCE: только гейт каста (CastGuard).
+ * DISARM: оружие (кулак разрешён) + лук/арбалет + снаряды. SILENCE: только гейт каста (CastGuard).
  */
 public final class CCGuard implements Listener {
 
@@ -52,13 +57,16 @@ public final class CCGuard implements Listener {
         }
         Location from = event.getFrom();
         if (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()) {
-            return; // только поворот головы — пропускаем дёшево
+            return;
         }
         event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(),
                 to.getYaw(), to.getPitch()));
     }
 
-    /** STUN/FEAR блокируют атаки; BLIND даёт промах; DISARM снимает оружие. */
+    /**
+     * STUN/FEAR блокируют атаки; BLIND даёт промах; DISARM снимает оружие.
+     * 1.14.0-fix: DISARM блокирует ЛЮБОЙ не-воздушный предмет (оружие/инструмент/еда/блоки).
+     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player attacker)) {
@@ -79,9 +87,33 @@ public final class CCGuard implements Listener {
             return;
         }
         if (cc.has(id, CCType.DISARM)) {
-            if (attacker.getInventory().getItemInMainHand().getType().isAir()) {
-                return; // кулак разрешён
+            ItemStack mainHand = attacker.getInventory().getItemInMainHand();
+            ItemStack offHand = attacker.getInventory().getItemInOffHand();
+            boolean hasWeapon = !isAir(mainHand) || !isAir(offHand);
+            if (hasWeapon) {
+                event.setCancelled(true);
             }
+        }
+    }
+
+    /** 1.14.0-fix: DISARM блокирует стрельбу из лука/арбалета. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onShootBow(EntityShootBowEvent event) {
+        if (!(event.getEntity() instanceof Player shooter)) {
+            return;
+        }
+        if (plugin.getCC().has(shooter.getUniqueId(), CCType.DISARM)) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** 1.14.0-fix: DISARM блокирует бросок снарядов (зелья, снежки, жемчуг). */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onProjectileLaunch(ProjectileLaunchEvent event) {
+        if (!(event.getEntity().getShooter() instanceof Player shooter)) {
+            return;
+        }
+        if (plugin.getCC().has(shooter.getUniqueId(), CCType.DISARM)) {
             event.setCancelled(true);
         }
     }
@@ -115,5 +147,10 @@ public final class CCGuard implements Listener {
         if (plugin.getCC().has(player.getUniqueId(), CCType.STUN)) {
             event.setCancelled(true);
         }
+    }
+
+    /** Хелпер: предмет — воздух или null. */
+    private static boolean isAir(ItemStack stack) {
+        return stack == null || stack.getType() == Material.AIR;
     }
 }
