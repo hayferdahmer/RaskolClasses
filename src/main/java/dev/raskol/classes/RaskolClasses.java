@@ -43,6 +43,7 @@ import dev.raskol.classes.install.InstallationService;
 import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.resource.ResourceService;
 import dev.raskol.classes.spec.SpecEffects;
+import dev.raskol.classes.spec.SpecLegacyReset;
 import dev.raskol.classes.spec.SpecListener;
 import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
@@ -70,8 +71,8 @@ import java.util.List;
  * 1.11.2: T2 (WarlockAbilities-listener, cancelAllChannelTasks) + T5 (cleanupTmpFiles).
  * 1.11.4 (P5): reloadPlugin() перечитывает kits/*.yml через raskolConfig.reloadKits().
  * 1.12.3: getAbilityRegistry() — алиас getAbilities() для selftest-чеков 64-65.
- * 1.13.0 (Б2): проводка CC-слоя — CCService (ядро DR), CCGuard (запреты действий),
- *         CastGuard (гейт каста); геттеры getCC()/getCastGuard().
+ * 1.13.0 (Б2): проводка CC-слоя — CCService, CCGuard, CastGuard; getCC()/getCastGuard().
+ * 1.14.0 (Б2): SpecLegacyReset — обнуление legacy-билдов талантов + возврат очков.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -93,6 +94,7 @@ public final class RaskolClasses extends JavaPlugin {
     private SpecService specService;
     private SpecEffects specEffects;
     private SpecToken specToken;
+    private SpecLegacyReset specLegacyReset;
 
     private TalentsStorage talentsStorage;
     private TalentService talentService;
@@ -214,6 +216,10 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.talentsStorage = new TalentsStorage(this);
         this.talentService = new TalentService(this, talentsStorage);
+
+        // 1.14.0 (Б2): обнуление legacy-билдов + возврат очков (после талент-сервиса)
+        this.specLegacyReset = new SpecLegacyReset(this);
+        this.specLegacyReset.resetAllOnline();
 
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
@@ -497,6 +503,8 @@ public final class RaskolClasses extends JavaPlugin {
     public SpecService getSpecService() { return specService; }
     public SpecEffects getSpecEffects() { return specEffects; }
     public SpecToken getSpecToken() { return specToken; }
+    /** 1.14.0 (Б2): сервис обнуления legacy-билдов. */
+    public SpecLegacyReset getSpecLegacyReset() { return specLegacyReset; }
     public TalentsStorage getTalentsStorage() { return talentsStorage; }
     public TalentService getTalentService() { return talentService; }
     public FactionHook getFactionHook() { return factionHook; }
