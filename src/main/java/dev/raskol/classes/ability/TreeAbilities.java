@@ -10,14 +10,14 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 1.14.0 (контент-долги): способности, открываемые узлами деревьев путей
+ * 1.14.0 (контент-долги 1–6): способности, открываемые узлами деревьев путей
  * (type=unlock_ability/ultimate). Def'ы читаются из конфига
  * classes.<CLASS>.treeAbilities.<id>.*; кастеры регистрируются в AbilityRegistry
  * отдельно от базовых слотов 1–5 (selftest-чеки китов не меняются).
  * Гейт доступа — внутри методов кита: Spec2Service.hasUnlocked(uuid, id).
  *
- * Долг 1: Воин (9). Долг 2: Охотник (14). Долг 3: Разбойник (16).
- * Долг 4: Маг (11). Долг 5: Жрец (9).
+ * Итог: 69 древесных способностей на 18 деревьев
+ * (Воин 9 · Охотник 14 · Разбойник 16 · Маг 11 · Жрец 9 · Чернокнижник 10).
  */
 public final class TreeAbilities {
 
@@ -48,7 +48,10 @@ public final class TreeAbilities {
                     "purge", "pain_suppression", "spirit_shell",
                     "flash_heal", "lightwell", "divine_hymn",
                     "withering_touch", "mind_flay", "shadowfiend");
-            default -> List.of(); // Чернокнижник — последний долг
+            case WARLOCK -> List.of(
+                    "withering", "soul_siphon", "soul_harvest",
+                    "immolate", "chaos_bolt", "conflagrate",
+                    "dreadfire", "summon_demon", "demonic_pact", "demon_soul");
         };
     }
 
@@ -90,7 +93,7 @@ public final class TreeAbilities {
         return s != null ? s : School.PHYSICAL;
     }
 
-    /** Регистрация кастеров древесных способностей (5 классов, 59 способностей). */
+    /** Регистрация кастеров всех 69 древесных способностей шести классов. */
     public static void registerCasters(RaskolClasses plugin, AbilityRegistry registry) {
         WarriorAbilities warrior = new WarriorAbilities(plugin);
         registry.registerTreeCaster("whirlwind_slash", warrior::whirlwindSlash);
@@ -160,6 +163,18 @@ public final class TreeAbilities {
         registry.registerTreeCaster("withering_touch", priest::witheringTouch);
         registry.registerTreeCaster("mind_flay", priest::mindFlay);
         registry.registerTreeCaster("shadowfiend", priest::shadowfiend);
+
+        WarlockAbilities warlock = new WarlockAbilities(plugin);
+        registry.registerTreeCaster("withering", warlock::withering);
+        registry.registerTreeCaster("soul_siphon", warlock::soulSiphon);
+        registry.registerTreeCaster("soul_harvest", warlock::soulHarvest);
+        registry.registerTreeCaster("immolate", warlock::immolate);
+        registry.registerTreeCaster("chaos_bolt", warlock::chaosBolt);
+        registry.registerTreeCaster("conflagrate", warlock::conflagrate);
+        registry.registerTreeCaster("dreadfire", warlock::dreadfire);
+        registry.registerTreeCaster("summon_demon", warlock::summonDemon);
+        registry.registerTreeCaster("demonic_pact", warlock::demonicPact);
+        registry.registerTreeCaster("demon_soul", warlock::demonSoul);
     }
 
     public static String displayName(RaskolClasses plugin, PlayerClass pc, String id) {
