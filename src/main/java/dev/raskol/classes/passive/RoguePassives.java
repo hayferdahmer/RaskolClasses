@@ -9,15 +9,9 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 
 /**
  * 1.11.4 (P1): Разбойник — «Отравленные клинки» + «Садизм».
- * 1.12.6 (UX/VFX школ): миграция PotionEffect POISON → школьный DoT NATURE
- *         (poison_passive из dots.* реестра). Атрибуция, стеки и кап DoT-DPS
- *         идут через DotService; очищение жреца (School.NATURE) снимает яд.
- *         Длительность/стеки берутся из dots.poison_passive.*, конфиг пассивки
- *         читает только шанс и КД (plus ключ dot: для выбора DoT-определения).
- * 1.12.6-fix (root): приватный cfgS() внутри класса — в иерархии ClassPassive
- *         строкового хелпера нет (только cfgD/cfgI), прежний вызов cfgS(...)
- *         ломал компиляцию. Конвенция путей идентична базовым хелперам:
- *         classes.<CLASS>.passives.<id>.<key>.
+ * 1.12.6: миграция PotionEffect POISON → школьный DoT NATURE (poison_passive).
+ * 1.14.0 (Б7): procBonus читается из Spec2Service (proc-узлы деревьев),
+ *         TalentService больше не используется.
  */
 public final class RoguePassives extends BaseClassPassive {
 
@@ -30,14 +24,9 @@ public final class RoguePassives extends BaseClassPassive {
         return PlayerClass.ROGUE;
     }
 
-    /**
-     * 1.12.6-fix: строковый конфиг-хелпер пассивки (локальный, до подъёма в базу).
-     * Путь: classes.ROGUE.passives.<passiveId>.<key>; null/пусто → def.
-     */
     private String cfgS(String passiveId, String key, String def) {
         String v = plugin.getConfig().getString(
-                "classes." + playerClass().name() + ".passives." + passiveId + "." + key,
-                def);
+                "classes." + playerClass().name() + ".passives." + passiveId + "." + key, def);
         return (v != null && !v.isEmpty()) ? v : def;
     }
 
@@ -47,12 +36,10 @@ public final class RoguePassives extends BaseClassPassive {
         // «Отравленные клинки»: 30% шанс → DoT NATURE poison_passive (2 с, 1 стек)
         if (enabled("poisoned_blades")) {
             double chance = cfgD("poisoned_blades", "chance", 0.30)
-                    + plugin.getTalentService().procBonus(attacker.getUniqueId(), "poisoned_blades");
+                    + plugin.getSpec2Service().procBonus(attacker.getUniqueId(), "poisoned_blades");
             int cd = cfgI("poisoned_blades", "cooldown-seconds", 3);
             String dotId = cfgS("poisoned_blades", "dot", "poison_passive");
             if (roll(chance) && procCdOk(attacker.getUniqueId(), "poisoned_blades", cd)) {
-                // 1.12.6: школьный DoT вместо ванильного PotionEffect POISON.
-                // applyById сам проверяет canHit, школу, иммунитеты, cap-DPS.
                 plugin.getCombat().dots().applyById(attacker, target, dotId);
                 plugin.getFx().procByKey(attacker, "☠ Яд!", "poisoned_blades");
             }
@@ -60,7 +47,7 @@ public final class RoguePassives extends BaseClassPassive {
         // «Садизм»: +3 урона при атаке со спины (КД 2 с)
         if (enabled("sadism") && isBehind(target, attacker)) {
             double bonus = cfgD("sadism", "bonus", 3.0)
-                    + plugin.getTalentService().procBonus(attacker.getUniqueId(), "sadism");
+                    + plugin.getSpec2Service().procBonus(attacker.getUniqueId(), "sadism");
             int cd = cfgI("sadism", "cooldown-seconds", 2);
             if (procCdOk(attacker.getUniqueId(), "sadism", cd)) {
                 event.setDamage(damage + bonus);
