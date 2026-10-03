@@ -2,6 +2,7 @@
 package dev.raskol.classes.cc;
 
 import dev.raskol.classes.RaskolClasses;
+import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -12,17 +13,20 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 1.13.0 (Б2): блокировка действий под CC.
- * 1.13.0 (Б3): + промах под BLIND — атакующий с CCType.BLIND с шансом
- *         cc.types.BLIND.miss-chance (дефолт 50%) не наносит урон (событие гасится).
- * STUN: запрет атак/хотбара/блоков/сущностей/зелий. FEAR: запрет атак/предметов.
- * DISARM: запрет атак оружием, кулак разрешён. SILENCE: только гейт каста (CastGuard).
- * 1.13.0-fix: удалена черновая строка-артефакт внутри onDamageByEntity
- *         («UUID-ish:»), ломавшая компиляцию (ран #1056).
+ * 1.13.0 (Б3): промах под BLIND (шанс из cc.types.BLIND.miss-chance).
+ * 1.14.0-fix: СТАН/РУТ теперь реально держат цель — PlayerMoveEvent с setTo(from):
+ *         velocity-ноль не останавливал клиентский ввод ходьбы. Позиция锁定,
+ *         повороты головы разрешены (yaw/pitch из to). FEAR не локируется
+ *         (там принудительный бег через velocity в CCService.tick).
+ * STUN: атаки/хотбар/блоки/сущности/зелья + движение. FEAR: атаки/предметы.
+ * DISARM: оружие (кулак разрешён). SILENCE: только гейт каста (CastGuard).
  */
 public final class CCGuard implements Listener {
 
@@ -33,7 +37,28 @@ public final class CCGuard implements Listener {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    /** STUN/FEAR блокируют атаки; BLIND даёт шанс промаха; DISARM снимает оружие. */
+    /** 1.14.0-fix: лок позиции под STUN/ROOT; голова поворачивается свободно. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        Location to = event.getTo();
+        if (to == null) {
+            return;
+        }
+        UUID id = player.getUniqueId();
+        CCService cc = plugin.getCC();
+        if (!cc.has(id, CCType.STUN) && !cc.has(id, CCType.ROOT)) {
+            return;
+        }
+        Location from = event.getFrom();
+        if (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()) {
+            return; // только поворот головы — пропускаем дёшево
+        }
+        event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(),
+                to.getYaw(), to.getPitch()));
+    }
+
+    /** STUN/FEAR блокируют атаки; BLIND даёт промах; DISARM снимает оружие. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player attacker)) {
@@ -43,40 +68,38 @@ public final class CCGuard implements Listener {
             return;
         }
         CCService cc = plugin.getCC();
-        if (cc.has(attacker.getUniqueId(), CCType.STUN)
-                || cc.has(attacker.getUniqueId(), CCType.FEAR)) {
+        UUID id = attacker.getUniqueId();
+        if (cc.has(id, CCType.STUN) || cc.has(id, CCType.FEAR)) {
             event.setCancelled(true);
             return;
         }
-        // 1.13.0 (Б3): слепота — шанс промаха по любой цели
-        if (cc.has(attacker.getUniqueId(), CCType.BLIND)
+        if (cc.has(id, CCType.BLIND)
                 && ThreadLocalRandom.current().nextDouble() < cc.blindMissChance()) {
             event.setCancelled(true);
             return;
         }
-        if (cc.has(attacker.getUniqueId(), CCType.DISARM)) {
-            // кулак (AIR) разрешён; оружие — нет
+        if (cc.has(id, CCType.DISARM)) {
             if (attacker.getInventory().getItemInMainHand().getType().isAir()) {
-                return;
+                return; // кулак разрешён
             }
             event.setCancelled(true);
         }
     }
 
-    /** STUN/FEAR блокируют использование предметов и взаимодействие с блоками. */
+    /** STUN/FEAR блокируют предметы и блоки. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
         CCService cc = plugin.getCC();
-        if (cc.has(player.getUniqueId(), CCType.STUN)
-                || cc.has(player.getUniqueId(), CCType.FEAR)) {
+        UUID id = player.getUniqueId();
+        if (cc.has(id, CCType.STUN) || cc.has(id, CCType.FEAR)) {
             if (event.getItem() != null || event.getAction() == Action.RIGHT_CLICK_BLOCK) {
                 event.setCancelled(true);
             }
         }
     }
 
-    /** STUN блокирует взаимодействие с сущностями (торговля, приручение и т.п.). */
+    /** STUN блокирует взаимодействие с сущностями. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onInteractEntity(PlayerInteractEntityEvent event) {
         Player player = event.getPlayer();
@@ -85,7 +108,7 @@ public final class CCGuard implements Listener {
         }
     }
 
-    /** STUN блокирует питьё зелий и еду. */
+    /** STUN блокирует питьё/еду. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onConsume(PlayerItemConsumeEvent event) {
         Player player = event.getPlayer();
