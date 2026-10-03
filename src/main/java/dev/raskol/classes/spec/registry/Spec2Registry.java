@@ -6,6 +6,7 @@ import dev.raskol.classes.spec.registry.trees.HunterTrees;
 import dev.raskol.classes.spec.registry.trees.MageTrees;
 import dev.raskol.classes.spec.registry.trees.PriestTrees;
 import dev.raskol.classes.spec.registry.trees.RogueTrees;
+import dev.raskol.classes.spec.registry.trees.WarlockTrees;
 import dev.raskol.classes.spec.registry.trees.WarriorTrees;
 
 import java.util.HashMap;
@@ -13,10 +14,7 @@ import java.util.Map;
 
 /**
  * 1.14.0: реестр деревьев spec2. Наполняется из per-class файлов trees/*Trees.java.
- * Б5: Warrior (arms/fury/guard), Hunter (marksmanship/survival/beastmaster),
- *     Rogue (assassination/outlaw/subtlety).
- * Б6: Mage (arcane/fire/frost), Priest (discipline/holy/shadow).
- * Б7: Warlock (affliction/destruction/demonology) + удаление legacy talent-слоя.
+ * Б5: Warrior, Hunter, Rogue. Б6: Mage, Priest. Б7: Warlock (18/18 деревьев).
  */
 public final class Spec2Registry {
 
@@ -28,6 +26,7 @@ public final class Spec2Registry {
         RogueTrees.register(TREES);
         MageTrees.register(TREES);
         PriestTrees.register(TREES);
+        WarlockTrees.register(TREES);
     }
 
     private Spec2Registry() {
