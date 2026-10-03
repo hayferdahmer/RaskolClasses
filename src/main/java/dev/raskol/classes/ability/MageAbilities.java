@@ -2,14 +2,17 @@
 package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.cc.CCType;
+import dev.raskol.classes.cc.CastChannels;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.Targeting;
+import dev.raskol.classes.combat.dot.DotInstance;
+import dev.raskol.classes.combat.school.School;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
@@ -22,27 +25,41 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * КИТ МАГА (1.9.0-fix7 → 1.12.5).
- *  1. «Огонь Прометея» — снаряд Snowball: трейл/impact через FxService, горение =
- *     школьный DoT burning (PDC-тег rc_dot), ванильный fire-ticks убран.
+ *  1. «Огонь Прометея» — снаряд Snowball: горение = DoT burning (PDC-тег rc_dot).
  *  2. «Шаг Гермеса» — блинк 16 блоков, упор в блок, урон сквозь мобов на пути.
  *  3. «Дыхание Борея» — nova: маг-урон + Slowness II + DoT chilled; без целей = refund.
  *  4. «Эгида Афины» — грант маг-резиста + аура + звук снятия.
- *  5. «Гнев Зевса» — мгновенный урон + сцена; поджог заменён на DoT burning.
- * 1.12.3 (Батч 5): школы FIRE/ARCANE/FROST, каст/impact/execute-VFX конфиг-драйвен.
- * 1.14.0 (Б4): талантовые хуки baseBonus/coeffMult читаются из Spec2Service.
+ *  5. «Гнев Зевса» — мгновенный урон + сцена; поджог = DoT burning.
+ * 1.12.3: школы FIRE/ARCANE/FROST, каст/impact/execute-VFX конфиг-драйвен.
+ * 1.14.0 (Б4): хуки baseBonus/coeffMult из Spec2Service.
+ * 1.14.0 (контент-долг 4): +11 древесных способностей Мага:
+ *   arcane: arcane_missiles, counterspell, presence_of_mind;
+ *   fire: scorch, flamestrike, combustion, pyroblast (ульт);
+ *   frost: frostbolt, blizzard, ice_barrier, ice_lance_shatter (ульт).
+ *   Гейт — treeUnlocked(); бафф «Возгорание» — статическая карта COMBUSTION_UNTIL.
  */
 public final class MageAbilities {
+
+    private static final PlayerClass PC = PlayerClass.MAGE;
+
+    /** 1.14.0: «Возгорание» — ×1.25 урона заклинаний на 8 с. */
+    private static final Map<UUID, Long> COMBUSTION_UNTIL = new ConcurrentHashMap<>();
 
     private final RaskolClasses plugin;
 
     public MageAbilities(RaskolClasses plugin) {
         this.plugin = plugin;
     }
+
+    /* ------------------------------ конфиг-хелперы ------------------------------ */
 
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
@@ -73,12 +90,45 @@ public final class MageAbilities {
         return v > 0 ? v : defv;
     }
 
-    /** 1.14.0 (Б4): хуки Spec2Service. */
+    private double tbase(AbilityDef def, double defv) {
+        return cfgD("classes.MAGE.treeAbilities." + def.id() + ".base", defv);
+    }
+
+    private double tcoeff(AbilityDef def, double defv) {
+        return cfgD("classes.MAGE.treeAbilities." + def.id() + ".coeff", defv);
+    }
+
+    private String tpower(AbilityDef def) {
+        return plugin.getConfig().getString(
+                "classes.MAGE.treeAbilities." + def.id() + ".power", "sp");
+    }
+
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
         UUID uuid = p.getUniqueId();
         double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
         double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
+        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c) * combustionMult(uuid);
+    }
+
+    private double tdmg(Player p, AbilityDef def, double defBase, double defCoeff) {
+        UUID uuid = p.getUniqueId();
+        double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
+        return plugin.getCombat().powers().abilityDamage(uuid, tpower(def), b, c) * combustionMult(uuid);
+    }
+
+    private double combustionMult(UUID uuid) {
+        Long until = COMBUSTION_UNTIL.get(uuid);
+        return until != null && until > System.currentTimeMillis() ? 1.25 : 1.0;
+    }
+
+    private boolean treeUnlocked(Player p, AbilityDef def) {
+        if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
+            return true;
+        }
+        p.sendMessage(Component.text("«" + def.displayName()
+                + "» откроется узлом дерева путей Мага.", NamedTextColor.GRAY));
+        return false;
     }
 
     private LivingEntity rayTarget(Player p, double range) {
@@ -94,6 +144,25 @@ public final class MageAbilities {
     private void allyTarget(Player p) {
         p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                 "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
+    }
+
+    private int chilledStacks(LivingEntity t) {
+        int stacks = 0;
+        for (DotInstance inst : plugin.getCombat().dots().activeDotsOf(t.getUniqueId())) {
+            if (inst.def().id().equals("chilled")) {
+                stacks += inst.stacks();
+            }
+        }
+        return stacks;
+    }
+
+    private boolean isBurning(LivingEntity t) {
+        for (DotInstance inst : plugin.getCombat().dots().activeDotsOf(t.getUniqueId())) {
+            if (inst.def().id().equals("burning") || inst.def().id().equals("burning_passive")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /* ------------------------------ VFX-хелперы ------------------------------ */
@@ -125,6 +194,19 @@ public final class MageAbilities {
         }
     }
 
+    private void pointFx(Location loc, String id, String soundDef, String particleDef,
+                         float volume, float pitch, int count) {
+        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
+        if (sound != null) {
+            plugin.getFx().playSound(loc, sound, volume, pitch);
+        }
+        Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
+        if (particle != null) {
+            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 0.5, 0.0),
+                    count, 0.4, 0.3, 0.4, 0.02);
+        }
+    }
+
     private void executeFx(LivingEntity target) {
         Sound sound = plugin.getFx().resolveSound(
                 cfgS("vfx.zeus_wrath.execute-sound", "ENTITY_LIGHTNING_BOLT_THUNDER"));
@@ -149,7 +231,7 @@ public final class MageAbilities {
         }
     }
 
-    /* -------------------------------- способности -------------------------------- */
+    /* -------------------------------- базовые способности -------------------------------- */
 
     /** 1. «Огонь Прометея»: снаряд с тегом rc_dot=burning; ванильного поджога нет. */
     public boolean firePrometheus(Player p, AbilityDef def) {
@@ -283,7 +365,7 @@ public final class MageAbilities {
         return true;
     }
 
-    /** 4. «Эгида Афины»: грант маг-резиста + аура + звук снятия. 1.14.0 (Б4): хуки Spec2. */
+    /** 4. «Эгида Афины»: грант маг-резиста + аура + звук снятия (конфиг-драйвен). */
     public boolean athenaAegis(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
         double b = base(def, 15.0) + plugin.getSpec2Service().baseBonus(uuid, def.id());
@@ -397,5 +479,308 @@ public final class MageAbilities {
         }, 20L);
 
         return true;
+    }
+
+    /* --------------------- древесные способности (1.14.0, контент-долг 4) --------------------- */
+
+    /** arcane T2: 3 залпа маг-урона по цели (до 20 блоков). */
+    public boolean arcaneMissiles(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        castFx(p, "arcane_missiles", "ENTITY_EVOKER_CAST_SPELL", "REVERSE_PORTAL", 0.6f, 1.1f, 12);
+        double per = tdmg(p, def, 5.0, 0.45);
+        for (int i = 0; i < 3; i++) {
+            if (t.isDead()) {
+                break;
+            }
+            plugin.getCombat().dealDamage(t, p, DamageProfile.magic(per));
+            impactFx(t, "arcane_missiles", "ENTITY_EVOKER_FANGS", "REVERSE_PORTAL",
+                    0.35f, 1.0f + i * 0.1f, 6);
+        }
+        return true;
+    }
+
+    /** arcane T4: маг-урон + Немота 3 с + прерывание канала (CastChannels). */
+    public boolean counterspell(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        castFx(p, "counterspell", "BLOCK_NOTE_BLOCK_BASS", "REVERSE_PORTAL", 0.7f, 0.8f, 14);
+        double dmg = tdmg(p, def, 4.0, 0.3);
+        plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
+        plugin.getCC().tryApply(p, t, CCType.SILENCE, 60);
+        if (CastChannels.interrupt(t.getUniqueId())) {
+            p.sendMessage(Component.text("Контрзаклинание: каст цели прерван!", NamedTextColor.AQUA));
+        }
+        impactFx(t, "counterspell", "ENTITY_ENDERMAN_STARE", "REVERSE_PORTAL", 0.5f, 0.9f, 10);
+        return true;
+    }
+
+    /**
+     * arcane T5: «Присутствие разума».
+     * ОТКЛОНЕНИЕ: мана → 100 + снятие с себя Немоты (бесплатный каст требует правок
+     * AbilityRegistry.castOn — отдельный долг).
+     */
+    public boolean presenceOfMind(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        UUID uuid = p.getUniqueId();
+        plugin.getResources().refund(uuid, 100.0);
+        plugin.getCC().removeType(uuid, CCType.SILENCE);
+        castFx(p, "presence_of_mind", "BLOCK_ENCHANTMENT_TABLE_USE", "ENCHANTED_HIT", 0.6f, 1.2f, 16);
+        p.sendMessage(Component.text("Присутствие разума: мана восполнена, немота снята",
+                NamedTextColor.AQUA));
+        return true;
+    }
+
+    /** fire T2: маг-урон + горение (DoT burning). */
+    public boolean scorch(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        castFx(p, "scorch", "ITEM_FIRECHARGE_USE", "FLAME", 0.6f, 1.1f, 10);
+        double dmg = tdmg(p, def, 7.0, 0.6);
+        plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
+        plugin.getCombat().dots().applyById(p, t, "burning");
+        impactFx(t, "scorch", "ENTITY_BLAZE_SHOOT", "FLAME", 0.4f, 1.0f, 10);
+        return true;
+    }
+
+    /**
+     * fire T4: «Огненный столб» — AoE по точке (цель или блок до 20): урон + горение.
+     * ОТКЛОНЕНИЕ: мгновенная зона вместо персистентной.
+     */
+    public boolean flamestrike(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 4.0);
+        LivingEntity target = rayTarget(p, 20);
+        Location spot;
+        if (target != null && plugin.getCombat().canHit(p, target)) {
+            spot = target.getLocation();
+        } else {
+            RayTraceResult hit = p.rayTraceBlocks(20.0);
+            spot = hit != null
+                    ? hit.getHitPosition().toLocation(p.getWorld())
+                    : p.getLocation().add(p.getLocation().getDirection().multiply(8.0));
+        }
+        castFx(p, "flamestrike", "ENTITY_BLAZE_SHOOT", "LAVA", 0.8f, 0.8f, 18);
+        double dmg = tdmg(p, def, 9.0, 0.8);
+        int hits = 0;
+        for (Entity e : p.getWorld().getNearbyEntities(spot, radius, radius, radius)) {
+            if (!(e instanceof LivingEntity t) || t.equals(p) || t.isDead()) {
+                continue;
+            }
+            if (!plugin.getCombat().canHit(p, t)) {
+                continue;
+            }
+            if (t.getLocation().distanceSquared(spot) > radius * radius) {
+                continue;
+            }
+            plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
+            plugin.getCombat().dots().applyById(p, t, "burning");
+            impactFx(t, "flamestrike", "ENTITY_BLAZE_HURT", "LAVA", 0.4f, 0.9f, 8);
+            hits++;
+        }
+        pointFx(spot, "flamestrike", "ENTITY_GENERIC_EXPLODE", "FLAME", 0.7f, 0.9f, 24);
+        if (hits == 0) {
+            p.sendMessage(Component.text("Огненный столб: целей в зоне нет", NamedTextColor.GRAY));
+            return false;
+        }
+        return true;
+    }
+
+    /** fire T5: «Возгорание» — ×1.25 урона заклинаний на 8 с. */
+    public boolean combustion(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
+        COMBUSTION_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
+        castFx(p, "combustion", "ITEM_FIRECHARGE_USE", "FLAME", 0.8f, 1.0f, 20);
+        p.sendMessage(Component.text("Возгорание: +25% урона заклинаний на " + secs + " с",
+                NamedTextColor.RED));
+        return true;
+    }
+
+    /** fire T6 (ульт): огромный урон; по горящей цели ×1.5 + обновляет горение. */
+    public boolean pyroblast(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        boolean burning = isBurning(t);
+        castFx(p, "pyroblast", "ENTITY_EVOKER_CAST_SPELL", "LAVA", 0.9f, 0.7f, 22);
+        double dmg = tdmg(p, def, 20.0, 1.8) * (burning ? 1.5 : 1.0);
+        plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
+        plugin.getCombat().dots().applyById(p, t, "burning");
+        impactFx(t, "pyroblast", "ENTITY_GENERIC_EXPLODE", "FLAME", 0.7f, 0.7f, 26);
+        if (burning) {
+            p.sendMessage(Component.text("Огненная глыба: цель уже горела — ×1.5!", NamedTextColor.RED));
+        }
+        return true;
+    }
+
+    /** frost T2: маг-урон + охлаждение (chilled) + Slowness I 2 с. */
+    public boolean frostbolt(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        castFx(p, "frostbolt", "BLOCK_SNOW_BREAK", "SNOWFLAKE", 0.6f, 1.0f, 10);
+        double dmg = tdmg(p, def, 8.0, 0.7);
+        plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
+        plugin.getCombat().dots().applyById(p, t, "chilled");
+        t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2 * 20, 0));
+        impactFx(t, "frostbolt", "ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE", 0.4f, 1.0f, 10);
+        return true;
+    }
+
+    /**
+     * frost T4: «Снежная буря» — AoE по точке: урон + chilled + Slowness I 3 с.
+     * ОТКЛОНЕНИЕ: мгновенная зона вместо персистентной.
+     */
+    public boolean blizzard(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 5.0);
+        LivingEntity target = rayTarget(p, 20);
+        Location spot;
+        if (target != null && plugin.getCombat().canHit(p, target)) {
+            spot = target.getLocation();
+        } else {
+            RayTraceResult hit = p.rayTraceBlocks(20.0);
+            spot = hit != null
+                    ? hit.getHitPosition().toLocation(p.getWorld())
+                    : p.getLocation().add(p.getLocation().getDirection().multiply(8.0));
+        }
+        castFx(p, "blizzard", "BLOCK_SNOW_BREAK", "SNOWFLAKE", 0.8f, 0.8f, 20);
+        double dmg = tdmg(p, def, 6.0, 0.5);
+        int hits = 0;
+        for (Entity e : p.getWorld().getNearbyEntities(spot, radius, radius, radius)) {
+            if (!(e instanceof LivingEntity t) || t.equals(p) || t.isDead()) {
+                continue;
+            }
+            if (!plugin.getCombat().canHit(p, t)) {
+                continue;
+            }
+            if (t.getLocation().distanceSquared(spot) > radius * radius) {
+                continue;
+            }
+            plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
+            plugin.getCombat().dots().applyById(p, t, "chilled");
+            t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 3 * 20, 0));
+            impactFx(t, "blizzard", "ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE", 0.4f, 0.9f, 8);
+            hits++;
+        }
+        pointFx(spot, "blizzard", "BLOCK_SNOW_BREAK", "SNOWFLAKE", 0.7f, 0.9f, 30);
+        if (hits == 0) {
+            p.sendMessage(Component.text("Снежная буря: целей в зоне нет", NamedTextColor.GRAY));
+            return false;
+        }
+        return true;
+    }
+
+    /** frost T4: «Ледяная преграда» — щит-пул 15% formula-maxHP на 6 с (Absorption). */
+    public boolean iceBarrier(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 6);
+        double formula = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
+        double scale = plugin.getHpBarService().scale(p);
+        int shieldCarrier = (int) Math.max(4.0, Math.round(formula * 0.15 * scale));
+        int level = Math.max(0, (shieldCarrier + 3) / 4 - 1);
+        p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, secs * 20, level));
+        castFx(p, "ice_barrier", "BLOCK_GLASS_PLACE", "SNOWFLAKE", 0.7f, 1.0f, 18);
+        p.sendMessage(Component.text("Ледяная преграда: щит " + shieldCarrier + " HP на " + secs + " с",
+                NamedTextColor.AQUA));
+        return true;
+    }
+
+    /** frost T6 (ульт): урон; по охлаждённой цели ×(1+стеки) и скол (снятие chilled). */
+    public boolean iceLanceShatter(Player p, AbilityDef def) {
+        if (!treeUnlocked(p, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(p, 20);
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
+        int stacks = chilledStacks(t);
+        castFx(p, "ice_lance_shatter", "BLOCK_GLASS_BREAK", "SNOWFLAKE", 0.9f, 0.8f, 20);
+        double dmg = tdmg(p, def, 12.0, 1.1);
+        if (stacks > 0) {
+            dmg *= (1.0 + stacks);
+            plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.FROST);
+        } else {
+            plugin.getCombat().dots().applyById(p, t, "chilled");
+        }
+        plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
+        impactFx(t, "ice_lance_shatter", "BLOCK_GLASS_BREAK", "SNOWFLAKE", 0.7f, 0.9f, 24);
+        if (stacks > 0) {
+            p.sendMessage(Component.text("Ледяное копьё: раскол по " + stacks + " стекам охлаждения!",
+                    NamedTextColor.AQUA));
+        }
+        return true;
+    }
+
+    /** 1.14.0: ids древесных способностей для сверки с TreeAbilities. */
+    public static List<String> treeAbilityIds() {
+        return List.of("arcane_missiles", "counterspell", "presence_of_mind",
+                "scorch", "flamestrike", "combustion", "pyroblast",
+                "frostbolt", "blizzard", "ice_barrier", "ice_lance_shatter");
     }
 }
