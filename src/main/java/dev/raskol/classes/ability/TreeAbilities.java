@@ -16,7 +16,7 @@ import java.util.Locale;
  * отдельно от базовых слотов 1–5 (selftest-чеки китов не меняются).
  * Гейт доступа — внутри методов кита: Spec2Service.hasUnlocked(uuid, id).
  *
- * Долг 1: Воин (9). Долг 2: Охотник (14). Долг 3: Разбойник (16).
+ * Долг 1: Воин (9). Долг 2: Охотник (14). Долг 3: Разбойник (16). Долг 4: Маг (11).
  */
 public final class TreeAbilities {
 
@@ -39,7 +39,11 @@ public final class TreeAbilities {
                     "pistol_shot", "blade_flurry", "adrenaline_rush", "killing_spree",
                     "between_the_eyes", "backstab", "shadowstep", "preparation",
                     "cloak_of_shadows", "hemorrhage", "shadow_blades");
-            default -> List.of(); // Маг/Жрец/Чернокнижник — следующие долги
+            case MAGE -> List.of(
+                    "arcane_missiles", "counterspell", "presence_of_mind",
+                    "scorch", "flamestrike", "combustion", "pyroblast",
+                    "frostbolt", "blizzard", "ice_barrier", "ice_lance_shatter");
+            default -> List.of(); // Жрец/Чернокнижник — следующие долги
         };
     }
 
@@ -81,7 +85,7 @@ public final class TreeAbilities {
         return s != null ? s : School.PHYSICAL;
     }
 
-    /** Регистрация кастеров древесных способностей (Воин + Охотник + Разбойник). */
+    /** Регистрация кастеров древесных способностей (Воин/Охотник/Разбойник/Маг). */
     public static void registerCasters(RaskolClasses plugin, AbilityRegistry registry) {
         WarriorAbilities warrior = new WarriorAbilities(plugin);
         registry.registerTreeCaster("whirlwind_slash", warrior::whirlwindSlash);
@@ -127,6 +131,19 @@ public final class TreeAbilities {
         registry.registerTreeCaster("cloak_of_shadows", rogue::cloakOfShadows);
         registry.registerTreeCaster("hemorrhage", rogue::hemorrhage);
         registry.registerTreeCaster("shadow_blades", rogue::shadowBlades);
+
+        MageAbilities mage = new MageAbilities(plugin);
+        registry.registerTreeCaster("arcane_missiles", mage::arcaneMissiles);
+        registry.registerTreeCaster("counterspell", mage::counterspell);
+        registry.registerTreeCaster("presence_of_mind", mage::presenceOfMind);
+        registry.registerTreeCaster("scorch", mage::scorch);
+        registry.registerTreeCaster("flamestrike", mage::flamestrike);
+        registry.registerTreeCaster("combustion", mage::combustion);
+        registry.registerTreeCaster("pyroblast", mage::pyroblast);
+        registry.registerTreeCaster("frostbolt", mage::frostbolt);
+        registry.registerTreeCaster("blizzard", mage::blizzard);
+        registry.registerTreeCaster("ice_barrier", mage::iceBarrier);
+        registry.registerTreeCaster("ice_lance_shatter", mage::iceLanceShatter);
     }
 
     public static String displayName(RaskolClasses plugin, PlayerClass pc, String id) {
