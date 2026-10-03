@@ -2,8 +2,6 @@
 package dev.raskol.classes.hud;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.cc.CCInstance;
-import dev.raskol.classes.cc.CCType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.dot.DotInstance;
 import dev.raskol.classes.combat.dot.DotService;
@@ -28,12 +26,13 @@ import java.util.UUID;
 
 /**
  * ActionBar-HUD в тёмной стилизации:
- * ❬ Энергия  ▰▰▰▱▱▱▱▱ 30/100 ❭ ·2с ✦·3с
+ * ❬ Энергия ☠ ▰▰▰▱▱▱▱ 30/100 ❭ 🩸·2с 🔥·3с
  * 1.5.6: кулдауны убраны в ScrollCooldownTask; строка фиксированной длины.
  * 1.12.6: DoT-строка после ресурсного бара.
- * 1.13.0 (Б3): CC-строка после DoT-строки (иконки messages.cc.hud-icons.*).
+ * 1.14.0-fix: CC-строка УБРАНА по решению гейм-дизайна — контроль показывается
+ *         голограммой TextDisplay (CCFeedback) и сообщениями, не в actionbar.
  * O1 dirty-rendering: sendActionBar только при изменении кадра (ключ включает
- * ресурс, искру, DoT- и CC-снапшоты); статичный кадр повторяется раз в ~1 с.
+ * ресурс, искру и DoT-снапшот); статичный кадр повторяется раз в ~1 с.
  * O8: SPECTATOR и vanished/disappeared пропускаются.
  */
 public final class HudService {
@@ -44,7 +43,6 @@ public final class HudService {
     private static final Component FRAME_CLOSE = Component.text(" ❭", FRAME_COLOR);
     private static final Component EMPTY_CELL = Component.text('▱').color(NamedTextColor.DARK_GRAY);
     private static final TextColor DOT_COLOR = TextColor.fromHexString("#D6CDBE");
-    private static final TextColor CC_COLOR = TextColor.fromHexString("#C86464");
     private static final Component NO_EXTRA = Component.empty();
 
     private final RaskolClasses plugin;
@@ -57,7 +55,6 @@ public final class HudService {
     private final Map<PlayerClass, Component> headCache = new EnumMap<>(PlayerClass.class);
     private final Map<PlayerClass, Component[]> cellCache = new EnumMap<>(PlayerClass.class);
     private final Map<School, String> dotIconCache = new EnumMap<>(School.class);
-    private final Map<CCType, String> ccIconCache = new EnumMap<>(CCType.class);
 
     private boolean enabledInConfig = true;
     private long frame = 0;
@@ -72,7 +69,6 @@ public final class HudService {
         headCache.clear();
         cellCache.clear();
         dotIconCache.clear();
-        ccIconCache.clear();
     }
 
     public BukkitTask start() {
@@ -135,10 +131,9 @@ public final class HudService {
         }
 
         Component dotsComponent = renderDots(id);
-        Component ccComponent = renderCCs(id);
 
         boolean animating = spark != null;
-        StringBuilder keyBuilder = new StringBuilder(64)
+        StringBuilder keyBuilder = new StringBuilder(48)
                 .append(pc.name()).append('|').append(filled)
                 .append('|').append(valueInt);
         if (spark != null) {
@@ -146,9 +141,6 @@ public final class HudService {
         }
         if (dotsComponent != NO_EXTRA) {
             keyBuilder.append("|d").append(dotSnapshotHash(id));
-        }
-        if (ccComponent != NO_EXTRA) {
-            keyBuilder.append("|c").append(ccSnapshotHash(id));
         }
         if (animating) {
             keyBuilder.append("#f").append(frame);
@@ -159,7 +151,7 @@ public final class HudService {
         }
         lastFrameKey.put(id, key);
 
-        player.sendActionBar(render(pc, valueInt, filled, spark, dotsComponent, ccComponent));
+        player.sendActionBar(render(pc, valueInt, filled, spark, dotsComponent));
 
         if (plugin.getRaskolConfig().hudFullResourceAura()
                 && valueInt >= ResourceState.MAX_VALUE && frame % 2 == 0) {
@@ -168,8 +160,8 @@ public final class HudService {
         }
     }
 
-    private Component render(PlayerClass pc, int valueInt, int filled, Integer spark,
-                             Component dotsComponent, Component ccComponent) {
+    private Component render(PlayerClass pc, int valueInt, int filled,
+                             Integer spark, Component dotsComponent) {
         RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
         Component[] cells = cellsOf(pc, theme);
 
@@ -192,9 +184,6 @@ public final class HudService {
                 .append(FRAME_CLOSE);
         if (dotsComponent != NO_EXTRA) {
             out.append(Component.text(" ", DOT_COLOR)).append(dotsComponent);
-        }
-        if (ccComponent != NO_EXTRA) {
-            out.append(Component.text(" ", CC_COLOR)).append(ccComponent);
         }
         return out.build();
     }
@@ -298,78 +287,6 @@ public final class HudService {
             sb.append(inst.def().id())
                     .append(':').append(inst.stacks())
                     .append(':').append(DotService.remainingSeconds(inst, now))
-                    .append(';');
-        }
-        return sb.toString();
-    }
-
-    /* ------------------------------ 1.13.0 (Б3): CC-строка ------------------------------ */
-
-    private String ccIconOf(CCType type) {
-        String cached = ccIconCache.get(type);
-        if (cached != null) {
-            return cached;
-        }
-        String fromCfg = plugin.getConfig().getString("messages.cc.hud-icons." + type.id(), null);
-        String icon = (fromCfg != null && !fromCfg.isEmpty()) ? fromCfg : defaultCcIcon(type);
-        ccIconCache.put(type, icon);
-        return icon;
-    }
-
-    private static String defaultCcIcon(CCType type) {
-        return switch (type) {
-            case STUN -> "✦";
-            case ROOT -> "⛓";
-            case SILENCE -> "☒";
-            case DISARM -> "⚔";
-            case FEAR -> "☠";
-            case CHARM -> "♥";
-            case SLOW -> "❄";
-            case BLIND -> "◐";
-            case KNOCKBACK -> "↗";
-        };
-    }
-
-    private Component ccCell(CCInstance inst, long now) {
-        long sec = inst.remainingTicks(now) / 20L;
-        if (sec <= 0L) {
-            sec = 1L;
-        }
-        String tpl = plugin.getConfig().getString("messages.cc.hud-format", "{icon}·{sec}с");
-        return Component.text(tpl.replace("{icon}", ccIconOf(inst.type()))
-                .replace("{sec}", String.valueOf(sec)), CC_COLOR);
-    }
-
-    private Component renderCCs(UUID targetUuid) {
-        List<CCInstance> ccs = plugin.getCC().activeOf(targetUuid);
-        if (ccs.isEmpty()) {
-            return NO_EXTRA;
-        }
-        ccs.sort((a, b) -> a.type().name().compareTo(b.type().name()));
-        String sep = plugin.getConfig().getString("messages.cc.hud-separator", " ");
-        long now = System.currentTimeMillis();
-        ComponentBuilder<?, ?> out = Component.text();
-        boolean first = true;
-        for (CCInstance inst : ccs) {
-            if (!first) {
-                out.append(Component.text(sep, CC_COLOR));
-            }
-            out.append(ccCell(inst, now));
-            first = false;
-        }
-        return out.build();
-    }
-
-    private String ccSnapshotHash(UUID targetUuid) {
-        List<CCInstance> ccs = plugin.getCC().activeOf(targetUuid);
-        if (ccs.isEmpty()) {
-            return "";
-        }
-        long now = System.currentTimeMillis();
-        StringBuilder sb = new StringBuilder(ccs.size() * 10);
-        for (CCInstance inst : ccs) {
-            sb.append(inst.type().name())
-                    .append(':').append(inst.remainingTicks(now) / 20L)
                     .append(';');
         }
         return sb.toString();
