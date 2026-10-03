@@ -24,12 +24,10 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * 1.7.2: КИТ ОХОТНИКА (средневековье других вселенных). Урон = base + WP×coeff.
- * 1.7.6.3: стрелы веера неподбираемы (DISALLOWED + re-assert 1–2 тика + lifetime 30 с).
- * 1.8.1: canHit-гейты на однотargetных урон-абилках.
- * 1.9.0: талантовые хуки baseBonus/coeffMult.
- * 1.12.3 (Батч 3): школа PHYSICAL из cast-контекста; VFX (cast/impact) из vfx.<id>.*
- *         конфига с дефолтами; стрелы веера/дождя без изменений (трейлы = TrailListener).
+ * 1.7.2: КИТ ОХОТНИКА. 1.7.6.3: стрелы веера неподбираемы.
+ * 1.8.1: canHit-гейты. 1.9.0: талантовые хуки.
+ * 1.12.3: школа PHYSICAL из cast-контекста; VFX из vfx.<id>.* с дефолтами.
+ * 1.14.0 (Б3): хуки читаются из Spec2Service.
  */
 public final class HunterAbilities {
 
@@ -42,8 +40,6 @@ public final class HunterAbilities {
         this.plugin = plugin;
         this.fanArrowKey = new NamespacedKey(plugin, "fan_arrow");
     }
-
-    /* ------------------------------ конфиг-хелперы ------------------------------ */
 
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
@@ -74,11 +70,11 @@ public final class HunterAbilities {
         return v > 0 ? v : defv;
     }
 
-    /** 1.9.0: base/coeff с талантовыми хуками. */
+    /** 1.14.0 (Б3): хуки Spec2Service. */
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
         UUID uuid = p.getUniqueId();
-        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
@@ -97,9 +93,6 @@ public final class HunterAbilities {
                 "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
-    /* ------------------------------ VFX-хелперы ------------------------------ */
-
-    /** Каст-VFX: звук + партикл в точке кастера (голова). */
     private void castFx(Player p, String id, String soundDef, String particleDef,
                         float volume, float pitch, int count) {
         Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
@@ -113,7 +106,6 @@ public final class HunterAbilities {
         }
     }
 
-    /** Impact-VFX: звук + партикл в точке цели. */
     private void impactFx(LivingEntity target, String id,
                           String soundDef, String particleDef,
                           float volume, float pitch, int count) {
@@ -128,7 +120,6 @@ public final class HunterAbilities {
         }
     }
 
-    /** Безопасный резолв Particle по имени: неизвестное имя → null (без падения). */
     private Particle resolveParticle(String name) {
         if (name == null || name.isEmpty()) {
             return null;
@@ -140,9 +131,6 @@ public final class HunterAbilities {
         }
     }
 
-    /* -------------------------------- способности -------------------------------- */
-
-    /** 1. «Метка Волка» — урон + Slowness I + Glowing. 1.8.1: гейт союзника ДО эффектов. */
     public boolean wolfMark(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -167,7 +155,6 @@ public final class HunterAbilities {
         return true;
     }
 
-    /** 2. «Ласточка» — Speed II + Regeneration I (self). */
     public boolean swallow(Player p, AbilityDef def) {
         castFx(p, "swallow", "ENTITY_GENERIC_DRINK", "EFFECT", 0.5f, 1.1f, 12);
         int secs = duration(def, 8);
@@ -177,7 +164,6 @@ public final class HunterAbilities {
         return true;
     }
 
-    /** 3. «Пронзающий выстрел» — тяжёлый одиночный. 1.8.1: гейт союзника. */
     public boolean piercingShot(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -195,7 +181,6 @@ public final class HunterAbilities {
         return true;
     }
 
-    /** 4. «Веер стрел» — 3 стрелы конусом; стрелы неподбираемы и самоисчезают. */
     public boolean arrowFan(Player p, AbilityDef def) {
         castFx(p, "arrow_fan", "ENTITY_ARROW_SHOOT", "SWEEP_ATTACK", 0.6f, 1.1f, 10);
         double dmgEach = dmg(p, def, 6.0, 0.35);
@@ -226,7 +211,6 @@ public final class HunterAbilities {
         }, 2L);
     }
 
-    /** 5. «Дождь стрел» — AoE радиус 5 с LOS и фракционным фильтром. */
     public boolean arrowRain(Player p, AbilityDef def) {
         double radius = cfgD("classes.HUNTER.abilities." + def.id() + ".radius", 5.0);
         castFx(p, "arrow_rain", "ENTITY_ARROW_SHOOT", "POOF", 0.8f, 0.9f, 24);
