@@ -8,9 +8,11 @@ import java.util.UUID;
 
 /**
  * 1.11.4 (P4e): спек-резисты как генерик (F7): источник модификатора = spec.id(),
- * числа — из config resist.specs.<id>.physical/magic (guardian 10 физ, hell_channel 6 маг).
- * Self-reconcile каждые 20 тиков (F10): сверка модификаторов с фактической спекой
- * по всем онлайн-игрокам (админ-смена класса, ручные правки spec-choices.yml).
+ * числа — из config resist.specs.<id>.physical/magic.
+ * 1.14.0 (Б2b): поддержка 18 активных спек + алиасы legacy→новые
+ * (DEMONOLOGY получает +6 маг как наследник HELL_CHANNEL; DISCIPLINE +5 маг,
+ * AFFLICTION +4 маг, ARMOR GUARDIAN +10 физ сохранён).
+ * Self-reconcile каждые 20 тиков (F10).
  */
 public final class SpecPassives {
 
@@ -22,6 +24,11 @@ public final class SpecPassives {
                 this::reconcilePassiveResists, 40L, 20L);
     }
 
+    /**
+     * Физ-резист спеки. Читаем из конфига; дефолты заданы для трёх исторических
+     * «жёстких» спек (GUARDIAN 10 физ, AFFLICTION 4 маг как наследник black_mage
+     * с усилением магической школы, DEMONOLOGY 6 маг как наследник hell_channel).
+     */
     public double resistPhys(Spec spec) {
         double v = plugin.getConfig().getDouble(
                 "resist.specs." + spec.id() + ".physical",
@@ -32,7 +39,12 @@ public final class SpecPassives {
     public double resistMagic(Spec spec) {
         double v = plugin.getConfig().getDouble(
                 "resist.specs." + spec.id() + ".magic",
-                spec == Spec.HELL_CHANNEL ? 6.0 : 0.0);
+                switch (spec) {
+                    case DEMONOLOGY -> 6.0;   // наследие HELL_CHANNEL
+                    case DISCIPLINE -> 5.0;   // спека щитов → маг-защита
+                    case AFFLICTION -> 4.0;   // колдовство = магическая школа
+                    default -> 0.0;
+                });
         return Double.isFinite(v) ? v : 0.0;
     }
 
@@ -71,7 +83,7 @@ public final class SpecPassives {
     public void reconcilePassiveResists() {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
-            Spec spec = plugin.getSpecService().getSpec(uuid); // валидация сама сбросит mismatch
+            Spec spec = plugin.getSpecService().getSpec(uuid);
             for (Spec s : Spec.values()) {
                 boolean should = spec == s && hasResist(s);
                 boolean has = plugin.getResists().hasModifier(uuid, s.id());
