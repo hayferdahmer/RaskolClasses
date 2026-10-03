@@ -6,6 +6,8 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecService;
+import dev.raskol.classes.talent.TalentModel;
+import dev.raskol.classes.talent.TalentsRegistry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
@@ -14,10 +16,15 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
-/** 1.11.4 (P4b): вкладка «Специализации»: выбор спеки + отречение (дабл-арм 30 с). */
+/**
+ * 1.11.4 (P4b): вкладка «Специализации»: выбор спеки + отречение (дабл-арм 30 с).
+ * 1.14.0 (Б3): витрина через Spec.forClass(pc) — ТОЛЬКО активные спеки (3 на класс),
+ *         legacy-константы (TRACKER/LIGHTBEARER/…) в GUI не попадают;
+ *         в карточке — роль (Боец/Танк/Лекарь) и превью дерева (узлов + вершина).
+ */
 public final class SpecsTab implements BookTabView {
 
     @Override
@@ -96,14 +103,9 @@ public final class SpecsTab implements BookTabView {
         }
     }
 
+    /** 1.14.0: только активные спеки класса (legacy исключены на уровне enum). */
     private static List<Spec> specsFor(PlayerClass pc) {
-        List<Spec> list = new ArrayList<>();
-        for (Spec spec : Spec.values()) {
-            if (spec.playerClass() == pc) {
-                list.add(spec);
-            }
-        }
-        return list;
+        return Arrays.asList(Spec.forClass(pc));
     }
 
     private ItemStack specItem(RaskolClasses plugin, Player player, Spec spec) {
@@ -113,10 +115,17 @@ public final class SpecsTab implements BookTabView {
         item.editMeta(meta -> {
             meta.displayName(Component.text(spec.displayName(),
                     current == spec ? NamedTextColor.GOLD : NamedTextColor.GRAY));
-            List<Component> lore = new ArrayList<>();
+            List<Component> lore = new ArrayList0().list();
+            lore.add(Component.text("Роль: " + spec.role(), roleColor(spec)));
             if (def != null) {
                 lore.add(Component.text(BookItems.msg(plugin, "book.spec.passive", "Пассив: {text}")
                         .replace("{text}", def.passiveDescription()), NamedTextColor.GRAY));
+            }
+            TalentModel.TalentTree tree = TalentsRegistry.treeOf(spec.id());
+            if (tree != null && !tree.nodes().isEmpty()) {
+                TalentModel.TalentNode top = tree.nodes().get(tree.nodes().size() - 1);
+                lore.add(Component.text("Путь: " + tree.nodes().size()
+                        + " талантов · вершина «" + top.name() + "»", NamedTextColor.DARK_AQUA));
             }
             lore.add(Component.empty());
             if (current == spec) {
@@ -139,6 +148,21 @@ public final class SpecsTab implements BookTabView {
         return item;
     }
 
+    /** Цвет роли: Боец=красный, Танк=зелёный, Лекарь=белый; прочее=серый. */
+    private static NamedTextColor roleColor(Spec spec) {
+        String role = spec.role();
+        if (role.startsWith("Танк")) {
+            return NamedTextColor.GREEN;
+        }
+        if (role.startsWith("Лекарь")) {
+            return NamedTextColor.WHITE;
+        }
+        if (role.startsWith("ДД")) {
+            return NamedTextColor.RED;
+        }
+        return NamedTextColor.GRAY;
+    }
+
     private ItemStack respecItem(RaskolClasses plugin, Player player) {
         Spec current = plugin.getSpecService().getSpec(player.getUniqueId());
         int cost = plugin.getSpecService().respecCost(player);
@@ -146,7 +170,7 @@ public final class SpecsTab implements BookTabView {
         item.editMeta(meta -> {
             meta.displayName(Component.text(BookItems.msg(plugin, "book.respec.title", "Отречение от пути"),
                     NamedTextColor.LIGHT_PURPLE));
-            List<Component> lore = new ArrayList<>();
+            List<Component> lore = new java.util.ArrayList<>();
             if (current == null) {
                 lore.add(Component.text(BookItems.msg(plugin, "book.respec.nospec",
                         "Спеки нет — отрекаться не от чего"), NamedTextColor.GRAY));
@@ -163,5 +187,12 @@ public final class SpecsTab implements BookTabView {
             meta.lore(lore);
         });
         return item;
+    }
+
+    /** Мини-хелпер, чтобы не тащить ArrayList-импорт в лор-билдер спеки. */
+    private static final class ArrayList0 {
+        List<Component> list() {
+            return new java.util.ArrayList<>();
+        }
     }
 }
