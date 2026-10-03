@@ -38,10 +38,12 @@ import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.hook.GearHook;
 import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.SpecLegacyReset;
-import dev.raskol.classes.spec.SpecMath;
-import dev.raskol.classes.talent.TalentModel;
-import dev.raskol.classes.talent.TalentsRegistry;
+import dev.raskol.classes.spec.SpecRole;
+import dev.raskol.classes.spec.SpecRoles;
+import dev.raskol.classes.spec.model.Spec2Node;
+import dev.raskol.classes.spec.model.Spec2Points;
+import dev.raskol.classes.spec.model.Spec2Tree;
+import dev.raskol.classes.spec.registry.Spec2Registry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -63,11 +65,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Headless-самотестирование формул плагина (/rc selftest), 94 чека.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
- * 22–24 (1.14.0 Б4): экономика очков 15→46, стоимость дерева 45 (9×5 рангов),
- *         reconcile-цикл на Map-API хранилища;
- * 29–36 ресурсы/план B; 37–48 чернокнижник/WarlockMath/sanity/SpecMath/loader;
+ * 22–24 (1.14.0 Б8): экономика spec2 (15→46), ёмкость arms=51, reconcile-цикл;
+ * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
+ * 37–48 чернокнижник/WarlockMath/sanity/гейты row/respec-конфиг/loader;
  * 49–65 школы 1.12.x; 66–75 DoT/баланс-матрица; 76–90 CC/DR 1.13.0;
- * 91–92 Spec 18+6 legacy; 93–94 legacy-reset (Map-API, идемпотентность).
+ * 91–94 (1.14.0 Б8): чистый enum 18, строгий fromId, реестр 18 деревьев 50–58,
+ *         ульт/unlock-инварианты.
  */
 public final class SelftestRunner {
 
@@ -188,80 +191,64 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б4): чек 22 — экономика очков: старт 15, пул 46
-        int e15 = TalentModel.earnedPoints(15, 15, 1, 46);
-        int e40 = TalentModel.earnedPoints(40, 15, 1, 46);
-        int e60 = TalentModel.earnedPoints(60, 15, 1, 46);
-        int e99 = TalentModel.earnedPoints(99, 15, 1, 46);
-        boolean ok22 = e15 == 1 && e40 == 26 && e60 == 46 && e99 == 46;
-        if (check(report, "22", "очки талантов 1.14.0: 15→1, 40→26, 60→46, 99→46",
-                ok22, "earnedPoints", e15 + "/" + e40 + "/" + e60 + "/" + e99)) {
+        // 1.14.0 (Б8): чек 22 — кривая очков spec2
+        int e14 = Spec2Points.earnedPoints(14);
+        int e15 = Spec2Points.earnedPoints(15);
+        int e40 = Spec2Points.earnedPoints(40);
+        int e60 = Spec2Points.earnedPoints(60);
+        int e99 = Spec2Points.earnedPoints(99);
+        boolean ok22 = e14 == 0 && e15 == 1 && e40 == 26 && e60 == 46 && e99 == 46;
+        if (check(report, "22", "очки spec2: 14→0, 15→1, 40→26, 60→46, 99→46",
+                ok22, "Spec2Points.earnedPoints", e14 + "/" + e15 + "/" + e40 + "/" + e60 + "/" + e99)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.14.0 (Б4): чек 23 — стоимость дерева = 45 (9 узлов × 5 рангов × costPerRank 1)
-        int cost = TalentModel.treeCost(List.of(
-                TalentModel.node("t1a", 1), TalentModel.node("t1b", 1),
-                TalentModel.node("t2a1", 2), TalentModel.node("t2a2", 2),
-                TalentModel.node("t2b1", 2), TalentModel.node("t2b2", 2),
-                TalentModel.node("t3a", 3), TalentModel.node("t3b", 3),
-                TalentModel.node("t4", 5)));
-        if (check(report, "23", "стоимость дерева 1.14.0 = 45 (9×5 рангов)", cost == 45,
-                "treeCost", cost)) {
+        // 1.14.0 (Б8): чек 23 — ёмкость эталонного дерева arms = 51 > 46
+        Spec2Tree arms23 = Spec2Registry.treeOf("arms");
+        int cost = arms23 != null ? arms23.capacity() : -1;
+        if (check(report, "23", "ёмкость дерева arms = 51 (>46 — закрыть нельзя)", cost == 51,
+                "Spec2Tree.capacity", cost)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.14.0 (Б4): чек 24 — reconcile-цикл на Map-API хранилища
+        // 1.14.0 (Б8): чек 24 — reconcile-цикл spec2 (ранг→reconcile→откат)
         if (probe == null) {
-            if (check(report, "24", "reconcile-цикл (пропущено)", true, "reconcile", "skip")) {
+            if (check(report, "24", "reconcile-цикл spec2 (пропущено)", true, "reconcile", "skip")) {
                 passed++;
             } else {
                 failed++;
             }
         } else {
             boolean ok24 = false;
-            String got24 = "no-tree";
-            UUID probeUuid = probe.getUniqueId();
-            Spec probeSpec = plugin.getSpecService().getSpec(probeUuid);
-            if (probeSpec == null) {
-                probeSpec = Spec.values()[0];
-            }
-            String specId = probeSpec.id();
-            TalentModel.TalentTree tree = TalentsRegistry.treeOf(specId);
-            if (tree != null) {
-                TalentModel.TalentNode t1a = firstT1(tree);
-                if (t1a != null) {
+            String got24 = "no-trees";
+            UUID pu24 = probe.getUniqueId();
+            List<String> trees24 = plugin.getSpec2Service().classTreeIds(pu24);
+            if (!trees24.isEmpty()) {
+                String t0 = trees24.get(0);
+                Spec2Tree tree24 = Spec2Registry.treeOf(t0);
+                Spec2Node n24 = firstRow1(tree24);
+                if (tree24 != null && n24 != null) {
                     Map<String, Integer> before = new HashMap<>(
-                            plugin.getTalentsStorage().getPurchased(probeUuid, specId));
-                    boolean cycleOk;
-                    try {
-                        plugin.getTalentService()
-                                .forcePurchaseForTest(probeUuid, specId, t1a.id());
-                        boolean bought = plugin.getTalentsStorage()
-                                .getPurchased(probeUuid, specId).containsKey(t1a.id());
-                        plugin.getTalentsStorage().setPurchased(probeUuid, specId, before);
-                        plugin.getTalentService().reconcile(probeUuid);
-                        boolean restored = plugin.getTalentsStorage()
-                                .getPurchased(probeUuid, specId).equals(before);
-                        cycleOk = bought && restored;
-                        got24 = bought + "/" + restored;
-                    } catch (RuntimeException ex) {
-                        cycleOk = false;
-                        got24 = "exception: " + ex.getMessage();
-                    }
-                    ok24 = cycleOk;
+                            plugin.getSpec2Service().storage().getRanks(pu24, t0));
+                    plugin.getSpec2Service().storage().setRanks(pu24, t0, Map.of(n24.id(), 1));
+                    plugin.getSpec2Service().reconcile(pu24);
+                    boolean bought = plugin.getSpec2Service().storage().getRanks(pu24, t0)
+                            .getOrDefault(n24.id(), 0) == 1;
+                    plugin.getSpec2Service().storage().setRanks(pu24, t0, before);
+                    plugin.getSpec2Service().reconcile(pu24);
+                    boolean restored = plugin.getSpec2Service().storage().getRanks(pu24, t0).equals(before);
+                    ok24 = bought && restored;
+                    got24 = bought + "/" + restored;
                 } else {
-                    got24 = "no-t1a-node";
+                    got24 = "no-tree-or-node:" + t0;
                 }
-            } else {
-                got24 = "no-tree:" + specId;
             }
-            if (check(report, "24", "reconcile-цикл (Map-API): покупка→reconcile→откат",
-                    ok24, "reconcile", got24)) {
+            if (check(report, "24", "reconcile-цикл spec2: ранг→reconcile→откат",
+                    ok24, "Spec2Service.reconcile", got24)) {
                 passed++;
             } else {
                 failed++;
@@ -294,48 +281,40 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б4): чек 31 — глобальный бюджет на Map-API
+        // 1.14.0 (Б8): чек 31 — глобальный бюджет spec2
         if (probe == null) {
-            if (check(report, "31", "глобальный бюджет (пропущено)", true, "spentGlobal", "skip")) {
+            if (check(report, "31", "глобальный бюджет spec2 (пропущено)", true, "spentGlobal", "skip")) {
                 passed++;
             } else {
                 failed++;
             }
         } else {
             boolean ok31 = false;
-            String got31 = "need-2-specs";
-            UUID pu = probe.getUniqueId();
-            Spec[] all = Spec.values();
-            if (all.length >= 2) {
-                String specA = all[0].id();
-                String specB = all[1].id();
-                TalentModel.TalentTree treeA = TalentsRegistry.treeOf(specA);
-                TalentModel.TalentTree treeB = TalentsRegistry.treeOf(specB);
-                if (treeA != null && treeB != null) {
-                    Map<String, Integer> beforeA = new HashMap<>(plugin.getTalentsStorage().getPurchased(pu, specA));
-                    Map<String, Integer> beforeB = new HashMap<>(plugin.getTalentsStorage().getPurchased(pu, specB));
-                    TalentModel.TalentNode nA = firstT1(treeA);
-                    TalentModel.TalentNode nB = firstT1(treeB);
-                    if (nA != null && nB != null) {
-                        int earned = plugin.getTalentService().earnedPoints(pu);
-                        plugin.getTalentService().forcePurchaseForTest(pu, specA, nA.id());
-                        plugin.getTalentService().forcePurchaseForTest(pu, specB, nB.id());
-                        int spent = plugin.getTalentService().spentGlobal(pu);
-                        int availA = plugin.getTalentService().availablePoints(pu, specA);
-                        int availB = plugin.getTalentService().availablePoints(pu, specB);
-                        ok31 = availA == availB
-                                && availA == Math.max(0, earned - spent)
-                                && spent >= nA.costPerRank() + nB.costPerRank();
-                        got31 = availA + "/" + availB + "/spent=" + spent;
-                    } else {
-                        got31 = "no-t1-nodes";
-                    }
-                    plugin.getTalentsStorage().setPurchased(pu, specA, beforeA);
-                    plugin.getTalentsStorage().setPurchased(pu, specB, beforeB);
-                    plugin.getTalentService().reconcile(pu);
+            String got31 = "need-2-trees";
+            UUID pu31 = probe.getUniqueId();
+            List<String> trees31 = plugin.getSpec2Service().classTreeIds(pu31);
+            if (trees31.size() >= 2) {
+                String tA = trees31.get(0);
+                String tB = trees31.get(1);
+                Spec2Node nA = firstRow1(Spec2Registry.treeOf(tA));
+                Spec2Node nB = firstRow1(Spec2Registry.treeOf(tB));
+                if (nA != null && nB != null) {
+                    Map<String, Integer> bA = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu31, tA));
+                    Map<String, Integer> bB = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu31, tB));
+                    plugin.getSpec2Service().storage().setRanks(pu31, tA, Map.of(nA.id(), 1));
+                    plugin.getSpec2Service().storage().setRanks(pu31, tB, Map.of(nB.id(), 1));
+                    plugin.getSpec2Service().reconcile(pu31);
+                    int spent = plugin.getSpec2Service().spentGlobal(pu31);
+                    int avail = plugin.getSpec2Service().availablePoints(pu31);
+                    int earned = plugin.getSpec2Service().earnedPoints(pu31);
+                    ok31 = spent == 2 && avail == Math.max(0, earned - 2);
+                    got31 = spent + "/" + avail + "/" + earned;
+                    plugin.getSpec2Service().storage().setRanks(pu31, tA, bA);
+                    plugin.getSpec2Service().storage().setRanks(pu31, tB, bB);
+                    plugin.getSpec2Service().reconcile(pu31);
                 }
             }
-            if (check(report, "31", "глобальный бюджет (Map-API): 2 дерева съедают общий пул",
+            if (check(report, "31", "глобальный бюджет spec2: 2 дерева = 2 очка из общего пула",
                     ok31, "spentGlobal", got31)) {
                 passed++;
             } else {
@@ -343,50 +322,49 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б4): чек 32 — reconcile-прунинг на Map-API
+        // 1.14.0 (Б8): чек 32 — reconcile-прунинг spec2
         if (probe == null) {
-            if (check(report, "32", "reconcile-прунинг (пропущено)", true, "validatePurchased", "skip")) {
+            if (check(report, "32", "reconcile-прунинг spec2 (пропущено)", true, "validate", "skip")) {
                 passed++;
             } else {
                 failed++;
             }
         } else {
             boolean ok32 = false;
-            String got32 = "no-tree";
-            UUID pu = probe.getUniqueId();
-            Spec spec = plugin.getSpecService().getSpec(pu);
-            if (spec == null) {
-                spec = Spec.values()[0];
-            }
-            TalentModel.TalentTree tree = TalentsRegistry.treeOf(spec.id());
-            if (tree != null) {
-                Map<String, Integer> before = new HashMap<>(plugin.getTalentsStorage().getPurchased(pu, spec.id()));
-                plugin.getTalentsStorage().setPurchased(pu, spec.id(),
-                        new HashMap<>(Map.of("nonexistent_node_xyz", 1)));
-                plugin.getTalentService().reconcile(pu);
-                boolean prunedUnknown = plugin.getTalentsStorage().getPurchased(pu, spec.id()).isEmpty();
-
-                TalentModel.TalentNode withPrereq = null;
-                for (TalentModel.TalentNode n : tree.nodes()) {
-                    if (!n.prereqs().isEmpty()) {
-                        withPrereq = n;
-                        break;
+            String got32 = "no-trees";
+            UUID pu32 = probe.getUniqueId();
+            List<String> trees32 = plugin.getSpec2Service().classTreeIds(pu32);
+            if (!trees32.isEmpty()) {
+                String t0 = trees32.get(0);
+                Spec2Tree tree32 = Spec2Registry.treeOf(t0);
+                Spec2Node withPrereq = null;
+                if (tree32 != null) {
+                    for (Spec2Node n : tree32.nodes()) {
+                        if (!n.prereqs().isEmpty()) {
+                            withPrereq = n;
+                            break;
+                        }
                     }
                 }
-                boolean prunedPrereq = true;
-                if (withPrereq != null) {
-                    plugin.getTalentsStorage().setPurchased(pu, spec.id(),
-                            new HashMap<>(Map.of(withPrereq.id(), 1)));
-                    plugin.getTalentService().reconcile(pu);
-                    prunedPrereq = plugin.getTalentsStorage().getPurchased(pu, spec.id()).isEmpty();
+                if (tree32 != null && withPrereq != null) {
+                    Map<String, Integer> before = new HashMap<>(
+                            plugin.getSpec2Service().storage().getRanks(pu32, t0));
+                    Map<String, Integer> bad = new HashMap<>();
+                    bad.put("nonexistent_node_xyz", 1);
+                    bad.put(withPrereq.id(), 1);
+                    plugin.getSpec2Service().storage().setRanks(pu32, t0, bad);
+                    plugin.getSpec2Service().reconcile(pu32);
+                    Map<String, Integer> after = plugin.getSpec2Service().storage().getRanks(pu32, t0);
+                    ok32 = after.isEmpty();
+                    got32 = String.valueOf(after.size());
+                    plugin.getSpec2Service().storage().setRanks(pu32, t0, before);
+                    plugin.getSpec2Service().reconcile(pu32);
+                } else {
+                    got32 = "no-prereq-node";
                 }
-                plugin.getTalentsStorage().setPurchased(pu, spec.id(), before);
-                plugin.getTalentService().reconcile(pu);
-                ok32 = prunedUnknown && prunedPrereq;
-                got32 = prunedUnknown + "/" + prunedPrereq;
             }
-            if (check(report, "32", "reconcile-прунинг (Map-API): неизвестный узел и узел без пререка удаляются",
-                    ok32, "validatePurchased", got32)) {
+            if (check(report, "32", "reconcile-прунинг spec2: неизвестный узел и узел без пререка удаляются",
+                    ok32, "Spec2Service.validate", got32)) {
                 passed++;
             } else {
                 failed++;
@@ -599,23 +577,26 @@ public final class SelftestRunner {
             }
         }
 
-        double a1 = SpecMath.asFraction(15.0);
-        double a2 = SpecMath.asFraction(0.15);
-        double a3 = SpecMath.asFraction(100.0);
-        boolean ok46 = Math.abs(a1 - 0.15) < 1e-9
-                && Math.abs(a2 - 0.15) < 1e-9
-                && Math.abs(a3 - 1.0) < 1e-9;
-        if (check(report, "46", "asFraction sanity", ok46, "SpecMath.asFraction",
-                String.format(Locale.ROOT, "%.3f/%.3f/%.3f", a1, a2, a3))) {
+        // 1.14.0 (Б8): чек 46 — гейты рядов spec2
+        boolean ok46 = !Spec2Points.rowUnlocked(2, 4)
+                && Spec2Points.rowUnlocked(2, 5)
+                && !Spec2Points.rowUnlocked(6, 29)
+                && Spec2Points.rowUnlocked(6, 30);
+        if (check(report, "46", "гейты рядов spec2: 4→ряд2 закрыт, 5→открыт; 29→ульт закрыт, 30→открыт",
+                ok46, "Spec2Points.rowUnlocked",
+                Spec2Points.rowUnlocked(2, 4) + "/" + Spec2Points.rowUnlocked(2, 5) + "/"
+                        + Spec2Points.rowUnlocked(6, 29) + "/" + Spec2Points.rowUnlocked(6, 30))) {
             passed++;
         } else {
             failed++;
         }
 
-        int rc40 = SpecMath.respecCost(40, 250, 10);
-        int rc60 = SpecMath.respecCost(60, 250, 10);
-        boolean ok47 = rc40 == 650 && rc60 == 850;
-        if (check(report, "47", "respecCost: 40→650, 60→850", ok47, "SpecMath.respecCost", rc40 + "/" + rc60)) {
+        // 1.14.0 (Б8): чек 47 — конфиг респека spec2
+        int rsBase = plugin.getConfig().getInt("spec2.respec-base-cost", 0);
+        int rsPer = plugin.getConfig().getInt("spec2.respec-per-level", 0);
+        boolean ok47 = rsBase == 250 && rsPer == 10;
+        if (check(report, "47", "respec spec2: base=250, per-level=10", ok47,
+                "config spec2.respec-*", rsBase + "/" + rsPer)) {
             passed++;
         } else {
             failed++;
@@ -797,14 +778,16 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // 1.14.0 (Б8): чек 60 — pen-трейты без контента = 0 (spec2/gear/channel)
         PenTraitsService pts = new PenTraitsService(plugin);
         UUID pu60 = UUID.randomUUID();
         double t60 = pts.talentPenPercent(pu60, "phys");
-        double s60 = pts.specPenPercent(Spec.GUARDIAN, "phys");
         double g60 = pts.schoolPenFraction(pu60, School.FIRE, plugin.getGearHook(), 0.40);
-        boolean ok60 = t60 == 0.0 && s60 == 0.0 && g60 == 0.0;
-        if (check(report, "60", "pen-трейты без контента = 0", ok60, "PenTraitsService.*",
-                String.format(Locale.ROOT, "%.1f/%.1f/%.1f", t60, s60, g60))) {
+        double c60 = pts.channelPen(pu60, true, plugin.getGearHook(), 0.40).pct();
+        boolean ok60 = t60 == 0.0 && g60 == 0.0 && c60 == 0.0;
+        if (check(report, "60", "pen-трейты без контента = 0 (spec2/gear/channel)", ok60,
+                "PenTraitsService.*",
+                String.format(Locale.ROOT, "%.1f/%.1f/%.1f", t60, g60, c60))) {
             passed++;
         } else {
             failed++;
@@ -929,10 +912,14 @@ public final class SelftestRunner {
                 && dots70.defById("bleed") != null
                 && dots70.defById("bleed").school() == School.PHYSICAL
                 && dots70.defById("chilled") != null
-                && dots70.defById("chilled").school() == School.FROST;
-        if (check(report, "70", "dots-реестр: 4 школы", ok70, "DotService.defById",
+                && dots70.defById("chilled").school() == School.FROST
+                && dots70.defById("wither") != null
+                && dots70.defById("wither").school() == School.SHADOW;
+        if (check(report, "70", "dots-реестр: 5 школ (burning/poison/bleed/chilled/wither)", ok70,
+                "DotService.defById",
                 (dots70.defById("burning") != null) + "/" + (dots70.defById("poison") != null)
-                        + "/" + (dots70.defById("bleed") != null) + "/" + (dots70.defById("chilled") != null))) {
+                        + "/" + (dots70.defById("bleed") != null) + "/" + (dots70.defById("chilled") != null)
+                        + "/" + (dots70.defById("wither") != null))) {
             passed++;
         } else {
             failed++;
@@ -1302,91 +1289,88 @@ public final class SelftestRunner {
             }
         }
 
-        boolean ok91 = Spec.values().length == 24
-                && Spec.activeValues().length == 18
+        // 1.14.0 (Б8): чек 91 — чистый enum 18 + роли
+        boolean ok91 = Spec.values().length == 18
                 && Spec.forClass(PlayerClass.WARRIOR).length == 3
                 && Spec.forClass(PlayerClass.HUNTER).length == 3
                 && Spec.forClass(PlayerClass.PRIEST).length == 3
                 && Spec.forClass(PlayerClass.MAGE).length == 3
                 && Spec.forClass(PlayerClass.ROGUE).length == 3
                 && Spec.forClass(PlayerClass.WARLOCK).length == 3
-                && Spec.TRACKER.legacy() && !Spec.ARMS.legacy();
-        if (check(report, "91", "Spec: 24 константы (18 активных + 6 legacy), forClass=3, legacy-флаги верны",
-                ok91, "Spec.values/activeValues/forClass",
-                Spec.values().length + "/" + Spec.activeValues().length + "/"
-                        + Spec.forClass(PlayerClass.WARLOCK).length)) {
+                && SpecRoles.roleOf("guard") == SpecRole.TANK
+                && SpecRoles.roleOf("holy") == SpecRole.HEALER
+                && SpecRoles.roleOf("arms") == SpecRole.FIGHTER;
+        if (check(report, "91", "Spec: 18 чистых констант, forClass=3, роли guard=TANK/holy=HEALER/arms=FIGHTER",
+                ok91, "Spec.values/forClass/SpecRoles",
+                Spec.values().length + "/" + SpecRoles.roleOf("guard"))) {
             passed++;
         } else {
             failed++;
         }
 
-        boolean ok92 = Spec.fromId("tracker") == Spec.SURVIVAL
-                && Spec.fromId("lightbearer") == Spec.HOLY
-                && Spec.fromId("liquidator") == Spec.ASSASSIN
-                && Spec.fromId("trickster") == Spec.OUTLAW
-                && Spec.fromId("black_mage") == Spec.AFFLICTION
-                && Spec.fromId("hell_channel") == Spec.DEMONOLOGY
-                && Spec.TRACKER.modernOf() == Spec.SURVIVAL
-                && Spec.HELL_CHANNEL.modernOf() == Spec.DEMONOLOGY
-                && Spec.ARMS.modernOf() == Spec.ARMS
-                && Spec.fromId("arms") == Spec.ARMS
+        // 1.14.0 (Б8): чек 92 — строгий fromId (legacy не резолвится)
+        boolean ok92 = Spec.fromId("arms") == Spec.ARMS
+                && Spec.fromId("affliction") == Spec.AFFLICTION
+                && Spec.fromId("tracker") == null
+                && Spec.fromId("black_mage") == null
                 && Spec.fromId("no_such_spec") == null;
-        if (check(report, "92", "legacy-нормализация: tracker→SURVIVAL … hell_channel→DEMONOLOGY; modernOf(id)=id для активных",
-                ok92, "Spec.fromId/modernOf",
-                Spec.fromId("tracker") + "/" + Spec.fromId("black_mage") + "/" + Spec.TRACKER.modernOf())) {
+        if (check(report, "92", "fromId строгий: arms/affliction резолвятся; tracker/black_mage/null",
+                ok92, "Spec.fromId",
+                Spec.fromId("arms") + "/" + Spec.fromId("tracker"))) {
             passed++;
         } else {
             failed++;
         }
 
-        boolean ok93 = SpecLegacyReset.legacyTreeKeys().size() == 6
-                && SpecLegacyReset.legacyTreeKeys().contains("tracker")
-                && SpecLegacyReset.legacyTreeKeys().contains("black_mage")
-                && TalentsRegistry.treeOf("tracker") == null
-                && TalentsRegistry.treeOf("lightbearer") == null
-                && TalentsRegistry.treeOf("liquidator") == null
-                && TalentsRegistry.treeOf("trickster") == null
-                && TalentsRegistry.treeOf("survival") != null
-                && TalentsRegistry.treeOf("holy") != null
-                && TalentsRegistry.treeOf("assassin") != null
-                && TalentsRegistry.treeOf("outlaw") != null;
-        if (check(report, "93", "legacy-ключи: 6 на обнуление; treeOf(tracker/lightbearer/liquidator/trickster)=null, новые деревья живы",
-                ok93, "SpecLegacyReset.legacyTreeKeys/TalentsRegistry.treeOf",
-                SpecLegacyReset.legacyTreeKeys().size() + "/"
-                        + (TalentsRegistry.treeOf("tracker") == null) + "/"
-                        + (TalentsRegistry.treeOf("survival") != null))) {
+        // 1.14.0 (Б8): чек 93 — все 18 деревьев в реестре, ёмкость 50–58
+        boolean ok93 = true;
+        String got93 = "";
+        for (Spec s : Spec.values()) {
+            Spec2Tree t = Spec2Registry.treeOf(s.id());
+            if (t == null || t.capacity() < 50 || t.capacity() > 58) {
+                ok93 = false;
+                got93 = s.id() + ":" + (t == null ? "null" : String.valueOf(t.capacity()));
+                break;
+            }
+        }
+        if (check(report, "93", "все 18 деревьев в реестре, ёмкость 50–58 (>46)",
+                ok93, "Spec2Registry.treeOf/capacity", got93.isEmpty() ? "OK" : got93)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.14.0 (Б4): чек 94 — обнуление на Map-API: 1-й проход стирает ранг, 2-й = 0
-        if (probe == null) {
-            if (check(report, "94", "legacy-reset идемпотентность (пропущено: нет онлайн-игрока)",
-                    true, "SpecLegacyReset.resetPlayer", "skip")) {
-                passed++;
-            } else {
-                failed++;
+        // 1.14.0 (Б8): чек 94 — в каждом дереве ровно 1 ульт и ≥1 unlock_ability
+        boolean ok94 = true;
+        String got94 = "";
+        for (Spec s : Spec.values()) {
+            Spec2Tree t = Spec2Registry.treeOf(s.id());
+            if (t == null) {
+                ok94 = false;
+                got94 = s.id();
+                break;
             }
+            int ult = 0;
+            int unlock = 0;
+            for (Spec2Node n : t.nodes()) {
+                if (n.isUltimate()) {
+                    ult++;
+                }
+                if ("unlock_ability".equals(n.type())) {
+                    unlock++;
+                }
+            }
+            if (ult != 1 || unlock < 1) {
+                ok94 = false;
+                got94 = s.id() + ": ult=" + ult + ", unlock=" + unlock;
+                break;
+            }
+        }
+        if (check(report, "94", "в каждом дереве ровно 1 ульт и ≥1 unlock_ability",
+                ok94, "Spec2Tree nodes", got94.isEmpty() ? "OK" : got94)) {
+            passed++;
         } else {
-            UUID u94 = probe.getUniqueId();
-            Map<String, Integer> before94 = new HashMap<>(
-                    plugin.getTalentsStorage().getPurchased(u94, "tracker"));
-            plugin.getTalentsStorage().setPurchased(u94, "tracker",
-                    new HashMap<>(Map.of("t_snare_wire", 1)));
-            int freed94 = plugin.getSpecLegacyReset().resetPlayer(probe);
-            boolean purged94 = plugin.getTalentsStorage().getPurchased(u94, "tracker").isEmpty();
-            int freedAgain94 = plugin.getSpecLegacyReset().resetPlayer(probe);
-            plugin.getTalentsStorage().setPurchased(u94, "tracker", before94);
-            plugin.getTalentService().reconcile(u94);
-            boolean ok94 = freed94 == 1 && purged94 && freedAgain94 == 0;
-            if (check(report, "94", "legacy-reset (Map-API): 1-й проход стёр 1 узел и вернул очко, 2-й = 0",
-                    ok94, "SpecLegacyReset.resetPlayer",
-                    freed94 + "/" + purged94 + "/" + freedAgain94)) {
-                passed++;
-            } else {
-                failed++;
-            }
+            failed++;
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
@@ -1421,9 +1405,13 @@ public final class SelftestRunner {
         return false;
     }
 
-    private static TalentModel.TalentNode firstT1(TalentModel.TalentTree tree) {
-        for (TalentModel.TalentNode node : tree.nodes()) {
-            if (node.tier() == 1 && node.prereqs().isEmpty()) {
+    /** Первый узел ряда 1 без пререквизитов (для тестов spec2). */
+    private static Spec2Node firstRow1(Spec2Tree tree) {
+        if (tree == null) {
+            return null;
+        }
+        for (Spec2Node node : tree.nodes()) {
+            if (node.row() == 1 && node.prereqs().isEmpty()) {
                 return node;
             }
         }
