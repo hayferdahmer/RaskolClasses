@@ -53,18 +53,21 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Headless-самотестирование формул плагина (/rc selftest), 94 чека.
- * 1–16 атрибуты/бой; 17–18 TTK; 19–24 уровни/таланты/reconcile; 29–36 ресурсы/план B;
- * 37–48 чернокнижник/WarlockMath/sanity/SpecMath/loader; 49–65 школы 1.12.x;
- * 66–75 DoT 1.12.4–1.12.7; 76–90 CC/DR 1.13.0; 91–92 Spec 18+6 legacy;
- * 93–94 legacy-reset обнуление и идемпотентность (1.14.0 Б2).
- * 1.14.0-fix: resetAllDr (camelCase) вместо ошибочного resetAllDR.
+ * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
+ * 22–24 (1.14.0 Б4): экономика очков 15→46, стоимость дерева 45 (9×5 рангов),
+ *         reconcile-цикл на Map-API хранилища;
+ * 29–36 ресурсы/план B; 37–48 чернокнижник/WarlockMath/sanity/SpecMath/loader;
+ * 49–65 школы 1.12.x; 66–75 DoT/баланс-матрица; 76–90 CC/DR 1.13.0;
+ * 91–92 Spec 18+6 legacy; 93–94 legacy-reset (Map-API, идемпотентность).
  */
 public final class SelftestRunner {
 
@@ -185,31 +188,34 @@ public final class SelftestRunner {
             }
         }
 
-        int e39 = TalentModel.earnedPoints(39, 40, 1, 21);
-        int e40 = TalentModel.earnedPoints(40, 40, 1, 21);
-        int e60 = TalentModel.earnedPoints(60, 40, 1, 21);
-        int e99 = TalentModel.earnedPoints(99, 40, 1, 21);
-        boolean ok22 = e39 == 0 && e40 == 1 && e60 == 21 && e99 == 21;
-        if (check(report, "22", "очки талантов: 39→0, 40→1, 60→21, 99→21",
-                ok22, "earnedPoints", e39 + "/" + e40 + "/" + e60 + "/" + e99)) {
+        // 1.14.0 (Б4): чек 22 — экономика очков: старт 15, пул 46
+        int e15 = TalentModel.earnedPoints(15, 15, 1, 46);
+        int e40 = TalentModel.earnedPoints(40, 15, 1, 46);
+        int e60 = TalentModel.earnedPoints(60, 15, 1, 46);
+        int e99 = TalentModel.earnedPoints(99, 15, 1, 46);
+        boolean ok22 = e15 == 1 && e40 == 26 && e60 == 46 && e99 == 46;
+        if (check(report, "22", "очки талантов 1.14.0: 15→1, 40→26, 60→46, 99→46",
+                ok22, "earnedPoints", e15 + "/" + e40 + "/" + e60 + "/" + e99)) {
             passed++;
         } else {
             failed++;
         }
 
+        // 1.14.0 (Б4): чек 23 — стоимость дерева = 45 (9 узлов × 5 рангов × costPerRank 1)
         int cost = TalentModel.treeCost(List.of(
                 TalentModel.node("t1a", 1), TalentModel.node("t1b", 1),
                 TalentModel.node("t2a1", 2), TalentModel.node("t2a2", 2),
                 TalentModel.node("t2b1", 2), TalentModel.node("t2b2", 2),
                 TalentModel.node("t3a", 3), TalentModel.node("t3b", 3),
                 TalentModel.node("t4", 5)));
-        if (check(report, "23", "стоимость дерева талантов = 21", cost == 21,
+        if (check(report, "23", "стоимость дерева 1.14.0 = 45 (9×5 рангов)", cost == 45,
                 "treeCost", cost)) {
             passed++;
         } else {
             failed++;
         }
 
+        // 1.14.0 (Б4): чек 24 — reconcile-цикл на Map-API хранилища
         if (probe == null) {
             if (check(report, "24", "reconcile-цикл (пропущено)", true, "reconcile", "skip")) {
                 passed++;
@@ -229,14 +235,14 @@ public final class SelftestRunner {
             if (tree != null) {
                 TalentModel.TalentNode t1a = firstT1(tree);
                 if (t1a != null) {
-                    List<String> before = new ArrayList<>(
+                    Map<String, Integer> before = new HashMap<>(
                             plugin.getTalentsStorage().getPurchased(probeUuid, specId));
                     boolean cycleOk;
                     try {
                         plugin.getTalentService()
                                 .forcePurchaseForTest(probeUuid, specId, t1a.id());
                         boolean bought = plugin.getTalentsStorage()
-                                .getPurchased(probeUuid, specId).contains(t1a.id());
+                                .getPurchased(probeUuid, specId).containsKey(t1a.id());
                         plugin.getTalentsStorage().setPurchased(probeUuid, specId, before);
                         plugin.getTalentService().reconcile(probeUuid);
                         boolean restored = plugin.getTalentsStorage()
@@ -254,7 +260,7 @@ public final class SelftestRunner {
             } else {
                 got24 = "no-tree:" + specId;
             }
-            if (check(report, "24", "reconcile-цикл: покупка→reconcile→откат",
+            if (check(report, "24", "reconcile-цикл (Map-API): покупка→reconcile→откат",
                     ok24, "reconcile", got24)) {
                 passed++;
             } else {
@@ -288,6 +294,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // 1.14.0 (Б4): чек 31 — глобальный бюджет на Map-API
         if (probe == null) {
             if (check(report, "31", "глобальный бюджет (пропущено)", true, "spentGlobal", "skip")) {
                 passed++;
@@ -305,8 +312,8 @@ public final class SelftestRunner {
                 TalentModel.TalentTree treeA = TalentsRegistry.treeOf(specA);
                 TalentModel.TalentTree treeB = TalentsRegistry.treeOf(specB);
                 if (treeA != null && treeB != null) {
-                    List<String> beforeA = new ArrayList<>(plugin.getTalentsStorage().getPurchased(pu, specA));
-                    List<String> beforeB = new ArrayList<>(plugin.getTalentsStorage().getPurchased(pu, specB));
+                    Map<String, Integer> beforeA = new HashMap<>(plugin.getTalentsStorage().getPurchased(pu, specA));
+                    Map<String, Integer> beforeB = new HashMap<>(plugin.getTalentsStorage().getPurchased(pu, specB));
                     TalentModel.TalentNode nA = firstT1(treeA);
                     TalentModel.TalentNode nB = firstT1(treeB);
                     if (nA != null && nB != null) {
@@ -318,7 +325,7 @@ public final class SelftestRunner {
                         int availB = plugin.getTalentService().availablePoints(pu, specB);
                         ok31 = availA == availB
                                 && availA == Math.max(0, earned - spent)
-                                && spent >= nA.cost() + nB.cost();
+                                && spent >= nA.costPerRank() + nB.costPerRank();
                         got31 = availA + "/" + availB + "/spent=" + spent;
                     } else {
                         got31 = "no-t1-nodes";
@@ -328,7 +335,7 @@ public final class SelftestRunner {
                     plugin.getTalentService().reconcile(pu);
                 }
             }
-            if (check(report, "31", "глобальный бюджет: 2 дерева съедают общий пул",
+            if (check(report, "31", "глобальный бюджет (Map-API): 2 дерева съедают общий пул",
                     ok31, "spentGlobal", got31)) {
                 passed++;
             } else {
@@ -336,6 +343,7 @@ public final class SelftestRunner {
             }
         }
 
+        // 1.14.0 (Б4): чек 32 — reconcile-прунинг на Map-API
         if (probe == null) {
             if (check(report, "32", "reconcile-прунинг (пропущено)", true, "validatePurchased", "skip")) {
                 passed++;
@@ -352,9 +360,9 @@ public final class SelftestRunner {
             }
             TalentModel.TalentTree tree = TalentsRegistry.treeOf(spec.id());
             if (tree != null) {
-                List<String> before = new ArrayList<>(plugin.getTalentsStorage().getPurchased(pu, spec.id()));
+                Map<String, Integer> before = new HashMap<>(plugin.getTalentsStorage().getPurchased(pu, spec.id()));
                 plugin.getTalentsStorage().setPurchased(pu, spec.id(),
-                        new ArrayList<>(List.of("nonexistent_node_xyz")));
+                        new HashMap<>(Map.of("nonexistent_node_xyz", 1)));
                 plugin.getTalentService().reconcile(pu);
                 boolean prunedUnknown = plugin.getTalentsStorage().getPurchased(pu, spec.id()).isEmpty();
 
@@ -368,7 +376,7 @@ public final class SelftestRunner {
                 boolean prunedPrereq = true;
                 if (withPrereq != null) {
                     plugin.getTalentsStorage().setPurchased(pu, spec.id(),
-                            new ArrayList<>(List.of(withPrereq.id())));
+                            new HashMap<>(Map.of(withPrereq.id(), 1)));
                     plugin.getTalentService().reconcile(pu);
                     prunedPrereq = plugin.getTalentsStorage().getPurchased(pu, spec.id()).isEmpty();
                 }
@@ -377,7 +385,7 @@ public final class SelftestRunner {
                 ok32 = prunedUnknown && prunedPrereq;
                 got32 = prunedUnknown + "/" + prunedPrereq;
             }
-            if (check(report, "32", "reconcile-прунинг",
+            if (check(report, "32", "reconcile-прунинг (Map-API): неизвестный узел и узел без пререка удаляются",
                     ok32, "validatePurchased", got32)) {
                 passed++;
             } else {
@@ -1294,7 +1302,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б1): чек 91 — 18 активных спек + 6 legacy = 24 константы; forClass = 3
         boolean ok91 = Spec.values().length == 24
                 && Spec.activeValues().length == 18
                 && Spec.forClass(PlayerClass.WARRIOR).length == 3
@@ -1313,7 +1320,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б1): чек 92 — legacy-алиасы нормализуются в современные спеки
         boolean ok92 = Spec.fromId("tracker") == Spec.SURVIVAL
                 && Spec.fromId("lightbearer") == Spec.HOLY
                 && Spec.fromId("liquidator") == Spec.ASSASSIN
@@ -1333,7 +1339,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б2): чек 93 — legacy-ключи обнуления и сиротские деревья
         boolean ok93 = SpecLegacyReset.legacyTreeKeys().size() == 6
                 && SpecLegacyReset.legacyTreeKeys().contains("tracker")
                 && SpecLegacyReset.legacyTreeKeys().contains("black_mage")
@@ -1355,7 +1360,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б2): чек 94 — обнуление идемпотентно и возвращает очки
+        // 1.14.0 (Б4): чек 94 — обнуление на Map-API: 1-й проход стирает ранг, 2-й = 0
         if (probe == null) {
             if (check(report, "94", "legacy-reset идемпотентность (пропущено: нет онлайн-игрока)",
                     true, "SpecLegacyReset.resetPlayer", "skip")) {
@@ -1365,17 +1370,17 @@ public final class SelftestRunner {
             }
         } else {
             UUID u94 = probe.getUniqueId();
-            List<String> before94 = new ArrayList<>(
+            Map<String, Integer> before94 = new HashMap<>(
                     plugin.getTalentsStorage().getPurchased(u94, "tracker"));
             plugin.getTalentsStorage().setPurchased(u94, "tracker",
-                    new ArrayList<>(List.of("t_snare_wire")));
+                    new HashMap<>(Map.of("t_snare_wire", 1)));
             int freed94 = plugin.getSpecLegacyReset().resetPlayer(probe);
             boolean purged94 = plugin.getTalentsStorage().getPurchased(u94, "tracker").isEmpty();
             int freedAgain94 = plugin.getSpecLegacyReset().resetPlayer(probe);
             plugin.getTalentsStorage().setPurchased(u94, "tracker", before94);
             plugin.getTalentService().reconcile(u94);
             boolean ok94 = freed94 == 1 && purged94 && freedAgain94 == 0;
-            if (check(report, "94", "legacy-reset: 1-й проход стёр 1 узел и вернул очко, 2-й проход = 0 (идемпотентно)",
+            if (check(report, "94", "legacy-reset (Map-API): 1-й проход стёр 1 узел и вернул очко, 2-й = 0",
                     ok94, "SpecLegacyReset.resetPlayer",
                     freed94 + "/" + purged94 + "/" + freedAgain94)) {
                 passed++;
@@ -1403,7 +1408,6 @@ public final class SelftestRunner {
         plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
     }
 
-    /** retry-обёртка tryApply: ccResist-бросок не должен флапать чеки. */
     private static boolean applyUntilOk(CCService cc, Player target, CCType type, int ticks) {
         for (int i = 0; i < 64; i++) {
             CCService.ApplyResult r = cc.tryApply(null, target, type, ticks);
@@ -1417,7 +1421,6 @@ public final class SelftestRunner {
         return false;
     }
 
-    /** Первый узел тира 1 без пререквизитов (для тестов). */
     private static TalentModel.TalentNode firstT1(TalentModel.TalentTree tree) {
         for (TalentModel.TalentNode node : tree.nodes()) {
             if (node.tier() == 1 && node.prereqs().isEmpty()) {
