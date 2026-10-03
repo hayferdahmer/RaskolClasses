@@ -28,11 +28,10 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * 1.11.4 (P4d): /rc debug [player] · /rc debug simulate [A] [B] [level] ·
- * /rc debug simulate matrix [level] · /rc debug matrix [level].
- * 1.12.2 (Блок 5): в дампе игрока — строки пробития (pen) и стихийных резистов.
- * 1.13.0 (Б4): в дампе игрока — секция контроля: активные CC с остатком
- *         и DR-стеки с таймером до сброса окна.
+ * 1.11.4 (P4d): /rc debug [player] · simulate · matrix.
+ * 1.12.2 (Б5): строки пробития и стихийных резистов.
+ * 1.13.0 (Б4): секция контроля (активные CC + DR-стеки с таймером окна).
+ * 1.14.0 (Б8.2): спека читается из spec2 (Spec2Service.mainSpec), legacy SpecService удалён.
  */
 public final class DebugSub implements CommandSub {
 
@@ -153,8 +152,6 @@ public final class DebugSub implements CommandSub {
         return List.of();
     }
 
-    /* ------------------------------ вывод ------------------------------ */
-
     private void printMatrix(CommandSender sender, int level) {
         double[][] m = BalanceSimulator.matrix(plugin, level, 42L);
         PlayerClass[] pcs = PlayerClass.values();
@@ -183,14 +180,15 @@ public final class DebugSub implements CommandSub {
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
         int topN = Math.max(1, plugin.getConfig().getInt("character-level.top-n", 5));
         int cap = (int) plugin.getConfig().getDouble("attributes.level-cap", 60.0);
-        Spec spec = plugin.getSpecService().getSpec(uuid);
+        // 1.14.0 (Б8.2): спека из spec2-хранилища
+        Spec spec = Spec.fromId(plugin.getSpec2Service().mainSpec(uuid));
 
         sender.sendMessage(Component.text("=== " + target.getName() + " ===", NamedTextColor.GOLD));
         sender.sendMessage(Component.text("Класс: " + (pc != null ? pc.getDisplayName() : "—")
                 + " (source=" + plugin.getConfig().getString("attributes.level-source", "character") + ")",
                 NamedTextColor.AQUA));
         sender.sendMessage(Component.text("Спека: " + (spec != null ? spec.displayName() : "—")
-                + " · таланты и сброс — в Книге класса", NamedTextColor.YELLOW));
+                + " · деревья путей — в Книге класса", NamedTextColor.YELLOW));
         sender.sendMessage(Component.text("Уровень персонажа: " + charLevel
                 + " (топ-" + topN + " скиллов, кап " + cap + ")", NamedTextColor.AQUA));
         if (pc == null) {
@@ -240,7 +238,6 @@ public final class DebugSub implements CommandSub {
                 + (elLine.length() > 0 ? elLine.toString().trim() : "—"),
                 NamedTextColor.DARK_AQUA));
 
-        // 1.13.0 (Б4): секция контроля — активные CC и DR-стеки с таймером окна
         CCService ccSvc = plugin.getCC();
         List<CCInstance> ccs = ccSvc.activeOf(uuid);
         if (ccs.isEmpty()) {
@@ -268,6 +265,13 @@ public final class DebugSub implements CommandSub {
         }
         sender.sendMessage(Component.text("DR-стеки: "
                 + (drLine.length() > 0 ? drLine.toString().trim() : "—"),
+                NamedTextColor.DARK_AQUA));
+
+        // 1.14.0: очки деревьев путей
+        sender.sendMessage(Component.text("Путь: очков доступно "
+                + plugin.getSpec2Service().availablePoints(uuid)
+                + " · потрачено " + plugin.getSpec2Service().spentGlobal(uuid)
+                + " · заработано " + plugin.getSpec2Service().earnedPoints(uuid),
                 NamedTextColor.DARK_AQUA));
 
         var gearHook = plugin.getGearHook();
