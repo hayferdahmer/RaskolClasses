@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.11.4 (P4c): фасад. Модификаторы вынесены в AttributeModifiers,
  *         план B — в HpPool; публичный API сохранён полностью
  *         (HpBarService/CombatService/GearHook/InstallationService/selftest не меняются).
+ * 1.14.0 (Б8.2-fix): avoidBonus читается из Spec2Service (legacy TalentService удалён).
  */
 public final class AttributeService {
 
@@ -259,6 +260,11 @@ public final class AttributeService {
                 cfgD("attributes.crit.spell-cap", 35.0));
     }
 
+    /**
+     * 1.9.0 + 1.14.0 (Б8.2-fix): эффективные уклонение/парирование с учётом
+     * AGI-main микро-парирования, dodge-mult, плоских avoid-бонусов из spec2
+     * (узлы avoid dodge/parry + пассивные модификаторы).
+     */
     public double[] effectiveAvoidance(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
@@ -285,9 +291,13 @@ public final class AttributeService {
             parryChance = parryFull;
         }
 
-        double[] avoidB = plugin.getTalentService().avoidBonus(uuid);
-        dodge += avoidB[0];
-        parryChance += avoidB[1];
+        // 1.14.0 (Б8.2-fix): avoid-бонусы из spec2-слоя (legacy TalentService удалён)
+        double[] avoidB = plugin.getSpec2Service().avoidBonus(uuid);
+        if (avoidB != null && avoidB.length >= 2
+                && Double.isFinite(avoidB[0]) && Double.isFinite(avoidB[1])) {
+            dodge += avoidB[0];
+            parryChance += avoidB[1];
+        }
 
         double total = dodge + parryChance;
         if (total <= 0.0) {
