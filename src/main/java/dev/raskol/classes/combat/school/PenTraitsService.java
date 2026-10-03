@@ -3,16 +3,14 @@ package dev.raskol.classes.combat.school;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.hook.GearHook;
-import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.SpecRegistry;
 
 import java.util.UUID;
 
 /**
- * 1.12.2 → 1.14.0: агрегатор пробития из НЕ-гиревых источников.
- * 1.14.0 (Б3): талант-источник переехал на Spec2Service.penPercent (агрегат
- *         узлов pen_phys_pct/pen_magic_pct дерева путей); старые TalentStorage
- *         и TalentModel не читаются. Спека и gear — без изменений.
+ * 1.12.2 (Блок 3) → 1.14.0 (Б8): агрегатор пробития из НЕ-гиревых источников.
+ * Источники: gear (GearHook) + spec2-деревья (узлы pen_phys_pct/pen_magic_pct/
+ * pen_<school> через Spec2Service.penPercent). Legacy specs.yml/talents удалены.
+ * Сумма в процентах, один кламп в schools.pen-pct-cap (clampSumPercent, чек 59).
  */
 public final class PenTraitsService {
 
@@ -22,6 +20,7 @@ public final class PenTraitsService {
         this.plugin = plugin;
     }
 
+    /** Pure: сумма процентов → доля с капом; отрицательное/NaN → 0. */
     public static double clampSumPercent(double pctSum, double capFraction) {
         if (!Double.isFinite(pctSum) || pctSum <= 0.0) {
             return 0.0;
@@ -30,30 +29,15 @@ public final class PenTraitsService {
         return Math.min(pctSum / 100.0, cap);
     }
 
-    /** Pen-проценты спеки из specs.yml passive-ключей (pen_<key>). */
-    public double specPenPercent(Spec spec, String key) {
-        if (spec == null || key == null) {
-            return 0.0;
-        }
-        SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(spec);
-        return def == null ? 0.0 : def.passiveDouble("pen_" + key, 0.0);
-    }
-
-    /**
-     * 1.14.0 (Б3): pen-проценты дерева путей.
-     * Агрегируются в Spec2Service.agg через kind pen_phys_pct/pen_magic_pct/pen_<school>;
-     * Spec2Service.penPercent(uuid, key) возвращает готовые проценты.
-     */
+    /** Pen-проценты деревьев путей (spec2-агрегат). */
     public double talentPenPercent(UUID uuid, String key) {
-        if (uuid == null || key == null) {
-            return 0.0;
-        }
-        if (plugin.getSpec2Service() == null) {
+        if (uuid == null || key == null || plugin.getSpec2Service() == null) {
             return 0.0;
         }
         return plugin.getSpec2Service().penPercent(uuid, key);
     }
 
+    /** Pen-проценты шмота (GearHook хранит доли → переводим в проценты). */
     public double gearPenPercent(UUID uuid, String key, GearHook gear) {
         if (gear == null || uuid == null || key == null) {
             return 0.0;
@@ -70,18 +54,18 @@ public final class PenTraitsService {
         return fraction * 100.0;
     }
 
+    /** Сумма всех источников pen по ключу ("phys"/"magic"/<school id>), в процентах. */
     public double totalPenPercent(UUID uuid, String key, GearHook gear) {
-        Spec spec = plugin.getSpecService().getSpec(uuid);
-        return gearPenPercent(uuid, key, gear)
-                + talentPenPercent(uuid, key)
-                + specPenPercent(spec, key);
+        return gearPenPercent(uuid, key, gear) + talentPenPercent(uuid, key);
     }
 
+    /** Канальное пробитие (phys/magic) как Penetration с капом pen-pct-cap. */
     public Penetration channelPen(UUID uuid, boolean physical, GearHook gear, double cap) {
         double pct = totalPenPercent(uuid, physical ? "phys" : "magic", gear);
         return Penetration.of(0.0, clampSumPercent(pct, cap));
     }
 
+    /** Стихийное пробитие школы (доля, с капом) — режет elemental-резист цели. */
     public double schoolPenFraction(UUID uuid, School school, GearHook gear, double cap) {
         if (school == null) {
             return 0.0;
