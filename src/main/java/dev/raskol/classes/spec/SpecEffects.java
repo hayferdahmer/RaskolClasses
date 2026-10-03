@@ -14,24 +14,22 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Состояние боевых эффектов спек (1.4.0 → 1.11.4).
- * 1.11.4 (P4e, F8): удалены мёртвые с 1.7.5 ветки rageBurst/preciseArmed
- * (активки спек удалены, взводить их некому); остались:
- *  - внутренний КД заморозки (пассивка FROST);
- *  - атрибутные модификаторы GUARDIAN (броня) / TRACKER (скорость).
+ * 1.4.0 → 1.14.0: атрибутные модификаторы спек + внутренний КД заморозки FROST.
+ * 1.14.0 (Б2b):
+ *   - TRACKER (legacy) → SURVIVAL: скорость +0.10 (наследие следопыта);
+ *   - BEAST_MASTER: +2 max HP (здоровье питомца-хозяина);
+ *   - DISCIPLINE: +2 max HP (щиты и выносливость).
+ * GUARDIAN armor +2 сохранён.
  */
 public final class SpecEffects {
 
     private final RaskolClasses plugin;
-
-    /** Мороз: внутренний кд замедления по цели. */
     private final Map<UUID, Long> frostSlowUntil = new ConcurrentHashMap<>();
 
     public SpecEffects(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
-    // --- frost slow internal cd ---
     public boolean tryFrostSlow(UUID target, long cooldownMillis) {
         long now = System.currentTimeMillis();
         Long until = frostSlowUntil.get(target);
@@ -42,61 +40,62 @@ public final class SpecEffects {
         return true;
     }
 
-    // --- атрибуты (Страж: броня, Следопыт: скорость) ---
     public void applyAttributes(Player player, Spec spec) {
         removeAttributes(player);
         if (spec == Spec.GUARDIAN) {
-            Attribute armorAttribute = Registry.ATTRIBUTE.get(
-                    new NamespacedKey("minecraft", "generic.armor"));
-            if (armorAttribute != null) {
-                AttributeInstance armor = player.getAttribute(armorAttribute);
-                if (armor != null) {
-                    armor.addModifier(new AttributeModifier(
-                            new NamespacedKey(plugin, "spec_guardian_armor"),
-                            2.0, AttributeModifier.Operation.ADD_NUMBER));
-                }
-            }
+            addModifier(player, "generic.armor", "spec_guardian_armor",
+                    2.0, AttributeModifier.Operation.ADD_NUMBER);
         }
-        if (spec == Spec.TRACKER) {
-            Attribute speedAttribute = Registry.ATTRIBUTE.get(
-                    new NamespacedKey("minecraft", "generic.movement_speed"));
-            if (speedAttribute != null) {
-                AttributeInstance speed = player.getAttribute(speedAttribute);
-                if (speed != null) {
-                    speed.addModifier(new AttributeModifier(
-                            new NamespacedKey(plugin, "spec_tracker_speed"),
-                            0.10, AttributeModifier.Operation.ADD_SCALAR));
-                }
-            }
+        if (spec == Spec.SURVIVAL) { // было TRACKER
+            addModifier(player, "generic.movement_speed", "spec_survival_speed",
+                    0.10, AttributeModifier.Operation.ADD_SCALAR);
         }
+        if (spec == Spec.BEAST_MASTER) {
+            addModifier(player, "generic.max_health", "spec_beast_master_hp",
+                    2.0, AttributeModifier.Operation.ADD_NUMBER);
+        }
+        if (spec == Spec.DISCIPLINE) {
+            addModifier(player, "generic.max_health", "spec_discipline_hp",
+                    2.0, AttributeModifier.Operation.ADD_NUMBER);
+        }
+    }
+
+    private void addModifier(Player player, String attrKey, String modKey,
+                             double value, AttributeModifier.Operation op) {
+        Attribute attr = Registry.ATTRIBUTE.get(new NamespacedKey("minecraft", attrKey));
+        if (attr == null) {
+            return;
+        }
+        AttributeInstance inst = player.getAttribute(attr);
+        if (inst == null) {
+            return;
+        }
+        inst.addModifier(new AttributeModifier(
+                new NamespacedKey(plugin, modKey), value, op));
     }
 
     public void removeAttributes(Player player) {
-        Attribute armorAttribute = Registry.ATTRIBUTE.get(
-                new NamespacedKey("minecraft", "generic.armor"));
-        if (armorAttribute != null) {
-            AttributeInstance armor = player.getAttribute(armorAttribute);
-            if (armor != null) {
-                armor.getModifiers().stream()
-                        .filter(m -> m.key().namespace().equals(plugin.getName().toLowerCase()))
-                        .toList()
-                        .forEach(armor::removeModifier);
-            }
-        }
-        Attribute speedAttribute = Registry.ATTRIBUTE.get(
-                new NamespacedKey("minecraft", "generic.movement_speed"));
-        if (speedAttribute != null) {
-            AttributeInstance speed = player.getAttribute(speedAttribute);
-            if (speed != null) {
-                speed.getModifiers().stream()
-                        .filter(m -> m.key().namespace().equals(plugin.getName().toLowerCase()))
-                        .toList()
-                        .forEach(speed::removeModifier);
-            }
-        }
+        String ns = plugin.getName().toLowerCase();
+        removeByNamespace(player, "generic.armor", ns);
+        removeByNamespace(player, "generic.movement_speed", ns);
+        removeByNamespace(player, "generic.max_health", ns);
     }
 
-    /** Вызывается из общего purge-таска. */
+    private void removeByNamespace(Player player, String attrKey, String ns) {
+        Attribute attr = Registry.ATTRIBUTE.get(new NamespacedKey("minecraft", attrKey));
+        if (attr == null) {
+            return;
+        }
+        AttributeInstance inst = player.getAttribute(attr);
+        if (inst == null) {
+            return;
+        }
+        inst.getModifiers().stream()
+                .filter(m -> m.key().namespace().equals(ns))
+                .toList()
+                .forEach(inst::removeModifier);
+    }
+
     public void purgeExpired() {
         long now = System.currentTimeMillis();
         frostSlowUntil.entrySet().removeIf(e -> e.getValue() <= now);
