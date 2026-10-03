@@ -22,8 +22,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.11.4 (P4b): вкладка «Таланты спеки»: инфо-бутыль, 9 узлов, кристалл сброса
- * (дабл-арм 30 с). RESET_ARM переехал сюда из ClickHandler.
+ * 1.11.4 (P4b): вкладка «Таланты спеки»: инфо-бутыль, 9 узлов, кристалл сброса.
+ * 1.14.0 (Б3): WoW-подобная вертикальная сетка (BookSlots.TALENT_NODE_SLOTS):
+ *         тир1 → тир2 → тир3 → ульт с конвергенцией к центру;
+ *         в лоре узла — тег ветки (A/B) и строки «↑ требует: «Имя»» по пререквизитам
+ *         (аналог стрелок референса); шапка дерева показывает роль спеки.
  */
 public final class TalentsTab implements BookTabView {
 
@@ -61,6 +64,7 @@ public final class TalentsTab implements BookTabView {
         info.editMeta(meta -> {
             meta.displayName(Component.text("Таланты: " + spec.displayName(), NamedTextColor.GOLD));
             List<Component> lore = new ArrayList<>();
+            lore.add(Component.text("Роль: " + spec.role(), NamedTextColor.DARK_AQUA));
             lore.add(Component.empty());
             lore.add(Component.text("Очков доступно: ", NamedTextColor.GRAY)
                     .append(Component.text(String.valueOf(available), NamedTextColor.WHITE)));
@@ -80,7 +84,7 @@ public final class TalentsTab implements BookTabView {
         List<TalentModel.TalentNode> nodes = tree.nodes();
         for (int i = 0; i < nodes.size() && i < BookSlots.TALENT_NODE_SLOTS.length; i++) {
             ctx.inv().setItem(BookSlots.TALENT_NODE_SLOTS[i],
-                    talentNodeItem(plugin, player, nodes.get(i), owned, available));
+                    talentNodeItem(plugin, player, tree, nodes.get(i), owned, available));
         }
 
         ItemStack reset = new ItemStack(Material.END_CRYSTAL);
@@ -162,8 +166,12 @@ public final class TalentsTab implements BookTabView {
         }
     }
 
+    /* ------------------------------ предмет узла ------------------------------ */
+
     private ItemStack talentNodeItem(RaskolClasses plugin, Player player,
-                                     TalentModel.TalentNode node, List<String> owned, int available) {
+                                     TalentModel.TalentTree tree,
+                                     TalentModel.TalentNode node,
+                                     List<String> owned, int available) {
         UUID uuid = player.getUniqueId();
         boolean isOwned = owned.contains(node.id());
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
@@ -172,18 +180,26 @@ public final class TalentsTab implements BookTabView {
         boolean tierOk = charLevel >= gate;
         boolean prereqOk = owned.containsAll(node.prereqs());
         boolean affordable = node.cost() <= available;
+        boolean isUlt = node.tier() == 4;
 
-        ItemStack item = new ItemStack(Material.NETHER_STAR);
+        ItemStack item = new ItemStack(isUlt ? Material.BEACON : Material.NETHER_STAR);
         item.editMeta(meta -> {
             NamedTextColor nameColor = isOwned ? NamedTextColor.GREEN
                     : (!tierOk || !prereqOk) ? NamedTextColor.DARK_GRAY
                     : affordable ? NamedTextColor.GOLD : NamedTextColor.RED;
-            meta.displayName(Component.text(node.name(), nameColor));
+            meta.displayName(Component.text((isUlt ? "★ " : "") + node.name(), nameColor));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text(node.lore(), NamedTextColor.GRAY));
             lore.add(Component.text(describeEffect(node.effect()), NamedTextColor.WHITE));
-            lore.add(Component.text("Тир " + node.tier() + " · цена " + node.cost() + " очк.",
-                    NamedTextColor.GRAY));
+            lore.add(Component.text("Ветка " + node.branch() + " · тир " + node.tier()
+                    + " · цена " + node.cost() + " очк.", branchColor(node.branch())));
+            // 1.14.0: стрелки-пререквизиты именами узлов (аналог линий референса)
+            for (String prereqId : node.prereqs()) {
+                String prereqName = nodeName(tree, prereqId);
+                lore.add(Component.text((owned.contains(prereqId) ? "↑ ✔ " : "↑ требует: ")
+                        + "«" + prereqName + "»",
+                        owned.contains(prereqId) ? NamedTextColor.DARK_GRAY : NamedTextColor.RED));
+            }
             lore.add(Component.empty());
             if (isOwned) {
                 lore.add(Component.text("✔ ИЗУЧЕНО", NamedTextColor.GREEN));
@@ -203,6 +219,19 @@ public final class TalentsTab implements BookTabView {
             }
         });
         return item;
+    }
+
+    private static String nodeName(TalentModel.TalentTree tree, String id) {
+        for (TalentModel.TalentNode n : tree.nodes()) {
+            if (n.id().equals(id)) {
+                return n.name();
+            }
+        }
+        return id;
+    }
+
+    private static NamedTextColor branchColor(String branch) {
+        return "A".equals(branch) ? NamedTextColor.AQUA : NamedTextColor.LIGHT_PURPLE;
     }
 
     private String describeEffect(TalentModel.TalentEffect e) {
