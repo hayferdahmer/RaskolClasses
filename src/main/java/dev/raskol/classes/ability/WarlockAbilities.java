@@ -35,9 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.11.2: T2-задачи канала + S5 strip-absorption.
  * 1.11.4 (P4a): математика в WarlockMath, визуал в WarlockFx.
  * 1.13.0 (Б3): канал soul_rift в CastChannels (прерывание interruptible-CC).
- * 1.14.0 (Б1-fix): спек-трейты на новых спеках AFFLICTION/DESTRUCTION/DEMONOLOGY.
- * 1.14.0 (Б4): specOf() читает основную спеку из Spec2Storage (spec2.main),
- *         старый SpecService больше не источник для чернокнижника.
+ * 1.14.0 (Б1-fix): спек-трейты на AFFLICTION/DESTRUCTION/DEMONOLOGY.
+ * 1.14.0 (Б4): specOf() читает основную спеку из Spec2Storage.
+ * 1.14.0 (контент-долг 1): публичный addAntiheal для «Смертельного удара» Воина.
  */
 public final class WarlockAbilities implements Listener {
 
@@ -72,6 +72,14 @@ public final class WarlockAbilities implements Listener {
             return false;
         }
         return true;
+    }
+
+    /** 1.14.0 (контент-долг 1): публичный анти-хил для древесных способностей Воина. */
+    public static void addAntiheal(UUID target, int seconds) {
+        if (seconds <= 0) {
+            return;
+        }
+        ANTIHEAL_EXPIRY.put(target, System.currentTimeMillis() + seconds * 1000L);
     }
 
     /** Плановая чистка протухших дебафов (вызывает ResourceService раз в 30 с). */
