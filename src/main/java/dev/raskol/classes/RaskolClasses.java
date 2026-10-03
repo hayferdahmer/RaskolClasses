@@ -49,6 +49,10 @@ import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.spec.SpecService;
 import dev.raskol.classes.spec.SpecStorage;
 import dev.raskol.classes.spec.SpecToken;
+import dev.raskol.classes.spec.listen.Spec2RoleListener;
+import dev.raskol.classes.spec.service.Spec2EffectsApplier;
+import dev.raskol.classes.spec.service.Spec2Service;
+import dev.raskol.classes.spec.storage.Spec2Storage;
 import dev.raskol.classes.talent.TalentService;
 import dev.raskol.classes.talent.TalentsStorage;
 import org.bukkit.ChatColor;
@@ -67,12 +71,9 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.10.1: Чернокнижник — СКРЫТЫЙ класс (баннер и логи = 5 путей).
- * 1.11.2: T2 (WarlockAbilities-listener, cancelAllChannelTasks) + T5 (cleanupTmpFiles).
- * 1.11.4 (P5): reloadPlugin() перечитывает kits/*.yml через raskolConfig.reloadKits().
- * 1.12.3: getAbilityRegistry() — алиас getAbilities() для selftest-чеков 64-65.
- * 1.13.0 (Б2): проводка CC-слоя — CCService, CCGuard, CastGuard; getCC()/getCastGuard().
- * 1.14.0 (Б2): SpecLegacyReset — обнуление legacy-билдов талантов + возврат очков.
+ * 1.13.0 (Б2): проводка CC-слоя — CCService, CCGuard, CastGuard.
+ * 1.14.0 (Б2): проводка spec2-слоя — Spec2Storage/Spec2Service/Spec2EffectsApplier/
+ *         Spec2RoleListener (аддитивно, старый talent-слой живёт до переключения в Б3).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -98,6 +99,11 @@ public final class RaskolClasses extends JavaPlugin {
 
     private TalentsStorage talentsStorage;
     private TalentService talentService;
+
+    /** 1.14.0 (Б2): spec2-слой. */
+    private Spec2Storage spec2Storage;
+    private Spec2Service spec2Service;
+    private Spec2EffectsApplier spec2Applier;
 
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
@@ -125,7 +131,6 @@ public final class RaskolClasses extends JavaPlugin {
 
     private WarlockAbilities warlockAbilities;
 
-    /** 1.13.0: CC-слой. */
     private CCService ccService;
     private CCGuard ccGuard;
     private CastGuard castGuard;
@@ -191,7 +196,6 @@ public final class RaskolClasses extends JavaPlugin {
         this.combat = new CombatService(this, resists);
         this.manaSoaked = new ManaSoakedService(this);
 
-        // 1.13.0 (Б2): CC-слой после combat (CombatService.dealDamage зовёт getCC())
         this.ccService = new CCService(this);
         this.ccGuard = new CCGuard(this);
         this.castGuard = new CastGuard(this);
@@ -217,7 +221,13 @@ public final class RaskolClasses extends JavaPlugin {
         this.talentsStorage = new TalentsStorage(this);
         this.talentService = new TalentService(this, talentsStorage);
 
-        // 1.14.0 (Б2): обнуление legacy-билдов + возврат очков (после талент-сервиса)
+        // 1.14.0 (Б2): spec2-слой параллельно старому talent (переключение в Б3)
+        this.spec2Storage = new Spec2Storage(this);
+        this.spec2Applier = new Spec2EffectsApplier(this);
+        this.spec2Service = new Spec2Service(this, spec2Storage);
+        pluginManager.registerEvents(new Spec2RoleListener(this), this);
+
+        // 1.14.0 (Б2): обнуление legacy-билдов + возврат очков
         this.specLegacyReset = new SpecLegacyReset(this);
         this.specLegacyReset.resetAllOnline();
 
@@ -259,6 +269,7 @@ public final class RaskolClasses extends JavaPlugin {
                 attributes.clear(event.getPlayer().getUniqueId());
                 characterLevels.invalidate(event.getPlayer().getUniqueId());
                 talentService.clear(event.getPlayer().getUniqueId());
+                spec2Service.clear(event.getPlayer().getUniqueId());
             }
         }, this);
         pluginManager.registerEvents(new Listener() {
@@ -266,12 +277,14 @@ public final class RaskolClasses extends JavaPlugin {
             public void onJoin(PlayerJoinEvent event) {
                 specService.restorePassiveResists(event.getPlayer());
                 talentService.reconcile(event.getPlayer().getUniqueId());
+                spec2Service.reconcile(event.getPlayer().getUniqueId());
                 hpSync.sync(event.getPlayer());
             }
         }, this);
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             specService.restorePassiveResists(online);
             talentService.reconcile(online.getUniqueId());
+            spec2Service.reconcile(online.getUniqueId());
             hpSync.sync(online);
         }
 
@@ -316,6 +329,7 @@ public final class RaskolClasses extends JavaPlugin {
             specStorage.save();
             resources.saveAll();
             talentsStorage.save();
+            spec2Storage.save();
         }, autosaveTicks, autosaveTicks));
 
         registerCommand();
@@ -349,7 +363,6 @@ public final class RaskolClasses extends JavaPlugin {
         }
     }
 
-    /** 1.10.1: баннер перечисляет ТОЛЬКО пять основных путей (Чернокнижник скрыт). */
     private void printBanner() {
         String v = getPluginMeta().getVersion();
         String[] art = {
@@ -413,6 +426,9 @@ public final class RaskolClasses extends JavaPlugin {
         if (talentsStorage != null) {
             talentsStorage.save();
         }
+        if (spec2Storage != null) {
+            spec2Storage.save();
+        }
         if (installations != null) {
             installations.shutdown();
         }
@@ -466,6 +482,7 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.validate();
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             talentService.reconcile(online.getUniqueId());
+            spec2Service.reconcile(online.getUniqueId());
             if (gearHook != null) {
                 gearHook.refresh(online);
             }
@@ -491,7 +508,6 @@ public final class RaskolClasses extends JavaPlugin {
     public ResourceService getResources() { return resources; }
     public CooldownManager getCooldowns() { return cooldowns; }
     public AbilityRegistry getAbilities() { return abilities; }
-    /** 1.12.3: алиас getAbilities() — используется selftest-чеками 64-65. */
     public AbilityRegistry getAbilityRegistry() { return abilities; }
     public ActiveEffectManager getEffects() { return effects; }
     public HudService getHud() { return hud; }
@@ -503,10 +519,13 @@ public final class RaskolClasses extends JavaPlugin {
     public SpecService getSpecService() { return specService; }
     public SpecEffects getSpecEffects() { return specEffects; }
     public SpecToken getSpecToken() { return specToken; }
-    /** 1.14.0 (Б2): сервис обнуления legacy-билдов. */
     public SpecLegacyReset getSpecLegacyReset() { return specLegacyReset; }
     public TalentsStorage getTalentsStorage() { return talentsStorage; }
     public TalentService getTalentService() { return talentService; }
+    /** 1.14.0 (Б2): spec2-слой. */
+    public Spec2Storage getSpec2Storage() { return spec2Storage; }
+    public Spec2Service getSpec2Service() { return spec2Service; }
+    public Spec2EffectsApplier getSpec2Applier() { return spec2Applier; }
     public FactionHook getFactionHook() { return factionHook; }
     public CrownFlavorService getFlavorService() { return flavorService; }
     public GearHook getGearHook() { return gearHook; }
@@ -524,8 +543,6 @@ public final class RaskolClasses extends JavaPlugin {
     public HpAttributeSync getHpSync() { return hpSync; }
     public PassiveListener getPassives() { return passiveListener; }
     public WarlockAbilities getWarlockAbilities() { return warlockAbilities; }
-    /** 1.13.0: CC-ядро (DR, иммунитеты, реестр активных CC). */
     public CCService getCC() { return ccService; }
-    /** 1.13.0: гейт каста (STUN/SILENCE/FEAR). */
     public CastGuard getCastGuard() { return castGuard; }
 }
