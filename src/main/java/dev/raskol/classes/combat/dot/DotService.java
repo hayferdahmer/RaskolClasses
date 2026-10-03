@@ -36,6 +36,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * 1.12.4–1.12.6: DoT-ядро (реестр, тик 1 с, атрибуция, стеки, кап DPS, триггеры среды).
  * 1.14.0 (Б2): spec2-тюнинг источника — узлы dot_dur/dot_stacks/dot_mult дерева
  *         кастера меняют длительность/стеки/dps накладываемого им DoT (specTuned).
+ * 1.14.0 (Б7): wither (SHADOW) в дефолтах реестра + партиклы школ SHADOW/HOLY/
+ *         ARCANE/TRUE в defaultDotParticle.
  */
 public final class DotService implements Listener {
 
@@ -62,6 +64,7 @@ public final class DotService implements Listener {
             case "poison", "poison_passive" -> School.NATURE;
             case "bleed", "bleed_passive" -> School.PHYSICAL;
             case "chilled" -> School.FROST;
+            case "wither" -> School.SHADOW;
             default -> School.ARCANE;
         };
     }
@@ -75,6 +78,7 @@ public final class DotService implements Listener {
             case "bleed" -> 2.5;
             case "bleed_passive" -> 2.0;
             case "chilled" -> 2.0;
+            case "wither" -> 2.5;
             default -> 1.0;
         };
     }
@@ -88,6 +92,7 @@ public final class DotService implements Listener {
             case "bleed" -> 4;
             case "bleed_passive" -> 3;
             case "chilled" -> 4;
+            case "wither" -> 6;
             default -> 3;
         };
     }
@@ -96,6 +101,7 @@ public final class DotService implements Listener {
         return switch (id) {
             case "burning", "poison" -> 3;
             case "bleed", "chilled" -> 2;
+            case "wither" -> 3;
             default -> 1;
         };
     }
@@ -158,11 +164,7 @@ public final class DotService implements Listener {
         list.add(new DotInstance(def, owner.getUniqueId(), now));
     }
 
-    /**
-     * 1.14.0 (Б2): ранги узлов дерева кастера тюнят его DoT.
-     * Если live-DotDef exposes accessor source() вместо sourceAbility() —
-     * замени одно имя в последней строке метода.
-     */
+    /** 1.14.0 (Б2): ранги узлов дерева кастера тюнят его DoT. */
     private DotDef specTuned(Player owner, DotDef def) {
         Spec2Service spec2 = plugin.getSpec2Service();
         if (spec2 == null) {
@@ -373,13 +375,17 @@ public final class DotService implements Listener {
                 6, 0.3, 0.4, 0.3, 0.01);
     }
 
+    /** 1.14.0 (Б7): партиклы всех 8 школ (раньше SHADOW/HOLY/ARCANE/TRUE = null). */
     private Particle defaultDotParticle(School school) {
         return switch (school) {
             case FIRE -> Particle.FLAME;
             case FROST -> Particle.SNOWFLAKE;
             case NATURE -> Particle.COMPOSTER;
             case PHYSICAL -> Particle.DAMAGE_INDICATOR;
-            default -> null;
+            case SHADOW -> Particle.SCULK_SOUL;
+            case HOLY -> Particle.ENCHANT;
+            case ARCANE -> Particle.REVERSE_PORTAL;
+            case TRUE -> Particle.POOF;
         };
     }
 
