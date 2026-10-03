@@ -1,114 +1,108 @@
-# CHANGELOG — RaskolClasses
+# Changelog
 
-Формат: [версия] — дата — имя. Секции Added / Changed / Fixed / Removed / Validate.
-Линия 1.12.x активна (школы урона); 1.11.x и ниже заморожены.
+Формат — [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/),
+версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
+Все даты — релизы на сервере «РАСКОЛ | ДВЕ КОРОНЫ».
 
-## [1.12.2] — 2026-09-30 · «Школы: пробитие и стихийный слой (живая проводка)»
+## [1.13.0] — 2026-10-03
 
-### Added
-- Блок 1: ElementalResistService — стихийный слой резистов поверх канала
-  (source-модификаторы по школам, кап schools.elemental.resist-cap, self-purge).
-- Блок 2: pen-трейты RaskolGear в GearHook: PDC-ключи raskolgear:pen_phys_pct /
-  pen_magic_pct / pen_<school>_pct (bronя + оружие), агрегация с клампом pen-pct-cap.
-- Блок 3: PenTraitsService — агрегатор pen из gear + талантов (kind "pen") +
-  спек (passive-ключи pen_* в specs.yml); clampSumPercent.
-- Блок 4: живая проводка pen+elemental в путь A (VanillaDamageListener) и путь B
-  (CombatService.dealDamage: phys→PHYSICAL, magic→ARCANE по legacy-соглашению);
-  порядок flat→pct, слои мультипликативно, кап mitigation-cap.
-- Блок 5: UX — строки «Пробитие» и «Стихии» в /rc debug и в Книге (вкладка CLASS);
-  настоящий раздел CHANGELOG и RUNBOOK-секция VIII.
-- Selftest чеки 55–62 (стихийный слой, gear-pen, pen-трейты, neutral-проводка).
+### Added — система контроля (CC) и убывающей отдачи (DR)
+- Модель CC: 9 типов (STUN, ROOT, SILENCE, DISARM, FEAR, CHARM, SLOW, BLIND,
+  KNOCKBACK) и 6 категорий DR (STUN, FEAR, SILENCE, ROOT, SLOW, BLIND).
+- DR-ядро: окно 15 с, множители [1.0, 0.5, 0.25, 0.0] → 4-й CC в окне = иммунитет;
+  стек сбрасывается после паузы; смерть/выход снимают CC и сбрасывают DR.
+- ccResist по классам (Воин 20%, Охотник/Разбойник/Жрец 15%, Маг/Чернокнижник 10%)
+  + бонус чернокнижнику при Скверне ≥ 75; кап cc.resist-cap 0.60.
+- ccPower чернокнижника при Скверне ≥ 75 (+20% длительности накладываемого CC).
+- Иммунитеты: теги BOSS/MINION_ELITE/MINION + явные ENTITY_WITHER/ENTITY_ENDER_DRAGON;
+  CHARM на игроков запрещён по умолчанию.
+- Запреты действий (CCGuard): атаки/хотбар/блоки/сущности/зелья под STUN;
+  атаки и предметы под FEAR; оружие под DISARM (кулак разрешён); промах 50% под BLIND.
+- Гейт каста (CastGuard): STUN/SILENCE/FEAR блокируют каст до списания ресурса
+  и кулдауна; мгновенные способности под SILENCE разрешены.
+- Прерывание каналов (CastChannels): soul_rift обрывается interruptible-CC.
+- Обёртка ванили (VanillaCCWrapper): Slowness→SLOW, Blindness→BLIND, Weakness→SILENCE
+  через DR; молоко и /effect clear снимают CC, но НЕ сбрасывают DR.
+- breaksOnDamage: ROOT/FEAR снимаются уроном ≥ 5% formula-maxHP (пути A и B).
+- Туман слепоты: BLIND накладывает ванильный BLINDNESS без партиклей-эмиттеров.
+- HUD CC-строка после DoT-строки (иконки messages.cc.hud-icons.*), O1 dirty-rendering.
+- CCFeedback: звуки/партиклы применения, снятия, резиста, иммунитета, DR-иммунитета;
+  тик-партиклы активного CC раз в 10 тиков.
+- Команды /rc cc: list, status, clear, test, reset (пермиссия raskolclasses.admin.cc).
+- Секция «Контроль/DR-стеки» в /rc debug <player>.
+- CcSanity: валидация диапазонов cc.* и ссылочной целостности иммунитетов.
+- Selftest: чеки 76–90 (15 новых headless-проверок CC/DR).
 
 ### Changed
-- schools.mitigation-cap: 0.80 → 0.90 (выравнивание с resist.cap: проводка нейтральна
-  к 1.12.1 для танков с 90% резиста).
-- schools.elemental.enabled: false → true (слой включён; без источников прозрачен).
-
-### Validate
-- /rc selftest → 62/62; TTK-матрица 6×6 без дельт против 1.12.1 (pen-контента нет).
-
-## [1.12.1] — 2026-09-29 · «Школы: митигация, пробитие, иммунитеты»
-
-### Added
-- SchoolMitigation (порядок flat→pct, стихийный слой, mitigation-cap), Penetration
-  (record, клампы), SchoolImmunity (schools.entities.*: immune/resistant/vulnerable).
-- Проводка иммунитетов/уязвимостей и глобальных множителей школ в путь A.
-- Selftest чеки 52–54.
+- WarlockAbilities.soulRift: канал регистрируется в CastChannels (прерывание CC).
+- CombatService.dealDamage и VanillaDamageListener: хук CCService.breakOnDamage.
+- AbilityRegistry.castOn: CC-гейт каста до антискпа/кулдаунов/ресурса.
+- HudService: ключ кадра включает CC-снапшот; иконки CC по умолчанию.
+- RaskolCommand: регистрация CcSub, «cc» в ROOT_SUBS и справке.
+- Версия артефакта и плагина: 1.11.4 → 1.13.0 (pom.xml, plugin.yml).
 
 ### Fixed
-- DamageCause FREEZE: ключи FREEZING в damage-types.vanilla-map и
-  schools.vanilla-school никогда не матчились (в Bukkit константа FREEZE).
+- CCGuard: удалена черновая строка-артефакт, ломавшая компиляцию модуля.
+- VanillaCCWrapper: event.getType() → event.getModifiedType() (Bukkit API 1.21.4).
+- CCService: снятие SLOW-модификатора через getModifiers()+removeModifier(mod)
+  (removeModifier(NamespacedKey) отсутствует в части сборок Paper).
+- Удалён дубликат-черновик CcSubcommand.java (замещён CcSub.java).
 
-## [1.12.0] — 2026-09-28 · «Каркас школ урона»
+### Docs
+- CHANGELOG.md создан; docs/RUNBOOK-CC.md — операторский раздел «Контроль и DR»;
+  README.md актуализирован (бейджи 1.13.0/90-90, секции школ/DoT/CC, команды, установка).
 
-### Added
-- combat.school: School (8 школ → каналы PHYSICAL/MAGIC/TRUE), SchoolProfile
-  (immutable, legacy-адаптеры fromLegacy/toLegacy, dominant), SchoolConfig
-  (schools.*: enabled, multiplier, vanilla-school, резервные капы).
-- Секция schools.* в config.yml; school-reorg пакета (переезд School*).
-- Selftest чеки 49–51.
+## [1.12.7] — 2026-10-01
+- Баланс-прогон матрицы 6×6 с DoT: burning 4.0→3.5, poison_passive 2.5→2.0, chilled 2.0→1.5.
+- Selftest-чек 75: sanity матрицы (чистота, диагональ [10,60], средняя [15,25]).
 
-### Changed
-- Поведение боя не менялось (множители 1.0, каркас без живой проводки).
+## [1.12.6] — 2026-09-30
+- HUD: DoT-строка после ресурсного бара (иконки школ, стеки, секунды).
+- Миграция пассивки poisoned_blades с ванильного POISON на DotService (poison_passive).
 
-## [1.11.4] — 2026-09-29 · «Сверхстабильность: рефакторинг P1–P5 + харденинг S/F/T»
+## [1.12.5] — 2026-09-29
+- Реестр dots.* (burning/poison/bleed/chilled + пассивные варианты).
+- Средовые триггеры: вода/пушистый снег гасят FIRE, огонь/лава плавят FROST.
+- Очищение жреца: хилы снимают DoT школ NATURE и SHADOW.
+- Тик-VFX школ для DoT (vfx.dot.*).
 
-### Added
-- P1: пассивки по классам (ClassPassive/BaseClassPassive + 5 файлов); PassiveListener = диспетчер.
-- P2: инсталляции по типам (InstallationHandler + 6 обработчиков); InstallationService = реестр;
-  Пентаграмма v2; кулдаун только после успешной постановки.
-- P3: боевое ядро разложено (VanillaDamageListener, DamageCaps, CombatMath); CombatService = фасад.
-- P4a: WarlockMath + WarlockFx; чеки 41–43. Чеки 44–45: KitSanity.
-- P4b: Книга → gui/book/* (5 таб-файлов + каркас).
-- P4c: AttributeService → HpPool + AttributeModifiers.
-- P4d: команды → command/sub/* (4 сабкоманды + роутер).
-- P4e: spec-слой → SpecMath/SpecPassives/SpecEconomy; аудит F1–F10; чеки 46–47.
-- P5: per-class конфиги kits/<class>.yml (KitConfigLoader/KitConfigCache); чек 48.
-- Безопасность: S1 санитайзер ников; S2 релок-цикл фолианта; S3 soulbound;
-  S4 рефлект без self-урона; S5 анти-хил на все причины RegainHealth.
+## [1.12.4] — 2026-09-28
+- DoT-ядро combat/dot/: DotDef/DotInstance/DotMath/DotService, тик 1 с, атрибуция,
+  стеки, кап суммарного DoT-DPS combat.dot-dps-cap-pct 6%.
 
-### Fixed (эксплойты и семантика, F1–F10)
-- F1/F2: ликвидатор/трюкач — 100% крит/додж → 15% (проценты читались как доли).
-- F3: лифстил тенеплёта через HpBarService (уважает анти-хил).
-- F4/F5/F6: берсерк по HP≥60%, аркана = +1 мана/с, стрелок = крит стрелами (по specs.yml).
-- F7: +6% маг-резиста Адского Канала применяется (генерик resist.specs.* + reconcile).
-- F9/F10: двойной тег благодати убран; reconcile самопланируется.
-- T2/T3/T5: задачи канала отменяются; invalidate резист-кэша на смене сетов; чистка .tmp.
+## [1.12.3] — 2026-09-27
+- Школы в способностях: ключ school: у всех 30, cast-контекст ThreadLocal,
+  иммунитеты/множители школ в пути B.
+- VFX-стандарт чернокнижника на всех 6 китах (cast/impact/execute/expire).
 
-### Changed (баланс-влияние)
-- DPS ликвидатора и выживаемость трюкача снижены до проектных 15%; семантики берсерка/
-  arkаны/стрелка приведены к specs.yml. Калибровка матрицы — в 1.12.7.
+## [1.12.2] — 2026-09-26
+- Стихийный резист-слой (elemental), pen-трейты gear/талантов/спек,
+  живая проводка pen+elemental в пути A/B; mitigation-cap 0.90.
 
-### Removed
-- SpecMenu.java, TrapVisual.java, install/Installation.java, dead-ветки precise/rageBurst.
+## [1.12.1] — 2026-09-25
+- Митигация с пробитием (flat→pct), иммунитеты/уязвимости EntityType, Penetration-клампы.
+- Фикс ключа DamageCause: FREEZING → FREEZE.
 
-### Validate
-- /rc selftest → 48/48; CI зелёный; живой регресс китов/спек/инсталляций/фолианта/книги.
+## [1.12.0] — 2026-09-24
+- Каркас школ урона: School (8 школ → 3 канала), SchoolProfile, SchoolConfig, schools.*.
 
-## [1.11.0] — 2026-09-25 · «Публичный релиз линии Чернокнижника»
-## [1.10.4] — 2026-09-25 · «Чёрное Слово v2, Скверна пол 0, Пентаграмма»
-## [1.10.3] — 2026-09-25 · «Прогрессия чернокнижника = sorcery»
-## [1.10.2] — 2026-09-25 · «Дроп фолианта, LP-миграция без clear-перегрузок»
-## [1.10.1] — 2026-09-25 · «Пол Скверны, plain-партиклы, self-кастеры»
-## [1.10.0] — 2026-09-25 · «Чернокнижник: шестой путь Раскола»
-## [1.9.3.2] — 2026-09-25 · «Хотфикс: декэй ярости воина вне боя»
-## [1.9.3.1] — 2026-09-25 · «Хотфикс: версия, старт GearHook, Книга»
-## [1.9.3] — 2026-09-24 · «Виртуальный пул HP + RaskolGear + редизайн Книги»
-## [1.9.2] — 2026-09-16 · «Интеграция с RaskolCore 1.3.0 + эксплойт-свип»
-## [1.9.1] — 2026-09-15 · «Стабилизация: боевое окно, регресс-замки, валидатор»
-## [1.9.0] — 2026-09-11 · «Дерево талантов спеки (Книга класса)»
-## [1.8.1] — 2026-09-11 · «Стабилизационная серия перед 1.9.0»
-## [1.8.0] — 2026-09-10 · «Уровень персонажа: прогрессия от ширины прокачки»
-## [1.7.6] — 2026-09-10 · «TTK-харнесс и баланс-пакет»
-## [1.7.5] — 2026-09-10 · «Спеки = пассивная идентичность»
-## [1.7.4] — 2026-09-10 · «Кит Жреца (HPow-хилы)»
-## [1.7.3] — 2026-09-10 · «Киты: Маг и Разбойник»
-## [1.7.2] — 2026-09-10 · «Киты: Воин и Охотник»
-## [1.7.1] — 2026-09-10 · «Производные статы WP/SP/HPow и анти-ваншот»
-## [1.7.0] — 2026-09-10 · «Фундамент атрибутов и боевая физика»
-## [1.6.15] — 2026-09-08 · «Заморозка ветки 1.6.x»
-## [1.6.0–1.6.14] — 2026-09-07…10 · резюме линии
-## [1.5.10] — 2026-09-08 · «Заморозка ветки 1.5.x»
-## [1.5.0–1.5.9] — 2026-09-02…08 · резюме линии
-## [1.4.0] — 2026-09-02 · «Специализации и Короны»
-## [1.3.2] и ранее — история разработки
+## [1.11.4] — 2026-09-20
+- Рефакторинг P1–P5, эксплойт-фиксы S1–S5/F1–F10, per-class kits/*.yml, selftest 48.
+
+## [1.11.0–1.11.3] — 2026-09-15…18
+- Чернокнижник: спек-трейты, игнор маг-резиста ≤25% HP, soulbound/релок фолианта.
+
+## [1.10.0–1.10.4] — 2026-09-10…14
+- Скрытый класс Чернокнижник: Скверна, Пентаграмма, Фолиант Душ, sorcery-прогрессия.
+
+## [1.9.0–1.9.3] — 2026-09-05…09
+- Таланты (21 очко), боевое окно, план B (carrier/formula/scale), HpPool.
+
+## [1.8.0–1.8.1] — 2026-09-03…04
+- Уровень персонажа top-N, фракционный гейт canHit.
+
+## [1.7.0–1.7.6] — 2026-08-28…09-02
+- Атрибуты, WP/SP/HPow, анти-ваншот, киты шести классов, TTK-харнесс.
+
+## [1.4.0–1.6.15] — 2026-08-10…27
+- Становление плагина: роутер /rc, Книга, HUD, резисты, инсталляции, фолиант-дроп.
