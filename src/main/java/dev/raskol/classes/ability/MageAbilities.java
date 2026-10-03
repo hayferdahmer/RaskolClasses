@@ -34,6 +34,7 @@ import java.util.UUID;
  *  4. «Эгида Афины» — грант маг-резиста + аура + звук снятия.
  *  5. «Гнев Зевса» — мгновенный урон + сцена; поджог заменён на DoT burning.
  * 1.12.3 (Батч 5): школы FIRE/ARCANE/FROST, каст/impact/execute-VFX конфиг-драйвен.
+ * 1.14.0 (Б4): талантовые хуки baseBonus/coeffMult читаются из Spec2Service.
  */
 public final class MageAbilities {
 
@@ -72,10 +73,11 @@ public final class MageAbilities {
         return v > 0 ? v : defv;
     }
 
+    /** 1.14.0 (Б4): хуки Spec2Service. */
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
         UUID uuid = p.getUniqueId();
-        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
@@ -281,11 +283,11 @@ public final class MageAbilities {
         return true;
     }
 
-    /** 4. «Эгида Афины»: грант маг-резиста + аура + звук снятия (конфиг-драйвен). */
+    /** 4. «Эгида Афины»: грант маг-резиста + аура + звук снятия. 1.14.0 (Б4): хуки Spec2. */
     public boolean athenaAegis(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
-        double b = base(def, 15.0) + plugin.getTalentService().baseBonus(uuid, def.id());
-        double c = coeff(def, 0.05) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double b = base(def, 15.0) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = coeff(def, 0.05) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         double grant = b + plugin.getCombat().powers().spellPower(uuid) * c;
         int secs = duration(def, 5);
 
@@ -309,10 +311,7 @@ public final class MageAbilities {
         return true;
     }
 
-    /**
-     * 5. «Гнев Зевса»: урон МГНОВЕННО при касте; сцена молнии/подброса поверх;
-     * поджог = DoT burning (1.12.5) вместо ванильного fire-ticks.
-     */
+    /** 5. «Гнев Зевса»: урон МГНОВЕННО при касте; сцена молнии/подброса поверх. */
     public boolean zeusWrath(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -392,7 +391,6 @@ public final class MageAbilities {
                                 : Particle.ELECTRIC_SPARK,
                         30, impactSound, 0.8f, 1.0f);
             }
-            // 1.12.5: поджог = школьный DoT burning (атрибуция, стеки, капы)
             if (plugin.getCombat().canHit(caster, living)) {
                 plugin.getCombat().dots().applyById(caster, living, "burning");
             }
