@@ -35,10 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.11.2: T2-задачи канала + S5 strip-absorption.
  * 1.11.4 (P4a): математика в WarlockMath, визуал в WarlockFx.
  * 1.13.0 (Б3): канал soul_rift в CastChannels (прерывание interruptible-CC).
- * 1.14.0 (Б1-fix): спек-трейты переведены на новые спеки:
- *         AFFLICTION (radius+strips), DESTRUCTION (damage-mult), DEMONOLOGY (seal+antiheal).
- *         Конфиг-пути classes.WARLOCK.specs.{affliction,destruction,demonology}.*
- *         с дефолтами, равными старым числам black_mage/hell_channel.
+ * 1.14.0 (Б1-fix): спек-трейты на новых спеках AFFLICTION/DESTRUCTION/DEMONOLOGY.
+ * 1.14.0 (Б4): specOf() читает основную спеку из Spec2Storage (spec2.main),
+ *         старый SpecService больше не источник для чернокнижника.
  */
 public final class WarlockAbilities implements Listener {
 
@@ -137,10 +136,12 @@ public final class WarlockAbilities implements Listener {
         return cfgD("classes.WARLOCK.abilities." + def.id() + ".radius", defv);
     }
 
-    /* ------------------------------ спеки (1.14.0: три новых) ------------------------------ */
+    /* ------------------------------ спеки (1.14.0 Б4: источник — spec2) ------------------------------ */
 
+    /** 1.14.0 (Б4): основная спека из Spec2Storage; null если путь не выбран. */
     private Spec specOf(Player p) {
-        return plugin.getSpecService().getSpec(p.getUniqueId());
+        String main = plugin.getSpec2Service().mainSpec(p.getUniqueId());
+        return main == null ? null : Spec.fromId(main);
     }
 
     private boolean isAffliction(Player p) {
