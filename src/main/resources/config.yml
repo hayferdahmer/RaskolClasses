@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.13.0-b1 — «РАСКОЛ | ДВЕ КОРОНЫ»
+#  RaskolClasses v1.13.0 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
 #  Весь баланс, стилизация и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -18,8 +18,11 @@
 #  1.12.5: реестр dots.*, средовые триггеры, очищение жреца, тик-VFX школ.
 #  1.12.6: HUD DoT-строка, миграция poisoned_blades на DotService.
 #  1.12.7: баланс-прогон матрицы с DoT (burning 3.5, poison_passive 2.0, chilled 1.5).
-#  1.13.0: КОНТРОЛЬ (CC) И УБЫВАЮЩАЯ ОТДАЧА (DR) — секция cc: + messages.cc.*
-#          (батч 1: модель + DR-ядро; проводка/обёртка/HUD/команды — батчи 2–4).
+#  1.13.0: КОНТРОЛЬ (CC) И УБЫВАЮЩАЯ ОТДАЧА (DR):
+#          секция cc: + messages.cc.* + /rc cc status/clear/test/reset/list;
+#          VanillaCCWrapper (Slowness→SLOW, Blindness→BLIND, Weakness→SILENCE);
+#          HUD CC-строка, CCFeedback, CastChannels (прерывание soul_rift);
+#          CcSanity-валидация, секция CC/DR в /rc debug; selftest 90 чеков.
 # ============================================================
 
 hud:
