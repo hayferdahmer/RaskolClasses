@@ -33,11 +33,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.10.4: «Чёрное Слово» v2 (бесплатно, плата 10% HP, +25 Скверны, без лечения, КД 3 с).
  * 1.11.1: проводка спек (classes.WARLOCK.specs.*).
  * 1.11.2: T2-задачи канала + S5 strip-absorption.
- * 1.11.4 (P4a): математика вынесена в WarlockMath (pure, selftest 41–43),
- *         визуал — в WarlockFx; здесь только оркестрация кита и реестры дебафов.
- * 1.13.0 (Б3): канал soul_rift регистрируется в CastChannels для прерывания
- *         interruptible-CC (STUN/SILENCE/FEAR). Отмена через cancelChannelTasks
- *         снимает и CastChannels-регистрацию (идемпотентно).
+ * 1.11.4 (P4a): математика в WarlockMath, визуал в WarlockFx.
+ * 1.13.0 (Б3): канал soul_rift в CastChannels (прерывание interruptible-CC).
+ * 1.14.0 (Б1-fix): спек-трейты переведены на новые спеки:
+ *         AFFLICTION (radius+strips), DESTRUCTION (damage-mult), DEMONOLOGY (seal+antiheal).
+ *         Конфиг-пути classes.WARLOCK.specs.{affliction,destruction,demonology}.*
+ *         с дефолтами, равными старым числам black_mage/hell_channel.
  */
 public final class WarlockAbilities implements Listener {
 
@@ -82,15 +83,9 @@ public final class WarlockAbilities implements Listener {
         ANTIHEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
     }
 
-    /**
-     * 1.11.2 (T2): отмена всех задач канала конкретного кастера.
-     * 1.13.0 (Б3): дополнительно снимает регистрацию в CastChannels —
-     *              idempotent (ConcurrentHashMap.remove по несуществующему ключу = no-op),
-     *              поэтому безопасно вызывается и из CastChannels.interrupt-canceller,
-     *              и из финальной задачи штатного завершения.
-     */
+    /** 1.11.2 (T2): отмена всех задач канала конкретного кастера. */
     public static void cancelChannelTasks(UUID caster) {
-        CastChannels.unregister(caster); // 1.13.0 (Б3): снять CastChannels-регистрацию
+        CastChannels.unregister(caster);
         List<BukkitTask> tasks = CHANNEL_TASKS.remove(caster);
         if (tasks == null) {
             return;
@@ -142,47 +137,56 @@ public final class WarlockAbilities implements Listener {
         return cfgD("classes.WARLOCK.abilities." + def.id() + ".radius", defv);
     }
 
-    /* ------------------------------ спеки (1.11.1) ------------------------------ */
+    /* ------------------------------ спеки (1.14.0: три новых) ------------------------------ */
 
     private Spec specOf(Player p) {
         return plugin.getSpecService().getSpec(p.getUniqueId());
     }
 
-    private boolean isBlackMage(Player p) {
-        return specOf(p) == Spec.BLACK_MAGE;
+    private boolean isAffliction(Player p) {
+        return specOf(p) == Spec.AFFLICTION;
     }
 
-    private boolean isHellChannel(Player p) {
-        return specOf(p) == Spec.HELL_CHANNEL;
+    private boolean isDestruction(Player p) {
+        return specOf(p) == Spec.DESTRUCTION;
     }
 
+    private boolean isDemonology(Player p) {
+        return specOf(p) == Spec.DEMONOLOGY;
+    }
+
+    /** DESTRUCTION: +10% урона способностей (наследие black_mage.damage-mult). */
     private double specDamageMult(Player p) {
-        return isBlackMage(p)
-                ? 1.0 + cfgD("classes.WARLOCK.specs.black_mage.damage-mult", 0.10)
+        return isDestruction(p)
+                ? 1.0 + cfgD("classes.WARLOCK.specs.destruction.damage-mult", 0.10)
                 : 1.0;
     }
 
+    /** AFFLICTION: зона Раскола Души шире (наследие black_mage.soul-rift-radius-bonus). */
     private double specRiftRadiusBonus(Player p) {
-        return isBlackMage(p)
-                ? cfgD("classes.WARLOCK.specs.black_mage.soul-rift-radius-bonus", 2.0)
+        return isAffliction(p)
+                ? cfgD("classes.WARLOCK.specs.affliction.soul-rift-radius-bonus", 2.0)
                 : 0.0;
     }
 
+    /** AFFLICTION: «Небытие» стирает резист-модификаторы (наследие black_mage). */
     private int specUnwritingStrips(Player p) {
-        return isBlackMage(p)
-                ? cfgI("classes.WARLOCK.specs.black_mage.unwriting-strips-resist", 1)
+        return isAffliction(p)
+                ? cfgI("classes.WARLOCK.specs.affliction.unwriting-strips-resist", 1)
                 : 0;
     }
 
+    /** DEMONOLOGY: «Печать Погибели» держится дольше (наследие hell_channel.seal-duration). */
     private double specSealDuration(Player p, double baseDuration) {
-        return isHellChannel(p)
-                ? cfgD("classes.WARLOCK.specs.hell_channel.seal-duration", 86.6)
+        return isDemonology(p)
+                ? cfgD("classes.WARLOCK.specs.demonology.seal-duration", 86.6)
                 : baseDuration;
     }
 
+    /** DEMONOLOGY: запрет лечения дольше (наследие hell_channel.antiheal-bonus). */
     private double specAntihealBonus(Player p) {
-        return isHellChannel(p)
-                ? cfgD("classes.WARLOCK.specs.hell_channel.antiheal-bonus", 3.0)
+        return isDemonology(p)
+                ? cfgD("classes.WARLOCK.specs.demonology.antiheal-bonus", 3.0)
                 : 0.0;
     }
 
@@ -305,7 +309,6 @@ public final class WarlockAbilities implements Listener {
         if (totalDealt <= 0.0) {
             return false;
         }
-        // 1.11.4: дрейн через WarlockMath.drainHeal с капом lifesteal-cap
         double heal = WarlockMath.drainHeal(totalDealt, drain(def, 0.666),
                 plugin.getRaskolConfig().warlockLifestealCap());
         plugin.getHpBarService().heal(caster, heal);
@@ -356,13 +359,7 @@ public final class WarlockAbilities implements Listener {
         return true;
     }
 
-    /**
-     * 1.11.2 (T2) + 1.11.4: канал с задачами в CHANNEL_TASKS; взрыв через WarlockMath.
-     * 1.13.0 (Б3): регистрация канала в CastChannels для прерывания interruptible-CC
-     *              (STUN/SILENCE/FEAR на кастере → cancelChannelTasks → отмена всех задач,
-     *              включая финальный взрыв). Antiheal-таймеры жертв уже применены —
-     *              не снимаются (это корректное поведение: зона уже нанесла дебафф).
-     */
+    /** 1.11.2 (T2) + 1.11.4 + 1.13.0 (Б3): канал с задачами в CHANNEL_TASKS + CastChannels. */
     public boolean soulRift(Player caster, AbilityDef def) {
         double radius = radius(def, 8.0) + specRiftRadiusBonus(caster);
         double channelSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".channel", 2.5);
@@ -375,7 +372,6 @@ public final class WarlockAbilities implements Listener {
         WarlockFx.ringFx(caster.getLocation(), radius, Particle.CRIMSON_SPORE, 2);
 
         List<BukkitTask> tasks = new ArrayList<>();
-        // 1.13.0 (Б3): регистрация канала для прерывания CC (STUN/SILENCE/FEAR)
         CastChannels.register(caster.getUniqueId(),
                 () -> cancelChannelTasks(caster.getUniqueId()));
 
@@ -432,7 +428,6 @@ public final class WarlockAbilities implements Listener {
             }
             plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
             purgeStaleDebuffs();
-            // 1.13.0 (Б3): снятие CastChannels-регистрации при штатном завершении канала
             CastChannels.unregister(caster.getUniqueId());
             CHANNEL_TASKS.remove(caster.getUniqueId());
         }, ticks + 1L);
