@@ -38,6 +38,7 @@ import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.hook.GearHook;
 import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.spec.SpecLegacyReset;
 import dev.raskol.classes.spec.SpecMath;
 import dev.raskol.classes.talent.TalentModel;
 import dev.raskol.classes.talent.TalentsRegistry;
@@ -59,9 +60,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
- * Чеки 1–90: линии 1.7.4.1–1.13.0.
- * Чеки 91–92 (1.14.0 Б1): Spec enum 18 активных + 6 legacy = 24 константы;
- *         legacy-алиасы нормализуются в современные спеки.
+ *
+ * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
+ * Чеки 17–18: TTK-санити (якорь balance.target-ttk-seconds).
+ * Чеки 19–20: сводный уровень topNAverage (1.8.0).
+ * Чек 21: фракционный гейт canHit (1.8.1).
+ * Чеки 22–24: экономика очков талантов, стоимость дерева, reconcile-цикл (1.9.0).
+ * Чеки 29–32: боевое окно, consume, глобальный бюджет, reconcile-прунинг (1.9.1–1.9.2).
+ * Чеки 33–36: план B (scale/healFormula/targetCarrier), tickDelta (1.9.3).
+ * Чеки 37–40: чернокнижник — реестры/гейты/конфиг/симулятор/матрица (1.10.0).
+ * Чеки 41–48: WarlockMath, sanity китов, SpecMath, per-class loader (1.11.4 P4/P5).
+ * Чеки 49–65: школы (1.12.0–1.12.3) — channel/vanilla-school/legacy/penetration/immunities.
+ * Чеки 66–75: DoT-ядро и баланс-матрица (1.12.4–1.12.7).
+ * Чеки 76–90: CC/DR-слой (1.13.0).
+ * Чеки 91–92 (1.14.0 Б1): Spec enum 24 константы (18 активных + 6 legacy);
+ *         legacy-алиасы нормализуются в современные спеки; forClass=3.
+ * Чеки 93–94 (1.14.0 Б2): legacy-ключи обнуления (6 шт) и идемпотентность
+ *         SpecLegacyReset.resetPlayer (первый проход стирает и возвращает очки,
+ *         второй = 0).
  */
 public final class SelftestRunner {
 
@@ -73,6 +89,7 @@ public final class SelftestRunner {
         int failed = 0;
         StringBuilder report = new StringBuilder();
 
+        // --- 1–3 dodgeRaw ---
         double d1 = AttributeMath.dodgeRaw(0.0, 100.0);
         double d2 = AttributeMath.dodgeRaw(100.0, 100.0);
         double d3 = AttributeMath.dodgeRaw(300.0, 100.0);
@@ -80,6 +97,7 @@ public final class SelftestRunner {
         if (check(report, "2", "dodgeRaw(100,100)=50", d2 == 50.0, "dodgeRaw", d2)) passed++; else failed++;
         if (check(report, "3", "dodgeRaw(300,100)=75", d3 == 75.0, "dodgeRaw", d3)) passed++; else failed++;
 
+        // --- 4–6 parryRaw ---
         double p1 = AttributeMath.parryRaw(0.0, 150.0);
         double p2 = AttributeMath.parryRaw(150.0, 150.0);
         double p3 = AttributeMath.parryRaw(450.0, 150.0);
@@ -87,6 +105,7 @@ public final class SelftestRunner {
         if (check(report, "5", "parryRaw(150,150)=50", p2 == 50.0, "parryRaw", p2)) passed++; else failed++;
         if (check(report, "6", "parryRaw(450,150)=75", p3 == 75.0, "parryRaw", p3)) passed++; else failed++;
 
+        // --- 7–9 applyDR ---
         double dr1 = AttributeMath.applyDR(0.0, 60.0, 0.5, 75.0);
         double dr2 = AttributeMath.applyDR(80.0, 60.0, 0.5, 75.0);
         double dr3 = AttributeMath.applyDR(200.0, 60.0, 0.5, 75.0);
@@ -94,6 +113,7 @@ public final class SelftestRunner {
         if (check(report, "8", "applyDR(80)=70", Math.abs(dr2 - 70.0) < 1e-6, "applyDR", dr2)) passed++; else failed++;
         if (check(report, "9", "applyDR(200)=75", dr3 == 75.0, "applyDR", dr3)) passed++; else failed++;
 
+        // --- 10–11 splitEff ---
         double[] sp1 = AttributeMath.splitEff(50.0, 50.0, 50.0);
         boolean sp1ok = sp1 != null && sp1.length == 2 && sp1[0] == 25.0 && sp1[1] == 25.0;
         if (check(report, "10", "splitEff(50,50,50)=[25,25]", sp1ok, "splitEff",
@@ -103,6 +123,7 @@ public final class SelftestRunner {
         if (check(report, "11", "splitEff(0,100,50)=[0,50]", sp2ok, "splitEff",
                 sp2 != null && sp2.length == 2 ? sp2[0] + "," + sp2[1] : "null")) passed++; else failed++;
 
+        // --- 12–14 isFront/isBack ---
         boolean f1 = AttributeMath.isFront(0.0, 90.0);
         boolean f2 = AttributeMath.isFront(180.0, 90.0);
         boolean b1 = AttributeMath.isBack(180.0, 135.0);
@@ -110,6 +131,7 @@ public final class SelftestRunner {
         if (check(report, "13", "isFront(180,90)=false", !f2, "isFront", f2)) passed++; else failed++;
         if (check(report, "14", "isBack(180,135)=true", b1, "isBack", b1)) passed++; else failed++;
 
+        // --- 15 weaponPower/spellPower/healPower ---
         double wpWarrior = PowerService.weaponPowerFormula(30.0, 60.0, 30.0, 1.5, 0.5);
         double spMage = PowerService.spellPowerFormula(30.0, 60.0, 1.5);
         double hpowPriest = PowerService.healPowerFormula(25.0, 60.0, 1.4);
@@ -120,6 +142,7 @@ public final class SelftestRunner {
         if (check(report, "15c", "HPow(жрец 40 ур.)=109", Math.abs(hpowPriest - 109.0) < 1e-6,
                 "healPowerFormula", hpowPriest)) passed++; else failed++;
 
+        // --- 16 cappedDamage ---
         double c1 = CombatService.cappedDamage(9999.0, 1300.0, 35.0);
         double c2 = CombatService.cappedDamage(100.0, 1300.0, 35.0);
         double c3 = CombatService.cappedDamage(500.0, 1000.0, 0.0);
@@ -130,6 +153,7 @@ public final class SelftestRunner {
         if (check(report, "16c", "capped(500,1000,0)=500", c3 == 500.0,
                 "cappedDamage", c3)) passed++; else failed++;
 
+        // --- 17 TTK воин↔воин ---
         BalanceSimulator.DuelResult ww = BalanceSimulator.duel(
                 plugin, PlayerClass.WARRIOR, PlayerClass.WARRIOR, 40, 42L);
         boolean ok17 = !ww.timeout() && ww.ttkSeconds() >= 10.0 && ww.ttkSeconds() <= 60.0;
@@ -139,6 +163,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 18 TTK жрец↔жрец ---
         BalanceSimulator.DuelResult pp = BalanceSimulator.duel(
                 plugin, PlayerClass.PRIEST, PlayerClass.PRIEST, 40, 42L);
         boolean ok18 = pp.timeout() || pp.ttkSeconds() >= 30.0;
@@ -148,6 +173,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 19 topNAverage ---
         int cl1 = CharacterLevelService.topNAverage(new int[]{99, 70, 40, 20, 10, 5, 0}, 5);
         if (check(report, "19", "topNAverage([99..0],5)=47", cl1 == 47, "topNAverage", cl1)) {
             passed++;
@@ -155,6 +181,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 20 topNAverage с нулями ---
         int cl2 = CharacterLevelService.topNAverage(new int[]{15, 0, 0, 0, 0}, 5);
         if (check(report, "20", "topNAverage([15,0,0,0,0],5)=3", cl2 == 3, "topNAverage", cl2)) {
             passed++;
@@ -162,9 +189,12 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // probe = игрок-онлайн для он-лайн чеков (21, 24, 31–35, 82–84, 90, 94)
         Player probe = sender instanceof Player sp
                 ? sp
                 : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
+
+        // --- 21 canHit self/среда ---
         if (probe == null) {
             if (check(report, "21", "canHit: self/среда (пропущено)", true, "canHit", "skip")) {
                 passed++;
@@ -182,6 +212,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 22 очки талантов по уровням ---
         int e39 = TalentModel.earnedPoints(39, 40, 1, 21);
         int e40 = TalentModel.earnedPoints(40, 40, 1, 21);
         int e60 = TalentModel.earnedPoints(60, 40, 1, 21);
@@ -194,6 +225,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 23 treeCost = 21 ---
         int cost = TalentModel.treeCost(List.of(
                 TalentModel.node("t1a", 1), TalentModel.node("t1b", 1),
                 TalentModel.node("t2a1", 2), TalentModel.node("t2a2", 2),
@@ -207,6 +239,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 24 reconcile-цикл ---
         if (probe == null) {
             if (check(report, "24", "reconcile-цикл (пропущено)", true, "reconcile", "skip")) {
                 passed++;
@@ -259,6 +292,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 29 боевое окно ResourceState ---
         ResourceState rsWindow = new ResourceState();
         boolean freshOut = !rsWindow.isInCombat(5000L);
         rsWindow.markCombat();
@@ -269,6 +303,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 30 consume семантика ---
         ResourceState rsConsume = new ResourceState();
         rsConsume.setValue(10.0);
         boolean overDenied = !rsConsume.consume(15.0);
@@ -285,6 +320,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 31 глобальный бюджет ---
         if (probe == null) {
             if (check(report, "31", "глобальный бюджет (пропущено)", true, "spentGlobal", "skip")) {
                 passed++;
@@ -333,6 +369,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 32 reconcile-прунинг ---
         if (probe == null) {
             if (check(report, "32", "reconcile-прунинг (пропущено)", true, "validatePurchased", "skip")) {
                 passed++;
@@ -382,6 +419,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 33–35 план B (skip если нет probe) ---
         if (probe == null) {
             if (check(report, "33", "scale (пропущено)", true, "scale", "skip")) passed++; else failed++;
             if (check(report, "34", "healFormula (пропущено)", true, "healFormula", "skip")) passed++; else failed++;
@@ -422,6 +460,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 36 tickDelta ---
         ResourceState rsDecay = new ResourceState();
         rsDecay.setValue(40.0);
         rsDecay.tickDelta(-5.0);
@@ -442,6 +481,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 37 чернокнижник: реестры пустые ---
         UUID stranger = UUID.randomUUID();
         boolean sealEmpty = WarlockAbilities.sealAmplifyOf(stranger) == 0.0;
         boolean antiEmpty = !WarlockAbilities.isAntihealed(stranger);
@@ -463,6 +503,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 38 конфиг WARLOCK sanity ---
         RaskolConfig cfg = plugin.getRaskolConfig();
         double open = cfg.warlockThresholdOpen();
         double overflow = cfg.warlockThresholdOverflow();
@@ -484,6 +525,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 39 WARLOCK↔WARRIOR без падений ---
         String got39;
         boolean ok39;
         try {
@@ -502,6 +544,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 40 TTK-матрица 6×6 ---
         String got40;
         boolean ok40;
         try {
@@ -518,6 +561,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 41 WarlockMath.recoil ---
         double r1 = WarlockMath.recoilAmount(100.0, 6.66, 840.0, 30.0);
         double r2 = WarlockMath.recoilAmount(10000.0, 6.66, 840.0, 30.0);
         double rHp = WarlockMath.applyRecoil(5.0, 10.0, 1.0);
@@ -532,6 +576,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 42 WarlockMath.drainHeal ---
         double dH1 = WarlockMath.drainHeal(100.0, 0.666, 0.85);
         double dH2 = WarlockMath.drainHeal(100.0, 1.0, 0.85);
         double dH3 = WarlockMath.drainHeal(0.0, 0.666, 0.85);
@@ -546,6 +591,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 43 damageMult/ignore ---
         double m1 = WarlockMath.damageMult(80.0, 75.0, 6.0, 1.1, false);
         double m2 = WarlockMath.damageMult(80.0, 75.0, 6.0, 1.1, true);
         double m3 = WarlockMath.damageMult(50.0, 75.0, 6.0, 1.0, false);
@@ -564,6 +610,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 44 sanity китов ---
         List<String> kitProblems = dev.raskol.classes.config.KitSanity.validateAbilities(plugin);
         boolean ok44 = kitProblems.isEmpty();
         String got44 = ok44 ? "OK" : kitProblems.size() + " проблем: " + kitProblems.get(0);
@@ -576,6 +623,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 45 RUNBOOK пассив-мульты ---
         List<String> multProblems = dev.raskol.classes.config.KitSanity.validatePassiveMults(plugin);
         boolean ok45 = multProblems.isEmpty();
         String got45 = ok45 ? "OK" : multProblems.size() + " проблем: " + multProblems.get(0);
@@ -588,6 +636,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 46 asFraction sanity ---
         double a1 = SpecMath.asFraction(15.0);
         double a2 = SpecMath.asFraction(0.15);
         double a3 = SpecMath.asFraction(100.0);
@@ -601,6 +650,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 47 respecCost ---
         int rc40 = SpecMath.respecCost(40, 250, 10);
         int rc60 = SpecMath.respecCost(60, 250, 10);
         boolean ok47 = rc40 == 650 && rc60 == 850;
@@ -610,6 +660,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 48 per-class loader ---
         int perClassCount = plugin.getRaskolConfig().kitLoader().loadedCount();
         double recoilFromLoader = plugin.getRaskolConfig().classDouble(
                 PlayerClass.WARLOCK, "recoil.percent", 6.66);
@@ -621,6 +672,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 49 School→channel ---
         boolean ok49 = School.PHYSICAL.channel() == DamageType.PHYSICAL
                 && School.TRUE.channel() == DamageType.TRUE
                 && School.FIRE.channel() == DamageType.MAGIC
@@ -636,6 +688,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 50 vanilla-school map ---
         SchoolConfig sc = new SchoolConfig(plugin);
         boolean ok50 = sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) == School.FIRE
                 && sc.schoolOf(EntityDamageEvent.DamageCause.POISON) == School.NATURE
@@ -653,6 +706,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 51 SchoolProfile legacy round-trip ---
         SchoolProfile legacy = SchoolProfile.fromLegacy(new DamageProfile(10.0, 20.0, 5.0));
         DamageProfile back = legacy.toLegacy(sc);
         SchoolProfile fireOnly = SchoolProfile.builder().add(School.FIRE, 30.0).build();
@@ -672,6 +726,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 52 mitigation с pen/elemental/cap ---
         Penetration pen52 = Penetration.of(20.0, 0.25);
         double mit1 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 0.0, false, 0.80);
         double mit2 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 30.0, true, 0.80);
@@ -686,6 +741,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 53 immunity sanity ---
         SchoolImmunity imm = new SchoolImmunity(plugin);
         boolean ok53 = imm.multiplierFor(EntityType.BLAZE, School.FIRE) == 0.0
                 && Math.abs(imm.multiplierFor(EntityType.BLAZE, School.FROST) - 1.5) < 1e-9
@@ -701,6 +757,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 54 penetration clamp + taken ---
         Penetration p54 = Penetration.of(10.0, 0.6).clamped(0.40);
         double taken54 = SchoolMitigation.taken(100.0, 0.25, 1.5);
         boolean ok54 = p54.flat() == 10.0
@@ -714,6 +771,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 55 elemental: суммирование/кап/снятие ---
         var elem = plugin.getCombat().elemental();
         UUID eu = UUID.randomUUID();
         elem.addPermanent(eu, "selftest_t1", School.FIRE, 40.0);
@@ -733,6 +791,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 56 elemental→mitigation связка ---
         UUID eu2 = UUID.randomUUID();
         elem.addPermanent(eu2, "selftest_t3", School.FROST, 40.0);
         double elPct = elem.resistOf(eu2, School.FROST);
@@ -748,6 +807,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 57 gear-pen clamp ---
         double g1 = GearHook.clampPenFraction(60.0, 0.40);
         double g2 = GearHook.clampPenFraction(10.0, 0.40);
         double g3 = GearHook.clampPenFraction(-5.0, 0.40);
@@ -763,6 +823,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 58 gear-pen→mitigation ---
         Penetration gearPen = Penetration.of(0.0, GearHook.clampPenFraction(25.0, 0.40));
         double mitGear = SchoolMitigation.mitigationFor(60.0, gearPen, 0.40, 0.0, false, 0.80);
         boolean ok58 = Math.abs(mitGear - 0.45) < 1e-6;
@@ -773,6 +834,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 59 pen-сумма clamp ---
         double pc1 = PenTraitsService.clampSumPercent(45.0, 0.40);
         double pc2 = PenTraitsService.clampSumPercent(15.0, 0.40);
         double pc3 = PenTraitsService.clampSumPercent(-3.0, 0.40);
@@ -786,6 +848,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 60 pen-трейты без контента = 0 ---
         PenTraitsService pts = new PenTraitsService(plugin);
         UUID pu60 = UUID.randomUUID();
         double t60 = pts.talentPenPercent(pu60, "phys");
@@ -799,6 +862,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 61 legacy проводка при pen=0 ---
         double l1 = SchoolMitigation.mitigationFor(0.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
         double l2 = SchoolMitigation.mitigationFor(35.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
         double l3 = SchoolMitigation.mitigationFor(90.0, Penetration.NONE, 0.40, 0.0, false, 0.90);
@@ -812,6 +876,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 62 school-pen→elemental ---
         double el62 = CombatMath.effectiveResist(40.0, 0.0, 0.25, 0.40);
         double mit62 = SchoolMitigation.mitigationFor(45.0, Penetration.NONE, 0.40, el62, true, 0.90);
         boolean ok62 = Math.abs(el62 - 30.0) < 1e-9
@@ -823,6 +888,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 63 cast-school ThreadLocal ---
         CombatService.setCurrentCastSchool(School.FIRE);
         School s63a = CombatService.currentCastSchool();
         CombatService.clearCastSchool();
@@ -838,6 +904,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 64 schoolCoverage: 30/30 ---
         int covered = plugin.getAbilityRegistry().schoolCoverage();
         boolean ok64 = covered == 30;
         if (check(report, "64", "schoolCoverage: 30/30", ok64, "AbilityRegistry", covered)) {
@@ -846,6 +913,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 65 школы китов по карте ---
         boolean fp65 = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "fire_prometheus").school() == School.FIRE;
         boolean bb65 = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "boreas_breath").school() == School.FROST;
         boolean zw65 = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "zeus_wrath").school() == School.ARCANE;
@@ -862,6 +930,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 66 dot-cap factor ---
         double[] raw66 = {40.0, 30.0};
         double f66 = DotMath.capFactor(raw66, 60.0);
         double f66b = DotMath.capFactor(new double[]{10.0}, 60.0);
@@ -874,6 +943,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 67 dot-mults ---
         double w67 = DotMath.withMults(10.0, 1.5, 0.5, 0.26);
         double w67b = DotMath.withMults(10.0, 1.0, 0.0, 0.0);
         double w67c = DotMath.withMults(-5.0, 2.0, 1.0, 0.0);
@@ -885,6 +955,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 68 DotService + cap ---
         boolean svc68 = plugin.getCombat().dots() != null;
         double capCfg = plugin.getConfig().getDouble("combat.dot-dps-cap-pct", 0.0);
         double lim68 = DotMath.dpsLimit(1000.0, capCfg);
@@ -896,6 +967,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 69 средовые триггеры ---
         boolean ex1 = DotService.shouldExtinguish(School.FIRE, Material.WATER);
         boolean ex2 = DotService.shouldExtinguish(School.FIRE, Material.POWDER_SNOW);
         boolean ex3 = DotService.shouldExtinguish(School.FIRE, Material.STONE);
@@ -909,6 +981,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 70 dots-реестр: 4 школы ---
         var dots70 = plugin.getCombat().dots();
         boolean ok70 = dots70.defById("burning") != null
                 && dots70.defById("burning").dps() > 0.0
@@ -927,6 +1000,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 71 DotInstance: refresh/expiry ---
         UUID uuid71 = UUID.randomUUID();
         DotInstance inst71 = new DotInstance(
                 DotDef.of("selftest_dot", School.FIRE, 5.0, 3000L, 3, "selftest"),
@@ -945,6 +1019,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 72 DotService.activeDotsOf: пустой snapshot ---
         UUID fresh72 = UUID.randomUUID();
         List<DotInstance> empty72 = plugin.getCombat().dots().activeDotsOf(fresh72);
         boolean ok72 = empty72 != null && empty72.isEmpty();
@@ -956,6 +1031,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 73 dots: poison_passive vs poison ---
         DotDef ppDef = plugin.getCombat().dots().defById("poison_passive");
         DotDef poisonDef = plugin.getCombat().dots().defById("poison");
         boolean ok73 = ppDef != null
@@ -974,6 +1050,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 74 миграция poisoned_blades ---
         String poisonDotId = plugin.getConfig().getString(
                 "classes.ROGUE.passives.poisoned_blades.dot", "");
         boolean ok74 = "poison_passive".equals(poisonDotId)
@@ -985,6 +1062,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 75 balance-sanity: матрица чистая ---
         String got75;
         boolean ok75;
         try {
@@ -1023,6 +1101,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 76 DR-множители ---
         double[] mults76 = {1.0, 0.5, 0.25, 0.0};
         boolean ok76 = CCService.drMultiplier(0, mults76) == 1.0
                 && CCService.drMultiplier(1, mults76) == 0.5
@@ -1037,6 +1116,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 77 окно DR ---
         long now77 = System.currentTimeMillis();
         int reset77 = CCService.stackAfterWindow(now77, now77 - 20_000L, 15_000L, 3);
         int keep77 = CCService.stackAfterWindow(now77, now77 - 5_000L, 15_000L, 3);
@@ -1048,6 +1128,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 78 DR-иммунитет ---
         boolean ok78 = CCService.isDrImmune(4, mults76) && !CCService.isDrImmune(3, mults76);
         if (check(report, "78", "DR-иммунитет: стек4=иммун, стек3=нет",
                 ok78, "CCService.isDrImmune",
@@ -1057,6 +1138,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 79 категории DR ---
         boolean ok79 = CCType.STUN.category() == DRCategory.STUN
                 && CCType.KNOCKBACK.category() == DRCategory.STUN
                 && CCType.FEAR.category() == DRCategory.FEAR
@@ -1074,6 +1156,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 80 CCService инициализирован ---
         CCService cc = plugin.getCC();
         boolean ok80 = cc != null && cc.enabled();
         if (check(report, "80", "CCService инициализирован и cc.enabled=true",
@@ -1084,6 +1167,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 81 CCType.breaksOnDamage ---
         boolean ok81 = CCType.ROOT.breaksOnDamage()
                 && CCType.FEAR.breaksOnDamage()
                 && !CCType.STUN.breaksOnDamage()
@@ -1100,6 +1184,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 82 breakOnDamage (ROOT снимается уроном) ---
         if (probe == null || cc == null) {
             if (check(report, "82", "breakOnDamage (пропущено: нет онлайн-игрока)",
                     true, "CCService.breakOnDamage", "skip")) {
@@ -1115,12 +1200,12 @@ public final class SelftestRunner {
             boolean hasBefore = cc.has(u82, CCType.ROOT);
             cc.breakOnDamage(probe, 60.0, 1000.0);
             boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
             cc.breakOnDamage(probe, 30.0, 1000.0);
             boolean hasAfterLow = cc.has(u82, CCType.ROOT);
             cc.removeAll(u82);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
             if (check(report, "82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
                     ok82, "CCService.breakOnDamage",
@@ -1131,6 +1216,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 83 STUN не снимается уроном ---
         if (probe == null || cc == null) {
             if (check(report, "83", "STUN breakOnDamage (пропущено)", true, "CCService.breakOnDamage", "skip")) {
                 passed++;
@@ -1140,13 +1226,13 @@ public final class SelftestRunner {
         } else {
             UUID u83 = probe.getUniqueId();
             cc.removeAll(u83);
-            cc.resetAllDr(u83);
+            cc.resetAllDR(u83);
             boolean applied = applyUntilOk(cc, probe, CCType.STUN, 100);
             boolean hasBefore = cc.has(u83, CCType.STUN);
             cc.breakOnDamage(probe, 60.0, 1000.0);
             boolean hasAfter = cc.has(u83, CCType.STUN);
             cc.removeAll(u83);
-            cc.resetAllDr(u83);
+            cc.resetAllDR(u83);
             boolean ok83 = applied && hasBefore && hasAfter;
             if (check(report, "83", "STUN не снимается уроном ≥ порога",
                     ok83, "CCService.breakOnDamage",
@@ -1157,6 +1243,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 84 CastGuard.canCast ---
         if (probe == null || cc == null) {
             if (check(report, "84", "CastGuard.canCast (пропущено)", true, "CastGuard.canCast", "skip")) {
                 passed++;
@@ -1167,17 +1254,17 @@ public final class SelftestRunner {
             UUID u84 = probe.getUniqueId();
             dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             boolean canNormal = cg.canCast(probe, false);
             applyUntilOk(cc, probe, CCType.STUN, 100);
             boolean canStun = cg.canCast(probe, false);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             applyUntilOk(cc, probe, CCType.SILENCE, 100);
             boolean canSilenceNormal = cg.canCast(probe, false);
             boolean canSilenceInstant = cg.canCast(probe, true);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
             if (check(report, "84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
                     ok84, "CastGuard.canCast",
@@ -1188,6 +1275,7 @@ public final class SelftestRunner {
             }
         }
 
+        // --- 85 wrapVanilla ---
         boolean ok85 = VanillaCCWrapper.wrapTarget(PotionEffectType.SLOWNESS) == CCType.SLOW
                 && VanillaCCWrapper.wrapTarget(PotionEffectType.BLINDNESS) == CCType.BLIND
                 && VanillaCCWrapper.wrapTarget(PotionEffectType.WEAKNESS) == CCType.SILENCE
@@ -1202,6 +1290,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 86 describeApply ---
         String d86 = CCFeedback.describeApply(plugin, CCType.STUN, 60, 0.5);
         boolean ok86 = d86 != null
                 && d86.contains(CCType.STUN.ruName())
@@ -1214,6 +1303,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 87 CastChannels.interrupt ---
         AtomicBoolean cancelled87 = new AtomicBoolean(false);
         UUID ch87 = UUID.randomUUID();
         CastChannels.register(ch87, () -> cancelled87.set(true));
@@ -1228,6 +1318,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 88 /rc cc list/status/test/clear ---
         boolean listOk = false;
         boolean seqOk = true;
         try {
@@ -1250,6 +1341,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 89 CcSanity ---
         List<String> ccProblems = CcSanity.validateCc(plugin);
         boolean ok89 = ccProblems.isEmpty()
                 && CcSanity.inRange(0.5, 0.0, 1.0)
@@ -1263,6 +1355,7 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 90 debug CC/DR данные ---
         if (probe == null || cc == null) {
             if (check(report, "90", "debug CC/DR данные (пропущено: нет онлайн-игрока)",
                     true, "CCService.activeOf/drState", "skip")) {
@@ -1273,12 +1366,12 @@ public final class SelftestRunner {
         } else {
             UUID u90 = probe.getUniqueId();
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean applied90 = applyUntilOk(cc, probe, CCType.STUN, 60);
             boolean activeVisible = !cc.activeOf(u90).isEmpty();
             boolean drVisible = cc.drState(u90, DRCategory.STUN).stackCount() >= 1;
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean cleared90 = cc.activeOf(u90).isEmpty()
                     && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
             boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
@@ -1291,7 +1384,7 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б1): чек 91 — 18 активных спек + 6 legacy = 24 константы; forClass = 3 активных
+        // --- 91 Spec enum: 24 константы (18 активных + 6 legacy) ---
         boolean ok91 = Spec.values().length == 24
                 && Spec.activeValues().length == 18
                 && Spec.forClass(PlayerClass.WARRIOR).length == 3
@@ -1310,7 +1403,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б1): чек 92 — fromId нормализует legacy-id в современные; modernOf() консистентен
+        // --- 92 legacy-нормализация: fromId/modernOf ---
         boolean ok92 = Spec.fromId("tracker") == Spec.SURVIVAL
                 && Spec.fromId("lightbearer") == Spec.HOLY
                 && Spec.fromId("liquidator") == Spec.ASSASSIN
@@ -1330,6 +1423,58 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // --- 93 legacy-ключи обнуления ---
+        boolean ok93 = SpecLegacyReset.legacyTreeKeys().size() == 6
+                && SpecLegacyReset.legacyTreeKeys().contains("tracker")
+                && SpecLegacyReset.legacyTreeKeys().contains("black_mage")
+                && TalentsRegistry.treeOf("tracker") == null
+                && TalentsRegistry.treeOf("lightbearer") == null
+                && TalentsRegistry.treeOf("liquidator") == null
+                && TalentsRegistry.treeOf("trickster") == null
+                && TalentsRegistry.treeOf("survival") != null
+                && TalentsRegistry.treeOf("holy") != null
+                && TalentsRegistry.treeOf("assassin") != null
+                && TalentsRegistry.treeOf("outlaw") != null;
+        if (check(report, "93", "legacy-ключи: 6 на обнуление; treeOf(tracker/lightbearer/liquidator/trickster)=null, новые деревья живы",
+                ok93, "SpecLegacyReset.legacyTreeKeys/TalentsRegistry.treeOf",
+                SpecLegacyReset.legacyTreeKeys().size() + "/"
+                        + (TalentsRegistry.treeOf("tracker") == null) + "/"
+                        + (TalentsRegistry.treeOf("survival") != null))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // --- 94 legacy-reset идемпотентность ---
+        if (probe == null) {
+            if (check(report, "94", "legacy-reset идемпотентность (пропущено: нет онлайн-игрока)",
+                    true, "SpecLegacyReset.resetPlayer", "skip")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        } else {
+            UUID u94 = probe.getUniqueId();
+            List<String> before94 = new ArrayList<>(
+                    plugin.getTalentsStorage().getPurchased(u94, "tracker"));
+            plugin.getTalentsStorage().setPurchased(u94, "tracker",
+                    new ArrayList<>(List.of("t_snare_wire")));
+            int freed94 = plugin.getSpecLegacyReset().resetPlayer(probe);
+            boolean purged94 = plugin.getTalentsStorage().getPurchased(u94, "tracker").isEmpty();
+            int freedAgain94 = plugin.getSpecLegacyReset().resetPlayer(probe);
+            plugin.getTalentsStorage().setPurchased(u94, "tracker", before94);
+            plugin.getTalentService().reconcile(u94);
+            boolean ok94 = freed94 == 1 && purged94 && freedAgain94 == 0;
+            if (check(report, "94", "legacy-reset: 1-й проход стёр 1 узел и вернул очко, 2-й проход = 0 (идемпотентно)",
+                    ok94, "SpecLegacyReset.resetPlayer",
+                    freed94 + "/" + purged94 + "/" + freedAgain94)) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+
+        // --- вывод отчёта ---
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
         for (String line : report.toString().split("\n")) {
             if (!line.isEmpty()) {
@@ -1349,6 +1494,10 @@ public final class SelftestRunner {
         plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
     }
 
+    /**
+     * 1.13.0 (Б2): retry-обёртка tryApply: ccResist-бросок (10–20% у классов)
+     * не должен флапать чеки. DR-иммунитет = честный отказ без ретраев.
+     */
     private static boolean applyUntilOk(CCService cc, Player target, CCType type, int ticks) {
         for (int i = 0; i < 64; i++) {
             CCService.ApplyResult r = cc.tryApply(null, target, type, ticks);
@@ -1362,6 +1511,7 @@ public final class SelftestRunner {
         return false;
     }
 
+    /** Первый узел тира 1 без пререквизитов (для тестов). */
     private static TalentModel.TalentNode firstT1(TalentModel.TalentTree tree) {
         for (TalentModel.TalentNode node : tree.nodes()) {
             if (node.tier() == 1 && node.prereqs().isEmpty()) {
