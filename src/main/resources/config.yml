@@ -123,6 +123,34 @@ spec:
   respec-base-cost: 250
   respec-per-level: 10
 
+# ------------------------------------------------------------
+# 1.14.0 «Спек 2.0»: деревья путей (Б2 — рантайм ролей и бонусов).
+# Очки: charLevel 15→60 = 46; стоимость ранга 1 очко в любом из 3 деревьев класса;
+# гейты рядов — по очкам ВНУТРИ дерева [0,5,10,15,20,30] (ульт = ряд 6 @30).
+# Ёмкость дерева 50–58 рангов > 46 → закрыть дерево математически нельзя.
+# Основная спека выбирается один раз на 15 (chooseMain) и даёт роль:
+#   FIGHTER +2% урона · TANK +5% ccResist и +5% получаемого лечения ·
+#   HEALER +5% исходящего лечения.
+# ------------------------------------------------------------
+spec2:
+  enabled: true
+  start-level: 15
+  points-per-level: 1
+  max-points: 46
+  row-gates: [0, 5, 10, 15, 20, 30]
+  tree-capacity-min: 50
+  respec-base-cost: 250
+  respec-per-level: 10
+  respec-main-role-discount: 0.5
+  role-passives:
+    FIGHTER:
+      damage-mult: 0.02
+    TANK:
+      cc-resist: 0.05
+      heal-received: 0.05
+    HEALER:
+      heal-mult: 0.05
+
 foliant:
   drop-enabled: true
   drop-nether-only: true
