@@ -23,6 +23,8 @@
 #          VanillaCCWrapper (Slowness→SLOW, Blindness→BLIND, Weakness→SILENCE);
 #          HUD CC-строка, CCFeedback, CastChannels (прерывание soul_rift);
 #          CcSanity-валидация, секция CC/DR в /rc debug; selftest 90 чеков.
+#  1.14.0: Спек 2.0 (Батч 1): 18 активных спек + 6 legacy; новые спек-ключи
+#          чернокнижника (affliction/destruction/demonology) + cc.feedback-hologram.
 # ============================================================
 
 hud:
@@ -185,6 +187,9 @@ resist:
     guardian:
       physical: 10
     hell_channel:
+      magic: 6
+    # 1.14.0: нормализованные игроки (hell_channel→DEMONOLOGY) сохраняют +6% маг
+    demonology:
       magic: 6
 
 attributes:
@@ -378,8 +383,8 @@ dots:
 # Категории: STUN+KNOCKBACK, FEAR+CHARM, SILENCE+DISARM, ROOT, SLOW, BLIND.
 # ccResist: класс + Скверна≥75 (чернокнижник); кап 60%.
 # ccPower: Скверна≥75 → +20% длительности накладываемого CC; кап 50%.
-# Батч 1: модель + DR-ядро. Запреты действий, обёртка ванили, HUD и команды —
-# батчи 2–4; до них cc.enabled=true безопасен (tryApply никто не зовёт).
+# 1.14.0-fix: feedback-hologram — голограмма TextDisplay над целью при наложении
+# CC (вместо CC-строки в HUD, убранной по решению гейм-дизайна).
 # ------------------------------------------------------------
 cc:
   enabled: true
@@ -393,6 +398,7 @@ cc:
   corruption-power-bonus: 0.20
   charm:
     allow-on-players: false
+  feedback-hologram: true
   class-resist:
     WARRIOR: 0.20
     HUNTER: 0.15
@@ -449,7 +455,8 @@ messages:
       HOLY: "✦"
       ARCANE: "✧"
       TRUE: "◈"
-  # 1.13.0: тексты и иконки CC-слоя (consumed с батча 3: HUD/фидбек)
+  # 1.13.0: тексты и иконки CC-слоя (HUD-строка убрана в 1.14.0-fix,
+  # hud-* ключи оставлены для будущей витрины; голограмма использует ruName)
   cc:
     applied: "§c{type} §7на {duration}с (DR {dr-mult}×)"
     applied-to-caster: "§a{target}: {type} §7на {duration}с"
@@ -992,6 +999,18 @@ classes:
     cast-sound: ITEM_BOOK_PAGE_TURN
     cast-particle: SCULK_SOUL
     specs:
+      # 1.14.0: три новые спеки чернокнижника (WarlockAbilities читает эти пути)
+      affliction:
+        soul-rift-radius-bonus: 2.0
+        unwriting-strips-resist: 1
+        dot-duration-bonus: 0.30
+      destruction:
+        damage-mult: 0.10
+      demonology:
+        seal-duration: 86.6
+        antiheal-bonus: 3.0
+        decay: -2.0
+      # legacy (1.13.0 и ранее): код больше не читает, оставлены для отката конфига
       black_mage:
         damage-mult: 0.10
         unwriting-strips-resist: 1
