@@ -1,3 +1,76 @@
+## Спек 2.0 — Деревья путей (1.14.0)
+
+### Модель
+- **Spec enum** (`spec/Spec.java`): 18 констант, 3 на класс, `id() = name().toLowerCase()`
+- **SpecRole** (`spec/SpecRole.java`): `FIGHTER` / `TANK` / `HEALER`
+- **SpecRoles** (`spec/SpecRoles.java`): static-карта `specId → SpecRole`
+  (guard=TANK, discipline/holy=HEALER, остальные=FIGHTER)
+- **Spec2Tree** (`spec/model/Spec2Tree.java`): 20 узлов, 6 рядов,
+  ёмкость 50–58 рангов
+- **Spec2Node** (`spec/model/Spec2Node.java`): `(id, treeId, row, col,
+  maxRank, prereqs, type, name, lore, effect)`
+- **Spec2Effect** (`spec/model/Spec2Effect.java`): 11 видов эффектов
+  (attr, resist, hp_pct, regen, avoid, pen_*, dot_*, kit_*, cd, proc,
+  unlock_ability, ultimate)
+- **Spec2Points** (`spec/model/Spec2Points.java`): `earnedPoints(level)`,
+  `rowUnlocked(row, spentInTree)`, гейты `[0, 5, 10, 15, 20, 30]`
+
+### Сервисы
+- **Spec2Storage** (`spec/storage/Spec2Storage.java`): персист в
+  `spec2-storage.yml` (main + ranks per tree)
+- **Spec2Service** (`spec/service/Spec2Service.java`):
+  - `chooseMain(player, specId)` — разовый выбор с 15 уровня
+  - `purchase(player, treeId, nodeId)` — покупка ранга
+  - `resetTree(player, treeId, free)` — респис дерева с ценой
+  - `mainSpec/availablePoints/spentGlobal/earnedPoints` — публичные счётчики
+  - `baseBonus/coeffMult/cooldownMult/cooldownSecBonus/avoidBonus/procBonus/
+    regenBonus/healOutPercent/execThresholdBonus/penPercent` — хуки для китов
+  - `reconcile(uuid)` — полный пересчёт всех модификаторов (вызывается на join/
+    reload/passport-change)
+- **Spec2EffectsApplier** (`spec/service/Spec2EffectsApplier.java`): применяет
+  пассивные бонусы (resist/attr/hp_pct/regen/avoid/pen) из узлов на игрока;
+  слушает `Spec2RoleListener`
+- **Spec2Registry** (`spec/registry/Spec2Registry.java`): статический реестр
+  18 деревьев из `registry/trees/{Warrior,Hunter,Rogue,Mage,Priest,Warlock}Trees.java`
+
+### Боевые эффекты узлов
+- **`kit_base` / `kit_mult` / `kit_cd`** — модификаторы способностей:
+  читаются в `*Abilities.dmg()` и `AbilityRegistry.castOn()`
+- **`pen_phys_pct` / `pen_magic_pct` / `pen_<school>`** — агрегируются в
+  `PenTraitsService.totalPenPercent`, с капом `schools.pen-pct-cap` (0.40)
+- **`dot_dur` / `dot_stacks` / `dot_mult`** — применяются в `DotService.specTuned()`
+  при наложении DoT игроком (на каждый каст заново)
+- **`proc`** — бонус к шансу одноимённой пассивки (`BaseClassPassive.onDamageOut/In`)
+- **`avoid`** — плоские `% dodge` / `% parry` (суммируются в
+  `AttributeService.effectiveAvoidance`)
+- **`resist`** — `both` / `phys` / `magic` / `<school>` (через `ResistsService`-модификаторы)
+- **`unlock_ability` / `ultimate`** — открывают новые способности в китах;
+  ульты имеют `type=ultimate`, в ряду 6, гейт 30 очков
+
+### Респис
+- **Дерево**: `/rc menu` → «Деревья путей» → END_CRYSTAL (ПКМ №1 — взвести,
+  ПКМ №2 в 30 с — сброс). Цена: `spec2.respec-base-cost` (250) +
+  `spec2.respec-per-level` (10) × потрачено в дереве
+- **Основная спека**: только через `/rc spec respec` (или команда админа);
+  дисконт 50% при роли `TANK`/`HEALER` через `spec2.respec-main-role-discount`
+
+### Конфиги
+```yaml
+spec2:
+  enabled: true
+  start-level: 15
+  points-per-level: 1
+  max-points: 46
+  row-gates: [0, 5, 10, 15, 20, 30]
+  tree-capacity-min: 50
+  respec-base-cost: 250
+  respec-per-level: 10
+  respec-main-role-discount: 0.5
+  role-passives:
+    FIGHTER:  { damage-mult: 0.02 }
+    TANK:     { cc-resist: 0.05, heal-received: 0.05 }
+    HEALER:   { heal-mult: 0.05 }
+    
 # RUNBOOK · Контроль (CC) и убывающая отдача (DR) — 1.13.0
 
 Документ для операторов сервера: как работает CC/DR, какие конфиг-ключи влияют
