@@ -31,8 +31,8 @@ import java.util.UUID;
 
 /**
  * Книга класса: фасад + каркас (рамка, эмблема, навигация) и роутинг кликов.
- * 1.11.4 (P4b): контент вкладок вынесен в gui/book/*Tab; здесь только каркас.
- * Поведение идентично 1.11.3: те же слоты, лоры, сообщения, дабл-арм сбросы.
+ * 1.11.4 (P4b): контент вкладок вынесен в gui/book/*Tab.
+ * 1.14.0 (Б3): SpecsTab и TalentsTab переключены на Spec2.
  */
 public final class ClassBook implements InventoryHolder {
 
@@ -99,7 +99,7 @@ public final class ClassBook implements InventoryHolder {
         inventory.setItem(BookSlots.SLOT_TAB_CLASS, BookItems.tabIcon(plugin, Material.NAME_TAG,
                 "book.tab.class", "Класс и пассивки", tab == Tab.CLASS));
         inventory.setItem(BookSlots.SLOT_TAB_TALENTS, BookItems.tabIcon(plugin, Material.END_CRYSTAL,
-                "book.tab.talents", "Таланты спеки", tab == Tab.TALENTS));
+                "book.tab.talents", "Деревья путей", tab == Tab.TALENTS));
         inventory.setItem(BookSlots.SLOT_TAB_GEAR, BookItems.tabIcon(plugin, Material.ANVIL,
                 "book.tab.gear", "Шмот и сеты", tab == Tab.GEAR));
         inventory.setItem(BookSlots.SLOT_CLOSE, BookItems.closeIcon());
@@ -110,7 +110,6 @@ public final class ClassBook implements InventoryHolder {
         }
     }
 
-    /** Обработчик кликов книги: каркас + роутинг в активную таб-вью. */
     public static final class ClickHandler implements Listener {
 
         private final RaskolClasses plugin;
