@@ -3,6 +3,7 @@ package dev.raskol.classes.gui.book;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
+import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.gui.ClassBook;
@@ -21,7 +22,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-/** 1.11.4 (P4b): вкладка «Способности»: 5 слотов кита + слот инсталляции. */
+/**
+ * 1.11.4 (P4b): вкладка «Способности»: 5 слотов кита + слот инсталляции.
+ * 1.14.0 (контент-долг 1): ряд TREE_ABILITY_SLOTS — древесные способности,
+ *         открытые узлами деревьев путей (видны только разблокированные).
+ */
 public final class AbilitiesTab implements BookTabView {
 
     @Override
@@ -40,6 +45,20 @@ public final class AbilitiesTab implements BookTabView {
                 ctx.inv().setItem(BookSlots.ABILITY_SLOTS[i], abilityItem(plugin, player, pc, def));
             }
         }
+        // 1.14.0: древесные способности (только открытые узлами)
+        List<AbilityDef> treeDefs = TreeAbilities.defsFor(plugin, pc);
+        int slotIdx = 0;
+        for (AbilityDef def : treeDefs) {
+            if (slotIdx >= BookSlots.TREE_ABILITY_SLOTS.length) {
+                break;
+            }
+            if (!plugin.getSpec2Service().hasUnlocked(player.getUniqueId(), def.id())) {
+                continue;
+            }
+            ctx.inv().setItem(BookSlots.TREE_ABILITY_SLOTS[slotIdx],
+                    abilityItem(plugin, player, pc, def, true));
+            slotIdx++;
+        }
         InstallationType type = InstallationType.forClass(pc);
         if (type != null) {
             ctx.inv().setItem(BookSlots.SLOT_INSTALL, installItem(plugin, player, pc, type));
@@ -57,23 +76,16 @@ public final class AbilitiesTab implements BookTabView {
             if (def == null) {
                 return;
             }
-            if (left) {
-                if (plugin.getAbilities().tryCast(player, def)) {
-                    plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
-                }
-            } else {
-                if (countAbilityScrolls(plugin, player, def.id()) > 0) {
-                    player.sendMessage(Component.text(BookItems.msg(plugin,
-                            "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
-                            NamedTextColor.GRAY));
-                } else {
-                    player.getInventory().addItem(plugin.getTokens().create(def, pc));
-                    player.sendMessage(Component.text(BookItems.msg(plugin,
-                            "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
-                            .append(Component.text(def.displayName(), pc.getColor())));
-                }
+            handleAbilityClick(ctx, player, pc, def, left, right);
+            return;
+        }
+        int treeIdx = BookSlots.indexOf(BookSlots.TREE_ABILITY_SLOTS, slot);
+        if (treeIdx >= 0) {
+            AbilityDef def = visibleTreeDefAt(plugin, player, pc, treeIdx);
+            if (def == null) {
+                return;
             }
-            ctx.refresh();
+            handleAbilityClick(ctx, player, pc, def, left, right);
             return;
         }
         if (slot == BookSlots.SLOT_INSTALL) {
@@ -99,9 +111,51 @@ public final class AbilitiesTab implements BookTabView {
         }
     }
 
+    /** Def древесной способности, отображённый в позиции posIdx (только открытые). */
+    private AbilityDef visibleTreeDefAt(RaskolClasses plugin, Player player, PlayerClass pc, int posIdx) {
+        int seen = 0;
+        for (AbilityDef def : TreeAbilities.defsFor(plugin, pc)) {
+            if (!plugin.getSpec2Service().hasUnlocked(player.getUniqueId(), def.id())) {
+                continue;
+            }
+            if (seen == posIdx) {
+                return def;
+            }
+            seen++;
+        }
+        return null;
+    }
+
+    private void handleAbilityClick(RenderCtx ctx, Player player, PlayerClass pc,
+                                    AbilityDef def, boolean left, boolean right) {
+        RaskolClasses plugin = ctx.plugin();
+        if (left) {
+            if (plugin.getAbilities().tryCast(player, def)) {
+                plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
+            }
+        } else {
+            if (countAbilityScrolls(plugin, player, def.id()) > 0) {
+                player.sendMessage(Component.text(BookItems.msg(plugin,
+                        "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
+                        NamedTextColor.GRAY));
+            } else {
+                player.getInventory().addItem(plugin.getTokens().create(def, pc));
+                player.sendMessage(Component.text(BookItems.msg(plugin,
+                        "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
+                        .append(Component.text(def.displayName(), pc.getColor())));
+            }
+        }
+        ctx.refresh();
+    }
+
     /* ------------------------------ предмет-билдеры ------------------------------ */
 
     private ItemStack abilityItem(RaskolClasses plugin, Player player, PlayerClass pc, AbilityDef def) {
+        return abilityItem(plugin, player, pc, def, false);
+    }
+
+    private ItemStack abilityItem(RaskolClasses plugin, Player player, PlayerClass pc,
+                                  AbilityDef def, boolean treeAbility) {
         UUID uuid = player.getUniqueId();
         long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
         double resource = plugin.getResources().getValue(uuid);
@@ -111,10 +165,10 @@ public final class AbilitiesTab implements BookTabView {
         boolean ready = remaining <= 0 && resource >= def.cost() && unlocked;
         int scrolls = countAbilityScrolls(plugin, player, def.id());
 
-        ItemStack item = new ItemStack(Material.BOOK);
+        ItemStack item = new ItemStack(treeAbility ? Material.ENCHANTED_BOOK : Material.BOOK);
         item.editMeta(meta -> {
             Component name = unlocked
-                    ? TextFx.gradient("[" + def.slot() + "] " + def.displayName(),
+                    ? TextFx.gradient((treeAbility ? "⌥ " : "[" + def.slot() + "] ") + def.displayName(),
                             plugin.getRaskolConfig().themeOf(pc).primary(),
                             plugin.getRaskolConfig().themeOf(pc).secondary())
                     : Component.text("[" + def.slot() + "] " + def.displayName(), NamedTextColor.DARK_GRAY);
@@ -123,6 +177,9 @@ public final class AbilitiesTab implements BookTabView {
             String desc = plugin.getRaskolConfig().abilityDescription(pc, def.id(), "");
             if (!desc.isEmpty()) {
                 lore.add(Component.text(desc, NamedTextColor.GRAY));
+            }
+            if (treeAbility) {
+                lore.add(Component.text("Способность дерева путей", NamedTextColor.DARK_AQUA));
             }
             lore.add(Component.empty());
             lore.add(Component.text("Цена: ", NamedTextColor.GRAY)
@@ -137,21 +194,14 @@ public final class AbilitiesTab implements BookTabView {
                         .replace("{sec}", String.valueOf(def.cooldownMillis() / 1000L)),
                         NamedTextColor.GRAY));
             }
-            lore.add(Component.text(BookItems.msg(plugin, "book.unlock", "Открытие: уровень {level}")
-                    .replace("{level}", String.valueOf(def.unlockLevel())),
-                    unlocked ? NamedTextColor.GRAY : NamedTextColor.RED));
             lore.add(Component.text(scrolls > 0
                     ? BookItems.msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
                             .replace("{count}", String.valueOf(scrolls))
                     : BookItems.msg(plugin, "book.scroll.none", "Свиток: нет"),
                     scrolls > 0 ? NamedTextColor.WHITE : NamedTextColor.DARK_GRAY));
             lore.add(Component.empty());
-            if (!unlocked) {
-                lore.add(Component.text("Заблокировано до уровня " + def.unlockLevel(), NamedTextColor.RED));
-            } else {
-                lore.add(Component.text(BookItems.msg(plugin, "book.use.left", "ЛКМ — применить"), NamedTextColor.YELLOW));
-                lore.add(Component.text(BookItems.msg(plugin, "book.use.right", "ПКМ — свиток в хотбар"), NamedTextColor.GRAY));
-            }
+            lore.add(Component.text(BookItems.msg(plugin, "book.use.left", "ЛКМ — применить"), NamedTextColor.YELLOW));
+            lore.add(Component.text(BookItems.msg(plugin, "book.use.right", "ПКМ — свиток в хотбар"), NamedTextColor.GRAY));
             meta.lore(lore);
             if (ready) {
                 meta.addEnchant(Enchantment.LURE, 1, true);
@@ -192,7 +242,6 @@ public final class AbilitiesTab implements BookTabView {
         return item;
     }
 
-    /** 1.10.4: покрыт HERESY_CIRCLE = «Пентаграмма». */
     private static String installDescDef(InstallationType type) {
         return switch (type) {
             case WAR_BANNER -> "Аура: Resistance I союзникам в радиусе 6 на 8 с";
