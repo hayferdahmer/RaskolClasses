@@ -32,22 +32,15 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 1.13.0: ядро системы контроля (CC) и убывающей отдачи (DR).
- * Б1: tryApply по алгоритму ТЗ п.5.4, DR-математика, иммунитеты, ccResist/ccPower,
- *     тик-поведения ROOT/STUN (стоп-движение), FEAR (блуждание), SLOW (скорость).
- * Б3: CCFeedback на все исходы (apply/resist/immune/dr-immune/expire);
- *     туман BLIND через ванильный BLINDNESS (particles=false, guard в Wrapper);
- *     тик-партиклы CC раз в 10 тиков; interruptible-CC прерывает канал-касты
- *     через CastChannels.interrupt.
- * DR не персистится; смерть/выход снимают CC и сбрасывают DR (ТЗ п.5.5).
+ * 1.14.0 (Б2): ccResist/ccPower/ccReduction получают прибавки из Spec2Service
+ *         (узлы cc_resist/cc_power/cc_dur + роль TANK +5% ccResist).
  */
 public final class CCService implements Listener {
 
-    /** Результат попытки наложения CC. */
     public enum CCResult {
         SUCCESS, FAIL_DISABLED, FAIL_ALLY, FAIL_IMMUNE, FAIL_RESIST, FAIL_DR_IMMUNE
     }
 
-    /** Исход применения: результат + фактическая длительность + множитель DR. */
     public record ApplyResult(CCResult result, int appliedTicks, double drMultiplier) {
         public boolean ok() { return result == CCResult.SUCCESS && appliedTicks > 0; }
     }
@@ -121,12 +114,12 @@ public final class CCService implements Listener {
         return plugin.getConfig().getBoolean("cc.types." + type.id() + ".breaks-on-damage", type.breaksOnDamage());
     }
 
-    /** Шанс промаха под BLIND (cc.types.BLIND.miss-chance, дефолт 0.5). */
     public double blindMissChance() {
         double v = plugin.getConfig().getDouble("cc.types.BLIND.miss-chance", 0.5);
         return Double.isFinite(v) && v >= 0.0 && v <= 1.0 ? v : 0.5;
     }
 
+    /** ccResist цели: класс + Скверна≥75 + spec2-узлы/роль TANK; кап resist-cap. */
     public double ccResistOf(LivingEntity target) {
         double base = 0.0;
         if (target instanceof Player p) {
@@ -140,6 +133,10 @@ public final class CCService implements Listener {
                 base += plugin.getConfig().getDouble("cc.corruption-resist-bonus", 0.10);
             }
         }
+        // 1.14.0 (Б2): spec2 — узлы cc_resist + роль TANK
+        if (plugin.getSpec2Service() != null) {
+            base += plugin.getSpec2Service().ccResistBonus(target.getUniqueId());
+        }
         return Math.max(0.0, Math.min(base, resistCap()));
     }
 
@@ -151,6 +148,7 @@ public final class CCService implements Listener {
         };
     }
 
+    /** ccPower кастера: Скверна≥75 + spec2-узлы cc_power; кап power-cap. */
     public double ccPowerOf(Player caster) {
         double base = 0.0;
         if (caster != null
@@ -159,9 +157,14 @@ public final class CCService implements Listener {
                     >= plugin.getRaskolConfig().warlockThresholdOpen()) {
             base += plugin.getConfig().getDouble("cc.corruption-power-bonus", 0.20);
         }
+        // 1.14.0 (Б2): spec2 — узлы cc_power
+        if (caster != null && plugin.getSpec2Service() != null) {
+            base += plugin.getSpec2Service().ccPowerBonus(caster.getUniqueId());
+        }
         return Math.max(0.0, Math.min(base, powerCap()));
     }
 
+    /** Сокращение длительности получаемого CC: класс + spec2-узлы cc_dur. */
     public double ccReductionOf(LivingEntity target) {
         double base = 0.0;
         if (target instanceof Player p) {
@@ -169,6 +172,10 @@ public final class CCService implements Listener {
             if (pc != null) {
                 base += plugin.getConfig().getDouble("cc.class-reduction." + pc.name(), 0.0);
             }
+        }
+        // 1.14.0 (Б2): spec2 — узлы cc_dur
+        if (plugin.getSpec2Service() != null) {
+            base += plugin.getSpec2Service().ccDurBonus(target.getUniqueId());
         }
         return Math.max(0.0, Math.min(base, reductionCap()));
     }
@@ -298,7 +305,6 @@ public final class CCService implements Listener {
                 .add(new CCInstance(type, sourceUuid, now, applied, drMult));
         onApplyBehavior(target, type, applied);
 
-        // 1.13.0 (Б3): прерывание канал-кастов interruptible-контролем
         if (type.interruptible() && CastChannels.interrupt(targetUuid)) {
             CCFeedback.onInterruptCast(plugin, target, type);
         }
@@ -380,7 +386,7 @@ public final class CCService implements Listener {
         }
     }
 
-    /* ------------------------------ DR-состояние (команды/отладка) ------------------------------ */
+    /* ------------------------------ DR-состояние ------------------------------ */
 
     public DRState drState(UUID targetUuid, DRCategory cat) {
         EnumMap<DRCategory, DRState> byCat = drStates.get(targetUuid);
@@ -409,7 +415,6 @@ public final class CCService implements Listener {
         }
     }
 
-    /** Ванильный туман слепоты без партиклей-эмиттеров; Wrapper его не оборачивает. */
     private void applyBlindFog(LivingEntity target, int ticks) {
         if (!(target instanceof Player p)) {
             return;
@@ -554,6 +559,6 @@ public final class CCService implements Listener {
     public void onDeath(EntityDeathEvent event) {
         UUID uuid = event.getEntity().getUniqueId();
         removeAll(uuid);
-        resetAllDr(uuid); // ТЗ п.5.5: смерть сбрасывает DRState
+        resetAllDr(uuid);
     }
 }
