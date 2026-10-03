@@ -21,10 +21,11 @@
 #  1.13.0: КОНТРОЛЬ (CC) И УБЫВАЮЩАЯ ОТДАЧА (DR):
 #          секция cc: + messages.cc.* + /rc cc status/clear/test/reset/list;
 #          VanillaCCWrapper (Slowness→SLOW, Blindness→BLIND, Weakness→SILENCE);
-#          HUD CC-строка, CCFeedback, CastChannels (прерывание soul_rift);
-#          CcSanity-валидация, секция CC/DR в /rc debug; selftest 90 чеков.
-#  1.14.0: Спек 2.0 (Батч 1): 18 активных спек + 6 legacy; новые спек-ключи
-#          чернокнижника (affliction/destruction/demonology) + cc.feedback-hologram.
+#          HUD CC-строка убрана (голограмма TextDisplay вместо неё), CCFeedback,
+#          CastChannels (прерывание soul_rift); CcSanity; selftest 90 чеков.
+#  1.14.0: «Спек 2.0» — деревья путей: секция spec2: (очки 15→46, гейты рядов),
+#          18 спеков (3 на класс), роли FIGHTER/TANK/HEALER, DoT wither (SHADOW),
+#          спек-ключи чернокнижника affliction/destruction/demonology.
 # ============================================================
 
 hud:
@@ -111,6 +112,10 @@ character-level:
     - mining
     - forging
 
+# ------------------------------------------------------------
+# LEGACY (удаляется в 1.14.0-Б8 вместе с talent/*): старая экономика
+# талантов 40→21. До Б8 живые чеки selftest 22–23 читают эти ключи.
+# ------------------------------------------------------------
 talents:
   enabled: true
   start-level: 40
@@ -124,7 +129,7 @@ spec:
   respec-per-level: 10
 
 # ------------------------------------------------------------
-# 1.14.0 «Спек 2.0»: деревья путей (Б2 — рантайм ролей и бонусов).
+# 1.14.0 «Спек 2.0»: деревья путей.
 # Очки: charLevel 15→60 = 46; стоимость ранга 1 очко в любом из 3 деревьев класса;
 # гейты рядов — по очкам ВНУТРИ дерева [0,5,10,15,20,30] (ульт = ряд 6 @30).
 # Ёмкость дерева 50–58 рангов > 46 → закрыть дерево математически нельзя.
@@ -404,15 +409,20 @@ dots:
     dps: 2.0
     duration: 3
     max-stacks: 1
+  # 1.14.0 (Б7): DoT Чернокнижника-Колдовства и Жреца-Тьмы
+  wither:
+    school: SHADOW
+    dps: 2.5
+    duration: 6
+    max-stacks: 3
 
 # ------------------------------------------------------------
 # 1.13.0: КОНТРОЛЬ (CC) И УБЫВАЮЩАЯ ОТДАЧА (DR)
 # Окно DR 15 с; множители [1.0, 0.5, 0.25, 0.0] → 4-й CC в окне = иммунитет.
 # Категории: STUN+KNOCKBACK, FEAR+CHARM, SILENCE+DISARM, ROOT, SLOW, BLIND.
-# ccResist: класс + Скверна≥75 (чернокнижник); кап 60%.
-# ccPower: Скверна≥75 → +20% длительности накладываемого CC; кап 50%.
-# 1.14.0-fix: feedback-hologram — голограмма TextDisplay над целью при наложении
-# CC (вместо CC-строки в HUD, убранной по решению гейм-дизайна).
+# ccResist: класс + Скверна≥75 (чернокнижник) + spec2-узлы/роль TANK; кап 60%.
+# ccPower: Скверна≥75 + spec2-узлы; кап 50%.
+# Визуал: голограмма TextDisplay (cc.feedback-hologram), HUD-строки CC нет.
 # ------------------------------------------------------------
 cc:
   enabled: true
@@ -483,8 +493,6 @@ messages:
       HOLY: "✦"
       ARCANE: "✧"
       TRUE: "◈"
-  # 1.13.0: тексты и иконки CC-слоя (HUD-строка убрана в 1.14.0-fix,
-  # hud-* ключи оставлены для будущей витрины; голограмма использует ruName)
   cc:
     applied: "§c{type} §7на {duration}с (DR {dr-mult}×)"
     applied-to-caster: "§a{target}: {type} §7на {duration}с"
@@ -540,7 +548,7 @@ messages:
       abilities: "Способности"
       specs: "Специализации"
       class: "Класс и пассивки"
-      talents: "Таланты спеки"
+      talents: "Деревья путей"
       gear: "Шмот и сеты"
       hint: "Клик — открыть вкладку"
     cost: "Цена: {cost} {resource}"
@@ -568,7 +576,7 @@ messages:
     spec:
       passive: "Пассив: {text}"
       chosen: "Выбрана тобой"
-      notchosen: "Не выбрана · ПКМ — выбрать (уровень 40+)"
+      notchosen: "Не выбрана · ПКМ — выбрать (уровень 15+)"
       other: "Выбрана другая спека — отречение ниже"
     respec:
       title: "Отречение от пути"
@@ -615,7 +623,7 @@ messages:
       priest: "Свет: +2/с всегда; +5 за событие лечения"
       mage: "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75"
       rogue: "Энергия: +10/с"
-      warlock: "Скверна: +9 за урон, +5 при получении, +15 за убийство, +25 за Чёрное Слово; вне боя −4/с до 0 (Адский Канал: −2/с). При 75+ урон ×1.2; при 100 — тик 1% maxHP/с"
+      warlock: "Скверна: +9 за урон, +5 при получении, +15 за убийство, +25 за Чёрное Слово; вне боя −4/с до 0 (Демонология: −2/с). При 75+ урон ×1.2; при 100 — тик 1% maxHP/с"
     emblem:
       resource: "Ресурс сейчас: {value}/100"
       crown: "Корона: {name}"
@@ -1027,7 +1035,7 @@ classes:
     cast-sound: ITEM_BOOK_PAGE_TURN
     cast-particle: SCULK_SOUL
     specs:
-      # 1.14.0: три новые спеки чернокнижника (WarlockAbilities читает эти пути)
+      # 1.14.0: три спеки чернокнижника (WarlockAbilities читает эти пути)
       affliction:
         soul-rift-radius-bonus: 2.0
         unwriting-strips-resist: 1
@@ -1205,6 +1213,8 @@ vfx:
       particle: COMPOSTER
     physical:
       particle: DAMAGE_INDICATOR
+    shadow:
+      particle: SCULK_SOUL
   tyr_strike:
     cast-sound: ENTITY_IRON_GOLEM_ATTACK
     cast-particle: SWEEP_ATTACK
