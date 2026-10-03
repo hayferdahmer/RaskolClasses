@@ -7,18 +7,15 @@ import dev.raskol.classes.combat.school.School;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * 1.14.0 (контент-долги): способности, открываемые узлами деревьев путей
  * (type=unlock_ability/ultimate). Def'ы читаются из конфига
- * classes.<CLASS>.treeAbilities.<id>.* (name/description/cost/cooldown/power/
- * base/coeff/school/radius); кастеры регистрируются в AbilityRegistry отдельно
- * от базовых слотов 1–5, поэтому selftest-чеки китов (44/64/65) не меняются.
+ * classes.<CLASS>.treeAbilities.<id>.*; кастеры регистрируются в AbilityRegistry
+ * отдельно от базовых слотов 1–5 (selftest-чеки китов не меняются).
+ * Гейт доступа — внутри методов кита: Spec2Service.hasUnlocked(uuid, id).
  *
- * Гейт доступа — внутри методов кита: Spec2Service.hasUnlocked(uuid, id)
- * (ранг ≥1 у узла с effect unlock_ability target=<id>).
- * Слоты в Книге: 6+ (ряд TREE_ABILITY_SLOTS), свитки работают как у базовых.
+ * Контент-долг 1: Воин (9 способностей). Контент-долг 2: Охотник (14).
  */
 public final class TreeAbilities {
 
@@ -31,7 +28,12 @@ public final class TreeAbilities {
             case WARRIOR -> List.of(
                     "whirlwind_slash", "mortal_strike", "bloodthirst", "rampage",
                     "concussive_blow", "shield_bash", "taunt", "bladestorm", "last_stand");
-            default -> List.of(); // остальные классы — следующие контент-батчи
+            case HUNTER -> List.of(
+                    "aimed_shot", "silencing_shot", "chimera_shot", "true_shot",
+                    "poison_shot", "explosive_trap", "black_arrow", "wyvern_sting",
+                    "readiness", "serpent_sting", "intimidation", "pet_wolf",
+                    "beast_ferocity", "bestial_wrath");
+            default -> List.of(); // Разбойник/Маг/Жрец/Чернокнижник — следующие долги
         };
     }
 
@@ -73,7 +75,7 @@ public final class TreeAbilities {
         return s != null ? s : School.PHYSICAL;
     }
 
-    /** Регистрация кастеров древесных способностей Воина (1.14.0, контент-долг 1). */
+    /** Регистрация кастеров древесных способностей (Воин + Охотник). */
     public static void registerCasters(RaskolClasses plugin, AbilityRegistry registry) {
         WarriorAbilities warrior = new WarriorAbilities(plugin);
         registry.registerTreeCaster("whirlwind_slash", warrior::whirlwindSlash);
@@ -85,29 +87,41 @@ public final class TreeAbilities {
         registry.registerTreeCaster("taunt", warrior::taunt);
         registry.registerTreeCaster("bladestorm", warrior::bladestorm);
         registry.registerTreeCaster("last_stand", warrior::lastStand);
+
+        HunterAbilities hunter = new HunterAbilities(plugin);
+        registry.registerTreeCaster("aimed_shot", hunter::aimedShot);
+        registry.registerTreeCaster("silencing_shot", hunter::silencingShot);
+        registry.registerTreeCaster("chimera_shot", hunter::chimeraShot);
+        registry.registerTreeCaster("true_shot", hunter::trueShot);
+        registry.registerTreeCaster("poison_shot", hunter::poisonShot);
+        registry.registerTreeCaster("explosive_trap", hunter::explosiveTrap);
+        registry.registerTreeCaster("black_arrow", hunter::blackArrow);
+        registry.registerTreeCaster("wyvern_sting", hunter::wyvernSting);
+        registry.registerTreeCaster("readiness", hunter::readiness);
+        registry.registerTreeCaster("serpent_sting", hunter::serpentSting);
+        registry.registerTreeCaster("intimidation", hunter::intimidation);
+        registry.registerTreeCaster("pet_wolf", hunter::petWolf);
+        registry.registerTreeCaster("beast_ferocity", hunter::beastFerocity);
+        registry.registerTreeCaster("bestial_wrath", hunter::bestialWrath);
     }
 
-    /** Человекочитаемое имя для сообщений гейта. */
     public static String displayName(RaskolClasses plugin, PlayerClass pc, String id) {
         AbilityDef def = defById(plugin, pc, id);
         return def != null ? def.displayName() : id;
     }
 
-    /** Ключ конфига радиуса (дефолт 4.0). */
     public static double radiusOf(RaskolClasses plugin, PlayerClass pc, String id, double def) {
         double v = plugin.getConfig().getDouble(
                 "classes." + pc.name() + ".treeAbilities." + id + ".radius", def);
         return Double.isFinite(v) && v > 0.0 ? v : def;
     }
 
-    /** Ключ конфига длительности в секундах (дефолт def). */
     public static int durationOf(RaskolClasses plugin, PlayerClass pc, String id, int def) {
         int v = plugin.getConfig().getInt(
                 "classes." + pc.name() + ".treeAbilities." + id + ".duration", def);
         return v > 0 ? v : def;
     }
 
-    /** Утиль: имя класса в нижнем регистре для сообщений. */
     public static String pcName(PlayerClass pc) {
         return pc.name().toLowerCase(Locale.ROOT);
     }
