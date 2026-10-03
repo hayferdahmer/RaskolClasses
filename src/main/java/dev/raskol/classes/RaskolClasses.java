@@ -3,6 +3,7 @@ package dev.raskol.classes;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
+import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.HpAttributeSync;
@@ -64,8 +65,8 @@ import java.util.List;
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
  * 1.13.0: CC-слой (CCService/CCGuard/CastGuard).
  * 1.14.0 (Б8.2): legacy-слой (talent/*, spec/Spec*, specs.yml) УДАЛЁН;
- *         единственная система спеков/талантов — spec2 (Spec2Storage/Spec2Service/
- *         Spec2EffectsApplier/Spec2RoleListener).
+ *         единственная система спеков/талантов — spec2.
+ * 1.14.0 (контент-долг 1): TreeAbilities.registerCasters — древесные способности Воина.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -166,6 +167,8 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.abilities = new AbilityRegistry(this);
         abilities.loadFromConfig(raskolConfig);
+        // 1.14.0 (контент-долг 1): кастеры древесных способностей Воина
+        TreeAbilities.registerCasters(this, abilities);
 
         this.hud = new HudService(this);
         this.bossBars = new BossBarService(this);
