@@ -27,12 +27,14 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Реестр способностей шести классов.
  * 1.7.4.1: кулдаун стартует ТОЛЬКО после успешного каста.
- * 1.9.0: кулдаун умножается на TalentService.cooldownMult.
+ * 1.9.0: кулдаун умножался на TalentService.cooldownMult.
  * 1.10.0-fix: black_word и unwriting получили SELF-кастеры (ray-таргет).
  * 1.12.3: школа способности (school) из конфига/DEFAULT_SCHOOLS; ThreadLocal-контекст
  *         школы вокруг вызова кастера (CombatService читает в dealDamage).
  * 1.13.0 (Б2): CC-гейт каста — CastGuard.canCast (STUN/FEAR/SILENCE) до антискпа,
  *         кулдаунов и списания ресурса: блокировка каста не тратит ничего.
+ * 1.14.0 (Б8.2-fix): кулдаун из Spec2Service: процент (kind cd) и секунды
+ *         (kind kit_cd, узлы деревьев «−N с кулдауна»); legacy TalentService удалён.
  */
 public final class AbilityRegistry {
 
@@ -348,8 +350,6 @@ public final class AbilityRegistry {
 
         // 1.13.0 (Б2): CC-гейт каста ДО антискпа/кулдаунов/ресурса:
         // блокировка контролем не тратит ресурс и не ставит кулдаун.
-        // instant-флага в AbilityDef пока нет → все способности кастуемые (false);
-        // мгновенные определятся в 1.14.0 через поля узла/кита.
         if (!plugin.getCastGuard().canCast(caster, false)) {
             CCType block = plugin.getCastGuard().blockReason(caster, false);
             caster.sendMessage(Component.text(cfg.message("cc.cast-interrupted",
@@ -408,8 +408,21 @@ public final class AbilityRegistry {
             return false;
         }
 
-        long cdMillis = Math.max(0L, (long) (def.cooldownMillis()
-                * plugin.getTalentService().cooldownMult(id, def.id())));
+        // 1.14.0 (Б8.2-fix): кулдаун из spec2:
+        //   - cooldownMult (процент, kind cd): 1.0 по умолчанию, <1.0 = ускорение
+        //   - cooldownSecBonus (секунды, kind kit_cd): 0.0 по умолчанию,
+        //     узлы деревьев «−N с кулдауна» суммируются сюда
+        // Минимальный кулдаун — 500 мс (антискпам каста).
+        double cdMult = plugin.getSpec2Service().cooldownMult(id, def.id());
+        double cdSecBonus = plugin.getSpec2Service().cooldownSecBonus(id, def.id());
+        if (!Double.isFinite(cdMult) || cdMult <= 0.0) {
+            cdMult = 1.0;
+        }
+        if (!Double.isFinite(cdSecBonus)) {
+            cdSecBonus = 0.0;
+        }
+        long cdMillis = Math.max(500L,
+                (long) (def.cooldownMillis() * cdMult - cdSecBonus * 1000L));
         plugin.getCooldowns().start(id, def.id(), cdMillis, def.displayName());
         if (!targeted) {
             caster.sendMessage(Component.text("«" + def.displayName() + "» — активирована",
