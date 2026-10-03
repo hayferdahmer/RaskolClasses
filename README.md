@@ -61,3 +61,139 @@
 ---
 
 ## IV. ЗДОРОВЬЕ, ШКОЛЫ, DoT И КОНТРОЛЬ
+HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bonus : 0) + gear-hp
+
+- План B: carrier ≤ 1024 (ванильный max_health), formula без потолка, scale = carrier/formula.
+- HpPool (1.11.4): единые точки входа healFormula/currentFormulaHp/targetCarrier.
+- Burst-окно 3 с ≤ 18%, анти-ваншот ≤ 35%, LOS для площадей, летальность среды.
+
+### Школы урона (1.12.x)
+8 школ (PHYSICAL, FIRE, FROST, NATURE, SHADOW, HOLY, ARCANE, TRUE) сворачиваются
+в 3 канала защиты. Митигация: канал-резист → пробитие (flat→pct, кап 40%) →
+стихийный резист (кап 60%) → кап поглощения 90%. Иммунитеты/уязвимости мобов
+(`schools.entities.*`), множители школ, vanilla-school маппинг причин урона.
+
+### DoT-ядро (1.12.4–1.12.7)
+Реестр `dots.*`: burning (FIRE), poison (NATURE), bleed (PHYSICAL), chilled (FROST)
++ пассивные варианты. Стеки, атрибуция владельца, кап суммарного DoT-DPS 6% formula-maxHP.
+Средовые триггеры: вода/пушистый снег гасят огонь, огонь/лава плавят лёд.
+Очищение жреца снимает NATURE+SHADOW. Тик-VFX школ, DoT-строка в HUD.
+
+### Контроль и убывающая отдача (1.13.0)
+9 типов CC, 6 категорий DR: окно 15 с, множители [1.0, 0.5, 0.25, 0.0] →
+4-й CC в окне = иммунитет. ccResist по классам + Скверна; ccPower чернокнижника.
+Иммунитеты боссов и элиты; CHARM на игроков запрещён. Запреты действий под CC,
+гейт каста, прерывание канала soul_rift. Обёртка ванильных зелий
+(Slowness→SLOW, Blindness→BLIND, Weakness→SILENCE) через DR; молоко и
+`/effect clear` снимают CC, но НЕ сбрасывают DR. breaksOnDamage: ROOT/FEAR
+снимаются уроном ≥ 5% maxHP. HUD CC-строка, админка `/rc cc …`, секция в `/rc debug`.
+
+| Класс | L40 | L60 |
+|---|---:|---:|
+| Воин | ≈ 1780 | ≈ 2560 |
+| Маг / Жрец / Чернокнижник | ≈ 700 | ≈ 840 |
+
+---
+
+## V. МОДУЛИ И АРХИТЕКТУРА (линия 1.13.0)
+
+| Слой | Структура |
+|---|---|
+| Способности | `ability/*Abilities` (по классу) + WarlockMath/WarlockFx (pure/визуал) |
+| Пассивки | `passive/ClassPassive` + 5 файлов по классам; PassiveListener = диспетчер |
+| Инсталляции | `install/InstallationHandler` + 6 обработчиков; InstallationService = реестр |
+| Бой | CombatService-фасад + VanillaDamageListener + DamageCaps + CombatMath (pure) |
+| Школы | `combat/school/*`: School, SchoolProfile, SchoolConfig, SchoolMitigation, SchoolImmunity, PenTraitsService, ElementalResistService |
+| DoT | `combat/dot/*`: DotDef, DotInstance, DotMath (pure), DotService |
+| Контроль | `cc/*`: CCType, DRCategory, DRState, CCInstance, CCService, CCGuard, CastGuard, CastChannels, CCFeedback, VanillaCCWrapper, CcSub, CcSanity |
+| Атрибуты | AttributeService-фасад + HpPool (план B) + AttributeModifiers |
+| Спеки | SpecService-фасад + SpecPassives + SpecEconomy + SpecMath (pure) |
+| Книга | ClassBook-фасад + `gui/book/*Tab` (5 вкладок) |
+| HUD | HudService (ресурс + DoT-строка + CC-строка, O1 dirty-rendering) |
+| Команды | RaskolCommand-роутер + `command/sub/*Sub` (debug, gear, foliant, health, cc) |
+| Конфиг | config.yml + per-class `kits/<class>.yml` (приоритет, фолбэк, /rc reload) |
+| Тесты | `/rc selftest` — 90 headless-чеков (формулы, киты, школы, DoT, CC/DR) |
+
+---
+
+## VI. КОМАНДЫ
+
+| Команда | Право | Назначение |
+|---|---|---|
+| `/rc` | — | Сводка игрока |
+| `/rc menu` | — | Книга класса (5 вкладок) |
+| `/rc gear [player]` | debug | Экипировка, статы шмота, сеты N/4 |
+| `/rc debug [player]` | debug | Атрибуты, резисты, pen, стихии, CC/DR |
+| `/rc debug simulate …` | debug | Дуэль и матрица TTK 6×6 |
+| `/rc health` | debug | MSPT/TPS, purge, аптайм, per-class конфиги |
+| `/rc selftest` | debug | 90 headless-чеков |
+| `/rc cc list` | admin.cc | Таблица 9 типов CC и категорий DR |
+| `/rc cc status <player>` | admin.cc | Активные CC + DR-стеки + таймер окна |
+| `/rc cc clear <player>` | admin.cc | Снять все CC + сбросить DR |
+| `/rc cc test <player> <type>` | admin.cc | Наложить тестовый CC |
+| `/rc cc reset <player> <cat>` | admin.cc | Сбросить DR-стек категории |
+| `/rc foliant give <ник>` | admin | Выдать Фолиант Душ (тест/резерв) |
+| `/rc reload` | admin | Перезагрузка config.yml + kits/*.yml |
+
+---
+
+## VII. ПЛЕЙСХОЛДЕРЫ
+
+%raskolclasses_class% %raskolclasses_level% %raskolclasses_hp%
+%raskolclasses_hp_max% %raskolclasses_resource% %raskolclasses_phys_resist%
+%raskolclasses_magic_resist% %raskolclasses_dodge% %raskolclasses_parry%
+%raskolclasses_crit_melee% %raskolclasses_crit_spell% %raskolclasses_spec%
+%raskolclasses_talent_points% %raskolclasses_talents% %raskolcrown_*%
+
+---
+
+## VIII. RASKOLGEAR
+
+| Что | Применяет в бою | Считает и показывает |
+|---|---|---|
+| Урон оружия, крит, проки | RaskolGear | — |
+| Резисты шмота, сет-бонусы 4/4 | RaskolGear | RaskolClasses: `/rc gear`, Книга |
+| pen-трейты шмота (1.12.2) | RaskolClasses (PenTraitsService) | `/rc debug`, Книга |
+| `+HP` шмота | RaskolClasses (HpPool) | HUD, `/rc debug` |
+| Классовые/спек-резисты | RaskolClasses | ResistService + SpecPassives |
+| Burst и single-hit cap | RaskolClasses | DamageCaps |
+
+WARLOCK-сеты добавляются секциями `weapons.WARLOCK.*` / `armor.WARLOCK.*` в конфиг RaskolGear.
+
+---
+
+## IX. УСТАНОВКА
+
+mvn -B clean package
+cp target/raskol-classes-1.13.0.jar plugins/
+restart
+rc selftest → 90/90 PASS
+
+<details>
+<summary>Softdepend</summary>
+
+LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, Vault, RaskolGear, AuthMe, Essentials, packetevents. Каждый опционален, деградация graceful.
+
+</details>
+
+<details>
+<summary>Регресс-матрица selftest (90 чеков)</summary>
+
+Атрибуты и бой 1–48, школы/DoT/pen/стихии 49–75, контроль и DR 76–90.
+Полный прогон перед любым хотфиксом и релизом; чеки 82–84/90 требуют онлайн-зонда
+(иначе SKIP без падения).
+
+</details>
+
+---
+
+## X. ДОКУМЕНТАЦИЯ
+
+- [`RUNBOOK.md`](RUNBOOK.md) — аварии, гейты, тюнинг без пересборки, операторские заметки
+- [`docs/RUNBOOK-CC.md`](docs/RUNBOOK-CC.md) — контроль и DR: конфиг-карта, команды, troubleshooting
+- [`CHANGELOG.md`](CHANGELOG.md) — история версий
+- [`LICENSE`](LICENSE) — RASKOL Proprietary License v1.0
+
+<p align="center">
+  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v1.0 · использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
+</p>
