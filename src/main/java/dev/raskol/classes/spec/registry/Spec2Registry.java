@@ -2,16 +2,18 @@
 package dev.raskol.classes.spec.registry;
 
 import dev.raskol.classes.spec.model.Spec2Tree;
+import dev.raskol.classes.spec.registry.trees.HunterTrees;
+import dev.raskol.classes.spec.registry.trees.RogueTrees;
 import dev.raskol.classes.spec.registry.trees.WarriorTrees;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 1.14.0 «Спек 2.0»: реестр деревьев. Наполняется из per-class файлов
- * registry/trees/*Trees.java (мелкие файлы, по классу):
- * WarriorTrees (Б1: arms; 1.14.4: fury/guard), HunterTrees (1.14.5),
- * RogueTrees (1.14.5), MageTrees (1.14.6), PriestTrees (1.14.6), WarlockTrees (1.14.7).
+ * 1.14.0: реестр деревьев spec2.
+ * Наполняется из per-class файлов registry/trees/*Trees.java.
+ * Б5: добавлены WarriorTrees (fury/guard), HunterTrees (marksmanship/survival/beastmaster),
+ *     RogueTrees (assassination/outlaw/subtlety).
  */
 public final class Spec2Registry {
 
@@ -19,6 +21,8 @@ public final class Spec2Registry {
 
     static {
         WarriorTrees.register(TREES);
+        HunterTrees.register(TREES);
+        RogueTrees.register(TREES);
     }
 
     private Spec2Registry() {
