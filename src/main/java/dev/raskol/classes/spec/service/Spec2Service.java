@@ -3,6 +3,8 @@ package dev.raskol.classes.spec.service;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.hook.EconomyHook;
+import dev.raskol.classes.spec.SpecRole;
 import dev.raskol.classes.spec.SpecRoles;
 import dev.raskol.classes.spec.model.Spec2Node;
 import dev.raskol.classes.spec.model.Spec2Points;
@@ -14,7 +16,6 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,17 +26,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.0 «Спек 2.0»: рантайм деревьев путей.
  * Покупка ранга = 1 очко из общего пула 46 (charLevel 15→60); инвестировать можно
  * в любое из 3 деревьев своего класса; основная спека выбирается один раз на 15
- * (chooseMain) и даёт роль (SpecRoles) + роли-пассивку (Б2).
+ * (chooseMain) и даёт роль (SpecRoles) + роли-пассивку (Spec2RoleListener).
  *
- * reconcile(uuid): валидация рангов (ряд-гейты по очкам дерева, ранговые пререквизиты,
- * maxRank) → агрегация эффектов ×ранг в кэш Agg → хот-путь геттеры для китов
- * (имена совпадают со старым TalentService, чтобы киты не менять в Б2).
+ * reconcile(uuid): валидация рангов (ряд-гейты по очкам дерева, ранговые
+ * пререквизиты, maxRank) → агрегация эффектов ×ранг в кэш Agg → применение
+ * постоянных модификаторов через Spec2EffectsApplier → хот-путь геттеры для
+ * китов и сервисов (имена совпадают со старым TalentService, чтобы киты не менять).
  */
 public final class Spec2Service {
 
     public enum PurchaseResult {
-        OK, DISABLED, RATE_LIMITED, NO_MAIN, WRONG_CLASS_TREE, NODE_NOT_FOUND,
-        ROW_GATE, PREREQ, MAX_RANK, NOT_ENOUGH_POINTS
+        OK, DISABLED, RATE_LIMITED, NO_MAIN, WRONG_CLASS_TREE, TREE_NOT_FOUND,
+        NODE_NOT_FOUND, ROW_GATE, PREREQ, MAX_RANK, NOT_ENOUGH_POINTS
     }
 
     public enum ResetResult {
@@ -52,7 +54,7 @@ public final class Spec2Service {
         public final Map<String, Double> dotDur = new HashMap<>();
         public final Map<String, Double> dotStacks = new HashMap<>();
         public final Map<String, Double> dotMult = new HashMap<>();
-        public final Set<String> unlocked = new HashSet<>();
+        public final Set<String> unlocked = new java.util.HashSet<>();
         public double attrStr, attrAgi, attrInt;
         public double resPhys, resMagic;
         public double dodge, parry;
@@ -66,12 +68,14 @@ public final class Spec2Service {
 
     private final RaskolClasses plugin;
     private final Spec2Storage storage;
+    private final EconomyHook economy;
     private final Map<UUID, Agg> caches = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastActionMs = new ConcurrentHashMap<>();
 
     public Spec2Service(RaskolClasses plugin, Spec2Storage storage) {
         this.plugin = plugin;
         this.storage = storage;
+        this.economy = new EconomyHook(plugin);
     }
 
     public Spec2Storage storage() {
@@ -103,10 +107,16 @@ public final class Spec2Service {
         return Math.max(0, earnedPoints(uuid) - spentGlobal(uuid));
     }
 
-    /* ------------------------------ основная спека ------------------------------ */
+    /* ------------------------------ основная спека и роль ------------------------------ */
 
     public String mainSpec(UUID uuid) {
         return storage.getMain(uuid);
+    }
+
+    /** Роль основной спеки игрока (null если спека не выбрана). */
+    public SpecRole roleOfOwner(UUID uuid) {
+        String main = storage.getMain(uuid);
+        return main == null ? null : SpecRoles.roleOf(main);
     }
 
     /** Выбор основной спеки: один раз, бесплатно, с charLevel ≥ 15, спека своего класса. */
@@ -148,7 +158,7 @@ public final class Spec2Service {
         };
     }
 
-    /* ------------------------------ покупка / сброс ------------------------------ */
+    /* ------------------------------ rate-limit ------------------------------ */
 
     private boolean actionAllowed(UUID uuid) {
         long now = System.currentTimeMillis();
@@ -161,6 +171,8 @@ public final class Spec2Service {
         return true;
     }
 
+    /* ------------------------------ покупка / сброс ------------------------------ */
+
     public PurchaseResult purchase(Player player, String treeId, String nodeId) {
         if (!enabled()) {
             return PurchaseResult.DISABLED;
@@ -169,8 +181,7 @@ public final class Spec2Service {
         if (!actionAllowed(uuid)) {
             return PurchaseResult.RATE_LIMITED;
         }
-        String main = storage.getMain(uuid);
-        if (main == null) {
+        if (storage.getMain(uuid) == null) {
             return PurchaseResult.NO_MAIN;
         }
         if (!classTreeIds(uuid).contains(treeId)) {
@@ -178,7 +189,7 @@ public final class Spec2Service {
         }
         Spec2Tree tree = Spec2Registry.treeOf(treeId);
         if (tree == null) {
-            return PurchaseResult.TREE_NOT_FOUND_AS_NODE();
+            return PurchaseResult.TREE_NOT_FOUND;
         }
         Spec2Node node = tree.find(nodeId);
         if (node == null) {
@@ -205,11 +216,6 @@ public final class Spec2Service {
         return PurchaseResult.OK;
     }
 
-    // компил-мост: отдельного кода TREE_NOT_FOUND нет в enum — маппим на WRONG_CLASS_TREE
-    private PurchaseResult TREE_NOT_FOUND_AS_NODE() {
-        return PurchaseResult.WRONG_CLASS_TREE;
-    }
-
     /** Платный сброс дерева (очки возвращаются в пул). */
     public ResetResult resetTree(Player player, String treeId, boolean free) {
         UUID uuid = player.getUniqueId();
@@ -231,13 +237,13 @@ public final class Spec2Service {
             int spent = tree.spentInTree(ranks);
             int cost = plugin.getConfig().getInt("spec2.respec-base-cost", 250)
                     + plugin.getConfig().getInt("spec2.respec-per-level", 10) * spent;
-            if (!plugin.getEconomy().available()) {
+            if (!economy.available()) {
                 return ResetResult.NO_ECONOMY;
             }
-            if (plugin.getEconomy().balance(uuid) < cost) {
+            if (economy.balance(uuid) < cost) {
                 return ResetResult.POOR;
             }
-            plugin.getEconomy().withdraw(uuid, cost);
+            economy.withdraw(uuid, cost);
         }
         storage.setRanks(uuid, treeId, new HashMap<>());
         reconcile(uuid);
@@ -270,6 +276,9 @@ public final class Spec2Service {
             }
         }
         caches.put(uuid, agg);
+        if (plugin.getSpec2Applier() != null) {
+            plugin.getSpec2Applier().apply(uuid);
+        }
     }
 
     /** Валидация: ряд-гейт по накопленным очкам + ранговые пререквизиты + maxRank. */
@@ -334,10 +343,7 @@ public final class Spec2Service {
             case "sp_pct" -> agg.spPct += e.value();
             case "hpow_pct" -> agg.hpowPct += e.value();
             case "unlock_ability" -> agg.unlocked.add(e.target());
-            default -> {
-                // proc_* и неизвестные kind: в proc-карту по полному имени kind
-                agg.proc.merge(e.kind(), e.value(), Double::sum);
-            }
+            default -> agg.proc.merge(e.kind(), e.value(), Double::sum);
         }
     }
 
@@ -346,7 +352,7 @@ public final class Spec2Service {
         lastActionMs.remove(uuid);
     }
 
-    /* ------------------------------ хот-путь геттеры (имена старого TalentService) ------------------------------ */
+    /* ------------------------------ агрегат ------------------------------ */
 
     private Agg agg(UUID uuid) {
         Agg a = caches.get(uuid);
@@ -357,6 +363,13 @@ public final class Spec2Service {
         return a == null ? new Agg() : a;
     }
 
+    /** Публичный доступ к агрегату для Spec2EffectsApplier и хот-путей сервисов. */
+    public Agg aggOf(UUID uuid) {
+        return agg(uuid);
+    }
+
+    /* ------------------------------ хот-путь геттеры (имена старого TalentService) ------------------------------ */
+
     public double baseBonus(UUID uuid, String abilityId) {
         return agg(uuid).base.getOrDefault(abilityId, 0.0);
     }
@@ -366,11 +379,7 @@ public final class Spec2Service {
     }
 
     public double cooldownMult(UUID uuid, String abilityId) {
-        Agg a = agg(uuid);
-        double pct = a.cdPct.getOrDefault(abilityId, 0.0);
-        double sec = a.cdSec.getOrDefault(abilityId, 0.0);
-        // сек-компонента применяется китом отдельно через cooldownSecBonus; здесь только %
-        return Math.max(0.1, 1.0 - pct);
+        return Math.max(0.1, 1.0 - agg(uuid).cdPct.getOrDefault(abilityId, 0.0));
     }
 
     public double cooldownSecBonus(UUID uuid, String abilityId) {
@@ -390,6 +399,8 @@ public final class Spec2Service {
         return agg(uuid).regen;
     }
 
+    /* ------------------------------ spec2-геттеры для сервисов 1.12–1.13 ------------------------------ */
+
     public double penPercent(UUID uuid, String channel) {
         Agg a = agg(uuid);
         return "phys".equals(channel) ? a.penPhys : a.penMagic;
@@ -407,13 +418,42 @@ public final class Spec2Service {
         return agg(uuid).dotMult.getOrDefault(dotId, 0.0);
     }
 
-    public double ccPowerBonus(UUID uuid) { return agg(uuid).ccPower; }
-    public double ccResistBonus(UUID uuid) { return agg(uuid).ccResist; }
-    public double ccDurBonus(UUID uuid) { return agg(uuid).ccDur; }
-    public double physDmgPercent(UUID uuid) { return agg(uuid).physDmgPct; }
-    public double healOutPercent(UUID uuid) { return agg(uuid).healOut; }
-    public double execThresholdBonus(UUID uuid) { return agg(uuid).execThreshold; }
-    public double critMeleeBonus(UUID uuid) { return agg(uuid).critMelee; }
+    /** CC-резист: узлы cc_resist + роль TANK (+5% из spec2.role-passives). */
+    public double ccResistBonus(UUID uuid) {
+        double bonus = agg(uuid).ccResist;
+        if (roleOfOwner(uuid) == SpecRole.TANK) {
+            bonus += plugin.getConfig().getDouble("spec2.role-passives.TANK.cc-resist", 0.05);
+        }
+        return bonus;
+    }
+
+    public double ccPowerBonus(UUID uuid) {
+        return agg(uuid).ccPower;
+    }
+
+    public double ccDurBonus(UUID uuid) {
+        return agg(uuid).ccDur;
+    }
+
+    public double physDmgPercent(UUID uuid) {
+        return agg(uuid).physDmgPct;
+    }
+
+    public double healOutPercent(UUID uuid) {
+        return agg(uuid).healOut;
+    }
+
+    public double execThresholdBonus(UUID uuid) {
+        return agg(uuid).execThreshold;
+    }
+
+    public double critMeleeBonus(UUID uuid) {
+        return agg(uuid).critMelee;
+    }
+
+    public double wpPercent(UUID uuid) { return agg(uuid).wpPct; }
+    public double spPercent(UUID uuid) { return agg(uuid).spPct; }
+    public double hpowPercent(UUID uuid) { return agg(uuid).hpowPct; }
 
     /** Способности, открытые узлами деревьев (unlock_ability/ultimate). */
     public Set<String> unlockedAbilities(UUID uuid) {
