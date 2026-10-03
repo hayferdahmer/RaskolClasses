@@ -60,7 +60,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
  * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
- * Чеки 17–18: TTK-санити. Чеки 19–20: сводный уровень topNAverage (1.8.0).
+ * Чеки 17–18: TTK-санити (якорь balance.target-ttk-seconds).
+ * Чеки 19–20: сводный уровень topNAverage (1.8.0).
  * Чек 21: фракционный гейт canHit (1.8.1).
  * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
  * Чек 24: reconcile-цикл талантов (1.9.0; 1.9.2-fix фолбэк).
@@ -87,8 +88,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Чеки 76–79 (1.13.0 Б1): DR-множители, окно, DR-иммунитет, категории CC.
  * Чеки 80–84 (1.13.0 Б2): CCService живой, breaksOnDamage, STUN не ломается, CastGuard.
  * Чеки 85–87 (1.13.0 Б3): обёртка ванили, describeApply, CastChannels.interrupt.
- * Чеки 88–90 (1.13.0 Б4): /rc cc исполняется без исключений, CcSanity валидирует конфиг,
- *         данные для debug-секции CC/DR согласованы (activeOf + drState + cleanup).
+ * Чеки 88–90 (1.13.0 Б4): /rc cc исполняется, CcSanity валидирует, debug-данные CC/DR.
+ * Чеки 91–92 (1.14.0 Б1): Spec enum 18 значений (по 3 на класс) + legacy-алиасы
+ *         (tracker→SURVIVAL, lightbearer→HOLY, liquidator→ASSASSIN, trickster→OUTLAW,
+ *         black_mage→AFFLICTION, hell_channel→DEMONOLOGY).
  * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
  * чеки 55–56 требуют schools.elemental.enabled: true;
  * чеки 82–84/90 используют retry-хелпер applyUntilOk (ccResist не флапает).
@@ -1258,7 +1261,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б4): чек 88 — /rc cc исполняется без исключений: list + (test→status→clear на зонде)
         boolean listOk = false;
         boolean seqOk = true;
         try {
@@ -1281,7 +1283,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б4): чек 89 — CcSanity: живой конфиг cc.* валиден + pure inRange
         List<String> ccProblems = CcSanity.validateCc(plugin);
         boolean ok89 = ccProblems.isEmpty()
                 && CcSanity.inRange(0.5, 0.0, 1.0)
@@ -1295,7 +1296,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.13.0 (Б4): чек 90 — данные debug-секции CC/DR согласованы: apply → activeOf+drState → cleanup
         if (probe == null || cc == null) {
             if (check(report, "90", "debug CC/DR данные (пропущено: нет онлайн-игрока)",
                     true, "CCService.activeOf/drState", "skip")) {
@@ -1322,6 +1322,43 @@ public final class SelftestRunner {
             } else {
                 failed++;
             }
+        }
+
+        // 1.14.0 (Б1): чек 91 — полнота enum Spec: 18 значений, по 3 на каждый класс
+        boolean ok91 = Spec.values().length == 18
+                && Spec.forClass(PlayerClass.WARRIOR).length == 3
+                && Spec.forClass(PlayerClass.HUNTER).length == 3
+                && Spec.forClass(PlayerClass.PRIEST).length == 3
+                && Spec.forClass(PlayerClass.MAGE).length == 3
+                && Spec.forClass(PlayerClass.ROGUE).length == 3
+                && Spec.forClass(PlayerClass.WARLOCK).length == 3;
+        if (check(report, "91", "Spec enum: 18 значений, forClass возвращает 3 для каждого класса",
+                ok91, "Spec.values/forClass",
+                Spec.values().length + "/" + Spec.forClass(PlayerClass.WARRIOR).length
+                        + "/" + Spec.forClass(PlayerClass.WARLOCK).length)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.0 (Б1): чек 92 — legacy-алиасы резолвятся в новые спеки
+        boolean ok92 = Spec.fromId("tracker") == Spec.SURVIVAL
+                && Spec.fromId("lightbearer") == Spec.HOLY
+                && Spec.fromId("liquidator") == Spec.ASSASSIN
+                && Spec.fromId("trickster") == Spec.OUTLAW
+                && Spec.fromId("black_mage") == Spec.AFFLICTION
+                && Spec.fromId("hell_channel") == Spec.DEMONOLOGY
+                && Spec.fromId("arms") == Spec.ARMS
+                && Spec.fromId("fire") == Spec.FIRE
+                && Spec.fromId("subtlety") == Spec.SUBTLETY
+                && Spec.fromId("no_such_spec") == null;
+        if (check(report, "92", "legacy-алиасы: tracker→SURVIVAL, lightbearer→HOLY, liquidator→ASSASSIN, "
+                        + "trickster→OUTLAW, black_mage→AFFLICTION, hell_channel→DEMONOLOGY; неизвестный→null",
+                ok92, "Spec.fromId",
+                Spec.fromId("tracker") + "/" + Spec.fromId("black_mage") + "/" + Spec.fromId("arms"))) {
+            passed++;
+        } else {
+            failed++;
         }
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
