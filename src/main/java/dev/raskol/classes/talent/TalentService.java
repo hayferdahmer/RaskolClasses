@@ -21,23 +21,19 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.9.0 → 1.9.2: рантайм талантов.
+ * 1.9.0 → 1.14.0: рантайм талантов.
+ * 1.14.0 (Б4): WoW-стиль — узлы с рангами 1–5, costPerRank=1;
+ *         пререквизиты: узел доступен, если все пререквизиты прокачаны до maxRank;
+ *         эффект масштабируется рангом (TalentEffect.scaledBy);
+ *         startLevel=15, maxPoints=46, totalCost=45.
  *
  * 1.9.2 (эксплойт-свип):
- *  - ГЛОБАЛЬНЫЙ spent: доступные очки = earned − сумма потраченных по ВСЕМ деревьям
- *    игрока. Закрывает эксплойт «полное дерево в каждой спеке через респец»:
- *    очки теперь общий бюджет персонажа, а не бюджет активной спеки.
- *  - RECONCILE-ВАЛИДАЦИЯ хранилища: неизвестные id узлов и нарушения пререквизитов
- *    вырезаются из talents.yml самим сервером с WARNING (самолечение от ручных правок).
- *  - RATE-LIMIT покупок/сброса: не чаще performance.cast-click-cooldown-ms на игрока
- *    (защита от пакет-спама кликами по GUI).
- *
- * Reconcile вызывается: onJoin, после purchase, после reset, после смены спеки,
- * после /rc reload. Рассинхрон «куплено ≠ применено» невозможен дольше одного события.
+ *  - ГЛОБАЛЬНЫЙ spent: доступные очки = earned − сумма потраченных по ВСЕМ деревьям.
+ *  - RECONCILE-ВАЛИДАЦИЯ: неизвестные id и нарушения пререквизитов вырезаются.
+ *  - RATE-LIMIT: не чаще cast-click-cooldown-ms на игрока.
  */
 public final class TalentService {
 
-    /** Source постоянных модификаторов атрибутов/резистов (для reconcile). */
     public static final String SOURCE = "talents";
 
     public enum PurchaseResult {
@@ -53,7 +49,6 @@ public final class TalentService {
     private final TalentsStorage storage;
     private final EconomyHook economy;
 
-    /** Кэш-карты бонусов (пересобираются только в reconcile). */
     private final Map<UUID, Map<String, Double>> baseBonusMap = new HashMap<>();
     private final Map<UUID, Map<String, Double>> coeffMultMap = new HashMap<>();
     private final Map<UUID, Map<String, Double>> cooldownMultMap = new HashMap<>();
@@ -61,7 +56,6 @@ public final class TalentService {
     private final Map<UUID, double[]> avoidBonusMap = new HashMap<>();
     private final Map<UUID, Double> regenBonusMap = new HashMap<>();
 
-    /** 1.9.2: rate-limit действий талантов (покупка/сброс). */
     private final Map<UUID, Long> lastActionMs = new ConcurrentHashMap<>();
 
     public TalentService(RaskolClasses plugin, TalentsStorage storage) {
@@ -72,48 +66,46 @@ public final class TalentService {
 
     /* -------------------------------- экономика очков -------------------------------- */
 
+    /** 1.14.0: startLevel=15 (было 40). */
     private int startLevel() {
-        return Math.max(1, plugin.getConfig().getInt("talents.start-level", 40));
+        return Math.max(1, plugin.getConfig().getInt("talents.start-level", 15));
     }
 
     private int perLevel() {
         return Math.max(0, plugin.getConfig().getInt("talents.points-per-level", 1));
     }
 
+    /** 1.14.0: maxPoints=46 (было 21). */
     private int maxPoints() {
-        return Math.max(0, plugin.getConfig().getInt("talents.max-points", 21));
+        return Math.max(0, plugin.getConfig().getInt("talents.max-points", 46));
     }
 
     public boolean enabled() {
         return plugin.getConfig().getBoolean("talents.enabled", true);
     }
 
-    /** Очки из сводного уровня персонажа: clamp(charLevel − start + 1, 0, max) × perLevel. */
     public int earnedPoints(UUID uuid) {
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
         return TalentModel.earnedPoints(charLevel, startLevel(), perLevel(), maxPoints());
     }
 
-    /** Потраченные очки в конкретном дереве (для отображения ветки). */
+    /** 1.14.0: потраченные очки = сумма (costPerRank × rank) по всем узлам дерева. */
     public int spentPoints(UUID uuid, String specId) {
         TalentTree tree = TalentsRegistry.treeOf(specId);
         if (tree == null) {
             return 0;
         }
+        Map<String, Integer> ranks = storage.getPurchased(uuid, specId);
         int sum = 0;
-        for (String nodeId : storage.getPurchased(uuid, specId)) {
-            TalentNode n = tree.find(nodeId);
+        for (Map.Entry<String, Integer> entry : ranks.entrySet()) {
+            TalentNode n = tree.find(entry.getKey());
             if (n != null) {
-                sum += n.cost();
+                sum += n.costPerRank() * entry.getValue();
             }
         }
         return sum;
     }
 
-    /**
-     * 1.9.2: ГЛОБАЛЬНЫЕ потраченные очки — сумма по ВСЕМ деревьям игрока.
-     * Очки = общий бюджет персонажа; респец не печатает новые очки.
-     */
     public int spentGlobal(UUID uuid) {
         int sum = 0;
         for (Spec spec : Spec.values()) {
@@ -122,12 +114,12 @@ public final class TalentService {
         return sum;
     }
 
-    /** 1.9.2: доступные очки = earned − spentGlobal (не по активной спеке). */
     public int availablePoints(UUID uuid, String specId) {
         return Math.max(0, earnedPoints(uuid) - spentGlobal(uuid));
     }
 
-    public List<String> purchased(UUID uuid, String specId) {
+    /** 1.14.0: публичный метод для TalentsTab (ранги узлов). */
+    public Map<String, Integer> purchased(UUID uuid, String specId) {
         return storage.getPurchased(uuid, specId);
     }
 
@@ -150,10 +142,10 @@ public final class TalentService {
     /* -------------------------------- покупка -------------------------------- */
 
     /**
-     * Покупка узла. Все проверки серверные:
-     * enabled → rate-limit → активная спека → узел существует → узел из дерева
-     * активной спеки → не куплен → тир-гейт по charLevel → пререквизиты →
-     * стоимость против ГЛОБАЛЬНЫХ доступных очков.
+     * 1.14.0: покупка = увеличение rank узла на 1.
+     * Все проверки серверные: enabled → rate-limit → активная спека → узел существует →
+     * узел из дерева активной спеки → rank < maxRank → тир-гейт → пререквизиты (все maxRank) →
+     * costPerRank против ГЛОБАЛЬНЫХ доступных очков.
      */
     public PurchaseResult purchase(Player player, String nodeId) {
         if (!enabled()) {
@@ -179,20 +171,27 @@ public final class TalentService {
         if (!node.specId().equals(specId)) {
             return PurchaseResult.WRONG_TREE;
         }
-        List<String> owned = storage.getPurchased(uuid, specId);
-        if (owned.contains(nodeId)) {
+        Map<String, Integer> owned = storage.getPurchased(uuid, specId);
+        int rank = owned.getOrDefault(nodeId, 0);
+        if (rank >= node.maxRank()) {
             return PurchaseResult.ALREADY_OWNED;
         }
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
         if (charLevel < TalentModel.tierGate(node.tier(), startLevel())) {
             return PurchaseResult.TIER_GATE;
         }
+        // 1.14.0: пререквизиты должны быть прокачаны до maxRank
         for (String prereq : node.prereqs()) {
-            if (!owned.contains(prereq)) {
+            TalentNode prereqNode = tree.find(prereq);
+            if (prereqNode == null) {
+                continue;
+            }
+            int prereqRank = owned.getOrDefault(prereq, 0);
+            if (prereqRank < prereqNode.maxRank()) {
                 return PurchaseResult.PREREQ_MISSING;
+            }
         }
-        }
-        if (node.cost() > availablePoints(uuid, specId)) {
+        if (node.costPerRank() > availablePoints(uuid, specId)) {
             return PurchaseResult.NOT_ENOUGH_POINTS;
         }
         storage.addNode(uuid, specId, nodeId);
@@ -203,12 +202,6 @@ public final class TalentService {
 
     /* -------------------------------- сброс -------------------------------- */
 
-    /**
-     * Платный сброс дерева АКТИВНОЙ спеки: очки возвращаются в общий пул
-     * (spentGlobal падает), узлы очищаются, модификаторы пересобираются.
-     * Цена: reset-base + reset-per-point × потрачено в этом дереве.
-     * free=true — админский бесплатный сброс.
-     */
     public ResetResult reset(Player player, boolean free) {
         UUID uuid = player.getUniqueId();
         if (!actionAllowed(uuid)) {
@@ -219,7 +212,7 @@ public final class TalentService {
             return ResetResult.NO_SPEC;
         }
         String specId = spec.id();
-        List<String> owned = storage.getPurchased(uuid, specId);
+        Map<String, Integer> owned = storage.getPurchased(uuid, specId);
         if (owned.isEmpty()) {
             return ResetResult.NO_PURCHASED;
         }
@@ -247,22 +240,20 @@ public final class TalentService {
     /* -------------------------------- reconcile -------------------------------- */
 
     /**
-     * Пересборка: валидация хранилища (1.9.2) → удалить модификаторы source="talents"
-     * → просуммировать эффекты валидных купленных узлов активной спеки →
-     * записать постоянные модификаторы и кэш-карты.
+     * 1.14.0: пересборка с учётом рангов — эффект масштабируется rank.
      */
     public void reconcile(UUID uuid) {
         plugin.getAttributes().removeModifiersBySource(uuid, SOURCE);
         plugin.getResists().removeModifiersBySource(uuid, SOURCE);
 
-        // 1.9.2: самолечение хранилища по ВСЕМ деревьям (не только активному)
+        // 1.9.2: самолечение хранилища по ВСЕМ деревьям
         for (Spec spec : Spec.values()) {
             TalentTree tree = TalentsRegistry.treeOf(spec.id());
             if (tree == null) {
                 continue;
             }
-            List<String> raw = storage.getPurchased(uuid, spec.id());
-            List<String> kept = validatePurchased(uuid, spec.id(), tree, raw);
+            Map<String, Integer> raw = storage.getPurchased(uuid, spec.id());
+            Map<String, Integer> kept = validatePurchased(uuid, spec.id(), tree, raw);
             if (kept.size() != raw.size()) {
                 storage.setPurchased(uuid, spec.id(), kept);
             }
@@ -286,15 +277,19 @@ public final class TalentService {
         if (spec != null) {
             TalentTree tree = TalentsRegistry.treeOf(spec.id());
             if (tree != null) {
-                for (String nodeId : storage.getPurchased(uuid, spec.id())) {
-                    TalentNode n = tree.find(nodeId);
+                Map<String, Integer> ranks = storage.getPurchased(uuid, spec.id());
+                for (Map.Entry<String, Integer> entry : ranks.entrySet()) {
+                    TalentNode n = tree.find(entry.getKey());
                     if (n == null || n.effect() == null) {
                         continue;
                     }
-                    String kind = n.effect().kind();
-                    String target = n.effect().target();
-                    double v = n.effect().value();
-                    double v2 = n.effect().value2();
+                    int rank = entry.getValue();
+                    // 1.14.0: масштабирование эффекта рангом
+                    var e = n.effect().scaledBy(rank);
+                    String kind = e.kind();
+                    String target = e.target();
+                    double v = e.value();
+                    double v2 = e.value2();
                     switch (kind) {
                         case "attr" -> {
                             if ("str".equals(target)) attrStr += v;
@@ -321,7 +316,6 @@ public final class TalentService {
                         }
                         case "proc" -> proc.merge(target, v, Double::sum);
                         default -> {
-                            // неизвестный kind игнорируется (защита от опечаток каталога)
                         }
                     }
                 }
@@ -346,27 +340,39 @@ public final class TalentService {
     }
 
     /**
-     * 1.9.2: валидация купленного списка: неизвестные id удаляются, пререквизиты
-     * проверяются замыканием по тирам. Возвращает очищенный список.
+     * 1.14.0: валидация — узел валиден, если все пререквизиты прокачаны до maxRank.
      */
-    private List<String> validatePurchased(UUID uuid, String specId, TalentTree tree, List<String> owned) {
-        List<String> kept = new ArrayList<>();
+    private Map<String, Integer> validatePurchased(UUID uuid, String specId, TalentTree tree, Map<String, Integer> owned) {
+        Map<String, Integer> kept = new HashMap<>();
         Set<String> keptSet = new HashSet<>();
         List<TalentNode> sorted = new ArrayList<>(tree.nodes());
         sorted.sort(Comparator.comparingInt(TalentNode::tier));
         for (TalentNode n : sorted) {
-            if (!owned.contains(n.id())) {
+            Integer rank = owned.get(n.id());
+            if (rank == null || rank <= 0) {
                 continue;
             }
-            if (keptSet.containsAll(n.prereqs())) {
-                kept.add(n.id());
+            boolean prereqOk = true;
+            for (String prereqId : n.prereqs()) {
+                TalentNode prereqNode = tree.find(prereqId);
+                if (prereqNode == null) {
+                    continue;
+                }
+                Integer prereqRank = kept.get(prereqId);
+                if (prereqRank == null || prereqRank < prereqNode.maxRank()) {
+                    prereqOk = false;
+                    break;
+                }
+            }
+            if (prereqOk) {
+                kept.put(n.id(), rank);
                 keptSet.add(n.id());
             } else {
-                plugin.getLogger().warning("talents: узел " + n.id() + " дерева " + specId
-                        + " игрока " + uuid + " удалён из хранилища: пререквизиты не выполнены");
+                plugin.getLogger().warning("talents: узел " + n.id() + " (rank=" + rank + ") дерева " + specId
+                        + " игрока " + uuid + " удалён: пререквизиты не прокачаны до maxRank");
             }
         }
-        for (String id : owned) {
+        for (String id : owned.keySet()) {
             if (tree.find(id) == null) {
                 plugin.getLogger().warning("talents: неизвестный узел '" + id + "' дерева " + specId
                         + " игрока " + uuid + " удалён из хранилища");
@@ -375,7 +381,6 @@ public final class TalentService {
         return kept;
     }
 
-    /** Очистка кэша игрока (logout). */
     public void clear(UUID uuid) {
         baseBonusMap.remove(uuid);
         coeffMultMap.remove(uuid);
@@ -426,7 +431,7 @@ public final class TalentService {
 
     /* ------------------------------- selftest API ------------------------------- */
 
-    /** Тестовая покупка без валидации (чеки 24/31). */
+    /** Тестовая покупка без валидации (чеки 24/31). 1.14.0: добавляет rank=1. */
     public void forcePurchaseForTest(UUID uuid, String specId, String nodeId) {
         storage.addNode(uuid, specId, nodeId);
         reconcile(uuid);
