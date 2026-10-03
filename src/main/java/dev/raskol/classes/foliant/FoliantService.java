@@ -7,7 +7,6 @@ import dev.raskol.classes.compat.AuthGate;
 import dev.raskol.classes.storage.SafeStorage;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
@@ -54,10 +53,9 @@ import java.util.logging.Logger;
 
 /**
  * 1.10.0: ФОЛИАНТ ДУШ (скрытый путь Чернокнижника).
- * 1.11.2: санитайзер ника, дроп только с пиглинов ада, релок-цикл,
- *         том не падает/не выбрасывается, soulbound-подбор.
- * 1.14.0 (Б3): гейт TALENTS_SPENT читает Spec2Service.spentGlobal (деревья путей),
- *         TalentService больше не используется.
+ * 1.11.2: санитайзер ника, дроп только с пиглинов ада, релок-цикл, soulbound.
+ * 1.14.0 (Б8): гейты SPEC_CHOSEN/TALENTS_SPENT читают spec2-слой
+ *         (Spec2Service.mainSpec / spentGlobal); legacy SpecService/TalentService удалены.
  */
 public final class FoliantService implements Listener {
 
@@ -317,7 +315,7 @@ public final class FoliantService implements Listener {
         }
     }
 
-    /** 1.14.0 (Б3): гейты проверяют Spec2Service.spentGlobal (деревья путей). */
+    /** 1.14.0 (Б8): гейты читают spec2-слой. */
     private TransitionResult checkGates(Player player) {
         UUID uuid = player.getUniqueId();
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
@@ -333,11 +331,10 @@ public final class FoliantService implements Listener {
         if (plugin.getCharacterLevels().characterLevel(uuid) < 40) {
             return TransitionResult.TOO_LOW_LEVEL;
         }
-        if (plugin.getSpecService().getSpec(uuid) != null) {
+        if (plugin.getSpec2Service().mainSpec(uuid) != null) {
             return TransitionResult.SPEC_CHOSEN;
         }
-        if (plugin.getSpec2Service() != null
-                && plugin.getSpec2Service().spentGlobal(uuid) > 0) {
+        if (plugin.getSpec2Service().spentGlobal(uuid) > 0) {
             return TransitionResult.TALENTS_SPENT;
         }
         if (plugin.getConfig().getBoolean("compat.authme-gate", true)
@@ -656,7 +653,7 @@ public final class FoliantService implements Listener {
                         "foliant.already-warlock", "Том уже прочитан тобой.");
                 case NOT_MAGE_OR_PRIEST -> plugin.getRaskolConfig().message(
                         "foliant.not-mage-priest",
-                        "Страницы не отвечают тебе. Том ждёт знающих письмена света или веры.");
+                        "Страницы не отвечают тебе. Том ждёт знающих письмена света и веры.");
                 case TOO_LOW_LEVEL -> plugin.getRaskolConfig().message(
                         "foliant.too-low-level",
                         "Том тяжёл для твоего разума: нужен уровень персонажа 40.");
