@@ -59,42 +59,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Headless-самотестирование формул плагина (/rc selftest).
- * Чеки 1–16: формулы атрибутов/avoidance/DR/критов/HP/капа.
- * Чеки 17–18: TTK-санити (якорь balance.target-ttk-seconds).
- * Чеки 19–20: сводный уровень topNAverage (1.8.0).
- * Чек 21: фракционный гейт canHit (1.8.1).
- * Чеки 22–23: экономика очков талантов и стоимость дерева (1.9.0).
- * Чек 24: reconcile-цикл талантов (1.9.0; 1.9.2-fix фолбэк).
- * Чеки 29–30: боевое окно и семантика consume (1.9.1).
- * Чеки 31–32: глобальный бюджет очков и reconcile-прунинг (1.9.2).
- * Чеки 33–35: план B — scale/healFormula/targetCarrier (1.9.3).
- * Чек 36: tickDelta — декэй ярости воина вне боя (1.9.3.2).
- * Чеки 37–40: чернокнижник — реестры/гейты/конфиг/симулятор/матрица (1.10.0).
- * Чеки 41–43 (1.11.4 P4a): WarlockMath — recoil/drain/damageMult/ignore-порог.
- * Чеки 44–45 (1.11.4): sanity китов + RUNBOOK пассив-мульты.
- * Чеки 46–47 (1.11.4 P4e): SpecMath — asFraction и respecCost.
- * Чек 48 (1.11.4 P5): per-class yml loader.
- * Чеки 49–51 (1.12.0): школы — channel, vanilla-school, legacy round-trip.
- * Чеки 52–54 (1.12.1): митигация/пробитие, иммунитеты, Penetration-клампы.
- * Чеки 55–56 (1.12.2 Б1): стихийный слой.
- * Чеки 57–58 (1.12.2 Б2): gear-pen.
- * Чеки 59–60 (1.12.2 Б3): pen-трейты талантов/спек.
- * Чеки 61–62 (1.12.2 Б4): проводка neutral, school-pen→elemental.
- * Чеки 63–65 (1.12.3): cast-school ThreadLocal, полнота школ, школы китов.
- * Чеки 66–68 (1.12.4): DoT-математика + живой DotService.
- * Чеки 69–71 (1.12.5): триггеры среды, реестр dots.*, стеки/expiry.
- * Чеки 72–74 (1.12.6): HUD-API, poison_passive, миграция poisoned_blades.
- * Чек 75 (1.12.7): sanity баланс-прогона матрицы 6×6.
- * Чеки 76–79 (1.13.0 Б1): DR-множители, окно, DR-иммунитет, категории CC.
- * Чеки 80–84 (1.13.0 Б2): CCService живой, breaksOnDamage, STUN не ломается, CastGuard.
- * Чеки 85–87 (1.13.0 Б3): обёртка ванили, describeApply, CastChannels.interrupt.
- * Чеки 88–90 (1.13.0 Б4): /rc cc исполняется, CcSanity валидирует, debug-данные CC/DR.
- * Чеки 91–92 (1.14.0 Б1): Spec enum 18 значений (по 3 на класс) + legacy-алиасы
- *         (tracker→SURVIVAL, lightbearer→HOLY, liquidator→ASSASSIN, trickster→OUTLAW,
- *         black_mage→AFFLICTION, hell_channel→DEMONOLOGY).
- * Примечания: WARN «удалён из хранилища» — чек 32 тестирует прунинг;
- * чеки 55–56 требуют schools.elemental.enabled: true;
- * чеки 82–84/90 используют retry-хелпер applyUntilOk (ccResist не флапает).
+ * Чеки 1–90: линии 1.7.4.1–1.13.0.
+ * Чеки 91–92 (1.14.0 Б1): Spec enum 18 активных + 6 legacy = 24 константы;
+ *         legacy-алиасы нормализуются в современные спеки.
  */
 public final class SelftestRunner {
 
@@ -1324,38 +1291,40 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б1): чек 91 — полнота enum Spec: 18 значений, по 3 на каждый класс
-        boolean ok91 = Spec.values().length == 18
+        // 1.14.0 (Б1): чек 91 — 18 активных спек + 6 legacy = 24 константы; forClass = 3 активных
+        boolean ok91 = Spec.values().length == 24
+                && Spec.activeValues().length == 18
                 && Spec.forClass(PlayerClass.WARRIOR).length == 3
                 && Spec.forClass(PlayerClass.HUNTER).length == 3
                 && Spec.forClass(PlayerClass.PRIEST).length == 3
                 && Spec.forClass(PlayerClass.MAGE).length == 3
                 && Spec.forClass(PlayerClass.ROGUE).length == 3
-                && Spec.forClass(PlayerClass.WARLOCK).length == 3;
-        if (check(report, "91", "Spec enum: 18 значений, forClass возвращает 3 для каждого класса",
-                ok91, "Spec.values/forClass",
-                Spec.values().length + "/" + Spec.forClass(PlayerClass.WARRIOR).length
-                        + "/" + Spec.forClass(PlayerClass.WARLOCK).length)) {
+                && Spec.forClass(PlayerClass.WARLOCK).length == 3
+                && Spec.TRACKER.legacy() && !Spec.ARMS.legacy();
+        if (check(report, "91", "Spec: 24 константы (18 активных + 6 legacy), forClass=3, legacy-флаги верны",
+                ok91, "Spec.values/activeValues/forClass",
+                Spec.values().length + "/" + Spec.activeValues().length + "/"
+                        + Spec.forClass(PlayerClass.WARLOCK).length)) {
             passed++;
         } else {
             failed++;
         }
 
-        // 1.14.0 (Б1): чек 92 — legacy-алиасы резолвятся в новые спеки
+        // 1.14.0 (Б1): чек 92 — fromId нормализует legacy-id в современные; modernOf() консистентен
         boolean ok92 = Spec.fromId("tracker") == Spec.SURVIVAL
                 && Spec.fromId("lightbearer") == Spec.HOLY
                 && Spec.fromId("liquidator") == Spec.ASSASSIN
                 && Spec.fromId("trickster") == Spec.OUTLAW
                 && Spec.fromId("black_mage") == Spec.AFFLICTION
                 && Spec.fromId("hell_channel") == Spec.DEMONOLOGY
+                && Spec.TRACKER.modernOf() == Spec.SURVIVAL
+                && Spec.HELL_CHANNEL.modernOf() == Spec.DEMONOLOGY
+                && Spec.ARMS.modernOf() == Spec.ARMS
                 && Spec.fromId("arms") == Spec.ARMS
-                && Spec.fromId("fire") == Spec.FIRE
-                && Spec.fromId("subtlety") == Spec.SUBTLETY
                 && Spec.fromId("no_such_spec") == null;
-        if (check(report, "92", "legacy-алиасы: tracker→SURVIVAL, lightbearer→HOLY, liquidator→ASSASSIN, "
-                        + "trickster→OUTLAW, black_mage→AFFLICTION, hell_channel→DEMONOLOGY; неизвестный→null",
-                ok92, "Spec.fromId",
-                Spec.fromId("tracker") + "/" + Spec.fromId("black_mage") + "/" + Spec.fromId("arms"))) {
+        if (check(report, "92", "legacy-нормализация: tracker→SURVIVAL … hell_channel→DEMONOLOGY; modernOf(id)=id для активных",
+                ok92, "Spec.fromId/modernOf",
+                Spec.fromId("tracker") + "/" + Spec.fromId("black_mage") + "/" + Spec.TRACKER.modernOf())) {
             passed++;
         } else {
             failed++;
@@ -1380,10 +1349,6 @@ public final class SelftestRunner {
         plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
     }
 
-    /**
-     * 1.13.0 (Б2): retry-обёртка tryApply: ccResist-бросок (10–20% у классов)
-     * не должен флапать чеки. DR-иммунитет = честный отказ без ретраев.
-     */
     private static boolean applyUntilOk(CCService cc, Player target, CCType type, int ticks) {
         for (int i = 0; i < 64; i++) {
             CCService.ApplyResult r = cc.tryApply(null, target, type, ticks);
@@ -1397,7 +1362,6 @@ public final class SelftestRunner {
         return false;
     }
 
-    /** Первый узел тира 1 без пререквизитов (для тестов). */
     private static TalentModel.TalentNode firstT1(TalentModel.TalentTree tree) {
         for (TalentModel.TalentNode node : tree.nodes()) {
             if (node.tier() == 1 && node.prereqs().isEmpty()) {
