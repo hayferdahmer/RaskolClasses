@@ -3,97 +3,113 @@ package dev.raskol.classes.spec;
 
 import dev.raskol.classes.classsystem.PlayerClass;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Специализации классов (1.4.0 → 1.14.0).
- * 1.4.0: 12 спеков (2 на класс), выбор на 40 уровне, один раз, бесплатно.
- * 1.10.0: +BLACK_MAGE, HELL_CHANNEL (чернокнижник, общее дерево occult).
- * 1.14.0: расширение до 18 спеков (3 на класс) по WoW-референсу:
- *   - Воин: Guardian (танк), Berserker (ДД flurry), Arms (ДД burst)
- *   - Охотник: Marksman (снайпер), Survival (ДД+контроль), Beast Master (пет-танк)
- *   - Чернокнижник: Affliction (DoT), Destruction (burst FIRE), Demonology (петы)
- *   - Жрец: Holy (групповой хил), Shadowweaver (ДД лифстил), Discipline (щиты)
- *   - Маг: Arcane (burst ARCANE), Frost (контроль FROST), Fire (burst FIRE)
- *   - Разбойник: Assassination (яды), Outlaw (sustained), Subtlety (опенер-бурст)
+ * 1.14.0: 18 АКТИВНЫХ спек (3 на класс) по WoW-референсу + 6 LEGACY-констант
+ * (TRACKER, LIGHTBEARER, LIQUIDATOR, TRICKSTER, BLACK_MAGE, HELL_CHANNEL).
  *
- * Миграция: старые specId (TRACKER, BLACK_MAGE, HELL_CHANNEL, LIGHTBEARER,
- * LIQUIDATOR, TRICKSTER) остаются валидными через алиасы в fromId().
- * Игроки со старыми спеками продолжают играть; для перехода на 18 спеков — respec.
+ * LEGACY-константы существуют ТОЛЬКО чтобы compile-сайты 1.13.0 (ResourceService,
+ * SpecEffects, SpecPassives, SpecListener) продолжали собираться; игроку они
+ * недоступны: forClass() и activeValues() их не возвращают, fromId() нормализует
+ * legacy-id в современную спеку (tracker→SURVIVAL и т.д.), legacy()=true.
+ *
+ * Обнуление старых билдов: покупки талантов под legacy-ключами становятся
+ * сиротами (деревья читаются по современному id) и не дают эффектов;
+ * purge очков по сиротским ключам — Батч 2 (1.14.0).
  */
 public enum Spec {
-    // === ВОИН (3 спеки) ===
-    GUARDIAN(PlayerClass.WARRIOR, "Страж", "⚔", "Танк: таунт + защита"),
-    BERSERKER(PlayerClass.WARRIOR, "Берсерк", "⚔", "ДД: ярость + flurry"),
-    ARMS(PlayerClass.WARRIOR, "Оружие", "⚔", "ДД: burst + execute"),
+    // === ВОИН (3 активные) ===
+    GUARDIAN(PlayerClass.WARRIOR, "Страж", "⚔", "Танк: таунт + защита", false),
+    BERSERKER(PlayerClass.WARRIOR, "Берсерк", "⚔", "ДД: ярость + flurry", false),
+    ARMS(PlayerClass.WARRIOR, "Оружие", "⚔", "ДД: burst + execute", false),
 
-    // === ОХОТНИК (3 спеки) ===
-    MARKSMAN(PlayerClass.HUNTER, "Стрелок", "➳", "ДД: снайпер, крит с дистанции"),
-    SURVIVAL(PlayerClass.HUNTER, "Выживание", "➳", "ДД: контроль + пет ближний"),
-    BEAST_MASTER(PlayerClass.HUNTER, "Повелитель зверей", "➳", "ДД: пет-танк"),
+    // === ОХОТНИК (3 активные) ===
+    MARKSMAN(PlayerClass.HUNTER, "Стрелок", "➳", "ДД: снайпер, крит с дистанции", false),
+    SURVIVAL(PlayerClass.HUNTER, "Выживание", "➳", "ДД: контроль + ловушки", false),
+    BEAST_MASTER(PlayerClass.HUNTER, "Повелитель зверей", "➳", "ДД: питомец", false),
 
-    // === ЖРЕЦ (3 спеки) ===
-    HOLY(PlayerClass.PRIEST, "Свет", "✚", "Лекарь: групповое лечение"),
-    SHADOWWEAVER(PlayerClass.PRIEST, "Тенеплёт", "✚", "ДД: лифстил от урона"),
-    DISCIPLINE(PlayerClass.PRIEST, "Послушание", "✚", "Лекарь: щиты + Atonement"),
+    // === ЖРЕЦ (3 активные) ===
+    HOLY(PlayerClass.PRIEST, "Свет", "✚", "Лекарь: групповое лечение", false),
+    SHADOWWEAVER(PlayerClass.PRIEST, "Тенеплёт", "✚", "ДД: лифстил от урона", false),
+    DISCIPLINE(PlayerClass.PRIEST, "Послушание", "✚", "Лекарь: щиты", false),
 
-    // === МАГ (3 спеки) ===
-    ARCANE(PlayerClass.MAGE, "Тайная магия", "✦", "ДД: burst ARCANE"),
-    FROST(PlayerClass.MAGE, "Лёд", "✦", "ДД: контроль FROST"),
-    FIRE(PlayerClass.MAGE, "Огонь", "✦", "ДД: burst FIRE + DoT"),
+    // === МАГ (3 активные) ===
+    ARCANE(PlayerClass.MAGE, "Тайная магия", "✦", "ДД: burst ARCANE", false),
+    FROST(PlayerClass.MAGE, "Лёд", "✦", "ДД: контроль FROST", false),
+    FIRE(PlayerClass.MAGE, "Огонь", "✦", "ДД: burst FIRE + DoT", false),
 
-    // === РАЗБОЙНИК (3 спеки) ===
-    ASSASSIN(PlayerClass.ROGUE, "Ликвидация", "☠", "ДД: яды + казнь"),
-    OUTLAW(PlayerClass.ROGUE, "Головорез", "☠", "ДД: sustained + уклонение"),
-    SUBTLETY(PlayerClass.ROGUE, "Скрытность", "☠", "ДД: опенер-бурст из стелса"),
+    // === РАЗБОЙНИК (3 активные) ===
+    ASSASSIN(PlayerClass.ROGUE, "Ликвидация", "☠", "ДД: яды + казнь", false),
+    OUTLAW(PlayerClass.ROGUE, "Головорез", "☠", "ДД: sustained + уклонение", false),
+    SUBTLETY(PlayerClass.ROGUE, "Скрытность", "☠", "ДД: опенер-бурст", false),
 
-    // === ЧЕРНОКНИЖНИК (3 спеки, 1.14.0: разделение общего occult на 3 дерева) ===
-    AFFLICTION(PlayerClass.WARLOCK, "Колдовство", "☾", "ДД: DoT SHADOW"),
-    DESTRUCTION(PlayerClass.WARLOCK, "Разрушение", "☾", "ДД: burst FIRE"),
-    DEMONOLOGY(PlayerClass.WARLOCK, "Демонология", "☾", "ДД: петы + SHADOW");
+    // === ЧЕРНОКНИЖНИК (3 активные) ===
+    AFFLICTION(PlayerClass.WARLOCK, "Колдовство", "☾", "ДД: DoT SHADOW", false),
+    DESTRUCTION(PlayerClass.WARLOCK, "Разрушение", "☾", "ДД: burst FIRE", false),
+    DEMONOLOGY(PlayerClass.WARLOCK, "Демонология", "☾", "ДД: питомец + Скверна", false),
+
+    // === LEGACY (1.13.0 и ранее): только для компиляции старых switch-сайтов ===
+    TRACKER(PlayerClass.HUNTER, "Следопыт (устар.)", "➳", "legacy", true),
+    LIGHTBEARER(PlayerClass.PRIEST, "Светоносец (устар.)", "✚", "legacy", true),
+    LIQUIDATOR(PlayerClass.ROGUE, "Ликвидатор (устар.)", "☠", "legacy", true),
+    TRICKSTER(PlayerClass.ROGUE, "Трюкач (устар.)", "☠", "legacy", true),
+    BLACK_MAGE(PlayerClass.WARLOCK, "Чёрный Маг (устар.)", "☾", "legacy", true),
+    HELL_CHANNEL(PlayerClass.WARLOCK, "Адский Канал (устар.)", "☾", "legacy", true);
 
     private final PlayerClass playerClass;
     private final String displayName;
     private final String symbol;
     private final String role;
+    private final boolean legacy;
 
-    Spec(PlayerClass playerClass, String displayName, String symbol, String role) {
+    Spec(PlayerClass playerClass, String displayName, String symbol, String role, boolean legacy) {
         this.playerClass = playerClass;
         this.displayName = displayName;
         this.symbol = symbol;
         this.role = role;
+        this.legacy = legacy;
     }
 
     public PlayerClass playerClass() { return playerClass; }
     public String displayName() { return displayName; }
     public String symbol() { return symbol; }
     public String role() { return role; }
+    public boolean legacy() { return legacy; }
 
     /** ID для хранения и LP-ноды. */
     public String id() { return name().toLowerCase(); }
 
+    /** Современный аналог legacy-спеки (для себя возвращает this). */
+    public Spec modernOf() {
+        return switch (this) {
+            case TRACKER -> SURVIVAL;
+            case LIGHTBEARER -> HOLY;
+            case LIQUIDATOR -> ASSASSIN;
+            case TRICKSTER -> OUTLAW;
+            case BLACK_MAGE -> AFFLICTION;
+            case HELL_CHANNEL -> DEMONOLOGY;
+            default -> this;
+        };
+    }
+
     /**
-     * Найти спеку по ID (null если не найдена).
-     * 1.14.0: алиасы для старых specId (обратная совместимость с 1.13.0 и ранее):
-     *   tracker → survival
-     *   lightbearer → holy
-     *   liquidator → assassin
-     *   trickster → outlaw
-     *   black_mage → affliction (ближайшая по лору, но игрок со старой спекой продолжает играть)
-     *   hell_channel → demonology (ближайшая по лору)
+     * Найти спеку по ID из хранилища: legacy-id нормализуется в современную
+     * спеку (обнуление старого билда происходит на уровне талантов-сирот).
      */
     public static Spec fromId(String id) {
         if (id == null || id.isEmpty()) return null;
-        
-        // Алиасы для старых specId (1.13.0 и ранее)
         String normalized = switch (id.toLowerCase()) {
-            case "tracker" -> "survival";
-            case "lightbearer" -> "holy";
-            case "liquidator" -> "assassin";
-            case "trickster" -> "outlaw";
-            case "black_mage" -> "affliction"; // legacy → ближайшая новая
-            case "hell_channel" -> "demonology"; // legacy → ближайшая новая
+            case "tracker" -> "SURVIVAL";
+            case "lightbearer" -> "HOLY";
+            case "liquidator" -> "ASSASSIN";
+            case "trickster" -> "OUTLAW";
+            case "black_mage" -> "AFFLICTION";
+            case "hell_channel" -> "DEMONOLOGY";
             default -> id.toUpperCase();
         };
-        
         try {
             return Spec.valueOf(normalized);
         } catch (IllegalArgumentException e) {
@@ -101,15 +117,25 @@ public enum Spec {
         }
     }
 
-    /** Три спеки для класса (1.14.0: было 2, стало 3). */
+    /** Только активные (не legacy) спеки. */
+    public static Spec[] activeValues() {
+        List<Spec> out = new ArrayList<>();
+        for (Spec s : values()) {
+            if (!s.legacy) {
+                out.add(s);
+            }
+        }
+        return out.toArray(new Spec[0]);
+    }
+
+    /** Три активные спеки класса (legacy не показываются). */
     public static Spec[] forClass(PlayerClass pc) {
-        return switch (pc) {
-            case WARRIOR -> new Spec[]{GUARDIAN, BERSERKER, ARMS};
-            case HUNTER -> new Spec[]{MARKSMAN, SURVIVAL, BEAST_MASTER};
-            case PRIEST -> new Spec[]{HOLY, SHADOWWEAVER, DISCIPLINE};
-            case MAGE -> new Spec[]{ARCANE, FROST, FIRE};
-            case ROGUE -> new Spec[]{ASSASSIN, OUTLAW, SUBTLETY};
-            case WARLOCK -> new Spec[]{AFFLICTION, DESTRUCTION, DEMONOLOGY};
-        };
+        List<Spec> out = new ArrayList<>();
+        for (Spec s : activeValues()) {
+            if (s.playerClass() == pc) {
+                out.add(s);
+            }
+        }
+        return out.toArray(new Spec[0]);
     }
 }
