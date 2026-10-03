@@ -4,7 +4,115 @@
 версионирование — [Semantic Versioning](https://semver.org/lang/ru/).
 Все даты — релизы на сервере «РАСКОЛ | ДВЕ КОРОНЫ».
 
-## [1.13.0] — 2026-10-03
+## [1.14.0] — 2026-10-04 · «РАСКОЛ | Спек 2.0: деревья путей»
+
+### Добавлено
+- **Деревья путей (Spec 2.0)** — новая система прогрессии:
+  - 18 специализаций (3 на каждый из 6 классов):
+    - Воин: `arms` / `fury` / `guard`
+    - Охотник: `marksmanship` / `survival` / `beastmaster`
+    - Жрец: `discipline` / `holy` / `shadow`
+    - Маг: `arcane` / `fire` / `frost`
+    - Разбойник: `assassination` / `outlaw` / `subtlety`
+    - Чернокнижник: `affliction` / `destruction` / `demonology`
+  - Ёмкость дерева 50–58 рангов, 20 узлов каждое, 6 рядов с гейтами очков
+    внутри дерева: `[0, 5, 10, 15, 20, 30]` (ульт = ряд 6 @ 30 очков)
+  - Общий бюджет очков: 46 (с 15 до 60 уровня персонажа, 1 очко за уровень);
+    закрыть дерево математически нельзя
+  - Выбор основной спеки один раз с 15 уровня через Книгу класса, даёт роль:
+    - `FIGHTER` — +2% урона
+    - `TANK` — +5% ccResist и +5% получаемого лечения
+    - `HEALER` — +5% исходящего лечения
+  - 11 категорий эффектов узлов: `attr`, `resist`, `hp_pct`, `regen`,
+    `avoid`, `pen_phys_pct`, `pen_magic_pct`, `dot_dur/dot_stacks/dot_mult`,
+    `kit_base/kit_mult/kit_cd/cd`, `proc`, `unlock_ability`, `ultimate`
+  - Per-tree хранение рангов: `spec2-storage.yml` с разделами по `treeId`
+  - Респис дерева путей: 250 + 10×потрачено в дереве монет (конфиг
+    `spec2.respec-base-cost`, `spec2.respec-per-level`), возврат очков в общий пул
+- **Новые способности** (unlock-узлы деревьев):
+  - Воин: `whirlwind_slash`, `mortal_strike`, `bloodthirst`, `rampage`,
+    `concussive_blow` (STUN), `shield_bash` (STUN), `taunt`, `bladestorm` (ульт),
+    `last_stand` (ульт)
+  - Охотник: `aimed_shot`, `silencing_shot`, `chimera_shot`, `true_shot`,
+    `poison_shot`, `explosive_trap`, `black_arrow`, `wyvern_sting`, `readiness`,
+    `serpent_sting` (ульт), `intimidation`, `beast_ferocity`, `bestial_wrath` (ульт)
+  - Жрец: `purge`, `pain_suppression`, `spirit_shell` (ульт), `flash_heal`,
+    `lightwell`, `divine_hymn` (ульт), `withering_touch`, `mind_flay`,
+    `shadowfiend`, `wrath_heaven` (ульт — перенос из кита)
+  - Маг: `arcane_missiles`, `counterspell`, `presence_of_mind`, `scorch`,
+    `flamestrike`, `combustion`, `pyroblast` (ульт), `frostbolt`, `blizzard`,
+    `ice_barrier`, `ice_lance_shatter` (ульт), `zeus_wrath` (ульт — перенос)
+  - Разбойник: `poison_burst`, `cold_blood`, `vendetta`, `envenom`, `deathmark`
+    (ульт), `pistol_shot`, `blade_flurry`, `adrenaline_rush`, `killing_spree`,
+    `between_the_eyes` (ульт), `backstab`, `shadowstep`, `preparation`,
+    `hemorrhage`, `shadow_blades` (ульт)
+  - Чернокнижник: `withering`, `soul_siphon`, `soul_harvest` (ульт), `immolate`,
+    `chaos_bolt`, `conflagrate`, `dreadfire`, `summon_demon`, `demonic_pact`,
+    `demon_soul` (ульт)
+- **Новый DoT `wither`** (школа `SHADOW`): 2.5 dps, 6 с, ×3 стека;
+  партикл `SCULK_SOUL`; конфиг `dots.wither`
+- **Роли в selftest**: чеки 91–94 валидируют enum, строгий `fromId`, реестр
+  деревьев, ульт/unlock-инварианты
+- **Passive-пассивка мага**: `mana_soaked` (файл `MagePassives.java` воссоздан,
+  ранее был мёртв)
+
+### Изменено
+- **Киты всех 6 классов** читают `baseBonus/coeffMult` из `Spec2Service`
+  (legacy `TalentService` удалён)
+- **Resist-трейты чернокнижника** (`affliction`/`destruction`/`demonology`)
+  используют ключи, унифицированные с enum и конфигом (ошибочный `witchcraft` убран)
+- **Реген ресурсов** полностью из spec2-агрегата (узлы `regen`); ARCANE-реген маны
+  теперь через дерево `arcane`, а не через legacy `SpecRegistry`
+- **Кулдауны способностей** учитывают оба spec2-множителя:
+  - `cooldownMult` (процент, kind `cd`) — мультипликативный
+  - `cooldownSecBonus` (секунды, kind `kit_cd`) — аддитивный вычет
+- **Фолиант душ**: гейты `SPEC_CHOSEN`/`TALENTS_SPENT` читают spec2-слой
+- **PlaceholderAPI** (`%raskolclasses_spec%`, `talent_points`, `talents`) —
+  из spec2-хранилища
+- **DebugSub** `/rc debug`: спека из `spec2Service.mainSpec`, добавлены поля
+  очков spec2
+- **PassportChangeListener**: при смене паспорта CLASS спека сбрасывается, если
+  её класс не совпадает с новым
+
+### Удалено
+- Legacy-слой талантов: `TalentModel`, `TalentService`, `TalentsRegistry`,
+  `TalentsStorage`
+- Legacy-слой спеков: `SpecRegistry`, `SpecService`, `SpecStorage`,
+  `SpecEffects`, `SpecPassives`, `SpecListener`, `SpecToken`, `SpecLegacyReset`,
+  `SpecMath`, `SpecEconomy`
+- Конфиг `specs.yml` (заменён на `spec2-storage.yml` + статический реестр)
+- Legacy-константы enum `Spec`: `GUARDIAN`, `TRACKER`, `BERSERKER`, `MARKSMAN`,
+  `ASSASSIN`, `BEAST_MASTER`, `SHADOWWEAVER`, `BLACK_MAGE`, `HELL_CHANNEL`,
+  `WITCHCRAFT` и др.
+
+### Исправлено
+- **Красная рана selftest 60**: pen-трейты без контента возвращают 0 через
+  spec2-агрегат (раньше падали на null `SpecRegistry`)
+- **Спека-свитки** полностью упразднены (выбор только через Книгу); `ScrollSanitizer`
+  больше не ссылается на `SpecToken`
+- **Рассинхрон id чернокнижника**: ключ `affliction` консистентен в enum,
+  `SpecRoles`, `Spec2Service.treesOf`, `WarlockAbilities`, конфиге `classes.WARLOCK.specs.*`
+
+### Миграция
+- **Для игроков**: старые спеки автоматически сброшены (`SpecLegacyReset` удалён,
+  сброс происходит через `FoliantService`-гейт `SPEC_CHOSEN` при первом входе);
+  очки талантов возвращены (40→46 бюджет); выбор новой спеки — через
+  `/rc menu` → «Специализации» с 15 уровня
+- **Для операторов**: конфиг-ключи переехали:
+  - `talents.*` → `spec2.*`
+  - `spec.*` (старые) → удалены
+  - `spec2.role-passives.{FIGHTER|TANK|HEALER}.*` — новые бонусы ролей
+  - `dots.wither` — новый блок для DoT чернокнижника/жреца-тьмы
+
+### Совместимость
+- **Paper 1.21+**, **Java 21** (без изменений)
+- **Зависимости**: LuckPerms, PlaceholderAPI (опц.), Vault (опц.), AuraSkills
+  (опц.), RaskolCore 1.3.0+ (опц.) — как в 1.13.0
+- **selftest**: 94 чека PASS (было 90 в 1.13.0; +4 спеков-spec2)
+- **Обратная совместимость конфигов**: 1.14.0 читает `config.yml` 1.13.0,
+  но новые секции (`spec2.*`, `dots.wither`) требуют ручного добавления
+
+## [1.13.0] — 2026-09-20 · «РАСКОЛ | ДВЕ КОРОНЫ: Контроль»
 
 ### Added — система контроля (CC) и убывающей отдачи (DR)
 - Модель CC: 9 типов (STUN, ROOT, SILENCE, DISARM, FEAR, CHARM, SLOW, BLIND,
