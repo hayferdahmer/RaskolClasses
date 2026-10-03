@@ -10,6 +10,7 @@ import dev.raskol.classes.combat.school.Penetration;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.combat.school.SchoolConfig;
 import dev.raskol.classes.combat.school.SchoolMitigation;
+import dev.raskol.classes.spec.service.Spec2Service;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -23,7 +24,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -33,11 +33,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * 1.12.4: DoT-ядро. Реестр живых Dot'ов по целям + тик-задача 1 с.
- * 1.12.5: реестр определений dots.*; снарядные Dot'ы; средовые триггеры; тик-VFX.
- * 1.12.5-fix: getHitEntity() → instanceof; puff-партикл = CLOUD.
- * 1.12.6: + публичный API для HUD: activeDotsOf() возвращает snapshot-список
- *         с доступом к def/stacks/expiresAt; remainingSeconds() для таймера.
+ * 1.12.4–1.12.6: DoT-ядро (реестр, тик 1 с, атрибуция, стеки, кап DPS, триггеры среды).
+ * 1.14.0 (Б2): spec2-тюнинг источника — узлы dot_dur/dot_stacks/dot_mult дерева
+ *         кастера меняют длительность/стеки/dps накладываемого им DoT (specTuned).
  */
 public final class DotService implements Listener {
 
@@ -98,7 +96,6 @@ public final class DotService implements Listener {
         return switch (id) {
             case "burning", "poison" -> 3;
             case "bleed", "chilled" -> 2;
-            case "burning_passive", "poison_passive", "bleed_passive" -> 1;
             default -> 1;
         };
     }
@@ -145,6 +142,8 @@ public final class DotService implements Listener {
         if (!combat.canHit(owner, target)) {
             return;
         }
+        // 1.14.0 (Б2): spec2-тюнинг источника (dot_dur/dot_stacks/dot_mult)
+        def = specTuned(owner, def);
         UUID targetUuid = target.getUniqueId();
         long now = System.currentTimeMillis();
         CopyOnWriteArrayList<DotInstance> list =
@@ -157,6 +156,29 @@ public final class DotService implements Listener {
             }
         }
         list.add(new DotInstance(def, owner.getUniqueId(), now));
+    }
+
+    /**
+     * 1.14.0 (Б2): ранги узлов дерева кастера тюнят его DoT.
+     * Если live-DotDef exposes accessor source() вместо sourceAbility() —
+     * замени одно имя в последней строке метода.
+     */
+    private DotDef specTuned(Player owner, DotDef def) {
+        Spec2Service spec2 = plugin.getSpec2Service();
+        if (spec2 == null) {
+            return def;
+        }
+        UUID uuid = owner.getUniqueId();
+        double durSec = spec2.dotDurBonus(uuid, def.id());
+        double stacks = spec2.dotStacksBonus(uuid, def.id());
+        double multPct = spec2.dotMultBonus(uuid, def.id());
+        if (durSec == 0.0 && stacks == 0.0 && multPct == 0.0) {
+            return def;
+        }
+        long durationMillis = def.durationMillis() + (long) (durSec * 1000.0);
+        int maxStacks = (int) Math.max(1, def.maxStacks() + stacks);
+        double dps = def.dps() * (1.0 + multPct / 100.0);
+        return DotDef.of(def.id(), def.school(), dps, durationMillis, maxStacks, def.sourceAbility());
     }
 
     public void removeAllOn(UUID targetUuid) {
@@ -185,19 +207,11 @@ public final class DotService implements Listener {
 
     /* ------------------------------ 1.12.6: HUD-API ------------------------------ */
 
-    /**
-     * Snapshot активных Dot'ов на цели. Пустой список, если цель не отслеживается.
-     * HUD вызывает этот метод раз в тик для построения DoT-строки.
-     */
     public List<DotInstance> activeDotsOf(UUID targetUuid) {
         CopyOnWriteArrayList<DotInstance> list = dots.get(targetUuid);
-        if (list == null || list.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return new ArrayList<>(list);
+        return list == null ? Collections.emptyList() : List.copyOf(list);
     }
 
-    /** Оставшиеся секунды до истечения Dot'а (ceil — всегда ≥1 на живом Dot). */
     public static long remainingSeconds(DotInstance inst, long nowMillis) {
         long left = inst.expiresAt() - nowMillis;
         if (left <= 0L) {
