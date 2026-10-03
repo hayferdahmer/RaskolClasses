@@ -8,7 +8,6 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.SpecRegistry;
 import dev.raskol.classes.storage.SafeStorage;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
@@ -33,18 +32,14 @@ import java.util.logging.Logger;
 
 /**
  * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), 0–100.
- * 1.9.3.2: знаковый tickDelta (декэй воина работает).
- * 1.10.x: Скверна — событийный рост, пол 0, Переполнение, on-kill.
- * 1.11.1: декэй Скверны у Адского Канала из classes.WARLOCK.specs.*.
- * 1.11.4 (P4e, F5): спека ARCANE даёт +mana_regen/с сверх регена маны (по specs.yml).
- * 1.14.0 (Б4): чтения спек (ARCANE-мана, DEMONOLOGY-декэй) идут из Spec2Storage —
- *         старый SpecService больше не источник основной спеки.
+ * 1.9.3.2: знаковый tickDelta. 1.10.x: Скверна событийная. 1.11.1: декэй Демонологии.
+ * 1.14.0 (Б7): legacy-слой отключён — regen-бонусы только из Spec2Service.regenBonus
+ *         (узлы regen деревьев + роли); ARCANE-прибавка маны теперь рангами дерева arcane.
  */
 public final class ResourceService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
     private static final double MAX_VALUE = 100.0;
-    /** 1.11.1: период purge дебафов чернокнижника в тиках (30 с). */
     private static final long DEBUFF_PURGE_TICKS = 600L;
 
     private final RaskolClasses plugin;
@@ -64,8 +59,6 @@ public final class ResourceService implements Listener {
         this.file = new File(plugin.getDataFolder(), "resources.yml");
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
-
-    /* -------------------------------- доступ -------------------------------- */
 
     public ResourceState stateOf(UUID uuid) {
         return states.computeIfAbsent(uuid, k -> new ResourceState());
@@ -92,8 +85,6 @@ public final class ResourceService implements Listener {
         lastGainMs.remove(uuid);
     }
 
-    /* -------------------------------- персист -------------------------------- */
-
     public void saveAll() {
         states.forEach((uuid, st) -> store.set(uuid.toString(), st.getValue()));
         SafeStorage.saveAtomic(store, file, LOGGER);
@@ -117,13 +108,10 @@ public final class ResourceService implements Listener {
         clear(uuid);
     }
 
-    /* -------------------------------- реген-тик -------------------------------- */
-
     public BukkitTask startTickTask(RaskolClasses plugin) {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
 
-    /** 1.14.0 (Б4): основная спека из spec2-хранилища как Spec-константа (null если нет). */
     private Spec spec2Spec(UUID uuid) {
         if (plugin.getSpec2Service() == null) {
             return null;
@@ -158,13 +146,6 @@ public final class ResourceService implements Listener {
                             : v < 50 ? config.mageRegenTier2()
                             : v < 75 ? config.mageRegenTier3()
                             : config.mageRegenTier4();
-                    // 1.11.4 (F5) + 1.14.0 (Б4): ARCANE = +mana_regen/с сверх тиров маны
-                    if (spec == Spec.ARCANE) {
-                        SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(Spec.ARCANE);
-                        if (def != null) {
-                            rate += def.passiveDouble("mana_regen", 1.0);
-                        }
-                    }
                 }
                 case WARLOCK -> {
                     double v = st.getValue();
@@ -172,7 +153,6 @@ public final class ResourceService implements Listener {
                     if (floor > 0.0 && v < floor) {
                         rate = config.warlockResourceFloorRegen();
                     } else if (v > floor && !inCombat) {
-                        // 1.14.0 (Б4): DEMONOLOGY (наследие hell_channel) — декэй −2/с
                         rate = (spec == Spec.DEMONOLOGY)
                                 ? plugin.getConfig().getDouble(
                                         "classes.WARLOCK.specs.demonology.decay", -2.0)
@@ -183,9 +163,10 @@ public final class ResourceService implements Listener {
                 }
                 default -> rate = config.resourceRegen(pc); // PRIEST, ROGUE
             }
-            rate += plugin.getTalentService().regenBonus(uuid)
-                    + (plugin.getSpec2Service() != null
-                        ? plugin.getSpec2Service().regenBonus(uuid) : 0.0);
+            // 1.14.0 (Б7): regen-бонусы только из spec2-агрегата (узлы regen)
+            if (plugin.getSpec2Service() != null) {
+                rate += plugin.getSpec2Service().regenBonus(uuid);
+            }
 
             if (pc == PlayerClass.WARLOCK) {
                 double floor = config.warlockResourceFloor();
@@ -210,8 +191,6 @@ public final class ResourceService implements Listener {
             }
         }
     }
-
-    /* ---------------------------- боевые прибавки ---------------------------- */
 
     private boolean gainAllowed(UUID uuid) {
         long now = System.currentTimeMillis();
@@ -287,7 +266,6 @@ public final class ResourceService implements Listener {
         }
     }
 
-    /** Скверна: +on-kill за смерть врага в радиусе 10 (только WARLOCK). */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
