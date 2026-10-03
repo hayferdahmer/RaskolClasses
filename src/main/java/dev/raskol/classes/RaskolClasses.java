@@ -42,19 +42,10 @@ import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
 import dev.raskol.classes.passive.PassiveListener;
 import dev.raskol.classes.resource.ResourceService;
-import dev.raskol.classes.spec.SpecEffects;
-import dev.raskol.classes.spec.SpecLegacyReset;
-import dev.raskol.classes.spec.SpecListener;
-import dev.raskol.classes.spec.SpecRegistry;
-import dev.raskol.classes.spec.SpecService;
-import dev.raskol.classes.spec.SpecStorage;
-import dev.raskol.classes.spec.SpecToken;
 import dev.raskol.classes.spec.listen.Spec2RoleListener;
 import dev.raskol.classes.spec.service.Spec2EffectsApplier;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.spec.storage.Spec2Storage;
-import dev.raskol.classes.talent.TalentService;
-import dev.raskol.classes.talent.TalentsStorage;
 import org.bukkit.ChatColor;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.event.EventHandler;
@@ -71,9 +62,10 @@ import java.util.List;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
- * 1.13.0 (Б2): проводка CC-слоя — CCService, CCGuard, CastGuard.
- * 1.14.0 (Б2): проводка spec2-слоя — Spec2Storage/Spec2Service/Spec2EffectsApplier/
- *         Spec2RoleListener (аддитивно, старый talent-слой живёт до переключения в Б3).
+ * 1.13.0: CC-слой (CCService/CCGuard/CastGuard).
+ * 1.14.0 (Б8.2): legacy-слой (talent/*, spec/Spec*, specs.yml) УДАЛЁН;
+ *         единственная система спеков/талантов — spec2 (Spec2Storage/Spec2Service/
+ *         Spec2EffectsApplier/Spec2RoleListener).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -90,17 +82,7 @@ public final class RaskolClasses extends JavaPlugin {
     private HpBarService hpBarService;
     private AbilityToken tokens;
 
-    private SpecRegistry specRegistry;
-    private SpecStorage specStorage;
-    private SpecService specService;
-    private SpecEffects specEffects;
-    private SpecToken specToken;
-    private SpecLegacyReset specLegacyReset;
-
-    private TalentsStorage talentsStorage;
-    private TalentService talentService;
-
-    /** 1.14.0 (Б2): spec2-слой. */
+    /** 1.14.0: spec2-слой (деревья путей). */
     private Spec2Storage spec2Storage;
     private Spec2Service spec2Service;
     private Spec2EffectsApplier spec2Applier;
@@ -210,26 +192,11 @@ public final class RaskolClasses extends JavaPlugin {
         hpSync.startSweep(100L);
         this.hpBarService = new HpBarService(this);
 
-        this.specRegistry = new SpecRegistry(this);
-        specRegistry.load();
-        this.specStorage = new SpecStorage(this);
-        specStorage.load();
-        this.specEffects = new SpecEffects(this);
-        this.specService = new SpecService(this, specStorage, specRegistry);
-        this.specToken = new SpecToken(this);
-
-        this.talentsStorage = new TalentsStorage(this);
-        this.talentService = new TalentService(this, talentsStorage);
-
-        // 1.14.0 (Б2): spec2-слой параллельно старому talent (переключение в Б3)
+        // 1.14.0: spec2 — единственная система спеков/талантов
         this.spec2Storage = new Spec2Storage(this);
         this.spec2Applier = new Spec2EffectsApplier(this);
         this.spec2Service = new Spec2Service(this, spec2Storage);
         pluginManager.registerEvents(new Spec2RoleListener(this), this);
-
-        // 1.14.0 (Б2): обнуление legacy-билдов + возврат очков
-        this.specLegacyReset = new SpecLegacyReset(this);
-        this.specLegacyReset.resetAllOnline();
 
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
@@ -248,7 +215,6 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(passiveListener, this);
         pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
-        pluginManager.registerEvents(new SpecListener(this), this);
         pluginManager.registerEvents(flavorService, this);
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
@@ -268,22 +234,17 @@ public final class RaskolClasses extends JavaPlugin {
                 resists.clear(event.getPlayer().getUniqueId());
                 attributes.clear(event.getPlayer().getUniqueId());
                 characterLevels.invalidate(event.getPlayer().getUniqueId());
-                talentService.clear(event.getPlayer().getUniqueId());
                 spec2Service.clear(event.getPlayer().getUniqueId());
             }
         }, this);
         pluginManager.registerEvents(new Listener() {
             @EventHandler
             public void onJoin(PlayerJoinEvent event) {
-                specService.restorePassiveResists(event.getPlayer());
-                talentService.reconcile(event.getPlayer().getUniqueId());
                 spec2Service.reconcile(event.getPlayer().getUniqueId());
                 hpSync.sync(event.getPlayer());
             }
         }, this);
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
-            specService.restorePassiveResists(online);
-            talentService.reconcile(online.getUniqueId());
             spec2Service.reconcile(online.getUniqueId());
             hpSync.sync(online);
         }
@@ -314,7 +275,6 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.purgeExpired();
             effects.purgeExpired();
-            specEffects.purgeExpired();
             abilities.purgeStaleAttempts();
             fx.purgeStale();
             installations.purgeStale();
@@ -326,9 +286,7 @@ public final class RaskolClasses extends JavaPlugin {
         long autosaveTicks = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
         activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
             cooldowns.saveAll();
-            specStorage.save();
             resources.saveAll();
-            talentsStorage.save();
             spec2Storage.save();
         }, autosaveTicks, autosaveTicks));
 
@@ -423,9 +381,6 @@ public final class RaskolClasses extends JavaPlugin {
         if (resources != null) {
             resources.saveAll();
         }
-        if (talentsStorage != null) {
-            talentsStorage.save();
-        }
         if (spec2Storage != null) {
             spec2Storage.save();
         }
@@ -445,9 +400,6 @@ public final class RaskolClasses extends JavaPlugin {
         }
         if (effects != null) {
             effects.clear();
-        }
-        if (specStorage != null) {
-            specStorage.save();
         }
     }
 
@@ -475,13 +427,9 @@ public final class RaskolClasses extends JavaPlugin {
         if (bossBars != null) {
             bossBars.applyConfig();
         }
-        if (specRegistry != null) {
-            specRegistry.load();
-        }
         fx.validateConfig();
         configValidator.validate();
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
-            talentService.reconcile(online.getUniqueId());
             spec2Service.reconcile(online.getUniqueId());
             if (gearHook != null) {
                 gearHook.refresh(online);
@@ -514,15 +462,7 @@ public final class RaskolClasses extends JavaPlugin {
     public BossBarService getBossBars() { return bossBars; }
     public HpBarService getHpBarService() { return hpBarService; }
     public AbilityToken getTokens() { return tokens; }
-    public SpecRegistry getSpecRegistry() { return specRegistry; }
-    public SpecStorage getSpecStorage() { return specStorage; }
-    public SpecService getSpecService() { return specService; }
-    public SpecEffects getSpecEffects() { return specEffects; }
-    public SpecToken getSpecToken() { return specToken; }
-    public SpecLegacyReset getSpecLegacyReset() { return specLegacyReset; }
-    public TalentsStorage getTalentsStorage() { return talentsStorage; }
-    public TalentService getTalentService() { return talentService; }
-    /** 1.14.0 (Б2): spec2-слой. */
+    /** 1.14.0: spec2-слой. */
     public Spec2Storage getSpec2Storage() { return spec2Storage; }
     public Spec2Service getSpec2Service() { return spec2Service; }
     public Spec2EffectsApplier getSpec2Applier() { return spec2Applier; }
