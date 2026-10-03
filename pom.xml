@@ -6,11 +6,12 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.11.4</version>
+    <!-- 1.13.0 (Б5): релиз линии «Контроль и убывающая отдача» -->
+    <version>1.13.0</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»: специализации, таланты, инсталляции (Пентаграмма), виртуальный пул HP, хук RaskolGear, скрытый путь Чернокнижника (Фолиант Душ) и per-class конфиги kits/*.yml</description>
+    <description>Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»: специализации, таланты, инсталляции (Пентаграмма), виртуальный пул HP, хук RaskolGear, скрытый путь Чернокнижника (Фолиант Душ), per-class конфиги kits/*.yml, школы урона и DoT-ядро (1.12.x), контроль и убывающая отдача (1.13.0)</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
