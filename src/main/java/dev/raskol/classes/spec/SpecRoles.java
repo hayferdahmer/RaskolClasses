@@ -6,6 +6,8 @@ import java.util.Map;
 /**
  * 1.14.0 «Спек 2.0»: роль каждой из 18 специализаций (дизайн-док, раздел 6).
  * guard = TANK; discipline/holy = HEALER; остальные = FIGHTER (включая shadow).
+ * 1.14.0 (Б8.2-fix): ключ чернокнижника унифицирован с enum/деревьями/конфигом —
+ *         "affliction" (ошибочный "witchcraft" убран).
  */
 public final class SpecRoles {
 
@@ -25,7 +27,7 @@ public final class SpecRoles {
             Map.entry("assassination", SpecRole.FIGHTER),
             Map.entry("outlaw", SpecRole.FIGHTER),
             Map.entry("subtlety", SpecRole.FIGHTER),
-            Map.entry("witchcraft", SpecRole.FIGHTER),
+            Map.entry("affliction", SpecRole.FIGHTER),
             Map.entry("destruction", SpecRole.FIGHTER),
             Map.entry("demonology", SpecRole.FIGHTER));
 
