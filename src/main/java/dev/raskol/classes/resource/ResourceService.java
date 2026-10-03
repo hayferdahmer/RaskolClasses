@@ -32,18 +32,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
- * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), 0–100.
- * 1.9.3.2: знаковый tickDelta (декэй воина работает).
- * 1.10.x: Скверна — событийный рост, пол 0, Переполнение, on-kill.
- * 1.11.1: декэй Скверны у Адского Канала из classes.WARLOCK.specs.hell_channel.decay;
- *         плановый purge реестров печати/анти-хила раз в 30 с.
- * 1.11.4 (P4e, F5): спека ARCANE даёт +mana_regen/с сверх регена маны (по specs.yml).
+ * 1.9.3.2 → 1.14.0: ресурсы классов (0–100).
+ * 1.14.0 (Б2b):
+ *   - HELL_CHANNEL (legacy) → DEMONOLOGY: декэй Скверны −2/с вне боя
+ *   - AFFLICTION: +1 Скверны за каждый тик DoT на цели (через DotService listener)
  */
 public final class ResourceService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
     private static final double MAX_VALUE = 100.0;
-    /** 1.11.1: период purge дебафов чернокнижника в тиках (30 с). */
     private static final long DEBUFF_PURGE_TICKS = 600L;
 
     private final RaskolClasses plugin;
@@ -63,8 +60,6 @@ public final class ResourceService implements Listener {
         this.file = new File(plugin.getDataFolder(), "resources.yml");
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
-
-    /* -------------------------------- доступ -------------------------------- */
 
     public ResourceState stateOf(UUID uuid) {
         return states.computeIfAbsent(uuid, k -> new ResourceState());
@@ -91,8 +86,6 @@ public final class ResourceService implements Listener {
         lastGainMs.remove(uuid);
     }
 
-    /* -------------------------------- персист -------------------------------- */
-
     public void saveAll() {
         states.forEach((uuid, st) -> store.set(uuid.toString(), st.getValue()));
         SafeStorage.saveAtomic(store, file, LOGGER);
@@ -115,8 +108,6 @@ public final class ResourceService implements Listener {
         SafeStorage.saveAtomic(store, file, LOGGER);
         clear(uuid);
     }
-
-    /* -------------------------------- реген-тик -------------------------------- */
 
     public BukkitTask startTickTask(RaskolClasses plugin) {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
@@ -147,7 +138,6 @@ public final class ResourceService implements Listener {
                             : v < 50 ? config.mageRegenTier2()
                             : v < 75 ? config.mageRegenTier3()
                             : config.mageRegenTier4();
-                    // 1.11.4 (P4e, F5): ARCANE = +mana_regen/с сверх тиров маны
                     if (plugin.getSpecService().getSpec(uuid) == Spec.ARCANE) {
                         SpecRegistry.SpecDef def = plugin.getSpecRegistry().get(Spec.ARCANE);
                         if (def != null) {
@@ -158,18 +148,20 @@ public final class ResourceService implements Listener {
                 case WARLOCK -> {
                     double v = st.getValue();
                     double floor = config.warlockResourceFloor();
+                    Spec spec = plugin.getSpecService().getSpec(uuid);
                     if (floor > 0.0 && v < floor) {
                         rate = config.warlockResourceFloorRegen();
                     } else if (v > floor && !inCombat) {
-                        rate = (plugin.getSpecService().getSpec(uuid) == Spec.HELL_CHANNEL)
+                        // 1.14.0: DEMONOLOGY (бывш. HELL_CHANNEL) имеет декэй −2/с
+                        rate = (spec == Spec.DEMONOLOGY)
                                 ? plugin.getConfig().getDouble(
-                                        "classes.WARLOCK.specs.hell_channel.decay", -2.0)
+                                        "classes.WARLOCK.specs.demonology.decay", -2.0)
                                 : config.warlockResourceDecay();
                     } else {
                         rate = 0.0;
                     }
                 }
-                default -> rate = config.resourceRegen(pc); // PRIEST, ROGUE
+                default -> rate = config.resourceRegen(pc);
             }
             rate += plugin.getTalentService().regenBonus(uuid);
 
@@ -196,8 +188,6 @@ public final class ResourceService implements Listener {
             }
         }
     }
-
-    /* ---------------------------- боевые прибавки ---------------------------- */
 
     private boolean gainAllowed(UUID uuid) {
         long now = System.currentTimeMillis();
@@ -273,7 +263,6 @@ public final class ResourceService implements Listener {
         }
     }
 
-    /** Скверна: +on-kill за смерть врага в радиусе 10 (только WARLOCK). */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
