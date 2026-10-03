@@ -18,7 +18,7 @@ import java.util.UUID;
  *  1) не тащим raskol-core в pom (нет публичного Maven-репо);
  *  2) на рантайме классы Core видны через softdepend в plugin.yml.
  *
- * На Reason.CLASS / FACTION → немедленный reconcile талантов/резистов/боевых
+ * На Reason.CLASS / FACTION → немедленный reconcile spec2/резистов/боевых
  * кэшей + снятие спеки при mismatch класса. Закрывает 5-секундное окно
  * эксплойта «сменил группу → 5 секунд старых гейтов/резистов/спеки» (TTL кэша Core).
  *
@@ -29,6 +29,10 @@ import java.util.UUID;
  * 1.9.2-fix: generics — класс события приводится к Class<? extends Event>
  * через asSubclass(Event.class) после проверки isAssignableFrom, иначе
  * registerEvent не компилируется (Class<capture#1 of ?>).
+ * 1.14.0 (Б8.2-fix): legacy TalentService/SpecService удалены;
+ *         reconcile идёт через Spec2Service (passive-резисты автоматически
+ *         пересчитываются внутри Spec2EffectsApplier при reconcile),
+ *         спека читается через Spec.fromId(spec2Service.mainSpec).
  */
 public final class PassportChangeListener implements Listener {
 
@@ -99,30 +103,46 @@ public final class PassportChangeListener implements Listener {
         }
     }
 
+    /**
+     * 1.14.0 (Б8.2-fix): немедленный reconcile через spec2-слой.
+     *  - spec2Service.reconcile() пересчитывает все атрибутные/резист-бонусы деревьев;
+     *  - Spec2EffectsApplier (зарегистрирован Spec2RoleListener) автоматически
+     *    подтягивает passive-резисты спеки — отдельный restorePassiveResists не нужен;
+     *  - при CLASS-смене проверяем mismatch класса у основной спеки.
+     */
     private void reconcileImmediate(UUID uuid, String reason) {
-        // Таланты: немедленный reconcile (снимает/вешает модификаторы source=talents)
-        plugin.getTalentService().reconcile(uuid);
-
-        // Резисты: пересборка спек-резистов (снимает старые, ставит новые)
-        var player = plugin.getServer().getPlayer(uuid);
-        if (player != null) {
-            plugin.getSpecService().restorePassiveResists(player);
+        // Spec2: полный reconcile (снимает/вешает модификаторы source=spec2,
+        // Spec2EffectsApplier в тике подтянет passive-резисты спеки)
+        if (plugin.getSpec2Service() != null) {
+            plugin.getSpec2Service().reconcile(uuid);
         }
 
-        // Проверка mismatch класса у спеки: если CLASS-смена привела к другому классу,
-        // спека автоматически сбрасывается (SpecService.getSpec сам это делает)
-        if ("CLASS".equals(reason) && player != null) {
-            Spec spec = plugin.getSpecService().getSpec(uuid);
+        var player = plugin.getServer().getPlayer(uuid);
+
+        // Проверка mismatch класса у спеки: при CLASS-смене, если основная спека
+        // принадлежит другому классу — сбрасываем (mainSpec = null).
+        if ("CLASS".equals(reason) && player != null && plugin.getSpec2Service() != null) {
+            String main = plugin.getSpec2Service().mainSpec(uuid);
+            Spec spec = Spec.fromId(main);
             if (spec != null) {
-                plugin.getLogger().info("PassportChange CLASS: reconcile для " + player.getName()
-                        + " (спека " + spec.id() + " сохранена)");
+                dev.raskol.classes.classsystem.PlayerClass current =
+                        plugin.getClassProvider().getClassOf(player);
+                if (current != null && spec.playerClass() != current) {
+                    plugin.getSpec2Service().storage().setMain(uuid, null);
+                    plugin.getSpec2Service().reconcile(uuid);
+                    plugin.getLogger().info("PassportChange CLASS: reconcile для " + player.getName()
+                            + " (спека " + spec.id() + " сброшена из-за mismatch класса)");
+                } else {
+                    plugin.getLogger().info("PassportChange CLASS: reconcile для " + player.getName()
+                            + " (спека " + spec.id() + " сохранена)");
+                }
             } else {
                 plugin.getLogger().info("PassportChange CLASS: reconcile для " + player.getName()
-                        + " (спека сброшена из-за mismatch класса)");
+                        + " (спека не выбрана)");
             }
         } else if (player != null) {
             plugin.getLogger().info("PassportChange FACTION: reconcile для " + player.getName()
-                    + " (гейты/резисты обновлены)");
+                    + " (гейты/резисты обновлены через spec2)");
         }
     }
 
