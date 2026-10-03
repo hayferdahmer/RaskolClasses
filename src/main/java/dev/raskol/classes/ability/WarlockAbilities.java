@@ -5,6 +5,8 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.cc.CastChannels;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.dot.DotInstance;
+import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.fx.WarlockFx;
 import dev.raskol.classes.spec.Spec;
 import org.bukkit.Location;
@@ -14,6 +16,7 @@ import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Vex;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -35,9 +38,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.11.2: T2-задачи канала + S5 strip-absorption.
  * 1.11.4 (P4a): математика в WarlockMath, визуал в WarlockFx.
  * 1.13.0 (Б3): канал soul_rift в CastChannels (прерывание interruptible-CC).
- * 1.14.0 (Б1-fix): спек-трейты на AFFLICTION/DESTRUCTION/DEMONOLOGY.
  * 1.14.0 (Б4): specOf() читает основную спеку из Spec2Storage.
- * 1.14.0 (контент-долг 1): публичный addAntiheal для «Смертельного удара» Воина.
+ * 1.14.0 (контент-долг 6): +10 древесных способностей Чернокнижника:
+ *   affliction: withering, soul_siphon, soul_harvest (ульт);
+ *   destruction: immolate, chaos_bolt, conflagrate;
+ *   demonology: dreadfire, summon_demon, demonic_pact, demon_soul (ульт).
+ *   Гейт — treeUnlocked(); демон — Vex с лайфтаймом (пет-система в 1.14.6).
  */
 public final class WarlockAbilities implements Listener {
 
@@ -48,6 +54,8 @@ public final class WarlockAbilities implements Listener {
     private static final Map<UUID, Long> ANTIHEAL_EXPIRY = new ConcurrentHashMap<>();
     /** 1.11.2 (T2): задачи канала Раскола Души, indexed by caster UUID. */
     private static final Map<UUID, List<BukkitTask>> CHANNEL_TASKS = new ConcurrentHashMap<>();
+    /** 1.14.0 (долг 6): призванный демон игрока (сессия). */
+    private static final Map<UUID, UUID> DEMON_BY_OWNER = new ConcurrentHashMap<>();
 
     public static double sealAmplifyOf(UUID uuid) {
         Long expiry = SEAL_EXPIRY.get(uuid);
@@ -144,9 +152,16 @@ public final class WarlockAbilities implements Listener {
         return cfgD("classes.WARLOCK.abilities." + def.id() + ".radius", defv);
     }
 
+    private double tbase(AbilityDef def, double defv) {
+        return cfgD("classes.WARLOCK.treeAbilities." + def.id() + ".base", defv);
+    }
+
+    private double tcoeff(AbilityDef def, double defv) {
+        return cfgD("classes.WARLOCK.treeAbilities." + def.id() + ".coeff", defv);
+    }
+
     /* ------------------------------ спеки (1.14.0 Б4: источник — spec2) ------------------------------ */
 
-    /** 1.14.0 (Б4): основная спека из Spec2Storage; null если путь не выбран. */
     private Spec specOf(Player p) {
         String main = plugin.getSpec2Service().mainSpec(p.getUniqueId());
         return main == null ? null : Spec.fromId(main);
@@ -164,35 +179,30 @@ public final class WarlockAbilities implements Listener {
         return specOf(p) == Spec.DEMONOLOGY;
     }
 
-    /** DESTRUCTION: +10% урона способностей (наследие black_mage.damage-mult). */
     private double specDamageMult(Player p) {
         return isDestruction(p)
                 ? 1.0 + cfgD("classes.WARLOCK.specs.destruction.damage-mult", 0.10)
                 : 1.0;
     }
 
-    /** AFFLICTION: зона Раскола Души шире (наследие black_mage.soul-rift-radius-bonus). */
     private double specRiftRadiusBonus(Player p) {
         return isAffliction(p)
                 ? cfgD("classes.WARLOCK.specs.affliction.soul-rift-radius-bonus", 2.0)
                 : 0.0;
     }
 
-    /** AFFLICTION: «Небытие» стирает резист-модификаторы (наследие black_mage). */
     private int specUnwritingStrips(Player p) {
         return isAffliction(p)
                 ? cfgI("classes.WARLOCK.specs.affliction.unwriting-strips-resist", 1)
                 : 0;
     }
 
-    /** DEMONOLOGY: «Печать Погибели» держится дольше (наследие hell_channel.seal-duration). */
     private double specSealDuration(Player p, double baseDuration) {
         return isDemonology(p)
                 ? cfgD("classes.WARLOCK.specs.demonology.seal-duration", 86.6)
                 : baseDuration;
     }
 
-    /** DEMONOLOGY: запрет лечения дольше (наследие hell_channel.antiheal-bonus). */
     private double specAntihealBonus(Player p) {
         return isDemonology(p)
                 ? cfgD("classes.WARLOCK.specs.demonology.antiheal-bonus", 3.0)
@@ -217,12 +227,36 @@ public final class WarlockAbilities implements Listener {
         return (base(def, defBase) + sp * coeff(def, defCoeff)) * damageMult(caster);
     }
 
+    private double tspellDamage(Player caster, AbilityDef def, double defBase, double defCoeff) {
+        double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
+        return (tbase(def, defBase) + sp * tcoeff(def, defCoeff)) * damageMult(caster);
+    }
+
     private LivingEntity rayTarget(Player p, double range) {
         Entity e = p.getTargetEntity((int) range);
         return e instanceof LivingEntity le ? le : null;
     }
 
-    /** Плата «Чёрного Слова»: pct% от maxHP (formula), не ниже 1 HP. */
+    private boolean treeUnlocked(Player p, AbilityDef def) {
+        if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
+            return true;
+        }
+        p.sendMessage(dev.raskol.classes.shadedPlaceholder()); // never
+        return false;
+    }
+
+    private void noTarget(Player p) {
+        p.sendMessage(net.kyori.adventure.text.Component.text(
+                plugin.getRaskolConfig().message("cheap-shot-no-target",
+                        "Нет цели в радиусе действия"), net.kyori.adventure.text.format.NamedTextColor.GRAY));
+    }
+
+    private void allyTarget(Player p) {
+        p.sendMessage(net.kyori.adventure.text.Component.text(
+                plugin.getRaskolConfig().message("ally.no-hit", "Союзника бить нельзя"),
+                net.kyori.adventure.text.format.NamedTextColor.RED));
+    }
+
     private void paySelfCost(Player caster, double pct) {
         double maxFormula = formulaMax(caster);
         double curFormula = currentFormulaHp(caster);
@@ -232,7 +266,6 @@ public final class WarlockAbilities implements Listener {
         WarlockFx.safeFx(caster.getLocation(), Particle.SCULK_SOUL, 10, 0.4);
     }
 
-    /** 1.11.2 (S5): опциональное снятие Absorption при наложении анти-хила. */
     private void maybeStripAbsorption(LivingEntity target) {
         if (!(target instanceof Player tp)) {
             return;
@@ -247,7 +280,28 @@ public final class WarlockAbilities implements Listener {
         }
     }
 
-    /* -------------------------------- способности -------------------------------- */
+    private int witherStacks(LivingEntity t) {
+        int stacks = 0;
+        for (DotInstance inst : plugin.getCombat().dots().activeDotsOf(t.getUniqueId())) {
+            if (inst.def().id().equals("wither")) {
+                stacks += inst.stacks();
+            }
+        }
+        return stacks;
+    }
+
+    private int burningStacks(LivingEntity t) {
+        int stacks = 0;
+        for (DotInstance inst : plugin.getCombat().dots().activeDotsOf(t.getUniqueId())) {
+            String id = inst.def().id();
+            if (id.equals("burning") || id.equals("burning_passive")) {
+                stacks += inst.stacks();
+            }
+        }
+        return stacks;
+    }
+
+    /* -------------------------------- базовые способности -------------------------------- */
 
     public boolean blackWord(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
@@ -446,11 +500,296 @@ public final class WarlockAbilities implements Listener {
         return true;
     }
 
+    /* --------------------- древесные способности (1.14.0, контент-долг 6) --------------------- */
+
+    /** affliction T2: маг-урон + DoT wither +6 Скверны. */
+    public boolean withering(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            noTarget(caster);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            allyTarget(caster);
+            return false;
+        }
+        WarlockFx.safeFx(caster.getLocation(), Particle.SCULK_SOUL, 10, 0.4);
+        double dmg = tspellDamage(caster, def, 8.0, 0.7);
+        plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
+        plugin.getCombat().dots().applyById(caster, t, "wither");
+        plugin.getResources().add(caster.getUniqueId(), 6.0);
+        WarlockFx.riseFx(t.getLocation(), Particle.SCULK_SOUL, 6);
+        plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_WITHER_HURT, 0.5f, 1.0f);
+        return true;
+    }
+
+    /** affliction T5: дрейн: урон + хил 50% + Скверна; у цели-игрока −10 её ресурса. */
+    public boolean soulSiphon(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            noTarget(caster);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            allyTarget(caster);
+            return false;
+        }
+        WarlockFx.safeFx(caster.getLocation(), Particle.SOUL, 12, 0.4);
+        double dmg = tspellDamage(caster, def, 10.0, 0.8);
+        double dealt = plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
+        if (dealt > 0.0) {
+            plugin.getHpBarService().heal(caster, dealt * 0.5);
+        }
+        if (t instanceof Player tp) {
+            plugin.getResources().stateOf(tp.getUniqueId()).tickDelta(-10.0);
+        }
+        plugin.getResources().add(caster.getUniqueId(), 10.0);
+        WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 8);
+        plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 0.5f, 1.1f);
+        return true;
+    }
+
+    /** affliction T6 (ульт): детонация стеков wither: урон = стеки × base; +Скверна за стек. */
+    public boolean soulHarvest(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            noTarget(caster);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            allyTarget(caster);
+            return false;
+        }
+        int stacks = witherStacks(t);
+        if (stacks == 0) {
+            caster.sendMessage(net.kyori.adventure.text.Component.text(
+                    "Жатва душ: на цели нет иссушения.", net.kyori.adventure.text.format.NamedTextColor.GRAY));
+            return false;
+        }
+        double per = tspellDamage(caster, def, 10.0, 0.9);
+        plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(per * stacks), true);
+        plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.SHADOW);
+        plugin.getResources().add(caster.getUniqueId(), stacks * 5.0);
+        WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 24, 0.6);
+        WarlockFx.safeFx(t.getLocation(), Particle.SONIC_BOOM, 1, 0.0);
+        plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_WITHER_DEATH, 0.7f, 0.9f);
+        caster.sendMessage(net.kyori.adventure.text.Component.text(
+                "Жатва душ: стеков собрано — " + stacks, net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+        return true;
+    }
+
+    /** destruction T2: маг-урон + горение +6 Скверны. */
+    public boolean immolate(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            noTarget(caster);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            allyTarget(caster);
+            return false;
+        }
+        WarlockFx.safeFx(caster.getLocation(), Particle.FLAME, 10, 0.4);
+        double dmg = tspellDamage(caster, def, 9.0, 0.8);
+        plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
+        plugin.getCombat().dots().applyById(caster, t, "burning");
+        plugin.getResources().add(caster.getUniqueId(), 6.0);
+        WarlockFx.riseFx(t.getLocation(), Particle.FLAME, 6);
+        plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_BLAZE_SHOOT, 0.5f, 1.0f);
+        return true;
+    }
+
+    /** destruction T4: тяжёлый маг-урон; цель получает −20% маг-резиста на 5 с. */
+    public boolean chaosBolt(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            noTarget(caster);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            allyTarget(caster);
+            return false;
+        }
+        WarlockFx.safeFx(caster.getLocation(), Particle.ELECTRIC_SPARK, 14, 0.4);
+        double dmg = tspellDamage(caster, def, 18.0, 1.5);
+        plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
+        plugin.getResists().addTimedModifier(t.getUniqueId(), "chaos_bolt", 0.0, -20.0, 5000L);
+        WarlockFx.safeFx(t.getLocation(), Particle.SONIC_BOOM, 2, 0.2);
+        plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.6f, 1.2f);
+        return true;
+    }
+
+    /** destruction T5: детонация стеков burning: урон = стеки × base; огонь сгорает. */
+    public boolean conflagrate(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            noTarget(caster);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            allyTarget(caster);
+            return false;
+        }
+        int stacks = burningStacks(t);
+        if (stacks == 0) {
+            caster.sendMessage(net.kyori.adventure.text.Component.text(
+                    "Конфлаграция: цель не горит.", net.kyori.adventure.text.format.NamedTextColor.GRAY));
+            return false;
+        }
+        double per = tspellDamage(caster, def, 6.0, 0.5);
+        plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(per * stacks));
+        plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.FIRE);
+        plugin.getResources().add(caster.getUniqueId(), stacks * 3.0);
+        WarlockFx.safeFx(t.getLocation(), Particle.FLAME, 20, 0.5);
+        WarlockFx.safeFx(t.getLocation(), Particle.EXPLOSION, 1, 0.0);
+        plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 0.6f, 1.1f);
+        return true;
+    }
+
+    /** demonology T2: маг-урон + горение (тёмный окрас VFX) +6 Скверны. */
+    public boolean dreadfire(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            noTarget(caster);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            allyTarget(caster);
+            return false;
+        }
+        WarlockFx.safeFx(caster.getLocation(), Particle.SOUL_FIRE_FLAME, 10, 0.4);
+        double dmg = tspellDamage(caster, def, 9.0, 0.8);
+        plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
+        plugin.getCombat().dots().applyById(caster, t, "burning");
+        plugin.getResources().add(caster.getUniqueId(), 6.0);
+        WarlockFx.riseFx(t.getLocation(), Particle.SOUL_FIRE_FLAME, 6);
+        plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_BLAZE_SHOOT, 0.5f, 0.8f);
+        return true;
+    }
+
+    /** demonology T4: призвать демона (Vex, 12 с) на цель; +10 Скверны. */
+    public boolean summonDemon(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        LivingEntity t = rayTarget(caster, 20);
+        if (t == null || t.isDead()) {
+            noTarget(caster);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(caster, t)) {
+            allyTarget(caster);
+            return false;
+        }
+        UUID cid = caster.getUniqueId();
+        UUID old = DEMON_BY_OWNER.get(cid);
+        if (old != null) {
+            Entity e = plugin.getServer().getEntity(old);
+            if (e != null && e.isValid() && !e.isDead()) {
+                caster.sendMessage(net.kyori.adventure.text.Component.text(
+                        "Демон уже призван.", net.kyori.adventure.text.format.NamedTextColor.GRAY));
+                return false;
+            }
+            DEMON_BY_OWNER.remove(cid);
+        }
+        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 12);
+        Vex demon = caster.getWorld().spawn(caster.getLocation().add(0.0, 1.0, 0.0), Vex.class, v -> {
+            v.setLimitedLifetime(true);
+            v.setLimitedLifetimeTicks(secs * 20);
+            v.setCustomName("Демон " + caster.getName());
+            v.setCustomNameVisible(false);
+        });
+        demon.setTarget(t);
+        DEMON_BY_OWNER.put(cid, demon.getUniqueId());
+        plugin.getResources().add(cid, 10.0);
+        WarlockFx.safeFx(caster.getLocation(), Particle.SCULK_SOUL, 20, 0.5);
+        WarlockFx.ringFx(caster.getLocation(), 1.5, Particle.SOUL_FIRE_FLAME, 2);
+        plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_VEX_CHARGE, 0.8f, 0.7f);
+        caster.sendMessage(net.kyori.adventure.text.Component.text(
+                "Демон призван на " + secs + " с (+10 Скверны)",
+                net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+        return true;
+    }
+
+    /** demonology T5: пакт: +10% INT себе и союзникам… чернокнижник одинок: себе + врагам r8 −5% маг-резиста. */
+    public boolean demonicPact(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
+        double intNow = plugin.getAttributes().value(caster.getUniqueId(),
+                dev.raskol.classes.attribute.AttributeType.INT);
+        double bonus = intNow * 0.10;
+        plugin.getAttributes().addTimedModifier(caster.getUniqueId(), "demonic_pact",
+                0.0, 0.0, bonus, secs * 1000L);
+        plugin.getResources().add(caster.getUniqueId(), 8.0);
+        WarlockFx.safeFx(caster.getLocation(), Particle.SOUL_FIRE_FLAME, 18, 0.5);
+        plugin.getFx().startAura(caster.getUniqueId(), Particle.SCULK_SOUL, secs * 20, 2,
+                "ENTITY_WARDEN_HEARTBEAT");
+        caster.sendMessage(net.kyori.adventure.text.Component.text(
+                "Демонический пакт: +" + (int) bonus + " ИНТ на " + secs + " с",
+                net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+        return true;
+    }
+
+    /** demonology T6 (ульт): поглотить демона: Сила II + Сопротивление I +30 Скверны на 10 с. */
+    public boolean demonSoul(Player caster, AbilityDef def) {
+        if (!treeUnlocked(caster, def)) {
+            return false;
+        }
+        UUID cid = caster.getUniqueId();
+        UUID did = DEMON_BY_OWNER.get(cid);
+        Entity demon = did != null ? plugin.getServer().getEntity(did) : null;
+        if (demon == null || !demon.isValid() || demon.isDead()) {
+            caster.sendMessage(net.kyori.adventure.text.Component.text(
+                    "Душа демона: сначала призови демона.",
+                    net.kyori.adventure.text.format.NamedTextColor.GRAY));
+            return false;
+        }
+        demon.remove();
+        DEMON_BY_OWNER.remove(cid);
+        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
+        caster.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, secs * 20, 1));
+        caster.addPotionEffect(new PotionEffectType.RESISTANCE == null
+                ? new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 0)
+                : new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 0));
+        plugin.getResources().add(cid, 30.0);
+        WarlockFx.safeFx(caster.getLocation(), Particle.SONIC_BOOM, 2, 0.1);
+        WarlockFx.ringFx(caster.getLocation(), 2.0, Particle.SOUL_FIRE_FLAME, 3);
+        plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_WARDEN_ROAR, 0.9f, 0.6f);
+        caster.sendMessage(net.kyori.adventure.text.Component.text(
+                "Душа демона: слияние на " + secs + " с (+30 Скверны)",
+                net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+        return true;
+    }
+
     /* ------------------------------ 1.11.2 (T2): отмена на выход ------------------------------ */
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
         cancelChannelTasks(event.getPlayer().getUniqueId());
+        DEMON_BY_OWNER.remove(event.getPlayer().getUniqueId());
     }
 
     /* ------------------------------ unit-хелперы (план B) ------------------------------ */
@@ -468,5 +807,12 @@ public final class WarlockAbilities implements Listener {
             return plugin.getAttributes().currentFormulaHp(p);
         }
         return t.getHealth();
+    }
+
+    /** 1.14.0: ids древесных способностей для сверки с TreeAbilities. */
+    public static List<String> treeAbilityIds() {
+        return List.of("withering", "soul_siphon", "soul_harvest",
+                "immolate", "chaos_bolt", "conflagrate",
+                "dreadfire", "summon_demon", "demonic_pact", "demon_soul");
     }
 }
