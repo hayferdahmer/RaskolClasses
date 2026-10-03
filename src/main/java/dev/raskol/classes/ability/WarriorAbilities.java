@@ -23,6 +23,8 @@ import java.util.UUID;
  * 1.12.3: школа PHYSICAL идёт из AbilityDef через cast-контекст AbilityRegistry;
  *         VFX (cast-sound/cast-particle/impact-sound/impact-particle) берётся
  *         из vfx.<id>.* конфига с дефолтами.
+ * 1.14.0 (Б3): талантовые хуки baseBonus/coeffMult читаются из Spec2Service
+ *         (деревья путей), TalentService больше не используется.
  */
 public final class WarriorAbilities {
 
@@ -62,10 +64,11 @@ public final class WarriorAbilities {
         return v > 0 ? v : defv;
     }
 
+    /** 1.14.0 (Б3): базовый урон с хуками Spec2Service. */
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
         UUID uuid = p.getUniqueId();
-        double b = base(def, defBase) + plugin.getTalentService().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
     }
 
@@ -84,7 +87,6 @@ public final class WarriorAbilities {
                 "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
-    /** 1.9.3 (план B): формульный maxHp из HpBarService. */
     private double effectiveMaxHp(LivingEntity target) {
         if (target instanceof Player p) {
             return plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
@@ -96,9 +98,6 @@ public final class WarriorAbilities {
         return ai != null ? ai.getValue() : 20.0;
     }
 
-    /* ------------------------------ VFX-хелперы ------------------------------ */
-
-    /** Каст-VFX: звук + партикл в точке кастера (голова). */
     private void castFx(Player p, String id, String soundDef, String particleDef,
                         float volume, float pitch, int count) {
         Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
@@ -113,7 +112,6 @@ public final class WarriorAbilities {
         }
     }
 
-    /** Impact-VFX: звук + партикл в точке цели. */
     private void impactFx(LivingEntity target, String id,
                           String soundDef, String particleDef,
                           float volume, float pitch, int count) {
@@ -130,7 +128,6 @@ public final class WarriorAbilities {
         }
     }
 
-    /** Execute-VFX: отдельный звук и крупные партиклы для Рагнарёка/Казни. */
     private void executeFx(Player caster, LivingEntity target) {
         Sound sound = plugin.getFx().resolveSound(
                 cfgS("vfx.ragnarok.execute-sound", "ENTITY_GENERIC_EXPLODE"));
@@ -145,10 +142,6 @@ public final class WarriorAbilities {
         }
     }
 
-    /**
-     * Безопасный резолв Particle по имени: неизвестное имя → null (без падения).
-     * FxService не имеет универсального resolveParticle — делаем локально.
-     */
     private Particle resolveParticle(String name) {
         if (name == null || name.isEmpty()) {
             return null;
@@ -159,8 +152,6 @@ public final class WarriorAbilities {
             return null;
         }
     }
-
-    /* -------------------------------- способности -------------------------------- */
 
     public boolean tyrStrike(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
@@ -183,8 +174,8 @@ public final class WarriorAbilities {
 
     public boolean balderSkin(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
-        double b = base(def, 15.0) + plugin.getTalentService().baseBonus(uuid, def.id());
-        double c = coeff(def, 0.05) * plugin.getTalentService().coeffMult(uuid, def.id());
+        double b = base(def, 15.0) + plugin.getSpec2Service().baseBonus(uuid, def.id());
+        double c = coeff(def, 0.05) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         double grant = b + plugin.getCombat().powers().weaponPower(uuid) * c;
         int secs = duration(def, 5);
         plugin.getResists().addTimedModifier(uuid, def.id(), grant, 0.0, secs * 1000L);
@@ -202,7 +193,6 @@ public final class WarriorAbilities {
         return true;
     }
 
-    /** 1.9.3 (план B): heal() через HpBarService. */
     public boolean fenrirBlood(Player p, AbilityDef def) {
         double formula = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
         double scale = plugin.getHpBarService().scale(p);
@@ -216,7 +206,6 @@ public final class WarriorAbilities {
                 0.6f, 1.0f, 16);
         double amount = dmg(p, def, 15.0, 0.5);
         plugin.getHpBarService().heal(p, amount);
-        // heal-impact: сердечки
         Sound healSound = plugin.getFx().resolveSound(
                 cfgS("vfx.fenrir_blood.impact-sound", "ENTITY_PLAYER_LEVELUP"));
         Location loc = p.getLocation().add(0.0, 1.0, 0.0);
