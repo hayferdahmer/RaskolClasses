@@ -27,14 +27,14 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Реестр способностей шести классов.
  * 1.7.4.1: кулдаун стартует ТОЛЬКО после успешного каста.
- * 1.9.0: кулдаун умножался на TalentService.cooldownMult.
  * 1.10.0-fix: black_word и unwriting получили SELF-кастеры (ray-таргет).
  * 1.12.3: школа способности (school) из конфига/DEFAULT_SCHOOLS; ThreadLocal-контекст
  *         школы вокруг вызова кастера (CombatService читает в dealDamage).
  * 1.13.0 (Б2): CC-гейт каста — CastGuard.canCast (STUN/FEAR/SILENCE) до антискпа,
  *         кулдаунов и списания ресурса: блокировка каста не тратит ничего.
- * 1.14.0 (Б8.2-fix): кулдаун из Spec2Service: процент (kind cd) и секунды
- *         (kind kit_cd, узлы деревьев «−N с кулдауна»); legacy TalentService удалён.
+ * 1.14.0 (Б8.2-fix): кулдаун из Spec2Service (cooldownMult + cooldownSecBonus).
+ * 1.14.0 (контент-долг 1): registerTreeCaster — кастеры древесных способностей
+ *         (slot 6+); integrityProblems не считает их сиротами.
  */
 public final class AbilityRegistry {
 
@@ -133,6 +133,8 @@ public final class AbilityRegistry {
     private final Map<PlayerClass, List<AbilityDef>> byClass = new EnumMap<>(PlayerClass.class);
     private final Map<String, Caster> casters = new HashMap<>();
     private final Map<String, TargetedCaster> targetedCasters = new HashMap<>();
+    /** 1.14.0 (контент-долг 1): id древесных кастеров (не считаются сиротами). */
+    private final Set<String> treeCasterIds = new HashSet<>();
     private final Map<UUID, Map<String, Long>> lastAttempts = new ConcurrentHashMap<>();
 
     public AbilityRegistry(RaskolClasses plugin) {
@@ -188,6 +190,12 @@ public final class AbilityRegistry {
         casters.put("unwriting", (p, d) -> warlock.unwriting(p, null, d));
         targetedCasters.put("unwriting", warlock::unwriting);
         casters.put("soul_rift", warlock::soulRift);
+    }
+
+    /** 1.14.0 (контент-долг 1): регистрация кастера древесной способности (slot 6+). */
+    public void registerTreeCaster(String id, Caster caster) {
+        casters.put(id, caster);
+        treeCasterIds.add(id);
     }
 
     public void loadFromConfig(RaskolConfig cfg) {
@@ -259,7 +267,7 @@ public final class AbilityRegistry {
                 return true;
             }
         }
-        return false;
+        return casters.containsKey(id); // древесные способности (slot 6+)
     }
 
     public List<String> integrityProblems() {
@@ -287,7 +295,8 @@ public final class AbilityRegistry {
             }
         }
         for (String id : casters.keySet()) {
-            if (!knownIds.contains(id)) {
+            // 1.14.0: древесные кастеры легальны вне DEFAULTS
+            if (!knownIds.contains(id) && !treeCasterIds.contains(id)) {
                 problems.add("кастер " + id + " — сирота (нет в DEFAULTS)");
             }
         }
@@ -348,8 +357,7 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.13.0 (Б2): CC-гейт каста ДО антискпа/кулдаунов/ресурса:
-        // блокировка контролем не тратит ресурс и не ставит кулдаун.
+        // 1.13.0 (Б2): CC-гейт каста ДО антискпа/кулдаунов/ресурса
         if (!plugin.getCastGuard().canCast(caster, false)) {
             CCType block = plugin.getCastGuard().blockReason(caster, false);
             caster.sendMessage(Component.text(cfg.message("cc.cast-interrupted",
@@ -408,11 +416,7 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.14.0 (Б8.2-fix): кулдаун из spec2:
-        //   - cooldownMult (процент, kind cd): 1.0 по умолчанию, <1.0 = ускорение
-        //   - cooldownSecBonus (секунды, kind kit_cd): 0.0 по умолчанию,
-        //     узлы деревьев «−N с кулдауна» суммируются сюда
-        // Минимальный кулдаун — 500 мс (антискпам каста).
+        // 1.14.0 (Б8.2-fix): кулдаун из spec2: процент (cd) + секунды (kit_cd)
         double cdMult = plugin.getSpec2Service().cooldownMult(id, def.id());
         double cdSecBonus = plugin.getSpec2Service().cooldownSecBonus(id, def.id());
         if (!Double.isFinite(cdMult) || cdMult <= 0.0) {
