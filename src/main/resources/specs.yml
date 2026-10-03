@@ -1,21 +1,13 @@
 # ============================================================
-#  RaskolClasses v1.11.1 — Специализации классов
-#  Выбор на 40 уровне, один раз, бесплатно. Респец — платный (Пакет 3).
+#  RaskolClasses v1.14.0 — Специализации классов
+#  Выбор на 40 уровне, один раз, бесплатно. Респец — платный.
 #  /rc reload — применить без рестарта.
-#  ВНИМАНИЕ: активки спеков удалены в 1.7.5 (спека = пассивная идентичность);
-#  секции active: ниже — legacy для старых спек, живут до чистки 1.7.x-хвостов.
-#  Passive-ключи читает SpecListener/SpecService с фолбэками в коде —
-#  отсутствующий ключ не ломает старт, берётся дефолт из кода.
 #  1.10.0: добавлены спеки Чернокнижника (black_mage, hell_channel).
-#  1.11.1: числовые трейты спек чернокнижника УБРАНЫ из этого файла —
-#          единственный источник чисел теперь config.yml:
-#          classes.WARLOCK.specs.* (урон/радиус/диспел/декэй/печать/анти-хил)
-#          и resist.specs.hell_channel.magic (+6% магрезиста).
-#          Здесь остаются только id и description (витрина Книги класса).
+#  1.14.0: расширение до 18 спеков (3 на класс) + legacy для обратной совместимости.
 # ============================================================
 
 specs:
-  # ---------- ВОИН ----------
+  # ---------- ВОИН (3 спеки) ----------
   guardian:
     passive:
       id: guardian
@@ -40,7 +32,21 @@ specs:
       cost: 15
       cooldown: 8
       bonus: 4.0
-  # ---------- ОХОТНИК ----------
+  arms:
+    passive:
+      id: arms
+      description: "Оружейник: +12% урона при HP ≥ 80%, казнь срабатывает чаще"
+      damage_pct: 12
+      threshold: 0.80
+    active:
+      id: bladestorm
+      description: "Шторм клинков: AoE урон в радиусе 4 на 3 с"
+      cost: 30
+      cooldown: 60
+      duration: 3
+      radius: 4.0
+
+  # ---------- ОХОТНИК (3 спеки) ----------
   marksman:
     passive:
       id: marksman
@@ -51,9 +57,9 @@ specs:
       description: "Точный выстрел: следующий выстрел игнорирует 50% резиста цели"
       cost: 20
       cooldown: 25
-  tracker:
+  survival:
     passive:
-      id: tracker
+      id: survival
       description: "Следопыт: видишь HP цели и её подсветку 6 с после удара"
       track_duration: 6
     active:
@@ -63,10 +69,22 @@ specs:
       cooldown: 30
       duration: 3
       radius: 4.0
-  # ---------- ЖРЕЦ ----------
-  lightbearer:
+  beast_master:
     passive:
-      id: lightbearer
+      id: beast_master
+      description: "Повелитель зверей: +15% к урону питомца, реген Концентрации +1/с"
+      pet_bonus: 15
+    active:
+      id: bestial_wrath
+      description: "Звериная ярость: питомец +50% урона на 10 с"
+      cost: 30
+      cooldown: 60
+      duration: 10
+
+  # ---------- ЖРЕЦ (3 спеки) ----------
+  holy:
+    passive:
+      id: holy
       description: "Светоносец: ×1.2 к исходящему лечению"
       heal_multiplier: 1.20
     active:
@@ -89,7 +107,19 @@ specs:
       cooldown: 20
       damage: 12.0
       duration: 2
-  # ---------- МАГ ----------
+  discipline:
+    passive:
+      id: discipline
+      description: "Послушание: +10% к силе щитов, Искупление лечит от урона"
+      shield_bonus: 10
+    active:
+      id: penance
+      description: "Исповедь: 3 заряда лечения/урона по цели"
+      cost: 25
+      cooldown: 12
+      charges: 3
+
+  # ---------- МАГ (3 спеки) ----------
   arcane:
     passive:
       id: arcane
@@ -112,7 +142,101 @@ specs:
       cooldown: 35
       duration: 3
       radius: 4.0
-  # ---------- РАЗБОЙНИК ----------
+  fire:
+    passive:
+      id: fire
+      description: "Огонь: +20% к длительности горения DoT, крит поджигает"
+      dot_duration_bonus: 20
+    active:
+      id: combustion
+      description: "Возгорание: +30% к маг-урону на 8 с"
+      cost: 40
+      cooldown: 90
+      duration: 8
+
+  # ---------- РАЗБОЙНИК (3 спеки) ----------
+  assassin:
+    passive:
+      id: assassin
+      description: "Ликвидатор: +15% шанса крита ×1.5 в ближнем бою"
+      crit_chance: 15
+      crit_mult: 1.5
+    active:
+      id: garrote
+      description: "Гаррота: урон 8 + Slowness I 2 с по цели спереди"
+      cost: 20
+      cooldown: 18
+      damage: 8.0
+      duration: 2
+  outlaw:
+    passive:
+      id: outlaw
+      description: "Головорез: +15% шанса уклонения"
+      dodge_chance: 15
+    active:
+      id: smoke_bomb
+      description: "Дымовая шашка: Blind 2 с всем врагам в радиусе 3"
+      cost: 25
+      cooldown: 30
+      duration: 2
+      radius: 3.0
+  subtlety:
+    passive:
+      id: subtlety
+      description: "Скрытность: +25% урона из невидимости, первый удар сбивает с ног"
+      stealth_bonus: 25
+    active:
+      id: shadow_dance
+      description: "Танец теней: вход в стелс на 5 с"
+      cost: 30
+      cooldown: 60
+      duration: 5
+
+  # ---------- ЧЕРНОКНИЖНИК (3 спеки, 1.14.0) ----------
+  affliction:
+    passive:
+      id: affliction
+      description: "Колдовство: +10% урона способностей; DoT висят на 30% дольше; «Небытие» стирает 1 резист"
+      dot_duration_bonus: 30
+  destruction:
+    passive:
+      id: destruction
+      description: "Разрушение: +15% урона способностей FIRE; крит поджигает на 6 с"
+      damage_bonus: 15
+  demonology:
+    passive:
+      id: demonology
+      description: "Демонология: +10% урона способностей; +6% магрезиста; пет получает +20% HP"
+      pet_hp_bonus: 20
+
+  # ---------- LEGACY (1.13.0 и ранее, для обратной совместимости) ----------
+  # Эти спеки остаются для игроков, выбравших их до 1.14.0.
+  # Новые игроки увидят только 18 спеков выше.
+  tracker:
+    passive:
+      id: tracker
+      description: "Следопыт: видишь HP цели и её подсветку 6 с после удара"
+      track_duration: 6
+    active:
+      id: snare
+      description: "Силки: Slowness III на 3 с по цели в радиусе 4"
+      cost: 20
+      cooldown: 30
+      duration: 3
+      radius: 4.0
+  lightbearer:
+    passive:
+      id: lightbearer
+      description: "Светоносец: ×1.2 к исходящему лечению"
+      heal_multiplier: 1.20
+    active:
+      id: sanctuary
+      description: "Санктуарий: реген 2 HP/с себе и союзникам в радиусе 4 на 5 с"
+      cost: 30
+      cooldown: 45
+      duration: 5
+      radius: 4.0
+      regen: 2.0
   liquidator:
     passive:
       id: liquidator
@@ -138,12 +262,11 @@ specs:
       cooldown: 30
       duration: 2
       radius: 3.0
-  # ---------- ЧЕРНОКНИЖНИК (1.10.0, скрытый класс; 1.11.1: витрина без чисел) ----------
   black_mage:
     passive:
       id: black_mage
-      description: "Чёрный Маг: +10% урона способностей; «Небытие» стирает также 1 резист-модификатор; зона «Раскола Души» шире на 2 блока"
+      description: "Чёрный Маг: +10% урона способностей; «Небытие» стирает также 1 резист-модификатор"
   hell_channel:
     passive:
       id: hell_channel
-      description: "Адский Канал: Скверна рассеивается вдвое медленнее; «Печать Погибели» держится 86.6 с; запрет лечения +3 с; +6% магрезиста"
+      description: "Адский Канал: Скверна рассеивается вдвое медленнее; «Печать Погибели» держится 86.6 с"
