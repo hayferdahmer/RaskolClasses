@@ -18,6 +18,14 @@ import java.util.Locale;
  *
  * Итог: 69 древесных способностей на 18 деревьев
  * (Воин 9 · Охотник 14 · Разбойник 16 · Маг 11 · Жрец 9 · Чернокнижник 10).
+ *
+ * 1.14.0 (Б11.1.2-A): универсальные фолбэк-хелперы чтения чисел способности
+ * (treeAbilities → abilities → код-дефолт). Кастеры переключают свои приватные
+ * base()/coeff()/power()/duration()/radius()/drain() на эти хелперы, чтобы
+ * переносимые (slots 4–5) после резки abilities (11.1.2-B/11.1.3) продолжали
+ * получать свои числа из treeAbilities. Для обычных способностей фолбэк
+ * прозрачен: секции в treeAbilities нет → читается abilities → то же число.
+ * Хелперы в том же пакете, что и киты → вызываются без импорта.
  */
 public final class TreeAbilities {
 
@@ -91,6 +99,71 @@ public final class TreeAbilities {
     private static School readSchool(RaskolClasses plugin, String base) {
         School s = School.fromId(plugin.getConfig().getString(base + "school", ""));
         return s != null ? s : School.PHYSICAL;
+    }
+
+    /* ---------------- 1.14.0 (Б11.1.2-A): фолбэк-хелперы чтения чисел ---------------- */
+
+    /**
+     * Double-число способности: treeAbilities.<id>.<key> → abilities.<id>.<key> → def.
+     * Drop-in замена приватного cfgD("classes.X.abilities.<id>.<key>", def):
+     * сохраняет NaN-семантику (не-число → def) и не клампит (кламп — за вызывающим,
+     * как в текущих radius()/drain()/threshold()/execute-mult()/per-purged()/channel()/
+     * antiheal()/missing-hp-bonus()/base()/coeff()).
+     */
+    public static double numberOrKit(RaskolClasses plugin, PlayerClass pc, String id,
+                                     String key, double def) {
+        double v = plugin.getConfig().getDouble(
+                "classes." + pc.name() + ".treeAbilities." + id + "." + key, Double.NaN);
+        if (Double.isFinite(v)) {
+            return v;
+        }
+        v = plugin.getConfig().getDouble(
+                "classes." + pc.name() + ".abilities." + id + "." + key, Double.NaN);
+        return Double.isFinite(v) ? v : def;
+    }
+
+    /**
+     * Int-число способности: treeAbilities.<id>.<key> → abilities.<id>.<key> → def.
+     * Использует isSet-проверку, чтобы отсутствующий ключ в treeAbilities не «съедал»
+     * значение из abilities (getInt на unset вернул бы def, а не abilities).
+     */
+    public static int intOrKit(RaskolClasses plugin, PlayerClass pc, String id,
+                               String key, int def) {
+        String tPath = "classes." + pc.name() + ".treeAbilities." + id + "." + key;
+        if (plugin.getConfig().isSet(tPath)) {
+            return plugin.getConfig().getInt(tPath, def);
+        }
+        String kPath = "classes." + pc.name() + ".abilities." + id + "." + key;
+        if (plugin.getConfig().isSet(kPath)) {
+            return plugin.getConfig().getInt(kPath, def);
+        }
+        return def;
+    }
+
+    /**
+     * String-число способности (напр. power): treeAbilities.<id>.<key> →
+     * abilities.<id>.<key> → def. Пустая строка трактуется как отсутствие
+     * (соответствует текущему cfgS/getString-поведению с дефолтом).
+     */
+    public static String stringOrKit(RaskolClasses plugin, PlayerClass pc, String id,
+                                     String key, String def) {
+        String v = plugin.getConfig().getString(
+                "classes." + pc.name() + ".treeAbilities." + id + "." + key, null);
+        if (v != null && !v.isEmpty()) {
+            return v;
+        }
+        v = plugin.getConfig().getString(
+                "classes." + pc.name() + ".abilities." + id + "." + key, null);
+        return (v != null && !v.isEmpty()) ? v : def;
+    }
+
+    /**
+     * Duration-хелпер с клампом > 0 (drop-in для приватного duration() всех китов):
+     * treeAbilities.<id>.duration → abilities.<id>.duration → def; не-положительное → def.
+     */
+    public static int durationOrKit(RaskolClasses plugin, PlayerClass pc, String id, int def) {
+        int v = intOrKit(plugin, pc, id, "duration", def);
+        return v > 0 ? v : def;
     }
 
     /** Регистрация кастеров всех 69 древесных способностей шести классов. */
