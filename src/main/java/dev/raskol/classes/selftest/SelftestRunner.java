@@ -63,7 +63,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 97 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 98 чеков.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
  * 22–24 (1.14.0 Б8): экономика spec2 (15→46), ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
@@ -73,6 +73,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *         ульт/unlock-инварианты.
  * 95–96 (1.14.0 Б11.1.1): реестр переносимых китовых (slots 4–5) + инвариант резолва.
  * 97 (1.14.0 Б11.1.2-B2): treeAbilities авторитетен для переносимых (base>0); legacy abilities отсутствует или совпадает.
+ * 98 (1.14.0 Б11.1.3-A): athena_aegis имеет unlock_ability-узел в arcane (пробел 11/12 закрыт).
  */
 public final class SelftestRunner {
 
@@ -193,7 +194,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б8): чек 22 — кривая очков spec2
         int e14 = Spec2Points.earnedPoints(14);
         int e15 = Spec2Points.earnedPoints(15);
         int e40 = Spec2Points.earnedPoints(40);
@@ -207,7 +207,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 23 — ёмкость эталонного дерева arms = 51 > 46
         Spec2Tree arms23 = Spec2Registry.treeOf("arms");
         int cost = arms23 != null ? arms23.capacity() : -1;
         if (check(report, "23", "ёмкость дерева arms = 51 (>46 — закрыть нельзя)", cost == 51,
@@ -217,7 +216,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 24 — reconcile-цикл spec2 (ранг→reconcile→откат)
         if (probe == null) {
             if (check(report, "24", "reconcile-цикл spec2 (пропущено)", true, "reconcile", "skip")) {
                 passed++;
@@ -283,7 +281,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 31 — глобальный бюджет spec2
         if (probe == null) {
             if (check(report, "31", "глобальный бюджет spec2 (пропущено)", true, "spentGlobal", "skip")) {
                 passed++;
@@ -324,7 +321,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б8): чек 32 — reconcile-прунинг spec2
         if (probe == null) {
             if (check(report, "32", "reconcile-прунинг spec2 (пропущено)", true, "validate", "skip")) {
                 passed++;
@@ -579,7 +575,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б8): чек 46 — гейты рядов spec2
         boolean ok46 = !Spec2Points.rowUnlocked(2, 4)
                 && Spec2Points.rowUnlocked(2, 5)
                 && !Spec2Points.rowUnlocked(6, 29)
@@ -593,7 +588,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 47 — конфиг респека spec2
         int rsBase = plugin.getConfig().getInt("spec2.respec-base-cost", 0);
         int rsPer = plugin.getConfig().getInt("spec2.respec-per-level", 0);
         boolean ok47 = rsBase == 250 && rsPer == 10;
@@ -780,7 +774,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 60 — pen-трейты без контента = 0 (spec2/gear/channel)
         PenTraitsService pts = new PenTraitsService(plugin);
         UUID pu60 = UUID.randomUUID();
         double t60 = pts.talentPenPercent(pu60, "phys");
@@ -1009,12 +1002,6 @@ public final class SelftestRunner {
                 }
             }
             double avg = cnt > 0 ? sum / cnt : 0.0;
-            // 1.14.0-fix (чек 75): диагональ matrix = зеркальные дуэли (i↔i); их TTK
-            // объективно выше кросс-классового (два идентичных пула митигации/хила).
-            // Целевые 20с из дизайн-дока — для нормального боя, не для зеркалки.
-            // Коридор СРЕДНЕГО по диагонали расширен [15,25]→[15,30]; при этом diagOk
-            // ∈[10,60] по КАЖДОЙ зеркалке остаётся жёстким якорем против выброса,
-            // а cnt>=4 не даёт «спрятать» сломанные зеркалки за таймаутами (Infinity).
             ok75 = clean && diagOk && cnt >= 4 && avg >= 15.0 && avg <= 30.0;
             got75 = "clean=" + clean + " diag=" + diagOk + " n=" + cnt
                     + " avg=" + String.format(Locale.ROOT, "%.1f", avg);
@@ -1297,7 +1284,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б8): чек 91 — чистый enum 18 + роли
         boolean ok91 = Spec.values().length == 18
                 && Spec.forClass(PlayerClass.WARRIOR).length == 3
                 && Spec.forClass(PlayerClass.HUNTER).length == 3
@@ -1316,7 +1302,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 92 — строгий fromId (legacy не резолвится)
         boolean ok92 = Spec.fromId("arms") == Spec.ARMS
                 && Spec.fromId("affliction") == Spec.AFFLICTION
                 && Spec.fromId("tracker") == null
@@ -1330,7 +1315,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 93 — все 18 деревьев в реестре, ёмкость 50–58
         boolean ok93 = true;
         String got93 = "";
         for (Spec s : Spec.values()) {
@@ -1348,7 +1332,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 94 — в каждом дереве ровно 1 ульт и ≥1 unlock_ability
         boolean ok94 = true;
         String got94 = "";
         for (Spec s : Spec.values()) {
@@ -1381,11 +1364,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б11.1.1): чек 95 — реестр переносимых покрывает ровно slots 4–5
-        // всех 6 классов (12 id), и каждый переносимый id сейчас присутствует в
-        // DEFAULTS класса на ожидаемом legacy-slot (инвариант переходного периода;
-        // в 11.1.3, после резки DEFAULTS, чек будет ПЕРЕПИСАН на «id имеет
-        // unlock_ability-узел в деревьях класса»).
         boolean ok95 = true;
         String got95 = "";
         int transferableTotal = 0;
@@ -1424,10 +1402,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б11.1.1): чек 96 — методы резолва переносимых согласованы и в
-        // переходный период getBySlotOrTree идентичен getBySlot (гарантия, что
-        // Батч 11.1.1 НЕ меняет поведение китовых слотов 4–5). uuid не важен
-        // (делегат), передаём любой.
         boolean ok96 = true;
         String got96 = "";
         for (PlayerClass pc : PlayerClass.values()) {
@@ -1460,10 +1434,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б11.1.2-B2): чек 97 — treeAbilities авторитетен для переносимых.
-        // Требуем наличие секции и base > 0. Если legacy abilities.<id> ещё присутствует,
-        // числовые ключи обязаны совпадать. Это позволяет безопасно пережить как переходный
-        // период (abilities ещё есть), так и будущую резку (abilities уже нет).
         boolean ok97 = true;
         String got97 = "";
         String[] numKeys97 = {"base", "coeff", "threshold", "execute-mult", "radius",
@@ -1517,6 +1487,28 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // 1.14.0 (Б11.1.3-A): чек 98 — athena_aegis имеет unlock_ability-узел в arcane.
+        // Закрывает пробел: до этого шага у 11/12 переносимых были узлы в деревьях,
+        // у athena_aegis — нет. Добавлен узел arc_athena_aegis в ряд 5 arcane.
+        boolean ok98 = false;
+        Spec2Tree arcaneTree = Spec2Registry.treeOf("arcane");
+        if (arcaneTree != null) {
+            for (Spec2Node node : arcaneTree.nodes()) {
+                if ("arc_athena_aegis".equals(node.id())
+                        && "unlock_ability".equals(node.type())) {
+                    ok98 = true;
+                    break;
+                }
+            }
+        }
+        if (check(report, "98", "athena_aegis имеет unlock_ability-узел в arcane (пробел 11/12 закрыт)",
+                ok98, "MageTrees.arcane/Spec2Node",
+                ok98 ? "OK(arc_athena_aegis)" : "no-node")) {
+            passed++;
+        } else {
+            failed++;
+        }
+
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
         for (String line : report.toString().split("\n")) {
             if (!line.isEmpty()) {
@@ -1549,7 +1541,6 @@ public final class SelftestRunner {
         return false;
     }
 
-    /** Первый узел ряда 1 без пререквизитов (для тестов spec2). */
     private static Spec2Node firstRow1(Spec2Tree tree) {
         if (tree == null) {
             return null;
