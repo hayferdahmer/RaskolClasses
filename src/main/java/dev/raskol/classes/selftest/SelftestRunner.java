@@ -63,7 +63,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 96 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 97 чеков.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
  * 22–24 (1.14.0 Б8): экономика spec2 (15→46), ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
@@ -72,6 +72,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 91–94 (1.14.0 Б8): чистый enum 18, строгий fromId, реестр 18 деревьев 50–58,
  *         ульт/unlock-инварианты.
  * 95–96 (1.14.0 Б11.1.1): реестр переносимых китовых (slots 4–5) + инвариант резолва.
+ * 97 (1.14.0 Б11.1.2-A): инвариант дублей переносимых (treeAbilities == abilities).
  */
 public final class SelftestRunner {
 
@@ -1454,6 +1455,55 @@ public final class SelftestRunner {
         }
         if (check(report, "96", "резолв переносимых: getBySlotOrTree == getBySlot (переходный инвариант)",
                 ok96, "AbilityRegistry.getBySlotOrTree", ok96 ? "OK" : got96)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.0 (Б11.1.2-A): чек 97 — инвариант дублей переносимых. Для каждой из 12
+        // переносимых (slots 4–5) каждое числовое поле, присутствующее в
+        // classes.<CLASS>.abilities.<id>.*, обязано присутствовать в
+        // classes.<CLASS>.treeAbilities.<id>.* и быть равным. Ловит опечатку в дубле
+        // ДО резки abilities (11.1.2-B/11.1.3), иначе кастер прочитал бы рассогласованное
+        // число тихим красным рантаймом. В 11.1.3, после резки abilities для переносимых,
+        // чек будет ПЕРЕПИСАН на «treeAbilities.<id> существует и base>0».
+        boolean ok97 = true;
+        String got97 = "";
+        String[] numKeys97 = {"base", "coeff", "threshold", "execute-mult", "radius",
+                "duration", "per-purged", "channel", "antiheal", "missing-hp-bonus"};
+        for (PlayerClass pc : PlayerClass.values()) {
+            for (dev.raskol.classes.ability.TransferableAbilities.Entry e :
+                    dev.raskol.classes.ability.TransferableAbilities.forClass(pc)) {
+                String kitBase = "classes." + pc.name() + ".abilities." + e.id() + ".";
+                String treeBase = "classes." + pc.name() + ".treeAbilities." + e.id() + ".";
+                if (!plugin.getConfig().isConfigurationSection(
+                        "classes." + pc.name() + ".treeAbilities." + e.id())) {
+                    ok97 = false;
+                    got97 = e.id() + ": секция treeAbilities отсутствует (дубль не добавлен)";
+                    break;
+                }
+                for (String key : numKeys97) {
+                    if (plugin.getConfig().isSet(kitBase + key)) {
+                        double kv = plugin.getConfig().getDouble(kitBase + key, Double.NaN);
+                        double tv = plugin.getConfig().getDouble(treeBase + key, Double.NaN);
+                        if (!Double.isFinite(tv) || Math.abs(kv - tv) > 1e-9) {
+                            ok97 = false;
+                            got97 = e.id() + "." + key + ": abilities=" + kv
+                                    + " treeAbilities=" + tv + " (дубль рассогласован)";
+                            break;
+                        }
+                    }
+                }
+                if (!ok97) {
+                    break;
+                }
+            }
+            if (!ok97) {
+                break;
+            }
+        }
+        if (check(report, "97", "дубли переносимых: treeAbilities.<id>.<число> == abilities.<id>.<число>",
+                ok97, "config treeAbilities/abilities", ok97 ? "OK(12)" : got97)) {
             passed++;
         } else {
             failed++;
