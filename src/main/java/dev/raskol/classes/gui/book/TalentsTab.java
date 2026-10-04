@@ -4,6 +4,7 @@ package dev.raskol.classes.gui.book;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.spec.model.Spec2Node;
+import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.model.Spec2Tree;
 import dev.raskol.classes.spec.registry.Spec2Registry;
 import dev.raskol.classes.spec.service.Spec2Service;
@@ -16,6 +17,7 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,17 +25,30 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.14.0 (Б3): вкладка «Деревья путей» на Spec2.
- * Показывает активное дерево основной спеки (если есть) и список деревьев класса
- * для переключения (временно — полноценный «Кодекс Путей» в Б5).
+ * Показывает активное дерево основной спеки и список деревьев класса.
  * ЛКМ по узлу = +1 ранг; узел открыт при ряд-гейте + ранговых пререквизитах.
+ *
+ * 1.14.0-fix (ряды): узлы сортируются по (row,col) общим orderedNodes() и в render,
+ *   и в onClick (раньше index клетки мог разъезжаться с index узла); в lore каждого
+ *   узла — цветной статус ряда [Ряд N · гейт G]; info-предмет даёт сводку по 6 рядам.
+ *   Полноценная сетка-разделка рядов требует BookSlots.TALENT_NODE_SLOTS layout —
+ *   сделано текстово/цветово, чтобы не ломать раскладку вслепую.
  */
 public final class TalentsTab implements BookTabView {
 
     private static final Map<UUID, Long> RESET_ARM = new ConcurrentHashMap<>();
+    private static final int ROW_COUNT = 6;
 
     @Override
     public ClassBook.Tab id() {
         return ClassBook.Tab.TALENTS;
+    }
+
+    /** Узлы дерева в стабильном порядке ряд→колонка (общий для render и onClick). */
+    private static List<Spec2Node> orderedNodes(Spec2Tree tree) {
+        List<Spec2Node> list = new ArrayList<>(tree.nodes());
+        list.sort(Comparator.comparingInt(Spec2Node::row).thenComparingInt(Spec2Node::col));
+        return list;
     }
 
     @Override
@@ -60,6 +75,7 @@ public final class TalentsTab implements BookTabView {
         int available = svc.availablePoints(uuid);
         int earned = svc.earnedPoints(uuid);
         int spent = svc.spentGlobal(uuid);
+        int inTree = tree.spentInTree(svc.storage().getRanks(uuid, main));
         Map<String, Integer> ranks = svc.storage().getRanks(uuid, main);
 
         ItemStack info = new ItemStack(Material.EXPERIENCE_BOTTLE);
@@ -73,23 +89,34 @@ public final class TalentsTab implements BookTabView {
                     .append(Component.text(String.valueOf(spent), NamedTextColor.WHITE))
                     .append(Component.text(" · заработано: ", NamedTextColor.GRAY))
                     .append(Component.text(String.valueOf(earned), NamedTextColor.WHITE)));
-            lore.add(Component.text("Очки — общий бюджет персонажа (все 3 дерева)",
-                    NamedTextColor.DARK_GRAY));
+            lore.add(Component.text("В этом дереве: ", NamedTextColor.GRAY)
+                    .append(Component.text(String.valueOf(inTree), NamedTextColor.AQUA))
+                    .append(Component.text(" очков (гейты рядов)", NamedTextColor.DARK_GRAY)));
+            lore.add(Component.empty());
+            lore.add(Component.text("Ряды дерева (гейт по очкам ВНУТРИ дерева):",
+                    NamedTextColor.YELLOW));
+            for (int row = 1; row <= ROW_COUNT; row++) {
+                int gate = Spec2Points.ROW_GATES[row - 1];
+                boolean open = inTree >= gate;
+                lore.add(Component.text((open ? "  ✔ " : "  🔒 ") + "Ряд " + row
+                                + (row == ROW_COUNT ? " (ульт)" : "") + " — гейт " + gate,
+                        open ? NamedTextColor.GREEN : NamedTextColor.RED)
+                        .append(Component.text(open ? "" : "  (ещё " + (gate - inTree) + ")",
+                                NamedTextColor.DARK_GRAY)));
+            }
+            lore.add(Component.empty());
             lore.add(Component.text("ЛКМ по узлу = +1 ранг (стоимость 1 очко)",
                     NamedTextColor.DARK_GRAY));
-            lore.add(Component.empty());
-            lore.add(Component.text("Ряды: 0 / 5 / 10 / 15 / 20 / 30 (ульт)",
-                    NamedTextColor.YELLOW));
             meta.lore(lore);
             meta.addEnchant(Enchantment.LURE, 1, true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         });
         ctx.inv().setItem(BookSlots.SLOT_TALENT_INFO, info);
 
-        List<Spec2Node> nodes = tree.nodes();
+        List<Spec2Node> nodes = orderedNodes(tree);
         for (int i = 0; i < nodes.size() && i < BookSlots.TALENT_NODE_SLOTS.length; i++) {
             ctx.inv().setItem(BookSlots.TALENT_NODE_SLOTS[i],
-                    nodeItem(plugin, player, tree, nodes.get(i), ranks, available));
+                    nodeItem(plugin, player, tree, nodes.get(i), ranks, available, inTree));
         }
 
         ItemStack reset = new ItemStack(Material.END_CRYSTAL);
@@ -160,10 +187,14 @@ public final class TalentsTab implements BookTabView {
             return;
         }
         Spec2Tree tree = Spec2Registry.treeOf(main);
-        if (tree == null || nodeIdx >= tree.nodes().size()) {
+        if (tree == null) {
             return;
         }
-        Spec2Node node = tree.nodes().get(nodeIdx);
+        List<Spec2Node> nodes = orderedNodes(tree); // тот же порядок, что в render
+        if (nodeIdx >= nodes.size()) {
+            return;
+        }
+        Spec2Node node = nodes.get(nodeIdx);
         Spec2Service.PurchaseResult result = svc.purchase(player, main, node.id());
         int newRank = svc.storage().getRanks(uuid, main).getOrDefault(node.id(), 0);
         player.sendMessage(Component.text(switch (result) {
@@ -183,12 +214,13 @@ public final class TalentsTab implements BookTabView {
     }
 
     private ItemStack nodeItem(RaskolClasses plugin, Player player, Spec2Tree tree,
-                               Spec2Node node, Map<String, Integer> ranks, int available) {
+                               Spec2Node node, Map<String, Integer> ranks, int available,
+                               int inTree) {
         int rank = ranks.getOrDefault(node.id(), 0);
         boolean isOwned = rank > 0;
         boolean maxed = rank >= node.maxRank();
-        int spent = tree.spentInTree(ranks);
-        boolean rowOk = dev.raskol.classes.spec.model.Spec2Points.rowUnlocked(node.row(), spent);
+        int gate = Spec2Points.ROW_GATES[node.row() - 1];
+        boolean rowOk = inTree >= gate;
         boolean prereqOk = tree.prereqsMet(node, ranks);
         boolean affordable = available >= 1;
 
@@ -202,17 +234,22 @@ public final class TalentsTab implements BookTabView {
             meta.displayName(Component.text(prefix + node.name() + " " + rank + "/" + node.maxRank(),
                     nameColor));
             List<Component> lore = new ArrayList<>();
+            // 1.14.0-fix (ряды): явный статус ряда первым
+            lore.add(Component.text("Ряд " + node.row()
+                            + (node.isUltimate() ? " · УЛЬТ" : "")
+                            + " · гейт " + gate + " — " + (rowOk ? "ОТКРЫТ" : "ЗАБЛОКИРОВАН"),
+                    rowOk ? NamedTextColor.GREEN : NamedTextColor.RED));
             lore.add(Component.text(node.lore(), NamedTextColor.GRAY));
             lore.add(Component.text(describeEffect(node), NamedTextColor.WHITE));
-            lore.add(Component.text("Ряд " + node.row() + " · кол. " + node.col()
-                    + " · " + node.type(), branchColor(node.treeId())));
+            lore.add(Component.text("кол. " + node.col() + " · " + node.type(),
+                    branchColor(node.treeId())));
             for (Map.Entry<String, Integer> e : node.prereqs().entrySet()) {
                 Spec2Node prereqNode = tree.find(e.getKey());
                 String prereqName = prereqNode != null ? prereqNode.name() : e.getKey();
                 int have = ranks.getOrDefault(e.getKey(), 0);
                 boolean met = have >= e.getValue();
                 lore.add(Component.text((met ? "↑ ✔ " : "↑ требует " + e.getValue() + ": ")
-                        + "«" + prereqName + "»",
+                                + "«" + prereqName + "»",
                         met ? NamedTextColor.DARK_GRAY : NamedTextColor.RED));
             }
             lore.add(Component.empty());
@@ -220,9 +257,8 @@ public final class TalentsTab implements BookTabView {
                 lore.add(Component.text("✔ МАКСИМУМ " + rank + "/" + node.maxRank(),
                         NamedTextColor.GREEN));
             } else if (!rowOk) {
-                int need = dev.raskol.classes.spec.model.Spec2Points.ROW_GATES[node.row() - 1];
-                lore.add(Component.text("Ряд открыт при " + need + " очках в дереве (сейчас "
-                        + spent + ")", NamedTextColor.RED));
+                lore.add(Component.text("Ряд откроется при " + gate + " очках в дереве (сейчас "
+                        + inTree + ", нужно ещё " + (gate - inTree) + ")", NamedTextColor.RED));
             } else if (!prereqOk) {
                 lore.add(Component.text("Нужны пререквизиты (требуемые ранги)",
                         NamedTextColor.RED));
