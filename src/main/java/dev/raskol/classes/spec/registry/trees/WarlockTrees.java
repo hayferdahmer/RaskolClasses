@@ -10,15 +10,13 @@ import java.util.Map;
 
 /**
  * 1.14.0: деревья Чернокнижника (3 спеки), ёмкости 51/51/51 (>46 — закрыть нельзя).
- * affliction (Колдовство): DoT wither (SHADOW, dots.wither из конфига 1.14.0-Б7),
- *         unlock withering / unwriting (перенос + SILENCE-тег) / soul_siphon,
- *         ульт soul_harvest (детонация всех wither-стеков).
+ * affliction (Колдовство): DoT wither (SHADOW), unlock withering / soul_siphon /
+ *         soul_harvest (ульт).
  * destruction (Разрушение): burst FIRE + burning, unlock immolate / chaos_bolt /
  *         conflagrate, ульт soul_rift (перенос старого кита, слот 5).
  * demonology (Демонология): петы + Скверна, unlock dreadfire / summon_demon /
  *         demonic_pact, ульт demon_soul (слияние с петом 10 с).
- * Пет-подсистема (summon_demon/shadowfiend/pet_wolf) реализуется в 1.14.6;
- * узлы уже открывают способности-заглушки через unlock_ability.
+ * 1.14.0-fix: узлы regen resource заменены на рабочие эффекты (attr int, magic_dmg_pct).
  */
 public final class WarlockTrees {
 
@@ -49,8 +47,8 @@ public final class WarlockTrees {
                         "Теневой разум", "+4 ИНТЕЛЛЕКТА за ранг",
                         Spec2Effect.of("attr", "int", 4.0)),
                 n("af_soul_drain", T, 1, 3, 4, Map.of(), "passive_stat",
-                        "Дренаж души", "+1 Скверны/с за ранг",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Дренаж души", "+4 ИНТЕЛЛЕКТА за ранг (усиление spell-силы)",
+                        Spec2Effect.of("attr", "int", 4.0)),
                 n("af_dark_embrace", T, 1, 4, 4, Map.of(), "passive_stat",
                         "Тёмные объятия", "+3% маг-резиста за ранг",
                         Spec2Effect.of("resist", "magic", 3.0)),
@@ -65,8 +63,8 @@ public final class WarlockTrees {
                         "Нестабильная порча", "+1 стек wither за ранг (кап 3→4→5)",
                         Spec2Effect.of("dot_stacks", "wither", 1.0)),
                 n("af_nightfall", T, 2, 4, 3, Map.of("af_shadow_mind", 2), "passive_stat",
-                        "Сумерки", "+1 Скверны/с за ранг",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Сумерки", "+2% маг-урона способностей за ранг",
+                        Spec2Effect.of("magic_dmg_pct", "self", 2.0)),
                 // Ряд 3 (гейт 10)
                 n("af_withering_enh", T, 3, 1, 3, Map.of("af_withering", 1), "enhance_ability",
                         "Усиленное иссушение", "withering: +15% урона за ранг",
@@ -197,8 +195,8 @@ public final class WarlockTrees {
                         "Тёмный пакт", "+4 ИНТЕЛЛЕКТА за ранг",
                         Spec2Effect.of("attr", "int", 4.0)),
                 n("dm_fel_synergy", T, 1, 3, 4, Map.of(), "passive_stat",
-                        "Скверновая синергия", "+1 Скверны/с за ранг",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Скверновая синергия", "+4 ИНТЕЛЛЕКТА за ранг (усиление spell-силы)",
+                        Spec2Effect.of("attr", "int", 4.0)),
                 n("dm_conjuror_prep", T, 1, 4, 4, Map.of(), "enhance_ability",
                         "Подготовка призывателя", "ruin_seal: −10% кулдауна за ранг",
                         Spec2Effect.of("cd", "ruin_seal", 0.10)),
@@ -239,8 +237,8 @@ public final class WarlockTrees {
                         "Мастер призыва", "dreadfire: −3 с кулдауна за ранг",
                         Spec2Effect.of("kit_cd", "dreadfire", 3.0)),
                 n("dm_fel_pact", T, 4, 4, 2, Map.of("dm_demonic_resilience", 1), "passive_stat",
-                        "Пакт скверны", "+1 Скверны/с за ранг",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Пакт скверны", "+3% маг-урона способностей за ранг",
+                        Spec2Effect.of("magic_dmg_pct", "self", 3.0)),
                 // Ряд 5 (гейт 20)
                 n("dm_demonic_pact", T, 5, 1, 1, Map.of("dm_summon_demon", 1), "unlock_ability",
                         "Демонический пакт", "НОВАЯ: бафф от пета +10% SP группе 10 с, КД 60 с",
