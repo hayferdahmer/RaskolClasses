@@ -35,6 +35,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.0 (Б8.2-fix): кулдаун из Spec2Service (cooldownMult + cooldownSecBonus).
  * 1.14.0 (контент-долг 1): registerTreeCaster — кастеры древесных способностей
  *         (slot 6+); integrityProblems не считает их сиротами.
+ * 1.14.0 (Б11.1.1): аддитивный слой ПЕРЕНОСИМЫХ китовых (slots 4–5 → деревья путей).
+ *         DEFAULTS НЕ урезан (переходный период): переносимые ещё обычные китовые
+ *         slot 4–5, каст/GUI/баланс не тронуты. Добавлены read-only хелперы
+ *         isTransferable/transferableSlot/transferableIdsFor/getBySlotOrTree и
+ *         прощение сиротства для переносимых в integrityProblems (включится в 11.1.3).
  */
 public final class AbilityRegistry {
 
@@ -129,6 +134,23 @@ public final class AbilityRegistry {
         return new AbilityDef(id, name, slot, unlock, cost, cooldownSeconds * 1000L);
     }
 
+    /**
+     * 1.14.0 (Б11.1.1): read-only индекс переносимых id → legacy-slot (4/5).
+     * Строится из TransferableAbilities (тот же пакет, импорт не нужен). В переходный
+     * период DEFAULTS ещё содержит slots 4–5, поэтому индекс согласован с ним
+     * (валидируется чеком 95). В 11.1.3 DEFAULTS урезается, индекс остаётся мостом
+     * для резолва slot 4–5 через деревья.
+     */
+    private static final Map<String, Integer> TRANSFERABLE_SLOT = buildTransferableSlot();
+
+    private static Map<String, Integer> buildTransferableSlot() {
+        Map<String, Integer> m = new HashMap<>();
+        for (TransferableAbilities.Entry e : TransferableAbilities.all()) {
+            m.put(e.id(), e.legacySlot());
+        }
+        return Map.copyOf(m);
+    }
+
     private final RaskolClasses plugin;
     private final Map<PlayerClass, List<AbilityDef>> byClass = new EnumMap<>(PlayerClass.class);
     private final Map<String, Caster> casters = new HashMap<>();
@@ -196,6 +218,46 @@ public final class AbilityRegistry {
     public void registerTreeCaster(String id, Caster caster) {
         casters.put(id, caster);
         treeCasterIds.add(id);
+    }
+
+    /* ------------------------------ 1.14.0 (Б11.1.1): переносимые ------------------------------ */
+
+    /** Идентификатор способности переносимая (slots 4–5, станут unlock_ability-узлом)? */
+    public static boolean isTransferable(String id) {
+        return id != null && TRANSFERABLE_SLOT.containsKey(id);
+    }
+
+    /** Legacy-slot (4/5) переносимой id; -1 если id не переносимая. */
+    public static int transferableSlot(String id) {
+        Integer s = TRANSFERABLE_SLOT.get(id);
+        return s == null ? -1 : s;
+    }
+
+    /** Id переносимых способностей класса (ровно 2: slots 4 и 5). */
+    public List<String> transferableIdsFor(PlayerClass pc) {
+        List<String> out = new ArrayList<>();
+        for (TransferableAbilities.Entry e : TransferableAbilities.forClass(pc)) {
+            out.add(e.id());
+        }
+        return out;
+    }
+
+    /**
+     * 1.14.0 (Б11.1.1): резолв слота с учётом переносимых.
+     * ПЕРЕХОДНЫЙ ПЕРИОД (DEFAULTS не урезан): идентичен getBySlot — переносимые
+     * slots 4–5 ещё живут в DEFAULTS, поэтому метод возвращает тот же китовый def.
+     * uuid пока не используется (保留 для 11.1.3).
+     * В 11.1.3, после резки DEFAULTS, slot 4–5 переносимых будет резолвиться через
+     * TreeAbilities/Spec2Service.hasUnlocked, а getBySlot по этим слотам вернёт null.
+     */
+    public AbilityDef getBySlotOrTree(PlayerClass pc, int slot, UUID uuid) {
+        AbilityDef kit = getBySlot(pc, slot);
+        if (kit != null) {
+            return kit;
+        }
+        // 11.1.3: здесь появится резолв переносимых slots 4–5 через деревья путей.
+        // Пока (11.1.1–11.1.2) — null, поведение китовых слотов не меняется.
+        return null;
     }
 
     public void loadFromConfig(RaskolConfig cfg) {
@@ -290,13 +352,16 @@ public final class AbilityRegistry {
             if (!casters.containsKey(id)) {
                 problems.add("targeted-кастер " + id + " без self-кастера");
             }
-            if (!knownIds.contains(id)) {
+            // 1.14.0 (Б11.1.1): переносимые легальны вне DEFAULTS (включится в 11.1.3;
+            // сегодня no-op, т.к. переносимые ещё в knownIds).
+            if (!knownIds.contains(id) && !isTransferable(id)) {
                 problems.add("targeted-кастер " + id + " — сирота (нет в DEFAULTS)");
             }
         }
         for (String id : casters.keySet()) {
             // 1.14.0: древесные кастеры легальны вне DEFAULTS
-            if (!knownIds.contains(id) && !treeCasterIds.contains(id)) {
+            // 1.14.0 (Б11.1.1): переносимые китовые — тоже легальны (включится в 11.1.3).
+            if (!knownIds.contains(id) && !treeCasterIds.contains(id) && !isTransferable(id)) {
                 problems.add("кастер " + id + " — сирота (нет в DEFAULTS)");
             }
         }
