@@ -18,8 +18,9 @@ import java.util.Set;
  *    grace ×1.15, sadism +3, black_mass 6.66% и т.д.). Любое отклонение → fail.
  *
  * 1.14.0-fix (чек 44): self-buff способности (без урона) исключены из обязательности
- *    base/coeff/power — у них их по дизайну нет (BERSERKERGANG/SWALLOW/HERMES_STEP/
- *    SHADOW_CLOAK/RUIN_SEAL). Damage-спеллы по-прежнему проверяются строго.
+ *    base — у них его по дизайну нет (BERSERKERGANG/SWALLOW/HERMES_STEP/
+ *    SHADOW_CLOAK/RUIN_SEAL). Damage-спеллы по-прежнему требуют base строго.
+ *    coeff/cost оставлены как в оригинале (optional) — минимальный дифф, ноль риска.
  * 1.14.0-fix (чек 45): длительность яда пассивки сверяется с единственным источником
  *    истины dots.poison_passive.duration (=2), а не с несуществующим дублем
  *    poisoned_blades.duration-seconds.
@@ -38,7 +39,7 @@ public final class KitSanity {
 
     private static final Set<String> VALID_POWERS = Set.of("wp", "sp", "hpow");
 
-    /** 1.14.0-fix (чек 44): способности без урона — base/coeff/power не обязательны. */
+    /** 1.14.0-fix (чек 44): способности без урона — base не обязателен. */
     private static final Set<String> SELF_BUFF = Set.of(
             "berserkergang", "swallow", "hermes_step", "shadow_cloak", "ruin_seal");
 
@@ -57,7 +58,7 @@ public final class KitSanity {
             for (String id : section.getKeys(false)) {
                 String p = path + "." + id;
                 boolean selfBuff = SELF_BUFF.contains(id);
-                // base обязателен только для damage-способностей
+                // 1.14.0-fix (чек 44): base обязателен только для damage-способностей
                 checkDoubleRange(problems, plugin, p + ".base", 0.0, Double.MAX_VALUE, selfBuff);
                 checkDoubleRange(problems, plugin, p + ".coeff", 0.0, Double.MAX_VALUE, true);
                 checkDoubleRange(problems, plugin, p + ".cost", 0.0, Double.MAX_VALUE, true);
@@ -73,7 +74,6 @@ public final class KitSanity {
                                 + "\" вне {" + String.join(",", VALID_POWERS) + "}");
                     }
                 }
-                // execute-мультипликатор (Рагнарёк/Кара Небес)
                 if (plugin.getConfig().contains(p + ".execute-mult")) {
                     checkDoubleRange(problems, plugin, p + ".execute-mult", 1.5, 10.0, false);
                 }
