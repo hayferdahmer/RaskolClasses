@@ -46,6 +46,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *   affliction: withering, soul_siphon, soul_harvest (ульт);
  *   destruction: immolate, chaos_bolt, conflagrate;
  *   demonology: dreadfire, summon_demon, demonic_pact, demon_soul (ульт).
+ * 1.14.0 (Б11.1.2-A): base/coeff/drain/radius + per-purged(unwriting) +
+ *   channel/antiheal/missing-hp-bonus(soul_rift) читаются через TreeAbilities.*OrKit
+ *   (treeAbilities → abilities → код-дефолт), чтобы переносимые
+ *   (unwriting/soul_rift) пережили резку abilities. self-cost-pct/corruption-gain/
+ *   amplify/duration(ruin_seal) у slots 1–3 НЕ тронуты (не переносимые);
+ *   spec*()-хелперы читают classes.WARLOCK.specs.* — не трогаем (это спека, не slot).
  */
 public final class WarlockAbilities implements Listener {
 
@@ -138,20 +144,21 @@ public final class WarlockAbilities implements Listener {
         return plugin.getConfig().getInt(path, def);
     }
 
+    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
     private double base(AbilityDef def, double defv) {
-        return cfgD("classes.WARLOCK.abilities." + def.id() + ".base", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
     }
 
     private double coeff(AbilityDef def, double defv) {
-        return cfgD("classes.WARLOCK.abilities." + def.id() + ".coeff", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
     }
 
     private double drain(AbilityDef def, double defv) {
-        return cfgD("classes.WARLOCK.abilities." + def.id() + ".drain", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "drain", defv);
     }
 
     private double radius(AbilityDef def, double defv) {
-        return cfgD("classes.WARLOCK.abilities." + def.id() + ".radius", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "radius", defv);
     }
 
     private double tbase(AbilityDef def, double defv) {
@@ -410,7 +417,8 @@ public final class WarlockAbilities implements Listener {
             purged++;
             WarlockFx.safeFx(t.getLocation(), Particle.REVERSE_PORTAL, 8, 0.4);
         }
-        double perPurged = cfgD("classes.WARLOCK.abilities." + def.id() + ".per-purged", 16.0);
+        // 1.14.0 (Б11.1.2-A): per-purged через фолбэк-хелпер (переносимая slot 4)
+        double perPurged = TreeAbilities.numberOrKit(plugin, PC, def.id(), "per-purged", 16.0);
         double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
         double dmg = (base(def, 16.0) + sp * coeff(def, 0.8) + perPurged * purged) * damageMult(caster);
         WarlockFx.safeFx(t.getLocation(), Particle.SOUL, 14, 0.5);
@@ -426,10 +434,12 @@ public final class WarlockAbilities implements Listener {
     /** 1.11.2 (T2) + 1.11.4 + 1.13.0 (Б3): канал с задачами в CHANNEL_TASKS + CastChannels. */
     public boolean soulRift(Player caster, AbilityDef def) {
         double radius = radius(def, 8.0) + specRiftRadiusBonus(caster);
-        double channelSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".channel", 2.5);
-        double antihealSec = cfgD("classes.WARLOCK.abilities." + def.id() + ".antiheal", 6.0)
+        // 1.14.0 (Б11.1.2-A): channel/antiheal/missing-hp-bonus через фолбэк-хелпер
+        // (переносимая slot 5)
+        double channelSec = TreeAbilities.numberOrKit(plugin, PC, def.id(), "channel", 2.5);
+        double antihealSec = TreeAbilities.numberOrKit(plugin, PC, def.id(), "antiheal", 6.0)
                 + specAntihealBonus(caster);
-        double missingBonus = cfgD("classes.WARLOCK.abilities." + def.id() + ".missing-hp-bonus", 0.666);
+        double missingBonus = TreeAbilities.numberOrKit(plugin, PC, def.id(), "missing-hp-bonus", 0.666);
         int ticks = Math.max(1, (int) (channelSec * 20.0));
 
         plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.9f, 0.7f);
