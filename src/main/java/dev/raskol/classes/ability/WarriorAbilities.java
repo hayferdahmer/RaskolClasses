@@ -28,6 +28,9 @@ import java.util.UUID;
  * 1.14.0 (контент-долг 1): +9 древесных способностей Воина
  *         (whirlwind_slash/mortal_strike/bloodthirst/rampage/concussive_blow/
  *         shield_bash/taunt/bladestorm/last_stand) с гейтом hasUnlocked.
+ * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + threshold/execute-mult читаются
+ *         через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
+ *         чтобы переносимые (fenrir_blood/ragnarok) пережили резку abilities.
  */
 public final class WarriorAbilities {
 
@@ -48,12 +51,13 @@ public final class WarriorAbilities {
         return v != null ? v : def;
     }
 
+    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
     private double base(AbilityDef def, double defv) {
-        return cfgD("classes.WARRIOR.abilities." + def.id() + ".base", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
     }
 
     private double coeff(AbilityDef def, double defv) {
-        return cfgD("classes.WARRIOR.abilities." + def.id() + ".coeff", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
     }
 
     /** База/коэф для древесных способностей (секция treeAbilities). */
@@ -66,8 +70,7 @@ public final class WarriorAbilities {
     }
 
     private String power(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.WARRIOR.abilities." + def.id() + ".power", "wp");
+        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "wp");
     }
 
     private String tpower(AbilityDef def) {
@@ -76,9 +79,7 @@ public final class WarriorAbilities {
     }
 
     private int duration(AbilityDef def, int defv) {
-        int v = plugin.getConfig().getInt(
-                "classes.WARRIOR.abilities." + def.id() + ".duration", defv);
-        return v > 0 ? v : defv;
+        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
     }
 
     private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
@@ -255,12 +256,13 @@ public final class WarriorAbilities {
             return false;
         }
         castFx(p, "ragnarok", "ENTITY_LIGHTNING_BOLT_THUNDER", "EXPLOSION", 0.9f, 0.7f, 8);
-        double threshold = cfgD("classes.WARRIOR.abilities." + def.id() + ".threshold", 0.25);
+        // 1.14.0 (Б11.1.2-A): threshold/execute-mult через фолбэк-хелпер
+        double threshold = TreeAbilities.numberOrKit(plugin, PC, def.id(), "threshold", 0.25);
         double max = effectiveMaxHp(t);
         double frac = max > 0 ? t.getHealth() / max : 1.0;
         double dmg = dmg(p, def, 20.0, 1.8);
         if (frac < threshold) {
-            dmg *= cfgD("classes.WARRIOR.abilities." + def.id() + ".execute-mult", 3.0);
+            dmg *= TreeAbilities.numberOrKit(plugin, PC, def.id(), "execute-mult", 3.0);
             plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg), true);
             executeFx(p, t);
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
