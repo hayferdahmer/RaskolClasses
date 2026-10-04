@@ -72,7 +72,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 91–94 (1.14.0 Б8): чистый enum 18, строгий fromId, реестр 18 деревьев 50–58,
  *         ульт/unlock-инварианты.
  * 95–96 (1.14.0 Б11.1.1): реестр переносимых китовых (slots 4–5) + инвариант резолва.
- * 97 (1.14.0 Б11.1.2-A): инвариант дублей переносимых (treeAbilities == abilities).
+ * 97 (1.14.0 Б11.1.2-B1): treeAbilities авторитетен для переносимых (base>0) + legacy-согласованность.
  */
 public final class SelftestRunner {
 
@@ -1460,13 +1460,10 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б11.1.2-A): чек 97 — инвариант дублей переносимых. Для каждой из 12
-        // переносимых (slots 4–5) каждое числовое поле, присутствующее в
-        // classes.<CLASS>.abilities.<id>.*, обязано присутствовать в
-        // classes.<CLASS>.treeAbilities.<id>.* и быть равным. Ловит опечатку в дубле
-        // ДО резки abilities (11.1.2-B/11.1.3), иначе кастер прочитал бы рассогласованное
-        // число тихим красным рантаймом. В 11.1.3, после резки abilities для переносимых,
-        // чек будет ПЕРЕПИСАН на «treeAbilities.<id> существует и base>0».
+        // 1.14.0 (Б11.1.2-B1): чек 97 — treeAbilities авторитетен для переносимых.
+        // Требуем наличие секции и base > 0. Если legacy abilities.<id> ещё присутствует,
+        // числовые ключи обязаны совпадать. Это позволяет безопасно пережить как переходный
+        // период (abilities ещё есть), так и будущую резку (abilities уже нет).
         boolean ok97 = true;
         String got97 = "";
         String[] numKeys97 = {"base", "coeff", "threshold", "execute-mult", "radius",
@@ -1474,35 +1471,46 @@ public final class SelftestRunner {
         for (PlayerClass pc : PlayerClass.values()) {
             for (dev.raskol.classes.ability.TransferableAbilities.Entry e :
                     dev.raskol.classes.ability.TransferableAbilities.forClass(pc)) {
-                String kitBase = "classes." + pc.name() + ".abilities." + e.id() + ".";
-                String treeBase = "classes." + pc.name() + ".treeAbilities." + e.id() + ".";
-                if (!plugin.getConfig().isConfigurationSection(
-                        "classes." + pc.name() + ".treeAbilities." + e.id())) {
+                String treeSection = "classes." + pc.name() + ".treeAbilities." + e.id();
+                if (!plugin.getConfig().isConfigurationSection(treeSection)) {
                     ok97 = false;
-                    got97 = e.id() + ": секция treeAbilities отсутствует (дубль не добавлен)";
+                    got97 = e.id() + ": секция treeAbilities отсутствует";
                     break;
                 }
-                for (String key : numKeys97) {
-                    if (plugin.getConfig().isSet(kitBase + key)) {
-                        double kv = plugin.getConfig().getDouble(kitBase + key, Double.NaN);
-                        double tv = plugin.getConfig().getDouble(treeBase + key, Double.NaN);
-                        if (!Double.isFinite(tv) || Math.abs(kv - tv) > 1e-9) {
-                            ok97 = false;
-                            got97 = e.id() + "." + key + ": abilities=" + kv
-                                    + " treeAbilities=" + tv + " (дубль рассогласован)";
-                            break;
+
+                double treeBaseValue = plugin.getConfig().getDouble(treeSection + ".base", Double.NaN);
+                if (!Double.isFinite(treeBaseValue) || treeBaseValue <= 0.0) {
+                    ok97 = false;
+                    got97 = e.id() + ": treeAbilities.base отсутствует/неположителен (" + treeBaseValue + ")";
+                    break;
+                }
+
+                String kitSection = "classes." + pc.name() + ".abilities." + e.id();
+                if (plugin.getConfig().isConfigurationSection(kitSection)) {
+                    String kitPrefix = kitSection + ".";
+                    String treePrefix = treeSection + ".";
+                    for (String key : numKeys97) {
+                        if (plugin.getConfig().isSet(kitPrefix + key)) {
+                            double kv = plugin.getConfig().getDouble(kitPrefix + key, Double.NaN);
+                            double tv = plugin.getConfig().getDouble(treePrefix + key, Double.NaN);
+                            if (!Double.isFinite(tv) || Math.abs(kv - tv) > 1e-9) {
+                                ok97 = false;
+                                got97 = e.id() + "." + key + ": abilities=" + kv
+                                        + " treeAbilities=" + tv + " (рассогласование legacy/authoritative)";
+                                break;
+                            }
                         }
                     }
-                }
-                if (!ok97) {
-                    break;
+                    if (!ok97) {
+                        break;
+                    }
                 }
             }
             if (!ok97) {
                 break;
             }
         }
-        if (check(report, "97", "дубли переносимых: treeAbilities.<id>.<число> == abilities.<id>.<число>",
+        if (check(report, "97", "переносимые: treeAbilities.<id> авторитетно (base>0); legacy abilities, если есть, совпадает",
                 ok97, "config treeAbilities/abilities", ok97 ? "OK(12)" : got97)) {
             passed++;
         } else {
