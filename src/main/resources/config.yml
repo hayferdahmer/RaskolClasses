@@ -780,6 +780,29 @@ classes:
         cooldown: 180
         duration: 8
         school: PHYSICAL
+      # 1.14.0 (Б11.1.2-A): дубли переносимых slots 4–5 (числа == abilities).
+      fenrir_blood:
+        name: "Кровь Фенрира"
+        description: "Волчья кровь лечит тебя (хил скалируется от Силы оружия)"
+        unlock: 65
+        cost: 30
+        cooldown: 25
+        power: wp
+        base: 15
+        coeff: 0.5
+        school: PHYSICAL
+      ragnarok:
+        name: "Рагнарёк"
+        description: "Сумерки богов: тяжёлый удар; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)"
+        unlock: 75
+        cost: 60
+        cooldown: 60
+        power: wp
+        base: 20
+        coeff: 1.8
+        threshold: 0.25
+        execute-mult: 3.0
+        school: PHYSICAL
     passives:
       execute_passive:
         enabled: true
@@ -985,6 +1008,28 @@ classes:
         cooldown: 120
         duration: 8
         school: NATURE
+      # 1.14.0 (Б11.1.2-A): дубли переносимых slots 4–5 (числа == abilities).
+      arrow_fan:
+        name: "Веер стрел"
+        description: "Три стрелы конусом, урон каждой скалируется от Силы оружия"
+        unlock: 65
+        cost: 35
+        cooldown: 22
+        power: wp
+        base: 6
+        coeff: 0.35
+        school: PHYSICAL
+      arrow_rain:
+        name: "Дождь стрел"
+        description: "Шквал стрел по площади радиусом 5 (не проходит сквозь стены)"
+        unlock: 75
+        cost: 60
+        cooldown: 90
+        power: wp
+        base: 10
+        coeff: 0.9
+        radius: 5.0
+        school: PHYSICAL
     passives:
       predator:
         enabled: true
@@ -1148,6 +1193,30 @@ classes:
         cooldown: 90
         duration: 8
         school: SHADOW
+      # 1.14.0 (Б11.1.2-A): дубли переносимых slots 4–5 (числа == abilities).
+      circle_elysium:
+        name: "Круг Элизия"
+        description: "Лечит себя и всех союзников в радиусе 6 (скалируется от Силы исцеления)"
+        unlock: 65
+        cost: 50
+        cooldown: 60
+        power: hpow
+        base: 15
+        coeff: 0.45
+        radius: 6.0
+        school: HOLY
+      wrath_heaven:
+        name: "Кара Небес"
+        description: "Карая кара: тяжёлый маг-урон; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)"
+        unlock: 75
+        cost: 60
+        cooldown: 90
+        power: sp
+        base: 20
+        coeff: 1.6
+        threshold: 0.25
+        execute-mult: 3.0
+        school: HOLY
     passives:
       grace:
         enabled: true
@@ -1336,6 +1405,30 @@ classes:
         base: 12
         coeff: 1.1
         school: FROST
+      # 1.14.0 (Б11.1.2-A): дубли переносимых slots 4–5 (числа == abilities).
+      athena_aegis:
+        name: "Эгида Афины"
+        description: "Щит богини: +магрезист на 5 с + аура партиклов на кастере и звук снятия."
+        unlock: 65
+        cost: 30
+        cooldown: 30
+        power: sp
+        base: 15
+        coeff: 0.05
+        duration: 5
+        school: ARCANE
+      zeus_wrath:
+        name: "Гнев Зевса"
+        description: "Сцена: гром → затемнение цели → подбрасывание на 3 блока → молния с маг-уроном + горение (DoT burning); цель <25% HP → ×3 (игнорирует burst-окно и кап)."
+        unlock: 75
+        cost: 60
+        cooldown: 90
+        power: sp
+        base: 25
+        coeff: 2.0
+        threshold: 0.25
+        execute-mult: 3.0
+        school: ARCANE
     passives:
       mana_soaked:
         enabled: false
@@ -1552,6 +1645,26 @@ classes:
         cooldown: 120
         duration: 6
         school: SHADOW
+      # 1.14.0 (Б11.1.2-A): дубли переносимых slots 4–5 (числа == abilities).
+      borgia_poison:
+        name: "Яд Борджа"
+        description: "Отравленный клинок: урон + яд (DoT poison, NATURE, стеки до 3)"
+        unlock: 65
+        cost: 35
+        cooldown: 30
+        power: wp
+        base: 5
+        coeff: 0.3
+        school: NATURE
+      shadow_dance:
+        name: "Танец теней"
+        description: "Танец клинков: +30 ЛОВКОСТИ на 4 с (всплеск уклонения через avoidance)"
+        unlock: 75
+        cost: 60
+        cooldown: 120
+        base: 30
+        duration: 4
+        school: SHADOW
     passives:
       poisoned_blades:
         enabled: true
@@ -1762,6 +1875,32 @@ classes:
         cost: 45
         cooldown: 120
         duration: 10
+        school: SHADOW
+      # 1.14.0 (Б11.1.2-A): дубли переносимых slots 4–5 (числа == abilities).
+      unwriting:
+        name: "Небытие"
+        description: "Вычеркнуть из истории: снимает с цели все положительные зелья и эффекты; маг-урон и +16 урона за каждый стёртый эффект."
+        unlock: 65
+        cost: 30
+        cooldown: 22
+        power: sp
+        base: 16
+        coeff: 0.8
+        per-purged: 16
+        school: SHADOW
+      soul_rift:
+        name: "Раскол Души"
+        description: "Канал 2.5 секунды: зона 8 блоков сеет маг-урон и запрет лечения; финальный взрыв бьёт тем сильнее, чем ближе цель к смерти (до +66.6% от недостающего HP)."
+        unlock: 75
+        cost: 50
+        cooldown: 80
+        power: sp
+        base: 30
+        coeff: 2.4
+        radius: 8.0
+        channel: 2.5
+        antiheal: 6
+        missing-hp-bonus: 0.666
         school: SHADOW
     passives:
       black_mass:
@@ -2010,6 +2149,7 @@ vfx:
     ambient-sound: ENTITY_BLAZE_AMBIENT
     ambient-volume: 0.18
     ambient-pitch: 0.9
+    ambient-particle: null
   challenge:
     cast-sound: BLOCK_BELL_USE
     cast-particle: ANGRY_VILLAGER
