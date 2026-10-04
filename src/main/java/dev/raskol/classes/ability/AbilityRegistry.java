@@ -42,6 +42,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *         прощение сиротства для переносимых в integrityProblems (включится в 11.1.3).
  * 1.14.0 (Б11.1.2-B2): readSchool() для переносимых сначала пробует treeAbilities.<id>.school,
  *         затем abilities.<id>.school, затем DEFAULT_SCHOOLS.
+ * 1.14.0 (Б11.1.3-A): гейт hasUnlocked для переносимых — каст слотов 4–5
+ *         теперь требует unlock_ability в дереве класса. Пока DEFAULTS не урезан
+ *         (11.1.3-B), getBySlotOrTree возвращает китовый def (чек 96 сохраняется).
  */
 public final class AbilityRegistry {
 
@@ -136,13 +139,6 @@ public final class AbilityRegistry {
         return new AbilityDef(id, name, slot, unlock, cost, cooldownSeconds * 1000L);
     }
 
-    /**
-     * 1.14.0 (Б11.1.1): read-only индекс переносимых id → legacy-slot (4/5).
-     * Строится из TransferableAbilities (тот же пакет, импорт не нужен). В переходный
-     * период DEFAULTS ещё содержит slots 4–5, поэтому индекс согласован с ним
-     * (валидируется чеком 95). В 11.1.3 DEFAULTS урезается, индекс остаётся мостом
-     * для резолва slot 4–5 через деревья.
-     */
     private static final Map<String, Integer> TRANSFERABLE_SLOT = buildTransferableSlot();
 
     private static Map<String, Integer> buildTransferableSlot() {
@@ -224,18 +220,15 @@ public final class AbilityRegistry {
 
     /* ------------------------------ 1.14.0 (Б11.1.1): переносимые ------------------------------ */
 
-    /** Идентификатор способности переносимая (slots 4–5, станут unlock_ability-узлом)? */
     public static boolean isTransferable(String id) {
         return id != null && TRANSFERABLE_SLOT.containsKey(id);
     }
 
-    /** Legacy-slot (4/5) переносимой id; -1 если id не переносимая. */
     public static int transferableSlot(String id) {
         Integer s = TRANSFERABLE_SLOT.get(id);
         return s == null ? -1 : s;
     }
 
-    /** Id переносимых способностей класса (ровно 2: slots 4 и 5). */
     public List<String> transferableIdsFor(PlayerClass pc) {
         List<String> out = new ArrayList<>();
         for (TransferableAbilities.Entry e : TransferableAbilities.forClass(pc)) {
@@ -244,21 +237,11 @@ public final class AbilityRegistry {
         return out;
     }
 
-    /**
-     * 1.14.0 (Б11.1.1): резолв слота с учётом переносимых.
-     * ПЕРЕХОДНЫЙ ПЕРИОД (DEFAULTS не урезан): идентичен getBySlot — переносимые
-     * slots 4–5 ещё живут в DEFAULTS, поэтому метод возвращает тот же китовый def.
-     * uuid пока не используется (зарезервирован для 11.1.3).
-     * В 11.1.3, после резки DEFAULTS, slot 4–5 переносимых будет резолвиться через
-     * TreeAbilities/Spec2Service.hasUnlocked, а getBySlot по этим слотам вернёт null.
-     */
     public AbilityDef getBySlotOrTree(PlayerClass pc, int slot, UUID uuid) {
         AbilityDef kit = getBySlot(pc, slot);
         if (kit != null) {
             return kit;
         }
-        // 11.1.3: здесь появится резолв переносимых slots 4–5 через деревья путей.
-        // Пока (11.1.1–11.1.2) — null, поведение китовых слотов не меняется.
         return null;
     }
 
@@ -281,11 +264,9 @@ public final class AbilityRegistry {
         }
     }
 
-    /** 1.12.3: школа из конфига (override) либо из DEFAULT_SCHOOLS. */
     private School readSchool(PlayerClass pc, String id) {
         String path = "classes." + pc.name() + ".abilities." + id + ".school";
 
-        // 1.14.0 (Б11.1.2-B2): для переносимых школа может жить в treeAbilities.
         if (TransferableAbilities.isTransferable(id)) {
             String treePath = "classes." + pc.name() + ".treeAbilities." + id + ".school";
             if (plugin.getConfig().isSet(treePath)) {
@@ -340,7 +321,7 @@ public final class AbilityRegistry {
                 return true;
             }
         }
-        return casters.containsKey(id); // древесные способности (slot 6+)
+        return casters.containsKey(id);
     }
 
     public List<String> integrityProblems() {
@@ -363,15 +344,11 @@ public final class AbilityRegistry {
             if (!casters.containsKey(id)) {
                 problems.add("targeted-кастер " + id + " без self-кастера");
             }
-            // 1.14.0 (Б11.1.1): переносимые легальны вне DEFAULTS (включится в 11.1.3;
-            // сегодня no-op, т.к. переносимые ещё в knownIds).
             if (!knownIds.contains(id) && !isTransferable(id)) {
                 problems.add("targeted-кастер " + id + " — сирота (нет в DEFAULTS)");
             }
         }
         for (String id : casters.keySet()) {
-            // 1.14.0: древесные кастеры легальны вне DEFAULTS
-            // 1.14.0 (Б11.1.1): переносимые китовые — тоже легальны (включится в 11.1.3).
             if (!knownIds.contains(id) && !treeCasterIds.contains(id) && !isTransferable(id)) {
                 problems.add("кастер " + id + " — сирота (нет в DEFAULTS)");
             }
@@ -387,7 +364,6 @@ public final class AbilityRegistry {
         return problems;
     }
 
-    /** 1.12.3: для selftest-чека 64 — все ли 30 способностей имеют школу. */
     public int schoolCoverage() {
         int count = 0;
         for (PlayerClass pc : PlayerClass.values()) {
@@ -433,7 +409,6 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.13.0 (Б2): CC-гейт каста ДО антискпа/кулдаунов/ресурса
         if (!plugin.getCastGuard().canCast(caster, false)) {
             CCType block = plugin.getCastGuard().blockReason(caster, false);
             caster.sendMessage(Component.text(cfg.message("cc.cast-interrupted",
@@ -460,6 +435,17 @@ public final class AbilityRegistry {
                     + def.unlockLevel() + " (у вас " + level + ")", NamedTextColor.RED));
             return false;
         }
+
+        // 1.14.0 (Б11.1.3-A): гейт для переносимых slots 4–5 — требуется unlock_ability
+        // в дереве класса. Отказ без траты ресурса/кулдауна/antispam-слота.
+        if (TransferableAbilities.isTransferable(def.id())
+                && !plugin.getSpec2Service().hasUnlocked(id, def.id())) {
+            caster.sendMessage(Component.text("«" + def.displayName()
+                    + "» откроется узлом дерева путей " + pc.name() + ".",
+                    NamedTextColor.GRAY));
+            return false;
+        }
+
         if (plugin.getCooldowns().isOnCooldown(id, def.id())) {
             long remaining = plugin.getCooldowns().getRemainingMillis(id, def.id());
             caster.sendMessage(Component.text("«" + def.displayName() + "»: перезарядка ещё "
@@ -473,7 +459,6 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.12.3: установка ThreadLocal-контекста школы для пути B в CombatService
         CombatService.setCurrentCastSchool(def.school());
         boolean ok;
         try {
@@ -492,7 +477,6 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.14.0 (Б8.2-fix): кулдаун из spec2: процент (cd) + секунды (kit_cd)
         double cdMult = plugin.getSpec2Service().cooldownMult(id, def.id());
         double cdSecBonus = plugin.getSpec2Service().cooldownSecBonus(id, def.id());
         if (!Double.isFinite(cdMult) || cdMult <= 0.0) {
