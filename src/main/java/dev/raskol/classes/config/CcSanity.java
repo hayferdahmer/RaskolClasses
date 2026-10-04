@@ -14,6 +14,11 @@ import java.util.List;
  * 1.13.0 (Б4): sanity-валидация секции cc.* конфига (аналог KitSanity для CC).
  * Вызываем из selftest-чека 89 и из ConfigValidator-потока при reload.
  * Все проверки — диапазоны и ссылочная целостность (id CCType в иммунитетах).
+ *
+ * 1.14.0-fix (чек 89): мгновенные CC (defaultTicks() <= 0, напр. KNOCKBACK)
+ *    исключены из проверки duration-ticks — у них вместо длительности power/
+ *    vertical-boost, и требовать [1,1200] тиков от мгновенного отброса — ошибка
+ *    валидатора, а не конфига.
  */
 public final class CcSanity {
 
@@ -63,6 +68,10 @@ public final class CcSanity {
         }
 
         for (CCType t : CCType.values()) {
+            // 1.14.0-fix (чек 89): мгновенные CC не имеют duration-ticks
+            if (t.defaultTicks() <= 0) {
+                continue;
+            }
             int dur = cfg.getInt("cc.types." + t.id() + ".duration-ticks", t.defaultTicks());
             if (dur <= 0 || dur > 1200) {
                 problems.add("cc.types." + t.id() + ".duration-ticks вне [1,1200]: " + dur);
