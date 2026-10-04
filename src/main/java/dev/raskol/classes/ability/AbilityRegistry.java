@@ -40,6 +40,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *         slot 4–5, каст/GUI/баланс не тронуты. Добавлены read-only хелперы
  *         isTransferable/transferableSlot/transferableIdsFor/getBySlotOrTree и
  *         прощение сиротства для переносимых в integrityProblems (включится в 11.1.3).
+ * 1.14.0 (Б11.1.2-B2): readSchool() для переносимых сначала пробует treeAbilities.<id>.school,
+ *         затем abilities.<id>.school, затем DEFAULT_SCHOOLS.
  */
 public final class AbilityRegistry {
 
@@ -281,8 +283,17 @@ public final class AbilityRegistry {
 
     /** 1.12.3: школа из конфига (override) либо из DEFAULT_SCHOOLS. */
     private School readSchool(PlayerClass pc, String id) {
-        String override = plugin.getConfig().getString(
-                "classes." + pc.name() + ".abilities." + id + ".school");
+        String path = "classes." + pc.name() + ".abilities." + id + ".school";
+
+        // 1.14.0 (Б11.1.2-B2): для переносимых школа может жить в treeAbilities.
+        if (TransferableAbilities.isTransferable(id)) {
+            String treePath = "classes." + pc.name() + ".treeAbilities." + id + ".school";
+            if (plugin.getConfig().isSet(treePath)) {
+                path = treePath;
+            }
+        }
+
+        String override = plugin.getConfig().getString(path);
         School parsed = School.fromId(override);
         if (parsed != null) {
             return parsed;
