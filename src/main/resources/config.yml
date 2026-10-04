@@ -1,6 +1,6 @@
 # ============================================================
 #  RaskolClasses v1.14.0 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
-#  Весь баланс, стилизация и длительности — в этом файле.
+#  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
 #  ВАЖНО: inline-маппинги пишутся ТОЛЬКО с пробелом после двоеточия
@@ -852,6 +852,139 @@ classes:
         coeff: 0.9
         radius: 5.0
         school: PHYSICAL
+    # ------------------------------------------------------------
+    # 1.14.0 (контент-долг 2): древесные способности Охотника.
+    # ------------------------------------------------------------
+    treeAbilities:
+      aimed_shot:
+        name: "Прицельный выстрел"
+        description: "Тяжёлый выстрел по цели (до 24 блоков) + подсветка 3 с"
+        unlock: 15
+        cost: 25
+        cooldown: 10
+        power: wp
+        base: 16
+        coeff: 1.6
+        school: PHYSICAL
+      silencing_shot:
+        name: "Заглушающий выстрел"
+        description: "Урон + Немота 3 с (CC, уходит в DR)"
+        unlock: 15
+        cost: 25
+        cooldown: 25
+        power: wp
+        base: 6
+        coeff: 0.5
+        school: PHYSICAL
+      chimera_shot:
+        name: "Выстрел химеры"
+        description: "Физ+маг урон пополам + кровотечение"
+        unlock: 15
+        cost: 30
+        cooldown: 12
+        power: wp
+        base: 8
+        coeff: 0.7
+        school: PHYSICAL
+      true_shot:
+        name: "Верный выстрел"
+        description: "+30% урона способностей на 6 с"
+        unlock: 15
+        cost: 20
+        cooldown: 60
+        duration: 6
+        school: PHYSICAL
+      poison_shot:
+        name: "Отравленный выстрел"
+        description: "Урон + яд (DoT poison, NATURE)"
+        unlock: 15
+        cost: 20
+        cooldown: 8
+        power: wp
+        base: 6
+        coeff: 0.5
+        school: NATURE
+      explosive_trap:
+        name: "Взрывная ловушка"
+        description: "Заряд в точку (до 10 блоков): через 1 с AoE 3 = урон + Корни 2 с + горение"
+        unlock: 15
+        cost: 35
+        cooldown: 30
+        power: wp
+        base: 10
+        coeff: 0.8
+        radius: 3.0
+        school: FIRE
+      black_arrow:
+        name: "Чёрная стрела"
+        description: "Урон + иссушение (DoT wither, SHADOW)"
+        unlock: 15
+        cost: 25
+        cooldown: 10
+        power: wp
+        base: 8
+        coeff: 0.7
+        school: SHADOW
+      wyvern_sting:
+        name: "Укус виверны"
+        description: "Урон + паралич токсином (Оцепенение 3 с)"
+        unlock: 15
+        cost: 30
+        cooldown: 45
+        power: wp
+        base: 5
+        coeff: 0.4
+        school: NATURE
+      readiness:
+        name: "Готовность"
+        description: "Концентрация → 100 + снятие с себя Корней/Замедления"
+        unlock: 15
+        cost: 15
+        cooldown: 90
+        school: PHYSICAL
+      serpent_sting:
+        name: "Укус змея"
+        description: "УЛЬТ: урон = стеки яда × 12; обновляет яд"
+        unlock: 15
+        cost: 40
+        cooldown: 60
+        power: wp
+        base: 12
+        coeff: 1.0
+        school: NATURE
+      intimidation:
+        name: "Запугивание"
+        description: "Урон + Страх 3 с (CC, уходит в DR)"
+        unlock: 15
+        cost: 25
+        cooldown: 30
+        power: wp
+        base: 4
+        coeff: 0.3
+        school: PHYSICAL
+      pet_wolf:
+        name: "Приручить волка"
+        description: "Призывает волка-компаньона (живёт до смерти или выхода)"
+        unlock: 15
+        cost: 30
+        cooldown: 60
+        school: NATURE
+      beast_ferocity:
+        name: "Звериная свирепость"
+        description: "Волк: +50% скорости и +50% урона на 10 с"
+        unlock: 15
+        cost: 25
+        cooldown: 45
+        duration: 10
+        school: NATURE
+      bestial_wrath:
+        name: "Звериная ярость"
+        description: "УЛЬТ: волк ×2 урона на 8 с + подсветка"
+        unlock: 15
+        cost: 45
+        cooldown: 120
+        duration: 8
+        school: NATURE
     passives:
       predator:
         enabled: true
@@ -927,6 +1060,94 @@ classes:
         threshold: 0.25
         execute-mult: 3.0
         school: HOLY
+    # ------------------------------------------------------------
+    # 1.14.0 (контент-долг 5): древесные способности Жреца.
+    # ------------------------------------------------------------
+    treeAbilities:
+      purge:
+        name: "Очищение"
+        description: "Снять с союзника (или себя) все CC и все DoT"
+        unlock: 15
+        cost: 25
+        cooldown: 12
+        school: HOLY
+      pain_suppression:
+        name: "Подавление боли"
+        description: "−40% входящего урона цели на 5 с (Resistance II)"
+        unlock: 15
+        cost: 30
+        cooldown: 60
+        duration: 5
+        school: HOLY
+      spirit_shell:
+        name: "Оболочка духа"
+        description: "УЛЬТ: щит-пул 30% последнего хила себе и союзникам r6 на 8 с"
+        unlock: 15
+        cost: 40
+        cooldown: 120
+        duration: 8
+        radius: 6.0
+        school: HOLY
+      flash_heal:
+        name: "Быстрое исцеление"
+        description: "Мощный мгновенный хил союзника (или себя)"
+        unlock: 15
+        cost: 15
+        cooldown: 4
+        power: hpow
+        base: 14
+        coeff: 0.5
+        school: HOLY
+      lightwell:
+        name: "Колодец Света"
+        description: "Зона-хил r4: 4 тика по 2 с лечат союзников"
+        unlock: 15
+        cost: 35
+        cooldown: 60
+        power: hpow
+        base: 6
+        coeff: 0.3
+        radius: 4.0
+        school: HOLY
+      divine_hymn:
+        name: "Божественный гимн"
+        description: "УЛЬТ: канал 3 с — 3 тика группового хила r8 + очищение DoT NATURE/SHADOW"
+        unlock: 15
+        cost: 50
+        cooldown: 180
+        power: hpow
+        base: 10
+        coeff: 0.5
+        radius: 8.0
+        school: HOLY
+      withering_touch:
+        name: "Иссушающее касание"
+        description: "Маг-урон + иссушение (DoT wither, SHADOW)"
+        unlock: 15
+        cost: 20
+        cooldown: 6
+        power: sp
+        base: 8
+        coeff: 0.7
+        school: SHADOW
+      mind_flay:
+        name: "Пытка разума"
+        description: "Канал 3 с: 3 тика маг-урона + Замедление цели"
+        unlock: 15
+        cost: 25
+        cooldown: 15
+        power: sp
+        base: 5
+        coeff: 0.4
+        school: SHADOW
+      shadowfiend:
+        name: "Тенескот"
+        description: "Пет-мини (Vex) 8 с атакует цель; +10 Света при призыве"
+        unlock: 15
+        cost: 30
+        cooldown: 90
+        duration: 8
+        school: SHADOW
     passives:
       grace:
         enabled: true
@@ -1006,6 +1227,115 @@ classes:
         threshold: 0.25
         execute-mult: 3.0
         school: ARCANE
+    # ------------------------------------------------------------
+    # 1.14.0 (контент-долг 4): древесные способности Мага.
+    # ------------------------------------------------------------
+    treeAbilities:
+      arcane_missiles:
+        name: "Чародейские стрелы"
+        description: "3 залпа маг-урона по цели (до 20 блоков)"
+        unlock: 15
+        cost: 20
+        cooldown: 8
+        power: sp
+        base: 5
+        coeff: 0.45
+        school: ARCANE
+      counterspell:
+        name: "Контрзаклинание"
+        description: "Маг-урон + Немота 3 с + прерывание канала цели (CC, уходит в DR)"
+        unlock: 15
+        cost: 30
+        cooldown: 30
+        power: sp
+        base: 4
+        coeff: 0.3
+        school: ARCANE
+      presence_of_mind:
+        name: "Присутствие разума"
+        description: "Мана → 100 + снятие с себя Немоты"
+        unlock: 15
+        cost: 15
+        cooldown: 90
+        school: ARCANE
+      scorch:
+        name: "Ожог"
+        description: "Маг-урон + горение (DoT burning, FIRE)"
+        unlock: 15
+        cost: 15
+        cooldown: 4
+        power: sp
+        base: 7
+        coeff: 0.6
+        school: FIRE
+      flamestrike:
+        name: "Огненный столб"
+        description: "AoE радиус 4 по точке: маг-урон + горение всем целям"
+        unlock: 15
+        cost: 40
+        cooldown: 20
+        power: sp
+        base: 9
+        coeff: 0.8
+        radius: 4.0
+        school: FIRE
+      combustion:
+        name: "Возгорание"
+        description: "+25% урона заклинаний на 8 с"
+        unlock: 15
+        cost: 25
+        cooldown: 90
+        duration: 8
+        school: FIRE
+      pyroblast:
+        name: "Огненная глыба"
+        description: "УЛЬТ: огромный маг-урон (игнор капов); по горящей цели ×1.5"
+        unlock: 15
+        cost: 60
+        cooldown: 120
+        power: sp
+        base: 20
+        coeff: 1.8
+        school: FIRE
+      frostbolt:
+        name: "Ледяная стрела"
+        description: "Маг-урон + охлаждение (DoT chilled) + Slowness I 2 с"
+        unlock: 15
+        cost: 15
+        cooldown: 5
+        power: sp
+        base: 8
+        coeff: 0.7
+        school: FROST
+      blizzard:
+        name: "Снежная буря"
+        description: "AoE радиус 5 по точке: маг-урон + охлаждение + Slowness I 3 с"
+        unlock: 15
+        cost: 40
+        cooldown: 25
+        power: sp
+        base: 6
+        coeff: 0.5
+        radius: 5.0
+        school: FROST
+      ice_barrier:
+        name: "Ледяная преграда"
+        description: "Щит-пул 15% макс. HP на 6 с (золотые сердца)"
+        unlock: 15
+        cost: 30
+        cooldown: 45
+        duration: 6
+        school: FROST
+      ice_lance_shatter:
+        name: "Ледяное копьё: раскол"
+        description: "УЛЬТ: маг-урон; по охлаждённой цели ×(1+стеки) и скол охлаждения"
+        unlock: 15
+        cost: 50
+        cooldown: 90
+        power: sp
+        base: 12
+        coeff: 1.1
+        school: FROST
     passives:
       mana_soaked:
         enabled: false
@@ -1073,6 +1403,154 @@ classes:
         cooldown: 120
         base: 30
         duration: 4
+        school: SHADOW
+    # ------------------------------------------------------------
+    # 1.14.0 (контент-долг 3): древесные способности Разбойника.
+    # ------------------------------------------------------------
+    treeAbilities:
+      poison_burst:
+        name: "Взрыв яда"
+        description: "Детонация стеков яда: урон = стеки × base; яд сгорает"
+        unlock: 15
+        cost: 30
+        cooldown: 10
+        power: wp
+        base: 5
+        coeff: 0.4
+        school: NATURE
+      cold_blood:
+        name: "Хладнокровие"
+        description: "+50% урона способностей на 5 с"
+        unlock: 15
+        cost: 20
+        cooldown: 60
+        duration: 5
+        school: PHYSICAL
+      vendetta:
+        name: "Вендетта"
+        description: "Метка цели: +30% урона от разбойника на 10 с"
+        unlock: 15
+        cost: 25
+        cooldown: 90
+        duration: 10
+        school: SHADOW
+      envenom:
+        name: "Отравление"
+        description: "Урон по стекам яда (+4/стек), хил 20% от дошедшего, яд обновляется"
+        unlock: 15
+        cost: 25
+        cooldown: 8
+        power: wp
+        base: 8
+        coeff: 0.6
+        school: NATURE
+      deathmark:
+        name: "Метка смерти"
+        description: "УЛЬТ: execute ×3 по цели с ≥3 стеками яда (игнор капов), иначе урон + яд"
+        unlock: 15
+        cost: 45
+        cooldown: 120
+        power: wp
+        base: 15
+        coeff: 1.2
+        school: NATURE
+      pistol_shot:
+        name: "Выстрел из пистолета"
+        description: "Урон (до 12 блоков) + Оцепенение 1.5 с (CC, уходит в DR)"
+        unlock: 15
+        cost: 25
+        cooldown: 30
+        power: wp
+        base: 6
+        coeff: 0.5
+        school: PHYSICAL
+      blade_flurry:
+        name: "Шквал клинков"
+        description: "AoE радиус 4: урон + кровотечение всем целям"
+        unlock: 15
+        cost: 35
+        cooldown: 20
+        power: wp
+        base: 7
+        coeff: 0.6
+        radius: 4.0
+        school: PHYSICAL
+      adrenaline_rush:
+        name: "Прилив адреналина"
+        description: "+50 энергии и Спех II на 10 с"
+        unlock: 15
+        cost: 20
+        cooldown: 90
+        duration: 10
+        school: PHYSICAL
+      killing_spree:
+        name: "Серия убийств"
+        description: "5 быстрых ударов по цели, каждый +8% урона"
+        unlock: 15
+        cost: 40
+        cooldown: 60
+        power: wp
+        base: 4
+        coeff: 0.35
+        school: PHYSICAL
+      between_the_eyes:
+        name: "Между глаз"
+        description: "УЛЬТ: урон + Оцепенение 3 с по цели с кровотечением, иначе 1.5 с"
+        unlock: 15
+        cost: 40
+        cooldown: 90
+        power: wp
+        base: 10
+        coeff: 0.9
+        school: PHYSICAL
+      backstab:
+        name: "Удар в спину"
+        description: "Урон ×1.5 при атаке со спины"
+        unlock: 15
+        cost: 20
+        cooldown: 6
+        power: wp
+        base: 8
+        coeff: 0.7
+        school: PHYSICAL
+      shadowstep:
+        name: "Шаг сквозь тень"
+        description: "Телепорт за спину цели (до 20 блоков) + Скорость I 3 с"
+        unlock: 15
+        cost: 20
+        cooldown: 20
+        school: SHADOW
+      preparation:
+        name: "Подготовка"
+        description: "Энергия → 100 + снятие с себя Корней/Замедления"
+        unlock: 15
+        cost: 15
+        cooldown: 120
+        school: SHADOW
+      cloak_of_shadows:
+        name: "Плащ теней (очищение)"
+        description: "Снять с себя все CC и DoT NATURE/SHADOW + Невидимость 3 с"
+        unlock: 15
+        cost: 30
+        cooldown: 60
+        school: SHADOW
+      hemorrhage:
+        name: "Кровопускание"
+        description: "Урон + кровотечение (DoT bleed, PHYSICAL)"
+        unlock: 15
+        cost: 25
+        cooldown: 10
+        power: wp
+        base: 7
+        coeff: 0.6
+        school: PHYSICAL
+      shadow_blades:
+        name: "Теневые клинки"
+        description: "УЛЬТ: +50% урона способностей на 6 с"
+        unlock: 15
+        cost: 45
+        cooldown: 120
+        duration: 6
         school: SHADOW
     passives:
       poisoned_blades:
@@ -1193,6 +1671,97 @@ classes:
         channel: 2.5
         antiheal: 6
         missing-hp-bonus: 0.666
+        school: SHADOW
+    # ------------------------------------------------------------
+    # 1.14.0 (контент-долг 6): древесные способности Чернокнижника.
+    # ------------------------------------------------------------
+    treeAbilities:
+      withering:
+        name: "Иссушение"
+        description: "Маг-урон + DoT wither 6 с; +6 Скверны"
+        unlock: 15
+        cost: 15
+        cooldown: 6
+        base: 8
+        coeff: 0.7
+        school: SHADOW
+      soul_siphon:
+        name: "Сифон души"
+        description: "Урон + хил 50% от дошедшего; у цели-игрока −10 её ресурса; +10 Скверны"
+        unlock: 15
+        cost: 25
+        cooldown: 15
+        base: 10
+        coeff: 0.8
+        school: SHADOW
+      soul_harvest:
+        name: "Жатва душ"
+        description: "УЛЬТ: детонация стеков wither (урон = стеки × base), снятие SHADOW-DoT; +5 Скверны за стек"
+        unlock: 15
+        cost: 40
+        cooldown: 90
+        base: 10
+        coeff: 0.9
+        school: SHADOW
+      immolate:
+        name: "Жертвенный огонь"
+        description: "Маг-урон + горение (DoT burning); +6 Скверны"
+        unlock: 15
+        cost: 15
+        cooldown: 5
+        base: 9
+        coeff: 0.8
+        school: FIRE
+      chaos_bolt:
+        name: "Стрела хаоса"
+        description: "Тяжёлый маг-урон; цель теряет 20% маг-резиста на 5 с"
+        unlock: 15
+        cost: 35
+        cooldown: 12
+        base: 18
+        coeff: 1.5
+        school: SHADOW
+      conflagrate:
+        name: "Конфлаграция"
+        description: "Детонация стеков burning (урон = стеки × base); огонь сгорает; +3 Скверны за стек"
+        unlock: 15
+        cost: 25
+        cooldown: 10
+        base: 6
+        coeff: 0.5
+        school: FIRE
+      dreadfire:
+        name: "Грозный огонь"
+        description: "Маг-урон + горение с тёмным окрасом; +6 Скверны"
+        unlock: 15
+        cost: 15
+        cooldown: 7
+        base: 9
+        coeff: 0.8
+        school: FIRE
+      summon_demon:
+        name: "Призыв демона"
+        description: "Демон (Vex) на 12 с атакует цель; +10 Скверны"
+        unlock: 15
+        cost: 30
+        cooldown: 60
+        duration: 12
+        school: SHADOW
+      demonic_pact:
+        name: "Демонический пакт"
+        description: "+10% ИНТ себе на 10 с; +8 Скверны"
+        unlock: 15
+        cost: 20
+        cooldown: 45
+        duration: 10
+        school: SHADOW
+      demon_soul:
+        name: "Душа демона"
+        description: "УЛЬТ: поглотить демона — Сила II + Сопротивление I +30 Скверны на 10 с"
+        unlock: 15
+        cost: 45
+        cooldown: 120
+        duration: 10
         school: SHADOW
     passives:
       black_mass:
@@ -1516,6 +2085,255 @@ vfx:
   last_stand:
     cast-sound: BLOCK_ANVIL_LAND
     cast-particle: ENCHANTED_HIT
+  # 1.14.0 (контент-долг 2): VFX древесных способностей Охотника
+  aimed_shot:
+    cast-sound: ITEM_CROSSBOW_SHOOT
+    cast-particle: CRIT
+    impact-sound: ENTITY_ARROW_HIT_PLAYER
+    impact-particle: END_ROD
+  silencing_shot:
+    cast-sound: ENTITY_ARROW_SHOOT
+    cast-particle: SMOKE
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: SMOKE
+  chimera_shot:
+    cast-sound: ENTITY_ARROW_SHOOT
+    cast-particle: ELECTRIC_SPARK
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: DAMAGE_INDICATOR
+  true_shot:
+    cast-sound: BLOCK_NOTE_BLOCK_PLING
+    cast-particle: END_ROD
+  poison_shot:
+    cast-sound: ENTITY_SPIDER_STEP
+    cast-particle: COMPOSTER
+    impact-sound: ENTITY_SPIDER_HURT
+    impact-particle: COMPOSTER
+  explosive_trap:
+    cast-sound: BLOCK_TRIPWIRE_ATTACH
+    cast-particle: SMOKE
+    impact-sound: ENTITY_GENERIC_EXPLODE
+    impact-particle: EXPLOSION
+  black_arrow:
+    cast-sound: ENTITY_ARROW_SHOOT
+    cast-particle: SCULK_SOUL
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: SCULK_SOUL
+  wyvern_sting:
+    cast-sound: ENTITY_SPIDER_STEP
+    cast-particle: COMPOSTER
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: COMPOSTER
+  readiness:
+    cast-sound: ENTITY_PLAYER_LEVELUP
+    cast-particle: ENCHANTED_HIT
+  serpent_sting:
+    cast-sound: ENTITY_SPIDER_HURT
+    cast-particle: COMPOSTER
+    impact-sound: ENTITY_SPIDER_HURT
+    impact-particle: COMPOSTER
+  intimidation:
+    cast-sound: ENTITY_WOLF_GROWL
+    cast-particle: ANGRY_VILLAGER
+    impact-sound: ENTITY_WOLF_GROWL
+    impact-particle: ANGRY_VILLAGER
+  pet_wolf:
+    cast-sound: ENTITY_WOLF_AMBIENT
+    cast-particle: HEART
+  beast_ferocity:
+    cast-sound: ENTITY_WOLF_GROWL
+    cast-particle: CRIMSON_SPORE
+  bestial_wrath:
+    cast-sound: ENTITY_WOLF_HOWL
+    cast-particle: CRIMSON_SPORE
+  # 1.14.0 (контент-долг 3): VFX древесных способностей Разбойника
+  poison_burst:
+    cast-sound: ENTITY_SPIDER_HURT
+    cast-particle: COMPOSTER
+    impact-sound: ENTITY_SPIDER_HURT
+    impact-particle: COMPOSTER
+  cold_blood:
+    cast-sound: BLOCK_NOTE_BLOCK_PLING
+    cast-particle: ENCHANTED_HIT
+  vendetta:
+    cast-sound: ENTITY_ENDERMAN_STARE
+    cast-particle: SCULK_SOUL
+  envenom:
+    cast-sound: ENTITY_SPIDER_STEP
+    cast-particle: COMPOSTER
+    impact-sound: ENTITY_SPIDER_HURT
+    impact-particle: COMPOSTER
+  deathmark:
+    cast-sound: ENTITY_WITHER_SPAWN
+    cast-particle: SCULK_SOUL
+    impact-sound: ENTITY_WITHER_HURT
+    impact-particle: SCULK_SOUL
+  pistol_shot:
+    cast-sound: ENTITY_FIREWORK_ROCKET_BLAST
+    cast-particle: SMOKE
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: SMOKE
+  blade_flurry:
+    cast-sound: ENTITY_PLAYER_ATTACK_SWEEP
+    cast-particle: SWEEP_ATTACK
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: DAMAGE_INDICATOR
+  adrenaline_rush:
+    cast-sound: ENTITY_PLAYER_LEVELUP
+    cast-particle: CRIMSON_SPORE
+  killing_spree:
+    cast-sound: ENTITY_PLAYER_ATTACK_SWEEP
+    cast-particle: CRIT
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: CRIT
+  between_the_eyes:
+    cast-sound: ENTITY_PLAYER_ATTACK_CRIT
+    cast-particle: DAMAGE_INDICATOR
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: DAMAGE_INDICATOR
+  backstab:
+    cast-sound: ENTITY_PLAYER_ATTACK_WEAK
+    cast-particle: SMOKE
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: CRIT
+  shadowstep:
+    cast-sound: ENTITY_ENDERMAN_TELEPORT
+    cast-particle: REVERSE_PORTAL
+    impact-sound: ENTITY_ENDERMAN_TELEPORT
+    impact-particle: REVERSE_PORTAL
+  preparation:
+    cast-sound: ENTITY_PLAYER_LEVELUP
+    cast-particle: ENCHANTED_HIT
+  cloak_of_shadows:
+    cast-sound: ENTITY_PHANTOM_FLAP
+    cast-particle: REVERSE_PORTAL
+  hemorrhage:
+    cast-sound: ENTITY_PLAYER_ATTACK_WEAK
+    cast-particle: DAMAGE_INDICATOR
+    impact-sound: ENTITY_PLAYER_HURT
+    impact-particle: DAMAGE_INDICATOR
+  shadow_blades:
+    cast-sound: ENTITY_ENDERMAN_TELEPORT
+    cast-particle: SCULK_SOUL
+  # 1.14.0 (контент-долг 4): VFX древесных способностей Мага
+  arcane_missiles:
+    cast-sound: ENTITY_EVOKER_CAST_SPELL
+    cast-particle: REVERSE_PORTAL
+    impact-sound: ENTITY_EVOKER_FANGS
+    impact-particle: REVERSE_PORTAL
+  counterspell:
+    cast-sound: BLOCK_NOTE_BLOCK_BASS
+    cast-particle: REVERSE_PORTAL
+    impact-sound: ENTITY_ENDERMAN_STARE
+    impact-particle: REVERSE_PORTAL
+  presence_of_mind:
+    cast-sound: BLOCK_ENCHANTMENT_TABLE_USE
+    cast-particle: ENCHANTED_HIT
+  scorch:
+    cast-sound: ITEM_FIRECHARGE_USE
+    cast-particle: FLAME
+    impact-sound: ENTITY_BLAZE_SHOOT
+    impact-particle: FLAME
+  flamestrike:
+    cast-sound: ENTITY_BLAZE_SHOOT
+    cast-particle: LAVA
+    impact-sound: ENTITY_GENERIC_EXPLODE
+    impact-particle: FLAME
+  combustion:
+    cast-sound: ITEM_FIRECHARGE_USE
+    cast-particle: FLAME
+  pyroblast:
+    cast-sound: ENTITY_EVOKER_CAST_SPELL
+    cast-particle: LAVA
+    impact-sound: ENTITY_GENERIC_EXPLODE
+    impact-particle: FLAME
+  frostbolt:
+    cast-sound: BLOCK_SNOW_BREAK
+    cast-particle: SNOWFLAKE
+    impact-sound: ENTITY_PLAYER_HURT_FREEZE
+    impact-particle: SNOWFLAKE
+  blizzard:
+    cast-sound: BLOCK_SNOW_BREAK
+    cast-particle: SNOWFLAKE
+    impact-sound: ENTITY_PLAYER_HURT_FREEZE
+    impact-particle: SNOWFLAKE
+  ice_barrier:
+    cast-sound: BLOCK_GLASS_PLACE
+    cast-particle: SNOWFLAKE
+  ice_lance_shatter:
+    cast-sound: BLOCK_GLASS_BREAK
+    cast-particle: SNOWFLAKE
+    impact-sound: BLOCK_GLASS_BREAK
+    impact-particle: SNOWFLAKE
+  # 1.14.0 (контент-долг 5): VFX древесных способностей Жреца
+  purge:
+    cast-sound: BLOCK_BELL_USE
+    cast-particle: ENCHANTED_HIT
+    impact-sound: BLOCK_BELL_USE
+    impact-particle: ENCHANTED_HIT
+  pain_suppression:
+    cast-sound: BLOCK_BEACON_ACTIVATE
+    cast-particle: ENCHANTED_HIT
+    impact-sound: BLOCK_BEACON_ACTIVATE
+    impact-particle: ENCHANTED_HIT
+  spirit_shell:
+    cast-sound: BLOCK_BEACON_ACTIVATE
+    cast-particle: ENCHANTED_HIT
+  flash_heal:
+    cast-sound: BLOCK_BELL_USE
+    cast-particle: HEART
+    impact-sound: BLOCK_BELL_USE
+    impact-particle: HEART
+  lightwell:
+    cast-sound: BLOCK_BEACON_ACTIVATE
+    cast-particle: ENCHANTED_HIT
+  divine_hymn:
+    cast-sound: BLOCK_BELL_USE
+    cast-particle: ENCHANTED_HIT
+  withering_touch:
+    cast-sound: ENTITY_WITHER_SPAWN
+    cast-particle: SCULK_SOUL
+    impact-sound: ENTITY_WITHER_HURT
+    impact-particle: SCULK_SOUL
+  mind_flay:
+    cast-sound: ENTITY_ENDERMAN_STARE
+    cast-particle: REVERSE_PORTAL
+    impact-sound: ENTITY_ENDERMAN_HURT
+    impact-particle: REVERSE_PORTAL
+  shadowfiend:
+    cast-sound: ENTITY_VEX_CHARGE
+    cast-particle: SCULK_SOUL
+  # 1.14.0 (контент-долг 6): VFX древесных способностей Чернокнижника
+  withering:
+    cast-sound: ENTITY_WITHER_HURT
+    cast-particle: SCULK_SOUL
+  soul_siphon:
+    cast-sound: ENTITY_WARDEN_HEARTBEAT
+    cast-particle: SOUL
+  soul_harvest:
+    cast-sound: ENTITY_WITHER_DEATH
+    cast-particle: SCULK_SOUL
+  immolate:
+    cast-sound: ENTITY_BLAZE_SHOOT
+    cast-particle: FLAME
+  chaos_bolt:
+    cast-sound: ENTITY_LIGHTNING_BOLT_IMPACT
+    cast-particle: ELECTRIC_SPARK
+  conflagrate:
+    cast-sound: ENTITY_GENERIC_EXPLODE
+    cast-particle: FLAME
+  dreadfire:
+    cast-sound: ENTITY_BLAZE_SHOOT
+    cast-particle: SOUL_FIRE_FLAME
+  summon_demon:
+    cast-sound: ENTITY_VEX_CHARGE
+    cast-particle: SCULK_SOUL
+  demonic_pact:
+    cast-sound: ENTITY_WARDEN_HEARTBEAT
+    cast-particle: SOUL_FIRE_FLAME
+  demon_soul:
+    cast-sound: ENTITY_WARDEN_ROAR
+    cast-particle: SONIC_BOOM
   proc:
     execute_passive:
       cast-sound: ENTITY_PLAYER_ATTACK_CRIT
