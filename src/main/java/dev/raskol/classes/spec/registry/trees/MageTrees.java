@@ -11,12 +11,14 @@ import java.util.Map;
 /**
  * 1.14.0: деревья Мага (3 спеки), ёмкости 51/51/52 (>46 — закрыть нельзя).
  * arcane (Тайная магия): burst ARCANE, unlock arcane_missiles/counterspell(SILENCE)/
- *         presence_of_mind, ульт zeus_wrath (перенос старого кита, слот 5).
+ *         presence_of_mind/athena_aegis (перенос slot 4), ульт zeus_wrath (перенос slot 5).
  * fire (Огонь): burst FIRE + DoT burning, unlock scorch/flamestrike/combustion,
  *         ульт pyroblast (новый: большой burning).
  * frost (Лёд): контроль FROST + DoT chilled, unlock frostbolt/blizzard/ice_barrier,
  *         ульт ice_lance_shatter (×3 по chilled-цели).
  * 1.14.0-fix: узлы regen resource заменены на рабочие эффекты (attr int, sp_pct).
+ * 1.14.0 (Б11.1.3-A): arcane получил узел arc_athena_aegis (unlock_ability) —
+ *         закрыт пробел, когда у 11/12 переносимых были узлы, а у athena_aegis — нет.
  */
 public final class MageTrees {
 
@@ -35,7 +37,7 @@ public final class MageTrees {
         return new Spec2Node(id, treeId, row, col, maxRank, prereqs, type, name, lore, effect);
     }
 
-    /* ============ МАГ · ТАЙНАЯ МАГИЯ (arcane) — ёмкость 51 ============ */
+    /* ============ МАГ · ТАЙНАЯ МАГИЯ (arcane) — ёмкость 52 ============ */
     private static Spec2Tree arcane() {
         final String T = "arcane";
         return new Spec2Tree(T, List.of(
@@ -101,6 +103,11 @@ public final class MageTrees {
                 n("arc_spell_mastery", T, 5, 3, 3, Map.of("arc_ward", 1), "passive_stat",
                         "Мастерство заклинаний", "pen_magic +5% за ранг",
                         Spec2Effect.of("pen_magic_pct", "self", 5.0)),
+                // 1.14.0 (Б11.1.3-A): перенос athena_aegis в arcane как unlock_ability
+                n("arc_athena_aegis", T, 5, 4, 1,
+                        Map.of("arc_ward", 1, "arc_spell_mastery", 1), "unlock_ability",
+                        "Эгида Афины", "ПЕРЕНОС slot 4: щит +магрезист на 5 с (legacy-кит)",
+                        Spec2Effect.of("unlock_ability", "athena_aegis", 1.0)),
                 // Ряд 6 (гейт 30) — ульт
                 n("arc_zeus_wrath", T, 6, 2, 1,
                         Map.of("arc_presence_of_mind", 1, "arc_spell_mastery", 2), "ultimate",
