@@ -63,7 +63,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 94 чека.
+ * Headless-самотестирование формул плагина (/rc selftest), 96 чеков.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
  * 22–24 (1.14.0 Б8): экономика spec2 (15→46), ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
@@ -71,6 +71,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 49–65 школы 1.12.x; 66–75 DoT/баланс-матрица; 76–90 CC/DR 1.13.0;
  * 91–94 (1.14.0 Б8): чистый enum 18, строгий fromId, реестр 18 деревьев 50–58,
  *         ульт/unlock-инварианты.
+ * 95–96 (1.14.0 Б11.1.1): реестр переносимых китовых (slots 4–5) + инвариант резолва.
  */
 public final class SelftestRunner {
 
@@ -1374,6 +1375,85 @@ public final class SelftestRunner {
         }
         if (check(report, "94", "в каждом дереве ровно 1 ульт и ≥1 unlock_ability",
                 ok94, "Spec2Tree nodes", got94.isEmpty() ? "OK" : got94)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.0 (Б11.1.1): чек 95 — реестр переносимых покрывает ровно slots 4–5
+        // всех 6 классов (12 id), и каждый переносимый id сейчас присутствует в
+        // DEFAULTS класса на ожидаемом legacy-slot (инвариант переходного периода;
+        // в 11.1.3, после резки DEFAULTS, чек будет ПЕРЕПИСАН на «id имеет
+        // unlock_ability-узел в деревьях класса»).
+        boolean ok95 = true;
+        String got95 = "";
+        int transferableTotal = 0;
+        for (PlayerClass pc : PlayerClass.values()) {
+            List<dev.raskol.classes.ability.TransferableAbilities.Entry> entries =
+                    dev.raskol.classes.ability.TransferableAbilities.forClass(pc);
+            if (entries.size() != 2) {
+                ok95 = false;
+                got95 = pc.name() + ": переносимых=" + entries.size() + " (ожидалось 2)";
+                break;
+            }
+            for (dev.raskol.classes.ability.TransferableAbilities.Entry e : entries) {
+                transferableTotal++;
+                dev.raskol.classes.ability.AbilityDef def = plugin.getAbilities().findById(pc, e.id());
+                if (def == null || def.slot() != e.legacySlot()) {
+                    ok95 = false;
+                    got95 = pc.name() + "." + e.id() + ": в DEFAULTS slot="
+                            + (def == null ? "null" : String.valueOf(def.slot()))
+                            + " (ожидалось " + e.legacySlot() + ")";
+                    break;
+                }
+            }
+            if (!ok95) {
+                break;
+            }
+        }
+        if (ok95 && transferableTotal != 12) {
+            ok95 = false;
+            got95 = "всего переносимых=" + transferableTotal + " (ожидалось 12)";
+        }
+        if (check(report, "95", "реестр переносимых: 12 id = slots 4–5 × 6 классов, все в DEFAULTS",
+                ok95, "TransferableAbilities/AbilityRegistry.findById",
+                ok95 ? "OK(12)" : got95)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.0 (Б11.1.1): чек 96 — методы резолва переносимых согласованы и в
+        // переходный период getBySlotOrTree идентичен getBySlot (гарантия, что
+        // Батч 11.1.1 НЕ меняет поведение китовых слотов 4–5). uuid не важен
+        // (делегат), передаём любой.
+        boolean ok96 = true;
+        String got96 = "";
+        for (PlayerClass pc : PlayerClass.values()) {
+            for (dev.raskol.classes.ability.TransferableAbilities.Entry e :
+                    dev.raskol.classes.ability.TransferableAbilities.forClass(pc)) {
+                if (!dev.raskol.classes.ability.AbilityRegistry.isTransferable(e.id())
+                        || dev.raskol.classes.ability.AbilityRegistry.transferableSlot(e.id()) != e.legacySlot()) {
+                    ok96 = false;
+                    got96 = e.id() + ": isTransferable/transferableSlot рассогласованы";
+                    break;
+                }
+                dev.raskol.classes.ability.AbilityDef viaSlot =
+                        plugin.getAbilities().getBySlot(pc, e.legacySlot());
+                dev.raskol.classes.ability.AbilityDef viaTree =
+                        plugin.getAbilities().getBySlotOrTree(pc, e.legacySlot(), UUID.randomUUID());
+                if (viaSlot == null || viaTree == null || !viaSlot.id().equals(viaTree.id())) {
+                    ok96 = false;
+                    got96 = e.id() + ": getBySlotOrTree != getBySlot в переходный период";
+                    break;
+                }
+            }
+            if (!ok96) {
+                break;
+            }
+        }
+        if (check(report, "96", "резолв переносимых: getBySlotOrTree == getBySlot (переходный инвариант)",
+                ok96, "AbilityRegistry.getBySlotOrTree", ok96 ? "OK" : got96)) {
             passed++;
         } else {
             failed++;
