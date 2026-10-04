@@ -6,7 +6,7 @@ import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.passive.PassiveListener;
+import dev.raskol.classes.ability.passive.PassiveListener;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.storage.SafeStorage;
 import org.bukkit.configuration.file.YamlConfiguration;
