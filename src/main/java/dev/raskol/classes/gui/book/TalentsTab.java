@@ -30,6 +30,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   линией ROW_LINE_SLOTS (до 5 узлов), листаем ◀ ▶ (SLOT_ROW_PREV/NEXT). Инфо (22)
  *   — сводка ряда + прогресс 6 рядов + общий бюджет очков. Сброс (44) без изменений.
  *   ЛКМ по узлу = +1 ранг; узел открыт при ряд-гейте + ранговых пререквизитах.
+ * 1.14.0-fix (компиляция): статистика ряда считается в мутабельные аккумуляторы
+ *   ownedAcc/maxAcc, а в лямбду info.editMeta передаются ФИНАЛЬНЫЕ копии ownedInRow/
+ *   maxInRow — иначе «local variables referenced from a lambda must be final or
+ *   effectively final» (падение сборки #1216–#1218).
  */
 public final class TalentsTab implements BookTabView {
 
@@ -51,7 +55,7 @@ public final class TalentsTab implements BookTabView {
                 list.add(n);
             }
         }
-        list.sort(Comparator.comparingInt(Spec2Node::col));
+        list.sort(Comparator.comparingInt(Spec2Node::row).thenComparingInt(Spec2Node::col));
         return list;
     }
 
@@ -92,12 +96,17 @@ public final class TalentsTab implements BookTabView {
         int gate = Spec2Points.ROW_GATES[row - 1];
         boolean rowOpen = inTree >= gate;
         List<Spec2Node> nodes = rowNodes(tree, row);
-        int ownedInRow = 0;
-        int maxInRow = 0;
+
+        // 1.14.0-fix (компиляция): мутабельные аккумуляторы НЕ попадают в лямбду;
+        // в лямбду передаём финальные копии ownedInRow / maxInRow.
+        int ownedAcc = 0;
+        int maxAcc = 0;
         for (Spec2Node n : nodes) {
-            maxInRow += n.maxRank();
-            ownedInRow += Math.min(n.maxRank(), ranks.getOrDefault(n.id(), 0));
+            maxAcc += n.maxRank();
+            ownedAcc += Math.min(n.maxRank(), ranks.getOrDefault(n.id(), 0));
         }
+        final int ownedInRow = ownedAcc;
+        final int maxInRow = maxAcc;
 
         ItemStack info = new ItemStack(Material.EXPERIENCE_BOTTLE);
         info.editMeta(meta -> {
