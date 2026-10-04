@@ -45,6 +45,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   fire: scorch, flamestrike, combustion, pyroblast (ульт);
  *   frost: frostbolt, blizzard, ice_barrier, ice_lance_shatter (ульт).
  *   Гейт — treeUnlocked(); бафф «Возгорание» — статическая карта COMBUSTION_UNTIL.
+ * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + threshold/execute-mult(zeus_wrath)
+ *   читаются через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
+ *   чтобы переносимые (athena_aegis/zeus_wrath) пережили резку abilities.
+ *   projectile-speed/distance/radius(boreas) у slots 1–3 НЕ тронуты (не переносимые).
  */
 public final class MageAbilities {
 
@@ -71,23 +75,21 @@ public final class MageAbilities {
         return v != null ? v : def;
     }
 
+    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
     private double base(AbilityDef def, double defv) {
-        return cfgD("classes.MAGE.abilities." + def.id() + ".base", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
     }
 
     private double coeff(AbilityDef def, double defv) {
-        return cfgD("classes.MAGE.abilities." + def.id() + ".coeff", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
     }
 
     private String power(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.MAGE.abilities." + def.id() + ".power", "sp");
+        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "sp");
     }
 
     private int duration(AbilityDef def, int defv) {
-        int v = plugin.getConfig().getInt(
-                "classes.MAGE.abilities." + def.id() + ".duration", defv);
-        return v > 0 ? v : defv;
+        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
     }
 
     private double tbase(AbilityDef def, double defv) {
@@ -408,8 +410,9 @@ public final class MageAbilities {
         UUID targetId = t.getUniqueId();
         castFx(p, "zeus_wrath", "ENTITY_EVOKER_CAST_SPELL", "ELECTRIC_SPARK", 0.7f, 0.9f, 14);
         double dmg = dmg(p, def, 25.0, 2.0);
-        double threshold = cfgD("classes.MAGE.abilities." + def.id() + ".threshold", 0.25);
-        double execMult = cfgD("classes.MAGE.abilities." + def.id() + ".execute-mult", 3.0);
+        // 1.14.0 (Б11.1.2-A): threshold/execute-mult через фолбэк-хелпер (переносимая slot 5)
+        double threshold = TreeAbilities.numberOrKit(plugin, PC, def.id(), "threshold", 0.25);
+        double execMult = TreeAbilities.numberOrKit(plugin, PC, def.id(), "execute-mult", 3.0);
 
         var attr0 = t.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
         double max0 = attr0 != null ? attr0.getValue() : 20.0;
@@ -701,7 +704,7 @@ public final class MageAbilities {
                     ? hit.getHitPosition().toLocation(p.getWorld())
                     : p.getLocation().add(p.getLocation().getDirection().multiply(8.0));
         }
-        castFx(p, "blizzard", "BLOCK_SNOW_BREAK", "SNOWFLAKE", 0.8f, 0.8f, 20);
+        castFx(p, "blizzard", "BLOCK_SNOW_BREAK", "SNOWFLAKE", 0.8f, 0.9f, 20);
         double dmg = tdmg(p, def, 6.0, 0.5);
         int hits = 0;
         for (Entity e : p.getWorld().getNearbyEntities(spot, radius, radius, radius)) {
@@ -717,7 +720,7 @@ public final class MageAbilities {
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
             plugin.getCombat().dots().applyById(p, t, "chilled");
             t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 3 * 20, 0));
-            impactFx(t, "blizzard", "ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE", 0.4f, 0.9f, 8);
+            impactFx(t, "blizzard", "ENTITY_PLAYER_HURT_FREEZE", "SNOWFLAKE", 0.4f, 1.0f, 8);
             hits++;
         }
         pointFx(spot, "blizzard", "BLOCK_SNOW_BREAK", "SNOWFLAKE", 0.7f, 0.9f, 30);
