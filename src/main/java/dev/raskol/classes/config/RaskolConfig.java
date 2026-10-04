@@ -22,6 +22,8 @@ import java.util.Map;
  * 1.12.1-fix: kitLoader/kitCache создаются ДО первого reload() —
  *         reload() завершается rebuildThemes(), который читает через kitCache
  *         (прежний порядок давал NPE на старте и отключал плагин).
+ * 1.14.0 (Б11.1.2-B1): переносимые slots 4–5 больше не добавляются в abilities
+ *         код-дефолтами; авторитетный источник для них — treeAbilities.
  */
 public final class RaskolConfig {
 
@@ -271,6 +273,11 @@ public final class RaskolConfig {
             config.addDefault(base + ".cast-sound", "ENTITY_PLAYER_LEVELUP");
             config.addDefault(base + ".cast-particle", DEFAULTS.particle(pc).name());
             DEFAULTS.abilities(pc).forEach((id, a) -> {
+                // 1.14.0 (Б11.1.2-B1): переносимые slots 4–5 больше не возрождаем в abilities.
+                // Их авторитетный источник — treeAbilities.<id>.*.
+                if (isTransferableAbility(pc, id)) {
+                    return;
+                }
                 config.addDefault(base + ".abilities." + id + ".unlock", a.unlock());
                 config.addDefault(base + ".abilities." + id + ".cost", a.cost());
                 config.addDefault(base + ".abilities." + id + ".cooldown", a.cooldown());
@@ -657,6 +664,23 @@ public final class RaskolConfig {
         if (name == null) return fallback;
         Sound parsed = Registry.SOUNDS.get(NamespacedKey.minecraft(name.toLowerCase(Locale.ROOT)));
         return parsed != null ? parsed : fallback;
+    }
+
+    /**
+     * 1.14.0 (Б11.1.2-B1): переходный предикат переносимых slots 4–5.
+     * Сознательно не тянем config → ability.TransferableAbilities, чтобы не рисковать
+     * порядком/циклом инициализации классов на старте. В B2, после ревизии
+     * KitSanity/AbilityRegistry/TransferableAbilities, источник истины можно свести к реестру.
+     */
+    private static boolean isTransferableAbility(PlayerClass pc, String id) {
+        return switch (pc) {
+            case WARRIOR -> "fenrir_blood".equals(id) || "ragnarok".equals(id);
+            case HUNTER -> "arrow_fan".equals(id) || "arrow_rain".equals(id);
+            case PRIEST -> "circle_elysium".equals(id) || "wrath_heaven".equals(id);
+            case MAGE -> "athena_aegis".equals(id) || "zeus_wrath".equals(id);
+            case ROGUE -> "borgia_poison".equals(id) || "shadow_dance".equals(id);
+            case WARLOCK -> "unwriting".equals(id) || "soul_rift".equals(id);
+        };
     }
 
     public record AbilityDefaults(int unlock, int cost, int cooldown, String name,
