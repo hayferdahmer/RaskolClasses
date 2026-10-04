@@ -17,6 +17,13 @@ import java.util.Set;
  *  - Чек 45: RUNBOOK-замки пассив-мультипликаторов (execute ×3.0, predator ×1.2,
  *    grace ×1.15, sadism +3, black_mass 6.66% и т.д.). Любое отклонение → fail.
  *
+ * 1.14.0-fix (чек 44): self-buff способности (без урона) исключены из обязательности
+ *    base/coeff/power — у них их по дизайну нет (BERSERKERGANG/SWALLOW/HERMES_STEP/
+ *    SHADOW_CLOAK/RUIN_SEAL). Damage-спеллы по-прежнему проверяются строго.
+ * 1.14.0-fix (чек 45): длительность яда пассивки сверяется с единственным источником
+ *    истины dots.poison_passive.duration (=2), а не с несуществующим дублем
+ *    poisoned_blades.duration-seconds.
+ *
  * Публичный API:
  *  - validateAbilities(plugin) — список проблем по всем 6 классам;
  *  - validatePassiveMults(plugin) — список проблем по RUNBOOK-числам;
@@ -30,6 +37,10 @@ public final class KitSanity {
     }
 
     private static final Set<String> VALID_POWERS = Set.of("wp", "sp", "hpow");
+
+    /** 1.14.0-fix (чек 44): способности без урона — base/coeff/power не обязательны. */
+    private static final Set<String> SELF_BUFF = Set.of(
+            "berserkergang", "swallow", "hermes_step", "shadow_cloak", "ruin_seal");
 
     /* ------------------------------ ЧЕК 44: sanity китов ------------------------------ */
 
@@ -45,7 +56,9 @@ public final class KitSanity {
             }
             for (String id : section.getKeys(false)) {
                 String p = path + "." + id;
-                checkDoubleRange(problems, plugin, p + ".base", 0.0, Double.MAX_VALUE, false);
+                boolean selfBuff = SELF_BUFF.contains(id);
+                // base обязателен только для damage-способностей
+                checkDoubleRange(problems, plugin, p + ".base", 0.0, Double.MAX_VALUE, selfBuff);
                 checkDoubleRange(problems, plugin, p + ".coeff", 0.0, Double.MAX_VALUE, true);
                 checkDoubleRange(problems, plugin, p + ".cost", 0.0, Double.MAX_VALUE, true);
                 checkIntRange(problems, plugin, p + ".cooldown", 1, 3600);
@@ -89,8 +102,8 @@ public final class KitSanity {
                 "classes.PRIEST.passives.grace.multiplier", 1.15);
         expectDoubleEq(problems, plugin,
                 "classes.ROGUE.passives.poisoned_blades.chance", 0.30);
-        expectIntEq(problems, plugin,
-                "classes.ROGUE.passives.poisoned_blades.duration-seconds", 2);
+        // 1.14.0-fix (чек 45): длительность яда = единственный источник истины в dots.*
+        expectIntEq(problems, plugin, "dots.poison_passive.duration", 2);
         expectDoubleEq(problems, plugin,
                 "classes.ROGUE.passives.sadism.bonus", 3.0);
         expectDoubleEq(problems, plugin,
