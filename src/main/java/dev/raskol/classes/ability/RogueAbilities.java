@@ -40,6 +40,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *           hemorrhage, shadow_blades (ульт).
  *   Гейт — treeUnlocked(); вендетта — статический реестр VENDETTA_EXPIRY
  *   (публичный vendettaAmplifyOf, по образцу sealAmplifyOf чернокнижника).
+ * 1.14.0 (Б11.1.2-A): base/coeff/power/duration читаются через TreeAbilities.*OrKit
+ *   (treeAbilities → abilities → код-дефолт), чтобы переносимые
+ *   (borgia_poison/shadow_dance) пережили резку abilities. У Разбойника нет прямых
+ *   cfgD("…abilities…") в методах переносимых — всё идёт через хелперы.
  */
 public final class RogueAbilities {
 
@@ -79,23 +83,21 @@ public final class RogueAbilities {
         return v != null ? v : def;
     }
 
+    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
     private double base(AbilityDef def, double defv) {
-        return cfgD("classes.ROGUE.abilities." + def.id() + ".base", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
     }
 
     private double coeff(AbilityDef def, double defv) {
-        return cfgD("classes.ROGUE.abilities." + def.id() + ".coeff", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
     }
 
     private String power(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.ROGUE.abilities." + def.id() + ".power", "wp");
+        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "wp");
     }
 
     private int duration(AbilityDef def, int defv) {
-        int v = plugin.getConfig().getInt(
-                "classes.ROGUE.abilities." + def.id() + ".duration", defv);
-        return v > 0 ? v : defv;
+        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
     }
 
     private double tbase(AbilityDef def, double defv) {
