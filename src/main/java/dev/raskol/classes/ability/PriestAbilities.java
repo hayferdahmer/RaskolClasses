@@ -5,7 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.school.School;
-import dev.raskol.classes.passive.PassiveListener;
+import dev.raskol.classes.ability.passive.PassiveListener;
 import dev.raskol.classes.spec.SpecRole;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
