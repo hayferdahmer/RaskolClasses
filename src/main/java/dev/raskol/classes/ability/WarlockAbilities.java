@@ -9,6 +9,8 @@ import dev.raskol.classes.combat.dot.DotInstance;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.fx.WarlockFx;
 import dev.raskol.classes.spec.Spec;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -39,11 +41,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.11.4 (P4a): математика в WarlockMath, визуал в WarlockFx.
  * 1.13.0 (Б3): канал soul_rift в CastChannels (прерывание interruptible-CC).
  * 1.14.0 (Б4): specOf() читает основную спеку из Spec2Storage.
+ * 1.14.0 (контент-долг 1): публичный addAntiheal для древесных способностей Воина.
  * 1.14.0 (контент-долг 6): +10 древесных способностей Чернокнижника:
  *   affliction: withering, soul_siphon, soul_harvest (ульт);
  *   destruction: immolate, chaos_bolt, conflagrate;
  *   demonology: dreadfire, summon_demon, demonic_pact, demon_soul (ульт).
- *   Гейт — treeUnlocked(); демон — Vex с лайфтаймом (пет-система в 1.14.6).
  */
 public final class WarlockAbilities implements Listener {
 
@@ -241,20 +243,19 @@ public final class WarlockAbilities implements Listener {
         if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
             return true;
         }
-        p.sendMessage(dev.raskol.classes.shadedPlaceholder()); // never
+        p.sendMessage(Component.text("«" + def.displayName()
+                + "» откроется узлом дерева путей Чернокнижника.", NamedTextColor.GRAY));
         return false;
     }
 
     private void noTarget(Player p) {
-        p.sendMessage(net.kyori.adventure.text.Component.text(
-                plugin.getRaskolConfig().message("cheap-shot-no-target",
-                        "Нет цели в радиусе действия"), net.kyori.adventure.text.format.NamedTextColor.GRAY));
+        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
     }
 
     private void allyTarget(Player p) {
-        p.sendMessage(net.kyori.adventure.text.Component.text(
-                plugin.getRaskolConfig().message("ally.no-hit", "Союзника бить нельзя"),
-                net.kyori.adventure.text.format.NamedTextColor.RED));
+        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
     private void paySelfCost(Player caster, double pct) {
@@ -571,8 +572,7 @@ public final class WarlockAbilities implements Listener {
         }
         int stacks = witherStacks(t);
         if (stacks == 0) {
-            caster.sendMessage(net.kyori.adventure.text.Component.text(
-                    "Жатва душ: на цели нет иссушения.", net.kyori.adventure.text.format.NamedTextColor.GRAY));
+            caster.sendMessage(Component.text("Жатва душ: на цели нет иссушения.", NamedTextColor.GRAY));
             return false;
         }
         double per = tspellDamage(caster, def, 10.0, 0.9);
@@ -582,8 +582,7 @@ public final class WarlockAbilities implements Listener {
         WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 24, 0.6);
         WarlockFx.safeFx(t.getLocation(), Particle.SONIC_BOOM, 1, 0.0);
         plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_WITHER_DEATH, 0.7f, 0.9f);
-        caster.sendMessage(net.kyori.adventure.text.Component.text(
-                "Жатва душ: стеков собрано — " + stacks, net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+        caster.sendMessage(Component.text("Жатва душ: стеков собрано — " + stacks, NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
@@ -650,8 +649,7 @@ public final class WarlockAbilities implements Listener {
         }
         int stacks = burningStacks(t);
         if (stacks == 0) {
-            caster.sendMessage(net.kyori.adventure.text.Component.text(
-                    "Конфлаграция: цель не горит.", net.kyori.adventure.text.format.NamedTextColor.GRAY));
+            caster.sendMessage(Component.text("Конфлаграция: цель не горит.", NamedTextColor.GRAY));
             return false;
         }
         double per = tspellDamage(caster, def, 6.0, 0.5);
@@ -707,8 +705,7 @@ public final class WarlockAbilities implements Listener {
         if (old != null) {
             Entity e = plugin.getServer().getEntity(old);
             if (e != null && e.isValid() && !e.isDead()) {
-                caster.sendMessage(net.kyori.adventure.text.Component.text(
-                        "Демон уже призван.", net.kyori.adventure.text.format.NamedTextColor.GRAY));
+                caster.sendMessage(Component.text("Демон уже призван.", NamedTextColor.GRAY));
                 return false;
             }
             DEMON_BY_OWNER.remove(cid);
@@ -726,13 +723,12 @@ public final class WarlockAbilities implements Listener {
         WarlockFx.safeFx(caster.getLocation(), Particle.SCULK_SOUL, 20, 0.5);
         WarlockFx.ringFx(caster.getLocation(), 1.5, Particle.SOUL_FIRE_FLAME, 2);
         plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_VEX_CHARGE, 0.8f, 0.7f);
-        caster.sendMessage(net.kyori.adventure.text.Component.text(
-                "Демон призван на " + secs + " с (+10 Скверны)",
-                net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+        caster.sendMessage(Component.text("Демон призван на " + secs + " с (+10 Скверны)",
+                NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
-    /** demonology T5: пакт: +10% INT себе и союзникам… чернокнижник одинок: себе + врагам r8 −5% маг-резиста. */
+    /** demonology T5: пакт: +10% INT себе на 10 с; +8 Скверны. */
     public boolean demonicPact(Player caster, AbilityDef def) {
         if (!treeUnlocked(caster, def)) {
             return false;
@@ -747,9 +743,8 @@ public final class WarlockAbilities implements Listener {
         WarlockFx.safeFx(caster.getLocation(), Particle.SOUL_FIRE_FLAME, 18, 0.5);
         plugin.getFx().startAura(caster.getUniqueId(), Particle.SCULK_SOUL, secs * 20, 2,
                 "ENTITY_WARDEN_HEARTBEAT");
-        caster.sendMessage(net.kyori.adventure.text.Component.text(
-                "Демонический пакт: +" + (int) bonus + " ИНТ на " + secs + " с",
-                net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+        caster.sendMessage(Component.text("Демонический пакт: +" + (int) bonus + " ИНТ на " + secs + " с",
+                NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
@@ -762,25 +757,21 @@ public final class WarlockAbilities implements Listener {
         UUID did = DEMON_BY_OWNER.get(cid);
         Entity demon = did != null ? plugin.getServer().getEntity(did) : null;
         if (demon == null || !demon.isValid() || demon.isDead()) {
-            caster.sendMessage(net.kyori.adventure.text.Component.text(
-                    "Душа демона: сначала призови демона.",
-                    net.kyori.adventure.text.format.NamedTextColor.GRAY));
+            caster.sendMessage(Component.text("Душа демона: сначала призови демона.",
+                    NamedTextColor.GRAY));
             return false;
         }
         demon.remove();
         DEMON_BY_OWNER.remove(cid);
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
         caster.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, secs * 20, 1));
-        caster.addPotionEffect(new PotionEffectType.RESISTANCE == null
-                ? new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 0)
-                : new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 0));
+        caster.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 0));
         plugin.getResources().add(cid, 30.0);
         WarlockFx.safeFx(caster.getLocation(), Particle.SONIC_BOOM, 2, 0.1);
         WarlockFx.ringFx(caster.getLocation(), 2.0, Particle.SOUL_FIRE_FLAME, 3);
         plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_WARDEN_ROAR, 0.9f, 0.6f);
-        caster.sendMessage(net.kyori.adventure.text.Component.text(
-                "Душа демона: слияние на " + secs + " с (+30 Скверны)",
-                net.kyori.adventure.text.format.NamedTextColor.LIGHT_PURPLE));
+        caster.sendMessage(Component.text("Душа демона: слияние на " + secs + " с (+30 Скверны)",
+                NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
