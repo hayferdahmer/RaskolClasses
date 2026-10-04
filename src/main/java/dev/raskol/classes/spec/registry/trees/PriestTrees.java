@@ -16,6 +16,7 @@ import java.util.Map;
  *         (перенос, слот 4), lightwell, ульт divine_hymn (груп-хил канал 3 с).
  * shadow (Тьма): FIGHTER, DoT wither (SHADOW) + контроль — unlock withering_touch,
  *         mind_flay (SLOW-канал), shadowfiend, ульт wrath_heaven (перенос, слот 5).
+ * 1.14.0-fix: узлы regen resource заменены на рабочие эффекты (heal_out_pct, hpow_pct, magic_dmg_pct).
  */
 public final class PriestTrees {
 
@@ -95,8 +96,8 @@ public final class PriestTrees {
                         "Евангелизм", "+4% силы исцеления за ранг",
                         Spec2Effect.of("hpow_pct", "self", 4.0)),
                 n("dis_grace_of_light", T, 5, 2, 2, Map.of("dis_divine_providence", 1), "passive_stat",
-                        "Благодать света", "+1 Света/с за ранг",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Благодать света", "+3% исходящего лечения за ранг (усиление хила)",
+                        Spec2Effect.of("heal_out_pct", "self", 3.0)),
                 n("dis_shield_mastery", T, 5, 3, 3, Map.of("dis_soul_guard", 1), "enhance_ability",
                         "Мастерство щита", "aegis_faith: +2 с за ранг",
                         Spec2Effect.of("kit_dur", "aegis_faith", 2.0)),
@@ -120,8 +121,8 @@ public final class PriestTrees {
                         "Божественная благодать", "+3% силы исцеления за ранг",
                         Spec2Effect.of("hpow_pct", "self", 3.0)),
                 n("ho_blessed_recovery", T, 1, 3, 5, Map.of(), "passive_stat",
-                        "Благословенное восстановление", "+1 Света/с за ранг",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Благословенное восстановление", "+3% силы исцеления за ранг (усиление HPow)",
+                        Spec2Effect.of("hpow_pct", "self", 3.0)),
                 n("ho_holy_ward", T, 1, 4, 4, Map.of(), "passive_stat",
                         "Святой оберег", "+3% маг-резиста за ранг",
                         Spec2Effect.of("resist", "magic", 3.0)),
@@ -166,7 +167,7 @@ public final class PriestTrees {
                         Spec2Effect.of("resist", "phys", 4.0)),
                 // Ряд 5 (гейт 20)
                 n("ho_lightwell", T, 5, 1, 1, Map.of("ho_circle_elysium", 1), "unlock_ability",
-                        "Колодец света", "НОВАЯ: зона-хил +2 HP/с радиус 4, 8 с, КД 60 с",
+                        "Колодец Света", "НОВАЯ: зона-хил +2 HP/с радиус 4, 8 с, КД 60 с",
                         Spec2Effect.of("unlock_ability", "lightwell", 1.0)),
                 n("ho_holy_mastery", T, 5, 2, 3, Map.of("ho_sanctuary", 1), "passive_stat",
                         "Мастерство света", "+4% силы исцеления за ранг",
@@ -207,8 +208,8 @@ public final class PriestTrees {
                         "Теневая сосредоточенность", "pen_magic +4% за ранг",
                         Spec2Effect.of("pen_magic_pct", "self", 4.0)),
                 n("sh_dark_pact", T, 2, 3, 2, Map.of(), "passive_stat",
-                        "Тёмный пакт", "+1 Света/с за ранг (тьма питает)",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Тёмный пакт", "+2% маг-урона способностей за ранг (усиление тьмы)",
+                        Spec2Effect.of("magic_dmg_pct", "self", 2.0)),
                 n("sh_shadow_weave", T, 2, 4, 3, Map.of("sh_dark_embrace", 2), "passive_stat",
                         "Теневое плетение", "+2% маг-урона за ранг",
                         Spec2Effect.of("magic_dmg_pct", "self", 2.0)),
