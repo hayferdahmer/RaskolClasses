@@ -7,6 +7,7 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.Targeting;
 import dev.raskol.classes.combat.dot.DotInstance;
+import io.papermc.paper.registry.Registry;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
@@ -44,6 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   beastmaster: intimidation, pet_wolf, beast_ferocity, bestial_wrath.
  *   Гейт — treeUnlocked() (Spec2Service.hasUnlocked).
  *   Питомец — ванильный приручённый волк, сессия-скоуп (1.14.6 = полная пет-система).
+ * 1.14.0-fix: исправлен доступ к атрибутам через Registry API (Paper 1.21.4).
  */
 public final class HunterAbilities {
 
@@ -608,19 +610,24 @@ public final class HunterAbilities {
         }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
         wolf.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, secs * 20, 1));
-        AttributeInstance atk = wolf.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE);
-        if (atk != null) {
-            NamespacedKey key = new NamespacedKey(plugin, "beast_ferocity");
-            atk.getModifiers().stream()
-                    .filter(m -> key.equals(m.getKey()))
-                    .toList()
-                    .forEach(atk::removeModifier);
-            atk.addModifier(new AttributeModifier(key, 0.5, AttributeModifier.Operation.ADD_SCALAR));
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                if (wolf.isValid() && atk.getModifier(key) != null) {
-                    atk.removeModifier(key);
-                }
-            }, secs * 20L);
+        
+        // 1.14.0-fix: доступ к атрибутам через Registry API (Paper 1.21.4)
+        Attribute atkAttr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft("generic_attack_damage"));
+        if (atkAttr != null) {
+            AttributeInstance atk = wolf.getAttribute(atkAttr);
+            if (atk != null) {
+                NamespacedKey key = new NamespacedKey(plugin, "beast_ferocity");
+                atk.getModifiers().stream()
+                        .filter(m -> key.equals(m.getKey()))
+                        .toList()
+                        .forEach(atk::removeModifier);
+                atk.addModifier(new AttributeModifier(key, 0.5, AttributeModifier.Operation.ADD_SCALAR));
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (wolf.isValid() && atk.getModifier(key) != null) {
+                        atk.removeModifier(key);
+                    }
+                }, secs * 20L);
+            }
         }
         castFx(p, "beast_ferocity", "ENTITY_WOLF_GROWL", "CRIMSON_SPORE", 0.7f, 1.0f, 14);
         wolf.getWorld().spawnParticle(Particle.HEART, wolf.getLocation().add(0.0, 1.0, 0.0),
