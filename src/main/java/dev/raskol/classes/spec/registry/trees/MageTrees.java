@@ -12,10 +12,11 @@ import java.util.Map;
  * 1.14.0: деревья Мага (3 спеки), ёмкости 51/51/52 (>46 — закрыть нельзя).
  * arcane (Тайная магия): burst ARCANE, unlock arcane_missiles/counterspell(SILENCE)/
  *         presence_of_mind, ульт zeus_wrath (перенос старого кита, слот 5).
- * fire (Огонь): burst FIRE + DoT burning, unlock scorch/flamestrike/combustion,
+ * fire (Огонь): burst FIRE + burning, unlock scorch/flamestrike/combustion,
  *         ульт pyroblast (новый: большой burning).
  * frost (Лёд): контроль FROST + DoT chilled, unlock frostbolt/blizzard/ice_barrier,
  *         ульт ice_lance_shatter (×3 по chilled-цели).
+ * 1.14.0-fix: узлы regen resource заменены на рабочие эффекты (attr int, sp_pct).
  */
 public final class MageTrees {
 
@@ -46,8 +47,8 @@ public final class MageTrees {
                         "Тайный разум", "+4 ИНТЕЛЛЕКТА за ранг",
                         Spec2Effect.of("attr", "int", 4.0)),
                 n("arc_mana_adept", T, 1, 3, 4, Map.of(), "passive_stat",
-                        "Адепт маны", "+1 маны/с за ранг",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Адепт маны", "+4 ИНТЕЛЛЕКТА за ранг (усиление spell-силы)",
+                        Spec2Effect.of("attr", "int", 4.0)),
                 n("arc_barrier", T, 1, 4, 3, Map.of(), "passive_stat",
                         "Тайный барьер", "+3% маг-резиста за ранг",
                         Spec2Effect.of("resist", "magic", 3.0)),
@@ -59,8 +60,8 @@ public final class MageTrees {
                         "Всплеск силы", "+3% SP за ранг",
                         Spec2Effect.of("sp_pct", "self", 3.0)),
                 n("arc_mana_gem", T, 2, 3, 3, Map.of(), "passive_stat",
-                        "Самоцвет маны", "+1 маны/с за ранг",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Самоцвет маны", "+3% SP за ранг (усиление заклинаний)",
+                        Spec2Effect.of("sp_pct", "self", 3.0)),
                 n("arc_focus", T, 2, 4, 3, Map.of("arc_mind", 2), "passive_stat",
                         "Тайная сосредоточенность", "pen_magic +4% за ранг",
                         Spec2Effect.of("pen_magic_pct", "self", 4.0)),
@@ -146,8 +147,8 @@ public final class MageTrees {
                         "Пламя", "+10% урона burning за ранг",
                         Spec2Effect.of("dot_mult", "burning", 10.0)),
                 n("fi_pyromaniac", T, 3, 3, 3, Map.of("fi_firestarter", 1), "passive_stat",
-                        "Пироман", "+1 маны/с за ранг",
-                        Spec2Effect.of("regen", "resource", 1.0)),
+                        "Пироман", "+3% SP за ранг (усиление магии огня)",
+                        Spec2Effect.of("sp_pct", "self", 3.0)),
                 n("fi_critical_mass", T, 3, 4, 2, Map.of("fi_flame_barrier", 1), "passive_stat",
                         "Критическая масса", "+3% маг-урона за ранг",
                         Spec2Effect.of("magic_dmg_pct", "self", 3.0)),
