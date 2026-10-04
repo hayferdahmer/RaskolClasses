@@ -12,9 +12,11 @@ import java.util.Map;
  * 1.14.0: деревья Воина (3 спеки).
  * arms (Оружие): FIGHTER, PHYSICAL, bleed — эталон Б1.
  * fury (Неистовство): FIGHTER, PHYSICAL+bleed, темп — unlock bloodthirst/rampage,
- *         ульт bladedstorm (AoE-вихрь с иммунитетом к ROOT).
+ *         ульт bladestorm (AoE-вихрь с иммунитетом к ROOT).
  * guard (Защита): TANK, PHYSICAL/HOLY — unlock shield_bash (STUN), taunt (ROOT-агро),
  *         ульт last_stand (щит-пул 25% maxHP на 8 с).
+ * 1.14.0-fix (чек 93): ёмкость fury доведена до 51 (было 49) поднятием maxRank
+ *         у fury_bloodlust и fury_unyielding (4→5); гейты рядов не изменены.
  */
 public final class WarriorTrees {
 
@@ -106,18 +108,18 @@ public final class WarriorTrees {
         ));
     }
 
-    /* ============ ВОИН · НЕИСТОВСТВО (fury) — ёмкость 52 ============ */
+    /* ============ ВОИН · НЕИСТОВСТВО (fury) — ёмкость 51 ============ */
     private static Spec2Tree fury() {
         final String T = "fury";
         return new Spec2Tree(T, List.of(
                 // Ряд 1 (гейт 0)
                 n("fury_rage_pool", T, 1, 1, 5, Map.of(), "passive_stat",
-                        "Пул ярости", "+10 макс. ярости за ранг",
+                        "Пуул ярости", "+10 макс. ярости за ранг",
                         Spec2Effect.of("resource_max", "rage", 10.0)),
-                n("fury_bloodlust", T, 1, 2, 4, Map.of(), "passive_stat",
+                n("fury_bloodlust", T, 1, 2, 5, Map.of(), "passive_stat",
                         "Жажда крови", "+2% физ-урона за ранг",
                         Spec2Effect.of("phys_dmg_pct", "self", 2.0)),
-                n("fury_unyielding", T, 1, 3, 4, Map.of(), "passive_stat",
+                n("fury_unyielding", T, 1, 3, 5, Map.of(), "passive_stat",
                         "Непреклонность", "+2% физ-резиста за ранг",
                         Spec2Effect.of("resist", "phys", 2.0)),
                 n("fury_battle_cry", T, 1, 4, 3, Map.of(), "passive_proc",
@@ -179,7 +181,7 @@ public final class WarriorTrees {
         ));
     }
 
-    /* ============ ВОИН · ЗАЩИТА (guard) — ёмкость 53 ============ */
+    /* ============ ВОИН · ЗАЩИТА (guard) — ёмкость 50 ============ */
     private static Spec2Tree guard() {
         final String T = "guard";
         return new Spec2Tree(T, List.of(
