@@ -13,7 +13,6 @@ import java.util.List;
 /**
  * 1.13.0 (Б4): sanity-валидация секции cc.* конфига (аналог KitSanity для CC).
  * Вызываем из selftest-чека 89 и из ConfigValidator-потока при reload.
- * Все проверки — диапазоны и ссылочная целостность (id CCType в иммунитетах).
  *
  * 1.14.0-fix (чек 89): мгновенные CC (defaultTicks() <= 0, напр. KNOCKBACK)
  *    исключены из проверки duration-ticks — у них вместо длительности power/
