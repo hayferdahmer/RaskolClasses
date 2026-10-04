@@ -7,7 +7,8 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.Targeting;
 import dev.raskol.classes.combat.dot.DotInstance;
-import io.papermc.paper.registry.Registry;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
@@ -45,7 +46,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   beastmaster: intimidation, pet_wolf, beast_ferocity, bestial_wrath.
  *   Гейт — treeUnlocked() (Spec2Service.hasUnlocked).
  *   Питомец — ванильный приручённый волк, сессия-скоуп (1.14.6 = полная пет-система).
- * 1.14.0-fix: исправлен доступ к атрибутам через Registry API (Paper 1.21.4).
+ * 1.14.0-fix: доступ к атрибутам через RegistryAccess API (Paper 1.21.4).
  */
 public final class HunterAbilities {
 
@@ -611,8 +612,10 @@ public final class HunterAbilities {
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
         wolf.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, secs * 20, 1));
         
-        // 1.14.0-fix: доступ к атрибутам через Registry API (Paper 1.21.4)
-        Attribute atkAttr = Registry.ATTRIBUTE.get(NamespacedKey.minecraft("generic_attack_damage"));
+        // 1.14.0-fix: доступ к атрибутам через RegistryAccess API (Paper 1.21.4)
+        Attribute atkAttr = RegistryAccess.registryAccess()
+                .getRegistry(RegistryKey.ATTRIBUTE)
+                .get(NamespacedKey.minecraft("generic_attack_damage"));
         if (atkAttr != null) {
             AttributeInstance atk = wolf.getAttribute(atkAttr);
             if (atk != null) {
