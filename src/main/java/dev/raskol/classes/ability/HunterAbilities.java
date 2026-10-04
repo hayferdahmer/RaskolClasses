@@ -47,6 +47,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   Гейт — treeUnlocked() (Spec2Service.hasUnlocked).
  *   Питомец — ванильный приручённый волк, сессия-скоуп (1.14.6 = полная пет-система).
  * 1.14.0-fix: доступ к атрибутам через RegistryAccess API (Paper 1.21.4).
+ * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + radius(arrow_rain) читаются
+ *   через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
+ *   чтобы переносимые (arrow_fan/arrow_rain) пережили резку abilities.
  */
 public final class HunterAbilities {
 
@@ -77,23 +80,21 @@ public final class HunterAbilities {
         return v != null ? v : def;
     }
 
+    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
     private double base(AbilityDef def, double defv) {
-        return cfgD("classes.HUNTER.abilities." + def.id() + ".base", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
     }
 
     private double coeff(AbilityDef def, double defv) {
-        return cfgD("classes.HUNTER.abilities." + def.id() + ".coeff", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
     }
 
     private String power(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.HUNTER.abilities." + def.id() + ".power", "wp");
+        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "wp");
     }
 
     private int duration(AbilityDef def, int defv) {
-        int v = plugin.getConfig().getInt(
-                "classes.HUNTER.abilities." + def.id() + ".duration", defv);
-        return v > 0 ? v : defv;
+        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
     }
 
     private double tbase(AbilityDef def, double defv) {
@@ -278,7 +279,8 @@ public final class HunterAbilities {
     }
 
     public boolean arrowRain(Player p, AbilityDef def) {
-        double radius = cfgD("classes.HUNTER.abilities." + def.id() + ".radius", 5.0);
+        // 1.14.0 (Б11.1.2-A): radius через фолбэк-хелпер (переносимая slot 5)
+        double radius = TreeAbilities.numberOrKit(plugin, PC, def.id(), "radius", 5.0);
         castFx(p, "arrow_rain", "ENTITY_ARROW_SHOOT", "POOF", 0.8f, 0.9f, 24);
         double dmg = dmg(p, def, 10.0, 0.9);
         boolean hit = false;
@@ -611,7 +613,7 @@ public final class HunterAbilities {
         }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
         wolf.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, secs * 20, 1));
-        
+
         // 1.14.0-fix: доступ к атрибутам через RegistryAccess API (Paper 1.21.4)
         Attribute atkAttr = RegistryAccess.registryAccess()
                 .getRegistry(RegistryKey.ATTRIBUTE)
@@ -657,7 +659,8 @@ public final class HunterAbilities {
             }
         }, secs * 20L);
         castFx(p, "bestial_wrath", "ENTITY_WOLF_HOWL", "CRIMSON_SPORE", 0.9f, 0.7f, 20);
-        p.sendMessage(Component.text("Звериная ярость: волк усилен на " + secs + " с", NamedTextColor.GREEN));
+        p.sendMessage(Component.text("Звериная ярость: волк усилен на " + secs + " с",
+                NamedTextColor.GREEN));
         return true;
     }
 
