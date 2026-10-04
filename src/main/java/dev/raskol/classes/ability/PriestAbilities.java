@@ -39,6 +39,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   shadow: withering_touch, mind_flay, shadowfiend.
  *   Гейт — treeUnlocked(); целевые хилы/клинзы — self-каст с внутренним
  *   ray-таргетом союзника (фолбэк на себя).
+ * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + radius(circle_elysium) +
+ *   threshold/execute-mult(wrath_heaven) читаются через TreeAbilities.*OrKit
+ *   (treeAbilities → abilities → код-дефолт), чтобы переносимые
+ *   (circle_elysium/wrath_heaven) пережили резку abilities.
  */
 public final class PriestAbilities {
 
@@ -65,23 +69,21 @@ public final class PriestAbilities {
         return v != null ? v : def;
     }
 
+    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
     private double base(AbilityDef def, double defv) {
-        return cfgD("classes.PRIEST.abilities." + def.id() + ".base", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
     }
 
     private double coeff(AbilityDef def, double defv) {
-        return cfgD("classes.PRIEST.abilities." + def.id() + ".coeff", defv);
+        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
     }
 
     private String power(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.PRIEST.abilities." + def.id() + ".power", "hpow");
+        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "hpow");
     }
 
     private int duration(AbilityDef def, int defv) {
-        int v = plugin.getConfig().getInt(
-                "classes.PRIEST.abilities." + def.id() + ".duration", defv);
-        return v > 0 ? v : defv;
+        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
     }
 
     private double tbase(AbilityDef def, double defv) {
@@ -372,7 +374,8 @@ public final class PriestAbilities {
     }
 
     public boolean circleElysium(Player p, AbilityDef def) {
-        double radius = cfgD("classes.PRIEST.abilities." + def.id() + ".radius", 6.0);
+        // 1.14.0 (Б11.1.2-A): radius через фолбэк-хелпер (переносимая slot 4)
+        double radius = TreeAbilities.numberOrKit(plugin, PC, def.id(), "radius", 6.0);
         List<Player> healed = new ArrayList<>();
         if (applyHeal(p, p, def, 15.0, 0.45)) {
             healed.add(p);
@@ -406,12 +409,13 @@ public final class PriestAbilities {
             return false;
         }
         castFx(p, "wrath_heaven", "ENTITY_LIGHTNING_BOLT_THUNDER", "FLASH", 0.8f, 0.8f, 10);
-        double threshold = cfgD("classes.PRIEST.abilities." + def.id() + ".threshold", 0.25);
+        // 1.14.0 (Б11.1.2-A): threshold/execute-mult через фолбэк-хелпер (переносимая slot 5)
+        double threshold = TreeAbilities.numberOrKit(plugin, PC, def.id(), "threshold", 0.25);
         double max = maxOf(t);
         double frac = max > 0 ? t.getHealth() / max : 1.0;
         double dmg = dmg(p, def, 20.0, 1.6);
         if (frac < threshold) {
-            dmg *= cfgD("classes.PRIEST.abilities." + def.id() + ".execute-mult", 3.0);
+            dmg *= TreeAbilities.numberOrKit(plugin, PC, def.id(), "execute-mult", 3.0);
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
             executeFx(t);
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
