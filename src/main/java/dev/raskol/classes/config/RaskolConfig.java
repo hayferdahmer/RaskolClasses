@@ -24,6 +24,9 @@ import java.util.Map;
  *         (прежний порядок давал NPE на старте и отключал плагин).
  * 1.14.0 (Б11.1.2-B1): переносимые slots 4–5 больше не добавляются в abilities
  *         код-дефолтами; авторитетный источник для них — treeAbilities.
+ * 1.14.0 (Б11.1.2-B2): path() читает переносимые из treeAbilities, если ключ там есть,
+ *         чтобы после физической резки abilities.<id> не потерять name/description/
+ *         unlock/cost/cooldown/numeric-ключи.
  */
 public final class RaskolConfig {
 
@@ -616,7 +619,19 @@ public final class RaskolConfig {
     }
 
     private String path(PlayerClass pc, String abilityId, String key) {
-        return "classes." + pc.name() + ".abilities." + abilityId + "." + key;
+        String kitPath = "classes." + pc.name() + ".abilities." + abilityId + "." + key;
+
+        // 1.14.0 (Б11.1.2-B2): переносимые slots 4–5 читаем из treeAbilities,
+        // если ключ там есть. Это позволяет удалить abilities.<id> из config.yml,
+        // не потеряв name/description/unlock/cost/cooldown/school/numeric-ключи.
+        if (isTransferableAbility(pc, abilityId)) {
+            String treePath = "classes." + pc.name() + ".treeAbilities." + abilityId + "." + key;
+            if (plugin.getConfig().isSet(treePath)) {
+                return treePath;
+            }
+        }
+
+        return kitPath;
     }
 
     /* ------------------------------ темы (funnel P5) ------------------------------ */
@@ -667,7 +682,7 @@ public final class RaskolConfig {
     }
 
     /**
-     * 1.14.0 (Б11.1.2-B1): переходный предикат переносимых slots 4–5.
+     * 1.14.0 (Б11.1.2-B1/B2): переходный предикат переносимых slots 4–5.
      * Сознательно не тянем config → ability.TransferableAbilities, чтобы не рисковать
      * порядком/циклом инициализации классов на старте. В B2, после ревизии
      * KitSanity/AbilityRegistry/TransferableAbilities, источник истины можно свести к реестру.
