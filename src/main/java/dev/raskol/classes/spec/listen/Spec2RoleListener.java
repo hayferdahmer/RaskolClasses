@@ -2,6 +2,7 @@
 package dev.raskol.classes.spec.listen;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.event.CustomHealEvent;
 import dev.raskol.classes.spec.SpecRole;
 import dev.raskol.classes.spec.SpecRoles;
 import org.bukkit.entity.Entity;
@@ -14,20 +15,17 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.metadata.MetadataValue;
 
-import java.util.List;
 import java.util.UUID;
 
 /**
  * 1.14.0 «Спек 2.0» (Б2): роли-пассивки основной спеки.
  * - FIGHTER: +2% исходящего урона;
  * - TANK:    +5% ccResist и +5% получаемого лечения;
- * - HEALER:  +5% исходящего лечения (требует Metadata от кастомного хила).
+ * - HEALER:  +5% исходящего лечения (через CustomHealEvent).
  */
 public final class Spec2RoleListener implements Listener {
 
-    private static final String HEALER_META_KEY = "raskol_healer_uuid";
     private final RaskolClasses plugin;
 
     public Spec2RoleListener(RaskolClasses plugin) {
@@ -68,32 +66,26 @@ public final class Spec2RoleListener implements Listener {
         }
     }
 
-    /** TANK: получаемое лечение; HEALER: исходящее лечение. */
+    /** TANK: +5% получаемого лечения (для ванильного хила). */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRegain(EntityRegainHealthEvent event) {
         if (event.isCancelled() || event.getAmount() <= 0.0) return;
         if (!(event.getEntity() instanceof Player target)) return;
 
-        // 1. TANK: +5% получаемого лечения
         if (roleOf(target.getUniqueId()) == SpecRole.TANK) {
             double mult = 1.0 + cfgD("spec2.role-passives.TANK.heal-received", 0.05);
             event.setAmount(event.getAmount() * mult);
         }
+    }
 
-        // 2. HEALER: +5% исходящего лечения
-        // ВНИМАНИЕ: EntityRegainHealthEvent не имеет поля 'healer'. 
-        // Ваш плагин магии/зелий должен сетить Metadata на цель при кастомном хиле.
-        List<MetadataValue> meta = target.getMetadata(HEALER_META_KEY);
-        if (!meta.isEmpty()) {
-            try {
-                UUID healerUuid = UUID.fromString(meta.get(0).asString());
-                if (roleOf(healerUuid) == SpecRole.HEALER) {
-                    double mult = 1.0 + cfgD("spec2.role-passives.HEALER.heal-outgoing", 0.05);
-                    event.setAmount(event.getAmount() * mult);
-                }
-            } catch (IllegalArgumentException ignored) {
-                // Игнорируем битый UUID в метадате
-            }
+    /** HEALER: +5% исходящего лечения (для кастомного хила через HpBarService). */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onCustomHeal(CustomHealEvent event) {
+        if (event.getHealer() == null || event.getAmount() <= 0.0) return;
+        
+        if (roleOf(event.getHealer().getUniqueId()) == SpecRole.HEALER) {
+            double mult = 1.0 + cfgD("spec2.role-passives.HEALER.heal-outgoing", 0.05);
+            event.setAmount(event.getAmount() * mult);
         }
     }
 
