@@ -32,6 +32,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * пререквизиты, maxRank) → агрегация эффектов ×ранг в кэш Agg → применение
  * постоянных модификаторов через Spec2EffectsApplier → хот-путь геттеры для
  * китов и сервисов (имена совпадают со старым TalentService, чтобы киты не менять).
+ *
+ * 1.14.3 (Волна 3, 3A): добавлен геттер magicDmgPercent (поле agg.magicDmgPct
+ * накапливалось, но не читалось — 15 узлов magic_dmg_pct были мертвы) и семейство
+ * процентных геттеров для видов эффектов, которые accumulate() складывает в
+ * agg.proc под ключом вида узла (default-ветка): resource_max, hp_pct,
+ * attack_speed_pct, block_pct, move_speed_pct, heal_received_pct,
+ * resource_regen_pct, pet_hp_pct, pet_dmg_pct. Потребители появятся в 3B/3C/пет-волне.
  */
 public final class Spec2Service {
 
@@ -343,6 +350,9 @@ public final class Spec2Service {
             case "sp_pct" -> agg.spPct += e.value();
             case "hpow_pct" -> agg.hpowPct += e.value();
             case "unlock_ability" -> agg.unlocked.add(e.target());
+            // 1.14.3 (Волна 3): прочие процентные виды (hp_pct, resource_max, block_pct,
+            // move_speed_pct, attack_speed_pct, heal_received_pct, resource_regen_pct,
+            // pet_*) складываются в proc под ключом вида узла и читаются геттерами ниже.
             default -> agg.proc.merge(e.kind(), e.value(), Double::sum);
         }
     }
@@ -439,6 +449,11 @@ public final class Spec2Service {
         return agg(uuid).physDmgPct;
     }
 
+    /** 1.14.3 (Волна 3, 3A): % маг-урона способностей (узлы magic_dmg_pct). */
+    public double magicDmgPercent(UUID uuid) {
+        return agg(uuid).magicDmgPct;
+    }
+
     public double healOutPercent(UUID uuid) {
         return agg(uuid).healOut;
     }
@@ -454,6 +469,54 @@ public final class Spec2Service {
     public double wpPercent(UUID uuid) { return agg(uuid).wpPct; }
     public double spPercent(UUID uuid) { return agg(uuid).spPct; }
     public double hpowPercent(UUID uuid) { return agg(uuid).hpowPct; }
+
+    /* ------------------------------ 1.14.3 (Волна 3, 3A): процентные геттеры видов из default-ветки ------------------------------ */
+    /* Значения — СУММА процентов за ранги (не доли): потребитель делит на 100.        */
+
+    /** +maxHP % (узлы hp_pct). Потребитель — AttributeService.maxHp (3B). */
+    public double hpPercent(UUID uuid) {
+        return procBonus(uuid, "hp_pct");
+    }
+
+    /** +max ресурса, абс. единицы (узлы resource_max, напр. +10 ярости за ранг). Потребитель — ResourceState (3B). */
+    public double resourceMaxBonus(UUID uuid) {
+        return procBonus(uuid, "resource_max");
+    }
+
+    /** +реген ресурса % (узлы resource_regen_pct). Потребитель — ResourceService (3B). */
+    public double resourceRegenPercent(UUID uuid) {
+        return procBonus(uuid, "resource_regen_pct");
+    }
+
+    /** +шанс блока % (узлы block_pct). Потребитель — CombatService/avoidance (3B). */
+    public double blockPercent(UUID uuid) {
+        return procBonus(uuid, "block_pct");
+    }
+
+    /** +скорость атаки % (узлы attack_speed_pct). Потребитель — CombatService swing-таймер (3B). */
+    public double attackSpeedPercent(UUID uuid) {
+        return procBonus(uuid, "attack_speed_pct");
+    }
+
+    /** +скорость движения % (узлы move_speed_pct). Потребитель — AttributeService movement (3B). */
+    public double moveSpeedPercent(UUID uuid) {
+        return procBonus(uuid, "move_speed_pct");
+    }
+
+    /** +получаемое лечение % (узлы heal_received_pct). Потребитель — Spec2RoleListener (3A, ниже). */
+    public double healReceivedPercent(UUID uuid) {
+        return procBonus(uuid, "heal_received_pct");
+    }
+
+    /** +HP питомца % (узлы pet_hp_pct). Потребитель — пет-система (волна 1.14.6). */
+    public double petHpPercent(UUID uuid) {
+        return procBonus(uuid, "pet_hp_pct");
+    }
+
+    /** +урон питомца % (узлы pet_dmg_pct). Потребитель — пет-система (волна 1.14.6). */
+    public double petDmgPercent(UUID uuid) {
+        return procBonus(uuid, "pet_dmg_pct");
+    }
 
     /** Способности, открытые узлами деревьев (unlock_ability/ultimate). */
     public Set<String> unlockedAbilities(UUID uuid) {
