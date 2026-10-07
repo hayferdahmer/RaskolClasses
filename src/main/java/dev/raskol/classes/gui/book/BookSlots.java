@@ -11,7 +11,7 @@ package dev.raskol.classes.gui.book;
  *         построчный просмотр: SLOT_ROW_PREV/NEXT (row2 края) листают ряды,
  *         ROW_LINE_SLOTS (row3, 5 слотов) рисуют узлы ТЕКУЩЕГО ряда горизонтально.
  *         TALENT_NODE_SLOTS оставлен (мёртвая константа) ради совместимости компиляции.
- * 1.15.0 (Волна 1): ROW_LINE_SLOTS расширен до 9 слотов для покрытия всех узлов ряда.
+ * 1.14.1 (Волна 1): ROW_LINE_SLOTS расширен до 9 слотов для покрытия всех узлов ряда.
  */
 public final class BookSlots {
 
@@ -54,7 +54,7 @@ public final class BookSlots {
     public static final int SLOT_ROW_PREV = 18;
     public static final int SLOT_ROW_NEXT = 26;
     /** 1.14.0-fix (ряды): горизонтальная линия узлов ТЕКУЩЕГО ряда (row3, 5 слотов).
-     * 1.15.0 (Волна 1): расширено до 9 слотов для покрытия всех узлов ряда. */
+     * 1.14.1 (Волна 1): расширено до 9 слотов для покрытия всех узлов ряда. */
     public static final int[] ROW_LINE_SLOTS = {27, 28, 29, 30, 31, 32, 33, 34, 35};
 
     public static final int SLOT_GEAR_WEAPON = 10;
