@@ -6,7 +6,6 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.ability.passive.PassiveListener;
-import dev.raskol.classes.spec.SpecRole;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
@@ -14,7 +13,6 @@ import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Vex;
 import org.bukkit.potion.PotionEffect;
@@ -32,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * heal() через HpBarService.heal().
  * 1.12.3: школа HOLY, каст/impact/execute-VFX конфиг-драйвен, аура Эгиды.
  * 1.12.5: очищение — успешный хил снимает Dot'ы школ NATURE и SHADOW с цели.
- * 1.14.0 (Б4): хуки baseBonus/coeffMult из Spec2Service + роль HEALER в applyHeal.
+ * 1.14.0 (Б4): хуки baseBonus/coeffMult из Spec2Service.
  * 1.14.0 (контент-долг 5): +9 древесных способностей Жреца:
  *   discipline: purge, pain_suppression, spirit_shell (ульт);
  *   holy: flash_heal, lightwell, divine_hymn (ульт);
@@ -44,6 +42,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   (treeAbilities → abilities → код-дефолт), чтобы переносимые
  *   (circle_elysium/wrath_heaven) пережили резку abilities.
  * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
+ * 1.14.3 (Волна 3, 3A): пред-множитель роли HEALER УБРАН из applyHealWith —
+ *   исходящие heal-модификаторы (heal_out_pct + роль) применяет единой точкой
+ *   Spec2RoleListener.onCustomHeal; иначе роль считалась дважды (1.05×1.05).
  */
 public final class PriestAbilities {
 
@@ -239,9 +240,10 @@ public final class PriestAbilities {
     /* -------------------------------- ядро лечения -------------------------------- */
 
     /**
-     * 1.9.3 (план B) + 1.12.5 (очищение) + 1.14.0 (роль HEALER, LAST_HEAL).
+     * 1.9.3 (план B) + 1.12.5 (очищение) + 1.14.0 (LAST_HEAL).
      * treePath=true читает base/coeff из classes.PRIEST.treeAbilities.*.
-     * 1.14.1 (Волна 1): heal() передаёт caster для CustomHealEvent.
+     * 1.14.3 (3A): ролевые/узловые множители лечения НЕ применяются здесь —
+     * их ставит Spec2RoleListener.onCustomHeal на событии CustomHealEvent.
      */
     private boolean applyHealWith(Player caster, Player target, AbilityDef def,
                                   double defBase, double defCoeff, boolean treePath) {
@@ -262,12 +264,7 @@ public final class PriestAbilities {
         double amount = Math.min(treePath
                 ? thealAmount(caster, def, defBase, defCoeff)
                 : healAmount(caster, def, defBase, defCoeff), missing);
-        // 1.14.0 (Б4): ролевой множитель HEALER
-        if (plugin.getSpec2Service().roleOfOwner(caster.getUniqueId()) == SpecRole.HEALER) {
-            amount *= 1.0 + cfgD("spec2.role-passives.HEALER.heal-mult", 0.05);
-        }
         PassiveListener.markHealer(caster.getUniqueId());
-        // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
         plugin.getHpBarService().heal(target, amount, caster);
         LAST_HEAL.put(caster.getUniqueId(), amount);
 
@@ -310,13 +307,11 @@ public final class PriestAbilities {
             if (missing <= 0.0) {
                 continue;
             }
-            // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
             plugin.getHpBarService().heal(t, Math.min(amount, missing), caster);
             t.getWorld().spawnParticle(Particle.HEART,
                     t.getLocation().add(0.0, 1.2, 0.0), 2, 0.2, 0.3, 0.2, 0.0);
             healed++;
         }
-        // себя лечим отдельно, если в радиусе не попали (всегда попадаем, но страховка)
         return healed;
     }
 
