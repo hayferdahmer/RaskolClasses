@@ -39,6 +39,10 @@ import java.util.UUID;
  * 1.12.4: DotService (реестр DoT + тик-задача) создан здесь, геттер dots().
  * 1.13.0 (Б2): после применения урона пути B — CCService.breakOnDamage
  *         (урон ≥ cc.breaks-on-damage-threshold-pct снимает ROOT/FEAR с цели).
+ * 1.14.3 (Волна 3, 3B): хот-путь урона — phys_dmg_pct/magic_dmg_pct умножают
+ *         соответствующую базу ДО критов и резистов; crit_melee_pct добавляется
+ *         к базовому шансу крита мили; block_pct даёт отдельный rollBlock (щит),
+ *         который полностью обнуляет входящий физ-урон одного удара.
  */
 public final class CombatService implements Listener {
 
@@ -252,6 +256,27 @@ public final class CombatService implements Listener {
         double truePart = Math.min(safe.trueDamage(), trueCap());
         double physBase = safe.physical();
         double magicBase = safe.magic();
+
+        // 1.14.3 (3B): процентные множители урона из spec2-агрегата
+        // Применяются ДО критов и резистов — узлы phys_dmg_pct/magic_dmg_pct
+        // усиливают «сырой» урон способностей.
+        if (source instanceof Player srcP) {
+            UUID sUuid = srcP.getUniqueId();
+            double physPct = safePct(plugin.getSpec2Service().physDmgPercent(sUuid));
+            double magicPct = safePct(plugin.getSpec2Service().magicDmgPercent(sUuid));
+            if (physPct > 0.0) physBase *= (1.0 + physPct);
+            if (magicPct > 0.0) magicBase *= (1.0 + magicPct);
+        }
+
+        // 1.14.3 (3B): rollBlock — если цель держит щит и имеет block_pct из spec2,
+        // есть шанс полностью обнулить физ-урон одного удара (маг не блокируется).
+        if (physBase > 0.0 && target instanceof Player tgtP && hasShield(tgtP)) {
+            if (rollBlock(tgtP)) {
+                blockFeedback(tgtP);
+                physBase = 0.0;
+            }
+        }
+
         if (source instanceof Player sp) {
             if (physBase > 0.0 && rollMeleeCrit(sp)) {
                 physBase *= meleeMult();
@@ -420,14 +445,40 @@ public final class CombatService implements Listener {
         return taken;
     }
 
+    /** 1.14.3 (3B): базовый critMelee + critMeleeBonus из spec2. */
     private boolean rollMeleeCrit(Player player) {
+        double baseChance = plugin.getAttributes().critMeleeChance(player.getUniqueId());
+        double bonus = safePct(plugin.getSpec2Service().critMeleeBonus(player.getUniqueId()));
         return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0
-                < plugin.getAttributes().critMeleeChance(player.getUniqueId());
+                < (baseChance + bonus * 100.0);
     }
 
     private boolean rollSpellCrit(Player player) {
         return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0
                 < plugin.getAttributes().critSpellChance(player.getUniqueId());
+    }
+
+    /**
+     * 1.14.3 (3B): шанс блока щитом. Чистый блок (без базового шанса от щита в ванили) —
+     * только процент из spec2 (block_pct-узлы guard-дерева). Если щита нет в руке,
+     * блок невозможен (проверяется в dealDamage перед вызовом).
+     */
+    private boolean rollBlock(Player target) {
+        double pct = safePct(plugin.getSpec2Service().blockPercent(target.getUniqueId()));
+        if (pct <= 0.0) {
+            return false;
+        }
+        return java.util.concurrent.ThreadLocalRandom.current().nextDouble() < pct;
+    }
+
+    /** 1.14.3 (3B): держит ли игрок щит в офф-хенде (или в мейн, если одноручный). */
+    private boolean hasShield(Player player) {
+        org.bukkit.inventory.ItemStack off = player.getInventory().getItemInOffHand();
+        if (off != null && off.getType().name().endsWith("SHIELD")) {
+            return true;
+        }
+        org.bukkit.inventory.ItemStack main = player.getInventory().getItemInMainHand();
+        return main != null && main.getType().name().endsWith("SHIELD");
     }
 
     private double meleeMult() {
@@ -460,6 +511,24 @@ public final class CombatService implements Listener {
         if (s != null) {
             fx.playSound(attacker.getLocation(), s, 0.5f, melee ? 0.9f : 1.2f);
         }
+    }
+
+    /** 1.14.3 (3B): короткий фидбек удачного блока щитом. */
+    private void blockFeedback(Player target) {
+        if (!plugin.getConfig().getBoolean("combat.block.visuals", true)) {
+            return;
+        }
+        dev.raskol.classes.fx.FxService fx = plugin.getFx();
+        org.bukkit.Sound s = fx.resolveSound(
+                plugin.getConfig().getString("combat.block.sound", "ITEM_SHIELD_BLOCK"));
+        if (s != null) {
+            fx.playSound(target.getLocation(), s, 0.6f, 1.0f);
+        }
+    }
+
+    /** Защитный нормалайзер: процент из spec2 → доля в [0, ∞). */
+    private static double safePct(double v) {
+        return Double.isFinite(v) && v >= 0 ? v / 100.0 : 0.0;
     }
 
     /* ------------------------------ анти-хил (S5) ------------------------------ */
