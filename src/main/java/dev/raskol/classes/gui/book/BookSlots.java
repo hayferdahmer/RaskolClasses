@@ -2,52 +2,73 @@
 package dev.raskol.classes.gui.book;
 
 /**
- * Константы и утилиты для слотов инвентаря Книги Талантов (54 слота, 6 рядов).
- * Сетка талантов занимает центральную часть, табы и навигация — по краям.
+ * 1.11.4 (P4b): карта слотов Книги класса (единый источник для всех таб-вью).
+ * Каркас 54 слота: row0 рамка + эмблема (4); row1-4 контент; row5 навигация.
+ * 1.14.0: SPEC_SLOTS = 3 спеки; TREE_ABILITY_SLOTS (row3, 28–34) — витрина
+ *         древесных способностей.
+ * 1.14.0-fix (ряды): пагинация деревьев путей — ROMB из 9 слотов (TALENT_NODE_SLOTS)
+ *         физически не вмещает 6-рядное дерево (17–21 узел), поэтому введён
+ *         построчный просмотр: SLOT_ROW_PREV/NEXT (row2 края) листают ряды,
+ *         ROW_LINE_SLOTS (row3, 5 слотов) рисуют узлы ТЕКУЩЕГО ряда горизонтально.
+ *         TALENT_NODE_SLOTS оставлен (мёртвая константа) ради совместимости компиляции.
+ * 1.15.0 (Волна 1): ROW_LINE_SLOTS расширен до 9 слотов для покрытия всех узлов ряда.
  */
 public final class BookSlots {
 
     private BookSlots() {
-        // Утилитарный класс
     }
 
-    // --- Верхний ряд (Табы классов и информация) ---
-    public static final int TAB_WARRIOR = 0;
-    public static final int TAB_HUNTER  = 1;
-    public static final int TAB_PRIEST  = 2;
-    public static final int TAB_MAGE    = 3;
-    public static final int TAB_ROGUE   = 4;
-    public static final int TAB_INFO    = 8;
+    public static final int SIZE = 54;
+    public static final int SLOT_EMBLEM = 4;
 
-    // --- Нижний ряд (Навигация и закрытие) ---
-    public static final int NAV_PREV  = 45;
-    public static final int NAV_CLOSE = 49;
-    public static final int NAV_NEXT  = 53;
+    public static final int SLOT_TAB_ABILITIES = 45;
+    public static final int SLOT_TAB_SPECS = 46;
+    public static final int SLOT_TAB_CLASS = 47;
+    public static final int SLOT_TAB_TALENTS = 48;
+    public static final int SLOT_CLOSE = 49;
+    public static final int SLOT_TAB_GEAR = 50;
 
-    // --- Границы сетки талантов (Ряды 2-5, Колонки 2-8) ---
-    public static final int GRID_START_ROW = 1;
-    public static final int GRID_END_ROW   = 4;
-    public static final int GRID_START_COL = 1;
-    public static final int GRID_END_COL   = 7;
+    public static final int[] ABILITY_SLOTS = {11, 12, 13, 14, 15};
+    public static final int SLOT_INSTALL = 22;
 
-    /**
-     * Конвертирует координаты сетки (row, col) в плоский индекс слота инвентаря.
-     *
-     * @param row строка (0-5)
-     * @param col колонка (0-8)
-     * @return индекс слота (0-53)
-     */
-    public static int toSlot(int row, int col) {
-        return (row * 9) + col;
-    }
+    /** 1.14.0: древесные способности (slot 6+), row3. */
+    public static final int[] TREE_ABILITY_SLOTS = {28, 29, 30, 31, 32, 33, 34};
 
-    /**
-     * Проверяет, является ли слот частью сетки для размещения узлов талантов.
-     */
-    public static boolean isGridSlot(int slot) {
-        int row = slot / 9;
-        int col = slot % 9;
-        return row >= GRID_START_ROW && row <= GRID_END_ROW 
-            && col >= GRID_START_COL && col <= GRID_END_COL;
+    public static final int[] SPEC_SLOTS = {20, 22, 24};
+    public static final int SLOT_RESPEC = 40;
+
+    public static final int[] PASSIVE_SLOTS = {29, 30, 31, 32};
+    public static final int SLOT_ATTRIBUTES = 20;
+    public static final int SLOT_RESIST = 22;
+    public static final int SLOT_CROWN = 24;
+
+    /** @deprecated 1.14.0-fix: заменён пагинацией рядов (ROW_LINE_SLOTS). Не удалён
+     *  ради совместимости компиляции; TalentsTab его больше не использует. */
+    @Deprecated
+    public static final int[] TALENT_NODE_SLOTS = {11, 15, 19, 21, 23, 25, 29, 33, 40};
+    public static final int SLOT_TALENT_INFO = 22;
+    public static final int SLOT_TALENT_RESET = 44;
+    public static final long RESET_ARM_MILLIS = 30_000L;
+
+    /** 1.14.0-fix (ряды): навигация по рядам дерева (row2 края, свободны от ромба). */
+    public static final int SLOT_ROW_PREV = 18;
+    public static final int SLOT_ROW_NEXT = 26;
+    /** 1.14.0-fix (ряды): горизонтальная линия узлов ТЕКУЩЕГО ряда (row3, 5 слотов).
+     * 1.15.0 (Волна 1): расширено до 9 слотов для покрытия всех узлов ряда. */
+    public static final int[] ROW_LINE_SLOTS = {27, 28, 29, 30, 31, 32, 33, 34, 35};
+
+    public static final int SLOT_GEAR_WEAPON = 10;
+    public static final int SLOT_GEAR_STATS = 13;
+    public static final int[] GEAR_ARMOR_SLOTS = {19, 20, 21, 22};
+    public static final int[] GEAR_SET_SLOTS = {28, 29, 30, 31};
+
+    /** Индекс слота в массиве или -1. */
+    public static int indexOf(int[] slots, int slot) {
+        for (int i = 0; i < slots.length; i++) {
+            if (slots[i] == slot) {
+                return i;
+            }
+        }
+        return -1;
     }
 }
