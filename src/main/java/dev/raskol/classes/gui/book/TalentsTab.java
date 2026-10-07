@@ -34,7 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   ownedAcc/maxAcc, а в лямбду info.editMeta передаются ФИНАЛЬНЫЕ копии ownedInRow/
  *   maxInRow — иначе «local variables referenced from a lambda must be final or
  *   effectively final» (падение сборки #1216–#1218).
- * 1.15.0 (Волна 1): добавлен переключатель спек (main + 2 secondary), ROW_LINE_SLOTS
+ * 1.14.1 (Волна 1): добавлен переключатель спек (main + 2 secondary), ROW_LINE_SLOTS
  *   расширен до 9 слотов для покрытия всех узлов ряда.
  */
 public final class TalentsTab implements BookTabView {
@@ -42,7 +42,7 @@ public final class TalentsTab implements BookTabView {
     private static final Map<UUID, Long> RESET_ARM = new ConcurrentHashMap<>();
     /** 1.14.0-fix (ряды): просматриваемый ряд per-player (1..6). */
     private static final Map<UUID, Integer> VIEW_ROW = new ConcurrentHashMap<>();
-    /** 1.15.0 (Волна 1): просматриваемая спека per-player (0=main, 1=secondary1, 2=secondary2). */
+    /** 1.14.1 (Волна 1): просматриваемая спека per-player (0=main, 1=secondary1, 2=secondary2). */
     private static final Map<UUID, Integer> VIEW_SPEC = new ConcurrentHashMap<>();
     private static final int ROW_COUNT = 6;
     private static final int SPEC_COUNT = 3; // main + 2 secondary
@@ -83,7 +83,7 @@ public final class TalentsTab implements BookTabView {
             return;
         }
 
-        // 1.15.0 (Волна 1): переключатель спек (0=main, 1=secondary1, 2=secondary2)
+        // 1.14.1 (Волна 1): переключатель спек (0=main, 1=secondary1, 2=secondary2)
         int specIdx = VIEW_SPEC.getOrDefault(uuid, 0);
         List<String> allSpecs = svc.classTreeIds(uuid);
         if (specIdx >= allSpecs.size()) {
@@ -274,7 +274,7 @@ public final class TalentsTab implements BookTabView {
         Spec2Service svc = plugin.getSpec2Service();
         String main = svc.mainSpec(uuid);
 
-        // 1.15.0 (Волна 1): клик по селектору спек
+        // 1.14.1 (Волна 1): клик по селектору спек
         if (left) {
             int specIdx = BookSlots.indexOf(BookSlots.SPEC_SLOTS, slot);
             if (specIdx >= 0) {
@@ -335,7 +335,7 @@ public final class TalentsTab implements BookTabView {
             return;
         }
 
-        // 1.15.0 (Волна 1): используем currentSpec вместо main
+        // 1.14.1 (Волна 1): используем currentSpec вместо main
         int specIdx = VIEW_SPEC.getOrDefault(uuid, 0);
         List<String> allSpecs = svc.classTreeIds(uuid);
         if (specIdx >= allSpecs.size()) {
