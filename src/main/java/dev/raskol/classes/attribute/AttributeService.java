@@ -30,6 +30,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *         план B — в HpPool; публичный API сохранён полностью
  *         (HpBarService/CombatService/GearHook/InstallationService/selftest не меняются).
  * 1.14.0 (Б8.2-fix): avoidBonus читается из Spec2Service (legacy TalentService удалён).
+ * 1.14.3 (Волна 3, 3B): хот-путь атрибутов:
+ *   maxHp × (1 + hpPercent/100) — узлы hp_pct (fury_metamorphosis и т.п.);
+ *   critMeleeChance += critMeleeBonus — узлы crit_melee_pct (arms_precision и т.п.);
+ *   movementSpeedMultiplier — новый геттер, применяется в HpAttributeSync (см. ниже).
  */
 public final class AttributeService {
 
@@ -205,8 +209,10 @@ public final class AttributeService {
     /* ----------------------------- производные ----------------------------- */
 
     /**
-     * ПОЛНАЯ формула HP (1.9.3) + gear-HP из GearHook (1.9.3-r2):
-     * HP = base + STR×perStr + level×perLevel + (STR-main ? level×mainBonus : 0) + gearHp.
+     * ПОЛНАЯ формула HP (1.9.3) + gear-HP из GearHook (1.9.3-r2) + hp_pct-множитель
+     * из spec2-агрегата (1.14.3, 3B):
+     * HP = (base + STR×perStr + level×perLevel + (STR-main ? level×mainBonus : 0) + gearHp)
+     *      × (1 + hpPercent/100).
      */
     public double maxHp(UUID uuid) {
         double baseHp = cfgD("attributes.hp.base-hp", 100.0);
@@ -231,19 +237,27 @@ public final class AttributeService {
                 formula += gearHp;
             }
         }
+        // 1.14.3 (3B): hp_pct множитель из spec2 (fury_metamorphosis, dm_metamorphosis и т.п.)
+        double hpPct = plugin.getSpec2Service().hpPercent(uuid);
+        if (Double.isFinite(hpPct) && hpPct > 0.0) {
+            formula *= (1.0 + hpPct / 100.0);
+        }
         return Math.max(1.0, formula);
     }
 
+    /** 1.14.3 (3B): базовый critMelee + critMeleeBonus из spec2. */
     public double critMeleeChance(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
         if (pc == null) {
             return 0.0;
         }
-        return AttributeMath.critMelee(value(uuid, AttributeType.AGI),
+        double base = AttributeMath.critMelee(value(uuid, AttributeType.AGI),
                 cfgD("attributes.crit.melee-base", 5.0),
                 cfgD("attributes.crit.melee-per-agi", 0.05),
                 cfgD("attributes.crit.melee-cap", 40.0));
+        double bonus = plugin.getSpec2Service().critMeleeBonus(uuid);
+        return base + (Double.isFinite(bonus) && bonus > 0 ? bonus : 0.0);
     }
 
     public double critSpellChance(UUID uuid) {
@@ -316,6 +330,22 @@ public final class AttributeService {
 
     public double parryChance(UUID uuid) {
         return effectiveAvoidance(uuid)[1];
+    }
+
+    /* --------------- 1.14.3 (3B): скорость движения --------------- */
+
+    /**
+     * Множитель скорости движения из spec2-агрегата (узлы move_speed_pct).
+     * Возвращает долю (1.0 = без изменений; 1.10 = +10% скорости).
+     * Потребитель — HpAttributeSync или отдельный MovementService:
+     * применяет множитель к ванильному Attribute GENERIC_MOVEMENT_SPEED при sync.
+     */
+    public double movementSpeedMultiplier(UUID uuid) {
+        double pct = plugin.getSpec2Service().moveSpeedPercent(uuid);
+        if (!Double.isFinite(pct) || pct <= 0.0) {
+            return 1.0;
+        }
+        return 1.0 + pct / 100.0;
     }
 
     /* --------------- план B (1.9.3-r): делегирование в HpPool --------------- */
