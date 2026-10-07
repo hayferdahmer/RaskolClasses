@@ -44,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   (treeAbilities → abilities → код-дефолт), чтобы переносимые
  *   (borgia_poison/shadow_dance) пережили резку abilities. У Разбойника нет прямых
  *   cfgD("…abilities…") в методах переносимых — всё идёт через хелперы.
+ * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
  */
 public final class RogueAbilities {
 
@@ -419,7 +420,8 @@ public final class RogueAbilities {
         double dealt = deal(p, t, DamageProfile.physical(dmg));
         plugin.getCombat().dots().applyById(p, t, "poison");
         if (dealt > 0.0) {
-            plugin.getHpBarService().heal(p, dealt * 0.20);
+            // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
+            plugin.getHpBarService().heal(p, dealt * 0.20, p);
         }
         impactFx(t, "envenom", "ENTITY_SPIDER_HURT", "COMPOSTER", 0.4f, 1.0f, 10);
         return true;
