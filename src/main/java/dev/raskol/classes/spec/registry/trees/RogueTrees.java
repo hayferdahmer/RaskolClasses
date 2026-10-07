@@ -16,6 +16,10 @@ import java.util.Map;
  *         ульт between_the_eyes (STUN по bleed).
  * subtlety (Скрытность): FIGHTER, SHADOW, CC-контр — unlock backstab/shadow_dance/cloak_of_shadows,
  *         ульт shadow_blades.
+ * 1.14.2 (Волна 2): su_cloak_of_shadows исправлен — цель unlock_ability была
+ *         "cloak_of_shadows_cleanse" (нет кастера), стала "cloak_of_shadows"
+ *         (кастер зарегистрирован в TreeAbilities). Без фикса способность
+ *         невозможно открыть узлом.
  */
 public final class RogueTrees {
 
@@ -227,9 +231,10 @@ public final class RogueTrees {
                 n("su_death_from_above", T, 4, 2, 2, Map.of("su_serrated_blades", 1), "enhance_ability",
                         "Смерть сверху", "backstab: +20% урона за ранг",
                         Spec2Effect.of("kit_mult", "backstab", 0.20)),
+                // 1.14.2 (Волна 2): цель исправлена с cloak_of_shadows_cleanse на cloak_of_shadows
                 n("su_cloak_of_shadows", T, 4, 3, 1, Map.of("su_initiative", 1), "unlock_ability",
                         "Плащ теней (очищение)", "перенос + НОВОЕ: cleanse CC self, КД 60 с",
-                        Spec2Effect.of("unlock_ability", "cloak_of_shadows_cleanse", 1.0)),
+                        Spec2Effect.of("unlock_ability", "cloak_of_shadows", 1.0)),
                 n("su_master_of_deception", T, 4, 4, 2, Map.of("su_prep", 1), "passive_stat",
                         "Мастер обмана", "shadow_cloak: +5 с за ранг",
                         Spec2Effect.of("kit_dur", "shadow_cloak", 5.0)),
