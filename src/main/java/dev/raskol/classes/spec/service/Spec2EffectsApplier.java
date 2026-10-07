@@ -15,7 +15,7 @@ import java.util.UUID;
  * CCService/DotService/PenTraits(Б3) напрямую из агрегата Spec2Service.
  * Вызывается: reconcile (онлайн-игрок), join, после chooseMain/resetTree.
  *
- * 1.15.0 (Волна 1): добавлена обработка heal_out_pct для роли HEALER.
+ * 1.14.1 (Волна 1): добавлена обработка heal_out_pct для роли HEALER.
  */
 public final class Spec2EffectsApplier {
 
@@ -43,7 +43,7 @@ public final class Spec2EffectsApplier {
         if (agg.resPhys != 0.0 || agg.resMagic != 0.0) {
             plugin.getResists().addPermanentModifier(uuid, SOURCE, agg.resPhys, agg.resMagic);
         }
-        // 1.15.0 (Волна 1): heal_out_pct для роли HEALER
+        // 1.14.1 (Волна 1): heal_out_pct для роли HEALER
         if (agg.healOutPct != 0.0) {
             plugin.getAttributes().addPermanentModifier(
                     uuid, SOURCE_HEAL, 0.0, 0.0, 0.0, agg.healOutPct);
