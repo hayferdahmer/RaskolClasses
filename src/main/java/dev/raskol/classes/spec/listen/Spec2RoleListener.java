@@ -19,10 +19,22 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import java.util.UUID;
 
 /**
- * 1.14.0 «Спек 2.0» (Б2): роли-пассивки основной спеки.
- * - FIGHTER: +2% исходящего урона;
- * - TANK:    +5% ccResist и +5% получаемого лечения;
- * - HEALER:  +5% исходящего лечения (через CustomHealEvent).
+ * 1.14.0 «Спек 2.0» (Б2): роли-пассивки основной спеки (дизайн-док, раздел 6):
+ *  - FIGHTER: +2% исходящего урона (spec2.role-passives.FIGHTER.damage-mult);
+ *  - TANK:    +5% ccResist (читает CCService из Spec2Service.ccResistBonus)
+ *             и +5% получаемого лечения;
+ *  - HEALER:  +5% исходящего лечения.
+ * Плюс восстановление spec2-модификаторов на join и снятие на quit
+ * (ResistService/AttributeService чистят модификаторы на quit).
+ * Proc-узлы деревьев (second_wind/trance/bleed_on_crit) — Батч 3 (волна 3C).
+ *
+ * 1.14.1 (Волна 1): исходящее лечение ролей/узлов собрано в CustomHealEvent.
+ * 1.14.3 (Волна 3, 3A): ЕДИНАЯ точка композиции лечения:
+ *   исходящие = heal_out_pct (узлы) × роль HEALER (конфиг);
+ *   входящие  = heal_received_pct (узлы) + роль TANK (конфиг).
+ *   Применяется и к китовым хилам (CustomHealEvent), и к ванильным
+ *   (EntityRegainHealthEvent). Двойной счёт роли HEALER устранён: пред-множитель
+ *   убран из PriestAbilities.applyHealWith, владелец — этот слушатель.
  */
 public final class Spec2RoleListener implements Listener {
 
@@ -44,54 +56,99 @@ public final class Spec2RoleListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
-        plugin.getSpec2Service().reconcile(event.getPlayer().getUniqueId());
+        UUID uuid = event.getPlayer().getUniqueId();
+        plugin.getSpec2Service().reconcile(uuid);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
-        plugin.getSpec2Applier().remove(uuid);
-        plugin.getSpec2Service().clear(uuid);
+        plugin.getSpec2Applier().remove(event.getPlayer().getUniqueId());
+        plugin.getSpec2Service().clear(event.getPlayer().getUniqueId());
     }
 
     /** FIGHTER: множитель исходящего урона. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageDealt(EntityDamageByEntityEvent event) {
         Player attacker = resolveAttacker(event.getDamager());
-        if (attacker == null || event.getDamage() <= 0.0) return;
-        
-        if (roleOf(attacker.getUniqueId()) == SpecRole.FIGHTER) {
-            double mult = 1.0 + cfgD("spec2.role-passives.FIGHTER.damage-mult", 0.02);
-            event.setDamage(event.getDamage() * mult);
+        if (attacker == null || event.getDamage() <= 0.0) {
+            return;
         }
+        if (roleOf(attacker.getUniqueId()) != SpecRole.FIGHTER) {
+            return;
+        }
+        double mult = 1.0 + cfgD("spec2.role-passives.FIGHTER.damage-mult", 0.02);
+        event.setDamage(event.getDamage() * mult);
     }
 
-    /** TANK: +5% получаемого лечения (для ванильного хила). */
+    /**
+     * 1.14.3 (3A): входящее лечение (ванильные regain-события: реген, зелья, яблоки).
+     * TANK-роль (конфиг) + heal_received_pct (узлы guard) аддитивно в множителе.
+     */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRegain(EntityRegainHealthEvent event) {
-        if (event.isCancelled() || event.getAmount() <= 0.0) return;
-        if (!(event.getEntity() instanceof Player target)) return;
-
-        if (roleOf(target.getUniqueId()) == SpecRole.TANK) {
-            double mult = 1.0 + cfgD("spec2.role-passives.TANK.heal-received", 0.05);
+        if (event.isCancelled() || event.getAmount() <= 0.0) {
+            return;
+        }
+        if (!(event.getEntity() instanceof Player target)) {
+            return;
+        }
+        UUID tid = target.getUniqueId();
+        double mult = 1.0;
+        if (roleOf(tid) == SpecRole.TANK) {
+            mult += cfgD("spec2.role-passives.TANK.heal-received", 0.05);
+        }
+        mult += plugin.getSpec2Service().healReceivedPercent(tid) / 100.0;
+        if (mult != 1.0) {
             event.setAmount(event.getAmount() * mult);
         }
     }
 
-    /** HEALER: +5% исходящего лечения (для кастомного хила через HpBarService). */
+    /**
+     * 1.14.3 (3A): композиция КАСТОМНОГО лечения (кит-хилы через HpBarService.heal).
+     * Исходящая сторона: heal_out_pct (узлы discipline/holy/arms) × роль HEALER.
+     * Входящая сторона: heal_received_pct (узлы guard) + роль TANK.
+     * Порядок мультипликативный; все слагаемые — проценты агрегата /100.
+     */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onCustomHeal(CustomHealEvent event) {
-        if (event.getHealer() == null || event.getAmount() <= 0.0) return;
-        
-        if (roleOf(event.getHealer().getUniqueId()) == SpecRole.HEALER) {
-            double mult = 1.0 + cfgD("spec2.role-passives.HEALER.heal-outgoing", 0.05);
+        if (event.isCancelled() || event.getAmount() <= 0.0) {
+            return;
+        }
+        double mult = 1.0;
+
+        // Исходящие модификаторы целителя.
+        Player healer = event.getHealer();
+        if (healer != null) {
+            UUID hid = healer.getUniqueId();
+            mult *= 1.0 + plugin.getSpec2Service().healOutPercent(hid) / 100.0;
+            if (roleOf(hid) == SpecRole.HEALER) {
+                mult *= 1.0 + cfgD("spec2.role-passives.HEALER.heal-mult", 0.05);
+            }
+        }
+
+        // Входящие модификаторы цели (только игроки-цели).
+        if (event.getTarget() instanceof Player target) {
+            UUID tid = target.getUniqueId();
+            double recv = 1.0;
+            if (roleOf(tid) == SpecRole.TANK) {
+                recv += cfgD("spec2.role-passives.TANK.heal-received", 0.05);
+            }
+            recv += plugin.getSpec2Service().healReceivedPercent(tid) / 100.0;
+            mult *= recv;
+        }
+
+        if (mult != 1.0) {
             event.setAmount(event.getAmount() * mult);
         }
     }
 
     private Player resolveAttacker(Entity damager) {
-        if (damager instanceof Player p) return p;
-        if (damager instanceof Projectile proj && proj.getShooter() instanceof Player p) return p;
+        if (damager instanceof Player p) {
+            return p;
+        }
+        if (damager instanceof Projectile proj && proj.getShooter() instanceof Player p) {
+            return p;
+        }
         return null;
     }
 }
