@@ -34,13 +34,18 @@ import java.util.concurrent.ConcurrentHashMap;
  *   ownedAcc/maxAcc, а в лямбду info.editMeta передаются ФИНАЛЬНЫЕ копии ownedInRow/
  *   maxInRow — иначе «local variables referenced from a lambda must be final or
  *   effectively final» (падение сборки #1216–#1218).
+ * 1.15.0 (Волна 1): добавлен переключатель спек (main + 2 secondary), ROW_LINE_SLOTS
+ *   расширен до 9 слотов для покрытия всех узлов ряда.
  */
 public final class TalentsTab implements BookTabView {
 
     private static final Map<UUID, Long> RESET_ARM = new ConcurrentHashMap<>();
     /** 1.14.0-fix (ряды): просматриваемый ряд per-player (1..6). */
     private static final Map<UUID, Integer> VIEW_ROW = new ConcurrentHashMap<>();
+    /** 1.15.0 (Волна 1): просматриваемая спека per-player (0=main, 1=secondary1, 2=secondary2). */
+    private static final Map<UUID, Integer> VIEW_SPEC = new ConcurrentHashMap<>();
     private static final int ROW_COUNT = 6;
+    private static final int SPEC_COUNT = 3; // main + 2 secondary
 
     @Override
     public ClassBook.Tab id() {
@@ -77,7 +82,17 @@ public final class TalentsTab implements BookTabView {
                             "во вкладке «Специализации» (уровень 15+)")));
             return;
         }
-        Spec2Tree tree = Spec2Registry.treeOf(main);
+
+        // 1.15.0 (Волна 1): переключатель спек (0=main, 1=secondary1, 2=secondary2)
+        int specIdx = VIEW_SPEC.getOrDefault(uuid, 0);
+        List<String> allSpecs = svc.classTreeIds(uuid);
+        if (specIdx >= allSpecs.size()) {
+            specIdx = 0;
+            VIEW_SPEC.put(uuid, specIdx);
+        }
+        String currentSpec = allSpecs.get(specIdx);
+
+        Spec2Tree tree = Spec2Registry.treeOf(currentSpec);
         if (tree == null) {
             ctx.inv().setItem(BookSlots.SLOT_TALENT_INFO, BookItems.infoItem(Material.BARRIER,
                     "Дерево пока не добавлено", List.of("Контент появится в батчах 1.14.4–1.14.7")));
@@ -87,7 +102,7 @@ public final class TalentsTab implements BookTabView {
         int available = svc.availablePoints(uuid);
         int earned = svc.earnedPoints(uuid);
         int spent = svc.spentGlobal(uuid);
-        Map<String, Integer> ranks = svc.storage().getRanks(uuid, main);
+        Map<String, Integer> ranks = svc.storage().getRanks(uuid, currentSpec);
         int inTree = tree.spentInTree(ranks);
         int row = clampRow(VIEW_ROW.getOrDefault(uuid, 1));
         VIEW_ROW.put(uuid, row);
@@ -110,7 +125,7 @@ public final class TalentsTab implements BookTabView {
 
         ItemStack info = new ItemStack(Material.EXPERIENCE_BOTTLE);
         info.editMeta(meta -> {
-            meta.displayName(Component.text("Дерево: " + main, NamedTextColor.GOLD));
+            meta.displayName(Component.text("Дерево: " + currentSpec, NamedTextColor.GOLD));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.empty());
             lore.add(Component.text("Ряд " + row + " из " + ROW_COUNT
@@ -143,6 +158,19 @@ public final class TalentsTab implements BookTabView {
         });
         ctx.inv().setItem(BookSlots.SLOT_TALENT_INFO, info);
 
+        // --- селектор спек ---
+        for (int i = 0; i < SPEC_COUNT; i++) {
+            int slot = BookSlots.SPEC_SLOTS[i];
+            if (i < allSpecs.size()) {
+                String spec = allSpecs.get(i);
+                boolean isMain = spec.equals(main);
+                boolean isCurrent = i == specIdx;
+                ctx.inv().setItem(slot, specSelectorItem(spec, isMain, isCurrent));
+            } else {
+                ctx.inv().setItem(slot, new ItemStack(Material.AIR));
+            }
+        }
+
         // --- навигация рядов ---
         ctx.inv().setItem(BookSlots.SLOT_ROW_PREV, navItem(Material.ARROW,
                 row > 1 ? "◀ Ряд " + (row - 1) : "◀", row > 1));
@@ -174,6 +202,31 @@ public final class TalentsTab implements BookTabView {
             meta.lore(lore);
         });
         ctx.inv().setItem(BookSlots.SLOT_TALENT_RESET, reset);
+    }
+
+    private ItemStack specSelectorItem(String spec, boolean isMain, boolean isCurrent) {
+        ItemStack item = new ItemStack(isMain ? Material.BEACON : Material.NETHER_STAR);
+        item.editMeta(meta -> {
+            NamedTextColor color = isCurrent ? NamedTextColor.GREEN : NamedTextColor.GRAY;
+            String prefix = isMain ? "★ " : "";
+            String suffix = isCurrent ? " (текущая)" : "";
+            meta.displayName(Component.text(prefix + spec + suffix, color));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text(isMain ? "Основная спека" : "Вторичная спека",
+                    isMain ? NamedTextColor.GOLD : NamedTextColor.GRAY));
+            lore.add(Component.empty());
+            if (isCurrent) {
+                lore.add(Component.text("✔ Выбрана", NamedTextColor.GREEN));
+            } else {
+                lore.add(Component.text("ЛКМ — выбрать", NamedTextColor.YELLOW));
+            }
+            meta.lore(lore);
+            if (isCurrent) {
+                meta.addEnchant(Enchantment.LURE, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
+        });
+        return item;
     }
 
     /** Компактная строка прогресса рядов: 1✔ 2✔ 3🔒 4· 5· 6★ */
@@ -221,6 +274,20 @@ public final class TalentsTab implements BookTabView {
         Spec2Service svc = plugin.getSpec2Service();
         String main = svc.mainSpec(uuid);
 
+        // 1.15.0 (Волна 1): клик по селектору спек
+        if (left) {
+            int specIdx = BookSlots.indexOf(BookSlots.SPEC_SLOTS, slot);
+            if (specIdx >= 0) {
+                List<String> allSpecs = svc.classTreeIds(uuid);
+                if (specIdx < allSpecs.size()) {
+                    VIEW_SPEC.put(uuid, specIdx);
+                    VIEW_ROW.put(uuid, 1); // сброс на ряд 1
+                    ctx.refresh();
+                    return;
+                }
+            }
+        }
+
         // --- навигация рядов ---
         if (left && (slot == BookSlots.SLOT_ROW_PREV || slot == BookSlots.SLOT_ROW_NEXT)) {
             int cur = clampRow(VIEW_ROW.getOrDefault(uuid, 1));
@@ -267,11 +334,20 @@ public final class TalentsTab implements BookTabView {
         if (!left || main == null) {
             return;
         }
+
+        // 1.15.0 (Волна 1): используем currentSpec вместо main
+        int specIdx = VIEW_SPEC.getOrDefault(uuid, 0);
+        List<String> allSpecs = svc.classTreeIds(uuid);
+        if (specIdx >= allSpecs.size()) {
+            specIdx = 0;
+        }
+        String currentSpec = allSpecs.get(specIdx);
+
         int lineIdx = BookSlots.indexOf(BookSlots.ROW_LINE_SLOTS, slot);
         if (lineIdx < 0) {
             return;
         }
-        Spec2Tree tree = Spec2Registry.treeOf(main);
+        Spec2Tree tree = Spec2Registry.treeOf(currentSpec);
         if (tree == null) {
             return;
         }
@@ -281,8 +357,8 @@ public final class TalentsTab implements BookTabView {
             return;
         }
         Spec2Node node = nodes.get(lineIdx);
-        Spec2Service.PurchaseResult result = svc.purchase(player, main, node.id());
-        int newRank = svc.storage().getRanks(uuid, main).getOrDefault(node.id(), 0);
+        Spec2Service.PurchaseResult result = svc.purchase(player, currentSpec, node.id());
+        int newRank = svc.storage().getRanks(uuid, currentSpec).getOrDefault(node.id(), 0);
         player.sendMessage(Component.text(switch (result) {
             case OK -> "«" + node.name() + "» — ранг " + newRank + "/" + node.maxRank() + ".";
             case DISABLED -> "Деревья путей отключены.";
