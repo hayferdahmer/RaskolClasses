@@ -14,10 +14,13 @@ import java.util.UUID;
  * Пен/DoT/CC-бонусы модификаторами НЕ хранятся — их читают хот-путём
  * CCService/DotService/PenTraits(Б3) напрямую из агрегата Spec2Service.
  * Вызывается: reconcile (онлайн-игрок), join, после chooseMain/resetTree.
+ *
+ * 1.15.0 (Волна 1): добавлена обработка heal_out_pct для роли HEALER.
  */
 public final class Spec2EffectsApplier {
 
     public static final String SOURCE = "spec2";
+    public static final String SOURCE_HEAL = "spec2_heal";
 
     private final RaskolClasses plugin;
 
@@ -40,11 +43,17 @@ public final class Spec2EffectsApplier {
         if (agg.resPhys != 0.0 || agg.resMagic != 0.0) {
             plugin.getResists().addPermanentModifier(uuid, SOURCE, agg.resPhys, agg.resMagic);
         }
+        // 1.15.0 (Волна 1): heal_out_pct для роли HEALER
+        if (agg.healOutPct != 0.0) {
+            plugin.getAttributes().addPermanentModifier(
+                    uuid, SOURCE_HEAL, 0.0, 0.0, 0.0, agg.healOutPct);
+        }
     }
 
     /** Снять все модификаторы источника spec2 (quit, сброс, reconcile-пусто). */
     public void remove(UUID uuid) {
         plugin.getAttributes().removeModifiersBySource(uuid, SOURCE);
+        plugin.getAttributes().removeModifiersBySource(uuid, SOURCE_HEAL);
         plugin.getResists().removeModifiersBySource(uuid, SOURCE);
     }
 }
