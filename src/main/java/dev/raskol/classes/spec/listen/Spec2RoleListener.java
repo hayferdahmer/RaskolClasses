@@ -14,21 +14,20 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.metadata.MetadataValue;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
- * 1.14.0 «Спек 2.0» (Б2): роли-пассивки основной спеки (дизайн-док, раздел 6):
- *  - FIGHTER: +2% исходящего урона (spec2.role-passives.FIGHTER.damage-mult);
- *  - TANK:    +5% ccResist (читает CCService из Spec2Service.ccResistBonus)
- *             и +5% получаемого лечения;
- *  - HEALER:  +5% исходящего лечения.
- * Плюс восстановление spec2-модификаторов на join и снятие на quit
- * (ResistService/AttributeService чистят модификаторы на quit).
- * Proc-узлы деревьев (second_wind/trance/bleed_on_crit) — Батч 3.
+ * 1.14.0 «Спек 2.0» (Б2): роли-пассивки основной спеки.
+ * - FIGHTER: +2% исходящего урона;
+ * - TANK:    +5% ccResist и +5% получаемого лечения;
+ * - HEALER:  +5% исходящего лечения (требует Metadata от кастомного хила).
  */
 public final class Spec2RoleListener implements Listener {
 
+    private static final String HEALER_META_KEY = "raskol_healer_uuid";
     private final RaskolClasses plugin;
 
     public Spec2RoleListener(RaskolClasses plugin) {
@@ -47,50 +46,60 @@ public final class Spec2RoleListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
-        plugin.getSpec2Service().reconcile(uuid);
+        plugin.getSpec2Service().reconcile(event.getPlayer().getUniqueId());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        plugin.getSpec2Applier().remove(event.getPlayer().getUniqueId());
-        plugin.getSpec2Service().clear(event.getPlayer().getUniqueId());
+        UUID uuid = event.getPlayer().getUniqueId();
+        plugin.getSpec2Applier().remove(uuid);
+        plugin.getSpec2Service().clear(uuid);
     }
 
     /** FIGHTER: множитель исходящего урона. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageDealt(EntityDamageByEntityEvent event) {
         Player attacker = resolveAttacker(event.getDamager());
-        if (attacker == null || event.getDamage() <= 0.0) {
-            return;
+        if (attacker == null || event.getDamage() <= 0.0) return;
+        
+        if (roleOf(attacker.getUniqueId()) == SpecRole.FIGHTER) {
+            double mult = 1.0 + cfgD("spec2.role-passives.FIGHTER.damage-mult", 0.02);
+            event.setDamage(event.getDamage() * mult);
         }
-        if (roleOf(attacker.getUniqueId()) != SpecRole.FIGHTER) {
-            return;
-        }
-        double mult = 1.0 + cfgD("spec2.role-passives.FIGHTER.damage-mult", 0.02);
-        event.setDamage(event.getDamage() * mult);
     }
 
-    /** TANK: +5% получаемого лечения; HEALER: +5% исходящего лечения. */
+    /** TANK: получаемое лечение; HEALER: исходящее лечение. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRegain(EntityRegainHealthEvent event) {
-        if (event.isCancelled() || event.getAmount() <= 0.0) {
-            return;
-        }
-        if (event.getEntity() instanceof Player target
-                && roleOf(target.getUniqueId()) == SpecRole.TANK) {
+        if (event.isCancelled() || event.getAmount() <= 0.0) return;
+        if (!(event.getEntity() instanceof Player target)) return;
+
+        // 1. TANK: +5% получаемого лечения
+        if (roleOf(target.getUniqueId()) == SpecRole.TANK) {
             double mult = 1.0 + cfgD("spec2.role-passives.TANK.heal-received", 0.05);
             event.setAmount(event.getAmount() * mult);
+        }
+
+        // 2. HEALER: +5% исходящего лечения
+        // ВНИМАНИЕ: EntityRegainHealthEvent не имеет поля 'healer'. 
+        // Ваш плагин магии/зелий должен сетить Metadata на цель при кастомном хиле.
+        List<MetadataValue> meta = target.getMetadata(HEALER_META_KEY);
+        if (!meta.isEmpty()) {
+            try {
+                UUID healerUuid = UUID.fromString(meta.get(0).asString());
+                if (roleOf(healerUuid) == SpecRole.HEALER) {
+                    double mult = 1.0 + cfgD("spec2.role-passives.HEALER.heal-outgoing", 0.05);
+                    event.setAmount(event.getAmount() * mult);
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Игнорируем битый UUID в метадате
+            }
         }
     }
 
     private Player resolveAttacker(Entity damager) {
-        if (damager instanceof Player p) {
-            return p;
-        }
-        if (damager instanceof Projectile proj && proj.getShooter() instanceof Player p) {
-            return p;
-        }
+        if (damager instanceof Player p) return p;
+        if (damager instanceof Projectile proj && proj.getShooter() instanceof Player p) return p;
         return null;
     }
 }
