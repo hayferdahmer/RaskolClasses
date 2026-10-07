@@ -28,9 +28,7 @@ import java.util.UUID;
  * 1.14.0 (контент-долг 1): +9 древесных способностей Воина
  *         (whirlwind_slash/mortal_strike/bloodthirst/rampage/concussive_blow/
  *         shield_bash/taunt/bladestorm/last_stand) с гейтом hasUnlocked.
- * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + threshold/execute-mult читаются
- *         через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
- *         чтобы переносимые (fenrir_blood/ragnarok) пережили резку abilities.
+ * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
  */
 public final class WarriorAbilities {
 
@@ -51,7 +49,6 @@ public final class WarriorAbilities {
         return v != null ? v : def;
     }
 
-    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
     private double base(AbilityDef def, double defv) {
         return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
     }
@@ -234,7 +231,8 @@ public final class WarriorAbilities {
         }
         castFx(p, "fenrir_blood", "ENTITY_WOLF_AMBIENT", "CRIMSON_SPORE", 0.6f, 1.0f, 16);
         double amount = dmg(p, def, 15.0, 0.5);
-        plugin.getHpBarService().heal(p, amount);
+        // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
+        plugin.getHpBarService().heal(p, amount, p);
         Sound healSound = plugin.getFx().resolveSound(
                 cfgS("vfx.fenrir_blood.impact-sound", "ENTITY_PLAYER_LEVELUP"));
         Location loc = p.getLocation().add(0.0, 1.0, 0.0);
@@ -256,7 +254,6 @@ public final class WarriorAbilities {
             return false;
         }
         castFx(p, "ragnarok", "ENTITY_LIGHTNING_BOLT_THUNDER", "EXPLOSION", 0.9f, 0.7f, 8);
-        // 1.14.0 (Б11.1.2-A): threshold/execute-mult через фолбэк-хелпер
         double threshold = TreeAbilities.numberOrKit(plugin, PC, def.id(), "threshold", 0.25);
         double max = effectiveMaxHp(t);
         double frac = max > 0 ? t.getHealth() / max : 1.0;
@@ -354,7 +351,8 @@ public final class WarriorAbilities {
         double dealt = plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
         double heal = dealt * 0.15;
         if (heal > 0.0) {
-            plugin.getHpBarService().heal(p, heal);
+            // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
+            plugin.getHpBarService().heal(p, heal, p);
             p.getWorld().spawnParticle(Particle.HEART,
                     p.getLocation().add(0.0, 1.2, 0.0), 4, 0.2, 0.3, 0.2, 0.0);
         }
