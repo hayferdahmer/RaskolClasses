@@ -26,6 +26,12 @@ import java.util.UUID;
  * Базовый удар класса: ванильное оружие + WP × basic-coeff.
  *
  * 1.10.0: defaultWp/defaultSp/defaultHp покрывают WARLOCK (5/40/0 — канон конфига).
+ *
+ * 1.14.3 (Волна 3, 3B): instance-методы применяют процентные множители из
+ * spec2-агрегата: wpPct/spPct/hpowPct умножают базовую формулу на (1 + pct/100).
+ * Процентные узлы деревьев (arms_training, fury_bloodlust, dm_fel_pact и т.д.)
+ * теперь работают; без узлов множитель = 1.0 и поведение идентично pre-3B.
+ * Pure-формулы (*Formula) НЕ тронуты — headless-тесты selftest стабильны.
  */
 public final class PowerService {
 
@@ -104,7 +110,10 @@ public final class PowerService {
 
     /* ------------------------------ instance-методы ------------------------------ */
 
-    /** Сила оружия игрока: база класса + STR×1.5 + AGI×0.5 (коэффициенты конфиг). */
+    /**
+     * 1.14.3 (3B): базовая WP × (1 + wpPct/100). Процент читается из spec2-агрегата;
+     * при неинициализированном Spec2Service (крайне редко при startup) = 0.
+     */
     public double weaponPower(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
@@ -112,15 +121,16 @@ public final class PowerService {
             return 0.0;
         }
         AttributeService attrs = plugin.getAttributes();
-        return weaponPowerFormula(
+        double base = weaponPowerFormula(
                 baseOf("base-wp", pc, defaultWp(pc)),
                 attrs.value(uuid, AttributeType.STR),
                 attrs.value(uuid, AttributeType.AGI),
                 cfgD("attributes.power.str-to-wp", 1.5),
                 cfgD("attributes.power.agi-to-wp", 0.5));
+        return base * wpMultiplier(uuid);
     }
 
-    /** Сила заклинаний игрока: база класса + INT×1.5. */
+    /** 1.14.3 (3B): базовая SP × (1 + spPct/100). */
     public double spellPower(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
@@ -128,13 +138,14 @@ public final class PowerService {
             return 0.0;
         }
         AttributeService attrs = plugin.getAttributes();
-        return spellPowerFormula(
+        double base = spellPowerFormula(
                 baseOf("base-sp", pc, defaultSp(pc)),
                 attrs.value(uuid, AttributeType.INT),
                 cfgD("attributes.power.int-to-sp", 1.5));
+        return base * spMultiplier(uuid);
     }
 
-    /** Сила исцеления игрока: база класса + INT×1.4 (киты жреца 1.7.4). */
+    /** 1.14.3 (3B): базовая HPow × (1 + hpowPct/100). */
     public double healPower(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
@@ -142,10 +153,11 @@ public final class PowerService {
             return 0.0;
         }
         AttributeService attrs = plugin.getAttributes();
-        return healPowerFormula(
+        double base = healPowerFormula(
                 baseOf("base-hpow", pc, defaultHp(pc)),
                 attrs.value(uuid, AttributeType.INT),
                 cfgD("attributes.power.int-to-hpow", 1.4));
+        return base * hpowMultiplier(uuid);
     }
 
     /** Power по тегу способности: wp | sp | hpow (неизвестный тег → 0). */
@@ -173,5 +185,24 @@ public final class PowerService {
         double safeBase = Double.isFinite(base) && base >= 0 ? base : 0.0;
         double safeCoeff = Double.isFinite(coeff) ? coeff : 0.0;
         return safeBase + healPower(uuid) * safeCoeff;
+    }
+
+    /* ------------------------------ 1.14.3 (3B): множители из spec2 ------------------------------ */
+
+    private double wpMultiplier(UUID uuid) {
+        return 1.0 + safePct(plugin.getSpec2Service().wpPercent(uuid));
+    }
+
+    private double spMultiplier(UUID uuid) {
+        return 1.0 + safePct(plugin.getSpec2Service().spPercent(uuid));
+    }
+
+    private double hpowMultiplier(UUID uuid) {
+        return 1.0 + safePct(plugin.getSpec2Service().hpowPercent(uuid));
+    }
+
+    /** Защитный кламп процента: только конечные неотрицательные значения, иначе 0. */
+    private static double safePct(double v) {
+        return Double.isFinite(v) && v >= 0 ? v / 100.0 : 0.0;
     }
 }
