@@ -3,11 +3,12 @@ package dev.raskol.classes.resource;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.ability.passive.PassiveListener;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.ability.passive.PassiveListener;
 import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.storage.SafeStorage;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
@@ -31,10 +32,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 /**
- * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), 0–100.
+ * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), по умолчанию 0–100.
  * 1.9.3.2: знаковый tickDelta. 1.10.x: Скверна событийная. 1.11.1: декэй Демонологии.
  * 1.14.0 (Б7): legacy-слой отключён — regen-бонусы только из Spec2Service.regenBonus
  *         (узлы regen деревьев + роли); ARCANE-прибавка маны теперь рангами дерева arcane.
+ * 1.14.3 (Волна 3, 3B): хот-путь ресурса — stateOf применяет расширяемый потолок
+ *         (100 + resourceMaxBonus из spec2); положительный rate регенерации в tick
+ *         умножается на (1 + resourceRegenPercent/100). Отрицательный rate (декэй
+ *         Скверны WARLOCK) НЕ умножается — узлы regen должны ускорять наполнение,
+ *         а не замедлять опустошение. Базовая MAX_VALUE=100 сохранена для selftest.
  */
 public final class ResourceService implements Listener {
 
@@ -60,8 +66,20 @@ public final class ResourceService implements Listener {
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
 
+    /**
+     * 1.14.3 (3B): состояние ресурса с актуальным потолком из spec2-агрегата.
+     * ceiling = 100 + resourceMaxBonus (узлы resource_max, например fury_rage_pool).
+     */
     public ResourceState stateOf(UUID uuid) {
-        return states.computeIfAbsent(uuid, k -> new ResourceState());
+        ResourceState st = states.computeIfAbsent(uuid, k -> new ResourceState());
+        Spec2Service svc = plugin.getSpec2Service();
+        if (svc != null) {
+            double maxBonus = svc.resourceMaxBonus(uuid);
+            if (Double.isFinite(maxBonus) && maxBonus > 0.0) {
+                st.setCeiling(MAX_VALUE + maxBonus);
+            }
+        }
+        return st;
     }
 
     public double getValue(UUID uuid) {
@@ -94,9 +112,11 @@ public final class ResourceService implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         String key = uuid.toString();
+        // stateOf обновит ceiling из spec2 ДО setValue, чтобы кламп был по новому потолку
+        ResourceState st = stateOf(uuid);
         if (store.isSet(key)) {
-            double v = Math.max(0.0, Math.min(MAX_VALUE, store.getDouble(key, 0.0)));
-            stateOf(uuid).setValue(v);
+            double v = Math.max(0.0, store.getDouble(key, 0.0));
+            st.setValue(v);
         }
     }
 
@@ -113,10 +133,11 @@ public final class ResourceService implements Listener {
     }
 
     private Spec spec2Spec(UUID uuid) {
-        if (plugin.getSpec2Service() == null) {
+        Spec2Service svc = plugin.getSpec2Service();
+        if (svc == null) {
             return null;
         }
-        String main = plugin.getSpec2Service().mainSpec(uuid);
+        String main = svc.mainSpec(uuid);
         return main == null ? null : Spec.fromId(main);
     }
 
@@ -125,6 +146,7 @@ public final class ResourceService implements Listener {
         if (tickCounter % DEBUFF_PURGE_TICKS == 0) {
             WarlockAbilities.purgeStaleDebuffs();
         }
+        Spec2Service svc = plugin.getSpec2Service();
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
             PlayerClass pc = classProvider.getClassOf(player);
@@ -164,8 +186,17 @@ public final class ResourceService implements Listener {
                 default -> rate = config.resourceRegen(pc); // PRIEST, ROGUE
             }
             // 1.14.0 (Б7): regen-бонусы только из spec2-агрегата (узлы regen)
-            if (plugin.getSpec2Service() != null) {
-                rate += plugin.getSpec2Service().regenBonus(uuid);
+            if (svc != null) {
+                rate += svc.regenBonus(uuid);
+            }
+            // 1.14.3 (3B): множитель положительного rate из spec2 (узлы resource_regen_pct).
+            // Применяется ТОЛЬКО к rate > 0 — декэй WARLOCK не усиливается,
+            // иначе узлы регенерации замедляли бы опустошение Скверны, ломая баланс.
+            if (rate > 0.0 && svc != null) {
+                double regenPct = svc.resourceRegenPercent(uuid);
+                if (Double.isFinite(regenPct) && regenPct > 0.0) {
+                    rate *= (1.0 + regenPct / 100.0);
+                }
             }
 
             if (pc == PlayerClass.WARLOCK) {
