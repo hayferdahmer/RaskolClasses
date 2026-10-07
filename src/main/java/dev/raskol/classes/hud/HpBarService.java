@@ -8,6 +8,7 @@ import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.event.CustomHealEvent;
 import dev.raskol.classes.storage.SafeStorage;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
@@ -25,6 +26,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.scheduler.BukkitTask;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.util.Locale;
@@ -33,6 +35,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
+/**
+ * 1.9.3-r: математика единиц HP живёт в AttributeService; здесь HUD, реген, персист.
+ * 1.10.0: healFormula уважает анти-хил «Раскола Души» (WarlockAbilities.isAntihealed).
+ * 1.14.1 (Волна 1): добавлен метод heal(target, amount, healer) с вызовом CustomHealEvent.
+ */
 public final class HpBarService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
@@ -46,7 +53,6 @@ public final class HpBarService implements Listener {
     private final YamlConfiguration healthStore;
     
     private final Map<UUID, State> lastTick = new ConcurrentHashMap<>();
-    // Кэш дельты атрибутов для предотвращения сетевого спама модификаторами
     private final Map<UUID, Double> lastAppliedDelta = new ConcurrentHashMap<>();
 
     public HpBarService(RaskolClasses plugin) {
@@ -63,12 +69,33 @@ public final class HpBarService implements Listener {
     public double scale(Player player) { return attrs().scale(player); }
     public double currentFormulaHp(Player player) { return attrs().currentFormulaHp(player); }
 
-    public void heal(LivingEntity target, double formulaAmount) {
-        if (target instanceof Player p && WarlockAbilities.isAntihealed(p.getUniqueId())) return;
-        attrs().healFormula(target, formulaAmount);
+    /**
+     * 1.14.1 (Волна 1): хил с атрибуцией целителя.
+     * Вызывает CustomHealEvent, который можно отменить или модифицировать.
+     * @param target Цель лечения
+     * @param formulaAmount Количество лечения (формульные единицы HP)
+     * @param healer Целитель (null для системного хила)
+     */
+    public void heal(LivingEntity target, double formulaAmount, @Nullable Player healer) {
+        if (target instanceof Player p && WarlockAbilities.isAntihealed(p.getUniqueId())) {
+            return;
+        }
+        
+        CustomHealEvent event = new CustomHealEvent(healer, target, formulaAmount);
+        plugin.getServer().getPluginManager().callEvent(event);
+        
+        if (event.isCancelled() || event.getAmount() <= 0.0) {
+            return;
+        }
+        
+        attrs().healFormula(target, event.getAmount());
     }
 
-    // --- Конфигурация ---
+    /** Хил без атрибуции целителя (для совместимости). */
+    public void heal(LivingEntity target, double formulaAmount) {
+        heal(target, formulaAmount, null);
+    }
+
     private String mode() { return plugin.getConfig().getString("hp-display.mode", "actionbar").toLowerCase(Locale.ROOT); }
     private double heartsScale() {
         double v = plugin.getConfig().getDouble("hp-display.hearts-scale", 20.0);
@@ -95,7 +122,7 @@ public final class HpBarService implements Listener {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, period(), period());
     }
 
-    // Вызывать из onDisable главного класса плагина!
+    /** Вызывать из onDisable главного класса плагина. */
     public void saveAll() {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             saveHealth(player);
@@ -135,7 +162,6 @@ public final class HpBarService implements Listener {
         double othersValue = instance.getValue() - ourAmount;
         double delta = target - othersValue;
 
-        // Оптимизация: трогаем AttributeInstance только если дельта реально изменилась
         Double cachedDelta = lastAppliedDelta.get(player.getUniqueId());
         boolean needsUpdate = ours == null || cachedDelta == null || Math.abs(cachedDelta - delta) > 0.01;
 
@@ -160,7 +186,6 @@ public final class HpBarService implements Listener {
         
         double ratio = Math.max(0.0, Math.min(1.0, attrs().currentFormulaHp(player) / formula));
         healthStore.set(player.getUniqueId().toString(), ratio);
-        // SafeStorage должен обрабатывать асинхронную запись или batch-сейв, чтобы не фризить主 поток
         SafeStorage.saveAtomic(healthStore, healthFile, LOGGER);
     }
 
