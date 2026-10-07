@@ -67,6 +67,7 @@ import java.util.List;
  * 1.14.0 (Б8.2): legacy-слой (talent/*, spec/Spec*, specs.yml) УДАЛЁН;
  *         единственная система спеков/талантов — spec2.
  * 1.14.0 (контент-долг 1): TreeAbilities.registerCasters — древесные способности Воина.
+ * 1.14.1 (Волна 1): hpBarService.saveAll() в onDisable для предотвращения потери HP при краше.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -331,7 +332,7 @@ public final class RaskolClasses extends JavaPlugin {
             "&8  ██╔════╝██║    ██╔══██╗██╔════╝██╔════╝██╔════╝██╔════╝",
             "&4  ██║     ██║    ███████║███████╗███████╗█████╗  ███████╗",
             "&4  ██║     ██║    ██╔══██║╚════██║╚════██║██╔══╝  ╚════██║",
-            "&5  ╚██████╗███████╗██║  ██║███████║███████║███████╗███████║",
+            "&5  ╚██████╗███████╗██║  ██║███████║███████║███████│███████║",
             "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝╚══════╝",
             "&8  ────────────────────────────────────────────────────",
             "&7     RASKOL &8· &7CLASSES    &8|    &5пять путей &8· &4одна война",
@@ -383,6 +384,10 @@ public final class RaskolClasses extends JavaPlugin {
         }
         if (resources != null) {
             resources.saveAll();
+        }
+        // 1.14.1 (Волна 1): сохранение здоровья перед выгрузкой
+        if (hpBarService != null) {
+            hpBarService.saveAll();
         }
         if (spec2Storage != null) {
             spec2Storage.save();
