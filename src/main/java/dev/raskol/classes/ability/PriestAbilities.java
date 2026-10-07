@@ -43,6 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   threshold/execute-mult(wrath_heaven) читаются через TreeAbilities.*OrKit
  *   (treeAbilities → abilities → код-дефолт), чтобы переносимые
  *   (circle_elysium/wrath_heaven) пережили резку abilities.
+ * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
  */
 public final class PriestAbilities {
 
@@ -240,6 +241,7 @@ public final class PriestAbilities {
     /**
      * 1.9.3 (план B) + 1.12.5 (очищение) + 1.14.0 (роль HEALER, LAST_HEAL).
      * treePath=true читает base/coeff из classes.PRIEST.treeAbilities.*.
+     * 1.14.1 (Волна 1): heal() передаёт caster для CustomHealEvent.
      */
     private boolean applyHealWith(Player caster, Player target, AbilityDef def,
                                   double defBase, double defCoeff, boolean treePath) {
@@ -265,7 +267,8 @@ public final class PriestAbilities {
             amount *= 1.0 + cfgD("spec2.role-passives.HEALER.heal-mult", 0.05);
         }
         PassiveListener.markHealer(caster.getUniqueId());
-        plugin.getHpBarService().heal(target, amount);
+        // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
+        plugin.getHpBarService().heal(target, amount, caster);
         LAST_HEAL.put(caster.getUniqueId(), amount);
 
         UUID targetUuid = target.getUniqueId();
@@ -307,7 +310,8 @@ public final class PriestAbilities {
             if (missing <= 0.0) {
                 continue;
             }
-            plugin.getHpBarService().heal(t, Math.min(amount, missing));
+            // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
+            plugin.getHpBarService().heal(t, Math.min(amount, missing), caster);
             t.getWorld().spawnParticle(Particle.HEART,
                     t.getLocation().add(0.0, 1.2, 0.0), 2, 0.2, 0.3, 0.2, 0.0);
             healed++;
