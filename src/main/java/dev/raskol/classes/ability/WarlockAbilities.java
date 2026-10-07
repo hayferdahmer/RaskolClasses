@@ -52,6 +52,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   (unwriting/soul_rift) пережили резку abilities. self-cost-pct/corruption-gain/
  *   amplify/duration(ruin_seal) у slots 1–3 НЕ тронуты (не переносимые);
  *   spec*()-хелперы читают classes.WARLOCK.specs.* — не трогаем (это спека, не slot).
+ * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
  */
 public final class WarlockAbilities implements Listener {
 
@@ -382,7 +383,8 @@ public final class WarlockAbilities implements Listener {
         }
         double heal = WarlockMath.drainHeal(totalDealt, drain(def, 0.666),
                 plugin.getRaskolConfig().warlockLifestealCap());
-        plugin.getHpBarService().heal(caster, heal);
+        // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
+        plugin.getHpBarService().heal(caster, heal, caster);
         plugin.getResources().add(caster.getUniqueId(),
                 cfgD("classes.WARLOCK.abilities." + def.id() + ".corruption-gain", 12.0));
         plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_ROAR, 0.8f, 1.2f);
@@ -555,7 +557,8 @@ public final class WarlockAbilities implements Listener {
         double dmg = tspellDamage(caster, def, 10.0, 0.8);
         double dealt = plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
         if (dealt > 0.0) {
-            plugin.getHpBarService().heal(caster, dealt * 0.5);
+            // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
+            plugin.getHpBarService().heal(caster, dealt * 0.5, caster);
         }
         if (t instanceof Player tp) {
             plugin.getResources().stateOf(tp.getUniqueId()).tickDelta(-10.0);
