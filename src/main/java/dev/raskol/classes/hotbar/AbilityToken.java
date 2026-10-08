@@ -3,6 +3,7 @@ package dev.raskol.classes.hotbar;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
+import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.classsystem.PlayerClass;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -17,10 +18,15 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Свиток способности в хотбаре (1.5.x → 1.9.0-fix3).
+ * Свиток способности в хотбаре (1.5.x → 1.9.0-fix3 → 1.14.4-fix).
  * 1.9.0-fix3: лора свитка теперь честная и полная: описание способности,
  * формула урона/хила с числами (base + coeff% от Силы), строка силы класса,
  * цена/КД/слот и подсказка ПКМ. Игрок видит, ЧТО именно он кастует.
+ *
+ * 1.14.4-fix: описание и формула читаются через TreeAbilities.*OrKit с фолбэком
+ * treeAbilities → abilities → def. Раньше читались только из abilities.*,
+ * поэтому у древесных способностей (slot 6+) и переносимых (slots 4–5, секции
+ * удалены в Б11.1.2-B2) лора была пустой.
  */
 public final class AbilityToken {
 
@@ -44,17 +50,33 @@ public final class AbilityToken {
         meta.displayName(Component.text("«" + def.displayName() + "»", NamedTextColor.LIGHT_PURPLE));
 
         List<Component> lore = new ArrayList<>();
-        String desc = plugin.getRaskolConfig().abilityDescription(pc, def.id(), "");
+        
+        // 1.14.4-fix: фолбэк treeAbilities → abilities → def
+        String desc = TreeAbilities.descriptionOf(plugin, pc, def.id());
         if (!desc.isEmpty()) {
             lore.add(Component.text(desc, NamedTextColor.WHITE));
         }
-        // формула урона/хила с числами
-        String power = plugin.getConfig().getString(
-                "classes." + pc.name() + ".abilities." + def.id() + ".power", "");
-        double base = plugin.getConfig().getDouble(
-                "classes." + pc.name() + ".abilities." + def.id() + ".base", 0.0);
-        double coeff = plugin.getConfig().getDouble(
-                "classes." + pc.name() + ".abilities." + def.id() + ".coeff", 0.0);
+        
+        // школа способности
+        if (def.school() != null) {
+            String schoolName = switch (def.school()) {
+                case PHYSICAL -> "физический";
+                case FIRE -> "огонь";
+                case FROST -> "лёд";
+                case NATURE -> "природа";
+                case SHADOW -> "тьма";
+                case HOLY -> "свет";
+                case ARCANE -> "тайная магия";
+                case TRUE -> "чистый";
+            };
+            lore.add(Component.text("Школа: " + schoolName, NamedTextColor.GOLD));
+        }
+        
+        // формула урона/хила с числами (1.14.4-fix: через TreeAbilities.numberOrKit)
+        String power = TreeAbilities.stringOrKit(plugin, pc, def.id(), "power", "");
+        double base = TreeAbilities.numberOrKit(plugin, pc, def.id(), "base", 0.0);
+        double coeff = TreeAbilities.numberOrKit(plugin, pc, def.id(), "coeff", 0.0);
+        
         if (coeff > 0.0) {
             String powerName = switch (power) {
                 case "wp" -> "Силы оружия";
@@ -71,8 +93,9 @@ public final class AbilityToken {
             };
             lore.add(Component.text(powerFormula, NamedTextColor.DARK_AQUA));
         }
-        lore.add(Component.text("Цена: " + def.cost() + " · КД: "
-                + (def.cooldownMillis() / 1000L) + " с · Слот: " + def.slot(),
+        
+        lore.add(Component.text("Цена: " + def.cost() + " " + pc.getResourceName() 
+                + " · КД: " + (def.cooldownMillis() / 1000L) + " с · Слот: " + def.slot(),
                 NamedTextColor.GRAY));
         lore.add(Component.text("ПКМ — свиток в хотбар", NamedTextColor.YELLOW));
 
