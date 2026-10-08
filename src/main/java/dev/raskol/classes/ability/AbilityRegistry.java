@@ -36,17 +36,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.0 (контент-долг 1): registerTreeCaster — кастеры древесных способностей
  *         (slot 6+); integrityProblems не считает их сиротами.
  * 1.14.0 (Б11.1.1): аддитивный слой ПЕРЕНОСИМЫХ китовых (slots 4–5 → деревья путей).
- *         DEFAULTS НЕ урезан (переходный период): переносимые ещё обычные китовые
- *         slot 4–5, каст/GUI/баланс не тронуты. Добавлены read-only хелперы
- *         isTransferable/transferableSlot/transferableIdsFor/getBySlotOrTree и
- *         прощение сиротства для переносимых в integrityProblems (включится в 11.1.3).
- * 1.14.0 (Б11.1.2-B2): readSchool() для переносимых сначала пробует treeAbilities.<id>.school,
- *         затем abilities.<id>.school, затем DEFAULT_SCHOOLS.
+ * 1.14.0 (Б11.1.2-B2): readSchool() для переносимых сначала пробует treeAbilities.<id>.school.
  * 1.14.0 (Б11.1.3-A): гейт hasUnlocked для переносимых slots 4–5 в castOn.
  * 1.14.2 (Волна 2): ЦЕНТРАЛИЗОВАННЫЙ гейт древесных способностей в castOn —
- *         любой id из treeCasterIds требует Spec2Service.hasUnlocked, даже если
- *         метод кита забыл вызвать treeUnlocked(). Добавлены hasCaster(id) и
- *         treeCasterIds() для selftest-чека 99 (двунаправленное покрытие unlock↔кастер).
+ *         любой id из treeCasterIds требует Spec2Service.hasUnlocked.
+ * 1.14.4-fix (хотфикс): слой treeDefs — AbilityDef'ы древесных способностей
+ *         (из TreeAbilities.defsFor, секции classes.<CLASS>.treeAbilities) доступны
+ *         через findById/getById. Раньше дерево жило ТОЛЬКО в кастерах, поэтому
+ *         свитки/бинды хотбара (AbilityToken хранит id) падали в
+ *         «Способность не найдена: immolate/chaos_bolt/…». getAbilities(pc)
+ *         остаётся китовым (slots 1–5) — schoolCoverage/чеки переносимых не двигаются.
  */
 public final class AbilityRegistry {
 
@@ -143,10 +142,6 @@ public final class AbilityRegistry {
 
     /**
      * 1.14.0 (Б11.1.1): read-only индекс переносимых id → legacy-slot (4/5).
-     * Строится из TransferableAbilities (тот же пакет, импорт не нужен). В переходный
-     * период DEFAULTS ещё содержит slots 4–5, поэтому индекс согласован с ним
-     * (валидируется чеком 95). В 11.1.3 DEFAULTS урезается, индекс остаётся мостом
-     * для резолва slot 4–5 через деревья.
      */
     private static final Map<String, Integer> TRANSFERABLE_SLOT = buildTransferableSlot();
 
@@ -160,6 +155,8 @@ public final class AbilityRegistry {
 
     private final RaskolClasses plugin;
     private final Map<PlayerClass, List<AbilityDef>> byClass = new EnumMap<>(PlayerClass.class);
+    /** 1.14.4-fix: def'ы древесных способностей (slot 6+) по классам. */
+    private final Map<PlayerClass, Map<String, AbilityDef>> treeDefs = new EnumMap<>(PlayerClass.class);
     private final Map<String, Caster> casters = new HashMap<>();
     private final Map<String, TargetedCaster> targetedCasters = new HashMap<>();
     /** 1.14.0 (контент-долг 1): id древесных кастеров (не считаются сиротами). */
@@ -250,20 +247,13 @@ public final class AbilityRegistry {
     }
 
     /**
-     * 1.14.0 (Б11.1.1): резолв слота с учётом переносимых.
-     * ПЕРЕХОДНЫЙ ПЕРИОД (DEFAULTS не урезан): идентичен getBySlot — переносимые
-     * slots 4–5 ещё живут в DEFAULTS, поэтому метод возвращает тот же китовый def.
-     * uuid пока не используется (зарезервирован для 11.1.3).
-     * В 11.1.3, после резки DEFAULTS, slot 4–5 переносимых будет резолвиться через
-     * TreeAbilities/Spec2Service.hasUnlocked, а getBySlot по этим слотам вернёт null.
+     * 1.14.0 (Б11.1.1): резолв слота с учётом переносимых (переходный период).
      */
     public AbilityDef getBySlotOrTree(PlayerClass pc, int slot, UUID uuid) {
         AbilityDef kit = getBySlot(pc, slot);
         if (kit != null) {
             return kit;
         }
-        // 11.1.3: здесь появится резолв переносимых slots 4–5 через деревья путей.
-        // Пока (11.1.1–11.1.2) — null, поведение китовых слотов не меняется.
         return null;
     }
 
@@ -298,6 +288,16 @@ public final class AbilityRegistry {
                     .toList();
             byClass.put(pc, defs);
         }
+        // 1.14.4-fix: древесные def'ы (slot 6+) из секций classes.<CLASS>.treeAbilities.
+        // Пересобираются на каждом loadFromConfig (старт и /rc reload).
+        treeDefs.clear();
+        for (PlayerClass pc : PlayerClass.values()) {
+            Map<String, AbilityDef> m = new HashMap<>();
+            for (AbilityDef def : TreeAbilities.defsFor(plugin, pc)) {
+                m.put(def.id(), def);
+            }
+            treeDefs.put(pc, m);
+        }
     }
 
     /** 1.12.3: школа из конфига (override) либо из DEFAULT_SCHOOLS. */
@@ -321,6 +321,7 @@ public final class AbilityRegistry {
         return def != null ? def : School.ARCANE;
     }
 
+    /** Китовые способности класса (slots 1–5). Древесные сюда НЕ входят (чеки 64/95). */
     public List<AbilityDef> getAbilities(PlayerClass pc) {
         return byClass.getOrDefault(pc, List.of());
     }
@@ -334,6 +335,10 @@ public final class AbilityRegistry {
         return null;
     }
 
+    /**
+     * 1.14.4-fix: резолв по id = китовые slots 1–5, затем древесные (treeDefs).
+     * Именно этим путём идут свитки/бинды хотбара (AbilityToken хранит только id).
+     */
     public AbilityDef findById(PlayerClass pc, String id) {
         if (id == null) {
             return null;
@@ -343,11 +348,21 @@ public final class AbilityRegistry {
                 return def;
             }
         }
-        return null;
+        Map<String, AbilityDef> t = treeDefs.get(pc);
+        return t == null ? null : t.get(id);
     }
 
     public AbilityDef getById(PlayerClass pc, String id) {
         return findById(pc, id);
+    }
+
+    /** 1.14.4-fix: прямой доступ к древесному def'у (null если нет в конфиге класса). */
+    public AbilityDef findTreeById(PlayerClass pc, String id) {
+        if (id == null) {
+            return null;
+        }
+        Map<String, AbilityDef> t = treeDefs.get(pc);
+        return t == null ? null : t.get(id);
     }
 
     public boolean exists(String id) {
@@ -382,15 +397,11 @@ public final class AbilityRegistry {
             if (!casters.containsKey(id)) {
                 problems.add("targeted-кастер " + id + " без self-кастера");
             }
-            // 1.14.0 (Б11.1.1): переносимые легальны вне DEFAULTS (включится в 11.1.3;
-            // сегодня no-op, т.к. переносимые ещё в knownIds).
             if (!knownIds.contains(id) && !isTransferable(id)) {
                 problems.add("targeted-кастер " + id + " — сирота (нет в DEFAULTS)");
             }
         }
         for (String id : casters.keySet()) {
-            // 1.14.0: древесные кастеры легальны вне DEFAULTS
-            // 1.14.0 (Б11.1.1): переносимые китовые — тоже легальны (включится в 11.1.3).
             if (!knownIds.contains(id) && !treeCasterIds.contains(id) && !isTransferable(id)) {
                 problems.add("кастер " + id + " — сирота (нет в DEFAULTS)");
             }
@@ -406,7 +417,7 @@ public final class AbilityRegistry {
         return problems;
     }
 
-    /** 1.12.3: для selftest-чека 64 — все ли 30 способностей имеют школу. */
+    /** 1.12.3: для selftest-чека 64 — все ли 30 китовых способностей имеют школу. */
     public int schoolCoverage() {
         int count = 0;
         for (PlayerClass pc : PlayerClass.values()) {
