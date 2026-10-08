@@ -2,10 +2,10 @@
 <!--
   © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
   RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
-  1.14.4: версия поднята с 1.14.0 (волны 1–4: GUI/HEALER, unlock-гейты,
-  proc-ядро, респец узла, конфиг-точки spec2, spec2-storage.yml).
-  ЕСЛИ в твоём реальном pom есть дополнительные <dependencies>/<plugins> —
-  сохрани их; обязательное изменение релиза — только <version>.
+  1.14.4: закрытие аудита П1–П10 (волны 1–4).
+  FIX красного рана #1314+: восстановлена compile-зависимость LuckPerms API
+  (net.luckperms:api) — её используют FoliantService и LuckPermsBackend.
+  Репозиторий LuckPerms добавлен страховочно: артефакт резолвится и с Central.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -24,6 +24,8 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
+        <luckperms.version>5.4</luckperms.version>
+        <placeholderapi.version>2.11.6</placeholderapi.version>
     </properties>
 
     <repositories>
@@ -35,6 +37,11 @@
             <id>placeholderapi</id>
             <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
         </repository>
+        <!-- Страховка для net.luckperms:api (резолвится и с Central) -->
+        <repository>
+            <id>luck</id>
+            <url>https://repo.lucko.me/</url>
+        </repository>
     </repositories>
 
     <dependencies>
@@ -44,10 +51,17 @@
             <version>${paper.version}</version>
             <scope>provided</scope>
         </dependency>
+        <!-- 1.14.4 FIX: compile-зависимость LuckPerms API (FoliantService, LuckPermsBackend) -->
+        <dependency>
+            <groupId>net.luckperms</groupId>
+            <artifactId>api</artifactId>
+            <version>${luckperms.version}</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>me.clip</groupId>
             <artifactId>placeholderapi</artifactId>
-            <version>2.11.6</version>
+            <version>${placeholderapi.version}</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
