@@ -1119,17 +1119,17 @@ public final class SelftestRunner {
         } else {
             UUID u82 = probe.getUniqueId();
             cc.removeAll(u82);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean applied1 = applyUntilOk(cc, probe, CCType.ROOT, 100);
             boolean hasBefore = cc.has(u82, CCType.ROOT);
             cc.breakOnDamage(probe, 60.0, 1000.0);
             boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
             cc.breakOnDamage(probe, 30.0, 1000.0);
             boolean hasAfterLow = cc.has(u82, CCType.ROOT);
             cc.removeAll(u82);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
             if (check(report, "82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
                     ok82, "CCService.breakOnDamage",
@@ -1149,13 +1149,13 @@ public final class SelftestRunner {
         } else {
             UUID u83 = probe.getUniqueId();
             cc.removeAll(u83);
-            cc.resetAllDr(u83);
+            cc.resetAllDR(u83);
             boolean applied = applyUntilOk(cc, probe, CCType.STUN, 100);
             boolean hasBefore = cc.has(u83, CCType.STUN);
             cc.breakOnDamage(probe, 60.0, 1000.0);
             boolean hasAfter = cc.has(u83, CCType.STUN);
             cc.removeAll(u83);
-            cc.resetAllDr(u83);
+            cc.resetAllDR(u83);
             boolean ok83 = applied && hasBefore && hasAfter;
             if (check(report, "83", "STUN не снимается уроном ≥ порога",
                     ok83, "CCService.breakOnDamage",
@@ -1176,17 +1176,17 @@ public final class SelftestRunner {
             UUID u84 = probe.getUniqueId();
             dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             boolean canNormal = cg.canCast(probe, false);
             applyUntilOk(cc, probe, CCType.STUN, 100);
             boolean canStun = cg.canCast(probe, false);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             applyUntilOk(cc, probe, CCType.SILENCE, 100);
             boolean canSilenceNormal = cg.canCast(probe, false);
             boolean canSilenceInstant = cg.canCast(probe, true);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
             if (check(report, "84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
                     ok84, "CastGuard.canCast",
@@ -1282,12 +1282,12 @@ public final class SelftestRunner {
         } else {
             UUID u90 = probe.getUniqueId();
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean applied90 = applyUntilOk(cc, probe, CCType.STUN, 60);
             boolean activeVisible = !cc.activeOf(u90).isEmpty();
             boolean drVisible = cc.drState(u90, DRCategory.STUN).stackCount() >= 1;
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean cleared90 = cc.activeOf(u90).isEmpty()
                     && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
             boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
@@ -1635,21 +1635,21 @@ public final class SelftestRunner {
             plugin.getSpec2Service().storage().setRanks(pu101, "holy", Map.of("ho_divine_grace", 2));
             plugin.getSpec2Service().reconcile(pu101);
             double wp1 = plugin.getSpec2Service().wpPercent(pu101);
-            double sp1 = plugin.getSpec2Service().spPercent(pu101);
+            double spPctAfter = plugin.getSpec2Service().spPercent(pu101);
             double hp1 = plugin.getSpec2Service().hpowPercent(pu101);
             double w1 = plugin.getCombat().powers().weaponPower(pu101);
-            double s1 = plugin.getSpec2Service() != null ? plugin.getCombat().powers().spellPower(pu101) : 0.0;
+            double s1 = plugin.getCombat().powers().spellPower(pu101);
             double h1 = plugin.getCombat().powers().healPower(pu101);
             boolean deltaOk = Math.abs((wp1 - wp0) - 6.0) < 1e-9
-                    && Math.abs((sp1 - sp0) - 4.0) < 1e-9
+                    && Math.abs((spPctAfter - sp0) - 4.0) < 1e-9
                     && Math.abs((hp1 - hp0) - 6.0) < 1e-9;
             boolean ratioOk = w0 > 0 && s0 > 0 && h0 > 0
                     && Math.abs(w1 - w0 * (100 + wp1) / (100 + wp0)) < 1e-6
-                    && Math.abs(s1 - s0 * (100 + sp1) / (100 + sp0)) < 1e-6
+                    && Math.abs(s1 - s0 * (100 + spPctAfter) / (100 + sp0)) < 1e-6
                     && Math.abs(h1 - h0 * (100 + hp1) / (100 + hp0)) < 1e-6;
             ok101 = deltaOk && ratioOk;
             got101 = String.format(Locale.ROOT, "dwp=%.0f dsp=%.0f dhp=%.0f wr=%.4f sr=%.4f hr=%.4f",
-                    wp1 - wp0, sp1 - sp0, hp1 - hp0,
+                    wp1 - wp0, spPctAfter - sp0, hp1 - hp0,
                     w0 > 0 ? w1 / w0 : -1, s0 > 0 ? s1 / s0 : -1, h0 > 0 ? h1 / h0 : -1);
             plugin.getSpec2Service().storage().setRanks(pu101, "arms", bArms);
             plugin.getSpec2Service().storage().setRanks(pu101, "frost", bFrost);
@@ -1683,7 +1683,7 @@ public final class SelftestRunner {
         UUID stranger102 = UUID.randomUUID();
         boolean strangerZero = plugin.getSpec2Service().resourceMaxBonus(stranger102) == 0.0
                 && plugin.getSpec2Service().resourceRegenPercent(stranger102) == 0.0;
-        boolean aggOk = strangerZero;
+        boolean aggOk102 = strangerZero;
         if (probe != null) {
             UUID pu102 = probe.getUniqueId();
             Map<String, Integer> bFury = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu102, "fury"));
@@ -1693,13 +1693,13 @@ public final class SelftestRunner {
             plugin.getSpec2Service().reconcile(pu102);
             double rmax = plugin.getSpec2Service().resourceMaxBonus(pu102);
             double rreg = plugin.getSpec2Service().resourceRegenPercent(pu102);
-            aggOk = Math.abs(rmax - 20.0) < 1e-9 && Math.abs(rreg - 20.0) < 1e-9;
+            aggOk102 = Math.abs(rmax - 20.0) < 1e-9 && Math.abs(rreg - 20.0) < 1e-9;
             got102 = String.format(Locale.ROOT, "max=%.0f regen=%.0f", rmax, rreg);
             plugin.getSpec2Service().storage().setRanks(pu102, "fury", bFury);
             plugin.getSpec2Service().storage().setRanks(pu102, "assassination", bAssa);
             plugin.getSpec2Service().reconcile(pu102);
         }
-        ok102 = baseCap && ceilUp && ceilDown && ceilGuard && strangerZero && aggOk;
+        ok102 = baseCap && ceilUp && ceilDown && ceilGuard && strangerZero && aggOk102;
         if (check(report, "102", "ресурс: setCeiling расширяет/сжимает кламп, мусор-guard; resource_max/regen_pct = 20",
                 ok102, "ResourceState.setCeiling/Spec2Service.resourceMaxBonus", ok102 ? "OK" : got102)) {
             passed++;
@@ -1779,14 +1779,14 @@ public final class SelftestRunner {
             double critM = plugin.getSpec2Service().critMeleeBonus(pu104);
             double hpP = plugin.getSpec2Service().hpPercent(pu104);
             double move = plugin.getSpec2Service().moveSpeedPercent(pu104);
-            double m1 = plugin.getAttributes().maxHp(pu104);
-            boolean aggOk = Math.abs(phys - 4.0) < 1e-9 && Math.abs(magic - 4.0) < 1e-9
+            double maxHpAfter = plugin.getAttributes().maxHp(pu104);
+            boolean aggOk104 = Math.abs(phys - 4.0) < 1e-9 && Math.abs(magic - 4.0) < 1e-9
                     && Math.abs(block - 6.0) < 1e-9 && Math.abs(critM - 2.0) < 1e-9
                     && Math.abs(hpP - 10.0) < 1e-9 && Math.abs(move - 10.0) < 1e-9;
-            boolean hpRatio = m0 > 0.0 && Math.abs(m1 - m0 * 1.10) < 1e-6;
-            ok104 = aggOk && hpRatio;
+            boolean hpRatio = m0 > 0.0 && Math.abs(maxHpAfter - m0 * 1.10) < 1e-6;
+            ok104 = aggOk104 && hpRatio;
             got104 = String.format(Locale.ROOT, "phys=%.0f magic=%.0f block=%.0f crit=%.0f hp=%.0f move=%.0f maxHp×=%.3f",
-                    phys, magic, block, critM, hpP, move, m0 > 0 ? m1 / m0 : -1);
+                    phys, magic, block, critM, hpP, move, m0 > 0 ? maxHpAfter / m0 : -1);
             plugin.getSpec2Service().storage().setRanks(pu104, "arms", bArms);
             plugin.getSpec2Service().storage().setRanks(pu104, "guard", bGuard);
             plugin.getSpec2Service().storage().setRanks(pu104, "outlaw", bOut);
