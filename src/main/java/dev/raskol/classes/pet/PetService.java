@@ -27,37 +27,20 @@ import org.bukkit.persistence.PersistentDataType;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
  * 1.14.6: ЕДИНЫЙ сервис боевых петов (wolf / demon / shadowfiend).
- * Заменяет ad-hoc static-карты китов (PET_WOLF, DEMON_BY_OWNER, Vex-инлайн).
  *
- * Жизненный цикл:
- *  - summon: 1 пет на владельца; спавн рядом, имя видно (A3), PDC-метки
- *    rc_pet_owner / rc_pet_id для атрибуции; статы через PetMath (A2);
- *    wolf — приручён и не сидит; ttl-петы (demon/shadowfiend) истекают в tick.
- *  - tick (20 т): истечение ttl → дезспавн с пуфом; follow > 12 блоков →
- *    телепорт в безопасную точку; окончание баффа → возврат статов;
- *    мёртвая/удалённая сущность → чистка handle.
- *  - смерть пета (A1): handle чистится, владельцу сообщение; ресаммон —
- *    после КД способности (КД живёт в ките, здесь не дублируется).
- *  - выход владельца: дезспавн без сообщения.
- *
- * Боевые гейты (A4):
- *  - урон пета по игроку отменяется, если combat.canHit(owner, victim) = false;
- *  - EntityTargetEvent на игроков-союзников отменяется;
- *  - ретаргет: владелец ударил цель → пет получает её, если canHit пройден.
- *
- * Баффы: buff(owner, dmgMult, speedMult, glow, seconds) — beast_ferocity /
- * bestial_wrath; consume(owner, defId) — demon_soul (поглощение демона).
- *
- * 1.14.6-fix: импорт Attribute — org.bukkit.attribute.Attribute (Paper 1.21.4);
- * спавн через World.spawnEntity(Location, EntityType) + явный cast к LivingEntity
- * (World.spawn с Class<T> не подходит из-за wildcard в getEntityClass()).
+ * 1.14.6-fix (Спринт 1, P0-8f): атрибуты реестра резолвятся в static-инициализаторе;
+ *         если RegistryAccess вернул null (ранний старт/нестандартное ядро), пет
+ *         молча создавался с ванильными статами. Теперь: warning в конструкторе
+ *         + публичный attributesReady() для selftest-чека 112.
  */
 public final class PetService implements Listener {
 
-    /** Результат попытки призыва. */
+    private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
+
     public enum SummonResult { OK, ALREADY, UNKNOWN, NO_WORLD }
 
     private static final double FOLLOW_BLOCKS = 12.0;
@@ -70,23 +53,13 @@ public final class PetService implements Listener {
     private static final class PetState {
         UUID petUuid;
         String defId;
-        long expiresAt;      // 0 = постоянный
-        long buffUntil;      // 0 = без баффа
+        long expiresAt;
+        long buffUntil;
         double dmgMult = 1.0;
         double speedMult = 1.0;
         boolean glow;
-        double baseSpeed;    // базовая movement_speed сущности на спавне
+        double baseSpeed;
     }
-
-    public PetService(RaskolClasses plugin) {
-        this.plugin = plugin;
-        this.ownerKey = new NamespacedKey(plugin, "rc_pet_owner");
-        this.idKey = new NamespacedKey(plugin, "rc_pet_id");
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
-    }
-
-    /* ------------------------------ реестр атрибутов ------------------------------ */
 
     private static Attribute attr(String minecraftId) {
         return io.papermc.paper.registry.RegistryAccess.registryAccess()
@@ -98,7 +71,25 @@ public final class PetService implements Listener {
     private static final Attribute ATTACK_DAMAGE = attr("attack_damage");
     private static final Attribute MOVEMENT_SPEED = attr("movement_speed");
 
-    /* ------------------------------ публичный API ------------------------------ */
+    public PetService(RaskolClasses plugin) {
+        this.plugin = plugin;
+        this.ownerKey = new NamespacedKey(plugin, "rc_pet_owner");
+        this.idKey = new NamespacedKey(plugin, "rc_pet_id");
+        // 1.14.6-fix (P0-8f): явный warning, если реестр атрибутов не резолвится
+        if (MAX_HEALTH == null || ATTACK_DAMAGE == null || MOVEMENT_SPEED == null) {
+            LOGGER.warning("PetService: атрибуты реестра не резолвятся (max_health="
+                    + (MAX_HEALTH != null) + ", attack_damage=" + (ATTACK_DAMAGE != null)
+                    + ", movement_speed=" + (MOVEMENT_SPEED != null)
+                    + ") — петы будут спавниться с ванильными статами");
+        }
+        plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+    }
+
+    /** 1.14.6-fix (P0-8f): для selftest-чека 112. */
+    public boolean attributesReady() {
+        return MAX_HEALTH != null && ATTACK_DAMAGE != null && MOVEMENT_SPEED != null;
+    }
 
     public PetDef defOf(String id) {
         return PetDef.byId(id);
@@ -122,7 +113,6 @@ public final class PetService implements Listener {
         return e instanceof LivingEntity le && !le.isDead() ? le : null;
     }
 
-    /** Призыв пета. initialTarget = null для компаньона (wolf). */
     public SummonResult summon(Player owner, String defId, LivingEntity initialTarget) {
         PetDef def = PetDef.byId(defId);
         if (def == null) {
@@ -144,11 +134,10 @@ public final class PetService implements Listener {
             pets.remove(ouuid);
         }
 
-        UUID uuid = ouuid;
         double hp = PetMath.hp(def.baseHp(), attrValue(owner, def),
-                plugin.getSpec2Service().petHpPercent(uuid));
+                plugin.getSpec2Service().petHpPercent(ouuid));
         double dmg = PetMath.damage(def.baseDmg(), powerValue(owner, def),
-                plugin.getSpec2Service().petDmgPercent(uuid), 1.0);
+                plugin.getSpec2Service().petDmgPercent(ouuid), 1.0);
 
         Location spawn = owner.getLocation().add(1.0, 0.0, 1.0);
         Entity spawned = owner.getWorld().spawnEntity(spawn, def.entityType());
@@ -158,8 +147,8 @@ public final class PetService implements Listener {
         }
 
         pet.setCustomName(def.displayName(owner.getName()));
-        pet.setCustomNameVisible(true); // A3
-        pet.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, uuid.toString());
+        pet.setCustomNameVisible(true);
+        pet.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, ouuid.toString());
         pet.getPersistentDataContainer().set(idKey, PersistentDataType.STRING, def.id());
         if (pet instanceof Wolf w) {
             w.setTamed(true);
@@ -191,7 +180,6 @@ public final class PetService implements Listener {
         return SummonResult.OK;
     }
 
-    /** beast_ferocity / bestial_wrath: множители урона/скорости + подсветка на seconds. */
     public boolean buff(Player owner, double dmgMult, double speedMult, boolean glow, int seconds) {
         PetState st = pets.get(owner.getUniqueId());
         LivingEntity pet = petOf(owner);
@@ -213,7 +201,6 @@ public final class PetService implements Listener {
         return true;
     }
 
-    /** demon_soul: поглотить пета (дезспавн); true если пет был жив. */
     public boolean consume(Player owner, String defId) {
         PetState st = pets.get(owner.getUniqueId());
         if (st == null || (defId != null && !defId.equals(st.defId))) {
@@ -228,8 +215,6 @@ public final class PetService implements Listener {
         }
         return true;
     }
-
-    /* ------------------------------ статы ------------------------------ */
 
     private double attrValue(Player owner, PetDef def) {
         AttributeType type = "int".equals(def.hpAttr()) ? AttributeType.INT : AttributeType.STR;
@@ -270,8 +255,6 @@ public final class PetService implements Listener {
         }
     }
 
-    /* ------------------------------ tick ------------------------------ */
-
     private void tick() {
         long now = System.currentTimeMillis();
         for (Map.Entry<UUID, PetState> entry : pets.entrySet()) {
@@ -288,7 +271,6 @@ public final class PetService implements Listener {
                 pets.remove(ownerUuid);
                 continue;
             }
-            // ttl (demon / shadowfiend)
             if (PetMath.expired(st.expiresAt, now)) {
                 owner.sendMessage(Component.text("«" + PetDef.byId(st.defId).displayName(owner.getName())
                         + "» рассеивается.", NamedTextColor.GRAY));
@@ -296,7 +278,6 @@ public final class PetService implements Listener {
                 pets.remove(ownerUuid);
                 continue;
             }
-            // окончание баффа
             if (st.buffUntil > 0L && now > st.buffUntil) {
                 st.buffUntil = 0L;
                 st.dmgMult = 1.0;
@@ -310,7 +291,6 @@ public final class PetService implements Listener {
                     st.glow = false;
                 }
             }
-            // follow: телепорт к владельцу, если отстал
             if (pet.getWorld().equals(owner.getWorld())
                     && PetMath.needsTeleport(
                             pet.getLocation().distanceSquared(owner.getLocation()), FOLLOW_BLOCKS)) {
@@ -340,9 +320,6 @@ public final class PetService implements Listener {
         pet.remove();
     }
 
-    /* ------------------------------ события ------------------------------ */
-
-    /** A1: смерть пета — чистка handle + сообщение владельцу. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPetDeath(EntityDeathEvent event) {
         LivingEntity pet = event.getEntity();
@@ -366,7 +343,6 @@ public final class PetService implements Listener {
         }
     }
 
-    /** Выход владельца — дезспавн (A1: без сохранения между сессиями). */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onOwnerQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
@@ -380,13 +356,11 @@ public final class PetService implements Listener {
         }
     }
 
-    /** A4: пет не бьёт союзников/владельца; ретаргет пета на цель владельца. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         Entity damager = event.getDamager();
         String ownerRaw = damager.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
         if (ownerRaw != null) {
-            // урон ОТ пета: гейт союзников
             UUID ownerUuid;
             try {
                 ownerUuid = UUID.fromString(ownerRaw);
@@ -405,7 +379,6 @@ public final class PetService implements Listener {
             }
             return;
         }
-        // ретаргет: владелец ударил цель → пет переключается
         if (!(damager instanceof Player owner)) {
             return;
         }
@@ -421,7 +394,6 @@ public final class PetService implements Listener {
         }
     }
 
-    /** A4: пет не таргетит владельца и союзников. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onTarget(EntityTargetEvent event) {
         Entity pet = event.getEntity();
