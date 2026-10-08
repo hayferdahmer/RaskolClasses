@@ -45,6 +45,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   (borgia_poison/shadow_dance) пережили резку abilities. У Разбойника нет прямых
  *   cfgD("…abilities…") в методах переносимых — всё идёт через хелперы.
  * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
+ * 1.14.3 (Волна 3, 3C2): refreshVendetta(UUID) — продление вендетты по proc_vendetta_refresh;
+ *   shadowCloak учитывает proc_stealth_extend (+N с к длительности невидимости).
  */
 public final class RogueAbilities {
 
@@ -70,6 +72,19 @@ public final class RogueAbilities {
             return 0.0;
         }
         return 0.30;
+    }
+
+    /**
+     * 1.14.3 (3C2): продление активной вендетты на цели (proc_vendetta_refresh).
+     * Вызывается из ProcService.rollCritProcs при крит-проке. Если вендетты нет
+     * или она истекла — no-op (прок не создаёт новую метку, только освежает).
+     */
+    public static void refreshVendetta(UUID targetUuid) {
+        Long until = VENDETTA_EXPIRY.get(targetUuid);
+        if (until == null || System.currentTimeMillis() > until) {
+            return;
+        }
+        VENDETTA_EXPIRY.put(targetUuid, System.currentTimeMillis() + 10_000L);
     }
 
     /* ------------------------------ конфиг-хелперы ------------------------------ */
@@ -253,7 +268,10 @@ public final class RogueAbilities {
 
     public boolean shadowCloak(Player p, AbilityDef def) {
         int secs = duration(def, 15);
-        p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, secs * 20, 0));
+        // 1.14.3 (3C2): proc_stealth_extend — +N с к длительности невидимости за ранг
+        double extend = plugin.getCombat().procs().getStealthExtendBonus(p);
+        int totalSecs = secs + (int) Math.round(Math.max(0.0, extend));
+        p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, totalSecs * 20, 0));
         castFx(p, "shadow_cloak", "ENTITY_PHANTOM_FLAP", "SMOKE", 0.5f, 0.9f, 16);
         impactFx(p, "shadow_cloak", "ENTITY_ENDERMAN_TELEPORT", "SMOKE", 0.4f, 1.2f, 12);
         return true;
