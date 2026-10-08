@@ -42,6 +42,7 @@ import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
+import dev.raskol.classes.pet.PetService;
 import dev.raskol.classes.resource.ResourceService;
 import dev.raskol.classes.spec.listen.Spec2RoleListener;
 import dev.raskol.classes.spec.model.Spec2Points;
@@ -70,8 +71,9 @@ import java.util.List;
  * 1.14.0 (контент-долг 1): TreeAbilities.registerCasters — древесные способности Воина.
  * 1.14.1 (Волна 1): hpBarService.saveAll() в onDisable — здоровье не теряется при краше.
  * 1.14.4 (Волна 4, П9): Spec2Points.configure(this) в onEnable ДО инициализации
- *         spec2-слоя — очки/гейты рядов читаются из config.yml (spec2.start-level,
- *         spec2.max-points, spec2.row-gates) с фолбэком на дефолты 15/46/[0,5,10,15,20,30].
+ *         spec2-слоя — очки/гейты рядов читаются из config.yml.
+ * 1.14.6 (Волна 6a): PetService — единое ядро боевых петов (wolf/demon/shadowfiend);
+ *         конструктор сервиса сам регистрирует слушатели и тик-задачу.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -118,6 +120,9 @@ public final class RaskolClasses extends JavaPlugin {
     private PassportChangeListener passportListener;
 
     private WarlockAbilities warlockAbilities;
+
+    /** 1.14.6 (6a): пет-слой. */
+    private PetService pets;
 
     private CCService ccService;
     private CCGuard ccGuard;
@@ -219,6 +224,9 @@ public final class RaskolClasses extends JavaPlugin {
         this.foliantService = new FoliantService(this);
 
         this.warlockAbilities = new WarlockAbilities(this);
+
+        // 1.14.6 (6a): пет-ядро (сам регистрирует слушатели и тик-задачу в конструкторе)
+        this.pets = new PetService(this);
 
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
@@ -499,6 +507,8 @@ public final class RaskolClasses extends JavaPlugin {
     public HpAttributeSync getHpSync() { return hpSync; }
     public PassiveListener getPassives() { return passiveListener; }
     public WarlockAbilities getWarlockAbilities() { return warlockAbilities; }
+    /** 1.14.6 (6a): пет-слой. */
+    public PetService getPets() { return pets; }
     public CCService getCC() { return ccService; }
     public CastGuard getCastGuard() { return castGuard; }
 }
