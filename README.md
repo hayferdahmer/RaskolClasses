@@ -1,5 +1,3 @@
-# RaskolClasses
-
 <p align="center">
   <img src="banner.svg" alt="RaskolClasses — Две Короны" width="1000">
 </p>
