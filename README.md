@@ -227,5 +227,3 @@ heal_received_pct + роль TANK (входящие); ванильные regain-
 WARLOCK-сеты добавляются секциями `weapons.WARLOCK.*` / `armor.WARLOCK.*` в конфиг RaskolGear.
 
 * * *
-
-## X. УСТАНОВКА
