@@ -20,6 +20,7 @@ import dev.raskol.classes.combat.CombatMath;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.DamageType;
+import dev.raskol.classes.combat.ProcService;
 import dev.raskol.classes.combat.dot.DotDef;
 import dev.raskol.classes.combat.dot.DotInstance;
 import dev.raskol.classes.combat.dot.DotMath;
@@ -68,33 +69,139 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 111 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 113 чеков.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
- * 22–24 (1.14.0 Б8): экономика spec2 (15→46), ёмкость arms=51, reconcile-цикл;
+ * 22–24 (1.14.0 Б8): экономика spec2, ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
  * 37–48 чернокнижник/WarlockMath/sanity/гейты row/respec-конфиг/loader;
  * 49–65 школы 1.12.x; 66–75 DoT/баланс-матрица; 76–90 CC/DR 1.13.0;
- * 91–94 (1.14.0 Б8): чистый enum 18, строгий fromId, реестр 18 деревьев 50–58,
- *         ульт/unlock-инварианты.
- * 95–96 (1.14.0 Б11.1.1): реестр переносимых китовых (slots 4–5) + инвариант резолва.
- * 97 (1.14.0 Б11.1.2-B2): treeAbilities авторитетен для переносимых (base>0).
- * 98 (1.14.0 Б11.1.3-A): athena_aegis имеет unlock_ability-узел в arcane.
- * 99 (1.14.2 Волна 2): двунаправленное покрытие unlock_ability ↔ кастеры без дыр.
- * 100–104 (1.14.3 Волна 3): heal-агрегат, павер-множители, потолок ресурса,
- *         proc-нейтральность, боевые pct-агрегаты + maxHp ×1.10.
- * 105–107 (1.14.4 Волна 4): resist-школа → ElementalResistService, resetNode,
- *         конфиг-точки Spec2Points.
- * 108–111 (1.14.6 Волна 6a): PetDef-реестр, PetMath scaling (A2), имена (A3),
- *         ttl/teleport pure-логика.
+ * 91–94 (1.14.0 Б8): enum 18, строгий fromId, реестр деревьев, ульт/unlock-инварианты;
+ * 95–98 переносимые slots 4–5; 99 unlock↔кастеры;
+ * 100–104 (1.14.3): heal/паверы/ресурс/проки-нейтральность/боевые pct —
+ *         c 1.14.7 (Sprint 1, P0-1) узлы ищутся в деревьях РЕАЛЬНОГО класса probe
+ *         (findKind), мутации обёрнуты в try/finally с восстановлением рангов;
+ * 105–107 (1.14.4): resist-школа, resetNode (с временным main), конфиг-точки;
+ * 108–111 (1.14.6): пет-ядро (PetDef/PetMath/имена/ttl);
+ * 112 (Sprint 1, P0-8f): PetService.attributesReady;
+ * 113 (Sprint 1, P0-3): секция spec2.procs.*.amp/.cap полная в конфиге.
+ *
+ * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
+ * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
+ * в отдельный счётчик skipped — PASS-итог больше не завышается.
  */
 public final class SelftestRunner {
 
     private SelftestRunner() {
     }
 
+    /* ------------------------------ фикстура (Sprint 1, P0-1) ------------------------------ */
+
+    private record KindHit(String treeId, Spec2Node node) {
+    }
+
+    /** Первый узел с данным видом эффекта в деревьях реального класса probe. */
+    private static KindHit findKind(RaskolClasses plugin, Player probe, String kind) {
+        for (String tid : plugin.getSpec2Service().classTreeIds(probe.getUniqueId())) {
+            Spec2Tree t = Spec2Registry.treeOf(tid);
+            if (t == null) {
+                continue;
+            }
+            for (Spec2Node n : t.nodes()) {
+                if (n.effect() != null && kind.equals(n.effect().kind())) {
+                    return new KindHit(tid, n);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Первый узел с видом, начинающимся с префикса (для proc_*). */
+    private static KindHit findKindPrefix(RaskolClasses plugin, Player probe, String prefix) {
+        for (String tid : plugin.getSpec2Service().classTreeIds(probe.getUniqueId())) {
+            Spec2Tree t = Spec2Registry.treeOf(tid);
+            if (t == null) {
+                continue;
+            }
+            for (Spec2Node n : t.nodes()) {
+                if (n.effect() != null && n.effect().kind() != null
+                        && n.effect().kind().startsWith(prefix)) {
+                    return new KindHit(tid, n);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Ставит ранг узла + reconcile; возвращает бэкап рангов дерева для restore. */
+    private static Map<String, Integer> applyRank(RaskolClasses plugin, UUID uuid,
+                                                  String treeId, String nodeId, int rank) {
+        Map<String, Integer> backup = new HashMap<>(
+                plugin.getSpec2Service().storage().getRanks(uuid, treeId));
+        Map<String, Integer> next = new HashMap<>(backup);
+        next.put(nodeId, rank);
+        plugin.getSpec2Service().storage().setRanks(uuid, treeId, next);
+        plugin.getSpec2Service().reconcile(uuid);
+        return backup;
+    }
+
+    private static void restore(RaskolClasses plugin, UUID uuid,
+                                String treeId, Map<String, Integer> backup) {
+        plugin.getSpec2Service().storage().setRanks(uuid, treeId, backup);
+        plugin.getSpec2Service().reconcile(uuid);
+    }
+
+    /* ------------------------------ отчётность ------------------------------ */
+
+    private static boolean check(StringBuilder report, String num, String desc,
+                                 boolean ok, String culprit, Object got) {
+        String status = ok ? "✓" : "✗";
+        String detail = ok ? "" : " (получено: " + fmt(got) + ", виновник: " + culprit + ")";
+        report.append(status).append(" чек ").append(num).append(": ").append(desc).append(detail).append('\n');
+        return ok;
+    }
+
+    private static void skip(StringBuilder report, String num, String desc) {
+        report.append("↷ чек ").append(num).append(": ").append(desc).append(" (пропущено)\n");
+    }
+
+    private static String fmt(Object v) {
+        if (v instanceof Double d) {
+            return String.format(Locale.ROOT, "%.2f", d);
+        }
+        return String.valueOf(v);
+    }
+
+    private static boolean applyUntilOk(CCService cc, Player target, CCType type, int ticks) {
+        for (int i = 0; i < 64; i++) {
+            CCService.ApplyResult r = cc.tryApply(null, target, type, ticks);
+            if (r.ok()) {
+                return true;
+            }
+            if (r.result() == CCService.CCResult.FAIL_DR_IMMUNE) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static Spec2Node firstRow1(Spec2Tree tree) {
+        if (tree == null) {
+            return null;
+        }
+        for (Spec2Node node : tree.nodes()) {
+            if (node.row() == 1 && node.prereqs().isEmpty()) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    /* ------------------------------ прогон ------------------------------ */
+
     public static void run(RaskolClasses plugin, CommandSender sender) {
         int passed = 0;
         int failed = 0;
+        int skipped = 0;
         StringBuilder report = new StringBuilder();
 
         double d1 = AttributeMath.dodgeRaw(0.0, 100.0);
@@ -190,11 +297,8 @@ public final class SelftestRunner {
                 ? sp
                 : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
         if (probe == null) {
-            if (check(report, "21", "canHit: self/среда (пропущено)", true, "canHit", "skip")) {
-                passed++;
-            } else {
-                failed++;
-            }
+            skip(report, "21", "canHit: self/среда");
+            skipped++;
         } else {
             boolean self = plugin.getCombat().canHit(probe, probe);
             boolean env = plugin.getCombat().canHit(null, probe);
@@ -229,11 +333,8 @@ public final class SelftestRunner {
         }
 
         if (probe == null) {
-            if (check(report, "24", "reconcile-цикл spec2 (пропущено)", true, "reconcile", "skip")) {
-                passed++;
-            } else {
-                failed++;
-            }
+            skip(report, "24", "reconcile-цикл spec2");
+            skipped++;
         } else {
             boolean ok24 = false;
             String got24 = "no-trees";
@@ -246,15 +347,19 @@ public final class SelftestRunner {
                 if (tree24 != null && n24 != null) {
                     Map<String, Integer> before = new HashMap<>(
                             plugin.getSpec2Service().storage().getRanks(pu24, t0));
-                    plugin.getSpec2Service().storage().setRanks(pu24, t0, Map.of(n24.id(), 1));
-                    plugin.getSpec2Service().reconcile(pu24);
-                    boolean bought = plugin.getSpec2Service().storage().getRanks(pu24, t0)
-                            .getOrDefault(n24.id(), 0) == 1;
-                    plugin.getSpec2Service().storage().setRanks(pu24, t0, before);
-                    plugin.getSpec2Service().reconcile(pu24);
-                    boolean restored = plugin.getSpec2Service().storage().getRanks(pu24, t0).equals(before);
-                    ok24 = bought && restored;
-                    got24 = bought + "/" + restored;
+                    try {
+                        plugin.getSpec2Service().storage().setRanks(pu24, t0, Map.of(n24.id(), 1));
+                        plugin.getSpec2Service().reconcile(pu24);
+                        boolean bought = plugin.getSpec2Service().storage().getRanks(pu24, t0)
+                                .getOrDefault(n24.id(), 0) == 1;
+                        plugin.getSpec2Service().storage().setRanks(pu24, t0, before);
+                        plugin.getSpec2Service().reconcile(pu24);
+                        boolean restored = plugin.getSpec2Service().storage().getRanks(pu24, t0).equals(before);
+                        ok24 = bought && restored;
+                        got24 = bought + "/" + restored;
+                    } finally {
+                        restore(plugin, pu24, t0, before);
+                    }
                 } else {
                     got24 = "no-tree-or-node:" + t0;
                 }
@@ -294,11 +399,8 @@ public final class SelftestRunner {
         }
 
         if (probe == null) {
-            if (check(report, "31", "глобальный бюджет spec2 (пропущено)", true, "spentGlobal", "skip")) {
-                passed++;
-            } else {
-                failed++;
-            }
+            skip(report, "31", "глобальный бюджет spec2");
+            skipped++;
         } else {
             boolean ok31 = false;
             String got31 = "need-2-trees";
@@ -312,17 +414,19 @@ public final class SelftestRunner {
                 if (nA != null && nB != null) {
                     Map<String, Integer> bA = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu31, tA));
                     Map<String, Integer> bB = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu31, tB));
-                    plugin.getSpec2Service().storage().setRanks(pu31, tA, Map.of(nA.id(), 1));
-                    plugin.getSpec2Service().storage().setRanks(pu31, tB, Map.of(nB.id(), 1));
-                    plugin.getSpec2Service().reconcile(pu31);
-                    int spent = plugin.getSpec2Service().spentGlobal(pu31);
-                    int avail = plugin.getSpec2Service().availablePoints(pu31);
-                    int earned = plugin.getSpec2Service().earnedPoints(pu31);
-                    ok31 = spent == 2 && avail == Math.max(0, earned - 2);
-                    got31 = spent + "/" + avail + "/" + earned;
-                    plugin.getSpec2Service().storage().setRanks(pu31, tA, bA);
-                    plugin.getSpec2Service().storage().setRanks(pu31, tB, bB);
-                    plugin.getSpec2Service().reconcile(pu31);
+                    try {
+                        plugin.getSpec2Service().storage().setRanks(pu31, tA, Map.of(nA.id(), 1));
+                        plugin.getSpec2Service().storage().setRanks(pu31, tB, Map.of(nB.id(), 1));
+                        plugin.getSpec2Service().reconcile(pu31);
+                        int spent = plugin.getSpec2Service().spentGlobal(pu31);
+                        int avail = plugin.getSpec2Service().availablePoints(pu31);
+                        int earned = plugin.getSpec2Service().earnedPoints(pu31);
+                        ok31 = spent == 2 && avail == Math.max(0, earned - 2);
+                        got31 = spent + "/" + avail + "/" + earned;
+                    } finally {
+                        restore(plugin, pu31, tA, bA);
+                        restore(plugin, pu31, tB, bB);
+                    }
                 }
             }
             if (check(report, "31", "глобальный бюджет spec2: 2 дерева = 2 очка из общего пула",
@@ -334,11 +438,8 @@ public final class SelftestRunner {
         }
 
         if (probe == null) {
-            if (check(report, "32", "reconcile-прунинг spec2 (пропущено)", true, "validate", "skip")) {
-                passed++;
-            } else {
-                failed++;
-            }
+            skip(report, "32", "reconcile-прунинг spec2");
+            skipped++;
         } else {
             boolean ok32 = false;
             String got32 = "no-trees";
@@ -359,16 +460,18 @@ public final class SelftestRunner {
                 if (tree32 != null && withPrereq != null) {
                     Map<String, Integer> before = new HashMap<>(
                             plugin.getSpec2Service().storage().getRanks(pu32, t0));
-                    Map<String, Integer> bad = new HashMap<>();
-                    bad.put("nonexistent_node_xyz", 1);
-                    bad.put(withPrereq.id(), 1);
-                    plugin.getSpec2Service().storage().setRanks(pu32, t0, bad);
-                    plugin.getSpec2Service().reconcile(pu32);
-                    Map<String, Integer> after = plugin.getSpec2Service().storage().getRanks(pu32, t0);
-                    ok32 = after.isEmpty();
-                    got32 = String.valueOf(after.size());
-                    plugin.getSpec2Service().storage().setRanks(pu32, t0, before);
-                    plugin.getSpec2Service().reconcile(pu32);
+                    try {
+                        Map<String, Integer> bad = new HashMap<>();
+                        bad.put("nonexistent_node_xyz", 1);
+                        bad.put(withPrereq.id(), 1);
+                        plugin.getSpec2Service().storage().setRanks(pu32, t0, bad);
+                        plugin.getSpec2Service().reconcile(pu32);
+                        Map<String, Integer> after = plugin.getSpec2Service().storage().getRanks(pu32, t0);
+                        ok32 = after.isEmpty();
+                        got32 = String.valueOf(after.size());
+                    } finally {
+                        restore(plugin, pu32, t0, before);
+                    }
                 } else {
                     got32 = "no-prereq-node";
                 }
@@ -382,9 +485,10 @@ public final class SelftestRunner {
         }
 
         if (probe == null) {
-            if (check(report, "33", "scale (пропущено)", true, "scale", "skip")) passed++; else failed++;
-            if (check(report, "34", "healFormula (пропущено)", true, "healFormula", "skip")) passed++; else failed++;
-            if (check(report, "35", "targetCarrier (пропущено)", true, "targetCarrier", "skip")) passed++; else failed++;
+            skip(report, "33", "scale");
+            skip(report, "34", "healFormula");
+            skip(report, "35", "targetCarrier");
+            skipped += 3;
         } else {
             AttributeService attrs = plugin.getAttributes();
             UUID pu = probe.getUniqueId();
@@ -1106,12 +1210,8 @@ public final class SelftestRunner {
         }
 
         if (probe == null || cc == null) {
-            if (check(report, "82", "breakOnDamage (пропущено: нет онлайн-игрока)",
-                    true, "CCService.breakOnDamage", "skip")) {
-                passed++;
-            } else {
-                failed++;
-            }
+            skip(report, "82", "breakOnDamage ROOT");
+            skipped++;
         } else {
             UUID u82 = probe.getUniqueId();
             cc.removeAll(u82);
@@ -1137,11 +1237,8 @@ public final class SelftestRunner {
         }
 
         if (probe == null || cc == null) {
-            if (check(report, "83", "STUN breakOnDamage (пропущено)", true, "CCService.breakOnDamage", "skip")) {
-                passed++;
-            } else {
-                failed++;
-            }
+            skip(report, "83", "STUN breakOnDamage");
+            skipped++;
         } else {
             UUID u83 = probe.getUniqueId();
             cc.removeAll(u83);
@@ -1163,11 +1260,8 @@ public final class SelftestRunner {
         }
 
         if (probe == null || cc == null) {
-            if (check(report, "84", "CastGuard.canCast (пропущено)", true, "CastGuard.canCast", "skip")) {
-                passed++;
-            } else {
-                failed++;
-            }
+            skip(report, "84", "CastGuard.canCast");
+            skipped++;
         } else {
             UUID u84 = probe.getUniqueId();
             dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
@@ -1269,12 +1363,8 @@ public final class SelftestRunner {
         }
 
         if (probe == null || cc == null) {
-            if (check(report, "90", "debug CC/DR данные (пропущено: нет онлайн-игрока)",
-                    true, "CCService.activeOf/drState", "skip")) {
-                passed++;
-            } else {
-                failed++;
-            }
+            skip(report, "90", "debug CC/DR данные");
+            skipped++;
         } else {
             UUID u90 = probe.getUniqueId();
             cc.removeAll(u90);
@@ -1558,228 +1648,320 @@ public final class SelftestRunner {
             failed++;
         }
 
-        boolean ok100 = true;
-        String got100 = "";
-        UUID stranger100 = UUID.randomUUID();
-        if (plugin.getSpec2Service().healOutPercent(stranger100) != 0.0
-                || plugin.getSpec2Service().healReceivedPercent(stranger100) != 0.0) {
-            ok100 = false;
-            got100 = "stranger: healOut/healReceived != 0";
-        }
-        if (ok100 && probe != null) {
-            UUID pu100 = probe.getUniqueId();
-            Map<String, Integer> bArms = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu100, "arms"));
-            Map<String, Integer> bGuard = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu100, "guard"));
-            plugin.getSpec2Service().storage().setRanks(pu100, "arms", Map.of("field_medkit", 2));
-            plugin.getSpec2Service().storage().setRanks(pu100, "guard", Map.of("guard_protectors_resolve", 2));
-            plugin.getSpec2Service().reconcile(pu100);
-            double ho = plugin.getSpec2Service().healOutPercent(pu100);
-            double hr = plugin.getSpec2Service().healReceivedPercent(pu100);
-            ok100 = Math.abs(ho - 6.0) < 1e-9 && Math.abs(hr - 6.0) < 1e-9;
-            got100 = String.format(Locale.ROOT, "healOut=%.1f healRecv=%.1f", ho, hr);
-            plugin.getSpec2Service().storage().setRanks(pu100, "arms", bArms);
-            plugin.getSpec2Service().storage().setRanks(pu100, "guard", bGuard);
-            plugin.getSpec2Service().reconcile(pu100);
-        }
-        if (check(report, "100", "heal-агрегат: heal_out_pct/heal_received_pct (2 ранга ×3% = 6%), stranger=0",
-                ok100, "Spec2Service.healOutPercent/healReceivedPercent", ok100 ? "OK" : got100)) {
-            passed++;
-        } else {
-            failed++;
-        }
+        // === 1.14.7 (Sprint 1, P0-1): чеки 100–104 на деревьях РЕАЛЬНОГО класса probe ===
 
-        boolean ok101 = true;
-        String got101 = "";
-        UUID stranger101 = UUID.randomUUID();
-        if (plugin.getSpec2Service().wpPercent(stranger101) != 0.0
-                || plugin.getSpec2Service().spPercent(stranger101) != 0.0
-                || plugin.getSpec2Service().hpowPercent(stranger101) != 0.0) {
-            ok101 = false;
-            got101 = "stranger: wp/sp/hpow != 0";
-        }
-        if (ok101 && probe != null && plugin.getClassProvider().getClassOf(probe) != null) {
-            UUID pu101 = probe.getUniqueId();
-            double wp0 = plugin.getSpec2Service().wpPercent(pu101);
-            double sp0 = plugin.getSpec2Service().spPercent(pu101);
-            double hp0 = plugin.getSpec2Service().hpowPercent(pu101);
-            double w0 = plugin.getCombat().powers().weaponPower(pu101);
-            double s0 = plugin.getCombat().powers().spellPower(pu101);
-            double h0 = plugin.getCombat().powers().healPower(pu101);
-            Map<String, Integer> bArms = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu101, "arms"));
-            Map<String, Integer> bFrost = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu101, "frost"));
-            Map<String, Integer> bHoly = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu101, "holy"));
-            plugin.getSpec2Service().storage().setRanks(pu101, "arms", Map.of(
-                    "arms_training", 5, "hardened_skin", 4, "precision", 5, "war_acumen", 3));
-            plugin.getSpec2Service().storage().setRanks(pu101, "frost", Map.of("fr_icy_veins", 2));
-            plugin.getSpec2Service().storage().setRanks(pu101, "holy", Map.of("ho_divine_grace", 2));
-            plugin.getSpec2Service().reconcile(pu101);
-            double wp1 = plugin.getSpec2Service().wpPercent(pu101);
-            double spPctAfter = plugin.getSpec2Service().spPercent(pu101);
-            double hp1 = plugin.getSpec2Service().hpowPercent(pu101);
-            double w1 = plugin.getCombat().powers().weaponPower(pu101);
-            double s1 = plugin.getCombat().powers().spellPower(pu101);
-            double h1 = plugin.getCombat().powers().healPower(pu101);
-            boolean deltaOk = Math.abs((wp1 - wp0) - 6.0) < 1e-9
-                    && Math.abs((spPctAfter - sp0) - 4.0) < 1e-9
-                    && Math.abs((hp1 - hp0) - 6.0) < 1e-9;
-            boolean ratioOk = w0 > 0 && s0 > 0 && h0 > 0
-                    && Math.abs(w1 - w0 * (100 + wp1) / (100 + wp0)) < 1e-6
-                    && Math.abs(s1 - s0 * (100 + spPctAfter) / (100 + sp0)) < 1e-6
-                    && Math.abs(h1 - h0 * (100 + hp1) / (100 + hp0)) < 1e-6;
-            ok101 = deltaOk && ratioOk;
-            got101 = String.format(Locale.ROOT, "dwp=%.0f dsp=%.0f dhp=%.0f wr=%.4f sr=%.4f hr=%.4f",
-                    wp1 - wp0, spPctAfter - sp0, hp1 - hp0,
-                    w0 > 0 ? w1 / w0 : -1, s0 > 0 ? s1 / s0 : -1, h0 > 0 ? h1 / h0 : -1);
-            plugin.getSpec2Service().storage().setRanks(pu101, "arms", bArms);
-            plugin.getSpec2Service().storage().setRanks(pu101, "frost", bFrost);
-            plugin.getSpec2Service().storage().setRanks(pu101, "holy", bHoly);
-            plugin.getSpec2Service().reconcile(pu101);
-        }
-        if (check(report, "101", "павер-множители: wp/sp/hpow_pct в агрегате (+6/+4/+6) и пропорция PowerService",
-                ok101, "Spec2Service.*Percent/PowerService", ok101 ? "OK" : got101)) {
-            passed++;
-        } else {
-            failed++;
-        }
-
-        boolean ok102 = true;
-        String got102 = "";
-        ResourceState rs102 = new ResourceState();
-        rs102.setValue(100.0);
-        boolean baseCap = rs102.getValue() == 100.0;
-        rs102.setCeiling(150.0);
-        rs102.add(60.0);
-        boolean ceilUp = rs102.getValue() == 150.0;
-        rs102.setCeiling(120.0);
-        boolean ceilDown = rs102.getValue() == 120.0;
-        rs102.setCeiling(-5.0);
-        rs102.setCeiling(Double.NaN);
-        boolean ceilGuard = rs102.getEffectiveMax() == 120.0;
-        UUID stranger102 = UUID.randomUUID();
-        boolean strangerZero = plugin.getSpec2Service().resourceMaxBonus(stranger102) == 0.0
-                && plugin.getSpec2Service().resourceRegenPercent(stranger102) == 0.0;
-        boolean aggOk102 = strangerZero;
-        if (probe != null) {
-            UUID pu102 = probe.getUniqueId();
-            Map<String, Integer> bFury = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu102, "fury"));
-            Map<String, Integer> bAssa = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu102, "assassination"));
-            plugin.getSpec2Service().storage().setRanks(pu102, "fury", Map.of("fury_rage_pool", 2));
-            plugin.getSpec2Service().storage().setRanks(pu102, "assassination", Map.of("as_quick_recovery", 2));
-            plugin.getSpec2Service().reconcile(pu102);
-            double rmax = plugin.getSpec2Service().resourceMaxBonus(pu102);
-            double rreg = plugin.getSpec2Service().resourceRegenPercent(pu102);
-            aggOk102 = Math.abs(rmax - 20.0) < 1e-9 && Math.abs(rreg - 20.0) < 1e-9;
-            got102 = String.format(Locale.ROOT, "max=%.0f regen=%.0f", rmax, rreg);
-            plugin.getSpec2Service().storage().setRanks(pu102, "fury", bFury);
-            plugin.getSpec2Service().storage().setRanks(pu102, "assassination", bAssa);
-            plugin.getSpec2Service().reconcile(pu102);
-        }
-        ok102 = baseCap && ceilUp && ceilDown && ceilGuard && strangerZero && aggOk102;
-        if (check(report, "102", "ресурс: setCeiling расширяет/сжимает кламп, мусор-guard; resource_max/regen_pct = 20",
-                ok102, "ResourceState.setCeiling/Spec2Service.resourceMaxBonus", ok102 ? "OK" : got102)) {
-            passed++;
-        } else {
-            failed++;
-        }
-
-        boolean ok103 = true;
-        String got103 = "";
+        // 100: heal_out_pct / heal_received_pct — узлы ищутся в classTreeIds(probe).
         if (probe == null) {
-            got103 = "skip";
+            skip(report, "100", "heal-агрегат");
+            skipped++;
         } else {
-            var pr = plugin.getCombat().procs();
-            UUID pu103 = probe.getUniqueId();
-            boolean neutral = pr.getAmplifier(probe) == 1.0
-                    && pr.readExposeMult(probe) == 1.0
-                    && !pr.hasUndodgeable(probe)
-                    && pr.rollStealthBonus(probe) == 1.0
-                    && pr.rollArmorPen(probe, probe) == 0.0
-                    && pr.getStealthExtendBonus(probe) == 0.0;
-            Map<String, Integer> bMm = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu103, "marksmanship"));
-            plugin.getSpec2Service().storage().setRanks(pu103, "marksmanship",
-                    Map.of("mm_steady_hand", 5, "mm_lethal_shots", 2));
-            plugin.getSpec2Service().reconcile(pu103);
-            double pb = plugin.getSpec2Service().procBonus(pu103, "crit_bonus");
-            double cb = pr.critMultBonus(probe);
-            boolean critOk = Math.abs(pb - 0.20) < 1e-9 && Math.abs(cb - 1.20) < 1e-9;
-            got103 = String.format(Locale.ROOT, "neutral=%s proc=%.2f mult=%.2f", neutral, pb, cb);
-            plugin.getSpec2Service().storage().setRanks(pu103, "marksmanship", bMm);
-            plugin.getSpec2Service().reconcile(pu103);
-            ok103 = neutral && critOk;
-        }
-        if (check(report, "103", "proc-состояния нейтральны без контента; crit_mult_bonus 1.20 при proc_crit_bonus 0.20",
-                ok103, "ProcService/Spec2Service.procBonus", ok103 ? "OK" : got103)) {
-            passed++;
-        } else {
-            failed++;
+            UUID pu100 = probe.getUniqueId();
+            KindHit ho = findKind(plugin, probe, "heal_out_pct");
+            KindHit hr = findKind(plugin, probe, "heal_received_pct");
+            if (ho == null && hr == null) {
+                skip(report, "100", "heal-агрегат (у класса probe нет узлов heal_out/heal_received)");
+                skipped++;
+            } else {
+                boolean ok100 = true;
+                StringBuilder got100 = new StringBuilder();
+                Map<String, Integer> bHo = null;
+                Map<String, Integer> bHr = null;
+                try {
+                    if (ho != null) {
+                        bHo = applyRank(plugin, pu100, ho.treeId(), ho.node().id(), 2);
+                        double expect = 2 * ho.node().effect().value();
+                        double gotV = plugin.getSpec2Service().healOutPercent(pu100);
+                        if (Math.abs(gotV - expect) > 1e-9) {
+                            ok100 = false;
+                            got100.append("heal_out=").append(gotV).append('/').append(expect).append(' ');
+                        }
+                    } else {
+                        got100.append("heal_out:n/a ");
+                    }
+                    if (hr != null) {
+                        bHr = applyRank(plugin, pu100, hr.treeId(), hr.node().id(), 2);
+                        double expect = 2 * hr.node().effect().value();
+                        double gotV = plugin.getSpec2Service().healReceivedPercent(pu100);
+                        if (Math.abs(gotV - expect) > 1e-9) {
+                            ok100 = false;
+                            got100.append("heal_recv=").append(gotV).append('/').append(expect).append(' ');
+                        }
+                    } else {
+                        got100.append("heal_recv:n/a ");
+                    }
+                } finally {
+                    if (ho != null && bHo != null) {
+                        restore(plugin, pu100, ho.treeId(), bHo);
+                    }
+                    if (hr != null && bHr != null) {
+                        restore(plugin, pu100, hr.treeId(), bHr);
+                    }
+                }
+                if (check(report, "100", "heal-агрегат: heal_out_pct/heal_received_pct = 2×value узла класса probe",
+                        ok100, "Spec2Service.healOutPercent/healReceivedPercent",
+                        ok100 ? got100.toString() : got100.toString())) {
+                    passed++;
+                } else {
+                    failed++;
+                }
+            }
         }
 
-        boolean ok104 = true;
-        String got104 = "";
-        UUID stranger104 = UUID.randomUUID();
-        boolean sZero = plugin.getSpec2Service().physDmgPercent(stranger104) == 0.0
-                && plugin.getSpec2Service().magicDmgPercent(stranger104) == 0.0
-                && plugin.getSpec2Service().blockPercent(stranger104) == 0.0
-                && plugin.getSpec2Service().critMeleeBonus(stranger104) == 0.0
-                && plugin.getSpec2Service().hpPercent(stranger104) == 0.0
-                && plugin.getSpec2Service().moveSpeedPercent(stranger104) == 0.0;
-        if (!sZero) {
-            ok104 = false;
-            got104 = "stranger: боевые pct != 0";
+        // 101: wp/sp/hpow_pct + пропорция PowerService по найденным у probe видам.
+        if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
+            skip(report, "101", "павер-множители");
+            skipped++;
+        } else {
+            UUID pu101 = probe.getUniqueId();
+            KindHit wp = findKind(plugin, probe, "wp_pct");
+            KindHit spN = findKind(plugin, probe, "sp_pct");
+            KindHit hpow = findKind(plugin, probe, "hpow_pct");
+            if (wp == null && spN == null && hpow == null) {
+                skip(report, "101", "павер-множители (у класса probe нет узлов wp/sp/hpow_pct)");
+                skipped++;
+            } else {
+                boolean ok101 = true;
+                StringBuilder got101 = new StringBuilder();
+                Map<String, Integer> bWp = null;
+                Map<String, Integer> bSp = null;
+                Map<String, Integer> bHp = null;
+                try {
+                    if (wp != null) {
+                        double w0 = plugin.getCombat().powers().weaponPower(pu101);
+                        bWp = applyRank(plugin, pu101, wp.treeId(), wp.node().id(), 2);
+                        double delta = 2 * wp.node().effect().value();
+                        double w1 = plugin.getCombat().powers().weaponPower(pu101);
+                        if (Math.abs(plugin.getSpec2Service().wpPercent(pu101) - delta) > 1e-9
+                                || w0 <= 0 || Math.abs(w1 - w0 * (100 + delta) / 100.0) > 1e-6) {
+                            ok101 = false;
+                            got101.append("wp=").append(w1 / Math.max(w0, 1e-9)).append(' ');
+                        }
+                    }
+                    if (spN != null) {
+                        double s0 = plugin.getCombat().powers().spellPower(pu101);
+                        bSp = applyRank(plugin, pu101, spN.treeId(), spN.node().id(), 2);
+                        double delta = 2 * spN.node().effect().value();
+                        double s1 = plugin.getCombat().powers().spellPower(pu101);
+                        if (Math.abs(plugin.getSpec2Service().spPercent(pu101) - delta) > 1e-9
+                                || s0 <= 0 || Math.abs(s1 - s0 * (100 + delta) / 100.0) > 1e-6) {
+                            ok101 = false;
+                            got101.append("sp=").append(s1 / Math.max(s0, 1e-9)).append(' ');
+                        }
+                    }
+                    if (hpow != null) {
+                        double h0 = plugin.getCombat().powers().healPower(pu101);
+                        bHp = applyRank(plugin, pu101, hpow.treeId(), hpow.node().id(), 2);
+                        double delta = 2 * hpow.node().effect().value();
+                        double h1 = plugin.getCombat().powers().healPower(pu101);
+                        if (Math.abs(plugin.getSpec2Service().hpowPercent(pu101) - delta) > 1e-9
+                                || h0 <= 0 || Math.abs(h1 - h0 * (100 + delta) / 100.0) > 1e-6) {
+                            ok101 = false;
+                            got101.append("hpow=").append(h1 / Math.max(h0, 1e-9)).append(' ');
+                        }
+                    }
+                } finally {
+                    if (wp != null && bWp != null) restore(plugin, pu101, wp.treeId(), bWp);
+                    if (spN != null && bSp != null) restore(plugin, pu101, spN.treeId(), bSp);
+                    if (hpow != null && bHp != null) restore(plugin, pu101, hpow.treeId(), bHp);
+                }
+                if (check(report, "101", "павер-множители: wp/sp/hpow_pct = 2×value и пропорция PowerService",
+                        ok101, "Spec2Service.*Percent/PowerService", got101.toString())) {
+                    passed++;
+                } else {
+                    failed++;
+                }
+            }
         }
-        if (ok104 && probe != null) {
+
+        // 102: pure-часть setCeiling всегда + resource_max/regen_pct у probe, если есть узлы.
+        {
+            ResourceState rs102 = new ResourceState();
+            rs102.setValue(100.0);
+            boolean baseCap = rs102.getValue() == 100.0;
+            rs102.setCeiling(150.0);
+            rs102.add(60.0);
+            boolean ceilUp = rs102.getValue() == 150.0;
+            rs102.setCeiling(120.0);
+            boolean ceilDown = rs102.getValue() == 120.0;
+            rs102.setCeiling(-5.0);
+            rs102.setCeiling(Double.NaN);
+            boolean ceilGuard = rs102.getEffectiveMax() == 120.0;
+            boolean pureOk = baseCap && ceilUp && ceilDown && ceilGuard;
+            UUID stranger102 = UUID.randomUUID();
+            boolean strangerZero = plugin.getSpec2Service().resourceMaxBonus(stranger102) == 0.0
+                    && plugin.getSpec2Service().resourceRegenPercent(stranger102) == 0.0;
+            boolean ok102 = pureOk && strangerZero;
+            String got102 = "pure=" + pureOk;
+            if (probe != null) {
+                UUID pu102 = probe.getUniqueId();
+                KindHit rmax = findKind(plugin, probe, "resource_max");
+                KindHit rreg = findKind(plugin, probe, "resource_regen_pct");
+                Map<String, Integer> bMax = null;
+                Map<String, Integer> bReg = null;
+                try {
+                    if (rmax != null) {
+                        bMax = applyRank(plugin, pu102, rmax.treeId(), rmax.node().id(), 2);
+                        double expect = 2 * rmax.node().effect().value();
+                        double gotV = plugin.getSpec2Service().resourceMaxBonus(pu102);
+                        ok102 &= Math.abs(gotV - expect) < 1e-9;
+                        got102 += " max=" + gotV;
+                    }
+                    if (rreg != null) {
+                        bReg = applyRank(plugin, pu102, rreg.treeId(), rreg.node().id(), 2);
+                        double expect = 2 * rreg.node().effect().value();
+                        double gotV = plugin.getSpec2Service().resourceRegenPercent(pu102);
+                        ok102 &= Math.abs(gotV - expect) < 1e-9;
+                        got102 += " regen=" + gotV;
+                    }
+                    if (rmax == null && rreg == null) {
+                        got102 += " (probe-узлы n/a)";
+                    }
+                } finally {
+                    if (rmax != null && bMax != null) restore(plugin, pu102, rmax.treeId(), bMax);
+                    if (rreg != null && bReg != null) restore(plugin, pu102, rreg.treeId(), bReg);
+                }
+            }
+            if (check(report, "102", "ресурс: setCeiling расширяет/сжимает/мусор-guard; resource_max/regen_pct из узлов",
+                    ok102, "ResourceState.setCeiling/Spec2Service.resourceMaxBonus", got102)) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+
+        // 103: контракт единиц проков (P0-3) + срез префикса proc_ (P0-2).
+        {
+            boolean pureOk = ProcService.clampFraction(1.5) == 1.0
+                    && ProcService.clampFraction(-1.0) == 0.0
+                    && ProcService.clampFraction(Double.NaN) == 0.0
+                    && ProcService.rollChance(1.0)
+                    && !ProcService.rollChance(0.0);
+            boolean stripOk = true;
+            String got103 = "pure=" + pureOk;
+            if (probe != null) {
+                UUID pu103 = probe.getUniqueId();
+                KindHit pn = findKindPrefix(plugin, probe, "proc_");
+                if (pn == null) {
+                    got103 += " (proc-узел n/a)";
+                } else {
+                    String kind = pn.node().effect().kind();
+                    String stripped = kind.substring("proc_".length());
+                    Map<String, Integer> bP = null;
+                    try {
+                        bP = applyRank(plugin, pu103, pn.treeId(), pn.node().id(), 2);
+                        double expect = 2 * pn.node().effect().value();
+                        double byNewKey = plugin.getSpec2Service().procBonus(pu103, stripped);
+                        double byOldKey = plugin.getSpec2Service().procBonus(pu103, kind);
+                        stripOk = Math.abs(byNewKey - expect) < 1e-9 && byOldKey == 0.0;
+                        got103 += " " + kind + "→" + stripped + "=" + byNewKey;
+                    } finally {
+                        if (bP != null) {
+                            restore(plugin, pu103, pn.treeId(), bP);
+                        }
+                    }
+                }
+            }
+            if (check(report, "103", "проки: clampFraction/rollChance pure + префикс proc_ срезан в агрегате",
+                    pureOk && stripOk, "ProcService/Spec2Service.accumulate", got103)) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+
+        // 104: боевые pct-агрегаты + пропорция maxHp — по узлам класса probe.
+        if (probe == null) {
+            skip(report, "104", "боевые pct-агрегаты");
+            skipped++;
+        } else {
             UUID pu104 = probe.getUniqueId();
-            double m0 = plugin.getAttributes().maxHp(pu104);
-            Map<String, Integer> bArms = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, "arms"));
-            Map<String, Integer> bGuard = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, "guard"));
-            Map<String, Integer> bOut = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, "outlaw"));
-            Map<String, Integer> bArc = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, "arcane"));
-            plugin.getSpec2Service().storage().setRanks(pu104, "arms", Map.of("arms_training", 2, "precision", 2));
-            plugin.getSpec2Service().storage().setRanks(pu104, "guard", Map.of("guard_shield_mastery", 2));
-            plugin.getSpec2Service().storage().setRanks(pu104, "outlaw", Map.of("ol_endurance", 2, "ol_improved_sprint", 1));
-            plugin.getSpec2Service().storage().setRanks(pu104, "arcane", Map.of("arc_attunement", 2));
-            plugin.getSpec2Service().reconcile(pu104);
-            double phys = plugin.getSpec2Service().physDmgPercent(pu104);
-            double magic = plugin.getSpec2Service().magicDmgPercent(pu104);
-            double block = plugin.getSpec2Service().blockPercent(pu104);
-            double critM = plugin.getSpec2Service().critMeleeBonus(pu104);
-            double hpP = plugin.getSpec2Service().hpPercent(pu104);
-            double move = plugin.getSpec2Service().moveSpeedPercent(pu104);
-            double maxHpAfter = plugin.getAttributes().maxHp(pu104);
-            boolean aggOk104 = Math.abs(phys - 4.0) < 1e-9 && Math.abs(magic - 4.0) < 1e-9
-                    && Math.abs(block - 6.0) < 1e-9 && Math.abs(critM - 2.0) < 1e-9
-                    && Math.abs(hpP - 10.0) < 1e-9 && Math.abs(move - 10.0) < 1e-9;
-            boolean hpRatio = m0 > 0.0 && Math.abs(maxHpAfter - m0 * 1.10) < 1e-6;
-            ok104 = aggOk104 && hpRatio;
-            got104 = String.format(Locale.ROOT, "phys=%.0f magic=%.0f block=%.0f crit=%.0f hp=%.0f move=%.0f maxHp×=%.3f",
-                    phys, magic, block, critM, hpP, move, m0 > 0 ? maxHpAfter / m0 : -1);
-            plugin.getSpec2Service().storage().setRanks(pu104, "arms", bArms);
-            plugin.getSpec2Service().storage().setRanks(pu104, "guard", bGuard);
-            plugin.getSpec2Service().storage().setRanks(pu104, "outlaw", bOut);
-            plugin.getSpec2Service().storage().setRanks(pu104, "arcane", bArc);
-            plugin.getSpec2Service().reconcile(pu104);
-        }
-        if (check(report, "104", "боевые pct-агрегаты (phys/magic/block/crit/hp/move) + maxHp ×1.10 от hp_pct",
-                ok104, "Spec2Service.*Percent/AttributeService.maxHp", ok104 ? "OK" : got104)) {
-            passed++;
-        } else {
-            failed++;
+            String[] kinds104 = {"phys_dmg_pct", "magic_dmg_pct", "block_pct",
+                    "crit_melee_pct", "hp_pct", "move_speed_pct"};
+            List<KindHit> hits = new ArrayList<>();
+            for (String k : kinds104) {
+                KindHit h = findKind(plugin, probe, k);
+                if (h != null) {
+                    hits.add(h);
+                }
+            }
+            if (hits.isEmpty()) {
+                skip(report, "104", "боевые pct-агрегаты (у класса probe нет pct-узлов)");
+                skipped++;
+            } else {
+                boolean ok104 = true;
+                StringBuilder got104 = new StringBuilder();
+                Map<String, Map<String, Integer>> backups = new HashMap<>();
+                double m0 = plugin.getAttributes().maxHp(pu104);
+                try {
+                    for (KindHit h : hits) {
+                        backups.computeIfAbsent(h.treeId(),
+                                tid -> new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, tid)));
+                    }
+                    for (KindHit h : hits) {
+                        Map<String, Integer> next = new HashMap<>(
+                                plugin.getSpec2Service().storage().getRanks(pu104, h.treeId()));
+                        next.put(h.node().id(), 2);
+                        plugin.getSpec2Service().storage().setRanks(pu104, h.treeId(), next);
+                    }
+                    plugin.getSpec2Service().reconcile(pu104);
+                    for (KindHit h : hits) {
+                        double expect = 2 * h.node().effect().value();
+                        double gotV = switch (h.node().effect().kind()) {
+                            case "phys_dmg_pct" -> plugin.getSpec2Service().physDmgPercent(pu104);
+                            case "magic_dmg_pct" -> plugin.getSpec2Service().magicDmgPercent(pu104);
+                            case "block_pct" -> plugin.getSpec2Service().blockPercent(pu104);
+                            case "crit_melee_pct" -> plugin.getSpec2Service().critMeleeBonus(pu104);
+                            case "hp_pct" -> plugin.getSpec2Service().hpPercent(pu104);
+                            default -> plugin.getSpec2Service().moveSpeedPercent(pu104);
+                        };
+                        if (Math.abs(gotV - expect) > 1e-9) {
+                            ok104 = false;
+                            got104.append(h.node().effect().kind()).append('=').append(gotV)
+                                    .append('/').append(expect).append(' ');
+                        }
+                    }
+                    KindHit hpHit = null;
+                    for (KindHit h : hits) {
+                        if ("hp_pct".equals(h.node().effect().kind())) {
+                            hpHit = h;
+                        }
+                    }
+                    if (hpHit != null) {
+                        double m1 = plugin.getAttributes().maxHp(pu104);
+                        double expectRatio = 1.0 + (2 * hpHit.node().effect().value()) / 100.0;
+                        if (m0 <= 0 || Math.abs(m1 - m0 * expectRatio) > 1e-6) {
+                            ok104 = false;
+                            got104.append("maxHp×=").append(m1 / Math.max(m0, 1e-9)).append(' ');
+                        }
+                    }
+                } finally {
+                    for (Map.Entry<String, Map<String, Integer>> e : backups.entrySet()) {
+                        restore(plugin, pu104, e.getKey(), e.getValue());
+                    }
+                }
+                if (check(report, "104", "боевые pct-агрегаты = 2×value узлов probe + maxHp ×(1+hp/100)",
+                        ok104, "Spec2Service.*Percent/AttributeService.maxHp",
+                        ok104 ? "kinds=" + hits.size() : got104.toString())) {
+                    passed++;
+                } else {
+                    failed++;
+                }
+            }
         }
 
-        boolean ok105 = true;
-        String got105 = "";
-        UUID stranger105 = UUID.randomUUID();
-        if (plugin.getCombat().elemental().resistOf(stranger105, School.NATURE) != 0.0) {
-            ok105 = false;
-            got105 = "stranger: resist NATURE != 0";
-        }
-        if (ok105 && probe != null) {
+        // 105: resist-узел со школой → ElementalResistService.
+        if (probe == null) {
+            skip(report, "105", "resist-школа");
+            skipped++;
+        } else {
             UUID pu105 = probe.getUniqueId();
             String foundTree = null;
             String foundNode = null;
             for (String tid : plugin.getSpec2Service().classTreeIds(pu105)) {
                 Spec2Tree t = Spec2Registry.treeOf(tid);
-                if (t == null) continue;
+                if (t == null) {
+                    continue;
+                }
                 for (Spec2Node n : t.nodes()) {
                     if (n.effect() != null && "resist".equals(n.effect().kind())
                             && "nature".equals(n.effect().target())) {
@@ -1788,35 +1970,41 @@ public final class SelftestRunner {
                         break;
                     }
                 }
-                if (foundNode != null) break;
+                if (foundNode != null) {
+                    break;
+                }
             }
             if (foundNode == null) {
-                got105 = "skip (нет узла resist-nature в контенте)";
+                skip(report, "105", "resist-школа (у класса probe нет узла resist-nature)");
+                skipped++;
             } else {
                 Map<String, Integer> bTree = new HashMap<>(
                         plugin.getSpec2Service().storage().getRanks(pu105, foundTree));
-                plugin.getSpec2Service().storage().setRanks(pu105, foundTree,
-                        Map.of(foundNode, 1));
-                plugin.getSpec2Service().reconcile(pu105);
-                double nres = plugin.getCombat().elemental().resistOf(pu105, School.NATURE);
-                ok105 = nres >= 5.0;
-                got105 = String.format(Locale.ROOT, "node=%s resistN=%.1f", foundNode, nres);
-                plugin.getSpec2Service().storage().setRanks(pu105, foundTree, bTree);
-                plugin.getSpec2Service().reconcile(pu105);
+                boolean ok105;
+                String got105;
+                try {
+                    plugin.getSpec2Service().storage().setRanks(pu105, foundTree,
+                            Map.of(foundNode, 1));
+                    plugin.getSpec2Service().reconcile(pu105);
+                    double nres = plugin.getCombat().elemental().resistOf(pu105, School.NATURE);
+                    ok105 = nres >= 5.0;
+                    got105 = String.format(Locale.ROOT, "node=%s resistN=%.1f", foundNode, nres);
+                } finally {
+                    restore(plugin, pu105, foundTree, bTree);
+                }
+                if (check(report, "105", "resist-узел: resist-nature → ElementalResistService ≥5",
+                        ok105, "Spec2Service.accumulate/ElementalResistService.resistOf", got105)) {
+                    passed++;
+                } else {
+                    failed++;
+                }
             }
         }
-        if (check(report, "105", "resist-узел: resist-nature → ElementalResistService ≥5",
-                ok105, "Spec2Service.accumulate/ElementalResistService.resistOf",
-                ok105 ? "OK" : got105)) {
-            passed++;
-        } else {
-            failed++;
-        }
 
-        boolean ok106 = true;
-        String got106 = "";
+        // 106: resetNode с временным main (P0-1A) и фикстурой рангов.
         if (probe == null) {
-            got106 = "skip";
+            skip(report, "106", "resetNode");
+            skipped++;
         } else {
             UUID pu106 = probe.getUniqueId();
             List<String> trees106 = plugin.getSpec2Service().classTreeIds(pu106);
@@ -1824,188 +2012,201 @@ public final class SelftestRunner {
             Spec2Tree tree106 = t0 == null ? null : Spec2Registry.treeOf(t0);
             Spec2Node node106 = tree106 == null ? null : firstRow1(tree106);
             if (tree106 == null || node106 == null) {
-                got106 = "no-tree-or-node";
-                ok106 = false;
+                skip(report, "106", "resetNode (нет дерева/узла)");
+                skipped++;
             } else {
+                String prevMain = plugin.getSpec2Service().storage().getMain(pu106);
+                boolean tempMain = prevMain == null;
                 Map<String, Integer> b106 = new HashMap<>(
                         plugin.getSpec2Service().storage().getRanks(pu106, t0));
-                plugin.getSpec2Service().storage().setRanks(pu106, t0,
-                        Map.of(node106.id(), 2));
-                plugin.getSpec2Service().reconcile(pu106);
-                int before = plugin.getSpec2Service().spentGlobal(pu106);
-                Spec2Service.NodeResetResult r106 =
-                        plugin.getSpec2Service().resetNode(probe, t0, node106.id(), true);
-                int after = plugin.getSpec2Service().spentGlobal(pu106);
-                int rank = plugin.getSpec2Service().storage().getRanks(pu106, t0)
-                        .getOrDefault(node106.id(), 0);
-                ok106 = r106 == Spec2Service.NodeResetResult.OK
-                        && after == before - 1 && rank == 1;
-                got106 = String.format(Locale.ROOT, "result=%s spent %d→%d rank=%d",
-                        r106, before, after, rank);
-                plugin.getSpec2Service().storage().setRanks(pu106, t0, b106);
-                plugin.getSpec2Service().reconcile(pu106);
+                boolean ok106;
+                String got106;
+                try {
+                    if (tempMain) {
+                        plugin.getSpec2Service().storage().setMain(pu106, t0);
+                    }
+                    plugin.getSpec2Service().storage().setRanks(pu106, t0,
+                            Map.of(node106.id(), 2));
+                    plugin.getSpec2Service().reconcile(pu106);
+                    int before = plugin.getSpec2Service().spentGlobal(pu106);
+                    Spec2Service.NodeResetResult r106 =
+                            plugin.getSpec2Service().resetNode(probe, t0, node106.id(), true);
+                    int after = plugin.getSpec2Service().spentGlobal(pu106);
+                    int rank = plugin.getSpec2Service().storage().getRanks(pu106, t0)
+                            .getOrDefault(node106.id(), 0);
+                    ok106 = r106 == Spec2Service.NodeResetResult.OK
+                            && after == before - 1 && rank == 1;
+                    got106 = String.format(Locale.ROOT, "result=%s spent %d→%d rank=%d",
+                            r106, before, after, rank);
+                } finally {
+                    plugin.getSpec2Service().storage().setRanks(pu106, t0, b106);
+                    if (tempMain) {
+                        plugin.getSpec2Service().storage().setMain(pu106, null);
+                    }
+                    plugin.getSpec2Service().reconcile(pu106);
+                }
+                if (check(report, "106", "resetNode: ранг −1, spentGlobal −1, free-путь, временный main",
+                        ok106, "Spec2Service.resetNode", got106)) {
+                    passed++;
+                } else {
+                    failed++;
+                }
             }
         }
-        if (check(report, "106", "resetNode: ранг узла −1, spentGlobal −1, free-путь",
-                ok106, "Spec2Service.resetNode", ok106 ? "OK" : got106)) {
-            passed++;
-        } else {
-            failed++;
-        }
 
-        boolean ok107 = true;
-        String got107 = "";
-        int cfgStart = plugin.getConfig().getInt("spec2.start-level", 15);
-        int cfgMax = plugin.getConfig().getInt("spec2.max-points", 46);
-        java.util.List<?> cfgGates = plugin.getConfig().getList("spec2.row-gates", null);
-        boolean startMatch = Spec2Points.START_LEVEL == cfgStart;
-        boolean maxMatch = Spec2Points.MAX_POINTS == cfgMax;
-        boolean gatesMatch = true;
-        if (cfgGates != null && cfgGates.size() == Spec2Points.ROW_GATES.length) {
-            for (int i = 0; i < cfgGates.size(); i++) {
-                Object v = cfgGates.get(i);
-                if (v instanceof Number n) {
-                    if (n.intValue() != Spec2Points.ROW_GATES[i]) {
+        // 107: Spec2Points читает конфиг.
+        {
+            int cfgStart = plugin.getConfig().getInt("spec2.start-level", 15);
+            int cfgMax = plugin.getConfig().getInt("spec2.max-points", 46);
+            java.util.List<?> cfgGates = plugin.getConfig().getList("spec2.row-gates", null);
+            boolean startMatch = Spec2Points.START_LEVEL == cfgStart;
+            boolean maxMatch = Spec2Points.MAX_POINTS == cfgMax;
+            boolean gatesMatch = cfgGates != null
+                    && cfgGates.size() == Spec2Points.ROW_GATES.length;
+            if (gatesMatch) {
+                for (int i = 0; i < cfgGates.size(); i++) {
+                    Object v = cfgGates.get(i);
+                    if (v instanceof Number n) {
+                        if (n.intValue() != Spec2Points.ROW_GATES[i]) {
+                            gatesMatch = false;
+                            break;
+                        }
+                    } else {
                         gatesMatch = false;
                         break;
                     }
                 }
             }
-        }
-        ok107 = startMatch && maxMatch && gatesMatch;
-        got107 = String.format(Locale.ROOT, "start=%d/%d max=%d/%d gates=%s",
-                cfgStart, Spec2Points.START_LEVEL, cfgMax, Spec2Points.MAX_POINTS,
-                gatesMatch ? "match" : "mismatch");
-        if (check(report, "107", "Spec2Points: start-level/max-points/row-gates из конфига",
-                ok107, "Spec2Points.configure", ok107 ? "OK" : got107)) {
-            passed++;
-        } else {
-            failed++;
-        }
-
-        // === 1.14.6 (Волна 6a): пет-ядро, чеки 108–111 ===
-
-        // 108: реестр PetDef — базы и ttl по дизайну A2/деревьям.
-        boolean ok108 = true;
-        String got108 = "";
-        PetDef wolf108 = PetDef.byId("wolf");
-        PetDef demon108 = PetDef.byId("demon");
-        PetDef fiend108 = PetDef.byId("shadowfiend");
-        ok108 = wolf108 != null && demon108 != null && fiend108 != null
-                && wolf108.baseHp() == 20.0 && wolf108.baseDmg() == 4.0 && !wolf108.temporary()
-                && demon108.baseHp() == 30.0 && demon108.baseDmg() == 8.0 && demon108.ttlSeconds() == 12
-                && fiend108.baseHp() == 12.0 && fiend108.baseDmg() == 5.0 && fiend108.ttlSeconds() == 8
-                && PetDef.byId("elemental") == null; // элементалей Мага в деревьях нет
-        got108 = (wolf108 == null ? "no-wolf" : "") + (demon108 == null ? "no-demon" : "")
-                + (fiend108 == null ? "no-fiend" : "");
-        if (check(report, "108", "PetDef-реестр: wolf 20/4 perm, demon 30/8 ttl12, shadowfiend 12/5 ttl8",
-                ok108, "PetDef.byId", ok108 ? "OK" : got108)) {
-            passed++;
-        } else {
-            failed++;
+            boolean ok107 = startMatch && maxMatch && gatesMatch;
+            String got107 = String.format(Locale.ROOT, "start=%d/%d max=%d/%d gates=%s",
+                    cfgStart, Spec2Points.START_LEVEL, cfgMax, Spec2Points.MAX_POINTS,
+                    gatesMatch ? "match" : "mismatch");
+            if (check(report, "107", "Spec2Points: start-level/max-points/row-gates из конфига",
+                    ok107, "Spec2Points.configure", got107)) {
+                passed++;
+            } else {
+                failed++;
+            }
         }
 
-        // 109: PetMath scaling (A2 + spec2 pct).
-        boolean ok109 = Math.abs(PetMath.hp(20.0, 50.0, 0.0) - 120.0) < 1e-9
-                && Math.abs(PetMath.hp(20.0, 50.0, 10.0) - 132.0) < 1e-9
-                && Math.abs(PetMath.damage(4.0, 100.0, 0.0, 1.0) - 34.0) < 1e-9
-                && Math.abs(PetMath.damage(4.0, 100.0, 50.0, 2.0) - 102.0) < 1e-9
-                && PetMath.hp(20.0, Double.NaN, 0.0) == 20.0;
-        if (check(report, "109", "PetMath: hp 20+50*2=120 (×1.1=132); dmg 4+100*0.3=34 (×1.5×2=102); NaN-guard",
-                ok109, "PetMath.hp/damage",
-                String.format(Locale.ROOT, "%.1f/%.1f/%.1f/%.1f",
-                        PetMath.hp(20.0, 50.0, 0.0), PetMath.hp(20.0, 50.0, 10.0),
-                        PetMath.damage(4.0, 100.0, 0.0, 1.0),
-                        PetMath.damage(4.0, 100.0, 50.0, 2.0)))) {
-            passed++;
-        } else {
-            failed++;
+        // 108–111: пет-ядро (pure).
+        {
+            PetDef wolf108 = PetDef.byId("wolf");
+            PetDef demon108 = PetDef.byId("demon");
+            PetDef fiend108 = PetDef.byId("shadowfiend");
+            boolean ok108 = wolf108 != null && demon108 != null && fiend108 != null
+                    && wolf108.baseHp() == 20.0 && wolf108.baseDmg() == 4.0 && !wolf108.temporary()
+                    && demon108.baseHp() == 30.0 && demon108.baseDmg() == 8.0 && demon108.ttlSeconds() == 12
+                    && fiend108.baseHp() == 12.0 && fiend108.baseDmg() == 5.0 && fiend108.ttlSeconds() == 8
+                    && PetDef.byId("elemental") == null;
+            if (check(report, "108", "PetDef-реестр: wolf 20/4 perm, demon 30/8 ttl12, shadowfiend 12/5 ttl8",
+                    ok108, "PetDef.byId", ok108 ? "OK" : "registry-gap")) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+        {
+            boolean ok109 = Math.abs(PetMath.hp(20.0, 50.0, 0.0) - 120.0) < 1e-9
+                    && Math.abs(PetMath.hp(20.0, 50.0, 10.0) - 132.0) < 1e-9
+                    && Math.abs(PetMath.damage(4.0, 100.0, 0.0, 1.0) - 34.0) < 1e-9
+                    && Math.abs(PetMath.damage(4.0, 100.0, 50.0, 2.0) - 102.0) < 1e-9
+                    && PetMath.hp(20.0, Double.NaN, 0.0) == 20.0;
+            if (check(report, "109", "PetMath: hp 20+50*2=120 (×1.1=132); dmg 4+100*0.3=34 (×1.5×2=102); NaN-guard",
+                    ok109, "PetMath.hp/damage",
+                    String.format(Locale.ROOT, "%.1f/%.1f/%.1f/%.1f",
+                            PetMath.hp(20.0, 50.0, 0.0), PetMath.hp(20.0, 50.0, 10.0),
+                            PetMath.damage(4.0, 100.0, 0.0, 1.0),
+                            PetMath.damage(4.0, 100.0, 50.0, 2.0)))) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+        {
+            boolean ok110 = "Волк Steve".equals(PetDef.byId("wolf").displayName("Steve"))
+                    && "Демон Steve".equals(PetDef.byId("demon").displayName("Steve"))
+                    && "Тенескот Steve".equals(PetDef.byId("shadowfiend").displayName("Steve"));
+            if (check(report, "110", "PetDef.displayName: «Волк/Демон/Тенескот <ник>»",
+                    ok110, "PetDef.nameTemplate", ok110 ? "OK"
+                            : PetDef.byId("wolf").displayName("Steve"))) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+        {
+            long now111 = System.currentTimeMillis();
+            boolean ok111 = !PetMath.expired(0L, now111)
+                    && PetMath.expired(now111 - 1L, now111)
+                    && !PetMath.expired(now111 + 5_000L, now111)
+                    && PetMath.needsTeleport(13.0 * 13.0, 12.0)
+                    && !PetMath.needsTeleport(11.0 * 11.0, 12.0);
+            if (check(report, "111", "PetMath.expired/needsTeleport: ttl=0 вечен, 13>12 телепорт, 11<12 нет",
+                    ok111, "PetMath.expired/needsTeleport", ok111 ? "OK" : "fail")) {
+                passed++;
+            } else {
+                failed++;
+            }
         }
 
-        // 110: имя пета (A3) — шаблон подставляет ник владельца.
-        boolean ok110 = "Волк Steve".equals(PetDef.byId("wolf").displayName("Steve"))
-                && "Демон Steve".equals(PetDef.byId("demon").displayName("Steve"))
-                && "Тенескот Steve".equals(PetDef.byId("shadowfiend").displayName("Steve"));
-        if (check(report, "110", "PetDef.displayName: «Волк/Демон/Тенескот <ник>»",
-                ok110, "PetDef.nameTemplate", ok110 ? "OK"
-                        : PetDef.byId("wolf").displayName("Steve"))) {
-            passed++;
-        } else {
-            failed++;
+        // 112 (Sprint 1, P0-8f): атрибуты реестра PetService резолвятся.
+        {
+            boolean ok112 = plugin.getPets().attributesReady();
+            if (check(report, "112", "PetService.attributesReady: max_health/attack_damage/movement_speed из реестра",
+                    ok112, "PetService.attributesReady", ok112 ? "OK" : "null-attribute")) {
+                passed++;
+            } else {
+                failed++;
+            }
         }
 
-        // 111: ttl/teleport pure-логика.
-        long now111 = System.currentTimeMillis();
-        boolean ok111 = !PetMath.expired(0L, now111)
-                && PetMath.expired(now111 - 1L, now111)
-                && !PetMath.expired(now111 + 5_000L, now111)
-                && PetMath.needsTeleport(13.0 * 13.0, 12.0)
-                && !PetMath.needsTeleport(11.0 * 11.0, 12.0);
-        if (check(report, "111", "PetMath.expired/needsTeleport: ttl=0 вечен, 13>12 телепорт, 11<12 нет",
-                ok111, "PetMath.expired/needsTeleport", ok111 ? "OK" : "fail")) {
-            passed++;
-        } else {
-            failed++;
+        // 113 (Sprint 1, P0-3): секция spec2.procs.* полная (amp + expose.cap).
+        {
+            String[] procIds = {"riposte", "counterattack", "revenge", "shield_slam",
+                    "second_wind", "reflect_magic", "crit_bonus", "savage", "headshot",
+                    "stealth_bonus", "stealth_extend", "armor_pen"};
+            boolean ok113 = plugin.getConfig().isSet("spec2.procs.expose.cap");
+            StringBuilder missing = new StringBuilder();
+            for (String id : procIds) {
+                if (!plugin.getConfig().isSet("spec2.procs." + id + ".amp")) {
+                    ok113 = false;
+                    missing.append(id).append(' ');
+                }
+            }
+            if (check(report, "113", "spec2.procs.*.amp/.cap: все 12 amp + expose.cap присутствуют в конфиге",
+                    ok113, "config spec2.procs", ok113 ? "OK(13)" : "missing: " + missing)) {
+                passed++;
+            } else {
+                failed++;
+            }
         }
 
-        // === конец 1.14.6 (6a) ===
-
+        // === итог ===
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
         for (String line : report.toString().split("\n")) {
             if (!line.isEmpty()) {
-                sender.sendMessage(Component.text(line,
-                        line.startsWith("✓") ? NamedTextColor.GREEN : NamedTextColor.RED));
+                NamedTextColor lineColor = line.startsWith("✓") ? NamedTextColor.GREEN
+                        : line.startsWith("↷") ? NamedTextColor.YELLOW
+                        : NamedTextColor.RED;
+                sender.sendMessage(Component.text(line, lineColor));
             }
         }
         int total = passed + failed;
         NamedTextColor color = failed == 0 ? NamedTextColor.GREEN : NamedTextColor.RED;
         sender.sendMessage(Component.text("───────────────────────────────────", NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("Итог: " + passed + "/" + total + " PASS", color));
+        sender.sendMessage(Component.text("Итог: " + passed + "/" + total + " PASS"
+                + (skipped > 0 ? " · skipped: " + skipped : ""), color));
         if (failed > 0) {
             sender.sendMessage(Component.text(
                     "Есть проблемы — смотри виновника в каждой строке.",
                     NamedTextColor.RED));
         }
-        plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS");
-    }
-
-    private static boolean applyUntilOk(CCService cc, Player target, CCType type, int ticks) {
-        for (int i = 0; i < 64; i++) {
-            CCService.ApplyResult r = cc.tryApply(null, target, type, ticks);
-            if (r.ok()) {
-                return true;
-            }
-            if (r.result() == CCService.CCResult.FAIL_DR_IMMUNE) {
-                return false;
-            }
+        if (skipped > 0) {
+            sender.sendMessage(Component.text(
+                    "Пропущенные чеки — probe-зависимые: запусти /rc selftest от игрока нужного класса.",
+                    NamedTextColor.YELLOW));
         }
-        return false;
-    }
-
-    private static Spec2Node firstRow1(Spec2Tree tree) {
-        if (tree == null) {
-            return null;
-        }
-        for (Spec2Node node : tree.nodes()) {
-            if (node.row() == 1 && node.prereqs().isEmpty()) {
-                return node;
-            }
-        }
-        return null;
-    }
-
-    private static boolean check(StringBuilder report, String num, String desc,
-                                 boolean ok, String culprit, Object got) {
-        String status = ok ? "✓" : "✗";
-        String detail = ok ? "" : " (получено: " + fmt(got) + ", виновник: " + culprit + ")";
-        report.append(status).append(" чек ").append(num).append(": ").append(desc).append(detail).append('\n');
-        return ok;
-    }
-
-    private static String fmt(Object v) {
-        if (v instanceof Double d) {
-            return String.format(Locale.ROOT, "%.2f", d);
-        }
-        return String.valueOf(v);
+        plugin.getLogger().info("Selftest: " + passed + "/" + total + " PASS, skipped=" + skipped);
     }
 }
