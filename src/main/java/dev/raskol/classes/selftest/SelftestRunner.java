@@ -44,6 +44,7 @@ import dev.raskol.classes.spec.model.Spec2Node;
 import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.model.Spec2Tree;
 import dev.raskol.classes.spec.registry.Spec2Registry;
+import dev.raskol.classes.spec.service.Spec2Service;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -65,7 +66,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 104 чека.
+ * Headless-самотестирование формул плагина (/rc selftest), 107 чеков.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
  * 22–24 (1.14.0 Б8): экономика spec2 (15→46), ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
@@ -82,6 +83,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 102 (1.14.3 Волна 3, 3B): потолок ресурса setCeiling (расширение/сжатие/мусор-guard) + resource_max/regen_pct.
  * 103 (1.14.3 Волна 3, 3C1/3C2): proc-состояния нейтральны без контента + crit_mult_bonus = 1.20 при 2 рангах.
  * 104 (1.14.3 Волна 3, 3B/3C2): phys/magic_dmg_pct, block_pct, crit_melee, hp_pct, move_speed_pct + пропорция maxHp ×1.10.
+ * 105 (1.14.4 Волна 4, П8): resist-узел с таргетом-школой → ElementalResistService.
+ * 106 (1.14.4 Волна 4, П7): resetNode снижает ранг узла и spentGlobal.
+ * 107 (1.14.4 Волна 4, П9): Spec2Points читает конфиг spec2.*.
  */
 public final class SelftestRunner {
 
@@ -202,7 +206,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б8): чек 22 — кривая очков spec2
         int e14 = Spec2Points.earnedPoints(14);
         int e15 = Spec2Points.earnedPoints(15);
         int e40 = Spec2Points.earnedPoints(40);
@@ -216,7 +219,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 23 — ёмкость эталонного дерева arms = 51 > 46
         Spec2Tree arms23 = Spec2Registry.treeOf("arms");
         int cost = arms23 != null ? arms23.capacity() : -1;
         if (check(report, "23", "ёмкость дерева arms = 51 (>46 — закрыть нельзя)", cost == 51,
@@ -226,7 +228,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 24 — reconcile-цикл spec2 (ранг→reconcile→откат)
         if (probe == null) {
             if (check(report, "24", "reconcile-цикл spec2 (пропущено)", true, "reconcile", "skip")) {
                 passed++;
@@ -292,7 +293,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 31 — глобальный бюджет spec2
         if (probe == null) {
             if (check(report, "31", "глобальный бюджет spec2 (пропущено)", true, "spentGlobal", "skip")) {
                 passed++;
@@ -333,7 +333,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б8): чек 32 — reconcile-прунинг spec2
         if (probe == null) {
             if (check(report, "32", "reconcile-прунинг spec2 (пропущено)", true, "validate", "skip")) {
                 passed++;
@@ -588,7 +587,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б8): чек 46 — гейты рядов spec2
         boolean ok46 = !Spec2Points.rowUnlocked(2, 4)
                 && Spec2Points.rowUnlocked(2, 5)
                 && !Spec2Points.rowUnlocked(6, 29)
@@ -602,7 +600,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 47 — конфиг респека spec2
         int rsBase = plugin.getConfig().getInt("spec2.respec-base-cost", 0);
         int rsPer = plugin.getConfig().getInt("spec2.respec-per-level", 0);
         boolean ok47 = rsBase == 250 && rsPer == 10;
@@ -789,7 +786,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 60 — pen-трейты без контента = 0 (spec2/gear/channel)
         PenTraitsService pts = new PenTraitsService(plugin);
         UUID pu60 = UUID.randomUUID();
         double t60 = pts.talentPenPercent(pu60, "phys");
@@ -1300,7 +1296,6 @@ public final class SelftestRunner {
             }
         }
 
-        // 1.14.0 (Б8): чек 91 — чистый enum 18 + роли
         boolean ok91 = Spec.values().length == 18
                 && Spec.forClass(PlayerClass.WARRIOR).length == 3
                 && Spec.forClass(PlayerClass.HUNTER).length == 3
@@ -1319,7 +1314,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 92 — строгий fromId (legacy не резолвится)
         boolean ok92 = Spec.fromId("arms") == Spec.ARMS
                 && Spec.fromId("affliction") == Spec.AFFLICTION
                 && Spec.fromId("tracker") == null
@@ -1333,7 +1327,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 93 — все 18 деревьев в реестре, ёмкость 50–58
         boolean ok93 = true;
         String got93 = "";
         for (Spec s : Spec.values()) {
@@ -1351,7 +1344,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б8): чек 94 — в каждом дереве ровно 1 ульт и ≥1 unlock_ability
         boolean ok94 = true;
         String got94 = "";
         for (Spec s : Spec.values()) {
@@ -1384,7 +1376,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б11.1.1): чек 95 — реестр переносимых покрывает ровно slots 4–5
         boolean ok95 = true;
         String got95 = "";
         int transferableTotal = 0;
@@ -1423,7 +1414,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б11.1.1): чек 96 — методы резолва переносимых согласованы
         boolean ok96 = true;
         String got96 = "";
         for (PlayerClass pc : PlayerClass.values()) {
@@ -1456,7 +1446,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б11.1.2-B2): чек 97 — treeAbilities авторитетен для переносимых
         boolean ok97 = true;
         String got97 = "";
         String[] numKeys97 = {"base", "coeff", "threshold", "execute-mult", "radius",
@@ -1510,7 +1499,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.0 (Б11.1.3-A): чек 98 — athena_aegis имеет unlock_ability-узел в arcane
         boolean ok98 = false;
         Spec2Tree arcaneTree = Spec2Registry.treeOf("arcane");
         if (arcaneTree != null) {
@@ -1530,7 +1518,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.2 (Волна 2): чек 99 — двунаправленное покрытие unlock_ability ↔ кастеры
         boolean ok99 = true;
         String got99 = "";
         Set<String> unlockTargets = new HashSet<>();
@@ -1571,9 +1558,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.3 (Волна 3, 3A): чек 100 — heal-агрегат: heal_out_pct / heal_received_pct.
-        // Stranger = 0; probe с 2 рангами field_medkit (arms, +3%/ранг) и
-        // guard_protectors_resolve (guard, +3%/ранг) → healOut=6, healReceived=6.
         boolean ok100 = true;
         String got100 = "";
         UUID stranger100 = UUID.randomUUID();
@@ -1604,11 +1588,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.3 (Волна 3, 3B): чек 101 — павер-множители wp/sp/hpow_pct.
-        // Геттеры = сумма рангов; PowerService.weaponPower/spellPower/healPower растут
-        // ровно в (100+pct1)/(100+pct0) раз относительно замеров ДО установки рангов
-        // (устойчиво к уже имеющимся рангам probe). Узлы: war_acumen (arms row3, wp +2),
-        // fr_icy_veins (frost row1, sp +2), ho_divine_grace (holy row1, hpow +3).
         boolean ok101 = true;
         String got101 = "";
         UUID stranger101 = UUID.randomUUID();
@@ -1663,10 +1642,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.3 (Волна 3, 3B): чек 102 — потолок ресурса (setCeiling) + resource_max/regen_pct.
-        // ResourceState: базовый кламп 100; setCeiling(150) расширяет; setCeiling(120) сжимает
-        // и клампит value; мусор (≤0/NaN) игнорируется. Узлы: fury_rage_pool (resource_max +10),
-        // as_quick_recovery (resource_regen_pct +10) — по 2 ранга = 20.
         boolean ok102 = true;
         String got102 = "";
         ResourceState rs102 = new ResourceState();
@@ -1707,10 +1682,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.3 (Волна 3, 3C1/3C2): чек 103 — proc-состояния нейтральны без контента +
-        // crit_mult_bonus: mm_lethal_shots 2 ранга (proc_crit_bonus +0.10/ранг) → critMultBonus = 1.20.
-        // Нейтральность: amplifier=1.0, expose=1.0, undodgeable=false, stealth=1.0, armor_pen=0.0
-        // (probe без INVISIBILITY и без активных proc-состояний).
         boolean ok103 = true;
         String got103 = "";
         if (probe == null) {
@@ -1743,11 +1714,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.3 (Волна 3, 3B/3C2): чек 104 — боевые процент-агрегаты + пропорция maxHp.
-        // Узлы row1: arms_training (phys_dmg +2)×2=4, precision (crit_melee +1)×2=2,
-        // arc_attunement (magic_dmg +2)×2=4, guard_shield_mastery (block +3)×2=6,
-        // ol_endurance (hp_pct +5)×2=10, ol_improved_sprint (move_speed +10)×1=10.
-        // maxHp растёт ровно ×1.10 (hp_pct=10) относительно замера ДО установки.
         boolean ok104 = true;
         String got104 = "";
         UUID stranger104 = UUID.randomUUID();
@@ -1800,6 +1766,130 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // === 1.14.4 (Волна 4): чеки 105–107 ===
+
+        // 1.14.4 (П8): resist-узел с таргетом-школой → ElementalResistService.
+        boolean ok105 = true;
+        String got105 = "";
+        UUID stranger105 = UUID.randomUUID();
+        if (plugin.getCombat().elemental().resistOf(stranger105, School.NATURE) != 0.0) {
+            ok105 = false;
+            got105 = "stranger: resist NATURE != 0";
+        }
+        if (ok105 && probe != null) {
+            UUID pu105 = probe.getUniqueId();
+            String foundTree = null;
+            String foundNode = null;
+            for (String tid : plugin.getSpec2Service().classTreeIds(pu105)) {
+                Spec2Tree t = Spec2Registry.treeOf(tid);
+                if (t == null) continue;
+                for (Spec2Node n : t.nodes()) {
+                    if (n.effect() != null && "resist".equals(n.effect().kind())
+                            && "nature".equals(n.effect().target())) {
+                        foundTree = tid;
+                        foundNode = n.id();
+                        break;
+                    }
+                }
+                if (foundNode != null) break;
+            }
+            if (foundNode == null) {
+                got105 = "skip (нет узла resist-nature в контенте)";
+            } else {
+                Map<String, Integer> bTree = new HashMap<>(
+                        plugin.getSpec2Service().storage().getRanks(pu105, foundTree));
+                plugin.getSpec2Service().storage().setRanks(pu105, foundTree,
+                        Map.of(foundNode, 1));
+                plugin.getSpec2Service().reconcile(pu105);
+                double nres = plugin.getCombat().elemental().resistOf(pu105, School.NATURE);
+                ok105 = nres >= 5.0;
+                got105 = String.format(Locale.ROOT, "node=%s resistN=%.1f", foundNode, nres);
+                plugin.getSpec2Service().storage().setRanks(pu105, foundTree, bTree);
+                plugin.getSpec2Service().reconcile(pu105);
+            }
+        }
+        if (check(report, "105", "resist-узел: resist-nature → ElementalResistService ≥5",
+                ok105, "Spec2Service.accumulate/ElementalResistService.resistOf",
+                ok105 ? "OK" : got105)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.4 (П7): resetNode снижает ранг узла и spentGlobal.
+        boolean ok106 = true;
+        String got106 = "";
+        if (probe == null) {
+            got106 = "skip";
+        } else {
+            UUID pu106 = probe.getUniqueId();
+            List<String> trees106 = plugin.getSpec2Service().classTreeIds(pu106);
+            String t0 = trees106.isEmpty() ? null : trees106.get(0);
+            Spec2Tree tree106 = t0 == null ? null : Spec2Registry.treeOf(t0);
+            Spec2Node node106 = tree106 == null ? null : firstRow1(tree106);
+            if (tree106 == null || node106 == null) {
+                got106 = "no-tree-or-node";
+                ok106 = false;
+            } else {
+                Map<String, Integer> b106 = new HashMap<>(
+                        plugin.getSpec2Service().storage().getRanks(pu106, t0));
+                plugin.getSpec2Service().storage().setRanks(pu106, t0,
+                        Map.of(node106.id(), 2));
+                plugin.getSpec2Service().reconcile(pu106);
+                int before = plugin.getSpec2Service().spentGlobal(pu106);
+                Spec2Service.NodeResetResult r106 =
+                        plugin.getSpec2Service().resetNode(probe, t0, node106.id(), true);
+                int after = plugin.getSpec2Service().spentGlobal(pu106);
+                int rank = plugin.getSpec2Service().storage().getRanks(pu106, t0)
+                        .getOrDefault(node106.id(), 0);
+                ok106 = r106 == Spec2Service.NodeResetResult.OK
+                        && after == before - 1 && rank == 1;
+                got106 = String.format(Locale.ROOT, "result=%s spent %d→%d rank=%d",
+                        r106, before, after, rank);
+                plugin.getSpec2Service().storage().setRanks(pu106, t0, b106);
+                plugin.getSpec2Service().reconcile(pu106);
+            }
+        }
+        if (check(report, "106", "resetNode: ранг узла −1, spentGlobal −1, free-путь",
+                ok106, "Spec2Service.resetNode", ok106 ? "OK" : got106)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.4 (П9): Spec2Points читает конфиг spec2.*.
+        boolean ok107 = true;
+        String got107 = "";
+        int cfgStart = plugin.getConfig().getInt("spec2.start-level", 15);
+        int cfgMax = plugin.getConfig().getInt("spec2.max-points", 46);
+        java.util.List<?> cfgGates = plugin.getConfig().getList("spec2.row-gates", null);
+        boolean startMatch = Spec2Points.START_LEVEL == cfgStart;
+        boolean maxMatch = Spec2Points.MAX_POINTS == cfgMax;
+        boolean gatesMatch = true;
+        if (cfgGates != null && cfgGates.size() == Spec2Points.ROW_GATES.length) {
+            for (int i = 0; i < cfgGates.size(); i++) {
+                Object v = cfgGates.get(i);
+                if (v instanceof Number n) {
+                    if (n.intValue() != Spec2Points.ROW_GATES[i]) {
+                        gatesMatch = false;
+                        break;
+                    }
+                }
+            }
+        }
+        ok107 = startMatch && maxMatch && gatesMatch;
+        got107 = String.format(Locale.ROOT, "start=%d/%d max=%d/%d gates=%s",
+                cfgStart, Spec2Points.START_LEVEL, cfgMax, Spec2Points.MAX_POINTS,
+                gatesMatch ? "match" : "mismatch");
+        if (check(report, "107", "Spec2Points: start-level/max-points/row-gates из конфига",
+                ok107, "Spec2Points.configure", ok107 ? "OK" : got107)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // === конец 1.14.4 ===
+
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
         for (String line : report.toString().split("\n")) {
             if (!line.isEmpty()) {
@@ -1832,7 +1922,6 @@ public final class SelftestRunner {
         return false;
     }
 
-    /** Первый узел ряда 1 без пререквизитов (для тестов spec2). */
     private static Spec2Node firstRow1(Spec2Tree tree) {
         if (tree == null) {
             return null;
