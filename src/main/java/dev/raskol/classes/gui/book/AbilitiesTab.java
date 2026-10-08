@@ -26,6 +26,11 @@ import java.util.UUID;
  * 1.11.4 (P4b): вкладка «Способности»: 5 слотов кита + слот инсталляции.
  * 1.14.0 (контент-долг 1): ряд TREE_ABILITY_SLOTS — древесные способности,
  *         открытые узлами деревьев путей (видны только разблокированные).
+ * 1.14.4-fix: описание способности в lore читается через
+ *         TreeAbilities.descriptionOf (treeAbilities → abilities → def).
+ *         Раньше RaskolConfig.abilityDescription смотрел только в abilities.*,
+ *         поэтому у древесных (slot 6+) и переносимых (slots 4–5, секции удалены
+ *         в Б11.1.2-B2) описание не отображалось.
  */
 public final class AbilitiesTab implements BookTabView {
 
@@ -174,7 +179,8 @@ public final class AbilitiesTab implements BookTabView {
                     : Component.text("[" + def.slot() + "] " + def.displayName(), NamedTextColor.DARK_GRAY);
             meta.displayName(name);
             List<Component> lore = new ArrayList<>();
-            String desc = plugin.getRaskolConfig().abilityDescription(pc, def.id(), "");
+            // 1.14.4-fix: фолбэк treeAbilities → abilities → def (древесные и переносимые)
+            String desc = TreeAbilities.descriptionOf(plugin, pc, def.id());
             if (!desc.isEmpty()) {
                 lore.add(Component.text(desc, NamedTextColor.GRAY));
             }
