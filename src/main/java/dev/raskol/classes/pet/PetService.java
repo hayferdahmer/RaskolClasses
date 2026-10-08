@@ -5,10 +5,10 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Attribute;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -38,7 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *    wolf — приручён и не сидит; ttl-петы (demon/shadowfiend) истекают в tick.
  *  - tick (20 т): истечение ttl → дезспавн с пуфом; follow > 12 блоков →
  *    телепорт в безопасную точку; окончание баффа → возврат статов;
- *    мертвая/удалённая сущность → чистка handle.
+ *    мёртвая/удалённая сущность → чистка handle.
  *  - смерть пета (A1): handle чистится, владельцу сообщение; ресаммон —
  *    после КД способности (КД живёт в ките, здесь не дублируется).
  *  - выход владельца: дезспавн без сообщения.
@@ -50,6 +50,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Баффы: buff(owner, dmgMult, speedMult, glow, seconds) — beast_ferocity /
  * bestial_wrath; consume(owner, defId) — demon_soul (поглощение демона).
+ *
+ * 1.14.6-fix: импорт Attribute — org.bukkit.attribute.Attribute (Paper 1.21.4);
+ * ключи реестра: max_health / attack_damage / movement_speed (без префикса generic).
  */
 public final class PetService implements Listener {
 
