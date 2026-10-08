@@ -42,8 +42,10 @@
 (урон должен нанести игрок). Прочесть может Маг/Жрец 40+ без основной спеки
 и потраченных очков путей. Переход необратим: LP `class_warlock`,
 прогрессия — **sorcery** (грант 10).
+
 **Анти-фарм (S2):** после выпадения тома шанс обнуляется до скрытого цикла
 «≥1 моб вне ада + ≥1 смерть + ≥1000 пиглинов без шанса» (`foliant-lock.yml`).
+
 **Soulbound (S3):** том не падает на смерть, не выбрасывается Q, наземный
 экземпляр поднимает только владелец.
 
@@ -55,13 +57,13 @@
 
 * * *
 
-## IV. ДЕРЕВЬЯ ПУТЕЙ (СПЕК 2.0, 1.14.0)
+## IV. ДЕРЕВЬЯ ПУТЕЙ (СПЕК 2.0, 1.14.0 → 1.14.4)
 
 С 15 уровня каждый класс открывает **3 специализации** с деревом прогрессии:
 20 узлов, 6 рядов, гейты рядов по очкам внутри дерева `[0, 5, 10, 15, 20, 30]`
 (ульт = ряд 6 @ 30 очков). Бюджет очков за карьеру = **46** (15→60, +1/уровень;
 старт/бюджет/гейты читаются из `spec2.start-level` / `spec2.max-points` /
-`spec2.row-gates`, 1.14.4). Ёмкость каждого дерева **50–58 рангов** > 46 →
+`spec2.row-gates`, **1.14.4**). Ёмкость каждого дерева **50–58 рангов** > 46 →
 закрыть дерево математически нельзя: выбор ветки остаётся осознанным билдом,
 как в WoW-референсе.
 
@@ -82,12 +84,12 @@ HEALER +5% исходящего лечения.
 (ряд 6, 1/1, сигнатурная способность спека). Ранги 1–5, стоимость ранга =
 1 очко в любом из 3 деревьев класса; пререквизиты ранговые («требуется 2/2»).
 Узлы `resist` принимают таргет-школу (`nature`, `fire`, …) и дают стихийный
-резист (1.14.4).
+резист (**1.14.4**).
 
 **Управление:** `/rc menu` → «Специализации» (выбор основной спеки, один раз,
 бесплатно, с 15 уровня) → «Деревья путей» (ЛКМ по узлу = +1 ранг;
 **ПКМ по купленному узлу = респец одного ранга**: взвод 30 с → подтверждение,
-цена `spec2.node-respec-base` + `spec2.node-respec-per-rank` × ранг, 1.14.4;
+цена `spec2.node-respec-base` + `spec2.node-respec-per-rank` × ранг, **1.14.4**;
 кристалл = платный сброс ВСЕГО дерева с возвратом очков в общий пул).
 Вкладка листает ряды ◀ ▶ и переключает спеки класса (main + 2 secondary).
 
@@ -101,6 +103,7 @@ HP = base-hp + STR×per-str + level×per-level + (STR-main ? level×main-str-bon
 - План B: carrier ≤ 1024 (ванильный max_health), formula без потолка, scale = carrier/formula.
 - HpPool: единые точки входа healFormula/currentFormulaHp/targetCarrier.
 - Burst-окно 3 с ≤ 18%, анти-ваншот ≤ 35%, LOS для площадей, летальность среды.
+- **Сохранение HP:** `hpBarService.saveAll()` в `onDisable` — HP не теряется при краше (1.14.1).
 
 ### Школы урона (1.12.x)
 
@@ -157,11 +160,11 @@ heal_received_pct + роль TANK (входящие); ванильные regain-
 | Школы | `combat/school/*`: School, SchoolProfile, SchoolConfig, SchoolMitigation, SchoolImmunity, PenTraitsService, ElementalResistService |
 | DoT | `combat/dot/*`: DotDef, DotInstance, DotMath (pure), DotService |
 | Контроль | `cc/*`: CCType, DRCategory, DRState, CCInstance, CCService, CCGuard, CastGuard, CastChannels, CCFeedback, VanillaCCWrapper, CcSub, CcSanity |
-| Проки (1.14.4) | `combat/ProcService`: amplifier/expose/undodgeable/stealth-состояния, crit-mult bonus, dot-extend, vendetta refresh |
-| Лечение (1.14.4) | `event/CustomHealEvent` + Spec2RoleListener (композиция heal_out/HEALER/heal_received/TANK) |
-| **Спек 2.0** | `spec/*`: Spec (18), SpecRole, SpecRoles; `spec/model/*` (Spec2Node/Tree/Points/Effect); `spec/registry/trees/*Trees` (18 деревьев); `spec/storage/Spec2Storage` (**spec2-storage.yml**, миграция из spec2.yml); `spec/service/Spec2Service + Spec2EffectsApplier`; `spec/listen/Spec2RoleListener` |
+| **Проки (1.14.4)** | `combat/ProcService`: amplifier/expose/undodgeable/stealth-состояния, crit-mult bonus, dot-extend, vendetta refresh |
+| **Лечение (1.14.4)** | `event/CustomHealEvent` + Spec2RoleListener (композиция heal_out/HEALER/heal_received/TANK) |
+| **Спек 2.0** | `spec/*`: Spec (18), SpecRole, SpecRoles; `spec/model/*` (Spec2Node/Tree/Points/Effect); `spec/registry/trees/*Trees` (18 деревьев); `spec/storage/Spec2Storage` (**spec2-storage.yml**, миграция из spec2.yml, **1.14.4**); `spec/service/Spec2Service + Spec2EffectsApplier`; `spec/listen/Spec2RoleListener` |
 | Атрибуты | AttributeService-фасад + HpPool (план B) + AttributeModifiers |
-| Книга | ClassBook-фасад + `gui/book/*Tab` (5 вкладок, включая «Деревья путей» с пагинацией рядов и переключателем спек) |
+| **Книга (1.14.4)** | ClassBook-фасад + `gui/book/*Tab` (5 вкладок, включая «Деревья путей» с пагинацией рядов, переключателем спек и **ПКМ-респецом узла**) |
 | HUD | HudService (ресурс + DoT-строка, O1 dirty-rendering) |
 | Команды | RaskolCommand-роутер + `command/sub/*Sub` (debug, gear, foliant, health, cc) |
 | Конфиг | config.yml + per-class `kits/<class>.yml` (приоритет, фолбэк, /rc reload) |
