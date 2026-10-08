@@ -44,6 +44,7 @@ import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
 import dev.raskol.classes.resource.ResourceService;
 import dev.raskol.classes.spec.listen.Spec2RoleListener;
+import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.service.Spec2EffectsApplier;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.spec.storage.Spec2Storage;
@@ -67,7 +68,10 @@ import java.util.List;
  * 1.14.0 (Б8.2): legacy-слой (talent/*, spec/Spec*, specs.yml) УДАЛЁН;
  *         единственная система спеков/талантов — spec2.
  * 1.14.0 (контент-долг 1): TreeAbilities.registerCasters — древесные способности Воина.
- * 1.14.1 (Волна 1): hpBarService.saveAll() в onDisable для предотвращения потери HP при краше.
+ * 1.14.1 (Волна 1): hpBarService.saveAll() в onDisable — здоровье не теряется при краше.
+ * 1.14.4 (Волна 4, П9): Spec2Points.configure(this) в onEnable ДО инициализации
+ *         spec2-слоя — очки/гейты рядов читаются из config.yml (spec2.start-level,
+ *         spec2.max-points, spec2.row-gates) с фолбэком на дефолты 15/46/[0,5,10,15,20,30].
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -195,6 +199,10 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(hpSync, this);
         hpSync.startSweep(100L);
         this.hpBarService = new HpBarService(this);
+
+        // 1.14.4 (Волна 4, П9): конфиг-ключи spec2.* ДО инициализации spec2-слоя,
+        // чтобы earnedPoints/rowUnlocked/reconcile сразу считали по конфигу.
+        Spec2Points.configure(this);
 
         // 1.14.0: spec2 — единственная система спеков/талантов
         this.spec2Storage = new Spec2Storage(this);
@@ -332,7 +340,7 @@ public final class RaskolClasses extends JavaPlugin {
             "&8  ██╔════╝██║    ██╔══██╗██╔════╝██╔════╝██╔════╝██╔════╝",
             "&4  ██║     ██║    ███████║███████╗███████╗█████╗  ███████╗",
             "&4  ██║     ██║    ██╔══██║╚════██║╚════██║██╔══╝  ╚════██║",
-            "&5  ╚██████╗███████╗██║  ██║███████║███████║███████│███████║",
+            "&5  ╚██████╗███████╗██║  ██║███████║███████║███████╗███████║",
             "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝╚══════╝",
             "&8  ────────────────────────────────────────────────────",
             "&7     RASKOL &8· &7CLASSES    &8|    &5пять путей &8· &4одна война",
