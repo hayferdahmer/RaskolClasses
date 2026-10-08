@@ -17,11 +17,17 @@ import java.util.logging.Logger;
  * Схема v2:
  *   players.<uuid>.main: <specId>
  *   players.<uuid>.ranks.<treeId>.<nodeId>: <rank>
- * Никаких миграций: на сервере система не была, файл создаётся с нуля.
+ *
+ * 1.14.4 (Волна 4, П10): файл переименован spec2.yml → spec2-storage.yml.
+ * Одноразовая миграция в конструкторе: если старый файл существует, а нового
+ * ещё нет — renameTo. Содержимое не меняется, схема остаётся v2. Если renameTo
+ * не удался — логируем warning и заводим новый пустой файл через SafeStorage.
  */
 public final class Spec2Storage {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
+    private static final String OLD_FILE_NAME = "spec2.yml";
+    private static final String NEW_FILE_NAME = "spec2-storage.yml";
 
     private final JavaPlugin plugin;
     private final File file;
@@ -29,7 +35,21 @@ public final class Spec2Storage {
 
     public Spec2Storage(JavaPlugin plugin) {
         this.plugin = plugin;
-        this.file = new File(plugin.getDataFolder(), "spec2.yml");
+        File dir = plugin.getDataFolder();
+        File oldFile = new File(dir, OLD_FILE_NAME);
+        File newFile = new File(dir, NEW_FILE_NAME);
+
+        if (oldFile.exists() && !newFile.exists()) {
+            boolean renamed = oldFile.renameTo(newFile);
+            if (renamed) {
+                LOGGER.info("spec2: migrated " + OLD_FILE_NAME + " → " + NEW_FILE_NAME);
+            } else {
+                LOGGER.warning("spec2: не удалось переименовать " + OLD_FILE_NAME
+                        + " → " + NEW_FILE_NAME + ", будет создан новый пустой файл");
+            }
+        }
+
+        this.file = newFile;
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
 
