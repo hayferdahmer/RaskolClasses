@@ -65,7 +65,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 99 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 104 чека.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
  * 22–24 (1.14.0 Б8): экономика spec2 (15→46), ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
@@ -76,7 +76,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 95–96 (1.14.0 Б11.1.1): реестр переносимых китовых (slots 4–5) + инвариант резолва.
  * 97 (1.14.0 Б11.1.2-B2): treeAbilities авторитетен для переносимых (base>0); legacy abilities отсутствует или совпадает.
  * 98 (1.14.0 Б11.1.3-A): athena_aegis имеет unlock_ability-узел в arcane (пробел 11/12 закрыт).
- * 99 (1.14.2 Волна 2): двунаправленное покрытие unlock_ability ↔ кастеры (П2).
+ * 99 (1.14.2 Волна 2): двунаправленное покрытие unlock_ability ↔ кастеры без дыр.
+ * 100 (1.14.3 Волна 3, 3A): heal-агрегат heal_out_pct / heal_received_pct (узлы + stranger=0).
+ * 101 (1.14.3 Волна 3, 3B): павер-множители wp/sp/hpow_pct в агрегате и пропорция PowerService.
+ * 102 (1.14.3 Волна 3, 3B): потолок ресурса setCeiling (расширение/сжатие/мусор-guard) + resource_max/regen_pct.
+ * 103 (1.14.3 Волна 3, 3C1/3C2): proc-состояния нейтральны без контента + crit_mult_bonus = 1.20 при 2 рангах.
+ * 104 (1.14.3 Волна 3, 3B/3C2): phys/magic_dmg_pct, block_pct, crit_melee, hp_pct, move_speed_pct + пропорция maxHp ×1.10.
  */
 public final class SelftestRunner {
 
@@ -1013,12 +1018,6 @@ public final class SelftestRunner {
                 }
             }
             double avg = cnt > 0 ? sum / cnt : 0.0;
-            // 1.14.0-fix (чек 75): диагональ matrix = зеркальные дуэли (i↔i); их TTK
-            // объективно выше кросс-классового (два идентичных пула митигации/хила).
-            // Целевые 20с из дизайн-дока — для нормального боя, не для зеркалки.
-            // Коридор СРЕДНЕГО по диагонали расширен [15,25]→[15,30]; при этом diagOk
-            // ∈[10,60] по КАЖДОЙ зеркалке остаётся жёстким якорем против выброса,
-            // а cnt>=4 не даёт «спрятать» сломанные зеркалки за таймаутами (Infinity).
             ok75 = clean && diagOk && cnt >= 4 && avg >= 15.0 && avg <= 30.0;
             got75 = "clean=" + clean + " diag=" + diagOk + " n=" + cnt
                     + " avg=" + String.format(Locale.ROOT, "%.1f", avg);
@@ -1531,10 +1530,7 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.2 (Волна 2): чек 99 — двунаправленное покрытие unlock_ability ↔ кастеры.
-        // (a) каждая цель unlock_ability/ultimate-эффекта в 18 деревьях имеет кастер;
-        // (b) каждый древесный кастер (treeCasterIds) открыт хотя бы одним unlock-узлом.
-        // Ловит рассинхроны вида su_cloak_of_shadows → cloak_of_shadows_cleanse (П2).
+        // 1.14.2 (Волна 2): чек 99 — двунаправленное покрытие unlock_ability ↔ кастеры
         boolean ok99 = true;
         String got99 = "";
         Set<String> unlockTargets = new HashSet<>();
@@ -1570,6 +1566,235 @@ public final class SelftestRunner {
         }
         if (check(report, "99", "unlock_ability ↔ кастеры: двунаправленное покрытие без дыр",
                 ok99, "Spec2Registry/AbilityRegistry.hasCaster", ok99 ? "OK" : got99)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.3 (Волна 3, 3A): чек 100 — heal-агрегат: heal_out_pct / heal_received_pct.
+        // Stranger = 0; probe с 2 рангами field_medkit (arms, +3%/ранг) и
+        // guard_protectors_resolve (guard, +3%/ранг) → healOut=6, healReceived=6.
+        boolean ok100 = true;
+        String got100 = "";
+        UUID stranger100 = UUID.randomUUID();
+        if (plugin.getSpec2Service().healOutPercent(stranger100) != 0.0
+                || plugin.getSpec2Service().healReceivedPercent(stranger100) != 0.0) {
+            ok100 = false;
+            got100 = "stranger: healOut/healReceived != 0";
+        }
+        if (ok100 && probe != null) {
+            UUID pu100 = probe.getUniqueId();
+            Map<String, Integer> bArms = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu100, "arms"));
+            Map<String, Integer> bGuard = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu100, "guard"));
+            plugin.getSpec2Service().storage().setRanks(pu100, "arms", Map.of("field_medkit", 2));
+            plugin.getSpec2Service().storage().setRanks(pu100, "guard", Map.of("guard_protectors_resolve", 2));
+            plugin.getSpec2Service().reconcile(pu100);
+            double ho = plugin.getSpec2Service().healOutPercent(pu100);
+            double hr = plugin.getSpec2Service().healReceivedPercent(pu100);
+            ok100 = Math.abs(ho - 6.0) < 1e-9 && Math.abs(hr - 6.0) < 1e-9;
+            got100 = String.format(Locale.ROOT, "healOut=%.1f healRecv=%.1f", ho, hr);
+            plugin.getSpec2Service().storage().setRanks(pu100, "arms", bArms);
+            plugin.getSpec2Service().storage().setRanks(pu100, "guard", bGuard);
+            plugin.getSpec2Service().reconcile(pu100);
+        }
+        if (check(report, "100", "heal-агрегат: heal_out_pct/heal_received_pct (2 ранга ×3% = 6%), stranger=0",
+                ok100, "Spec2Service.healOutPercent/healReceivedPercent", ok100 ? "OK" : got100)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.3 (Волна 3, 3B): чек 101 — павер-множители wp/sp/hpow_pct.
+        // Геттеры = сумма рангов; PowerService.weaponPower/spellPower/healPower растут
+        // ровно в (100+pct1)/(100+pct0) раз относительно замеров ДО установки рангов
+        // (устойчиво к уже имеющимся рангам probe). Узлы: war_acumen (arms row3, wp +2),
+        // fr_icy_veins (frost row1, sp +2), ho_divine_grace (holy row1, hpow +3).
+        boolean ok101 = true;
+        String got101 = "";
+        UUID stranger101 = UUID.randomUUID();
+        if (plugin.getSpec2Service().wpPercent(stranger101) != 0.0
+                || plugin.getSpec2Service().spPercent(stranger101) != 0.0
+                || plugin.getSpec2Service().hpowPercent(stranger101) != 0.0) {
+            ok101 = false;
+            got101 = "stranger: wp/sp/hpow != 0";
+        }
+        if (ok101 && probe != null && plugin.getClassProvider().getClassOf(probe) != null) {
+            UUID pu101 = probe.getUniqueId();
+            double wp0 = plugin.getSpec2Service().wpPercent(pu101);
+            double sp0 = plugin.getSpec2Service().spPercent(pu101);
+            double hp0 = plugin.getSpec2Service().hpowPercent(pu101);
+            double w0 = plugin.getCombat().powers().weaponPower(pu101);
+            double s0 = plugin.getCombat().powers().spellPower(pu101);
+            double h0 = plugin.getCombat().powers().healPower(pu101);
+            Map<String, Integer> bArms = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu101, "arms"));
+            Map<String, Integer> bFrost = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu101, "frost"));
+            Map<String, Integer> bHoly = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu101, "holy"));
+            plugin.getSpec2Service().storage().setRanks(pu101, "arms", Map.of(
+                    "arms_training", 5, "hardened_skin", 4, "precision", 5, "war_acumen", 3));
+            plugin.getSpec2Service().storage().setRanks(pu101, "frost", Map.of("fr_icy_veins", 2));
+            plugin.getSpec2Service().storage().setRanks(pu101, "holy", Map.of("ho_divine_grace", 2));
+            plugin.getSpec2Service().reconcile(pu101);
+            double wp1 = plugin.getSpec2Service().wpPercent(pu101);
+            double sp1 = plugin.getSpec2Service().spPercent(pu101);
+            double hp1 = plugin.getSpec2Service().hpowPercent(pu101);
+            double w1 = plugin.getCombat().powers().weaponPower(pu101);
+            double s1 = plugin.getSpec2Service() != null ? plugin.getCombat().powers().spellPower(pu101) : 0.0;
+            double h1 = plugin.getCombat().powers().healPower(pu101);
+            boolean deltaOk = Math.abs((wp1 - wp0) - 6.0) < 1e-9
+                    && Math.abs((sp1 - sp0) - 4.0) < 1e-9
+                    && Math.abs((hp1 - hp0) - 6.0) < 1e-9;
+            boolean ratioOk = w0 > 0 && s0 > 0 && h0 > 0
+                    && Math.abs(w1 - w0 * (100 + wp1) / (100 + wp0)) < 1e-6
+                    && Math.abs(s1 - s0 * (100 + sp1) / (100 + sp0)) < 1e-6
+                    && Math.abs(h1 - h0 * (100 + hp1) / (100 + hp0)) < 1e-6;
+            ok101 = deltaOk && ratioOk;
+            got101 = String.format(Locale.ROOT, "dwp=%.0f dsp=%.0f dhp=%.0f wr=%.4f sr=%.4f hr=%.4f",
+                    wp1 - wp0, sp1 - sp0, hp1 - hp0,
+                    w0 > 0 ? w1 / w0 : -1, s0 > 0 ? s1 / s0 : -1, h0 > 0 ? h1 / h0 : -1);
+            plugin.getSpec2Service().storage().setRanks(pu101, "arms", bArms);
+            plugin.getSpec2Service().storage().setRanks(pu101, "frost", bFrost);
+            plugin.getSpec2Service().storage().setRanks(pu101, "holy", bHoly);
+            plugin.getSpec2Service().reconcile(pu101);
+        }
+        if (check(report, "101", "павер-множители: wp/sp/hpow_pct в агрегате (+6/+4/+6) и пропорция PowerService",
+                ok101, "Spec2Service.*Percent/PowerService", ok101 ? "OK" : got101)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.3 (Волна 3, 3B): чек 102 — потолок ресурса (setCeiling) + resource_max/regen_pct.
+        // ResourceState: базовый кламп 100; setCeiling(150) расширяет; setCeiling(120) сжимает
+        // и клампит value; мусор (≤0/NaN) игнорируется. Узлы: fury_rage_pool (resource_max +10),
+        // as_quick_recovery (resource_regen_pct +10) — по 2 ранга = 20.
+        boolean ok102 = true;
+        String got102 = "";
+        ResourceState rs102 = new ResourceState();
+        rs102.setValue(100.0);
+        boolean baseCap = rs102.getValue() == 100.0;
+        rs102.setCeiling(150.0);
+        rs102.add(60.0);
+        boolean ceilUp = rs102.getValue() == 150.0;
+        rs102.setCeiling(120.0);
+        boolean ceilDown = rs102.getValue() == 120.0;
+        rs102.setCeiling(-5.0);
+        rs102.setCeiling(Double.NaN);
+        boolean ceilGuard = rs102.getEffectiveMax() == 120.0;
+        UUID stranger102 = UUID.randomUUID();
+        boolean strangerZero = plugin.getSpec2Service().resourceMaxBonus(stranger102) == 0.0
+                && plugin.getSpec2Service().resourceRegenPercent(stranger102) == 0.0;
+        boolean aggOk = strangerZero;
+        if (probe != null) {
+            UUID pu102 = probe.getUniqueId();
+            Map<String, Integer> bFury = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu102, "fury"));
+            Map<String, Integer> bAssa = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu102, "assassination"));
+            plugin.getSpec2Service().storage().setRanks(pu102, "fury", Map.of("fury_rage_pool", 2));
+            plugin.getSpec2Service().storage().setRanks(pu102, "assassination", Map.of("as_quick_recovery", 2));
+            plugin.getSpec2Service().reconcile(pu102);
+            double rmax = plugin.getSpec2Service().resourceMaxBonus(pu102);
+            double rreg = plugin.getSpec2Service().resourceRegenPercent(pu102);
+            aggOk = Math.abs(rmax - 20.0) < 1e-9 && Math.abs(rreg - 20.0) < 1e-9;
+            got102 = String.format(Locale.ROOT, "max=%.0f regen=%.0f", rmax, rreg);
+            plugin.getSpec2Service().storage().setRanks(pu102, "fury", bFury);
+            plugin.getSpec2Service().storage().setRanks(pu102, "assassination", bAssa);
+            plugin.getSpec2Service().reconcile(pu102);
+        }
+        ok102 = baseCap && ceilUp && ceilDown && ceilGuard && strangerZero && aggOk;
+        if (check(report, "102", "ресурс: setCeiling расширяет/сжимает кламп, мусор-guard; resource_max/regen_pct = 20",
+                ok102, "ResourceState.setCeiling/Spec2Service.resourceMaxBonus", ok102 ? "OK" : got102)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.3 (Волна 3, 3C1/3C2): чек 103 — proc-состояния нейтральны без контента +
+        // crit_mult_bonus: mm_lethal_shots 2 ранга (proc_crit_bonus +0.10/ранг) → critMultBonus = 1.20.
+        // Нейтральность: amplifier=1.0, expose=1.0, undodgeable=false, stealth=1.0, armor_pen=0.0
+        // (probe без INVISIBILITY и без активных proc-состояний).
+        boolean ok103 = true;
+        String got103 = "";
+        if (probe == null) {
+            got103 = "skip";
+        } else {
+            var pr = plugin.getCombat().procs();
+            UUID pu103 = probe.getUniqueId();
+            boolean neutral = pr.getAmplifier(probe) == 1.0
+                    && pr.readExposeMult(probe) == 1.0
+                    && !pr.hasUndodgeable(probe)
+                    && pr.rollStealthBonus(probe) == 1.0
+                    && pr.rollArmorPen(probe, probe) == 0.0
+                    && pr.getStealthExtendBonus(probe) == 0.0;
+            Map<String, Integer> bMm = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu103, "marksmanship"));
+            plugin.getSpec2Service().storage().setRanks(pu103, "marksmanship",
+                    Map.of("mm_steady_hand", 5, "mm_lethal_shots", 2));
+            plugin.getSpec2Service().reconcile(pu103);
+            double pb = plugin.getSpec2Service().procBonus(pu103, "crit_bonus");
+            double cb = pr.critMultBonus(probe);
+            boolean critOk = Math.abs(pb - 0.20) < 1e-9 && Math.abs(cb - 1.20) < 1e-9;
+            got103 = String.format(Locale.ROOT, "neutral=%s proc=%.2f mult=%.2f", neutral, pb, cb);
+            plugin.getSpec2Service().storage().setRanks(pu103, "marksmanship", bMm);
+            plugin.getSpec2Service().reconcile(pu103);
+            ok103 = neutral && critOk;
+        }
+        if (check(report, "103", "proc-состояния нейтральны без контента; crit_mult_bonus 1.20 при proc_crit_bonus 0.20",
+                ok103, "ProcService/Spec2Service.procBonus", ok103 ? "OK" : got103)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 1.14.3 (Волна 3, 3B/3C2): чек 104 — боевые процент-агрегаты + пропорция maxHp.
+        // Узлы row1: arms_training (phys_dmg +2)×2=4, precision (crit_melee +1)×2=2,
+        // arc_attunement (magic_dmg +2)×2=4, guard_shield_mastery (block +3)×2=6,
+        // ol_endurance (hp_pct +5)×2=10, ol_improved_sprint (move_speed +10)×1=10.
+        // maxHp растёт ровно ×1.10 (hp_pct=10) относительно замера ДО установки.
+        boolean ok104 = true;
+        String got104 = "";
+        UUID stranger104 = UUID.randomUUID();
+        boolean sZero = plugin.getSpec2Service().physDmgPercent(stranger104) == 0.0
+                && plugin.getSpec2Service().magicDmgPercent(stranger104) == 0.0
+                && plugin.getSpec2Service().blockPercent(stranger104) == 0.0
+                && plugin.getSpec2Service().critMeleeBonus(stranger104) == 0.0
+                && plugin.getSpec2Service().hpPercent(stranger104) == 0.0
+                && plugin.getSpec2Service().moveSpeedPercent(stranger104) == 0.0;
+        if (!sZero) {
+            ok104 = false;
+            got104 = "stranger: боевые pct != 0";
+        }
+        if (ok104 && probe != null) {
+            UUID pu104 = probe.getUniqueId();
+            double m0 = plugin.getAttributes().maxHp(pu104);
+            Map<String, Integer> bArms = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, "arms"));
+            Map<String, Integer> bGuard = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, "guard"));
+            Map<String, Integer> bOut = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, "outlaw"));
+            Map<String, Integer> bArc = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, "arcane"));
+            plugin.getSpec2Service().storage().setRanks(pu104, "arms", Map.of("arms_training", 2, "precision", 2));
+            plugin.getSpec2Service().storage().setRanks(pu104, "guard", Map.of("guard_shield_mastery", 2));
+            plugin.getSpec2Service().storage().setRanks(pu104, "outlaw", Map.of("ol_endurance", 2, "ol_improved_sprint", 1));
+            plugin.getSpec2Service().storage().setRanks(pu104, "arcane", Map.of("arc_attunement", 2));
+            plugin.getSpec2Service().reconcile(pu104);
+            double phys = plugin.getSpec2Service().physDmgPercent(pu104);
+            double magic = plugin.getSpec2Service().magicDmgPercent(pu104);
+            double block = plugin.getSpec2Service().blockPercent(pu104);
+            double critM = plugin.getSpec2Service().critMeleeBonus(pu104);
+            double hpP = plugin.getSpec2Service().hpPercent(pu104);
+            double move = plugin.getSpec2Service().moveSpeedPercent(pu104);
+            double m1 = plugin.getAttributes().maxHp(pu104);
+            boolean aggOk = Math.abs(phys - 4.0) < 1e-9 && Math.abs(magic - 4.0) < 1e-9
+                    && Math.abs(block - 6.0) < 1e-9 && Math.abs(critM - 2.0) < 1e-9
+                    && Math.abs(hpP - 10.0) < 1e-9 && Math.abs(move - 10.0) < 1e-9;
+            boolean hpRatio = m0 > 0.0 && Math.abs(m1 - m0 * 1.10) < 1e-6;
+            ok104 = aggOk && hpRatio;
+            got104 = String.format(Locale.ROOT, "phys=%.0f magic=%.0f block=%.0f crit=%.0f hp=%.0f move=%.0f maxHp×=%.3f",
+                    phys, magic, block, critM, hpP, move, m0 > 0 ? m1 / m0 : -1);
+            plugin.getSpec2Service().storage().setRanks(pu104, "arms", bArms);
+            plugin.getSpec2Service().storage().setRanks(pu104, "guard", bGuard);
+            plugin.getSpec2Service().storage().setRanks(pu104, "outlaw", bOut);
+            plugin.getSpec2Service().storage().setRanks(pu104, "arcane", bArc);
+            plugin.getSpec2Service().reconcile(pu104);
+        }
+        if (check(report, "104", "боевые pct-агрегаты (phys/magic/block/crit/hp/move) + maxHp ×1.10 от hp_pct",
+                ok104, "Spec2Service.*Percent/AttributeService.maxHp", ok104 ? "OK" : got104)) {
             passed++;
         } else {
             failed++;
