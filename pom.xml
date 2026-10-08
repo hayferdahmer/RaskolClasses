@@ -2,8 +2,7 @@
 <!--
   © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
   RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
-  1.14.4: закрытие аудита П1–П10 (волны 1–4).
-  FIX: finalName = raskol-classes-${project.version} (workflow ищет target/raskol-classes-*.jar).
+  1.14.6: Пет-система (wolf / demon / shadowfiend).
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -12,11 +11,11 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.14.4</version>
+    <version>1.14.6</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Классы, ресурсы, способности, деревья путей (Spec 2.0), CC/DR, школы урона, DoT, проки</description>
+    <description>Классы, ресурсы, способности, деревья путей (Spec 2.0), CC/DR, школы урона, DoT, проки, пет-система</description>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
