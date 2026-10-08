@@ -1,9 +1,20 @@
+# RaskolClasses
+
 <p align="center">
-  <img src="banner.svg" alt="RaskolClasses — Две Короны" width="1000">
+<img src="banner.svg" width="100%"/>
 </p>
 
-Боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ»: шесть путей, две короны, одна война.
-Текущий релиз: **1.14.4** · Paper 1.21.4 · Java 21 · selftest **107/107**.
+<p align="center">
+<img src="https://img.shields.io/badge/1.14.4-8b0000?style=flat-square&label=release&labelColor=0a0a0a"/>
+<img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a"/>
+<img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a"/>
+<img src="https://img.shields.io/badge/107%2F107-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a"/>
+<img src="https://img.shields.io/badge/proprietary-000000?style=flat-square&label=license&labelColor=0a0a0a"/>
+</p>
+
+<p align="center">
+<sub>Боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ»: шесть путей, две короны, одна война.</sub>
+</p>
 
 * * *
 
