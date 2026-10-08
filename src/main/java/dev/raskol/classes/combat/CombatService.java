@@ -41,16 +41,21 @@ import java.util.UUID;
  *         (урон ≥ cc.breaks-on-damage-threshold-pct снимает ROOT/FEAR с цели).
  * 1.14.3 (Волна 3, 3B): хот-путь урона — phys_dmg_pct/magic_dmg_pct умножают
  *         соответствующую базу ДО критов и резистов; crit_melee_pct добавляется
- *         к базовому шансу крита мили; block_pct даёт отдельный rollBlock (щит).
+ *         к базовому шансу крита мили; block_pct даёт отдельный rollBlock (щит),
+ *         который полностью обнуляет входящий физ-урон одного удара.
  * 1.14.3 (Волна 3, 3C1): ProcService — мили-проки (bleed_on_crit, double_strike,
  *         riposte, revenge, shield_slam, second_wind, expose, crit_mult_bonus).
  *         dealDamage принимает флаг fromProc для защиты от рекурсии proc_double_strike.
+ * 1.14.3 (Волна 3, 3C2): каст-проки — stealth_bonus (×урон из невидимости),
+ *         armor_pen (игнор % резиста цели из невидимости), reflect_magic (отражение
+ *         маг-урона обратно атакующему), undodgeable ставится на крит мили.
  */
 public final class CombatService implements Listener {
 
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final ThreadLocal<UUID> ABILITY_SOURCE = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
     private static final ThreadLocal<School> CURRENT_CAST_SCHOOL = new ThreadLocal<>();
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
@@ -254,6 +259,7 @@ public final class CombatService implements Listener {
             }
         }
 
+        // 1.12.3: школа каста → иммунитеты и множители школ
         School castSchool = currentCastSchool();
         double schoolMult = 1.0;
         if (castSchool != null && schoolConfig.enabled()) {
@@ -293,6 +299,27 @@ public final class CombatService implements Listener {
         if (expose > 1.0) {
             physBase *= expose;
             magicBase *= expose;
+        }
+
+        // 1.14.3 (3C2): stealth_bonus — множитель урона при ударе из невидимости
+        if (source instanceof Player srcP) {
+            double stealth = procs.rollStealthBonus(srcP);
+            if (stealth > 1.0) {
+                physBase *= stealth;
+                magicBase *= stealth;
+            }
+        }
+
+        // 1.14.3 (3C2): armor_pen — доля игнорируемого резиста цели при ударе из невидимости
+        double armorPen = 0.0;
+        if (source instanceof Player srcP) {
+            armorPen = procs.rollArmorPen(srcP, target);
+            if (!Double.isFinite(armorPen) || armorPen < 0.0) {
+                armorPen = 0.0;
+            }
+            if (armorPen > 1.0) {
+                armorPen = 1.0;
+            }
         }
 
         // 1.14.3 (3B): rollBlock — шанс полностью обнулить физ-урон щитом
@@ -336,6 +363,8 @@ public final class CombatService implements Listener {
             double physFactor = resists.physicalFactor(uuid, cap);
             double magicFactor = resists.magicFactor(uuid, cap);
             if (!schoolConfig.enabled()) {
+                physFactor = penFactor(physFactor, armorPen);
+                magicFactor = penFactor(magicFactor, armorPen);
                 physPart = Double.isFinite(physFactor) ? physBase * physFactor : physBase;
                 double magicScaled = Double.isFinite(magicFactor) ? magicBase * magicFactor : magicBase;
                 if (warlockIgnoreMagic) {
@@ -367,6 +396,9 @@ public final class CombatService implements Listener {
                     effElPhys = CombatMath.effectiveResist(elPhys, 0.0, spPhys, schoolConfig.penPctCap());
                     effElMagic = CombatMath.effectiveResist(elMagic, 0.0, spMagic, schoolConfig.penPctCap());
                 }
+                // 1.14.3 (3C2): armor_pen режет эффективный резист цели
+                physResistPct = penResistPct(physResistPct, armorPen);
+                magicResistPct = penResistPct(magicResistPct, armorPen);
                 double mitPhys = SchoolMitigation.mitigationFor(physResistPct, Penetration.NONE,
                         schoolConfig.penPctCap(), effElPhys,
                         schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
@@ -453,7 +485,7 @@ public final class CombatService implements Listener {
             ABILITY_SOURCE.remove();
         }
 
-        // 1.13.0 (Б2): breaksOnDamage
+        // 1.13.0 (Б2): breaksOnDamage — урон ≥ порога (% formula-maxHP) снимает ROOT/FEAR с цели
         if (taken > 0.0) {
             plugin.getCC().breakOnDamage(target, taken, caps.formulaMaxOf(target));
         }
@@ -463,20 +495,29 @@ public final class CombatService implements Listener {
             procs.onDefenderDamaged(target, taken);
         }
 
-        // 1.14.3 (3C1): crit/hit procs (bleed_on_crit, apply_poison) — только для мили, не рекурсивно
+        // 1.14.3 (3C2): reflect_magic — отражение маг-урона обратно атакующему.
+        // Дизайн: отражённый удар идёт физ-каналом и МОЖЕТ быть уклонён (контр-плей),
+        // резисты не применяет (чистое отражение); beginReflect глушит рефлект-цепочки.
+        if (magicTruePart > 0.0 && source instanceof Player srcP) {
+            procs.onDefenderDamagedByMagic(target, srcP, magicTruePart);
+        }
+
+        // 1.14.3 (3C1+3C2): crit/hit procs — только для мили-части и не рекурсивно
         if (!fromProc && source instanceof Player srcP) {
-            procs.rollCritProcs(srcP, target, physCrit, true);
-            // applyExpose on any hit (melee or spell)
+            procs.rollCritProcs(srcP, target, physCrit || magicCrit, physCrit);
+            if (physCrit) {
+                procs.setUndodgeable(srcP);
+            }
             procs.applyExpose(srcP, target);
             // double_strike: recurse once with fromProc=true
-            if (physCrit || physPart > 0.0) {
-                procs.rollDoubleStrike(srcP, target, () -> {
-                    dealDamage(target, srcP, DamageProfile.physical(physPart / scale), true, true);
-                });
+            if (physPart > 0.0) {
+                final double recurPhys = physPart;
+                procs.rollDoubleStrike(srcP, target, () ->
+                        dealDamage(target, srcP, DamageProfile.physical(recurPhys), true, true));
             }
         }
 
-        // откат чернокнижника
+        // откат чернокнижника 6.66% (глушится для рефлект-урона)
         if (source instanceof Player attacker && taken > 0.0
                 && !reflectSuppressed()
                 && plugin.getClassProvider().getClassOf(attacker) == PlayerClass.WARLOCK) {
@@ -493,7 +534,7 @@ public final class CombatService implements Listener {
         return taken;
     }
 
-    /** 1.14.3 (3B+3C1): базовый critMelee + bonus из spec2 + crit_mult_bonus. */
+    /** 1.14.3 (3B+3C1): базовый critMelee + critMeleeBonus из spec2. */
     private boolean rollMeleeCrit(Player player) {
         double baseChance = plugin.getAttributes().critMeleeChance(player.getUniqueId());
         double bonus = safePct(plugin.getSpec2Service().critMeleeBonus(player.getUniqueId()));
@@ -523,15 +564,29 @@ public final class CombatService implements Listener {
         return main != null && main.getType().name().endsWith("SHIELD");
     }
 
-    /** 1.14.3 (3C1): базовый melee-mult × crit_mult_bonus (proc_crit_bonus/savage/headshot). */
+    /** 1.14.3 (3C1+3C2): базовый melee-mult × crit_mult_bonus (proc_crit_bonus/savage/headshot). */
     private double meleeMult(Player attacker) {
-        double base = cfgD("attributes.crit.melee-mult", 1.5);
-        return base * procs.critMultBonus(attacker);
+        return cfgD("attributes.crit.melee-mult", 1.5) * procs.critMultBonus(attacker);
     }
 
     private double spellMult(Player attacker) {
-        double base = cfgD("attributes.crit.spell-mult", 1.5);
-        return base * procs.critMultBonus(attacker);
+        return cfgD("attributes.crit.spell-mult", 1.5) * procs.critMultBonus(attacker);
+    }
+
+    /** 1.14.3 (3C2): armor_pen в legacy-ветке (фактор-форма). */
+    private static double penFactor(double factor, double armorPen) {
+        if (armorPen <= 0.0 || !Double.isFinite(factor)) {
+            return factor;
+        }
+        return 1.0 - (1.0 - factor) * (1.0 - armorPen);
+    }
+
+    /** 1.14.3 (3C2): armor_pen в school-ветке (процент-форма). */
+    private static double penResistPct(double resistPct, double armorPen) {
+        if (armorPen <= 0.0) {
+            return resistPct;
+        }
+        return Math.max(0.0, resistPct * (1.0 - armorPen));
     }
 
     private void critFeedback(Player attacker, boolean melee) {
