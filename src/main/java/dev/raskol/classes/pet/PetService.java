@@ -150,7 +150,7 @@ public final class PetService implements Listener {
                 plugin.getSpec2Service().petDmgPercent(uuid), 1.0);
 
         Location spawn = owner.getLocation().add(1.0, 0.0, 1.0);
-        LivingEntity pet = owner.getWorld().spawn(spawn, def.entityType(), e -> {
+        LivingEntity pet = owner.getWorld().spawn(spawn, def.entityType().getEntityClass(), e -> {
             e.setCustomName(def.displayName(owner.getName()));
             e.setCustomNameVisible(true); // A3
             e.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, uuid.toString());
