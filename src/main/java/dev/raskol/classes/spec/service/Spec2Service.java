@@ -3,6 +3,7 @@ package dev.raskol.classes.spec.service;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.hook.EconomyHook;
 import dev.raskol.classes.spec.SpecRole;
 import dev.raskol.classes.spec.SpecRoles;
@@ -15,6 +16,7 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,21 +26,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.14.0 «Спек 2.0»: рантайм деревьев путей.
- * Покупка ранга = 1 очко из общего пула 46 (charLevel 15→60); инвестировать можно
- * в любое из 3 деревьев своего класса; основная спека выбирается один раз на 15
- * (chooseMain) и даёт роль (SpecRoles) + роли-пассивку (Spec2RoleListener).
  *
- * reconcile(uuid): валидация рангов (ряд-гейты по очкам дерева, ранговые
- * пререквизиты, maxRank) → агрегация эффектов ×ранг в кэш Agg → применение
- * постоянных модификаторов через Spec2EffectsApplier → хот-путь геттеры для
- * китов и сервисов (имена совпадают со старым TalentService, чтобы киты не менять).
+ * 1.14.3 (Волна 3, 3A): процентные геттеры для видов эффектов, которые accumulate()
+ * складывает в agg.proc под ключом вида узла (default-ветка).
  *
- * 1.14.3 (Волна 3, 3A): добавлен геттер magicDmgPercent (поле agg.magicDmgPct
- * накапливалось, но не читалось — 15 узлов magic_dmg_pct были мертвы) и семейство
- * процентных геттеров для видов эффектов, которые accumulate() складывает в
- * agg.proc под ключом вида узла (default-ветка): resource_max, hp_pct,
- * attack_speed_pct, block_pct, move_speed_pct, heal_received_pct,
- * resource_regen_pct, pet_hp_pct, pet_dmg_pct. Потребители появятся в 3B/3C/пет-волне.
+ * 1.14.4 (Волна 4):
+ *   - П7: resetNode(player, treeId, nodeId, free) — респец одного ранга конкретного
+ *     узла с эскалационной ценой base + per-rank × current_rank.
+ *   - П8: accumulate() для case "resist" с таргетом-школой (nature/fire/frost/
+ *     shadow/holy/arcane) складывает в agg.elResist и прокидывается в
+ *     ElementalResistService через Spec2EffectsApplier.
  */
 public final class Spec2Service {
 
@@ -51,6 +48,19 @@ public final class Spec2Service {
         OK, RATE_LIMITED, NO_MAIN, TREE_NOT_FOUND, NO_RANKS, POOR, NO_ECONOMY
     }
 
+    /**
+     * 1.14.4 (Волна 4, П7): результат респеца одного ранга узла.
+     * OK — ранг снижен на 1, очки возвращены в пул; цена списана (если не free).
+     * NO_RANKS — узел уже 0/×, снимать нечего.
+     * POOR — не хватает монет на респец.
+     * NO_ECONOMY — EconomyHook недоступен.
+     * RATE_LIMITED/NO_MAIN/TREE_NOT_FOUND/NODE_NOT_FOUND — по аналогии с ResetResult.
+     */
+    public enum NodeResetResult {
+        OK, RATE_LIMITED, NO_MAIN, TREE_NOT_FOUND, NODE_NOT_FOUND,
+        NO_RANKS, POOR, NO_ECONOMY
+    }
+
     /** Агрегат эффектов игрока (пересобирается только в reconcile). */
     public static final class Agg {
         public final Map<String, Double> base = new HashMap<>();
@@ -61,6 +71,8 @@ public final class Spec2Service {
         public final Map<String, Double> dotDur = new HashMap<>();
         public final Map<String, Double> dotStacks = new HashMap<>();
         public final Map<String, Double> dotMult = new HashMap<>();
+        /** 1.14.4 (П8): стихийный резист из узлов resist-<school>. */
+        public final EnumMap<School, Double> elResist = new EnumMap<>(School.class);
         public final Set<String> unlocked = new java.util.HashSet<>();
         public double attrStr, attrAgi, attrInt;
         public double resPhys, resMagic;
@@ -120,13 +132,11 @@ public final class Spec2Service {
         return storage.getMain(uuid);
     }
 
-    /** Роль основной спеки игрока (null если спека не выбрана). */
     public SpecRole roleOfOwner(UUID uuid) {
         String main = storage.getMain(uuid);
         return main == null ? null : SpecRoles.roleOf(main);
     }
 
-    /** Выбор основной спеки: один раз, бесплатно, с charLevel ≥ 15, спека своего класса. */
     public boolean chooseMain(Player player, String specId) {
         if (!SpecRoles.isKnown(specId)) {
             return false;
@@ -258,6 +268,76 @@ public final class Spec2Service {
         return ResetResult.OK;
     }
 
+    /**
+     * 1.14.4 (Волна 4, П7): респец одного ранга конкретного узла.
+     * Цена: spec2.node-respec-base (деф 150) + spec2.node-respec-per-rank (деф 50) × текущий_ранг.
+     * Эскалация: снять ранг у узла 5/5 дороже (400), чем у 1/5 (200).
+     * Снимается ровно ОДИН ранг за операцию; для полного сброса узла вызывающий
+     * повторяет операцию. Если free=true (admin), цена не списывается.
+     * Очки возвращаются в общий пул (spentGlobal падает на 1).
+     */
+    public NodeResetResult resetNode(Player player, String treeId, String nodeId, boolean free) {
+        UUID uuid = player.getUniqueId();
+        if (!actionAllowed(uuid)) {
+            return NodeResetResult.RATE_LIMITED;
+        }
+        if (storage.getMain(uuid) == null) {
+            return NodeResetResult.NO_MAIN;
+        }
+        Spec2Tree tree = Spec2Registry.treeOf(treeId);
+        if (tree == null) {
+            return NodeResetResult.TREE_NOT_FOUND;
+        }
+        Spec2Node node = tree.find(nodeId);
+        if (node == null) {
+            return NodeResetResult.NODE_NOT_FOUND;
+        }
+        Map<String, Integer> ranks = storage.getRanks(uuid, treeId);
+        int currentRank = ranks.getOrDefault(nodeId, 0);
+        if (currentRank <= 0) {
+            return NodeResetResult.NO_RANKS;
+        }
+        if (!free) {
+            int base = plugin.getConfig().getInt("spec2.node-respec-base", 150);
+            int perRank = plugin.getConfig().getInt("spec2.node-respec-per-rank", 50);
+            int cost = base + perRank * currentRank;
+            if (!economy.available()) {
+                return NodeResetResult.NO_ECONOMY;
+            }
+            if (economy.balance(uuid) < cost) {
+                return NodeResetResult.POOR;
+            }
+            economy.withdraw(uuid, cost);
+        }
+        if (currentRank == 1) {
+            ranks.remove(nodeId);
+        } else {
+            ranks.put(nodeId, currentRank - 1);
+        }
+        storage.setRanks(uuid, treeId, ranks);
+        reconcile(uuid);
+        storage.save();
+        return NodeResetResult.OK;
+    }
+
+    /**
+     * 1.14.4 (П7): цена респеца одного ранга узла (для GUI-сообщения).
+     * Возвращает 0, если узел не найден или его ранг 0.
+     */
+    public int nodeResetCost(String treeId, String nodeId, UUID uuid) {
+        Spec2Tree tree = Spec2Registry.treeOf(treeId);
+        if (tree == null) {
+            return 0;
+        }
+        int rank = storage.getRanks(uuid, treeId).getOrDefault(nodeId, 0);
+        if (rank <= 0) {
+            return 0;
+        }
+        int base = plugin.getConfig().getInt("spec2.node-respec-base", 150);
+        int perRank = plugin.getConfig().getInt("spec2.node-respec-per-rank", 50);
+        return base + perRank * rank;
+    }
+
     /* ------------------------------ reconcile + агрегация ------------------------------ */
 
     public void reconcile(UUID uuid) {
@@ -288,7 +368,6 @@ public final class Spec2Service {
         }
     }
 
-    /** Валидация: ряд-гейт по накопленным очкам + ранговые пререквизиты + maxRank. */
     private Map<String, Integer> validate(Spec2Tree tree, Map<String, Integer> raw) {
         Map<String, Integer> kept = new HashMap<>();
         List<Spec2Node> sorted = new ArrayList<>(tree.nodes());
@@ -310,6 +389,11 @@ public final class Spec2Service {
         return kept;
     }
 
+    /**
+     * 1.14.4 (П8): case "resist" расширен — если target является валидным именем школы
+     * (School.fromId), значение складывается в agg.elResist по школе (стихийный резист).
+     * Иначе старая логика: both/phys/magic → agg.resPhys/resMagic.
+     */
     private void accumulate(Agg agg, Spec2Node node, int rank) {
         var e = node.effect().scaledBy(rank);
         switch (e.kind()) {
@@ -319,9 +403,17 @@ public final class Spec2Service {
                 else if ("int".equals(e.target())) agg.attrInt += e.value();
             }
             case "resist" -> {
-                if ("both".equals(e.target())) { agg.resPhys += e.value(); agg.resMagic += e.value2(); }
-                else if ("phys".equals(e.target())) agg.resPhys += e.value();
-                else if ("magic".equals(e.target())) agg.resMagic += e.value();
+                School school = School.fromId(e.target());
+                if (school != null) {
+                    agg.elResist.merge(school, e.value(), Double::sum);
+                } else if ("both".equals(e.target())) {
+                    agg.resPhys += e.value();
+                    agg.resMagic += e.value2();
+                } else if ("phys".equals(e.target())) {
+                    agg.resPhys += e.value();
+                } else if ("magic".equals(e.target())) {
+                    agg.resMagic += e.value();
+                }
             }
             case "kit_base" -> agg.base.merge(e.target(), e.value(), Double::sum);
             case "kit_mult" -> agg.coeff.merge(e.target(), e.value(), Double::sum);
@@ -350,9 +442,6 @@ public final class Spec2Service {
             case "sp_pct" -> agg.spPct += e.value();
             case "hpow_pct" -> agg.hpowPct += e.value();
             case "unlock_ability" -> agg.unlocked.add(e.target());
-            // 1.14.3 (Волна 3): прочие процентные виды (hp_pct, resource_max, block_pct,
-            // move_speed_pct, attack_speed_pct, heal_received_pct, resource_regen_pct,
-            // pet_*) складываются в proc под ключом вида узла и читаются геттерами ниже.
             default -> agg.proc.merge(e.kind(), e.value(), Double::sum);
         }
     }
@@ -373,12 +462,11 @@ public final class Spec2Service {
         return a == null ? new Agg() : a;
     }
 
-    /** Публичный доступ к агрегату для Spec2EffectsApplier и хот-путей сервисов. */
     public Agg aggOf(UUID uuid) {
         return agg(uuid);
     }
 
-    /* ------------------------------ хот-путь геттеры (имена старого TalentService) ------------------------------ */
+    /* ------------------------------ хот-путь геттеры ------------------------------ */
 
     public double baseBonus(UUID uuid, String abilityId) {
         return agg(uuid).base.getOrDefault(abilityId, 0.0);
@@ -409,7 +497,7 @@ public final class Spec2Service {
         return agg(uuid).regen;
     }
 
-    /* ------------------------------ spec2-геттеры для сервисов 1.12–1.13 ------------------------------ */
+    /* ------------------------------ spec2-геттеры для сервисов ------------------------------ */
 
     public double penPercent(UUID uuid, String channel) {
         Agg a = agg(uuid);
@@ -428,7 +516,6 @@ public final class Spec2Service {
         return agg(uuid).dotMult.getOrDefault(dotId, 0.0);
     }
 
-    /** CC-резист: узлы cc_resist + роль TANK (+5% из spec2.role-passives). */
     public double ccResistBonus(UUID uuid) {
         double bonus = agg(uuid).ccResist;
         if (roleOfOwner(uuid) == SpecRole.TANK) {
@@ -449,7 +536,6 @@ public final class Spec2Service {
         return agg(uuid).physDmgPct;
     }
 
-    /** 1.14.3 (Волна 3, 3A): % маг-урона способностей (узлы magic_dmg_pct). */
     public double magicDmgPercent(UUID uuid) {
         return agg(uuid).magicDmgPct;
     }
@@ -470,55 +556,44 @@ public final class Spec2Service {
     public double spPercent(UUID uuid) { return agg(uuid).spPct; }
     public double hpowPercent(UUID uuid) { return agg(uuid).hpowPct; }
 
-    /* ------------------------------ 1.14.3 (Волна 3, 3A): процентные геттеры видов из default-ветки ------------------------------ */
-    /* Значения — СУММА процентов за ранги (не доли): потребитель делит на 100.        */
+    /* ------------------------------ 1.14.3 (Волна 3, 3A): процентные геттеры ------------------------------ */
 
-    /** +maxHP % (узлы hp_pct). Потребитель — AttributeService.maxHp (3B). */
     public double hpPercent(UUID uuid) {
         return procBonus(uuid, "hp_pct");
     }
 
-    /** +max ресурса, абс. единицы (узлы resource_max, напр. +10 ярости за ранг). Потребитель — ResourceState (3B). */
     public double resourceMaxBonus(UUID uuid) {
         return procBonus(uuid, "resource_max");
     }
 
-    /** +реген ресурса % (узлы resource_regen_pct). Потребитель — ResourceService (3B). */
     public double resourceRegenPercent(UUID uuid) {
         return procBonus(uuid, "resource_regen_pct");
     }
 
-    /** +шанс блока % (узлы block_pct). Потребитель — CombatService/avoidance (3B). */
     public double blockPercent(UUID uuid) {
         return procBonus(uuid, "block_pct");
     }
 
-    /** +скорость атаки % (узлы attack_speed_pct). Потребитель — CombatService swing-таймер (3B). */
     public double attackSpeedPercent(UUID uuid) {
         return procBonus(uuid, "attack_speed_pct");
     }
 
-    /** +скорость движения % (узлы move_speed_pct). Потребитель — AttributeService movement (3B). */
     public double moveSpeedPercent(UUID uuid) {
         return procBonus(uuid, "move_speed_pct");
     }
 
-    /** +получаемое лечение % (узлы heal_received_pct). Потребитель — Spec2RoleListener (3A, ниже). */
     public double healReceivedPercent(UUID uuid) {
         return procBonus(uuid, "heal_received_pct");
     }
 
-    /** +HP питомца % (узлы pet_hp_pct). Потребитель — пет-система (волна 1.14.6). */
     public double petHpPercent(UUID uuid) {
         return procBonus(uuid, "pet_hp_pct");
     }
 
-    /** +урон питомца % (узлы pet_dmg_pct). Потребитель — пет-система (волна 1.14.6). */
     public double petDmgPercent(UUID uuid) {
         return procBonus(uuid, "pet_dmg_pct");
     }
 
-    /** Способности, открытые узлами деревьев (unlock_ability/ultimate). */
     public Set<String> unlockedAbilities(UUID uuid) {
         return Set.copyOf(agg(uuid).unlocked);
     }
