@@ -52,7 +52,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * bestial_wrath; consume(owner, defId) — demon_soul (поглощение демона).
  *
  * 1.14.6-fix: импорт Attribute — org.bukkit.attribute.Attribute (Paper 1.21.4);
- * ключи реестра: max_health / attack_damage / movement_speed (без префикса generic).
+ * спавн через World.spawnEntity(Location, EntityType) + явный cast к LivingEntity
+ * (World.spawn с Class<T> не подходит из-за wildcard в getEntityClass()).
  */
 public final class PetService implements Listener {
 
@@ -150,26 +151,30 @@ public final class PetService implements Listener {
                 plugin.getSpec2Service().petDmgPercent(uuid), 1.0);
 
         Location spawn = owner.getLocation().add(1.0, 0.0, 1.0);
-        LivingEntity pet = owner.getWorld().spawn(spawn, def.entityType().getEntityClass(), e -> {
-            e.setCustomName(def.displayName(owner.getName()));
-            e.setCustomNameVisible(true); // A3
-            e.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, uuid.toString());
-            e.getPersistentDataContainer().set(idKey, PersistentDataType.STRING, def.id());
-            if (e instanceof Wolf w) {
-                w.setTamed(true);
-                w.setOwner(owner);
-                w.setSitting(false);
-            }
-            setMaxHealth(e, hp);
-            setAttackDamage(e, dmg);
-            if (e.getHealth() < hp) {
-                e.setHealth(hp);
-            }
-            if (e instanceof Mob m && initialTarget != null
-                    && plugin.getCombat().canHit(owner, initialTarget)) {
-                m.setTarget(initialTarget);
-            }
-        });
+        Entity spawned = owner.getWorld().spawnEntity(spawn, def.entityType());
+        if (!(spawned instanceof LivingEntity pet)) {
+            spawned.remove();
+            return SummonResult.UNKNOWN;
+        }
+
+        pet.setCustomName(def.displayName(owner.getName()));
+        pet.setCustomNameVisible(true); // A3
+        pet.getPersistentDataContainer().set(ownerKey, PersistentDataType.STRING, uuid.toString());
+        pet.getPersistentDataContainer().set(idKey, PersistentDataType.STRING, def.id());
+        if (pet instanceof Wolf w) {
+            w.setTamed(true);
+            w.setOwner(owner);
+            w.setSitting(false);
+        }
+        setMaxHealth(pet, hp);
+        setAttackDamage(pet, dmg);
+        if (pet.getHealth() < hp) {
+            pet.setHealth(hp);
+        }
+        if (pet instanceof Mob m && initialTarget != null
+                && plugin.getCombat().canHit(owner, initialTarget)) {
+            m.setTarget(initialTarget);
+        }
 
         PetState st = new PetState();
         st.petUuid = pet.getUniqueId();
