@@ -36,6 +36,8 @@ import dev.raskol.classes.config.CcSanity;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.hook.GearHook;
+import dev.raskol.classes.pet.PetDef;
+import dev.raskol.classes.pet.PetMath;
 import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecRole;
@@ -66,7 +68,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 107 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 111 чеков.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
  * 22–24 (1.14.0 Б8): экономика spec2 (15→46), ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
@@ -75,17 +77,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 91–94 (1.14.0 Б8): чистый enum 18, строгий fromId, реестр 18 деревьев 50–58,
  *         ульт/unlock-инварианты.
  * 95–96 (1.14.0 Б11.1.1): реестр переносимых китовых (slots 4–5) + инвариант резолва.
- * 97 (1.14.0 Б11.1.2-B2): treeAbilities авторитетен для переносимых (base>0); legacy abilities отсутствует или совпадает.
- * 98 (1.14.0 Б11.1.3-A): athena_aegis имеет unlock_ability-узел в arcane (пробел 11/12 закрыт).
+ * 97 (1.14.0 Б11.1.2-B2): treeAbilities авторитетен для переносимых (base>0).
+ * 98 (1.14.0 Б11.1.3-A): athena_aegis имеет unlock_ability-узел в arcane.
  * 99 (1.14.2 Волна 2): двунаправленное покрытие unlock_ability ↔ кастеры без дыр.
- * 100 (1.14.3 Волна 3, 3A): heal-агрегат heal_out_pct / heal_received_pct (узлы + stranger=0).
- * 101 (1.14.3 Волна 3, 3B): павер-множители wp/sp/hpow_pct в агрегате и пропорция PowerService.
- * 102 (1.14.3 Волна 3, 3B): потолок ресурса setCeiling (расширение/сжатие/мусор-guard) + resource_max/regen_pct.
- * 103 (1.14.3 Волна 3, 3C1/3C2): proc-состояния нейтральны без контента + crit_mult_bonus = 1.20 при 2 рангах.
- * 104 (1.14.3 Волна 3, 3B/3C2): phys/magic_dmg_pct, block_pct, crit_melee, hp_pct, move_speed_pct + пропорция maxHp ×1.10.
- * 105 (1.14.4 Волна 4, П8): resist-узел с таргетом-школой → ElementalResistService.
- * 106 (1.14.4 Волна 4, П7): resetNode снижает ранг узла и spentGlobal.
- * 107 (1.14.4 Волна 4, П9): Spec2Points читает конфиг spec2.*.
+ * 100–104 (1.14.3 Волна 3): heal-агрегат, павер-множители, потолок ресурса,
+ *         proc-нейтральность, боевые pct-агрегаты + maxHp ×1.10.
+ * 105–107 (1.14.4 Волна 4): resist-школа → ElementalResistService, resetNode,
+ *         конфиг-точки Spec2Points.
+ * 108–111 (1.14.6 Волна 6a): PetDef-реестр, PetMath scaling (A2), имена (A3),
+ *         ttl/teleport pure-логика.
  */
 public final class SelftestRunner {
 
@@ -1766,9 +1766,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // === 1.14.4 (Волна 4): чеки 105–107 ===
-
-        // 1.14.4 (П8): resist-узел с таргетом-школой → ElementalResistService.
         boolean ok105 = true;
         String got105 = "";
         UUID stranger105 = UUID.randomUUID();
@@ -1816,7 +1813,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.4 (П7): resetNode снижает ранг узла и spentGlobal.
         boolean ok106 = true;
         String got106 = "";
         if (probe == null) {
@@ -1857,7 +1853,6 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // 1.14.4 (П9): Spec2Points читает конфиг spec2.*.
         boolean ok107 = true;
         String got107 = "";
         int cfgStart = plugin.getConfig().getInt("spec2.start-level", 15);
@@ -1888,7 +1883,72 @@ public final class SelftestRunner {
             failed++;
         }
 
-        // === конец 1.14.4 ===
+        // === 1.14.6 (Волна 6a): пет-ядро, чеки 108–111 ===
+
+        // 108: реестр PetDef — базы и ttl по дизайну A2/деревьям.
+        boolean ok108 = true;
+        String got108 = "";
+        PetDef wolf108 = PetDef.byId("wolf");
+        PetDef demon108 = PetDef.byId("demon");
+        PetDef fiend108 = PetDef.byId("shadowfiend");
+        ok108 = wolf108 != null && demon108 != null && fiend108 != null
+                && wolf108.baseHp() == 20.0 && wolf108.baseDmg() == 4.0 && !wolf108.temporary()
+                && demon108.baseHp() == 30.0 && demon108.baseDmg() == 8.0 && demon108.ttlSeconds() == 12
+                && fiend108.baseHp() == 12.0 && fiend108.baseDmg() == 5.0 && fiend108.ttlSeconds() == 8
+                && PetDef.byId("elemental") == null; // элементалей Мага в деревьях нет
+        got108 = (wolf108 == null ? "no-wolf" : "") + (demon108 == null ? "no-demon" : "")
+                + (fiend108 == null ? "no-fiend" : "");
+        if (check(report, "108", "PetDef-реестр: wolf 20/4 perm, demon 30/8 ttl12, shadowfiend 12/5 ttl8",
+                ok108, "PetDef.byId", ok108 ? "OK" : got108)) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 109: PetMath scaling (A2 + spec2 pct).
+        boolean ok109 = Math.abs(PetMath.hp(20.0, 50.0, 0.0) - 120.0) < 1e-9
+                && Math.abs(PetMath.hp(20.0, 50.0, 10.0) - 132.0) < 1e-9
+                && Math.abs(PetMath.damage(4.0, 100.0, 0.0, 1.0) - 34.0) < 1e-9
+                && Math.abs(PetMath.damage(4.0, 100.0, 50.0, 2.0) - 102.0) < 1e-9
+                && PetMath.hp(20.0, Double.NaN, 0.0) == 20.0;
+        if (check(report, "109", "PetMath: hp 20+50*2=120 (×1.1=132); dmg 4+100*0.3=34 (×1.5×2=102); NaN-guard",
+                ok109, "PetMath.hp/damage",
+                String.format(Locale.ROOT, "%.1f/%.1f/%.1f/%.1f",
+                        PetMath.hp(20.0, 50.0, 0.0), PetMath.hp(20.0, 50.0, 10.0),
+                        PetMath.damage(4.0, 100.0, 0.0, 1.0),
+                        PetMath.damage(4.0, 100.0, 50.0, 2.0)))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 110: имя пета (A3) — шаблон подставляет ник владельца.
+        boolean ok110 = "Волк Steve".equals(PetDef.byId("wolf").displayName("Steve"))
+                && "Демон Steve".equals(PetDef.byId("demon").displayName("Steve"))
+                && "Тенескот Steve".equals(PetDef.byId("shadowfiend").displayName("Steve"));
+        if (check(report, "110", "PetDef.displayName: «Волк/Демон/Тенескот <ник>»",
+                ok110, "PetDef.nameTemplate", ok110 ? "OK"
+                        : PetDef.byId("wolf").displayName("Steve"))) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // 111: ttl/teleport pure-логика.
+        long now111 = System.currentTimeMillis();
+        boolean ok111 = !PetMath.expired(0L, now111)
+                && PetMath.expired(now111 - 1L, now111)
+                && !PetMath.expired(now111 + 5_000L, now111)
+                && PetMath.needsTeleport(13.0 * 13.0, 12.0)
+                && !PetMath.needsTeleport(11.0 * 11.0, 12.0);
+        if (check(report, "111", "PetMath.expired/needsTeleport: ttl=0 вечен, 13>12 телепорт, 11<12 нет",
+                ok111, "PetMath.expired/needsTeleport", ok111 ? "OK" : "fail")) {
+            passed++;
+        } else {
+            failed++;
+        }
+
+        // === конец 1.14.6 (6a) ===
 
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
         for (String line : report.toString().split("\n")) {
