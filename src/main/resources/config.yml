@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.14.4 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
+#  RaskolClasses v1.14.6 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
 #  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -7,20 +7,11 @@
 #  («key: { a: 1 }»), иначе snakeyaml падает с «mapping values are
 #  not allowed here».
 #
-#  1.10.x: чернокнижник, Скверна, Пентаграмма, фолиант-дроп, sorcery-прогрессия.
-#  1.11.x: soulbound/релок фолианта, спек-трейты, игнор маг-резиста ≤25% HP,
-#          рефакторинг P1–P5, эксплойт-фиксы S1–S5/F1–F10, selftest 48.
-#  1.12.x: школы урона, митигация/пробитие/иммунитеты, стихийный резист-слой,
-#          pen-трейты, DoT-ядро, HUD DoT-строка, баланс-прогон матрицы.
-#  1.13.0: КОНТРОЛЬ (CC) И УБЫВАЮЩАЯ ОТДАЧА (DR): cc.*, messages.cc.*,
-#          VanillaCCWrapper, голограмма TextDisplay, CastChannels, CcSanity.
-#  1.14.0: «Спек 2.0» — деревья путей: spec2.*, 18 спеков, роли, DoT wither,
-#          treeAbilities (древесные способности китов), selftest 94 чека.
-#  1.14.0 (Б11.1.2-B2): переносимые slots 4–5 удалены из abilities;
-#          авторитетный источник — treeAbilities.
-#  1.14.3 (Волна 3): 3A/3B/3C1/3C2 — лечение/паверы/ресурс/проки мили и каст.
-#  1.14.4 (Волна 4): П7 респец узла, П8 resist-<school>, П9 конфиг-ключи
-#          spec2.start-level/max-points/row-gates, П10 spec2-storage.yml.
+#  1.14.6-fix (Спринт 1, P0-7): секции avoidance и hp-display ПЕРЕНЕСЕНЫ В КОРЕНЬ —
+#  код читает avoidance.* / hp-display.* с корня (AvoidanceService, HpBarService,
+#  AttributeService), ранее они лежали внутри attributes: и правки не действовали.
+#  parry-k унифицирован до 300 (раньше конфиг 300 / дефолт AvoidanceService 150).
+#  Добавлены: spec2.procs.*.amp (сила проков, P0-3), combat.block.* (P0-7).
 # ============================================================
 
 hud:
@@ -81,6 +72,10 @@ combat:
   burst-window-seconds: 3.0
   burst-window-pct: 18.0
   dot-dps-cap-pct: 6.0
+  # 1.14.6-fix (P0-7): ключи существовали только в коде дефолтами — теперь в конфиге
+  block:
+    visuals: true
+    sound: ITEM_SHIELD_BLOCK
 
 storage:
   autosave-minutes: 5
@@ -127,7 +122,6 @@ spec:
 # 1.14.0 «Спек 2.0»: деревья путей.
 # Очки: charLevel 15→60 = 46; стоимость ранга 1 очко в любом из 3 деревьев класса;
 # гейты рядов — по очкам ВНУТРИ дерева [0,5,10,15,20,30] (ульт = ряд 6 @30).
-# Ёмкость дерева 50–58 рангов > 46 → закрыть дерево математически нельзя.
 # Основная спека выбирается один раз на 15 (chooseMain) и даёт роль:
 #   FIGHTER +2% урона · TANK +5% ccResist и +5% получаемого лечения ·
 #   HEALER +5% исходящего лечения.
@@ -141,9 +135,6 @@ spec2:
   tree-capacity-min: 50
   respec-base-cost: 250
   respec-per-level: 10
-  # 1.14.4 (Волна 4, П7): респец одного ранга конкретного узла.
-  # Цена = node-respec-base + node-respec-per-rank × текущий_ранг_узла.
-  # Эскалация: снять ранг у 5/5 дороже (400), чем у 1/5 (200).
   node-respec-base: 150
   node-respec-per-rank: 50
   respec-main-role-discount: 0.5
@@ -155,6 +146,36 @@ spec2:
       heal-received: 0.05
     HEALER:
       heal-mult: 0.05
+  # 1.14.6-fix (Спринт 1, P0-3): СИЛА проков (амплификаторы).
+  # Шанс срабатывания = значение узла (доля за ранг, суммарно, кламп [0,1]);
+  # сила берётся отсюда. Дефолты сверены с описаниями узлов деревьев.
+  procs:
+    expose:
+      cap: 0.30
+    riposte:
+      amp: 0.50
+    counterattack:
+      amp: 0.50
+    revenge:
+      amp: 0.10
+    shield_slam:
+      amp: 0.50
+    second_wind:
+      amp: 0.08
+    reflect_magic:
+      amp: 0.20
+    crit_bonus:
+      amp: 0.30
+    savage:
+      amp: 0.30
+    headshot:
+      amp: 1.00
+    stealth_bonus:
+      amp: 0.50
+    stealth_extend:
+      amp: 1.0
+    armor_pen:
+      amp: 0.20
 
 foliant:
   drop-enabled: true
@@ -270,40 +291,57 @@ attributes:
     spell-tag: "✦ Магический крит!"
     melee-sound: ENTITY_PLAYER_ATTACK_CRIT
     spell-sound: ENTITY_EVOKER_CAST_SPELL
-  avoidance:
-    dodge-k: 100
-    parry-k: 300
-    soft-cap: 60
-    dr-factor: 0.5
-    hard-cap: 75
-    dodge-mult: 0.5
-    agi-main-parry-micro: 0.5
-    agi-main-dodge-refund: 0.5
-    front-angle: 90
-    back-angle: 135
-    parry-stagger-player-ms: 600
-    parry-stagger-mob-ms: 500
-  hp-display:
-    mode: actionbar
-    gauge: true
-    gauge-length: 10
-    hearts-scale: 20.0
-    update-period-ticks: 10
-    colors:
-      frame: "#8B5A3C"
-      gauge-empty: "#6E5232"
-      numbers: "#D6CDBE"
-    gradient:
-      enabled: true
-      hp-start: "#5C0F0F"
-      hp-end: "#C82020"
-      res-start: "#8B5A3C"
-      res-end: "#D6A642"
-    regen-spark:
-      enabled: true
-      color: "#F5E6B8"
-    format: "❤ {hp}/{max}"
   boss-no-avoidance: []
+
+# ------------------------------------------------------------
+# 1.14.6-fix (P0-7): секция ПЕРЕНЕСЕНА В КОРЕНЬ из attributes:.
+# Код читает avoidance.* с корня (AvoidanceService.tryAvoid,
+# AttributeService.effectiveAvoidance). parry-k = 300 унифицирован.
+# ------------------------------------------------------------
+avoidance:
+  enabled: true
+  visuals: true
+  dodge-k: 100
+  parry-k: 300
+  soft-cap: 60
+  dr-factor: 0.5
+  hard-cap: 75
+  dodge-mult: 0.5
+  agi-main-parry-micro: 0.5
+  agi-main-dodge-refund: 0.5
+  front-angle: 90
+  back-angle: 135
+  parry-stagger-player-ms: 600
+  parry-stagger-mob-ms: 500
+  dodge-tag: "💨 Уклонение!"
+  parry-tag: "⚔ Парирование!"
+  dodge-sound: ENTITY_ENDERMAN_TELEPORT
+  parry-sound: ENTITY_SHIELD_BLOCK
+
+# ------------------------------------------------------------
+# 1.14.6-fix (P0-7): секция ПЕРЕНЕСЕНА В КОРЕНЬ из attributes:.
+# Код читает hp-display.* с корня (HpBarService, HudService).
+# ------------------------------------------------------------
+hp-display:
+  mode: actionbar
+  gauge: true
+  gauge-length: 10
+  hearts-scale: 20.0
+  update-period-ticks: 10
+  colors:
+    frame: "#8B5A3C"
+    gauge-empty: "#6E5232"
+    numbers: "#D6CDBE"
+  gradient:
+    enabled: true
+    hp-start: "#5C0F0F"
+    hp-end: "#C82020"
+    res-start: "#8B5A3C"
+    res-end: "#D6A642"
+  regen-spark:
+    enabled: true
+    color: "#F5E6B8"
+  format: "❤ {hp}/{max}"
 
 damage-types:
   env-lethal-scale: true
@@ -408,7 +446,6 @@ dots:
     dps: 2.0
     duration: 3
     max-stacks: 1
-  # 1.14.0 (Б7): ДоТ Чернокнижника-Колдовства и Жреца-Тьмы
   wither:
     school: SHADOW
     dps: 2.5
@@ -673,12 +710,6 @@ classes:
         cooldown: 45
         duration: 6
         school: PHYSICAL
-    # ------------------------------------------------------------
-    # 1.14.0 (контент-долг 1): древесные способности Воина.
-    # Открываются узлами деревьев arms/fury/guard (unlock_ability/ultimate).
-    # Без ранга узла каст отказывается с подсказкой в игре.
-    # 1.14.0 (Б11.1.2-B2): fenrir_blood/ragnarok — авторитетные переносимые slots 4–5.
-    # ------------------------------------------------------------
     treeAbilities:
       whirlwind_slash:
         name: "Вихревой удар"
@@ -842,10 +873,6 @@ classes:
         base: 12
         coeff: 1.4
         school: PHYSICAL
-    # ------------------------------------------------------------
-    # 1.14.0 (контент-долг 2): древесные способности Охотника.
-    # 1.14.0 (Б11.1.2-B2): arrow_fan/arrow_rain — авторитетные переносимые slots 4–5.
-    # ------------------------------------------------------------
     treeAbilities:
       aimed_shot:
         name: "Прицельный выстрел"
@@ -1049,10 +1076,6 @@ classes:
         coeff: 0.04
         duration: 5
         school: HOLY
-    # ------------------------------------------------------------
-    # 1.14.0 (контент-долг 5): древесные способности Жреца.
-    # 1.14.0 (Б11.1.2-B2): circle_elysium/wrath_heaven — авторитетные переносимые slots 4–5.
-    # ------------------------------------------------------------
     treeAbilities:
       purge:
         name: "Очищение"
@@ -1216,10 +1239,6 @@ classes:
         radius: 5.0
         duration: 4
         school: FROST
-    # ------------------------------------------------------------
-    # 1.14.0 (контент-долг 4): древесные способности Мага.
-    # 1.14.0 (Б11.1.2-B2): athena_aegis/zeus_wrath — авторитетные переносимые slots 4–5.
-    # ------------------------------------------------------------
     treeAbilities:
       arcane_missiles:
         name: "Чародейские стрелы"
@@ -1398,10 +1417,6 @@ classes:
         base: 10
         coeff: 0.9
         school: PHYSICAL
-    # ------------------------------------------------------------
-    # 1.14.0 (контент-долг 3): древесные способности Разбойника.
-    # 1.14.0 (Б11.1.2-B2): borgia_poison/shadow_dance — авторитетные переносимые slots 4–5.
-    # ------------------------------------------------------------
     treeAbilities:
       poison_burst:
         name: "Взрыв яда"
@@ -1616,7 +1631,6 @@ classes:
         seal-duration: 86.6
         antiheal-bonus: 3.0
         decay: -2.0
-      # legacy (1.13.0 и ранее): код больше не читает, оставлены для отката конфига
       black_mage:
         damage-mult: 0.10
         unwriting-strips-resist: 1
@@ -1661,10 +1675,6 @@ classes:
         drain: 0.666
         corruption-gain: 12
         school: SHADOW
-    # ------------------------------------------------------------
-    # 1.14.0 (контент-долг 6): древесные способности Чернокнижника.
-    # 1.14.0 (Б11.1.2-B2): unwriting/soul_rift — авторитетные переносимые slots 4–5.
-    # ------------------------------------------------------------
     treeAbilities:
       withering:
         name: "Иссушение"
@@ -2061,7 +2071,6 @@ vfx:
     ambient-volume: 0.35
     ambient-pitch: 0.5
     ambient-particle: REVERSE_PORTAL
-  # 1.14.0 (контент-долг 1): VFX древесных способностей Воина
   whirlwind_slash:
     cast-sound: ENTITY_PLAYER_ATTACK_SWEEP
     cast-particle: SWEEP_ATTACK
@@ -2101,7 +2110,6 @@ vfx:
   last_stand:
     cast-sound: BLOCK_ANVIL_LAND
     cast-particle: ENCHANTED_HIT
-  # 1.14.0 (контент-долг 2): VFX древесных способностей Охотника
   aimed_shot:
     cast-sound: ITEM_CROSSBOW_SHOOT
     cast-particle: CRIT
@@ -2162,7 +2170,6 @@ vfx:
   bestial_wrath:
     cast-sound: ENTITY_WOLF_HOWL
     cast-particle: CRIMSON_SPORE
-  # 1.14.0 (контент-долг 3): VFX древесных способностей Разбойника
   poison_burst:
     cast-sound: ENTITY_SPIDER_HURT
     cast-particle: COMPOSTER
@@ -2231,7 +2238,6 @@ vfx:
   shadow_blades:
     cast-sound: ENTITY_ENDERMAN_TELEPORT
     cast-particle: SCULK_SOUL
-  # 1.14.0 (контент-долг 4): VFX древесных способностей Мага
   arcane_missiles:
     cast-sound: ENTITY_EVOKER_CAST_SPELL
     cast-particle: REVERSE_PORTAL
@@ -2281,7 +2287,6 @@ vfx:
     cast-particle: SNOWFLAKE
     impact-sound: BLOCK_GLASS_BREAK
     impact-particle: SNOWFLAKE
-  # 1.14.0 (контент-долг 5): VFX древесных способностей Жреца
   purge:
     cast-sound: BLOCK_BELL_USE
     cast-particle: ENCHANTED_HIT
@@ -2319,7 +2324,6 @@ vfx:
   shadowfiend:
     cast-sound: ENTITY_VEX_CHARGE
     cast-particle: SCULK_SOUL
-  # 1.14.0 (контент-долг 6): VFX древесных способностей Чернокнижника
   withering:
     cast-sound: ENTITY_WITHER_HURT
     cast-particle: SCULK_SOUL
