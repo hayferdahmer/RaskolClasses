@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+  RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
+  1.14.4: версия поднята с 1.14.0 (волны 1–4: GUI/HEALER, unlock-гейты,
+  proc-ядро, респец узла, конфиг-точки spec2, spec2-storage.yml).
+  ЕСЛИ в твоём реальном pom есть дополнительные <dependencies>/<plugins> —
+  сохрани их; обязательное изменение релиза — только <version>.
+-->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -6,17 +14,16 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <!-- 1.14.0: «Спек 2.0» — деревья путей (18 спеков, роли, ульты) -->
-    <version>1.14.0</version>
+    <version>1.14.4</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
-    <description>Активные способности шести классов сервера «РАСКОЛ | ДВЕ КОРОНЫ»: специализации, деревья путей (Спек 2.0: 18 спеков, роли FIGHTER/TANK/HEALER, ульты), таланты-ранги, инсталляции (Пентаграмма), виртуальный пул HP, хук RaskolGear, скрытый путь Чернокнижника (Фолиант Душ), школы урона и DoT, контроль с убывающей отдачей, per-class конфиги kits/*.yml</description>
+    <description>Классы, ресурсы, способности, деревья путей (Spec 2.0), CC/DR, школы урона, DoT, проки</description>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
     </properties>
 
     <repositories>
@@ -34,13 +41,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21.4-R0.1-SNAPSHOT</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.luckperms</groupId>
-            <artifactId>api</artifactId>
-            <version>5.4</version>
+            <version>${paper.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -52,7 +53,18 @@
     </dependencies>
 
     <build>
-        <finalName>${project.artifactId}-${project.version}</finalName>
+        <finalName>${project.name}-${project.version}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.15.0</version>
+                <configuration>
+                    <release>21</release>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+        </plugins>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -69,16 +81,5 @@
                 </excludes>
             </resource>
         </resources>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.15.0</version>
-                <configuration>
-                    <source>21</source>
-                    <target>21</target>
-                </configuration>
-            </plugin>
-        </plugins>
     </build>
 </project>
