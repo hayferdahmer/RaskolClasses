@@ -15,31 +15,23 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 1.14.3 (Волна 3, 3C1+3C2): ЕДИНЫЙ фасад proc-узлов деревьев путей.
+ * 1.14.3 (3C1/3C2): фасад proc-узлов деревьев путей.
  *
- * Семантика amplifier (исправлено в фикс-патче красного рана #1301):
- *   riposte (PARRY без щита), counterattack (DODGE), revenge/shield_slam (PARRY со щитом)
- *   усиливают СЛЕДУЮЩИЙ УДАР ЗАЩИЩАВШЕГОСЯ (defender), а не атакующего.
- *   Amplifier хранится на defender и снимается, когда defender сам наносит урон
- *   (CombatService.dealDamage / VanillaDamageListener.applyOutgoingOffense).
+ * 1.14.6-fix (Спринт 1, P0-3): КОНТРАКТ ЕДИНИЦ.
+ *  - Значения узлов proc_* — ДОЛИ за ранг: 0.15 = «15% шанс за ранг».
+ *    Шанс срабатывания = clamp(Σ рангов, 0..1), бросок — rollChance(fraction).
+ *  - СИЛА эффекта (амплификатор) берётся из конфига spec2.procs.<id>.amp
+ *    с дефолтами из описаний узлов (riposte 0.50, revenge 0.10, headshot 1.00 …).
+ *    Ранг влияет только на шанс, не на силу — как в описаниях («+50%» фиксировано).
+ *  - proc_expose — детерминированный: величина = Σ рангов (доля), кап из конфига.
+ *  - Процентные виды (hp_pct, resource_max, …) здесь НЕ читаются: они в геттерах
+ *    Spec2Service и трактуются как проценты (делятся на 100 потребителем).
  *
- * Триггеры:
- *   onDefenderAvoid(defender, attacker, result) → riposte (PARRY) / counterattack (DODGE)
- *   onDefenderBlock(blocker, opponent)          → revenge / shield_slam
- *   onDefenderDamaged(victim, formulaDamage)    → second_wind (HP<35%, КД 30 с)
- *   onDefenderDamagedByMagic(victim, attacker, magicDamage) → reflect_magic
- *   rollCritProcs(attacker, target, wasCrit, isMelee) → bleed_on_crit / apply_poison /
- *                                                       poison_extend / burning_extend /
- *                                                       vendetta_refresh
- *   rollDoubleStrike(attacker, target, strike)  → double_strike (recurse, fromProc-гейт)
- *   applyExpose(attacker, target)               → expose (+X% incoming, 6 с)
- *   rollStealthBonus(attacker) / rollArmorPen(attacker, target) → stealth_bonus / armor_pen
- *   setUndodgeable(attacker) / hasUndodgeable / consumeUndodgeable → undodgeable
- *   getStealthExtendBonus(player)               → stealth_extend (секунды к shadow_cloak)
- *   critMultBonus(attacker)                     → crit_bonus / savage / headshot
+ * 1.14.6-fix (Спринт 1, P0-2): ключи agg.proc приходят БЕЗ префикса proc_
+ * (срезается в Spec2Service.accumulate), поэтому procBonus(uuid, "riposte") работает.
  *
- * Все чтения безопасны к пустому агрегату spec2: procBonus=0 → множитель 1.0,
- * состояния пусты → чеки selftest 1–104 стабильны.
+ * Amplifier следующего удара ставится на ЗАЩИЩАВШЕГОСЯ (riposte/counterattack/
+ * revenge/shield_slam) и снимается, когда он сам наносит урон.
  */
 public final class ProcService {
 
@@ -48,27 +40,44 @@ public final class ProcService {
 
     private final RaskolClasses plugin;
 
-    /** Множитель следующего удара (ставится на ЗАЩИЩАВШЕГОСЯ). */
     private final Map<UUID, Double> nextHitMult = new ConcurrentHashMap<>();
     private final Map<UUID, Long> nextHitExpiry = new ConcurrentHashMap<>();
-
-    /** Дебафф incoming damage на цели (proc_expose). */
     private final Map<UUID, Long> exposeExpiry = new ConcurrentHashMap<>();
     private final Map<UUID, Double> exposeMult = new ConcurrentHashMap<>();
-
-    /** Cooldown proc_second_wind per player. */
     private final Map<UUID, Long> secondWindCd = new ConcurrentHashMap<>();
-
-    /** Флаг «следующий удар нельзя уклонить» (proc_undodgeable). */
     private final Map<UUID, Long> undodgeableExpiry = new ConcurrentHashMap<>();
 
     public ProcService(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
+    /* ------------------------------ pure-хелперы (selftest 103/112) ------------------------------ */
+
+    /** Кламп доли шанса в [0,1]; NaN/отрицательные → 0. */
+    public static double clampFraction(double v) {
+        return Double.isFinite(v) ? Math.max(0.0, Math.min(1.0, v)) : 0.0;
+    }
+
+    /** Бросок шанса-доли. */
+    public static boolean rollChance(double fraction) {
+        return ThreadLocalRandom.current().nextDouble() < clampFraction(fraction);
+    }
+
+    /* ------------------------------ чтение агрегата и конфига ------------------------------ */
+
+    private double proc(UUID uuid, String id) {
+        Spec2Service svc = plugin.getSpec2Service();
+        return svc == null ? 0.0 : svc.procBonus(uuid, id);
+    }
+
+    /** Сила эффекта прока: spec2.procs.<id>.amp, дефолт из описания узла. */
+    private double amp(String id, double def) {
+        double v = plugin.getConfig().getDouble("spec2.procs." + id + ".amp", def);
+        return Double.isFinite(v) && v >= 0.0 ? v : def;
+    }
+
     /* ------------------------------ amplifier (next-hit bonus) ------------------------------ */
 
-    /** Текущий множитель следующего удара игрока (1.0 если нет активного прока). */
     public double getAmplifier(Player attacker) {
         if (attacker == null) {
             return 1.0;
@@ -84,7 +93,6 @@ public final class ProcService {
         return m != null && m > 1.0 ? m : 1.0;
     }
 
-    /** Сброс amplifier после применения (одноразовый). */
     public void consumeAmplifier(Player attacker) {
         if (attacker == null) {
             return;
@@ -109,7 +117,7 @@ public final class ProcService {
         nextHitExpiry.put(uuid, now + durationMs);
     }
 
-    /* ------------------------------ expose (incoming damage bonus) ------------------------------ */
+    /* ------------------------------ expose (incoming damage bonus, детерминированный) ------------------------------ */
 
     public double readExposeMult(LivingEntity target) {
         if (target == null) {
@@ -130,143 +138,103 @@ public final class ProcService {
         if (attacker == null || target == null) {
             return;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
+        double add = proc(attacker.getUniqueId(), "expose"); // доля за ранг, напр. 0.05
+        if (add <= 0.0) {
             return;
         }
-        double proc = svc.procBonus(attacker.getUniqueId(), "expose");
-        if (!Double.isFinite(proc) || proc <= 0.0) {
-            return;
-        }
+        double cap = plugin.getConfig().getDouble("spec2.procs.expose.cap", 0.30);
+        add = Math.min(add, Double.isFinite(cap) && cap > 0.0 ? cap : 0.30);
         UUID uuid = target.getUniqueId();
         long now = System.currentTimeMillis();
         long durationMs = 6_000L;
         Double cur = exposeMult.get(uuid);
         Long exp = exposeExpiry.get(uuid);
-        double newMult;
-        if (cur != null && cur > 1.0 && exp != null && now <= exp) {
-            newMult = cur + proc / 100.0;
-        } else {
-            newMult = 1.0 + proc / 100.0;
-        }
+        double newMult = (cur != null && cur > 1.0 && exp != null && now <= exp)
+                ? Math.min(cur + add, 1.0 + (Double.isFinite(cap) ? cap : 0.30))
+                : 1.0 + add;
         exposeMult.put(uuid, newMult);
         exposeExpiry.put(uuid, now + durationMs);
     }
 
-    /* ------------------------------ on-avoid / on-block triggers ------------------------------ */
+    /* ------------------------------ on-avoid / on-block ------------------------------ */
 
     /**
-     * PARRY → proc_riposte: защищавшийся получает +X% к следующему удару.
-     * DODGE → proc_counterattack: уклонившийся получает +X% к следующему удару.
-     * Amplifier ставится на DEFENDER (исправлено: ранее ошибочно на attacker).
+     * PARRY → proc_riposte: шанс = доля за ранг, сила = amp (дефолт +50%).
+     * DODGE → proc_counterattack: аналогично.
+     * Amplifier получает ЗАЩИЩАВШИЙСЯ.
      */
     public void onDefenderAvoid(Player defender, Player attacker, AvoidResult result) {
         if (defender == null || attacker == null || result == AvoidResult.NONE) {
             return;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
-            return;
-        }
         UUID duuid = defender.getUniqueId();
         long durationMs = 8_000L;
         if (result == AvoidResult.PARRY) {
-            double proc = svc.procBonus(duuid, "riposte");
-            if (Double.isFinite(proc) && proc > 0.0) {
-                setAmplifier(defender, 1.0 + proc / 100.0, durationMs);
+            if (rollChance(proc(duuid, "riposte"))) {
+                setAmplifier(defender, 1.0 + amp("riposte", 0.50), durationMs);
             }
         } else if (result == AvoidResult.DODGE) {
-            double proc = svc.procBonus(duuid, "counterattack");
-            if (Double.isFinite(proc) && proc > 0.0) {
-                setAmplifier(defender, 1.0 + proc / 100.0, durationMs);
+            if (rollChance(proc(duuid, "counterattack"))) {
+                setAmplifier(defender, 1.0 + amp("counterattack", 0.50), durationMs);
             }
         }
     }
 
-    /**
-     * Блок щитом (PARRY + щит): proc_revenge (гарант) и proc_shield_slam (шанс).
-     * Amplifier ставится на BLOCKER (defender).
-     */
+    /** Блок щитом: revenge (гарант-шанс, +10%) и shield_slam (шанс, +50%). */
     public void onDefenderBlock(Player defender, Player attacker) {
         if (defender == null || attacker == null) {
             return;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
-            return;
-        }
         UUID duuid = defender.getUniqueId();
         long durationMs = 8_000L;
-
-        double revenge = svc.procBonus(duuid, "revenge");
-        if (Double.isFinite(revenge) && revenge > 0.0) {
-            setAmplifier(defender, 1.0 + revenge / 100.0, durationMs);
+        if (rollChance(proc(duuid, "revenge"))) {
+            setAmplifier(defender, 1.0 + amp("revenge", 0.10), durationMs);
         }
-
-        double shieldSlam = svc.procBonus(duuid, "shield_slam");
-        if (Double.isFinite(shieldSlam) && shieldSlam > 0.0) {
-            if (ThreadLocalRandom.current().nextDouble() < shieldSlam / 100.0) {
-                setAmplifier(defender, 1.5, durationMs);
-            }
+        if (rollChance(proc(duuid, "shield_slam"))) {
+            setAmplifier(defender, 1.0 + amp("shield_slam", 0.50), durationMs);
         }
     }
 
-    /* ------------------------------ on-damaged triggers ------------------------------ */
+    /* ------------------------------ on-damaged ------------------------------ */
 
+    /** second_wind: шанс = доля за ранг; хил = amp (дефолт 8% formula-maxHP); КД 30 с. */
     public void onDefenderDamaged(LivingEntity victim, double formulaDamage) {
         if (!(victim instanceof Player p) || formulaDamage <= 0.0) {
             return;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
-            return;
-        }
         UUID uuid = p.getUniqueId();
-        double proc = svc.procBonus(uuid, "second_wind");
-        if (!Double.isFinite(proc) || proc <= 0.0) {
+        double chance = proc(uuid, "second_wind");
+        if (chance <= 0.0) {
             return;
         }
-
         Long cd = secondWindCd.get(uuid);
         long now = System.currentTimeMillis();
         if (cd != null && now < cd) {
             return;
         }
-
         double maxHp = plugin.getHpBarService().formulaMaxHp(uuid);
         double curHp = plugin.getHpBarService().currentFormulaHp(p);
         if (maxHp <= 0.0 || curHp / maxHp >= 0.35) {
             return;
         }
-
-        if (ThreadLocalRandom.current().nextDouble() >= proc / 100.0) {
+        if (!rollChance(chance)) {
             return;
         }
-
-        double heal = maxHp * 0.08;
+        double heal = maxHp * amp("second_wind", 0.08);
         plugin.getHpBarService().heal(p, heal, null);
         secondWindCd.put(uuid, now + 30_000L);
     }
 
-    /**
-     * proc_reflect_magic: отражение % маг-урона обратно атакующему.
-     * Дизайн: отражённый удар идёт через ванильный damage() под suppress —
-     * резисты не применяет (чистое отражение), может быть уклонён (контр-плей),
-     * beginReflect глушит рефлект-цепочки и откат чернокнижника.
-     */
+    /** reflect_magic: шанс = доля за ранг; отражается amp (дефолт 20%) маг-урона. */
     public void onDefenderDamagedByMagic(LivingEntity victim, Player attacker, double magicDamage) {
         if (!(victim instanceof Player defender) || attacker == null || magicDamage <= 0.0) {
             return;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
+        double chance = proc(defender.getUniqueId(), "reflect_magic");
+        if (chance <= 0.0 || !rollChance(chance)) {
             return;
         }
-        double proc = svc.procBonus(defender.getUniqueId(), "reflect_magic");
-        if (!Double.isFinite(proc) || proc <= 0.0) {
-            return;
-        }
-        double reflect = magicDamage * (proc / 100.0);
+        double reflect = magicDamage * amp("reflect_magic", 0.20);
         if (reflect <= 0.0) {
             return;
         }
@@ -282,162 +250,123 @@ public final class ProcService {
         }
     }
 
-    /* ------------------------------ on-crit / on-hit triggers ------------------------------ */
+    /* ------------------------------ on-crit / on-hit ------------------------------ */
 
+    /**
+     * Крит-проки: bleed_on_crit / apply_poison (шанс = доля за ранг),
+     * poison_extend / burning_extend (шанс → освежить DoT),
+     * vendetta_refresh (шанс → продлить вендетту).
+     */
     public void rollCritProcs(Player attacker, LivingEntity target, boolean wasCrit, boolean isMelee) {
         if (attacker == null || target == null || !wasCrit) {
             return;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
-            return;
-        }
         UUID uuid = attacker.getUniqueId();
 
-        if (isMelee) {
-            double bleedOnCrit = svc.procBonus(uuid, "bleed_on_crit");
-            if (Double.isFinite(bleedOnCrit) && bleedOnCrit > 0.0) {
-                plugin.getCombat().dots().applyById(attacker, target, "bleed");
-            }
+        if (isMelee && rollChance(proc(uuid, "bleed_on_crit"))) {
+            plugin.getCombat().dots().applyById(attacker, target, "bleed");
         }
-
-        if (isMelee) {
-            double applyPoison = svc.procBonus(uuid, "apply_poison");
-            if (Double.isFinite(applyPoison) && applyPoison > 0.0) {
-                if (ThreadLocalRandom.current().nextDouble() < applyPoison / 100.0) {
-                    plugin.getCombat().dots().applyById(attacker, target, "poison");
-                }
-            }
+        if (isMelee && rollChance(proc(uuid, "apply_poison"))) {
+            plugin.getCombat().dots().applyById(attacker, target, "poison");
         }
-
-        if (isMelee) {
-            double poisonExtend = svc.procBonus(uuid, "poison_extend");
-            if (Double.isFinite(poisonExtend) && poisonExtend > 0.0) {
-                rollDotExtend(attacker, target, "poison", poisonExtend);
-            }
+        if (isMelee && rollChance(proc(uuid, "poison_extend"))) {
+            plugin.getCombat().dots().applyById(attacker, target, "poison"); // refresh
         }
-
-        if (!isMelee) {
-            double burningExtend = svc.procBonus(uuid, "burning_extend");
-            if (Double.isFinite(burningExtend) && burningExtend > 0.0) {
-                rollDotExtend(attacker, target, "burning", burningExtend);
-            }
+        if (!isMelee && rollChance(proc(uuid, "burning_extend"))) {
+            plugin.getCombat().dots().applyById(attacker, target, "burning"); // refresh
         }
-
-        double vendettaRefresh = svc.procBonus(uuid, "vendetta_refresh");
-        if (Double.isFinite(vendettaRefresh) && vendettaRefresh > 0.0) {
-            if (ThreadLocalRandom.current().nextDouble() < vendettaRefresh / 100.0) {
-                RogueAbilities.refreshVendetta(target.getUniqueId());
-            }
+        if (rollChance(proc(uuid, "vendetta_refresh"))) {
+            RogueAbilities.refreshVendetta(target.getUniqueId());
         }
     }
 
-    /** Продление DoT: повторный applyById освежает срок активного стека. */
-    private void rollDotExtend(Player attacker, LivingEntity target, String dotId, double procPercent) {
-        if (ThreadLocalRandom.current().nextDouble() >= procPercent / 100.0) {
-            return;
-        }
-        plugin.getCombat().dots().applyById(attacker, target, dotId);
-    }
-
+    /** double_strike: шанс = доля за ранг; повторный удар без рекурсии (fromProc в CombatService). */
     public boolean rollDoubleStrike(Player attacker, LivingEntity target, Runnable strike) {
         if (attacker == null || target == null || strike == null) {
             return false;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
-            return false;
-        }
-        double proc = svc.procBonus(attacker.getUniqueId(), "double_strike");
-        if (!Double.isFinite(proc) || proc <= 0.0) {
-            return false;
-        }
-        if (ThreadLocalRandom.current().nextDouble() >= proc / 100.0) {
+        if (!rollChance(proc(attacker.getUniqueId(), "double_strike"))) {
             return false;
         }
         strike.run();
         return true;
     }
 
-    /* ------------------------------ crit-mult bonus ------------------------------ */
-
+    /**
+     * crit_bonus / savage / headshot: для каждого — бросок шанса (доля за ранг);
+     * при успехе crit-множитель умножается на (1 + amp).
+     * Дефолты amp из описаний: crit_bonus +30%, savage +30%, headshot +100% (×2).
+     * Вызывается ОДИН раз на крит (CombatService.meleeMult/spellMult, путь A и B).
+     */
     public double critMultBonus(Player attacker) {
         if (attacker == null) {
             return 1.0;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
-            return 1.0;
-        }
         UUID uuid = attacker.getUniqueId();
         double mult = 1.0;
-
-        double critBonus = svc.procBonus(uuid, "crit_bonus");
-        if (Double.isFinite(critBonus) && critBonus > 0.0) {
-            mult *= (1.0 + critBonus / 100.0);
+        if (rollChance(proc(uuid, "crit_bonus"))) {
+            mult *= 1.0 + amp("crit_bonus", 0.30);
         }
-
-        double savage = svc.procBonus(uuid, "savage");
-        if (Double.isFinite(savage) && savage > 0.0) {
-            mult *= (1.0 + savage / 100.0);
+        if (rollChance(proc(uuid, "savage"))) {
+            mult *= 1.0 + amp("savage", 0.30);
         }
-
-        double headshot = svc.procBonus(uuid, "headshot");
-        if (Double.isFinite(headshot) && headshot > 0.0) {
-            mult *= (1.0 + headshot / 100.0);
+        if (rollChance(proc(uuid, "headshot"))) {
+            mult *= 1.0 + amp("headshot", 1.00);
         }
-
         return mult;
     }
 
-    /* ------------------------------ stealth procs ------------------------------ */
+    /* ------------------------------ stealth ------------------------------ */
 
+    /** stealth_bonus: шанс = доля за ранг; при успехе ×(1+amp) урона из невидимости (дефолт +50%). */
     public double rollStealthBonus(Player attacker) {
         if (attacker == null) {
-            return 1.0;
-        }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
             return 1.0;
         }
         PotionEffect invis = attacker.getPotionEffect(PotionEffectType.INVISIBILITY);
         if (invis == null || invis.getDuration() <= 0) {
             return 1.0;
         }
-        double proc = svc.procBonus(attacker.getUniqueId(), "stealth_bonus");
-        if (!Double.isFinite(proc) || proc <= 0.0) {
+        if (!rollChance(proc(attacker.getUniqueId(), "stealth_bonus"))) {
             return 1.0;
         }
-        return 1.0 + proc / 100.0;
+        return 1.0 + amp("stealth_bonus", 0.50);
     }
 
+    /** stealth_extend: шанс = доля за ранг; при успехе +amp секунд к shadow_cloak (дефолт +1 с). */
     public double getStealthExtendBonus(Player player) {
         if (player == null) {
             return 0.0;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
+        if (!rollChance(proc(player.getUniqueId(), "stealth_extend"))) {
             return 0.0;
         }
-        double proc = svc.procBonus(player.getUniqueId(), "stealth_extend");
-        return Double.isFinite(proc) && proc > 0.0 ? proc : 0.0;
+        return amp("stealth_extend", 1.0);
     }
 
-    /* ------------------------------ undodgeable / armor_pen ------------------------------ */
+    /** armor_pen: шанс = доля за ранг; при успехе игнор amp резиста цели (дефолт 20%). */
+    public double rollArmorPen(Player attacker, LivingEntity target) {
+        if (attacker == null || target == null) {
+            return 0.0;
+        }
+        PotionEffect invis = attacker.getPotionEffect(PotionEffectType.INVISIBILITY);
+        if (invis == null || invis.getDuration() <= 0) {
+            return 0.0;
+        }
+        if (!rollChance(proc(attacker.getUniqueId(), "armor_pen"))) {
+            return 0.0;
+        }
+        return amp("armor_pen", 0.20);
+    }
 
+    /* ------------------------------ undodgeable ------------------------------ */
+
+    /** undodgeable: шанс = доля за ранг; флаг на 5 с (следующий удар не уклоняется). */
     public void setUndodgeable(Player attacker) {
         if (attacker == null) {
             return;
         }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
-            return;
-        }
-        double proc = svc.procBonus(attacker.getUniqueId(), "undodgeable");
-        if (!Double.isFinite(proc) || proc <= 0.0) {
-            return;
-        }
-        if (ThreadLocalRandom.current().nextDouble() >= proc / 100.0) {
+        if (!rollChance(proc(attacker.getUniqueId(), "undodgeable"))) {
             return;
         }
         undodgeableExpiry.put(attacker.getUniqueId(), System.currentTimeMillis() + 5_000L);
@@ -460,25 +389,6 @@ public final class ProcService {
             return;
         }
         undodgeableExpiry.remove(attacker.getUniqueId());
-    }
-
-    public double rollArmorPen(Player attacker, LivingEntity target) {
-        if (attacker == null || target == null) {
-            return 0.0;
-        }
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc == null) {
-            return 0.0;
-        }
-        PotionEffect invis = attacker.getPotionEffect(PotionEffectType.INVISIBILITY);
-        if (invis == null || invis.getDuration() <= 0) {
-            return 0.0;
-        }
-        double proc = svc.procBonus(attacker.getUniqueId(), "armor_pen");
-        if (!Double.isFinite(proc) || proc <= 0.0) {
-            return 0.0;
-        }
-        return proc / 100.0;
     }
 
     /* ------------------------------ cleanup ------------------------------ */
