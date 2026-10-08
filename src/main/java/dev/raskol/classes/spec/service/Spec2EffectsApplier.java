@@ -2,8 +2,10 @@
 package dev.raskol.classes.spec.service;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.school.School;
 import org.bukkit.entity.Player;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -11,18 +13,16 @@ import java.util.UUID;
  * к живым сервисам: атрибуты (STR/AGI/INT) и резисты (phys/magic) через
  * AttributeService/ResistService с source="spec2" (идемпотентно: сначала снять свои).
  *
- * Пен/DoT/CC-бонусы модификаторами НЕ хранятся — их читают хот-путём
- * CCService/DotService/PenTraits(Б3) напрямую из агрегата Spec2Service.
- * Вызывается: reconcile (онлайн-игрок), join, после chooseMain/resetTree.
- *
- * 1.14.1 (Волна 1): heal-модификаторы (heal_out_pct, роль HEALER) здесь НЕ
- * применяются — они событийные и живут в PassiveListener.onRegainHealth
- * (поле агрегата называется healOut, а не healOutPct; перманентных
- * heal-модификаторов в AttributeService нет). Applier трогает только attr/resist.
+ * 1.14.4 (Волна 4, П8): добавлен источник "spec2_el" для стихийных резистов из
+ * узлов resist-<school>. Каждый элемент agg.elResist прокидывается в
+ * ElementalResistService.addPermanent(uuid, "spec2_el", school, value).
+ * Источник общий, снимается одним вызовом removeModifiersBySource — идемпотентно.
  */
 public final class Spec2EffectsApplier {
 
     public static final String SOURCE = "spec2";
+    /** 1.14.4 (П8): источник для стихийных резистов (resist-<school> узлы). */
+    public static final String SOURCE_ELEMENTAL = "spec2_el";
 
     private final RaskolClasses plugin;
 
@@ -45,11 +45,24 @@ public final class Spec2EffectsApplier {
         if (agg.resPhys != 0.0 || agg.resMagic != 0.0) {
             plugin.getResists().addPermanentModifier(uuid, SOURCE, agg.resPhys, agg.resMagic);
         }
+        // 1.14.4 (П8): стихийные резисты
+        if (!agg.elResist.isEmpty()) {
+            var elem = plugin.getCombat().elemental();
+            for (Map.Entry<School, Double> entry : agg.elResist.entrySet()) {
+                School school = entry.getKey();
+                double value = entry.getValue();
+                if (value != 0.0 && school != null) {
+                    elem.addPermanent(uuid, SOURCE_ELEMENTAL, school, value);
+                }
+            }
+        }
     }
 
-    /** Снять все модификаторы источника spec2 (quit, сброс, reconcile-пусто). */
+    /** Снять все модификаторы источников spec2 и spec2_el (quit, сброс, reconcile-пусто). */
     public void remove(UUID uuid) {
         plugin.getAttributes().removeModifiersBySource(uuid, SOURCE);
         plugin.getResists().removeModifiersBySource(uuid, SOURCE);
+        // 1.14.4 (П8): стихийные резисты
+        plugin.getCombat().elemental().removeBySource(uuid, SOURCE_ELEMENTAL);
     }
 }
