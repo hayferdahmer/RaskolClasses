@@ -2,9 +2,12 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.RogueAbilities;
 import dev.raskol.classes.spec.service.Spec2Service;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.Map;
 import java.util.UUID;
@@ -12,24 +15,38 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 1.14.3 (Волна 3, 3C1): ЕДИНЫЙ фасад proc-узлов деревьев путей.
+ * 1.14.3 (Волна 3, 3C1+3C2): ЕДИНЫЙ фасад proc-узлов деревьев путей.
+ *
+ * 3C1 (мили-проки): riposte, counterattack, revenge, shield_slam, second_wind,
+ *                    bleed_on_crit, apply_poison, double_strike, expose,
+ *                    crit_bonus/savage/headshot (crit-mult bonus).
+ * 3C2 (каст-проки и утилитарные): poison_extend, burning_extend, vendetta_refresh,
+ *                    stealth_extend, stealth_bonus, reflect_magic, undodgeable,
+ *                    armor_pen.
  *
  * Триггеры (вызываются из CombatService/путь B и VanillaDamageListener/путь A):
  *   onDefenderAvoid(defender, attacker, result) → proc_riposte / proc_counterattack
  *   onDefenderBlock(defender, attacker)         → proc_revenge / proc_shield_slam
  *   onDefenderDamaged(victim, formulaDamage)    → proc_second_wind (HP<35%, КД 30 с)
+ *   onDefenderDamagedByMagic(victim, attacker, magicDamage) → proc_reflect_magic
  *   rollCritProcs(attacker, target, wasCrit, isMelee) → proc_bleed_on_crit /
  *                                                       proc_apply_poison /
- *                                                       proc_crit_bonus /
- *                                                       proc_savage /
- *                                                       proc_headshot
+ *                                                       proc_poison_extend /
+ *                                                       proc_burning_extend /
+ *                                                       proc_vendetta_refresh
  *   rollDoubleStrike(attacker, target, strike)  → proc_double_strike (recurse strike)
  *   applyExpose(attacker, target)               → proc_expose (+X% incoming damage, 6 с)
+ *   rollStealthBonus(attacker)                  → proc_stealth_bonus (+50% урона из невидимости)
+ *   onStealthBreak(player)                      → proc_stealth_extend (продление следующей невидимости)
+ *   hasUndodgeable(attacker)                    → proc_undodgeable (следующий удар нельзя уклонить)
+ *   rollArmorPen(attacker, target)              → proc_armor_pen (игнор брони из невидимости)
  *
  * Состояния (ConcurrentHashMap, lock-free чтения):
  *   nextHitMult/Expiry  — множитель следующего удара (riposte/revenge/shield_slam/counterattack)
  *   exposeExpiry/Mult   — дебафф цели (incoming damage %)
  *   secondWindCd        — per-player cooldown 30 с
+ *   undodgeableExpiry   — флаг "следующий удар нельзя уклонить"
+ *   stealthExtendBonus  — бонус к длительности следующей невидимости
  *
  * Все чтения безопасны к пустому агрегату spec2: procBonus=0 → множитель 1.0,
  * next-hit не ставится, second_wind не срабатывает → чеки selftest 1–99 стабильны.
@@ -52,16 +69,18 @@ public final class ProcService {
     /** Cooldown proc_second_wind per player. */
     private final Map<UUID, Long> secondWindCd = new ConcurrentHashMap<>();
 
+    /** Флаг "следующий удар нельзя уклонить" (proc_undodgeable). */
+    private final Map<UUID, Long> undodgeableExpiry = new ConcurrentHashMap<>();
+
+    /** Бонус к длительности следующей невидимости (proc_stealth_extend, в секундах). */
+    private final Map<UUID, Double> stealthExtendBonus = new ConcurrentHashMap<>();
+
     public ProcService(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
     /* ------------------------------ amplifier (next-hit bonus) ------------------------------ */
 
-    /**
-     * Текущий множитель следующего удара атакующего (1.0 если нет активного прока).
-     * Автоматически сбрасывается, если срок истёк.
-     */
     public double getAmplifier(Player attacker) {
         if (attacker == null) {
             return 1.0;
@@ -77,7 +96,6 @@ public final class ProcService {
         return m != null && m > 1.0 ? m : 1.0;
     }
 
-    /** Сброс amplifier после применения (вызывает CombatService после первого удара). */
     public void consumeAmplifier(Player attacker) {
         if (attacker == null) {
             return;
@@ -94,7 +112,6 @@ public final class ProcService {
         UUID uuid = attacker.getUniqueId();
         long now = System.currentTimeMillis();
         Long prev = nextHitExpiry.get(uuid);
-        // Стакаем множители мультипликативно (riposte × revenge → оба применяются)
         Double cur = nextHitMult.get(uuid);
         double newMult = (cur != null && cur > 1.0 && prev != null && now <= prev)
                 ? cur * mult
@@ -105,7 +122,6 @@ public final class ProcService {
 
     /* ------------------------------ expose (incoming damage bonus) ------------------------------ */
 
-    /** Множитель входящего урона для цели (1.0 если нет дебаффа). */
     public double readExposeMult(LivingEntity target) {
         if (target == null) {
             return 1.0;
@@ -121,10 +137,6 @@ public final class ProcService {
         return m != null && m > 1.0 ? m : 1.0;
     }
 
-    /**
-     * proc_expose: цель получает +5% входящего урона на 6 с за ранг узла.
-     * Повторное применение обновляет срок, множитель стакается аддитивно (не мультипликативно).
-     */
     public void applyExpose(Player attacker, LivingEntity target) {
         if (attacker == null || target == null) {
             return;
@@ -139,7 +151,7 @@ public final class ProcService {
         }
         UUID uuid = target.getUniqueId();
         long now = System.currentTimeMillis();
-        long durationMs = 6_000L; // 6 с по дизайну
+        long durationMs = 6_000L;
         Double cur = exposeMult.get(uuid);
         Long exp = exposeExpiry.get(uuid);
         double newMult;
@@ -154,11 +166,6 @@ public final class ProcService {
 
     /* ------------------------------ on-avoid / on-block triggers ------------------------------ */
 
-    /**
-     * Вызывается из AvoidanceService/пути A при успешном уклонении или парировании.
-     * - PARRY → proc_riposte (+50% к следующему удару за ранг, 8 с)
-     * - DODGE → proc_counterattack (+50% к следующему удару за ранг, 8 с)
-     */
     public void onDefenderAvoid(Player defender, Player attacker, AvoidResult result) {
         if (defender == null || attacker == null || result == AvoidResult.NONE) {
             return;
@@ -182,11 +189,6 @@ public final class ProcService {
         }
     }
 
-    /**
-     * Вызывается из пути A при успешном блоке щитом.
-     * - proc_revenge (guard): +10% к следующему удару за ранг, 8 с (гарантированно)
-     * - proc_shield_slam (guard): +50% к следующему удару за ранг, 8 с (шанс 20% за ранг)
-     */
     public void onDefenderBlock(Player defender, Player attacker) {
         if (defender == null || attacker == null) {
             return;
@@ -213,11 +215,6 @@ public final class ProcService {
 
     /* ------------------------------ on-damaged triggers ------------------------------ */
 
-    /**
-     * proc_second_wind (arms T4): при HP<35% после получения урона → мгновенный хил 8%
-     * формульного maxHP. КД 30 с. Вызывается из пути B (CombatService.dealDamage)
-     * и пути A (VanillaDamageListener) после применения урона.
-     */
     public void onDefenderDamaged(LivingEntity victim, double formulaDamage) {
         if (!(victim instanceof Player p) || formulaDamage <= 0.0) {
             return;
@@ -232,41 +229,68 @@ public final class ProcService {
             return;
         }
 
-        // Cooldown check
         Long cd = secondWindCd.get(uuid);
         long now = System.currentTimeMillis();
         if (cd != null && now < cd) {
             return;
         }
 
-        // HP threshold: < 35% formula max
         double maxHp = plugin.getHpBarService().formulaMaxHp(uuid);
         double curHp = plugin.getHpBarService().currentFormulaHp(p);
         if (maxHp <= 0.0 || curHp / maxHp >= 0.35) {
             return;
         }
 
-        // proc = percent chance per rank (10% за ранг в узле)
         if (ThreadLocalRandom.current().nextDouble() >= proc / 100.0) {
             return;
         }
 
-        double heal = maxHp * 0.08; // 8% формульного maxHP
+        double heal = maxHp * 0.08;
         plugin.getHpBarService().heal(p, heal, null);
         secondWindCd.put(uuid, now + 30_000L);
+    }
+
+    /**
+     * 1.14.3 (3C2): proc_reflect_magic — отражение % магического урона обратно атакующему.
+     * Вызывается из CombatService.dealDamage и VanillaDamageListener после применения маг-урона.
+     * Процент отражения = procBonus("reflect_magic") (10% за ранг).
+     */
+    public void onDefenderDamagedByMagic(LivingEntity victim, Player attacker, double magicDamage) {
+        if (!(victim instanceof Player defender) || attacker == null || magicDamage <= 0.0) {
+            return;
+        }
+        Spec2Service svc = plugin.getSpec2Service();
+        if (svc == null) {
+            return;
+        }
+        double proc = svc.procBonus(defender.getUniqueId(), "reflect_magic");
+        if (!Double.isFinite(proc) || proc <= 0.0) {
+            return;
+        }
+        double reflect = magicDamage * (proc / 100.0);
+        if (reflect <= 0.0) {
+            return;
+        }
+        // Отражаем урон обратно атакующему (без рекурсии proc_reflect)
+        double scale = plugin.getHpBarService().scale(attacker);
+        double carrierDmg = reflect * scale;
+        CombatService.setSuppress(true);
+        CombatService.beginReflect();
+        try {
+            attacker.damage(carrierDmg, defender);
+        } finally {
+            CombatService.endReflect();
+            CombatService.setSuppress(false);
+        }
     }
 
     /* ------------------------------ on-crit / on-hit triggers ------------------------------ */
 
     /**
-     * Вызывается из CombatService.dealDamage после крит-ролла.
-     * - proc_bleed_on_crit (arms): crit мили → bleed DoT
-     * - proc_apply_poison: crit мили → poison DoT
-     * - proc_crit_bonus / proc_savage / proc_headshot → уже учтены в meleeMult/spellMult,
-     *   здесь только визуал/VFX можно добавить (не делаем, чтобы не дублировать)
+     * 1.14.3 (3C2): расширен — добавлены proc_poison_extend, proc_burning_extend, proc_vendetta_refresh.
      */
     public void rollCritProcs(Player attacker, LivingEntity target, boolean wasCrit, boolean isMelee) {
-        if (attacker == null || target == null || !wasCrit || !isMelee) {
+        if (attacker == null || target == null || !wasCrit) {
             return;
         }
         Spec2Service svc = plugin.getSpec2Service();
@@ -275,25 +299,61 @@ public final class ProcService {
         }
         UUID uuid = attacker.getUniqueId();
 
-        double bleedOnCrit = svc.procBonus(uuid, "bleed_on_crit");
-        if (Double.isFinite(bleedOnCrit) && bleedOnCrit > 0.0) {
-            plugin.getCombat().dots().applyById(attacker, target, "bleed");
+        // 3C1: bleed_on_crit (только мили)
+        if (isMelee) {
+            double bleedOnCrit = svc.procBonus(uuid, "bleed_on_crit");
+            if (Double.isFinite(bleedOnCrit) && bleedOnCrit > 0.0) {
+                plugin.getCombat().dots().applyById(attacker, target, "bleed");
+            }
         }
 
-        double applyPoison = svc.procBonus(uuid, "apply_poison");
-        if (Double.isFinite(applyPoison) && applyPoison > 0.0) {
-            if (ThreadLocalRandom.current().nextDouble() < applyPoison / 100.0) {
-                plugin.getCombat().dots().applyById(attacker, target, "poison");
+        // 3C1: apply_poison (только мили, шанс)
+        if (isMelee) {
+            double applyPoison = svc.procBonus(uuid, "apply_poison");
+            if (Double.isFinite(applyPoison) && applyPoison > 0.0) {
+                if (ThreadLocalRandom.current().nextDouble() < applyPoison / 100.0) {
+                    plugin.getCombat().dots().applyById(attacker, target, "poison");
+                }
+            }
+        }
+
+        // 3C2: poison_extend (только мили) — продлить poison DoT на +2 с за ранг
+        if (isMelee) {
+            double poisonExtend = svc.procBonus(uuid, "poison_extend");
+            if (Double.isFinite(poisonExtend) && poisonExtend > 0.0) {
+                rollDotExtend(attacker, target, "poison", poisonExtend);
+            }
+        }
+
+        // 3C2: burning_extend (магия) — продлить burning DoT на +2 с за ранг
+        if (!isMelee) {
+            double burningExtend = svc.procBonus(uuid, "burning_extend");
+            if (Double.isFinite(burningExtend) && burningExtend > 0.0) {
+                rollDotExtend(attacker, target, "burning", burningExtend);
+            }
+        }
+
+        // 3C2: vendetta_refresh — обновить вендетту на цели (продлить срок)
+        double vendettaRefresh = svc.procBonus(uuid, "vendetta_refresh");
+        if (Double.isFinite(vendettaRefresh) && vendettaRefresh > 0.0) {
+            if (ThreadLocalRandom.current().nextDouble() < vendettaRefresh / 100.0) {
+                RogueAbilities.refreshVendetta(target.getUniqueId());
             }
         }
     }
 
     /**
-     * proc_double_strike (fury T3): 10% шанс за ранг повторить удар.
-     * Вызывается из CombatService.dealDamage ПОСЛЕ основного удара; если ролл
-     * прошёл — вызывает strike.run() один раз. Защита от рекурсии — флаг fromProc
-     * в CombatService.dealDamage (не вызывает rollDoubleStrike рекурсивно).
+     * 3C2: продление DoT (poison_extend / burning_extend).
+     * Если на цели есть соответствующий DoT от этого атакующего, обновляет его срок.
      */
+    private void rollDotExtend(Player attacker, LivingEntity target, String dotId, double procPercent) {
+        if (ThreadLocalRandom.current().nextDouble() >= procPercent / 100.0) {
+            return;
+        }
+        // Применяем тот же DoT — DotService.apply продлевает срок, если DoT уже активен
+        plugin.getCombat().dots().applyById(attacker, target, dotId);
+    }
+
     public boolean rollDoubleStrike(Player attacker, LivingEntity target, Runnable strike) {
         if (attacker == null || target == null || strike == null) {
             return false;
@@ -313,13 +373,8 @@ public final class ProcService {
         return true;
     }
 
-    /* ------------------------------ crit-mult bonus (читается из CombatService.meleeMult/spellMult) ------------------------------ */
+    /* ------------------------------ crit-mult bonus ------------------------------ */
 
-    /**
-     * proc_crit_bonus / proc_savage / proc_headshot: добавка к crit-множителю.
-     * Возвращает мультипликативную добавку (1.0 = без изменений; 1.5 = +50% к crit-урону).
-     * Вызывается из CombatService.meleeMult/spellMult.
-     */
     public double critMultBonus(Player attacker) {
         if (attacker == null) {
             return 1.0;
@@ -349,7 +404,123 @@ public final class ProcService {
         return mult;
     }
 
-    /** Плановая чистка протухших состояний (вызывать из purge-задачи). */
+    /* ------------------------------ 3C2: stealth procs ------------------------------ */
+
+    /**
+     * proc_stealth_bonus: +50% урона при ударе из невидимости за ранг.
+     * Проверяет, был ли атакующий в невидимости (PotionEffect INVISIBILITY) до удара.
+     */
+    public double rollStealthBonus(Player attacker) {
+        if (attacker == null) {
+            return 1.0;
+        }
+        Spec2Service svc = plugin.getSpec2Service();
+        if (svc == null) {
+            return 1.0;
+        }
+        PotionEffect invis = attacker.getPotionEffect(PotionEffectType.INVISIBILITY);
+        if (invis == null || invis.getDuration() <= 0) {
+            return 1.0;
+        }
+        double proc = svc.procBonus(attacker.getUniqueId(), "stealth_bonus");
+        if (!Double.isFinite(proc) || proc <= 0.0) {
+            return 1.0;
+        }
+        return 1.0 + proc / 100.0;
+    }
+
+    /**
+     * proc_stealth_extend: при выходе из невидимости записывает бонус к длительности
+     * следующей невидимости (+1 с за ранг). Вызывается из RogueAbilities.shadowCloak
+     * перед применением PotionEffect.
+     */
+    public double getStealthExtendBonus(Player player) {
+        if (player == null) {
+            return 0.0;
+        }
+        Spec2Service svc = plugin.getSpec2Service();
+        if (svc == null) {
+            return 0.0;
+        }
+        double proc = svc.procBonus(player.getUniqueId(), "stealth_extend");
+        return Double.isFinite(proc) && proc > 0.0 ? proc : 0.0;
+    }
+
+    /* ------------------------------ 3C2: undodgeable / armor_pen ------------------------------ */
+
+    /**
+     * proc_undodgeable: при crit мили ставит флаг "следующий удар нельзя уклонить" на 5 с.
+     * Вызывается из rollCritProcs после crit.
+     */
+    public void setUndodgeable(Player attacker) {
+        if (attacker == null) {
+            return;
+        }
+        Spec2Service svc = plugin.getSpec2Service();
+        if (svc == null) {
+            return;
+        }
+        double proc = svc.procBonus(attacker.getUniqueId(), "undodgeable");
+        if (!Double.isFinite(proc) || proc <= 0.0) {
+            return;
+        }
+        if (ThreadLocalRandom.current().nextDouble() >= proc / 100.0) {
+            return;
+        }
+        undodgeableExpiry.put(attacker.getUniqueId(), System.currentTimeMillis() + 5_000L);
+    }
+
+    /**
+     * Проверка флага undodgeable. Вызывается из AvoidanceService.tryAvoid.
+     * Если флаг активен, уклонение невозможно (возвращает NONE).
+     */
+    public boolean hasUndodgeable(Player attacker) {
+        if (attacker == null) {
+            return false;
+        }
+        Long exp = undodgeableExpiry.get(attacker.getUniqueId());
+        if (exp == null || System.currentTimeMillis() > exp) {
+            undodgeableExpiry.remove(attacker.getUniqueId());
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Сброс флага undodgeable после применения (вызывается из AvoidanceService после проверки).
+     */
+    public void consumeUndodgeable(Player attacker) {
+        if (attacker == null) {
+            return;
+        }
+        undodgeableExpiry.remove(attacker.getUniqueId());
+    }
+
+    /**
+     * proc_armor_pen: при ударе из невидимости игнорирует % брони цели (20% за ранг).
+     * Возвращает долю игнорируемой брони (0.2 = 20%).
+     */
+    public double rollArmorPen(Player attacker, LivingEntity target) {
+        if (attacker == null || target == null) {
+            return 0.0;
+        }
+        Spec2Service svc = plugin.getSpec2Service();
+        if (svc == null) {
+            return 0.0;
+        }
+        PotionEffect invis = attacker.getPotionEffect(PotionEffectType.INVISIBILITY);
+        if (invis == null || invis.getDuration() <= 0) {
+            return 0.0;
+        }
+        double proc = svc.procBonus(attacker.getUniqueId(), "armor_pen");
+        if (!Double.isFinite(proc) || proc <= 0.0) {
+            return 0.0;
+        }
+        return proc / 100.0;
+    }
+
+    /* ------------------------------ cleanup ------------------------------ */
+
     public void purgeStale() {
         long now = System.currentTimeMillis();
         nextHitExpiry.entrySet().removeIf(e -> e.getValue() < now);
@@ -357,5 +528,6 @@ public final class ProcService {
         exposeExpiry.entrySet().removeIf(e -> e.getValue() < now);
         exposeMult.keySet().removeIf(id -> !exposeExpiry.containsKey(id));
         secondWindCd.entrySet().removeIf(e -> e.getValue() < now);
+        undodgeableExpiry.entrySet().removeIf(e -> e.getValue() < now);
     }
 }
