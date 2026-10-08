@@ -41,15 +41,16 @@ import java.util.UUID;
  *         (урон ≥ cc.breaks-on-damage-threshold-pct снимает ROOT/FEAR с цели).
  * 1.14.3 (Волна 3, 3B): хот-путь урона — phys_dmg_pct/magic_dmg_pct умножают
  *         соответствующую базу ДО критов и резистов; crit_melee_pct добавляется
- *         к базовому шансу крита мили; block_pct даёт отдельный rollBlock (щит),
- *         который полностью обнуляет входящий физ-урон одного удара.
+ *         к базовому шансу крита мили; block_pct даёт отдельный rollBlock (щит).
+ * 1.14.3 (Волна 3, 3C1): ProcService — мили-проки (bleed_on_crit, double_strike,
+ *         riposte, revenge, shield_slam, second_wind, expose, crit_mult_bonus).
+ *         dealDamage принимает флаг fromProc для защиты от рекурсии proc_double_strike.
  */
 public final class CombatService implements Listener {
 
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final ThreadLocal<UUID> ABILITY_SOURCE = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
-    /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
     private static final ThreadLocal<School> CURRENT_CAST_SCHOOL = new ThreadLocal<>();
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
@@ -64,6 +65,7 @@ public final class CombatService implements Listener {
     private final SchoolImmunity schoolImmunity;
     private final PenTraitsService penTraits;
     private final DotService dots;
+    private final ProcService procs;
 
     public CombatService(RaskolClasses plugin, ResistService resists) {
         this.plugin = plugin;
@@ -71,6 +73,7 @@ public final class CombatService implements Listener {
         this.avoidance = new AvoidanceService(plugin);
         this.powers = new PowerService(plugin);
         this.caps = new DamageCaps(plugin);
+        this.procs = new ProcService(plugin);
         this.vanillaListener = new VanillaDamageListener(
                 plugin, this, resists, avoidance, powers, caps);
         plugin.getServer().getPluginManager().registerEvents(vanillaListener, plugin);
@@ -139,6 +142,7 @@ public final class CombatService implements Listener {
     public SchoolConfig schoolConfig() { return schoolConfig; }
     public SchoolImmunity schoolImmunity() { return schoolImmunity; }
     public DotService dots() { return dots; }
+    public ProcService procs() { return procs; }
 
     public static double cappedDamage(double damage, double maxHp, double pct) {
         return CombatMath.cappedDamage(damage, maxHp, pct);
@@ -219,11 +223,20 @@ public final class CombatService implements Listener {
     /* ------------------------- путь B (наши способности) ------------------------- */
 
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
-        return dealDamage(target, source, profile, false);
+        return dealDamage(target, source, profile, false, false);
     }
 
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
                              boolean allowOverCap) {
+        return dealDamage(target, source, profile, allowOverCap, false);
+    }
+
+    /**
+     * 1.14.3 (3C1): fromProc=true блокирует повторный вызов proc_double_strike
+     * и других триггеров, которые не должны рекурсивно срабатывать.
+     */
+    public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
+                             boolean allowOverCap, boolean fromProc) {
         if (profile == null || target == null || target.isDead()) {
             return 0.0;
         }
@@ -241,7 +254,6 @@ public final class CombatService implements Listener {
             }
         }
 
-        // 1.12.3: школа каста → иммунитеты и множители школ
         School castSchool = currentCastSchool();
         double schoolMult = 1.0;
         if (castSchool != null && schoolConfig.enabled()) {
@@ -258,8 +270,6 @@ public final class CombatService implements Listener {
         double magicBase = safe.magic();
 
         // 1.14.3 (3B): процентные множители урона из spec2-агрегата
-        // Применяются ДО критов и резистов — узлы phys_dmg_pct/magic_dmg_pct
-        // усиливают «сырой» урон способностей.
         if (source instanceof Player srcP) {
             UUID sUuid = srcP.getUniqueId();
             double physPct = safePct(plugin.getSpec2Service().physDmgPercent(sUuid));
@@ -268,8 +278,24 @@ public final class CombatService implements Listener {
             if (magicPct > 0.0) magicBase *= (1.0 + magicPct);
         }
 
-        // 1.14.3 (3B): rollBlock — если цель держит щит и имеет block_pct из spec2,
-        // есть шанс полностью обнулить физ-урон одного удара (маг не блокируется).
+        // 1.14.3 (3C1): amplifier (next-hit bonus from riposte/revenge/shield_slam/counterattack)
+        if (source instanceof Player srcP) {
+            double amp = procs.getAmplifier(srcP);
+            if (amp > 1.0) {
+                physBase *= amp;
+                magicBase *= amp;
+                procs.consumeAmplifier(srcP);
+            }
+        }
+
+        // 1.14.3 (3C1): expose (incoming damage bonus on target)
+        double expose = procs.readExposeMult(target);
+        if (expose > 1.0) {
+            physBase *= expose;
+            magicBase *= expose;
+        }
+
+        // 1.14.3 (3B): rollBlock — шанс полностью обнулить физ-урон щитом
         if (physBase > 0.0 && target instanceof Player tgtP && hasShield(tgtP)) {
             if (rollBlock(tgtP)) {
                 blockFeedback(tgtP);
@@ -277,13 +303,17 @@ public final class CombatService implements Listener {
             }
         }
 
+        boolean physCrit = false;
+        boolean magicCrit = false;
         if (source instanceof Player sp) {
             if (physBase > 0.0 && rollMeleeCrit(sp)) {
-                physBase *= meleeMult();
+                physBase *= meleeMult(sp);
+                physCrit = true;
                 critFeedback(sp, true);
             }
             if (magicBase > 0.0 && rollSpellCrit(sp)) {
-                magicBase *= spellMult();
+                magicBase *= spellMult(sp);
+                magicCrit = true;
                 critFeedback(sp, false);
             }
         }
@@ -423,12 +453,30 @@ public final class CombatService implements Listener {
             ABILITY_SOURCE.remove();
         }
 
-        // 1.13.0 (Б2): breaksOnDamage — урон ≥ порога (% formula-maxHP) снимает ROOT/FEAR с цели
+        // 1.13.0 (Б2): breaksOnDamage
         if (taken > 0.0) {
             plugin.getCC().breakOnDamage(target, taken, caps.formulaMaxOf(target));
         }
 
-        // откат чернокнижника 6.66% (глушится для рефлект-урона)
+        // 1.14.3 (3C1): on-damaged triggers (second_wind)
+        if (taken > 0.0) {
+            procs.onDefenderDamaged(target, taken);
+        }
+
+        // 1.14.3 (3C1): crit/hit procs (bleed_on_crit, apply_poison) — только для мили, не рекурсивно
+        if (!fromProc && source instanceof Player srcP) {
+            procs.rollCritProcs(srcP, target, physCrit, true);
+            // applyExpose on any hit (melee or spell)
+            procs.applyExpose(srcP, target);
+            // double_strike: recurse once with fromProc=true
+            if (physCrit || physPart > 0.0) {
+                procs.rollDoubleStrike(srcP, target, () -> {
+                    dealDamage(target, srcP, DamageProfile.physical(physPart / scale), true, true);
+                });
+            }
+        }
+
+        // откат чернокнижника
         if (source instanceof Player attacker && taken > 0.0
                 && !reflectSuppressed()
                 && plugin.getClassProvider().getClassOf(attacker) == PlayerClass.WARLOCK) {
@@ -445,7 +493,7 @@ public final class CombatService implements Listener {
         return taken;
     }
 
-    /** 1.14.3 (3B): базовый critMelee + critMeleeBonus из spec2. */
+    /** 1.14.3 (3B+3C1): базовый critMelee + bonus из spec2 + crit_mult_bonus. */
     private boolean rollMeleeCrit(Player player) {
         double baseChance = plugin.getAttributes().critMeleeChance(player.getUniqueId());
         double bonus = safePct(plugin.getSpec2Service().critMeleeBonus(player.getUniqueId()));
@@ -458,11 +506,6 @@ public final class CombatService implements Listener {
                 < plugin.getAttributes().critSpellChance(player.getUniqueId());
     }
 
-    /**
-     * 1.14.3 (3B): шанс блока щитом. Чистый блок (без базового шанса от щита в ванили) —
-     * только процент из spec2 (block_pct-узлы guard-дерева). Если щита нет в руке,
-     * блок невозможен (проверяется в dealDamage перед вызовом).
-     */
     private boolean rollBlock(Player target) {
         double pct = safePct(plugin.getSpec2Service().blockPercent(target.getUniqueId()));
         if (pct <= 0.0) {
@@ -471,7 +514,6 @@ public final class CombatService implements Listener {
         return java.util.concurrent.ThreadLocalRandom.current().nextDouble() < pct;
     }
 
-    /** 1.14.3 (3B): держит ли игрок щит в офф-хенде (или в мейн, если одноручный). */
     private boolean hasShield(Player player) {
         org.bukkit.inventory.ItemStack off = player.getInventory().getItemInOffHand();
         if (off != null && off.getType().name().endsWith("SHIELD")) {
@@ -481,12 +523,15 @@ public final class CombatService implements Listener {
         return main != null && main.getType().name().endsWith("SHIELD");
     }
 
-    private double meleeMult() {
-        return cfgD("attributes.crit.melee-mult", 1.5);
+    /** 1.14.3 (3C1): базовый melee-mult × crit_mult_bonus (proc_crit_bonus/savage/headshot). */
+    private double meleeMult(Player attacker) {
+        double base = cfgD("attributes.crit.melee-mult", 1.5);
+        return base * procs.critMultBonus(attacker);
     }
 
-    private double spellMult() {
-        return cfgD("attributes.crit.spell-mult", 1.5);
+    private double spellMult(Player attacker) {
+        double base = cfgD("attributes.crit.spell-mult", 1.5);
+        return base * procs.critMultBonus(attacker);
     }
 
     private void critFeedback(Player attacker, boolean melee) {
@@ -513,7 +558,6 @@ public final class CombatService implements Listener {
         }
     }
 
-    /** 1.14.3 (3B): короткий фидбек удачного блока щитом. */
     private void blockFeedback(Player target) {
         if (!plugin.getConfig().getBoolean("combat.block.visuals", true)) {
             return;
@@ -526,7 +570,6 @@ public final class CombatService implements Listener {
         }
     }
 
-    /** Защитный нормалайзер: процент из spec2 → доля в [0, ∞). */
     private static double safePct(double v) {
         return Double.isFinite(v) && v >= 0 ? v / 100.0 : 0.0;
     }
