@@ -26,6 +26,11 @@ import java.util.Locale;
  * получать свои числа из treeAbilities. Для обычных способностей фолбэк
  * прозрачен: секции в treeAbilities нет → читается abilities → то же число.
  * Хелперы в том же пакете, что и киты → вызываются без импорта.
+ *
+ * 1.14.4-fix: добавлен descriptionOf() — строка описания для lore книги/свитков
+ * с тем же фолбэком treeAbilities → abilities → def. Раньше описание читалось
+ * только из abilities.* (RaskolConfig.abilityDescription), поэтому у древесных
+ * и переносимых способностей lore был пустым.
  */
 public final class TreeAbilities {
 
@@ -141,7 +146,7 @@ public final class TreeAbilities {
     }
 
     /**
-     * String-число способности (напр. power): treeAbilities.<id>.<key> →
+     * String-значение способности (напр. power): treeAbilities.<id>.<key> →
      * abilities.<id>.<key> → def. Пустая строка трактуется как отсутствие
      * (соответствует текущему cfgS/getString-поведению с дефолтом).
      */
@@ -155,6 +160,16 @@ public final class TreeAbilities {
         v = plugin.getConfig().getString(
                 "classes." + pc.name() + ".abilities." + id + "." + key, null);
         return (v != null && !v.isEmpty()) ? v : def;
+    }
+
+    /**
+     * 1.14.4-fix: описание способности для lore книги/свитков:
+     * treeAbilities.<id>.description → abilities.<id>.description → "".
+     * Покрывает одним вызовом древесные (slot 6+), переносимые (slots 4–5,
+     * секции abilities удалены в Б11.1.2-B2) и обычные китовые способности.
+     */
+    public static String descriptionOf(RaskolClasses plugin, PlayerClass pc, String id) {
+        return stringOrKit(plugin, pc, id, "description", "");
     }
 
     /**
