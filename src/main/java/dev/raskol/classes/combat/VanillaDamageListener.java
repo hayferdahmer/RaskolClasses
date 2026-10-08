@@ -35,13 +35,21 @@ import java.util.UUID;
  *  - резист-фактор канала, single-hit cap, burst-окно (через DamageCaps);
  *  - avoidance (dodge/parry) для PHYSICAL.
  * 1.12.1: иммунитеты/уязвимости сущностей к школам + глобальный множитель школы.
- * 1.12.2 (Блок 4): живая проводка пробития и стихийного слоя.
- * 1.13.0 (Б2): breaksOnDamage-хуки.
- * 1.14.3 (Волна 3, 3C1): интеграция ProcService:
- *   - tryAvoid возвращает AvoidResult (DODGE/PARRY) → onDefenderAvoid
- *   - проверка блока щитом (isBlocked) → onDefenderBlock
- *   - после урона → applyExpose (исходящий) + onDefenderDamaged (входящий)
- *   - applyOutgoingOffense применяет amplifier и crit_mult_bonus из ProcService
+ * 1.12.2 (Блок 4): живая проводка пробития и стихийного слоя:
+ *         канал-резист режется pen атакующего (flat→pct), стихийный резист цели
+ *         режется school-pen атакующего, слои складываются мультипликативно
+ *         (SchoolMitigation.mitigationFor, кап schools.mitigation-cap).
+ * 1.13.0 (Б2): breaksOnDamage-хуки — ванильный урон (включая среду и урон по мобам)
+ *         снимает ROOT/FEAR при превышении порога cc.breaks-on-damage-threshold-pct.
+ *         Урон берётся ФИНАЛЬНЫЙ (после митигации/капов); suppressed-события (путь B)
+ *         пропускаются — там CC ломает CombatService.dealDamage самостоятельно.
+ *         Ранний возврат «factor >= 1.0» заменён на defenseMult=1.0, чтобы хук
+ *         срабатывал и на игроков без резистов.
+ * Регистрируется фасадом CombatService в конструкторе — RaskolClasses не трогаем.
+ * 1.14.3 (Волна 3, 3C1): интеграция ProcService — avoid-result (riposte/counterattack),
+ *         onDefenderBlock (revenge/shield_slam), applyExpose + onDefenderDamaged после урона.
+ * 1.14.3 (Волна 3, 3C2): stealth_bonus и crit_mult_bonus в исходящем офенсе,
+ *         setUndodgeable на крит мили, reflect_magic после финального маг-урона.
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -94,12 +102,14 @@ public final class VanillaDamageListener implements Listener {
 
         if (!suppressed) {
             applyOutgoingOffense(event);
+            // «Печать Погибели»: +26% урона от ВСЕХ источников (универсально)
             double amp = WarlockAbilities.sealAmplifyOf(event.getEntity().getUniqueId());
             if (amp > 0.0 && event.getDamage() > 0.0) {
                 event.setDamage(event.getDamage() * (1.0 + amp));
             }
         }
 
+        // 1.12.1: школы — иммунитеты/уязвимости сущности + глобальный множитель школы
         School school = schoolConfig.schoolOf(event.getCause());
         if (!suppressed && event.getEntity() instanceof LivingEntity ent) {
             double mult = immunity.multiplierFor(ent.getType(), school)
@@ -113,6 +123,7 @@ public final class VanillaDamageListener implements Listener {
             }
         }
 
+        // 1.13.0 (Б2): мобы — резист-митигации в пути A нет, урон финален уже здесь
         if (!(event.getEntity() instanceof Player target)) {
             if (!suppressed && event.getEntity() instanceof LivingEntity mob
                     && event.getDamage() > 0.0) {
@@ -124,6 +135,7 @@ public final class VanillaDamageListener implements Listener {
             return;
         }
         if (resists.disabledIn(target.getWorld())) {
+            // арена/мир без резистов: урон финален, CC ломаются как обычно
             if (!suppressed && event.getDamage() > 0.0) {
                 hookBreaksCarrier(target, event.getDamage());
             }
@@ -137,8 +149,7 @@ public final class VanillaDamageListener implements Listener {
             }
             return;
         }
-
-        // 1.14.3 (3C1): avoidance с различением dodge/parry для proc_riposte/proc_counterattack
+        // 1.14.3 (3C1): avoidance с различением dodge/parry для proc-триггеров
         if (type == DamageType.PHYSICAL) {
             ProcService.AvoidResult avoidResult = avoidance.tryAvoid(target, event);
             if (avoidResult != ProcService.AvoidResult.NONE) {
@@ -169,6 +180,9 @@ public final class VanillaDamageListener implements Listener {
                 ? resists.physicalFactor(uuid, cap)
                 : resists.magicFactor(uuid, cap);
 
+        // 1.12.2 (Блок 4): пробитие атакующего + стихийный слой цели.
+        // 1.13.0 (Б2): невалидный/нулевой резист больше не выходит из метода —
+        // defenseMult = 1.0, чтобы breaksOnDamage-хук сработал и без резистов.
         double defenseMult = 1.0;
         if (Double.isFinite(factor) && factor >= 0.0 && factor < 1.0) {
             double channelResistPct = (1.0 - factor) * 100.0;
@@ -188,7 +202,7 @@ public final class VanillaDamageListener implements Listener {
                         schoolConfig.penPctCap(), effEl,
                         schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
             } else {
-                mitigation = channelResistPct / 100.0;
+                mitigation = channelResistPct / 100.0; // legacy-поведение
             }
             defenseMult = 1.0 - mitigation;
             if (defenseMult <= 0.0) {
@@ -214,14 +228,18 @@ public final class VanillaDamageListener implements Listener {
         effective = caps.applyBurstCap(target, effective, caps.formulaMaxOf(target));
         event.setDamage(effective * scale);
 
+        // 1.13.0 (Б2): финальный урон по игроку (после митигации и капов) → breaksOnDamage
         hookBreaksCarrier(target, event.getDamage());
 
-        // 1.14.3 (3C1): on-damaged triggers + applyExpose после финального урона
-        if (!suppressed && event.getDamage() > 0.0) {
-            double formulaDamage = event.getDamage();
-            combat.procs().onDefenderDamaged(target, formulaDamage / scale);
+        // 1.14.3 (3C1+3C2): post-damage proc-триггеры (formula-единицы)
+        if (event.getDamage() > 0.0) {
+            double formulaDamage = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
+            combat.procs().onDefenderDamaged(target, formulaDamage);
             if (attacker != null) {
                 combat.procs().applyExpose(attacker, target);
+                if (type == DamageType.MAGIC) {
+                    combat.procs().onDefenderDamagedByMagic(target, attacker, formulaDamage);
+                }
             }
         }
     }
@@ -229,14 +247,12 @@ public final class VanillaDamageListener implements Listener {
     /**
      * 1.14.3 (3C1): проверка блока щитом через Paper API.
      * В Paper 1.21+ EntityDamageByEntityEvent имеет isBlocked() — игрок держит щит
-     * и блокирует атаку. В более ранних версиях fallback: щит в оффхенде + фронт-атака.
+     * и блокирует атаку. Fallback: щит в оффхенде + атака не в спину.
      */
     private boolean isShieldBlocking(Player defender, EntityDamageByEntityEvent event) {
-        // Paper 1.21+ API
         if (event.isBlocked()) {
             return true;
         }
-        // Fallback: щит в оффхенде + атака не в спину
         org.bukkit.inventory.ItemStack off = defender.getInventory().getItemInOffHand();
         if (off == null || !off.getType().name().endsWith("SHIELD")) {
             return false;
@@ -254,6 +270,10 @@ public final class VanillaDamageListener implements Listener {
                 cfgD("avoidance.back-angle", 135.0));
     }
 
+    /**
+     * 1.13.0 (Б2): конвертация carrier-урона в formula-единицы и передача
+     * в CCService.breakOnDamage (порог сравнивается с formula-maxHP, план B).
+     */
     private void hookBreaksCarrier(LivingEntity victim, double carrierDamage) {
         if (carrierDamage <= 0.0) {
             return;
@@ -265,7 +285,7 @@ public final class VanillaDamageListener implements Listener {
         }
     }
 
-    /* --------------------- исходящий офенс (1.7.1 + 1.14.3 3C1) --------------------- */
+    /* --------------------- исходящий офенс (1.7.1 + 1.14.3 3C1/3C2) --------------------- */
 
     private void applyOutgoingOffense(EntityDamageEvent event) {
         if (!(event instanceof EntityDamageByEntityEvent by)) {
@@ -309,6 +329,12 @@ public final class VanillaDamageListener implements Listener {
         double base = event.getDamage();
         double total = base + add;
 
+        // 1.14.3 (3C2): stealth_bonus — множитель урона при ударе из невидимости
+        double stealth = combat.procs().rollStealthBonus(attacker);
+        if (stealth > 1.0) {
+            total *= stealth;
+        }
+
         // 1.14.3 (3C1): amplifier (next-hit bonus) перед crit
         double amp = combat.procs().getAmplifier(attacker);
         if (amp > 1.0) {
@@ -320,9 +346,12 @@ public final class VanillaDamageListener implements Listener {
             double baseMult = type == DamageType.PHYSICAL ? meleeMult(attacker) : spellMult(attacker);
             total *= baseMult;
             critFeedback(attacker, type == DamageType.PHYSICAL);
-            // 1.14.3 (3C1): crit procs (bleed_on_crit, apply_poison)
+            // 1.14.3 (3C1+3C2): crit procs (bleed_on_crit, apply_poison, extend'ы, vendetta_refresh)
             combat.procs().rollCritProcs(attacker, (LivingEntity) by.getEntity(), true,
                     type == DamageType.PHYSICAL);
+            if (type == DamageType.PHYSICAL) {
+                combat.procs().setUndodgeable(attacker);
+            }
         }
 
         if (total != base && Double.isFinite(total) && total >= 0.0) {
@@ -371,7 +400,7 @@ public final class VanillaDamageListener implements Listener {
                 < plugin.getAttributes().critSpellChance(player.getUniqueId());
     }
 
-    /** 1.14.3 (3C1): базовый melee-mult × crit_mult_bonus. */
+    /** 1.14.3 (3C1+3C2): базовый melee-mult × crit_mult_bonus. */
     private double meleeMult(Player attacker) {
         return cfgD("attributes.crit.melee-mult", 1.5) * combat.procs().critMultBonus(attacker);
     }
