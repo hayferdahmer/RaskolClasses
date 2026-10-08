@@ -3,9 +3,7 @@
   © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
   RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
   1.14.4: закрытие аудита П1–П10 (волны 1–4).
-  FIX красного рана #1314+: восстановлена compile-зависимость LuckPerms API
-  (net.luckperms:api) — её используют FoliantService и LuckPermsBackend.
-  Репозиторий LuckPerms добавлен страховочно: артефакт резолвится и с Central.
+  FIX: finalName = raskol-classes-${project.version} (workflow ищет target/raskol-classes-*.jar).
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -37,7 +35,6 @@
             <id>placeholderapi</id>
             <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
         </repository>
-        <!-- Страховка для net.luckperms:api (резолвится и с Central) -->
         <repository>
             <id>luck</id>
             <url>https://repo.lucko.me/</url>
@@ -51,7 +48,6 @@
             <version>${paper.version}</version>
             <scope>provided</scope>
         </dependency>
-        <!-- 1.14.4 FIX: compile-зависимость LuckPerms API (FoliantService, LuckPermsBackend) -->
         <dependency>
             <groupId>net.luckperms</groupId>
             <artifactId>api</artifactId>
@@ -67,7 +63,7 @@
     </dependencies>
 
     <build>
-        <finalName>${project.name}-${project.version}</finalName>
+        <finalName>raskol-classes-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
