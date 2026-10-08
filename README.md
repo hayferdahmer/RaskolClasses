@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-<img src="https://img.shields.io/badge/1.14.4-8b0000?style=flat-square&label=release&labelColor=0a0a0a"/>
+<img src="https://img.shields.io/badge/1.14.6-8b0000?style=flat-square&label=release&labelColor=0a0a0a"/>
 <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a"/>
 <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a"/>
 <img src="https://img.shields.io/badge/107%2F107-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a"/>
@@ -179,6 +179,17 @@ heal_received_pct + роль TANK (входящие); ванильные regain-
 
 * * *
 
+### Пет-система (1.14.6)
+- Единый `PetService` вместо ad-hoc карт в китах
+- **Волк** (Охотник/beastmaster): постоянный компаньон, scaling от СИЛЫ
+- **Демон** (Чернокнижник/demonology): Vex 12 с, scaling от ИНТ
+- **Тенескот** (Жрец/shadow): Vex 8 с, scaling от ИНТ
+- Боевые гейты: `canHit` для союзников, ретаргет на цель владельца, дезспавн при смерти/выходе
+- Баффы: `beast_ferocity` / `bestial_wrath` через `PetService.buff(...)` (dmgMult × speedMult × glow)
+- Ульты: `demon_soul` (поглощение пета → Сила II + Сопротивление I), китовые бонусы ресурса (+10 Скверны/+10 Света)
+
+* * *
+
 ## VII. КОМАНДЫ
 
 | Команда | Право | Назначение |
@@ -227,3 +238,7 @@ heal_received_pct + роль TANK (входящие); ванильные regain-
 WARLOCK-сеты добавляются секциями `weapons.WARLOCK.*` / `armor.WARLOCK.*` в конфиг RaskolGear.
 
 * * *
+# Лицензия
+
+© 2026 hayferdahmer — RASKOL Proprietary License v1.0.
+Распространение, модификация и публичное использование вне сервера «РАСКОЛ | ДВЕ КОРОНЫ» запрещены без письменного разрешения автора.
