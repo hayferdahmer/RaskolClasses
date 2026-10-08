@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.14.0 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
+#  RaskolClasses v1.14.4 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
 #  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -18,6 +18,9 @@
 #          treeAbilities (древесные способности китов), selftest 94 чека.
 #  1.14.0 (Б11.1.2-B2): переносимые slots 4–5 удалены из abilities;
 #          авторитетный источник — treeAbilities.
+#  1.14.3 (Волна 3): 3A/3B/3C1/3C2 — лечение/паверы/ресурс/проки мили и каст.
+#  1.14.4 (Волна 4): П7 респец узла, П8 resist-<school>, П9 конфиг-ключи
+#          spec2.start-level/max-points/row-gates, П10 spec2-storage.yml.
 # ============================================================
 
 hud:
@@ -138,6 +141,11 @@ spec2:
   tree-capacity-min: 50
   respec-base-cost: 250
   respec-per-level: 10
+  # 1.14.4 (Волна 4, П7): респец одного ранга конкретного узла.
+  # Цена = node-respec-base + node-respec-per-rank × текущий_ранг_узла.
+  # Эскалация: снять ранг у 5/5 дороже (400), чем у 1/5 (200).
+  node-respec-base: 150
+  node-respec-per-rank: 50
   respec-main-role-discount: 0.5
   role-passives:
     FIGHTER:
@@ -400,7 +408,7 @@ dots:
     dps: 2.0
     duration: 3
     max-stacks: 1
-  # 1.14.0 (Б7): DoT Чернокнижника-Колдовства и Жреца-Тьмы
+  # 1.14.0 (Б7): ДоТ Чернокнижника-Колдовства и Жреца-Тьмы
   wither:
     school: SHADOW
     dps: 2.5
