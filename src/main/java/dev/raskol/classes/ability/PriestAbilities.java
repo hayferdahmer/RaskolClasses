@@ -6,6 +6,7 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.ability.passive.PassiveListener;
+import dev.raskol.classes.pet.PetService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
@@ -14,7 +15,6 @@ import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Vex;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
@@ -45,6 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.3 (Волна 3, 3A): пред-множитель роли HEALER УБРАН из applyHealWith —
  *   исходящие heal-модификаторы (heal_out_pct + роль) применяет единой точкой
  *   Spec2RoleListener.onCustomHeal; иначе роль считалась дважды (1.05×1.05).
+ * 1.14.6 (6b): shadowfiend — делегирование в PetService; inline-спавн Vex удалён.
  */
 public final class PriestAbilities {
 
@@ -627,7 +628,11 @@ public final class PriestAbilities {
         return true;
     }
 
-    /** shadow T5: пет-мини: Vex 8 с атакует цель; +10 Света при призыве. */
+    /**
+     * 1.14.6 (6b): shadow T5 — призыв тенескота через PetService;
+     * +10 Света — китовый бонус (PetService про это не знает).
+     * Смерть/выход очищают handle в PetService.onPetDeath/onOwnerQuit.
+     */
     public boolean shadowfiend(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
             return false;
@@ -641,15 +646,13 @@ public final class PriestAbilities {
             allyTarget(p);
             return false;
         }
+        PetService.SummonResult r = plugin.getPets().summon(p, "shadowfiend", t);
+        if (r != PetService.SummonResult.OK) {
+            return r == PetService.SummonResult.ALREADY;
+        }
+        // Китовый бонус: +10 Света при призыве
+        plugin.getResources().add(p.getUniqueId(), 10.0);
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
-        Vex vex = p.getWorld().spawn(p.getLocation().add(0.0, 1.0, 0.0), Vex.class, v -> {
-            v.setLimitedLifetime(true);
-            v.setLimitedLifetimeTicks(secs * 20);
-            v.setCustomName("Тенескот " + p.getName());
-            v.setCustomNameVisible(false);
-        });
-        vex.setTarget(t);
-        plugin.getResources().refund(p.getUniqueId(), 10.0);
         castFx(p, "shadowfiend", "ENTITY_VEX_CHARGE", "SCULK_SOUL", 0.7f, 0.9f, 16);
         p.sendMessage(Component.text("Тенескот призван на " + secs + " с (+10 Света)",
                 NamedTextColor.LIGHT_PURPLE));
