@@ -53,6 +53,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * (MULTIPLY_SCALAR_1, avoidance.parry-stagger-attack-speed) на parry-stagger-player-ms;
  * моб — Slowness I + knockback на parry-stagger-mob-ms.
  * Визуал: субтайтл-тег + звук + партикл (avoidance.visuals, теги/звуки в конфиге).
+ *
+ * 1.14.3 (Волна 3, 3C1): tryAvoid возвращает ProcService.AvoidResult
+ * (NONE/DODGE/PARRY) вместо boolean — потребитель (VanillaDamageListener)
+ * различает dodge и parry для триггеров proc_riposte / proc_counterattack.
  */
 public final class AvoidanceService {
 
@@ -83,20 +87,22 @@ public final class AvoidanceService {
     }
 
     /**
-     * Ролл уклонения/парирования для входящего ФИЗИЧЕСКОГО урона.
-     * true = атака обнулена (вызывающий обязан отменить событие).
+     * 1.14.3 (3C1): ролл уклонения/парирования для входящего ФИЗИЧЕСКОГО урона.
+     * Возвращает AvoidResult — потребитель различает dodge от parry.
+     * NONE = атака прошла (вызывающий обязан продолжить обработку урона).
+     * DODGE/PARRY = атака обнулена (вызывающий обязан отменить событие).
      */
-    public boolean tryAvoid(Player defender, EntityDamageEvent event) {
+    public ProcService.AvoidResult tryAvoid(Player defender, EntityDamageEvent event) {
         if (!enabled()) {
-            return false;
+            return ProcService.AvoidResult.NONE;
         }
         LivingEntity attacker = resolveAttacker(event);
         if (attacker == null || isBossImmune(attacker)) {
-            return false;
+            return ProcService.AvoidResult.NONE;
         }
         PlayerClass pc = plugin.getClassProvider().getClassOf(defender);
         if (pc == null) {
-            return false;
+            return ProcService.AvoidResult.NONE;
         }
         UUID uuid = defender.getUniqueId();
         AttributeService attrs = plugin.getAttributes();
@@ -125,7 +131,7 @@ public final class AvoidanceService {
 
         double total = dodge + parryChance;
         if (total <= 0.0) {
-            return false;
+            return ProcService.AvoidResult.NONE;
         }
         double eff = AttributeMath.applyDR(total,
                 cfgD("avoidance.soft-cap", 60.0),
@@ -136,14 +142,14 @@ public final class AvoidanceService {
         double roll = ThreadLocalRandom.current().nextDouble() * 100.0;
         if (roll < split[0]) {
             dodgeFeedback(defender);
-            return true;
+            return ProcService.AvoidResult.DODGE;
         }
         if (roll < split[0] + split[1]) {
             parryFeedback(defender);
             stagger(attacker, defender);
-            return true;
+            return ProcService.AvoidResult.PARRY;
         }
-        return false;
+        return ProcService.AvoidResult.NONE;
     }
 
     /* ------------------------------- условия -------------------------------- */
