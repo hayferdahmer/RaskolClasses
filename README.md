@@ -182,3 +182,33 @@ WARLOCK-сеты добавляются секциями `weapons.WARLOCK.*` / `
 * * *
 
 ## X. УСТАНОВКА
+
+mvn -B clean package
+cp target/raskol-classes-1.14.6.jar plugins/
+restart
+rc selftest → 111/111 PASS
+
+* * *
+
+При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется); в логе строка `spec2: migrated …`.
+
+### Softdepend
+
+LuckPerms, AuraSkills, PlaceholderAPI, RaskolCore, Towny, Vault, RaskolGear, AuthMe, Essentials, packetevents. Каждый опционален, деградация graceful.
+
+### Регресс-матрица selftest (111 чеков)
+
+Атрибуты и бой 1–21 · spec2-экономика 22–24 · ресурсы/план B 29–36 · чернокнижник/WarlockMath/sanity 37–48 · школы 49–65 · DoT/баланс 66–75 · CC/DR 76–90 · spec2-модель 91–94 · переносимые slots 4–5 95–98 · unlock-покрытие 99 · heal/паверы/ресурс/проки/боевые pct 100–104 · resist-школа/resetNode/конфиг-точки 105–107 · пет-ядро 108–111. Полный прогон перед любым хотфиксом и релизом; skip-чеки считаются отдельно и не входят в PASS-счётчик (с sprint 1).
+
+* * *
+
+## XI. ДОКУМЕНТАЦИЯ
+
+- [`RUNBOOK.md`](RUNBOOK.md) — аварии, гейты, тюнинг без пересборки, операторские заметки
+- [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — контроль и DR, проки, респецы, миграции: конфиг-карта, команды, troubleshooting
+- [`CHANGELOG.md`](CHANGELOG.md) — история версий (не переписывается задним числом)
+- [`LICENSE`](LICENSE) — RASKOL Proprietary License v1.0
+
+---
+
+© 2026 hayferdahmer · RASKOL Proprietary License v1.0 · использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»
