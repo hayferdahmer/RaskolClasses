@@ -1,207 +1,91 @@
-## Спек 2.0 — Деревья путей (1.14.0)
+# RUNBOOK — RaskolClasses 1.14.4
 
-### Модель
-- **Spec enum** (`spec/Spec.java`): 18 констант, 3 на класс, `id() = name().toLowerCase()`
-- **SpecRole** (`spec/SpecRole.java`): `FIGHTER` / `TANK` / `HEALER`
-- **SpecRoles** (`spec/SpecRoles.java`): static-карта `specId → SpecRole`
-  (guard=TANK, discipline/holy=HEALER, остальные=FIGHTER)
-- **Spec2Tree** (`spec/model/Spec2Tree.java`): 20 узлов, 6 рядов,
-  ёмкость 50–58 рангов
-- **Spec2Node** (`spec/model/Spec2Node.java`): `(id, treeId, row, col,
-  maxRank, prereqs, type, name, lore, effect)`
-- **Spec2Effect** (`spec/model/Spec2Effect.java`): 11 видов эффектов
-  (attr, resist, hp_pct, regen, avoid, pen_*, dot_*, kit_*, cd, proc,
-  unlock_ability, ultimate)
-- **Spec2Points** (`spec/model/Spec2Points.java`): `earnedPoints(level)`,
-  `rowUnlocked(row, spentInTree)`, гейты `[0, 5, 10, 15, 20, 30]`
+Операторский справочник: сохранения, миграции, респецы, композиция лечения,
+проки, конфиг-карта, регресс-матрица, troubleshooting. Лицензия: RASKOL
+Proprietary License v1.0.
 
-### Сервисы
-- **Spec2Storage** (`spec/storage/Spec2Storage.java`): персист в
-  `spec2-storage.yml` (main + ranks per tree)
-- **Spec2Service** (`spec/service/Spec2Service.java`):
-  - `chooseMain(player, specId)` — разовый выбор с 15 уровня
-  - `purchase(player, treeId, nodeId)` — покупка ранга
-  - `resetTree(player, treeId, free)` — респис дерева с ценой
-  - `mainSpec/availablePoints/spentGlobal/earnedPoints` — публичные счётчики
-  - `baseBonus/coeffMult/cooldownMult/cooldownSecBonus/avoidBonus/procBonus/
-    regenBonus/healOutPercent/execThresholdBonus/penPercent` — хуки для китов
-  - `reconcile(uuid)` — полный пересчёт всех модификаторов (вызывается на join/
-    reload/passport-change)
-- **Spec2EffectsApplier** (`spec/service/Spec2EffectsApplier.java`): применяет
-  пассивные бонусы (resist/attr/hp_pct/regen/avoid/pen) из узлов на игрока;
-  слушает `Spec2RoleListener`
-- **Spec2Registry** (`spec/registry/Spec2Registry.java`): статический реестр
-  18 деревьев из `registry/trees/{Warrior,Hunter,Rogue,Mage,Priest,Warlock}Trees.java`
+## 1. Старт/стоп и сохранения
 
-### Боевые эффекты узлов
-- **`kit_base` / `kit_mult` / `kit_cd`** — модификаторы способностей:
-  читаются в `*Abilities.dmg()` и `AbilityRegistry.castOn()`
-- **`pen_phys_pct` / `pen_magic_pct` / `pen_<school>`** — агрегируются в
-  `PenTraitsService.totalPenPercent`, с капом `schools.pen-pct-cap` (0.40)
-- **`dot_dur` / `dot_stacks` / `dot_mult`** — применяются в `DotService.specTuned()`
-  при наложении DoT игроком (на каждый каст заново)
-- **`proc`** — бонус к шансу одноимённой пассивки (`BaseClassPassive.onDamageOut/In`)
-- **`avoid`** — плоские `% dodge` / `% parry` (суммируются в
-  `AttributeService.effectiveAvoidance`)
-- **`resist`** — `both` / `phys` / `magic` / `<school>` (через `ResistsService`-модификаторы)
-- **`unlock_ability` / `ultimate`** — открывают новые способности в китах;
-  ульты имеют `type=ultimate`, в ряду 6, гейт 30 очков
+- Автосейв каждые `storage.autosave-minutes` (дефолт 5): cooldowns.yml,
+  resources.yml, spec2-storage.yml.
+- `onDisable` порядок: hpSync.stopSweep → blueprint unregister →
+  WarlockAbilities.cancelAllChannelTasks → отмена задач → passport unregister →
+  resources.saveAll → **hpBarService.saveAll** (1.14.1) → spec2Storage.save →
+  installations.shutdown → bossBars.shutdown → cooldowns save/clear →
+  classProvider.shutdown → effects.clear.
+- После краха HP восстанавливается из `health.yml` (ratio от formula-maxHP).
 
-### Респис
-- **Дерево**: `/rc menu` → «Деревья путей» → END_CRYSTAL (ПКМ №1 — взвести,
-  ПКМ №2 в 30 с — сброс). Цена: `spec2.respec-base-cost` (250) +
-  `spec2.respec-per-level` (10) × потрачено в дереве
-- **Основная спека**: только через `/rc spec respec` (или команда админа);
-  дисконт 50% при роли `TANK`/`HEALER` через `spec2.respec-main-role-discount`
+## 2. Spec2-хранилище и миграция (1.14.4, П10)
 
-### Конфиги
+- Файл: `plugins/RaskolClasses/spec2-storage.yml` (схема v2:
+  `players.<uuid>.main`, `players.<uuid>.ranks.<treeId>.<nodeId>`).
+- Миграция: при старте, если есть `spec2.yml` и нет `spec2-storage.yml`,
+  выполняется `renameTo`. Лог: `spec2: migrated spec2.yml → spec2-storage.yml`.
+- Откат на 1.14.0: переименовать файл обратно вручную (`spec2-storage.yml` →
+  `spec2.yml`) ПОСЛЕ замены jar.
+- Бэкапы: `SafeStorage` пишет `.bak` перед атомарной заменой; ручная копия —
+  стоп сервера → копия файла → старт.
+- Прунинг: reconcile удаляет ранги узлов, нарушающих гейты рядов/пререквизиты,
+  с warning-логом `spec2: ранги дерева … прорежены …`.
+
+## 3. Респецы (1.14.4, П7)
+
+| Операция | Где | Цена | Возврат |
+| --- | --- | --- | --- |
+| Сброс ВСЕГО дерева | Книга → «Деревья путей» → кристалл, ПКМ ×2 (30 с) | `spec2.respec-base-cost` (250) + `spec2.respec-per-level` (10) × потрачено в дереве | все очки дерева в общий пул |
+| Сброс 1 ранга узла | Книга → ПКМ по купленному узлу → ПКМ повторно (30 с) | `spec2.node-respec-base` (150) + `spec2.node-respec-per-rank` (50) × текущий ранг | 1 очко в общий пул |
+
+- `raskolclasses.admin` — оба респеца бесплатно (free-путь).
+- Без Vault-экономики оба возвращают `NO_ECONOMY` (респец отключён, очки целы).
+- Эскалация узлового респеца линейна по рангу: снять 5/5 = 400, снять 1/5 = 200.
+- Взвод узла сбрасывается: ЛКМ по любому узлу, листание рядов, смена спеки,
+  клик по кристаллу, выход из книги.
+
+## 4. Композиция лечения (1.14.1/1.14.3, П3)
+
+Порядок множителей на `CustomHealEvent` (кит-хилы через HpBarService.heal):
+1. Исходящие: `× (1 + heal_out_pct/100)` (узлы discipline/holy/arms) →
+   `× (1 + spec2.role-passives.HEALER.heal-mult)` если роль владельца HEALER.
+2. Входящие (цель-игрок): `× (1 + heal_received_pct/100 + [TANK: role-passives.TANK.heal-received])`.
+Ванильные `EntityRegainHealthEvent` (регены, зелья): входящие множители те же;
+исходящие heal_out/HEALER применяются только при установленном маркере хилера
+(PriestAbilities ставит перед кит-хилом). Анти-хил (mortal_strike, soul_rift,
+Пентаграмма) режет оба пути через `WarlockAbilities.isAntihealed`.
+
+## 5. Proc-узлы: справочник триггеров (1.14.3–1.14.4)
+
+| Kind | Триггер | Эффект |
+| --- | --- | --- |
+| proc_riposte | PARRY без щита | +X% к следующему удару защищавшегося, 8 с |
+| proc_counterattack | DODGE | +X% к следующему удару уклонившегося, 8 с |
+| proc_revenge | блок щитом (PARRY+щит) | +X% к следующему удару блокировавшего, 8 с |
+| proc_shield_slam | блок щитом | шанс X%: ×1.5 к следующему удару, 8 с |
+| proc_second_wind | урон при HP<35% | мгновенный хил 8% formula-maxHP, КД 30 с |
+| proc_bleed_on_crit | крит мили | наложить bleed |
+| proc_apply_poison | крит мили, шанс | наложить poison |
+| proc_poison_extend / proc_burning_extend | крит мили / крит магии | освежить соответствующий DoT |
+| proc_vendetta_refresh | крит | продлить вендетту на цели до 10 с |
+| proc_double_strike | успешный мили-урон | шанс X% повторного удара (без рекурсии) |
+| proc_expose | любой успешный урон | цель +X% входящего урона, 6 с |
+| proc_crit_bonus / proc_savage / proc_headshot | крит | множитель crit-урона |
+| proc_stealth_bonus | удар в INVISIBILITY | +X% урона |
+| proc_stealth_extend | каст shadow_cloak | +X с к длительности |
+| proc_reflect_magic | полученный маг-урон | отразить X% (может быть уклонён) |
+| proc_undodgeable | крит мили | следующий удар атакующего не уклоняется |
+| proc_armor_pen | удар в INVISIBILITY | игнор X% резиста цели |
+
+Состояния proc-слоя чистятся purge-задачей (`performance.purge-interval-ticks`).
+
+## 6. Конфиг-карта 1.14.4 (новые/изменённые ключи)
+
 ```yaml
 spec2:
-  enabled: true
-  start-level: 15
-  points-per-level: 1
-  max-points: 46
-  row-gates: [0, 5, 10, 15, 20, 30]
-  tree-capacity-min: 50
-  respec-base-cost: 250
-  respec-per-level: 10
-  respec-main-role-discount: 0.5
-  role-passives:
-    FIGHTER:  { damage-mult: 0.02 }
-    TANK:     { cc-resist: 0.05, heal-received: 0.05 }
-    HEALER:   { heal-mult: 0.05 }
-    
-# RUNBOOK · Контроль (CC) и убывающая отдача (DR) — 1.13.0
-
-Документ для операторов сервера: как работает CC/DR, какие конфиг-ключи влияют
-на поведение, что делать при авариях.
-
-## 1. Архитектура в двух абзацах
-
-Каждое наложение CC проходит 9 шагов: рубильник `cc.enabled` → фракционный гейт
-`canHit` → иммунитеты (теги BOSS/MINION_ELITE + явные EntityType) → бросок
-`ccResist` (класс + Скверна чернокнижника) → окно DR (15 с) → стек ≥ длины
-множителей = FAIL_DR_IMMUNE → длительность = `base × drMult × (1+ccPower)
-× (1−ccReduction)` → стек +1 → тик-поведение (ROOT/STUN: стоп-движение;
-FEAR: блуждание; SLOW: резист скорости; BLIND: ванильный туман).
-
-DR не персистится — окно 15 с переживает рестарт бессмысленно. Смерть и выход
-снимают CC и сбрасывают DRState; молоко и `/effect clear` снимают CC, но НЕ
-сбрасывают DR (дизайн-решение: игрок не может «очистить» свою уязвимость).
-
-## 2. Конфиг-карта (`cc.*` в `config.yml`)
-
-| Ключ | Тип | Дефолт | Что делает |
-|---|---|---|---|
-| `cc.enabled` | bool | `true` | Глобальный рубильник. Выключение — аварийный гейт при багах. |
-| `cc.window-seconds` | double | `15.0` | Окно DR. Меньше = быстрее иммунитет спадает. |
-| `cc.dr-multipliers` | list | `[1.0, 0.5, 0.25, 0.0]` | Множители длительности по стеку. 4-й = 0 = иммунитет. |
-| `cc.resist-cap` | double | `0.60` | Кап ccResist (0..1). |
-| `cc.power-cap` | double | `0.50` | Кап ccPower (0..1). |
-| `cc.duration-reduction-cap` | double | `0.50` | Кап ccReduction (0..1) — почва для 1.14.0 спек-ролей. |
-| `cc.breaks-on-damage-threshold-pct` | double | `0.05` | Урон ≥ 5% maxHP снимает ROOT/FEAR. |
-| `cc.corruption-resist-bonus` | double | `0.10` | Бонус чернокнижнику при Скверне ≥ 75. |
-| `cc.corruption-power-bonus` | double | `0.20` | Бонус длительности CC от чернокнижника при Скверне ≥ 75. |
-| `cc.charm.allow-on-players` | bool | `false` | Разрешить CHARM на игроков (PvP). |
-| `cc.class-resist.<CLASS>` | double | 0.10–0.20 | Базовый ccResist класса. |
-| `cc.types.<TYPE>.duration-ticks` | int | 60–120 | Базовая длительность в тиках. |
-| `cc.types.<TYPE>.breaks-on-damage` | bool | — | Снимать ли CC уроном (дефолт из CCType). |
-| `cc.types.SLOW.slow-mult` | double | `0.5` | Множитель скорости под SLOW (0..1). |
-| `cc.types.BLIND.miss-chance` | double | `0.5` | Шанс промаха под BLIND (0..1). |
-| `cc.types.<TYPE>.particle` | string | `null` | Переопределение партикла (null = дефолт). |
-| `cc.entity-immunity.<TAG>` | list | — | Список CCType, от которых иммунны сущности тега. |
-| `cc.entity-immunity.ENTITY_<TYPE>` | list | — | Список CCType для конкретного EntityType. |
-
-### Сообщения (`messages.cc.*`)
-
-Все строки фидбека читаются через `RaskolConfig.message(...)` и заменяют
-плейсхолдеры `{type}`, `{target}`, `{duration}`, `{dr-mult}`:
-`applied`, `applied-to-caster`, `immune`, `resisted`, `dr-immune`, `expired`,
-`cast-interrupted`, `hud-format`, `hud-separator`, `hud-icons.<TYPE>`.
-
-## 3. Команды администратора (`raskolclasses.admin.cc`)
-
-/rc cc list — таблица 9 типов CC и их категорий DR
-/rc cc status <player> — активные CC с остатком + DR-стеки с таймером окна
-/rc cc clear <player> — снять все CC + сбросить DR
-/rc cc test <player> <type> — наложить тестовый CC (проходит DR, иммунитеты, ccResist)
-/rc cc reset <player> <category> — сбросить DR-стек одной категории
-
-
-Автодополнение работает: `/rc cc <Tab>` → список подкоманд; `/rc cc test <Tab>`
-→ онлайн-игроки; `/rc cc test <ник> <Tab>` → список типов.
-
-## 4. Диагностика через `/rc debug <player>`
-
-В дампе игрока после секций «Резисты», «Пробитие», «Стихии» идут:
-- `Контроль: Оцепенение 2с  Оглушение 4с` — активные CC с остатком в секундах.
-- `DR-стеки: STUN=2 (сброс 9с)  ROOT=1 (сброс 3с)` — DR-категории с ненулевым стеком.
-
-Если секций нет — у цели нет активных CC и DR-стеков (норма).
-
-## 5. Обёртка ванильных эффектов (VanillaCCWrapper)
-
-Whitelist (чистый маппинг):
-- `Slowness` → `SLOW` (наша система, DR применяется)
-- `Blindness` → `BLIND` (туман без партиклей)
-- `Weakness` → `SILENCE` (запрет кастов)
-
-Всё остальное (Speed, Regeneration, Strength, Invisibility, Resistance,
-Absorption, Fire Resistance, Haste, Night Vision, Water Breathing, Jump Boost…)
-не оборачивается и работает ванильно.
-
-**Важно для баланса:** ванильное зелье Slowness II (длительность 20 с) теперь
-проходит через DR — 4-е зелье в окне 15 с даст иммунитет, и союзники не смогут
-«застакать» замедление. Это дизайн-решение, не баг.
-
-**Молоко и `/effect clear`:** снимают наши CC-экземпляры, но DRState
-остаётся. Игрок, выпивший молоко, всё ещё имеет стек SLOW=3 и будет получать
-иммунитет на 4-е зелье в окне. Если это нежелательно — `/rc cc clear <ник>`.
-
-## 6. Аварийные гейты (что делать при багах)
-
-| Сценарий | Действие | Восстановление |
-|---|---|---|
-| CC ломает PvP на ивенте | `cc.enabled: false` в `config.yml` + `/rc reload` | Вернуть `true` после фикса |
-| Конкретный тип CC сломан (например, STUN) | `cc.class-resist.WARRIOR: 1.0` (100% иммунитет для класса) — точечный nerf | Вернуть прежнее значение |
-| Игрок застрял под контролем | `/rc cc clear <ник>` | Без перезагрузки |
-| DR-стек не сбрасывается | `/rc cc reset <ник> STUN` (или нужной категории) | Без перезагрузки |
-| Ванильные зелья дублируют наши CC | Удалить `VanillaCCWrapper` из `RaskolClasses.onEnable` — точечно отключить обёртку | Вернуть строку регистрации |
-| Массовая проблема (все CC глючат) | `/rc reload` + `/rc cc clear <ник>` на тестерах; при необходимости `cc.enabled: false` | Роллбэк коммита через git |
-
-## 7. Troubleshooting
-
-### Симптом: CC не применяется — сообщение «невосприимчив»
-**Причина:** цель в `cc.entity-immunity` (BOSS/MINION_ELITE/конкретный EntityType)
-или CHARM на игрока при `allow-on-players: false`.
-**Диагностика:** `/rc debug <цель>` → «Контроль: —»; `/rc cc test <цель> STUN`
-→ «невосприимчив». **Решение:** править `cc.entity-immunity.*` или включить CHARM на игроков.
-
-### Симптом: 4-е применение = «нечувствителен»
-**Причина:** DR-иммунитет (стек ≥ длины `dr-multipliers`). **Это норма.**
-**Диагностика:** `/rc cc status <цель>` → стек STUN=3, следующее применение = 0.
-**Решение:** ждать сброса окна (таймер виден в status) или `/rc cc reset <цель> STUN`.
-
-### Симптом: стан не блокирует каст
-**Причина:** способность помечена как instant (в 1.14.0 флаг `instant` в `AbilityDef`),
-или CCGuard/CastGuard не зарегистрированы. **Диагностика:** `/plugins` — плагин
-зелёный; `/rc cc test <ник> STUN` — применение успешное; попробовать каст.
-**Решение:** проверить лог старта на `RaskolClasses v1.13.0 запущен`; при необходимости
-откатить коммиты Батча 2.
-
-### Симптом: ROOT не снимается уроном
-**Причина:** урон ниже порога `cc.breaks-on-damage-threshold-pct` (5% maxHP).
-**Диагностика:** `/rc debug <цель>` → формульный maxHP; посчитать 5% от него.
-**Решение:** бить сильнее или снизить порог (например, `0.03` = 3%).
-
-### Симптом: ванильное зелье Slowness работает как обычное, а не через DR
-**Причина:** `VanillaCCWrapper` не зарегистрирован или отключен. **Диагностика:**
-`/rc cc status <цель>` после `/effect give <цель> slowness` — CC-строка должна
-появиться. **Решение:** проверить регистрацию `new VanillaCCWrapper(this)`
-в `RaskolClasses.onEnable`.
-
-## 8. Производительность
-
-Тик-задача CCService обходит активные экземпляры раз в тик. При 100 одновременных
-CC (стресс-тест) оверхед < 0.05 ms/тик (TPS-влияние незаметно). Если в проде
-нагрузка вырастет — добавим early-return при пустом реестре (уже есть в коде).
+  start-level: 15        # читается Spec2Points.configure (П9)
+  max-points: 46         # читается (П9)
+  row-gates: [0,5,10,15,20,30]  # читается (П9)
+  node-respec-base: 150  # НОВОЕ (П7)
+  node-respec-per-rank: 50  # НОВОЕ (П7)
+combat:
+  block:
+    visuals: true        # НОВОЕ: звук/фидбек блока щитом (3B)
+    sound: ITEM_SHIELD_BLOCK
