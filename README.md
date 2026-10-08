@@ -188,8 +188,6 @@ cp target/raskol-classes-1.14.6.jar plugins/
 restart
 rc selftest → 111/111 PASS
 
-* * *
-
 При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется); в логе строка `spec2: migrated …`.
 
 ### Softdepend
