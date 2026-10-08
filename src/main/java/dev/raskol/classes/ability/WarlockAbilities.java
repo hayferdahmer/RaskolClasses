@@ -8,6 +8,7 @@ import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.dot.DotInstance;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.fx.WarlockFx;
+import dev.raskol.classes.pet.PetService;
 import dev.raskol.classes.spec.Spec;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -18,7 +19,6 @@ import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Vex;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -53,6 +53,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   amplify/duration(ruin_seal) у slots 1–3 НЕ тронуты (не переносимые);
  *   spec*()-хелперы читают classes.WARLOCK.specs.* — не трогаем (это спека, не slot).
  * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
+ * 1.14.6 (6b): summon_demon / demon_soul — делегирование в PetService;
+ *   inline-спавн Vex и static-карта DEMON_BY_OWNER удалены;
+ *   чистка на PlayerQuit больше не нужна (PetService.onOwnerQuit).
  */
 public final class WarlockAbilities implements Listener {
 
@@ -63,8 +66,6 @@ public final class WarlockAbilities implements Listener {
     private static final Map<UUID, Long> ANTIHEAL_EXPIRY = new ConcurrentHashMap<>();
     /** 1.11.2 (T2): задачи канала Раскола Души, indexed by caster UUID. */
     private static final Map<UUID, List<BukkitTask>> CHANNEL_TASKS = new ConcurrentHashMap<>();
-    /** 1.14.0 (долг 6): призванный демон игрока (сессия). */
-    private static final Map<UUID, UUID> DEMON_BY_OWNER = new ConcurrentHashMap<>();
 
     public static double sealAmplifyOf(UUID uuid) {
         Long expiry = SEAL_EXPIRY.get(uuid);
@@ -699,7 +700,11 @@ public final class WarlockAbilities implements Listener {
         return true;
     }
 
-    /** demonology T4: призвать демона (Vex, 12 с) на цель; +10 Скверны. */
+    /**
+     * 1.14.6 (6b): demonology T4 — призыв демона через PetService;
+     * +10 Скверны — китовый бонус (PetService про это не знает).
+     * Смерть/выход очищают handle в PetService.onPetDeath/onOwnerQuit.
+     */
     public boolean summonDemon(Player caster, AbilityDef def) {
         if (!treeUnlocked(caster, def)) {
             return false;
@@ -713,26 +718,13 @@ public final class WarlockAbilities implements Listener {
             allyTarget(caster);
             return false;
         }
-        UUID cid = caster.getUniqueId();
-        UUID old = DEMON_BY_OWNER.get(cid);
-        if (old != null) {
-            Entity e = plugin.getServer().getEntity(old);
-            if (e != null && e.isValid() && !e.isDead()) {
-                caster.sendMessage(Component.text("Демон уже призван.", NamedTextColor.GRAY));
-                return false;
-            }
-            DEMON_BY_OWNER.remove(cid);
+        PetService.SummonResult r = plugin.getPets().summon(caster, "demon", t);
+        if (r != PetService.SummonResult.OK) {
+            return r == PetService.SummonResult.ALREADY;
         }
+        // Китовый бонус: +10 Скверны при призыве
+        plugin.getResources().add(caster.getUniqueId(), 10.0);
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 12);
-        Vex demon = caster.getWorld().spawn(caster.getLocation().add(0.0, 1.0, 0.0), Vex.class, v -> {
-            v.setLimitedLifetime(true);
-            v.setLimitedLifetimeTicks(secs * 20);
-            v.setCustomName("Демон " + caster.getName());
-            v.setCustomNameVisible(false);
-        });
-        demon.setTarget(t);
-        DEMON_BY_OWNER.put(cid, demon.getUniqueId());
-        plugin.getResources().add(cid, 10.0);
         WarlockFx.safeFx(caster.getLocation(), Particle.SCULK_SOUL, 20, 0.5);
         WarlockFx.ringFx(caster.getLocation(), 1.5, Particle.SOUL_FIRE_FLAME, 2);
         plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_VEX_CHARGE, 0.8f, 0.7f);
@@ -761,21 +753,27 @@ public final class WarlockAbilities implements Listener {
         return true;
     }
 
-    /** demonology T6 (ульт): поглотить демона: Сила II + Сопротивление I +30 Скверны на 10 с. */
+    /**
+     * 1.14.6 (6b): demonology T6 (ульт) — поглощение демона через PetService.consume;
+     * Сила II + Сопротивление I +30 Скверны на 10 с — баффы игрока (остаются в ките).
+     */
     public boolean demonSoul(Player caster, AbilityDef def) {
         if (!treeUnlocked(caster, def)) {
             return false;
         }
         UUID cid = caster.getUniqueId();
-        UUID did = DEMON_BY_OWNER.get(cid);
-        Entity demon = did != null ? plugin.getServer().getEntity(did) : null;
-        if (demon == null || !demon.isValid() || demon.isDead()) {
+        LivingEntity demon = plugin.getPets().petOf(caster);
+        if (demon == null) {
             caster.sendMessage(Component.text("Душа демона: сначала призови демона.",
                     NamedTextColor.GRAY));
             return false;
         }
-        demon.remove();
-        DEMON_BY_OWNER.remove(cid);
+        boolean consumed = plugin.getPets().consume(caster, "demon");
+        if (!consumed) {
+            caster.sendMessage(Component.text("Душа демона: питомец недоступен для поглощения.",
+                    NamedTextColor.GRAY));
+            return false;
+        }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
         caster.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, secs * 20, 1));
         caster.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 0));
@@ -790,10 +788,13 @@ public final class WarlockAbilities implements Listener {
 
     /* ------------------------------ 1.11.2 (T2): отмена на выход ------------------------------ */
 
+    /**
+     * 1.14.6 (6b): PetService.onOwnerQuit сам чистит handle пета при выходе;
+     * здесь остаётся только отмена задач канала soul_rift.
+     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
         cancelChannelTasks(event.getPlayer().getUniqueId());
-        DEMON_BY_OWNER.remove(event.getPlayer().getUniqueId());
     }
 
     /* ------------------------------ unit-хелперы (план B) ------------------------------ */
