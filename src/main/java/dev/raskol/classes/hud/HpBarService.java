@@ -36,24 +36,32 @@ import java.util.logging.Logger;
 
 /**
  * 1.9.3-r: математика единиц HP живёт в AttributeService; здесь HUD, реген, персист.
- * 1.10.0: healFormula уважает анти-хил «Раскола Души» (WarlockAbilities.isAntihealed).
- * 1.14.1 (Волна 1): heal(target, amount, healer) с вызовом CustomHealEvent; saveAll() для onDisable.
- * 1.14.3 (Волна 3, 3B): кэш дельты max-health-модификатора (нет сетевого спама).
- * 1.14.4-fix2: ОТЛОЖЕННОЕ восстановление HP на join. Раньше restoreHealth выполнялся
- *         в PlayerJoinEvent, когда LuckPerms ещё не отдал класс: formula считалась
- *         без класса (=100), applyMaxHealth клампил здоровье вниз, и ratio в
- *         health.yml портился с каждым релогом (800→100→12.5…). Теперь restore
- *         выполняется в тик-задаче, когда classProvider уже знает класс
- *         (или через RESTORE_TIMEOUT_MS для бесклассовых/новичков).
+ * 1.10.0: healFormula уважает анти-хил «Раскола Души».
+ * 1.14.1: heal(target, amount, healer) + CustomHealEvent; saveAll() для onDisable.
+ * 1.14.3 (3B): кэш дельты max-health-модификатора (нет сетевого спама).
+ * 1.14.4-fix2: ОТЛОЖЕННЫЙ restore HP. PlayerJoinEvent firing'уется РАНЬШЕ, чем
+ *         LuckPerms отдаёт класс: formula без класса = 100, и немедленный restore
+ *         плюс кламп applyMaxHealth съедали HP (800→100→реген→197; ratio в
+ *         health.yml портился с каждым релогом). Теперь ratio читается на join,
+ *         а применяется в тик-задаче, когда classProvider знает класс (или по
+ *         таймауту RESTORE_TIMEOUT_MS для бесклассовых). Повторное применение —
+ *         если через REAPPLY_WINDOW_MS здоровье всё ещё ниже сохранённого
+ *         (гонка с HpAttributeSync/vanilla-клампом), максимум REAPPLY_MAX раз.
+ *         Маркер деплоя в конструкторе: «deferred-restore (1.14.4-fix2) active».
  */
 public final class HpBarService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
     private static final double MAX_VALUE = 100.0;
-    /** 1.14.4-fix2: сколько ждём загрузку класса/LP перед принудительным restore. */
     private static final long RESTORE_TIMEOUT_MS = 5_000L;
+    private static final long REAPPLY_WINDOW_MS = 3_000L;
+    private static final int REAPPLY_MAX = 3;
 
     private record State(double lastHp, double lastRes) {
+    }
+
+    /** 1.14.4-fix2: отложенный restore: ratio из health.yml + служебные времена. */
+    private record Pending(double ratio, long joinedAt, long lastApplyAt, int applies) {
     }
 
     private final RaskolClasses plugin;
@@ -63,8 +71,9 @@ public final class HpBarService implements Listener {
 
     private final Map<UUID, State> lastTick = new ConcurrentHashMap<>();
     private final Map<UUID, Double> lastAppliedDelta = new ConcurrentHashMap<>();
-    /** 1.14.4-fix2: uuid → millis входа; пока запись есть, restore ещё не выполнен. */
-    private final Map<UUID, Long> pendingRestore = new ConcurrentHashMap<>();
+    private final Map<UUID, Pending> pendingRestore = new ConcurrentHashMap<>();
+
+    private long tickCounter = 0L;
 
     private record NamespacedKeyHolder(org.bukkit.NamespacedKey key) {
     }
@@ -74,6 +83,8 @@ public final class HpBarService implements Listener {
         this.maxHpKey = new NamespacedKeyHolder(new org.bukkit.NamespacedKey(plugin, "max_hp"));
         this.healthFile = new File(plugin.getDataFolder(), "health.yml");
         this.healthStore = SafeStorage.loadWithFallback(healthFile, LOGGER);
+        // Маркер деплоя: если этой строки нет в консоли старта — на сервере старый jar.
+        LOGGER.info("HpBarService: deferred-restore (1.14.4-fix2) active");
     }
 
     private AttributeService attrs() {
@@ -96,9 +107,6 @@ public final class HpBarService implements Listener {
         return attrs().currentFormulaHp(player);
     }
 
-    /**
-     * 1.14.1 (Волна 1): хил с атрибуцией целителя через CustomHealEvent.
-     */
     public void heal(LivingEntity target, double formulaAmount, Player healer) {
         if (target instanceof Player p && WarlockAbilities.isAntihealed(p.getUniqueId())) {
             return;
@@ -111,7 +119,6 @@ public final class HpBarService implements Listener {
         attrs().healFormula(target, event.getAmount());
     }
 
-    /** Хил без атрибуции целителя (реген-пассивки, окружение). */
     public void heal(LivingEntity target, double formulaAmount) {
         heal(target, formulaAmount, null);
     }
@@ -167,7 +174,6 @@ public final class HpBarService implements Listener {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, period(), period());
     }
 
-    /** Вызывать из onDisable главного класса плагина. */
     public void saveAll() {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             saveHealth(player);
@@ -175,7 +181,11 @@ public final class HpBarService implements Listener {
     }
 
     private void tick() {
-        tickCounterIncrement();
+        tickCounter++;
+        if (tickCounter % 600L == 0L) {
+            long now = System.currentTimeMillis();
+            pendingRestore.entrySet().removeIf(e -> now - e.getValue().joinedAt() > 60_000L);
+        }
         boolean unified = !"vanilla".equals(mode());
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             if (player.getGameMode() == GameMode.SPECTATOR) {
@@ -184,18 +194,7 @@ public final class HpBarService implements Listener {
             UUID uuid = player.getUniqueId();
             applyMaxHealth(player);
             applyStrRegen(player);
-
-            // 1.14.4-fix2: отложенный restore — только когда класс уже известен
-            // (LuckPerms догрузил пользователя) или истёк таймаут ожидания.
-            Long joinedAt = pendingRestore.get(uuid);
-            if (joinedAt != null) {
-                boolean classKnown = plugin.getClassProvider().getClassOf(player) != null;
-                if (classKnown || System.currentTimeMillis() - joinedAt > RESTORE_TIMEOUT_MS) {
-                    pendingRestore.remove(uuid);
-                    restoreHealth(player);
-                }
-            }
-
+            tickPendingRestore(player, uuid);
             applyHearts(player, unified);
             if (unified) {
                 sendUnifiedActionbar(player);
@@ -206,14 +205,50 @@ public final class HpBarService implements Listener {
         pendingRestore.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
     }
 
-    private long tickCounter = 0L;
-
-    private void tickCounterIncrement() {
-        tickCounter++;
-        if (tickCounter % 600L == 0L) {
-            // периодическая чистка протухших pending-записей на случай пропущенного quit
-            long now = System.currentTimeMillis();
-            pendingRestore.entrySet().removeIf(e -> now - e.getValue() > 60_000L);
+    /**
+     * 1.14.4-fix2: применение сохранённого ratio, когда формула уже честная
+     * (класс загружен). Повтор — пока не попадём в цель или не исчерпаем лимит.
+     */
+    private void tickPendingRestore(Player player, UUID uuid) {
+        Pending p = pendingRestore.get(uuid);
+        if (p == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        boolean classKnown = plugin.getClassProvider().getClassOf(player) != null;
+        boolean timedOut = now - p.joinedAt() > RESTORE_TIMEOUT_MS;
+        if (!classKnown && !timedOut) {
+            return;
+        }
+        double formula = attrs().maxHp(uuid);
+        if (formula <= 0.0) {
+            return;
+        }
+        double target = Math.max(1.0, p.ratio() * formula);
+        double current = attrs().currentFormulaHp(player);
+        boolean firstApply = p.applies() == 0;
+        boolean needsReapply = !firstApply
+                && now - p.lastApplyAt() <= REAPPLY_WINDOW_MS
+                && p.applies() < REAPPLY_MAX
+                && target - current > 1.0;
+        if (firstApply || needsReapply) {
+            double hpVanilla = target * attrs().scale(player);
+            double carrier = attrs().carrierMaxHp(player);
+            player.setHealth(Math.min(hpVanilla, carrier));
+            pendingRestore.put(uuid, new Pending(p.ratio(), p.joinedAt(), now, p.applies() + 1));
+            if (firstApply) {
+                LOGGER.info("[hp-restore] " + player.getName() + ": ratio="
+                        + String.format(Locale.ROOT, "%.3f", p.ratio())
+                        + " formula=" + (int) formula + " hp=" + (int) target
+                        + (classKnown ? " (class ready)" : " (timeout)"));
+            }
+            return;
+        }
+        // применили и цель достигнута (или лимит повторов исчерпан) — снимаем запись
+        if (p.applies() > 0 && (Math.abs(target - current) <= 1.0
+                || p.applies() >= REAPPLY_MAX
+                || now - p.lastApplyAt() > REAPPLY_WINDOW_MS)) {
+            pendingRestore.remove(uuid);
         }
     }
 
@@ -268,22 +303,12 @@ public final class HpBarService implements Listener {
         SafeStorage.saveAtomic(healthStore, healthFile, LOGGER);
     }
 
-    private void restoreHealth(Player player) {
-        double formula = attrs().maxHp(player.getUniqueId());
-        if (formula <= 0.0) {
-            return;
+    private double readRatio(UUID uuid) {
+        String key = uuid.toString();
+        if (!healthStore.isSet(key)) {
+            return 1.0;
         }
-        String key = player.getUniqueId().toString();
-        double ratio;
-        if (healthStore.isSet(key)) {
-            ratio = Math.max(0.0, Math.min(1.0, healthStore.getDouble(key, 1.0)));
-        } else {
-            ratio = 1.0;
-        }
-        double hpFormula = Math.max(1.0, ratio * formula);
-        double hpVanilla = hpFormula * attrs().scale(player);
-        double carrier = attrs().carrierMaxHp(player);
-        player.setHealth(Math.min(hpVanilla, carrier));
+        return Math.max(0.0, Math.min(1.0, healthStore.getDouble(key, 1.0)));
     }
 
     private void applyStrRegen(Player player) {
@@ -457,9 +482,10 @@ public final class HpBarService implements Listener {
         if (player.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
+        UUID uuid = player.getUniqueId();
         applyMaxHealth(player);
-        // 1.14.4-fix2: restore НЕ здесь — класс/LP ещё не готовы; отметка на тик-задачу
-        pendingRestore.put(player.getUniqueId(), System.currentTimeMillis());
+        // 1.14.4-fix2: ratio читаем сразу, применяем ТОЛЬКО когда класс готов
+        pendingRestore.put(uuid, new Pending(readRatio(uuid), System.currentTimeMillis(), 0L, 0));
         applyHearts(player, !"vanilla".equals(mode()));
     }
 
@@ -467,7 +493,6 @@ public final class HpBarService implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
-        // 1.14.4-fix2: если игрок вышел до restore — пишем актуальное здоровье как есть
         pendingRestore.remove(uuid);
         saveHealth(player);
         lastTick.remove(uuid);
@@ -479,6 +504,7 @@ public final class HpBarService implements Listener {
         Player player = event.getPlayer();
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             if (player.isOnline() && player.getGameMode() != GameMode.SPECTATOR) {
+                pendingRestore.remove(player.getUniqueId());
                 applyMaxHealth(player);
                 player.setHealth(attrs().carrierMaxHp(player));
                 applyHearts(player, !"vanilla".equals(mode()));
