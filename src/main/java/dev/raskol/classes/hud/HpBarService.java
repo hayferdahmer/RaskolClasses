@@ -36,18 +36,13 @@ import java.util.logging.Logger;
 
 /**
  * 1.9.3-r: математика единиц HP живёт в AttributeService; здесь HUD, реген, персист.
- * 1.10.0: healFormula уважает анти-хил «Раскола Души».
  * 1.14.1: heal(target, amount, healer) + CustomHealEvent; saveAll() для onDisable.
  * 1.14.3 (3B): кэш дельты max-health-модификатора (нет сетевого спама).
- * 1.14.4-fix2: ОТЛОЖЕННЫЙ restore HP. PlayerJoinEvent firing'уется РАНЬШЕ, чем
- *         LuckPerms отдаёт класс: formula без класса = 100, и немедленный restore
- *         плюс кламп applyMaxHealth съедали HP (800→100→реген→197; ratio в
- *         health.yml портился с каждым релогом). Теперь ratio читается на join,
- *         а применяется в тик-задаче, когда classProvider знает класс (или по
- *         таймауту RESTORE_TIMEOUT_MS для бесклассовых). Повторное применение —
- *         если через REAPPLY_WINDOW_MS здоровье всё ещё ниже сохранённого
- *         (гонка с HpAttributeSync/vanilla-клампом), максимум REAPPLY_MAX раз.
- *         Маркер деплоя в конструкторе: «deferred-restore (1.14.4-fix2) active».
+ * 1.14.4-fix2: ОТЛОЖЕННОЕ восстановление HP на join (pendingRestore), т.к. LuckPerms
+ *         отдаёт класс позже PlayerJoinEvent; иначе formula=100 и HP съедались релогом.
+ * 1.14.6-fix (Спринт 1, P0-8d): onQuit НЕ перезаписывает health.yml, если pendingRestore
+ *         ещё не применился (applies==0): ранее релог в первые ~5 с писал в файл
+ *         неподтверждённый (клампнутый к 100) ratio и портил сохранённое здоровье.
  */
 public final class HpBarService implements Listener {
 
@@ -60,7 +55,6 @@ public final class HpBarService implements Listener {
     private record State(double lastHp, double lastRes) {
     }
 
-    /** 1.14.4-fix2: отложенный restore: ratio из health.yml + служебные времена. */
     private record Pending(double ratio, long joinedAt, long lastApplyAt, int applies) {
     }
 
@@ -83,7 +77,6 @@ public final class HpBarService implements Listener {
         this.maxHpKey = new NamespacedKeyHolder(new org.bukkit.NamespacedKey(plugin, "max_hp"));
         this.healthFile = new File(plugin.getDataFolder(), "health.yml");
         this.healthStore = SafeStorage.loadWithFallback(healthFile, LOGGER);
-        // Маркер деплоя: если этой строки нет в консоли старта — на сервере старый jar.
         LOGGER.info("HpBarService: deferred-restore (1.14.4-fix2) active");
     }
 
@@ -205,10 +198,6 @@ public final class HpBarService implements Listener {
         pendingRestore.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
     }
 
-    /**
-     * 1.14.4-fix2: применение сохранённого ratio, когда формула уже честная
-     * (класс загружен). Повтор — пока не попадём в цель или не исчерпаем лимит.
-     */
     private void tickPendingRestore(Player player, UUID uuid) {
         Pending p = pendingRestore.get(uuid);
         if (p == null) {
@@ -244,7 +233,6 @@ public final class HpBarService implements Listener {
             }
             return;
         }
-        // применили и цель достигнута (или лимит повторов исчерпан) — снимаем запись
         if (p.applies() > 0 && (Math.abs(target - current) <= 1.0
                 || p.applies() >= REAPPLY_MAX
                 || now - p.lastApplyAt() > REAPPLY_WINDOW_MS)) {
@@ -484,16 +472,29 @@ public final class HpBarService implements Listener {
         }
         UUID uuid = player.getUniqueId();
         applyMaxHealth(player);
-        // 1.14.4-fix2: ratio читаем сразу, применяем ТОЛЬКО когда класс готов
         pendingRestore.put(uuid, new Pending(readRatio(uuid), System.currentTimeMillis(), 0L, 0));
         applyHearts(player, !"vanilla".equals(mode()));
     }
 
+    /**
+     * 1.14.6-fix (P0-8d): если pendingRestore ещё не применился (applies==0),
+     * здоровье в health.yml НЕ перезаписывается: текущее значение — артефакт
+     * клампа к formula=100 до загрузки класса, а не реальное HP игрока.
+     * Старый ratio из файла переживёт релог и применится при следующем входе.
+     */
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
-        pendingRestore.remove(uuid);
+        Pending p = pendingRestore.remove(uuid);
+        if (p != null && p.applies() == 0) {
+            LOGGER.info("[hp-restore] " + player.getName()
+                    + ": выход до применения restore — health.yml не перезаписан (ratio="
+                    + String.format(Locale.ROOT, "%.3f", p.ratio()) + ")");
+            lastTick.remove(uuid);
+            lastAppliedDelta.remove(uuid);
+            return;
+        }
         saveHealth(player);
         lastTick.remove(uuid);
         lastAppliedDelta.remove(uuid);
