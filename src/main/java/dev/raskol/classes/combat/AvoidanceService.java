@@ -57,6 +57,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * 1.14.3 (Волна 3, 3C1): tryAvoid возвращает ProcService.AvoidResult
  * (NONE/DODGE/PARRY) вместо boolean — потребитель (VanillaDamageListener)
  * различает dodge и parry для триггеров proc_riposte / proc_counterattack.
+ * 1.14.3 (Волна 3, 3C2): proc_undodgeable — если у атакующего активен флаг
+ * «следующий удар нельзя уклонить», tryAvoid возвращает NONE и сбрасывает флаг.
  */
 public final class AvoidanceService {
 
@@ -87,10 +89,9 @@ public final class AvoidanceService {
     }
 
     /**
-     * 1.14.3 (3C1): ролл уклонения/парирования для входящего ФИЗИЧЕСКОГО урона.
-     * Возвращает AvoidResult — потребитель различает dodge от parry.
-     * NONE = атака прошла (вызывающий обязан продолжить обработку урона).
-     * DODGE/PARRY = атака обнулена (вызывающий обязан отменить событие).
+     * Ролл уклонения/парирования для входящего ФИЗИЧЕСКОГО урона.
+     * 1.14.3 (3C1): возвращает AvoidResult — потребитель различает dodge/parry.
+     * NONE = атака прошла; DODGE/PARRY = атака обнулена (вызывающий отменяет событие).
      */
     public ProcService.AvoidResult tryAvoid(Player defender, EntityDamageEvent event) {
         if (!enabled()) {
@@ -98,6 +99,13 @@ public final class AvoidanceService {
         }
         LivingEntity attacker = resolveAttacker(event);
         if (attacker == null || isBossImmune(attacker)) {
+            return ProcService.AvoidResult.NONE;
+        }
+        // 1.14.3 (3C2): proc_undodgeable — флаг атакующего глушит уклонение целиком.
+        // Флаг одноразовый: читается и сбрасывается здесь.
+        if (attacker instanceof Player playerAttacker
+                && plugin.getCombat().procs().hasUndodgeable(playerAttacker)) {
+            plugin.getCombat().procs().consumeUndodgeable(playerAttacker);
             return ProcService.AvoidResult.NONE;
         }
         PlayerClass pc = plugin.getClassProvider().getClassOf(defender);
