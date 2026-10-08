@@ -7,23 +7,18 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.Targeting;
 import dev.raskol.classes.combat.dot.DotInstance;
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
+import dev.raskol.classes.pet.PetService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Wolf;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.NamespacedKey;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.RayTraceResult;
@@ -45,11 +40,13 @@ import java.util.concurrent.ConcurrentHashMap;
  *             readiness, serpent_sting;
  *   beastmaster: intimidation, pet_wolf, beast_ferocity, bestial_wrath.
  *   Гейт — treeUnlocked() (Spec2Service.hasUnlocked).
- *   Питомец — ванильный приручённый волк, сессия-скоуп (1.14.6 = полная пет-система).
  * 1.14.0-fix: доступ к атрибутам через RegistryAccess API (Paper 1.21.4).
  * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + radius(arrow_rain) читаются
  *   через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
  *   чтобы переносимые (arrow_fan/arrow_rain) пережили резку abilities.
+ * 1.14.6 (6b): питомец-волк, баффы питомца — делегирование в PetService;
+ *   inline-спавн волка, static-карта PET_WOLF и livePet() удалены.
+ *   forgetPet() оставлен как no-op для обратной совместимости.
  */
 public final class HunterAbilities {
 
@@ -57,8 +54,6 @@ public final class HunterAbilities {
 
     /** 1.14.0: бафф «Верный выстрел» (+30% урона способностей, 6 с). */
     private static final Map<UUID, Long> TRUE_SHOT_UNTIL = new ConcurrentHashMap<>();
-    /** 1.14.0: питомец-волк игрока (сессия). */
-    private static final Map<UUID, UUID> PET_WOLF = new ConcurrentHashMap<>();
 
     private final RaskolClasses plugin;
     private final NamespacedKey fanArrowKey;
@@ -265,7 +260,7 @@ public final class HunterAbilities {
         arrow.setDamage(damage);
         arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
         arrow.setLifetimeTicks(600);
-        arrow.getPersistentDataContainer().set(fanArrowKey, PersistentDataType.BYTE, (byte) 1);
+        arrow.getPersistentDataContainer().set(fanArrowKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (arrow.isValid()) {
                 arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
@@ -571,116 +566,80 @@ public final class HunterAbilities {
         return true;
     }
 
-    /** beastmaster T3: приручённый волк (сессия). Повторный каст при живом волке = отказ. */
+    /**
+     * 1.14.6 (6b): beastmaster T3 — призыв волка через PetService.
+     * Смерть/выход очищают handle в PetService.onPetDeath/onOwnerQuit.
+     */
     public boolean petWolf(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
             return false;
         }
-        UUID pid = p.getUniqueId();
-        UUID old = PET_WOLF.get(pid);
-        if (old != null) {
-            Entity e = plugin.getServer().getEntity(old);
-            if (e instanceof Wolf w && w.isValid() && !w.isDead()) {
-                p.sendMessage(Component.text("Волк уже рядом с тобой.", NamedTextColor.GRAY));
-                return false;
-            }
-            PET_WOLF.remove(pid);
+        PetService.SummonResult r = plugin.getPets().summon(p, "wolf", null);
+        if (r != PetService.SummonResult.OK) {
+            // ALREADY/UNKNOWN/NO_WORLD — PetService для ALREADY сам шлёт сообщение;
+            // для остальных — нейтральный отказ без повтора гейта.
+            return r == PetService.SummonResult.ALREADY;
         }
-        Location spawnAt = p.getLocation().add(p.getLocation().getDirection().setY(0).normalize().multiply(1.5));
-        Wolf wolf = p.getWorld().spawn(spawnAt, Wolf.class, w -> {
-            w.setTamed(true);
-            w.setOwner(p);
-            w.setAdult();
-            w.setCustomName("Волк " + p.getName());
-            w.setCustomNameVisible(true);
-        });
-        PET_WOLF.put(pid, wolf.getUniqueId());
         castFx(p, "pet_wolf", "ENTITY_WOLF_AMBIENT", "HEART", 0.7f, 1.0f, 14);
         p.sendMessage(Component.text("Волк приручён и следует за тобой (до смерти или выхода).",
                 NamedTextColor.GREEN));
         return true;
     }
 
-    /** beastmaster T4: бафф питомца — скорость +50% и +50% урона атаки на 10 с. */
+    /**
+     * 1.14.6 (6b): beastmaster T4 — бафф питомца через PetService
+     * (dmgMult=1.5, speedMult=1.5, без подсветки, secs из конфига).
+     */
     public boolean beastFerocity(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
             return false;
         }
-        Wolf wolf = livePet(p);
-        if (wolf == null) {
+        LivingEntity pet = plugin.getPets().petOf(p);
+        if (pet == null) {
             p.sendMessage(Component.text("Сначала призови волка («Приручить волка»).", NamedTextColor.GRAY));
             return false;
         }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
-        wolf.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, secs * 20, 1));
-
-        // 1.14.0-fix: доступ к атрибутам через RegistryAccess API (Paper 1.21.4)
-        Attribute atkAttr = RegistryAccess.registryAccess()
-                .getRegistry(RegistryKey.ATTRIBUTE)
-                .get(NamespacedKey.minecraft("generic_attack_damage"));
-        if (atkAttr != null) {
-            AttributeInstance atk = wolf.getAttribute(atkAttr);
-            if (atk != null) {
-                NamespacedKey key = new NamespacedKey(plugin, "beast_ferocity");
-                atk.getModifiers().stream()
-                        .filter(m -> key.equals(m.getKey()))
-                        .toList()
-                        .forEach(atk::removeModifier);
-                atk.addModifier(new AttributeModifier(key, 0.5, AttributeModifier.Operation.ADD_SCALAR));
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (wolf.isValid() && atk.getModifier(key) != null) {
-                        atk.removeModifier(key);
-                    }
-                }, secs * 20L);
-            }
+        boolean ok = plugin.getPets().buff(p, 1.5, 1.5, false, secs);
+        if (!ok) {
+            return false;
         }
         castFx(p, "beast_ferocity", "ENTITY_WOLF_GROWL", "CRIMSON_SPORE", 0.7f, 1.0f, 14);
-        wolf.getWorld().spawnParticle(Particle.HEART, wolf.getLocation().add(0.0, 1.0, 0.0),
+        pet.getWorld().spawnParticle(Particle.HEART, pet.getLocation().add(0.0, 1.0, 0.0),
                 6, 0.3, 0.3, 0.3, 0.0);
         return true;
     }
 
-    /** beastmaster T6 (ульт): питомец ×2 урона 8 с (Сила II) + подсветка. */
+    /**
+     * 1.14.6 (6b): beastmaster T6 (ульт) — бафф питомца через PetService
+     * (dmgMult=2.0, speedMult=1.0, подсветка=true, secs из конфига).
+     */
     public boolean bestialWrath(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
             return false;
         }
-        Wolf wolf = livePet(p);
-        if (wolf == null) {
+        LivingEntity pet = plugin.getPets().petOf(p);
+        if (pet == null) {
             p.sendMessage(Component.text("Сначала призови волка («Приручить волка»).", NamedTextColor.GRAY));
             return false;
         }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
-        wolf.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, secs * 20, 1));
-        wolf.setGlowing(true);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (wolf.isValid()) {
-                wolf.setGlowing(false);
-            }
-        }, secs * 20L);
+        boolean ok = plugin.getPets().buff(p, 2.0, 1.0, true, secs);
+        if (!ok) {
+            return false;
+        }
         castFx(p, "bestial_wrath", "ENTITY_WOLF_HOWL", "CRIMSON_SPORE", 0.9f, 0.7f, 20);
         p.sendMessage(Component.text("Звериная ярость: волк усилен на " + secs + " с",
                 NamedTextColor.GREEN));
         return true;
     }
 
-    /** Живой питомец игрока или null. */
-    private Wolf livePet(Player p) {
-        UUID wid = PET_WOLF.get(p.getUniqueId());
-        if (wid == null) {
-            return null;
-        }
-        Entity e = plugin.getServer().getEntity(wid);
-        if (e instanceof Wolf w && w.isValid() && !w.isDead()) {
-            return w;
-        }
-        PET_WOLF.remove(p.getUniqueId());
-        return null;
-    }
-
-    /** 1.14.0: чистка ссылки на питомца (вызывается из RaskolClasses.onQuit-хука опционально). */
+    /**
+     * 1.14.6 (6b): оставлен как no-op для обратной совместимости.
+     * PetService.onOwnerQuit сам чистит handle пета при выходе владельца.
+     */
     public static void forgetPet(UUID ownerUuid) {
-        PET_WOLF.remove(ownerUuid);
+        // no-op: PetService owns pet lifecycle
     }
 
     /** 1.14.0: список активных древесных баффов (для отладки /rc debug). */
