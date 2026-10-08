@@ -35,21 +35,15 @@ import java.util.UUID;
  *  - резист-фактор канала, single-hit cap, burst-окно (через DamageCaps);
  *  - avoidance (dodge/parry) для PHYSICAL.
  * 1.12.1: иммунитеты/уязвимости сущностей к школам + глобальный множитель школы.
- * 1.12.2 (Блок 4): живая проводка пробития и стихийного слоя:
- *         канал-резист режется pen атакующего (flat→pct), стихийный резист цели
- *         режется school-pen атакующего, слои складываются мультипликативно
- *         (SchoolMitigation.mitigationFor, кап schools.mitigation-cap).
- * 1.13.0 (Б2): breaksOnDamage-хуки — ванильный урон (включая среду и урон по мобам)
- *         снимает ROOT/FEAR при превышении порога cc.breaks-on-damage-threshold-pct.
- *         Урон берётся ФИНАЛЬНЫЙ (после митигации/капов); suppressed-события (путь B)
- *         пропускаются — там CC ломает CombatService.dealDamage самостоятельно.
- *         Ранний возврат «factor >= 1.0» заменён на defenseMult=1.0, чтобы хук
- *         срабатывал и на игроков без резистов.
- * Регистрируется фасадом CombatService в конструкторе — RaskolClasses не трогаем.
- * 1.14.3 (Волна 3, 3C1): интеграция ProcService — avoid-result (riposte/counterattack),
- *         onDefenderBlock (revenge/shield_slam), applyExpose + onDefenderDamaged после урона.
- * 1.14.3 (Волна 3, 3C2): stealth_bonus и crit_mult_bonus в исходящем офенсе,
- *         setUndodgeable на крит мили, reflect_magic после финального маг-урона.
+ * 1.12.2 (Блок 4): живая проводка пробития и стихийного слоя.
+ * 1.13.0 (Б2): breaksOnDamage-хуки.
+ * 1.14.3 (Волна 3, 3C1): интеграция ProcService — avoid-result, expose, second_wind.
+ * 1.14.3 (Волна 3, 3C2): stealth_bonus/crit_mult_bonus в офенсе, setUndodgeable на крит,
+ *         reflect_magic после финального маг-урона.
+ * 1.14.3 (фикс красного рана #1301): УБРАН несуществующий EntityDamageByEntityEvent.isBlocked().
+ *         Блок щита детектируется детерминированно: PARRY + щит в руке = блок
+ *         (guard-проки revenge/shield_slam), PARRY без щита = парирование (riposte),
+ *         DODGE = уклонение (counterattack). Amplifier ставится на защищавшегося.
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -135,7 +129,6 @@ public final class VanillaDamageListener implements Listener {
             return;
         }
         if (resists.disabledIn(target.getWorld())) {
-            // арена/мир без резистов: урон финален, CC ломаются как обычно
             if (!suppressed && event.getDamage() > 0.0) {
                 hookBreaksCarrier(target, event.getDamage());
             }
@@ -149,24 +142,22 @@ public final class VanillaDamageListener implements Listener {
             }
             return;
         }
-        // 1.14.3 (3C1): avoidance с различением dodge/parry для proc-триггеров
+
+        // 1.14.3 (3C1 + фикс #1301): avoidance с различением dodge/parry и маршрутизацией
+        // блок/парирование: PARRY+щит → onDefenderBlock, PARRY без щита → onDefenderAvoid(PARRY),
+        // DODGE → onDefenderAvoid(DODGE). Amplifier получает ЗАЩИЩАВШИЙСЯ.
         if (type == DamageType.PHYSICAL) {
             ProcService.AvoidResult avoidResult = avoidance.tryAvoid(target, event);
             if (avoidResult != ProcService.AvoidResult.NONE) {
                 event.setCancelled(true);
                 if (attacker instanceof Player playerAttacker) {
-                    combat.procs().onDefenderAvoid(target, playerAttacker, avoidResult);
+                    if (avoidResult == ProcService.AvoidResult.PARRY && holdsShield(target)) {
+                        combat.procs().onDefenderBlock(target, playerAttacker);
+                    } else {
+                        combat.procs().onDefenderAvoid(target, playerAttacker, avoidResult);
+                    }
                 }
                 return;
-            }
-        }
-
-        // 1.14.3 (3C1): блок щитом → onDefenderBlock (proc_revenge/shield_slam)
-        if (!suppressed && type == DamageType.PHYSICAL
-                && event instanceof EntityDamageByEntityEvent byEntity
-                && isShieldBlocking(target, byEntity)) {
-            if (attacker instanceof Player playerAttacker) {
-                combat.procs().onDefenderBlock(target, playerAttacker);
             }
         }
 
@@ -181,8 +172,6 @@ public final class VanillaDamageListener implements Listener {
                 : resists.magicFactor(uuid, cap);
 
         // 1.12.2 (Блок 4): пробитие атакующего + стихийный слой цели.
-        // 1.13.0 (Б2): невалидный/нулевой резист больше не выходит из метода —
-        // defenseMult = 1.0, чтобы breaksOnDamage-хук сработал и без резистов.
         double defenseMult = 1.0;
         if (Double.isFinite(factor) && factor >= 0.0 && factor < 1.0) {
             double channelResistPct = (1.0 - factor) * 100.0;
@@ -244,30 +233,14 @@ public final class VanillaDamageListener implements Listener {
         }
     }
 
-    /**
-     * 1.14.3 (3C1): проверка блока щитом через Paper API.
-     * В Paper 1.21+ EntityDamageByEntityEvent имеет isBlocked() — игрок держит щит
-     * и блокирует атаку. Fallback: щит в оффхенде + атака не в спину.
-     */
-    private boolean isShieldBlocking(Player defender, EntityDamageByEntityEvent event) {
-        if (event.isBlocked()) {
+    /** 1.14.3 (фикс #1301): щит в любой руке — маркер «блока» для guard-проков. */
+    private static boolean holdsShield(Player player) {
+        org.bukkit.inventory.ItemStack off = player.getInventory().getItemInOffHand();
+        if (off != null && off.getType().name().endsWith("SHIELD")) {
             return true;
         }
-        org.bukkit.inventory.ItemStack off = defender.getInventory().getItemInOffHand();
-        if (off == null || !off.getType().name().endsWith("SHIELD")) {
-            return false;
-        }
-        Entity damager = event.getDamager();
-        if (!(damager instanceof LivingEntity attacker)) {
-            return false;
-        }
-        org.bukkit.util.Vector facing = defender.getLocation().getDirection();
-        org.bukkit.util.Vector toAtt = attacker.getLocation().toVector()
-                .subtract(defender.getLocation().toVector());
-        double angle = dev.raskol.classes.attribute.AttributeMath.angleToAttacker(
-                facing.getX(), facing.getZ(), toAtt.getX(), toAtt.getZ());
-        return !dev.raskol.classes.attribute.AttributeMath.isBack(angle,
-                cfgD("avoidance.back-angle", 135.0));
+        org.bukkit.inventory.ItemStack main = player.getInventory().getItemInMainHand();
+        return main != null && main.getType().name().endsWith("SHIELD");
     }
 
     /**
