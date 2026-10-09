@@ -5,6 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -22,6 +23,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.Map;
@@ -33,9 +35,17 @@ import java.util.logging.Logger;
  * 1.14.6: ЕДИНЫЙ сервис боевых петов (wolf / demon / shadowfiend).
  *
  * 1.14.6-fix (Спринт 1, P0-8f): атрибуты реестра резолвятся в static-инициализаторе;
- *         если RegistryAccess вернул null (ранний старт/нестандартное ядро), пет
- *         молча создавался с ванильными статами. Теперь: warning в конструкторе
- *         + публичный attributesReady() для selftest-чека 112.
+ *         при null — warning в конструкторе + attributesReady() для selftest.
+ * 1.14.7 (Спринт 2, P0-8b): getEntity()==null (чанк выгружен) НЕ удаляет handle —
+ *         запись ждёт загрузки чанка; чистка только через EntityDeathEvent/дезспавн.
+ *         Startup-скан и ChunkLoadEvent-скан удаляют ОСИРОТЕВШИХ петов (метка
+ *         rc_pet_owner есть, хозяина в карте нет) — страховка после краша/релоада.
+ *         ttl-петы получают setLimitedLifetime(ttl+30с) как бэкстоп: если handle
+ *         потерян, ванильный таймер всё равно погасит Vex.
+ * 1.14.7 (Спринт 2, P0-8c): смена мира — пет телепортируется к владельцу в tick
+ *         (раньше follow работал только внутри одного мира, волк застревал в аду,
+ *         а новый призыв блокировался ALREADY); summon при живом handle в другом
+ *         мире переносит пета, а не отказывает.
  */
 public final class PetService implements Listener {
 
@@ -44,6 +54,8 @@ public final class PetService implements Listener {
     public enum SummonResult { OK, ALREADY, UNKNOWN, NO_WORLD }
 
     private static final double FOLLOW_BLOCKS = 12.0;
+    /** 1.14.7 (P0-8b): запас сверх ttl для ванильного limited-lifetime бэкстопа. */
+    private static final int TTL_BACKSTOP_SECONDS = 30;
 
     private final RaskolClasses plugin;
     private final NamespacedKey ownerKey;
@@ -75,7 +87,6 @@ public final class PetService implements Listener {
         this.plugin = plugin;
         this.ownerKey = new NamespacedKey(plugin, "rc_pet_owner");
         this.idKey = new NamespacedKey(plugin, "rc_pet_id");
-        // 1.14.6-fix (P0-8f): явный warning, если реестр атрибутов не резолвится
         if (MAX_HEALTH == null || ATTACK_DAMAGE == null || MOVEMENT_SPEED == null) {
             LOGGER.warning("PetService: атрибуты реестра не резолвятся (max_health="
                     + (MAX_HEALTH != null) + ", attack_damage=" + (ATTACK_DAMAGE != null)
@@ -84,6 +95,12 @@ public final class PetService implements Listener {
         }
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
         plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+        // 1.14.7 (P0-8b): отложенный startup-скан осиротевших петов (после загрузки миров)
+        plugin.getServer().getScheduler().runTaskLater(plugin,
+                () -> scanOrphans(plugin.getServer().getWorlds().stream()
+                        .flatMap(w -> java.util.Arrays.stream(w.getLoadedChunks()))
+                        .toArray(Chunk[]::new)),
+                100L);
     }
 
     /** 1.14.6-fix (P0-8f): для selftest-чека 112. */
@@ -126,8 +143,28 @@ public final class PetService implements Listener {
         if (existing != null) {
             Entity old = plugin.getServer().getEntity(existing.petUuid);
             if (old != null && !old.isDead()) {
+                // 1.14.7 (P0-8c): пет жив, но в другом мире — переносим, а не отказываем
+                if (!old.getWorld().equals(owner.getWorld())) {
+                    Location dest = safeSpot(owner);
+                    if (dest != null) {
+                        old.teleport(dest);
+                        owner.sendMessage(Component.text("«"
+                                + PetDef.byId(existing.defId).displayName(owner.getName())
+                                + "» призван к тебе из другого мира.", NamedTextColor.GRAY));
+                        return SummonResult.OK;
+                    }
+                }
                 owner.sendMessage(Component.text("Питомец уже призван: «"
                         + PetDef.byId(existing.defId).displayName(owner.getName()) + "».",
+                        NamedTextColor.GRAY));
+                return SummonResult.ALREADY;
+            }
+            // сущность недоступна (чанк выгружен) ИЛИ мертва: handle чистим только если
+            // сущность мертва/удалена навсегда; при выгруженном чанке — оставляем (P0-8b)
+            if (old == null) {
+                // чанк выгружен: не даём второй пет, но и не теряем первый
+                owner.sendMessage(Component.text("Питомец где-то далеко (чанк выгружен): "
+                        + "дождись загрузки или дозови его повторным призывом в том же мире.",
                         NamedTextColor.GRAY));
                 return SummonResult.ALREADY;
             }
@@ -154,6 +191,12 @@ public final class PetService implements Listener {
             w.setTamed(true);
             w.setOwner(owner);
             w.setSitting(false);
+        }
+        // 1.14.7 (P0-8b): ванильный бэкстоп ttl — если handle потеряется (краш),
+        // Vex всё равно погаснет сам вместо вечной жизни
+        if (def.temporary() && spawned instanceof org.bukkit.entity.Vex vex) {
+            vex.setLimitedLifetime(true);
+            vex.setLimitedLifetimeTicks((def.ttlSeconds() + TTL_BACKSTOP_SECONDS) * 20);
         }
         setMaxHealth(pet, hp);
         setAttackDamage(pet, dmg);
@@ -261,6 +304,10 @@ public final class PetService implements Listener {
             UUID ownerUuid = entry.getKey();
             PetState st = entry.getValue();
             Entity entity = plugin.getServer().getEntity(st.petUuid);
+            // 1.14.7 (P0-8b): выгруженный чанк — НЕ чистим handle, ждём загрузку
+            if (entity == null) {
+                continue;
+            }
             if (!(entity instanceof LivingEntity pet) || pet.isDead()) {
                 pets.remove(ownerUuid);
                 continue;
@@ -291,8 +338,9 @@ public final class PetService implements Listener {
                     st.glow = false;
                 }
             }
-            if (pet.getWorld().equals(owner.getWorld())
-                    && PetMath.needsTeleport(
+            // 1.14.7 (P0-8c): follow работает и МЕЖДУ мирами — телепорт к владельцу
+            if (!pet.getWorld().equals(owner.getWorld())
+                    || PetMath.needsTeleport(
                             pet.getLocation().distanceSquared(owner.getLocation()), FOLLOW_BLOCKS)) {
                 Location dest = safeSpot(owner);
                 if (dest != null) {
@@ -311,7 +359,7 @@ public final class PetService implements Listener {
                 return cand;
             }
         }
-        return null;
+        return base;
     }
 
     private void despawn(LivingEntity pet) {
@@ -320,6 +368,45 @@ public final class PetService implements Listener {
         pet.remove();
     }
 
+    /* ------------------------------ 1.14.7 (P0-8b): скан осиротевших петов ------------------------------ */
+
+    /** Удаляет петов с меткой rc_pet_owner, чьего хозяина нет в карте handle. */
+    private void scanOrphans(Chunk[] chunks) {
+        int removed = 0;
+        for (Chunk chunk : chunks) {
+            for (Entity e : chunk.getEntities()) {
+                String ownerRaw = e.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
+                if (ownerRaw == null) {
+                    continue;
+                }
+                UUID ownerUuid;
+                try {
+                    ownerUuid = UUID.fromString(ownerRaw);
+                } catch (IllegalArgumentException ex) {
+                    continue;
+                }
+                PetState st = pets.get(ownerUuid);
+                boolean owned = st != null && st.petUuid.equals(e.getUniqueId());
+                if (!owned) {
+                    e.remove();
+                    removed++;
+                }
+            }
+        }
+        if (removed > 0) {
+            LOGGER.info("PetService: удалено осиротевших петов после скана — " + removed);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onChunkLoad(ChunkLoadEvent event) {
+        // скан только загруженного чанка: дёшево и покрывает возврат игрока в локацию
+        scanOrphans(new Chunk[]{event.getChunk()});
+    }
+
+    /* ------------------------------ события ------------------------------ */
+
+    /** A1: смерть пета — чистка handle + сообщение владельцу. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPetDeath(EntityDeathEvent event) {
         LivingEntity pet = event.getEntity();
@@ -343,6 +430,7 @@ public final class PetService implements Listener {
         }
     }
 
+    /** Выход владельца — дезспавн (A1: без сохранения между сессиями). */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onOwnerQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
@@ -356,6 +444,7 @@ public final class PetService implements Listener {
         }
     }
 
+    /** A4: пет не бьёт союзников/владельца; ретаргет пета на цель владельца. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         Entity damager = event.getDamager();
@@ -394,6 +483,7 @@ public final class PetService implements Listener {
         }
     }
 
+    /** A4: пет не таргетит владельца и союзников. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onTarget(EntityTargetEvent event) {
         Entity pet = event.getEntity();
