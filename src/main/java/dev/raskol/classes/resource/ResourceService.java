@@ -3,7 +3,6 @@ package dev.raskol.classes.resource;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
-import dev.raskol.classes.ability.passive.PassiveListener;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
