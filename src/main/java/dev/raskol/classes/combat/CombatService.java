@@ -49,6 +49,8 @@ import java.util.UUID;
  * 1.14.3 (Волна 3, 3C2): каст-проки — stealth_bonus (×урон из невидимости),
  *         armor_pen (игнор % резиста цели из невидимости), reflect_magic (отражение
  *         маг-урона обратно атакующему), undodgeable ставится на крит мили.
+ * 1.14.7 (Sprint 3, P0-6A): A2 Воина — enrageMult (fury_enrage, physBase при HP<50%)
+ *         и onMeleeHitLand (battle_trance, счётчик 3-го удара для ярости).
  */
 public final class CombatService implements Listener {
 
@@ -301,6 +303,14 @@ public final class CombatService implements Listener {
             magicBase *= expose;
         }
 
+        // 1.14.7 (P0-6A): A2 fury_enrage — множитель физ-урона при HP<50%
+        if (source instanceof Player srcP) {
+            double enrage = procs.enrageMult(srcP);
+            if (enrage > 1.0) {
+                physBase *= enrage;
+            }
+        }
+
         // 1.14.3 (3C2): stealth_bonus — множитель урона при ударе из невидимости
         if (source instanceof Player srcP) {
             double stealth = procs.rollStealthBonus(srcP);
@@ -504,6 +514,10 @@ public final class CombatService implements Listener {
 
         // 1.14.3 (3C1+3C2): crit/hit procs — только для мили-части и не рекурсивно
         if (!fromProc && source instanceof Player srcP) {
+            // 1.14.7 (P0-6A): A2 battle_trance — счётчик ударов (3-й удар даёт ярость)
+            if (physPart > 0.0) {
+                procs.onMeleeHitLand(srcP, target);
+            }
             procs.rollCritProcs(srcP, target, physCrit || magicCrit, physCrit);
             if (physCrit) {
                 procs.setUndodgeable(srcP);
