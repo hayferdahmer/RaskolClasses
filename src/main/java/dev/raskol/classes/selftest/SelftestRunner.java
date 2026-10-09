@@ -1215,17 +1215,17 @@ public final class SelftestRunner {
         } else {
             UUID u82 = probe.getUniqueId();
             cc.removeAll(u82);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean applied1 = applyUntilOk(cc, probe, CCType.ROOT, 100);
             boolean hasBefore = cc.has(u82, CCType.ROOT);
             cc.breakOnDamage(probe, 60.0, 1000.0);
             boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
             cc.breakOnDamage(probe, 30.0, 1000.0);
             boolean hasAfterLow = cc.has(u82, CCType.ROOT);
             cc.removeAll(u82);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
             if (check(report, "82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
                     ok82, "CCService.breakOnDamage",
@@ -1242,13 +1242,13 @@ public final class SelftestRunner {
         } else {
             UUID u83 = probe.getUniqueId();
             cc.removeAll(u83);
-            cc.resetAllDr(u83);
+            cc.resetAllDR(u83);
             boolean applied = applyUntilOk(cc, probe, CCType.STUN, 100);
             boolean hasBefore = cc.has(u83, CCType.STUN);
             cc.breakOnDamage(probe, 60.0, 1000.0);
             boolean hasAfter = cc.has(u83, CCType.STUN);
             cc.removeAll(u83);
-            cc.resetAllDr(u83);
+            cc.resetAllDR(u83);
             boolean ok83 = applied && hasBefore && hasAfter;
             if (check(report, "83", "STUN не снимается уроном ≥ порога",
                     ok83, "CCService.breakOnDamage",
@@ -1266,17 +1266,17 @@ public final class SelftestRunner {
             UUID u84 = probe.getUniqueId();
             dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             boolean canNormal = cg.canCast(probe, false);
             applyUntilOk(cc, probe, CCType.STUN, 100);
             boolean canStun = cg.canCast(probe, false);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             applyUntilOk(cc, probe, CCType.SILENCE, 100);
             boolean canSilenceNormal = cg.canCast(probe, false);
             boolean canSilenceInstant = cg.canCast(probe, true);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
             if (check(report, "84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
                     ok84, "CastGuard.canCast",
@@ -1368,12 +1368,12 @@ public final class SelftestRunner {
         } else {
             UUID u90 = probe.getUniqueId();
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean applied90 = applyUntilOk(cc, probe, CCType.STUN, 60);
             boolean activeVisible = !cc.activeOf(u90).isEmpty();
             boolean drVisible = cc.drState(u90, DRCategory.STUN).stackCount() >= 1;
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean cleared90 = cc.activeOf(u90).isEmpty()
                     && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
             boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
@@ -1927,11 +1927,11 @@ public final class SelftestRunner {
                         }
                     }
                     if (hpHit != null) {
-                        double m1 = plugin.getAttributes().maxHp(pu104);
+                        double maxHpAfter = plugin.getAttributes().maxHp(pu104);
                         double expectRatio = 1.0 + (2 * hpHit.node().effect().value()) / 100.0;
-                        if (m0 <= 0 || Math.abs(m1 - m0 * expectRatio) > 1e-6) {
+                        if (m0 <= 0 || Math.abs(maxHpAfter - m0 * expectRatio) > 1e-6) {
                             ok104 = false;
-                            got104.append("maxHp×=").append(m1 / Math.max(m0, 1e-9)).append(' ');
+                            got104.append("maxHp×=").append(maxHpAfter / Math.max(m0, 1e-9)).append(' ');
                         }
                     }
                 } finally {
