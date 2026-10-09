@@ -11,6 +11,7 @@ import dev.raskol.classes.pet.PetService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.AbstractArrow;
@@ -18,7 +19,6 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.NamespacedKey;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.RayTraceResult;
@@ -44,9 +44,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + radius(arrow_rain) читаются
  *   через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
  *   чтобы переносимые (arrow_fan/arrow_rain) пережили резку abilities.
- * 1.14.6 (6b): питомец-волк, баффы питомца — делегирование в PetService;
- *   inline-спавн волка, static-карта PET_WOLF и livePet() удалены.
- *   forgetPet() оставлен как no-op для обратной совместимости.
+ * 1.14.6 (6b): питомец-волк и баффы — делегирование в PetService;
+ *   static-карта PET_WOLF, livePet() и inline-спавн Wolf удалены.
+ * 1.14.6-fix (Sprint 1, P0-8a): petWolf возвращает false на ЛЮБОЙ не-OK результат
+ *   summon (включая ALREADY) — castOn делает refund и не запускает кулдаун.
  */
 public final class HunterAbilities {
 
@@ -260,7 +261,7 @@ public final class HunterAbilities {
         arrow.setDamage(damage);
         arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
         arrow.setLifetimeTicks(600);
-        arrow.getPersistentDataContainer().set(fanArrowKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+        arrow.getPersistentDataContainer().set(fanArrowKey, PersistentDataType.BYTE, (byte) 1);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (arrow.isValid()) {
                 arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
@@ -568,7 +569,7 @@ public final class HunterAbilities {
 
     /**
      * 1.14.6 (6b): beastmaster T3 — призыв волка через PetService.
-     * Смерть/выход очищают handle в PetService.onPetDeath/onOwnerQuit.
+     * 1.14.6-fix (P0-8a): любой не-OK результат = false (refund + без кулдауна).
      */
     public boolean petWolf(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
@@ -576,9 +577,7 @@ public final class HunterAbilities {
         }
         PetService.SummonResult r = plugin.getPets().summon(p, "wolf", null);
         if (r != PetService.SummonResult.OK) {
-            // ALREADY/UNKNOWN/NO_WORLD — PetService для ALREADY сам шлёт сообщение;
-            // для остальных — нейтральный отказ без повтора гейта.
-            return r == PetService.SummonResult.ALREADY;
+            return false;
         }
         castFx(p, "pet_wolf", "ENTITY_WOLF_AMBIENT", "HEART", 0.7f, 1.0f, 14);
         p.sendMessage(Component.text("Волк приручён и следует за тобой (до смерти или выхода).",
