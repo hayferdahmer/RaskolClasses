@@ -76,6 +76,8 @@ import java.util.List;
  *         конструктор сервиса сам регистрирует слушатели и тик-задачу.
  * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) также в reloadPlugin() —
  *         snapshot очков/гейтов обновляется при /rc reload без рестарта.
+ * 1.14.7 (Спринт 2, P0-4): startup-warning для деревьев с ёмкостью ниже
+ *         spec2.tree-capacity-min — напоминание добить ранги (Часть 2: RogueTrees).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -314,6 +316,28 @@ public final class RaskolClasses extends JavaPlugin {
 
         registerCommand();
         printBanner();
+
+        // 1.14.7 (Спринт 2, P0-4): startup-warning для деревьев с ёмкостью ниже
+        // spec2.tree-capacity-min. Не блокирует старт: это напоминание добить ранги
+        // (Часть 2 закроет RogueTrees: assassination/subtlety/outlaw).
+        int capMin = getConfig().getInt("spec2.tree-capacity-min", 50);
+        if (capMin < 1) {
+            capMin = 50;
+        }
+        List<String> lowCap = new ArrayList<>();
+        for (dev.raskol.classes.spec.Spec s : dev.raskol.classes.spec.Spec.values()) {
+            dev.raskol.classes.spec.model.Spec2Tree t =
+                    dev.raskol.classes.spec.registry.Spec2Registry.treeOf(s.id());
+            if (t != null && t.capacity() < capMin) {
+                lowCap.add(s.id() + "=" + t.capacity());
+            }
+        }
+        if (!lowCap.isEmpty()) {
+            getLogger().warning("P0-4: " + lowCap.size() + " деревьев ниже tree-capacity-min="
+                    + capMin + ": " + String.join(", ", lowCap)
+                    + " — добавьте maxRank существующим пассивным узлам (Часть 2 спринта)");
+        }
+
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
     }
 
@@ -441,8 +465,8 @@ public final class RaskolClasses extends JavaPlugin {
     }
 
     /**
-     * 1.14.7 (P1-4): добавлен вызов Spec2Points.configure(this) — snapshot очков/
-     * гейтов рядов обновляется при /rc reload без рестарта сервера.
+     * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) — snapshot очков/гейтов
+     * обновляется при /rc reload без рестарта сервера.
      */
     public void reloadPlugin() {
         raskolConfig.reload();
