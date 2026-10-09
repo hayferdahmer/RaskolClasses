@@ -48,6 +48,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   static-карта PET_WOLF, livePet() и inline-спавн Wolf удалены.
  * 1.14.6-fix (Sprint 1, P0-8a): petWolf возвращает false на ЛЮБОЙ не-OK результат
  *   summon (включая ALREADY) — castOn делает refund и не запускает кулдаун.
+ * 1.14.7 (Sprint 3, P0-6A): beast_ferocity читает длительность через
+ *   TreeAbilities.durationWithSpec (kit_dur bm_the_beast_within: +5 с за ранг).
  */
 public final class HunterAbilities {
 
@@ -587,7 +589,8 @@ public final class HunterAbilities {
 
     /**
      * 1.14.6 (6b): beastmaster T4 — бафф питомца через PetService
-     * (dmgMult=1.5, speedMult=1.5, без подсветки, secs из конфига).
+     * (dmgMult=1.5, speedMult=1.5, без подсветки).
+     * 1.14.7 (P0-6A): длительность через durationWithSpec (bm_the_beast_within: +5 с/ранг).
      */
     public boolean beastFerocity(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
@@ -598,7 +601,7 @@ public final class HunterAbilities {
             p.sendMessage(Component.text("Сначала призови волка («Приручить волка»).", NamedTextColor.GRAY));
             return false;
         }
-        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
+        int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 10, p.getUniqueId());
         boolean ok = plugin.getPets().buff(p, 1.5, 1.5, false, secs);
         if (!ok) {
             return false;
