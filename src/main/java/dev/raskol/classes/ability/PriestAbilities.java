@@ -48,6 +48,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.6 (6b): shadowfiend — делегирование в PetService; inline-спавн Vex удалён.
  * 1.14.6-fix (Sprint 1, P0-8a): shadowfiend возвращает false на ЛЮБОЙ не-OK результат
  *   summon (включая ALREADY) — castOn делает refund и не запускает кулдаун.
+ * 1.14.7 (Sprint 3, P0-6A): ho_surge_of_light — после успешного хила, если
+ *   ProcService.rollFreeHeal возвращает true, стоимость способности возвращается
+ *   в ресурс кастера (refund). Реализация через единый proc free_heal.
  */
 public final class PriestAbilities {
 
@@ -247,6 +250,8 @@ public final class PriestAbilities {
      * treePath=true читает base/coeff из classes.PRIEST.treeAbilities.*.
      * 1.14.3 (3A): ролевые/узловые множители лечения НЕ применяются здесь —
      * их ставит Spec2RoleListener.onCustomHeal на событии CustomHealEvent.
+     * 1.14.7 (P0-6A): ho_surge_of_light — если rollFreeHeal=true после хила,
+     * возвращаем стоимость способности в ресурс кастера (бесплатный хил).
      */
     private boolean applyHealWith(Player caster, Player target, AbilityDef def,
                                   double defBase, double defCoeff, boolean treePath) {
@@ -269,6 +274,10 @@ public final class PriestAbilities {
                 : healAmount(caster, def, defBase, defCoeff), missing);
         PassiveListener.markHealer(caster.getUniqueId());
         plugin.getHpBarService().heal(target, amount, caster);
+        // 1.14.7 (P0-6A): ho_surge_of_light — бесплатный хил (refund стоимости)
+        if (def.cost() > 0 && plugin.getCombat().procs().rollFreeHeal(caster)) {
+            plugin.getResources().refund(caster.getUniqueId(), def.cost());
+        }
         LAST_HEAL.put(caster.getUniqueId(), amount);
 
         UUID targetUuid = target.getUniqueId();
