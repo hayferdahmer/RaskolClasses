@@ -8,6 +8,7 @@ import dev.raskol.classes.combat.school.School;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * 1.14.0 (контент-долги 1–6): способности, открываемые узлами деревьев путей
@@ -31,6 +32,10 @@ import java.util.Locale;
  * с тем же фолбэком treeAbilities → abilities → def. Раньше описание читалось
  * только из abilities.* (RaskolConfig.abilityDescription), поэтому у древесных
  * и переносимых способностей lore был пустым.
+ *
+ * 1.14.7 (Sprint 3, P0-6A): durationWithSpec() — длительность с учётом
+ * Σ value kit_dur-узлов дерева владельца. Drop-in замена duration() / durationOrKit
+ * в китах, у которых есть kit_dur-узлы (11 шт. в таблице P0-6A).
  */
 public final class TreeAbilities {
 
@@ -179,6 +184,26 @@ public final class TreeAbilities {
     public static int durationOrKit(RaskolClasses plugin, PlayerClass pc, String id, int def) {
         int v = intOrKit(plugin, pc, id, "duration", def);
         return v > 0 ? v : def;
+    }
+
+    /**
+     * 1.14.7 (Sprint 3, P0-6A): длительность способности с учётом Σ value kit_dur-узлов
+     * дерева владельца (ключ = abilityId, значение = секунды за ранг).
+     * Drop-in замена durationOrKit / duration() в китах, у которых есть kit_dur-узлы
+     * (balder_skin, berserkergang, aegis_faith, ice_barrier, taunt, adrenaline_rush,
+     * shadow_cloak, strangle, shadow_dance, beast_ferocity, concussive_blow).
+     *
+     * @param defv        фолбэк-длительность (секунды), если конфиг пуст
+     * @param ownerUuid   владелец дерева (читатель kitDurBonus)
+     */
+    public static int durationWithSpec(RaskolClasses plugin, PlayerClass pc, String id,
+                                       int defv, UUID ownerUuid) {
+        int base = durationOrKit(plugin, pc, id, defv);
+        double bonus = plugin.getSpec2Service().kitDurBonus(ownerUuid, id);
+        if (!Double.isFinite(bonus) || bonus <= 0.0) {
+            return base;
+        }
+        return (int) Math.max(0, base + Math.round(bonus));
     }
 
     /** Регистрация кастеров всех 69 древесных способностей шести классов. */
