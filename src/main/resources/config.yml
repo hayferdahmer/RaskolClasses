@@ -128,8 +128,58 @@ spec:
 # ------------------------------------------------------------
 spec2:
   enabled: true
-  disabled-nodes: []
-  tree-capacity-min: 50   # ← ровно ОДНА строка, дубль ниже удалить
+  # 1.14.7 (Sprint 3, P0-6B «вариант B немедленно»): первичный стоп-лист = 38 узлов
+  # без потребителей (A2 без дом-механик ×7, A3 ×25, A4 ×2, deep_wounds ×1 — ждёт
+  # value2-правку в WarriorTrees, доставка 2). Вложенные ранги прунятся reconcile
+  # с возвратом очков; GUI показывает «⚒ В РАЗРАБОТКЕ»; resetNode работает.
+  # По мере реализации потребителей узлы убираются из списка по одному.
+  disabled-nodes:
+    # A2: нет обработчика и нет дом-механики (комбо-поинты, «бесплатный хил», групп-бафф, пет-проки)
+    - as_seal_fate
+    - ho_surge_of_light
+    - bm_ferocious_inspiration
+    - bm_wild_bond
+    - bm_go_for_the_throat
+    - bm_frenzy
+    - bm_spirit_bond
+    # A2: обработчики придут в доставке 2 (enrage/battle_cry/trance) — пока закрыты
+    - fury_enrage
+    - fury_battle_cry
+    - battle_trance
+    # A1: сила масштабируется рангом (0.5 dps) — ждёт value2 в WarriorTrees (доставка 2)
+    - deep_wounds
+    # A3: kit_dur ×11 (потребитель agg.kitDur придёт в доставке 3)
+    - shield_wall_echo
+    - fury_berserkers_rage
+    - fury_piercing_howl
+    - guard_vigilant_guardian
+    - guard_intervene
+    - ol_improved_adrenaline
+    - su_master_of_deception
+    - su_nerve_strike
+    - su_master_of_subtlety
+    - fr_ice_ward_enh
+    - dis_shield_mastery
+    - bm_the_beast_within
+    # A3: пет-статы (потребитель в PetService — доставка 4 или пет-боевая волна)
+    - bm_bestial_discipline
+    - bm_cobra_reflexes
+    - bm_primal_fury
+    - bm_pack_leader
+    # A3: прочие виды без потребителя
+    - mm_eagle_eye
+    - mm_sniper_training
+    - mm_piercing_shots
+    - mm_rapid_fire
+    - sv_trap_mastery
+    - sv_resourcefulness
+    - ol_dual_wield_specialization
+    - fury_unstoppable_force
+    - guard_spell_ward
+    # A4: attack_speed_pct — геттер без вызовов (своя волна или отключение навсегда)
+    - fury_frenzy
+    - mm_swift_quiver
+  tree-capacity-min: 50
   start-level: 15
   points-per-level: 1
   max-points: 46
@@ -150,6 +200,8 @@ spec2:
   procs:
     expose:
       cap: 0.30
+      # 1.14.7 (контракт C): сила одного применения expose, если у узла value2 = 0
+      amp: 0.05
     riposte:
       amp: 0.50
     counterattack:
