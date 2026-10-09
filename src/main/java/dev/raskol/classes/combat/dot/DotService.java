@@ -38,6 +38,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *         кастера меняют длительность/стеки/dps накладываемого им DoT (specTuned).
  * 1.14.0 (Б7): wither (SHADOW) в дефолтах реестра + партиклы школ SHADOW/HOLY/
  *         ARCANE/TRUE в defaultDotParticle.
+ * 1.14.7 (Sprint 3, P0-6A): applyByIdWithDpsBonus — DoT с надбавкой к dps из
+ *         proc-узла (deep_wounds: +0.5 dps за ранг). Надбавка фиксируется в def
+ *         при ПЕРВОМ наложении; повторные применения того же owner+id освежают
+ *         стеки/время, но не меняют dps уже висящего экземпляра (осознанно).
  */
 public final class DotService implements Listener {
 
@@ -136,6 +140,25 @@ public final class DotService implements Listener {
         DotDef def = defById(dotId);
         if (def == null) {
             return false;
+        }
+        apply(owner, target, def);
+        return true;
+    }
+
+    /**
+     * 1.14.7 (P0-6A): DoT с надбавкой к dps (deep_wounds: +0.5 dps за ранг).
+     * Надбавка добавляется к базовому dps из реестра ДО specTuned (узлы dot_mult
+     * владельца умножат итог). Повторное наложение тем же владельцем освежает
+     * существующий экземпляр (apply), dps которого зафиксирован при первом наложении.
+     */
+    public boolean applyByIdWithDpsBonus(Player owner, LivingEntity target, String dotId, double dpsBonus) {
+        DotDef def = defById(dotId);
+        if (def == null) {
+            return false;
+        }
+        if (Double.isFinite(dpsBonus) && dpsBonus > 0.0) {
+            def = DotDef.of(def.id(), def.school(), def.dps() + dpsBonus,
+                    def.durationMillis(), def.maxStacks(), def.sourceAbility());
         }
         apply(owner, target, def);
         return true;
