@@ -88,6 +88,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
  * в отдельный счётчик skipped — PASS-итог больше не завышается.
+ *
+ * 1.14.7 (Sprint 2, P0-4): чек 93 читает нижнюю границу ёмкости из
+ * spec2.tree-capacity-min (дефолт 50), верхняя граница 58.
  */
 public final class SelftestRunner {
 
@@ -1417,17 +1420,24 @@ public final class SelftestRunner {
             failed++;
         }
 
+        // 1.14.7 (Sprint 2, P0-4): чек 93 читает нижнюю границу ёмкости из конфига
+        int capMin = plugin.getConfig().getInt("spec2.tree-capacity-min", 50);
+        if (capMin < 1) {
+            capMin = 50; // защитный фолбэк
+        }
         boolean ok93 = true;
         String got93 = "";
         for (Spec s : Spec.values()) {
             Spec2Tree t = Spec2Registry.treeOf(s.id());
-            if (t == null || t.capacity() < 50 || t.capacity() > 58) {
+            int cap = t == null ? 0 : t.capacity();
+            if (t == null || cap < capMin || cap > 58) {
                 ok93 = false;
-                got93 = s.id() + ":" + (t == null ? "null" : String.valueOf(t.capacity()));
+                got93 = s.id() + ":" + (t == null ? "null" : String.valueOf(cap))
+                        + " (ожидалось " + capMin + "–58)";
                 break;
             }
         }
-        if (check(report, "93", "все 18 деревьев в реестре, ёмкость 50–58 (>46)",
+        if (check(report, "93", "все 18 деревьев в реестре, ёмкость [" + capMin + ", 58] (>46)",
                 ok93, "Spec2Registry.treeOf/capacity", got93.isEmpty() ? "OK" : got93)) {
             passed++;
         } else {
