@@ -31,8 +31,11 @@ import java.util.concurrent.ThreadLocalRandom;
  * 1.14.6-fix (Sprint 1, P0-2): ключи agg.proc приходят БЕЗ префикса proc_
  * (срезается в Spec2Service.accumulate).
  *
- * Amplifier следующего удара ставится на ЗАЩИЩАВШЕГОСЯ (riposte/counterattack/
- * revenge/shield_slam) и снимается, когда он сам наносит урон.
+ * 1.14.7 (Sprint 3, P0-6A): обработчики A2-проков Воина:
+ *   - onAbilityCast → fury_battle_cry (ярость на каст);
+ *   - onMeleeHitLand → battle_trance (счётчик 3-го удара);
+ *   - enrageMult → fury_enrage (+% урона при HP<50%);
+ *   - onCritBleed → deep_wounds (bleed при крите; TODO: кастомный dps через DotService).
  */
 public final class ProcService {
 
@@ -47,6 +50,10 @@ public final class ProcService {
     private final Map<UUID, Double> exposeMult = new ConcurrentHashMap<>();
     private final Map<UUID, Long> secondWindCd = new ConcurrentHashMap<>();
     private final Map<UUID, Long> undodgeableExpiry = new ConcurrentHashMap<>();
+
+    /** 1.14.7 (P0-6A): счётчик ударов для battle_trance (сбрасывается через 2 с). */
+    private final Map<UUID, Integer> meleeHitCounter = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> meleeHitCounterExpiry = new ConcurrentHashMap<>();
 
     public ProcService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -273,6 +280,9 @@ public final class ProcService {
         UUID uuid = attacker.getUniqueId();
 
         if (isMelee && roll(uuid, "bleed_on_crit")) {
+            // 1.14.7 (P0-6A): deep_wounds — применяет стандартный bleed.
+            // TODO (доставка 3): кастомный dps через DotService.applyBleedWithCustomDps
+            // (procAmp 0.5 за ранг сейчас игнорируется).
             plugin.getCombat().dots().applyById(attacker, target, "bleed");
         }
         if (isMelee && roll(uuid, "apply_poison")) {
@@ -394,6 +404,77 @@ public final class ProcService {
         undodgeableExpiry.remove(attacker.getUniqueId());
     }
 
+    /* ------------------------------ 1.14.7 (P0-6A): A2 Воина ------------------------------ */
+
+    /**
+     * A2: fury_battle_cry — при успешном касте с шансом Σvalue даёт +Σvalue2 ярости.
+     * Вызывается из AbilityRegistry.castOn после успешного каста.
+     */
+    public void onAbilityCast(Player caster) {
+        if (caster == null) {
+            return;
+        }
+        UUID uuid = caster.getUniqueId();
+        if (!roll(uuid, "rage_on_cast")) {
+            return;
+        }
+        double rage = strength(uuid, "rage_on_cast", 3.0);
+        plugin.getResources().add(uuid, rage);
+    }
+
+    /**
+     * A2: battle_trance — счётчик ударов. На 3-м ударе за 2-секундное окно
+     * детерминированно (value=1.0) даёт +Σvalue2 ярости. Сброс счётчика после триггера.
+     * Вызывается из CombatService.dealDamage для каждого мили-удара.
+     */
+    public void onMeleeHitLand(Player attacker, LivingEntity target) {
+        if (attacker == null || target == null) {
+            return;
+        }
+        UUID uuid = attacker.getUniqueId();
+        long now = System.currentTimeMillis();
+        Long exp = meleeHitCounterExpiry.get(uuid);
+        int count = (exp != null && now <= exp) ? meleeHitCounter.getOrDefault(uuid, 0) : 0;
+        count++;
+        meleeHitCounter.put(uuid, count);
+        meleeHitCounterExpiry.put(uuid, now + 2_000L);  // окно 2 секунды
+        if (count >= 3) {
+            double chance = proc(uuid, "trance");
+            if (chance >= 1.0 || rollChance(chance)) {
+                double rage = strength(uuid, "trance", 5.0);
+                plugin.getResources().add(uuid, rage);
+            }
+            meleeHitCounter.put(uuid, 0);
+            meleeHitCounterExpiry.put(uuid, now + 2_000L);
+        }
+    }
+
+    /**
+     * A2: fury_enrage — множитель физ-урона при HP<50%.
+     * Возвращает 1.0 + Σvalue2/100 если HP<50% и roll прошёл (или value=1.0), иначе 1.0.
+     * Вызывается из CombatService.dealDamage перед применением урона.
+     */
+    public double enrageMult(Player attacker) {
+        if (attacker == null) {
+            return 1.0;
+        }
+        UUID uuid = attacker.getUniqueId();
+        double chance = proc(uuid, "enrage_dmg");
+        if (chance <= 0.0) {
+            return 1.0;
+        }
+        double max = plugin.getHpBarService().formulaMaxHp(uuid);
+        double cur = plugin.getHpBarService().currentFormulaHp(attacker);
+        if (max <= 0.0 || cur / max >= 0.50) {
+            return 1.0;
+        }
+        if (chance < 1.0 && !rollChance(chance)) {
+            return 1.0;
+        }
+        double pct = strength(uuid, "enrage_dmg", 5.0);
+        return 1.0 + pct / 100.0;
+    }
+
     /* ------------------------------ cleanup ------------------------------ */
 
     public void purgeStale() {
@@ -404,5 +485,7 @@ public final class ProcService {
         exposeMult.keySet().removeIf(id -> !exposeExpiry.containsKey(id));
         secondWindCd.entrySet().removeIf(e -> e.getValue() < now);
         undodgeableExpiry.entrySet().removeIf(e -> e.getValue() < now);
+        meleeHitCounterExpiry.entrySet().removeIf(e -> e.getValue() < now);
+        meleeHitCounter.keySet().removeIf(id -> !meleeHitCounterExpiry.containsKey(id));
     }
 }
