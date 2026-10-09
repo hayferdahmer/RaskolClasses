@@ -3,112 +3,131 @@ package dev.raskol.classes.ability.passive;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.spec.SpecRole;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 
-import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 1.11.4 (P1): ТОНКИЙ диспетчер пассивок. Вся логика — в ClassPassive-файлах.
- * Маркер хилера статический: ставят PriestAbilities, читает ResourceService.
- * 1.14.0 (Б8): +MagePassives (mana_soaked) — ранее файл отсутствовал.
- * 1.14.1 (Волна 1): onRegainHealth применяет классово-независимые исходящие
- *   heal-множители ДО диспетчеризации класс-пассивок:
- *     1) heal_out_pct из spec2-агрегата (Spec2Service.healOutPercent) — теперь
- *        работает у ВСЕХ классов (field_medkit Воина и т.д.), не только у Жреца;
- *     2) роль HEALER: множитель из spec2.role-passives.HEALER.heal-mult.
- *   «Благодать» Жреца больше не добавляет healOutPercent сама (см. PriestPassives),
- *   двойного счёта нет.
+ * Диспетчер классовых пассивок (1.7.x): слушает боевые события и дёргает
+ * ClassPassive-обработчики шести классов.
+ *
+ * 1.14.1 (Волна 1): universal heal_out_pct применялся здесь к ванильным
+ * EntityRegainHealthEvent с маркером хилера.
+ * 1.14.7 (Спринт 2, P1-1/P1-2): ветка heal_out/HEALER ИЗ onRegainHealth УДАЛЕНА —
+ *   лечение компонуется в ОДНОЙ точке (Spec2RoleListener.onCustomHeal для кит-хилов,
+ *   Spec2RoleListener.onRegain для входящих). Ванильный regain-путь с маркером был
+ *   рудиментом: kit-хилы идут через setHealth без regain-события, а stale-маркер
+ *   (static volatile UUID, peek без сброса) приписывал чужие регены жрецу.
+ *   markHealer() оставлен как deprecated no-op: вызовы из PriestAbilities
+ *   компилируются до Sprint 4, где будут вычищены вместе с дублями китов.
+ *   Пассивки урона/проков (execute_passive, predator, grace-множитель хилов НЕ здесь)
+ *   работают как прежде.
  */
 public final class PassiveListener implements Listener {
 
-    /** Маркер хилера: PriestAbilities ставит перед heal(), ResourceService читает. */
-    private static volatile UUID healerMark = null;
-
-    public static void markHealer(UUID priestUuid) {
-        healerMark = priestUuid;
-    }
-
-    public static UUID pollHealerMark() {
-        UUID v = healerMark;
-        healerMark = null;
-        return v;
-    }
-
-    private static UUID peekHealerMark() {
-        return healerMark;
-    }
-
     private final RaskolClasses plugin;
-    private final Map<PlayerClass, ClassPassive> passives = new EnumMap<>(PlayerClass.class);
+
+    /** 1.14.7 (P1-2): deprecated no-op — атрибуция лечения живёт в CustomHealEvent. */
+    @Deprecated
+    private static volatile UUID healerMark;
 
     public PassiveListener(RaskolClasses plugin) {
         this.plugin = plugin;
-        for (ClassPassive p : List.of(
-                new WarriorPassives(plugin),
-                new HunterPassives(plugin),
-                new RoguePassives(plugin),
-                new PriestPassives(plugin),
-                new MagePassives(plugin),
-                new WarlockPassives(plugin))) {
-            passives.put(p.playerClass(), p);
-        }
     }
 
-    public void clear(UUID uuid) {
-        passives.values().forEach(p -> p.clear(uuid));
+    /**
+     * 1.14.7 (P1-2): no-op. Оставлен для совместимости с вызовами PriestAbilities
+     * (applyHealWith/groupHeal) до вычистки в Sprint 4.
+     */
+    @Deprecated
+    public static void markHealer(UUID healer) {
+        // no-op: атрибуция лечения передаётся через CustomHealEvent.getHealer()
     }
+
+    /** 1.14.7 (P1-2): no-op-чтение (всегда null) — ResourceService больше не поллит маркер. */
+    @Deprecated
+    public static UUID pollHealerMark() {
+        UUID m = healerMark;
+        healerMark = null;
+        return m;
+    }
+
+    @Deprecated
+    public static UUID peekHealerMark() {
+        return healerMark;
+    }
+
+    /* ------------------------------ урон: пассивки классов ------------------------------ */
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
-        Player attacker = BaseClassPassive.resolvePlayer(event.getDamager());
-        if (attacker != null && event.getEntity() instanceof LivingEntity target) {
-            ClassPassive p = passives.get(plugin.getClassProvider().getClassOf(attacker));
-            if (p != null) {
-                p.onDamageOut(event, attacker, target, event.getDamage());
-            }
+        Player attacker = resolveAttacker(event.getDamager());
+        if (attacker == null || !(event.getEntity() instanceof LivingEntity target)) {
+            return;
         }
-        if (event.getEntity() instanceof Player victim) {
-            ClassPassive pv = passives.get(plugin.getClassProvider().getClassOf(victim));
-            if (pv != null) {
-                pv.onDamageIn(event, victim, event.getDamage());
-            }
+        PlayerClass pc = plugin.getClassProvider().getClassOf(attacker);
+        if (pc == null) {
+            return;
+        }
+        ClassPassive passive = ClassPassive.of(pc);
+        if (passive == null) {
+            return;
+        }
+        double bonus = passive.damageBonus(plugin, attacker, target, event.getDamage());
+        if (bonus != 0.0) {
+            event.setDamage(event.getDamage() + bonus);
+            passive.feedback(plugin, attacker);
         }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onDamageTaken(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof Player victim)) {
+            return;
+        }
+        PlayerClass pc = plugin.getClassProvider().getClassOf(victim);
+        if (pc == null) {
+            return;
+        }
+        ClassPassive passive = ClassPassive.of(pc);
+        if (passive == null) {
+            return;
+        }
+        double reduction = passive.damageReduction(plugin, victim, event.getDamage());
+        if (reduction > 0.0) {
+            event.setDamage(Math.max(0.0, event.getDamage() * (1.0 - reduction)));
+        }
+    }
+
+    /**
+     * 1.14.7 (P1-1): ванильные regain-события БОЛЬШЕ не домножаются на heal_out/HEALER.
+     * Оставлен пустым обработчиком только для того, чтобы не ломать регистрацию
+     * слушателя в RaskolClasses; логика лечения — в Spec2RoleListener.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
-        UUID healer = peekHealerMark();
-        if (healer == null) {
-            return;
-        }
-        Player healerPlayer = plugin.getServer().getPlayer(healer);
-        if (healerPlayer == null) {
-            return;
-        }
+        // no-op: композиция лечения в Spec2RoleListener (CustomHealEvent + onRegain)
+    }
 
-        // 1.14.1 (Волна 1): универсальные исходящие heal-множители.
-        double mult = 1.0 + plugin.getSpec2Service().healOutPercent(healer) / 100.0;
-        if (plugin.getSpec2Service().roleOfOwner(healer) == SpecRole.HEALER) {
-            mult *= 1.0 + plugin.getConfig().getDouble(
-                    "spec2.role-passives.HEALER.heal-mult", 0.05);
+    private Player resolveAttacker(org.bukkit.entity.Entity damager) {
+        if (damager instanceof Player p) {
+            return p;
         }
-        if (mult != 1.0 && event.getAmount() > 0.0) {
-            event.setAmount(event.getAmount() * mult);
+        if (damager instanceof Projectile proj && proj.getShooter() instanceof Player p) {
+            return p;
         }
-
-        ClassPassive p = passives.get(plugin.getClassProvider().getClassOf(healerPlayer));
-        if (p != null) {
-            p.onHealOut(event, healerPlayer);
-        }
+        return null;
     }
 }
