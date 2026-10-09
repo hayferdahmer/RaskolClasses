@@ -46,6 +46,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *         свитки/бинды хотбара (AbilityToken хранит id) падали в
  *         «Способность не найдена: immolate/chaos_bolt/…». getAbilities(pc)
  *         остаётся китовым (slots 1–5) — schoolCoverage/чеки переносимых не двигаются.
+ * 1.14.7 (Sprint 3, P0-6A): хук ProcService.onAbilityCast после успешного каста —
+ *         A2 fury_battle_cry даёт ярость с шансом Σvalue (5% за ранг).
  */
 public final class AbilityRegistry {
 
@@ -543,6 +545,9 @@ public final class AbilityRegistry {
             }
             return false;
         }
+
+        // 1.14.7 (P0-6A): A2 fury_battle_cry — триггер на успешный каст
+        plugin.getCombat().procs().onAbilityCast(caster);
 
         // 1.14.0 (Б8.2-fix): кулдаун из spec2: процент (cd) + секунды (kit_cd)
         double cdMult = plugin.getSpec2Service().cooldownMult(id, def.id());
