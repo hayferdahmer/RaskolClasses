@@ -3,7 +3,6 @@ package dev.raskol.classes.ability.passive;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.spec.SpecRole;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -21,19 +20,29 @@ import java.util.UUID;
  * 1.11.4 (P1): ТОНКИЙ диспетчер пассивок. Вся логика — в ClassPassive-файлах.
  * Маркер хилера статический: ставят PriestAbilities, читает ResourceService.
  * 1.14.0 (Б8): +MagePassives (mana_soaked) — ранее файл отсутствовал.
- * 1.14.1 (Волна 1): onRegainHealth применяет классово-независимые исходящие
- *   heal-множители ДО диспетчеризации класс-пассивок:
- *     1) heal_out_pct из spec2-агрегата (Spec2Service.healOutPercent) — теперь
- *        работает у ВСЕХ классов (field_medkit Воина и т.д.), не только у Жреца;
- *     2) роль HEALER: множитель из spec2.role-passives.HEALER.heal-mult.
- *   «Благодать» Жреца больше не добавляет healOutPercent сама (см. PriestPassives),
- *   двойного счёта нет.
+ * 1.14.1 (Волна 1): onRegainHealth применял классово-независимые исходящие
+ *   heal-множители ДО диспетчеризации класс-пассивок.
+ * 1.14.7 (Спринт 2, P1-1): множители heal_out_pct и роли HEALER УБРАНЫ из
+ *   onRegainHealth — они применяются в единой точке Spec2RoleListener.onCustomHeal
+ *   на событии CustomHealEvent (HpBarService.heal). Ванильные EntityRegainHealthEvent
+ *   (зелья/еда/natural regen) больше не домножаются — это закрывает «двойной путь
+ *   лечения» из аудита без потери множителей на kit-хилах.
+ * 1.14.7 (Спринт 2, P1-2): peekHealerMark → pollHealerMark (сбрасывающее чтение) —
+ *   закрывает окно stale-маркера, когда следующий ванильный regain подхватывал
+ *   чужую метку жреца. Одна метка = ровно одно событие лечения.
+ *   markHealer помечен @Deprecated — удаление в Sprint 4 после перевода всех
+ *   kit-хилов на явную атрибуцию через CustomHealEvent.getHealer().
  */
 public final class PassiveListener implements Listener {
 
-    /** Маркер хилера: PriestAbilities ставит перед heal(), ResourceService читает. */
+    /**
+     * 1.14.7 (P1-2): @Deprecated — атрибут хилера должен жить в CustomHealEvent.
+     * Оставлен для совместимости с PriestAbilities.applyHealWith до Sprint 4.
+     */
+    @Deprecated
     private static volatile UUID healerMark = null;
 
+    @Deprecated
     public static void markHealer(UUID priestUuid) {
         healerMark = priestUuid;
     }
@@ -85,25 +94,32 @@ public final class PassiveListener implements Listener {
         }
     }
 
+    /**
+     * 1.14.7 (P1-1/P1-2): обработка ванильных regain-событий.
+     *
+     * P1-2: читаем pollHealerMark() — сбрасывающее чтение. Одна метка = ровно одно
+     * событие лечения. Раньше peekHealerMark() оставлял метку, и следующий regain
+     * (например, natural regen тиком позже) подхватывал чужую метку жреца.
+     *
+     * P1-1: множители heal_out_pct и роли HEALER больше НЕ применяются здесь —
+     * их применяет Spec2RoleListener.onCustomHeal на CustomHealEvent, которое
+     * генерирует HpBarService.heal. Это закрывает «двойной путь лечения»: kit-хилы
+     * жреца идут через CustomHealEvent (с множителями), ванильные regain'ы идут
+     * «как есть» (без множителей — это правильно, т.к. роль/узел принадлежит
+     * классу-хилеру, а не источнику регенерации).
+     *
+     * onHealOut классовых пассивок оставлен — счётчики/проки классов работают как
+     * прежде (если пассивка что-то делает на исходящий хил).
+     */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRegainHealth(EntityRegainHealthEvent event) {
-        UUID healer = peekHealerMark();
+        UUID healer = pollHealerMark();
         if (healer == null) {
             return;
         }
         Player healerPlayer = plugin.getServer().getPlayer(healer);
         if (healerPlayer == null) {
             return;
-        }
-
-        // 1.14.1 (Волна 1): универсальные исходящие heal-множители.
-        double mult = 1.0 + plugin.getSpec2Service().healOutPercent(healer) / 100.0;
-        if (plugin.getSpec2Service().roleOfOwner(healer) == SpecRole.HEALER) {
-            mult *= 1.0 + plugin.getConfig().getDouble(
-                    "spec2.role-passives.HEALER.heal-mult", 0.05);
-        }
-        if (mult != 1.0 && event.getAmount() > 0.0) {
-            event.setAmount(event.getAmount() * mult);
         }
 
         ClassPassive p = passives.get(plugin.getClassProvider().getClassOf(healerPlayer));
