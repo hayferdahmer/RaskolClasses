@@ -26,16 +26,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.14.0 «Спек 2.0»: рантайм деревьев путей.
- *
- * 1.14.3 (Волна 3, 3A): процентные геттеры для видов из default-ветки accumulate.
+ * 1.14.3 (3A): процентные геттеры видов из default-ветки accumulate.
  * 1.14.4 (Волна 4): resetNode (П7), resist-школы в agg.elResist (П8),
  *         Spec2Points.configure (П9), spec2-storage.yml (П10).
- * 1.14.6-fix (Спринт 1, P0-2): default-ветка accumulate срезает префикс "proc_".
- * 1.14.7 (Спринт 2, P0-6B): оперативный стоп-лист узлов spec2.disabled-nodes:
- *         purchase → NODE_DISABLED; validate/reconcile прунит уже вложенные ранги
- *         (очки возвращаются в пул с warning-логом); resetNode ПО-ПРЕЖНЕМУ работает,
- *         чтобы игрок мог вернуть очки, вложенные до дизейбла. GUI grey-ит узел
- *         через nodeDisabled() (TalentsTab).
+ * 1.14.6-fix (Sprint 1, P0-2): default-ветка accumulate срезает префикс "proc_".
+ * 1.14.7 (Sprint 2, P0-6B): стоп-лист spec2.disabled-nodes (NODE_DISABLED + прунинг).
+ * 1.14.7 (Sprint 3, P0-3 вариант C): agg.procAmp — сумма value2 proc-узлов
+ *         (сила за ранг); ProcService.strength() читает её раньше конфига.
  */
 public final class Spec2Service {
 
@@ -61,6 +58,8 @@ public final class Spec2Service {
         public final Map<String, Double> cdPct = new HashMap<>();
         public final Map<String, Double> cdSec = new HashMap<>();
         public final Map<String, Double> proc = new HashMap<>();
+        /** 1.14.7 (контракт C): сила проков за ранг (Σ value2), ключ = id без proc_. */
+        public final Map<String, Double> procAmp = new HashMap<>();
         public final Map<String, Double> dotDur = new HashMap<>();
         public final Map<String, Double> dotStacks = new HashMap<>();
         public final Map<String, Double> dotMult = new HashMap<>();
@@ -455,12 +454,17 @@ public final class Spec2Service {
             case "sp_pct" -> agg.spPct += e.value();
             case "hpow_pct" -> agg.hpowPct += e.value();
             case "unlock_ability" -> agg.unlocked.add(e.target());
-            // 1.14.6-fix (Спринт 1, P0-2): proc-узлы приходят как kind="proc_<id>".
-            // Ключ агрегата — БЕЗ префикса, чтобы ProcService.procBonus(uuid, "riposte") работал.
+            // 1.14.6-fix (Sprint 1, P0-2): proc-узлы приходят как kind="proc_<id>",
+            // ключ агрегата — БЕЗ префикса.
+            // 1.14.7 (Sprint 3, контракт C): value → agg.proc (шанс за ранг),
+            // value2 → agg.procAmp (сила за ранг; 0 = сила из конфига amp).
             default -> {
                 String kind = e.kind();
                 String key = kind.startsWith("proc_") ? kind.substring(5) : kind;
                 agg.proc.merge(key, e.value(), Double::sum);
+                if (e.value2() != 0.0) {
+                    agg.procAmp.merge(key, e.value2(), Double::sum);
+                }
             }
         }
     }
@@ -505,6 +509,11 @@ public final class Spec2Service {
 
     public double procBonus(UUID uuid, String procId) {
         return agg(uuid).proc.getOrDefault(procId, 0.0);
+    }
+
+    /** 1.14.7 (контракт C): Σ value2 proc-узла (сила за ранг); 0 = брать amp из конфига. */
+    public double procAmpBonus(UUID uuid, String procId) {
+        return agg(uuid).procAmp.getOrDefault(procId, 0.0);
     }
 
     public double[] avoidBonus(UUID uuid) {
