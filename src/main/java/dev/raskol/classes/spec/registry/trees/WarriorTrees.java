@@ -19,11 +19,12 @@ import java.util.Map;
  *         у fury_bloodlust и fury_unyielding (4→5); гейты рядов не изменены.
  *
  * 1.14.7 (Спринт 3, P0-6A): правка proc-узлов Воина на контракт C (value=шанс, value2=сила):
- *   - A2: battle_trance (1.0/5.0), fury_battle_cry (0.05/3.0), fury_enrage (1.0/5.0) —
- *     детерминированные или с шансом, сила масштабируется рангом;
+ *   - A2: battle_trance (1.0/5.0), fury_battle_cry (0.05/3.0), fury_enrage (1.0/5.0);
  *   - A1: deep_wounds (1.0/0.5), second_wind (0.10/0.0), fury_wild_strikes (0.10/0.0),
  *     guard_spell_reflection (0.10/0.0), guard_revenge (0.15/0.0), guard_shield_slam (0.20/0.0).
- *   Все proc-узлы переведены с ключей proc_<id> на контракт (kind="proc", target=id).
+ *   Узлы с value2 создаются каноническим конструктором new Spec2Effect(kind, target,
+ *   value, value2): у record нет 4-аргументной фабрики of(...) — только 3-аргументная
+ *   (value2 = 0.0 по умолчанию). Остальные узлы продолжают использовать of(...).
  */
 public final class WarriorTrees {
 
@@ -61,10 +62,10 @@ public final class WarriorTrees {
                         Spec2Effect.of("heal_out_pct", "self", 3.0)),
                 // Ряд 2 (гейт 5)
                 // 1.14.7 (P0-6A): контракт C — детерминированный при крите (1.0),
-                // procAmp 0.5 = кастомный dps bleed за ранг (TODO: DotService.applyBleedWithCustomDps)
+                // value2 0.5 = кастомный dps bleed за ранг (TODO: DotService-правка в доставке 3)
                 n("deep_wounds", T, 2, 1, 3, Map.of(), "passive_proc",
                         "Глубокие раны", "крит накладывает bleed, dps +0.5 за ранг",
-                        Spec2Effect.of("proc", "bleed_on_crit", 1.0, 0.5)),
+                        new Spec2Effect("proc", "bleed_on_crit", 1.0, 0.5)),
                 n("sword_and_board", T, 2, 2, 3, Map.of(), "passive_stat",
                         "Меч и щит", "+3% парирования за ранг",
                         Spec2Effect.of("avoid", "parry", 3.0)),
@@ -94,10 +95,10 @@ public final class WarriorTrees {
                 n("mortal_strike", T, 4, 3, 1, Map.of("whirlwind_slash", 1), "unlock_ability",
                         "Смертельный удар", "НОВАЯ: физ-урон + анти-хил 3 с",
                         Spec2Effect.of("unlock_ability", "mortal_strike", 1.0)),
-                // 1.14.7 (P0-6A): контракт C — 10% шанс за ранг, amp 0.08 из конфига
+                // 1.14.7 (P0-6A): контракт C — 10% шанс за ранг, сила (amp 0.08) из конфига
                 n("second_wind", T, 4, 4, 2, Map.of(), "passive_proc",
                         "Второе дыхание", "10% за ранг: при HP<35% мгновенный хил 8%",
-                        Spec2Effect.of("proc", "second_wind", 0.10, 0.0)),
+                        new Spec2Effect("proc", "second_wind", 0.10, 0.0)),
                 // Ряд 5 (гейт 20)
                 n("executioner", T, 5, 1, 3, Map.of("mortal_strike", 1), "enhance_ability",
                         "Палач", "execute-порог +2% за ранг (25→31%)",
@@ -109,10 +110,10 @@ public final class WarriorTrees {
                         "Эхо берсерка", "berserkergang: −7 с КД за ранг",
                         Spec2Effect.of("kit_cd", "berserkergang", 7.0)),
                 // 1.14.7 (P0-6A): контракт C — детерминированный при 3-м ударе (1.0),
-                // +5 ярости за ранг (value2)
+                // value2 5.0 = ярости за ранг
                 n("battle_trance", T, 5, 4, 1, Map.of(), "passive_proc",
                         "Боевой транс", "каждый 3-й удар: +5 ярости",
-                        Spec2Effect.of("proc", "trance", 1.0, 5.0)),
+                        new Spec2Effect("proc", "trance", 1.0, 5.0)),
                 // Ряд 6 (гейт 30) — ульт
                 n("ragnarok", T, 6, 2, 1, Map.of("executioner", 2), "ultimate",
                         "Рагнарёк", "ульт: ×3.5 execute + bleed-взрыв (перенос старого кита)",
@@ -134,16 +135,16 @@ public final class WarriorTrees {
                 n("fury_unyielding", T, 1, 3, 5, Map.of(), "passive_stat",
                         "Непреклонность", "+2% физ-резиста за ранг",
                         Spec2Effect.of("resist", "phys", 2.0)),
-                // 1.14.7 (P0-6A): контракт C — 5% шанс за ранг, +3 ярости за ранг (value2)
+                // 1.14.7 (P0-6A): контракт C — 5% шанс за ранг, value2 3.0 = ярости за ранг
                 n("fury_battle_cry", T, 1, 4, 3, Map.of(), "passive_proc",
                         "Боевой клич", "5% за ранг: при касте +3 ярости",
-                        Spec2Effect.of("proc", "rage_on_cast", 0.05, 3.0)),
+                        new Spec2Effect("proc", "rage_on_cast", 0.05, 3.0)),
                 // Ряд 2 (гейт 5)
                 // 1.14.7 (P0-6A): контракт C — детерминированный при HP<50% (1.0),
-                // +5% урона за ранг (value2)
+                // value2 5.0 = % урона за ранг
                 n("fury_enrage", T, 2, 1, 3, Map.of(), "passive_proc",
                         "Ярость", "при HP<50%: +5% урона за ранг",
-                        Spec2Effect.of("proc", "enrage_dmg", 1.0, 5.0)),
+                        new Spec2Effect("proc", "enrage_dmg", 1.0, 5.0)),
                 n("fury_frenzy", T, 2, 2, 3, Map.of(), "passive_stat",
                         "Безумие", "+3% скорости атаки за ранг",
                         Spec2Effect.of("attack_speed_pct", "self", 3.0)),
@@ -160,10 +161,10 @@ public final class WarriorTrees {
                 n("fury_concussive_blow", T, 3, 3, 1, Map.of(), "unlock_ability",
                         "Оглушающий удар", "НОВАЯ: STUN 1.5 с, КД 45 с (CCService 1.13.0)",
                         Spec2Effect.of("unlock_ability", "concussive_blow", 1.0)),
-                // 1.14.7 (P0-6A): контракт C — 10% шанс за ранг
+                // 1.14.7 (P0-6A): контракт C — 10% шанс за ранг, сила из конфига (double_strike без числа)
                 n("fury_wild_strikes", T, 3, 4, 3, Map.of("fury_frenzy", 1), "passive_proc",
                         "Дикие удары", "10% за ранг: двойной удар",
-                        Spec2Effect.of("proc", "double_strike", 0.10, 0.0)),
+                        new Spec2Effect("proc", "double_strike", 0.10, 0.0)),
                 // Ряд 4 (гейт 15)
                 n("fury_death_wish", T, 4, 1, 2, Map.of("fury_bloodthirst", 1), "enhance_ability",
                         "Жажда смерти", "bloodthirst: +20% урона за ранг",
@@ -218,10 +219,10 @@ public final class WarriorTrees {
                 n("guard_shield_bash", T, 2, 1, 1, Map.of(), "unlock_ability",
                         "Удар щитом", "НОВАЯ: STUN 2 с, КД 30 с (CCService 1.13.0)",
                         Spec2Effect.of("unlock_ability", "shield_bash", 1.0)),
-                // 1.14.7 (P0-6A): контракт C — 10% шанс за ранг
+                // 1.14.7 (P0-6A): контракт C — 10% шанс за ранг, сила (amp 0.20) из конфига
                 n("guard_spell_reflection", T, 2, 2, 2, Map.of(), "passive_proc",
                         "Отражение заклинаний", "10% за ранг: отразить маг-урон",
-                        Spec2Effect.of("proc", "reflect_magic", 0.10, 0.0)),
+                        new Spec2Effect("proc", "reflect_magic", 0.10, 0.0)),
                 n("guard_last_stand_prep", T, 2, 3, 3, Map.of(), "passive_stat",
                         "Подготовка к последнему рубежу", "+5% maxHP за ранг",
                         Spec2Effect.of("hp_pct", "self", 5.0)),
@@ -235,10 +236,10 @@ public final class WarriorTrees {
                 n("guard_taunt", T, 3, 3, 1, Map.of(), "unlock_ability",
                         "Насмешка", "НОВАЯ: ROOT-агро на мобов 5 с, КД 20 с",
                         Spec2Effect.of("unlock_ability", "taunt", 1.0)),
-                // 1.14.7 (P0-6A): контракт C — 15% шанс за ранг
+                // 1.14.7 (P0-6A): контракт C — 15% шанс за ранг, сила (amp 0.10) из конфига
                 n("guard_revenge", T, 3, 4, 3, Map.of("guard_spell_reflection", 1), "passive_proc",
                         "Возмездие", "15% за ранг: при блок +10% урона след. удара",
-                        Spec2Effect.of("proc", "revenge", 0.15, 0.0)),
+                        new Spec2Effect("proc", "revenge", 0.15, 0.0)),
                 // Ряд 4 (гейт 15)
                 n("guard_shield_specialization", T, 4, 1, 3, Map.of("guard_shield_wall", 1), "passive_stat",
                         "Специализация щита", "+2% блок-шанс за ранг",
@@ -253,10 +254,10 @@ public final class WarriorTrees {
                         "Вестник войны", "cc_resist +5% за ранг",
                         Spec2Effect.of("cc_resist", "self", 5.0)),
                 // Ряд 5 (гейт 20)
-                // 1.14.7 (P0-6A): контракт C — 20% шанс за ранг
+                // 1.14.7 (P0-6A): контракт C — 20% шанс за ранг, сила (amp 0.50) из конфига
                 n("guard_shield_slam", T, 5, 1, 3, Map.of("guard_shield_specialization", 1), "passive_proc",
                         "Таранный удар", "20% за ранг: при блок +50% урона",
-                        Spec2Effect.of("proc", "shield_slam", 0.20, 0.0)),
+                        new Spec2Effect("proc", "shield_slam", 0.20, 0.0)),
                 n("guard_devastate", T, 5, 2, 3, Map.of("guard_spell_ward", 1), "enhance_ability",
                         "Сокрушение", "tyr_strike: +8% base за ранг",
                         Spec2Effect.of("kit_base", "tyr_strike", 8.0)),
