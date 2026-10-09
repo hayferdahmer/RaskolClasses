@@ -54,8 +54,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   spec*()-хелперы читают classes.WARLOCK.specs.* — не трогаем (это спека, не slot).
  * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
  * 1.14.6 (6b): summon_demon / demon_soul — делегирование в PetService;
- *   inline-спавн Vex и static-карта DEMON_BY_OWNER удалены;
- *   чистка на PlayerQuit больше не нужна (PetService.onOwnerQuit).
+ *   static-карта DEMON_BY_OWNER и inline-спавн Vex удалены.
+ * 1.14.6-fix (Sprint 1, P0-8a): summonDemon возвращает false на ЛЮБОЙ не-OK результат
+ *   summon (включая ALREADY) — castOn делает refund и не запускает кулдаун.
  */
 public final class WarlockAbilities implements Listener {
 
@@ -703,7 +704,7 @@ public final class WarlockAbilities implements Listener {
     /**
      * 1.14.6 (6b): demonology T4 — призыв демона через PetService;
      * +10 Скверны — китовый бонус (PetService про это не знает).
-     * Смерть/выход очищают handle в PetService.onPetDeath/onOwnerQuit.
+     * 1.14.6-fix (P0-8a): любой не-OK результат = false (refund + без кулдауна).
      */
     public boolean summonDemon(Player caster, AbilityDef def) {
         if (!treeUnlocked(caster, def)) {
@@ -720,7 +721,7 @@ public final class WarlockAbilities implements Listener {
         }
         PetService.SummonResult r = plugin.getPets().summon(caster, "demon", t);
         if (r != PetService.SummonResult.OK) {
-            return r == PetService.SummonResult.ALREADY;
+            return false;
         }
         // Китовый бонус: +10 Скверны при призыве
         plugin.getResources().add(caster.getUniqueId(), 10.0);
