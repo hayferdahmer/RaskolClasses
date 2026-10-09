@@ -33,6 +33,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Sprint 2, P0-6B): стоп-лист spec2.disabled-nodes (NODE_DISABLED + прунинг).
  * 1.14.7 (Sprint 3, P0-3 вариант C): agg.procAmp — сумма value2 proc-узлов
  *         (сила за ранг); ProcService.strength() читает её раньше конфига.
+ * 1.14.7 (Sprint 3, P0-6A): agg.kitDur — бонус длительности способностей из
+ *         kit_dur-узлов (ключ = abilityId, значение = секунды за ранг).
  */
 public final class Spec2Service {
 
@@ -60,6 +62,8 @@ public final class Spec2Service {
         public final Map<String, Double> proc = new HashMap<>();
         /** 1.14.7 (контракт C): сила проков за ранг (Σ value2), ключ = id без proc_. */
         public final Map<String, Double> procAmp = new HashMap<>();
+        /** 1.14.7 (P0-6A): бонус длительности способностей из kit_dur-узлов, ключ = abilityId. */
+        public final Map<String, Double> kitDur = new HashMap<>();
         public final Map<String, Double> dotDur = new HashMap<>();
         public final Map<String, Double> dotStacks = new HashMap<>();
         public final Map<String, Double> dotMult = new HashMap<>();
@@ -431,6 +435,8 @@ public final class Spec2Service {
             case "kit_mult" -> agg.coeff.merge(e.target(), e.value(), Double::sum);
             case "cd" -> agg.cdPct.merge(e.target(), e.value(), Double::sum);
             case "kit_cd" -> agg.cdSec.merge(e.target(), e.value(), Double::sum);
+            // 1.14.7 (P0-6A): kit_dur — бонус длительности по ЦЕЛИ (abilityId)
+            case "kit_dur" -> agg.kitDur.merge(e.target(), e.value(), Double::sum);
             case "regen" -> agg.regen += e.value();
             case "avoid" -> {
                 if ("dodge".equals(e.target())) agg.dodge += e.value();
@@ -514,6 +520,11 @@ public final class Spec2Service {
     /** 1.14.7 (контракт C): Σ value2 proc-узла (сила за ранг); 0 = брать amp из конфига. */
     public double procAmpBonus(UUID uuid, String procId) {
         return agg(uuid).procAmp.getOrDefault(procId, 0.0);
+    }
+
+    /** 1.14.7 (P0-6A): Σ value kit_dur-узлов по способности (секунды). */
+    public double kitDurBonus(UUID uuid, String abilityId) {
+        return agg(uuid).kitDur.getOrDefault(abilityId, 0.0);
     }
 
     public double[] avoidBonus(UUID uuid) {
