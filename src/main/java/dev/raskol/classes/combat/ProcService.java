@@ -17,25 +17,22 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 1.14.3 (3C1/3C2): фасад proc-узлов деревьев путей.
  *
- * 1.14.6-fix (Sprint 1, P0-3): контракт единиц v1 — value = шанс за ранг,
- * сила из конфига spec2.procs.<id>.amp.
  * 1.14.7 (Sprint 3, P0-3 вариант C): контракт единиц v2 (финальный):
  *   - value  = ШАНС за ранг (доля 0..1), Σ по рангам, кламп [0,1];
- *     value = 1.0 у узла означает детерминированный триггер по условию
- *     (крит/порог HP/счётчик ударов) — бросок всегда успешен;
+ *     value = 1.0 у узла означает детерминированный триггер по условию;
  *   - value2 = СИЛА за ранг, Σ по рангам (agg.procAmp); если Σ value2 == 0,
  *     сила берётся из конфига spec2.procs.<id>.amp (фиксированная из описаний);
  *   - один бросок rollChance(Σvalue) → применить (Σvalue2 ?: amp).
- *   Обратная совместимость: деревья без value2 работают как в Sprint 1.
  *
  * 1.14.6-fix (Sprint 1, P0-2): ключи agg.proc приходят БЕЗ префикса proc_
  * (срезается в Spec2Service.accumulate).
  *
- * 1.14.7 (Sprint 3, P0-6A): обработчики A2-проков Воина:
+ * 1.14.7 (Sprint 3, P0-6A): обработчики A2:
  *   - onAbilityCast → fury_battle_cry (ярость на каст);
  *   - onMeleeHitLand → battle_trance (счётчик 3-го удара);
  *   - enrageMult → fury_enrage (+% урона при HP<50%);
- *   - onCritBleed → deep_wounds (bleed при крите; TODO: кастомный dps через DotService).
+ *   - rollFreeHeal → ho_surge_of_light (след. хил бесплатный, refund в PriestAbilities);
+ *   - deep_wounds → bleed с кастомным dps через DotService.applyByIdWithDpsBonus.
  */
 public final class ProcService {
 
@@ -160,11 +157,6 @@ public final class ProcService {
         return m != null && m > 1.0 ? m : 1.0;
     }
 
-    /**
-     * Контракт C: шанс = Σvalue (sv_expose_weakness 0.20/ранг),
-     * сила = Σvalue2 ?: spec2.procs.expose.amp (0.05 = +5% за применение),
-     * суммарный кап = spec2.procs.expose.cap (0.30).
-     */
     public void applyExpose(Player attacker, LivingEntity target) {
         if (attacker == null || target == null) {
             return;
@@ -279,11 +271,10 @@ public final class ProcService {
         }
         UUID uuid = attacker.getUniqueId();
 
+        // 1.14.7 (P0-6A): deep_wounds — bleed с кастомным dps (Σvalue2 = 0.5/ранг)
         if (isMelee && roll(uuid, "bleed_on_crit")) {
-            // 1.14.7 (P0-6A): deep_wounds — применяет стандартный bleed.
-            // TODO (доставка 3): кастомный dps через DotService.applyBleedWithCustomDps
-            // (procAmp 0.5 за ранг сейчас игнорируется).
-            plugin.getCombat().dots().applyById(attacker, target, "bleed");
+            double dpsBonus = strength(uuid, "bleed_on_crit", 0.5);
+            plugin.getCombat().dots().applyByIdWithDpsBonus(attacker, target, "bleed", dpsBonus);
         }
         if (isMelee && roll(uuid, "apply_poison")) {
             plugin.getCombat().dots().applyById(attacker, target, "poison");
@@ -313,7 +304,6 @@ public final class ProcService {
     /**
      * crit_bonus / savage / headshot: для каждого — бросок шанса (Σvalue);
      * при успехе crit-множитель умножается на (1 + сила), где сила = Σvalue2 ?: amp.
-     * Вызывается ОДИН раз на крит (CombatService.meleeMult/spellMult).
      */
     public double critMultBonus(Player attacker) {
         if (attacker == null) {
@@ -404,12 +394,9 @@ public final class ProcService {
         undodgeableExpiry.remove(attacker.getUniqueId());
     }
 
-    /* ------------------------------ 1.14.7 (P0-6A): A2 Воина ------------------------------ */
+    /* ------------------------------ 1.14.7 (P0-6A): A2 Воина и Жреца ------------------------------ */
 
-    /**
-     * A2: fury_battle_cry — при успешном касте с шансом Σvalue даёт +Σvalue2 ярости.
-     * Вызывается из AbilityRegistry.castOn после успешного каста.
-     */
+    /** A2: fury_battle_cry — при успешном касте с шансом Σvalue даёт +Σvalue2 ярости. */
     public void onAbilityCast(Player caster) {
         if (caster == null) {
             return;
@@ -423,9 +410,19 @@ public final class ProcService {
     }
 
     /**
+     * A2: ho_surge_of_light — «следующий хил бесплатный»: бросок шанса;
+     * вызывающий (PriestAbilities.applyHealWith) делает refund cost при true.
+     */
+    public boolean rollFreeHeal(Player caster) {
+        if (caster == null) {
+            return false;
+        }
+        return roll(caster.getUniqueId(), "free_heal");
+    }
+
+    /**
      * A2: battle_trance — счётчик ударов. На 3-м ударе за 2-секундное окно
      * детерминированно (value=1.0) даёт +Σvalue2 ярости. Сброс счётчика после триггера.
-     * Вызывается из CombatService.dealDamage для каждого мили-удара.
      */
     public void onMeleeHitLand(Player attacker, LivingEntity target) {
         if (attacker == null || target == null) {
@@ -437,7 +434,7 @@ public final class ProcService {
         int count = (exp != null && now <= exp) ? meleeHitCounter.getOrDefault(uuid, 0) : 0;
         count++;
         meleeHitCounter.put(uuid, count);
-        meleeHitCounterExpiry.put(uuid, now + 2_000L);  // окно 2 секунды
+        meleeHitCounterExpiry.put(uuid, now + 2_000L);
         if (count >= 3) {
             double chance = proc(uuid, "trance");
             if (chance >= 1.0 || rollChance(chance)) {
@@ -452,7 +449,6 @@ public final class ProcService {
     /**
      * A2: fury_enrage — множитель физ-урона при HP<50%.
      * Возвращает 1.0 + Σvalue2/100 если HP<50% и roll прошёл (или value=1.0), иначе 1.0.
-     * Вызывается из CombatService.dealDamage перед применением урона.
      */
     public double enrageMult(Player attacker) {
         if (attacker == null) {
