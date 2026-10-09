@@ -57,6 +57,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *   static-карта DEMON_BY_OWNER и inline-спавн Vex удалены.
  * 1.14.6-fix (Sprint 1, P0-8a): summonDemon возвращает false на ЛЮБОЙ не-OK результат
  *   summon (включая ALREADY) — castOn делает refund и не запускает кулдаун.
+ * 1.14.7 (Sprint 2, P0-5): base()/coeff() БОЛЬШЕ не единственная точка чтения чисел —
+ *   kitBase()/kitCoeff() добавляют spec2-хуки baseBonus/coeffMult, как в пяти других
+ *   китах. Без этого 8 kit_base/kit_mult-узлов Чернокнижника (af_withering_enh,
+ *   af_haunt, de_fire_brimstone, de_immolate_enh, de_chaos_prep_enh,
+ *   dm_demonic_knowledge, dm_dreadfire_enh, dm_demonic_empowerment) были мертвы:
+ *   spellDamage/tspellDamage/unwriting/soulRift читали числа в обход агрегата.
  */
 public final class WarlockAbilities implements Listener {
 
@@ -172,6 +178,27 @@ public final class WarlockAbilities implements Listener {
         return cfgD("classes.WARLOCK.treeAbilities." + def.id() + ".coeff", defv);
     }
 
+    /* ------------------------------ 1.14.7 (Sprint 2, P0-5): spec2-хуки чисел ------------------------------ */
+
+    /** base + spec2 baseBonus (узлы kit_base) — как в dmg()/tdmg() пяти других китов. */
+    private double kitBase(Player caster, AbilityDef def, double defv) {
+        return base(def, defv) + plugin.getSpec2Service().baseBonus(caster.getUniqueId(), def.id());
+    }
+
+    /** coeff × spec2 coeffMult (узлы kit_mult) — как в dmg()/tdmg() пяти других китов. */
+    private double kitCoeff(Player caster, AbilityDef def, double defv) {
+        return coeff(def, defv) * plugin.getSpec2Service().coeffMult(caster.getUniqueId(), def.id());
+    }
+
+    /** t-вариант для древесных чисел (treeAbilities-секции) + spec2-хуки. */
+    private double kitTBase(Player caster, AbilityDef def, double defv) {
+        return tbase(def, defv) + plugin.getSpec2Service().baseBonus(caster.getUniqueId(), def.id());
+    }
+
+    private double kitTCoeff(Player caster, AbilityDef def, double defv) {
+        return tcoeff(def, defv) * plugin.getSpec2Service().coeffMult(caster.getUniqueId(), def.id());
+    }
+
     /* ------------------------------ спеки (1.14.0 Б4: источник — spec2) ------------------------------ */
 
     private Spec specOf(Player p) {
@@ -234,14 +261,15 @@ public final class WarlockAbilities implements Listener {
                 nether);
     }
 
+    /** 1.14.7 (P0-5): base/coeff идут через kitBase/kitCoeff (spec2-хуки живые). */
     private double spellDamage(Player caster, AbilityDef def, double defBase, double defCoeff) {
         double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
-        return (base(def, defBase) + sp * coeff(def, defCoeff)) * damageMult(caster);
+        return (kitBase(caster, def, defBase) + sp * kitCoeff(caster, def, defCoeff)) * damageMult(caster);
     }
 
     private double tspellDamage(Player caster, AbilityDef def, double defBase, double defCoeff) {
         double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
-        return (tbase(def, defBase) + sp * tcoeff(def, defCoeff)) * damageMult(caster);
+        return (kitTBase(caster, def, defBase) + sp * kitTCoeff(caster, def, defCoeff)) * damageMult(caster);
     }
 
     private LivingEntity rayTarget(Player p, double range) {
@@ -393,6 +421,7 @@ public final class WarlockAbilities implements Listener {
         return true;
     }
 
+    /** 1.14.7 (P0-5): урон unwriting тоже идёт через kitBase/kitCoeff (узел de/af-enhance читается). */
     public boolean unwriting(Player caster, LivingEntity target, AbilityDef def) {
         LivingEntity t = target != null ? target : rayTarget(caster, 20);
         if (t == null || t.isDead()) {
@@ -424,7 +453,8 @@ public final class WarlockAbilities implements Listener {
         // 1.14.0 (Б11.1.2-A): per-purged через фолбэк-хелпер (переносимая slot 4)
         double perPurged = TreeAbilities.numberOrKit(plugin, PC, def.id(), "per-purged", 16.0);
         double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
-        double dmg = (base(def, 16.0) + sp * coeff(def, 0.8) + perPurged * purged) * damageMult(caster);
+        double dmg = (kitBase(caster, def, 16.0) + sp * kitCoeff(caster, def, 0.8)
+                + perPurged * purged) * damageMult(caster);
         WarlockFx.safeFx(t.getLocation(), Particle.SOUL, 14, 0.5);
         WarlockFx.safeFx(t.getLocation(), Particle.LARGE_SMOKE, 10, 0.4);
         double dealt = plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
@@ -483,8 +513,10 @@ public final class WarlockAbilities implements Listener {
                 return;
             }
             Location center = caster.getLocation();
+            // 1.14.7 (P0-5): финальный взрыв Раскола тоже читает spec2-хуки чисел
             double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
-            double baseDmg = (base(def, 30.0) + sp * coeff(def, 2.4)) * damageMult(caster);
+            double baseDmg = (kitBase(caster, def, 30.0) + sp * kitCoeff(caster, def, 2.4))
+                    * damageMult(caster);
             WarlockFx.ringFx(center, radius, Particle.SONIC_BOOM, 1);
             WarlockFx.ringFx(center, radius * 0.6, Particle.ASH, 3);
             for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
