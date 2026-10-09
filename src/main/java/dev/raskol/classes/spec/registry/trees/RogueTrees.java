@@ -20,6 +20,16 @@ import java.util.Map;
  *         "cloak_of_shadows_cleanse" (нет кастера), стала "cloak_of_shadows"
  *         (кастер зарегистрирован в TreeAbilities). Без фикса способность
  *         невозможно открыть узлом.
+ *
+ * 1.14.7 (Спринт 2, P0-4): ёмкости подняты до ≥ spec2.tree-capacity-min (50):
+ *   assassination 46→50 (as_improved_poisons 5→7, as_malice 4→5, as_quick_recovery 4→5);
+ *   outlaw        48→50 (ol_improved_sinister_strike 5→6, ol_endurance 4→5);
+ *   subtlety      45→50 (su_improved_evasion 5→7, su_malicious_intent 4→5,
+ *                        su_fleet_footed 4→5, su_shadow_focus 3→4).
+ *   Повышены maxRank ТОЛЬКО пассивных узлов ряда 1 без зависимостей по maxRank —
+ *   гейты рядов, пререквизиты и ширина рядов (≤9 узлов) не изменились.
+ *   Старые комментарии про «ёмкость 51/50/53» были неверны (фактические суммы
+ *   maxRank были 46/48/45); теперь комментарии и код согласованы.
  */
 public final class RogueTrees {
 
@@ -38,18 +48,18 @@ public final class RogueTrees {
         return new Spec2Node(id, treeId, row, col, maxRank, prereqs, type, name, lore, effect);
     }
 
-    /* ============ РАЗБОЙНИК · ЛИКВИДАЦИЯ (assassination) — ёмкость 51 ============ */
+    /* ============ РАЗБОЙНИК · ЛИКВИДАЦИЯ (assassination) — ёмкость 50 ============ */
     private static Spec2Tree assassination() {
         final String T = "assassination";
         return new Spec2Tree(T, List.of(
                 // Ряд 1 (гейт 0)
-                n("as_improved_poisons", T, 1, 1, 5, Map.of(), "passive_stat",
+                n("as_improved_poisons", T, 1, 1, 7, Map.of(), "passive_stat",
                         "Улучшенные яды", "+10% урона DoT poison за ранг",
                         Spec2Effect.of("dot_mult", "poison", 10.0)),
-                n("as_malice", T, 1, 2, 4, Map.of(), "passive_stat",
+                n("as_malice", T, 1, 2, 5, Map.of(), "passive_stat",
                         "Злоба", "+2% crit за ранг",
                         Spec2Effect.of("crit_melee_pct", "self", 2.0)),
-                n("as_quick_recovery", T, 1, 3, 4, Map.of(), "passive_stat",
+                n("as_quick_recovery", T, 1, 3, 5, Map.of(), "passive_stat",
                         "Быстрое восстановление", "+10% регенерации энергии за ранг",
                         Spec2Effect.of("resource_regen_pct", "energy", 10.0)),
                 n("as_lethality", T, 1, 4, 3, Map.of(), "passive_stat",
@@ -116,10 +126,10 @@ public final class RogueTrees {
         final String T = "outlaw";
         return new Spec2Tree(T, List.of(
                 // Ряд 1 (гейт 0)
-                n("ol_improved_sinister_strike", T, 1, 1, 5, Map.of(), "passive_stat",
+                n("ol_improved_sinister_strike", T, 1, 1, 6, Map.of(), "passive_stat",
                         "Улучшенный коварный удар", "+3% физ-урона за ранг",
                         Spec2Effect.of("phys_dmg_pct", "self", 3.0)),
-                n("ol_endurance", T, 1, 2, 4, Map.of(), "passive_stat",
+                n("ol_endurance", T, 1, 2, 5, Map.of(), "passive_stat",
                         "Выносливость", "+5% maxHP за ранг",
                         Spec2Effect.of("hp_pct", "self", 5.0)),
                 n("ol_lightning_reflexes", T, 1, 3, 4, Map.of(), "passive_stat",
@@ -184,21 +194,21 @@ public final class RogueTrees {
         ));
     }
 
-    /* ============ РАЗБОЙНИК · СКРЫТНОСТЬ (subtlety) — ёмкость 53 ============ */
+    /* ============ РАЗБОЙНИК · СКРЫТНОСТЬ (subtlety) — ёмкость 50 ============ */
     private static Spec2Tree subtlety() {
         final String T = "subtlety";
         return new Spec2Tree(T, List.of(
                 // Ряд 1 (гейт 0)
-                n("su_improved_evasion", T, 1, 1, 5, Map.of(), "passive_stat",
+                n("su_improved_evasion", T, 1, 1, 7, Map.of(), "passive_stat",
                         "Улучшенное уклонение", "+3% уклонения за ранг",
                         Spec2Effect.of("avoid", "dodge", 3.0)),
-                n("su_malicious_intent", T, 1, 2, 4, Map.of(), "passive_stat",
+                n("su_malicious_intent", T, 1, 2, 5, Map.of(), "passive_stat",
                         "Злой умысел", "+2% crit за ранг",
                         Spec2Effect.of("crit_melee_pct", "self", 2.0)),
-                n("su_fleet_footed", T, 1, 3, 4, Map.of(), "passive_stat",
+                n("su_fleet_footed", T, 1, 3, 5, Map.of(), "passive_stat",
                         "Быстроногий", "+5% скорости движения за ранг",
                         Spec2Effect.of("move_speed_pct", "self", 5.0)),
-                n("su_shadow_focus", T, 1, 4, 3, Map.of(), "passive_stat",
+                n("su_shadow_focus", T, 1, 4, 4, Map.of(), "passive_stat",
                         "Теневой фокус", "+5% SHADOW-урона за ранг",
                         Spec2Effect.of("magic_dmg_pct", "self", 5.0)),
                 // Ряд 2 (гейт 5)
