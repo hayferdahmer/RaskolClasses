@@ -47,6 +47,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
  * 1.14.3 (Волна 3, 3C2): refreshVendetta(UUID) — продление вендетты по proc_vendetta_refresh;
  *   shadowCloak учитывает proc_stealth_extend (+N с к длительности невидимости).
+ * 1.14.7 (Sprint 3, P0-6A): kit_dur-узлы Разбойника живые: shadow_cloak
+ *   (su_master_of_deception +5 с/ранг), adrenaline_rush (ol_improved_adrenaline +5 с/ранг),
+ *   strangle (su_nerve_strike +1 с SLOW/ранг) — через durationWithSpec / kitDurBonus.
  */
 public final class RogueAbilities {
 
@@ -266,8 +269,9 @@ public final class RogueAbilities {
 
     /* -------------------------------- базовые способности -------------------------------- */
 
+    /** 1.14.7 (P0-6A): длительность невидимости через durationWithSpec (su_master_of_deception). */
     public boolean shadowCloak(Player p, AbilityDef def) {
-        int secs = duration(def, 15);
+        int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 15, p.getUniqueId());
         // 1.14.3 (3C2): proc_stealth_extend — +N с к длительности невидимости за ранг
         double extend = plugin.getCombat().procs().getStealthExtendBonus(p);
         int totalSecs = secs + (int) Math.round(Math.max(0.0, extend));
@@ -299,6 +303,7 @@ public final class RogueAbilities {
         return hit;
     }
 
+    /** 1.14.7 (P0-6A): su_nerve_strike — +1 с SLOW за ранг (kit_dur strangle). */
     public boolean strangle(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
@@ -313,8 +318,10 @@ public final class RogueAbilities {
         double dmg = dmg(p, def, 10.0, 0.9);
         deal(p, t, DamageProfile.physical(dmg));
         impactFx(t, "strangle", "ENTITY_PLAYER_HURT", "SMOKE", 0.4f, 0.8f, 10);
+        int slowSecs = 2 + (int) Math.round(
+                plugin.getSpec2Service().kitDurBonus(p.getUniqueId(), "strangle"));
         t.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 2 * 20, 0));
-        t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 2 * 20, 1));
+        t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, slowSecs * 20, 1));
         plugin.getCombat().dots().applyById(p, t, "bleed");
         return true;
     }
@@ -529,12 +536,12 @@ public final class RogueAbilities {
         return true;
     }
 
-    /** outlaw T3: «Прилив адреналина» — Энергия +50 и Спех II на 10 с. */
+    /** outlaw T3: «Прилив адреналина» — Энергия +50 и Спех II. 1.14.7: durationWithSpec. */
     public boolean adrenalineRush(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
             return false;
         }
-        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
+        int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 10, p.getUniqueId());
         plugin.getResources().refund(p.getUniqueId(), 50.0);
         p.addPotionEffect(new PotionEffect(PotionEffectType.HASTE, secs * 20, 1));
         castFx(p, "adrenaline_rush", "ENTITY_PLAYER_LEVELUP", "CRIMSON_SPORE", 0.7f, 1.2f, 16);
