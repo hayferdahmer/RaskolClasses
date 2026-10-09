@@ -29,6 +29,10 @@ import java.util.UUID;
  *         (whirlwind_slash/mortal_strike/bloodthirst/rampage/concussive_blow/
  *         shield_bash/taunt/bladestorm/last_stand) с гейтом hasUnlocked.
  * 1.14.1 (Волна 1): heal() передаёт кастера для роли HEALER (CustomHealEvent).
+ * 1.14.7 (Sprint 3, P0-6A): kit_dur-узлы Воина живые: balder_skin (shield_wall_echo,
+ *         guard_vigilant_guardian), berserkergang (fury_berserkers_rage),
+ *         concussive_blow (fury_piercing_howl, +0.5 с STUN/ранг), taunt (guard_intervene)
+ *         читают длительность через TreeAbilities.durationWithSpec / kitDurBonus.
  */
 public final class WarriorAbilities {
 
@@ -201,19 +205,21 @@ public final class WarriorAbilities {
         return true;
     }
 
+    /** 1.14.7 (P0-6A): длительность через durationWithSpec (kit_dur balder_skin). */
     public boolean balderSkin(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
         double b = base(def, 15.0) + plugin.getSpec2Service().baseBonus(uuid, def.id());
         double c = coeff(def, 0.05) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         double grant = b + plugin.getCombat().powers().weaponPower(uuid) * c;
-        int secs = duration(def, 5);
+        int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 5, uuid);
         plugin.getResists().addTimedModifier(uuid, def.id(), grant, 0.0, secs * 1000L);
         castFx(p, "balder_skin", "ITEM_ARMOR_EQUIP_GOLD", "ENCHANT", 0.6f, 1.0f, 20);
         return true;
     }
 
+    /** 1.14.7 (P0-6A): длительность через durationWithSpec (kit_dur berserkergang). */
     public boolean berserkergang(Player p, AbilityDef def) {
-        int secs = duration(def, 6);
+        int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 6, p.getUniqueId());
         p.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, secs * 20, 1));
         p.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 0));
         castFx(p, "berserkergang", "ENTITY_RAVAGER_ROAR", "CRIMSON_SPORE", 0.8f, 0.8f, 24);
@@ -386,7 +392,10 @@ public final class WarriorAbilities {
         return true;
     }
 
-    /** fury T3: урон + STUN 1.5 с (CCService, категория STUN → DR работает). */
+    /**
+     * fury T3: урон + STUN 1.5 с (CCService, категория STUN → DR работает).
+     * 1.14.7 (P0-6A): fury_piercing_howl — +0.5 с STUN за ранг (kit_dur concussive_blow).
+     */
     public boolean concussiveBlow(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
             return false;
@@ -403,7 +412,8 @@ public final class WarriorAbilities {
         castFx(p, "concussive_blow", "ENTITY_PLAYER_ATTACK_STRONG", "CRIT", 0.7f, 0.8f, 10);
         double dmg = tdmg(p, def, 5.0, 0.4);
         plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
-        plugin.getCC().tryApply(p, t, CCType.STUN, 30); // 1.5 с
+        double stunSec = 1.5 + plugin.getSpec2Service().kitDurBonus(p.getUniqueId(), "concussive_blow");
+        plugin.getCC().tryApply(p, t, CCType.STUN, (int) Math.round(stunSec * 20));
         impactFx(t, "concussive_blow", "BLOCK_ANVIL_LAND", "CRIT", 0.5f, 0.9f, 8);
         return true;
     }
@@ -430,12 +440,16 @@ public final class WarriorAbilities {
         return true;
     }
 
-    /** guard T3: ROOT-агро: мобы в радиусе 6 таргетят воина + подсветка 5 с. */
+    /**
+     * guard T3: ROOT-агро: мобы в радиусе 6 таргетят воина + подсветка.
+     * 1.14.7 (P0-6A): guard_intervene — +2 с к окну таунта за ранг (kit_dur taunt).
+     */
     public boolean taunt(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
             return false;
         }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 6.0);
+        int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 5, p.getUniqueId());
         castFx(p, "taunt", "ENTITY_IRON_GOLEM_ROAR", "ANGRY_VILLAGER", 0.8f, 0.8f, 20);
         int taunted = 0;
         for (Entity e : p.getNearbyEntities(radius, radius, radius)) {
@@ -456,7 +470,7 @@ public final class WarriorAbilities {
                         mob.setGlowing(false);
                     }
                 }
-            }, 5 * 20L);
+            }, secs * 20L);
         }
         p.sendMessage(Component.text("Вызов брошен: мобов — " + taunted, NamedTextColor.GREEN));
         return taunted > 0;
