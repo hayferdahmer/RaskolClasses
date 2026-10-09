@@ -20,7 +20,10 @@ import java.util.UUID;
  * 1.14.4 (П8): источник "spec2_el" для стихийных резистов (resist-<school> узлы).
  * 1.14.7 (Sprint 3, P0-6A, A4): modifier attack_speed из Spec2Service.attackSpeedPercent
  *         (узлы fury_frenzy / mm_swift_quiver) — закрывает «геттер без вызовов».
- *         Операция ADD_SCALAR_1: +N% к базовой скорости атаки (ванильный swing-кулдаун).
+ *         Операция MULTIPLY_SCALAR_1: итоговая скорость атаки × (1 + pct/100).
+ *         1.14.7-fix: имя операции исправлено с несуществующего ADD_SCALAR_1
+ *         на MULTIPLY_SCALAR_1 (legacy-enum Bukkit: ADD_NUMBER / ADD_SCALAR /
+ *         MULTIPLY_SCALAR_1).
  */
 public final class Spec2EffectsApplier {
 
@@ -81,8 +84,9 @@ public final class Spec2EffectsApplier {
     }
 
     /**
-     * ADD_SCALAR_1 modifier на attack_speed: amount = pct/100 (6% → 0.06).
-     * Идемпотентно: старый modifier с нашим ключом снимается в remove().
+     * MULTIPLY_SCALAR_1 modifier на attack_speed: amount = pct/100 (6% → 0.06),
+     * т.е. итоговая скорость атаки = база × (1 + 0.06). Идемпотентно: старый
+     * modifier с нашим ключом снимается в remove().
      */
     private void applyAttackSpeed(Player player, double pct) {
         if (attackSpeedAttr == null || !Double.isFinite(pct) || pct == 0.0) {
@@ -93,7 +97,7 @@ public final class Spec2EffectsApplier {
             return;
         }
         inst.addModifier(new AttributeModifier(
-                attackSpeedKey, pct / 100.0, AttributeModifier.Operation.ADD_SCALAR_1,
+                attackSpeedKey, pct / 100.0, AttributeModifier.Operation.MULTIPLY_SCALAR_1,
                 org.bukkit.inventory.EquipmentSlotGroup.ANY));
     }
 
