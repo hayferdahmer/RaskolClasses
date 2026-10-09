@@ -7,6 +7,7 @@ import dev.raskol.classes.ability.passive.PassiveListener;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.event.CustomHealEvent;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.storage.SafeStorage;
@@ -20,7 +21,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
-import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
@@ -36,11 +36,13 @@ import java.util.logging.Logger;
  * 1.9.3.2: знаковый tickDelta. 1.10.x: Скверна событийная. 1.11.1: декэй Демонологии.
  * 1.14.0 (Б7): legacy-слой отключён — regen-бонусы только из Spec2Service.regenBonus
  *         (узлы regen деревьев + роли); ARCANE-прибавка маны теперь рангами дерева arcane.
- * 1.14.3 (Волна 3, 3B): хот-путь ресурса — stateOf применяет расширяемый потолок
- *         (100 + resourceMaxBonus из spec2); положительный rate регенерации в tick
- *         умножается на (1 + resourceRegenPercent/100). Отрицательный rate (декэй
- *         Скверны WARLOCK) НЕ умножается — узлы regen должны ускорять наполнение,
- *         а не замедлять опустошение. Базовая MAX_VALUE=100 сохранена для selftest.
+ * 1.14.4 (Волна 4, 3B): stateOf применяет расширяемый потолок (100 + resourceMaxBonus);
+ *         положительный rate регенерации умножается на (1 + resourceRegenPercent/100).
+ * 1.14.7 (Спринт 2, P1-1): ресурс-он-хил (classes.<CLASS>.resource-on-heal) переведён
+ *         с ванильного EntityRegainHealthEvent + stale-маркера хилера на CustomHealEvent:
+ *         начисление детерминированно происходит на каждое кит-лечение с атрибуцией
+ *         целителя, а не случайно на ванильных регенах с устаревшей меткой.
+ *         onRegainHealth-обработчик удалён; PassiveListener.pollHealerMark больше не зовётся.
  */
 public final class ResourceService implements Listener {
 
@@ -67,8 +69,7 @@ public final class ResourceService implements Listener {
     }
 
     /**
-     * 1.14.3 (3B): состояние ресурса с актуальным потолком из spec2-агрегата.
-     * ceiling = 100 + resourceMaxBonus (узлы resource_max, например fury_rage_pool).
+     * 1.14.4 (3B): состояние ресурса с актуальным потолком из spec2-агрегата.
      */
     public ResourceState stateOf(UUID uuid) {
         ResourceState st = states.computeIfAbsent(uuid, k -> new ResourceState());
@@ -112,7 +113,6 @@ public final class ResourceService implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         String key = uuid.toString();
-        // stateOf обновит ceiling из spec2 ДО setValue, чтобы кламп был по новому потолку
         ResourceState st = stateOf(uuid);
         if (store.isSet(key)) {
             double v = Math.max(0.0, store.getDouble(key, 0.0));
@@ -189,9 +189,8 @@ public final class ResourceService implements Listener {
             if (svc != null) {
                 rate += svc.regenBonus(uuid);
             }
-            // 1.14.3 (3B): множитель положительного rate из spec2 (узлы resource_regen_pct).
-            // Применяется ТОЛЬКО к rate > 0 — декэй WARLOCK не усиливается,
-            // иначе узлы регенерации замедляли бы опустошение Скверны, ломая баланс.
+            // 1.14.4 (3B): множитель положительного rate из spec2 (узлы resource_regen_pct).
+            // Применяется ТОЛЬКО к rate > 0 — декэй WARLOCK не усиливается.
             if (rate > 0.0 && svc != null) {
                 double regenPct = svc.resourceRegenPercent(uuid);
                 if (Double.isFinite(regenPct) && regenPct > 0.0) {
@@ -274,26 +273,25 @@ public final class ResourceService implements Listener {
         }
     }
 
+    /**
+     * 1.14.7 (Sprint 2, P1-1): ресурс-он-хил через CustomHealEvent.
+     * Событие несёт целителя напрямую (атрибуция из HpBarService.heal),
+     * stale-маркер PassiveListener больше не участвует. Rate-limit 1 с (gainAllowed)
+     * сохраняет прежнее поведение «+5 Света за событие лечения, не за тик».
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onRegainHealth(EntityRegainHealthEvent event) {
-        if (!(event.getEntity() instanceof Player)) {
+    public void onCustomHeal(CustomHealEvent event) {
+        Player healer = event.getHealer();
+        if (healer == null || event.getAmount() <= 0.0) {
             return;
         }
-        UUID healer = PassiveListener.pollHealerMark();
-        if (healer == null) {
-            return;
-        }
-        Player healerPlayer = plugin.getServer().getPlayer(healer);
-        if (healerPlayer == null) {
-            return;
-        }
-        PlayerClass pc = classProvider.getClassOf(healerPlayer);
+        PlayerClass pc = classProvider.getClassOf(healer);
         if (pc == null) {
             return;
         }
         double onHeal = config.resourceOnHeal(pc);
-        if (onHeal != 0.0 && gainAllowed(healer)) {
-            stateOf(healer).add(onHeal);
+        if (onHeal != 0.0 && gainAllowed(healer.getUniqueId())) {
+            stateOf(healer.getUniqueId()).add(onHeal);
         }
     }
 
