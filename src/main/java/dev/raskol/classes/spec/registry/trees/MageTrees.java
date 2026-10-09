@@ -19,6 +19,8 @@ import java.util.Map;
  * 1.14.0-fix: узлы regen resource заменены на рабочие эффекты (attr int, sp_pct).
  * 1.14.0 (Б11.1.3-A): arcane получил узел arc_athena_aegis (unlock_ability) —
  *         закрыт пробел, когда у 11/12 переносимых были узлы, а у athena_aegis — нет.
+ * 1.14.7 (Sprint 3, P0-6A): fi_firestarter переведён на контракт C
+ *         (kind="proc", target="burning_extend", value=шанс 0.15/ранг).
  */
 public final class MageTrees {
 
@@ -140,9 +142,10 @@ public final class MageTrees {
                 n("fi_burning_soul", T, 2, 2, 3, Map.of("fi_ignite_training", 2), "passive_stat",
                         "Пламенная душа", "+1 с длительности burning за ранг",
                         Spec2Effect.of("dot_dur", "burning", 1.0)),
+                // 1.14.7 (P0-6A): контракт C — 15% шанс за ранг продлить burning на крит
                 n("fi_firestarter", T, 2, 3, 2, Map.of(), "passive_proc",
                         "Поджигатель", "15% за ранг: crit продлевает burning на 1 с",
-                        Spec2Effect.of("proc_burning_extend", "self", 0.15)),
+                        new Spec2Effect("proc", "burning_extend", 0.15, 0.0)),
                 n("fi_flame_barrier", T, 2, 4, 3, Map.of("fi_molten_skin", 2), "passive_stat",
                         "Пламенный барьер", "+3% физ-резиста за ранг",
                         Spec2Effect.of("resist", "phys", 3.0)),
