@@ -30,17 +30,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.3 (Волна 3, 3A): процентные геттеры для видов из default-ветки accumulate.
  * 1.14.4 (Волна 4): resetNode (П7), resist-школы в agg.elResist (П8),
  *         Spec2Points.configure (П9), spec2-storage.yml (П10).
- * 1.14.6-fix (Спринт 1, P0-2): default-ветка accumulate срезает префикс "proc_":
- *         узлы вида Spec2Effect.of("proc_riposte", ...) раньше складывались в
- *         agg.proc под полным ключом "proc_riposte", а ProcService читал "riposte" —
- *         все 31 proc-узлов были мертвы. Теперь ключ = kind.substring(5).
- *         Обратная совместимость с купленными рангами сохранена (читаем storage, не kind).
+ * 1.14.6-fix (Спринт 1, P0-2): default-ветка accumulate срезает префикс "proc_".
+ * 1.14.7 (Спринт 2, P0-6B): оперативный стоп-лист узлов spec2.disabled-nodes:
+ *         purchase → NODE_DISABLED; validate/reconcile прунит уже вложенные ранги
+ *         (очки возвращаются в пул с warning-логом); resetNode ПО-ПРЕЖНЕМУ работает,
+ *         чтобы игрок мог вернуть очки, вложенные до дизейбла. GUI grey-ит узел
+ *         через nodeDisabled() (TalentsTab).
  */
 public final class Spec2Service {
 
     public enum PurchaseResult {
         OK, DISABLED, RATE_LIMITED, NO_MAIN, WRONG_CLASS_TREE, TREE_NOT_FOUND,
-        NODE_NOT_FOUND, ROW_GATE, PREREQ, MAX_RANK, NOT_ENOUGH_POINTS
+        NODE_NOT_FOUND, NODE_DISABLED, ROW_GATE, PREREQ, MAX_RANK, NOT_ENOUGH_POINTS
     }
 
     public enum ResetResult {
@@ -95,6 +96,25 @@ public final class Spec2Service {
 
     public boolean enabled() {
         return plugin.getConfig().getBoolean("spec2.enabled", true);
+    }
+
+    /* ------------------------------ 1.14.7 (P0-6B): стоп-лист узлов ------------------------------ */
+
+    /** Узел в оперативном стоп-листе spec2.disabled-nodes («в разработке»)? */
+    public boolean nodeDisabled(String nodeId) {
+        if (nodeId == null) {
+            return false;
+        }
+        List<String> list = plugin.getConfig().getStringList("spec2.disabled-nodes");
+        if (list == null || list.isEmpty()) {
+            return false;
+        }
+        for (String s : list) {
+            if (nodeId.equals(s == null ? null : s.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /* ------------------------------ очки ------------------------------ */
@@ -204,6 +224,10 @@ public final class Spec2Service {
         if (node == null) {
             return PurchaseResult.NODE_NOT_FOUND;
         }
+        // 1.14.7 (P0-6B): узел в стоп-листе — очки не тратятся
+        if (nodeDisabled(nodeId)) {
+            return PurchaseResult.NODE_DISABLED;
+        }
         Map<String, Integer> ranks = storage.getRanks(uuid, treeId);
         if (!tree.canBuy(node, ranks, availablePoints(uuid))) {
             int spent = tree.spentInTree(ranks);
@@ -262,7 +286,8 @@ public final class Spec2Service {
 
     /**
      * 1.14.4 (П7): респец одного ранга узла.
-     * Цена: spec2.node-respec-base (150) + spec2.node-respec-per-rank (50) × текущий ранг.
+     * 1.14.7 (P0-6B): для disabled-узлов респец РАЗРЕШЁН — это путь вернуть очки,
+     * вложенные до попадания узла в стоп-лист.
      */
     public NodeResetResult resetNode(Player player, String treeId, String nodeId, boolean free) {
         UUID uuid = player.getUniqueId();
@@ -353,6 +378,11 @@ public final class Spec2Service {
         }
     }
 
+    /**
+     * Валидация: ряд-гейт по накопленным очкам + ранговые пререквизиты + maxRank.
+     * 1.14.7 (P0-6B): disabled-узлы не сохраняются — вложенные ранги прунятся,
+     * очки возвращаются в пул (spentGlobal пересчитывается из kept).
+     */
     private Map<String, Integer> validate(Spec2Tree tree, Map<String, Integer> raw) {
         Map<String, Integer> kept = new HashMap<>();
         List<Spec2Node> sorted = new ArrayList<>(tree.nodes());
@@ -360,6 +390,9 @@ public final class Spec2Service {
         for (Spec2Node node : sorted) {
             Integer rank = raw.get(node.id());
             if (rank == null || rank <= 0) {
+                continue;
+            }
+            if (nodeDisabled(node.id())) {
                 continue;
             }
             int r = Math.min(rank, node.maxRank());
@@ -422,11 +455,8 @@ public final class Spec2Service {
             case "sp_pct" -> agg.spPct += e.value();
             case "hpow_pct" -> agg.hpowPct += e.value();
             case "unlock_ability" -> agg.unlocked.add(e.target());
-            // 1.14.6-fix (Спринт 1, P0-2): proc-узлы приходят как kind="proc_<id>"
-            // ("proc_riposte", "proc_crit_bonus", …). Ключ агрегата — БЕЗ префикса,
-            // чтобы ProcService.procBonus(uuid, "riposte") находил значение.
-            // Остальные процентные виды (hp_pct, resource_max, block_pct, …)
-            // сохраняют полный ключ kind — их читают геттеры ниже.
+            // 1.14.6-fix (Спринт 1, P0-2): proc-узлы приходят как kind="proc_<id>".
+            // Ключ агрегата — БЕЗ префикса, чтобы ProcService.procBonus(uuid, "riposte") работал.
             default -> {
                 String kind = e.kind();
                 String key = kind.startsWith("proc_") ? kind.substring(5) : kind;
