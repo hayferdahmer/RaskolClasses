@@ -10,6 +10,7 @@ import dev.raskol.classes.spec.registry.Spec2Registry;
 import dev.raskol.classes.spec.service.Spec2Service;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
@@ -25,21 +26,26 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.14.0 (Б3): вкладка «Деревья путей» на Spec2.
- * 1.14.0-fix (ряды): пагинация по рядам.
- * 1.14.1 (Волна 1): переключатель спек, ROW_LINE_SLOTS расширен до 9.
- *
- * 1.14.4 (Волна 4, П7): респец узла через ПКМ по купленному узлу:
- *   - первый ПКМ — взвод на 30 с с выводом цены в чат;
- *   - повторный ПКМ по тому же узлу в течение 30 с — респец одного ранга
- *     (цена = node-respec-base + node-respec-per-rank × current_rank);
- *   - ПКМ по другому узлу — сброс старого взвода и взвод нового;
- *   - ЛКМ по любому узлу или клик по кристаллу — сброс взвода узла;
- *   - взвод узла не пересекается с взводом кристалла (RESET_ARM).
+ * 1.14.0-fix (ряды): пагинация по рядам. Ромб BookSlots.TALENT_NODE_SLOTS (9 слотов)
+ *   не вмещает 6-рядное дерево, поэтому показываем ОДИН ряд за раз горизонтальной
+ *   линией ROW_LINE_SLOTS (до 9 узлов), листаем ◀ ▶ (SLOT_ROW_PREV/NEXT). Инфо (22)
+ *   — сводка ряда + прогресс 6 рядов + общий бюджет очков. Сброс (44) без изменений.
+ *   ЛКМ по узлу = +1 ранг; узел открыт при ряд-гейте + ранговых пререквизитах.
+ * 1.14.1 (Волна 1): добавлен переключатель спек (main + 2 secondary), ROW_LINE_SLOTS
+ *   расширен до 9 слотов для покрытия всех узлов ряда.
+ * 1.14.4 (Волна 4, П7): респец узла через ПКМ (взвод 30 с → подтверждение).
+ * 1.14.7 (Спринт 2, P1-3): purgeOfflineSessions() чистит VIEW_ROW/VIEW_SPEC/
+ *   NODE_RESET_ARM/RESET_ARM для оффлайн-игроков на каждом render — static-карты
+ *   больше не текут памятью между сессиями.
+ * 1.14.7 (Спринт 2, P0-6B): узлы из spec2.disabled-nodes рендерятся серыми с lore
+ *   «в разработке», клик возвращает NODE_DISABLED без траты очков.
  */
 public final class TalentsTab implements BookTabView {
 
     private static final Map<UUID, Long> RESET_ARM = new ConcurrentHashMap<>();
+    /** 1.14.0-fix (ряды): просматриваемый ряд per-player (1..6). */
     private static final Map<UUID, Integer> VIEW_ROW = new ConcurrentHashMap<>();
+    /** 1.14.1 (Волна 1): просматриваемая спека per-player (0=main, 1=secondary1, 2=secondary2). */
     private static final Map<UUID, Integer> VIEW_SPEC = new ConcurrentHashMap<>();
     /** 1.14.4 (П7): взвод респеца конкретного узла. Значение = "treeId:nodeId:timestamp". */
     private static final Map<UUID, String> NODE_RESET_ARM = new ConcurrentHashMap<>();
@@ -53,6 +59,15 @@ public final class TalentsTab implements BookTabView {
         return ClassBook.Tab.TALENTS;
     }
 
+    /** 1.14.7 (P1-3): чистка сессионных карт для оффлайн-игроков. */
+    private static void purgeOfflineSessions() {
+        VIEW_ROW.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
+        VIEW_SPEC.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
+        NODE_RESET_ARM.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
+        RESET_ARM.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
+    }
+
+    /** Узлы одного ряда, отсортированные по колонке (детерминированно для render/click). */
     private static List<Spec2Node> rowNodes(Spec2Tree tree, int row) {
         List<Spec2Node> list = new ArrayList<>();
         for (Spec2Node n : tree.nodes()) {
@@ -70,6 +85,7 @@ public final class TalentsTab implements BookTabView {
 
     @Override
     public void render(RenderCtx ctx) {
+        purgeOfflineSessions(); // 1.14.7 (P1-3)
         RaskolClasses plugin = ctx.plugin();
         Player player = ctx.player();
         UUID uuid = player.getUniqueId();
@@ -83,6 +99,7 @@ public final class TalentsTab implements BookTabView {
             return;
         }
 
+        // 1.14.1 (Волна 1): переключатель спек (0=main, 1=secondary1, 2=secondary2)
         int specIdx = VIEW_SPEC.getOrDefault(uuid, 0);
         List<String> allSpecs = svc.classTreeIds(uuid);
         if (specIdx >= allSpecs.size()) {
@@ -106,10 +123,13 @@ public final class TalentsTab implements BookTabView {
         int row = clampRow(VIEW_ROW.getOrDefault(uuid, 1));
         VIEW_ROW.put(uuid, row);
 
+        // --- инфо текущего ряда + прогресс 6 рядов + бюджет ---
         int gate = Spec2Points.ROW_GATES[row - 1];
         boolean rowOpen = inTree >= gate;
         List<Spec2Node> nodes = rowNodes(tree, row);
 
+        // 1.14.0-fix (компиляция): мутабельные аккумуляторы НЕ попадают в лямбду;
+        // в лямбду передаём финальные копии ownedInRow / maxInRow.
         int ownedAcc = 0;
         int maxAcc = 0;
         for (Spec2Node n : nodes) {
@@ -156,6 +176,7 @@ public final class TalentsTab implements BookTabView {
         });
         ctx.inv().setItem(BookSlots.SLOT_TALENT_INFO, info);
 
+        // --- селектор спек ---
         for (int i = 0; i < SPEC_COUNT; i++) {
             int slot = BookSlots.SPEC_SLOTS[i];
             if (i < allSpecs.size()) {
@@ -168,12 +189,13 @@ public final class TalentsTab implements BookTabView {
             }
         }
 
+        // --- навигация рядов ---
         ctx.inv().setItem(BookSlots.SLOT_ROW_PREV, navItem(Material.ARROW,
                 row > 1 ? "◀ Ряд " + (row - 1) : "◀", row > 1));
         ctx.inv().setItem(BookSlots.SLOT_ROW_NEXT, navItem(Material.ARROW,
                 row < ROW_COUNT ? "Ряд " + (row + 1) + " ▶" : "▶", row < ROW_COUNT));
 
-        // 1.14.4 (П7): активный взвод узла для подсветки
+        // --- линия узлов текущего ряда ---
         String armedKey = armedKey(uuid);
 
         int limit = Math.min(nodes.size(), BookSlots.ROW_LINE_SLOTS.length);
@@ -184,6 +206,7 @@ public final class TalentsTab implements BookTabView {
                     nodeItem(plugin, currentSpec, tree, n, ranks, available, inTree, isArmed));
         }
 
+        // --- сброс дерева ---
         ItemStack reset = new ItemStack(Material.END_CRYSTAL);
         reset.editMeta(meta -> {
             meta.displayName(Component.text("Сброс дерева", NamedTextColor.LIGHT_PURPLE));
@@ -258,6 +281,7 @@ public final class TalentsTab implements BookTabView {
         return item;
     }
 
+    /** Компактная строка прогресса рядов: 1✔ 2✔ 3🔒 4· 5· 6★ */
     private static Component rowProgress(Spec2Tree tree, Map<String, Integer> ranks) {
         int inTree = tree.spentInTree(ranks);
         Component acc = Component.empty();
@@ -302,25 +326,27 @@ public final class TalentsTab implements BookTabView {
         Spec2Service svc = plugin.getSpec2Service();
         String main = svc.mainSpec(uuid);
 
+        // 1.14.1 (Волна 1): клик по селектору спек
         if (left) {
             int specIdx = BookSlots.indexOf(BookSlots.SPEC_SLOTS, slot);
             if (specIdx >= 0) {
                 List<String> allSpecs = svc.classTreeIds(uuid);
                 if (specIdx < allSpecs.size()) {
                     VIEW_SPEC.put(uuid, specIdx);
-                    VIEW_ROW.put(uuid, 1);
-                    NODE_RESET_ARM.remove(uuid); // 1.14.4: ЛКМ по селектору — сброс взвода
+                    VIEW_ROW.put(uuid, 1); // сброс на ряд 1
+                    NODE_RESET_ARM.remove(uuid);
                     ctx.refresh();
                     return;
                 }
             }
         }
 
+        // --- навигация рядов ---
         if (left && (slot == BookSlots.SLOT_ROW_PREV || slot == BookSlots.SLOT_ROW_NEXT)) {
             int cur = clampRow(VIEW_ROW.getOrDefault(uuid, 1));
             int next = slot == BookSlots.SLOT_ROW_PREV ? cur - 1 : cur + 1;
             VIEW_ROW.put(uuid, clampRow(next));
-            NODE_RESET_ARM.remove(uuid); // 1.14.4: листание ряда — сброс взвода
+            NODE_RESET_ARM.remove(uuid);
             ctx.refresh();
             return;
         }
@@ -331,7 +357,7 @@ public final class TalentsTab implements BookTabView {
             long now = System.currentTimeMillis();
             if (armed == null || now - armed > BookSlots.RESET_ARM_MILLIS) {
                 RESET_ARM.put(uuid, now);
-                NODE_RESET_ARM.remove(uuid); // 1.14.4: клик по кристаллу — сброс взвода узла
+                NODE_RESET_ARM.remove(uuid);
                 player.sendMessage(Component.text(
                         "Сброс дерева взведён: ПКМ по кристаллу ещё раз в течение 30 с.",
                         NamedTextColor.YELLOW));
@@ -380,7 +406,7 @@ public final class TalentsTab implements BookTabView {
             return;
         }
         int row = clampRow(VIEW_ROW.getOrDefault(uuid, 1));
-        List<Spec2Node> nodes = rowNodes(tree, row);
+        List<Spec2Node> nodes = rowNodes(tree, row); // тот же порядок, что в render
         if (lineIdx >= nodes.size()) {
             return;
         }
@@ -398,10 +424,8 @@ public final class TalentsTab implements BookTabView {
                 return;
             }
             String armedKey = armedKey(uuid);
-            long now = System.currentTimeMillis();
             boolean isSameNodeArmed = node.id().equals(armedKey);
             if (!isSameNodeArmed) {
-                // Первый ПКМ по этому узлу (или по другому) — взвести
                 NODE_RESET_ARM.put(uuid, buildArmedKey(currentSpec, node.id()));
                 int cost = svc.nodeResetCost(currentSpec, node.id(), uuid);
                 boolean free = player.hasPermission("raskolclasses.admin");
@@ -414,7 +438,6 @@ public final class TalentsTab implements BookTabView {
                 ctx.refresh();
                 return;
             }
-            // Повторный ПКМ по тому же узлу — подтверждаем респец
             NODE_RESET_ARM.remove(uuid);
             boolean free = player.hasPermission("raskolclasses.admin");
             Spec2Service.NodeResetResult result = svc.resetNode(player, currentSpec, node.id(), free);
@@ -438,7 +461,7 @@ public final class TalentsTab implements BookTabView {
             return;
         }
 
-        // 1.14.4: ЛКМ по узлу — сброс взвода (если был) + покупка
+        // ЛКМ по узлу — сброс взвода (если был) + покупка
         NODE_RESET_ARM.remove(uuid);
         Spec2Service.PurchaseResult result = svc.purchase(player, currentSpec, node.id());
         int newRank = svc.storage().getRanks(uuid, currentSpec).getOrDefault(node.id(), 0);
@@ -449,6 +472,8 @@ public final class TalentsTab implements BookTabView {
             case NO_MAIN -> "Основная спека не выбрана.";
             case WRONG_CLASS_TREE, TREE_NOT_FOUND -> "Дерево не найдено.";
             case NODE_NOT_FOUND -> "Узел не найден.";
+            // 1.14.7 (P0-6B): узел в стоп-листе — очки не потрачены
+            case NODE_DISABLED -> "«" + node.name() + "» в разработке: очки не потрачены.";
             case ROW_GATE -> "Ряд закрыт: нужно больше очков в дереве.";
             case PREREQ -> "Нужны пререквизиты (требуемые ранги).";
             case MAX_RANK -> "Узел уже прокачан до максимума.";
@@ -459,8 +484,8 @@ public final class TalentsTab implements BookTabView {
     }
 
     /**
-     * 1.14.4 (П7): добавлен параметр isArmed — если узел активен как цель респеца,
-     * имя окрашивается жёлтым и в лор добавляется «взведён для респеца».
+     * 1.14.7 (P0-6B): disabled-узел рендерится серым с пометкой «в разработке»;
+     * 1.14.4 (П7): armed-узел подсвечен жёлтым.
      */
     private ItemStack nodeItem(RaskolClasses plugin, String treeId, Spec2Tree tree, Spec2Node node,
                                Map<String, Integer> ranks, int available, int inTree,
@@ -468,6 +493,7 @@ public final class TalentsTab implements BookTabView {
         int rank = ranks.getOrDefault(node.id(), 0);
         boolean isOwned = rank > 0;
         boolean maxed = rank >= node.maxRank();
+        boolean disabled = plugin.getSpec2Service().nodeDisabled(node.id());
         int gate = Spec2Points.ROW_GATES[node.row() - 1];
         boolean rowOk = inTree >= gate;
         boolean prereqOk = tree.prereqsMet(node, ranks);
@@ -476,7 +502,9 @@ public final class TalentsTab implements BookTabView {
         ItemStack item = new ItemStack(node.isUltimate() ? Material.BEACON : Material.NETHER_STAR);
         item.editMeta(meta -> {
             NamedTextColor nameColor;
-            if (isArmed) {
+            if (disabled) {
+                nameColor = NamedTextColor.DARK_GRAY;
+            } else if (isArmed) {
                 nameColor = NamedTextColor.YELLOW;
             } else if (maxed) {
                 nameColor = NamedTextColor.GREEN;
@@ -509,7 +537,15 @@ public final class TalentsTab implements BookTabView {
                         met ? NamedTextColor.DARK_GRAY : NamedTextColor.RED));
             }
             lore.add(Component.empty());
-            if (isArmed) {
+            if (disabled) {
+                // 1.14.7 (P0-6B): стоп-лист — очки не тратятся; вложенные ранги
+                // вернутся через reconcile-прунинг или resetNode
+                lore.add(Component.text("⚒ В РАЗРАБОТКЕ: покупка закрыта", NamedTextColor.DARK_GRAY));
+                if (isOwned) {
+                    lore.add(Component.text("Вложенные ранги вернутся: ПКМ-респец или авто-прунинг",
+                            NamedTextColor.YELLOW));
+                }
+            } else if (isArmed) {
                 int cost = plugin.getSpec2Service().nodeResetCost(treeId, node.id(),
                         plugin.getServer().getOnlinePlayers().stream().findFirst()
                                 .map(p -> p.getUniqueId()).orElse(null));
