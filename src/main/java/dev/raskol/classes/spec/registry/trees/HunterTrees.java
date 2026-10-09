@@ -16,6 +16,15 @@ import java.util.Map;
  *         ульт serpent_sting (новый DoT-ульт).
  * beastmaster (Повелитель зверей): FIGHTER, NATURE — unlock pet_wolf/beast_ferocity,
  *         ульт bestial_wrath.
+ *
+ * 1.14.7 (Спринт 2, P0-4): ёмкости подняты до ≥ spec2.tree-capacity-min (50):
+ *   marksmanship 46→50 (mm_steady_hand 5→7, mm_eagle_eye 4→5, mm_swift_quiver 4→5);
+ *   survival     49→50 (sv_endurance 5→6);
+ *   beastmaster  49→50 (bm_animal_handler 5→6).
+ *   Повышены maxRank ТОЛЬКО пассивных узлов ряда 1 без зависимостей по maxRank —
+ *   гейты рядов, пререквизиты и ширина рядов (≤9 узлов) не изменились.
+ *   Баланс: суммарная доступная сила дерева выросла незначительно (бюджет очков
+ *   по-прежнему 46, закрыть дерево целиком всё ещё нельзя).
  */
 public final class HunterTrees {
 
@@ -39,13 +48,13 @@ public final class HunterTrees {
         final String T = "marksmanship";
         return new Spec2Tree(T, List.of(
                 // Ряд 1 (гейт 0)
-                n("mm_steady_hand", T, 1, 1, 5, Map.of(), "passive_stat",
+                n("mm_steady_hand", T, 1, 1, 7, Map.of(), "passive_stat",
                         "Твёрдая рука", "+2% урона стрел за ранг",
                         Spec2Effect.of("phys_dmg_pct", "self", 2.0)),
-                n("mm_eagle_eye", T, 1, 2, 4, Map.of(), "passive_stat",
+                n("mm_eagle_eye", T, 1, 2, 5, Map.of(), "passive_stat",
                         "Орлиный глаз", "+1% крита стрел за ранг",
                         Spec2Effect.of("crit_ranged_pct", "self", 1.0)),
-                n("mm_swift_quiver", T, 1, 3, 4, Map.of(), "passive_stat",
+                n("mm_swift_quiver", T, 1, 3, 5, Map.of(), "passive_stat",
                         "Быстрый колчан", "+2% скорости стрельбы за ранг",
                         Spec2Effect.of("attack_speed_pct", "self", 2.0)),
                 n("mm_survivalist", T, 1, 4, 3, Map.of(), "passive_stat",
@@ -107,12 +116,12 @@ public final class HunterTrees {
         ));
     }
 
-    /* ============ ОХОТНИК · ВЫЖИВАНИЕ (survival) — ёмкость 51 ============ */
+    /* ============ ОХОТНИК · ВЫЖИВАНИЕ (survival) — ёмкость 50 ============ */
     private static Spec2Tree survival() {
         final String T = "survival";
         return new Spec2Tree(T, List.of(
                 // Ряд 1 (гейт 0)
-                n("sv_endurance", T, 1, 1, 5, Map.of(), "passive_stat",
+                n("sv_endurance", T, 1, 1, 6, Map.of(), "passive_stat",
                         "Выносливость", "+5% maxHP за ранг",
                         Spec2Effect.of("hp_pct", "self", 5.0)),
                 n("sv_trap_mastery", T, 1, 2, 4, Map.of(), "passive_stat",
@@ -180,12 +189,12 @@ public final class HunterTrees {
         ));
     }
 
-    /* ============ ОХОТНИК · ПОВЕЛИТЕЛЬ ЗВЕРЕЙ (beastmaster) — ёмкость 52 ============ */
+    /* ============ ОХОТНИК · ПОВЕЛИТЕЛЬ ЗВЕРЕЙ (beastmaster) — ёмкость 50 ============ */
     private static Spec2Tree beastmaster() {
         final String T = "beastmaster";
         return new Spec2Tree(T, List.of(
                 // Ряд 1 (гейт 0)
-                n("bm_animal_handler", T, 1, 1, 5, Map.of(), "passive_stat",
+                n("bm_animal_handler", T, 1, 1, 6, Map.of(), "passive_stat",
                         "Дрессировщик", "+5% урона питомца за ранг",
                         Spec2Effect.of("pet_dmg_pct", "self", 5.0)),
                 n("bm_ferocity", T, 1, 2, 4, Map.of(), "passive_stat",
