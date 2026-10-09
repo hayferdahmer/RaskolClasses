@@ -46,6 +46,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   исходящие heal-модификаторы (heal_out_pct + роль) применяет единой точкой
  *   Spec2RoleListener.onCustomHeal; иначе роль считалась дважды (1.05×1.05).
  * 1.14.6 (6b): shadowfiend — делегирование в PetService; inline-спавн Vex удалён.
+ * 1.14.6-fix (Sprint 1, P0-8a): shadowfiend возвращает false на ЛЮБОЙ не-OK результат
+ *   summon (включая ALREADY) — castOn делает refund и не запускает кулдаун.
  */
 public final class PriestAbilities {
 
@@ -631,7 +633,7 @@ public final class PriestAbilities {
     /**
      * 1.14.6 (6b): shadow T5 — призыв тенескота через PetService;
      * +10 Света — китовый бонус (PetService про это не знает).
-     * Смерть/выход очищают handle в PetService.onPetDeath/onOwnerQuit.
+     * 1.14.6-fix (P0-8a): любой не-OK результат = false (refund + без кулдауна).
      */
     public boolean shadowfiend(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
@@ -648,7 +650,7 @@ public final class PriestAbilities {
         }
         PetService.SummonResult r = plugin.getPets().summon(p, "shadowfiend", t);
         if (r != PetService.SummonResult.OK) {
-            return r == PetService.SummonResult.ALREADY;
+            return false;
         }
         // Китовый бонус: +10 Света при призыве
         plugin.getResources().add(p.getUniqueId(), 10.0);
