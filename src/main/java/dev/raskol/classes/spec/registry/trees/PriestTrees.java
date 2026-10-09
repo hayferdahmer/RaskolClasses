@@ -17,6 +17,9 @@ import java.util.Map;
  * shadow (Тьма): FIGHTER, DoT wither (SHADOW) + контроль — unlock withering_touch,
  *         mind_flay (SLOW-канал), shadowfiend, ульт wrath_heaven (перенос, слот 5).
  * 1.14.0-fix: узлы regen resource заменены на рабочие эффекты (heal_out_pct, hpow_pct, magic_dmg_pct).
+ * 1.14.7 (Sprint 3, P0-6A): ho_surge_of_light переведён на контракт C
+ *         (kind="proc", target="free_heal", value=шанс 0.10/ранг); обработчик —
+ *         ProcService.rollFreeHeal + refund в PriestAbilities.applyHealWith.
  */
 public final class PriestTrees {
 
@@ -146,9 +149,10 @@ public final class PriestTrees {
                 n("ho_concentration", T, 3, 2, 2, Map.of("ho_holy_mending", 1), "passive_stat",
                         "Сосредоточение", "+3% физ/маг резиста за ранг",
                         Spec2Effect.of("resist", "both", 3.0)),
+                // 1.14.7 (P0-6A): контракт C — 10% шанс за ранг, следующий хил бесплатный
                 n("ho_surge_of_light", T, 3, 3, 3, Map.of("ho_light_infusion", 1), "passive_proc",
                         "Вспышка света", "10% за ранг: след. хил бесплатный",
-                        Spec2Effect.of("proc_free_heal", "self", 0.10)),
+                        new Spec2Effect("proc", "free_heal", 0.10, 0.0)),
                 n("ho_divine_providence", T, 3, 4, 2, Map.of("ho_blessed_hands", 1), "enhance_ability",
                         "Провидение", "word_of_life: −10% кулдауна за ранг",
                         Spec2Effect.of("cd", "word_of_life", 0.10)),
