@@ -74,6 +74,8 @@ import java.util.List;
  *         spec2-слоя — очки/гейты рядов читаются из config.yml.
  * 1.14.6 (Волна 6a): PetService — единое ядро боевых петов (wolf/demon/shadowfiend);
  *         конструктор сервиса сам регистрирует слушатели и тик-задачу.
+ * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) также в reloadPlugin() —
+ *         snapshot очков/гейтов обновляется при /rc reload без рестарта.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -438,8 +440,14 @@ public final class RaskolClasses extends JavaPlugin {
         command.setTabCompleter(executor);
     }
 
+    /**
+     * 1.14.7 (P1-4): добавлен вызов Spec2Points.configure(this) — snapshot очков/
+     * гейтов рядов обновляется при /rc reload без рестарта сервера.
+     */
     public void reloadPlugin() {
         raskolConfig.reload();
+        // 1.14.7 (P1-4): snapshot очков/гейтов обновляется при reload
+        Spec2Points.configure(this);
         raskolConfig.reloadKits();
         abilities.loadFromConfig(raskolConfig);
         hud.applyConfig();
