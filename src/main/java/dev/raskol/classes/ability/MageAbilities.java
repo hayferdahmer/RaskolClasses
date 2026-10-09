@@ -49,6 +49,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   читаются через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
  *   чтобы переносимые (athena_aegis/zeus_wrath) пережили резку abilities.
  *   projectile-speed/distance/radius(boreas) у slots 1–3 НЕ тронуты (не переносимые).
+ * 1.14.7 (Sprint 3, P0-6A): ice_barrier читает длительность через
+ *   TreeAbilities.durationWithSpec (kit_dur fr_ice_ward_enh: +2 с за ранг).
  */
 public final class MageAbilities {
 
@@ -731,12 +733,15 @@ public final class MageAbilities {
         return true;
     }
 
-    /** frost T4: «Ледяная преграда» — щит-пул 15% formula-maxHP на 6 с (Absorption). */
+    /**
+     * frost T4: «Ледяная преграда» — щит-пул 15% formula-maxHP на 6 с (Absorption).
+     * 1.14.7 (P0-6A): длительность через durationWithSpec (fr_ice_ward_enh: +2 с/ранг).
+     */
     public boolean iceBarrier(Player p, AbilityDef def) {
         if (!treeUnlocked(p, def)) {
             return false;
         }
-        int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 6);
+        int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 6, p.getUniqueId());
         double formula = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
         double scale = plugin.getHpBarService().scale(p);
         int shieldCarrier = (int) Math.max(4.0, Math.round(formula * 0.15 * scale));
