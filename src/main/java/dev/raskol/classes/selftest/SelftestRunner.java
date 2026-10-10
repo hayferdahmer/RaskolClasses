@@ -70,7 +70,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 116 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 118 чеков.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
  * 22–24 (1.14.0 Б8): экономика spec2, ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
@@ -86,7 +86,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 112 (Sprint 1, P0-8f): PetService.attributesReady;
  * 113 (Sprint 1, P0-3): секция spec2.procs.*.amp/.cap полная в конфиге;
  * 114–116 (1.14.7 Sprint 3, P0-6A): kit_dur-агрегат и durationWithSpec,
- *         attack_speed_pct через Spec2EffectsApplier, контракт C value2 (procAmp).
+ *         attack_speed_pct через Spec2EffectsApplier, контракт C value2 (procAmp);
+ * 117 (Sprint 4, P1-5): resetNode отклоняется HAS_DEPENDENTS при живом зависимом
+ *         узле — состояние и хранилище не меняются;
+ * 118 (Sprint 4, P1-6): гейтованный каст отклоняется БЕЗ антиспам-метки
+ *         (AbilityRegistry.hasAttemptMark).
  *         Чеки probe-зависимые; у класса без соответствующих узлов → skip.
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
@@ -155,6 +159,19 @@ public final class SelftestRunner {
                                 String treeId, Map<String, Integer> backup) {
         plugin.getSpec2Service().storage().setRanks(uuid, treeId, backup);
         plugin.getSpec2Service().reconcile(uuid);
+    }
+
+    /**
+     * 1.14.7 (Sprint 4): пауза для обхода rate-limit spec2
+     * (Spec2Service.actionAllowed, performance.cast-click-cooldown-ms) между
+     * чеками, вызывающими resetNode/purchase подряд (106 → 117).
+     */
+    private static void pauseMs(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /* ------------------------------ отчётность ------------------------------ */
@@ -2328,6 +2345,126 @@ public final class SelftestRunner {
                 }
                 if (check(report, "116", "контракт C: procAmp = rank×value2, proc = rank×value",
                         ok116, "Spec2Service.procAmpBonus/procBonus", got116)) {
+                    passed++;
+                } else {
+                    failed++;
+                }
+            }
+        }
+
+        // === 1.14.7 (Sprint 4): чеки 117–118 — HAS_DEPENDENTS и антиспам-метка гейтов ===
+
+        // 117 (P1-5): resetNode пререквизита при живом зависимом узле → HAS_DEPENDENTS,
+        // состояние и хранилище не меняются. Работает на сыром storage-состоянии
+        // (без reconcile перед проверкой), т.к. hasDependents читает ranks напрямую.
+        if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
+            skip(report, "117", "HAS_DEPENDENTS");
+            skipped++;
+        } else {
+            UUID pu117 = probe.getUniqueId();
+            Spec2Node depA = null;
+            Spec2Node depB = null;
+            String depTree = null;
+            for (String tid : plugin.getSpec2Service().classTreeIds(pu117)) {
+                Spec2Tree t = Spec2Registry.treeOf(tid);
+                if (t == null) {
+                    continue;
+                }
+                for (Spec2Node n : t.nodes()) {
+                    if (n.prereqs().isEmpty() || plugin.getSpec2Service().nodeDisabled(n.id())) {
+                        continue;
+                    }
+                    for (Map.Entry<String, Integer> pr : n.prereqs().entrySet()) {
+                        Spec2Node a = t.find(pr.getKey());
+                        if (a != null && !plugin.getSpec2Service().nodeDisabled(a.id())) {
+                            depA = a;
+                            depB = n;
+                            depTree = tid;
+                            break;
+                        }
+                    }
+                    if (depB != null) {
+                        break;
+                    }
+                }
+                if (depB != null) {
+                    break;
+                }
+            }
+            if (depB == null) {
+                skip(report, "117", "HAS_DEPENDENTS (нет пары пререквизит→зависимый у класса probe)");
+                skipped++;
+            } else {
+                Map<String, Integer> b117 = new HashMap<>(
+                        plugin.getSpec2Service().storage().getRanks(pu117, depTree));
+                String prevMain = plugin.getSpec2Service().storage().getMain(pu117);
+                boolean tempMain = prevMain == null;
+                boolean ok117;
+                String got117;
+                try {
+                    if (tempMain) {
+                        plugin.getSpec2Service().storage().setMain(pu117, depTree);
+                    }
+                    Map<String, Integer> set = new HashMap<>();
+                    set.put(depA.id(), 1);
+                    set.put(depB.id(), 1);
+                    plugin.getSpec2Service().storage().setRanks(pu117, depTree, set);
+                    // rate-limit spec2 (actionAllowed) после resetNode в чеке 106
+                    pauseMs(200);
+                    Spec2Service.NodeResetResult r =
+                            plugin.getSpec2Service().resetNode(probe, depTree, depA.id(), true);
+                    int rankA = plugin.getSpec2Service().storage().getRanks(pu117, depTree)
+                            .getOrDefault(depA.id(), 0);
+                    ok117 = r == Spec2Service.NodeResetResult.HAS_DEPENDENTS && rankA == 1;
+                    got117 = "result=" + r + " rankA=" + rankA;
+                } finally {
+                    plugin.getSpec2Service().storage().setRanks(pu117, depTree, b117);
+                    if (tempMain) {
+                        plugin.getSpec2Service().storage().setMain(pu117, null);
+                    }
+                    plugin.getSpec2Service().reconcile(pu117);
+                }
+                if (check(report, "117", "P1-5: resetNode пререквизита при живом зависимом → HAS_DEPENDENTS, ранг не меняется",
+                        ok117, "Spec2Service.resetNode/hasDependents", got117)) {
+                    passed++;
+                } else {
+                    failed++;
+                }
+            }
+        }
+
+        // 118 (P1-6): гейтованный (не открытый узлом) каст отклоняется БЕЗ антиспам-метки:
+        // повторный клик сразу после отказа снова даёт текст отказа, а не молчание.
+        if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
+            skip(report, "118", "антиспам-метка гейтов");
+            skipped++;
+        } else {
+            UUID pu118 = probe.getUniqueId();
+            PlayerClass pc118 = plugin.getClassProvider().getClassOf(probe);
+            String gatedId = null;
+            dev.raskol.classes.ability.AbilityDef gatedDef = null;
+            for (String tid : plugin.getAbilities().treeCasterIds()) {
+                if (!plugin.getSpec2Service().hasUnlocked(pu118, tid)) {
+                    dev.raskol.classes.ability.AbilityDef d =
+                            plugin.getAbilities().findById(pc118, tid);
+                    if (d != null) {
+                        gatedId = tid;
+                        gatedDef = d;
+                        break;
+                    }
+                }
+            }
+            if (gatedDef == null) {
+                skip(report, "118", "антиспам-метка (у probe нет закрытых древесных способностей)");
+                skipped++;
+            } else {
+                plugin.getAbilities().clearAttempts(pu118);
+                boolean castResult = plugin.getAbilities().tryCast(probe, gatedDef);
+                boolean marked = plugin.getAbilities().hasAttemptMark(pu118, gatedId);
+                boolean ok118 = !castResult && !marked;
+                String got118 = "cast=" + castResult + " mark=" + marked + " id=" + gatedId;
+                if (check(report, "118", "P1-6: гейтованный каст отклонён БЕЗ антиспам-метки",
+                        ok118, "AbilityRegistry.castOn", got118)) {
                     passed++;
                 } else {
                     failed++;
