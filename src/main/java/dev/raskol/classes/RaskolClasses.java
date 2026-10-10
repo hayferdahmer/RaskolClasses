@@ -26,6 +26,7 @@ import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
+import dev.raskol.classes.gui.book.TalentsTab;
 import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
@@ -77,7 +78,9 @@ import java.util.List;
  * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) также в reloadPlugin() —
  *         snapshot очков/гейтов обновляется при /rc reload без рестарта.
  * 1.14.7 (Спринт 2, P0-4): startup-warning для деревьев с ёмкостью ниже
- *         spec2.tree-capacity-min — напоминание добить ранги (Часть 2: RogueTrees).
+ *         spec2.tree-capacity-min — напоминание добить ранги.
+ * 1.14.7 (Спринт 4, P1-3): onQuit чистит GUI-сессию книги (TalentsTab.clearSession) —
+ *         static-карты VIEW_ROW/VIEW_SPEC/ARM не держат UUID вышедших игроков.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -255,10 +258,13 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new Listener() {
             @EventHandler
             public void onQuit(PlayerQuitEvent event) {
-                resists.clear(event.getPlayer().getUniqueId());
-                attributes.clear(event.getPlayer().getUniqueId());
-                characterLevels.invalidate(event.getPlayer().getUniqueId());
-                spec2Service.clear(event.getPlayer().getUniqueId());
+                UUID quitUuid = event.getPlayer().getUniqueId();
+                resists.clear(quitUuid);
+                attributes.clear(quitUuid);
+                characterLevels.invalidate(quitUuid);
+                spec2Service.clear(quitUuid);
+                // 1.14.7 (Sprint 4, P1-3): GUI-сессия книги не переживает выход
+                TalentsTab.clearSession(quitUuid);
             }
         }, this);
         pluginManager.registerEvents(new Listener() {
@@ -318,8 +324,7 @@ public final class RaskolClasses extends JavaPlugin {
         printBanner();
 
         // 1.14.7 (Спринт 2, P0-4): startup-warning для деревьев с ёмкостью ниже
-        // spec2.tree-capacity-min. Не блокирует старт: это напоминание добить ранги
-        // (Часть 2 закроет RogueTrees: assassination/subtlety/outlaw).
+        // spec2.tree-capacity-min. Не блокирует старт: это напоминание добить ранги.
         int capMin = getConfig().getInt("spec2.tree-capacity-min", 50);
         if (capMin < 1) {
             capMin = 50;
@@ -335,7 +340,7 @@ public final class RaskolClasses extends JavaPlugin {
         if (!lowCap.isEmpty()) {
             getLogger().warning("P0-4: " + lowCap.size() + " деревьев ниже tree-capacity-min="
                     + capMin + ": " + String.join(", ", lowCap)
-                    + " — добавьте maxRank существующим пассивным узлам (Часть 2 спринта)");
+                    + " — добавьте maxRank существующим пассивным узлам");
         }
 
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
