@@ -33,6 +33,9 @@ import java.util.UUID;
  *         guard_vigilant_guardian), berserkergang (fury_berserkers_rage),
  *         concussive_blow (fury_piercing_howl, +0.5 с STUN/ранг), taunt (guard_intervene)
  *         читают длительность через TreeAbilities.durationWithSpec / kitDurBonus.
+ * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
+ *         централизован в AbilityRegistry.castOn. Текст отказа идентичен
+ *         («откроется узлом дерева путей Воина.»), поведение игрока не изменилось.
  */
 public final class WarriorAbilities {
 
@@ -110,16 +113,6 @@ public final class WarriorAbilities {
     private void allyTarget(Player p) {
         p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                 "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
-    }
-
-    /** 1.14.0: гейт древесной способности (узел дерева путей ранг ≥1). */
-    private boolean treeUnlocked(Player p, AbilityDef def) {
-        if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
-            return true;
-        }
-        p.sendMessage(Component.text("«" + def.displayName()
-                + "» откроется узлом дерева путей Воина.", NamedTextColor.GRAY));
-        return false;
     }
 
     private double effectiveMaxHp(LivingEntity target) {
@@ -278,12 +271,10 @@ public final class WarriorAbilities {
     }
 
     /* --------------------- древесные способности (1.14.0, контент-долг 1) --------------------- */
+    /* 1.14.7 (Sprint 4, P1-6): вызовы treeUnlocked() удалены — гейт централизован в castOn. */
 
     /** arms T3: секторный физ-урон 60°, радиус из конфига (дефолт 4). */
     public boolean whirlwindSlash(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 4.0);
         castFx(p, "whirlwind_slash", "ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK", 0.7f, 1.0f, 16);
         Vector facing = p.getLocation().getDirection().setY(0).normalize();
@@ -317,9 +308,6 @@ public final class WarriorAbilities {
 
     /** arms T4: физ-урон + анти-хил 3 с (реестр WarlockAbilities). */
     public boolean mortalStrike(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -340,9 +328,6 @@ public final class WarriorAbilities {
 
     /** fury T3: физ-урон + хил 15% от дошедшего. */
     public boolean bloodthirst(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -368,9 +353,6 @@ public final class WarriorAbilities {
 
     /** fury T4: серия из 3 ударов, каждый +10% урона. */
     public boolean rampage(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -397,9 +379,6 @@ public final class WarriorAbilities {
      * 1.14.7 (P0-6A): fury_piercing_howl — +0.5 с STUN за ранг (kit_dur concussive_blow).
      */
     public boolean concussiveBlow(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -420,9 +399,6 @@ public final class WarriorAbilities {
 
     /** guard T2: урон + STUN 2 с. */
     public boolean shieldBash(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -445,9 +421,6 @@ public final class WarriorAbilities {
      * 1.14.7 (P0-6A): guard_intervene — +2 с к окну таунта за ранг (kit_dur taunt).
      */
     public boolean taunt(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 6.0);
         int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 5, p.getUniqueId());
         castFx(p, "taunt", "ENTITY_IRON_GOLEM_ROAR", "ANGRY_VILLAGER", 0.8f, 0.8f, 20);
@@ -478,9 +451,6 @@ public final class WarriorAbilities {
 
     /** fury T6 (ульт): AoE-вихрь 4 с: 4 тика урона по радиусу 4. */
     public boolean bladestorm(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 4.0);
         double dmg = tdmg(p, def, 7.0, 0.6);
         UUID pid = p.getUniqueId();
@@ -509,9 +479,6 @@ public final class WarriorAbilities {
 
     /** guard T6 (ульт): щит-пул 25% formula-maxHP на 8 с через Absorption-сердца. */
     public boolean lastStand(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
         double formula = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
         double scale = plugin.getHpBarService().scale(p);
