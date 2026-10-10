@@ -50,7 +50,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   чтобы переносимые (athena_aegis/zeus_wrath) пережили резку abilities.
  *   projectile-speed/distance/radius(boreas) у slots 1–3 НЕ тронуты (не переносимые).
  * 1.14.7 (Sprint 3, P0-6A): ice_barrier читает длительность через
- *   TreeAbilities.durationWithSpec (kit_dur fr_ice_ward_enh: +2 с за ранг).
+ *   TreeAbilities.durationWithSpec (kit_dur fr_ice_ward_enh: +2 с/ранг).
+ * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
+ *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
+ *   («откроется узлом дерева путей Мага.»), поведение игрока не изменилось.
  */
 public final class MageAbilities {
 
@@ -124,15 +127,6 @@ public final class MageAbilities {
     private double combustionMult(UUID uuid) {
         Long until = COMBUSTION_UNTIL.get(uuid);
         return until != null && until > System.currentTimeMillis() ? 1.25 : 1.0;
-    }
-
-    private boolean treeUnlocked(Player p, AbilityDef def) {
-        if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
-            return true;
-        }
-        p.sendMessage(Component.text("«" + def.displayName()
-                + "» откроется узлом дерева путей Мага.", NamedTextColor.GRAY));
-        return false;
     }
 
     private LivingEntity rayTarget(Player p, double range) {
@@ -487,12 +481,10 @@ public final class MageAbilities {
     }
 
     /* --------------------- древесные способности (1.14.0, контент-долг 4) --------------------- */
+    /* 1.14.7 (Sprint 4, P1-6): вызовы treeUnlocked() удалены — гейт централизован в castOn. */
 
     /** arcane T2: 3 залпа маг-урона по цели (до 20 блоков). */
     public boolean arcaneMissiles(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -517,9 +509,6 @@ public final class MageAbilities {
 
     /** arcane T4: маг-урон + Немота 3 с + прерывание канала (CastChannels). */
     public boolean counterspell(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -546,9 +535,6 @@ public final class MageAbilities {
      * AbilityRegistry.castOn — отдельный долг).
      */
     public boolean presenceOfMind(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         UUID uuid = p.getUniqueId();
         plugin.getResources().refund(uuid, 100.0);
         plugin.getCC().removeType(uuid, CCType.SILENCE);
@@ -560,9 +546,6 @@ public final class MageAbilities {
 
     /** fire T2: маг-урон + горение (DoT burning). */
     public boolean scorch(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -585,9 +568,6 @@ public final class MageAbilities {
      * ОТКЛОНЕНИЕ: мгновенная зона вместо персистентной.
      */
     public boolean flamestrike(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 4.0);
         LivingEntity target = rayTarget(p, 20);
         Location spot;
@@ -627,9 +607,6 @@ public final class MageAbilities {
 
     /** fire T5: «Возгорание» — ×1.25 урона заклинаний на 8 с. */
     public boolean combustion(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
         COMBUSTION_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
         castFx(p, "combustion", "ITEM_FIRECHARGE_USE", "FLAME", 0.8f, 1.0f, 20);
@@ -640,9 +617,6 @@ public final class MageAbilities {
 
     /** fire T6 (ульт): огромный урон; по горящей цели ×1.5 + обновляет горение. */
     public boolean pyroblast(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -666,9 +640,6 @@ public final class MageAbilities {
 
     /** frost T2: маг-урон + охлаждение (chilled) + Slowness I 2 с. */
     public boolean frostbolt(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -692,9 +663,6 @@ public final class MageAbilities {
      * ОТКЛОНЕНИЕ: мгновенная зона вместо персистентной.
      */
     public boolean blizzard(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 5.0);
         LivingEntity target = rayTarget(p, 20);
         Location spot;
@@ -738,9 +706,6 @@ public final class MageAbilities {
      * 1.14.7 (P0-6A): длительность через durationWithSpec (fr_ice_ward_enh: +2 с/ранг).
      */
     public boolean iceBarrier(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 6, p.getUniqueId());
         double formula = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
         double scale = plugin.getHpBarService().scale(p);
@@ -755,9 +720,6 @@ public final class MageAbilities {
 
     /** frost T6 (ульт): урон; по охлаждённой цели ×(1+стеки) и скол (снятие chilled). */
     public boolean iceLanceShatter(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
