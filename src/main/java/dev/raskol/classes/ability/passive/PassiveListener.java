@@ -9,7 +9,6 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityRegainHealthEvent;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -18,44 +17,20 @@ import java.util.UUID;
 
 /**
  * 1.11.4 (P1): ТОНКИЙ диспетчер пассивок. Вся логика — в ClassPassive-файлах.
- * Маркер хилера статический: ставят PriestAbilities, читает ResourceService.
  * 1.14.0 (Б8): +MagePassives (mana_soaked) — ранее файл отсутствовал.
- * 1.14.1 (Волна 1): onRegainHealth применял классово-независимые исходящие
- *   heal-множители ДО диспетчеризации класс-пассивок.
- * 1.14.7 (Спринт 2, P1-1): множители heal_out_pct и роли HEALER УБРАНЫ из
- *   onRegainHealth — они применяются в единой точке Spec2RoleListener.onCustomHeal
- *   на событии CustomHealEvent (HpBarService.heal). Ванильные EntityRegainHealthEvent
- *   (зелья/еда/natural regen) больше не домножаются — это закрывает «двойной путь
- *   лечения» из аудита без потери множителей на kit-хилах.
- * 1.14.7 (Спринт 2, P1-2): peekHealerMark → pollHealerMark (сбрасывающее чтение) —
- *   закрывает окно stale-маркера, когда следующий ванильный regain подхватывал
- *   чужую метку жреца. Одна метка = ровно одно событие лечения.
- *   markHealer помечен @Deprecated — удаление в Sprint 4 после перевода всех
- *   kit-хилов на явную атрибуцию через CustomHealEvent.getHealer().
+ *
+ * 1.14.7 (Sprint 4, P1-1/P1-2): ПОЛНОЕ удаление глобального состояния лечения.
+ *   - static volatile healerMark, markHealer/pollHealerMark/peekHealerMark — удалены;
+ *   - обработчик onRegainHealth удалён: композиция исходящего лечения (heal_out_pct,
+ *     роль HEALER) живёт ТОЛЬКО в Spec2RoleListener.onCustomHeal (CustomHealEvent),
+ *     входящий множитель роли (heal_received_pct, TANK) — в Spec2RoleListener.onRegain,
+ *     ресурс-он-хил — в ResourceService.onCustomHeal (Sprint 2);
+ *   - ClassPassive.onHealOut остаётся в интерфейсе как deprecated-пустой до волны 4.6:
+ *     диспетчера у него больше нет (ванильный regain не имеет атрибуции целителя,
+ *     а mark-атрибуция была источником misattribution-багов P1-2).
+ *   Итог: одно лечение = один множитель, глобального mutable-состояния в слушателе нет.
  */
 public final class PassiveListener implements Listener {
-
-    /**
-     * 1.14.7 (P1-2): @Deprecated — атрибут хилера должен жить в CustomHealEvent.
-     * Оставлен для совместимости с PriestAbilities.applyHealWith до Sprint 4.
-     */
-    @Deprecated
-    private static volatile UUID healerMark = null;
-
-    @Deprecated
-    public static void markHealer(UUID priestUuid) {
-        healerMark = priestUuid;
-    }
-
-    public static UUID pollHealerMark() {
-        UUID v = healerMark;
-        healerMark = null;
-        return v;
-    }
-
-    private static UUID peekHealerMark() {
-        return healerMark;
-    }
 
     private final RaskolClasses plugin;
     private final Map<PlayerClass, ClassPassive> passives = new EnumMap<>(PlayerClass.class);
@@ -91,40 +66,6 @@ public final class PassiveListener implements Listener {
             if (pv != null) {
                 pv.onDamageIn(event, victim, event.getDamage());
             }
-        }
-    }
-
-    /**
-     * 1.14.7 (P1-1/P1-2): обработка ванильных regain-событий.
-     *
-     * P1-2: читаем pollHealerMark() — сбрасывающее чтение. Одна метка = ровно одно
-     * событие лечения. Раньше peekHealerMark() оставлял метку, и следующий regain
-     * (например, natural regen тиком позже) подхватывал чужую метку жреца.
-     *
-     * P1-1: множители heal_out_pct и роли HEALER больше НЕ применяются здесь —
-     * их применяет Spec2RoleListener.onCustomHeal на CustomHealEvent, которое
-     * генерирует HpBarService.heal. Это закрывает «двойной путь лечения»: kit-хилы
-     * жреца идут через CustomHealEvent (с множителями), ванильные regain'ы идут
-     * «как есть» (без множителей — это правильно, т.к. роль/узел принадлежит
-     * классу-хилеру, а не источнику регенерации).
-     *
-     * onHealOut классовых пассивок оставлен — счётчики/проки классов работают как
-     * прежде (если пассивка что-то делает на исходящий хил).
-     */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
-    public void onRegainHealth(EntityRegainHealthEvent event) {
-        UUID healer = pollHealerMark();
-        if (healer == null) {
-            return;
-        }
-        Player healerPlayer = plugin.getServer().getPlayer(healer);
-        if (healerPlayer == null) {
-            return;
-        }
-
-        ClassPassive p = passives.get(plugin.getClassProvider().getClassOf(healerPlayer));
-        if (p != null) {
-            p.onHealOut(event, healerPlayer);
         }
     }
 }
