@@ -5,7 +5,6 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.school.School;
-import dev.raskol.classes.ability.passive.PassiveListener;
 import dev.raskol.classes.pet.PetService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -53,6 +52,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   в ресурс кастера (refund). Реализация через единый proc free_heal.
  * 1.14.7 (Sprint 3, P0-6A): aegisFaith читает длительность через
  *   TreeAbilities.durationWithSpec (kit_dur dis_shield_mastery: +2 с/ранг).
+ * 1.14.7 (Sprint 4, P1-2): вызовы PassiveListener.markHealer УДАЛЕНЫ из
+ *   applyHealWith и groupHeal — атрибуция лечения живёт в CustomHealEvent.getHealer(),
+ *   глобальный маркер больше не существует.
  */
 public final class PriestAbilities {
 
@@ -254,6 +256,7 @@ public final class PriestAbilities {
      * их ставит Spec2RoleListener.onCustomHeal на событии CustomHealEvent.
      * 1.14.7 (P0-6A): ho_surge_of_light — если rollFreeHeal=true после хила,
      * возвращаем стоимость способности в ресурс кастера (бесплатный хил).
+     * 1.14.7 (Sprint 4, P1-2): markHealer удалён — атрибуция в CustomHealEvent.
      */
     private boolean applyHealWith(Player caster, Player target, AbilityDef def,
                                   double defBase, double defCoeff, boolean treePath) {
@@ -274,7 +277,6 @@ public final class PriestAbilities {
         double amount = Math.min(treePath
                 ? thealAmount(caster, def, defBase, defCoeff)
                 : healAmount(caster, def, defBase, defCoeff), missing);
-        PassiveListener.markHealer(caster.getUniqueId());
         plugin.getHpBarService().heal(target, amount, caster);
         // 1.14.7 (P0-6A): ho_surge_of_light — бесплатный хил (refund стоимости)
         if (def.cost() > 0 && plugin.getCombat().procs().rollFreeHeal(caster)) {
@@ -307,7 +309,6 @@ public final class PriestAbilities {
 
     /** Групповой хил без спама сообщений (lightwell/divine_hymn). */
     private int groupHeal(Player caster, double radius, double amount) {
-        PassiveListener.markHealer(caster.getUniqueId());
         LAST_HEAL.put(caster.getUniqueId(), amount);
         int healed = 0;
         for (Entity e : caster.getNearbyEntities(radius, radius, radius)) {
