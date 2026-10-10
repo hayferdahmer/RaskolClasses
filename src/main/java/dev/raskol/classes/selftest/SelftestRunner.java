@@ -2,6 +2,7 @@
 package dev.raskol.classes.selftest;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.ability.WarlockMath;
 import dev.raskol.classes.attribute.AttributeMath;
@@ -69,7 +70,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 113 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 116 чеков.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
  * 22–24 (1.14.0 Б8): экономика spec2, ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
@@ -83,7 +84,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 105–107 (1.14.4): resist-школа, resetNode (с временным main), конфиг-точки;
  * 108–111 (1.14.6): пет-ядро (PetDef/PetMath/имена/ttl);
  * 112 (Sprint 1, P0-8f): PetService.attributesReady;
- * 113 (Sprint 1, P0-3): секция spec2.procs.*.amp/.cap полная в конфиге.
+ * 113 (Sprint 1, P0-3): секция spec2.procs.*.amp/.cap полная в конфиге;
+ * 114–116 (1.14.7 Sprint 3, P0-6A): kit_dur-агрегат и durationWithSpec,
+ *         attack_speed_pct через Spec2EffectsApplier, контракт C value2 (procAmp).
+ *         Чеки probe-зависимые; у класса без соответствующих узлов → skip.
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -1218,17 +1222,17 @@ public final class SelftestRunner {
         } else {
             UUID u82 = probe.getUniqueId();
             cc.removeAll(u82);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean applied1 = applyUntilOk(cc, probe, CCType.ROOT, 100);
             boolean hasBefore = cc.has(u82, CCType.ROOT);
             cc.breakOnDamage(probe, 60.0, 1000.0);
             boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
             cc.breakOnDamage(probe, 30.0, 1000.0);
             boolean hasAfterLow = cc.has(u82, CCType.ROOT);
             cc.removeAll(u82);
-            cc.resetAllDr(u82);
+            cc.resetAllDR(u82);
             boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
             if (check(report, "82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
                     ok82, "CCService.breakOnDamage",
@@ -1245,13 +1249,13 @@ public final class SelftestRunner {
         } else {
             UUID u83 = probe.getUniqueId();
             cc.removeAll(u83);
-            cc.resetAllDr(u83);
+            cc.resetAllDR(u83);
             boolean applied = applyUntilOk(cc, probe, CCType.STUN, 100);
             boolean hasBefore = cc.has(u83, CCType.STUN);
             cc.breakOnDamage(probe, 60.0, 1000.0);
             boolean hasAfter = cc.has(u83, CCType.STUN);
             cc.removeAll(u83);
-            cc.resetAllDr(u83);
+            cc.resetAllDR(u83);
             boolean ok83 = applied && hasBefore && hasAfter;
             if (check(report, "83", "STUN не снимается уроном ≥ порога",
                     ok83, "CCService.breakOnDamage",
@@ -1269,17 +1273,17 @@ public final class SelftestRunner {
             UUID u84 = probe.getUniqueId();
             dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             boolean canNormal = cg.canCast(probe, false);
             applyUntilOk(cc, probe, CCType.STUN, 100);
             boolean canStun = cg.canCast(probe, false);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             applyUntilOk(cc, probe, CCType.SILENCE, 100);
             boolean canSilenceNormal = cg.canCast(probe, false);
             boolean canSilenceInstant = cg.canCast(probe, true);
             cc.removeAll(u84);
-            cc.resetAllDr(u84);
+            cc.resetAllDR(u84);
             boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
             if (check(report, "84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
                     ok84, "CastGuard.canCast",
@@ -1371,12 +1375,12 @@ public final class SelftestRunner {
         } else {
             UUID u90 = probe.getUniqueId();
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean applied90 = applyUntilOk(cc, probe, CCType.STUN, 60);
             boolean activeVisible = !cc.activeOf(u90).isEmpty();
             boolean drVisible = cc.drState(u90, DRCategory.STUN).stackCount() >= 1;
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean cleared90 = cc.activeOf(u90).isEmpty()
                     && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
             boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
@@ -2189,6 +2193,145 @@ public final class SelftestRunner {
                 passed++;
             } else {
                 failed++;
+            }
+        }
+
+        // === 1.14.7 (Sprint 3, P0-6A): чеки 114–116 — kit_dur/attack_speed_pct/контракт C value2 ===
+
+        // 114: kit_dur-агрегат: Σ value по цели + durationWithSpec = base + bonus.
+        if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
+            skip(report, "114", "kit_dur-агрегат");
+            skipped++;
+        } else {
+            UUID pu114 = probe.getUniqueId();
+            PlayerClass pc114 = plugin.getClassProvider().getClassOf(probe);
+            KindHit kd = findKind(plugin, probe, "kit_dur");
+            if (kd == null) {
+                skip(report, "114", "kit_dur (у класса probe нет kit_dur-узлов)");
+                skipped++;
+            } else {
+                String ability114 = kd.node().effect().target();
+                Map<String, Integer> b114 = null;
+                boolean ok114;
+                String got114;
+                try {
+                    b114 = applyRank(plugin, pu114, kd.treeId(), kd.node().id(), 2);
+                    double expect = 2 * kd.node().effect().value();
+                    double gotBonus = plugin.getSpec2Service().kitDurBonus(pu114, ability114);
+                    int baseDur = TreeAbilities.durationOrKit(plugin, pc114, ability114, 7);
+                    int withSpec = TreeAbilities.durationWithSpec(plugin, pc114, ability114, 7, pu114);
+                    ok114 = Math.abs(gotBonus - expect) < 1e-9
+                            && withSpec == baseDur + (int) Math.round(expect);
+                    got114 = String.format(Locale.ROOT, "bonus=%.1f/%.1f dur=%d/%d",
+                            gotBonus, expect, withSpec, baseDur);
+                } finally {
+                    if (b114 != null) {
+                        restore(plugin, pu114, kd.treeId(), b114);
+                    }
+                }
+                if (check(report, "114", "kit_dur: agg = 2×value; durationWithSpec = base + bonus",
+                        ok114, "Spec2Service.kitDurBonus/TreeAbilities.durationWithSpec", got114)) {
+                    passed++;
+                } else {
+                    failed++;
+                }
+            }
+        }
+
+        // 115: attack_speed_pct → Spec2EffectsApplier вешает modifier на игрока.
+        if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
+            skip(report, "115", "attack_speed applier");
+            skipped++;
+        } else {
+            UUID pu115 = probe.getUniqueId();
+            KindHit as = findKind(plugin, probe, "attack_speed_pct");
+            if (as == null) {
+                skip(report, "115", "attack_speed (у класса probe нет узла)");
+                skipped++;
+            } else {
+                Map<String, Integer> b115 = null;
+                boolean ok115;
+                String got115;
+                try {
+                    b115 = applyRank(plugin, pu115, as.treeId(), as.node().id(), 2);
+                    double pct = plugin.getSpec2Service().attackSpeedPercent(pu115);
+                    boolean aggOk = Math.abs(pct - 2 * as.node().effect().value()) < 1e-9;
+                    org.bukkit.attribute.AttributeInstance ai = probe.getAttribute(
+                            io.papermc.paper.registry.RegistryAccess.registryAccess()
+                                    .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
+                                    .get(org.bukkit.NamespacedKey.minecraft("attack_speed")));
+                    boolean modPresent = ai != null && ai.getModifiers().stream()
+                            .anyMatch(m -> m.getKey().toString().equals("raskolclasses:spec2_attack_speed"));
+                    ok115 = aggOk && modPresent;
+                    got115 = "pct=" + pct + " modifier=" + modPresent;
+                } finally {
+                    if (b115 != null) {
+                        restore(plugin, pu115, as.treeId(), b115);
+                    }
+                }
+                if (check(report, "115", "attack_speed_pct: агрегат + modifier на игроке (A4 закрыт)",
+                        ok115, "Spec2Service.attackSpeedPercent/Spec2EffectsApplier", got115)) {
+                    passed++;
+                } else {
+                    failed++;
+                }
+            }
+        }
+
+        // 116: контракт C value2: proc-узел с силой за ранг → procAmp = rank×value2.
+        if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
+            skip(report, "116", "контракт C value2");
+            skipped++;
+        } else {
+            UUID pu116 = probe.getUniqueId();
+            KindHit pv = null;
+            for (String tid : plugin.getSpec2Service().classTreeIds(pu116)) {
+                Spec2Tree t = Spec2Registry.treeOf(tid);
+                if (t == null) {
+                    continue;
+                }
+                for (Spec2Node n : t.nodes()) {
+                    if (n.effect() != null && n.effect().kind() != null
+                            && n.effect().kind().startsWith("proc_")
+                            && n.effect().value2() != 0.0) {
+                        pv = new KindHit(tid, n);
+                        break;
+                    }
+                }
+                if (pv != null) {
+                    break;
+                }
+            }
+            if (pv == null) {
+                skip(report, "116", "контракт C value2 (у класса probe нет proc-узла с силой)");
+                skipped++;
+            } else {
+                Map<String, Integer> b116 = null;
+                boolean ok116;
+                String got116;
+                try {
+                    b116 = applyRank(plugin, pu116, pv.treeId(), pv.node().id(), 2);
+                    String kind = pv.node().effect().kind();
+                    String stripped = kind.substring("proc_".length());
+                    double expectAmp = 2 * pv.node().effect().value2();
+                    double expectChance = 2 * pv.node().effect().value();
+                    double gotAmp = plugin.getSpec2Service().procAmpBonus(pu116, stripped);
+                    double gotChance = plugin.getSpec2Service().procBonus(pu116, stripped);
+                    ok116 = Math.abs(gotAmp - expectAmp) < 1e-9
+                            && Math.abs(gotChance - expectChance) < 1e-9;
+                    got116 = String.format(Locale.ROOT, "%s: amp=%.2f/%.2f chance=%.2f/%.2f",
+                            stripped, gotAmp, expectAmp, gotChance, expectChance);
+                } finally {
+                    if (b116 != null) {
+                        restore(plugin, pu116, pv.treeId(), b116);
+                    }
+                }
+                if (check(report, "116", "контракт C: procAmp = rank×value2, proc = rank×value",
+                        ok116, "Spec2Service.procAmpBonus/procBonus", got116)) {
+                    passed++;
+                } else {
+                    failed++;
+                }
             }
         }
 
