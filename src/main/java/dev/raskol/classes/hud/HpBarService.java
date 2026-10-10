@@ -9,6 +9,7 @@ import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.event.CustomHealEvent;
+import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.storage.SafeStorage;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
@@ -28,8 +29,10 @@ import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -43,14 +46,26 @@ import java.util.logging.Logger;
  * 1.14.6-fix (Спринт 1, P0-8d): onQuit НЕ перезаписывает health.yml, если pendingRestore
  *         ещё не применился (applies==0): ранее релог в первые ~5 с писал в файл
  *         неподтверждённый (клампнутый к 100) ratio и портил сохранённое здоровье.
+ * 1.14.7 (Спринт 4, P1-7): дисковый IO health.yml переведён на dirty-flush.
+ *         saveHealth() обновляет in-memory healthStore и помечает игрока dirty;
+ *         flushDirty() пишет файл один раз при наличии dirty — периодически
+ *         (storage.health-flush-seconds, дефолт 60) и при onDisable (saveAll).
+ *         onQuit с применённым restore делает одиночный flush для надёжности
+ *         против краша; onQuit до restore (applies==0) по-прежнему не пишет файл.
+ * 1.14.7 (Спринт 4, P1-8): шкала ресурса в unified-actionbar нормируется на
+ *         ResourceState.getEffectiveMax(), а не на константу MAX_VALUE=100.
+ *         Текст рядом с баром показывает «res/effectiveMax» вместо «res/100»;
+ *         gradientBar клампует fraction в [0,1], поэтому ресурс выше 100
+ *         (через узлы resource_max + setCeiling) корректно растягивает бар.
  */
 public final class HpBarService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
-    private static final double MAX_VALUE = 100.0;
+    private static final double LEGACY_MAX_VALUE = 100.0;
     private static final long RESTORE_TIMEOUT_MS = 5_000L;
     private static final long REAPPLY_WINDOW_MS = 3_000L;
     private static final int REAPPLY_MAX = 3;
+    private static final int DEFAULT_FLUSH_SECONDS = 60;
 
     private record State(double lastHp, double lastRes) {
     }
@@ -67,7 +82,13 @@ public final class HpBarService implements Listener {
     private final Map<UUID, Double> lastAppliedDelta = new ConcurrentHashMap<>();
     private final Map<UUID, Pending> pendingRestore = new ConcurrentHashMap<>();
 
+    /** 1.14.7 (P1-7): игроки, чьи HP-записи обновлены в памяти, но не записаны на диск. */
+    private final Set<UUID> dirtySinceLastFlush = new HashSet<>();
+    /** 1.14.7 (P1-7): есть хотя бы один dirty — нужно вызвать SafeStorage.saveAtomic. */
+    private volatile boolean storeDirty = false;
+
     private long tickCounter = 0L;
+    private long lastFlushAt = System.currentTimeMillis();
 
     private record NamespacedKeyHolder(org.bukkit.NamespacedKey key) {
     }
@@ -77,7 +98,7 @@ public final class HpBarService implements Listener {
         this.maxHpKey = new NamespacedKeyHolder(new org.bukkit.NamespacedKey(plugin, "max_hp"));
         this.healthFile = new File(plugin.getDataFolder(), "health.yml");
         this.healthStore = SafeStorage.loadWithFallback(healthFile, LOGGER);
-        LOGGER.info("HpBarService: deferred-restore (1.14.4-fix2) active");
+        LOGGER.info("HpBarService: deferred-restore (1.14.4-fix2) + dirty-flush (1.14.7 P1-7) active");
     }
 
     private AttributeService attrs() {
@@ -149,6 +170,15 @@ public final class HpBarService implements Listener {
         return Math.max(1, plugin.getConfig().getInt("hp-display.update-period-ticks", 10));
     }
 
+    /** 1.14.7 (P1-7): интервал flush в миллисекундах (дефолт 60 с). */
+    private long flushIntervalMillis() {
+        int secs = plugin.getConfig().getInt("storage.health-flush-seconds", DEFAULT_FLUSH_SECONDS);
+        if (secs <= 0) {
+            secs = DEFAULT_FLUSH_SECONDS;
+        }
+        return secs * 1000L;
+    }
+
     private TextColor color(String path, String fallback) {
         String hex = plugin.getConfig().getString(path, fallback);
         if (hex != null) {
@@ -167,10 +197,15 @@ public final class HpBarService implements Listener {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, period(), period());
     }
 
+    /**
+     * 1.14.7 (P1-7): обновляет in-memory healthStore для всех онлайн-игроков
+     * и выполняет один flush на диск. Вызывается из onDisable.
+     */
     public void saveAll() {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             saveHealth(player);
         }
+        flushDirty();
     }
 
     private void tick() {
@@ -196,6 +231,13 @@ public final class HpBarService implements Listener {
         lastTick.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
         lastAppliedDelta.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
         pendingRestore.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
+        dirtySinceLastFlush.removeIf(id -> plugin.getServer().getPlayer(id) == null);
+
+        // 1.14.7 (P1-7): периодический flush dirty-игроков на диск.
+        long now = System.currentTimeMillis();
+        if (storeDirty && now - lastFlushAt >= flushIntervalMillis()) {
+            flushDirty();
+        }
     }
 
     private void tickPendingRestore(Player player, UUID uuid) {
@@ -281,6 +323,11 @@ public final class HpBarService implements Listener {
         }
     }
 
+    /**
+     * 1.14.7 (P1-7): in-memory обновление healthStore + dirty-mark.
+     * Файл на диск НЕ пишется — flushDirty() сделает это один раз при следующем
+     * периодическом flush или на saveAll/onQuit-с-applies.
+     */
     private void saveHealth(Player player) {
         double formula = attrs().maxHp(player.getUniqueId());
         if (formula <= 0.0) {
@@ -288,7 +335,23 @@ public final class HpBarService implements Listener {
         }
         double ratio = Math.max(0.0, Math.min(1.0, attrs().currentFormulaHp(player) / formula));
         healthStore.set(player.getUniqueId().toString(), ratio);
+        dirtySinceLastFlush.add(player.getUniqueId());
+        storeDirty = true;
+    }
+
+    /**
+     * 1.14.7 (P1-7): одна атомарная запись файла на диск, если есть dirty-игроки.
+     * Сбрасывает флаг и множество. Вызывается из tick (периодически),
+     * saveAll (onDisable) и onQuit (одиночный игрок с применённым restore).
+     */
+    private void flushDirty() {
+        if (!storeDirty) {
+            return;
+        }
         SafeStorage.saveAtomic(healthStore, healthFile, LOGGER);
+        dirtySinceLastFlush.clear();
+        storeDirty = false;
+        lastFlushAt = System.currentTimeMillis();
     }
 
     private double readRatio(UUID uuid) {
@@ -352,14 +415,29 @@ public final class HpBarService implements Listener {
         }
     }
 
+    /**
+     * 1.14.7 (P1-8): шкала ресурса нормируется на ResourceState.getEffectiveMax(),
+     * а не на константу MAX_VALUE=100. Текст рядом с баром показывает
+     * «res/effectiveMax» — корректно растягивает бар для потолка > 100
+     * (через узлы resource_max + setCeiling из spec2).
+     */
     private void sendUnifiedActionbar(Player player) {
-        double formula = attrs().maxHp(player.getUniqueId());
+        UUID uuid = player.getUniqueId();
+        double formula = attrs().maxHp(uuid);
         double hpFormula = attrs().currentFormulaHp(player);
-        double res = plugin.getResources().getValue(player.getUniqueId());
+        ResourceState state = plugin.getResources().stateOf(uuid);
+        double res = state.getValue();
+        double effectiveMax = state.getEffectiveMax();
+        // Защита от деления на ноль: ResourceState инициализирует effectiveMax=100
+        // и setCeiling игнорирует ≤ 0 / NaN — но на всякий случай.
+        if (effectiveMax <= 0.0 || !Double.isFinite(effectiveMax)) {
+            effectiveMax = LEGACY_MAX_VALUE;
+        }
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         int len = gaugeLength();
         boolean gauge = gaugeEnabled();
         double hpFraction = formula <= 0 ? 0 : hpFormula / formula;
+        double resFraction = Math.max(0.0, Math.min(1.0, res / effectiveMax));
 
         TextColor frame = color("hp-display.colors.frame", "#8B5A3C");
         TextColor empty = color("hp-display.colors.gauge-empty", "#6E5232");
@@ -380,7 +458,6 @@ public final class HpBarService implements Listener {
                 : numbers;
         String symbol = symbolOf(pc);
 
-        UUID uuid = player.getUniqueId();
         State prev = lastTick.get(uuid);
         boolean sparkActive = sparkEnabled() && prev != null;
         boolean hpRegen = sparkActive && hpFormula > prev.lastHp() + 0.5;
@@ -399,12 +476,12 @@ public final class HpBarService implements Listener {
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
-            line = line.append(gradientBar(res / MAX_VALUE, len,
+            line = line.append(gradientBar(resFraction, len,
                             gradientEnabled() ? resStart : resEnd, resEnd, empty,
                             resRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
-        line = line.append(Component.text((int) res + "/100", numbers))
+        line = line.append(Component.text((int) res + "/" + (int) effectiveMax, numbers))
                 .append(Component.text(" ❭", frame));
         player.sendActionBar(line);
     }
@@ -481,6 +558,11 @@ public final class HpBarService implements Listener {
      * здоровье в health.yml НЕ перезаписывается: текущее значение — артефакт
      * клампа к formula=100 до загрузки класса, а не реальное HP игрока.
      * Старый ratio из файла переживёт релог и применится при следующем входе.
+     *
+     * 1.14.7 (P1-7): при applies > 0 помечаем dirty и делаем одиночный flush —
+     * это защищает от потери данных при внезапном краше сервера между
+     * периодическими flush. Массовый выход (shutdown) идёт через saveAll() →
+     * один flush на всех.
      */
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
@@ -496,6 +578,8 @@ public final class HpBarService implements Listener {
             return;
         }
         saveHealth(player);
+        // 1.14.7 (P1-7): одиночный flush на диск при выходе игрока с применённым restore.
+        flushDirty();
         lastTick.remove(uuid);
         lastAppliedDelta.remove(uuid);
     }
