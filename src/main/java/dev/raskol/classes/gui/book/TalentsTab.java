@@ -35,10 +35,14 @@ import java.util.concurrent.ConcurrentHashMap;
  *   расширен до 9 слотов для покрытия всех узлов ряда.
  * 1.14.4 (Волна 4, П7): респец узла через ПКМ (взвод 30 с → подтверждение).
  * 1.14.7 (Спринт 2, P1-3): purgeOfflineSessions() чистит VIEW_ROW/VIEW_SPEC/
- *   NODE_RESET_ARM/RESET_ARM для оффлайн-игроков на каждом render — static-карты
- *   больше не текут памятью между сессиями.
+ *   NODE_RESET_ARM/RESET_ARM для оффлайн-игроков на каждом render.
  * 1.14.7 (Спринт 2, P0-6B): узлы из spec2.disabled-nodes рендерятся серыми с lore
  *   «в разработке», клик возвращает NODE_DISABLED без траты очков.
+ * 1.14.7 (Спринт 4, P1-3): clearSession(UUID) — точечная чистка на PlayerQuitEvent
+ *   (вызывается из RaskolClasses.onQuit); purge-on-render остаётся как страховка.
+ * 1.14.7 (Спринт 4, P1-4): гейты рядов читаются через Spec2Points.rowGate(row)
+ *   (аксессор immutable-снимка), deprecated-поля больше не используются.
+ * 1.14.7 (Спринт 4, P1-5): сообщение HAS_DEPENDENTS в switch результата респеца.
  */
 public final class TalentsTab implements BookTabView {
 
@@ -59,7 +63,21 @@ public final class TalentsTab implements BookTabView {
         return ClassBook.Tab.TALENTS;
     }
 
-    /** 1.14.7 (P1-3): чистка сессионных карт для оффлайн-игроков. */
+    /**
+     * 1.14.7 (Sprint 4, P1-3): точечная чистка сессионного состояния игрока.
+     * Вызывается из RaskolClasses.onQuit; идемпотентна и потокобезопасна.
+     */
+    public static void clearSession(UUID uuid) {
+        if (uuid == null) {
+            return;
+        }
+        VIEW_ROW.remove(uuid);
+        VIEW_SPEC.remove(uuid);
+        NODE_RESET_ARM.remove(uuid);
+        RESET_ARM.remove(uuid);
+    }
+
+    /** 1.14.7 (P1-3): чистка сессионных карт для оффлайн-игроков (страховка render). */
     private static void purgeOfflineSessions() {
         VIEW_ROW.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
         VIEW_SPEC.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
@@ -124,7 +142,7 @@ public final class TalentsTab implements BookTabView {
         VIEW_ROW.put(uuid, row);
 
         // --- инфо текущего ряда + прогресс 6 рядов + бюджет ---
-        int gate = Spec2Points.ROW_GATES[row - 1];
+        int gate = Spec2Points.rowGate(row); // 1.14.7 (P1-4): аксессор снимка
         boolean rowOpen = inTree >= gate;
         List<Spec2Node> nodes = rowNodes(tree, row);
 
@@ -286,7 +304,7 @@ public final class TalentsTab implements BookTabView {
         int inTree = tree.spentInTree(ranks);
         Component acc = Component.empty();
         for (int r = 1; r <= ROW_COUNT; r++) {
-            int g = Spec2Points.ROW_GATES[r - 1];
+            int g = Spec2Points.rowGate(r); // 1.14.7 (P1-4): аксессор снимка
             boolean open = inTree >= g;
             String sym = (r == ROW_COUNT ? "★" : (open ? "✔" : "🔒"));
             NamedTextColor col = r == ROW_COUNT
@@ -451,6 +469,9 @@ public final class TalentsTab implements BookTabView {
                 case POOR -> "Не хватает монет на респец.";
                 case NO_ECONOMY -> "Экономика недоступна.";
                 case RATE_LIMITED -> "Слишком часто.";
+                // 1.14.7 (Sprint 4, P1-5): узел нужен другим купленным узлам/гейтам рядов
+                case HAS_DEPENDENTS -> "«" + node.name() + "» нельзя снять: от него зависят"
+                        + " купленные узлы или открытые ряды. Сначала сними зависимые.";
             }, result == Spec2Service.NodeResetResult.OK
                     ? NamedTextColor.GREEN : NamedTextColor.RED));
             ctx.refresh();
@@ -494,7 +515,7 @@ public final class TalentsTab implements BookTabView {
         boolean isOwned = rank > 0;
         boolean maxed = rank >= node.maxRank();
         boolean disabled = plugin.getSpec2Service().nodeDisabled(node.id());
-        int gate = Spec2Points.ROW_GATES[node.row() - 1];
+        int gate = Spec2Points.rowGate(node.row()); // 1.14.7 (P1-4): аксессор снимка
         boolean rowOk = inTree >= gate;
         boolean prereqOk = tree.prereqsMet(node, ranks);
         boolean affordable = available >= 1;
@@ -619,6 +640,7 @@ public final class TalentsTab implements BookTabView {
             case "cd" -> "−" + (int) Math.round(e.value() * 100)
                     + "% кулдауна «" + e.target() + "» за ранг";
             case "kit_cd" -> "−" + (int) e.value() + " с кулдауна «" + e.target() + "» за ранг";
+            case "kit_dur" -> "+" + (int) e.value() + " с длительности «" + e.target() + "» за ранг";
             case "regen" -> "+" + (int) e.value() + " ресурс/с за ранг";
             case "avoid" -> "+" + (int) e.value() + "% "
                     + ("dodge".equals(e.target()) ? "уклонения" : "парирования") + " за ранг";
