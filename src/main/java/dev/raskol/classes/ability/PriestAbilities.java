@@ -51,6 +51,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Sprint 3, P0-6A): ho_surge_of_light — после успешного хила, если
  *   ProcService.rollFreeHeal возвращает true, стоимость способности возвращается
  *   в ресурс кастера (refund). Реализация через единый proc free_heal.
+ * 1.14.7 (Sprint 3, P0-6A): aegisFaith читает длительность через
+ *   TreeAbilities.durationWithSpec (kit_dur dis_shield_mastery: +2 с/ранг).
  */
 public final class PriestAbilities {
 
@@ -369,12 +371,15 @@ public final class PriestAbilities {
         return true;
     }
 
+    /**
+     * 1.14.7 (P0-6A): длительность через durationWithSpec (dis_shield_mastery: +2 с/ранг).
+     */
     public boolean aegisFaith(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
         double b = base(def, 12.0) + plugin.getSpec2Service().baseBonus(uuid, def.id());
         double c = coeff(def, 0.04) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         double grant = b + plugin.getCombat().powers().healPower(uuid) * c;
-        int secs = duration(def, 5);
+        int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 5, uuid);
         plugin.getResists().addTimedModifier(uuid, def.id(), grant, grant, secs * 1000L);
         castFx(p, "aegis_faith", "ITEM_ARMOR_EQUIP_DIAMOND", "ENCHANTED_HIT", 0.6f, 1.0f, 20);
         plugin.getFx().startAura(uuid, Particle.ENCHANTED_HIT, secs * 20, 3,
