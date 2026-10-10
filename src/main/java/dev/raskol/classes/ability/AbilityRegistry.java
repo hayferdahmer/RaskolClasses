@@ -55,8 +55,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *         Удалены дубли treeUnlocked() из шести китов (Warrior/Hunter/Rogue/Mage/
  *         Priest/Warlock): централизованный гейт в castOn покрывает все 69
  *         древесных методов. Для игрока поведение идентично — текст отказа
- *         «откроется узлом дерева путей …» тот же, но теперь гарантированно
- *         единый источник истины.
+ *         «откроется узлом дерева путей …» тот же, но теперь источник один.
  */
 public final class AbilityRegistry {
 
@@ -597,6 +596,20 @@ public final class AbilityRegistry {
                     NamedTextColor.GREEN));
         }
         return true;
+    }
+
+    /**
+     * 1.14.7 (Sprint 4, P1-6, чек 118): read-only проверка антиспам-метки.
+     * Возвращает true, если для (uuid, abilityId) есть свежая метка (< 60 с).
+     * Используется selftest для подтверждения: гейтованный каст метку НЕ ставит.
+     */
+    public boolean hasAttemptMark(UUID uuid, String abilityId) {
+        Map<String, Long> attempts = lastAttempts.get(uuid);
+        if (attempts == null) {
+            return false;
+        }
+        Long ts = attempts.get(abilityId);
+        return ts != null && System.currentTimeMillis() - ts < 60_000L;
     }
 
     public void clearAttempts(UUID uuid) {
