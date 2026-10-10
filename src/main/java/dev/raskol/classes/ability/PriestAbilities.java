@@ -55,6 +55,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Sprint 4, P1-2): вызовы PassiveListener.markHealer УДАЛЕНЫ из
  *   applyHealWith и groupHeal — атрибуция лечения живёт в CustomHealEvent.getHealer(),
  *   глобальный маркер больше не существует.
+ * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
+ *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
+ *   («откроется узлом дерева путей Жреца.»), поведение игрока не изменилось.
  */
 public final class PriestAbilities {
 
@@ -137,15 +140,6 @@ public final class PriestAbilities {
         double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
         double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         return plugin.getCombat().powers().abilityDamage(uuid, tpower(def), b, c);
-    }
-
-    private boolean treeUnlocked(Player p, AbilityDef def) {
-        if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
-            return true;
-        }
-        p.sendMessage(Component.text("«" + def.displayName()
-                + "» откроется узлом дерева путей Жреца.", NamedTextColor.GRAY));
-        return false;
     }
 
     private void noTarget(Player p) {
@@ -445,12 +439,10 @@ public final class PriestAbilities {
     }
 
     /* --------------------- древесные способности (1.14.0, контент-долг 5) --------------------- */
+    /* 1.14.7 (Sprint 4, P1-6): вызовы treeUnlocked() удалены — гейт централизован в castOn. */
 
     /** discipline T2: очищение союзника (или себя): все CC + все DoT. */
     public boolean purge(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         Player target = allyRayTarget(p, 20);
         if (target == null) {
             target = p;
@@ -467,9 +459,6 @@ public final class PriestAbilities {
 
     /** discipline T4: −40% входящего урона цели на 5 с (Resistance II). */
     public boolean painSuppression(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         Player target = allyRayTarget(p, 20);
         if (target == null) {
             target = p;
@@ -485,9 +474,6 @@ public final class PriestAbilities {
 
     /** discipline T6 (ульт): щит-пул = 30% последнего хила, себе и союзникам r6, 8 с. */
     public boolean spiritShell(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
         double last = LAST_HEAL.getOrDefault(p.getUniqueId(), 0.0);
         double shieldFormula = last * 0.30;
@@ -515,9 +501,6 @@ public final class PriestAbilities {
 
     /** holy T2: быстрый хил союзника (или себя), сильнее Слезы, короче КД. */
     public boolean flashHeal(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         Player target = allyRayTarget(p, 20);
         if (target == null) {
             target = p;
@@ -533,9 +516,6 @@ public final class PriestAbilities {
 
     /** holy T5: зона-хил: 4 тика по 2 с, +2 HP/с-эквивалент союзникам r4. */
     public boolean lightwell(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 4.0);
         double per = thealAmount(p, def, 6.0, 0.3);
         UUID pid = p.getUniqueId();
@@ -559,9 +539,6 @@ public final class PriestAbilities {
 
     /** holy T6 (ульт): канал 3 с: 3 тика группового хила r8 + очищение DoT NATURE/SHADOW. */
     public boolean divineHymn(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 8.0);
         double per = thealAmount(p, def, 10.0, 0.5);
         UUID pid = p.getUniqueId();
@@ -589,9 +566,6 @@ public final class PriestAbilities {
 
     /** shadow T2: маг-урон + DoT wither (SHADOW). */
     public boolean witheringTouch(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -611,9 +585,6 @@ public final class PriestAbilities {
 
     /** shadow T4: канал 3 с: 3 тика маг-урона + SLOW (cc.types.SLOW.slow-mult) на всё время. */
     public boolean mindFlay(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -651,9 +622,6 @@ public final class PriestAbilities {
      * 1.14.6-fix (P0-8a): любой не-OK результат = false (refund + без кулдауна).
      */
     public boolean shadowfiend(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
