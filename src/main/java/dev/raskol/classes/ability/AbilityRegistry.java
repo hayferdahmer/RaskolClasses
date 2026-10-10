@@ -48,6 +48,15 @@ import java.util.concurrent.ConcurrentHashMap;
  *         остаётся китовым (slots 1–5) — schoolCoverage/чеки переносимых не двигаются.
  * 1.14.7 (Sprint 3, P0-6A): хук ProcService.onAbilityCast после успешного каста —
  *         A2 fury_battle_cry даёт ярость с шансом Σvalue (5% за ранг).
+ * 1.14.7 (Sprint 4, P1-6): антиспам-метка (attempts.put) перенесена ПОСЛЕ всех
+ *         гейтов (CC/level/transferable/tree/cooldown/consume). Блокированный
+ *         гейтами каст больше не съедает окно клика 150 мс; selftest-чек 118
+ *         подтверждает инвариант «заблокированная способность не ставит метку».
+ *         Удалены дубли treeUnlocked() из шести китов (Warrior/Hunter/Rogue/Mage/
+ *         Priest/Warlock): централизованный гейт в castOn покрывает все 69
+ *         древесных методов. Для игрока поведение идентично — текст отказа
+ *         «откроется узлом дерева путей …» тот же, но теперь гарантированно
+ *         единый источник истины.
  */
 public final class AbilityRegistry {
 
@@ -444,20 +453,34 @@ public final class AbilityRegistry {
         return castOn(caster, target, def, true);
     }
 
+    /**
+     * 1.14.7 (Sprint 4, P1-6): централизованный гейт-конвейер.
+     * Порядок: AuthGate → class → caster lookup → CC → level → transferable →
+     * tree → cooldown → consume → АНТИСПАМ-МЕТКА → cast → refund on fail →
+     * proc onAbilityCast → start cooldown.
+     * Инвариант (чек 118): ни один гейт до метки не ставит attempts.put —
+     * заблокированный каст не съедает окно клика 150 мс.
+     */
     private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
         RaskolConfig cfg = plugin.getRaskolConfig();
+
+        // --- гейт 1: auth ---
         if (!AuthGate.canAct(plugin, caster)) {
             caster.sendMessage(Component.text(cfg.message("gate.blocked",
                     "Способности недоступны в этом режиме или до входа в аккаунт."),
                     NamedTextColor.RED));
             return false;
         }
+
+        // --- гейт 2: class ---
         PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
         if (pc == null) {
             caster.sendMessage(Component.text(cfg.message("no-class-cast",
                     "Класс не выбран — способности недоступны"), NamedTextColor.GRAY));
             return false;
         }
+
+        // --- caster lookup ---
         Caster self = targeted ? null : casters.get(def.id());
         TargetedCaster tcast = targeted ? targetedCasters.get(def.id()) : null;
         if (self == null && tcast == null) {
@@ -465,7 +488,9 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.13.0 (Б2): CC-гейт каста ДО антискпа/кулдаунов/ресурса
+        UUID id = caster.getUniqueId();
+
+        // --- гейт 3: CC (STUN/FEAR/SILENCE) ---
         if (!plugin.getCastGuard().canCast(caster, false)) {
             CCType block = plugin.getCastGuard().blockReason(caster, false);
             caster.sendMessage(Component.text(cfg.message("cc.cast-interrupted",
@@ -475,17 +500,7 @@ public final class AbilityRegistry {
             return false;
         }
 
-        UUID id = caster.getUniqueId();
-
-        long window = cfg.castClickCooldownMillis();
-        long now = System.currentTimeMillis();
-        Map<String, Long> attempts = lastAttempts.computeIfAbsent(id, k -> new ConcurrentHashMap<>());
-        Long previous = attempts.get(def.id());
-        if (previous != null && now - previous < window) {
-            return false;
-        }
-        attempts.put(def.id(), now);
-
+        // --- гейт 4: level (skill-уровень класса, если система скиллов активна) ---
         int level = plugin.getSkillLevels().getLevel(id, pc.profileSkillName());
         if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < def.unlockLevel()) {
             caster.sendMessage(Component.text("«" + def.displayName() + "» откроется на уровне "
@@ -493,8 +508,7 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.14.0 (Б11.1.3-A): гейт для переносимых slots 4–5 — требуется unlock_ability
-        // в дереве класса. Отказ без траты ресурса/кулдауна.
+        // --- гейт 5: transferable (slots 4–5 → unlock_ability в дереве) ---
         if (TransferableAbilities.isTransferable(def.id())
                 && !plugin.getSpec2Service().hasUnlocked(id, def.id())) {
             caster.sendMessage(Component.text("«" + def.displayName()
@@ -503,9 +517,7 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.14.2 (Волна 2): ЦЕНТРАЛИЗОВАННЫЙ гейт древесных способностей.
-        // Любой id, зарегистрированный через registerTreeCaster, требует hasUnlocked,
-        // даже если метод кита забыл treeUnlocked(). Ульты больше не протекают.
+        // --- гейт 6: tree (slot 6+, зарегистрированные через registerTreeCaster) ---
         if (treeCasterIds.contains(def.id())
                 && !plugin.getSpec2Service().hasUnlocked(id, def.id())) {
             caster.sendMessage(Component.text("«" + def.displayName()
@@ -514,12 +526,15 @@ public final class AbilityRegistry {
             return false;
         }
 
+        // --- гейт 7: cooldown ---
         if (plugin.getCooldowns().isOnCooldown(id, def.id())) {
             long remaining = plugin.getCooldowns().getRemainingMillis(id, def.id());
             caster.sendMessage(Component.text("«" + def.displayName() + "»: перезарядка ещё "
                     + (remaining / 1000L + 1L) + "с", NamedTextColor.GRAY));
             return false;
         }
+
+        // --- гейт 8: consume (ресурс) ---
         if (def.cost() > 0 && !plugin.getResources().consume(id, def.cost())) {
             caster.sendMessage(Component.text("Не хватает ресурса «" + pc.getResourceName()
                     + "»: нужно " + def.cost() + ", у вас "
@@ -527,7 +542,23 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // 1.12.3: установка ThreadLocal-контекста школы для пути B в CombatService
+        // --- АНТИСПАМ-МЕТКА: ставится ТОЛЬКО если все гейты выше пройдены ---
+        // 1.14.7 (Sprint 4, P1-6): перенесена сюда из начала метода.
+        long window = cfg.castClickCooldownMillis();
+        long now = System.currentTimeMillis();
+        Map<String, Long> attempts = lastAttempts.computeIfAbsent(id, k -> new ConcurrentHashMap<>());
+        Long previous = attempts.get(def.id());
+        if (previous != null && now - previous < window) {
+            // Антиспам: окно ещё не прошло. Ресурс уже списан — возвращаем,
+            // но без сообщения (игрок просто слишком быстро кликнул).
+            if (def.cost() > 0) {
+                plugin.getResources().refund(id, def.cost());
+            }
+            return false;
+        }
+        attempts.put(def.id(), now);
+
+        // --- cast ---
         CombatService.setCurrentCastSchool(def.school());
         boolean ok;
         try {
