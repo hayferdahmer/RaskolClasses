@@ -3,6 +3,7 @@ package dev.raskol.classes.ability.passive;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.event.CustomHealEvent;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -25,10 +26,14 @@ import java.util.UUID;
  *     роль HEALER) живёт ТОЛЬКО в Spec2RoleListener.onCustomHeal (CustomHealEvent),
  *     входящий множитель роли (heal_received_pct, TANK) — в Spec2RoleListener.onRegain,
  *     ресурс-он-хил — в ResourceService.onCustomHeal (Sprint 2);
- *   - ClassPassive.onHealOut остаётся в интерфейсе как deprecated-пустой до волны 4.6:
- *     диспетчера у него больше нет (ванильный regain не имеет атрибуции целителя,
- *     а mark-атрибуция была источником misattribution-багов P1-2).
- *   Итог: одно лечение = один множитель, глобального mutable-состояния в слушателе нет.
+ *   - ClassPassive.onHealOut остаётся в интерфейсе как @Deprecated-пустой.
+ *
+ * 1.14.7 (Sprint 4, P1-1 миграция): onCustomHeal — диспетчер пассивок на пути
+ *   лечения китов (CustomHealEvent). Приоритет HIGHEST — срабатывает ДО
+ *   Spec2RoleListener.onCustomHeal (HIGH), поэтому пассивка (напр. «Благодать» Жреца)
+ *   умножает базовый amount первым, а spec2-множители — вторым.
+ *   Диспетчеризация — по классу ЦЕЛИТЕЛЯ (Player healer из события).
+ *   Цели-игроки не диспетчерятся: их входящие модификаторы — в Spec2RoleListener.
  */
 public final class PassiveListener implements Listener {
 
@@ -66,6 +71,33 @@ public final class PassiveListener implements Listener {
             if (pv != null) {
                 pv.onDamageIn(event, victim, event.getDamage());
             }
+        }
+    }
+
+    /**
+     * 1.14.7 (Sprint 4, P1-1): диспетчер пассивок-целителей на пути лечения китов.
+     * Приоритет HIGHEST: этот обработчик срабатывает ДО Spec2RoleListener.onCustomHeal
+     * (HIGH), поэтому пассивка класса (например, «Благодать» Жреца ×1.15) применяется
+     * к базовому heal-amount, а spec2-множители (heal_out_pct × HEALER) — после.
+     * Диспетчеризация — по классу ЦЕЛИТЕЛЯ (Player healer). Если healer null или
+     * не игрок — диспетчеризации нет (лечение без атрибуции).
+     */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onCustomHeal(CustomHealEvent event) {
+        Player healer = event.getHealer();
+        if (healer == null) {
+            return;
+        }
+        if (event.getAmount() <= 0.0) {
+            return;
+        }
+        PlayerClass healerClass = plugin.getClassProvider().getClassOf(healer);
+        if (healerClass == null) {
+            return;
+        }
+        ClassPassive p = passives.get(healerClass);
+        if (p != null) {
+            p.onCustomHealOut(event, healer);
         }
     }
 }
