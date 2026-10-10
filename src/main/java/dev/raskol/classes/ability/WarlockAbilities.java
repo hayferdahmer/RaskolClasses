@@ -59,10 +59,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   summon (включая ALREADY) — castOn делает refund и не запускает кулдаун.
  * 1.14.7 (Sprint 2, P0-5): base()/coeff() БОЛЬШЕ не единственная точка чтения чисел —
  *   kitBase()/kitCoeff() добавляют spec2-хуки baseBonus/coeffMult, как в пяти других
- *   китах. Без этого 8 kit_base/kit_mult-узлов Чернокнижника (af_withering_enh,
- *   af_haunt, de_fire_brimstone, de_immolate_enh, de_chaos_prep_enh,
- *   dm_demonic_knowledge, dm_dreadfire_enh, dm_demonic_empowerment) были мертвы:
- *   spellDamage/tspellDamage/unwriting/soulRift читали числа в обход агрегата.
+ *   китах. Без этого 8 kit_base/kit_mult-узлов Чернокнижника были мертвы.
+ * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
+ *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
+ *   («откроется узлом дерева путей Чернокнижника.»), поведение игрока не изменилось.
  */
 public final class WarlockAbilities implements Listener {
 
@@ -275,15 +275,6 @@ public final class WarlockAbilities implements Listener {
     private LivingEntity rayTarget(Player p, double range) {
         Entity e = p.getTargetEntity((int) range);
         return e instanceof LivingEntity le ? le : null;
-    }
-
-    private boolean treeUnlocked(Player p, AbilityDef def) {
-        if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
-            return true;
-        }
-        p.sendMessage(Component.text("«" + def.displayName()
-                + "» откроется узлом дерева путей Чернокнижника.", NamedTextColor.GRAY));
-        return false;
     }
 
     private void noTarget(Player p) {
@@ -548,12 +539,10 @@ public final class WarlockAbilities implements Listener {
     }
 
     /* --------------------- древесные способности (1.14.0, контент-долг 6) --------------------- */
+    /* 1.14.7 (Sprint 4, P1-6): вызовы treeUnlocked() удалены — гейт централизован в castOn. */
 
     /** affliction T2: маг-урон + DoT wither +6 Скверны. */
     public boolean withering(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(caster, 20);
         if (t == null || t.isDead()) {
             noTarget(caster);
@@ -575,9 +564,6 @@ public final class WarlockAbilities implements Listener {
 
     /** affliction T5: дрейн: урон + хил 50% + Скверна; у цели-игрока −10 её ресурса. */
     public boolean soulSiphon(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(caster, 20);
         if (t == null || t.isDead()) {
             noTarget(caster);
@@ -605,9 +591,6 @@ public final class WarlockAbilities implements Listener {
 
     /** affliction T6 (ульт): детонация стеков wither: урон = стеки × base; +Скверна за стек. */
     public boolean soulHarvest(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(caster, 20);
         if (t == null || t.isDead()) {
             noTarget(caster);
@@ -635,9 +618,6 @@ public final class WarlockAbilities implements Listener {
 
     /** destruction T2: маг-урон + горение +6 Скверны. */
     public boolean immolate(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(caster, 20);
         if (t == null || t.isDead()) {
             noTarget(caster);
@@ -659,9 +639,6 @@ public final class WarlockAbilities implements Listener {
 
     /** destruction T4: тяжёлый маг-урон; цель получает −20% маг-резиста на 5 с. */
     public boolean chaosBolt(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(caster, 20);
         if (t == null || t.isDead()) {
             noTarget(caster);
@@ -682,9 +659,6 @@ public final class WarlockAbilities implements Listener {
 
     /** destruction T5: детонация стеков burning: урон = стеки × base; огонь сгорает. */
     public boolean conflagrate(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(caster, 20);
         if (t == null || t.isDead()) {
             noTarget(caster);
@@ -711,9 +685,6 @@ public final class WarlockAbilities implements Listener {
 
     /** demonology T2: маг-урон + горение (тёмный окрас VFX) +6 Скверны. */
     public boolean dreadfire(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(caster, 20);
         if (t == null || t.isDead()) {
             noTarget(caster);
@@ -739,9 +710,6 @@ public final class WarlockAbilities implements Listener {
      * 1.14.6-fix (P0-8a): любой не-OK результат = false (refund + без кулдауна).
      */
     public boolean summonDemon(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(caster, 20);
         if (t == null || t.isDead()) {
             noTarget(caster);
@@ -768,9 +736,6 @@ public final class WarlockAbilities implements Listener {
 
     /** demonology T5: пакт: +10% INT себе на 10 с; +8 Скверны. */
     public boolean demonicPact(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
         double intNow = plugin.getAttributes().value(caster.getUniqueId(),
                 dev.raskol.classes.attribute.AttributeType.INT);
@@ -791,9 +756,6 @@ public final class WarlockAbilities implements Listener {
      * Сила II + Сопротивление I +30 Скверны на 10 с — баффы игрока (остаются в ките).
      */
     public boolean demonSoul(Player caster, AbilityDef def) {
-        if (!treeUnlocked(caster, def)) {
-            return false;
-        }
         UUID cid = caster.getUniqueId();
         LivingEntity demon = plugin.getPets().petOf(caster);
         if (demon == null) {
