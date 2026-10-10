@@ -31,10 +31,17 @@ import java.util.concurrent.ConcurrentHashMap;
  *         Spec2Points.configure (П9), spec2-storage.yml (П10).
  * 1.14.6-fix (Sprint 1, P0-2): default-ветка accumulate срезает префикс "proc_".
  * 1.14.7 (Sprint 2, P0-6B): стоп-лист spec2.disabled-nodes (NODE_DISABLED + прунинг).
- * 1.14.7 (Sprint 3, P0-3 вариант C): agg.procAmp — сумма value2 proc-узлов
- *         (сила за ранг); ProcService.strength() читает её раньше конфига.
- * 1.14.7 (Sprint 3, P0-6A): agg.kitDur — бонус длительности способностей из
- *         kit_dur-узлов (ключ = abilityId, значение = секунды за ранг).
+ * 1.14.7 (Sprint 3, P0-3 вариант C): agg.procAmp — сумма value2 proc-узлов.
+ * 1.14.7 (Sprint 3, P0-6A): agg.kitDur — бонус длительности по цели (abilityId).
+ * 1.14.7 (Sprint 4, P1-5): resetNode отклоняется результатом HAS_DEPENDENTS, если
+ *         после снятия ранга купленный включённый узел потеряет пререквизит или
+ *         очки дерева упадут ниже гейта ряда с купленными узлами. Проверка на
+ *         гипотетическом состоянии той же логикой, что validate/reconcile;
+ *         выполняется ДО списания монет — состояние и экономика не меняются.
+ *         Disabled-узлы зависимостями НЕ считаются (рангов держать не могут).
+ *         Внимание: если disabled-узел служит пререквизитом купленному включённому,
+ *         reconcile-прунинг снимет зависимого — это ожидаемое поведение стоп-листа.
+ * 1.14.7 (Sprint 4, P1-4): chooseMain читает Spec2Points.startLevel() (аксессор снимка).
  */
 public final class Spec2Service {
 
@@ -47,10 +54,10 @@ public final class Spec2Service {
         OK, RATE_LIMITED, NO_MAIN, TREE_NOT_FOUND, NO_RANKS, POOR, NO_ECONOMY
     }
 
-    /** 1.14.4 (П7): результат респеца одного ранга узла. */
+    /** 1.14.4 (П7): результат респеца одного ранга узла. 1.14.7 (P1-5): +HAS_DEPENDENTS. */
     public enum NodeResetResult {
         OK, RATE_LIMITED, NO_MAIN, TREE_NOT_FOUND, NODE_NOT_FOUND,
-        NO_RANKS, POOR, NO_ECONOMY
+        NO_RANKS, POOR, NO_ECONOMY, HAS_DEPENDENTS
     }
 
     /** Агрегат эффектов игрока (пересобирается только в reconcile). */
@@ -160,7 +167,8 @@ public final class Spec2Service {
         if (storage.getMain(uuid) != null) {
             return false;
         }
-        if (plugin.getCharacterLevels().characterLevel(uuid) < Spec2Points.START_LEVEL) {
+        // 1.14.7 (Sprint 4, P1-4): аксессор снимка вместо deprecated-поля
+        if (plugin.getCharacterLevels().characterLevel(uuid) < Spec2Points.startLevel()) {
             return false;
         }
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
@@ -291,6 +299,10 @@ public final class Spec2Service {
      * 1.14.4 (П7): респец одного ранга узла.
      * 1.14.7 (P0-6B): для disabled-узлов респец РАЗРЕШЁН — это путь вернуть очки,
      * вложенные до попадания узла в стоп-лист.
+     * 1.14.7 (P1-5): HAS_DEPENDENTS — снятие ранга отклоняется, если купленный
+     * включённый узел потеряет пререквизит или очки дерева упадут ниже гейта ряда
+     * с купленными узлами. Проверка ДО экономики: монеты не списываются,
+     * состояние и хранилище не меняются.
      */
     public NodeResetResult resetNode(Player player, String treeId, String nodeId, boolean free) {
         UUID uuid = player.getUniqueId();
@@ -313,6 +325,10 @@ public final class Spec2Service {
         if (currentRank <= 0) {
             return NodeResetResult.NO_RANKS;
         }
+        // 1.14.7 (P1-5): гипотетическое состояние и проверка зависимостей
+        if (hasDependents(tree, ranks, nodeId)) {
+            return NodeResetResult.HAS_DEPENDENTS;
+        }
         if (!free) {
             int base = plugin.getConfig().getInt("spec2.node-respec-base", 150);
             int perRank = plugin.getConfig().getInt("spec2.node-respec-per-rank", 50);
@@ -334,6 +350,39 @@ public final class Spec2Service {
         reconcile(uuid);
         storage.save();
         return NodeResetResult.OK;
+    }
+
+    /**
+     * 1.14.7 (P1-5): есть ли купленные включённые узлы, которые сломаются,
+     * если у nodeId снять один ранг. Логика идентична validate():
+     * пререквизиты + ряд-гейты по очкам дерева после снятия.
+     * Disabled-узлы пропускаются: они не могут держать ранги (прунятся reconcile).
+     */
+    private boolean hasDependents(Spec2Tree tree, Map<String, Integer> ranks, String nodeId) {
+        Map<String, Integer> hyp = new HashMap<>(ranks);
+        int reduced = hyp.getOrDefault(nodeId, 0) - 1;
+        if (reduced <= 0) {
+            hyp.remove(nodeId);
+        } else {
+            hyp.put(nodeId, reduced);
+        }
+        int spent = tree.spentInTree(hyp);
+        for (Spec2Node n : tree.nodes()) {
+            int owned = hyp.getOrDefault(n.id(), 0);
+            if (owned <= 0) {
+                continue;
+            }
+            if (nodeDisabled(n.id())) {
+                continue;
+            }
+            if (!tree.prereqsMet(n, hyp)) {
+                return true;
+            }
+            if (!Spec2Points.rowUnlocked(n.row(), spent)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 1.14.4 (П7): цена респеца одного ранга узла (для GUI-сообщения). */
@@ -385,6 +434,8 @@ public final class Spec2Service {
      * Валидация: ряд-гейт по накопленным очкам + ранговые пререквизиты + maxRank.
      * 1.14.7 (P0-6B): disabled-узлы не сохраняются — вложенные ранги прунятся,
      * очки возвращаются в пул (spentGlobal пересчитывается из kept).
+     * 1.14.7 (P1-5): если disabled-узел был пререквизитом купленного включённого,
+     * зависимый тоже прунится здесь — ожидаемое поведение стоп-листа.
      */
     private Map<String, Integer> validate(Spec2Tree tree, Map<String, Integer> raw) {
         Map<String, Integer> kept = new HashMap<>();
@@ -462,8 +513,7 @@ public final class Spec2Service {
             case "unlock_ability" -> agg.unlocked.add(e.target());
             // 1.14.6-fix (Sprint 1, P0-2): proc-узлы приходят как kind="proc_<id>",
             // ключ агрегата — БЕЗ префикса.
-            // 1.14.7 (Sprint 3, контракт C): value → agg.proc (шанс за ранг),
-            // value2 → agg.procAmp (сила за ранг; 0 = сила из конфига amp).
+            // 1.14.7 (Sprint 3, контракт C): value → agg.proc (шанс), value2 → agg.procAmp (сила).
             default -> {
                 String kind = e.kind();
                 String key = kind.startsWith("proc_") ? kind.substring(5) : kind;
