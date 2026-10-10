@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.14.6 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
+#  RaskolClasses v1.14.7 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
 #  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -12,6 +12,20 @@
 #  AttributeService), ранее они лежали внутри attributes: и правки не действовали.
 #  parry-k унифицирован до 300 (раньше конфиг 300 / дефолт AvoidanceService 150).
 #  Добавлены: spec2.procs.*.amp (сила проков, P0-3), combat.block.* (P0-7).
+#
+#  1.14.7 (Спринт 4, P1-1..P1-8):
+#  - P1-1/P1-2: единый путь лечения через CustomHealEvent; static healerMark удалён.
+#  - P1-3: GUI-сессия очищается на PlayerQuit + при рендере (TalentsTab).
+#  - P1-4: Spec2Points читает очки/гейты рядов из config.yml через Snapshot (configure).
+#  - P1-5: Spec2Service.resetNode отклоняет HAS_DEPENDENTS (снимок рангов не меняется).
+#  - P1-6: AbilityRegistry.castOn — антиспам-метка после всех гейтов; treeUnlocked-дубли
+#    удалены из шести китов.
+#  - P1-7: HpBarService dirty-flush — saveHealth in-memory, flushDirty пишет
+#    health.yml один раз периодически (storage.health-flush-seconds) и при
+#    onDisable; onQuit до restore (P0-8d) не трогает файл.
+#  - P1-8: шкала ресурса в unified-actionbar нормируется на ResourceState.getEffectiveMax();
+#    текст «res/effectiveMax» корректно растягивает бар для потолка > 100
+#    (через узлы resource_max + setCeiling из spec2).
 # ============================================================
 
 hud:
@@ -79,6 +93,10 @@ combat:
 
 storage:
   autosave-minutes: 5
+  # 1.14.7 (P1-7): интервал периодической записи health.yml (секунды).
+  # Меньше значение = чаще IO, но меньше риск потери данных при краше.
+  # Дефолт 60 с — разумный компромисс для 50–100 онлайн.
+  health-flush-seconds: 60
 
 class-accept:
   enabled: true
@@ -371,6 +389,8 @@ avoidance:
 # ------------------------------------------------------------
 # 1.14.6-fix (P0-7): секция ПЕРЕНЕСЕНА В КОРЕНЬ из attributes:.
 # Код читает hp-display.* с корня (HpBarService, HudService).
+# 1.14.7 (P1-8): шкала ресурса нормируется на ResourceState.getEffectiveMax(),
+# а не на константу 100 — бар корректно растягивается для потолка > 100.
 # ------------------------------------------------------------
 hp-display:
   mode: actionbar
@@ -2449,3 +2469,4 @@ vfx:
       cast-sound: ENTITY_VEX_DEATH
       cast-particle: SOUL
       tag: "☾ Чёрная Месса"
+      # ============================================================
