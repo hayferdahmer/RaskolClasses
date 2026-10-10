@@ -63,6 +63,7 @@ import org.bukkit.scheduler.BukkitTask;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
@@ -81,6 +82,7 @@ import java.util.List;
  *         spec2.tree-capacity-min — напоминание добить ранги.
  * 1.14.7 (Спринт 4, P1-3): onQuit чистит GUI-сессию книги (TalentsTab.clearSession) —
  *         static-карты VIEW_ROW/VIEW_SPEC/ARM не держат UUID вышедших игроков.
+ * 1.14.7-fix: добавлен импорт java.util.UUID (локальная переменная в onQuit).
  */
 public final class RaskolClasses extends JavaPlugin {
 
