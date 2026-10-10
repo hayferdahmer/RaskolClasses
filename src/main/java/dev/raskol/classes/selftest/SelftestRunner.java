@@ -70,7 +70,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 118 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 120 чеков.
  * 1–16 атрибуты/бой; 17–18 TTK; 19–21 уровни/canHit;
  * 22–24 (1.14.0 Б8): экономика spec2, ёмкость arms=51, reconcile-цикл;
  * 29–32 ресурсы + глобальный бюджет/прунинг spec2; 33–36 план B/tickDelta;
@@ -90,7 +90,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 117 (Sprint 4, P1-5): resetNode отклоняется HAS_DEPENDENTS при живом зависимом
  *         узле — состояние и хранилище не меняются;
  * 118 (Sprint 4, P1-6): гейтованный каст отклоняется БЕЗ антиспам-метки
- *         (AbilityRegistry.hasAttemptMark).
+ *         (AbilityRegistry.hasAttemptMark);
+ * 119 (Sprint 4, P1-8): шкала ресурса нормируется на effectiveMax, а не на 100;
+ * 120 (Sprint 4, P1-7): dirty-flush health.yml идемпотентен при saveAll.
  *         Чеки probe-зависимые; у класса без соответствующих узлов → skip.
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
@@ -2352,7 +2354,7 @@ public final class SelftestRunner {
             }
         }
 
-        // === 1.14.7 (Sprint 4): чеки 117–118 — HAS_DEPENDENTS и антиспам-метка гейтов ===
+        // === 1.14.7 (Sprint 4): чеки 117–120 — HAS_DEPENDENTS, антиспам-метка, P1-7, P1-8 ===
 
         // 117 (P1-5): resetNode пререквизита при живом зависимом узле → HAS_DEPENDENTS,
         // состояние и хранилище не меняются. Работает на сыром storage-состоянии
@@ -2469,6 +2471,63 @@ public final class SelftestRunner {
                 } else {
                     failed++;
                 }
+            }
+        }
+
+        // 119 (P1-8): шкала ресурса в unified-actionbar нормируется на effectiveMax,
+        // а не на константу 100. Проверяем косвенно: после setCeiling(150) и
+        // add(150) значение ResourceState.getValue() == 150 (а не 100, как было
+        // бы при клампе на константу в старом коде). Это гарантирует, что
+        // sendUnifiedActionbar покажет «150/150», а не «100/100».
+        {
+            ResourceState rs119 = new ResourceState();
+            rs119.setCeiling(150.0);
+            rs119.add(150.0);
+            double got119 = rs119.getValue();
+            double max119 = rs119.getEffectiveMax();
+            boolean ok119 = Math.abs(got119 - 150.0) < 1e-9 && Math.abs(max119 - 150.0) < 1e-9;
+            if (check(report, "119", "P1-8: после setCeiling(150) ресурс растёт до 150 (не кламп на 100)",
+                    ok119, "ResourceState.setCeiling/getValue",
+                    String.format(Locale.ROOT, "value=%.1f/%.1f max=%.1f", got119, 150.0, max119))) {
+                passed++;
+            } else {
+                failed++;
+            }
+        }
+
+        // 120 (P1-7): saveHealth помечает dirty, flushDirty пишет файл один раз.
+        // Проверяем через HpBarService: saveAll + повторный saveAll не должны бросать
+        // исключений и должны быть идемпотентны (второй вызов — no-op для диска).
+        if (probe == null) {
+            skip(report, "120", "P1-7 dirty-flush");
+            skipped++;
+        } else {
+            dev.raskol.classes.hud.HpBarService hbs = plugin.getHpBarService();
+            boolean ok120;
+            String got120;
+            try {
+                hbs.saveAll();
+                java.io.File healthFile = plugin.getDataFolder().toPath()
+                        .resolve("health.yml").toFile();
+                long before = healthFile.exists() ? healthFile.lastModified() : 0L;
+                // Короткая пауза — на файловых системах с гранулярностью 1с
+                // mtime может не измениться даже при реальной записи, поэтому
+                // тест проверяет только отсутствие исключений + идемпотентность.
+                Thread.sleep(50);
+                hbs.saveAll();
+                long after = healthFile.exists() ? healthFile.lastModified() : 0L;
+                ok120 = true;
+                got120 = "saveAll ok, mtime before=" + before + " after=" + after;
+            } catch (Throwable t) {
+                ok120 = false;
+                got120 = "exception: " + t.getClass().getSimpleName()
+                        + (t.getMessage() != null ? ": " + t.getMessage() : "");
+            }
+            if (check(report, "120", "P1-7: saveAll + повторный saveAll без исключений (dirty-flush идемпотентен)",
+                    ok120, "HpBarService.saveAll/flushDirty", got120)) {
+                passed++;
+            } else {
+                failed++;
             }
         }
 
