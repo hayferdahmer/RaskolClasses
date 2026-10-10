@@ -50,6 +50,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   summon (включая ALREADY) — castOn делает refund и не запускает кулдаун.
  * 1.14.7 (Sprint 3, P0-6A): beast_ferocity читает длительность через
  *   TreeAbilities.durationWithSpec (kit_dur bm_the_beast_within: +5 с за ранг).
+ * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
+ *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
+ *   («откроется узлом дерева путей Охотника.»), поведение игрока не изменилось.
  */
 public final class HunterAbilities {
 
@@ -127,16 +130,6 @@ public final class HunterAbilities {
     private double trueShotMult(UUID uuid) {
         Long until = TRUE_SHOT_UNTIL.get(uuid);
         return until != null && until > System.currentTimeMillis() ? 1.30 : 1.0;
-    }
-
-    /** 1.14.0: гейт древесной способности. */
-    private boolean treeUnlocked(Player p, AbilityDef def) {
-        if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
-            return true;
-        }
-        p.sendMessage(Component.text("«" + def.displayName()
-                + "» откроется узлом дерева путей Охотника.", NamedTextColor.GRAY));
-        return false;
     }
 
     private LivingEntity rayTarget(Player p, double range) {
@@ -300,12 +293,10 @@ public final class HunterAbilities {
     }
 
     /* --------------------- древесные способности (1.14.0, контент-долг 2) --------------------- */
+    /* 1.14.7 (Sprint 4, P1-6): вызовы treeUnlocked() удалены — гейт централизован в castOn. */
 
     /** marksmanship T2: тяжёлый выстрел + подсветка цели 3 с. */
     public boolean aimedShot(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 24);
         if (t == null) {
             noTarget(p);
@@ -330,9 +321,6 @@ public final class HunterAbilities {
 
     /** marksmanship T3: урон + SILENCE 3 с (CC, уходит в DR). */
     public boolean silencingShot(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -352,9 +340,6 @@ public final class HunterAbilities {
 
     /** marksmanship T4: физ+маг урон (школа PHYSICAL/ARCANE-микс) + кровотечение. */
     public boolean chimeraShot(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -374,9 +359,6 @@ public final class HunterAbilities {
 
     /** marksmanship T5: бафф +30% урона способностей на 6 с. */
     public boolean trueShot(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 6);
         TRUE_SHOT_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
         castFx(p, "true_shot", "BLOCK_NOTE_BLOCK_PLING", "END_ROD", 0.6f, 1.2f, 16);
@@ -387,9 +369,6 @@ public final class HunterAbilities {
 
     /** survival T2: урон + DoT poison. */
     public boolean poisonShot(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -409,9 +388,6 @@ public final class HunterAbilities {
 
     /** survival T3: заряд в точку (до 10 блоков): через 1 с AoE 3 = урон + ROOT 2 с + burning. */
     public boolean explosiveTrap(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 3.0);
         RayTraceResult hit = p.rayTraceBlocks(10.0);
         Location spot = hit != null
@@ -453,9 +429,6 @@ public final class HunterAbilities {
 
     /** survival T4: урон + DoT wither (SHADOW). */
     public boolean blackArrow(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -478,9 +451,6 @@ public final class HunterAbilities {
      * ОТКЛОНЕНИЕ от дизайн-дока: CC «сон» в модели нет → STUN 3 с.
      */
     public boolean wyvernSting(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -503,9 +473,6 @@ public final class HunterAbilities {
      * ОТКЛОНЕНИЕ: сброс КД ловушек верну после расширения CooldownManager.
      */
     public boolean readiness(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         UUID uuid = p.getUniqueId();
         plugin.getResources().refund(uuid, 100.0);
         plugin.getCC().removeType(uuid, CCType.SLOW);
@@ -518,9 +485,6 @@ public final class HunterAbilities {
 
     /** survival T6 (ульт): урон = стеки poison × base; обновляет poison. */
     public boolean serpentSting(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -549,9 +513,6 @@ public final class HunterAbilities {
 
     /** beastmaster T2: урон + FEAR 3 с (CC, уходит в DR). */
     public boolean intimidation(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 8);
         if (t == null) {
             noTarget(p);
@@ -574,9 +535,6 @@ public final class HunterAbilities {
      * 1.14.6-fix (P0-8a): любой не-OK результат = false (refund + без кулдауна).
      */
     public boolean petWolf(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         PetService.SummonResult r = plugin.getPets().summon(p, "wolf", null);
         if (r != PetService.SummonResult.OK) {
             return false;
@@ -593,9 +551,6 @@ public final class HunterAbilities {
      * 1.14.7 (P0-6A): длительность через durationWithSpec (bm_the_beast_within: +5 с/ранг).
      */
     public boolean beastFerocity(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity pet = plugin.getPets().petOf(p);
         if (pet == null) {
             p.sendMessage(Component.text("Сначала призови волка («Приручить волка»).", NamedTextColor.GRAY));
@@ -617,9 +572,6 @@ public final class HunterAbilities {
      * (dmgMult=2.0, speedMult=1.0, подсветка=true, secs из конфига).
      */
     public boolean bestialWrath(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity pet = plugin.getPets().petOf(p);
         if (pet == null) {
             p.sendMessage(Component.text("Сначала призови волка («Приручить волка»).", NamedTextColor.GRAY));
