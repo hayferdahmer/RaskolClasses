@@ -50,6 +50,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Sprint 3, P0-6A): kit_dur-узлы Разбойника живые: shadow_cloak
  *   (su_master_of_deception +5 с/ранг), adrenaline_rush (ol_improved_adrenaline +5 с/ранг),
  *   strangle (su_nerve_strike +1 с SLOW/ранг) — через durationWithSpec / kitDurBonus.
+ * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
+ *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
+ *   («откроется узлом дерева путей Разбойника.»), поведение игрока не изменилось.
  */
 public final class RogueAbilities {
 
@@ -170,15 +173,6 @@ public final class RogueAbilities {
                     prof.physical() * mult, prof.magic() * mult, prof.trueDamage()));
         }
         return plugin.getCombat().dealDamage(t, p, prof);
-    }
-
-    private boolean treeUnlocked(Player p, AbilityDef def) {
-        if (plugin.getSpec2Service().hasUnlocked(p.getUniqueId(), def.id())) {
-            return true;
-        }
-        p.sendMessage(Component.text("«" + def.displayName()
-                + "» откроется узлом дерева путей Разбойника.", NamedTextColor.GRAY));
-        return false;
     }
 
     private LivingEntity rayTarget(Player p, double range) {
@@ -355,12 +349,10 @@ public final class RogueAbilities {
     }
 
     /* --------------------- древесные способности (1.14.0, контент-долг 3) --------------------- */
+    /* 1.14.7 (Sprint 4, P1-6): вызовы treeUnlocked() удалены — гейт централизован в castOn. */
 
     /** assassination T2: детонация стеков яда (урон = стеки × base, яд сгорает). */
     public boolean poisonBurst(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -386,9 +378,6 @@ public final class RogueAbilities {
 
     /** assassination T3: +50% урона способностей на 5 с. */
     public boolean coldBlood(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 5);
         COLD_BLOOD_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
         castFx(p, "cold_blood", "BLOCK_NOTE_BLOCK_PLING", "ENCHANTED_HIT", 0.6f, 1.2f, 14);
@@ -399,9 +388,6 @@ public final class RogueAbilities {
 
     /** assassination T4: метка цели — +30% урона от разбойника на 10 с. */
     public boolean vendetta(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -427,9 +413,6 @@ public final class RogueAbilities {
 
     /** assassination T5: урон + хил по стекам яда (не сжигает их). */
     public boolean envenom(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -454,9 +437,6 @@ public final class RogueAbilities {
 
     /** assassination T6 (ульт): execute по цели с ≥3 стеками яда (×3, игнор капов). */
     public boolean deathmark(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -484,9 +464,6 @@ public final class RogueAbilities {
 
     /** outlaw T2: урон + Оцепенение 1.5 с (CC, уходит в DR). */
     public boolean pistolShot(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 12);
         if (t == null) {
             noTarget(p);
@@ -510,9 +487,6 @@ public final class RogueAbilities {
      * (вместо 10-секундного баффа дополнительных целей).
      */
     public boolean bladeFlurry(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 4.0);
         castFx(p, "blade_flurry", "ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK", 0.7f, 1.1f, 16);
         double dmg = tdmg(p, def, 7.0, 0.6);
@@ -538,9 +512,6 @@ public final class RogueAbilities {
 
     /** outlaw T3: «Прилив адреналина» — Энергия +50 и Спех II. 1.14.7: durationWithSpec. */
     public boolean adrenalineRush(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 10, p.getUniqueId());
         plugin.getResources().refund(p.getUniqueId(), 50.0);
         p.addPotionEffect(new PotionEffect(PotionEffectType.HASTE, secs * 20, 1));
@@ -555,9 +526,6 @@ public final class RogueAbilities {
      * ОТКЛОНЕНИЕ: без телепортов между целями (серия по одной цели).
      */
     public boolean killingSpree(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -581,9 +549,6 @@ public final class RogueAbilities {
 
     /** outlaw T6 (ульт): урон + Оцепенение 3 с по цели с кровотечением, иначе 1.5 с. */
     public boolean betweenTheEyes(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -608,9 +573,6 @@ public final class RogueAbilities {
 
     /** subtlety T2: урон ×1.5 со спины. */
     public boolean backstab(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -633,9 +595,6 @@ public final class RogueAbilities {
 
     /** subtlety T3: телепорт за спину цели (до 20 блоков) + Скорость I 3 с. */
     public boolean shadowstep(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
             noTarget(p);
@@ -667,9 +626,6 @@ public final class RogueAbilities {
      * сброс кулдаунов верну после расширения CooldownManager.
      */
     public boolean preparation(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         UUID uuid = p.getUniqueId();
         plugin.getResources().refund(uuid, 100.0);
         plugin.getCC().removeType(uuid, CCType.SLOW);
@@ -682,9 +638,6 @@ public final class RogueAbilities {
 
     /** subtlety T4: cleanse — снять с себя все CC и DoT NATURE/SHADOW + Невидимость 3 с. */
     public boolean cloakOfShadows(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         UUID uuid = p.getUniqueId();
         plugin.getCC().removeAll(uuid);
         plugin.getCombat().dots().removeSchoolOn(uuid, School.NATURE);
@@ -698,9 +651,6 @@ public final class RogueAbilities {
 
     /** subtlety T5: урон + кровотечение 8 с (стеки dots.bleed). */
     public boolean hemorrhage(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         LivingEntity t = rayTarget(p, 4);
         if (t == null) {
             noTarget(p);
@@ -720,9 +670,6 @@ public final class RogueAbilities {
 
     /** subtlety T6 (ульт): «Теневые клинки» — +50% урона способностей 6 с. */
     public boolean shadowBlades(Player p, AbilityDef def) {
-        if (!treeUnlocked(p, def)) {
-            return false;
-        }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 6);
         SHADOW_BLADES_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
         castFx(p, "shadow_blades", "ENTITY_ENDERMAN_TELEPORT", "SCULK_SOUL", 0.9f, 0.8f, 22);
