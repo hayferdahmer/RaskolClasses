@@ -2,10 +2,37 @@
 
 Формат: [Keep a Changelog](https://keepachangelog.com/ru-RU/1.1.0/).
 Версионирование: семантическое. Внутренние волновые метки (1.14.1–1.14.3)
-.shipped внутри релиза 1.14.4 и перечислены в его секции.
+вышли внутри релиза 1.14.4 и перечислены в его секции.
 История НЕ переписывается задним числом; даты = даты тегов.
 
-## [Unreleased] — Sprint 1 (аудит 1.14.6, к релизу 1.14.7)
+## [Unreleased]
+
+## [1.14.7] — 2026-10-11
+
+Закрытие аудита 1.14.6 (Sprint 1–4).
+
+### Added
+- **P0-6A:** 24 узла ожили: 5 proc-контрактов (`bleed_on_crit`, `burning_extend`,
+  `free_heal`, `rage_on_cast`, `enrage_dmg`), 11 узлов `kit_dur` (агрегат длительности
+  по цели), `attack_speed_pct`, `deep_wounds`.
+- **P0-6A:** реестр `spec2.disabled-nodes` — 34 узла без реализации сделаны no-op
+  с прунингом рангов и ждут своих волн.
+- **P1-7:** `HpBarService.saveHealth()` пишет в память, на диск данные сбрасываются
+  периодически (`storage.health-flush-seconds`, по умолчанию 60 с).
+- Selftest: чеки 112–120 (пет-ядро, `spec2.procs`, kit_dur-агрегат, attack-speed-модификатор,
+  контракт C `value2`, `HAS_DEPENDENTS`, антиспам-метка, отложенная запись HP, effectiveMax);
+  всего 120.
+
+### Changed
+- **P1-1/P1-2:** единый путь лечения через `CustomHealEvent`; статический `healerMark`
+  удалён, атрибуция целителя — `CustomHealEvent.getHealer()`.
+- **P1-5:** `resetNode` отклоняет сброс ранга, от которого зависят купленные узлы
+  (`HAS_DEPENDENTS`).
+- **P1-6:** антиспам-метка каста в `AbilityRegistry.castOn` (чеки 117–118).
+- **P1-8:** шкала ресурса нормируется на `ResourceState.getEffectiveMax()`, а не на
+  константу 100; узлы `resource_max` и `setCeiling` растягивают бар выше 100.
+- Docs: README пересобран (баннер, бейджи, ровные таблицы, 1.14.7 и 120 чеков);
+  описание в `plugin.yml` сокращено до одной строки.
 
 ### Fixed
 - **P0-2:** proc-узлы ожили — `Spec2Service.accumulate` срезает префикс `proc_`
@@ -116,7 +143,8 @@
   кулдауны, активные эффекты, HUD actionbar, атрибуты STR/AGI/INT, WP/SP/HPow,
   уклонение/парирование с DR, криты.
 
-[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.6...HEAD
+[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.7...HEAD
+[1.14.7]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.6...v1.14.7
 [1.14.6]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.4...v1.14.6
 [1.14.4]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.0...v1.14.4
 [1.14.0]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.13.0...v1.14.0
