@@ -2,7 +2,7 @@
 <!--
   © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
   RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
-  1.14.6: Пет-система (wolf / demon / shadowfiend).
+  1.14.7: стабилизация Спека 2.0 (проки, лечение, запись HP, шкала ресурса).
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -11,7 +11,7 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.14.6</version>
+    <version>1.14.7</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
