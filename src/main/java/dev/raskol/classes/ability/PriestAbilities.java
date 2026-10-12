@@ -19,7 +19,6 @@ import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,8 +33,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   discipline: purge, pain_suppression, spirit_shell (ульт);
  *   holy: flash_heal, lightwell, divine_hymn (ульт);
  *   shadow: withering_touch, mind_flay, shadowfiend.
- *   Гейт — treeUnlocked(); целевые хилы/клинзы — self-каст с внутренним
- *   ray-таргетом союзника (фолбэк на себя).
+ *   Целевые хилы/клинзы — self-каст с внутренним ray-таргетом союзника
+ *   (фолбэк на себя).
  * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + radius(circle_elysium) +
  *   threshold/execute-mult(wrath_heaven) читаются через TreeAbilities.*OrKit
  *   (treeAbilities → abilities → код-дефолт), чтобы переносимые
@@ -58,99 +57,25 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
  *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
  *   («откроется узлом дерева путей Жреца.»), поведение игрока не изменилось.
+ * 1.14.8 (Sprint 5, P2-3): миграция на AbstractKit — конфиг-хелперы, числа с
+ *   фолбэком (включая healAmount/thealAmount/dmg/tdmg), таргетинг и VFX
+ *   унаследованы; postMult не переопределён (=1.0, у жреца нет классового
+ *   бафф-множителя лечения). В ките остались priest-специфика: isAllyOrSelf,
+ *   allyRayTarget, maxOf, applyHealWith/groupHeal/alliesWithin, executeFx,
+ *   статический LAST_HEAL и CCTypeSlowHolder.
  */
-public final class PriestAbilities {
+public final class PriestAbilities extends AbstractKit {
 
     private static final PlayerClass PC = PlayerClass.PRIEST;
 
     /** 1.14.0: последний успешный хил кастера (formula-единицы) для spirit_shell. */
     private static final Map<UUID, Double> LAST_HEAL = new ConcurrentHashMap<>();
 
-    private final RaskolClasses plugin;
-
     public PriestAbilities(RaskolClasses plugin) {
-        this.plugin = plugin;
+        super(plugin, PC, "hpow");
     }
 
-    /* ------------------------------ конфиг-хелперы ------------------------------ */
-
-    private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
-    }
-
-    private String cfgS(String path, String def) {
-        String v = plugin.getConfig().getString(path, def);
-        return v != null ? v : def;
-    }
-
-    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
-    private double base(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
-    }
-
-    private double coeff(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
-    }
-
-    private String power(AbilityDef def) {
-        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "hpow");
-    }
-
-    private int duration(AbilityDef def, int defv) {
-        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
-    }
-
-    private double tbase(AbilityDef def, double defv) {
-        return cfgD("classes.PRIEST.treeAbilities." + def.id() + ".base", defv);
-    }
-
-    private double tcoeff(AbilityDef def, double defv) {
-        return cfgD("classes.PRIEST.treeAbilities." + def.id() + ".coeff", defv);
-    }
-
-    private String tpower(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.PRIEST.treeAbilities." + def.id() + ".power", "hpow");
-    }
-
-    private double healAmount(Player caster, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = caster.getUniqueId();
-        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityHeal(uuid, b, c);
-    }
-
-    private double thealAmount(Player caster, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = caster.getUniqueId();
-        double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityHeal(uuid, b, c);
-    }
-
-    private double dmg(Player caster, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = caster.getUniqueId();
-        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
-    }
-
-    private double tdmg(Player caster, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = caster.getUniqueId();
-        double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityDamage(uuid, tpower(def), b, c);
-    }
-
-    private void noTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
-    }
-
-    private void allyTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
-    }
+    /* ------------------------------ priest-специфика ------------------------------ */
 
     private boolean isAllyOrSelf(Player caster, Player target) {
         if (caster.getUniqueId().equals(target.getUniqueId())) {
@@ -173,11 +98,6 @@ public final class PriestAbilities {
         return null;
     }
 
-    private LivingEntity rayTarget(Player p, double range) {
-        Entity e = p.getTargetEntity((int) range);
-        return e instanceof LivingEntity le ? le : null;
-    }
-
     private double maxOf(LivingEntity e) {
         if (e instanceof Player p) {
             return plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
@@ -185,35 +105,6 @@ public final class PriestAbilities {
         org.bukkit.attribute.AttributeInstance attr =
                 e.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
         return attr != null ? attr.getValue() : 20.0;
-    }
-
-    /* ------------------------------ VFX-хелперы ------------------------------ */
-
-    private void castFx(Player p, String id, String soundDef, String particleDef,
-                        float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
-        Location loc = p.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".cast-particle", particleDef));
-        if (particle != null) {
-            p.getWorld().spawnParticle(particle, loc, count, 0.4, 0.6, 0.4, 0.02);
-        }
-    }
-
-    private void impactFx(LivingEntity target, String id,
-                          String soundDef, String particleDef,
-                          float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
-        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
-        if (particle != null) {
-            target.getWorld().spawnParticle(particle, loc, count, 0.3, 0.5, 0.3, 0.02);
-        }
     }
 
     private void executeFx(LivingEntity target) {
@@ -230,17 +121,6 @@ public final class PriestAbilities {
         }
     }
 
-    private Particle resolveParticle(String name) {
-        if (name == null || name.isEmpty()) {
-            return null;
-        }
-        try {
-            return Particle.valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
-    }
-
     /* -------------------------------- ядро лечения -------------------------------- */
 
     /**
@@ -251,6 +131,7 @@ public final class PriestAbilities {
      * 1.14.7 (P0-6A): ho_surge_of_light — если rollFreeHeal=true после хила,
      * возвращаем стоимость способности в ресурс кастера (бесплатный хил).
      * 1.14.7 (Sprint 4, P1-2): markHealer удалён — атрибуция в CustomHealEvent.
+     * 1.14.8 (P2-3): healAmount/thealAmount унаследованы из AbstractKit (те же сигнатуры).
      */
     private boolean applyHealWith(Player caster, Player target, AbilityDef def,
                                   double defBase, double defCoeff, boolean treePath) {
