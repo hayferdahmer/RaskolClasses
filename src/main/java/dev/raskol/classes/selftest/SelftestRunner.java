@@ -1067,7 +1067,7 @@ public final class SelftestRunner {
             r.skip("84", "CastGuard.canCast");
         } else {
             ccProbeBreaks(r, probe, cc);
-            ccProbeCastGuard(r, probe, cc);
+            ccProbeCastGuard(plugin, r, probe, cc);
         }
 
         boolean ok85 = VanillaCCWrapper.wrapTarget(PotionEffectType.SLOWNESS) == CCType.SLOW
@@ -1179,7 +1179,7 @@ public final class SelftestRunner {
                 applied + "/" + hasBeforeStun + "/" + hasAfter);
     }
 
-    private static void ccProbeCastGuard(Report r, Player probe, CCService cc) {
+    private static void ccProbeCastGuard(RaskolClasses plugin, Report r, Player probe, CCService cc) {
         UUID u84 = probe.getUniqueId();
         dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
         cc.removeAll(u84);
