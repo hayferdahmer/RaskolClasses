@@ -25,7 +25,6 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,7 +38,6 @@ import java.util.concurrent.ConcurrentHashMap;
  *   survival: poison_shot, explosive_trap, black_arrow, wyvern_sting,
  *             readiness, serpent_sting;
  *   beastmaster: intimidation, pet_wolf, beast_ferocity, bestial_wrath.
- *   Гейт — treeUnlocked() (Spec2Service.hasUnlocked).
  * 1.14.0-fix: доступ к атрибутам через RegistryAccess API (Paper 1.21.4).
  * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + radius(arrow_rain) читаются
  *   через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
@@ -53,138 +51,33 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
  *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
  *   («откроется узлом дерева путей Охотника.»), поведение игрока не изменилось.
+ * 1.14.8 (Sprint 5, P2-3): миграция на AbstractKit — конфиг-хелперы, числа с
+ *   фолбэком, уронное ядро с spec2-хуками, таргетинг и VFX унаследованы;
+ *   trueShotMult стал override postMult (×1.30 урона способностей под баффом).
+ *   В ките остались только охотник-специфика: веер стрел (PDC-тег), ловушка,
+ *   пет-делегирование и статические реестры баффов.
  */
-public final class HunterAbilities {
+public final class HunterAbilities extends AbstractKit {
 
     private static final PlayerClass PC = PlayerClass.HUNTER;
 
     /** 1.14.0: бафф «Верный выстрел» (+30% урона способностей, 6 с). */
     private static final Map<UUID, Long> TRUE_SHOT_UNTIL = new ConcurrentHashMap<>();
 
-    private final RaskolClasses plugin;
     private final NamespacedKey fanArrowKey;
 
     public HunterAbilities(RaskolClasses plugin) {
-        this.plugin = plugin;
+        super(plugin, PC, "wp");
         this.fanArrowKey = new NamespacedKey(plugin, "fan_arrow");
     }
 
-    /* ------------------------------ конфиг-хелперы ------------------------------ */
+    /* ------------------------------ 1.14.8 (P2-3): классовый множитель ------------------------------ */
 
-    private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
-    }
-
-    private String cfgS(String path, String def) {
-        String v = plugin.getConfig().getString(path, def);
-        return v != null ? v : def;
-    }
-
-    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
-    private double base(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
-    }
-
-    private double coeff(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
-    }
-
-    private String power(AbilityDef def) {
-        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "wp");
-    }
-
-    private int duration(AbilityDef def, int defv) {
-        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
-    }
-
-    private double tbase(AbilityDef def, double defv) {
-        return cfgD("classes.HUNTER.treeAbilities." + def.id() + ".base", defv);
-    }
-
-    private double tcoeff(AbilityDef def, double defv) {
-        return cfgD("classes.HUNTER.treeAbilities." + def.id() + ".coeff", defv);
-    }
-
-    private String tpower(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.HUNTER.treeAbilities." + def.id() + ".power", "wp");
-    }
-
-    private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = p.getUniqueId();
-        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        double d = plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
-        return trueShotMult(uuid) * d;
-    }
-
-    private double tdmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = p.getUniqueId();
-        double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        double d = plugin.getCombat().powers().abilityDamage(uuid, tpower(def), b, c);
-        return trueShotMult(uuid) * d;
-    }
-
-    private double trueShotMult(UUID uuid) {
+    /** «Верный выстрел»: ×1.30 к урону способностей, пока бафф активен. */
+    @Override
+    protected double postMult(UUID uuid) {
         Long until = TRUE_SHOT_UNTIL.get(uuid);
         return until != null && until > System.currentTimeMillis() ? 1.30 : 1.0;
-    }
-
-    private LivingEntity rayTarget(Player p, double range) {
-        Entity e = p.getTargetEntity((int) range);
-        return e instanceof LivingEntity le ? le : null;
-    }
-
-    private void noTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
-    }
-
-    private void allyTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
-    }
-
-    /* ------------------------------ VFX-хелперы ------------------------------ */
-
-    private void castFx(Player p, String id, String soundDef, String particleDef,
-                        float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
-        Location loc = p.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".cast-particle", particleDef));
-        if (particle != null) {
-            p.getWorld().spawnParticle(particle, loc, count, 0.4, 0.6, 0.4, 0.02);
-        }
-    }
-
-    private void impactFx(LivingEntity target, String id,
-                          String soundDef, String particleDef,
-                          float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
-        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
-        if (particle != null) {
-            target.getWorld().spawnParticle(particle, loc, count, 0.3, 0.5, 0.3, 0.02);
-        }
-    }
-
-    private Particle resolveParticle(String name) {
-        if (name == null || name.isEmpty()) {
-            return null;
-        }
-        try {
-            return Particle.valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
     }
 
     /* -------------------------------- базовые способности -------------------------------- */
