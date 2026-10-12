@@ -5,6 +5,38 @@
 вышли внутри релиза 1.14.4 и перечислены в его секции.
 История НЕ переписывается задним числом; даты = даты тегов.
 
+## [1.14.8] — 2026-10-13
+
+Архитектурный Sprint 5 (P2): дубли китов, декомпозиция selftest, ревизия стоп-листа.
+
+### Added
+- **AbstractKit** (P2-3): общий каркас шести китов способностей — конфиг-хелперы,
+  числа с фолбэком `TreeAbilities.*OrKit`, уронное и лечащее ядро с spec2-хуками,
+  таргетинг, VFX. Классовый множитель урона — hook `postMult(UUID)`:
+  Охотник `true_shot` ×1.30, Разбойник `cold_blood`/`shadow_blades` ×1.5 (до ×2.25),
+  Маг `combustion` ×1.25.
+- Selftest: чек 121 — стоп-лист `spec2.disabled-nodes` не содержит узлов с живыми
+  потребителями (`kit_dur`, `attack_speed_pct`, проки Sprint 3); всего 121 чек.
+
+### Changed
+- **P2-1:** `SelftestRunner.run()` декомпозирован на 22 метода по подсистемам;
+  состояние отчёта инкапсулировано в держатель `Report` (passed/failed/skipped).
+  Номера чеков, порядок вывода и skip-семантика не изменились.
+- **P2-3:** шесть китов переведены на `AbstractKit`, удалено ~540 строк дублей.
+  Уронное ядро Чернокнижника (`spellDamage`/`tspellDamage` с `WarlockMath.damageMult`)
+  осталось китовым: база не знает про Скверну, ад и спек-трейты.
+- **P2-4:** стоп-лист `spec2.disabled-nodes` сокращён 38 → 20: ожили 18 узлов
+  (5 proc-контрактов, 2 `attack_speed_pct`, 11 `kit_dur`) — потребители реализованы
+  в Sprint 3–4. Оставлены только узлы без потребителя в коде.
+- **P2-2:** ревизия legacy talents перенесена на 1.15.0 согласно миграционной заметке
+  в config.yml; плейсхолдеры `%raskolclasses_talent_*` остаются алиасами spec2-слоя.
+
+### Fixed
+- `AbstractKit`: преждевременный терминатор блочного комментария в javadoc первой
+  редакции (ошибка компиляции на строке 34) устранён переформулировкой комментария.
+- `SelftestRunner.ccProbeCastGuard`: параметр `plugin` добавлен в сигнатуру метода
+  и в точку вызова (ошибка компиляции волны 5.1).
+
 ## [1.14.7] — 2026-10-11
 
 Закрытие аудита 1.14.6 (Sprint 1–4).
@@ -141,7 +173,8 @@
   кулдауны, активные эффекты, HUD actionbar, атрибуты STR/AGI/INT, WP/SP/HPow,
   уклонение/парирование с DR, криты.
 
-[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.7...HEAD
+[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.8...HEAD
+[1.14.8]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.7...v1.14.8
 [1.14.7]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.6...v1.14.7
 [1.14.6]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.4...v1.14.6
 [1.14.4]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.0...v1.14.4
