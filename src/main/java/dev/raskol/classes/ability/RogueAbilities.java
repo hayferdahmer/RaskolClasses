@@ -12,8 +12,6 @@ import dev.raskol.classes.combat.school.School;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
-import org.bukkit.Particle;
-import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -22,7 +20,6 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,8 +35,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *           between_the_eyes (ульт);
  *   subtlety: backstab, shadowstep, preparation, cloak_of_shadows (cleanse),
  *           hemorrhage, shadow_blades (ульт).
- *   Гейт — treeUnlocked(); вендетта — статический реестр VENDETTA_EXPIRY
- *   (публичный vendettaAmplifyOf, по образцу sealAmplifyOf чернокнижника).
+ *   Вендетта — статический реестр VENDETTA_EXPIRY (публичный vendettaAmplifyOf,
+ *   по образцу sealAmplifyOf чернокнижника).
  * 1.14.0 (Б11.1.2-A): base/coeff/power/duration читаются через TreeAbilities.*OrKit
  *   (treeAbilities → abilities → код-дефолт), чтобы переносимые
  *   (borgia_poison/shadow_dance) пережили резку abilities. У Разбойника нет прямых
@@ -53,8 +50,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
  *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
  *   («откроется узлом дерева путей Разбойника.»), поведение игрока не изменилось.
+ * 1.14.8 (Sprint 5, P2-3): миграция на AbstractKit — конфиг-хелперы, числа с
+ *   фолбэком, уронное ядро с spec2-хуками, таргетинг и VFX унаследованы;
+ *   buffMult стал override postMult (×1.5 cold_blood, ×1.5 shadow_blades,
+ *   мультипликативно до ×2.25 при обоих). В ките остались rogue-специфика:
+ *   deal() с вендеттой, isBehind, счётчики стеков яда/кровотечения, статические реестры.
  */
-public final class RogueAbilities {
+public final class RogueAbilities extends AbstractKit {
 
     private static final PlayerClass PC = PlayerClass.ROGUE;
 
@@ -65,10 +67,8 @@ public final class RogueAbilities {
     /** 1.14.0: «Вендетта» — цель получает +30% урона от разбойника 10 с. */
     private static final Map<UUID, Long> VENDETTA_EXPIRY = new ConcurrentHashMap<>();
 
-    private final RaskolClasses plugin;
-
     public RogueAbilities(RaskolClasses plugin) {
-        this.plugin = plugin;
+        super(plugin, PC, "wp");
     }
 
     /** 1.14.0: амплификация урона по цели под «Вендеттой» (0.0 если нет). */
@@ -93,51 +93,11 @@ public final class RogueAbilities {
         VENDETTA_EXPIRY.put(targetUuid, System.currentTimeMillis() + 10_000L);
     }
 
-    /* ------------------------------ конфиг-хелперы ------------------------------ */
+    /* ------------------------------ 1.14.8 (P2-3): классовый множитель ------------------------------ */
 
-    private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
-    }
-
-    private String cfgS(String path, String def) {
-        String v = plugin.getConfig().getString(path, def);
-        return v != null ? v : def;
-    }
-
-    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
-    private double base(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
-    }
-
-    private double coeff(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
-    }
-
-    private String power(AbilityDef def) {
-        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "wp");
-    }
-
-    private int duration(AbilityDef def, int defv) {
-        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
-    }
-
-    private double tbase(AbilityDef def, double defv) {
-        return cfgD("classes.ROGUE.treeAbilities." + def.id() + ".base", defv);
-    }
-
-    private double tcoeff(AbilityDef def, double defv) {
-        return cfgD("classes.ROGUE.treeAbilities." + def.id() + ".coeff", defv);
-    }
-
-    private String tpower(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.ROGUE.treeAbilities." + def.id() + ".power", "wp");
-    }
-
-    /* ------------------------------ урон с баффами и вендеттой ------------------------------ */
-
-    private double buffMult(UUID uuid) {
+    /** «Хладнокровие» ×1.5 и/или «Теневые клинки» ×1.5 к урону способностей. */
+    @Override
+    protected double postMult(UUID uuid) {
         long now = System.currentTimeMillis();
         double m = 1.0;
         Long cb = COLD_BLOOD_UNTIL.get(uuid);
@@ -151,19 +111,7 @@ public final class RogueAbilities {
         return m;
     }
 
-    private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = p.getUniqueId();
-        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c) * buffMult(uuid);
-    }
-
-    private double tdmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = p.getUniqueId();
-        double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityDamage(uuid, tpower(def), b, c) * buffMult(uuid);
-    }
+    /* ------------------------------ урон с вендеттой ------------------------------ */
 
     /** Урон с учётом «Вендетты» по цели (+30%). */
     private double deal(Player p, LivingEntity t, DamageProfile prof) {
@@ -173,21 +121,6 @@ public final class RogueAbilities {
                     prof.physical() * mult, prof.magic() * mult, prof.trueDamage()));
         }
         return plugin.getCombat().dealDamage(t, p, prof);
-    }
-
-    private LivingEntity rayTarget(Player p, double range) {
-        Entity e = p.getTargetEntity((int) range);
-        return e instanceof LivingEntity le ? le : null;
-    }
-
-    private void noTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
-    }
-
-    private void allyTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
     private boolean isBehind(LivingEntity target, Player attacker) {
@@ -219,46 +152,6 @@ public final class RogueAbilities {
             }
         }
         return stacks;
-    }
-
-    /* ------------------------------ VFX-хелперы ------------------------------ */
-
-    private void castFx(Player p, String id, String soundDef, String particleDef,
-                        float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
-        Location loc = p.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".cast-particle", particleDef));
-        if (particle != null) {
-            p.getWorld().spawnParticle(particle, loc, count, 0.4, 0.6, 0.4, 0.02);
-        }
-    }
-
-    private void impactFx(LivingEntity target, String id,
-                          String soundDef, String particleDef,
-                          float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
-        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
-        if (particle != null) {
-            target.getWorld().spawnParticle(particle, loc, count, 0.3, 0.5, 0.3, 0.02);
-        }
-    }
-
-    private Particle resolveParticle(String name) {
-        if (name == null || name.isEmpty()) {
-            return null;
-        }
-        try {
-            return Particle.valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
     }
 
     /* -------------------------------- базовые способности -------------------------------- */
