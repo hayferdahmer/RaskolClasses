@@ -70,12 +70,40 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 120 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 121 чек.
  *
- * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 21 метод
+ * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 22 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
  * инкапсулировано в приватный держатель Report. Номера чеков, их логика, порядок
  * вывода и skip-семантика НЕ изменены — рефакторинг чисто структурный.
+ *
+ * Карта подсистем (номера чеков):
+ *   mathBasics      1–16    атрибуты/бой (pure-формулы)
+ *   ttkLevels      17–20    TTK-дуэли и topNAverage
+ *   canHitCheck     21      canHit self/среда
+ *   spec2Basic     22–24    очки, ёмкость arms, reconcile-цикл
+ *   resourceWindow 29–30    боевое окно, consume
+ *   spec2Budget    31–32    глобальный бюджет, прунинг
+ *   planB          33–35    scale/healFormula/targetCarrier
+ *   tickDelta       36      знаковый реген ресурса
+ *   warlock        37–43    реестры, конфиг, симуляции, WarlockMath
+ *   sanityConfig   44–48    KitSanity, гейты рядов, respec-конфиг, loader
+ *   schools        49–65    школы/pen/elemental/immunity/касты
+ *   dots           66–75    DoT-ядро и баланс-матрица
+ *   cc             76–90    CC/DR/CastGuard/CastChannels/CcSub
+ *   specModel      91–99    Spec-enum, реестр деревьев, переносимые, unlock-покрытие
+ *   probeAgg      100–106   heal/паверы/ресурс/проки/pct/resist/resetNode на probe
+ *   pointsConfig   107      Spec2Points ↔ конфиг
+ *   pets          108–112   пет-ядро
+ *   procsConfig    113      полнота spec2.procs.*
+ *   sprint3       114–116   kit_dur, attack_speed, контракт C value2
+ *   sprint4       117–118   HAS_DEPENDENTS, антиспам-метка гейтов
+ *   sprint4Io     119–120   effectiveMax, dirty-flush
+ *   stopListLive   121      стоп-лист без узлов с живыми потребителями (P2-4)
+ *
+ * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
+ * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
+ * в отдельный счётчик skipped — PASS-итог больше не завышается.
  */
 public final class SelftestRunner {
 
@@ -239,6 +267,7 @@ public final class SelftestRunner {
         sprint3(plugin, r, probe);
         sprint4(plugin, r, probe);
         sprint4Io(plugin, r, probe);
+        stopListLive(plugin, r);
 
         print(plugin, sender, r);
     }
@@ -2162,5 +2191,48 @@ public final class SelftestRunner {
         }
         r.check("120", "P1-7: saveAll + повторный saveAll без исключений (dirty-flush идемпотентен)",
                 ok120, "HpBarService.saveAll/flushDirty", got120);
+    }
+
+    /* ------------------------------ 121: Sprint 5, P2-4 ------------------------------ */
+
+    /**
+     * 121 (P2-4): стоп-лист spec2.disabled-nodes не содержит узлов, у которых уже
+     * есть живой потребитель: kit_dur (durationWithSpec), attack_speed_pct
+     * (Spec2EffectsApplier) и proc-узлы с обработчиками Sprint 3 (free_heal,
+     * enrage_dmg, trance, rage_on_cast, bleed_on_crit, burning_extend).
+     * Защита от регресса 1.14.7, когда реализованные узлы остались закрытыми.
+     */
+    private static void stopListLive(RaskolClasses plugin, Report r) {
+        boolean ok121 = true;
+        String got121 = "";
+        Set<String> liveProcTargets = Set.of("free_heal", "enrage_dmg", "trance",
+                "rage_on_cast", "bleed_on_crit", "burning_extend");
+        for (Spec s : Spec.values()) {
+            Spec2Tree t = Spec2Registry.treeOf(s.id());
+            if (t == null) {
+                continue;
+            }
+            for (Spec2Node n : t.nodes()) {
+                if (n.effect() == null || n.effect().kind() == null) {
+                    continue;
+                }
+                String kind = n.effect().kind();
+                boolean live = "kit_dur".equals(kind)
+                        || "attack_speed_pct".equals(kind)
+                        || (kind.startsWith("proc_")
+                            && liveProcTargets.contains(kind.substring("proc_".length())));
+                if (live && plugin.getSpec2Service().nodeDisabled(n.id())) {
+                    ok121 = false;
+                    got121 = n.id() + " (" + kind + ")";
+                    break;
+                }
+            }
+            if (!ok121) {
+                break;
+            }
+        }
+        r.check("121", "P2-4: в стоп-листе нет узлов с живыми потребителями (kit_dur/attack_speed/procs)",
+                ok121, "config spec2.disabled-nodes",
+                ok121 ? "OK(20 disabled)" : "живой, но закрыт: " + got121);
     }
 }
