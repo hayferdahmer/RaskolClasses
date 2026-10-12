@@ -18,8 +18,8 @@ import java.util.UUID;
 /**
  * 1.14.8 (Sprint 5, P2-3): ОБЩИЙ ФУНДАМЕНТ шести китов способностей.
  * До этого каждый кит (Warrior/Hunter/Rogue/Mage/Priest/Warlock) держал собственную
- * копию конфиг-хелперов, чисел с фолбэком TreeAbilities.*OrKit, уронного ядра
- * с spec2-хуками baseBonus/coeffMult, таргетинга и VFX — ~120 строк дублей на кит.
+ * копию конфиг-хелперов, чисел с фолбэком TreeAbilities OrKit, уронного ядра
+ * с spec2-хуками baseBonus/coeffMult, таргетинга и VFX — около 120 строк дублей на кит.
  *
  * Контракт базы:
  *  - числа способности: base/coeff/power/duration читаются с фолбэком
@@ -31,10 +31,14 @@ import java.util.UUID;
  *  - лечение: abilityHeal с теми же spec2-хуками (атрибуция целителя — на вызывающем,
  *    HpBarService.heal(target, amount, caster));
  *  - таргетинг и сообщения об отказе — единые для всех китов;
- *  - VFX конфиг-драйвен (vfx.<id>.cast-*/impact-*), resolveParticle безопасен к мусору.
+ *  - VFX конфиг-драйвен (ключи vfx.&lt;id&gt;.cast-sound / cast-particle /
+ *    impact-sound / impact-particle), resolveParticle безопасен к мусору.
  *
  * База НЕ знает про: CC-гейты (AbilityRegistry.castOn, P1-6), treeUnlocked-гейт
  * (удалён в P1-6), классовые реестры баффов (static-карты остаются в китах).
+ *
+ * 1.14.8-fix: в javadoc устранена последовательность символов, завершающая
+ * блочный комментарий досрочно (ошибка компиляции строки 34 в первой редакции).
  */
 public abstract class AbstractKit {
 
@@ -82,7 +86,7 @@ public abstract class AbstractKit {
         return TreeAbilities.durationOrKit(plugin, pc, def.id(), defv);
     }
 
-    /** Древесные числа: только секция classes.<PC>.treeAbilities.<id>.* */
+    /** Древесные числа: только секция classes.PC.treeAbilities.id. */
     protected double tbase(AbilityDef def, double defv) {
         return cfgD("classes." + pc.name() + ".treeAbilities." + def.id() + ".base", defv);
     }
