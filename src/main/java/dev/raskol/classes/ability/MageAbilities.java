@@ -26,7 +26,6 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,7 +43,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   arcane: arcane_missiles, counterspell, presence_of_mind;
  *   fire: scorch, flamestrike, combustion, pyroblast (ульт);
  *   frost: frostbolt, blizzard, ice_barrier, ice_lance_shatter (ульт).
- *   Гейт — treeUnlocked(); бафф «Возгорание» — статическая карта COMBUSTION_UNTIL.
+ *   Бафф «Возгорание» — статическая карта COMBUSTION_UNTIL.
  * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + threshold/execute-mult(zeus_wrath)
  *   читаются через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
  *   чтобы переносимые (athena_aegis/zeus_wrath) пережили резку abilities.
@@ -54,95 +53,33 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
  *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
  *   («откроется узлом дерева путей Мага.»), поведение игрока не изменилось.
+ * 1.14.8 (Sprint 5, P2-3): миграция на AbstractKit — конфиг-хелперы, числа с
+ *   фолбэком, уронное ядро с spec2-хуками, таргетинг и VFX унаследованы;
+ *   combustionMult стал override postMult (×1.25 урона заклинаний под баффом).
+ *   В ките остались только маг-специфика: счётчики chilled/burning,
+ *   distanceToSegment для блинка, executeFx для Зевса.
  */
-public final class MageAbilities {
+public final class MageAbilities extends AbstractKit {
 
     private static final PlayerClass PC = PlayerClass.MAGE;
 
     /** 1.14.0: «Возгорание» — ×1.25 урона заклинаний на 8 с. */
     private static final Map<UUID, Long> COMBUSTION_UNTIL = new ConcurrentHashMap<>();
 
-    private final RaskolClasses plugin;
-
     public MageAbilities(RaskolClasses plugin) {
-        this.plugin = plugin;
+        super(plugin, PC, "sp");
     }
 
-    /* ------------------------------ конфиг-хелперы ------------------------------ */
+    /* ------------------------------ 1.14.8 (P2-3): классовый множитель ------------------------------ */
 
-    private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
-    }
-
-    private String cfgS(String path, String def) {
-        String v = plugin.getConfig().getString(path, def);
-        return v != null ? v : def;
-    }
-
-    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
-    private double base(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
-    }
-
-    private double coeff(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
-    }
-
-    private String power(AbilityDef def) {
-        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "sp");
-    }
-
-    private int duration(AbilityDef def, int defv) {
-        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
-    }
-
-    private double tbase(AbilityDef def, double defv) {
-        return cfgD("classes.MAGE.treeAbilities." + def.id() + ".base", defv);
-    }
-
-    private double tcoeff(AbilityDef def, double defv) {
-        return cfgD("classes.MAGE.treeAbilities." + def.id() + ".coeff", defv);
-    }
-
-    private String tpower(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.MAGE.treeAbilities." + def.id() + ".power", "sp");
-    }
-
-    private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = p.getUniqueId();
-        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c) * combustionMult(uuid);
-    }
-
-    private double tdmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = p.getUniqueId();
-        double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityDamage(uuid, tpower(def), b, c) * combustionMult(uuid);
-    }
-
-    private double combustionMult(UUID uuid) {
+    /** «Возгорание»: ×1.25 к урону заклинаний, пока бафф активен. */
+    @Override
+    protected double postMult(UUID uuid) {
         Long until = COMBUSTION_UNTIL.get(uuid);
         return until != null && until > System.currentTimeMillis() ? 1.25 : 1.0;
     }
 
-    private LivingEntity rayTarget(Player p, double range) {
-        Entity e = p.getTargetEntity((int) range);
-        return e instanceof LivingEntity le ? le : null;
-    }
-
-    private void noTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
-    }
-
-    private void allyTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
-    }
+    /* ------------------------------ маг-специфика ------------------------------ */
 
     private int chilledStacks(LivingEntity t) {
         int stacks = 0;
@@ -163,48 +100,6 @@ public final class MageAbilities {
         return false;
     }
 
-    /* ------------------------------ VFX-хелперы ------------------------------ */
-
-    private void castFx(Player p, String id, String soundDef, String particleDef,
-                        float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
-        Location loc = p.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".cast-particle", particleDef));
-        if (particle != null) {
-            p.getWorld().spawnParticle(particle, loc, count, 0.4, 0.6, 0.4, 0.02);
-        }
-    }
-
-    private void impactFx(LivingEntity target, String id,
-                          String soundDef, String particleDef,
-                          float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
-        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
-        if (particle != null) {
-            target.getWorld().spawnParticle(particle, loc, count, 0.3, 0.5, 0.3, 0.02);
-        }
-    }
-
-    private void pointFx(Location loc, String id, String soundDef, String particleDef,
-                         float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
-        if (particle != null) {
-            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 0.5, 0.0),
-                    count, 0.4, 0.3, 0.4, 0.02);
-        }
-    }
-
     private void executeFx(LivingEntity target) {
         Sound sound = plugin.getFx().resolveSound(
                 cfgS("vfx.zeus_wrath.execute-sound", "ENTITY_LIGHTNING_BOLT_THUNDER"));
@@ -218,15 +113,13 @@ public final class MageAbilities {
         }
     }
 
-    private Particle resolveParticle(String name) {
-        if (name == null || name.isEmpty()) {
-            return null;
-        }
-        try {
-            return Particle.valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
+    private static double distanceToSegment(Location point, Location a, Location b) {
+        Vector ab = b.toVector().subtract(a.toVector());
+        Vector ap = point.toVector().subtract(a.toVector());
+        double lenSq = ab.lengthSquared();
+        double t = lenSq == 0.0 ? 0.0 : Math.max(0.0, Math.min(1.0, ap.dot(ab) / lenSq));
+        Vector closest = a.toVector().add(ab.multiply(t));
+        return point.toVector().distance(closest);
     }
 
     /* -------------------------------- базовые способности -------------------------------- */
@@ -300,15 +193,6 @@ public final class MageAbilities {
                     NamedTextColor.LIGHT_PURPLE));
         }
         return true;
-    }
-
-    private static double distanceToSegment(Location point, Location a, Location b) {
-        Vector ab = b.toVector().subtract(a.toVector());
-        Vector ap = point.toVector().subtract(a.toVector());
-        double lenSq = ab.lengthSquared();
-        double t = lenSq == 0.0 ? 0.0 : Math.max(0.0, Math.min(1.0, ap.dot(ab) / lenSq));
-        Vector closest = a.toVector().add(ab.multiply(t));
-        return point.toVector().distance(closest);
     }
 
     /** 3. «Дыхание Борея»: nova + Slowness II + DoT chilled; без целей = refund. */
