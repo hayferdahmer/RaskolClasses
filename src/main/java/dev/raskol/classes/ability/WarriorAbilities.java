@@ -34,86 +34,20 @@ import java.util.UUID;
  *         concussive_blow (fury_piercing_howl, +0.5 с STUN/ранг), taunt (guard_intervene)
  *         читают длительность через TreeAbilities.durationWithSpec / kitDurBonus.
  * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
- *         централизован в AbilityRegistry.castOn. Текст отказа идентичен
- *         («откроется узлом дерева путей Воина.»), поведение игрока не изменилось.
+ *         централизован в AbilityRegistry.castOn.
+ * 1.14.8 (Sprint 5, P2-3): миграция на AbstractKit — общий каркас (конфиг-хелперы,
+ *         числа с фолбэком, уронное ядро с spec2-хуками, таргетинг, VFX) унаследован;
+ *         в ките остались только воин-специфичные механики.
  */
-public final class WarriorAbilities {
+public final class WarriorAbilities extends AbstractKit {
 
     private static final PlayerClass PC = PlayerClass.WARRIOR;
-    private final RaskolClasses plugin;
 
     public WarriorAbilities(RaskolClasses plugin) {
-        this.plugin = plugin;
+        super(plugin, PC, "wp");
     }
 
-    private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
-    }
-
-    private String cfgS(String path, String def) {
-        String v = plugin.getConfig().getString(path, def);
-        return v != null ? v : def;
-    }
-
-    private double base(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
-    }
-
-    private double coeff(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
-    }
-
-    /** База/коэф для древесных способностей (секция treeAbilities). */
-    private double tbase(AbilityDef def, double defv) {
-        return cfgD("classes.WARRIOR.treeAbilities." + def.id() + ".base", defv);
-    }
-
-    private double tcoeff(AbilityDef def, double defv) {
-        return cfgD("classes.WARRIOR.treeAbilities." + def.id() + ".coeff", defv);
-    }
-
-    private String power(AbilityDef def) {
-        return TreeAbilities.stringOrKit(plugin, PC, def.id(), "power", "wp");
-    }
-
-    private String tpower(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes.WARRIOR.treeAbilities." + def.id() + ".power", "wp");
-    }
-
-    private int duration(AbilityDef def, int defv) {
-        return TreeAbilities.durationOrKit(plugin, PC, def.id(), defv);
-    }
-
-    private double dmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = p.getUniqueId();
-        double b = base(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = coeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityDamage(uuid, power(def), b, c);
-    }
-
-    private double tdmg(Player p, AbilityDef def, double defBase, double defCoeff) {
-        UUID uuid = p.getUniqueId();
-        double b = tbase(def, defBase) + plugin.getSpec2Service().baseBonus(uuid, def.id());
-        double c = tcoeff(def, defCoeff) * plugin.getSpec2Service().coeffMult(uuid, def.id());
-        return plugin.getCombat().powers().abilityDamage(uuid, tpower(def), b, c);
-    }
-
-    private LivingEntity rayTarget(Player p, double range) {
-        Entity e = p.getTargetEntity((int) range);
-        return e instanceof LivingEntity le ? le : null;
-    }
-
-    private void noTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
-    }
-
-    private void allyTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
-    }
+    /* ------------------------------ воин-специфика ------------------------------ */
 
     private double effectiveMaxHp(LivingEntity target) {
         if (target instanceof Player p) {
@@ -126,35 +60,6 @@ public final class WarriorAbilities {
         return ai != null ? ai.getValue() : 20.0;
     }
 
-    /* ------------------------------ VFX-хелперы ------------------------------ */
-
-    private void castFx(Player p, String id, String soundDef, String particleDef,
-                        float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
-        Location loc = p.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".cast-particle", particleDef));
-        if (particle != null) {
-            p.getWorld().spawnParticle(particle, loc, count, 0.4, 0.6, 0.4, 0.02);
-        }
-    }
-
-    private void impactFx(LivingEntity target, String id,
-                          String soundDef, String particleDef,
-                          float volume, float pitch, int count) {
-        Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
-        Location loc = target.getLocation().add(0.0, 1.0, 0.0);
-        if (sound != null) {
-            plugin.getFx().playSound(loc, sound, volume, pitch);
-        }
-        Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
-        if (particle != null) {
-            target.getWorld().spawnParticle(particle, loc, count, 0.3, 0.5, 0.3, 0.02);
-        }
-    }
-
     private void executeFx(Player caster, LivingEntity target) {
         Sound sound = plugin.getFx().resolveSound(
                 cfgS("vfx.ragnarok.execute-sound", "ENTITY_GENERIC_EXPLODE"));
@@ -165,17 +70,6 @@ public final class WarriorAbilities {
         Particle particle = resolveParticle(cfgS("vfx.ragnarok.execute-particle", "EXPLOSION"));
         if (particle != null) {
             target.getWorld().spawnParticle(particle, loc, 3, 0.2, 0.3, 0.2, 0.0);
-        }
-    }
-
-    private Particle resolveParticle(String name) {
-        if (name == null || name.isEmpty()) {
-            return null;
-        }
-        try {
-            return Particle.valueOf(name.toUpperCase(java.util.Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return null;
         }
     }
 
@@ -320,7 +214,7 @@ public final class WarriorAbilities {
         castFx(p, "mortal_strike", "ENTITY_PLAYER_ATTACK_CRIT", "DAMAGE_INDICATOR", 0.7f, 0.9f, 12);
         double dmg = tdmg(p, def, 14.0, 1.1);
         plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
-        dev.raskol.classes.ability.WarlockAbilities.addAntiheal(t.getUniqueId(),
+        WarlockAbilities.addAntiheal(t.getUniqueId(),
                 TreeAbilities.durationOf(plugin, PC, def.id(), 3));
         impactFx(t, "mortal_strike", "ENTITY_PLAYER_HURT", "LARGE_SMOKE", 0.5f, 0.9f, 8);
         return true;
