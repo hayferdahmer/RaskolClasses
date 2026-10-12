@@ -63,8 +63,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
  *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
  *   («откроется узлом дерева путей Чернокнижника.»), поведение игрока не изменилось.
+ * 1.14.8 (Sprint 5, P2-3): миграция на AbstractKit — базовые конфиг-хелперы
+ *   (cfgD/cfgI/base/coeff/tbase/tcoeff), таргетинг (rayTarget/noTarget/allyTarget)
+ *   унаследованы. Уронное ядро spellDamage/tspellDamage с WarlockMath.damageMult
+ *   остаётся китовым (база не знает про Скверну/ад/спеки). Хелперы drain/radius
+ *   остаются в ките (используются только здесь).
  */
-public final class WarlockAbilities implements Listener {
+public final class WarlockAbilities extends AbstractKit implements Listener {
 
     private static final PlayerClass PC = PlayerClass.WARLOCK;
 
@@ -136,46 +141,20 @@ public final class WarlockAbilities implements Listener {
         }
     }
 
-    private final RaskolClasses plugin;
-
     public WarlockAbilities(RaskolClasses plugin) {
-        this.plugin = plugin;
+        super(plugin, PC, "sp");
     }
 
-    /* ------------------------------ конфиг-хелперы ------------------------------ */
+    /* ------------------------------ 1.14.8 (P2-3): китовые хелперы ------------------------------ */
 
-    private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
-    }
-
-    private int cfgI(String path, int def) {
-        return plugin.getConfig().getInt(path, def);
-    }
-
-    // 1.14.0 (Б11.1.2-A): фолбэк treeAbilities → abilities → def
-    private double base(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "base", defv);
-    }
-
-    private double coeff(AbilityDef def, double defv) {
-        return TreeAbilities.numberOrKit(plugin, PC, def.id(), "coeff", defv);
-    }
-
+    /** drain: только у Warlock (читается как treeAbilities → abilities → def). */
     private double drain(AbilityDef def, double defv) {
         return TreeAbilities.numberOrKit(plugin, PC, def.id(), "drain", defv);
     }
 
+    /** radius: только у Warlock (читается как treeAbilities → abilities → def). */
     private double radius(AbilityDef def, double defv) {
         return TreeAbilities.numberOrKit(plugin, PC, def.id(), "radius", defv);
-    }
-
-    private double tbase(AbilityDef def, double defv) {
-        return cfgD("classes.WARLOCK.treeAbilities." + def.id() + ".base", defv);
-    }
-
-    private double tcoeff(AbilityDef def, double defv) {
-        return cfgD("classes.WARLOCK.treeAbilities." + def.id() + ".coeff", defv);
     }
 
     /* ------------------------------ 1.14.7 (Sprint 2, P0-5): spec2-хуки чисел ------------------------------ */
@@ -261,7 +240,11 @@ public final class WarlockAbilities implements Listener {
                 nether);
     }
 
-    /** 1.14.7 (P0-5): base/coeff идут через kitBase/kitCoeff (spec2-хуки живые). */
+    /**
+     * 1.14.7 (P0-5): base/coeff идут через kitBase/kitCoeff (spec2-хуки живые).
+     * 1.14.8 (P2-3): уронное ядро остаётся китовым — база не знает про
+     * Скверну/ад/спеки (множитель damageMult из WarlockMath).
+     */
     private double spellDamage(Player caster, AbilityDef def, double defBase, double defCoeff) {
         double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
         return (kitBase(caster, def, defBase) + sp * kitCoeff(caster, def, defCoeff)) * damageMult(caster);
@@ -270,21 +253,6 @@ public final class WarlockAbilities implements Listener {
     private double tspellDamage(Player caster, AbilityDef def, double defBase, double defCoeff) {
         double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
         return (kitTBase(caster, def, defBase) + sp * kitTCoeff(caster, def, defCoeff)) * damageMult(caster);
-    }
-
-    private LivingEntity rayTarget(Player p, double range) {
-        Entity e = p.getTargetEntity((int) range);
-        return e instanceof LivingEntity le ? le : null;
-    }
-
-    private void noTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
-    }
-
-    private void allyTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
     private void paySelfCost(Player caster, double pct) {
