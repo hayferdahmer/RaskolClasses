@@ -29,6 +29,13 @@ import java.util.logging.Logger;
  * Кулдауны в миллисекундах (на игрока и способность) + персист (A1).
  * 1.6.10: чтение/запись через SafeStorage (атомарно, .bak, фолбэк).
  * 1.6.12: метрики trackedPlayers()/totalEntries() для /rc health.
+ * 1.14.8 (Sprint 6, Волна 6.3, P0-5-01): выход игрока больше не пишет cooldowns.yml
+ *         синхронно на главном потоке. Секция игрока фиксируется в in-memory store
+ *         (writeSection), атомарный persist — в autosave-задаче (saveAll, каждые
+ *         storage.autosave-minutes) и в onDisable. Окно потери при краше ≤ интервала
+ *         автосейва; кулдауны короткоживущие — приемлемо (та же философия, что P1-7
+ *         у HpBarService). Массовый выход (рестарт, падение прокси) больше не
+ *         превращается в N синхронных записей файла на тике.
  */
 public final class CooldownManager implements Listener {
 
@@ -153,7 +160,7 @@ public final class CooldownManager implements Listener {
         });
     }
 
-    /* ------------------------- персист (A1 + 1.6.10) ------------------------- */
+    /* ------------------------- персист (A1 + 1.6.10 + 1.14.8 P0-5-01) ------------------------- */
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
@@ -172,14 +179,25 @@ public final class CooldownManager implements Listener {
         }
     }
 
+    /**
+     * 1.14.8-fix (Волна 6.3, P0-5-01): синхронная запись файла на выходе убрана.
+     * writeSection фиксирует кулдауны игрока в in-memory store (они переживут
+     * autosave и попадут в файл на ближайшем saveAll/onDisable), после чего
+     * оперативная карта и задачи освобождаются.
+     */
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         UUID playerId = event.getPlayer().getUniqueId();
-        savePlayer(playerId);
+        writeSection(playerId);
         readyAt.remove(playerId);
         cancelPlayerTasks(playerId);
     }
 
+    /**
+     * Синхронная запись секции игрока в файл. Оставлен публичным для внешних
+     * сценариев (админ-команды, хотфиксы); внутренний путь выхода с 1.14.8
+     * использует writeSection + периодический persist.
+     */
     public void savePlayer(UUID playerId) {
         writeSection(playerId);
         persist();
@@ -242,6 +260,10 @@ public final class CooldownManager implements Listener {
             return fallback;
         }
         Sound parsed = Registry.SOUNDS.get(NamespacedKey.minecraft(name.toLowerCase(Locale.ROOT)));
-        return parsed != null ? parsed : fallback;
+        return parsed != null ? fallback0(parsed) : fallback;
+    }
+
+    private static Sound fallback0(Sound parsed) {
+        return parsed;
     }
 }
