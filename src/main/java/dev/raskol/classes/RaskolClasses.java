@@ -18,6 +18,7 @@ import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.command.RaskolCommand;
+import dev.raskol.classes.config.ConfigMigrator;
 import dev.raskol.classes.config.ConfigValidator;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
@@ -82,7 +83,10 @@ import java.util.UUID;
  *         spec2.tree-capacity-min — напоминание добить ранги.
  * 1.14.7 (Спринт 4, P1-3): onQuit чистит GUI-сессию книги (TalentsTab.clearSession) —
  *         static-карты VIEW_ROW/VIEW_SPEC/ARM не держат UUID вышедших игроков.
- * 1.14.7-fix: добавлен импорт java.util.UUID (локальная переменная в onQuit).
+ * 1.14.8 (Спринт 6, Волна 6.2, P0-8-01): ConfigMigrator.migrate148(this) в начале
+ *         onEnable — перенос avoidance/hp-display из attributes.* в корень на серверах,
+ *         обновляющихся с 1.14.6; выполняется ДО конструирования сервисов,
+ *         читающих эти ключи (AvoidanceService/HpBarService/AttributeService).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -145,6 +149,11 @@ public final class RaskolClasses extends JavaPlugin {
     @Override
     public void onEnable() {
         this.raskolConfig = new RaskolConfig(this);
+
+        // 1.14.8 (Волна 6.2, P0-8-01): миграция конфига (avoidance/hp-display
+        // из attributes.* в корень). Должна пройти ДО того, как сервисы
+        // начнут читать эти ключи, иначе старый сервер молча получит дефолты.
+        ConfigMigrator.migrate148(this);
 
         getLogger().info(() -> "Paper: " + getServer().getVersion()
                 + " / Bukkit: " + getServer().getBukkitVersion());
