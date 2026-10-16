@@ -3,15 +3,14 @@ package dev.raskol.classes;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
-import dev.raskol.classes.ability.HunterAbilities;
-import dev.raskol.classes.ability.MageAbilities;
-import dev.raskol.classes.ability.PriestAbilities;
-import dev.raskol.classes.ability.RogueAbilities;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.ability.passive.PassiveListener;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.HpAttributeSync;
+import dev.raskol.classes.bootstrap.PluginTasks;
+import dev.raskol.classes.bootstrap.SessionListener;
+import dev.raskol.classes.bootstrap.StartupChecks;
 import dev.raskol.classes.cc.CCGuard;
 import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.CastGuard;
@@ -31,7 +30,6 @@ import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
-import dev.raskol.classes.gui.book.TalentsTab;
 import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
@@ -55,12 +53,7 @@ import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.service.Spec2EffectsApplier;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.spec.storage.Spec2Storage;
-import org.bukkit.ChatColor;
 import org.bukkit.command.PluginCommand;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -68,10 +61,10 @@ import org.bukkit.scheduler.BukkitTask;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
- * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ».
+ * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ». Точка сборки сервиса: конструирование
+ * слоёв, регистрация слушателей, владение периодическими задачами и геттеры-локаторы.
  * 1.13.0: CC-слой (CCService/CCGuard/CastGuard).
  * 1.14.0 (Б8.2): legacy-слой (talent/*, spec/Spec*, specs.yml) УДАЛЁН;
  *         единственная система спеков/талантов — spec2.
@@ -79,22 +72,17 @@ import java.util.UUID;
  * 1.14.1 (Волна 1): hpBarService.saveAll() в onDisable — здоровье не теряется при краше.
  * 1.14.4 (Волна 4, П9): Spec2Points.configure(this) в onEnable ДО инициализации
  *         spec2-слоя — очки/гейты рядов читаются из config.yml.
- * 1.14.6 (Волна 6a): PetService — единое ядро боевых петов (wolf/demon/shadowfiend);
- *         конструктор сервиса сам регистрирует слушатели и тик-задачу.
- * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) также в reloadPlugin() —
- *         snapshot очков/гейтов обновляется при /rc reload без рестарта.
- * 1.14.7 (Спринт 2, P0-4): startup-warning для деревьев с ёмкостью ниже
- *         spec2.tree-capacity-min — напоминание добить ранги.
- * 1.14.7 (Спринт 4, P1-3): onQuit чистит GUI-сессию книги (TalentsTab.clearSession) —
- *         static-карты VIEW_ROW/VIEW_SPEC/ARM не держат UUID вышедших игроков.
- * 1.14.8 (Спринт 6, Волна 6.2, P0-8-01): ConfigMigrator.migrate148(this) в начале
- *         onEnable — перенос avoidance/hp-display из attributes.* в корень на серверах,
- *         обновляющихся с 1.14.6; выполняется ДО конструирования сервисов,
- *         читающих эти ключи (AvoidanceService/HpBarService/AttributeService).
- * 1.14.8 (Спринт 6, Волна 6.3, P0-6-02): общая purge-задача дополнительно чистит
- *         статические карты китов (Hunter/Rogue/Mage/Priest purgeStale) и боевые
- *         логи (ProcService.purgeStale, CombatService.purgeBurstLog) — ранее эти
- *         методы существовали, но не были подключены ни к одной задаче (аудит 6-02).
+ * 1.14.6 (Волна 6a): PetService — единое ядро боевых петов (wolf/demon/shadowfiend).
+ * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) также в reloadPlugin().
+ * 1.14.7 (Спринт 2, P0-4): startup-warning для деревьев ниже tree-capacity-min.
+ * 1.14.7 (Спринт 4, P1-3): onQuit чистит GUI-сессию книги (TalentsTab.clearSession).
+ * 1.14.8 (Спринт 6, Волна 6.2, P0-8-01): ConfigMigrator.migrate148(this) в начале onEnable.
+ * 1.14.8 (Спринт 6, Волна 6.3, P0-6-02): purge-задача чистит карты китов и боевые логи.
+ * 1.14.10 (Sprint 7, Волна 7.2, P0-4-01): ДЕКОМПОЗИЦИЯ God Object'а (аудит 4-01):
+ *         startup-проверки и баннер → bootstrap.StartupChecks; периодические задачи →
+ *         bootstrap.PluginTasks; анонимные слушатели входа/выхода → bootstrap.SessionListener.
+ *         onEnable сокращён до конструирования слоёв и регистраций; геттеры-локаторы
+ *         сохранены (удаление мёртвых — волна 7.3 после сверки с RaskolGear/RaskolCore).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -158,17 +146,15 @@ public final class RaskolClasses extends JavaPlugin {
     public void onEnable() {
         this.raskolConfig = new RaskolConfig(this);
 
-        // 1.14.8 (Волна 6.2, P0-8-01): миграция конфига (avoidance/hp-display
-        // из attributes.* в корень). Должна пройти ДО того, как сервисы
-        // начнут читать эти ключи, иначе старый сервер молча получит дефолты.
+        // 1.14.8 (Волна 6.2, P0-8-01): миграция конфига до чтения ключей сервисами
         ConfigMigrator.migrate148(this);
 
         getLogger().info(() -> "Paper: " + getServer().getVersion()
                 + " / Bukkit: " + getServer().getBukkitVersion());
 
-        checkCoreVersion();
-
-        cleanupTmpFiles();
+        // 1.14.10 (Волна 7.2): startup-проверки вынесены в bootstrap.StartupChecks
+        StartupChecks.logCoreVersion(this);
+        StartupChecks.cleanupTmpFiles(this);
 
         PluginManager pluginManager = getServer().getPluginManager();
 
@@ -231,8 +217,7 @@ public final class RaskolClasses extends JavaPlugin {
         hpSync.startSweep(100L);
         this.hpBarService = new HpBarService(this);
 
-        // 1.14.4 (Волна 4, П9): конфиг-ключи spec2.* ДО инициализации spec2-слоя,
-        // чтобы earnedPoints/rowUnlocked/reconcile сразу считали по конфигу.
+        // 1.14.4 (Волна 4, П9): конфиг-ключи spec2.* ДО инициализации spec2-слоя
         Spec2Points.configure(this);
 
         // 1.14.0: spec2 — единственная система спеков/талантов
@@ -274,29 +259,10 @@ public final class RaskolClasses extends JavaPlugin {
         this.passportListener = new PassportChangeListener(this);
         passportListener.register();
 
-        pluginManager.registerEvents(new Listener() {
-            @EventHandler
-            public void onQuit(PlayerQuitEvent event) {
-                UUID quitUuid = event.getPlayer().getUniqueId();
-                resists.clear(quitUuid);
-                attributes.clear(quitUuid);
-                characterLevels.invalidate(quitUuid);
-                spec2Service.clear(quitUuid);
-                // 1.14.7 (Sprint 4, P1-3): GUI-сессия книги не переживает выход
-                TalentsTab.clearSession(quitUuid);
-            }
-        }, this);
-        pluginManager.registerEvents(new Listener() {
-            @EventHandler
-            public void onJoin(PlayerJoinEvent event) {
-                spec2Service.reconcile(event.getPlayer().getUniqueId());
-                hpSync.sync(event.getPlayer());
-            }
-        }, this);
-        for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
-            spec2Service.reconcile(online.getUniqueId());
-            hpSync.sync(online);
-        }
+        // 1.14.10 (Волна 7.2): анонимные слушатели заменены именованным классом
+        SessionListener sessions = new SessionListener(this);
+        pluginManager.registerEvents(sessions, this);
+        sessions.resyncOnline();
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
@@ -320,127 +286,20 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(installations.startSweepTask());
         activeTasks.add(new ScrollCooldownTask(this).start());
         activeTasks.add(manaSoaked.start());
-        int purgeInterval = raskolConfig.purgeIntervalTicks();
-        activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
-            cooldowns.purgeExpired();
-            effects.purgeExpired();
-            abilities.purgeStaleAttempts();
-            fx.purgeStale();
-            installations.purgeStale();
-            resists.purgeExpired();
-            attributes.purgeExpired();
-            characterLevels.purgeStale();
-            // 1.14.8-fix (Волна 6.3, P0-6-02): метки китов и боевые логи тоже чистятся.
-            // ProcService.purgeStale() и CombatService.purgeBurstLog() существовали,
-            // но не были подключены ни к одной задаче (аудит 6-02).
-            HunterAbilities.purgeStale();
-            RogueAbilities.purgeStale();
-            MageAbilities.purgeStale();
-            PriestAbilities.purgeStale();
-            combat.procs().purgeStale();
-            combat.purgeBurstLog();
-            lastPurgeMillis = System.currentTimeMillis();
-        }, purgeInterval, purgeInterval));
-        long autosaveTicks = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
-        activeTasks.add(getServer().getScheduler().runTaskTimer(this, () -> {
-            cooldowns.saveAll();
-            resources.saveAll();
-            spec2Storage.save();
-        }, autosaveTicks, autosaveTicks));
+        // 1.14.10 (Волна 7.2): периодические задачи вынесены в bootstrap.PluginTasks
+        activeTasks.add(PluginTasks.startPurgeTask(this));
+        activeTasks.add(PluginTasks.startAutosaveTask(this));
 
         registerCommand();
-        printBanner();
-
-        // 1.14.7 (Спринт 2, P0-4): startup-warning для деревьев с ёмкостью ниже
-        // spec2.tree-capacity-min. Не блокирует старт: это напоминание добить ранги.
-        int capMin = getConfig().getInt("spec2.tree-capacity-min", 50);
-        if (capMin < 1) {
-            capMin = 50;
-        }
-        List<String> lowCap = new ArrayList<>();
-        for (dev.raskol.classes.spec.Spec s : dev.raskol.classes.spec.Spec.values()) {
-            dev.raskol.classes.spec.model.Spec2Tree t =
-                    dev.raskol.classes.spec.registry.Spec2Registry.treeOf(s.id());
-            if (t != null && t.capacity() < capMin) {
-                lowCap.add(s.id() + "=" + t.capacity());
-            }
-        }
-        if (!lowCap.isEmpty()) {
-            getLogger().warning("P0-4: " + lowCap.size() + " деревьев ниже tree-capacity-min="
-                    + capMin + ": " + String.join(", ", lowCap)
-                    + " — добавьте maxRank существующим пассивным узлам");
-        }
+        StartupChecks.printBanner(this);
+        StartupChecks.warnLowCapacityTrees(this);
 
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
     }
 
-    /** 1.11.2 (T5): удаляет .yml.tmp старше 1 часа в папке плагина. */
-    private void cleanupTmpFiles() {
-        File folder = getDataFolder();
-        if (folder == null || !folder.isDirectory()) {
-            return;
-        }
-        File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml.tmp"));
-        if (files == null || files.length == 0) {
-            return;
-        }
-        long oneHourAgo = System.currentTimeMillis() - 3_600_000L;
-        int removed = 0;
-        for (File f : files) {
-            if (f.lastModified() < oneHourAgo) {
-                if (f.delete()) {
-                    removed++;
-                } else {
-                    getLogger().warning("Не удалось удалить устаревший .tmp: " + f.getName());
-                }
-            }
-        }
-        if (removed > 0) {
-            getLogger().info("Удалено устаревших .yml.tmp файлов: " + removed);
-        }
-    }
-
-    private void printBanner() {
-        String v = getPluginMeta().getVersion();
-        String[] art = {
-            "&8  ██████╗██╗     █████╗ ███████╗███████╗███████╗███████╗",
-            "&8  ██╔════╝██║    ██╔══██╗██╔════╝██╔════╝██╔════╝██╔════╝",
-            "&4  ██║     ██║    ███████║███████╗███████╗█████╗  ███████╗",
-            "&4  ██║     ██║    ██╔══██║╚════██║╚════██║██╔══╝  ╚════██║",
-            "&5  ╚██████╗███████╗██║  ██║███████║███████║███████╗███████║",
-            "&5   ╚═════╝╚══════╝╚═╝  ╚═╝══════╝╚══════╝╚══════╝╚══════╝",
-            "&8  ────────────────────────────────────────────────────",
-            "&7     RASKOL &8· &7CLASSES    &8|    &5пять путей &8· &4одна война",
-            "&8     ⚔ &4Воин &8· &2➳ Охотник &8· &f✚ Жрец &8· &9✦ Маг &8· &5☠ Разбойник",
-            "&8  ────────────────────────────────────────────────────",
-            "&8     by &fhayferdahmer &8· &7v" + v + " &8· &7Paper 1.21+ &8· &7Java 21",
-            "&8  ────────────────────────────────────────────────────"
-        };
-        var console = getServer().getConsoleSender();
-        for (String line : art) {
-            console.sendMessage(ChatColor.translateAlternateColorCodes('&', line));
-        }
-    }
-
-    private void checkCoreVersion() {
-        try {
-            Class<?> api = Class.forName("dev.raskol.core.RaskolCoreAPI");
-            Object versionObj = api.getMethod("coreVersion").invoke(null);
-            String version = versionObj == null ? "" : versionObj.toString();
-            if (version.isEmpty()) {
-                getLogger().warning("RaskolCore: плагин не включён или версия недоступна — "
-                        + "мгновенный reconcile на смену паспорта может не работать");
-            } else {
-                getLogger().info("RaskolCore: версия " + version);
-                if ("1.0.0".equals(version) || "1.1.0".equals(version) || "1.2.0".equals(version)) {
-                    getLogger().warning("RaskolCore: версия " + version + " устарела — "
-                            + "рекомендуется обновить до 1.3.0 для мгновенного reconcile");
-                }
-            }
-        } catch (Throwable t) {
-            getLogger().info("RaskolCore: не найден — плагин работает в автономном режиме "
-                    + "(мгновенный reconcile на смену паспорта отключён)");
-        }
+    /** 1.14.10 (Волна 7.2): отметка времени последнего purge-цикла (для /rc health). */
+    public void markPurgeNow() {
+        lastPurgeMillis = System.currentTimeMillis();
     }
 
     @Override
