@@ -10,6 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * 1.14.10 (Sprint 7, волна 7.1b, P0-11-01): полное покрытие DotMath.
  * Якорные значения из selftest-чеков 66/67/68.
+ *
+ * 1.14.10-fix: корректная семантика dpsLimit для capPct=0.0 — это валидное
+ * значение «кап выключен» (лимит 0 DPS), а не триггер дефолта 6%. Дефолт
+ * применяется только при capPct < 0 или NaN.
  */
 @DisplayName("DotMath: DoT-капы и множители")
 class DotMathTest {
@@ -117,11 +121,19 @@ class DotMathTest {
         }
 
         @Test
-        @DisplayName("cap ≤ 0 → дефолт 6%")
+        @DisplayName("cap < 0 или NaN → дефолт 6%")
         void invalidCapUsesDefault() {
-            assertEquals(60.0, DotMath.dpsLimit(1000.0, 0.0), EPS);
             assertEquals(60.0, DotMath.dpsLimit(1000.0, -5.0), EPS);
             assertEquals(60.0, DotMath.dpsLimit(1000.0, Double.NaN), EPS);
+        }
+
+        @Test
+        @DisplayName("cap = 0 → лимит 0 (кап выключен, не дефолт)")
+        void zeroCapMeansDisabled() {
+            // capPct = 0.0 — это валидное значение «кап выключен»: лимит 0 DPS,
+            // то есть DoT вообще не ограничен сверху. Дефолт 6% применяется только
+            // при невалидном входе (cap < 0 или NaN).
+            assertEquals(0.0, DotMath.dpsLimit(1000.0, 0.0), EPS);
         }
     }
 }
