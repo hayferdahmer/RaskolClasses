@@ -1,9 +1,13 @@
 # © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+# CI: сборка + pure-тесты (JUnit 5) до публикации артефакта.
+# 1.14.10 (волна 7.1, P0-11-01): `mvn -B clean package` заменён на `mvn -B verify` —
+# фаза test гоняет Surefire-тесты; красная сборка при упавшем тесте блокирует артефакт.
 name: RaskolClasses Build
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,12 +23,14 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Build with Maven
-        run: mvn -B clean package
+      - name: Build and test (mvn verify)
+        run: mvn -B verify
 
       - name: Upload artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: raskol-classes
           path: target/raskol-classes-*.jar
           if-no-files-found: error
+          retention-days: 14
