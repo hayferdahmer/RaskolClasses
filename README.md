@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/1.14.7-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.14.7"/>
+  <img src="https://img.shields.io/badge/1.14.9-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.14.7"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a" alt="paper 1.21.4+"/>
   <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a" alt="java 21"/>
-  <img src="https://img.shields.io/badge/120%2F120-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 120/120"/>
+  <img src="https://img.shields.io/badge/122%2F122-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 120/120"/>
   <img src="https://img.shields.io/badge/proprietary-000000?style=flat-square&label=license&labelColor=0a0a0a" alt="license proprietary"/>
 </p>
 
