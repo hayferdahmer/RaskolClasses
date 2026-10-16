@@ -39,12 +39,19 @@ import java.util.concurrent.ConcurrentHashMap;
  *         очки дерева упадут ниже гейта ряда с купленными узлами. Проверка на
  *         гипотетическом состоянии той же логикой, что validate/reconcile;
  *         выполняется ДО списания монет — состояние и экономика не меняются.
+ *         Disabled-узлы зависимостями НЕ считаются (рангов держать не могут).
+ *         Внимание: если disabled-узел служит пререквизитом купленному включённому,
+ *         с 1.14.8 он считается выполненным (P0-6B), зависимый не прунится.
  * 1.14.7 (Sprint 4, P1-4): chooseMain читает Spec2Points.startLevel() (аксессор снимка).
- * 1.14.8-fix (Sprint 6, Волна 6.1, P0-6B): стоп-лист учитывается в пререквизитах:
+ * 1.14.8 (Sprint 6, Волна 6.1, P0-6B): стоп-лист учитывается в пререквизитах:
  *         purchase/validate/hasDependents передают disabledSet() в prereqsMet/canBuy,
  *         поэтому отключённый пререквизит считается выполненным и включённые узлы
  *         (включая 6 ультов) снова достижимы. disabledSet() — единая точка чтения
  *         стоп-листа для сервиса, GUI и selftest-чека 122.
+ * 1.14.8 (Sprint 6, Волна 6.3, P0-5-01): персист spec2-storage.yml переведён на
+ *         периодическую autosave-задачу (storage.autosave-minutes) + onDisable;
+ *         синхронные save() на каждый клик покупки/респеца/выбора спеки удалены.
+ *         Мутации остаются в in-memory хранилище Spec2Storage.
  */
 public final class Spec2Service {
 
@@ -79,7 +86,7 @@ public final class Spec2Service {
         public final Map<String, Double> dotMult = new HashMap<>();
         /** 1.14.4 (П8): стихийный резист из узлов resist-<school>. */
         public final EnumMap<School, Double> elResist = new EnumMap<>(School.class);
-        public final Set<String> unlocked = new java.util.HashSet<>();
+        public final Set<String> unlocked = new HashSet<>();
         public double attrStr, attrAgi, attrInt;
         public double resPhys, resMagic;
         public double dodge, parry;
@@ -175,7 +182,7 @@ public final class Spec2Service {
             return false;
         }
         storage.setMain(uuid, specId);
-        storage.save();
+        // 1.14.8 (Волна 6.3, P0-5-01): синхронный save убран — персист в autosave/onDisable
         reconcile(uuid);
         return true;
     }
@@ -215,6 +222,7 @@ public final class Spec2Service {
     /**
      * 1.14.8-fix (Волна 6.1, P0-6B): canBuy и дискриминация отказа получают стоп-лист —
      * отключённый пререквизит считается выполненным, включённые узлы достижимы.
+     * 1.14.8 (Волна 6.3, P0-5-01): синхронный save убран — персист в autosave/onDisable.
      */
     public PurchaseResult purchase(Player player, String treeId, String nodeId) {
         if (!enabled()) {
@@ -260,7 +268,6 @@ public final class Spec2Service {
         ranks.merge(nodeId, 1, Integer::sum);
         storage.setRanks(uuid, treeId, ranks);
         reconcile(uuid);
-        storage.save();
         return PurchaseResult.OK;
     }
 
@@ -295,7 +302,7 @@ public final class Spec2Service {
         }
         storage.setRanks(uuid, treeId, new HashMap<>());
         reconcile(uuid);
-        storage.save();
+        // 1.14.8 (Волна 6.3, P0-5-01): синхронный save убран
         return ResetResult.OK;
     }
 
@@ -307,7 +314,8 @@ public final class Spec2Service {
      * включённый узел потеряет пререквизит или очки дерева упадут ниже гейта ряда
      * с купленными узлами. Проверка ДО экономики: монеты не списываются,
      * состояние и хранилище не меняются.
-     * 1.14.8-fix (Волна 6.1): hasDependents учитывает стоп-лист в пререквизитах.
+     * 1.14.8 (Волна 6.1): hasDependents учитывает стоп-лист в пререквизитах.
+     * 1.14.8 (Волна 6.3, P0-5-01): синхронный save убран.
      */
     public NodeResetResult resetNode(Player player, String treeId, String nodeId, boolean free) {
         UUID uuid = player.getUniqueId();
@@ -353,7 +361,6 @@ public final class Spec2Service {
         }
         storage.setRanks(uuid, treeId, ranks);
         reconcile(uuid);
-        storage.save();
         return NodeResetResult.OK;
     }
 
