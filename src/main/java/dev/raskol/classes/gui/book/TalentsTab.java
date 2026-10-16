@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -43,6 +44,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.7 (Спринт 4, P1-4): гейты рядов читаются через Spec2Points.rowGate(row)
  *   (аксессор immutable-снимка), deprecated-поля больше не используются.
  * 1.14.7 (Спринт 4, P1-5): сообщение HAS_DEPENDENTS в switch результата респеца.
+ * 1.14.8-fix (Спринт 6, Волна 6.1):
+ *   P0-6B — отрисовка пререквизитов учитывает стоп-лист (отключённый пререквизит
+ *   подсвечен как выполненный), иначе включённые узлы выглядели закрытыми;
+ *   P0-7B — цена респеца в lore считается по UUID просматривающего игрока,
+ *   а не по первому онлайн (раньше подсказка врала при втором игроке на сервере).
  */
 public final class TalentsTab implements BookTabView {
 
@@ -140,6 +146,8 @@ public final class TalentsTab implements BookTabView {
         int inTree = tree.spentInTree(ranks);
         int row = clampRow(VIEW_ROW.getOrDefault(uuid, 1));
         VIEW_ROW.put(uuid, row);
+        // 1.14.8-fix (Волна 6.1): стоп-лист одним снимком на весь render
+        Set<String> disabledIds = svc.disabledSet();
 
         // --- инфо текущего ряда + прогресс 6 рядов + бюджет ---
         int gate = Spec2Points.rowGate(row); // 1.14.7 (P1-4): аксессор снимка
@@ -221,7 +229,8 @@ public final class TalentsTab implements BookTabView {
             Spec2Node n = nodes.get(i);
             boolean isArmed = n.id().equals(armedKey);
             ctx.inv().setItem(BookSlots.ROW_LINE_SLOTS[i],
-                    nodeItem(plugin, currentSpec, tree, n, ranks, available, inTree, isArmed));
+                    nodeItem(plugin, currentSpec, tree, n, ranks, available, inTree,
+                            isArmed, uuid, disabledIds));
         }
 
         // --- сброс дерева ---
@@ -507,17 +516,21 @@ public final class TalentsTab implements BookTabView {
     /**
      * 1.14.7 (P0-6B): disabled-узел рендерится серым с пометкой «в разработке»;
      * 1.14.4 (П7): armed-узел подсвечен жёлтым.
+     * 1.14.8-fix (Волна 6.1): viewer — UUID просматривающего (цена респеца в lore
+     * считается по его рангам); disabledIds — снимок стоп-листа на render
+     * (пререквизит из стоп-листа подсвечен как выполненный).
      */
     private ItemStack nodeItem(RaskolClasses plugin, String treeId, Spec2Tree tree, Spec2Node node,
                                Map<String, Integer> ranks, int available, int inTree,
-                               boolean isArmed) {
+                               boolean isArmed, UUID viewer, Set<String> disabledIds) {
         int rank = ranks.getOrDefault(node.id(), 0);
         boolean isOwned = rank > 0;
         boolean maxed = rank >= node.maxRank();
-        boolean disabled = plugin.getSpec2Service().nodeDisabled(node.id());
+        boolean disabled = disabledIds.contains(node.id());
         int gate = Spec2Points.rowGate(node.row()); // 1.14.7 (P1-4): аксессор снимка
         boolean rowOk = inTree >= gate;
-        boolean prereqOk = tree.prereqsMet(node, ranks);
+        // 1.14.8-fix (P0-6B): пререквизиты с учётом стоп-листа
+        boolean prereqOk = tree.prereqsMet(node, ranks, disabledIds);
         boolean affordable = available >= 1;
 
         ItemStack item = new ItemStack(node.isUltimate() ? Material.BEACON : Material.NETHER_STAR);
@@ -551,10 +564,13 @@ public final class TalentsTab implements BookTabView {
             for (Map.Entry<String, Integer> e : node.prereqs().entrySet()) {
                 Spec2Node prereqNode = tree.find(e.getKey());
                 String prereqName = prereqNode != null ? prereqNode.name() : e.getKey();
-                int have = ranks.getOrDefault(e.getKey(), 0);
-                boolean met = have >= e.getValue();
+                // 1.14.8-fix (P0-6B): отключённый пререквизит показан выполненным
+                boolean prereqDisabled = disabledIds.contains(e.getKey());
+                int have = prereqDisabled ? e.getValue() : ranks.getOrDefault(e.getKey(), 0);
+                boolean met = prereqDisabled || have >= e.getValue();
                 lore.add(Component.text((met ? "↑ ✔ " : "↑ требует " + e.getValue() + ": ")
-                                + "«" + prereqName + "»",
+                                + "«" + prereqName + "»"
+                                + (prereqDisabled ? " (в разработке — учтён)" : ""),
                         met ? NamedTextColor.DARK_GRAY : NamedTextColor.RED));
             }
             lore.add(Component.empty());
@@ -567,9 +583,8 @@ public final class TalentsTab implements BookTabView {
                             NamedTextColor.YELLOW));
                 }
             } else if (isArmed) {
-                int cost = plugin.getSpec2Service().nodeResetCost(treeId, node.id(),
-                        plugin.getServer().getOnlinePlayers().stream().findFirst()
-                                .map(p -> p.getUniqueId()).orElse(null));
+                // 1.14.8-fix (P0-7B): цена по рангам ПРОСМАТРИВАЮЩЕГО, а не первого онлайн
+                int cost = plugin.getSpec2Service().nodeResetCost(treeId, node.id(), viewer);
                 lore.add(Component.text("⚠ ВЗВЕДЁН ДЛЯ РЕСПЕЦА", NamedTextColor.YELLOW));
                 lore.add(Component.text("ПКМ ещё раз — снять ранг " + rank + "→" + (rank - 1)
                                 + " (" + cost + " монет)", NamedTextColor.YELLOW));
