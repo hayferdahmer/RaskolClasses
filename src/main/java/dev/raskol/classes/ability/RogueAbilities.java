@@ -55,6 +55,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   buffMult стал override postMult (×1.5 cold_blood, ×1.5 shadow_blades,
  *   мультипликативно до ×2.25 при обоих). В ките остались rogue-специфика:
  *   deal() с вендеттой, isBehind, счётчики стеков яда/кровотечения, статические реестры.
+ * 1.14.8 (Sprint 6, Волна 6.3, P0-6-02): purgeStale() — чистка протухших бафф-меток
+ *   и меток «Вендетты» общей purge-задачей RaskolClasses. VENDETTA_EXPIRY ключуется
+ *   по UUID цели (включая мобов) — без чистки карта росла до перезапуска.
  */
 public final class RogueAbilities extends AbstractKit {
 
@@ -109,6 +112,20 @@ public final class RogueAbilities extends AbstractKit {
             m *= 1.5;
         }
         return m;
+    }
+
+    /* ------------------------------ 1.14.8 (Волна 6.3, P0-6-02): чистка ------------------------------ */
+
+    /**
+     * Чистка протухших бафф-меток и меток «Вендетты». Вызывается общей purge-
+     * задачей RaskolClasses. VENDETTA_EXPIRY ключуется по UUID цели (включая
+     * мобов) — без плановой чистки карта росла на каждое применение до перезапуска.
+     */
+    public static void purgeStale() {
+        long now = System.currentTimeMillis();
+        COLD_BLOOD_UNTIL.entrySet().removeIf(e -> e.getValue() <= now);
+        SHADOW_BLADES_UNTIL.entrySet().removeIf(e -> e.getValue() <= now);
+        VENDETTA_EXPIRY.entrySet().removeIf(e -> e.getValue() <= now);
     }
 
     /* ------------------------------ урон с вендеттой ------------------------------ */
