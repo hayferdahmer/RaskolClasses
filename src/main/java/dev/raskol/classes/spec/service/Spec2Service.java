@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,10 +39,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *         очки дерева упадут ниже гейта ряда с купленными узлами. Проверка на
  *         гипотетическом состоянии той же логикой, что validate/reconcile;
  *         выполняется ДО списания монет — состояние и экономика не меняются.
- *         Disabled-узлы зависимостями НЕ считаются (рангов держать не могут).
- *         Внимание: если disabled-узел служит пререквизитом купленному включённому,
- *         reconcile-прунинг снимет зависимого — это ожидаемое поведение стоп-листа.
  * 1.14.7 (Sprint 4, P1-4): chooseMain читает Spec2Points.startLevel() (аксессор снимка).
+ * 1.14.8-fix (Sprint 6, Волна 6.1, P0-6B): стоп-лист учитывается в пререквизитах:
+ *         purchase/validate/hasDependents передают disabledSet() в prereqsMet/canBuy,
+ *         поэтому отключённый пререквизит считается выполненным и включённые узлы
+ *         (включая 6 ультов) снова достижимы. disabledSet() — единая точка чтения
+ *         стоп-листа для сервиса, GUI и selftest-чека 122.
  */
 public final class Spec2Service {
 
@@ -110,21 +113,17 @@ public final class Spec2Service {
 
     /* ------------------------------ 1.14.7 (P0-6B): стоп-лист узлов ------------------------------ */
 
+    /**
+     * 1.14.8-fix (Волна 6.1): снимок стоп-листа одним Set — для prereqsMet/canBuy/
+     * isReachable и для GUI. Единая точка чтения ключа spec2.disabled-nodes.
+     */
+    public Set<String> disabledSet() {
+        return new HashSet<>(plugin.getConfig().getStringList("spec2.disabled-nodes"));
+    }
+
     /** Узел в оперативном стоп-листе spec2.disabled-nodes («в разработке»)? */
     public boolean nodeDisabled(String nodeId) {
-        if (nodeId == null) {
-            return false;
-        }
-        List<String> list = plugin.getConfig().getStringList("spec2.disabled-nodes");
-        if (list == null || list.isEmpty()) {
-            return false;
-        }
-        for (String s : list) {
-            if (nodeId.equals(s == null ? null : s.trim())) {
-                return true;
-            }
-        }
-        return false;
+        return nodeId != null && disabledSet().contains(nodeId);
     }
 
     /* ------------------------------ очки ------------------------------ */
@@ -213,6 +212,10 @@ public final class Spec2Service {
 
     /* ------------------------------ покупка / сброс ------------------------------ */
 
+    /**
+     * 1.14.8-fix (Волна 6.1, P0-6B): canBuy и дискриминация отказа получают стоп-лист —
+     * отключённый пререквизит считается выполненным, включённые узлы достижимы.
+     */
     public PurchaseResult purchase(Player player, String treeId, String nodeId) {
         if (!enabled()) {
             return PurchaseResult.DISABLED;
@@ -235,12 +238,13 @@ public final class Spec2Service {
         if (node == null) {
             return PurchaseResult.NODE_NOT_FOUND;
         }
-        // 1.14.7 (P0-6B): узел в стоп-листе — очки не тратятся
-        if (nodeDisabled(nodeId)) {
+        Set<String> disabled = disabledSet();
+        // узел в стоп-листе — очки не тратятся
+        if (disabled.contains(nodeId)) {
             return PurchaseResult.NODE_DISABLED;
         }
         Map<String, Integer> ranks = storage.getRanks(uuid, treeId);
-        if (!tree.canBuy(node, ranks, availablePoints(uuid))) {
+        if (!tree.canBuy(node, ranks, availablePoints(uuid), disabled)) {
             int spent = tree.spentInTree(ranks);
             if (ranks.getOrDefault(nodeId, 0) >= node.maxRank()) {
                 return PurchaseResult.MAX_RANK;
@@ -248,7 +252,7 @@ public final class Spec2Service {
             if (!Spec2Points.rowUnlocked(node.row(), spent)) {
                 return PurchaseResult.ROW_GATE;
             }
-            if (!tree.prereqsMet(node, ranks)) {
+            if (!tree.prereqsMet(node, ranks, disabled)) {
                 return PurchaseResult.PREREQ;
             }
             return PurchaseResult.NOT_ENOUGH_POINTS;
@@ -303,6 +307,7 @@ public final class Spec2Service {
      * включённый узел потеряет пререквизит или очки дерева упадут ниже гейта ряда
      * с купленными узлами. Проверка ДО экономики: монеты не списываются,
      * состояние и хранилище не меняются.
+     * 1.14.8-fix (Волна 6.1): hasDependents учитывает стоп-лист в пререквизитах.
      */
     public NodeResetResult resetNode(Player player, String treeId, String nodeId, boolean free) {
         UUID uuid = player.getUniqueId();
@@ -357,8 +362,10 @@ public final class Spec2Service {
      * если у nodeId снять один ранг. Логика идентична validate():
      * пререквизиты + ряд-гейты по очкам дерева после снятия.
      * Disabled-узлы пропускаются: они не могут держать ранги (прунятся reconcile).
+     * 1.14.8-fix (Волна 6.1): пререквизиты сверяются с учётом стоп-листа.
      */
     private boolean hasDependents(Spec2Tree tree, Map<String, Integer> ranks, String nodeId) {
+        Set<String> disabled = disabledSet();
         Map<String, Integer> hyp = new HashMap<>(ranks);
         int reduced = hyp.getOrDefault(nodeId, 0) - 1;
         if (reduced <= 0) {
@@ -372,10 +379,10 @@ public final class Spec2Service {
             if (owned <= 0) {
                 continue;
             }
-            if (nodeDisabled(n.id())) {
+            if (disabled.contains(n.id())) {
                 continue;
             }
-            if (!tree.prereqsMet(n, hyp)) {
+            if (!tree.prereqsMet(n, hyp, disabled)) {
                 return true;
             }
             if (!Spec2Points.rowUnlocked(n.row(), spent)) {
@@ -391,7 +398,7 @@ public final class Spec2Service {
         if (tree == null) {
             return 0;
         }
-        int rank = storage.getRanks(uuid, treeId).getOrDefault(nodeId, 0);
+        int rank = uuid == null ? 0 : storage.getRanks(uuid, treeId).getOrDefault(nodeId, 0);
         if (rank <= 0) {
             return 0;
         }
@@ -434,11 +441,12 @@ public final class Spec2Service {
      * Валидация: ряд-гейт по накопленным очкам + ранговые пререквизиты + maxRank.
      * 1.14.7 (P0-6B): disabled-узлы не сохраняются — вложенные ранги прунятся,
      * очки возвращаются в пул (spentGlobal пересчитывается из kept).
-     * 1.14.7 (P1-5): если disabled-узел был пререквизитом купленного включённого,
-     * зависимый тоже прунится здесь — ожидаемое поведение стоп-листа.
+     * 1.14.8-fix (Волна 6.1): пререквизит из стоп-листа считается выполненным —
+     * включённый зависимый узел больше не прунится из-за отключённого пререка.
      */
     private Map<String, Integer> validate(Spec2Tree tree, Map<String, Integer> raw) {
         Map<String, Integer> kept = new HashMap<>();
+        Set<String> disabled = disabledSet();
         List<Spec2Node> sorted = new ArrayList<>(tree.nodes());
         sorted.sort(Comparator.comparingInt(Spec2Node::row));
         for (Spec2Node node : sorted) {
@@ -446,14 +454,14 @@ public final class Spec2Service {
             if (rank == null || rank <= 0) {
                 continue;
             }
-            if (nodeDisabled(node.id())) {
+            if (disabled.contains(node.id())) {
                 continue;
             }
             int r = Math.min(rank, node.maxRank());
             if (!Spec2Points.rowUnlocked(node.row(), tree.spentInTree(kept))) {
                 continue;
             }
-            if (!tree.prereqsMet(node, kept)) {
+            if (!tree.prereqsMet(node, kept, disabled)) {
                 continue;
             }
             kept.put(node.id(), r);
