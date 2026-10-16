@@ -7,6 +7,10 @@ import java.util.Set;
 
 /**
  * 1.14.0: дерево специализации Спека 2.0 — узлы, ряды, ёмкость, пререквизиты.
+ * Record имеет ДВЕ компоненты (id, nodes): именно так конструируют деревья
+ * файлы spec/registry/trees/*Trees.java. Ёмкость и имя — вычисляемые методы:
+ * capacity() = сумма maxRank узлов (инвариант P0-4: ≥ spec2.tree-capacity-min
+ * и > бюджета 46, чек 23/93 selftest).
  *
  * 1.14.8-fix (Волна 6.1, P0-6B): prereqsMet и isReachable учитывают стоп-лист
  * spec2.disabled-nodes: отключённый пререквизит считается выполненным
@@ -15,14 +19,12 @@ import java.util.Set;
  * 25 узлов, включая 6 ультов (bm_bestial_wrath, su_shadow_blades,
  * sv_serpent_sting, as_deathmark, fury_bladestorm, guard_last_stand).
  *
- * Эта редакция замещает 1/5 волны 6.1: возвращены spentInTree/canBuy,
- * сигнатура prereqsMet — (node, ranks, disabledNodes); старые вызовы
- * без стоп-листа работают через deprecated-оверлоды.
+ * Редакция заменяет 1/5-fix волны 6.1: восстановлена двухкомпонентная форма
+ * record'а (конструктор (String, List) для *Trees.java), capacity() снова
+ * вычисляемый метод, а не компонента.
  */
 public record Spec2Tree(
         String id,
-        String displayName,
-        int capacity,
         List<Spec2Node> nodes
 ) {
 
@@ -37,6 +39,23 @@ public record Spec2Tree(
             }
         }
         return null;
+    }
+
+    /**
+     * Ёмкость дерева = сумма maxRank всех узлов (P0-4: ≥ tree-capacity-min,
+     * строго больше бюджета очков 46 — закрыть дерево целиком нельзя).
+     */
+    public int capacity() {
+        int sum = 0;
+        for (Spec2Node n : nodes) {
+            sum += n.maxRank();
+        }
+        return sum;
+    }
+
+    /** Отображаемое имя дерева: в текущей модели совпадает с id (arms, fury, …). */
+    public String displayName() {
+        return id;
     }
 
     /** Сумма рангов по узлам этого дерева (неизвестные id игнорируются). */
