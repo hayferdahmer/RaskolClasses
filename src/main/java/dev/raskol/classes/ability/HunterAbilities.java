@@ -56,6 +56,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   trueShotMult стал override postMult (×1.30 урона способностей под баффом).
  *   В ките остались только охотник-специфика: веер стрел (PDC-тег), ловушка,
  *   пет-делегирование и статические реестры баффов.
+ * 1.14.8 (Sprint 6, Волна 6.3, P0-6-02): purgeStale() — чистка протухших меток
+ *   «Верный выстрел» общей purge-задачей RaskolClasses; статическая карта больше
+ *   не растёт до перезапуска.
  */
 public final class HunterAbilities extends AbstractKit {
 
@@ -78,6 +81,18 @@ public final class HunterAbilities extends AbstractKit {
     protected double postMult(UUID uuid) {
         Long until = TRUE_SHOT_UNTIL.get(uuid);
         return until != null && until > System.currentTimeMillis() ? 1.30 : 1.0;
+    }
+
+    /* ------------------------------ 1.14.8 (Волна 6.3, P0-6-02): чистка ------------------------------ */
+
+    /**
+     * Чистка протухших меток «Верный выстрел». Вызывается общей purge-задачей
+     * RaskolClasses; без неё UUID игроков, завершивших сессию, оставались
+     * в карте до перезапуска.
+     */
+    public static void purgeStale() {
+        long now = System.currentTimeMillis();
+        TRUE_SHOT_UNTIL.entrySet().removeIf(e -> e.getValue() <= now);
     }
 
     /* -------------------------------- базовые способности -------------------------------- */
