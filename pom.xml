@@ -5,6 +5,8 @@
   1.14.7: стабилизация Спека 2.0 (проки, лечение, запись HP, шкала ресурса).
   1.14.8: архитектурный Sprint 5 — AbstractKit, декомпозиция selftest, ревизия стоп-листа.
   1.14.9: стабилизационный Sprint 6 — закрытие критических находок аудита 1.14.8.
+  1.14.10: Sprint 7, волна 7.1 (P0-11-01) — JUnit 5 + Surefire: mvn verify гоняет
+           pure-тесты в CI до сборки jar; регрессии формул ловятся без живого сервера.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -25,6 +27,9 @@
         <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
         <luckperms.version>5.4</luckperms.version>
         <placeholderapi.version>2.11.6</placeholderapi.version>
+        <!-- 1.14.10 (волна 7.1): тест-стек -->
+        <junit.version>5.10.2</junit.version>
+        <surefire.version>3.2.5</surefire.version>
     </properties>
 
     <repositories>
@@ -61,6 +66,13 @@
             <version>${placeholderapi.version}</version>
             <scope>provided</scope>
         </dependency>
+        <!-- 1.14.10 (волна 7.1): JUnit 5 только для тестов, в jar не попадает -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -74,6 +86,12 @@
                     <release>21</release>
                     <encoding>UTF-8</encoding>
                 </configuration>
+            </plugin>
+            <!-- 1.14.10 (волна 7.1): Surefire 3.x нативно гоняет JUnit 5 на фазе test -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire.version}</version>
             </plugin>
         </plugins>
         <resources>
