@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 /**
  * Реестр способностей шести классов.
@@ -56,6 +57,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *         Priest/Warlock): централизованный гейт в castOn покрывает все 69
  *         древесных методов. Для игрока поведение идентично — текст отказа
  *         «откроется узлом дерева путей …» тот же, но теперь источник один.
+ * 1.14.8-fix (Sprint 6, Волна 6.1, P0-6C): исключение в кастере логируется с полным
+ *         стектрейсом (Logger.log(Level.WARNING, msg, ex)) — раньше getMessage()
+ *         у NPE давал null и ошибку нельзя было локализовать.
  */
 public final class AbilityRegistry {
 
@@ -459,6 +463,7 @@ public final class AbilityRegistry {
      * proc onAbilityCast → start cooldown.
      * Инвариант (чек 118): ни один гейт до метки не ставит attempts.put —
      * заблокированный каст не съедает окно клика 150 мс.
+     * 1.14.8-fix (P0-6C): исключение кастера логируется со стектрейсом.
      */
     private boolean castOn(Player caster, LivingEntity target, AbilityDef def, boolean targeted) {
         RaskolConfig cfg = plugin.getRaskolConfig();
@@ -563,7 +568,9 @@ public final class AbilityRegistry {
         try {
             ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
         } catch (RuntimeException ex) {
-            plugin.getLogger().warning("Каст " + def.id() + " бросил исключение: " + ex.getMessage());
+            // 1.14.8-fix (Волна 6.1, P0-6C): полный стектрейс — getMessage() у NPE равен
+            // null и не позволял локализовать падающий кастер из 69.
+            plugin.getLogger().log(Level.WARNING, "Каст " + def.id() + " бросил исключение", ex);
             ok = false;
         } finally {
             CombatService.clearCastSchool();
