@@ -70,12 +70,19 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 121 чек.
+ * Headless-самотестирование формул плагина (/rc selftest), 122 чека.
  *
- * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 22 метода
+ * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
  * инкапсулировано в приватный держатель Report. Номера чеков, их логика, порядок
  * вывода и skip-семантика НЕ изменены — рефакторинг чисто структурный.
+ *
+ * 1.14.8-fix (Sprint 6, Волна 6.1):
+ *   P0-7A — запуск не от игрока: probe = null, все probe-зависимые проверки
+ *           уходят в skip; selftest больше не изменяет ранги/спеку/HP первого
+ *           онлайн-игрока при консольном запуске (аудит 7-03);
+ *   P0-6B — чек 122: достижимость всех включённых узлов при текущем стоп-листе
+ *           (страховка регрессии, когда disabled-пререквизиты закрыли 6 ультов).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -100,6 +107,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   sprint4       117–118   HAS_DEPENDENTS, антиспам-метка гейтов
  *   sprint4Io     119–120   effectiveMax, dirty-flush
  *   stopListLive   121      стоп-лист без узлов с живыми потребителями (P2-4)
+ *   stopListReach  122      достижимость включённых узлов при стоп-листе (P0-6B)
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -242,9 +250,14 @@ public final class SelftestRunner {
 
     public static void run(RaskolClasses plugin, CommandSender sender) {
         Report r = new Report();
-        Player probe = sender instanceof Player sp
-                ? sp
-                : Bukkit.getOnlinePlayers().stream().findFirst().orElse(null);
+        // 1.14.8-fix (Волна 6.1, P0-7A): probe — ТОЛЬКО сам отправитель-игрок.
+        // Консольный запуск не трогает данные случайного онлайн-игрока:
+        // все probe-чеки уходят в skip (аудит 7-03).
+        Player probe = sender instanceof Player sp ? sp : null;
+        if (probe == null) {
+            r.note("⚠ Запуск не от игрока: probe-зависимые проверки пропущены, "
+                    + "данные игроков не изменяются. Полный прогон: /rc selftest от игрока.");
+        }
 
         mathBasics(r);
         ttkLevels(plugin, r);
@@ -268,6 +281,7 @@ public final class SelftestRunner {
         sprint4(plugin, r, probe);
         sprint4Io(plugin, r, probe);
         stopListLive(plugin, r);
+        stopListReachability(plugin, r);
 
         print(plugin, sender, r);
     }
@@ -2234,5 +2248,43 @@ public final class SelftestRunner {
         r.check("121", "P2-4: в стоп-листе нет узлов с живыми потребителями (kit_dur/attack_speed/procs)",
                 ok121, "config spec2.disabled-nodes",
                 ok121 ? "OK(20 disabled)" : "живой, но закрыт: " + got121);
+    }
+
+    /* ------------------------------ 122: Sprint 6, Волна 6.1, P0-6B ------------------------------ */
+
+    /**
+     * 122 (P0-6B): каждый ВКЛЮЧЕННЫЙ узел достижим при текущем стоп-листе.
+     * Регрессия 1.14.8: 25 включённых узлов (включая 6 ультов) стали недостижимы,
+     * потому что их пререквизиты попали в spec2.disabled-nodes, а prereqsMet
+     * требовал ранг отключённого узла. После фикса (отключённый пререквизит =
+     * выполнен) чек сторожит обе стороны: достижимость включённых узлов
+     * и согласованность самого стоп-листа.
+     */
+    private static void stopListReachability(RaskolClasses plugin, Report r) {
+        Set<String> disabled = plugin.getSpec2Service().disabledSet();
+        int unreachable = 0;
+        String got122 = "";
+        for (Spec s : Spec.values()) {
+            Spec2Tree t = Spec2Registry.treeOf(s.id());
+            if (t == null) {
+                continue;
+            }
+            for (Spec2Node n : t.nodes()) {
+                if (disabled.contains(n.id())) {
+                    continue; // сам узел в стоп-листе — покупка и не ожидается
+                }
+                if (!t.isReachable(n.id(), disabled)) {
+                    unreachable++;
+                    if (got122.isEmpty()) {
+                        got122 = s.id() + ":" + n.id();
+                    }
+                }
+            }
+        }
+        boolean ok122 = unreachable == 0;
+        r.check("122", "P0-6B: каждый включённый узел достижим при текущем стоп-листе (цепочки пререквизитов целы)",
+                ok122, "Spec2Tree.isReachable/spec2.disabled-nodes",
+                ok122 ? "OK(" + disabled.size() + " disabled)"
+                        : unreachable + " недостижимых, первый: " + got122);
     }
 }
