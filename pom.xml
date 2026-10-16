@@ -4,6 +4,7 @@
   RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
   1.14.7: стабилизация Спека 2.0 (проки, лечение, запись HP, шкала ресурса).
   1.14.8: архитектурный Sprint 5 — AbstractKit, декомпозиция selftest, ревизия стоп-листа.
+  1.14.9: стабилизационный Sprint 6 — закрытие критических находок аудита 1.14.8.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -12,7 +13,7 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.14.8</version>
+    <version>1.14.9</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
