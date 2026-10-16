@@ -3,6 +3,10 @@ package dev.raskol.classes;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
+import dev.raskol.classes.ability.HunterAbilities;
+import dev.raskol.classes.ability.MageAbilities;
+import dev.raskol.classes.ability.PriestAbilities;
+import dev.raskol.classes.ability.RogueAbilities;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.ability.passive.PassiveListener;
@@ -87,6 +91,10 @@ import java.util.UUID;
  *         onEnable — перенос avoidance/hp-display из attributes.* в корень на серверах,
  *         обновляющихся с 1.14.6; выполняется ДО конструирования сервисов,
  *         читающих эти ключи (AvoidanceService/HpBarService/AttributeService).
+ * 1.14.8 (Спринт 6, Волна 6.3, P0-6-02): общая purge-задача дополнительно чистит
+ *         статические карты китов (Hunter/Rogue/Mage/Priest purgeStale) и боевые
+ *         логи (ProcService.purgeStale, CombatService.purgeBurstLog) — ранее эти
+ *         методы существовали, но не были подключены ни к одной задаче (аудит 6-02).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -322,6 +330,15 @@ public final class RaskolClasses extends JavaPlugin {
             resists.purgeExpired();
             attributes.purgeExpired();
             characterLevels.purgeStale();
+            // 1.14.8-fix (Волна 6.3, P0-6-02): метки китов и боевые логи тоже чистятся.
+            // ProcService.purgeStale() и CombatService.purgeBurstLog() существовали,
+            // но не были подключены ни к одной задаче (аудит 6-02).
+            HunterAbilities.purgeStale();
+            RogueAbilities.purgeStale();
+            MageAbilities.purgeStale();
+            PriestAbilities.purgeStale();
+            combat.procs().purgeStale();
+            combat.purgeBurstLog();
             lastPurgeMillis = System.currentTimeMillis();
         }, purgeInterval, purgeInterval));
         long autosaveTicks = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
