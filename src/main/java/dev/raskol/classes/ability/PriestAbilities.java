@@ -8,6 +8,7 @@ import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.pet.PetService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -63,6 +64,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   бафф-множителя лечения). В ките остались priest-специфика: isAllyOrSelf,
  *   allyRayTarget, maxOf, applyHealWith/groupHeal/alliesWithin, executeFx,
  *   статический LAST_HEAL и CCTypeSlowHolder.
+ * 1.14.8 (Sprint 6, Волна 6.3, P0-6-02): purgeStale() — чистка LAST_HEAL по
+ *   оффлайн-игрокам общей purge-задачей RaskolClasses (у записи нет срока
+ *   годности, критерий — отсутствие игрока онлайн).
  */
 public final class PriestAbilities extends AbstractKit {
 
@@ -73,6 +77,18 @@ public final class PriestAbilities extends AbstractKit {
 
     public PriestAbilities(RaskolClasses plugin) {
         super(plugin, PC, "hpow");
+    }
+
+    /* ------------------------------ 1.14.8 (Волна 6.3, P0-6-02): чистка ------------------------------ */
+
+    /**
+     * Чистка LAST_HEAL по оффлайн-игрокам. У записи нет срока годности (это
+     * «последний хил» для spirit_shell), поэтому критерий — отсутствие игрока
+     * онлайн (паттерн purgeOfflineSessions из TalentsTab). Вызывается общей
+     * purge-задачей RaskolClasses.
+     */
+    public static void purgeStale() {
+        LAST_HEAL.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
     }
 
     /* ------------------------------ priest-специфика ------------------------------ */
