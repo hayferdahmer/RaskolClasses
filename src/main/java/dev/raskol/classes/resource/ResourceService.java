@@ -42,6 +42,13 @@ import java.util.logging.Logger;
  *         начисление детерминированно происходит на каждое кит-лечение с атрибуцией
  *         целителя, а не случайно на ванильных регенах с устаревшей меткой.
  *         onRegainHealth-обработчик удалён; PassiveListener.pollHealerMark больше не зовётся.
+ * 1.14.8 (Sprint 6, Волна 6.3b, P0-5-01): выход игрока больше не пишет resources.yml
+ *         синхронно на главном потоке. Секция игрока фиксируется в in-memory store
+ *         (store.set), атомарный persist — в autosave-задаче (saveAll, каждые
+ *         storage.autosave-minutes) и в onDisable. Окно потери при краше ≤ интервала
+ *         автосейва; ресурсы короткоживущие (декэй вне боя) — приемлемо (та же философия,
+ *         что P1-7 у HpBarService). Массовый выход (рестарт, падение прокси) больше не
+ *         превращается в N синхронных записей файла на тике.
  */
 public final class ResourceService implements Listener {
 
@@ -119,11 +126,15 @@ public final class ResourceService implements Listener {
         }
     }
 
+    /**
+     * 1.14.8-fix (Волна 6.3b, P0-5-01): синхронная запись файла на выходе убрана.
+     * store.set фиксирует ресурс игрока в in-memory (он переживёт autosave и попадёт
+     * в файл на ближайшем saveAll/onDisable), после чего оперативная карта освобождается.
+     */
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         store.set(uuid.toString(), stateOf(uuid).getValue());
-        SafeStorage.saveAtomic(store, file, LOGGER);
         clear(uuid);
     }
 
