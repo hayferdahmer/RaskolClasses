@@ -58,6 +58,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   combustionMult стал override postMult (×1.25 урона заклинаний под баффом).
  *   В ките остались только маг-специфика: счётчики chilled/burning,
  *   distanceToSegment для блинка, executeFx для Зевса.
+ * 1.14.8 (Sprint 6, Волна 6.3, P0-6-02): purgeStale() — чистка протухших меток
+ *   «Возгорание» общей purge-задачей RaskolClasses.
  */
 public final class MageAbilities extends AbstractKit {
 
@@ -77,6 +79,18 @@ public final class MageAbilities extends AbstractKit {
     protected double postMult(UUID uuid) {
         Long until = COMBUSTION_UNTIL.get(uuid);
         return until != null && until > System.currentTimeMillis() ? 1.25 : 1.0;
+    }
+
+    /* ------------------------------ 1.14.8 (Волна 6.3, P0-6-02): чистка ------------------------------ */
+
+    /**
+     * Чистка протухших меток «Возгорание». Вызывается общей purge-задачей
+     * RaskolClasses; без неё UUID игроков, завершивших сессию, оставались
+     * в карте до перезапуска.
+     */
+    public static void purgeStale() {
+        long now = System.currentTimeMillis();
+        COMBUSTION_UNTIL.entrySet().removeIf(e -> e.getValue() <= now);
     }
 
     /* ------------------------------ маг-специфика ------------------------------ */
