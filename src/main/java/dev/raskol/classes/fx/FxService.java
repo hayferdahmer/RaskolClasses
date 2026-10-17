@@ -3,14 +3,10 @@ package dev.raskol.classes.fx;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.combat.DamageProfile;
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
-import org.bukkit.Registry;
 import org.bukkit.Sound;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
@@ -36,10 +32,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * VFX/SFX-слой (1.5.0 → 1.9.3).
  * 1.9.3: алиасы старых звуков (ENTITY_WOLF_HOWL → ENTITY_WOLF_AMBIENT,
  *        BLOCK_SNOW_BLOCK_BREAK → BLOCK_SNOW_BREAK) — фикс битых ключей в логе.
- * 1.14.12 (Sprint 8, Волна 12C, P0-3-05): resolveSound через Registry.SOUNDS
- *         вместо Sound.valueOf — неизвестные ключи возвращают null без исключения;
- *         Sound.valueOf бросал IllegalArgumentException на каждый битый ключ,
- *         что спамило лог и создавало нагрузку на hot-пути (каждый каст/прок).
+ * 1.14.12 (Sprint 8, Волна 12C, P0-3-05): ОТКАТАНО — Paper 1.21.4 не предоставляет
+ *         RegistryKey.SOUNDS (звуковой реестр не экспонируется через RegistryKey,
+ *         в отличие от DAMAGE_TYPE/ATTRIBUTE/ENCHANTMENT). Возврат к Sound.valueOf
+ *         с try-catch и одноразовым warning — корректное поведение для Paper 1.21.4.
+ *         Обоснование: Sound.valueOf бросает IllegalArgumentException на неизвестных
+ *         ключах, но мы ловим его и логируем один раз через warnedSounds — hot-путь
+ *         не спамит, нагрузка минимальна.
  */
 public final class FxService implements Listener {
 
@@ -71,7 +70,8 @@ public final class FxService implements Listener {
 
     /**
      * 1.9.3: алиасы старых звуков (Paper 1.21+ переименовал некоторые ключи).
-     * 1.14.12 (Волна 12C, 3-05): Registry.SOUNDS вместо Sound.valueOf — без исключений.
+     * 1.14.12 (Волна 12C, 3-05): Sound.valueOf с try-catch — Paper 1.21.4 не
+     * предоставляет RegistryKey.SOUNDS, поэтому registry-based резолв невозможен.
      */
     public Sound resolveSound(String name) {
         if (name == null || name.isEmpty()) {
@@ -82,10 +82,9 @@ public final class FxService implements Listener {
             case "BLOCK_SNOW_BLOCK_BREAK" -> "BLOCK_SNOW_BREAK";
             default -> name;
         };
-        NamespacedKey key = NamespacedKey.minecraft(mapped.toLowerCase(Locale.ROOT));
-        Registry<Sound> sounds = RegistryAccess.registryAccess().getRegistry(RegistryKey.SOUNDS);
-        Sound sound = sounds.get(key);
-        if (sound == null) {
+        try {
+            return Sound.valueOf(mapped.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
             if (warnedSounds.add(name)) {
                 plugin.getLogger().warning("vfx: неизвестный звук '" + name + "'"
                         + (mapped.equals(name) ? "" : " (mapped: " + mapped + ")"));
@@ -93,7 +92,6 @@ public final class FxService implements Listener {
             }
             return null;
         }
-        return sound;
     }
 
     public Particle resolveParticle(String name) {
