@@ -46,6 +46,9 @@ import java.util.logging.Logger;
  *         (раньше follow работал только внутри одного мира, волк застревал в аду,
  *         а новый призыв блокировался ALREADY); summon при живом handle в другом
  *         мире переносит пета, а не отказывает.
+ * 1.14.12 (Sprint 8, Волна 12C, P0-5-06): PDC-чтение только после проверки типа
+ *         сущности (LivingEntity) — не все Entity имеют PersistentDataContainer
+ *         (например, Item, ExperienceOrb), чтение на них бросало NPE/ClassCast.
  */
 public final class PetService implements Listener {
 
@@ -375,7 +378,11 @@ public final class PetService implements Listener {
         int removed = 0;
         for (Chunk chunk : chunks) {
             for (Entity e : chunk.getEntities()) {
-                String ownerRaw = e.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
+                // 1.14.12 (Волна 12C, 5-06): PDC только у LivingEntity
+                if (!(e instanceof LivingEntity le)) {
+                    continue;
+                }
+                String ownerRaw = le.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
                 if (ownerRaw == null) {
                     continue;
                 }
@@ -410,6 +417,7 @@ public final class PetService implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPetDeath(EntityDeathEvent event) {
         LivingEntity pet = event.getEntity();
+        // 1.14.12 (Волна 12C, 5-06): PDC только у LivingEntity (EntityDeathEvent и так LivingEntity)
         String ownerRaw = pet.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
         if (ownerRaw == null) {
             return;
@@ -448,7 +456,11 @@ public final class PetService implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         Entity damager = event.getDamager();
-        String ownerRaw = damager.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
+        // 1.14.12 (Волна 12C, 5-06): PDC только у LivingEntity
+        if (!(damager instanceof LivingEntity damagerLiving)) {
+            return;
+        }
+        String ownerRaw = damagerLiving.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
         if (ownerRaw != null) {
             UUID ownerUuid;
             try {
@@ -487,7 +499,11 @@ public final class PetService implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onTarget(EntityTargetEvent event) {
         Entity pet = event.getEntity();
-        String ownerRaw = pet.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
+        // 1.14.12 (Волна 12C, 5-06): PDC только у LivingEntity
+        if (!(pet instanceof LivingEntity petLiving)) {
+            return;
+        }
+        String ownerRaw = petLiving.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
         if (ownerRaw == null || !(event.getTarget() instanceof Player target)) {
             return;
         }
