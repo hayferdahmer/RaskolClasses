@@ -4,6 +4,7 @@ package dev.raskol.classes.attribute;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.config.ConfigReads;
 import dev.raskol.classes.hook.GearHook;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -34,6 +35,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *   maxHp × (1 + hpPercent/100) — узлы hp_pct (fury_metamorphosis и т.п.);
  *   critMeleeChance += critMeleeBonus — узлы crit_melee_pct (arms_precision и т.п.);
  *   movementSpeedMultiplier — новый геттер, применяется в HpAttributeSync (см. ниже).
+ * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble —
+ *         единая NaN-проверка (аудит 1-01). baseOf/growthOf оставлены локальными:
+ *         у них отдельный guard (v ≥ 0) и специфический default — это не общий паттерн.
  */
 public final class AttributeService {
 
@@ -83,9 +87,9 @@ public final class AttributeService {
         return hpPool;
     }
 
+    /** 1.14.10 (Волна 7.3b, P0-1-01): делегат в ConfigReads.finiteDouble (аудит 1-01). */
     private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 
     /* -------------------------------- значения -------------------------------- */
@@ -104,6 +108,7 @@ public final class AttributeService {
         };
     }
 
+    /** Локальный хелпер: guard v ≥ 0 + default из defaultBase (не общий паттерн cfgD). */
     private double baseOf(PlayerClass pc, AttributeType type) {
         double v = plugin.getConfig().getDouble(
                 "attributes.classes." + pc.name() + ".base-" + type.name().toLowerCase(),
@@ -111,6 +116,7 @@ public final class AttributeService {
         return Double.isFinite(v) && v >= 0 ? v : defaultBase(pc, type);
     }
 
+    /** Локальный хелпер: guard v ≥ 0 + default из defaultGrowth (не общий паттерн cfgD). */
     private double growthOf(PlayerClass pc, AttributeType type) {
         double v = plugin.getConfig().getDouble(
                 "attributes.classes." + pc.name() + ".growth-" + type.name().toLowerCase(),
