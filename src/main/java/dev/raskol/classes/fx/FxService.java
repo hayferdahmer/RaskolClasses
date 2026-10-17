@@ -3,9 +3,12 @@ package dev.raskol.classes.fx;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.combat.DamageProfile;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.command.CommandSender;
@@ -17,6 +20,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
+import org.bukkit.registry.Registry;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.List;
@@ -32,6 +36,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * VFX/SFX-слой (1.5.0 → 1.9.3).
  * 1.9.3: алиасы старых звуков (ENTITY_WOLF_HOWL → ENTITY_WOLF_AMBIENT,
  *        BLOCK_SNOW_BLOCK_BREAK → BLOCK_SNOW_BREAK) — фикс битых ключей в логе.
+ * 1.14.12 (Sprint 8, Волна 12C, P0-3-05): resolveSound через Registry.SOUNDS
+ *         вместо Sound.valueOf — неизвестные ключи возвращают null без исключения;
+ *         Sound.valueOf бросал IllegalArgumentException на каждый битый ключ,
+ *         что спамило лог и создавало нагрузку на hot-пути (каждый каст/прок).
  */
 public final class FxService implements Listener {
 
@@ -63,6 +71,7 @@ public final class FxService implements Listener {
 
     /**
      * 1.9.3: алиасы старых звуков (Paper 1.21+ переименовал некоторые ключи).
+     * 1.14.12 (Волна 12C, 3-05): Registry.SOUNDS вместо Sound.valueOf — без исключений.
      */
     public Sound resolveSound(String name) {
         if (name == null || name.isEmpty()) {
@@ -73,9 +82,10 @@ public final class FxService implements Listener {
             case "BLOCK_SNOW_BLOCK_BREAK" -> "BLOCK_SNOW_BREAK";
             default -> name;
         };
-        try {
-            return Sound.valueOf(mapped.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
+        NamespacedKey key = NamespacedKey.minecraft(mapped.toLowerCase(Locale.ROOT));
+        Registry<Sound> sounds = RegistryAccess.registryAccess().getRegistry(RegistryKey.SOUNDS);
+        Sound sound = sounds.get(key);
+        if (sound == null) {
             if (warnedSounds.add(name)) {
                 plugin.getLogger().warning("vfx: неизвестный звук '" + name + "'"
                         + (mapped.equals(name) ? "" : " (mapped: " + mapped + ")"));
@@ -83,6 +93,7 @@ public final class FxService implements Listener {
             }
             return null;
         }
+        return sound;
     }
 
     public Particle resolveParticle(String name) {
