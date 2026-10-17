@@ -13,6 +13,7 @@ import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.combat.school.SchoolConfig;
 import dev.raskol.classes.combat.school.SchoolImmunity;
 import dev.raskol.classes.combat.school.SchoolMitigation;
+import dev.raskol.classes.config.ConfigReads;
 import dev.raskol.classes.config.RaskolConfig;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -55,6 +56,8 @@ import java.util.UUID;
  *         - critFeedback стал public — единая точка вызова из VanillaDamageListener;
  *         - регистрация vanillaListener вынесена из конструктора в onEnable (владелец — RaskolClasses);
  *         - локальный cfgD помечен к выносу в ConfigReads (волна 7.3, аудит 1-01).
+ * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble —
+ *         единая проверка NaN/Infinity для всего боевого ядра.
  */
 public final class CombatService implements Listener {
 
@@ -166,12 +169,11 @@ public final class CombatService implements Listener {
     /* ------------------------------ хелперы единиц ------------------------------ */
 
     /**
-     * 1.14.10 (Волна 7.2B): локальный хелпер помечен к выносу в ConfigReads.finiteDouble
-     * (волна 7.3, аудит 1-01). Сейчас используется только внутри CombatService.
+     * 1.14.10 (Волна 7.3, P0-1-01): делегат в ConfigReads.finiteDouble —
+     * единая NaN-проверка для всего боевого ядра (аудит 1-01: 9 дублей cfgD).
      */
     private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 
     private static org.bukkit.damage.DamageType magicType() {
@@ -613,7 +615,7 @@ public final class CombatService implements Listener {
 
     /**
      * 1.14.10 (Волна 7.2B): стал public — единая точка вызова из VanillaDamageListener
-     * (аудит 4-03: устранение клона). Раньше был private, копия жила в VanillaDamageListener.
+     * (аудит 4-03: устранение клона).
      */
     public void critFeedback(Player attacker, boolean melee) {
         if (!plugin.getConfig().getBoolean("attributes.crit.visuals", true)) {
