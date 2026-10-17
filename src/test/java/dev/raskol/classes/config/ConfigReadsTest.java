@@ -13,6 +13,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): unit-тесты ConfigReads.
  * YamlConfiguration инстанцируется headless (Bukkit-сервер не нужен).
+ *
+ * 1.14.10 (Sprint 7, Волна 7.3b): добавлен тест stringNonEmptyOr (пустая
+ * строка из конфига → дефолт, для тегов/звуков AvoidanceService).
  */
 @DisplayName("ConfigReads: NaN-guard и дефолты")
 class ConfigReadsTest {
@@ -70,6 +73,17 @@ class ConfigReadsTest {
         assertEquals("x", ConfigReads.stringOr(cfg, "s", "def"));
         assertEquals("def", ConfigReads.stringOr(cfg, "missing", "def"));
         assertEquals("def", ConfigReads.stringOr(null, "s", "def"));
+    }
+
+    @Test
+    @DisplayName("stringNonEmptyOr: null/пустая строка → def, непустая сохраняется")
+    void stringNonEmptyOrSemantics() {
+        cfg.set("tag", "💨 Уклонение!");
+        assertEquals("💨 Уклонение!", ConfigReads.stringNonEmptyOr(cfg, "tag", "def"));
+        cfg.set("empty", "");
+        assertEquals("def", ConfigReads.stringNonEmptyOr(cfg, "empty", "def"));
+        assertEquals("def", ConfigReads.stringNonEmptyOr(cfg, "missing", "def"));
+        assertEquals("def", ConfigReads.stringNonEmptyOr(null, "tag", "def"));
     }
 
     @Test
