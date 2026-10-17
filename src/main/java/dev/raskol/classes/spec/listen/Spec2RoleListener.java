@@ -2,6 +2,7 @@
 package dev.raskol.classes.spec.listen;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.config.ConfigReads;
 import dev.raskol.classes.event.CustomHealEvent;
 import dev.raskol.classes.spec.SpecRole;
 import dev.raskol.classes.spec.SpecRoles;
@@ -35,6 +36,9 @@ import java.util.UUID;
  *   Применяется и к китовым хилам (CustomHealEvent), и к ванильным
  *   (EntityRegainHealthEvent). Двойной счёт роли HEALER устранён: пред-множитель
  *   убран из PriestAbilities.applyHealWith, владелец — этот слушатель.
+ *
+ * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble
+ * (аудит 1-01: единая NaN-проверка).
  */
 public final class Spec2RoleListener implements Listener {
 
@@ -49,9 +53,9 @@ public final class Spec2RoleListener implements Listener {
         return main == null ? null : SpecRoles.roleOf(main);
     }
 
+    /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteDouble (аудит 1-01). */
     private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
