@@ -14,11 +14,16 @@ import org.bukkit.configuration.ConfigurationSection;
  *  - finiteDouble: NaN/Infinity в конфиге → дефолт (не 0.0, не проброс NaN в формулы);
  *  - finiteInt: отсутствующий/некорректный ключ → дефолт;
  *  - stringOr: null/пусто-отсутствующий → дефолт (пустая строка из конфига сохраняется);
+ *  - stringNonEmptyOr: null ИЛИ пустая строка → def (для тегов/звуков, где пустое значение
+ *    некорректно по смыслу и должно заменяться дефолтом);
  *  - boolOr: отсутствующий ключ → дефолт;
  *  - null-секция безопасна во всех методах (возвращается дефолт).
  *
  * Pure-класс: работает с ConfigurationSection без Bukkit-сервера, покрыт
  * unit-тестом ConfigReadsTest (волна 7.3).
+ *
+ * 1.14.10 (Sprint 7, Волна 7.3b): добавлен stringNonEmptyOr — покрытие
+ * семантики AvoidanceService.cfgS (пустой тег/звук → дефолт).
  */
 public final class ConfigReads {
 
@@ -49,6 +54,15 @@ public final class ConfigReads {
         }
         String v = cfg.getString(path, def);
         return v != null ? v : def;
+    }
+
+    /** Строка из конфига; отсутствующий ключ, null ИЛИ пустая строка → def. */
+    public static String stringNonEmptyOr(ConfigurationSection cfg, String path, String def) {
+        if (cfg == null) {
+            return def;
+        }
+        String v = cfg.getString(path, def);
+        return v == null || v.isEmpty() ? def : v;
     }
 
     /** boolean из конфига; отсутствующий ключ или null-секция → def. */
