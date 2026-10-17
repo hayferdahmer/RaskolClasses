@@ -2,6 +2,7 @@
 package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.Hp;
 import dev.raskol.classes.cc.CastChannels;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
@@ -68,6 +69,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *   унаследованы. Уронное ядро spellDamage/tspellDamage с WarlockMath.damageMult
  *   остаётся китовым (база не знает про Скверну/ад/спеки). Хелперы drain/radius
  *   остаются в ките (используются только здесь).
+ * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): formulaMax читает максимум через Hp.max
+ *         (атрибут MAX_HEALTH) вместо deprecated LivingEntity#getMaxHealth().
  */
 public final class WarlockAbilities extends AbstractKit implements Listener {
 
@@ -762,11 +765,12 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
 
     /* ------------------------------ unit-хелперы (план B) ------------------------------ */
 
+    /** 1.14.12 (Волна 12A, 3-02): не-игроки читаются через Hp.max (атрибут, NaN-guard). */
     private double formulaMax(LivingEntity t) {
         if (t instanceof Player p) {
             return plugin.getAttributes().maxHp(p.getUniqueId());
         }
-        double m = t.getMaxHealth();
+        double m = Hp.max(t);
         return Double.isFinite(m) && m > 0.0 ? m : 20.0;
     }
 
