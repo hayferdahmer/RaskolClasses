@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  1.14.13 (Sprint 9, 13A): исключения SpotBugs.
+  Билд не падает на этих предупреждениях — они либо ложные, либо приемлемые
+  для текущей стадии проекта.
+
+  Лицензия: RASKOL Proprietary License v1.0.
+-->
+<FindBugsFilter>
+    <!-- Тестовый код: высокий порог шума, не блокируем билд -->
+    <Match>
+        <Source name="~.*Test\.java"/>
+        <Bug pattern="URF_UNREAD_FIELD,URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD"/>
+    </Match>
+
+    <!-- Bootstrap-классы: намеренно читают конфиг напрямую, не через ConfigReads
+         (они инициализируются ДО RaskolClasses.getConfig()) -->
+    <Match>
+        <Class name="~dev\.raskol\.classes\.bootstrap\..*"/>
+        <Bug pattern="NP_NULL_ON_SOME_PATH"/>
+    </Match>
+
+    <!-- HpBarService/heal: null-healer допустим (лечение без атрибуции целителя) -->
+    <Match>
+        <Class name="dev.raskol.classes.hud.HpBarService"/>
+        <Method name="heal"/>
+        <Bug pattern="NP_NULL_PARAM_DEREF"/>
+    </Match>
+
+    <!-- PetService.scanOrphans: PDC-чтение только после instanceof LivingEntity,
+         SpotBugs не видит эту проверку -->
+    <Match>
+        <Class name="dev.raskol.classes.pet.PetService"/>
+        <Method name="scanOrphans"/>
+        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
+    </Match>
+
+    <!-- SelftestRunner: debug-код, шумит без пользы в prod-анализе -->
+    <Match>
+        <Class name="~dev\.raskol\.classes\.selftest\..*"/>
+        <Bug pattern="URF_UNREAD_FIELD,DM_DEFAULT_ENCODING"/>
+    </Match>
+</FindBugsFilter>
