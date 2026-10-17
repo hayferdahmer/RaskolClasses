@@ -1,91 +1,131 @@
-# RUNBOOK — RaskolClasses 1.14.4
+## 7. Конфиг-карта 1.14.10 (Sprint 7: тестируемость + декомпозиция)
 
-Операторский справочник: сохранения, миграции, респецы, композиция лечения,
-проки, конфиг-карта, регресс-матрица, troubleshooting. Лицензия: RASKOL
-Proprietary License v1.0.
+### 7.1. ConfigReads — единая точка чтения (аудит 1-01)
 
-## 1. Старт/стоп и сохранения
+Все классы-читатели конфига (`CombatService`, `VanillaDamageListener`, `DamageCaps`,
+`AbstractKit`, `AttributeService`, `PowerService`, `AvoidanceService`, `SchoolImmunity`,
+`InstallationService`, `Spec2RoleListener`) делегируют в `dev.raskol.classes.config.ConfigReads`:
+- `finiteDouble(cfg, path, def)` — NaN/Infinity → def
+- `finiteInt(cfg, path, def)` — отсутствует → def
+- `stringOr(cfg, path, def)` — null → def
+- `stringNonEmptyOr(cfg, path, def)` — null/пустая строка → def
+- `boolOr(cfg, path, def)` — отсутствует → def
 
-- Автосейв каждые `storage.autosave-minutes` (дефолт 5): cooldowns.yml,
-  resources.yml, spec2-storage.yml.
-- `onDisable` порядок: hpSync.stopSweep → blueprint unregister →
-  WarlockAbilities.cancelAllChannelTasks → отмена задач → passport unregister →
-  resources.saveAll → **hpBarService.saveAll** (1.14.1) → spec2Storage.save →
-  installations.shutdown → bossBars.shutdown → cooldowns save/clear →
-  classProvider.shutdown → effects.clear.
-- После краха HP восстанавливается из `health.yml` (ratio от formula-maxHP).
+**Поведение:** правка логики чтения (диапазон, логирование) — одна строка в `ConfigReads`,
+а не 10 правок в 10 классах.
 
-## 2. Spec2-хранилище и миграция (1.14.4, П10)
+### 7.2. Reload-поведение стоп-листа (аудит 5-05, волна 12A)
 
-- Файл: `plugins/RaskolClasses/spec2-storage.yml` (схема v2:
-  `players.<uuid>.main`, `players.<uuid>.ranks.<treeId>.<nodeId>`).
-- Миграция: при старте, если есть `spec2.yml` и нет `spec2-storage.yml`,
-  выполняется `renameTo`. Лог: `spec2: migrated spec2.yml → spec2-storage.yml`.
-- Откат на 1.14.0: переименовать файл обратно вручную (`spec2-storage.yml` →
-  `spec2.yml`) ПОСЛЕ замены jar.
-- Бэкапы: `SafeStorage` пишет `.bak` перед атомарной заменой; ручная копия —
-  стоп сервера → копия файла → старт.
-- Прунинг: reconcile удаляет ранги узлов, нарушающих гейты рядов/пререквизиты,
-  с warning-логом `spec2: ранги дерева … прорежены …`.
+**До 1.14.12:** `spec2.disabled-nodes` читался из конфига на каждый вызов `nodeDisabled()` —
+правка в файле применялась мгновенно, но с аллокацией `HashSet` на каждый вызов (hot-путь
+отрисовки книги).
 
-## 3. Респецы (1.14.4, П7)
+**С 1.14.12:** стоп-лист — иммутабельный снапшот (`Set.copyOf`), строится лениво на первом
+чтении и пересобирается `refreshDisabledCache()` на старте и `/rc reload`.
 
-| Операция | Где | Цена | Возврат |
+**Практика:** после правки `spec2.disabled-nodes` в `config.yml` выполнить `/rc reload` —
+книга сразу увидит новый стоп-лист. Без reload узел остаётся серым (ожидаемое поведение,
+задокументировано в javadoc `Spec2Service.disabledSet()`).
+
+### 7.3. Rate-limit тяжёлых команд (аудит 7-04, волна 12B)
+
+**Команды с rate-limit 10 с per-sender:**
+- `/rc reload` — перезагрузка конфига (тяжёлая операция: пересборка снапшотов, reconcile
+  всех онлайн-игроков, валидация VFX)
+- `/rc selftest` — запуск 122 headless-чеков (CPU-интенсивно)
+
+**Ключ rate-limit:** UUID игрока или `console:<name>` — разные игроки не блокируют друг
+друга, консоль не блокирует игроков. Первое выполнение всегда разрешено.
+
+**Поведение при спам-клике:** повторный вызов в течение 10 с возвращает сообщение
+«Команда /rc reload доступна не чаще раза в 10 секунд» (серый текст, не ошибка).
+
+### 7.4. Security: проверка raskolclasses.menu (аудит 7-02, волна 12B)
+
+**До 1.14.12:** ветка `/rc menu` проверяла только `instanceof Player`, нода
+`raskolclasses.menu` из `plugin.yml` не проверялась — любой игрок мог открыть книгу.
+
+**С 1.14.12:** ветка `menu` проверяет `raskolclasses.menu` (default: true для группы `citizen`).
+Игрок с отозванной нодой получает «Недостаточно прав».
+
+### 7.5. Security: isSafeName перед dispatchCommand (аудит 7-01, волна 12B)
+
+**До 1.14.12:** `FoliantService.grantSorcerySkill()` подставлял `player.getName()` в
+fallback-команду из `foliant.sorcery-grant-command` без проверки — ник с пробелами/спецсимволами
+мог быть использован для инъекции в консольную команду.
+
+**С 1.14.12:** fallback-команда проверяет `isSafeName(player.getName())` (regex `^[A-Za-z0-9_]{3,16}$`)
+перед `dispatchCommand`. Небезопасный ник отклоняется с severe-логом; API-путь через
+LuckPermsProvider не затрагивается (LP API сам валидирует).
+
+## 8. Регресс-матрица 1.14.10
+
+| Аудит | ID | Статус | Волна |
 | --- | --- | --- | --- |
-| Сброс ВСЕГО дерева | Книга → «Деревья путей» → кристалл, ПКМ ×2 (30 с) | `spec2.respec-base-cost` (250) + `spec2.respec-per-level` (10) × потрачено в дереве | все очки дерева в общий пул |
-| Сброс 1 ранга узла | Книга → ПКМ по купленному узлу → ПКМ повторно (30 с) | `spec2.node-respec-base` (150) + `spec2.node-respec-per-rank` (50) × текущий ранг | 1 очко в общий пул |
+| Единая точка чтения конфига | 1-01 | ✔ закрыт | 7.3 |
+| Декомпозиция God Object | 4-01 | ✔ закрыт | 7.2 |
+| Устранение клона critFeedback | 4-03 | ✔ закрыт | 7.2 |
+| Hp.max вместо deprecated getMaxHealth | 3-02 | ✔ закрыт | 12A |
+| Стоп-лист как кэш-snapshot | 5-05 | ✔ закрыт | 12A |
+| isSafeName перед dispatchCommand | 7-01 | ✔ закрыт | 12B |
+| Проверка raskolclasses.menu | 7-02 | ✔ закрыт | 12B |
+| Rate-limit reload/selftest | 7-04 | ✔ закрыт | 12B |
+| Узкие catch вместо Throwable/ignored | 6-05 | ✔ закрыт | 12B/12C |
+| PDC после проверки типа сущности | 5-06 | ✔ закрыт | 12C |
+| TTL-кэш плейсхолдеров | 5-07 | ✔ закрыт | 12C |
+| Registry.SOUNDS вместо Sound.valueOf | 3-05 | ✔ закрыт | 12C |
+| logger.warning с ключом конфига | 6-06 | ✔ закрыт | 12C |
 
-- `raskolclasses.admin` — оба респеца бесплатно (free-путь).
-- Без Vault-экономики оба возвращают `NO_ECONOMY` (респец отключён, очки целы).
-- Эскалация узлового респеца линейна по рангу: снять 5/5 = 400, снять 1/5 = 200.
-- Взвод узла сбрасывается: ЛКМ по любому узлу, листание рядов, смена спеки,
-  клик по кристаллу, выход из книги.
+## 9. Troubleshooting 1.14.10
 
-## 4. Композиция лечения (1.14.1/1.14.3, П3)
+### 9.1. Стоп-лист не обновляется после правки config.yml
 
-Порядок множителей на `CustomHealEvent` (кит-хилы через HpBarService.heal):
-1. Исходящие: `× (1 + heal_out_pct/100)` (узлы discipline/holy/arms) →
-   `× (1 + spec2.role-passives.HEALER.heal-mult)` если роль владельца HEALER.
-2. Входящие (цель-игрок): `× (1 + heal_received_pct/100 + [TANK: role-passives.TANK.heal-received])`.
-Ванильные `EntityRegainHealthEvent` (регены, зелья): входящие множители те же;
-исходящие heal_out/HEALER применяются только при установленном маркере хилера
-(PriestAbilities ставит перед кит-хилом). Анти-хил (mortal_strike, soul_rift,
-Пентаграмма) режет оба пути через `WarlockAbilities.isAntihealed`.
+**Симптом:** узел в `spec2.disabled-nodes` остаётся серым в книге после правки файла.
 
-## 5. Proc-узлы: справочник триггеров (1.14.3–1.14.4)
+**Причина:** стоп-лист — снапшот (аудит 5-05), правка применяется только после reload.
 
-| Kind | Триггер | Эффект |
-| --- | --- | --- |
-| proc_riposte | PARRY без щита | +X% к следующему удару защищавшегося, 8 с |
-| proc_counterattack | DODGE | +X% к следующему удару уклонившегося, 8 с |
-| proc_revenge | блок щитом (PARRY+щит) | +X% к следующему удару блокировавшего, 8 с |
-| proc_shield_slam | блок щитом | шанс X%: ×1.5 к следующему удару, 8 с |
-| proc_second_wind | урон при HP<35% | мгновенный хил 8% formula-maxHP, КД 30 с |
-| proc_bleed_on_crit | крит мили | наложить bleed |
-| proc_apply_poison | крит мили, шанс | наложить poison |
-| proc_poison_extend / proc_burning_extend | крит мили / крит магии | освежить соответствующий DoT |
-| proc_vendetta_refresh | крит | продлить вендетту на цели до 10 с |
-| proc_double_strike | успешный мили-урон | шанс X% повторного удара (без рекурсии) |
-| proc_expose | любой успешный урон | цель +X% входящего урона, 6 с |
-| proc_crit_bonus / proc_savage / proc_headshot | крит | множитель crit-урона |
-| proc_stealth_bonus | удар в INVISIBILITY | +X% урона |
-| proc_stealth_extend | каст shadow_cloak | +X с к длительности |
-| proc_reflect_magic | полученный маг-урон | отразить X% (может быть уклонён) |
-| proc_undodgeable | крит мили | следующий удар атакующего не уклоняется |
-| proc_armor_pen | удар в INVISIBILITY | игнор X% резиста цели |
+**Решение:** `/rc reload` → книга сразу видит новый стоп-лист.
 
-Состояния proc-слоя чистятся purge-задачей (`performance.purge-interval-ticks`).
+### 9.2. /rc reload отвечает «доступна не чаще раза в 10 секунд»
 
-## 6. Конфиг-карта 1.14.4 (новые/изменённые ключи)
+**Симптом:** повторный вызов `/rc reload` в течение 10 с возвращает серый текст.
 
-```yaml
-spec2:
-  start-level: 15        # читается Spec2Points.configure (П9)
-  max-points: 46         # читается (П9)
-  row-gates: [0,5,10,15,20,30]  # читается (П9)
-  node-respec-base: 150  # НОВОЕ (П7)
-  node-respec-per-rank: 50  # НОВОЕ (П7)
-combat:
-  block:
-    visuals: true        # НОВОЕ: звук/фидбек блока щитом (3B)
-    sound: ITEM_SHIELD_BLOCK
+**Причина:** rate-limit per-sender (аудит 7-04) защищает от спам-клика на main-thread.
+
+**Решение:** подождать 10 с или вызвать из консоли (консольный sender не блокирует
+игроков и наоборот).
+
+### 9.3. Книга класса не открывается у игрока
+
+**Симптом:** `/rc menu` возвращает «Недостаточно прав» у гражданина.
+
+**Причина:** нода `raskolclasses.menu` отозвана (аудит 7-02).
+
+**Решение:** `/lp user <ник> permission set raskolclasses.menu true` или проверить
+parent-группу `citizen` (default: true).
+
+### 9.4. Фолиант Душ не выдаёт sorcery через fallback-команду
+
+**Симптом:** миграция в Чернокнижника проходит, но `foliant.sorcery-grant-command`
+не выполняется; в логе `Foliant: небезопасный ник '...' — fallback-команда отклонена`.
+
+**Причина:** ник игрока содержит пробелы/спецсимволы (аудит 7-01, `isSafeName`).
+
+**Решение:**
+- Если ник валиден (3–16 символов `[A-Za-z0-9_]`) — проверить `foliant.sorcery-grant-command`
+  в `config.yml`.
+- Если ник невалиден — использовать API-путь (AuraSkills установлен, LuckPermsProvider
+  работает) или сменить ник игрока.
+
+### 9.5. Битые цвета в HUD/actionbar
+
+**Симптом:** в логе `HpBarService: битое значение цвета в ключе '...' = '...'`.
+
+**Причина:** некорректный HEX-код в `hp-display.colors.*` или `hp-display.gradient.*`
+(аудит 6-06).
+
+**Решение:** проверить значения в `config.yml` — должны быть валидные HEX (`#RRGGBB`).
+
+---
+
+**Конец RUNBOOK 1.14.10.** Лицензия: RASKOL Proprietary License v1.0.
