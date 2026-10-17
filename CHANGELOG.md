@@ -5,6 +5,48 @@
 вышли внутри релиза 1.14.4 и перечислены в его секции.
 История НЕ переписывается задним числом; даты = даты тегов.
 
+## [1.14.10] — 2026-10-18
+
+Sprint 7: тестируемость, связность, единая точка чтения конфига.
+
+### Added
+- **Unit-тесты (11-01):** JUnit 5 + Surefire 3.2.5; CI переведён на `mvn -B verify` —
+  тесты блокируют артефакт при падении. 57 headless-тестов pure-ядра:
+  `CombatMath` (19), `DotMath` (14), `ConfigReads` (9), `PetMath` (5),
+  `Spec2Node` (5), `Spec2Tree` (5). Якоря сверены с in-game selftest-чеками
+  16/62/66/67/68/93/109/111 — unit и in-game проверки не могут разойтись молча.
+- **config/ConfigReads** (1-01): единая точка чтения конфига с NaN/Infinity/null-guard
+  (`finiteDouble`, `finiteInt`, `stringOr`, `stringNonEmptyOr`, `boolOr`).
+- **bootstrap/** (4-01): `StartupChecks` (tmp-чистка, RaskolCore-лог, capacity-warning,
+  баннер), `PluginTasks` (purge/autosave-задачи), `SessionListener` (вход/выход игрока).
+- **Spec2TreeTest:** инвариант ёмкости [50, 58] по всем 18 деревьям и политика
+  disabled-пререквизитов (регресс-страх 6-01) проверяются headless в CI.
+
+### Changed
+- **RaskolClasses (4-01):** onEnable сокращён до конструирования слоёв и регистраций;
+  startup-проверки, периодические задачи и анонимные слушатели вынесены в bootstrap/*.
+  Геттеры-локаторы сохранены (удаление мёртвых — план 1.14.11, аудит 2-01).
+- **CombatService (4-03/1-02):** `critFeedback` — единственная публичная точка визуала
+  крита; клон из `VanillaDamageListener` удалён. Регистрация `VanillaDamageListener`
+  перенесена из конструктора в `onEnable` (конструктор без побочных эффектов).
+- **Дубли cfgD/cfgS/cfgI (1-01):** 10 классов (`CombatService`, `VanillaDamageListener`,
+  `DamageCaps`, `AbstractKit`, `AttributeService`, `PowerService`, `AvoidanceService`,
+  `SchoolImmunity`, `InstallationService`, `Spec2RoleListener`) делегируют в ConfigReads.
+  Локальные хелперы с особой семантикой (`baseOf`/`growthOf`, guard v ≥ 0) оставлены
+  и помечены в javadoc.
+- **AvoidanceService:** удалён неиспользуемый импорт `java.util.Locale` (аудит 2-02).
+
+### Fixed
+- Тест-семантика `DotMath.dpsLimit`: cap = 0 — это «кап выключен» (лимит 0 DPS),
+  дефолт 6% применяется только при cap < 0 или NaN; расхождение unit-теста и
+  реализации устранено фиксом теста, поведение кода не менялось.
+- `Spec2TreeTest`: prereq-id больше не хардкодятся — берутся из `node.prereqs()`,
+  тест переживает ребаланс деревьев без правок.
+
+### Testing
+- Unit: 57 тестов (Surefire, CI-гейт).
+- In-game: `/rc selftest` — 122 чека, все PASS.
+
 ## [1.14.9] — 2026-10-17
 
 Стабилизационный Sprint 6: закрытие критических находок статического аудита 1.14.8.
@@ -215,7 +257,8 @@
   кулдауны, активные эффекты, HUD actionbar, атрибуты STR/AGI/INT, WP/SP/HPow,
   уклонение/парирование с DR, криты.
 
-[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.9...HEAD
+[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.10...HEAD
+[1.14.10]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.9...v1.14.10
 [1.14.9]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.8...v1.14.9
 [1.14.8]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.7...v1.14.8
 [1.14.7]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.6...v1.14.7
