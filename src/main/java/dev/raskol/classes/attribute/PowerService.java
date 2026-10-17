@@ -3,6 +3,7 @@ package dev.raskol.classes.attribute;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.ConfigReads;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
@@ -32,6 +33,10 @@ import java.util.UUID;
  * Процентные узлы деревьев (arms_training, fury_bloodlust, dm_fel_pact и т.д.)
  * теперь работают; без узлов множитель = 1.0 и поведение идентично pre-3B.
  * Pure-формулы (*Formula) НЕ тронуты — headless-тесты selftest стабильны.
+ *
+ * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble
+ * (аудит 1-01: единая NaN-проверка). baseOf оставлен локальным: секционированное
+ * чтение attributes.power.<section>.<CLASS> с собственным default'ом — не общий паттерн.
  */
 public final class PowerService {
 
@@ -65,11 +70,12 @@ public final class PowerService {
 
     /* ----------------------------- чтение конфига ----------------------------- */
 
+    /** 1.14.10 (Волна 7.3b, P0-1-01): делегат в ConfigReads.finiteDouble (аудит 1-01). */
     private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 
+    /** Локальный хелпер: секционированное чтение base-wp/base-sp/base-hpow по классу. */
     private double baseOf(String section, PlayerClass pc, double def) {
         double v = plugin.getConfig().getDouble(
                 "attributes.power." + section + "." + pc.name(), def);
