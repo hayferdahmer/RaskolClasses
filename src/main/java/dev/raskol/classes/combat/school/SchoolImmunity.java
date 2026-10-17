@@ -2,6 +2,7 @@
 package dev.raskol.classes.combat.school;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.config.ConfigReads;
 import org.bukkit.entity.EntityType;
 
 import java.util.List;
@@ -12,6 +13,9 @@ import java.util.List;
  * + resistant-mult (дефолт 0.5) / vulnerable-mult (дефолт 1.5).
  * Порядок: immune (урон 0, триггеры молчат) → vulnerable → resistant → 1.0.
  * Пустая таблица = множитель 1.0 везде (поведение 1.11.4).
+ *
+ * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble
+ * (аудит 1-01: единая NaN-проверка).
  */
 public final class SchoolImmunity {
 
@@ -57,8 +61,8 @@ public final class SchoolImmunity {
         return false;
     }
 
+    /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteDouble (аудит 1-01). */
     private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 }
