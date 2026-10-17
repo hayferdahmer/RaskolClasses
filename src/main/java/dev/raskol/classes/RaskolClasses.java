@@ -83,6 +83,9 @@ import java.util.List;
  *         bootstrap.PluginTasks; анонимные слушатели входа/выхода → bootstrap.SessionListener.
  *         onEnable сокращён до конструирования слоёв и регистраций; геттеры-локаторы
  *         сохранены (удаление мёртвых — волна 7.3 после сверки с RaskolGear/RaskolCore).
+ * 1.14.12 (Sprint 8, Волна 12A, P0-5-05): refreshDisabledCache() вызывается в onEnable
+ *         после создания spec2-слоя и в reloadPlugin() — снапшот стоп-листа актуален
+ *         на старте и после /rc reload.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -224,6 +227,8 @@ public final class RaskolClasses extends JavaPlugin {
         this.spec2Storage = new Spec2Storage(this);
         this.spec2Applier = new Spec2EffectsApplier(this);
         this.spec2Service = new Spec2Service(this, spec2Storage);
+        // 1.14.12 (Волна 12A, 5-05): первичная сборка снапшота стоп-листа
+        this.spec2Service.refreshDisabledCache();
         pluginManager.registerEvents(new Spec2RoleListener(this), this);
 
         this.factionHook = new FactionHook(this);
@@ -359,11 +364,16 @@ public final class RaskolClasses extends JavaPlugin {
     /**
      * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) — snapshot очков/гейтов
      * обновляется при /rc reload без рестарта сервера.
+     * 1.14.12 (Волна 12A, 5-05): снапшот стоп-листа пересобирается здесь же.
      */
     public void reloadPlugin() {
         raskolConfig.reload();
         // 1.14.7 (P1-4): snapshot очков/гейтов обновляется при reload
         Spec2Points.configure(this);
+        // 1.14.12 (Волна 12A, 5-05): снапшот стоп-листа пересобирается на reload
+        if (spec2Service != null) {
+            spec2Service.refreshDisabledCache();
+        }
         raskolConfig.reloadKits();
         abilities.loadFromConfig(raskolConfig);
         hud.applyConfig();
