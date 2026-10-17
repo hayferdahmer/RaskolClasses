@@ -6,6 +6,7 @@ import dev.raskol.classes.combat.DamageType;
 import org.bukkit.event.entity.EntityDamageEvent;
 
 import java.util.Locale;
+import java.util.logging.Logger;
 
 /**
  * 1.12.0: конфиг-слой школ (секция schools.* в config.yml).
@@ -15,9 +16,14 @@ import java.util.Locale;
  *    фолбэк — канал из damage-types.vanilla-map → дефолтная школа канала;
  *  - mitigation-cap / pen-pct-cap / elemental.*: резерв 1.12.1–1.12.2.
  * 1.12.0-reorg: пакет combat.school.
+ * 1.14.12 (Sprint 8, Волна 12C, P0-6-06): logger.warning с ключом конфига
+ *         вместо пустого catch (IllegalArgumentException ignored) при парсинге
+ *         DamageType из damage-types.vanilla-map — битое значение логируется
+ *         с указанием ключа, а не проглатывается молча.
  */
 public final class SchoolConfig {
 
+    private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
     private final RaskolClasses plugin;
 
     public SchoolConfig(RaskolClasses plugin) {
@@ -63,6 +69,8 @@ public final class SchoolConfig {
     /**
      * Школа ванильной причины урона: schools.vanilla-school.<CAUSE> →
      * фолбэк через канал (damage-types.vanilla-map → DamageType.defaultFor).
+     * 1.14.12 (Волна 12C, 6-06): битое значение в damage-types.vanilla-map
+     * логируется с ключом конфига (раньше проглатывалось молча).
      */
     public School schoolOf(EntityDamageEvent.DamageCause cause) {
         String override = plugin.getConfig()
@@ -71,13 +79,15 @@ public final class SchoolConfig {
         if (direct != null) {
             return direct;
         }
-        String channelOverride = plugin.getConfig()
-                .getString("damage-types.vanilla-map." + cause.name());
+        String channelKey = "damage-types.vanilla-map." + cause.name();
+        String channelOverride = plugin.getConfig().getString(channelKey);
         DamageType channel = null;
         if (channelOverride != null && !channelOverride.isEmpty()) {
             try {
                 channel = DamageType.valueOf(channelOverride.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException ignored) {
+            } catch (IllegalArgumentException e) {
+                LOGGER.warning("SchoolConfig: битое значение ключа '" + channelKey
+                        + "' = '" + channelOverride + "' — используется дефолтная школа канала");
             }
         }
         if (channel == null) {
