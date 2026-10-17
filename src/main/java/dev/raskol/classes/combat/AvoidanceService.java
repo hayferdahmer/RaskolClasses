@@ -6,6 +6,7 @@ import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.ConfigReads;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
@@ -27,7 +28,6 @@ import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.util.Vector;
 
 import java.time.Duration;
-import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -59,6 +59,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * различает dodge и parry для триггеров proc_riposte / proc_counterattack.
  * 1.14.3 (Волна 3, 3C2): proc_undodgeable — если у атакующего активен флаг
  * «следующий удар нельзя уклонить», tryAvoid возвращает NONE и сбрасывает флаг.
+ * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble,
+ *         cfgS — в ConfigReads.stringNonEmptyOr (пустой тег/звук → дефолт);
+ *         удалён неиспользуемый импорт java.util.Locale (аудит 2-02).
  */
 public final class AvoidanceService {
 
@@ -70,14 +73,14 @@ public final class AvoidanceService {
         this.staggerKey = new NamespacedKey(plugin, "parry_stagger");
     }
 
+    /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteDouble (аудит 1-01). */
     private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 
+    /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.stringNonEmptyOr — теги/звуки. */
     private String cfgS(String path, String def) {
-        String v = plugin.getConfig().getString(path, def);
-        return v != null && !v.isEmpty() ? v : def;
+        return ConfigReads.stringNonEmptyOr(plugin.getConfig(), path, def);
     }
 
     private boolean enabled() {
