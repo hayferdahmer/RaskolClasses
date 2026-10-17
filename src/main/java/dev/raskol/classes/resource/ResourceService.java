@@ -3,6 +3,7 @@ package dev.raskol.classes.resource;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.attribute.Hp;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
@@ -45,10 +46,9 @@ import java.util.logging.Logger;
  * 1.14.8 (Sprint 6, Волна 6.3b, P0-5-01): выход игрока больше не пишет resources.yml
  *         синхронно на главном потоке. Секция игрока фиксируется в in-memory store
  *         (store.set), атомарный persist — в autosave-задаче (saveAll, каждые
- *         storage.autosave-minutes) и в onDisable. Окно потери при краше ≤ интервала
- *         автосейва; ресурсы короткоживущие (декэй вне боя) — приемлемо (та же философия,
- *         что P1-7 у HpBarService). Массовый выход (рестарт, падение прокси) больше не
- *         превращается в N синхронных записей файла на тике.
+ *         storage.autosave-minutes) и в onDisable.
+ * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): overflow-тик Скверны читает carrier через
+ *         Hp.max (атрибут MAX_HEALTH) вместо deprecated Player#getMaxHealth().
  */
 public final class ResourceService implements Listener {
 
@@ -223,8 +223,9 @@ public final class ResourceService implements Listener {
                 st.tickDelta(rate);
             }
 
+            // 1.14.12 (Волна 12A, 3-02): carrier через Hp.max (атрибут, NaN-guard)
             if (pc == PlayerClass.WARLOCK && st.getValue() >= config.warlockThresholdOverflow()) {
-                double carrier = player.getMaxHealth();
+                double carrier = Hp.max(player);
                 double tickDmg = carrier * 0.01;
                 double newHp = Math.max(1.0, player.getHealth() - tickDmg);
                 player.setHealth(newHp);
