@@ -3,6 +3,7 @@ package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.attribute.Hp;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.dot.DotService;
@@ -52,12 +53,12 @@ import java.util.UUID;
  *         маг-урона обратно атакующему), undodgeable ставится на крит мили.
  * 1.14.7 (Sprint 3, P0-6A): A2 Воина — enrageMult (fury_enrage, physBase при HP<50%)
  *         и onMeleeHitLand (battle_trance, счётчик 3-го удара для ярости).
- * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): ДЕКОМПОЗИЦИЯ (аудит 4-03):
- *         - critFeedback стал public — единая точка вызова из VanillaDamageListener;
- *         - регистрация vanillaListener вынесена из конструктора в onEnable (владелец — RaskolClasses);
- *         - локальный cfgD помечен к выносу в ConfigReads (волна 7.3, аудит 1-01).
- * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble —
- *         единая проверка NaN/Infinity для всего боевого ядра.
+ * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): critFeedback стал public — единая точка
+ *         вызова из VanillaDamageListener; регистрация vanillaListener вынесена
+ *         из конструктора в onEnable.
+ * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble.
+ * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): hpFractionOf читает максимум через Hp.max
+ *         (атрибут MAX_HEALTH) вместо deprecated LivingEntity#getMaxHealth().
  */
 public final class CombatService implements Listener {
 
@@ -168,10 +169,7 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ хелперы единиц ------------------------------ */
 
-    /**
-     * 1.14.10 (Волна 7.3, P0-1-01): делегат в ConfigReads.finiteDouble —
-     * единая NaN-проверка для всего боевого ядра (аудит 1-01: 9 дублей cfgD).
-     */
+    /** 1.14.10 (Волна 7.3, P0-1-01): делегат в ConfigReads.finiteDouble. */
     private double cfgD(String path, double def) {
         return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
@@ -196,12 +194,13 @@ public final class CombatService implements Listener {
     public double formulaMaxOf(LivingEntity target) { return caps.formulaMaxOf(target); }
     public double scaleOf(Entity target) { return caps.scaleOf(target); }
 
+    /** 1.14.12 (Волна 12A, 3-02): не-игроки читаются через Hp.max (атрибут, NaN-guard). */
     private double hpFractionOf(LivingEntity e) {
         if (e instanceof Player p) {
             double max = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
             return max > 0.0 ? plugin.getHpBarService().currentFormulaHp(p) / max : 1.0;
         }
-        double max = e.getMaxHealth();
+        double max = Hp.max(e);
         return max > 0.0 ? e.getHealth() / max : 1.0;
     }
 
