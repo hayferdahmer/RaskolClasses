@@ -56,6 +56,12 @@ import java.util.logging.Logger;
  * 1.11.2: санитайзер ника, дроп только с пиглинов ада, релок-цикл, soulbound.
  * 1.14.0 (Б8): гейты SPEC_CHOSEN/TALENTS_SPENT читают spec2-слой
  *         (Spec2Service.mainSpec / spentGlobal); legacy SpecService/TalentService удалены.
+ * 1.14.12 (Sprint 8, Волна 12B, P0-7-01): grantSorcerySkill проверяет isSafeName
+ *         ПЕРЕД fallback-dispatchCommand — имя игрока из конфига не может попасть
+ *         в консольную команду без валидации (аудит 7-01).
+ * 1.14.12 (Sprint 8, Волна 12B, P0-6-05): catch-блоки в swapLuckPermsGroup/grantSorcerySkill
+ *         сужены до Exception/ReflectiveOperationException + warning-лог
+ *         (раньше Throwable и ignored — падали молча или ловили OOM/StackOverflow).
  */
 public final class FoliantService implements Listener {
 
@@ -387,12 +393,17 @@ public final class FoliantService implements Listener {
         return name != null && SAFE_NAME.matcher(name).matches();
     }
 
+    /**
+     * 1.14.12 (Волна 12B, 6-05): catch сужен до Exception (Throwable ловил OOM/StackOverflow
+     * и глушил их — теперь они всплывают и логируются JVM штатно).
+     */
     private boolean swapLuckPermsGroup(Player player) {
         try {
             return swapViaApi(player.getUniqueId());
-        } catch (Throwable t) {
+        } catch (Exception e) {
             plugin.getLogger().warning("Foliant: LP API недоступен ("
-                    + t.getClass().getSimpleName() + ") — фолбэк на console-команды");
+                    + e.getClass().getSimpleName() + ": " + e.getMessage()
+                    + ") — фолбэк на console-команды");
             return swapViaConsole(player);
         }
     }
@@ -505,6 +516,13 @@ public final class FoliantService implements Listener {
         return null;
     }
 
+    /**
+     * 1.14.12 (Волна 12B, 7-01): fallback-dispatchCommand проверяет isSafeName ПЕРЕД
+     * подстановкой ника — имя игрока не может быть использовано для инъекции в
+     * консольную команду из ключа foliant.sorcery-grant-command.
+     * 1.14.12 (Волна 12B, 6-05): catch сужен до ReflectiveOperationException | LinkageError
+     * (Throwable ловил OOM/StackOverflow молча).
+     */
     private void grantSorcerySkill(Player player, int level) {
         try {
             Class<?> apiClass = Class.forName("dev.aurelium.auraskills.api.AuraSkillsApi");
@@ -524,10 +542,20 @@ public final class FoliantService implements Listener {
                 plugin.getLogger().warning("Foliant: дерево sorcery не найдено в AuraSkills");
                 return;
             }
-        } catch (Throwable ignored) {
+        } catch (ReflectiveOperationException | LinkageError e) {
+            plugin.getLogger().warning("Foliant: рефлексия AuraSkills API упала ("
+                    + e.getClass().getSimpleName() + ": " + e.getMessage()
+                    + ") — переход на fallback-команду");
         }
         String cmd = plugin.getConfig().getString("foliant.sorcery-grant-command", "");
         if (cmd != null && !cmd.isEmpty()) {
+            // 1.14.12 (7-01): isSafeName — защита от инъекции ника в консольную команду
+            if (!isSafeName(player.getName())) {
+                plugin.getLogger().severe("Foliant: небезопасный ник '" + player.getName()
+                        + "' — fallback-команда sorcery-grant отклонена. Игрок: "
+                        + player.getName() + ", уровень: " + level);
+                return;
+            }
             String exec = cmd.replace("{player}", player.getName())
                     .replace("{level}", String.valueOf(level));
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), exec);
