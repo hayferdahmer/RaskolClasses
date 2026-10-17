@@ -3,6 +3,7 @@ package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.ConfigReads;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
@@ -31,7 +32,7 @@ import java.util.UUID;
  *  - лечение: abilityHeal с теми же spec2-хуками (атрибуция целителя — на вызывающем,
  *    HpBarService.heal(target, amount, caster));
  *  - таргетинг и сообщения об отказе — единые для всех китов;
- *  - VFX конфиг-драйвен (ключи vfx.&lt;id&gt;.cast-sound / cast-particle /
+ *  - VFX конфиг-драйвен (ключи vfx.id.cast-sound / cast-particle /
  *    impact-sound / impact-particle), resolveParticle безопасен к мусору.
  *
  * База НЕ знает про: CC-гейты (AbilityRegistry.castOn, P1-6), treeUnlocked-гейт
@@ -39,6 +40,8 @@ import java.util.UUID;
  *
  * 1.14.8-fix: в javadoc устранена последовательность символов, завершающая
  * блочный комментарий досрочно (ошибка компиляции строки 34 в первой редакции).
+ * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD/cfgS/cfgI делегируют в ConfigReads —
+ * единая NaN/null-проверка для всех китов (аудит 1-01).
  */
 public abstract class AbstractKit {
 
@@ -54,18 +57,19 @@ public abstract class AbstractKit {
 
     /* ------------------------------ конфиг-хелперы ------------------------------ */
 
+    /** 1.14.10 (Волна 7.3): делегат в ConfigReads.finiteDouble. */
     protected double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 
+    /** 1.14.10 (Волна 7.3): делегат в ConfigReads.stringOr. */
     protected String cfgS(String path, String def) {
-        String v = plugin.getConfig().getString(path, def);
-        return v != null ? v : def;
+        return ConfigReads.stringOr(plugin.getConfig(), path, def);
     }
 
+    /** 1.14.10 (Волна 7.3): делегат в ConfigReads.finiteInt. */
     protected int cfgI(String path, int def) {
-        return plugin.getConfig().getInt(path, def);
+        return ConfigReads.finiteInt(plugin.getConfig(), path, def);
     }
 
     /* --------------------- числа способности (фолбэк 1.14.0 Б11.1.2-A) --------------------- */
