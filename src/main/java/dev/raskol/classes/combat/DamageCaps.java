@@ -2,6 +2,7 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.Hp;
 import dev.raskol.classes.config.ConfigReads;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -22,6 +23,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - env-lethal scale: среда (FALL/DROWNING/…) × carrier/20.
  * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble
  *         (аудит 1-01: единая NaN-проверка).
+ * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): carrierMaxOf читает максимум через Hp.max
+ *         (атрибут MAX_HEALTH) вместо deprecated LivingEntity#getMaxHealth().
  */
 public final class DamageCaps {
 
@@ -45,11 +48,12 @@ public final class DamageCaps {
 
     /* ------------------------------ carrier/formula ------------------------------ */
 
+    /** 1.14.12 (Волна 12A, 3-02): не-игроки читаются через Hp.max (атрибут, NaN-guard). */
     public double carrierMaxOf(LivingEntity target) {
         if (target instanceof Player p) {
             return plugin.getHpBarService().carrierMaxHp(p);
         }
-        double m = target.getMaxHealth();
+        double m = Hp.max(target);
         return Double.isFinite(m) && m > 0.0 ? m : 20.0;
     }
 
