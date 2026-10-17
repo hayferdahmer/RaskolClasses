@@ -57,6 +57,10 @@ import java.util.logging.Logger;
  *         Текст рядом с баром показывает «res/effectiveMax» вместо «res/100»;
  *         gradientBar клампует fraction в [0,1], поэтому ресурс выше 100
  *         (через узлы resource_max + setCeiling) корректно растягивает бар.
+ * 1.14.12 (Sprint 8, Волна 12C, P0-6-06): logger.warning с ключом конфига
+ *         вместо пустого catch (IllegalArgumentException ignored) в color()
+ *         и applyHearts() — битые значения цветов/hearts-scale логируются
+ *         с указанием ключа, а не проглатываются молча.
  */
 public final class HpBarService implements Listener {
 
@@ -179,6 +183,11 @@ public final class HpBarService implements Listener {
         return secs * 1000L;
     }
 
+    /**
+     * 1.14.12 (Волна 12C, 6-06): битое значение цвета логируется с ключом конфига
+     * (раньше IllegalArgumentException проглатывался молча — невозможно было понять,
+     * какой именно HEX некорректен).
+     */
     private TextColor color(String path, String fallback) {
         String hex = plugin.getConfig().getString(path, fallback);
         if (hex != null) {
@@ -187,7 +196,9 @@ public final class HpBarService implements Listener {
                 if (parsed != null) {
                     return parsed;
                 }
-            } catch (IllegalArgumentException ignored) {
+            } catch (IllegalArgumentException e) {
+                LOGGER.warning("HpBarService: битое значение цвета в ключе '" + path
+                        + "' = '" + hex + "' — используется fallback '" + fallback + "'");
             }
         }
         return TextColor.fromHexString(fallback);
@@ -397,6 +408,10 @@ public final class HpBarService implements Listener {
         }
     }
 
+    /**
+     * 1.14.12 (Волна 12C, 6-06): битое значение hearts-scale логируется с ключом
+     * и именем игрока; health scaling отключается для этого игрока.
+     */
     private void applyHearts(Player player, boolean unified) {
         if (!unified) {
             if (player.isHealthScaled()) {
@@ -410,6 +425,8 @@ public final class HpBarService implements Listener {
                 player.setHealthScaled(true);
                 player.setHealthScale(scale);
             } catch (IllegalArgumentException e) {
+                LOGGER.warning("HpBarService: битое значение hp-display.hearts-scale = "
+                        + scale + " — health scaling отключен для " + player.getName());
                 player.setHealthScaled(false);
             }
         }
