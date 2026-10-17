@@ -51,6 +51,10 @@ import java.util.UUID;
  *         маг-урона обратно атакующему), undodgeable ставится на крит мили.
  * 1.14.7 (Sprint 3, P0-6A): A2 Воина — enrageMult (fury_enrage, physBase при HP<50%)
  *         и onMeleeHitLand (battle_trance, счётчик 3-го удара для ярости).
+ * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): ДЕКОМПОЗИЦИЯ (аудит 4-03):
+ *         - critFeedback стал public — единая точка вызова из VanillaDamageListener;
+ *         - регистрация vanillaListener вынесена из конструктора в onEnable (владелец — RaskolClasses);
+ *         - локальный cfgD помечен к выносу в ConfigReads (волна 7.3, аудит 1-01).
  */
 public final class CombatService implements Listener {
 
@@ -83,7 +87,7 @@ public final class CombatService implements Listener {
         this.procs = new ProcService(plugin);
         this.vanillaListener = new VanillaDamageListener(
                 plugin, this, resists, avoidance, powers, caps);
-        plugin.getServer().getPluginManager().registerEvents(vanillaListener, plugin);
+        // 1.14.10 (Волна 7.2B): регистрация вынесена в RaskolClasses.onEnable
         this.schoolConfig = new SchoolConfig(plugin);
         this.schoolImmunity = new SchoolImmunity(plugin);
         this.elemental = new ElementalResistService(plugin, schoolConfig);
@@ -161,6 +165,10 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ хелперы единиц ------------------------------ */
 
+    /**
+     * 1.14.10 (Волна 7.2B): локальный хелпер помечен к выносу в ConfigReads.finiteDouble
+     * (волна 7.3, аудит 1-01). Сейчас используется только внутри CombatService.
+     */
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
         return Double.isFinite(v) ? v : def;
@@ -603,7 +611,11 @@ public final class CombatService implements Listener {
         return Math.max(0.0, resistPct * (1.0 - armorPen));
     }
 
-    private void critFeedback(Player attacker, boolean melee) {
+    /**
+     * 1.14.10 (Волна 7.2B): стал public — единая точка вызова из VanillaDamageListener
+     * (аудит 4-03: устранение клона). Раньше был private, копия жила в VanillaDamageListener.
+     */
+    public void critFeedback(Player attacker, boolean melee) {
         if (!plugin.getConfig().getBoolean("attributes.crit.visuals", true)) {
             return;
         }
