@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Исполнитель и автодополнение /rc (1.4.0 → 1.11.4 → 1.13.0).
@@ -31,6 +32,10 @@ import java.util.Map;
  * Права проверяются роутером через CommandSub.permission().
  * 1.13.0 (Б4): добавлен CcSub — /rc cc status/clear/test/reset/list
  *         (пермиссия raskolclasses.admin.cc).
+ * 1.14.12 (Sprint 8, Волна 12B, P0-7-02): ветка "menu" проверяет raskolclasses.menu —
+ *         нода была в plugin.yml, но не проверялась исполнителем (аудит 7-02).
+ * 1.14.12 (Sprint 8, Волна 12B, P0-7-04): per-sender rate-limit 10 с на /rc reload
+ *         и /rc selftest — обе команды тяжёлые на main-thread (аудит 7-04).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
@@ -38,8 +43,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
     private static final List<String> ROOT_SUBS = List.of(
             "menu", "reload", "debug", "health", "selftest", "gear", "foliant", "cc");
 
+    /** 1.14.12 (Волна 12B, 7-04): rate-limit для тяжёлых команд (мс). */
+    private static final long HEAVY_CMD_COOLDOWN_MS = 10_000L;
+
     private final RaskolClasses plugin;
     private final Map<String, CommandSub> subs = new LinkedHashMap<>();
+    /** 1.14.12 (Волна 12B, 7-04): last-execution per-sender для reload/selftest. */
+    private final Map<String, Long> lastHeavyActionMs = new ConcurrentHashMap<>();
 
     public RaskolCommand(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -52,6 +62,28 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 new CcSub(plugin))) {
             subs.put(sub.name(), sub);
         }
+    }
+
+    /**
+     * 1.14.12 (Волна 12B, 7-04): проверка rate-limit per-sender.
+     * Ключ — имя отправителя (console или ник игрока), значение — время последнего вызова.
+     * Возвращает true, если действие разрешено (и отмечает его); false — если нужно отказать.
+     */
+    private boolean rateLimitAllow(String senderKey) {
+        long now = System.currentTimeMillis();
+        Long prev = lastHeavyActionMs.get(senderKey);
+        if (prev != null && now - prev < HEAVY_CMD_COOLDOWN_MS) {
+            return false;
+        }
+        lastHeavyActionMs.put(senderKey, now);
+        return true;
+    }
+
+    private static String senderKey(CommandSender sender) {
+        if (sender instanceof Player p) {
+            return p.getUniqueId().toString();
+        }
+        return "console:" + sender.getName();
     }
 
     @Override
@@ -68,6 +100,12 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage(Component.text("Только для игроков.", NamedTextColor.GRAY));
                     return true;
                 }
+                // 1.14.12 (Волна 12B, 7-02): проверка raskolclasses.menu
+                if (!sender.hasPermission("raskolclasses.menu")) {
+                    sender.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                            "no-permission", "Недостаточно прав"), NamedTextColor.RED));
+                    return true;
+                }
                 ClassBook.open(plugin, p, ClassBook.Tab.ABILITIES);
                 return true;
             }
@@ -75,6 +113,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 if (!sender.hasPermission("raskolclasses.admin")) {
                     sender.sendMessage(Component.text(plugin.getRaskolConfig().message(
                             "no-permission", "Недостаточно прав"), NamedTextColor.RED));
+                    return true;
+                }
+                // 1.14.12 (Волна 12B, 7-04): rate-limit per-sender
+                if (!rateLimitAllow(senderKey(sender))) {
+                    sender.sendMessage(Component.text(
+                            "Команда /rc reload доступна не чаще раза в 10 секунд.",
+                            NamedTextColor.GRAY));
                     return true;
                 }
                 plugin.reloadPlugin();
@@ -86,6 +131,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 if (!sender.hasPermission("raskolclasses.debug")) {
                     sender.sendMessage(Component.text(plugin.getRaskolConfig().message(
                             "no-permission", "Недостаточно прав"), NamedTextColor.RED));
+                    return true;
+                }
+                // 1.14.12 (Волна 12B, 7-04): rate-limit per-sender
+                if (!rateLimitAllow(senderKey(sender))) {
+                    sender.sendMessage(Component.text(
+                            "Команда /rc selftest доступна не чаще раза в 10 секунд.",
+                            NamedTextColor.GRAY));
                     return true;
                 }
                 dev.raskol.classes.selftest.SelftestRunner.run(plugin, sender);
@@ -137,11 +189,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(Component.text("/rc gear [player] — экипировка и сеты",
                     NamedTextColor.YELLOW));
             sender.sendMessage(Component.text("/rc health — MSPT/TPS/purge", NamedTextColor.YELLOW));
-            sender.sendMessage(Component.text("/rc selftest — headless-чеки формул",
+            sender.sendMessage(Component.text("/rc selftest — headless-чеки формул (КД 10 с)",
                     NamedTextColor.YELLOW));
         }
         if (sender.hasPermission("raskolclasses.admin")) {
-            sender.sendMessage(Component.text("/rc reload — перезагрузить конфигурацию",
+            sender.sendMessage(Component.text("/rc reload — перезагрузить конфигурацию (КД 10 с)",
                     NamedTextColor.RED));
             sender.sendMessage(Component.text("/rc foliant give <ник> — выдать Фолиант Раскола",
                     NamedTextColor.RED));
