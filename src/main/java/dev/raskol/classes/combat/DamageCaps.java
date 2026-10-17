@@ -2,6 +2,7 @@
 package dev.raskol.classes.combat;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.config.ConfigReads;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -19,8 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - single-hit cap ≤35% carrier (путь A) / formula (путь B через вызов из фасада);
  *  - burst-окно: суммарно за 3 с ≤18% formula-max (лог на игрока);
  *  - env-lethal scale: среда (FALL/DROWNING/…) × carrier/20.
- * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): локальный cfgD помечен к выносу
- *         в ConfigReads.finiteDouble (волна 7.3, аудит 1-01).
+ * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble
+ *         (аудит 1-01: единая NaN-проверка).
  */
 public final class DamageCaps {
 
@@ -37,13 +38,9 @@ public final class DamageCaps {
         this.plugin = plugin;
     }
 
-    /**
-     * 1.14.10 (Волна 7.2B): локальный хелпер помечен к выносу в ConfigReads.finiteDouble
-     * (волна 7.3, аудит 1-01). Сейчас используется только внутри DamageCaps.
-     */
+    /** 1.14.10 (Волна 7.3, P0-1-01): делегат в ConfigReads.finiteDouble. */
     private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 
     /* ------------------------------ carrier/formula ------------------------------ */
