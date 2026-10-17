@@ -4,6 +4,7 @@ package dev.raskol.classes.install;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.compat.AuthGate;
+import dev.raskol.classes.config.ConfigReads;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.FluidCollisionMode;
@@ -24,6 +25,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.11.4 (P2): ТОНКИЙ реестр инсталляций: гейты, лимиты, TTL, кулдауны, sweep.
  * Вся типовая логика — в InstallationHandler-файлах (WarBannerHandler…PentagramHandler).
  * 1.11.4-fix: кулдаун ставится ТОЛЬКО после успешной постановки (отказ руны не съедает КД).
+ *
+ * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD/cfgI делегируют в ConfigReads
+ * (finiteDouble / finiteInt) — единая NaN-проверка (аудит 1-01).
  */
 public final class InstallationService {
 
@@ -47,13 +51,14 @@ public final class InstallationService {
         }
     }
 
+    /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteDouble (аудит 1-01). */
     private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 
+    /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteInt (аудит 1-01). */
     private int cfgI(String path, int def) {
-        return plugin.getConfig().getInt(path, def);
+        return ConfigReads.finiteInt(plugin.getConfig(), path, def);
     }
 
     /* ------------------------------ гейты и постановка ------------------------------ */
