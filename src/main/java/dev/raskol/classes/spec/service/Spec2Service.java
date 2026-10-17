@@ -41,7 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *         выполняется ДО списания монет — состояние и экономика не меняются.
  *         Disabled-узлы зависимостями НЕ считаются (рангов держать не могут).
  *         Внимание: если disabled-узел служит пререквизитом купленному включённому,
- *         с 1.14.8 он считается выполненным (P0-6B), зависимый не прунится.
+ *         с 1.14.9 он считается выполненным (P0-6B), зависимый не прунится.
  * 1.14.7 (Sprint 4, P1-4): chooseMain читает Spec2Points.startLevel() (аксессор снимка).
  * 1.14.8 (Sprint 6, Волна 6.1, P0-6B): стоп-лист учитывается в пререквизитах:
  *         purchase/validate/hasDependents передают disabledSet() в prereqsMet/canBuy,
@@ -51,7 +51,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.8 (Sprint 6, Волна 6.3, P0-5-01): персист spec2-storage.yml переведён на
  *         периодическую autosave-задачу (storage.autosave-minutes) + onDisable;
  *         синхронные save() на каждый клик покупки/респеца/выбора спеки удалены.
- *         Мутации остаются в in-memory хранилище Spec2Storage.
+ * 1.14.12 (Sprint 8, Волна 12A, P0-5-05): стоп-лист — неизменяемый снапшот
+ *         (Set.copyOf): лениво строится на первом чтении, пересобирается
+ *         refreshDisabledCache() на старте и /rc reload. nodeDisabled больше
+ *         не читает конфиг и не аллоцирует на каждый вызов (hot-путь отрисовки книги).
+ *         Поведенческая заметка: правка spec2.disabled-nodes в файле применяется
+ *         после /rc reload (раньше — мгновенно на следующий вызов); это плата за
+ *         отсутствие чтений конфига в hot-пути, согласуется с политикой reload.
  */
 public final class Spec2Service {
 
@@ -104,6 +110,9 @@ public final class Spec2Service {
     private final Map<UUID, Agg> caches = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastActionMs = new ConcurrentHashMap<>();
 
+    /** 1.14.12 (12A, 5-05): снапшот стоп-листа; null = ещё не построен (лениво). */
+    private volatile Set<String> disabledCache = null;
+
     public Spec2Service(RaskolClasses plugin, Spec2Storage storage) {
         this.plugin = plugin;
         this.storage = storage;
@@ -121,14 +130,28 @@ public final class Spec2Service {
     /* ------------------------------ 1.14.7 (P0-6B): стоп-лист узлов ------------------------------ */
 
     /**
-     * 1.14.8-fix (Волна 6.1): снимок стоп-листа одним Set — для prereqsMet/canBuy/
-     * isReachable и для GUI. Единая точка чтения ключа spec2.disabled-nodes.
+     * 1.14.12 (12A, 5-05): неизменяемый снапшот стоп-листа. Ленивая сборка +
+     * пересборка в refreshDisabledCache(); без аллокаций и чтений конфига на вызов.
+     * Возвращаемый Set иммутабелен (Set.copyOf) — потребители не могут испортить кэш.
      */
     public Set<String> disabledSet() {
-        return new HashSet<>(plugin.getConfig().getStringList("spec2.disabled-nodes"));
+        Set<String> local = disabledCache;
+        if (local == null) {
+            local = Set.copyOf(plugin.getConfig().getStringList("spec2.disabled-nodes"));
+            disabledCache = local;
+        }
+        return local;
     }
 
-    /** Узел в оперативном стоп-листе spec2.disabled-nodes («в разработке»)? */
+    /**
+     * 1.14.12 (12A, 5-05): пересборка снапшота стоп-листа.
+     * Вызывается в RaskolClasses.onEnable (после ConfigMigrator) и reloadPlugin().
+     */
+    public void refreshDisabledCache() {
+        disabledCache = Set.copyOf(plugin.getConfig().getStringList("spec2.disabled-nodes"));
+    }
+
+    /** Узел в оперативном стоп-листе spec2.disabled-nodes («в разработке»)? O(1), без аллокаций. */
     public boolean nodeDisabled(String nodeId) {
         return nodeId != null && disabledSet().contains(nodeId);
     }
