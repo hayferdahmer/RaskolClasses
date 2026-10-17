@@ -6,6 +6,8 @@
   1.14.8: архитектурный Sprint 5 — AbstractKit, декомпозиция selftest, ревизия стоп-листа.
   1.14.9: стабилизационный Sprint 6 — закрытие критических находок аудита 1.14.8.
   1.14.10: Sprint 7 — JUnit 5 + CI verify, декомпозиция God Objects, ConfigReads.
+  1.14.12: Sprint 8 — харденинг (Hp.max, security, hot-path, logger.warning).
+  1.14.13: Sprint 9 — архитектура (профиль -Pdev с -Xlint:all + SpotBugs, release-job).
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -14,7 +16,7 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.14.10</version>
+    <version>1.14.12</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
@@ -29,6 +31,8 @@
         <!-- 1.14.10 (Sprint 7): тест-стек -->
         <junit.version>5.10.2</junit.version>
         <surefire.version>3.2.5</surefire.version>
+        <!-- 1.14.13 (Sprint 9, 13A): статический анализ и расширенная компиляция -->
+        <spotbugs.version>4.8.6.6</spotbugs.version>
     </properties>
 
     <repositories>
@@ -110,4 +114,70 @@
             </resource>
         </resources>
     </build>
+
+    <!--
+      1.14.13 (Sprint 9, 13A): профиль dev — расширенная компиляция и статический анализ.
+      Активируется флагом -Pdev: `mvn -Pdev verify`.
+      Поведение по умолчанию (mvn verify) не меняется: CI-гейт остаётся зелёным без
+      новых warning'ов и SpotBugs-отчёта.
+
+      Профиль включает:
+       - -Xlint:all (все предупреждения javac как warning'и, не ошибки — билд не падает);
+       - SpotBugs (анализ байткода: NPE-риски, race conditions, мёртвый код);
+       - -Werror опционально (для будущей жёсткой стадии — сейчас выключен).
+
+      SpotBugs не падает на warning'ах — только пишет target/spotbugsXml.xml;
+      интеграция с CI — через парсинг отчёта в отдельном шаге (см. .github/workflows).
+    -->
+    <profiles>
+        <profile>
+            <id>dev</id>
+            <build>
+                <plugins>
+                    <!-- 1.14.13 (13A): расширенная компиляция — все warning'и javac -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <version>3.15.0</version>
+                        <configuration>
+                            <release>21</release>
+                            <encoding>UTF-8</encoding>
+                            <showWarnings>true</showWarnings>
+                            <compilerArgs>
+                                <arg>-Xlint:all</arg>
+                                <arg>-Xlint:-serial</arg>
+                                <!-- serial — сериализуемые классы без serialVersionUID;
+                                     шумит без пользы, Bukkit-сущности не сериализуются -->
+                            </compilerArgs>
+                        </configuration>
+                    </plugin>
+                    <!-- 1.14.13 (13A): SpotBugs — статический анализ байткода.
+                         Пишет отчёт в target/spotbugsXml.xml; не падает на warning'ах.
+                         Для CI: отдельный шаг парсит отчёт и публикует как артефакт. -->
+                    <plugin>
+                        <groupId>com.github.spotbugs</groupId>
+                        <artifactId>spotbugs-maven-plugin</artifactId>
+                        <version>${spotbugs.version}</version>
+                        <configuration>
+                            <effort>Max</effort>
+                            <threshold>Medium</threshold>
+                            <xmlOutput>true</xmlOutput>
+                            <!-- Исключения: тестовый код и автоматически генерируемые
+                                 классы (если появятся). -->
+                            <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+                            <failOnError>false</failOnError>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
