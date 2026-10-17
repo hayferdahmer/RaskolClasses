@@ -4,12 +4,12 @@ package dev.raskol.classes.combat;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.PowerService;
-import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.school.Penetration;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.combat.school.SchoolConfig;
 import dev.raskol.classes.combat.school.SchoolImmunity;
 import dev.raskol.classes.combat.school.SchoolMitigation;
+import dev.raskol.classes.config.ConfigReads;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
@@ -44,9 +44,9 @@ import java.util.UUID;
  *         Блок щита детектируется детерминированно: PARRY + щит в руке = блок
  *         (guard-проки revenge/shield_slam), PARRY без щита = парирование (riposte),
  *         DODGE = уклонение (counterattack). Amplifier ставится на защищавшегося.
- * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): ДЕКОМПОЗИЦИЯ (аудит 4-03):
- *         - клон critFeedback удалён — вызов combat.critFeedback() (единая точка в CombatService);
- *         - локальный cfgD помечен к выносу в ConfigReads (волна 7.3, аудит 1-01).
+ * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): клон critFeedback удалён — вызов
+ *         combat.critFeedback() (единая точка в CombatService).
+ * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble.
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -73,12 +73,11 @@ public final class VanillaDamageListener implements Listener {
     }
 
     /**
-     * 1.14.10 (Волна 7.2B): локальный хелпер помечен к выносу в ConfigReads.finiteDouble
-     * (волна 7.3, аудит 1-01). Сейчас используется только внутри VanillaDamageListener.
+     * 1.14.10 (Волна 7.3, P0-1-01): делегат в ConfigReads.finiteDouble —
+     * единая NaN-проверка (аудит 1-01: 9 дублей cfgD).
      */
     private double cfgD(String path, double def) {
-        double v = plugin.getConfig().getDouble(path, def);
-        return Double.isFinite(v) ? v : def;
+        return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
 
     /* ------------------------------ путь A ------------------------------ */
@@ -151,8 +150,6 @@ public final class VanillaDamageListener implements Listener {
         }
 
         // 1.14.3 (3C1 + фикс #1301): avoidance с различением dodge/parry и маршрутизацией
-        // блок/парирование: PARRY+щит → onDefenderBlock, PARRY без щита → onDefenderAvoid(PARRY),
-        // DODGE → onDefenderAvoid(DODGE). Amplifier получает ЗАЩИЩАВШИЙСЯ.
         if (type == DamageType.PHYSICAL) {
             ProcService.AvoidResult avoidResult = avoidance.tryAvoid(target, event);
             if (avoidResult != ProcService.AvoidResult.NONE) {
