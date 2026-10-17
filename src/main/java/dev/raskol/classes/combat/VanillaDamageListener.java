@@ -44,6 +44,9 @@ import java.util.UUID;
  *         Блок щита детектируется детерминированно: PARRY + щит в руке = блок
  *         (guard-проки revenge/shield_slam), PARRY без щита = парирование (riposte),
  *         DODGE = уклонение (counterattack). Amplifier ставится на защищавшегося.
+ * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): ДЕКОМПОЗИЦИЯ (аудит 4-03):
+ *         - клон critFeedback удалён — вызов combat.critFeedback() (единая точка в CombatService);
+ *         - локальный cfgD помечен к выносу в ConfigReads (волна 7.3, аудит 1-01).
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -69,6 +72,10 @@ public final class VanillaDamageListener implements Listener {
         this.immunity = new SchoolImmunity(plugin);
     }
 
+    /**
+     * 1.14.10 (Волна 7.2B): локальный хелпер помечен к выносу в ConfigReads.finiteDouble
+     * (волна 7.3, аудит 1-01). Сейчас используется только внутри VanillaDamageListener.
+     */
     private double cfgD(String path, double def) {
         double v = plugin.getConfig().getDouble(path, def);
         return Double.isFinite(v) ? v : def;
@@ -318,7 +325,8 @@ public final class VanillaDamageListener implements Listener {
         if (crit) {
             double baseMult = type == DamageType.PHYSICAL ? meleeMult(attacker) : spellMult(attacker);
             total *= baseMult;
-            critFeedback(attacker, type == DamageType.PHYSICAL);
+            // 1.14.10 (Волна 7.2B): вызов единой точки critFeedback в CombatService
+            combat.critFeedback(attacker, type == DamageType.PHYSICAL);
             // 1.14.3 (3C1+3C2): crit procs (bleed_on_crit, apply_poison, extend'ы, vendetta_refresh)
             combat.procs().rollCritProcs(attacker, (LivingEntity) by.getEntity(), true,
                     type == DamageType.PHYSICAL);
@@ -380,30 +388,6 @@ public final class VanillaDamageListener implements Listener {
 
     private double spellMult(Player attacker) {
         return cfgD("attributes.crit.spell-mult", 1.5) * combat.procs().critMultBonus(attacker);
-    }
-
-    private void critFeedback(Player attacker, boolean melee) {
-        if (!plugin.getConfig().getBoolean("attributes.crit.visuals", true)) {
-            return;
-        }
-        String tag = melee
-                ? plugin.getConfig().getString("attributes.crit.melee-tag", "⚡ Крит!")
-                : plugin.getConfig().getString("attributes.crit.spell-tag", "✦ Магический крит!");
-        attacker.showTitle(net.kyori.adventure.title.Title.title(
-                Component.empty(),
-                Component.text(tag, melee ? NamedTextColor.RED : NamedTextColor.LIGHT_PURPLE),
-                net.kyori.adventure.title.Title.Times.times(
-                        java.time.Duration.ofMillis(50),
-                        java.time.Duration.ofMillis(550),
-                        java.time.Duration.ofMillis(150))));
-        dev.raskol.classes.fx.FxService fx = plugin.getFx();
-        String soundKey = melee
-                ? plugin.getConfig().getString("attributes.crit.melee-sound", "ENTITY_PLAYER_ATTACK_CRIT")
-                : plugin.getConfig().getString("attributes.crit.spell-sound", "ENTITY_EVOKER_CAST_SPELL");
-        org.bukkit.Sound s = fx.resolveSound(soundKey);
-        if (s != null) {
-            fx.playSound(attacker.getLocation(), s, 0.5f, melee ? 0.9f : 1.2f);
-        }
     }
 
     private static boolean isPvp(EntityDamageEvent event) {
