@@ -39,6 +39,7 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
 import java.lang.reflect.Method;
@@ -62,6 +63,9 @@ import java.util.logging.Logger;
  * 1.14.12 (Sprint 8, Волна 12B, P0-6-05): catch-блоки в swapLuckPermsGroup/grantSorcerySkill
  *         сужены до Exception/ReflectiveOperationException + warning-лог
  *         (раньше Throwable и ignored — падали молча или ловили OOM/StackOverflow).
+ * 1.14.13 (Sprint 9, Волна 13B, P0-10-04): lock-flush задача вынесена из конструктора
+ *         в startLockFlushTask(); вызывает RaskolClasses.onEnable, ручка задачи
+ *         складывается в activeTasks и отменяется в onDisable явно.
  */
 public final class FoliantService implements Listener {
 
@@ -98,6 +102,10 @@ public final class FoliantService implements Listener {
     private final YamlConfiguration lockStore;
     private volatile boolean lockDirty = false;
 
+    /**
+     * Конструктор без побочных эффектов (1.14.13, Волна 13B): загрузка lock-хранилища
+     * остаётся здесь (чтение файла безопасно), flush-задача вынесена в startLockFlushTask.
+     */
     public FoliantService(RaskolClasses plugin) {
         this.plugin = plugin;
         this.foliantKey = new NamespacedKey(plugin, "raskol_foliant");
@@ -105,7 +113,14 @@ public final class FoliantService implements Listener {
         this.lockFile = new File(plugin.getDataFolder(), "foliant-lock.yml");
         this.lockStore = SafeStorage.loadWithFallback(lockFile, LOGGER);
         loadLocks();
-        plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
+    }
+
+    /**
+     * 1.14.13 (Волна 13B, 10-04): dirty-flush задача foliant-lock.yml (каждые 60 с);
+     * вызов из RaskolClasses.onEnable, ручка — в activeTasks владельца.
+     */
+    public BukkitTask startLockFlushTask() {
+        return plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
             if (lockDirty) {
                 saveLocks();
             }
