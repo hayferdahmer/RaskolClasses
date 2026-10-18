@@ -11,6 +11,9 @@
 #   raskolclasses-plugin-development-* иначе выпадала из CI (раны не создавались).
 # 1.14.13-fix2: actions bumped v4 → v5 (Node 24 нативно, убирает deprecation-warnings);
 #   runs-on pinned ubuntu-24.04 (ubuntu-latest мигрирует на Ubuntu 26 с 19.10.2026).
+# 1.14.13-fix3: счётчик SpotBugs в Step Summary исправлен — grep -c считал СТРОКИ
+#   с '<BugInstance' (XML почти без переносов → всегда «1»); теперь grep -o | wc -l
+#   считает вхождения, минус исключённые фильтром не попадают в XML вовсе.
 name: RaskolClasses Build
 
 on:
@@ -80,12 +83,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Summary (warning count)
+      - name: Summary (findings count)
         if: always()
         run: |
           if [ -f target/spotbugsXml.xml ]; then
-            COUNT=$(grep -c '<BugInstance' target/spotbugsXml.xml || echo 0)
-            echo "### SpotBugs findings: $COUNT" >> $GITHUB_STEP_SUMMARY
+            # 1.14.13-fix3: считаем ВХОЖДЕНИЯ, а не строки (XML может быть в одну строку)
+            COUNT=$(grep -o '<BugInstance' target/spotbugsXml.xml | wc -l | tr -d ' ')
+            echo "### SpotBugs findings (после exclude-фильтра): $COUNT" >> $GITHUB_STEP_SUMMARY
+            if [ "$COUNT" -gt 0 ]; then
+              echo "⚠ Новые находки сверх исключённых паттернов — скачать артефакт spotbugs-report и триажить." >> $GITHUB_STEP_SUMMARY
+            fi
           else
             echo "### SpotBugs: отчёт не сгенерирован" >> $GITHUB_STEP_SUMMARY
           fi
