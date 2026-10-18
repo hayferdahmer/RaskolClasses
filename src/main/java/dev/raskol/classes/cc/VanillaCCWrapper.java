@@ -32,13 +32,24 @@ import org.bukkit.potion.PotionEffectType;
  *
  * 1.13.0-fix: event.getType() → event.getModifiedType() (Bukkit API:
  *         EntityPotionEffectEvent использует getModifiedType, а не getType).
+ * 1.14.13 (Sprint 9, Волна 13B-b, P0-10-03): конструктор без побочных эффектов —
+ *         registerEvents вынесен в registerListeners(). ВАЖНО: ранее экземпляр
+ *         VanillaCCWrapper никогда не создавался в onEnable, слушатель EntityPotionEffectEvent
+ *         был мёртв — ванильные CC-эффекты (SLOWNESS/BLINDNESS/WEAKNESS из зелий/стрел)
+ *         не оборачивались в CCService. С 1.14.13 экземпляр создаётся и регистрируется
+ *         в RaskolClasses.onEnable — wiring заработал.
  */
 public final class VanillaCCWrapper implements Listener {
 
     private final RaskolClasses plugin;
 
+    /** Конструктор без побочных эффектов (1.14.13, Волна 13B-b): только ссылка на plugin. */
     public VanillaCCWrapper(RaskolClasses plugin) {
         this.plugin = plugin;
+    }
+
+    /** 1.14.13 (Волна 13B-b): регистрация слушателей — вызов из RaskolClasses.onEnable. */
+    public void registerListeners() {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
