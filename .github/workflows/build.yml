@@ -7,11 +7,13 @@
 #     (-Xlint:all) + SpotBugs; не блокирует build (continue-on-error);
 #   - release-job: по тегу v* скачивает артефакт build-job и публикует GitHub Release
 #     с jar + changelog-секцией из CHANGELOG.md.
+# 1.14.13-fix: триггер push возвращён на ВСЕ ветки ('**') — рабочая ветка разработки
+#   raskolclasses-plugin-development-* иначе выпадала из CI (раны не создавались).
 name: RaskolClasses Build
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ '**' ]
     tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
