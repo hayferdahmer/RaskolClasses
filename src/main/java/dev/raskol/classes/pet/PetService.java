@@ -25,6 +25,7 @@ import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Map;
 import java.util.UUID;
@@ -49,6 +50,11 @@ import java.util.logging.Logger;
  * 1.14.12 (Sprint 8, Волна 12C, P0-5-06): PDC-чтение только после проверки типа
  *         сущности (LivingEntity) — не все Entity имеют PersistentDataContainer
  *         (например, Item, ExperienceOrb), чтение на них бросало NPE/ClassCast.
+ * 1.14.13 (Sprint 9, Волна 13B, P0-10-03/04): конструктор без побочных эффектов —
+ *         registerEvents и обе задачи (tick, orphan-scan) вынесены в публичные
+ *         registerListeners()/startTickTask()/scheduleOrphanScan(); вызывает
+ *         RaskolClasses.onEnable, ручки задач складываются в activeTasks
+ *         и отменяются в onDisable явно.
  */
 public final class PetService implements Listener {
 
@@ -86,6 +92,11 @@ public final class PetService implements Listener {
     private static final Attribute ATTACK_DAMAGE = attr("attack_damage");
     private static final Attribute MOVEMENT_SPEED = attr("movement_speed");
 
+    /**
+     * Конструктор без побочных эффектов (1.14.13, Волна 13B): только инициализация
+     * полей и проверка резолва атрибутов. Регистрацию слушателей и запуск задач
+     * выполняет владелец сервиса (RaskolClasses.onEnable).
+     */
     public PetService(RaskolClasses plugin) {
         this.plugin = plugin;
         this.ownerKey = new NamespacedKey(plugin, "rc_pet_owner");
@@ -96,10 +107,24 @@ public final class PetService implements Listener {
                     + ", movement_speed=" + (MOVEMENT_SPEED != null)
                     + ") — петы будут спавниться с ванильными статами");
         }
+    }
+
+    /** 1.14.13 (Волна 13B): регистрация слушателей — вызов из RaskolClasses.onEnable. */
+    public void registerListeners() {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
-        // 1.14.7 (P0-8b): отложенный startup-скан осиротевших петов (после загрузки миров)
-        plugin.getServer().getScheduler().runTaskLater(plugin,
+    }
+
+    /** 1.14.13 (Волна 13B): тик-задача жизненного цикла петов; ручка в activeTasks владельца. */
+    public BukkitTask startTickTask() {
+        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+    }
+
+    /**
+     * 1.14.13 (Волна 13B): отложенный startup-скан осиротевших петов (после загрузки
+     * миров, +100 тиков); ручка в activeTasks владельца (одноразовая задача).
+     */
+    public BukkitTask scheduleOrphanScan() {
+        return plugin.getServer().getScheduler().runTaskLater(plugin,
                 () -> scanOrphans(plugin.getServer().getWorlds().stream()
                         .flatMap(w -> java.util.Arrays.stream(w.getLoadedChunks()))
                         .toArray(Chunk[]::new)),
