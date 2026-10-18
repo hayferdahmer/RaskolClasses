@@ -39,6 +39,8 @@ import java.util.concurrent.ThreadLocalRandom;
  *         registerEvents и runTaskTimer(1L,1L) вынесены в registerListeners()/startTickTask();
  *         RaskolClasses.onEnable вызывает оба метода, ручка задачи в activeTasks
  *         (тик 20 раз/сек критичен для производительности — явная отмена в onDisable).
+ * 1.14.13-fix: опечатка имени метода в onQuit/onDeath устранена — каноническое
+ *         имя resetAllDr(UUID) (нижнее «r»), как во всём коде проекта и selftest.
  */
 public final class CCService implements Listener {
 
@@ -422,6 +424,7 @@ public final class CCService implements Listener {
         }
     }
 
+    /** Каноническое имя метода (нижнее «r»): полный сброс DR-стеков цели. */
     public void resetAllDr(UUID targetUuid) {
         drStates.remove(targetUuid);
     }
@@ -574,13 +577,13 @@ public final class CCService implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         removeAll(uuid);
-        resetAllDR(uuid);
+        resetAllDr(uuid);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(EntityDeathEvent event) {
         UUID uuid = event.getEntity().getUniqueId();
         removeAll(uuid);
-        resetAllDR(uuid);
+        resetAllDr(uuid);
     }
 }
