@@ -14,6 +14,7 @@ import dev.raskol.classes.bootstrap.StartupChecks;
 import dev.raskol.classes.cc.CCGuard;
 import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.CastGuard;
+import dev.raskol.classes.cc.VanillaCCWrapper;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
@@ -88,6 +89,11 @@ import java.util.List;
  *         и FoliantService перенесены сюда: registerListeners()/startTickTask()/
  *         scheduleOrphanScan() и startLockFlushTask() вызываются в onEnable,
  *         ручки задач складываются в activeTasks и отменяются в onDisable явно.
+ * 1.14.13 (Sprint 9, Волна 13B-b, P0-10-03/04): побочные эффекты конструкторов
+ *         DotService/CCService/CCGuard/VanillaCCWrapper перенесены сюда; ВАЖНО —
+ *         экземпляр VanillaCCWrapper раньше не создавался, слушатель EntityPotionEffectEvent
+ *         был мёртв (ванильные CC-эффекты не оборачивались в CCService). Теперь создаётся
+ *         и регистрируется явно.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -141,6 +147,8 @@ public final class RaskolClasses extends JavaPlugin {
     private CCService ccService;
     private CCGuard ccGuard;
     private CastGuard castGuard;
+    /** 1.14.13 (Волна 13B-b): обёртка ванильных CC — раньше не создавался. */
+    private VanillaCCWrapper vanillaCCWrapper;
 
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
@@ -206,11 +214,29 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.resists = new ResistService(this);
         this.combat = new CombatService(this, resists);
+        // 1.14.13 (Волна 13B-b): DotService создаётся в конструкторе CombatService
+        // (чистая ссылка); регистрируем и запускаем тик отсюда.
+        combat.dots().registerListeners();
+        activeTasks.add(combat.dots().startTickTask());
         this.manaSoaked = new ManaSoakedService(this);
 
+        // 1.14.13 (Волна 13B-b): CCService — конструктор чистый, регистрируем
+        // слушатели и запускаем тик-задачу (каждый тик, критична для STUN/ROOT/FEAR)
         this.ccService = new CCService(this);
+        ccService.registerListeners();
+        activeTasks.add(ccService.startTickTask());
+
+        // 1.14.13 (Волна 13B-b): CCGuard — конструктор чистый, регистрируем явно
         this.ccGuard = new CCGuard(this);
+        ccGuard.registerListeners();
+
         this.castGuard = new CastGuard(this);
+
+        // 1.14.13 (Волна 13B-b): VanillaCCWrapper — ВАЖНО: ранее экземпляр НЕ создавался,
+        // слушатель EntityPotionEffectEvent был мёртв. Создаём и регистрируем — теперь
+        // ванильные SLOWNESS/BLINDNESS/WEAKNESS (зелья/стрелы) оборачиваются в CCService.
+        this.vanillaCCWrapper = new VanillaCCWrapper(this);
+        vanillaCCWrapper.registerListeners();
 
         this.configValidator = new ConfigValidator(this);
         configValidator.validate();
@@ -455,4 +481,6 @@ public final class RaskolClasses extends JavaPlugin {
     public PetService getPets() { return pets; }
     public CCService getCC() { return ccService; }
     public CastGuard getCastGuard() { return castGuard; }
+    /** 1.14.13 (Волна 13B-b): обёртка ванильных CC-эффектов (SLOWNESS/BLINDNESS/WEAKNESS). */
+    public VanillaCCWrapper getVanillaCCWrapper() { return vanillaCCWrapper; }
 }
