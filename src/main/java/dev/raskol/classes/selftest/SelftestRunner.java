@@ -84,6 +84,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   P0-6B — чек 122: достижимость всех включённых узлов при текущем стоп-листе
  *           (страховка регрессии, когда disabled-пререквизиты закрыли 6 ультов).
  *
+ * 1.14.13 (Sprint 9, Волна 13C, P0-2-06): чек 107 (pointsConfig) переведён с
+ * @Deprecated public-полей Spec2Points.START_LEVEL/MAX_POINTS/ROW_GATES на
+ * snapshot-чтение Spec2Points.snapshot().startLevel()/maxPoints()/rowGates().
+ * Поля были удалены в Spec2Points 1.14.13 (единственный legacy-читатель был
+ * здесь; других внешних читателей не было — @Deprecated с 1.14.7).
+ *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
  *   ttkLevels      17–20    TTK-дуэли и topNAverage
@@ -100,7 +106,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   cc             76–90    CC/DR/CastGuard/CastChannels/CcSub
  *   specModel      91–99    Spec-enum, реестр деревьев, переносимые, unlock-покрытие
  *   probeAgg      100–106   heal/паверы/ресурс/проки/pct/resist/resetNode на probe
- *   pointsConfig   107      Spec2Points ↔ конфиг
+ *   pointsConfig   107      Spec2Points ↔ конфиг (snapshot)
  *   pets          108–112   пет-ядро
  *   procsConfig    113      полнота spec2.procs.*
  *   sprint3       114–116   kit_dur, attack_speed, контракт C value2
@@ -1173,12 +1179,12 @@ public final class SelftestRunner {
         } else {
             UUID u90 = probe.getUniqueId();
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean applied90 = applyUntilOk(cc, probe, CCType.STUN, 60);
             boolean activeVisible = !cc.activeOf(u90).isEmpty();
             boolean drVisible = cc.drState(u90, DRCategory.STUN).stackCount() >= 1;
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean cleared90 = cc.activeOf(u90).isEmpty()
                     && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
             boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
@@ -1191,17 +1197,17 @@ public final class SelftestRunner {
     private static void ccProbeBreaks(Report r, Player probe, CCService cc) {
         UUID u82 = probe.getUniqueId();
         cc.removeAll(u82);
-        cc.resetAllDr(u82);
+        cc.resetAllDR(u82);
         boolean applied1 = applyUntilOk(cc, probe, CCType.ROOT, 100);
         boolean hasBefore = cc.has(u82, CCType.ROOT);
         cc.breakOnDamage(probe, 60.0, 1000.0);
         boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
-        cc.resetAllDr(u82);
+        cc.resetAllDR(u82);
         boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
         cc.breakOnDamage(probe, 30.0, 1000.0);
         boolean hasAfterLow = cc.has(u82, CCType.ROOT);
         cc.removeAll(u82);
-        cc.resetAllDr(u82);
+        cc.resetAllDR(u82);
         boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
         r.check("82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
                 ok82, "CCService.breakOnDamage",
@@ -1209,13 +1215,13 @@ public final class SelftestRunner {
 
         UUID u83 = probe.getUniqueId();
         cc.removeAll(u83);
-        cc.resetAllDr(u83);
+        cc.resetAllDR(u83);
         boolean applied = applyUntilOk(cc, probe, CCType.STUN, 100);
         boolean hasBeforeStun = cc.has(u83, CCType.STUN);
         cc.breakOnDamage(probe, 60.0, 1000.0);
         boolean hasAfter = cc.has(u83, CCType.STUN);
         cc.removeAll(u83);
-        cc.resetAllDr(u83);
+        cc.resetAllDR(u83);
         boolean ok83 = applied && hasBeforeStun && hasAfter;
         r.check("83", "STUN не снимается уроном ≥ порога",
                 ok83, "CCService.breakOnDamage",
@@ -1226,17 +1232,17 @@ public final class SelftestRunner {
         UUID u84 = probe.getUniqueId();
         dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
         cc.removeAll(u84);
-        cc.resetAllDr(u84);
+        cc.resetAllDR(u84);
         boolean canNormal = cg.canCast(probe, false);
         applyUntilOk(cc, probe, CCType.STUN, 100);
         boolean canStun = cg.canCast(probe, false);
         cc.removeAll(u84);
-        cc.resetAllDr(u84);
+        cc.resetAllDR(u84);
         applyUntilOk(cc, probe, CCType.SILENCE, 100);
         boolean canSilenceNormal = cg.canCast(probe, false);
         boolean canSilenceInstant = cg.canCast(probe, true);
         cc.removeAll(u84);
-        cc.resetAllDr(u84);
+        cc.resetAllDR(u84);
         boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
         r.check("84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
                 ok84, "CastGuard.canCast",
@@ -1857,21 +1863,30 @@ public final class SelftestRunner {
                 ok106, "Spec2Service.resetNode", got106);
     }
 
-    /* ------------------------------ 107: Spec2Points ↔ конфиг ------------------------------ */
+    /* ------------------------------ 107: Spec2Points ↔ конфиг (1.14.13: snapshot) ------------------------------ */
 
+    /**
+     * 1.14.13 (Волна 13C, 2-06): единственный legacy-читатель @Deprecated полей
+     * Spec2Points.START_LEVEL/MAX_POINTS/ROW_GATES переведён на snapshot().
+     * Поля удалены из Spec2Points 1.14.13 — единственный источник истины теперь
+     * Spec2Points.snapshot() (record с volatile-ссылкой).
+     */
     private static void pointsConfig(RaskolClasses plugin, Report r) {
+        Spec2Points.Snapshot snap = Spec2Points.snapshot();
+        int[] rowGates = snap.rowGates();
+
         int cfgStart = plugin.getConfig().getInt("spec2.start-level", 15);
         int cfgMax = plugin.getConfig().getInt("spec2.max-points", 46);
         java.util.List<?> cfgGates = plugin.getConfig().getList("spec2.row-gates", null);
-        boolean startMatch = Spec2Points.START_LEVEL == cfgStart;
-        boolean maxMatch = Spec2Points.MAX_POINTS == cfgMax;
-        boolean gatesMatch = cfgGates != null
-                && cfgGates.size() == Spec2Points.ROW_GATES.length;
+
+        boolean startMatch = snap.startLevel() == cfgStart;
+        boolean maxMatch = snap.maxPoints() == cfgMax;
+        boolean gatesMatch = cfgGates != null && cfgGates.size() == rowGates.length;
         if (gatesMatch) {
             for (int i = 0; i < cfgGates.size(); i++) {
                 Object v = cfgGates.get(i);
                 if (v instanceof Number n) {
-                    if (n.intValue() != Spec2Points.ROW_GATES[i]) {
+                    if (n.intValue() != rowGates[i]) {
                         gatesMatch = false;
                         break;
                     }
@@ -1883,10 +1898,10 @@ public final class SelftestRunner {
         }
         boolean ok107 = startMatch && maxMatch && gatesMatch;
         String got107 = String.format(Locale.ROOT, "start=%d/%d max=%d/%d gates=%s",
-                cfgStart, Spec2Points.START_LEVEL, cfgMax, Spec2Points.MAX_POINTS,
+                cfgStart, snap.startLevel(), cfgMax, snap.maxPoints(),
                 gatesMatch ? "match" : "mismatch");
-        r.check("107", "Spec2Points: start-level/max-points/row-gates из конфига",
-                ok107, "Spec2Points.configure", got107);
+        r.check("107", "Spec2Points: start-level/max-points/row-gates из конфига (snapshot)",
+                ok107, "Spec2Points.configure/snapshot", got107);
     }
 
     /* ------------------------------ 108–112: петы ------------------------------ */
