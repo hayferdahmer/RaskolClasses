@@ -81,11 +81,13 @@ import java.util.List;
  * 1.14.10 (Sprint 7, Волна 7.2, P0-4-01): ДЕКОМПОЗИЦИЯ God Object'а (аудит 4-01):
  *         startup-проверки и баннер → bootstrap.StartupChecks; периодические задачи →
  *         bootstrap.PluginTasks; анонимные слушатели входа/выхода → bootstrap.SessionListener.
- *         onEnable сокращён до конструирования слоёв и регистраций; геттеры-локаторы
- *         сохранены (удаление мёртвых — волна 7.3 после сверки с RaskolGear/RaskolCore).
  * 1.14.12 (Sprint 8, Волна 12A, P0-5-05): refreshDisabledCache() вызывается в onEnable
  *         после создания spec2-слоя и в reloadPlugin() — снапшот стоп-листа актуален
  *         на старте и после /rc reload.
+ * 1.14.13 (Sprint 9, Волна 13B, P0-10-03/04): побочные эффекты конструкторов PetService
+ *         и FoliantService перенесены сюда: registerListeners()/startTickTask()/
+ *         scheduleOrphanScan() и startLockFlushTask() вызываются в onEnable,
+ *         ручки задач складываются в activeTasks и отменяются в onDisable явно.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -238,11 +240,19 @@ public final class RaskolClasses extends JavaPlugin {
         this.installToken = new InstallToken(this);
 
         this.foliantService = new FoliantService(this);
+        // 1.14.13 (Волна 13B, 10-04): flush-задача foliant-lock.yml из onEnable,
+        // ручка — в activeTasks (отменяется в onDisable явно)
+        activeTasks.add(foliantService.startLockFlushTask());
 
         this.warlockAbilities = new WarlockAbilities(this);
 
-        // 1.14.6 (6a): пет-ядро (сам регистрирует слушатели и тик-задачу в конструкторе)
+        // 1.14.6 (6a): пет-ядро
         this.pets = new PetService(this);
+        // 1.14.13 (Волна 13B, 10-03/10-04): слушатели и задачи пет-слоя из onEnable;
+        // конструктор PetService больше не имеет побочных эффектов
+        pets.registerListeners();
+        activeTasks.add(pets.startTickTask());
+        activeTasks.add(pets.scheduleOrphanScan());
 
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
