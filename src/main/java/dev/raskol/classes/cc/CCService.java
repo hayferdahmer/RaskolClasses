@@ -17,6 +17,7 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 import java.util.Collections;
@@ -34,6 +35,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * 1.13.0: ядро системы контроля (CC) и убывающей отдачи (DR).
  * 1.14.0 (Б2): ccResist/ccPower/ccReduction получают прибавки из Spec2Service
  *         (узлы cc_resist/cc_power/cc_dur + роль TANK +5% ccResist).
+ * 1.14.13 (Sprint 9, Волна 13B-b, P0-10-03/04): конструктор без побочных эффектов —
+ *         registerEvents и runTaskTimer(1L,1L) вынесены в registerListeners()/startTickTask();
+ *         RaskolClasses.onEnable вызывает оба метода, ручка задачи в activeTasks
+ *         (тик 20 раз/сек критичен для производительности — явная отмена в onDisable).
  */
 public final class CCService implements Listener {
 
@@ -54,11 +59,28 @@ public final class CCService implements Listener {
     private final NamespacedKey slowAttrKey;
     private long tickCounter = 0L;
 
+    /**
+     * Конструктор без побочных эффектов (1.14.13, Волна 13B-b): только инициализация
+     * полей. Регистрацию слушателей и запуск тик-задачи (каждый тик) выполняет
+     * владелец (RaskolClasses.onEnable).
+     */
     public CCService(RaskolClasses plugin) {
         this.plugin = plugin;
         this.slowAttrKey = new NamespacedKey(plugin, "cc_slow");
+    }
+
+    /** 1.14.13 (Волна 13B-b): регистрация слушателей — вызов из RaskolClasses.onEnable. */
+    public void registerListeners() {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
+    }
+
+    /**
+     * 1.14.13 (Волна 13B-b): тик-задача 1 тик (50 мс); ручка в activeTasks владельца.
+     * Высокая частота (20 раз/сек) критична для velocity-обнуления под STUN/ROOT
+     * и принудительного бега FEAR — явная отмена в onDisable обязательна.
+     */
+    public BukkitTask startTickTask() {
+        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
     }
 
     /* ------------------------------ конфиг-читалки ------------------------------ */
@@ -552,13 +574,13 @@ public final class CCService implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         removeAll(uuid);
-        resetAllDr(uuid);
+        resetAllDR(uuid);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(EntityDeathEvent event) {
         UUID uuid = event.getEntity().getUniqueId();
         removeAll(uuid);
-        resetAllDr(uuid);
+        resetAllDR(uuid);
     }
 }
