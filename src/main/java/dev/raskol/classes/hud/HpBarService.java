@@ -61,6 +61,10 @@ import java.util.logging.Logger;
  *         вместо пустого catch (IllegalArgumentException ignored) в color()
  *         и applyHearts() — битые значения цветов/hearts-scale логируются
  *         с указанием ключа, а не проглатываются молча.
+ * 1.14.13 (Sprint 9, Волна 13D, P0-10-05): symbolOf читает символ ресурса из
+ *         метаданных PlayerClass (pc.getResourceSymbol()) вместо switch —
+ *         метаданные resourceName/resourceSymbol/combatWindowSeconds/resourceRegenPerTick
+ *         теперь поля enum-значений, а не результат switch.
  */
 public final class HpBarService implements Listener {
 
@@ -539,6 +543,11 @@ public final class HpBarService implements Listener {
         return TextColor.color(r, g, bl);
     }
 
+    /**
+     * 1.14.13 (Волна 13D, 10-05): символ ресурса читается из метаданных PlayerClass
+     * (pc.getResourceSymbol()) вместо switch. Конфиг-переопределение
+     * classes.<CLASS>.theme.symbol сохранено для кастомизации без перекомпиляции.
+     */
     private String symbolOf(PlayerClass pc) {
         if (pc == null) {
             return "✦";
@@ -548,14 +557,7 @@ public final class HpBarService implements Listener {
         if (s != null && !s.isEmpty()) {
             return s;
         }
-        return switch (pc) {
-            case WARRIOR -> "⚔";
-            case HUNTER -> "➳";
-            case PRIEST -> "✚";
-            case MAGE -> "✦";
-            case ROGUE -> "☠";
-            case WARLOCK -> "☾";
-        };
+        return pc.getResourceSymbol();
     }
 
     @EventHandler
