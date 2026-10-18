@@ -6,7 +6,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -32,13 +31,21 @@ import java.util.concurrent.ThreadLocalRandom;
  *         (там принудительный бег через velocity в CCService.tick).
  * STUN: атаки/хотбар/блоки/сущности/зелья + движение. FEAR: атаки/предметы.
  * DISARM: оружие (кулак разрешён) + лук/арбалет + снаряды. SILENCE: только гейт каста (CastGuard).
+ * 1.14.13 (Sprint 9, Волна 13B-b, P0-10-03): конструктор без побочных эффектов —
+ *         registerEvents вынесен в registerListeners(); RaskolClasses.onEnable
+ *         регистрирует слушатель явно.
  */
 public final class CCGuard implements Listener {
 
     private final RaskolClasses plugin;
 
+    /** Конструктор без побочных эффектов (1.14.13, Волна 13B-b): только ссылка на plugin. */
     public CCGuard(RaskolClasses plugin) {
         this.plugin = plugin;
+    }
+
+    /** 1.14.13 (Волна 13B-b): регистрация слушателей — вызов из RaskolClasses.onEnable. */
+    public void registerListeners() {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
