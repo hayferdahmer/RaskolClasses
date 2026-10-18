@@ -71,62 +71,132 @@ import java.util.concurrent.ConcurrentHashMap;
  *   остаются в ките (используются только здесь).
  * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): formulaMax читает максимум через Hp.max
  *         (атрибут MAX_HEALTH) вместо deprecated LivingEntity#getMaxHealth().
+ * 1.14.13 (Sprint 9, Волна 13C, P0-10-01/02): static-mutable state (SEAL_EXPIRY,
+ *         SEAL_AMP, ANTIHEAL_EXPIRY, CHANNEL_TASKS) переведён в instance-поля.
+ *         Static-методы (sealAmplifyOf, isAntihealed, addAntiheal, purgeStaleDebuffs,
+ *         cancelChannelTasks, cancelAllChannelTasks) стали facade, делегирующими
+ *         в singleton-экземпляр (устанавливается в конструкторе). Это решает
+ *         проблему "static mutable state" (аудит 10-01): состояние инкапсулировано
+ *         в объекте, а не в классе; при необходимости можно создать несколько
+ *         экземпляров (например, для тестов) без конфликта.
  */
 public final class WarlockAbilities extends AbstractKit implements Listener {
 
     private static final PlayerClass PC = PlayerClass.WARLOCK;
 
-    private static final Map<UUID, Long> SEAL_EXPIRY = new ConcurrentHashMap<>();
-    private static final Map<UUID, Double> SEAL_AMP = new ConcurrentHashMap<>();
-    private static final Map<UUID, Long> ANTIHEAL_EXPIRY = new ConcurrentHashMap<>();
-    /** 1.11.2 (T2): задачи канала Раскола Души, indexed by caster UUID. */
-    private static final Map<UUID, List<BukkitTask>> CHANNEL_TASKS = new ConcurrentHashMap<>();
+    /** 1.14.13 (Волна 13C, 10-01): singleton-экземпляр для static facade. */
+    private static volatile WarlockAbilities instance;
 
+    /** 1.14.13 (Волна 13C): instance-поля вместо static. */
+    private final Map<UUID, Long> sealExpiry = new ConcurrentHashMap<>();
+    private final Map<UUID, Double> sealAmp = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> antihealExpiry = new ConcurrentHashMap<>();
+    /** 1.11.2 (T2): задачи канала Раскола Души, indexed by caster UUID. */
+    private final Map<UUID, List<BukkitTask>> channelTasks = new ConcurrentHashMap<>();
+
+    /**
+     * 1.14.13 (Волна 13C): static facade для sealAmplifyOf — делегирует в instance.
+     * Потребители (CombatService) продолжают вызывать WarlockAbilities.sealAmplifyOf(uuid)
+     * без изменений, но состояние теперь instance-поле singleton-экземпляра.
+     */
     public static double sealAmplifyOf(UUID uuid) {
-        Long expiry = SEAL_EXPIRY.get(uuid);
+        WarlockAbilities inst = instance;
+        if (inst == null) {
+            return 0.0;
+        }
+        return inst.sealAmplifyOfInstance(uuid);
+    }
+
+    public static boolean isAntihealed(UUID uuid) {
+        WarlockAbilities inst = instance;
+        if (inst == null) {
+            return false;
+        }
+        return inst.isAntihealedInstance(uuid);
+    }
+
+    /** 1.14.0 (контент-долг 1): публичный анти-хил для древесных способностей Воина. */
+    public static void addAntiheal(UUID target, int seconds) {
+        WarlockAbilities inst = instance;
+        if (inst != null) {
+            inst.addAntihealInstance(target, seconds);
+        }
+    }
+
+    /** Плановая чистка протухших дебафов (вызывает ResourceService раз в 30 с). */
+    public static void purgeStaleDebuffs() {
+        WarlockAbilities inst = instance;
+        if (inst != null) {
+            inst.purgeStaleDebuffsInstance();
+        }
+    }
+
+    /** 1.11.2 (T2): отмена всех задач канала конкретного кастера. */
+    public static void cancelChannelTasks(UUID caster) {
+        WarlockAbilities inst = instance;
+        if (inst != null) {
+            inst.cancelChannelTasksInstance(caster);
+        }
+    }
+
+    /** 1.11.2 (T2): отмена всех задач всех кастеров (onDisable). */
+    public static void cancelAllChannelTasks() {
+        WarlockAbilities inst = instance;
+        if (inst != null) {
+            inst.cancelAllChannelTasksInstance();
+        }
+    }
+
+    public WarlockAbilities(RaskolClasses plugin) {
+        super(plugin, PC, "sp");
+        // 1.14.13 (Волна 13C): singleton-экземпляр для static facade
+        instance = this;
+    }
+
+    /* ------------------------------ instance-методы (внутренние) ------------------------------ */
+
+    private double sealAmplifyOfInstance(UUID uuid) {
+        Long expiry = sealExpiry.get(uuid);
         if (expiry == null) {
             return 0.0;
         }
         if (System.currentTimeMillis() > expiry) {
-            SEAL_EXPIRY.remove(uuid);
-            SEAL_AMP.remove(uuid);
+            sealExpiry.remove(uuid);
+            sealAmp.remove(uuid);
             return 0.0;
         }
-        return SEAL_AMP.getOrDefault(uuid, 0.0);
+        return sealAmp.getOrDefault(uuid, 0.0);
     }
 
-    public static boolean isAntihealed(UUID uuid) {
-        Long expiry = ANTIHEAL_EXPIRY.get(uuid);
+    private boolean isAntihealedInstance(UUID uuid) {
+        Long expiry = antihealExpiry.get(uuid);
         if (expiry == null) {
             return false;
         }
         if (System.currentTimeMillis() > expiry) {
-            ANTIHEAL_EXPIRY.remove(uuid);
+            antihealExpiry.remove(uuid);
             return false;
         }
         return true;
     }
 
-    /** 1.14.0 (контент-долг 1): публичный анти-хил для древесных способностей Воина. */
-    public static void addAntiheal(UUID target, int seconds) {
+    private void addAntihealInstance(UUID target, int seconds) {
         if (seconds <= 0) {
             return;
         }
-        ANTIHEAL_EXPIRY.put(target, System.currentTimeMillis() + seconds * 1000L);
+        antihealExpiry.put(target, System.currentTimeMillis() + seconds * 1000L);
     }
 
-    /** Плановая чистка протухших дебафов (вызывает ResourceService раз в 30 с). */
-    public static void purgeStaleDebuffs() {
+    private void purgeStaleDebuffsInstance() {
         long now = System.currentTimeMillis();
-        SEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
-        SEAL_AMP.keySet().removeIf(id -> !SEAL_EXPIRY.containsKey(id));
-        ANTIHEAL_EXPIRY.entrySet().removeIf(e -> e.getValue() < now);
+        sealExpiry.entrySet().removeIf(e -> e.getValue() < now);
+        sealAmp.keySet().removeIf(id -> !sealExpiry.containsKey(id));
+        antihealExpiry.entrySet().removeIf(e -> e.getValue() < now);
     }
 
-    /** 1.11.2 (T2): отмена всех задач канала конкретного кастера. */
-    public static void cancelChannelTasks(UUID caster) {
+    private void cancelChannelTasksInstance(UUID caster) {
         CastChannels.unregister(caster);
-        List<BukkitTask> tasks = CHANNEL_TASKS.remove(caster);
+        List<BukkitTask> tasks = channelTasks.remove(caster);
         if (tasks == null) {
             return;
         }
@@ -137,15 +207,10 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         }
     }
 
-    /** 1.11.2 (T2): отмена всех задач всех кастеров (onDisable). */
-    public static void cancelAllChannelTasks() {
-        for (UUID uuid : new ArrayList<>(CHANNEL_TASKS.keySet())) {
-            cancelChannelTasks(uuid);
+    private void cancelAllChannelTasksInstance() {
+        for (UUID uuid : new ArrayList<>(channelTasks.keySet())) {
+            cancelChannelTasksInstance(uuid);
         }
-    }
-
-    public WarlockAbilities(RaskolClasses plugin) {
-        super(plugin, PC, "sp");
     }
 
     /* ------------------------------ 1.14.8 (P2-3): китовые хелперы ------------------------------ */
@@ -337,8 +402,8 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         double durationSec = specSealDuration(caster, baseDuration);
         double amplify = cfgD("classes.WARLOCK.abilities." + def.id() + ".amplify", 0.26);
         UUID id = t.getUniqueId();
-        SEAL_EXPIRY.put(id, System.currentTimeMillis() + (long) (durationSec * 1000.0));
-        SEAL_AMP.put(id, amplify);
+        sealExpiry.put(id, System.currentTimeMillis() + (long) (durationSec * 1000.0));
+        sealAmp.put(id, amplify);
         t.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING,
                 (int) (durationSec * 20.0), 0, false, false, false));
         WarlockFx.ringFx(t.getLocation(), 1.2, Particle.SOUL_FIRE_FLAME, 3);
@@ -427,7 +492,7 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         return true;
     }
 
-    /** 1.11.2 (T2) + 1.11.4 + 1.13.0 (Б3): канал с задачами в CHANNEL_TASKS + CastChannels. */
+    /** 1.11.2 (T2) + 1.11.4 + 1.13.0 (Б3): канал с задачами в channelTasks + CastChannels. */
     public boolean soulRift(Player caster, AbilityDef def) {
         double radius = radius(def, 8.0) + specRiftRadiusBonus(caster);
         // 1.14.0 (Б11.1.2-A): channel/antiheal/missing-hp-bonus через фолбэк-хелпер
@@ -443,7 +508,7 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
 
         List<BukkitTask> tasks = new ArrayList<>();
         CastChannels.register(caster.getUniqueId(),
-                () -> cancelChannelTasks(caster.getUniqueId()));
+                () -> cancelChannelTasksInstance(caster.getUniqueId()));
 
         for (int i = 1; i <= ticks; i += 5) {
             BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
@@ -462,7 +527,7 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
                     }
                     plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(tickDmg));
                     WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 3);
-                    ANTIHEAL_EXPIRY.put(t.getUniqueId(),
+                    antihealExpiry.put(t.getUniqueId(),
                             System.currentTimeMillis() + (long) (antihealSec * 1000.0));
                     maybeStripAbsorption(t);
                 }
@@ -494,18 +559,18 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
                 plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg), true);
                 WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 20, 0.6);
                 WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 8);
-                ANTIHEAL_EXPIRY.put(t.getUniqueId(),
+                antihealExpiry.put(t.getUniqueId(),
                         System.currentTimeMillis() + (long) (antihealSec * 1000.0));
                 maybeStripAbsorption(t);
             }
             plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
-            purgeStaleDebuffs();
+            purgeStaleDebuffsInstance();
             CastChannels.unregister(caster.getUniqueId());
-            CHANNEL_TASKS.remove(caster.getUniqueId());
+            channelTasks.remove(caster.getUniqueId());
         }, ticks + 1L);
         tasks.add(finalTask);
 
-        CHANNEL_TASKS.put(caster.getUniqueId(), tasks);
+        channelTasks.put(caster.getUniqueId(), tasks);
         return true;
     }
 
@@ -760,7 +825,7 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
-        cancelChannelTasks(event.getPlayer().getUniqueId());
+        cancelChannelTasksInstance(event.getPlayer().getUniqueId());
     }
 
     /* ------------------------------ unit-хелперы (план B) ------------------------------ */
