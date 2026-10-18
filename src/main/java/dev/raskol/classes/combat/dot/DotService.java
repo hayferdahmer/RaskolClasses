@@ -23,6 +23,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Collections;
 import java.util.List;
@@ -42,6 +43,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *         proc-узла (deep_wounds: +0.5 dps за ранг). Надбавка фиксируется в def
  *         при ПЕРВОМ наложении; повторные применения того же owner+id освежают
  *         стеки/время, но не меняют dps уже висящего экземпляра (осознанно).
+ * 1.14.13 (Sprint 9, Волна 13B-b, P0-10-03/04): конструктор без побочных эффектов —
+ *         registerEvents и runTaskTimer вынесены в registerListeners()/startTickTask();
+ *         создаётся CombatService в конструкторе (чистая ссылка), регистрация/запуск
+ *         задачи — из RaskolClasses.onEnable, ручка задачи в activeTasks.
  */
 public final class DotService implements Listener {
 
@@ -52,12 +57,25 @@ public final class DotService implements Listener {
     private final NamespacedKey dotKey;
     private final Map<UUID, CopyOnWriteArrayList<DotInstance>> dots = new ConcurrentHashMap<>();
 
+    /**
+     * Конструктор без побочных эффектов (1.14.13, Волна 13B-b): только инициализация
+     * полей. Регистрацию слушателей и запуск тик-задачи выполняет владелец
+     * (CombatService создаёт ссылку, RaskolClasses.onEnable регистрирует и запускает).
+     */
     public DotService(RaskolClasses plugin, CombatService combat) {
         this.plugin = plugin;
         this.combat = combat;
         this.dotKey = new NamespacedKey(plugin, "rc_dot");
+    }
+
+    /** 1.14.13 (Волна 13B-b): регистрация слушателей — вызов из RaskolClasses.onEnable. */
+    public void registerListeners() {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
-        plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+    }
+
+    /** 1.14.13 (Волна 13B-b): тик-задача 1 с (20 тиков); ручка в activeTasks владельца. */
+    public BukkitTask startTickTask() {
+        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
 
     /* ------------------------------ реестр определений ------------------------------ */
