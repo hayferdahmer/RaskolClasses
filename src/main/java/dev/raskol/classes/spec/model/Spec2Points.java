@@ -17,10 +17,12 @@ import java.util.logging.Logger;
  * неубывающая последовательность) + вызов configure из reloadPlugin.
  * 1.14.7 (Sprint 4, P1-4): НЕИЗМЕНЯЕМЫЙ СНИМОК. Источник истины — record Snapshot
  * за private static volatile ссылкой; configure() publishes новый snapshot атомарно.
- * Публичные static-поля START_LEVEL/MAX_POINTS/ROW_GATES оставлены как
- * @Deprecated read-only копии (единственный писатель — configure()), удаление в
- * 1.15.0 после миграции последних читателей (SelftestRunner чек 107).
  * Новый код обязан использовать аксессоры startLevel()/maxPoints()/rowGate(row)/rowGates().
+ * 1.14.13 (Sprint 9, Волна 13C, P0-2-06): @Deprecated публичные static-поля
+ *         START_LEVEL/MAX_POINTS/ROW_GATES УДАЛЕНЫ (были помечены на удаление в 1.15.0).
+ *         Единственный legacy-читатель (selftest чек 107) переведён на snapshot().
+ *         Поля были read-only копиями снимка, писались ТОЛЬКО внутри configure();
+ *         удаление не меняет поведение, только чистит публичный API.
  */
 public final class Spec2Points {
 
@@ -54,22 +56,6 @@ public final class Spec2Points {
     /** 1.14.7 (Sprint 4, P1-4): единственный источник истины; publishes атомарно. */
     private static volatile Snapshot snap = DEFAULTS;
 
-    /**
-     * @deprecated read-only копия снимка для legacy-читателей (чек 107 selftest).
-     *             Пишется ТОЛЬКО внутри configure(); не использовать в новом коде.
-     *             Удаление в 1.15.0.
-     */
-    @Deprecated
-    public static int START_LEVEL = DEFAULTS.startLevel();
-
-    /** @deprecated см. START_LEVEL. */
-    @Deprecated
-    public static int MAX_POINTS = DEFAULTS.maxPoints();
-
-    /** @deprecated см. START_LEVEL. */
-    @Deprecated
-    public static int[] ROW_GATES = DEFAULTS.rowGates();
-
     private Spec2Points() {
     }
 
@@ -99,6 +85,8 @@ public final class Spec2Points {
      * 1.14.7 (P1-4): читает spec2.start-level / spec2.max-points / spec2.row-gates,
      * валидирует и атомарно publishes новый Snapshot. Вызывается в onEnable и reloadPlugin.
      * Невалидные значения → warning + сохранение текущего снимка (или дефолта для поля).
+     * 1.14.13 (Волна 13C, 2-06): запись в deprecated-поля START_LEVEL/MAX_POINTS/ROW_GATES
+     * удалена (поля удалены).
      */
     public static void configure(RaskolClasses plugin) {
         if (plugin == null || plugin.getConfig() == null) {
@@ -159,11 +147,8 @@ public final class Spec2Points {
             }
         }
 
-        // атомарная публикация снимка + синхронизация deprecated-копий
+        // атомарная публикация снимка (без записи в deprecated-поля — они удалены в 1.14.13)
         snap = new Snapshot(sl, mp, gates);
-        START_LEVEL = sl;
-        MAX_POINTS = mp;
-        ROW_GATES = snap.rowGates();
         LOGGER.info("spec2: configure → start=" + sl + " max=" + mp
                 + " gates=" + Arrays.toString(snap.rowGates()));
     }
