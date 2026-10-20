@@ -75,16 +75,22 @@ import java.util.concurrent.ConcurrentHashMap;
  *         SEAL_AMP, ANTIHEAL_EXPIRY, CHANNEL_TASKS) переведён в instance-поля.
  *         Static-методы (sealAmplifyOf, isAntihealed, addAntiheal, purgeStaleDebuffs,
  *         cancelChannelTasks, cancelAllChannelTasks) стали facade, делегирующими
- *         в singleton-экземпляр (устанавливается в конструкторе). Это решает
- *         проблему "static mutable state" (аудит 10-01): состояние инкапсулировано
- *         в объекте, а не в классе; при необходимости можно создать несколько
- *         экземпляров (например, для тестов) без конфликта.
+ *         в singleton-экземпляр. Это решает проблему "static mutable state" (аудит 10-01):
+ *         состояние инкапсулировано в объекте, а не в классе.
+ * 1.14.14 (фаза 1, ST_WRITE-фикс): запись в static-поле `instance` перенесена из
+ *         instance-конструктора в static install(). Конструктор приватный — исключает
+ *         случайное создание второго экземпляра. RaskolClasses.onEnable вызывает
+ *         WarlockAbilities.install(this) ровно один раз.
  */
 public final class WarlockAbilities extends AbstractKit implements Listener {
 
     private static final PlayerClass PC = PlayerClass.WARLOCK;
 
-    /** 1.14.13 (Волна 13C, 10-01): singleton-экземпляр для static facade. */
+    /**
+     * 1.14.13 (Волна 13C, 10-01): singleton-экземпляр для static facade.
+     * 1.14.14 (фаза 1, ST_WRITE-фикс): запись переведена из instance-конструктора
+     * в static install() — конструктор больше не пишет в static поле.
+     */
     private static volatile WarlockAbilities instance;
 
     /** 1.14.13 (Волна 13C): instance-поля вместо static. */
@@ -93,6 +99,22 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
     private final Map<UUID, Long> antihealExpiry = new ConcurrentHashMap<>();
     /** 1.11.2 (T2): задачи канала Раскола Души, indexed by caster UUID. */
     private final Map<UUID, List<BukkitTask>> channelTasks = new ConcurrentHashMap<>();
+
+    /**
+     * 1.14.14 (фаза 1, ST_WRITE-фикс): фабрика singleton-экземпляра. Вызывается из
+     * RaskolClasses.onEnable РОВНО ОДИН раз. Возвращает созданный экземпляр для
+     * сохранения в поле владельца. Последующие вызовы вернут уже установленный
+     * экземпляр (idempotency-guard) — защита от случайного повторного вызова.
+     */
+    public static WarlockAbilities install(RaskolClasses plugin) {
+        WarlockAbilities existing = instance;
+        if (existing != null) {
+            return existing;
+        }
+        WarlockAbilities inst = new WarlockAbilities(plugin);
+        instance = inst;
+        return inst;
+    }
 
     /**
      * 1.14.13 (Волна 13C): static facade для sealAmplifyOf — делегирует в instance.
@@ -147,10 +169,10 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         }
     }
 
-    public WarlockAbilities(RaskolClasses plugin) {
+    /** 1.14.14 (фаза 1, ST_WRITE-фикс): конструктор приватный — экземпляр создаётся
+     *  только через install(). */
+    private WarlockAbilities(RaskolClasses plugin) {
         super(plugin, PC, "sp");
-        // 1.14.13 (Волна 13C): singleton-экземпляр для static facade
-        instance = this;
     }
 
     /* ------------------------------ instance-методы (внутренние) ------------------------------ */
