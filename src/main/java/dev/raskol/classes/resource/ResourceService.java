@@ -49,6 +49,16 @@ import java.util.logging.Logger;
  *         storage.autosave-minutes) и в onDisable.
  * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): overflow-тик Скверны читает carrier через
  *         Hp.max (атрибут MAX_HEALTH) вместо deprecated Player#getMaxHealth().
+ * 1.14.13 (Sprint 9, Волна 13D, финал, P0-4-05): switch в tick() ключуется по
+ *         PlayerClass.RegenModel (COMBAT_PAUSE/PLAIN/TIERED/FLOOR_DECAY), а не по классу:
+ *         новый класс = выбор существующей модели без правки switch (OCP, аудит 4-05).
+ *         Кламп пола и overflow-тик Скверны тоже ключуются по модели FLOOR_DECAY.
+ *         onEntityDeath остаётся с проверкой pc == WARLOCK: onKill-ресурс читает
+ *         warlock-именованные конфиг-ключи (warlockResourceOnKill) — привязка к модели
+ *         была бы преждевременным обобщением до появления per-class ключей.
+ *         Числовые значения регена/окон по-прежнему читаются из конфига
+ *         (config.resourceRegen / combatWindowSeconds / mageRegenTier* / warlock*) —
+ *         админ тюнит баланс без пересборки.
  */
 public final class ResourceService implements Listener {
 
@@ -168,18 +178,19 @@ public final class ResourceService implements Listener {
             boolean inCombat = st.isInCombat(windowMs);
             Spec spec = spec2Spec(uuid);
 
+            // 1.14.13 (Волна 13D, финал, 4-05): switch по МОДЕЛИ регена, а не по классу.
+            // Соответствие модель↔класс сегодня 1:1, поведение идентично pre-13D.
             double rate;
-            switch (pc) {
-                case WARRIOR -> rate = inCombat ? 0.0 : config.resourceRegen(pc);
-                case HUNTER -> rate = inCombat ? 0.0 : config.resourceRegen(pc);
-                case MAGE -> {
+            switch (pc.regenModel()) {
+                case COMBAT_PAUSE -> rate = inCombat ? 0.0 : config.resourceRegen(pc);
+                case TIERED -> {
                     double v = st.getValue();
                     rate = v < 25 ? config.mageRegenTier1()
                             : v < 50 ? config.mageRegenTier2()
                             : v < 75 ? config.mageRegenTier3()
                             : config.mageRegenTier4();
                 }
-                case WARLOCK -> {
+                case FLOOR_DECAY -> {
                     double v = st.getValue();
                     double floor = config.warlockResourceFloor();
                     if (floor > 0.0 && v < floor) {
@@ -193,7 +204,7 @@ public final class ResourceService implements Listener {
                         rate = 0.0;
                     }
                 }
-                default -> rate = config.resourceRegen(pc); // PRIEST, ROGUE
+                default -> rate = config.resourceRegen(pc); // PLAIN: PRIEST, ROGUE
             }
             // 1.14.0 (Б7): regen-бонусы только из spec2-агрегата (узлы regen)
             if (svc != null) {
@@ -208,7 +219,8 @@ public final class ResourceService implements Listener {
                 }
             }
 
-            if (pc == PlayerClass.WARLOCK) {
+            // 1.14.13 (Волна 13D, финал): кламп пола — по модели FLOOR_DECAY
+            if (pc.regenModel() == PlayerClass.RegenModel.FLOOR_DECAY) {
                 double floor = config.warlockResourceFloor();
                 double v = st.getValue();
                 double next = v + rate;
@@ -223,8 +235,10 @@ public final class ResourceService implements Listener {
                 st.tickDelta(rate);
             }
 
-            // 1.14.12 (Волна 12A, 3-02): carrier через Hp.max (атрибут, NaN-guard)
-            if (pc == PlayerClass.WARLOCK && st.getValue() >= config.warlockThresholdOverflow()) {
+            // 1.14.12 (Волна 12A, 3-02): carrier через Hp.max (атрибут, NaN-guard).
+            // 1.14.13 (Волна 13D, финал): overflow-тик — по модели FLOOR_DECAY.
+            if (pc.regenModel() == PlayerClass.RegenModel.FLOOR_DECAY
+                    && st.getValue() >= config.warlockThresholdOverflow()) {
                 double carrier = Hp.max(player);
                 double tickDmg = carrier * 0.01;
                 double newHp = Math.max(1.0, player.getHealth() - tickDmg);
@@ -306,6 +320,11 @@ public final class ResourceService implements Listener {
         }
     }
 
+    /**
+     * OnKill-ресурс: осознанно привязан к WARLOCK (конфиг-ключ warlockResourceOnKill
+     * именован по классу). При появлении второго класса с onKill-механикой сначала
+     * заводим per-class конфиг-ключи, затем переводим проверку на модель/ключ.
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
