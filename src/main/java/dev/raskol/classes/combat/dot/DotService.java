@@ -47,6 +47,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *         registerEvents и runTaskTimer вынесены в registerListeners()/startTickTask();
  *         создаётся CombatService в конструкторе (чистая ссылка), регистрация/запуск
  *         задачи — из RaskolClasses.onEnable, ручка задачи в activeTasks.
+ * 1.14.14 (фаза 1, BC_VACUOUS-фикс): в onProjectileHit убран vacuous instanceof —
+ *         event.getEntity() по контракту ProjectileHitEvent возвращает Projectile,
+ *         поэтому проверка instanceof была всегда true для non-null значения.
+ *         Заменено на прямое присваивание + null-guard.
  */
 public final class DotService implements Listener {
 
@@ -282,10 +286,16 @@ public final class DotService implements Listener {
 
     /* ------------------------------ снарядные Dot'ы ------------------------------ */
 
+    /**
+     * 1.14.14 (фаза 1, BC_VACUOUS-фикс): event.getEntity() по контракту
+     * ProjectileHitEvent возвращает Projectile (override от EntityEvent,
+     * фактический тип всегда Projectile); instanceof был vacuous для non-null
+     * значения. Заменено на прямое присваивание + null-guard.
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent event) {
-        Entity entity = event.getEntity();
-        if (!(entity instanceof Projectile proj)) {
+        Projectile proj = event.getEntity();
+        if (proj == null) {
             return;
         }
         if (!proj.getPersistentDataContainer().has(dotKey, PersistentDataType.STRING)) {
