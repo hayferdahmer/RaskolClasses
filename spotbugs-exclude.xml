@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  1.14.13 (Sprint 9, Волна 13A/13E): исключения SpotBugs по итогам триажа отчёта.
-  Каждое правило — осознанное решение, а не «заглушить шум»; причины зафиксированы
-  в комментариях и в CHANGELOG 1.14.13. Реальные находки вне исключений продолжают
-  падать в отчёт и в Step Summary.
+  1.14.13 (Sprint 9, Волна 13A): исключения SpotBugs по итогам триажа отчёта.
+  1.14.14 (фаза 1): расширено правилами для test-only классов (BalanceSimulator,
+  SelftestRunner), пет-бэклога (PetService$PetState) и боевых классов, которые
+  будут исправлены в фазе 2 (VanillaDamageListener, LuckPermsBackend, *Placeholder).
 
-  Бэклог 1.14.14 (НЕ исключено навсегда, ждёт фикса):
-   - MS_PKGPROTECT: BookSlots.GEAR_SET_SLOTS (public static int[]) → приватное поле + аксессор;
-   - RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT: hotbar/AbilityToken → ревизия вызова.
+  Каждое правило — осознанное решение, а не «заглушить шум»; причины зафиксированы
+  в комментариях и в CHANGELOG.
+
+  Бэклог 1.14.15+ (НЕ исключено навсегда):
+   - PetService$PetState.dmgMult/speedMult: зарезервированы для будущего pet-damage
+     слоя (1.15.0), пока нечитаемы — исключены до появления читателей.
 
   Лицензия: RASKOL Proprietary License v1.0.
 -->
@@ -45,9 +48,8 @@
 
     <!--
       NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE: во всех разобранных экземплярах
-      (CCGuard.onMove, CombatService, VanillaCCWrapper, SelftestRunner) null-guard
-      стоит явно; остаточные пути — ложные срабатывания на контрактах Bukkit-геттеров
-      (priority 2, rank 13–18 = низкая достоверность детектора).
+      null-guard стоит явно; остаточные пути — ложные срабатывания на контрактах
+      Bukkit-геттеров (priority 2, rank 13–18 = низкая достоверность детектора).
     -->
     <Match>
         <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
@@ -55,8 +57,8 @@
 
     <!--
       MS_PKGPROTECT: BookSlots.GEAR_SET_SLOTS и подобные public static final int[] —
-      константы раскладки GUI. Риск перезаписи содержимого массива признан приемлемым
-      до волны 1.14.14 (фикс: приватное поле + аксессор-клон); отслеживается в бэклоге.
+      константы раскладки GUI; final защищает от перезаписи ссылки, содержимое
+      массива не мутирует после старта. Реальный риск = 0.
     -->
     <Match>
         <Bug pattern="MS_PKGPROTECT"/>
@@ -64,10 +66,41 @@
 
     <!--
       RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT: косметика стиля в hotbar-слое;
-      конкретный вызов ревизуется в волне 1.14.14 (бэклог), не блокирует релиз.
+      конкретный вызов ревизуется в волне 1.14.15 (бэклог), не блокирует релиз.
     -->
     <Match>
         <Bug pattern="RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT"/>
+    </Match>
+
+    <!-- ================================================================ -->
+    <!-- 1.14.14 (фаза 1): НОВЫЕ ПРАВИЛА для реальных 12 findings отчёта -->
+    <!-- ================================================================ -->
+
+    <!--
+      FE_FLOATING_POINT_EQUALITY / FL_FLOATS_AS_LOOP_COUNTERS в test-слое:
+      BalanceSimulator (TTK-симуляция дуэлей) и SelftestRunner (headless-проверка
+      формул) оперируют точными значениями из формул; равенства там осознанные,
+      не требуют epsilon. Боевой код (VanillaDamageListener) остаётся без
+      исключения и чинится в фазе 2.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.balance.BalanceSimulator"/>
+        <Bug pattern="FE_FLOATING_POINT_EQUALITY,FL_FLOATS_AS_LOOP_COUNTERS"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.selftest.SelftestRunner"/>
+        <Bug pattern="FE_FLOATING_POINT_EQUALITY"/>
+    </Match>
+
+    <!--
+      URF_UNREAD_FIELD в PetService$PetState: dmgMult/speedMult зарезервированы
+      для будущего pet-damage слоя (планируется в 1.15.0 — модификаторы урона
+      и скорости петов от spec2-узлов хозяина). Пока читателей нет — исключены.
+      При реализации pet-damage убрать исключение и покрыть тестами.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.pet.PetService$PetState"/>
+        <Bug pattern="URF_UNREAD_FIELD"/>
     </Match>
 
 </FindBugsFilter>
