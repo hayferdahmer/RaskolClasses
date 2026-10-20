@@ -94,6 +94,9 @@ import java.util.List;
  *         экземпляр VanillaCCWrapper раньше не создавался, слушатель EntityPotionEffectEvent
  *         был мёртв (ванильные CC-эффекты не оборачивались в CCService). Теперь создаётся
  *         и регистрируется явно.
+ * 1.14.14 (фаза 1, ST_WRITE-фикс): WarlockAbilities создаётся через статическую фабрику
+ *         WarlockAbilities.install(this) вместо new WarlockAbilities(this). Это исключает
+ *         запись в static-поле из instance-конструктора (SpotBugs ST_WRITE_TO_STATIC).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -270,7 +273,9 @@ public final class RaskolClasses extends JavaPlugin {
         // ручка — в activeTasks (отменяется в onDisable явно)
         activeTasks.add(foliantService.startLockFlushTask());
 
-        this.warlockAbilities = new WarlockAbilities(this);
+        // 1.14.14 (фаза 1, ST_WRITE-фикс): через статическую фабрику install() —
+        // запись в static-поле instance больше не происходит в конструкторе
+        this.warlockAbilities = WarlockAbilities.install(this);
 
         // 1.14.6 (6a): пет-ядро
         this.pets = new PetService(this);
