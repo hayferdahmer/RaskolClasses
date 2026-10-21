@@ -25,6 +25,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * структуру prereq реального дерева, детекцию перегруза бюджета очков.
  * Полная валидация load() (prereq-дыра, неизвестный узел, disabled-узел) —
  * в selftest-чеке 123 на реальном builds.yml (волна 15B).
+ *
+ * 1.14.15-fix: в overBudgetDetected сумма рангов тестовой карты = 47 (не 48):
+ * assert исправлен под фактическую арифметику; условие «> maxPoints=46» сохранено.
  */
 class BuildTemplatesTest {
 
@@ -109,7 +112,9 @@ class BuildTemplatesTest {
 
     @Test
     void overBudgetDetected() {
-        // Сумма рангов 48 > maxPoints=46 (дефолтный снапшот) — валидация load() отклонит.
+        // Сумма рангов = 47 > maxPoints = 46 (дефолтный снапшот) — валидация load() отклонит.
+        // Расклад: ряд1 5+4+5+3=17; ряд2 3+3+1=7 (24); ряд3 3+1+3+2=9 (33);
+        // ряд4 3+2+1+2=8 (41); ряд5 3+3=6 (47).
         Map<String, Integer> ranks = Map.ofEntries(
                 Map.entry("arms_training", 5),
                 Map.entry("hardened_skin", 4),
@@ -130,8 +135,8 @@ class BuildTemplatesTest {
                 Map.entry("titan_grip", 3)
         );
         BuildTemplate t = BuildTemplate.of("arms", Archetype.PVP, "Over", "o", ranks, "1");
-        assertEquals(48, t.spentPoints());
+        assertEquals(47, t.spentPoints());
         assertTrue(t.spentPoints() > Spec2Points.snapshot().maxPoints(),
-                "превышение бюджета 46 должно быть видно без configure()");
+                "47 очков превышает бюджет 46 — валидация должна отклонить шаблон");
     }
 }
