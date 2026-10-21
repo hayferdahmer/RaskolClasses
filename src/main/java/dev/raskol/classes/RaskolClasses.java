@@ -49,6 +49,12 @@ import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
 import dev.raskol.classes.pet.PetService;
 import dev.raskol.classes.resource.ResourceService;
+import dev.raskol.classes.spec.build.BuildTemplates;
+import dev.raskol.classes.spec.build.ImperialWallet;
+import dev.raskol.classes.spec.build.NullWallet;
+import dev.raskol.classes.spec.build.PlayerPointsWallet;
+import dev.raskol.classes.spec.build.PlusStorage;
+import dev.raskol.classes.spec.build.PlusSubscription;
 import dev.raskol.classes.spec.listen.Spec2RoleListener;
 import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.service.Spec2EffectsApplier;
@@ -97,6 +103,10 @@ import java.util.List;
  * 1.14.14 (фаза 1, ST_WRITE-фикс): WarlockAbilities создаётся через статическую фабрику
  *         WarlockAbilities.install(this) вместо new WarlockAbilities(this). Это исключает
  *         запись в static-поле из instance-конструктора (SpotBugs ST_WRITE_TO_STATIC).
+ * 1.14.15 (фаза 1, raskolspec+): слой подписки на кураторские билды — ImperialWallet
+ *         (PlayerPoints по reflection, NullWallet-фолбэк), PlusStorage (plus-subscription.yml),
+ *         BuildTemplates (builds.yml), PlusSubscription (grant/revoke/gift/active).
+ *         Извлечение builds.yml из jar при первом старте, reload перечитывает на /rc reload.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -152,6 +162,11 @@ public final class RaskolClasses extends JavaPlugin {
     private CastGuard castGuard;
     /** 1.14.13 (Волна 13B-b): обёртка ванильных CC — раньше не создавался. */
     private VanillaCCWrapper vanillaCCWrapper;
+
+    /** 1.14.15: raskolspec+ — подписка на кураторские билды. */
+    private BuildTemplates buildTemplates;
+    private ImperialWallet imperialWallet;
+    private PlusSubscription plusSubscription;
 
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
@@ -261,6 +276,23 @@ public final class RaskolClasses extends JavaPlugin {
         // 1.14.12 (Волна 12A, 5-05): первичная сборка снапшота стоп-листа
         this.spec2Service.refreshDisabledCache();
         pluginManager.registerEvents(new Spec2RoleListener(this), this);
+
+        // 1.14.15 (raskolspec+): кошелёк, хранилище, загрузчик шаблонов, подписка.
+        // Создаётся ПОСЛЕ spec2-слоя — BuildTemplates.load() читает disabledNodesSnapshot
+        // для stale-маркировки шаблонов.
+        ImperialWallet wallet = PlayerPointsWallet.tryCreate();
+        if (wallet == null) {
+            wallet = new NullWallet();
+            getLogger().info("raskolspec+: PlayerPoints недоступен, используется NullWallet");
+        }
+        this.imperialWallet = wallet;
+        this.buildTemplates = new BuildTemplates(this);
+        buildTemplates.extractIfMissing();
+        buildTemplates.load();
+        PlusStorage plusStorage = new PlusStorage(getDataFolder());
+        int periodDays = plugin.getConfig().getInt("plus.period-days", 30);
+        this.plusSubscription = new PlusSubscription(this, imperialWallet, plusStorage, periodDays);
+        pluginManager.registerEvents(plusSubscription, this);
 
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
@@ -406,6 +438,7 @@ public final class RaskolClasses extends JavaPlugin {
      * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) — snapshot очков/гейтов
      * обновляется при /rc reload без рестарта сервера.
      * 1.14.12 (Волна 12A, 5-05): снапшот стоп-листа пересобирается здесь же.
+     * 1.14.15 (raskolspec+): перезагрузка builds.yml.
      */
     public void reloadPlugin() {
         raskolConfig.reload();
@@ -414,6 +447,10 @@ public final class RaskolClasses extends JavaPlugin {
         // 1.14.12 (Волна 12A, 5-05): снапшот стоп-листа пересобирается на reload
         if (spec2Service != null) {
             spec2Service.refreshDisabledCache();
+        }
+        // 1.14.15 (raskolspec+): перечитать builds.yml после обновления стоп-листа
+        if (buildTemplates != null) {
+            buildTemplates.reload();
         }
         raskolConfig.reloadKits();
         abilities.loadFromConfig(raskolConfig);
@@ -488,4 +525,10 @@ public final class RaskolClasses extends JavaPlugin {
     public CastGuard getCastGuard() { return castGuard; }
     /** 1.14.13 (Волна 13B-b): обёртка ванильных CC-эффектов (SLOWNESS/BLINDNESS/WEAKNESS). */
     public VanillaCCWrapper getVanillaCCWrapper() { return vanillaCCWrapper; }
+    /** 1.14.15: raskolspec+ — шаблоны. */
+    public BuildTemplates getBuildTemplates() { return buildTemplates; }
+    /** 1.14.15: raskolspec+ — кошелёк империалов. */
+    public ImperialWallet getImperialWallet() { return imperialWallet; }
+    /** 1.14.15: raskolspec+ — подписка. */
+    public PlusSubscription getPlusSubscription() { return plusSubscription; }
 }
