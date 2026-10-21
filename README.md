@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/1.14.9-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.14.7"/>
+  <img src="https://img.shields.io/badge/1.14.14-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.14.14"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a" alt="paper 1.21.4+"/>
   <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a" alt="java 21"/>
   <img src="https://img.shields.io/badge/122%2F122-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 120/120"/>
@@ -31,7 +31,7 @@
     <td align="center"><b>8</b><br/><sub>школ урона</sub></td>
     <td align="center"><b>9</b><br/><sub>типов контроля</sub></td>
     <td align="center"><b>5</b><br/><sub>видов DoT</sub></td>
-    <td align="center"><b>120</b><br/><sub>headless-чеков</sub></td>
+    <td align="center"><b>122</b><br/><sub>headless-чеков</sub></td>
   </tr>
 </table>
 
@@ -216,7 +216,7 @@ Amplifier следующего удара ставится на защищавш
 
 ## Архитектура
 
-Модули линии 1.14.7:
+Модули линии 1.14.14:
 
 | Слой | Структура |
 | --- | --- |
@@ -242,7 +242,7 @@ Amplifier следующего удара ставится на защищавш
 | Книга | `ClassBook` (фасад) + `gui/book/*Tab` (5 вкладок: пагинация рядов, переключатель спек, ПКМ-респец узла) |
 | Команды | `RaskolCommand` (роутер) + `command/sub/*Sub` (debug, gear, foliant, health, cc) |
 | Конфиг | `config.yml` (avoidance и hp-display в корне с 1.14.6-fix) + per-class `kits/<class>.yml` |
-| Тесты | `/rc selftest` — **120 headless-чеков** |
+| Тесты | `/rc selftest` — **122 headless-чека** |
 
 ## Команды
 
@@ -288,9 +288,9 @@ WARLOCK-сеты добавляются секциями `weapons.WARLOCK.*` и 
 
 ```bash
 mvn -B clean package
-cp target/raskol-classes-1.14.7.jar plugins/
+cp target/raskol-classes-1.14.14.jar plugins/
 # перезапуск сервера
-/rc selftest   # ожидается 120/120 PASS
+/rc selftest   # ожидается 122/122 PASS
 ```
 
 > [!NOTE]
@@ -299,7 +299,7 @@ cp target/raskol-classes-1.14.7.jar plugins/
 **Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `RaskolGear` · `AuthMe` · `Essentials` · `packetevents`. Каждый опционален, деградация graceful.
 
 <details>
-<summary><b>Регресс-матрица selftest</b> · 120 чеков</summary>
+<summary><b>Регресс-матрица selftest</b> · 122 чека</summary>
 
 | Область | Чеки |
 | --- | :-: |
@@ -319,7 +319,7 @@ cp target/raskol-classes-1.14.7.jar plugins/
 | spec2.procs (полная) | 113 |
 | kit_dur, attack_speed, контракт C | 114–116 |
 | HAS_DEPENDENTS, антиспам-метка | 117–118 |
-| Отложенная запись HP, effectiveMax | 119–120 |
+| Стоп-лист и достижимость spec2 | 121–122 |
 
 Полный прогон — перед любым хотфиксом и релизом. Skip-чеки считаются отдельно и не входят в PASS-счётчик (с sprint 1).
 
