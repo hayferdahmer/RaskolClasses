@@ -107,6 +107,8 @@ import java.util.List;
  *         (PlayerPoints по reflection, NullWallet-фолбэк), PlusStorage (plus-subscription.yml),
  *         BuildTemplates (builds.yml), PlusSubscription (grant/revoke/gift/active).
  *         Извлечение builds.yml из jar при первом старте, reload перечитывает на /rc reload.
+ * 1.14.15-fix: чтение plus.period-days через getConfig() — внутри RaskolClasses
+ *         нет поля plugin (класс сам является JavaPlugin).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -280,6 +282,7 @@ public final class RaskolClasses extends JavaPlugin {
         // 1.14.15 (raskolspec+): кошелёк, хранилище, загрузчик шаблонов, подписка.
         // Создаётся ПОСЛЕ spec2-слоя — BuildTemplates.load() читает disabledNodesSnapshot
         // для stale-маркировки шаблонов.
+        // 1.14.15-fix: внутри RaskolClasses нет поля plugin — читаем getConfig() напрямую.
         ImperialWallet wallet = PlayerPointsWallet.tryCreate();
         if (wallet == null) {
             wallet = new NullWallet();
@@ -290,7 +293,7 @@ public final class RaskolClasses extends JavaPlugin {
         buildTemplates.extractIfMissing();
         buildTemplates.load();
         PlusStorage plusStorage = new PlusStorage(getDataFolder());
-        int periodDays = plugin.getConfig().getInt("plus.period-days", 30);
+        int periodDays = getConfig().getInt("plus.period-days", 30);
         this.plusSubscription = new PlusSubscription(this, imperialWallet, plusStorage, periodDays);
         pluginManager.registerEvents(plusSubscription, this);
 
