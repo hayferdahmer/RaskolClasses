@@ -60,6 +60,10 @@ import java.util.logging.Level;
  * 1.14.8-fix (Sprint 6, Волна 6.1, P0-6C): исключение в кастере логируется с полным
  *         стектрейсом (Logger.log(Level.WARNING, msg, ex)) — раньше getMessage()
  *         у NPE давал null и ошибку нельзя было локализовать.
+ * 1.14.14 (фаза 1, ST_WRITE-фикс): WarlockAbilities получается через статическую
+ *         фабрику WarlockAbilities.install(plugin) — синглтон-экземпляр, общий для
+ *         китовых кастеров, древесных кастеров и слушателя onPlayerQuit; карты
+ *         состояния (seal/antiheal/channelTasks) больше не разъезжаются по экземплярам.
  */
 public final class AbilityRegistry {
 
@@ -188,7 +192,10 @@ public final class AbilityRegistry {
         PriestAbilities priest = new PriestAbilities(plugin);
         MageAbilities mage = new MageAbilities(plugin);
         RogueAbilities rogue = new RogueAbilities(plugin);
-        WarlockAbilities warlock = new WarlockAbilities(plugin);
+        // 1.14.14 (фаза 1, ST_WRITE-фикс): синглтон через install() — экземпляр общий
+        // с TreeAbilities.registerCasters и RaskolClasses.onEnable (состояние seal/
+        // antiheal/channelTasks в одних картах); конструктор WarlockAbilities приватный.
+        WarlockAbilities warlock = WarlockAbilities.install(plugin);
 
         casters.put("tyr_strike", warrior::tyrStrike);
         casters.put("balder_skin", warrior::balderSkin);
