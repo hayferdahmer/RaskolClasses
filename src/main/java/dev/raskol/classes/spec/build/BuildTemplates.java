@@ -45,10 +45,13 @@ import java.util.logging.Logger;
  *  7. узлы не входят в spec2.disabled-nodes (иначе шаблон помечается stale).
  *
  * Гейты рядов в шаблонах raskolspec+ не проверяем при загрузке:
- *  - куратор (ты) контролирует их при составлении;
- *  - игрок применяет шаблон через /rc plus apply, где Spec2Service.reconcile
+ *  - куратор контролирует их при составлении;
+ *  - игрок применяет шаблон через GUI/команду, где Spec2Service.reconcile
  *    сам применит/отклонит узлы через существующий гейт-конвейер;
  *  - валидация гейтов усложнила бы загрузчик без пользы для безопасности.
+ *
+ * 1.14.15-fix: поиск узла в дереве — Spec2Tree.find(id) (каноническое имя метода
+ * в модели), а не nodeById.
  */
 public final class BuildTemplates {
 
@@ -211,10 +214,12 @@ public final class BuildTemplates {
 
     /* ------------------------------ валидация ------------------------------ */
 
+    /**
+     * 1.14.15-fix: Spec2Tree.find(id) — канонический резолв узла по id
+     * (то же имя используют Spec2Service и selftest).
+     */
     private List<String> validate(BuildTemplate t, Spec2Tree tree, Set<String> disabledNodes) {
         List<String> errs = new ArrayList<>();
-
-        // 1–2 уже проверены на этапе парсинга (spec валиден, архетип ∈ {PVP,PVE})
 
         int totalPoints = 0;
         Spec2Points.Snapshot snap = Spec2Points.snapshot();
@@ -224,7 +229,7 @@ public final class BuildTemplates {
         for (Map.Entry<String, Integer> e : t.ranks().entrySet()) {
             String id = e.getKey();
             int rank = e.getValue();
-            Spec2Node node = tree.nodeById(id);
+            Spec2Node node = tree.find(id);
             if (node == null) {
                 errs.add("узел " + id + " отсутствует в дереве " + t.spec());
                 continue;
@@ -245,7 +250,7 @@ public final class BuildTemplates {
             String id = e.getKey();
             int rank = e.getValue();
             if (rank < 1) continue;
-            Spec2Node node = tree.nodeById(id);
+            Spec2Node node = tree.find(id);
             if (node == null) continue;
             for (Map.Entry<String, Integer> pre : node.prereqs().entrySet()) {
                 String preId = pre.getKey();
