@@ -12,6 +12,11 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 1.14.14 (фаза 2): удалён вызов backend.setConfig(config) — поле и сеттер удалены
+ * из LuckPermsBackend как мёртвые (SpotBugs URF_UNREAD_FIELD). Параметр RaskolConfig
+ * в конструкторе остаётся — он передаётся в RaskolCoreHook.
+ */
 public final class ClassProvider {
 
     private static final long CACHE_TTL_MILLIS = 5_000L;
@@ -29,7 +34,8 @@ public final class ClassProvider {
         if (pluginManager.getPlugin("LuckPerms") != null) {
             try {
                 resolved = new LuckPermsBackend(this, plugin);
-                resolved.setConfig(config);
+                // 1.14.14 (фаза 2): вызов setConfig(config) удалён — мёртвое поле
+                // в LuckPermsBackend убрано. RaskolConfig передаётся только в CoreHook.
             } catch (NoClassDefFoundError | Exception e) {
                 plugin.getLogger().warning("LuckPerms API недоступен: " + e.getMessage());
                 resolved = null;
