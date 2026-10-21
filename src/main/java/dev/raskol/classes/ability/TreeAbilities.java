@@ -36,6 +36,11 @@ import java.util.UUID;
  * 1.14.7 (Sprint 3, P0-6A): durationWithSpec() — длительность с учётом
  * Σ value kit_dur-узлов дерева владельца. Drop-in замена duration() / durationOrKit
  * в китах, у которых есть kit_dur-узлы (11 шт. в таблице P0-6A).
+ *
+ * 1.14.14 (фаза 1, ST_WRITE-фикс): WarlockAbilities в registerCasters получается
+ * через статическую фабрику WarlockAbilities.install(plugin) — тот же синглтон-
+ * экземпляр, что у AbilityRegistry и RaskolClasses; древесные кастеры чернокнижника
+ * пишут и читают одни карты состояния (seal/antiheal/channelTasks).
  */
 public final class TreeAbilities {
 
@@ -277,7 +282,9 @@ public final class TreeAbilities {
         registry.registerTreeCaster("mind_flay", priest::mindFlay);
         registry.registerTreeCaster("shadowfiend", priest::shadowfiend);
 
-        WarlockAbilities warlock = new WarlockAbilities(plugin);
+        // 1.14.14 (фаза 1, ST_WRITE-фикс): синглтон через install() — те же карты
+        // состояния, что у китовых кастеров AbilityRegistry и слушателя onPlayerQuit.
+        WarlockAbilities warlock = WarlockAbilities.install(plugin);
         registry.registerTreeCaster("withering", warlock::withering);
         registry.registerTreeCaster("soul_siphon", warlock::soulSiphon);
         registry.registerTreeCaster("soul_harvest", warlock::soulHarvest);
