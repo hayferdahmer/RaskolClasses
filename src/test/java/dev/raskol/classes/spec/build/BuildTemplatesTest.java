@@ -4,27 +4,29 @@ package dev.raskol.classes.spec.build;
 import dev.raskol.classes.spec.model.Spec2Node;
 import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.registry.Spec2Registry;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 1.14.15: валидация BuildTemplate на реальном реестре деревьев.
  *
- * Покрывает: prereq-дыра, перегруз очков, несуществующий узел,
- * ранг выше максимума. Stale-маркировка проверяется в отдельном тесте
- * (нужен mock disabled-nodes — оставлено на 15B с wiring).
+ * Дефолтный снапшот Spec2Points (15/46/[0,5,10,15,20,30]) активен без configure() —
+ * тесты не зависят от config.yml и от test-хелперов.
+ *
+ * Покрывает: иммутабельность ranks, фабричные guard'ы, парсинг архетипов,
+ * структуру prereq реального дерева, детекцию перегруза бюджета очков.
+ * Полная валидация load() (prereq-дыра, неизвестный узел, disabled-узел) —
+ * в selftest-чеке 123 на реальном builds.yml (волна 15B).
  */
 class BuildTemplatesTest {
-
-    @BeforeEach
-    void configurePoints() {
-        // Симуляция configure из onEnable: дефолтные гейты/бюджет 1.14.x
-        Spec2Points.configureForTest(15, 46, Map.of(1, 0, 2, 5, 3, 10, 4, 15, 5, 20, 6, 30));
-    }
 
     @Test
     void registryIsComplete() {
@@ -55,13 +57,20 @@ class BuildTemplatesTest {
     }
 
     @Test
-    void invalidSpec_throwsAtBuild() {
-        // BuildTemplate.of не валидирует против реестра; проверяем через BuildTemplates.validate
-        // Косвенно: фабрика не упадёт на мусорной спеке, но load() — упадёт на валидации.
-        // Здесь проверяем только иммутабельность ranks.
-        BuildTemplate t = BuildTemplate.of("nonexistent", Archetype.PVP,
-                "T", "t", Map.of("x", 1), "1");
-        assertEquals("nonexistent", t.spec());
+    void factoryGuards() {
+        assertThrows(IllegalArgumentException.class,
+                () -> BuildTemplate.of(" ", Archetype.PVP, "N", "t", Map.of(), "1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> BuildTemplate.of("arms", null, "N", "t", Map.of(), "1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> BuildTemplate.of("arms", Archetype.PVP, " ", "t", Map.of(), "1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> BuildTemplate.of("arms", Archetype.PVP, "N", null, Map.of(), "1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> BuildTemplate.of("arms", Archetype.PVP, "N", "t", null, "1"));
+        assertThrows(IllegalArgumentException.class,
+                () -> BuildTemplate.of("arms", Archetype.PVP, "N", "t",
+                        Map.of("x", -1), "1"));
     }
 
     @Test
@@ -85,32 +94,22 @@ class BuildTemplatesTest {
     }
 
     @Test
-    void prereqClosed_realTree() {
-        // arms: mortal_strike требует whirlwind_slash≥1 (реальное prereq из WarriorTrees)
-        // Шаблон БЕЗ prereq — должен быть отклонён на уровне validate()
+    void prereqStructure_realTree() {
+        // arms: mortal_strike требует whirlwind_slash≥1 (реальное prereq из WarriorTrees).
+        // Шаблон БЕЗ prereq-узла должен провалить валидацию load() — здесь проверяем
+        // саму структуру prereq-карты как precondition для чека 123.
         BuildTemplate bad = BuildTemplate.of("arms", Archetype.PVP,
                 "Bad", "b", Map.of("mortal_strike", 1), "1");
-        Spec2Node node = Spec2Registry.treeOf("arms").nodeById("mortal_strike");
-        assertNotNull(node, "mortal_strike должен существовать");
-        // prereq: whirlwind_slash≥1 — в ranks нет → ранг 0 → невалидно
+        Spec2Node node = Spec2Registry.treeOf("arms").find("mortal_strike");
+        assertNotNull(node, "mortal_strike должен существовать (Spec2Tree.find)");
         assertFalse(node.prereqs().isEmpty());
         assertTrue(node.prereqs().containsKey("whirlwind_slash"));
         assertEquals(0, bad.ranks().getOrDefault("whirlwind_slash", 0));
-        // Фактическая проверка валидации — в load()/validate; здесь мы проверяем
-        // структуру prereq-карты узла как precondition для теста.
     }
 
     @Test
-    void overBudgetTemplate() {
-        // Сумма > maxPoints=46 должна быть отклонена.
-        // arms имеет 21 узел, суммарная ёмкость 51. Пытаемся впихнуть 47 очков:
-        // 10 узлов × 5 = 50 > 46 — но нужно ≤ maxRank каждого.
-        // arms_training maxRank=5, hardened_skin=4, precision=5, field_medkit=3,
-        // deep_wounds=3, sword_and_board=3, fenrir_blood=1. Сумма=24 — уже близко.
-        // Возьмём все ряды 1 (сумма 17) + deep_wounds=3 + sword_and_board=3 + fenrir_blood=1
-        // + rend_master=3 + whirlwind_slash=1 + war_acumen=3 + execute_drill=2
-        // + bloodletting=3 + shield_wall_echo=2 + mortal_strike=1 + second_wind=2 = 42
-        // + executioner=3 + titan_grip=3 = 48 > 46
+    void overBudgetDetected() {
+        // Сумма рангов 48 > maxPoints=46 (дефолтный снапшот) — валидация load() отклонит.
         Map<String, Integer> ranks = Map.ofEntries(
                 Map.entry("arms_training", 5),
                 Map.entry("hardened_skin", 4),
@@ -133,6 +132,6 @@ class BuildTemplatesTest {
         BuildTemplate t = BuildTemplate.of("arms", Archetype.PVP, "Over", "o", ranks, "1");
         assertEquals(48, t.spentPoints());
         assertTrue(t.spentPoints() > Spec2Points.snapshot().maxPoints(),
-                "превышение бюджета должно быть детектировано в validate()");
+                "превышение бюджета 46 должно быть видно без configure()");
     }
 }
