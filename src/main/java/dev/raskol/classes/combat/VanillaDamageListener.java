@@ -47,6 +47,13 @@ import java.util.UUID;
  * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): клон critFeedback удалён — вызов
  *         combat.critFeedback() (единая точка в CombatService).
  * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble.
+ * 1.14.14 (фаза 2, FE/BC-фиксы):
+ *   - applyOutgoingOffense: сравнение `total != base` заменено на
+ *     `Math.abs(total - base) > 1e-9` — epsilon-сравнение вместо прямого
+ *     равенства floating-point (SpotBugs FE_FLOATING_POINT_EQUALITY).
+ *   - onDamage: `attacker instanceof Player playerAttacker` заменено на
+ *     `attacker != null` — переменная УЖЕ типизирована как Player, instanceof
+ *     был vacuous для любого non-null значения (SpotBugs BC_VACUOUS_INSTANCEOF).
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -154,11 +161,13 @@ public final class VanillaDamageListener implements Listener {
             ProcService.AvoidResult avoidResult = avoidance.tryAvoid(target, event);
             if (avoidResult != ProcService.AvoidResult.NONE) {
                 event.setCancelled(true);
-                if (attacker instanceof Player playerAttacker) {
+                // 1.14.14 (фаза 2, BC_VACUOUS-фикс): attacker объявлен как Player,
+                // поэтому `attacker instanceof Player` был vacuous. Нужен только null-check.
+                if (attacker != null) {
                     if (avoidResult == ProcService.AvoidResult.PARRY && holdsShield(target)) {
-                        combat.procs().onDefenderBlock(target, playerAttacker);
+                        combat.procs().onDefenderBlock(target, attacker);
                     } else {
-                        combat.procs().onDefenderAvoid(target, playerAttacker, avoidResult);
+                        combat.procs().onDefenderAvoid(target, attacker, avoidResult);
                     }
                 }
                 return;
@@ -332,7 +341,10 @@ public final class VanillaDamageListener implements Listener {
             }
         }
 
-        if (total != base && Double.isFinite(total) && total >= 0.0) {
+        // 1.14.14 (фаза 2, FE-фикс): прямое равенство floating-point заменено на
+        // epsilon-сравнение (1e-9) — безопаснее для малых отклонений в офенс-формулах.
+        // Поведение идентично: event.setDamage(total) только когда модификация есть.
+        if (Math.abs(total - base) > 1e-9 && Double.isFinite(total) && total >= 0.0) {
             event.setDamage(total);
         }
     }
