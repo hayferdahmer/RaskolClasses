@@ -6,6 +6,7 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.spec.Spec;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Locale;
 import java.util.Map;
@@ -21,6 +22,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * без кэша каждый запрос делает 3–5 вызовов в сервисы (AttributeService,
  * Spec2Service, HpBarService). Кэш инвалидируется автоматически по TTL;
  * reconcile/levelup обновят значения в следующем окне.
+ * 1.14.14 (фаза 2, HE-фикс): явные equals()/hashCode() на базе identifier —
+ * SpotBugs HE_INHERITS_EQUALS_USE_HASHCODE: PlaceholderExpansion наследует equals()
+ * от родителя, но не hashCode(); канонический контракт для расширений —
+ * согласование по identifier (два расширения с одним id тождественны).
  */
 public final class RaskolPlaceholder extends PlaceholderExpansion {
 
@@ -61,6 +66,23 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
     /** 1.14.12 (Волна 12C, 5-07): чистка кэша при выгрузке плагина. */
     public void invalidateAll() {
         cache.clear();
+    }
+
+    /**
+     * 1.14.14 (фаза 2, HE-фикс): equals на основе identifier — два расширения
+     * PlaceholderAPI с одним id логически тождественны.
+     */
+    @Override
+    public boolean equals(@Nullable Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PlaceholderExpansion that)) return false;
+        return getIdentifier().equals(that.getIdentifier());
+    }
+
+    /** 1.14.14 (фаза 2, HE-фикс): hashCode согласован с equals по identifier. */
+    @Override
+    public int hashCode() {
+        return getIdentifier().hashCode();
     }
 
     @Override
