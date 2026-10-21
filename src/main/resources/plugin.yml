@@ -17,11 +17,12 @@ softdepend:
   - AuthMe
   - Essentials
   - packetevents
+  - PlayerPoints
 
 commands:
   rc:
     description: "Главная команда RaskolClasses"
-    usage: "/rc [menu|reload|debug|health|selftest|gear|foliant|cc]"
+    usage: "/rc [menu|reload|debug|health|selftest|gear|foliant|cc|plus]"
     aliases: [raskol, raskolclasses]
 
 permissions:
@@ -39,4 +40,11 @@ permissions:
     default: op
   raskolclasses.admin.cc:
     description: "CC/DR-админка: /rc cc status|clear|test|reset|list"
+    default: op
+  # 1.14.15: raskolspec+
+  raskolclasses.plus.use:
+    description: "Использование raskolspec+ (status, apply, gift)"
+    default: true
+  raskolclasses.admin.plus:
+    description: "Администрирование raskolspec+ (grant, revoke)"
     default: op
