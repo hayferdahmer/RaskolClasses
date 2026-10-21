@@ -15,6 +15,12 @@ import org.jetbrains.annotations.Nullable;
  *   %raskolcrown_faction% — фракция игрока (хук корон/Towny, пусто если нет).
  * Регистрируется только при установленном PlaceholderAPI (проверка в onEnable);
  * persist() — переживает /papi reload.
+ *
+ * 1.14.14 (фаза 2, HE-фикс): явные equals()/hashCode() на базе identifier —
+ * PlaceholderExpansion наследует equals() от родителя, но не hashCode(); SpotBugs
+ * HE_INHERITS_EQUALS_USE_HASHCODE. Согласование по identifier — канонический
+ * контракт для расширений PlaceholderAPI (два расширения с одним id логически
+ * тождественны, поэтому equals и hashCode должны совпадать).
  */
 public final class FlavorPlaceholder extends PlaceholderExpansion {
 
@@ -42,6 +48,23 @@ public final class FlavorPlaceholder extends PlaceholderExpansion {
     @Override
     public boolean persist() {
         return true;
+    }
+
+    /**
+     * 1.14.14 (фаза 2, HE-фикс): equals на основе identifier — два расширения
+     * PlaceholderAPI с одним id логически тождественны.
+     */
+    @Override
+    public boolean equals(@Nullable Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PlaceholderExpansion that)) return false;
+        return getIdentifier().equals(that.getIdentifier());
+    }
+
+    /** 1.14.14 (фаза 2, HE-фикс): hashCode согласован с equals по identifier. */
+    @Override
+    public int hashCode() {
+        return getIdentifier().hashCode();
     }
 
     @Override
