@@ -16,7 +16,7 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.14.12</version>
+    <version>1.14.14</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
