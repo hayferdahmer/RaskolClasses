@@ -2,7 +2,6 @@
 package dev.raskol.classes.classsystem;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.resource.ResourceService;
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
@@ -25,6 +24,9 @@ import java.util.UUID;
  *
  * 1.7.4.1 фикс 4 (сборка): вызов resourceService.reset(uuid) заменён на
  * resourceService.clear(uuid) — единственное публичное имя метода в ResourceService.
+ * 1.14.14 (фаза 2, URF-фикс): мёртвое поле `config` и его сеттер удалены —
+ * значение нигде не читалось после установки (SpotBugs URF_UNREAD_FIELD).
+ * Импорт `dev.raskol.classes.config.RaskolConfig` убран за ненадобностью.
  */
 public final class LuckPermsBackend {
 
@@ -33,7 +35,6 @@ public final class LuckPermsBackend {
     private final LuckPerms api;
     private final EventSubscription<UserDataRecalculateEvent> subscription;
 
-    private RaskolConfig config;
     private ResourceService resourceService;
 
     public LuckPermsBackend(ClassProvider provider, RaskolClasses plugin) {
@@ -42,11 +43,6 @@ public final class LuckPermsBackend {
         this.api = LuckPermsProvider.get(); // бросит, если LP не загружен
         this.subscription = api.getEventBus().subscribe(
                 plugin, UserDataRecalculateEvent.class, this::onRecalculate);
-    }
-
-    /** Конфиг-слой (совместимость с порядком инициализации ClassProvider). */
-    public void setConfig(RaskolConfig config) {
-        this.config = config;
     }
 
     /** Ресурс-сервис для сброса шкалы при смене класса. */
