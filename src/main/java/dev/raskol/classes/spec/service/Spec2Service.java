@@ -58,6 +58,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *         Поведенческая заметка: правка spec2.disabled-nodes в файле применяется
  *         после /rc reload (раньше — мгновенно на следующий вызов); это плата за
  *         отсутствие чтений конфига в hot-пути, согласуется с политикой reload.
+ * 1.14.15 (raskolspec+): добавлен disabledNodesSnapshot() — говорящий алиас
+ *         disabledSet() для внешних потребителей (BuildTemplates: stale-маркировка
+ *         шаблонов с узлом в стоп-листе).
  */
 public final class Spec2Service {
 
@@ -141,6 +144,15 @@ public final class Spec2Service {
             disabledCache = local;
         }
         return local;
+    }
+
+    /**
+     * 1.14.15 (raskolspec+): говорящий алиас disabledSet() для внешних потребителей
+     * (BuildTemplates проверяет stale-маркировку шаблонов с узлом в стоп-листе).
+     * Семантика идентична disabledSet(): иммутабельный снапшот, O(1).
+     */
+    public Set<String> disabledNodesSnapshot() {
+        return disabledSet();
     }
 
     /**
