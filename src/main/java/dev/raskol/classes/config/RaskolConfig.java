@@ -27,6 +27,9 @@ import java.util.Map;
  * 1.14.0 (Б11.1.2-B2): path() читает переносимые из treeAbilities, если ключ там есть,
  *         чтобы после физической резки abilities.<id> не потерять name/description/
  *         unlock/cost/cooldown/numeric-ключи.
+ * 1.14.15 (raskolspec+): добавлен универсальный хелпер getIntOr() для чтения
+ *         int-ключей config.yml вне P5-funnel (секция plus.*). Используется
+ *         PlusSubscription.pricePerPeriod() — цена периода подписки.
  */
 public final class RaskolConfig {
 
@@ -181,6 +184,13 @@ public final class RaskolConfig {
         config.addDefault("attributes.hp.regen-combat-factor", 0.35);
         config.addDefault("attributes.hp.regen-cap-pct", 1.5);
 
+        // 1.14.15 (raskolspec+): секция подписки на кураторские билды
+        config.addDefault("plus.enabled", true);
+        config.addDefault("plus.price-per-period", 100);
+        config.addDefault("plus.period-days", 30);
+        config.addDefault("plus.max-gift-periods", 12);
+        config.addDefault("plus.cooldown-gift-ms", 5000L);
+
         config.addDefault("messages.no-class", "Класс не выбран — посетите герольда");
         config.addDefault("messages.no-class-cast", "Класс не выбран — способности недоступны");
         config.addDefault("messages.no-permission", "Недостаточно прав");
@@ -262,6 +272,33 @@ public final class RaskolConfig {
         config.addDefault("messages.book.crown.titleline", "Титул: {name}");
         config.addDefault("messages.book.crown.aura", "Аура-партикл видна союзникам и врагам");
         config.addDefault("messages.talents.reset.poor", "Не хватает монет на сброс талантов: нужно {cost}.");
+
+        // 1.14.15 (raskolspec+): сообщения подписки
+        config.addDefault("messages.plus.status-active", "⚜ raskolspec+ активна · осталось {days} дн.");
+        config.addDefault("messages.plus.status-inactive", "⚜ raskolspec+ не активна");
+        config.addDefault("messages.plus.gift-self", "Нельзя подарить подписку самому себе");
+        config.addDefault("messages.plus.gift-sent", "⚜ Подписка raskolspec+ подарена {target} на {days} дн.");
+        config.addDefault("messages.plus.gift-received", "⚜ {sender} подарил вам raskolspec+ на {days} дн.!");
+        config.addDefault("messages.plus.gift-offline-note", "{sender} подарил вам raskolspec+ на {days} дн.");
+        config.addDefault("messages.plus.gift-poor", "Не хватает империалов: нужно {cost}, у вас {balance}");
+        config.addDefault("messages.plus.gift-wallet-off", "Кошелёк империалов недоступен");
+        config.addDefault("messages.plus.gift-cooldown", "Слишком часто: повтор через {sec} с");
+        config.addDefault("messages.plus.apply-no-spec", "Сначала выбери основную спеку в «Специализации»");
+        config.addDefault("messages.plus.apply-stale", "Шаблон устарел: куратор обновляет его после баланс-патча");
+        config.addDefault("messages.plus.apply-ok", "⚜ Шаблон «{name}» применён. Респец-плата: {cost} монет.");
+        config.addDefault("messages.plus.apply-poor", "Не хватает монет на респец: нужно {cost}");
+        config.addDefault("messages.plus.apply-no-econ", "Экономика недоступна — применение отключено");
+        config.addDefault("messages.plus.no-sub", "⚜ Требуется подписка raskolspec+ · цена: {price} ⚜ империалов / {days} дн.");
+        config.addDefault("messages.plus.gui.title", "⚜ raskolspec+");
+        config.addDefault("messages.plus.gui.upsell-title", "⚜ raskolspec+ · курируемые билды");
+        config.addDefault("messages.plus.gui.locked", "🔒 Требуется подписка");
+        config.addDefault("messages.plus.gui.active", "⚜ Активна · осталось {days} дн.");
+        config.addDefault("messages.plus.gui.stale", "⚠ обновляется после баланс-патча");
+        config.addDefault("messages.plus.gui.diff-buy", "Докупить: {n} узлов");
+        config.addDefault("messages.plus.gui.diff-sell", "Снять: {n} узлов");
+        config.addDefault("messages.plus.gui.diff-points", "Очков нужно: {n}");
+        config.addDefault("messages.plus.gui.confirm-title", "⚜ Применить «{name}»?");
+        config.addDefault("messages.plus.gui.confirm-arm", "ПКМ №1 — взвести, ПКМ №2 (30 с) — применить");
 
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
@@ -401,6 +438,26 @@ public final class RaskolConfig {
     public String message(String key, String fallback) {
         String v = plugin.getConfig().getString("messages." + key, null);
         return v != null ? v : fallback;
+    }
+
+    /**
+     * 1.14.15 (raskolspec+): универсальный хелпер чтения int-ключа config.yml с дефолтом,
+     * без привязки к P5-funnel (класс/способность). Используется PlusSubscription для
+     * plus.price-per-period, plus.period-days, plus.max-gift-periods и др.
+     * Оборачивает стандартный Bukkit getInt с передачей дефолта.
+     */
+    public int getIntOr(String path, int def) {
+        return plugin.getConfig().getInt(path, def);
+    }
+
+    /** 1.14.15 (raskolspec+): long-аналог getIntOr для кулдаунов и TTL. */
+    public long getLongOr(String path, long def) {
+        return plugin.getConfig().getLong(path, def);
+    }
+
+    /** 1.14.15 (raskolspec+): boolean-аналог getIntOr для тумблеров секции plus.*. */
+    public boolean getBoolOr(String path, boolean def) {
+        return plugin.getConfig().getBoolean(path, def);
     }
 
     public double mageRegenTier1() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-1", 3.0); }
