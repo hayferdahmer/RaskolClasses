@@ -2,8 +2,10 @@
 <!--
   1.14.13 (Sprint 9, Волна 13A): исключения SpotBugs по итогам триажа отчёта.
   1.14.14 (фаза 1): расширено правилами для test-only классов (BalanceSimulator,
-  SelftestRunner), пет-бэклога (PetService$PetState) и боевых классов, которые
-  будут исправлены в фазе 2 (VanillaDamageListener, LuckPermsBackend, *Placeholder).
+  SelftestRunner) и пет-бэклога (PetService$PetState).
+  1.14.14 (фаза 2): HE_INHERITS_EQUALS_USE_HASHCODE для *Placeholder закрыт
+  точечным exclude — equals(Object) final в апстрим-PlaceholderExpansion,
+  переопределение невозможно; hashCode апстрим не предоставляет.
 
   Каждое правило — осознанное решение, а не «заглушить шум»; причины зафиксированы
   в комментариях и в CHANGELOG.
@@ -73,15 +75,15 @@
     </Match>
 
     <!-- ================================================================ -->
-    <!-- 1.14.14 (фаза 1): НОВЫЕ ПРАВИЛА для реальных 12 findings отчёта -->
+    <!-- 1.14.14 (фаза 1): правила для test-only и пет-бэклога            -->
     <!-- ================================================================ -->
 
     <!--
       FE_FLOATING_POINT_EQUALITY / FL_FLOATS_AS_LOOP_COUNTERS в test-слое:
       BalanceSimulator (TTK-симуляция дуэлей) и SelftestRunner (headless-проверка
       формул) оперируют точными значениями из формул; равенства там осознанные,
-      не требуют epsilon. Боевой код (VanillaDamageListener) остаётся без
-      исключения и чинится в фазе 2.
+      не требуют epsilon. Боевой код (VanillaDamageListener) исправлен в фазе 2
+      epsilon-сравнением и НЕ исключён.
     -->
     <Match>
         <Class name="dev.raskol.classes.balance.BalanceSimulator"/>
@@ -101,6 +103,28 @@
     <Match>
         <Class name="dev.raskol.classes.pet.PetService$PetState"/>
         <Bug pattern="URF_UNREAD_FIELD"/>
+    </Match>
+
+    <!-- ================================================================ -->
+    <!-- 1.14.14 (фаза 2): апстрим-ограничение PlaceholderAPI             -->
+    <!-- ================================================================ -->
+
+    <!--
+      HE_INHERITS_EQUALS_USE_HASHCODE для расширений PlaceholderAPI:
+      в PlaceholderAPI 2.11.6 метод equals(Object) объявлен FINAL в
+      me.clip.placeholderapi.expansion.PlaceholderExpansion (переопределение =
+      compile error "overridden method is final"), при этом hashCode() апстрим
+      НЕ предоставляет — любой сабкласс наследует final-equals + Object.hashCode,
+      т.е. находка воспроизводится для ВСЕХ расширений экосистемы PAPI.
+      Переопределять один hashCode вслепую опасно: семантика final-equals апстрима
+      недоступна для сверки контракта «равные → равные хеши».
+      Практического риска нет: реестр расширений PAPI ведётся по строковому
+      getIdentifier(), объект расширения ключом hash-коллекций не используется.
+      Exclude ограничен двумя нашими классами-плейсхолдерами, не паттерном глобально.
+    -->
+    <Match>
+        <Class name="~dev\.raskol\.classes\.hook\.(Raskol|Flavor)Placeholder"/>
+        <Bug pattern="HE_INHERITS_EQUALS_USE_HASHCODE"/>
     </Match>
 
 </FindBugsFilter>
