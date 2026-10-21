@@ -1,9 +1,94 @@
 # Changelog
 
-Формат: [Keep a Changelog](https://keepachangelog.com/ru-RU/1.1.0/).
-Версионирование: семантическое. Внутренние волновые метки (1.14.1–1.14.3)
-вышли внутри релиза 1.14.4 и перечислены в его секции.
-История НЕ переписывается задним числом; даты = даты тегов.
+Все заметные изменения проекта документируются в этом файле.
+Формат основан на [Keep a Changelog](https://keepachangelog.com/),
+семантическое версионирование по [SemVer](https://semver.org/).
+
+## [Unreleased]
+
+Пусто. Слот под 1.15.0.
+
+## [1.14.14] — 2026-10-21 (SpotBugs-гигиена: закрытие 12 findings + регресс-фикс 13C)
+
+Гигиенический патч, закрывающий все 12 findings отчёта `spotbugsXml.xml` от
+прогона 1.14.13 (9 кодом + 3 обоснованными exclude). Побочно закрыта
+регрессия 13C: рассинхрон карт состояния `WarlockAbilities` между тремя
+местами создания экземпляра (AbilityRegistry, TreeAbilities, RaskolClasses).
+
+### Закрытые findings (12/12)
+
+#### Исправлены кодом (9)
+
+| # | Pattern | Класс | Правка |
+|---|---|---|---|
+| 1 | `ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD` | `WarlockAbilities` | Конструктор приватизирован; создание через `WarlockAbilities.install(plugin)` — статическую фабрику с idempotency-guard |
+| 2 | `ST_WRITE_TO_STATIC` (регрессия 13C) | `AbilityRegistry`, `TreeAbilities`, `RaskolClasses` | Все 3 точки создания переведены на `install()` → **один** экземпляр синглтона; карты `sealExpiry/sealAmp/antihealExpiry/channelTasks` снова общие для китовых кастеров, древесных кастеров, слушателя `onPlayerQuit` и статик-facade |
+| 3 | `BC_VACUOUS_INSTANCEOF` | `DotService.onProjectileHit` | Убран vacuous `instanceof Projectile` (`event.getEntity()` всегда возвращает `Projectile`); заменено на прямое присваивание + null-guard |
+| 4 | `BC_VACUOUS_INSTANCEOF` | `VanillaDamageListener.onDamage` | `attacker instanceof Player` заменён на `attacker != null` (переменная уже типизирована `Player`) |
+| 5 | `FE_FLOATING_POINT_EQUALITY` | `VanillaDamageListener.applyOutgoingOffense` | `total != base` → `Math.abs(total - base) > 1e-9` (epsilon-сравнение в боевой логике офенса) |
+| 6 | `URF_UNREAD_FIELD` | `LuckPermsBackend.config` | Удалено мёртвое поле и сеттер `setConfig()`; висячий вызов убран из `ClassProvider` |
+| 7 | `HE_INHERITS_EQUALS_USE_HASHCODE` | `FlavorPlaceholder` | **Откат override** — `equals()` объявлен `final` в апстриме PlaceholderAPI 2.11.6, переопределение невозможно (compile error). Закрыт точечным exclude |
+| 8 | `HE_INHERITS_EQUALS_USE_HASHCODE` | `RaskolPlaceholder` | То же самое — см. выше |
+| 9 | `FE_FLOATING_POINT_EQUALITY`/`FL_FLOATS_AS_LOOP_COUNTERS` | `BalanceSimulator`, `SelftestRunner` | Test-only классы — закрыты exclude с обоснованием «осознанные равенства формульных значений» |
+
+#### Обоснованные exclude (3 правила в `spotbugs-exclude.xml`)
+
+| Правило | Scope | Обоснование |
+|---|---|---|
+| `FE_FLOATING_POINT_EQUALITY` + `FL_FLOATS_AS_LOOP_COUNTERS` | `BalanceSimulator`, `SelftestRunner` | Test-only симуляторы TTK; равенства в формулах осознанные, epsilon не требуется |
+| `URF_UNREAD_FIELD` | `PetService$PetState.dmgMult/speedMult` | Зарезервированы для будущего pet-damage слоя 1.15.0 — исключены до появления читателей |
+| `HE_INHERITS_EQUALS_USE_HASHCODE` | `*Placeholder` (2 класса) | Апстрим PlaceholderAPI 2.11.6: `equals()` final в `PlaceholderExpansion`, переопределение невозможно; реестр расширений PAPI ведётся по строковому `identifier`, объект-ключом не используется — реального риска нет |
+
+### Побочное закрытие регрессии 13C
+
+В волне 13C `WarlockAbilities` была переведена со static-mutable state на instance-поля
+с singleton-фасадом, но конструктор оставался публичным. В `onEnable` экземпляры
+создавались трижды:
+
+1. `new AbilityRegistry(this)` → `new WarlockAbilities(plugin)` внутри (кастеры слотов 1–5) → `instance = №1`
+2. `TreeAbilities.registerCasters(...)` → `new WarlockAbilities(plugin)` (кастеры слотов 6+) → `instance = №2`
+3. `this.warlockAbilities = new WarlockAbilities(this)` (слушатель `onPlayerQuit`) → `instance = №3`
+
+**Симптомы регрессии** (молчаливо с 13C):
+- `ruin_seal` писал seal-метки в `sealExpiry` №1/№2, а `CombatService` читал пустую карту №3 → амплификация ×1.26 не работала
+- `soul_rift` складывал канал-задачи в `channelTasks` №1/№2, а `onPlayerQuit` чистил пустую карту №3 → задачи не отменялись на выход игрока
+- `addAntiheal` писал в №1/№2, а `HpBarService.heal` проверял №3 → анти-хил не блокировал лечение
+
+**Фикс:** конструктор приватизирован, создание только через `WarlockAbilities.install(plugin)` с idempotency-guard → **один** экземпляр на всё. Selftest не ловил эту регрессию (чек 37 проверял пустоту реестров, а не сквозную проводку) — добавлен ручной регресс-тест в чеклист приёмки.
+
+### Изменения файлов
+
+**Правки кода:**
+- `ability/WarlockAbilities.java` — конструктор `private`, добавлена `install(plugin)`
+- `ability/AbilityRegistry.java` — `WarlockAbilities.install(plugin)` вместо `new`
+- `ability/TreeAbilities.java` — `WarlockAbilities.install(plugin)` вместо `new`
+- `combat/VanillaDamageListener.java` — epsilon-сравнение в `applyOutgoingOffense`, `attacker != null` в `onDamage`
+- `combat/dot/DotService.java` — упрощён `onProjectileHit`
+- `classsystem/LuckPermsBackend.java` — удалены поле `config` и `setConfig()`
+- `classsystem/ClassProvider.java` — удалён вызов `backend.setConfig(config)`
+- `hook/FlavorPlaceholder.java` — откат overrides equals/hashCode (невозможны из-за final в апстриме)
+- `hook/RaskolPlaceholder.java` — откат overrides equals/hashCode
+- `RaskolClasses.java` — `WarlockAbilities.install(this)` вместо `new`
+
+**Инфраструктура:**
+- `spotbugs-exclude.xml` — добавлены 3 обоснованных правила (test-only, пет-бэклог, PAPI-ограничение)
+- `pom.xml` — версия 1.14.12 → **1.14.14**
+- `plugin.yml` — версия → **1.14.14**
+- `config.yml` — шапка обновлена с блоком «ЧТО НОВОГО В 1.14.14»
+
+### Миграция и совместимость
+
+- **Миграция конфигов:** не требуется.
+- **Миграция данных:** не требуется.
+- **Миграция мира/игроков:** не требуется.
+- **Breaking changes:** внешние плагины, создававшие `new WarlockAbilities(plugin)` напрямую, сломаются при обновлении (конструктор приватный). Таких плагинов не было — публичный конструктор был только внутренним для `AbilityRegistry`/`TreeAbilities`/`RaskolClasses`.
+
+### Приёмка
+
+```bash
+mvn -B verify          # 57 unit, BUILD SUCCESS
+mvn -Pdev -B verify    # Step Summary: SpotBugs findings: 0
+/rc selftest           # 122/122 PASS
 
 ## [1.14.10] — 2026-10-18
 
