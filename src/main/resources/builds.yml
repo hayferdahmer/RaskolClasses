@@ -1,0 +1,227 @@
+# ============================================================
+#  RaskolClasses · builds.yml · схема v1
+#  Кураторские шаблоны билдов raskolspec+ (подписка).
+#  Извлекается из jar при первом старте; правится админом без пересборки.
+#  /rc reload — перечитать. Ошибочный шаблон отключается с warning,
+#  остальные работают.
+#
+#  Цена и срок:
+#    subscription.price-per-period: 100   (империалов за период)
+#    subscription.period-days:      30    (дней в периоде)
+#  Покупка через PlayerPoints, витрина — через DeluxeMenus
+#  (команды rc plus grant / rc plus revoke).
+# ============================================================
+schema: 1
+
+subscription:
+  enabled: true
+  price-per-period: 100
+  period-days: 30
+  max-gift-periods: 12
+
+# Текущая версия патча — для маркировки «актуально для патча X» в GUI.
+# Обновляй в каждом баланс-патче вместе с jar.
+current-patch: "1.14.15"
+
+# Шаблоны по спекам и архетипам.
+# Структура узла: id → rank (1..maxRank).
+# Пререквизиты не указываются — валидируются автоматически.
+templates:
+  arms:
+    pvp:
+      name: "Оружие · Дуэлянт"
+      tagline: "Бурст и контроль: stun-цепочки, execute-финиш"
+      updated: "1.14.15"
+      nodes: {}   # контент 15B
+    pve:
+      name: "Оружие · Авангард"
+      tagline: "Выживаемость и AoE-фарм"
+      updated: "1.14.15"
+      nodes: {}
+  fury:
+    pvp:
+      name: "Неистовство · Берсерк"
+      tagline: "Макс. DPS в дуэлях"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Неистовство · Вихрь"
+      tagline: "AoE-зачистка + lifesteal"
+      updated: "1.14.15"
+      nodes: {}
+  guard:
+    pvp:
+      name: "Защита · Крепость"
+      tagline: "ccResist, контроль толпы, зеркало магии"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Защита · Оплот"
+      tagline: "Танк рейда: щиты, таунт, last_stand"
+      updated: "1.14.15"
+      nodes: {}
+  marksmanship:
+    pvp:
+      name: "Стрельба · Снайпер"
+      tagline: "Бурст одиночных целей, silence"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Стрельба · Лучник"
+      tagline: "Стабильный DPS, AoE arrow_rain"
+      updated: "1.14.15"
+      nodes: {}
+  survival:
+    pvp:
+      name: "Выживание · Ловчий"
+      tagline: "Ловушки, ROOT-контроль, trap-burst"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Выживание · Следопыт"
+      tagline: "DoT-фарм, serpent_sting ульт"
+      updated: "1.14.15"
+      nodes: {}
+  beastmaster:
+    pvp:
+      name: "Звери · Хищник"
+      tagline: "Питомец-контроль + intimidation"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Звери · Вожак"
+      tagline: "Питомец ×2 DPS, bestial_wrath"
+      updated: "1.14.15"
+      nodes: {}
+  assassination:
+    pvp:
+      name: "Ликвидация · Отравитель"
+      tagline: "Deathmark, poison-burst, vendetta"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Ликвидация · Теневой клинок"
+      tagline: "Стабильный DoT + envenom sustain"
+      updated: "1.14.15"
+      nodes: {}
+  outlaw:
+    pvp:
+      name: "Головорез · Пистолет"
+      tagline: "Stun-цепочки, between_the_eyes"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Головорез · Клинок"
+      tagline: "Blade flurry, AoE killing_spree"
+      updated: "1.14.15"
+      nodes: {}
+  subtlety:
+    pvp:
+      name: "Скрытность · Ассасин"
+      tagline: "Stealth-burst, backstab-циклы"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Скрытность · Тень"
+      tagline: "Shadow dance ротация, shadow_blades ульт"
+      updated: "1.14.15"
+      nodes: {}
+  arcane:
+    pvp:
+      name: "Тайная · Контроль"
+      tagline: "Counterspell, silence, aegis"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Тайная · Бурст"
+      tagline: "Zeus_wrath, arcane missiles burst"
+      updated: "1.14.15"
+      nodes: {}
+  fire:
+    pvp:
+      name: "Огонь · Поджигатель"
+      tagline: "Burning-контроль, combustion"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Огонь · Пиромант"
+      tagline: "Pyroburst + AoE flamestrike"
+      updated: "1.14.15"
+      nodes: {}
+  frost:
+    pvp:
+      name: "Лёд · Мороз"
+      tagline: "Chilled-контроль, shatter-бурст"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Лёд · Метель"
+      tagline: "Blizzard AoE, ice_barrier sustain"
+      updated: "1.14.15"
+      nodes: {}
+  discipline:
+    pvp:
+      name: "Послушание · Инквизитор"
+      tagline: "Pain suppression, purge, spirit_shell"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Послушание · Пастырь"
+      tagline: "Щиты + кара, group sustain"
+      updated: "1.14.15"
+      nodes: {}
+  holy:
+    pvp:
+      name: "Свет · Хранитель"
+      tagline: "Burst-хил + holy_mending"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Свет · Жрец"
+      tagline: "Divine hymn, circle_elysium, lightwell"
+      updated: "1.14.15"
+      nodes: {}
+  shadow:
+    pvp:
+      name: "Тьма · Жнец"
+      tagline: "Wither-контроль, mind_flay канал"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Тьма · Проповедник"
+      tagline: "Shadowfiend sustain, wrath_heaven execute"
+      updated: "1.14.15"
+      nodes: {}
+  affliction:
+    pvp:
+      name: "Колдовство · Проклинатель"
+      tagline: "Wither-stack, soul_harvest детонация"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Колдовство · Жнец"
+      tagline: "Stable DoT, soul_siphon sustain"
+      updated: "1.14.15"
+      nodes: {}
+  destruction:
+    pvp:
+      name: "Разрушение · Пироклазм"
+      tagline: "Chaos_bolt burst, conflagrate"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Разрушение · Инферно"
+      tagline: "Soul_rift канал, immolate spam"
+      updated: "1.14.15"
+      nodes: {}
+  demonology:
+    pvp:
+      name: "Демонология · Повелитель"
+      tagline: "Demon-soul burst, CC-иммунитет"
+      updated: "1.14.15"
+      nodes: {}
+    pve:
+      name: "Демонология · Призыватель"
+      tagline: "Pet ×2 DPS, demonic_pact group buff"
+      updated: "1.14.15"
+      nodes: {}
