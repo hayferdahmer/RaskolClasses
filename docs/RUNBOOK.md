@@ -141,7 +141,7 @@ parent-группу `citizen` (default: true).
 
 ### 10.1. Команды для администрирования
 
-`/rc item list [страница]`, `/rc item info <id>`, `/rc item give <игрок> <id> [количество]`, `/rc item roll <игрок> <id> [seed]`, `/rc item browse`, `/rc item stats [игрок]`; `/rc set list`, `/rc set info <id>`, `/rc set active <игрок>`.
+`/rc item list [страница]`, `/rc item info <id>`, `/rc item give <игрок> <id> [количество]`, `/rc item roll <игрок> <id> [seed]`, `/rc item browse [класс] [слот] [редкость]`, `/rc item stats [игрок]`; `/rc set list`, `/rc set info <id>`, `/rc set active <игрок>`. Браузер позволяет циклически менять каждый из трёх фильтров.
 
 Для интеграционной диагностики `/rc debug profile` показывает `CombatProfile` живой сущности в прицеле.
 
