@@ -89,7 +89,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * snapshot-чтение Spec2Points.snapshot().startLevel()/maxPoints()/rowGates().
  *
  * 1.14.13-fix: опечатка имени метода устранена — все вызовы resetAllDR(...)
- * заменены на каноническое resetAllDr(...) (10 мест в cc/ccProbeBreaks/ccProbeCastGuard).
+ * заменены на каноническое resetAllDr(...) (12 мест в cc/ccProbeBreaks/ccProbeCastGuard).
  *
  * 1.14.15 (raskolspec+): добавлены чеки 123–125 — валидность 36 шаблонов builds.yml,
  * математика подписки grant/remainingDays/revoke, stale-маркировка disabled-узлов.
@@ -1186,12 +1186,12 @@ public final class SelftestRunner {
         } else {
             UUID u90 = probe.getUniqueId();
             cc.removeAll(u90);
-            cc.resetAllDR(u90);
+            cc.resetAllDr(u90);
             boolean applied90 = applyUntilOk(cc, probe, CCType.STUN, 60);
             boolean activeVisible = !cc.activeOf(u90).isEmpty();
             boolean drVisible = cc.drState(u90, DRCategory.STUN).stackCount() >= 1;
             cc.removeAll(u90);
-            cc.resetAllDR(u90);
+            cc.resetAllDr(u90);
             boolean cleared90 = cc.activeOf(u90).isEmpty()
                     && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
             boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
@@ -1204,17 +1204,17 @@ public final class SelftestRunner {
     private static void ccProbeBreaks(Report r, Player probe, CCService cc) {
         UUID u82 = probe.getUniqueId();
         cc.removeAll(u82);
-        cc.resetAllDR(u82);
+        cc.resetAllDr(u82);
         boolean applied1 = applyUntilOk(cc, probe, CCType.ROOT, 100);
         boolean hasBefore = cc.has(u82, CCType.ROOT);
         cc.breakOnDamage(probe, 60.0, 1000.0);
         boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
-        cc.resetAllDR(u82);
+        cc.resetAllDr(u82);
         boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
         cc.breakOnDamage(probe, 30.0, 1000.0);
         boolean hasAfterLow = cc.has(u82, CCType.ROOT);
         cc.removeAll(u82);
-        cc.resetAllDR(u82);
+        cc.resetAllDr(u82);
         boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
         r.check("82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
                 ok82, "CCService.breakOnDamage",
@@ -1222,13 +1222,13 @@ public final class SelftestRunner {
 
         UUID u83 = probe.getUniqueId();
         cc.removeAll(u83);
-        cc.resetAllDR(u83);
+        cc.resetAllDr(u83);
         boolean applied = applyUntilOk(cc, probe, CCType.STUN, 100);
         boolean hasBeforeStun = cc.has(u83, CCType.STUN);
         cc.breakOnDamage(probe, 60.0, 1000.0);
         boolean hasAfter = cc.has(u83, CCType.STUN);
         cc.removeAll(u83);
-        cc.resetAllDR(u83);
+        cc.resetAllDr(u83);
         boolean ok83 = applied && hasBeforeStun && hasAfter;
         r.check("83", "STUN не снимается уроном ≥ порога",
                 ok83, "CCService.breakOnDamage",
@@ -1239,17 +1239,17 @@ public final class SelftestRunner {
         UUID u84 = probe.getUniqueId();
         dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
         cc.removeAll(u84);
-        cc.resetAllDR(u84);
+        cc.resetAllDr(u84);
         boolean canNormal = cg.canCast(probe, false);
         applyUntilOk(cc, probe, CCType.STUN, 100);
         boolean canStun = cg.canCast(probe, false);
         cc.removeAll(u84);
-        cc.resetAllDR(u84);
+        cc.resetAllDr(u84);
         applyUntilOk(cc, probe, CCType.SILENCE, 100);
         boolean canSilenceNormal = cg.canCast(probe, false);
         boolean canSilenceInstant = cg.canCast(probe, true);
         cc.removeAll(u84);
-        cc.resetAllDR(u84);
+        cc.resetAllDr(u84);
         boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
         r.check("84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
                 ok84, "CastGuard.canCast",
@@ -1872,12 +1872,6 @@ public final class SelftestRunner {
 
     /* ------------------------------ 107: Spec2Points ↔ конфиг (1.14.13: snapshot) ------------------------------ */
 
-    /**
-     * 1.14.13 (Волна 13C, 2-06): единственный legacy-читатель @Deprecated полей
-     * Spec2Points.START_LEVEL/MAX_POINTS/ROW_GATES переведён на snapshot().
-     * Поля удалены из Spec2Points 1.14.13 — единственный источник истины теперь
-     * Spec2Points.snapshot() (record с volatile-ссылкой).
-     */
     private static void pointsConfig(RaskolClasses plugin, Report r) {
         Spec2Points.Snapshot snap = Spec2Points.snapshot();
         int[] rowGates = snap.rowGates();
@@ -2231,13 +2225,6 @@ public final class SelftestRunner {
 
     /* ------------------------------ 121: Sprint 5, P2-4 ------------------------------ */
 
-    /**
-     * 121 (P2-4): стоп-лист spec2.disabled-nodes не содержит узлов, у которых уже
-     * есть живой потребитель: kit_dur (durationWithSpec), attack_speed_pct
-     * (Spec2EffectsApplier) и proc-узлы с обработчиками Sprint 3 (free_heal,
-     * enrage_dmg, trance, rage_on_cast, bleed_on_crit, burning_extend).
-     * Защита от регресса 1.14.7, когда реализованные узлы остались закрытыми.
-     */
     private static void stopListLive(RaskolClasses plugin, Report r) {
         boolean ok121 = true;
         String got121 = "";
@@ -2274,14 +2261,6 @@ public final class SelftestRunner {
 
     /* ------------------------------ 122: Sprint 6, Волна 6.1, P0-6B ------------------------------ */
 
-    /**
-     * 122 (P0-6B): каждый ВКЛЮЧЕННЫЙ узел достижим при текущем стоп-листе.
-     * Регрессия 1.14.8: 25 включённых узлов (включая 6 ультов) стали недостижимы,
-     * потому что их пререквизиты попали в spec2.disabled-nodes, а prereqsMet
-     * требовал ранг отключённого узла. После фикса (отключённый пререквизит =
-     * выполнен) чек сторожит обе стороны: достижимость включённых узлов
-     * и согласованность самого стоп-листа.
-     */
     private static void stopListReachability(RaskolClasses plugin, Report r) {
         Set<String> disabled = plugin.getSpec2Service().disabledSet();
         int unreachable = 0;
@@ -2312,28 +2291,6 @@ public final class SelftestRunner {
 
     /* ------------------------------ 123–125: 1.14.15 (raskolspec+) ------------------------------ */
 
-    /**
-     * 1.14.15 (raskolspec+): три headless-чека слоя подписки.
-     *
-     * 123 — валидность builds.yml: ровно 36 шаблонов (18 спек × 2 архетипа)
-     * загружено, проблемных секций 0. Если шаблон не прошёл валидацию
-     * (prereq-дыра, перегруз очков, несуществующий узел, disabled-узел) —
-     * BuildTemplates.load() отключит его с warning, и countProblems > 0.
-     *
-     * 124 — математика подписки: grant(1 период) создаёт expires в будущем,
-     * remainingDays в диапазоне [29, 31] (округление вверх), revoke полностью
-     * очищает запись. Проверка на синтетическом UUID (не онлайн-игрок),
-     * LP-пермишен не затрагивается (settemp срабатывает только при онлайне).
-     * grant/revoke обёрнуты в try/finally, чтобы при падении теста запись
-     * не осталась мусором в plus-subscription.yml.
-     *
-     * 125 — stale-маркировка: countStale() соответствует размеру disabled-nodes.
-     * countStale() ≥ 0 — инвариант; конкретное число зависит от текущего
-     * стоп-листа spec2.disabled-nodes (0 при пустом, >0 если какой-то шаблон
-     * содержит узел из стоп-листа).
-     *
-     * Все три чека НЕ probe-зависимы и выполняются всегда (включая консольный запуск).
-     */
     private static void plusSubscription(RaskolClasses plugin, Report r) {
         // 123: 36 шаблонов загружены без проблем
         int tplCount = plugin.getBuildTemplates().countLoaded();
