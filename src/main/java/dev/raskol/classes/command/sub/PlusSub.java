@@ -26,16 +26,13 @@ import java.util.concurrent.ConcurrentHashMap;
  *                                   rate-limit по plus.cooldown-gift-ms)
  *   /rc plus grant <ник> <периоды> — админская выдача (perm: raskolclasses.admin.plus)
  *   /rc plus revoke <ник>          — админский отзыв (perm: raskolclasses.admin.plus)
+ *   /rc plus export                — 1.14.16-fix2: перезаписать builds.yml нормализованными
+ *                                   шаблонами (perm: raskolclasses.admin.plus)
  *
  * Основной путь применения шаблонов — через GUI-флоу (/rc plus → карточка → двойной клик).
  *
  * Контракт CommandSub: name/execute/complete/permission — синхронизирован с роутером
- * RaskolCommand. execute возвращает boolean (true = команда обработана, false = показать help).
- *
- * 1.14.15-fix: ключи сообщений без префикса "messages." — RaskolConfig.message(key, fallback)
- * автоматически дописывает префикс "messages." перед поиском в конфиге, поэтому
- * передача "messages.no-permission" искала ключ "messages.messages.no-permission"
- * и всегда падала в fallback (текст правильный, но override в config.yml мёртв).
+ * RaskolCommand. execute возвращает boolean (true = команда обработана).
  */
 public final class PlusSub implements CommandSub {
 
@@ -53,7 +50,7 @@ public final class PlusSub implements CommandSub {
         return "plus";
     }
 
-    /** Базовая нода для /rc plus и /rc plus status/gift. Admin-подкоманды (grant/revoke) проверяют admin.plus внутри метода. */
+    /** Базовая нода для /rc plus и /rc plus status/gift. Admin-подкоманды проверяют admin.plus внутри. */
     @Override
     public String permission() {
         return "raskolclasses.plus.use";
@@ -63,7 +60,7 @@ public final class PlusSub implements CommandSub {
     public boolean execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
             if (!(sender instanceof Player player)) {
-                sender.sendPlainMessage("Используй: /rc plus status|gift|grant|revoke <ник>");
+                sender.sendPlainMessage("Используй: /rc plus status|gift|grant|revoke|export");
                 return true;
             }
             gui.openCatalog(player);
@@ -76,8 +73,9 @@ public final class PlusSub implements CommandSub {
             case "gift" -> cmdGift(sender, args);
             case "grant" -> cmdGrant(sender, args);
             case "revoke" -> cmdRevoke(sender, args);
+            case "export" -> cmdExport(sender);
             default -> sender.sendPlainMessage("Неизвестная подкоманда: " + sub
-                    + ". Доступны: status, gift, grant, revoke.");
+                    + ". Доступны: status, gift, grant, revoke, export.");
         }
         return true;
     }
@@ -85,7 +83,7 @@ public final class PlusSub implements CommandSub {
     @Override
     public List<String> complete(CommandSender sender, String[] args) {
         if (args.length == 1) {
-            return List.of("status", "gift", "grant", "revoke");
+            return List.of("status", "gift", "grant", "revoke", "export");
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("gift")
                 || args[0].equalsIgnoreCase("grant")
@@ -109,7 +107,6 @@ public final class PlusSub implements CommandSub {
         Player target;
         if (args.length >= 2) {
             if (!sender.hasPermission("raskolclasses.admin.plus")) {
-                // 1.14.15-fix: ключ без префикса "messages." — ищется "messages.no-permission"
                 sender.sendMessage(err(plugin.getRaskolConfig()
                         .message("no-permission", "Недостаточно прав")));
                 return;
@@ -232,7 +229,6 @@ public final class PlusSub implements CommandSub {
 
     private void cmdGrant(CommandSender sender, String[] args) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
-            // 1.14.15-fix: ключ без префикса "messages."
             sender.sendMessage(err(plugin.getRaskolConfig()
                     .message("no-permission", "Недостаточно прав")));
             return;
@@ -268,7 +264,6 @@ public final class PlusSub implements CommandSub {
 
     private void cmdRevoke(CommandSender sender, String[] args) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
-            // 1.14.15-fix: ключ без префикса "messages."
             sender.sendMessage(err(plugin.getRaskolConfig()
                     .message("no-permission", "Недостаточно прав")));
             return;
@@ -284,6 +279,29 @@ public final class PlusSub implements CommandSub {
         }
         plugin.getPlusSubscription().revoke(target.getUniqueId());
         sender.sendMessage(ok("⚜ " + target.getName() + ": подписка отозвана"));
+    }
+
+    /* ------------------------------ export (admin, 1.14.16-fix2) ------------------------------ */
+
+    /**
+     * Перезаписать builds.yml нормализованными шаблонами (то, что фактически
+     * загружено и применимо). Убирает INFO-строки «нормализовано по стоп-листу/гейтам»
+     * из логов старта до следующего баланс-патча, меняющего стоп-лист/гейты.
+     */
+    private void cmdExport(CommandSender sender) {
+        if (!sender.hasPermission("raskolclasses.admin.plus")) {
+            sender.sendMessage(err(plugin.getRaskolConfig()
+                    .message("no-permission", "Недостаточно прав")));
+            return;
+        }
+        boolean ok = plugin.getBuildTemplates().exportNormalized();
+        if (ok) {
+            sender.sendMessage(ok("⚜ builds.yml перезаписан нормализованными шаблонами. "
+                    + "Память уже согласована; после следующего /rc reload или рестарта "
+                    + "логи нормализации исчезнут."));
+        } else {
+            sender.sendMessage(err("Не удалось записать builds.yml — смотри лог сервера."));
+        }
     }
 
     private static Component ok(String raw) {
