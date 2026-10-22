@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.14.15 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
+#  RaskolClasses v1.14.16 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
 #  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -27,12 +27,16 @@
 #    текст «res/effectiveMax» корректно растягивает бар для потолка > 100
 #    (через узлы resource_max + setCeiling из spec2).
 #
-#  1.14.8–1.14.14: новых конфиг-ключей НЕ добавляли (стоп-лист spec2, snapshot-очки,
-#  архитектура-волны и SpotBugs-гигиена живут в старом составе секций).
+#  1.14.15 (raskolspec+): секция plus.* и блок messages.plus.* — подписка на
+#  курируемые билды (100 империалов / 30 дней, PlayerPoints), подарки, GUI /rc plus.
 #
-#  1.14.15 (raskolspec+): НОВАЯ секция plus.* и блок messages.plus.* — подписка на
-#  курируемые билды: 100 империалов / 30 дней (PlayerPoints), подарки, GUI /rc plus,
-#  плейсхолдер %raskolclasses_plus%, LP-нода raskolclasses.plus.active.
+#  1.14.16 (Волна 15C + гигиена): исправлены 4 звуковых ключа под MC 26.2 —
+#  - avoidance.parry-sound и vfx.shield_bash.impact-sound: ENTITY_SHIELD_BLOCK → BLOCK_ANVIL_LAND;
+#  - vfx.taunt.cast-sound: ENTITY_IRON_GOLEM_ROAR → ENTITY_RAVAGER_ROAR;
+#  - vfx.arcane_missiles.impact-sound: ENTITY_EVOKER_FANGS → ENTITY_EVOKER_CAST_SPELL.
+#  Старые ключи отсутствуют в Registry.SOUNDS текущего билда ядра — FxService
+#  логовал «vfx: неизвестный звук» на старте. Замены взяты из ключей, уже
+#  используемых в этом конфиге без warning'ов (гарантия валидности).
 # ============================================================
 
 hud:
@@ -111,10 +115,6 @@ storage:
 # (raskolspec.yml), выдача/отзыв — /rc plus grant|revoke (консоль/админ).
 # plus.enabled=false — шаблоны видны и применяются БЕЗ подписки
 # (акционный/тестовый режим; проверка доступа обходит всё).
-# price-per-period читает PlusSubscription.pricePerPeriod();
-# period-days — дней в одном периоде (грант суммирует периоды).
-# max-gift-periods — лимит одной команды /rc plus gift (анти-опечатка).
-# cooldown-gift-ms — rate-limit подарков на дарителя.
 # ------------------------------------------------------------
 plus:
   enabled: true
@@ -372,6 +372,7 @@ attributes:
 # 1.14.6-fix (P0-7): секция ПЕРЕНЕСЕНА В КОРЕНЬ из attributes:.
 # Код читает avoidance.* с корня (AvoidanceService.tryAvoid,
 # AttributeService.effectiveAvoidance). parry-k = 300 унифицирован.
+# 1.14.16: parry-sound заменён (ENTITY_SHIELD_BLOCK отсутствует в Registry.SOUNDS MC 26.2).
 # ------------------------------------------------------------
 avoidance:
   enabled: true
@@ -391,7 +392,7 @@ avoidance:
   dodge-tag: "💨 Уклонение!"
   parry-tag: "⚔ Парирование!"
   dodge-sound: ENTITY_ENDERMAN_TELEPORT
-  parry-sound: ENTITY_SHIELD_BLOCK
+  parry-sound: BLOCK_ANVIL_LAND
 
 # ------------------------------------------------------------
 # 1.14.6-fix (P0-7): секция ПЕРЕНЕСЕНА В КОРЕНЬ из attributes:.
@@ -641,7 +642,7 @@ messages:
     blocked: "Способности недоступны в этом режиме или до входа в аккаунт."
     blocked.install: "Инсталляции недоступны в этом режиме или до входа в аккаунт."
   foliant:
-    not-mage-priest: "Страницы не отвечают тебе. Том ждёт знающих письмена света и веры."
+    not-mage-priest: "Страницы не отвечают тебе. Том ждёт знающих письмена света или веры."
     too-low-level: "Том тяжёл для твоего разума: нужен уровень персонажа 40."
     already-warlock: "Том уже прочитан тобой."
     spec-chosen: "Том не откроется, пока ты держишься старого пути."
@@ -1218,7 +1219,7 @@ classes:
         school: HOLY
       lightwell:
         name: "Колодец Света"
-        description: "Зона-хил r4: 4 тика по 2 s лечат союзников"
+        description: "Зона-хил r4: 4 тика по 2 с лечат союзников"
         unlock: 15
         cost: 35
         cooldown: 60
@@ -2204,10 +2205,10 @@ vfx:
   shield_bash:
     cast-sound: ENTITY_PLAYER_ATTACK_KNOCKBACK
     cast-particle: SWEEP_ATTACK
-    impact-sound: ENTITY_SHIELD_BLOCK
+    impact-sound: BLOCK_ANVIL_LAND
     impact-particle: DAMAGE_INDICATOR
   taunt:
-    cast-sound: ENTITY_IRON_GOLEM_ROAR
+    cast-sound: ENTITY_RAVAGER_ROAR
     cast-particle: ANGRY_VILLAGER
   bladestorm:
     cast-sound: ENTITY_RAVAGER_ROAR
@@ -2346,7 +2347,7 @@ vfx:
   arcane_missiles:
     cast-sound: ENTITY_EVOKER_CAST_SPELL
     cast-particle: REVERSE_PORTAL
-    impact-sound: ENTITY_EVOKER_FANGS
+    impact-sound: ENTITY_EVOKER_CAST_SPELL
     impact-particle: REVERSE_PORTAL
   counterspell:
     cast-sound: BLOCK_NOTE_BLOCK_BASS
@@ -2506,5 +2507,5 @@ vfx:
       tag: "☾ Чёрная Месса"
 
 # ============================================================
-#  КОНЕЦ config.yml · RaskolClasses 1.14.15
+#  КОНЕЦ config.yml · RaskolClasses 1.14.16
 # ============================================================
