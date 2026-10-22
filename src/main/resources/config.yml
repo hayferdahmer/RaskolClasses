@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.14.7 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
+#  RaskolClasses v1.14.15 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
 #  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -26,6 +26,13 @@
 #  - P1-8: шкала ресурса в unified-actionbar нормируется на ResourceState.getEffectiveMax();
 #    текст «res/effectiveMax» корректно растягивает бар для потолка > 100
 #    (через узлы resource_max + setCeiling из spec2).
+#
+#  1.14.8–1.14.14: новых конфиг-ключей НЕ добавляли (стоп-лист spec2, snapshot-очки,
+#  архитектура-волны и SpotBugs-гигиена живут в старом составе секций).
+#
+#  1.14.15 (raskolspec+): НОВАЯ секция plus.* и блок messages.plus.* — подписка на
+#  курируемые билды: 100 империалов / 30 дней (PlayerPoints), подарки, GUI /rc plus,
+#  плейсхолдер %raskolclasses_plus%, LP-нода raskolclasses.plus.active.
 # ============================================================
 
 hud:
@@ -97,6 +104,24 @@ storage:
   # Меньше значение = чаще IO, но меньше риск потери данных при краше.
   # Дефолт 60 с — разумный компромисс для 50–100 онлайн.
   health-flush-seconds: 60
+
+# ------------------------------------------------------------
+# 1.14.15 (raskolspec+): подписка на курируемые билды.
+# Валюта — Империалы (PlayerPoints). Витрина покупки — DeluxeMenus
+# (raskolspec.yml), выдача/отзыв — /rc plus grant|revoke (консоль/админ).
+# plus.enabled=false — шаблоны видны и применяются БЕЗ подписки
+# (акционный/тестовый режим; проверка доступа обходит всё).
+# price-per-period читает PlusSubscription.pricePerPeriod();
+# period-days — дней в одном периоде (грант суммирует периоды).
+# max-gift-periods — лимит одной команды /rc plus gift (анти-опечатка).
+# cooldown-gift-ms — rate-limit подарков на дарителя.
+# ------------------------------------------------------------
+plus:
+  enabled: true
+  price-per-period: 100
+  period-days: 30
+  max-gift-periods: 12
+  cooldown-gift-ms: 5000
 
 class-accept:
   enabled: true
@@ -616,7 +641,7 @@ messages:
     blocked: "Способности недоступны в этом режиме или до входа в аккаунт."
     blocked.install: "Инсталляции недоступны в этом режиме или до входа в аккаунт."
   foliant:
-    not-mage-priest: "Страницы не отвечают тебе. Том ждёт знающих письмена света или веры."
+    not-mage-priest: "Страницы не отвечают тебе. Том ждёт знающих письмена света и веры."
     too-low-level: "Том тяжёл для твоего разума: нужен уровень персонажа 40."
     already-warlock: "Том уже прочитан тобой."
     spec-chosen: "Том не откроется, пока ты держишься старого пути."
@@ -718,6 +743,34 @@ messages:
   talents:
     reset:
       poor: "Не хватает монет на сброс талантов: нужно {cost}."
+  # 1.14.15 (raskolspec+): сообщения подписки и GUI курируемых билдов
+  plus:
+    status-active: "⚜ raskolspec+ активна · осталось {days} дн."
+    status-inactive: "⚜ raskolspec+ не активна"
+    gift-self: "Нельзя подарить подписку самому себе"
+    gift-sent: "⚜ Подписка raskolspec+ подарена {target} на {days} дн."
+    gift-received: "⚜ {sender} подарил вам raskolspec+ на {days} дн.!"
+    gift-offline-note: "{sender} подарил вам raskolspec+ на {days} дн."
+    gift-poor: "Не хватает империалов: нужно {cost}, у вас {balance}"
+    gift-wallet-off: "Кошелёк империалов недоступен"
+    gift-cooldown: "Слишком часто: повтор через {sec} с"
+    apply-no-spec: "Сначала выбери основную спеку в «Специализации»"
+    apply-stale: "Шаблон устарел: куратор обновляет его после баланс-патча"
+    apply-ok: "⚜ Шаблон «{name}» применён. Респец-плата: {cost} монет."
+    apply-poor: "Не хватает монет на респец: нужно {cost}"
+    apply-no-econ: "Экономика недоступна — применение отключено"
+    no-sub: "⚜ Требуется подписка raskolspec+ · цена: {price} ⚜ империалов / {days} дн."
+    gui:
+      title: "⚜ raskolspec+"
+      upsell-title: "⚜ raskolspec+ · курируемые билды"
+      locked: "🔒 Требуется подписка"
+      active: "⚜ Активна · осталось {days} дн."
+      stale: "⚠ обновляется после баланс-патча"
+      diff-buy: "Докупить: {n} узлов"
+      diff-sell: "Снять: {n} узлов"
+      diff-points: "Очков нужно: {n}"
+      confirm-title: "⚜ Применить «{name}»?"
+      confirm-arm: "ПКМ №1 — взвести, ПКМ №2 (30 с) — применить"
 
 classes:
   WARRIOR:
@@ -1165,7 +1218,7 @@ classes:
         school: HOLY
       lightwell:
         name: "Колодец Света"
-        description: "Зона-хил r4: 4 тика по 2 с лечат союзников"
+        description: "Зона-хил r4: 4 тика по 2 s лечат союзников"
         unlock: 15
         cost: 35
         cooldown: 60
@@ -2451,4 +2504,7 @@ vfx:
       cast-sound: ENTITY_VEX_DEATH
       cast-particle: SOUL
       tag: "☾ Чёрная Месса"
-      # ============================================================
+
+# ============================================================
+#  КОНЕЦ config.yml · RaskolClasses 1.14.15
+# ============================================================
