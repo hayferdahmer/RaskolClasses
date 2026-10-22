@@ -4,9 +4,73 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/),
 семантическое версионирование по [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.14.15] — 2026-10-22 (raskolspec+: подписка на курируемые билды — инфраструктура и GUI-оболочка)
 
-Пусто. Слот под 1.15.0.
+Первая волна монетизируемого слоя «идеальных билдов»: 36 курируемых
+шаблонов (18 спек × PvP/PvE), подписка за донат-валюту «Империал» (PlayerPoints),
+подарки, GUI-каталог с тизер-моделью и витрина DeluxeMenus.
+
+### Новое: слой raskolspec+ (`spec/build/*`, `gui/PlusGui`, `command/sub/PlusSub`)
+
+- **`builds.yml`** — ресурс jar, извлекается в `plugins/RaskolClasses/builds.yml` при
+  первом старте; правится админом без пересборки; `/rc reload` перечитывает.
+  36 шаблонов: имя, tagline, штамп `updated`, ранги узлов.
+- **`BuildTemplates`** — загрузчик + валидатор: существование спеки/узлов, ранг ≤ maxRank,
+  prereq-замкнутость, сумма очков ≤ `spec2.max-points`; узел из `spec2.disabled-nodes`
+  → шаблон `stale` («⚠ обновляется после баланс-патча», не применим). Ошибочный шаблон
+  отключается точечно с warning, остальные работают.
+- **`ImperialWallet`** — абстракция кошелька: `PlayerPointsWallet` (reflection над
+  PlayerPoints API, без compile-зависимости) и `NullWallet` (фолбэк, если плагина нет —
+  подписка не продаётся, чтение/гранты работают).
+- **`PlusStorage`** — `plus-subscription.yml` (expiry + gift-note), write-through через
+  `SafeStorage.saveAtomic`.
+- **`PlusSubscription`** — grant (продление **суммирует** дни, купленное не сгорает),
+  revoke, gift (атомарно: take у дарителя → grant получателю; не списалось → не подарили),
+  оффлайн-нота подарка на вход, LP-синхронизация `raskolclasses.plus.active` через
+  `settemp` (для DeluxeMenus view_requirement).
+- **`PlusGui`** — два экрана (CATALOG/CONFIRM) на holder-паттерне `PlusHolder`
+  (как `FoliantHolder`): статус-слот, карточки PvP/PvE текущей спеки, confirm с двойным
+  кликом (взвод 30 с). Тизер-модель Dota Plus: без подписки видны имя/tagline/счётчики
+  узлов и «🔒 требуется raskolspec+», клик шлёт upsell с ценой и путём покупки.
+- **`/rc plus`** — роутер: `[status [ник]] · gift <ник> <периоды> · grant <ник> <n> ·
+  revoke <ник>`; gift с rate-limit `plus.cooldown-gift-ms` и лимитом 1–12 периодов;
+  права `raskolclasses.plus.use` / `raskolclasses.admin.plus` (plugin.yml).
+- **Плейсхолдер** `%raskolclasses_plus%` — дни до истечения или `expired` (TTL-кэш 1 с).
+- **`RaskolConfig`** — дефолты `plus.*` (enabled, price-per-period=100, period-days=30,
+  max-gift-periods=12, cooldown-gift-ms=5000) + `messages.plus.*`; новые хелперы
+  `getIntOr/getLongOr/getBoolOr`.
+- **Selftest 123–125**: валидность 36 шаблонов; математика grant/remainingDays/revoke;
+  stale-маркировка. Итого **125 чеков**.
+- **DeluxeMenus-витрина** `raskolspec.yml` (документация в README): пакеты 30/90/180 дней
+  (100/300/500 ⚜), проверка баланса `javascript: %playerpoints_points% >= N`,
+  `[console] points take` + `[console] rc plus grant` + LP settemp, view-варианты
+  «купить/продлить» по пермишену `raskolclasses.plus.active`.
+
+### Preview-ограничение (ВАЖНО для монетизации)
+
+- Применение шаблона в confirm-экране сейчас возвращает OK-сообщение, но **не изменяет
+  билд**: реальная логика (resetTree + setRanks + reconcile + экономика респека дерева)
+  поставляется волной **15C в релизе 1.14.16**.
+- Операционная рекомендация: **не деплоить `raskolspec.yml` в DeluxeMenus и не анонсировать
+  подписку игрокам до выхода 1.14.16**. Инфраструктура (гранты, подарки, плейсхолдер, GUI)
+  полностью рабочая и тестируемая уже сейчас.
+
+### Сопутствующие фиксы волн 15A/15B (compile-стабилизация)
+
+- `PlusGui`: удалён фантомный импорт `BookSession`; маршрутизация кликов переведена с
+  парсинга `title()` (examinableName() возвращает тип Adventure-компонента, а не текст)
+  на `InventoryHolder` с enum-экраном.
+- `SelftestRunner`: 12 вызовов `resetAllDR(...)` → каноническое `resetAllDr(...)`.
+- `BuildTemplates`: `Spec2Tree.nodeById(...)` → `find(...)`; в тесте over-budget сумма
+  исправлена на фактические 47 очков.
+- `RaskolClasses`: `plus.period-days` читается через `getConfig()` (внутри JavaPlugin-наследника
+  нет поля `plugin`); `PlusGui` создаётся и регистрируется до `registerCommand()`.
+- `PlusSub`: ключи сообщений без префикса `messages.` (RaskolConfig.message добавляет его сам).
+
+### Миграции и совместимость
+
+- Миграций конфигов/данных/мира нет. `builds.yml` и `plus-subscription.yml` создаются сами.
+- Breaking changes: нет. Paper 1.21.4, Java 21.
 
 ## [1.14.14] — 2026-10-21 (SpotBugs-гигиена: закрытие 12 findings + регресс-фикс 13C)
 
