@@ -214,6 +214,7 @@ Amplifier следующего удара ставится на защищавш
 Шкала ресурса в unified-actionbar нормируется на `ResourceState.getEffectiveMax()`, а не на константу 100. Узлы `resource_max` и `setCeiling` из spec2 растягивают бар для потолка выше 100. Текст рядом показывает `res/effectiveMax`.
 
 </details>
+
 ## raskolspec+
 
 Курируемые билды (подписка) · формат Dota Plus. Мета-слой: команда куратора держит
