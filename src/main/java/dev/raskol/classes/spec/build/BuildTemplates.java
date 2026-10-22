@@ -14,7 +14,11 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -47,9 +51,12 @@ import java.util.logging.Logger;
  *  загрузчик прогоняет ranks через Spec2Service.simulateApply() и СОХРАНЯЕТ
  *  выживший набор как шаблон. Вырезаются: узлы из стоп-листа disabled-nodes,
  *  узлы с невыполненными prereq-цепочками, узлы ниже ряд-гейтов. Куратор получает
- *  WARNING со списком вырезанных узлов (прозрачность), игрок — всегда применимый
+ *  INFO-строку со списком вырезанных узлов (прозрачность), игрок — всегда применимый
  *  шаблон. Если после auto-heal не осталось ни одного узла — шаблон отключается.
- *  Это устраняет ситуацию «половина спек недоступна» из-за одного битого узла.
+ *
+ * 1.14.16-fix2 (EXPORT): exportNormalized() (/rc plus export) перезаписывает
+ *  builds.yml фактическим нормализованным содержимым — ручная синхронизация
+ *  «YAML ↔ reconcile» больше не нужна. Запись атомарная (tmp + move).
  *
  * 1.14.15-fix: поиск узла в дереве — Spec2Tree.find(id) (каноническое имя метода).
  */
@@ -170,9 +177,13 @@ public final class BuildTemplates {
                             }
                             List<String> removed = new ArrayList<>(t.ranks().keySet());
                             removed.removeAll(kept.keySet());
-                            LOG.warning("raskolspec+: [" + specId + "] " + arch.yamlKey()
-                                    + ": auto-heal вырезал узлы " + removed
-                                    + " (стоп-лист/prereq/ряд-гейты) — обнови builds.yml, чтобы убрать warning");
+                            // 1.14.16-fix2: нормализация по стоп-листу/гейтам — ожидание,
+                            // а не дефект; INFO сохраняет прозрачность без замусоривания WARN.
+                            // Постоянно убрать строки можно командой /rc plus export.
+                            LOG.info("raskolspec+: [" + specId + "] " + arch.yamlKey()
+                                    + ": нормализовано по стоп-листу/гейтам, вырезано узлов "
+                                    + removed.size() + ": " + removed
+                                    + " — /rc plus export перезапишет builds.yml");
                             t = BuildTemplate.of(t.spec(), t.archetype(), t.name(),
                                     t.tagline(), kept, t.updated());
                         }
@@ -209,6 +220,109 @@ public final class BuildTemplates {
     /** Перечитать builds.yml (вызов из /rc reload). */
     public void reload() {
         load();
+    }
+
+    /* ------------------------------ 1.14.16-fix2: экспорт нормализованного файла ------------------------------ */
+
+    /**
+     * Перезаписать builds.yml фактическим нормализованным содержимым
+     (ранги = множество, пережившее reconcile). Устраняет расхождение «YAML ↔ боевые
+     * правила» без ручной правки 36 шаблонов. Вызывается командой /rc plus export
+     * (право raskolclasses.admin.plus).
+     *
+     * Семантика:
+     *  - порядок спек = порядок загрузки файла; порядок узлов = порядок дерева
+     *    (читается куратором как «ряды сверху вниз»);
+     *  - subscription-блок и current-patch берутся из живого config.yml (plus.*),
+     *    чтобы экспорт не расходился с runtime-значениями;
+     *  - запись атомарная: builds.yml.tmp → move (REPLACE_EXISTING, ATOMIC_MOVE
+     *    с фолбэком), сервер не может прочитать полуп файл;
+     *  - in-memory состояние не меняется (оно уже нормализовано), reload не нужен;
+     *    следующий reload/рестарт просто не даст INFO-строк нормализации.
+     *
+     * @return true если файл успешно перезаписан
+     */
+    public boolean exportNormalized() {
+        if (bySpec.isEmpty()) {
+            LOG.warning("raskolspec+: export отклонён — нет загруженных шаблонов");
+            return false;
+        }
+        StringBuilder sb = new StringBuilder(8192);
+        sb.append("# ============================================================\n");
+        sb.append("#  RaskolClasses · builds.yml · АВТОСБОРКА /rc plus export\n");
+        sb.append("#  Ранги приведены к множеству, переживающему reconcile\n");
+        sb.append("#  (стоп-лист disabled-nodes, prereq-цепочки, ряд-гейты).\n");
+        sb.append("#  Ручные правки вноси ПОСЛЕ экспорта: повторный экспорт их затрёт.\n");
+        sb.append("# ============================================================\n");
+        sb.append("schema: 1\n\n");
+        sb.append("subscription:\n");
+        sb.append("  enabled: ").append(plugin.getConfig().getBoolean("plus.enabled", true)).append('\n');
+        sb.append("  price-per-period: ").append(plugin.getConfig().getInt("plus.price-per-period", 100)).append('\n');
+        sb.append("  period-days: ").append(plugin.getConfig().getInt("plus.period-days", 30)).append('\n');
+        sb.append("  max-gift-periods: ").append(plugin.getConfig().getInt("plus.max-gift-periods", 12)).append('\n');
+        sb.append("  cooldown-gift-ms: ").append(plugin.getConfig().getLong("plus.cooldown-gift-ms", 5000L)).append('\n');
+        sb.append("\ncurrent-patch: \"").append(plugin.getPluginMeta().getVersion()).append("\"\n\n");
+        sb.append("templates:\n");
+
+        int totalNodes = 0;
+        for (Map.Entry<String, Map<Archetype, BuildTemplate>> e : bySpec.entrySet()) {
+            String specId = e.getKey();
+            Spec2Tree tree = Spec2Registry.treeOf(specId);
+            sb.append("  ").append(specId).append(":\n");
+            for (Map.Entry<Archetype, BuildTemplate> ae : e.getValue().entrySet()) {
+                BuildTemplate t = ae.getValue();
+                sb.append("    ").append(ae.getKey().yamlKey()).append(":\n");
+                sb.append("      name: ").append(yq(t.name())).append('\n');
+                sb.append("      tagline: ").append(yq(t.tagline())).append('\n');
+                sb.append("      updated: ").append(yq(t.updated())).append('\n');
+                sb.append("      nodes:\n");
+                if (tree == null) {
+                    for (Map.Entry<String, Integer> r : t.ranks().entrySet()) {
+                        sb.append("        ").append(r.getKey()).append(": ").append(r.getValue()).append('\n');
+                        totalNodes++;
+                    }
+                } else {
+                    for (Spec2Node n : tree.nodes()) {
+                        Integer rank = t.ranks().get(n.id());
+                        if (rank != null && rank > 0) {
+                            sb.append("        ").append(n.id()).append(": ").append(rank).append('\n');
+                            totalNodes++;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!writeAtomic(sb.toString())) {
+            return false;
+        }
+        LOG.info("raskolspec+: builds.yml перезаписан нормализованными шаблонами ("
+                + countLoaded() + " шаблонов, " + totalNodes + " узлов)");
+        return true;
+    }
+
+    /** Двойные кавычки с экранированием для YAML-скаляров name/tagline/updated. */
+    private static String yq(String s) {
+        return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    /** Атомарная запись: tmp-файл в той же директории → move с REPLACE_EXISTING. */
+    private boolean writeAtomic(String content) {
+        Path target = file.toPath();
+        Path tmp = file.getAbsoluteFile().getParentFile().toPath().resolve("builds.yml.tmp");
+        try {
+            Files.writeString(tmp, content, StandardCharsets.UTF_8);
+            try {
+                Files.move(tmp, target,
+                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ex) {
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return true;
+        } catch (IOException ex) {
+            LOG.warning("raskolspec+: не удалось записать builds.yml: " + ex.getMessage());
+            return false;
+        }
     }
 
     /* ------------------------------ парсинг ------------------------------ */
