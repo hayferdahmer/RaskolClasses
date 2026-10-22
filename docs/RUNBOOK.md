@@ -32,7 +32,7 @@
 **Команды с rate-limit 10 с per-sender:**
 - `/rc reload` — перезагрузка конфига (тяжёлая операция: пересборка снапшотов, reconcile
   всех онлайн-игроков, валидация VFX)
-- `/rc selftest` — запуск 122 headless-чеков (CPU-интенсивно)
+- `/rc selftest` — запуск 130 headless-чеков (CPU-интенсивно)
 
 **Ключ rate-limit:** UUID игрока или `console:<name>` — разные игроки не блокируют друг
 друга, консоль не блокирует игроков. Первое выполнение всегда разрешено.
@@ -132,6 +132,7 @@ parent-группу `citizen` (default: true).
 
 - `items.yml` копируется из ресурсов JAR при первом запуске. Файл использует `schema-version: 1` и содержит настройки генерации, шаблоны, ручные `items` и `sets`.
 - `item.enabled` включает ядро; `item.reconcile-ticks` задаёт период сверки экипировки; `item.starter-kit.enabled` по умолчанию `false`.
+- При включённом `item.starter-kit.enabled` первое назначение класса выдаёт комплект COMMON ур. 1; отметка о выдаче хранится на игроке.
 - После изменений выполните `/rc reload`. Структурная ошибка оставляет прежний реестр; неверные предметы отключаются с предупреждением.
 - Предметы создаются через `ItemsApi.create(itemId, itemLevel, seed)` или `createFromTemplate(...)`. RaskolMobs отвечает за мобов, уровни, зоны и дроп; обратной зависимости нет.
 - Снапшоты учитывают броню, основную руку и только предметы, объявленные для `OFF_HAND`. Требования не блокируют надевание, но блокируют бонусы.
@@ -142,4 +143,7 @@ parent-группу `citizen` (default: true).
 
 `/rc item list [страница]`, `/rc item info <id>`, `/rc item give <игрок> <id> [количество]`, `/rc item roll <игрок> <id> [seed]`, `/rc item browse`, `/rc item stats [игрок]`; `/rc set list`, `/rc set info <id>`, `/rc set active <игрок>`.
 
+Для интеграционной диагностики `/rc debug profile` показывает `CombatProfile` живой сущности в прицеле.
+
 **Конец RUNBOOK 1.15.0.** Лицензия: RASKOL Proprietary License v1.0.
+
