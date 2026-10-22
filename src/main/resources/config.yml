@@ -242,7 +242,7 @@ spec2:
       amp: 0.50
     second_wind:
       amp: 0.08
-      reflect_magic:
+    reflect_magic:
       amp: 0.20
     crit_bonus:
       amp: 0.30
