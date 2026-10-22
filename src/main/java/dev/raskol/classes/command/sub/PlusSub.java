@@ -12,9 +12,9 @@ import org.bukkit.entity.Player;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.Map;
 
 /**
  * 1.14.15 (raskolspec+): роутер подкоманд /rc plus.
@@ -27,8 +27,10 @@ import java.util.Map;
  *   /rc plus grant <ник> <периоды> — админская выдача (perm: raskolclasses.admin.plus)
  *   /rc plus revoke <ник>          — админский отзыв (perm: raskolclasses.admin.plus)
  *
- * /rc plus apply <pvp|pve> — оставлено на 15B-финал как утилита для тестов GUI;
- * пока не роутится. Основной путь применения — через GUI-флоу.
+ * Основной путь применения шаблонов — через GUI-флоу (/rc plus → карточка → двойной клик).
+ *
+ * Контракт CommandSub: name/execute/complete/permission — синхронизирован с роутером
+ * RaskolCommand. execute возвращает boolean (true = команда обработана, false = показать help).
  */
 public final class PlusSub implements CommandSub {
 
@@ -47,19 +49,19 @@ public final class PlusSub implements CommandSub {
     }
 
     @Override
-    public void execute(CommandSender sender, String[] args) {
+    public String permission() {
+        return "raskolclasses.plus.use";
+    }
+
+    @Override
+    public boolean execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
             if (!(sender instanceof Player player)) {
                 sender.sendPlainMessage("Используй: /rc plus status|gift|grant|revoke <ник>");
-                return;
-            }
-            if (!player.hasPermission("raskolclasses.plus.use")) {
-                player.sendMessage(err(plugin.getRaskolConfig()
-                        .message("messages.no-permission", "Недостаточно прав")));
-                return;
+                return true;
             }
             gui.openCatalog(player);
-            return;
+            return true;
         }
 
         String sub = args[0].toLowerCase(Locale.ROOT);
@@ -71,10 +73,11 @@ public final class PlusSub implements CommandSub {
             default -> sender.sendPlainMessage("Неизвестная подкоманда: " + sub
                     + ". Доступны: status, gift, grant, revoke.");
         }
+        return true;
     }
 
     @Override
-    public List<String> tabComplete(CommandSender sender, String[] args) {
+    public List<String> complete(CommandSender sender, String[] args) {
         if (args.length == 1) {
             return List.of("status", "gift", "grant", "revoke");
         }
@@ -136,11 +139,6 @@ public final class PlusSub implements CommandSub {
             sender.sendPlainMessage("Подарок доступен только игроку.");
             return;
         }
-        if (!from.hasPermission("raskolclasses.plus.use")) {
-            from.sendMessage(err(plugin.getRaskolConfig()
-                    .message("messages.no-permission", "Недостаточно прав")));
-            return;
-        }
         if (args.length < 3) {
             from.sendMessage(err("Используй: /rc plus gift <ник> <периоды>"));
             return;
@@ -185,20 +183,20 @@ public final class PlusSub implements CommandSub {
             return;
         }
 
-        PlusSubscription sub = plugin.getPlusSubscription();
+        PlusSubscription subscription = plugin.getPlusSubscription();
         String offlineNote = plugin.getRaskolConfig()
                 .message("plus.gift-offline-note",
                         "{sender} подарил вам raskolspec+ на {days} дн.")
                 .replace("{sender}", from.getName())
-                .replace("{days}", String.valueOf(periods * sub.periodDays()));
+                .replace("{days}", String.valueOf(periods * subscription.periodDays()));
 
-        PlusSubscription.GiftResult result = sub.gift(
+        PlusSubscription.GiftResult result = subscription.gift(
                 from.getUniqueId(), to.getUniqueId(), periods, offlineNote);
 
         switch (result) {
             case OK -> {
                 lastGiftMs.put(from.getUniqueId(), now);
-                int days = periods * sub.periodDays();
+                int days = periods * subscription.periodDays();
                 from.sendMessage(ok(plugin.getRaskolConfig()
                         .message("plus.gift-sent",
                                 "⚜ Подписка raskolspec+ подарена {target} на {days} дн.")
@@ -206,7 +204,7 @@ public final class PlusSub implements CommandSub {
                         .replace("{days}", String.valueOf(days))));
             }
             case INSUFFICIENT -> {
-                int cost = periods * sub.pricePerPeriod();
+                int cost = periods * subscription.pricePerPeriod();
                 int balance = plugin.getImperialWallet().balance(from.getUniqueId());
                 from.sendMessage(err(plugin.getRaskolConfig()
                         .message("plus.gift-poor",
