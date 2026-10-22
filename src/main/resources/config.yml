@@ -27,6 +27,11 @@
 #    текст «res/effectiveMax» корректно растягивает бар для потолка > 100
 #    (через узлы resource_max + setCeiling из spec2).
 #
+#  1.14.8 (Sprint 5, P2-4): стоп-лист spec2.disabled-nodes сокращён с 38 до 20 узлов —
+#  18 узлов ОЖИЛИ (проки Sprint 3, attack_speed, kit_dur ×11). ВНИМАНИЕ: живой конфиг
+#  должен содержать именно эти 20; старый 38-узловой список выключает боевой контент
+#  Sprint 3–4 и ломает шаблоны raskolspec+ (авто-heal вырезает целые ряды).
+#
 #  1.14.15 (raskolspec+): секция plus.* и блок messages.plus.* — подписка на
 #  курируемые билды (100 империалов / 30 дней, PlayerPoints), подарки, GUI /rc plus.
 #
@@ -182,12 +187,12 @@ spec2:
   disabled-nodes:
     # A2: нет обработчика и нет дом-механики (комбо-поинты, групп-бафф, пет-проки)
     - as_seal_fate
+    # A3: пет-статы (потребитель в PetService — пет-боевая волна)
     - bm_ferocious_inspiration
     - bm_wild_bond
     - bm_go_for_the_throat
     - bm_frenzy
     - bm_spirit_bond
-    # A3: пет-статы (потребитель в PetService — пет-боевая волна)
     - bm_bestial_discipline
     - bm_cobra_reflexes
     - bm_primal_fury
@@ -237,7 +242,7 @@ spec2:
       amp: 0.50
     second_wind:
       amp: 0.08
-    reflect_magic:
+      reflect_magic:
       amp: 0.20
     crit_bonus:
       amp: 0.30
