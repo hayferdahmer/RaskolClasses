@@ -67,7 +67,9 @@ public final class PlusStorage {
         return expires.getOrDefault(uuid, 0L);
     }
 
-    public void setExpires(UUID uuid, long epochMillis) {
+    public boolean setExpires(UUID uuid, long epochMillis) {
+        if (uuid == null) return false;
+        long previous = expiresAt(uuid);
         if (epochMillis <= 0L) {
             expires.remove(uuid);
             store.set("players." + uuid + ".expires", null);
@@ -75,7 +77,15 @@ public final class PlusStorage {
             expires.put(uuid, epochMillis);
             store.set("players." + uuid + ".expires", epochMillis);
         }
-        flush();
+        if (flush()) return true;
+        if (previous > 0L) {
+            expires.put(uuid, previous);
+            store.set("players." + uuid + ".expires", previous);
+        } else {
+            expires.remove(uuid);
+            store.set("players." + uuid + ".expires", null);
+        }
+        return false;
     }
 
     public String consumeGiftNote(UUID uuid) {
@@ -98,8 +108,8 @@ public final class PlusStorage {
         flush();
     }
 
-    private void flush() {
-        SafeStorage.saveAtomic(store, file, LOG);
+    private boolean flush() {
+        return SafeStorage.saveAtomicResult(store, file, LOG);
     }
 
     /** Для selftest: число активных подписок в памяти. */
@@ -111,3 +121,4 @@ public final class PlusStorage {
         return n;
     }
 }
+
