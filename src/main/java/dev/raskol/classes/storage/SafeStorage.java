@@ -28,8 +28,11 @@ public final class SafeStorage {
 
     /** Загрузка с фолбэком: corrupt → .bak → пустая конфигурация. */
     public static YamlConfiguration loadWithFallback(File file, Logger logger) {
-        if (file == null || !file.exists()) {
+        if (file == null) {
             return new YamlConfiguration();
+        }
+        if (!file.exists()) {
+            return loadBackup(file, logger);
         }
         try {
             YamlConfiguration cfg = new YamlConfiguration();
@@ -38,22 +41,25 @@ public final class SafeStorage {
         } catch (Exception e) {
             logger.warning("SafeStorage: файл " + file.getName()
                     + " повреждён (" + e.getMessage() + ") — пробую .bak");
-            File bak = new File(file.getParentFile(), file.getName() + ".bak");
-            if (bak.exists()) {
-                try {
-                    YamlConfiguration cfg = new YamlConfiguration();
-                    cfg.load(bak);
-                    logger.warning("SafeStorage: " + file.getName()
-                            + " восстановлен из .bak (потеряна только последняя запись)");
-                    return cfg;
-                } catch (Exception e2) {
-                    logger.log(Level.SEVERE, "SafeStorage: .bak для " + file.getName()
-                            + " тоже повреждён — стартую с пустой конфигурацией", e2);
-                }
-            } else {
-                logger.severe("SafeStorage: нет .bak для " + file.getName()
-                        + " — стартую с пустой конфигурацией");
-            }
+            return loadBackup(file, logger);
+        }
+    }
+
+    private static YamlConfiguration loadBackup(File file, Logger logger) {
+        File bak = new File(file.getParentFile(), file.getName() + ".bak");
+        if (!bak.exists()) {
+            logger.severe("SafeStorage: нет " + file.getName() + " или .bak — стартую с пустой конфигурацией");
+            return new YamlConfiguration();
+        }
+        try {
+            YamlConfiguration cfg = new YamlConfiguration();
+            cfg.load(bak);
+            logger.warning("SafeStorage: " + file.getName()
+                    + " восстановлен из .bak (потеряна только последняя запись)");
+            return cfg;
+        } catch (Exception ex) {
+            logger.log(Level.SEVERE, "SafeStorage: .bak для " + file.getName()
+                    + " повреждён — стартую с пустой конфигурацией", ex);
             return new YamlConfiguration();
         }
     }
@@ -77,7 +83,7 @@ public final class SafeStorage {
             cfg.save(tmp);
             if (file.exists()) {
                 File bak = new File(file.getParentFile(), file.getName() + ".bak");
-                Files.move(file.toPath(), bak.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(file.toPath(), bak.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
             try {
                 Files.move(tmp.toPath(), file.toPath(),
