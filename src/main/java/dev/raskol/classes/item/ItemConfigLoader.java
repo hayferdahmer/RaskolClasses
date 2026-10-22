@@ -40,7 +40,9 @@ public final class ItemConfigLoader {
                 Map<ItemStat,Double> distribution=statMap(s.getConfigurationSection("distribution"),true);
                 List<String> names=s.getStringList("names");
                 if(s.contains("material"))materials.put(id,s.getString("material"));
-                ts.add(new ItemTemplateExpander.Template(id,pc,slot,wt,distribution,names));
+                Integer modelData=s.contains("custom-model-data")?s.getInt("custom-model-data"):null;
+                if(modelData!=null&&modelData<1)throw new IllegalArgumentException("template custom-model-data must be positive: "+id);
+                ts.add(new ItemTemplateExpander.Template(id,pc,slot,wt,distribution,names,s.getString("set"),modelData));
             }
             if(ts.isEmpty()) ts.addAll(ItemTemplateExpander.starterTemplates());
             for(Map<?,?> generated:yaml.getMapList("generate")) {

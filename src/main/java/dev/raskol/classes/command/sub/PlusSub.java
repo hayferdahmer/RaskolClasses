@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Команды:
  *   /rc plus                      — открыть GUI (player-only, perm: raskolclasses.plus.use)
+ *   /rc plus buy [периоды]         — купить или продлить подписку себе за империалы
  *   /rc plus status [ник]         — статус подписки (player-only / [ник] op-only)
  *   /rc plus gift <ник> <периоды> — подарить (player-only, perm: raskolclasses.plus.use,
  *                                   rate-limit по plus.cooldown-gift-ms)
@@ -60,7 +61,7 @@ public final class PlusSub implements CommandSub {
     public boolean execute(CommandSender sender, String[] args) {
         if (args.length == 0) {
             if (!(sender instanceof Player player)) {
-                sender.sendPlainMessage("Используй: /rc plus status|gift|grant|revoke|export");
+                sender.sendPlainMessage("Используй: /rc plus buy|status|gift|grant|revoke|export");
                 return true;
             }
             gui.openCatalog(player);
@@ -69,13 +70,14 @@ public final class PlusSub implements CommandSub {
 
         String sub = args[0].toLowerCase(Locale.ROOT);
         switch (sub) {
+            case "buy" -> cmdBuy(sender, args);
             case "status" -> cmdStatus(sender, args);
             case "gift" -> cmdGift(sender, args);
             case "grant" -> cmdGrant(sender, args);
             case "revoke" -> cmdRevoke(sender, args);
             case "export" -> cmdExport(sender);
             default -> sender.sendPlainMessage("Неизвестная подкоманда: " + sub
-                    + ". Доступны: status, gift, grant, revoke, export.");
+                    + ". Доступны: buy, status, gift, grant, revoke, export.");
         }
         return true;
     }
@@ -83,7 +85,7 @@ public final class PlusSub implements CommandSub {
     @Override
     public List<String> complete(CommandSender sender, String[] args) {
         if (args.length == 1) {
-            return List.of("status", "gift", "grant", "revoke", "export");
+            return List.of("buy", "status", "gift", "grant", "revoke", "export");
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("gift")
                 || args[0].equalsIgnoreCase("grant")
@@ -101,6 +103,42 @@ public final class PlusSub implements CommandSub {
     }
 
     /* ------------------------------ status ------------------------------ */
+
+    private void cmdBuy(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendPlainMessage("Покупка подписки доступна только игроку.");
+            return;
+        }
+        PlusSubscription subscription = plugin.getPlusSubscription();
+        int periods = 1;
+        if (args.length >= 2) {
+            try { periods = Integer.parseInt(args[1]); }
+            catch (NumberFormatException ex) {
+                player.sendMessage(err("Число периодов должно быть целым"));
+                return;
+            }
+        }
+        int max = subscription.maxGiftPeriods();
+        if (periods < 1 || periods > max) {
+            player.sendMessage(err("Периодов должно быть от 1 до " + max));
+            return;
+        }
+        switch (subscription.buy(player.getUniqueId(), periods)) {
+            case OK -> {
+                int days = periods * subscription.periodDays();
+                player.sendMessage(ok("⚜ raskolspec+ продлена на " + days + " дн. За покупку списано "
+                        + (periods * subscription.pricePerPeriod()) + " империалов."));
+                if (gui != null) gui.openCatalog(player);
+            }
+            case DISABLED -> player.sendMessage(err("Платная подписка сейчас отключена; шаблоны открыты в тестовом режиме."));
+            case WALLET_UNAVAILABLE -> player.sendMessage(err("Кошелёк империалов недоступен — покупка отключена."));
+            case INVALID_PERIODS -> player.sendMessage(err("Не удалось рассчитать срок или стоимость подписки."));
+            case INSUFFICIENT -> player.sendMessage(err("Недостаточно империалов: нужно "
+                    + (periods * subscription.pricePerPeriod()) + ", у вас "
+                    + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
+            case STORAGE_FAILED -> player.sendMessage(err("Подписка не сохранена. Списание отменено; проверь баланс и обратись к администрации, если средства не вернулись."));
+        }
+    }
 
     private void cmdStatus(CommandSender sender, String[] args) {
         PlusSubscription sub = plugin.getPlusSubscription();
@@ -222,6 +260,9 @@ public final class PlusSub implements CommandSub {
             case WALLET_UNAVAILABLE -> from.sendMessage(err(plugin.getRaskolConfig()
                     .message("plus.gift-wallet-off",
                             "Кошелёк империалов недоступен")));
+            case DISABLED -> from.sendMessage(err("Платная подписка отключена; подарки сейчас недоступны."));
+            case INVALID_PERIODS -> from.sendMessage(err("Некорректное число периодов."));
+            case STORAGE_FAILED -> from.sendMessage(err("Подарок не сохранён. Списание отменено; проверь баланс."));
         }
     }
 
@@ -255,6 +296,10 @@ public final class PlusSub implements CommandSub {
         }
         PlusSubscription sub = plugin.getPlusSubscription();
         long expires = sub.grant(target.getUniqueId(), periods);
+        if (expires < 0L) {
+            sender.sendMessage(err("Не удалось сохранить подписку; игроку срок не выдан."));
+            return;
+        }
         int days = periods * sub.periodDays();
         sender.sendMessage(ok("⚜ " + target.getName()
                 + ": подписка активна, + " + days + " дн. (expires=" + expires + ")"));
@@ -277,7 +322,10 @@ public final class PlusSub implements CommandSub {
             sender.sendMessage(err("Игрок не найден: " + args[1]));
             return;
         }
-        plugin.getPlusSubscription().revoke(target.getUniqueId());
+        if (!plugin.getPlusSubscription().revoke(target.getUniqueId())) {
+            sender.sendMessage(err("Не удалось сохранить отзыв подписки."));
+            return;
+        }
         sender.sendMessage(ok("⚜ " + target.getName() + ": подписка отозвана"));
     }
 

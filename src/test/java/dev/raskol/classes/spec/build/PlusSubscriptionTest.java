@@ -35,8 +35,9 @@ class PlusSubscriptionTest {
         }
 
         @Override
-        public void give(UUID uuid, int amount) {
+        public boolean give(UUID uuid, int amount) {
             balances.put(uuid, balances.getOrDefault(uuid, 0) + amount);
+            return true;
         }
 
         @Override

@@ -95,12 +95,14 @@ public final class PlayerPointsWallet implements ImperialWallet {
     }
 
     @Override
-    public void give(UUID uuid, int amount) {
-        if (uuid == null || amount <= 0) return;
+    public boolean give(UUID uuid, int amount) {
+        if (uuid == null || amount < 0) return false;
+        if (amount == 0) return true;
         try {
-            giveMethod.invoke(api, uuid, amount);
+            return Boolean.TRUE.equals(giveMethod.invoke(api, uuid, amount));
         } catch (ReflectiveOperationException ex) {
             LOG.warning("raskolspec+: PlayerPoints.give сбой: " + ex.getMessage());
+            return false;
         }
     }
 

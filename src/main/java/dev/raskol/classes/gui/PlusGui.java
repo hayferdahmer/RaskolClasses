@@ -67,6 +67,7 @@ public final class PlusGui implements Listener {
     private static final int SLOT_STATUS = 4;
     private static final int SLOT_PVP = 11;
     private static final int SLOT_PVE = 15;
+    private static final int SLOT_BUY = 13;
     private static final int SLOT_EXIT = 22;
 
     private static final int CONFIRM_TEMPLATE = 4;
@@ -128,9 +129,11 @@ public final class PlusGui implements Listener {
         holder.inventory = inv;
 
         boolean active = sub.active(uuid);
+        boolean hasAccess = hasAccess(player, sub);
         inv.setItem(SLOT_STATUS, statusItem(active, sub.remainingDays(uuid), sub));
-        inv.setItem(SLOT_PVP, cardItem(templates, specId, Archetype.PVP, active));
-        inv.setItem(SLOT_PVE, cardItem(templates, specId, Archetype.PVE, active));
+        inv.setItem(SLOT_PVP, cardItem(templates, specId, Archetype.PVP, hasAccess));
+        inv.setItem(SLOT_PVE, cardItem(templates, specId, Archetype.PVE, hasAccess));
+        inv.setItem(SLOT_BUY, purchaseItem(sub, active));
         inv.setItem(SLOT_EXIT, exitItem());
 
         for (int i = 0; i < SIZE; i++) {
@@ -159,13 +162,19 @@ public final class PlusGui implements Listener {
         }
 
         PlusSubscription sub = plugin.getPlusSubscription();
+        if (!player.hasPermission("raskolclasses.plus.use")
+                && !player.hasPermission("raskolclasses.admin.plus")) {
+            player.closeInventory();
+            return;
+        }
         boolean active = sub.active(player.getUniqueId());
 
         switch (holder.screen()) {
             case CATALOG -> {
                 switch (slot) {
-                    case SLOT_PVP -> handleCardClick(player, Archetype.PVP, active);
-                    case SLOT_PVE -> handleCardClick(player, Archetype.PVE, active);
+                    case SLOT_PVP -> handleCardClick(player, Archetype.PVP, hasAccess(player, sub));
+                    case SLOT_PVE -> handleCardClick(player, Archetype.PVE, hasAccess(player, sub));
+                    case SLOT_BUY -> handlePurchase(player, sub);
                     case SLOT_EXIT -> player.closeInventory();
                     default -> { /* pane/status — некликабельно */ }
                 }
@@ -230,6 +239,23 @@ public final class PlusGui implements Listener {
 
         pending.put(uuid, new PendingApply(specId, archetype));
         openConfirmScreen(player, t);
+    }
+
+    private void handlePurchase(Player player, PlusSubscription sub) {
+        int periods = 1;
+        switch (sub.buy(player.getUniqueId(), periods)) {
+            case OK -> {
+                player.sendMessage(msg("⚜ raskolspec+ продлена на " + sub.periodDays() + " дн. За покупку списано "
+                        + sub.pricePerPeriod() + " империалов."));
+                openCatalog(player);
+            }
+            case DISABLED -> player.sendMessage(msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
+            case WALLET_UNAVAILABLE -> player.sendMessage(msg("Кошелёк империалов недоступен — покупка отключена."));
+            case INVALID_PERIODS -> player.sendMessage(msg("Не удалось рассчитать срок или стоимость подписки."));
+            case INSUFFICIENT -> player.sendMessage(msg("Недостаточно империалов: нужно " + sub.pricePerPeriod()
+                    + ", у вас " + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
+            case STORAGE_FAILED -> player.sendMessage(msg("Подписка не сохранена. Списание отменено; проверь баланс."));
+        }
     }
 
     private void openConfirmScreen(Player player, BuildTemplate t) {
@@ -315,7 +341,14 @@ public final class PlusGui implements Listener {
             return;
         }
 
-        boolean free = player.hasPermission("raskolclasses.admin.plus");
+        PlusSubscription subscription = plugin.getPlusSubscription();
+        boolean admin = player.hasPermission("raskolclasses.admin.plus");
+        if (!hasAccess(player, subscription)) {
+            player.sendMessage(msg("Доступ к raskolspec+ закончился. Оформи или продли подписку и открой шаблон заново."));
+            openCatalog(player);
+            return;
+        }
+        boolean free = admin;
         Spec2Service.BuildApplyOutcome out =
                 plugin.getSpec2Service().applyBuild(player, t.spec(), t.ranks(), free);
 
@@ -352,8 +385,9 @@ public final class PlusGui implements Listener {
     /* ------------------------------ предметы ------------------------------ */
 
     private ItemStack statusItem(boolean active, int remainingDays, PlusSubscription sub) {
-        Material mat = active ? Material.GOLD_INGOT : Material.GRAY_DYE;
-        NamedTextColor color = active ? NamedTextColor.GOLD : NamedTextColor.GRAY;
+        boolean publicMode = !sub.isEnabled();
+        Material mat = active ? Material.GOLD_INGOT : publicMode ? Material.LIME_DYE : Material.GRAY_DYE;
+        NamedTextColor color = active ? NamedTextColor.GOLD : publicMode ? NamedTextColor.GREEN : NamedTextColor.GRAY;
         Component name = Component.text("⚜ raskolspec+", color)
                 .decoration(TextDecoration.ITALIC, false);
         List<Component> lore = new ArrayList<>();
@@ -362,15 +396,44 @@ public final class PlusGui implements Listener {
                     .message("plus.gui.active", "⚜ Активна · осталось {days} дн.")
                     .replace("{days}", String.valueOf(remainingDays)),
                     NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+        } else if (!sub.isEnabled()) {
+            lore.add(Component.text("Тестовый режим · шаблоны открыты всем", NamedTextColor.GREEN)
+                    .decoration(TextDecoration.ITALIC, false));
         } else {
             lore.add(Component.text(plugin.getRaskolConfig()
                     .message("plus.gui.locked", "🔒 Требуется подписка"),
                     NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
-            lore.add(Component.text("Цена: " + sub.pricePerPeriod() + " ⚜ / "
-                    + sub.periodDays() + " дн.", NamedTextColor.YELLOW)
+            lore.add(Component.text(sub.walletAvailable()
+                    ? "Цена: " + sub.pricePerPeriod() + " ⚜ / " + sub.periodDays() + " дн."
+                    : "Покупка недоступна: кошелёк не подключён", NamedTextColor.YELLOW)
                     .decoration(TextDecoration.ITALIC, false));
         }
         return item(mat, name, lore);
+    }
+
+    private ItemStack purchaseItem(PlusSubscription sub, boolean active) {
+        if (!sub.isEnabled()) return item(Material.LIME_DYE,
+                Component.text("Тестовый доступ включён", NamedTextColor.GREEN)
+                        .decoration(TextDecoration.ITALIC, false),
+                List.of(Component.text("Подписка сейчас не требуется", NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false)));
+        if (!sub.walletAvailable()) return item(Material.BARRIER,
+                Component.text("Покупка недоступна", NamedTextColor.RED)
+                        .decoration(TextDecoration.ITALIC, false),
+                List.of(Component.text("На сервере не подключён PlayerPoints", NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false)));
+        return item(Material.GOLD_INGOT,
+                Component.text(active ? "Продлить raskolspec+" : "Купить raskolspec+", NamedTextColor.GOLD)
+                        .decoration(TextDecoration.ITALIC, false),
+                List.of(Component.text("+" + sub.periodDays() + " дней · " + sub.pricePerPeriod() + " империалов",
+                                NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false),
+                        Component.text("Нажми, чтобы оплатить один период", NamedTextColor.GRAY)
+                                .decoration(TextDecoration.ITALIC, false)));
+    }
+
+    private boolean hasAccess(Player player, PlusSubscription sub) {
+        return player.hasPermission("raskolclasses.admin.plus") || !sub.isEnabled()
+                || sub.active(player.getUniqueId());
     }
 
     private ItemStack cardItem(BuildTemplates templates, String specId,

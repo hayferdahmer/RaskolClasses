@@ -10,34 +10,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 
-/**
- * 1.14.15: YAML-хранилище подписок raskolspec+.
- *
- * Формат файла players/<uuid>.yml (или один общий plus-subscription.yml, выбираем
- * общий для простоты миграции):
- *   players:
- *     <uuid>:
- *       expires: <epochMillis>
- *       gift-note: "строка нотификации для оффлайн-игрока"
- *
- * Write-through: каждое изменение persist'ится на диск через SafeStorage.saveAtomic.
- * Чтение in-memory: Map<UUID, Long> expiry; при загрузке читается целиком.
- *
- * Оффлайн-уведомления: поле gift-note хранит текст подарка до следующего входа
- * игрока; onPlayerJoin читает и очищает поле.
- */
+/** Durable storage for raskolspec+ expirations and pending gift notifications. */
 public final class PlusStorage {
-
     private static final Logger LOG = Logger.getLogger("RaskolClasses");
-
     private final File file;
     private final YamlConfiguration store;
     private final Map<UUID, Long> expires = new HashMap<>();
     private final Map<UUID, String> pendingGiftNotes = new HashMap<>();
 
     public PlusStorage(File folder) {
-        this.file = new File(folder, "plus-subscription.yml");
-        this.store = SafeStorage.loadWithFallback(file, LOG);
+        file = new File(folder, "plus-subscription.yml");
+        store = SafeStorage.loadWithFallback(file, LOG);
         loadFromStore();
     }
 
@@ -50,64 +33,83 @@ public final class PlusStorage {
                 var sec = players.getConfigurationSection(key);
                 if (sec == null) continue;
                 long exp = sec.getLong("expires", 0L);
-                if (exp > 0L) {
-                    expires.put(uuid, exp);
-                }
+                if (exp > 0L) expires.put(uuid, exp);
                 String note = sec.getString("gift-note", null);
-                if (note != null && !note.isBlank()) {
-                    pendingGiftNotes.put(uuid, note);
-                }
+                if (note != null && !note.isBlank()) pendingGiftNotes.put(uuid, note);
             } catch (IllegalArgumentException ignored) {
-                // некорректный uuid-ключ — пропускаем
+                // Ignore malformed UUIDs and keep valid records available.
             }
         }
     }
 
-    public long expiresAt(UUID uuid) {
-        return expires.getOrDefault(uuid, 0L);
+    public synchronized long expiresAt(UUID uuid) { return uuid == null ? 0L : expires.getOrDefault(uuid, 0L); }
+
+    /** Writes first, then updates memory; a failed disk write never grants access. */
+    public synchronized boolean setExpires(UUID uuid, long epochMillis) {
+        if (uuid == null || epochMillis < 0L) return false;
+        store.set("players." + uuid + ".expires", epochMillis == 0L ? null : epochMillis);
+        if (!flush()) {
+            store.set("players." + uuid + ".expires", expiresAt(uuid) == 0L ? null : expiresAt(uuid));
+            return false;
+        }
+        if (epochMillis == 0L) expires.remove(uuid); else expires.put(uuid, epochMillis);
+        return true;
     }
 
-    public void setExpires(UUID uuid, long epochMillis) {
-        if (epochMillis <= 0L) {
-            expires.remove(uuid);
-            store.set("players." + uuid + ".expires", null);
-        } else {
-            expires.put(uuid, epochMillis);
-            store.set("players." + uuid + ".expires", epochMillis);
+    /** Extends from the later of now/expiry and persists before making access active. */
+    public synchronized boolean extend(UUID uuid, long durationMillis, String giftNote) {
+        if (uuid == null || durationMillis <= 0L) return false;
+        long now = System.currentTimeMillis();
+        long base = Math.max(now, expiresAt(uuid));
+        final long next;
+        try { next = Math.addExact(base, durationMillis); }
+        catch (ArithmeticException overflow) { return false; }
+
+        String path = "players." + uuid;
+        store.set(path + ".expires", next);
+        if (giftNote != null && !giftNote.isBlank()) store.set(path + ".gift-note", giftNote);
+        if (!flush()) {
+            store.set(path + ".expires", expiresAt(uuid) == 0L ? null : expiresAt(uuid));
+            String oldNote = pendingGiftNotes.get(uuid);
+            store.set(path + ".gift-note", oldNote == null ? null : oldNote);
+            return false;
         }
-        flush();
+        expires.put(uuid, next);
+        if (giftNote != null && !giftNote.isBlank()) pendingGiftNotes.put(uuid, giftNote);
+        return true;
     }
 
-    public String consumeGiftNote(UUID uuid) {
-        String note = pendingGiftNotes.remove(uuid);
-        if (note != null) {
-            store.set("players." + uuid + ".gift-note", null);
-            flush();
+    public synchronized String consumeGiftNote(UUID uuid) {
+        if (uuid == null) return null;
+        String note = pendingGiftNotes.get(uuid);
+        if (note == null) return null;
+        store.set("players." + uuid + ".gift-note", null);
+        if (!flush()) {
+            store.set("players." + uuid + ".gift-note", note);
+            return null;
         }
+        pendingGiftNotes.remove(uuid);
         return note;
     }
 
-    public void setGiftNote(UUID uuid, String note) {
-        if (note == null || note.isBlank()) {
-            pendingGiftNotes.remove(uuid);
-            store.set("players." + uuid + ".gift-note", null);
-        } else {
-            pendingGiftNotes.put(uuid, note);
-            store.set("players." + uuid + ".gift-note", note);
+    public synchronized boolean setGiftNote(UUID uuid, String note) {
+        if (uuid == null) return false;
+        String old = pendingGiftNotes.get(uuid);
+        store.set("players." + uuid + ".gift-note", note == null || note.isBlank() ? null : note);
+        if (!flush()) {
+            store.set("players." + uuid + ".gift-note", old);
+            return false;
         }
-        flush();
+        if (note == null || note.isBlank()) pendingGiftNotes.remove(uuid); else pendingGiftNotes.put(uuid, note);
+        return true;
     }
 
-    private void flush() {
-        SafeStorage.saveAtomic(store, file, LOG);
-    }
+    private boolean flush() { return SafeStorage.saveAtomic(store, file, LOG); }
 
-    /** Для selftest: число активных подписок в памяти. */
+    /** For selftest: number of active subscriptions in memory. */
     public int activeCount(long now) {
-        int n = 0;
-        for (long e : expires.values()) {
-            if (e > now) n++;
-        }
-        return n;
+        int count = 0;
+        for (long expiry : expires.values()) if (expiry > now) count++;
+        return count;
     }
 }
