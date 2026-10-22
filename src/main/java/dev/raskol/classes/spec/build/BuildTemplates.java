@@ -7,6 +7,7 @@ import dev.raskol.classes.spec.model.Spec2Node;
 import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.model.Spec2Tree;
 import dev.raskol.classes.spec.registry.Spec2Registry;
+import dev.raskol.classes.spec.service.Spec2Service;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -42,16 +43,13 @@ import java.util.logging.Logger;
  *  4. ранг ∈ [1, maxRank] узла;
  *  5. сумма рангов ≤ Spec2Points.snapshot().maxPoints();
  *  6. prereq-замкнутость: для (nodeId, rank) с rank≥1 все prereqs имеют rank≥required;
- *  7. узлы не входят в spec2.disabled-nodes (иначе шаблон помечается stale).
+ *  7. (1.14.16, 15C) PARITY с reconcile: simulateApply(tree, ranks) должен вернуть
+ *     набор целиком (ряд-гейты в порядке рядов + prereqs по накопленному kept);
+ *     шаблон, который reconcile позже проредил бы, отклоняется здесь — applyBuild
+ *     в рантайме никогда не получит TEMPLATE_INVALID от загруженного шаблона;
+ *  8. узлы не входят в spec2.disabled-nodes (иначе шаблон помечается stale).
  *
- * Гейты рядов в шаблонах raskolspec+ не проверяем при загрузке:
- *  - куратор контролирует их при составлении;
- *  - игрок применяет шаблон через GUI/команду, где Spec2Service.reconcile
- *    сам применит/отклонит узлы через существующий гейт-конвейер;
- *  - валидация гейтов усложнила бы загрузчик без пользы для безопасности.
- *
- * 1.14.15-fix: поиск узла в дереве — Spec2Tree.find(id) (каноническое имя метода
- * в модели), а не nodeById.
+ * 1.14.15-fix: поиск узла в дереве — Spec2Tree.find(id) (каноническое имя метода).
  */
 public final class BuildTemplates {
 
@@ -215,8 +213,9 @@ public final class BuildTemplates {
     /* ------------------------------ валидация ------------------------------ */
 
     /**
-     * 1.14.15-fix: Spec2Tree.find(id) — канонический резолв узла по id
-     * (то же имя используют Spec2Service и selftest).
+     * 1.14.16 (Волна 15C): шаг 7 — parity с reconcile через simulateApply:
+     * валидатор загрузки и applyBuild используют ОДНУ логику (Spec2Service.validate),
+     * поэтому валидный на загрузке шаблон гарантированно переживает применение.
      */
     private List<String> validate(BuildTemplate t, Spec2Tree tree, Set<String> disabledNodes) {
         List<String> errs = new ArrayList<>();
@@ -245,7 +244,7 @@ public final class BuildTemplates {
             errs.add("сумма очков " + totalPoints + " превышает maxPoints=" + maxPoints);
         }
 
-        // 6: prereq-замкнутость
+        // 6: prereq-замкнутость (быстрая проверка с внятными сообщениями)
         for (Map.Entry<String, Integer> e : t.ranks().entrySet()) {
             String id = e.getKey();
             int rank = e.getValue();
@@ -260,6 +259,17 @@ public final class BuildTemplates {
                     errs.add("узел " + id + " требует " + preId + "≥" + required
                             + ", в шаблоне " + actual);
                 }
+            }
+        }
+
+        // 7 (1.14.16, 15C): parity с reconcile — ряд-гейты в порядке рядов +
+        // prereqs по накопленному kept. simulateApply = Spec2Service.validate.
+        Spec2Service svc = plugin.getSpec2Service();
+        if (svc != null && errs.isEmpty()) {
+            Map<String, Integer> kept = svc.simulateApply(tree, t.ranks());
+            if (!kept.equals(t.ranks())) {
+                errs.add("не переживёт reconcile (ряд-гейты/порядок prereq): выжило "
+                        + kept.size() + " из " + t.ranks().size() + " узлов");
             }
         }
 
