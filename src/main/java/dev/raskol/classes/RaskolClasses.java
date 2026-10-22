@@ -31,6 +31,7 @@ import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
+import dev.raskol.classes.gui.PlusGui;
 import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
@@ -107,6 +108,9 @@ import java.util.List;
  *         (PlayerPoints по reflection, NullWallet-фолбэк), PlusStorage (plus-subscription.yml),
  *         BuildTemplates (builds.yml), PlusSubscription (grant/revoke/gift/active).
  *         Извлечение builds.yml из jar при первом старте, reload перечитывает на /rc reload.
+ * 1.14.15 (фаза 2, raskolspec+ GUI): PlusGui — каталог/confirm-экран raskolspec+,
+ *         создаётся и регистрируется после PlusSubscription; передаётся в PlusSub
+ *         через RaskolCommand (который инициализируется после PlusGui).
  * 1.14.15-fix: чтение plus.period-days через getConfig() — внутри RaskolClasses
  *         нет поля plugin (класс сам является JavaPlugin).
  */
@@ -169,6 +173,8 @@ public final class RaskolClasses extends JavaPlugin {
     private BuildTemplates buildTemplates;
     private ImperialWallet imperialWallet;
     private PlusSubscription plusSubscription;
+    /** 1.14.15 (фаза 2): raskolspec+ — GUI каталога и применения шаблонов. */
+    private PlusGui plusGui;
 
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
@@ -297,6 +303,11 @@ public final class RaskolClasses extends JavaPlugin {
         this.plusSubscription = new PlusSubscription(this, imperialWallet, plusStorage, periodDays);
         pluginManager.registerEvents(plusSubscription, this);
 
+        // 1.14.15 (фаза 2): PlusGui — после PlusSubscription (использует его в openCatalog)
+        // и до registerCommand() (PlusSub получает plusGui через plugin.getPlusGui()).
+        this.plusGui = new PlusGui(this);
+        pluginManager.registerEvents(plusGui, this);
+
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
 
@@ -371,6 +382,7 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(PluginTasks.startPurgeTask(this));
         activeTasks.add(PluginTasks.startAutosaveTask(this));
 
+        // registerCommand() — после PlusGui: RaskolCommand в конструкторе читает plugin.getPlusGui()
         registerCommand();
         StartupChecks.printBanner(this);
         StartupChecks.warnLowCapacityTrees(this);
@@ -534,4 +546,6 @@ public final class RaskolClasses extends JavaPlugin {
     public ImperialWallet getImperialWallet() { return imperialWallet; }
     /** 1.14.15: raskolspec+ — подписка. */
     public PlusSubscription getPlusSubscription() { return plusSubscription; }
+    /** 1.14.15 (фаза 2): raskolspec+ — GUI каталога и применения шаблонов. */
+    public PlusGui getPlusGui() { return plusGui; }
 }
