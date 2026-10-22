@@ -53,8 +53,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * (пре-проверки parity/очки/экономика → списание респеца дерева → setRanks →
  * reconcile → защитный rollback). Админ-путь (raskolclasses.admin.plus) — бесплатно.
  *
- * 1.14.16-fix: маршрутизация кликов через InventoryHolder (PlusHolder); взвод
- * подтверждения отражается заменой предмета в слоте_apply на armed-вариант.
+ * 1.14.16-fix2 (КРИТИЧЕСКИЙ): onClose чистил pending/armed при закрытии ЛЮБОГО
+ * PlusHolder-инвентаря. Открытие confirm-экрана (player.openInventory) сначала
+ * закрывает каталог → InventoryCloseEvent каталога стирал pending → клики по
+ * «Применить» молча игнорировались (p == null). Теперь состояние чистится ТОЛЬКО
+ * при закрытии CONFIRM-экрана; переход каталог→confirm сохраняет pending.
+ * Дополнительно: пустой pending в confirm больше не молчаливый return, а сообщение
+ * «сессия истекла» (диагностика вместо тишины).
  */
 public final class PlusGui implements Listener {
 
@@ -169,12 +174,20 @@ public final class PlusGui implements Listener {
         }
     }
 
+    /**
+     * 1.14.16-fix2: чистим состояние ТОЛЬКО при закрытии CONFIRM-экрана.
+     * Закрытие каталога (в т.ч. автоматическое при открытии confirm) состояние
+     * НЕ трогает — иначе pending умирал до первого клика по «Применить».
+     * Реальный выход игрока из GUI (ESC/клик мимо) закрывает именно текущий экран:
+     * если это confirm — pending/armed очищаются; если каталог — очищать нечего.
+     */
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) {
             return;
         }
-        if (event.getInventory().getHolder() instanceof PlusHolder) {
+        if (event.getInventory().getHolder() instanceof PlusHolder holder
+                && holder.screen() == Screen.CONFIRM) {
             armedUntil.remove(player.getUniqueId());
             pending.remove(player.getUniqueId());
         }
@@ -241,7 +254,6 @@ public final class PlusGui implements Listener {
 
     private void handleConfirmClick(Player player, int slot) {
         UUID uuid = player.getUniqueId();
-        PendingApply p = pending.get(uuid);
 
         if (slot == CONFIRM_BACK) {
             pending.remove(uuid);
@@ -249,14 +261,22 @@ public final class PlusGui implements Listener {
             openCatalog(player);
             return;
         }
-        if (slot != CONFIRM_APPLY || p == null) {
+        if (slot != CONFIRM_APPLY) {
+            return;
+        }
+        PendingApply p = pending.get(uuid);
+        if (p == null) {
+            // 1.14.16-fix2: диагностика вместо тишины (нормально недостижимо,
+            // оставлено как страховка от будущих регрессий жизненного цикла pending)
+            player.sendMessage(msg("Сессия применения истекла — открой шаблон заново из каталога"));
+            openCatalog(player);
             return;
         }
 
         long now = System.currentTimeMillis();
         Long armed = armedUntil.get(uuid);
         if (armed == null || now > armed) {
-            // Первый клик — взвод: ВИЗУАЛЬНАЯ обратная связь в самом GUI (1.14.16-fix)
+            // Первый клик — взвод: ВИЗУАЛЬНАЯ обратная связь в самом GUI
             armedUntil.put(uuid, now + ARM_WINDOW_MS);
             Inventory top = player.getOpenInventory().getTopInventory();
             if (top.getHolder() instanceof PlusHolder) {
@@ -264,7 +284,7 @@ public final class PlusGui implements Listener {
             }
             player.sendMessage(msg(plugin.getRaskolConfig()
                     .message("plus.gui.confirm-arm",
-                            "ПКМ №1 — взвести, ПКМ №2 (30 с) — применить")));
+                            "Клик №1 — взвести, клик №2 (30 с) — применить")));
             return;
         }
 
@@ -277,7 +297,8 @@ public final class PlusGui implements Listener {
     /**
      * 1.14.16 (Волна 15C): реальное применение шаблона через Spec2Service.applyBuild.
      * Экономика: списывается только стоимость респеца дерева (админ — бесплатно).
-     * Все отказы приходят ДО списания (инвариант applyBuild).
+     * Все отказы приходят ДО списания (инвариант applyBuild) и сопровождаются
+     * сообщением в чат с числами (очки/монеты), чтобы игрок понимал причину.
      */
     private void applyTemplate(Player player, PendingApply p) {
         BuildTemplates templates = plugin.getBuildTemplates();
