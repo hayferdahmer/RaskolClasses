@@ -40,7 +40,6 @@ public final class ItemBrowserMenu implements Listener {
                 .filter(d->"ALL".equals(slot)||d.slot().name().equals(slot))
                 .filter(d->"ALL".equals(rarity)||d.rarity().name().equals(rarity))
                 .sorted(java.util.Comparator.comparing(ItemDefinition::id)).toList();}
-    }
     @EventHandler public void click(InventoryClickEvent event){
         if(!(event.getView().getTopInventory().getHolder(false) instanceof Holder holder))return;
         event.setCancelled(true);if(!(event.getWhoClicked() instanceof Player player)||!player.getUniqueId().equals(holder.owner))return;
