@@ -36,11 +36,12 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ItemHook implements Listener {
     private final RaskolClasses plugin;
     private final ItemSystem items;
-    private final NamespacedKey attackSpeedKey,movementSpeedKey;
+    private final NamespacedKey attackSpeedKey,movementSpeedKey,starterKitClassKey;
     private final Map<UUID,Long> hashes=new ConcurrentHashMap<>();
     private BukkitTask reconcileTask;
     public ItemHook(RaskolClasses plugin,ItemSystem items){this.plugin=plugin;this.items=items;
-        attackSpeedKey=new NamespacedKey(plugin,"item_attack_speed");movementSpeedKey=new NamespacedKey(plugin,"item_movement_speed");}
+        attackSpeedKey=new NamespacedKey(plugin,"item_attack_speed");movementSpeedKey=new NamespacedKey(plugin,"item_movement_speed");
+        starterKitClassKey=new NamespacedKey(plugin,"starter_kit_class");}
     public void start(){plugin.getServer().getPluginManager().registerEvents(this,plugin);
         long period=Math.max(1,plugin.getConfig().getLong("item.reconcile-ticks",20));
         reconcileTask=plugin.getServer().getScheduler().runTaskTimer(plugin,()->plugin.getServer().getOnlinePlayers().forEach(this::reconcileIfChanged),period,period);}
@@ -52,6 +53,7 @@ public final class ItemHook implements Listener {
         clearItemModifiers(uuid);
         if(pc==null){ItemUidRegistry.retain(uuid,Set.of());items.snapshot(uuid,ItemStatSnapshot.EMPTY);
             items.setBonuses().clear(uuid);plugin.getAttributes().invalidate(uuid);return;}
+        deliverStarterKit(player,pc);
         int level=plugin.getCharacterLevels().characterLevel(uuid);String spec=plugin.getSpec2Service().mainSpec(uuid);
         Map<ItemSlot,ItemStack> currentEquipment=equipped(player);Set<String> currentUids=new HashSet<>();
         for(ItemStack stack:currentEquipment.values())if(items.pdc().isItem(stack)&&items.pdc().hasValidUid(stack))currentUids.add(items.pdc().uid(stack));
@@ -104,6 +106,18 @@ public final class ItemHook implements Listener {
         if(plugin.getAttributes()!=null)plugin.getAttributes().invalidate(uuid);
         if(plugin.getResists()!=null)plugin.getResists().invalidate(uuid);
         if(plugin.getResources()!=null)plugin.getResources().stateOf(uuid);
+    }
+    private void deliverStarterKit(Player player,PlayerClass playerClass){
+        if(!plugin.getConfig().getBoolean("item.starter-kit.enabled",false))return;
+        var pdc=player.getPersistentDataContainer();String delivered=pdc.get(starterKitClassKey,org.bukkit.persistence.PersistentDataType.STRING);
+        if(playerClass.name().equals(delivered))return;
+        String prefix=playerClass.name().toLowerCase(java.util.Locale.ROOT)+"_";
+        for(ItemDefinition definition:items.registry().all())if(definition.id().startsWith(prefix)
+                &&definition.rarity()==ItemRarity.COMMON&&definition.itemLevel()==20){
+            ItemStack starter=items.create(definition.id(),1);
+            player.getInventory().addItem(starter).values().forEach(left->player.getWorld().dropItemNaturally(player.getLocation(),left));
+        }
+        pdc.set(starterKitClassKey,org.bukkit.persistence.PersistentDataType.STRING,playerClass.name());
     }
     private static void applySpeed(Player player,Attribute attribute,NamespacedKey key,double percent){
         AttributeInstance instance=player.getAttribute(attribute);if(instance==null)return;
