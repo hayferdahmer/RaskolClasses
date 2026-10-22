@@ -70,7 +70,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 125 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 127 чеков.
  *
  * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
@@ -93,6 +93,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * 1.14.15 (raskolspec+): добавлены чеки 123–125 — валидность 36 шаблонов builds.yml,
  * математика подписки grant/remainingDays/revoke, stale-маркировка disabled-узлов.
+ *
+ * 1.14.16 (Волна 15C): добавлены чеки 126–127 — applyBuild на probe (free-путь:
+ * применение узла ряда 1 + откат) и отказы БЕЗ изменения состояния (чужое дерево →
+ * WRONG_CLASS_TREE, prereq-дыра → TEMPLATE_INVALID). pauseMs(200) между вызовами —
+ * rate-limit actionAllowed (150 мс).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -119,6 +124,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   stopListLive   121      стоп-лист без узлов с живыми потребителями (P2-4)
  *   stopListReach  122      достижимость включённых узлов при стоп-листе (P0-6B)
  *   plusSubscription 123–125 raskolspec+ (шаблоны/подписка/stale)
+ *   plusApply     126–127   raskolspec+ applyBuild (probe): применение и отказы
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -295,6 +301,8 @@ public final class SelftestRunner {
         stopListReachability(plugin, r);
         // 1.14.15 (raskolspec+): чеки подписки — не probe-зависимы, выполняются всегда
         plusSubscription(plugin, r);
+        // 1.14.16 (Волна 15C): apply-чеки — probe-зависимы (меняют и восстанавливают ранги)
+        plusApply(plugin, r, probe);
 
         print(plugin, sender, r);
     }
@@ -2324,5 +2332,113 @@ public final class SelftestRunner {
         boolean ok125 = stale >= 0;
         r.check("125", "raskolspec+: stale-шаблонов = " + stale + " (disabled-nodes маркировка)",
                 ok125, "BuildTemplates.countStale", "stale=" + stale);
+    }
+
+    /* ------------------------------ 126–127: 1.14.16 (Волна 15C) apply raskolspec+ ------------------------------ */
+
+    /**
+     * 126: applyBuild(free) применяет узел ряда 1 к первому дереву probe:
+     * результат OK, ранг = 1, затем состояние восстанавливается из backup.
+     * 127: отказы БЕЗ изменения состояния: чужое дерево → WRONG_CLASS_TREE;
+     * узел с пререквизитом без пререка → TEMPLATE_INVALID (simulateApply-parity).
+     * pauseMs(200) между вызовами — rate-limit actionAllowed (150 мс).
+     */
+    private static void plusApply(RaskolClasses plugin, Report r, Player probe) {
+        if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
+            r.skip("126", "raskolspec+ apply на probe");
+            r.skip("127", "raskolspec+ apply-отказы");
+            return;
+        }
+        UUID pu = probe.getUniqueId();
+        List<String> trees = plugin.getSpec2Service().classTreeIds(pu);
+        if (trees.isEmpty()) {
+            r.skip("126", "raskolspec+ apply (нет дерева класса)");
+            r.skip("127", "raskolspec+ apply-отказы");
+            return;
+        }
+        String t0 = trees.get(0);
+        Spec2Tree tree = Spec2Registry.treeOf(t0);
+        Spec2Node n0 = firstRow1(tree);
+        if (tree == null || n0 == null) {
+            r.skip("126", "raskolspec+ apply (нет узла ряда 1)");
+            r.skip("127", "raskolspec+ apply-отказы");
+            return;
+        }
+        String prevMain = plugin.getSpec2Service().storage().getMain(pu);
+        boolean tempMain = prevMain == null;
+        Map<String, Integer> backup = new HashMap<>(
+                plugin.getSpec2Service().storage().getRanks(pu, t0));
+        boolean ok126 = false;
+        String got126 = "n/a";
+        try {
+            if (tempMain) {
+                plugin.getSpec2Service().storage().setMain(pu, t0);
+            }
+            pauseMs(200);
+            Map<String, Integer> tpl = Map.of(n0.id(), 1);
+            Spec2Service.BuildApplyOutcome out =
+                    plugin.getSpec2Service().applyBuild(probe, t0, tpl, true);
+            int rank = plugin.getSpec2Service().storage().getRanks(pu, t0)
+                    .getOrDefault(n0.id(), 0);
+            ok126 = out.result() == Spec2Service.BuildApplyResult.OK && rank == 1;
+            got126 = "result=" + out.result() + " rank=" + rank;
+        } finally {
+            plugin.getSpec2Service().storage().setRanks(pu, t0, backup);
+            if (tempMain) {
+                plugin.getSpec2Service().storage().setMain(pu, null);
+            }
+            plugin.getSpec2Service().reconcile(pu);
+        }
+        r.check("126", "raskolspec+ applyBuild: free-применение узла ряда 1 = OK, rank=1, откат чист",
+                ok126, "Spec2Service.applyBuild", got126);
+
+        // 127: отказы без изменения состояния
+        Map<String, Integer> before127 = new HashMap<>(
+                plugin.getSpec2Service().storage().getRanks(pu, t0));
+
+        String foreign = null;
+        String[] candidates = {"arms", "fury", "guard", "marksmanship", "survival",
+                "beastmaster", "assassination", "outlaw", "subtlety", "arcane", "fire",
+                "frost", "discipline", "holy", "shadow", "affliction", "destruction", "demonology"};
+        for (String c : candidates) {
+            if (!trees.contains(c)) {
+                foreign = c;
+                break;
+            }
+        }
+        boolean wrongRejected = true;
+        if (foreign != null) {
+            Spec2Tree fTree = Spec2Registry.treeOf(foreign);
+            Spec2Node fNode = firstRow1(fTree);
+            if (fNode != null) {
+                pauseMs(200);
+                Spec2Service.BuildApplyOutcome out = plugin.getSpec2Service()
+                        .applyBuild(probe, foreign, Map.of(fNode.id(), 1), true);
+                wrongRejected = out.result() == Spec2Service.BuildApplyResult.WRONG_CLASS_TREE;
+            }
+        }
+
+        Spec2Node gapNode = null;
+        for (Spec2Node n : tree.nodes()) {
+            if (!n.prereqs().isEmpty()) {
+                gapNode = n;
+                break;
+            }
+        }
+        boolean gapRejected = true;
+        if (gapNode != null) {
+            pauseMs(200);
+            Spec2Service.BuildApplyOutcome gapOut = plugin.getSpec2Service()
+                    .applyBuild(probe, t0, Map.of(gapNode.id(), 1), true);
+            gapRejected = gapOut.result() == Spec2Service.BuildApplyResult.TEMPLATE_INVALID;
+        }
+
+        Map<String, Integer> after127 = new HashMap<>(
+                plugin.getSpec2Service().storage().getRanks(pu, t0));
+        boolean stateIntact = after127.equals(before127);
+        boolean ok127 = wrongRejected && gapRejected && stateIntact;
+        r.check("127", "raskolspec+ applyBuild-отказы: чужое дерево + prereq-дыра, состояние не изменено",
+                ok127, "Spec2Service.applyBuild",
+                "wrong=" + wrongRejected + " gap=" + gapRejected + " intact=" + stateIntact);
     }
 }
