@@ -471,11 +471,11 @@ public final class DotService implements Listener {
         double channelResistPct = (1.0 - factor) * 100.0;
         Penetration pen = combat.penTraits().channelPen(
                 owner.getUniqueId(), channel == DamageType.PHYSICAL,
-                plugin.getGearHook(), sc.penPctCap());
+                sc.penPctCap());
         double effChannel = pen.effectiveResist(channelResistPct, sc.penPctCap());
         double elResist = combat.elemental().resistOf(targetUuid, school);
         double schoolPen = combat.penTraits().schoolPenFraction(
-                owner.getUniqueId(), school, plugin.getGearHook(), sc.penPctCap());
+                owner.getUniqueId(), school, sc.penPctCap());
         double effEl = CombatMath.effectiveResist(elResist, 0.0, schoolPen, sc.penPctCap());
         return SchoolMitigation.mitigationFor(effChannel, Penetration.NONE,
                 sc.penPctCap(), effEl, sc.elementalEnabled(), sc.mitigationCap());

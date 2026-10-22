@@ -20,6 +20,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.LivingEntity;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,6 +54,19 @@ public final class DebugSub implements CommandSub {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
+        if(args.length>=1&&"profile".equalsIgnoreCase(args[0])){
+            if(!(sender instanceof Player player)){sender.sendMessage(Component.text("Команда доступна игроку.",NamedTextColor.RED));return true;}
+            var trace=player.getWorld().rayTraceEntities(player.getEyeLocation(),player.getEyeLocation().getDirection(),32.0,0.25,
+                    entity->entity instanceof LivingEntity&&entity!=player);
+            if(trace==null||!(trace.getHitEntity() instanceof LivingEntity target)){
+                sender.sendMessage(Component.text("В прицеле нет живой сущности.",NamedTextColor.RED));return true;}
+            var profile=plugin.getCombatProfiles().profileOf(target.getUniqueId());
+            if(profile==null){sender.sendMessage(Component.text("У сущности нет CombatProfile.",NamedTextColor.YELLOW));return true;}
+            sender.sendMessage(Component.text("CombatProfile "+target.getType()+" · lvl "+profile.level()+" · атака "+profile.attackDamage(),NamedTextColor.GOLD));
+            sender.sendMessage(Component.text("Урон P/M/T: "+profile.damageWeights().physical()+"/"+profile.damageWeights().magic()+"/"+profile.damageWeights().trueDamage()
+                    +" · резисты физ/маг: "+profile.physResist()+"/"+profile.magicResist()+"% · CC "+profile.ccResist()+"% · reflect "+profile.reflect()+"%",NamedTextColor.GRAY));
+            return true;
+        }
         if (args.length >= 1 && "simulate".equalsIgnoreCase(args[0])) {
             if (args.length >= 2 && "matrix".equalsIgnoreCase(args[1])) {
                 int level = SubUtil.parseLevel(args, 2);
@@ -126,7 +140,7 @@ public final class DebugSub implements CommandSub {
     @Override
     public List<String> complete(CommandSender sender, String[] fullArgs) {
         if (fullArgs.length == 2) {
-            List<String> out = new ArrayList<>(List.of("simulate", "matrix"));
+            List<String> out = new ArrayList<>(List.of("simulate", "matrix", "profile"));
             out.addAll(SubUtil.onlinePlayerNames());
             return SubUtil.filter(out, fullArgs[1]);
         }
@@ -220,8 +234,8 @@ public final class DebugSub implements CommandSub {
         }
 
         var penTraits = plugin.getCombat().penTraits();
-        double penPhys = penTraits.totalPenPercent(uuid, "phys", plugin.getGearHook());
-        double penMagic = penTraits.totalPenPercent(uuid, "magic", plugin.getGearHook());
+        double penPhys = penTraits.totalPenPercent(uuid, "phys");
+        double penMagic = penTraits.totalPenPercent(uuid, "magic");
         double penCapPct = plugin.getConfig().getDouble("schools.pen-pct-cap", 0.40) * 100.0;
         sender.sendMessage(Component.text("Пробитие: физ " + SubUtil.fmt1(penPhys)
                 + "% · маг " + SubUtil.fmt1(penMagic) + "% (кап " + SubUtil.fmt1(penCapPct) + "%)",
@@ -274,17 +288,10 @@ public final class DebugSub implements CommandSub {
                 + " · заработано " + plugin.getSpec2Service().earnedPoints(uuid),
                 NamedTextColor.DARK_AQUA));
 
-        var gearHook = plugin.getGearHook();
-        if (gearHook != null && gearHook.isAvailable() && gearHook.hasGear(uuid)) {
-            StringBuilder gearLine = new StringBuilder("Шмот RaskolGear: +")
-                    .append((int) gearHook.physResist(uuid)).append(" физ / +")
-                    .append((int) gearHook.magicResist(uuid)).append(" маг / +")
-                    .append((int) gearHook.hpBonus(uuid)).append(" HP");
-            if (gearHook.reflect(uuid) > 0.0) {
-                gearLine.append(" / шипы ").append((int) gearHook.reflect(uuid)).append("%");
-            }
-            sender.sendMessage(Component.text(gearLine.toString(), NamedTextColor.DARK_AQUA));
-        }
+        var itemStats = plugin.getItems().snapshot(uuid);
+        if (!itemStats.stats().isEmpty()) sender.sendMessage(Component.text("Статы снаряжения: "
+                + itemStats.stats().size() + " · HP +" + (int)itemStats.value(dev.raskol.classes.item.ItemStat.HP_BONUS)
+                + " · отражение " + (int)itemStats.value(dev.raskol.classes.item.ItemStat.REFLECT) + "%",NamedTextColor.DARK_AQUA));
 
         sender.sendMessage(Component.text("Ресурс: " + (int) plugin.getResources().getValue(uuid)
                 + "/100", NamedTextColor.AQUA));
@@ -299,3 +306,4 @@ public final class DebugSub implements CommandSub {
                 NamedTextColor.GRAY));
     }
 }
+

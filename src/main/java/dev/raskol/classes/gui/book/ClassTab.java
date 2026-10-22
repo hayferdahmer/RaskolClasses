@@ -158,8 +158,8 @@ public final class ClassTab implements BookTabView {
             }
             // 1.12.2 (Блок 5): пробитие и стихийный слой
             var penTraits = plugin.getCombat().penTraits();
-            double penPhys = penTraits.totalPenPercent(uuid, "phys", plugin.getGearHook());
-            double penMagic = penTraits.totalPenPercent(uuid, "magic", plugin.getGearHook());
+            double penPhys = penTraits.totalPenPercent(uuid, "phys");
+            double penMagic = penTraits.totalPenPercent(uuid, "magic");
             lore.add(Component.text("Пробитие: физ " + (int) penPhys + "% · маг " + (int) penMagic + "%",
                     NamedTextColor.DARK_AQUA));
             var elem = plugin.getCombat().elemental();

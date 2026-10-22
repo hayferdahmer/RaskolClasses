@@ -161,6 +161,10 @@ public final class CCService implements Listener {
         if (plugin.getSpec2Service() != null) {
             base += plugin.getSpec2Service().ccResistBonus(target.getUniqueId());
         }
+        if(target instanceof Player p&&plugin.getItems()!=null)base+=plugin.getItems().value(p.getUniqueId(),dev.raskol.classes.item.ItemStat.CC_RESIST)/100.0;
+        dev.raskol.classes.api.combat.CombatProfile profile=plugin.getCombatProfiles()==null?null:
+                plugin.getCombatProfiles().profileOf(target.getUniqueId());
+        if(profile!=null)base+=profile.ccResist()/100.0;
         return Math.max(0.0, Math.min(base, resistCap()));
     }
 
@@ -185,6 +189,7 @@ public final class CCService implements Listener {
         if (caster != null && plugin.getSpec2Service() != null) {
             base += plugin.getSpec2Service().ccPowerBonus(caster.getUniqueId());
         }
+        if(caster!=null&&plugin.getItems()!=null)base+=plugin.getItems().value(caster.getUniqueId(),dev.raskol.classes.item.ItemStat.CC_POWER)/100.0;
         return Math.max(0.0, Math.min(base, powerCap()));
     }
 
@@ -223,6 +228,10 @@ public final class CCService implements Listener {
     }
 
     public boolean isImmune(LivingEntity target, CCType type) {
+        dev.raskol.classes.api.combat.CombatProfile profile=plugin.getCombatProfiles()==null?null:
+                plugin.getCombatProfiles().profileOf(target.getUniqueId());
+        if(profile!=null&&profile.ccImmunities().stream().anyMatch(id->id.equalsIgnoreCase(type.id())
+                ||id.equalsIgnoreCase(type.name())))return true;
         if (type == CCType.CHARM && target instanceof Player
                 && !plugin.getConfig().getBoolean("cc.charm.allow-on-players", false)) {
             return true;

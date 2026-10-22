@@ -1,0 +1,315 @@
+schema-version: 1
+
+# Default generated stock: 6 classes × 5 equipment slots × 3 levels × 3 rarities = 270.
+# Every stat in a generated template has a consumer in the 1.15.0 combat pipeline.
+settings:
+  max-item-level: 60
+  generated-levels: [20, 40, 60]
+  generated-rarities: [COMMON, RARE, EPIC]
+  weapon-types:
+    SWORD: { materials: [IRON_SWORD, DIAMOND_SWORD, NETHERITE_SWORD], classes: [WARRIOR], damage-type: PHYSICAL }
+    AXE: { materials: [IRON_AXE, DIAMOND_AXE, NETHERITE_AXE], classes: [WARRIOR], damage-type: PHYSICAL }
+    MACE: { materials: [MACE], classes: [WARRIOR, PRIEST], damage-type: PHYSICAL }
+    DAGGER: { materials: [IRON_SWORD, GOLDEN_SWORD], classes: [ROGUE], damage-type: PHYSICAL }
+    BOW: { materials: [BOW, CROSSBOW], classes: [HUNTER], damage-type: PHYSICAL }
+    STAFF: { materials: [BLAZE_ROD, STICK], classes: [MAGE, PRIEST, WARLOCK], damage-type: MAGIC }
+  budget:
+    rarity-mult: { COMMON: 1.0, UNCOMMON: 1.15, RARE: 1.35, EPIC: 1.6, LEGENDARY: 1.9, MYTHIC: 2.3 }
+    slot-weight: { MAIN_HAND: 1.0, CHEST: 0.9, LEGS: 0.8, HEAD: 0.6, FEET: 0.5, OFF_HAND: 0.5 }
+    stat-cost:
+      weapon-power: 1.0
+      spell-power: 1.0
+      heal-power: 1.0
+      str: 1.5
+      agi: 1.5
+      int: 1.5
+      hp-bonus: 0.25
+      phys-resist: 8.0
+      magic-resist: 8.0
+      pen-phys-pct: 8.0
+      pen-magic-pct: 8.0
+      crit-melee: 10.0
+      crit-spell: 10.0
+      crit-damage: 10.0
+      attack-damage: 0.5
+
+# Explicit templates/items can be added here. If omitted, balanced starter templates for all six classes are used.
+templates:
+  warrior_main_hand:
+    class: WARRIOR
+    slot: MAIN_HAND
+    weapon-type: SWORD
+    material: IRON_SWORD
+    names: ["Воин оружие"]
+    distribution:
+      attack-damage: 30
+      weapon-power: 45
+      crit-melee: 25
+  warrior_head:
+    class: WARRIOR
+    slot: HEAD
+    material: IRON_HELMET
+    names: ["Воин шлем"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      str: 25
+  warrior_chest:
+    class: WARRIOR
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    names: ["Воин нагрудник"]
+    distribution:
+      hp-bonus: 45
+      phys-resist: 30
+      str: 25
+  warrior_legs:
+    class: WARRIOR
+    slot: LEGS
+    material: IRON_LEGGINGS
+    names: ["Воин поножи"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      str: 25
+  warrior_feet:
+    class: WARRIOR
+    slot: FEET
+    material: IRON_BOOTS
+    names: ["Воин ботинки"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      str: 25
+  hunter_main_hand:
+    class: HUNTER
+    slot: MAIN_HAND
+    weapon-type: BOW
+    material: BOW
+    names: ["Охотник оружие"]
+    distribution:
+      attack-damage: 30
+      weapon-power: 45
+      crit-melee: 25
+  hunter_head:
+    class: HUNTER
+    slot: HEAD
+    material: IRON_HELMET
+    names: ["Охотник шлем"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      agi: 25
+  hunter_chest:
+    class: HUNTER
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    names: ["Охотник нагрудник"]
+    distribution:
+      hp-bonus: 45
+      phys-resist: 30
+      agi: 25
+  hunter_legs:
+    class: HUNTER
+    slot: LEGS
+    material: IRON_LEGGINGS
+    names: ["Охотник поножи"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      agi: 25
+  hunter_feet:
+    class: HUNTER
+    slot: FEET
+    material: IRON_BOOTS
+    names: ["Охотник ботинки"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      agi: 25
+  rogue_main_hand:
+    class: ROGUE
+    slot: MAIN_HAND
+    weapon-type: DAGGER
+    material: IRON_SWORD
+    names: ["Разбойник оружие"]
+    distribution:
+      attack-damage: 30
+      weapon-power: 45
+      crit-melee: 25
+  rogue_head:
+    class: ROGUE
+    slot: HEAD
+    material: IRON_HELMET
+    names: ["Разбойник шлем"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      agi: 25
+  rogue_chest:
+    class: ROGUE
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    names: ["Разбойник нагрудник"]
+    distribution:
+      hp-bonus: 45
+      phys-resist: 30
+      agi: 25
+  rogue_legs:
+    class: ROGUE
+    slot: LEGS
+    material: IRON_LEGGINGS
+    names: ["Разбойник поножи"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      agi: 25
+  rogue_feet:
+    class: ROGUE
+    slot: FEET
+    material: IRON_BOOTS
+    names: ["Разбойник ботинки"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      agi: 25
+  priest_main_hand:
+    class: PRIEST
+    slot: MAIN_HAND
+    weapon-type: MACE
+    material: MACE
+    names: ["Жрец оружие"]
+    distribution:
+      attack-damage: 30
+      spell-power: 45
+      crit-spell: 25
+  priest_head:
+    class: PRIEST
+    slot: HEAD
+    material: IRON_HELMET
+    names: ["Жрец шлем"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      int: 25
+  priest_chest:
+    class: PRIEST
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    names: ["Жрец нагрудник"]
+    distribution:
+      hp-bonus: 45
+      phys-resist: 30
+      int: 25
+  priest_legs:
+    class: PRIEST
+    slot: LEGS
+    material: IRON_LEGGINGS
+    names: ["Жрец поножи"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      int: 25
+  priest_feet:
+    class: PRIEST
+    slot: FEET
+    material: IRON_BOOTS
+    names: ["Жрец ботинки"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      int: 25
+  mage_main_hand:
+    class: MAGE
+    slot: MAIN_HAND
+    weapon-type: STAFF
+    material: BLAZE_ROD
+    names: ["Маг оружие"]
+    distribution:
+      attack-damage: 30
+      spell-power: 45
+      crit-spell: 25
+  mage_head:
+    class: MAGE
+    slot: HEAD
+    material: IRON_HELMET
+    names: ["Маг шлем"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      int: 25
+  mage_chest:
+    class: MAGE
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    names: ["Маг нагрудник"]
+    distribution:
+      hp-bonus: 45
+      phys-resist: 30
+      int: 25
+  mage_legs:
+    class: MAGE
+    slot: LEGS
+    material: IRON_LEGGINGS
+    names: ["Маг поножи"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      int: 25
+  mage_feet:
+    class: MAGE
+    slot: FEET
+    material: IRON_BOOTS
+    names: ["Маг ботинки"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      int: 25
+  warlock_main_hand:
+    class: WARLOCK
+    slot: MAIN_HAND
+    weapon-type: STAFF
+    material: BLAZE_ROD
+    names: ["Чернокнижник оружие"]
+    distribution:
+      attack-damage: 30
+      spell-power: 45
+      crit-spell: 25
+  warlock_head:
+    class: WARLOCK
+    slot: HEAD
+    material: IRON_HELMET
+    names: ["Чернокнижник шлем"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      int: 25
+  warlock_chest:
+    class: WARLOCK
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    names: ["Чернокнижник нагрудник"]
+    distribution:
+      hp-bonus: 45
+      phys-resist: 30
+      int: 25
+  warlock_legs:
+    class: WARLOCK
+    slot: LEGS
+    material: IRON_LEGGINGS
+    names: ["Чернокнижник поножи"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      int: 25
+  warlock_feet:
+    class: WARLOCK
+    slot: FEET
+    material: IRON_BOOTS
+    names: ["Чернокнижник ботинки"]
+    distribution:
+      hp-bonus: 45
+      magic-resist: 30
+      int: 25
+items: {}
+sets: {}

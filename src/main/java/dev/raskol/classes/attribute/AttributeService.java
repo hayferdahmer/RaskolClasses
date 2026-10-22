@@ -5,7 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.config.ConfigReads;
-import dev.raskol.classes.hook.GearHook;
+import dev.raskol.classes.item.ItemStat;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
@@ -25,11 +25,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.9.0: effectiveAvoidance учитывает плоские avoid-бонусы талантов.
  * 1.9.3: maxHp — ПОЛНАЯ формула; invalidate синхронизирует carrier.
  * 1.9.3-r: ЕДИНЫЙ источник правды по единицам HP (план B).
- * 1.9.3-r2: maxHp += GearHook.hpBonus (статы шмота RaskolGear).
+ * 1.15.0: derived attributes and max HP include the immutable item-stat snapshot.
  * 1.10.0: mainOf/defaultBase/defaultGrowth покрывают WARLOCK.
  * 1.11.4 (P4c): фасад. Модификаторы вынесены в AttributeModifiers,
  *         план B — в HpPool; публичный API сохранён полностью
- *         (HpBarService/CombatService/GearHook/InstallationService/selftest не меняются).
+ *         (HpBarService/CombatService/InstallationService/selftest не меняются).
  * 1.14.0 (Б8.2-fix): avoidBonus читается из Spec2Service (legacy TalentService удалён).
  * 1.14.3 (Волна 3, 3B): хот-путь атрибутов:
  *   maxHp × (1 + hpPercent/100) — узлы hp_pct (fury_metamorphosis и т.п.);
@@ -196,6 +196,11 @@ public final class AttributeService {
             agi += m.agi();
             intel += m.intel();
         }
+        if (plugin.getItems() != null) {
+            str += plugin.getItems().value(uuid, ItemStat.STR);
+            agi += plugin.getItems().value(uuid, ItemStat.AGI);
+            intel += plugin.getItems().value(uuid, ItemStat.INT);
+        }
         c.str = Math.max(0.0, str);
         c.agi = Math.max(0.0, agi);
         c.intel = Math.max(0.0, intel);
@@ -215,7 +220,7 @@ public final class AttributeService {
     /* ----------------------------- производные ----------------------------- */
 
     /**
-     * ПОЛНАЯ формула HP (1.9.3) + gear-HP из GearHook (1.9.3-r2) + hp_pct-множитель
+     * Полная формула HP с предметным бонусом и hp_pct-множителем
      * из spec2-агрегата (1.14.3, 3B):
      * HP = (base + STR×perStr + level×perLevel + (STR-main ? level×mainBonus : 0) + gearHp)
      *      × (1 + hpPercent/100).
@@ -236,13 +241,7 @@ public final class AttributeService {
             formula = AttributeMath.maxHp(value(uuid, AttributeType.STR), level, strMain,
                     baseHp, perStr, perLevel, mainBonus);
         }
-        GearHook gear = plugin.getGearHook();
-        if (gear != null && gear.isAvailable()) {
-            double gearHp = gear.hpBonus(uuid);
-            if (Double.isFinite(gearHp) && gearHp > 0.0) {
-                formula += gearHp;
-            }
-        }
+        if (plugin.getItems() != null) formula += plugin.getItems().value(uuid, ItemStat.HP_BONUS);
         // 1.14.3 (3B): hp_pct множитель из spec2 (fury_metamorphosis, dm_metamorphosis и т.п.)
         double hpPct = plugin.getSpec2Service().hpPercent(uuid);
         if (Double.isFinite(hpPct) && hpPct > 0.0) {
@@ -263,7 +262,8 @@ public final class AttributeService {
                 cfgD("attributes.crit.melee-per-agi", 0.05),
                 cfgD("attributes.crit.melee-cap", 40.0));
         double bonus = plugin.getSpec2Service().critMeleeBonus(uuid);
-        return base + (Double.isFinite(bonus) && bonus > 0 ? bonus : 0.0);
+        return Math.min(50.0, base + (Double.isFinite(bonus) && bonus > 0 ? bonus : 0.0)
+                + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, ItemStat.CRIT_MELEE)));
     }
 
     public double critSpellChance(UUID uuid) {
@@ -273,11 +273,12 @@ public final class AttributeService {
             return 0.0;
         }
         boolean intMain = mainOf(pc) == AttributeType.INT;
-        return AttributeMath.critSpell(value(uuid, AttributeType.INT), intMain,
+        double base = AttributeMath.critSpell(value(uuid, AttributeType.INT), intMain,
                 cfgD("attributes.crit.spell-base", 5.0),
                 cfgD("attributes.crit.spell-per-int", 0.03),
                 cfgD("attributes.crit.spell-main-mult", 1.5),
                 cfgD("attributes.crit.spell-cap", 35.0));
+        return Math.min(50.0, base + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, ItemStat.CRIT_SPELL)));
     }
 
     /**

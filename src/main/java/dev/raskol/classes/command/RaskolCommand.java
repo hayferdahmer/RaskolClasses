@@ -6,7 +6,8 @@ import dev.raskol.classes.command.sub.CcSub;
 import dev.raskol.classes.command.sub.CommandSub;
 import dev.raskol.classes.command.sub.DebugSub;
 import dev.raskol.classes.command.sub.FoliantSub;
-import dev.raskol.classes.command.sub.GearSub;
+import dev.raskol.classes.command.sub.ItemSub;
+import dev.raskol.classes.command.sub.SetSub;
 import dev.raskol.classes.command.sub.HealthSub;
 import dev.raskol.classes.command.sub.PlusSub;
 import dev.raskol.classes.command.sub.SubUtil;
@@ -45,7 +46,7 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
     // 1.13.0 (Б4): "cc" добавлен для таб-комплита /rc <Tab>
     // 1.14.15 (raskolspec+): "plus" добавлен в список подкоманд
     private static final List<String> ROOT_SUBS = List.of(
-            "menu", "reload", "debug", "health", "selftest", "gear", "foliant", "cc", "plus");
+            "menu", "reload", "debug", "health", "selftest", "gear", "item", "set", "foliant", "cc", "plus");
 
     /** 1.14.12 (Волна 12B, 7-04): rate-limit для тяжёлых команд (мс). */
     private static final long HEAVY_CMD_COOLDOWN_MS = 10_000L;
@@ -59,7 +60,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         this.plugin = plugin;
         for (CommandSub sub : List.of(
                 new DebugSub(plugin),
-                new GearSub(plugin),
+                new ItemSub(plugin),
+                new SetSub(plugin),
                 new FoliantSub(plugin),
                 new HealthSub(plugin),
                 // 1.13.0 (Б4): подкоманда /rc cc — админ-поверхность CC/DR
@@ -102,6 +104,15 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         String sub = args[0].toLowerCase(Locale.ROOT);
 
         switch (sub) {
+            case "gear" -> {
+                CommandSub items = subs.get("item");
+                if (!sender.hasPermission("raskolclasses.debug")) {
+                    sender.sendMessage(Component.text(plugin.getRaskolConfig().message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
+                    return true;
+                }
+                String[] tail = args.length > 1 ? Arrays.copyOfRange(args, 1, args.length) : new String[0];
+                return items.execute(sender, prependStats(tail));
+            }
             case "menu" -> {
                 if (!(sender instanceof Player p)) {
                     sender.sendMessage(Component.text("Только для игроков.", NamedTextColor.GRAY));
@@ -164,6 +175,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 return cs.execute(sender, Arrays.copyOfRange(args, 1, args.length));
             }
         }
+    }
+
+    private static String[] prependStats(String[] tail) {
+        String[] result = new String[tail.length + 1]; result[0] = "stats";
+        System.arraycopy(tail, 0, result, 1, tail.length); return result;
     }
 
     @Override

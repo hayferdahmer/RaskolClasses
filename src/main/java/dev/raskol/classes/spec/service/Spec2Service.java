@@ -746,7 +746,8 @@ public final class Spec2Service {
     }
 
     public double cooldownMult(UUID uuid, String abilityId) {
-        return Math.max(0.1, 1.0 - agg(uuid).cdPct.getOrDefault(abilityId, 0.0));
+        double itemReduction=plugin.getItems()==null?0.0:plugin.getItems().value(uuid,dev.raskol.classes.item.ItemStat.COOLDOWN_REDUCTION)/100.0;
+        return Math.max(0.1, (1.0 - agg(uuid).cdPct.getOrDefault(abilityId, 0.0))*(1.0-itemReduction));
     }
 
     public double cooldownSecBonus(UUID uuid, String abilityId) {

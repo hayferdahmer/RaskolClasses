@@ -401,17 +401,17 @@ public final class CombatService implements Listener {
                 if (source instanceof Player srcP) {
                     UUID sUuid = srcP.getUniqueId();
                     Penetration penPhys = penTraits.channelPen(
-                            sUuid, true, plugin.getGearHook(), schoolConfig.penPctCap());
+                            sUuid, true, schoolConfig.penPctCap());
                     Penetration penMagic = penTraits.channelPen(
-                            sUuid, false, plugin.getGearHook(), schoolConfig.penPctCap());
+                            sUuid, false, schoolConfig.penPctCap());
                     physResistPct = penPhys.effectiveResist(physResistPct, schoolConfig.penPctCap());
                     magicResistPct = penMagic.effectiveResist(magicResistPct, schoolConfig.penPctCap());
                     double elPhys = elemental.resistOf(uuid, School.PHYSICAL);
                     double elMagic = elemental.resistOf(uuid, School.ARCANE);
                     double spPhys = penTraits.schoolPenFraction(
-                            sUuid, School.PHYSICAL, plugin.getGearHook(), schoolConfig.penPctCap());
+                            sUuid, School.PHYSICAL, schoolConfig.penPctCap());
                     double spMagic = penTraits.schoolPenFraction(
-                            sUuid, School.ARCANE, plugin.getGearHook(), schoolConfig.penPctCap());
+                            sUuid, School.ARCANE, schoolConfig.penPctCap());
                     effElPhys = CombatMath.effectiveResist(elPhys, 0.0, spPhys, schoolConfig.penPctCap());
                     effElMagic = CombatMath.effectiveResist(elMagic, 0.0, spMagic, schoolConfig.penPctCap());
                 }

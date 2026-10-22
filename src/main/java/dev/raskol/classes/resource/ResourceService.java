@@ -11,6 +11,7 @@ import dev.raskol.classes.event.CustomHealEvent;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.storage.SafeStorage;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -90,12 +91,19 @@ public final class ResourceService implements Listener {
     public ResourceState stateOf(UUID uuid) {
         ResourceState st = states.computeIfAbsent(uuid, k -> new ResourceState());
         Spec2Service svc = plugin.getSpec2Service();
-        if (svc != null) {
-            double maxBonus = svc.resourceMaxBonus(uuid);
-            if (Double.isFinite(maxBonus) && maxBonus > 0.0) {
-                st.setCeiling(MAX_VALUE + maxBonus);
-            }
+        double maxBonus=svc==null?0.0:svc.resourceMaxBonus(uuid);
+        if(!Double.isFinite(maxBonus)||maxBonus<0)maxBonus=0.0;
+        Player player=Bukkit.getPlayer(uuid);
+        if(player!=null&&plugin.getItems()!=null){
+            PlayerClass pc=classProvider.getClassOf(player);
+            dev.raskol.classes.item.ItemStat maxStat=pc==PlayerClass.WARRIOR?dev.raskol.classes.item.ItemStat.MAX_RAGE
+                    :pc==PlayerClass.ROGUE||pc==PlayerClass.HUNTER?dev.raskol.classes.item.ItemStat.MAX_ENERGY
+                    :dev.raskol.classes.item.ItemStat.MAX_MANA;
+            double itemBonus=plugin.getItems().value(uuid,maxStat);
+            if(!Double.isFinite(itemBonus)||itemBonus<0)itemBonus=0.0;
+            maxBonus+=itemBonus;
         }
+        st.setCeiling(MAX_VALUE+maxBonus);
         return st;
     }
 
@@ -206,6 +214,7 @@ public final class ResourceService implements Listener {
                 }
                 default -> rate = config.resourceRegen(pc); // PLAIN: PRIEST, ROGUE
             }
+            if(rate>0&&plugin.getItems()!=null)rate+=plugin.getItems().value(uuid,dev.raskol.classes.item.ItemStat.RESOURCE_REGEN);
             // 1.14.0 (Б7): regen-бонусы только из spec2-агрегата (узлы regen)
             if (svc != null) {
                 rate += svc.regenBonus(uuid);
