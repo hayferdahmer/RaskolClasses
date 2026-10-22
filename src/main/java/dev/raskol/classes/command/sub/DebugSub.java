@@ -220,8 +220,8 @@ public final class DebugSub implements CommandSub {
         }
 
         var penTraits = plugin.getCombat().penTraits();
-        double penPhys = penTraits.totalPenPercent(uuid, "phys", plugin.getGearHook());
-        double penMagic = penTraits.totalPenPercent(uuid, "magic", plugin.getGearHook());
+        double penPhys = penTraits.totalPenPercent(uuid, "phys");
+        double penMagic = penTraits.totalPenPercent(uuid, "magic");
         double penCapPct = plugin.getConfig().getDouble("schools.pen-pct-cap", 0.40) * 100.0;
         sender.sendMessage(Component.text("Пробитие: физ " + SubUtil.fmt1(penPhys)
                 + "% · маг " + SubUtil.fmt1(penMagic) + "% (кап " + SubUtil.fmt1(penCapPct) + "%)",
@@ -274,17 +274,10 @@ public final class DebugSub implements CommandSub {
                 + " · заработано " + plugin.getSpec2Service().earnedPoints(uuid),
                 NamedTextColor.DARK_AQUA));
 
-        var gearHook = plugin.getGearHook();
-        if (gearHook != null && gearHook.isAvailable() && gearHook.hasGear(uuid)) {
-            StringBuilder gearLine = new StringBuilder("Шмот RaskolGear: +")
-                    .append((int) gearHook.physResist(uuid)).append(" физ / +")
-                    .append((int) gearHook.magicResist(uuid)).append(" маг / +")
-                    .append((int) gearHook.hpBonus(uuid)).append(" HP");
-            if (gearHook.reflect(uuid) > 0.0) {
-                gearLine.append(" / шипы ").append((int) gearHook.reflect(uuid)).append("%");
-            }
-            sender.sendMessage(Component.text(gearLine.toString(), NamedTextColor.DARK_AQUA));
-        }
+        var itemStats = plugin.getItems().snapshot(uuid);
+        if (!itemStats.stats().isEmpty()) sender.sendMessage(Component.text("Статы снаряжения: "
+                + itemStats.stats().size() + " · HP +" + (int)itemStats.value(dev.raskol.classes.item.ItemStat.HP_BONUS)
+                + " · отражение " + (int)itemStats.value(dev.raskol.classes.item.ItemStat.REFLECT) + "%",NamedTextColor.DARK_AQUA));
 
         sender.sendMessage(Component.text("Ресурс: " + (int) plugin.getResources().getValue(uuid)
                 + "/100", NamedTextColor.AQUA));

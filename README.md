@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/1.14.16-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.14.16"/>
+  <img src="https://img.shields.io/badge/1.15.0-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.15.0"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a" alt="paper 1.21.4+"/>
   <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a" alt="java 21"/>
   <img src="https://img.shields.io/badge/125%2F125-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 125/125"/>
@@ -302,24 +302,21 @@ Amplifier следующего удара ставится на защищавш
 
 `spec`, `talent_points` и `talents` читают spec2-слой: основная спека, доступные очки, потрачено и заработано.
 
-## RaskolGear
+## Предметы 1.15.0
 
-| Что | Применяет в бою | Считает и показывает |
-| --- | --- | --- |
-| Урон оружия, крит, проки | RaskolGear | — |
-| Резисты шмота, сет-бонусы 4/4 | RaskolGear | RaskolClasses: `/rc gear`, Книга |
-| pen-трейты шмота (1.12.2) | RaskolClasses (`PenTraitsService`) | `/rc debug`, Книга |
-| `+HP` шмота | RaskolClasses (`HpPool`) | HUD, `/rc debug` |
-| Классовые и спек-резисты | RaskolClasses | `ResistService` + spec2-агрегат |
-| Burst и single-hit cap | RaskolClasses | `DamageCaps` |
+`items.yml` содержит настройки генерации, шаблоны, определения и сеты. При первом старте файл копируется из JAR. По умолчанию генерируются 270 предметов: шесть классов × пять слотов × уровни 20/40/60 × COMMON/RARE/EPIC.
 
-WARLOCK-сеты добавляются секциями `weapons.WARLOCK.*` и `armor.WARLOCK.*` в конфиг RaskolGear.
+Команды администратора: `/rc item list`, `/rc item info <id>`, `/rc item give <игрок> <id> [кол-во]`, `/rc item roll <игрок> <id> [seed]`, `/rc item browse`, `/rc item stats [игрок]`; сеты: `/rc set list|info <id>|active <игрок>`. `/rc gear [игрок]` остаётся алиасом для `/rc item stats`.
+
+Предметы должны быть выданы через ItemsApi или админ-команду. Они хранят PDC формата v1; старые предметы RaskolGear не поддерживаются и не мигрируют. Удалите RaskolGear после обновления на 1.15.0.
+
+API для RaskolMobs: `dev.raskol.classes.api.items.ItemsApi`, `dev.raskol.classes.api.combat.CombatProfileRegistry`, `CombatProfile`, `EntityLevelProvider`. RaskolClasses не создаёт мобов и не управляет их дропом.
 
 ## Установка
 
 ```bash
 mvn -B clean package
-cp target/raskol-classes-1.14.16.jar plugins/
+cp target/raskol-classes-1.15.0.jar plugins/
 # перезапуск сервера
 /rc selftest   # ожидается 125/125 PASS
 ```
@@ -327,7 +324,7 @@ cp target/raskol-classes-1.14.16.jar plugins/
 > [!NOTE]
 > При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется). В логе появится строка `spec2: migrated …`.
 
-**Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `RaskolGear` · `AuthMe` · `Essentials` · `packetevents`. Каждый опционален, деградация graceful.
+**Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints`. Каждый опционален, деградация graceful.
 
 <details>
 <summary><b>Регресс-матрица selftest</b> · 125 чеков</summary>

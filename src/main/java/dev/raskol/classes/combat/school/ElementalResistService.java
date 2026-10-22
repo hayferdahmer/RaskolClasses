@@ -13,8 +13,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Хранит source-модификаторы вида «источник → школа → %», суммирует активные
  * по школе и клампит в schools.elemental.resist-cap (дефолт 60%).
  *
- * Источники модификаторов (подключаются следующими блоками 1.12.2):
- *  - Блок 2: gear-трейты RaskolGear (PDC-ключи raskolgear:*_resist);
+ * Источники модификаторов:
+ *  - предметные резисты из экипировочного снапшота;
  *  - Блок 3: таланты (effect kind elem_resist) и спеки (passive-трейты);
  *  - уже сейчас: админ/ивенты через addPermanent/addTimed.
  *

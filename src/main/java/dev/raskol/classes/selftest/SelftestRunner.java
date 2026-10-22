@@ -37,7 +37,7 @@ import dev.raskol.classes.command.sub.CcSub;
 import dev.raskol.classes.config.CcSanity;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
-import dev.raskol.classes.hook.GearHook;
+import dev.raskol.classes.item.ItemStat;
 import dev.raskol.classes.pet.PetDef;
 import dev.raskol.classes.pet.PetMath;
 import dev.raskol.classes.resource.ResourceState;
@@ -303,8 +303,26 @@ public final class SelftestRunner {
         plusSubscription(plugin, r);
         // 1.14.16 (Волна 15C): apply-чеки — probe-зависимы (меняют и восстанавливают ранги)
         plusApply(plugin, r, probe);
+        items115(plugin, r);
 
         print(plugin, sender, r);
+    }
+
+    /** Release acceptance checks for the 1.15.0 equipment registry. */
+    private static void items115(RaskolClasses plugin, Report r) {
+        boolean loaded=plugin.getItems()!=null&&plugin.getItems().registry()!=null;
+        int count=loaded?plugin.getItems().registry().size():0;
+        r.check("128","1.15.0: реестр экипировки загружен (270 стартовых определений)",
+                loaded&&count>=270,"ItemSystem.registry",loaded?"loaded="+count:"missing");
+        boolean valid=loaded&&plugin.getItems().registry().all().stream().allMatch(item->
+                item.id().matches("[a-z0-9_]{3,48}")&&item.itemLevel()>=1&&item.itemLevel()<=60
+                        &&item.affixCount()<=item.affixPool().size());
+        r.check("129","1.15.0: определения предметов проходят базовые инварианты",
+                valid,"ItemDefinition","OK");
+        boolean gearRemoved=plugin.getServer().getPluginManager().getPlugin("RaskolGear")==null
+                &&!plugin.getDescription().getSoftDepend().contains("RaskolGear");
+        r.check("130","1.15.0: обратная зависимость от RaskolGear удалена",
+                gearRemoved,"plugin.yml/PluginManager",gearRemoved?"OK":"RaskolGear still referenced");
     }
 
     private static void print(RaskolClasses plugin, CommandSender sender, Report r) {
@@ -865,22 +883,22 @@ public final class SelftestRunner {
         r.check("56", "elemental→mitigation связка", ok56, "SchoolMitigation(elemental)",
                 String.format(Locale.ROOT, "%.1f/%.4f", elPct, mitCombined));
 
-        double g1 = GearHook.clampPenFraction(60.0, 0.40);
-        double g2 = GearHook.clampPenFraction(10.0, 0.40);
-        double g3 = GearHook.clampPenFraction(-5.0, 0.40);
-        double g4 = GearHook.clampPenFraction(Double.NaN, 0.40);
+        double g1 = PenTraitsService.clampSumPercent(60.0, 0.40);
+        double g2 = PenTraitsService.clampSumPercent(10.0, 0.40);
+        double g3 = PenTraitsService.clampSumPercent(-5.0, 0.40);
+        double g4 = PenTraitsService.clampSumPercent(Double.NaN, 0.40);
         boolean ok57 = Math.abs(g1 - 0.40) < 1e-9
                 && Math.abs(g2 - 0.10) < 1e-9
                 && g3 == 0.0
                 && g4 == 0.0;
-        r.check("57", "gear-pen clamp", ok57, "GearHook.clampPenFraction",
+        r.check("57", "item-pen clamp", ok57, "PenTraitsService.clampSumPercent",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f/%.1f", g1, g2, g3, g4));
 
-        Penetration gearPen = Penetration.of(0.0, GearHook.clampPenFraction(25.0, 0.40));
-        double mitGear = SchoolMitigation.mitigationFor(60.0, gearPen, 0.40, 0.0, false, 0.80);
-        boolean ok58 = Math.abs(mitGear - 0.45) < 1e-6;
-        r.check("58", "gear-pen→mitigation", ok58, "SchoolMitigation(gearPen)",
-                String.format(Locale.ROOT, "%.4f", mitGear));
+        Penetration itemPen = Penetration.of(0.0, PenTraitsService.clampSumPercent(25.0, 0.40));
+        double mitItem = SchoolMitigation.mitigationFor(60.0, itemPen, 0.40, 0.0, false, 0.80);
+        boolean ok58 = Math.abs(mitItem - 0.45) < 1e-6;
+        r.check("58", "item-pen→mitigation", ok58, "SchoolMitigation(itemPen)",
+                String.format(Locale.ROOT, "%.4f", mitItem));
 
         double pc1 = PenTraitsService.clampSumPercent(45.0, 0.40);
         double pc2 = PenTraitsService.clampSumPercent(15.0, 0.40);
@@ -894,8 +912,8 @@ public final class SelftestRunner {
         PenTraitsService pts = new PenTraitsService(plugin);
         UUID pu60 = UUID.randomUUID();
         double t60 = pts.talentPenPercent(pu60, "phys");
-        double g60 = pts.schoolPenFraction(pu60, School.FIRE, plugin.getGearHook(), 0.40);
-        double c60 = pts.channelPen(pu60, true, plugin.getGearHook(), 0.40).pct();
+        double g60 = pts.schoolPenFraction(pu60, School.FIRE, 0.40);
+        double c60 = pts.channelPen(pu60, true, 0.40).pct();
         boolean ok60 = t60 == 0.0 && g60 == 0.0 && c60 == 0.0;
         r.check("60", "pen-трейты без контента = 0 (spec2/gear/channel)", ok60,
                 "PenTraitsService.*",

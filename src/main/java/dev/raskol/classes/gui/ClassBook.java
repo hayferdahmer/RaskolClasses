@@ -9,7 +9,7 @@ import dev.raskol.classes.gui.book.BookItems;
 import dev.raskol.classes.gui.book.BookSlots;
 import dev.raskol.classes.gui.book.BookTabView;
 import dev.raskol.classes.gui.book.ClassTab;
-import dev.raskol.classes.gui.book.GearTab;
+import dev.raskol.classes.gui.book.EquipmentTab;
 import dev.raskol.classes.gui.book.RenderCtx;
 import dev.raskol.classes.gui.book.SpecsTab;
 import dev.raskol.classes.gui.book.TalentsTab;
@@ -43,7 +43,7 @@ public final class ClassBook implements InventoryHolder {
             Tab.SPECS, new SpecsTab(),
             Tab.CLASS, new ClassTab(),
             Tab.TALENTS, new TalentsTab(),
-            Tab.GEAR, new GearTab());
+            Tab.GEAR, new EquipmentTab());
 
     private Inventory inventory;
     private final UUID owner;

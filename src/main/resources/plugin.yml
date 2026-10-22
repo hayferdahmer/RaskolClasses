@@ -13,7 +13,6 @@ softdepend:
   - RaskolCore
   - Towny
   - Vault
-  - RaskolGear
   - AuthMe
   - Essentials
   - packetevents
@@ -40,6 +39,12 @@ permissions:
     default: op
   raskolclasses.admin.cc:
     description: "CC/DR-админка: /rc cc status|clear|test|reset|list"
+    default: op
+  raskolclasses.admin.item:
+    description: "Просмотр реестра предметов и админский браузер"
+    default: op
+  raskolclasses.admin.item.give:
+    description: "Выдача и тестовый ролл предметов"
     default: op
   # 1.14.15: raskolspec+
   raskolclasses.plus.use:

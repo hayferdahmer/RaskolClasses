@@ -32,12 +32,16 @@ import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.gui.PlusGui;
+import dev.raskol.classes.gui.book.ItemBrowserMenu;
 import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
-import dev.raskol.classes.hook.GearHook;
 import dev.raskol.classes.hook.PassportChangeListener;
-import dev.raskol.classes.hook.SetBonusService;
+import dev.raskol.classes.item.ItemSystem;
+import dev.raskol.classes.api.items.ItemsApi;
+import dev.raskol.classes.api.combat.CombatProfileRegistry;
+import dev.raskol.classes.api.combat.CombatProfileLifecycleListener;
+import dev.raskol.classes.api.combat.EntityLevelProvider;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
@@ -137,8 +141,10 @@ public final class RaskolClasses extends JavaPlugin {
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
 
-    private GearHook gearHook;
-    private SetBonusService setBonusService;
+    private ItemSystem items;
+    private ItemsApi itemsApi;
+    private CombatProfileRegistry combatProfiles;
+    private EntityLevelProvider entityLevelProvider;
     private BlueprintHook blueprintHook;
     private FoliantService foliantService;
 
@@ -175,6 +181,7 @@ public final class RaskolClasses extends JavaPlugin {
     private PlusSubscription plusSubscription;
     /** 1.14.15 (фаза 2): raskolspec+ — GUI каталога и применения шаблонов. */
     private PlusGui plusGui;
+    private ItemBrowserMenu itemBrowser;
 
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
@@ -202,12 +209,12 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("LuckPerms не найден — определение классов отключено");
         }
 
-        this.gearHook = new GearHook(this);
-        pluginManager.registerEvents(gearHook, this);
-        gearHook.logStartup();
-
-        this.setBonusService = new SetBonusService(this);
-        pluginManager.registerEvents(setBonusService, this);
+        this.items = new ItemSystem(this);
+        this.itemsApi = new ItemsApi(this);
+        this.combatProfiles = new CombatProfileRegistry();
+        pluginManager.registerEvents(new CombatProfileLifecycleListener(combatProfiles),this);
+        this.itemBrowser = new ItemBrowserMenu(this);
+        pluginManager.registerEvents(itemBrowser,this);
 
         this.blueprintHook = new BlueprintHook(this);
         blueprintHook.registerBlueprints();
@@ -240,6 +247,7 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.resists = new ResistService(this);
         this.combat = new CombatService(this, resists);
+        if (items != null && getConfig().getBoolean("item.enabled", true)) items.start();
         // 1.14.13 (Волна 13B-b): DotService создаётся в конструкторе CombatService
         // (чистая ссылка); регистрируем и запускаем тик отсюда.
         combat.dots().registerListeners();
@@ -406,6 +414,7 @@ public final class RaskolClasses extends JavaPlugin {
         WarlockAbilities.cancelAllChannelTasks();
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
+        if (items != null) items.stop();
         if (passportListener != null) {
             passportListener.unregister();
         }
@@ -480,11 +489,10 @@ public final class RaskolClasses extends JavaPlugin {
         }
         fx.validateConfig();
         configValidator.validate();
+        if (items != null) items.reload();
         for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
             spec2Service.reconcile(online.getUniqueId());
-            if (gearHook != null) {
-                gearHook.refresh(online);
-            }
+            if (items != null) items.reconcile(online);
         }
         if (hpSync != null) {
             hpSync.syncAll();
@@ -519,8 +527,14 @@ public final class RaskolClasses extends JavaPlugin {
     public Spec2EffectsApplier getSpec2Applier() { return spec2Applier; }
     public FactionHook getFactionHook() { return factionHook; }
     public CrownFlavorService getFlavorService() { return flavorService; }
-    public GearHook getGearHook() { return gearHook; }
-    public SetBonusService getSetBonusService() { return setBonusService; }
+    public ItemSystem getItems() { return items; }
+    public ItemsApi getItemsApi() { return itemsApi; }
+    public ItemBrowserMenu getItemBrowser() { return itemBrowser; }
+    public CombatProfileRegistry getCombatProfiles() { return combatProfiles; }
+    /** Register an optional provider implemented by RaskolMobs. */
+    public void setEntityLevelProvider(EntityLevelProvider provider) { this.entityLevelProvider=provider; }
+    /** Return the current integration-owned level provider, if one is registered. */
+    public EntityLevelProvider getEntityLevelProvider() { return entityLevelProvider; }
     public BlueprintHook getBlueprintHook() { return blueprintHook; }
     public FoliantService getFoliantService() { return foliantService; }
     public FxService getFx() { return fx; }
