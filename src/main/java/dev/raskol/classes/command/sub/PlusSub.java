@@ -174,7 +174,7 @@ public final class PlusSub implements CommandSub {
                     + plugin.getImperialWallet().balance(player.getUniqueId())));
             case WALLET_UNAVAILABLE -> player.sendMessage(err("Кошелёк империалов недоступен"));
             case STORAGE_FAILED -> player.sendMessage(err("Покупка отменена: не удалось сохранить подписку. "
-                    + "Списание возвращено; сообщи администратору, если баланс не восстановился."));
+                    + "Плагин попытался вернуть списание; проверь баланс и сообщи администратору, если очки не вернулись."));
             case DISABLED -> player.sendMessage(err("Покупка raskolspec+ временно отключена"));
         }
     }
@@ -264,7 +264,7 @@ public final class PlusSub implements CommandSub {
                     .message("plus.gift-wallet-off",
                             "Кошелёк империалов недоступен")));
             case STORAGE_FAILED -> from.sendMessage(err("Подарок отменён: не удалось сохранить подписку. "
-                    + "Списание возвращено; сообщи администратору, если баланс не восстановился."));
+                    + "Плагин попытался вернуть списание; проверь баланс и сообщи администратору, если очки не вернулись."));
             case DISABLED -> from.sendMessage(err("Подарки raskolspec+ временно отключены"));
         }
     }
