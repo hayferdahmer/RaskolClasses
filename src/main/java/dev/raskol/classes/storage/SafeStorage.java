@@ -64,8 +64,13 @@ public final class SafeStorage {
      * replace (всё ещё безопаснее прямой записи в целевой файл).
      */
     public static void saveAtomic(YamlConfiguration cfg, File file, Logger logger) {
+        saveAtomicResult(cfg, file, logger);
+    }
+
+    /** Same atomic save, with an outcome for transactions that must not commit on I/O failure. */
+    public static boolean saveAtomicResult(YamlConfiguration cfg, File file, Logger logger) {
         if (cfg == null || file == null) {
-            return;
+            return false;
         }
         File tmp = new File(file.getParentFile(), file.getName() + ".tmp");
         try {
@@ -80,11 +85,14 @@ public final class SafeStorage {
             } catch (IOException atomicUnsupported) {
                 Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
+            return true;
         } catch (IOException | IllegalArgumentException e) {
             logger.log(Level.SEVERE, "SafeStorage: не удалось сохранить " + file.getName(), e);
             if (tmp.exists() && !tmp.delete()) {
                 logger.warning("SafeStorage: не удалось удалить временный файл " + tmp.getName());
             }
+            return false;
         }
     }
 }
+
