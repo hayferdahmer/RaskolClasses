@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/1.14.14-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.14.14"/>
+  <img src="https://img.shields.io/badge/1.14.15-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.14.15"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a" alt="paper 1.21.4+"/>
   <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a" alt="java 21"/>
-  <img src="https://img.shields.io/badge/122%2F122-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 120/120"/>
+  <img src="https://img.shields.io/badge/125%2F125-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 125/125"/>
   <img src="https://img.shields.io/badge/proprietary-000000?style=flat-square&label=license&labelColor=0a0a0a" alt="license proprietary"/>
 </p>
 
@@ -19,6 +19,7 @@
   <a href="#классы-и-традиции">Классы</a> ·
   <a href="#деревья-путей">Деревья путей</a> ·
   <a href="#боевые-системы">Боевые системы</a> ·
+  <a href="#raskolspec">raskolspec+</a> ·
   <a href="#архитектура">Архитектура</a> ·
   <a href="#команды">Команды</a> ·
   <a href="#установка">Установка</a>
@@ -31,7 +32,7 @@
     <td align="center"><b>8</b><br/><sub>школ урона</sub></td>
     <td align="center"><b>9</b><br/><sub>типов контроля</sub></td>
     <td align="center"><b>5</b><br/><sub>видов DoT</sub></td>
-    <td align="center"><b>122</b><br/><sub>headless-чеков</sub></td>
+    <td align="center"><b>125</b><br/><sub>headless-чеков</sub></td>
   </tr>
 </table>
 
@@ -258,6 +259,11 @@ Amplifier следующего удара ставится на защищавш
 | `/rc cc list\|status\|clear\|test\|reset` | `raskolclasses.admin.cc` | Админка контроля с DR |
 | `/rc foliant give <ник>` | `raskolclasses.admin` | Выдать Фолиант Душ |
 | `/rc reload` | `raskolclasses.admin` | Перезагрузка `config.yml` + `kits/*.yml` |
+| `/rc plus` | `raskolclasses.plus.use` | GUI raskolspec+: каталог шаблонов текущей спеки |
+| `/rc plus status [ник]` | `raskolclasses.plus.use` | статус подписки (дни/истёк) |
+| `/rc plus gift <ник> <n>` | `raskolclasses.plus.use` | подарить n периодов (списание империалов) |
+| `/rc plus grant <ник> <n>` | `raskolclasses.admin.plus` | выдать подписку (консоль/DeluxeMenus) |
+| `/rc plus revoke <ник>` | `raskolclasses.admin.plus` | отозвать подписку |
 
 ## Плейсхолдеры
 
@@ -288,9 +294,9 @@ WARLOCK-сеты добавляются секциями `weapons.WARLOCK.*` и 
 
 ```bash
 mvn -B clean package
-cp target/raskol-classes-1.14.14.jar plugins/
+cp target/raskol-classes-1.14.15.jar plugins/
 # перезапуск сервера
-/rc selftest   # ожидается 122/122 PASS
+/rc selftest   # ожидается 125/125 PASS
 ```
 
 > [!NOTE]
@@ -299,7 +305,7 @@ cp target/raskol-classes-1.14.14.jar plugins/
 **Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `RaskolGear` · `AuthMe` · `Essentials` · `packetevents`. Каждый опционален, деградация graceful.
 
 <details>
-<summary><b>Регресс-матрица selftest</b> · 122 чека</summary>
+<summary><b>Регресс-матрица selftest</b> · 125 чеков</summary>
 
 | Область | Чеки |
 | --- | :-: |
@@ -320,6 +326,7 @@ cp target/raskol-classes-1.14.14.jar plugins/
 | kit_dur, attack_speed, контракт C | 114–116 |
 | HAS_DEPENDENTS, антиспам-метка | 117–118 |
 | Стоп-лист и достижимость spec2 | 121–122 |
+| raskolspec+: шаблоны/подписка/stale | 123–125 |
 
 Полный прогон — перед любым хотфиксом и релизом. Skip-чеки считаются отдельно и не входят в PASS-счётчик (с sprint 1).
 
