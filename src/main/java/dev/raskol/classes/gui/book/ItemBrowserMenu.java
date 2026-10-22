@@ -2,6 +2,8 @@ package dev.raskol.classes.gui.book;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.item.ItemDefinition;
+import dev.raskol.classes.item.ItemRarity;
+import dev.raskol.classes.item.ItemSlot;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
