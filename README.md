@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/1.15.0-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.15.0"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a" alt="paper 1.21.4+"/>
   <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a" alt="java 21"/>
-  <img src="https://img.shields.io/badge/125%2F125-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 125/125"/>
+  <img src="https://img.shields.io/badge/130%2F130-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 130/130"/>
   <img src="https://img.shields.io/badge/proprietary-000000?style=flat-square&label=license&labelColor=0a0a0a" alt="license proprietary"/>
 </p>
 
@@ -32,7 +32,7 @@
     <td align="center"><b>8</b><br/><sub>школ урона</sub></td>
     <td align="center"><b>9</b><br/><sub>типов контроля</sub></td>
     <td align="center"><b>5</b><br/><sub>видов DoT</sub></td>
-    <td align="center"><b>125</b><br/><sub>headless-чеков</sub></td>
+    <td align="center"><b>130</b><br/><sub>headless-чеков</sub></td>
   </tr>
 </table>
 
@@ -258,28 +258,32 @@ Amplifier следующего удара ставится на защищавш
 | Проки | `combat/ProcService`: amplifier, expose, undodgeable, stealth-состояния, crit-mult, dot-extend, vendetta refresh |
 | Лечение | `event/CustomHealEvent` + `Spec2RoleListener` (композиция heal_out, HEALER, heal_received, TANK) |
 | Петы | `pet/*`: `PetDef`, `PetMath` (pure), `PetService` (жизненный цикл, баффы, гейты) |
+| Предметы 1.15.0 | `item/*`: определения, шаблоны, PDC v1, снапшоты, аффиксы, сеты; `api/items` и `api/combat` |
 | Спек 2.0: модель | `spec/*`: `Spec` (18), `SpecRole`, `SpecRoles`; `spec/model/*` |
 | Спек 2.0: реестр | `spec/registry/trees/*Trees` (18 деревьев) |
 | Спек 2.0: хранилище | `spec/storage/Spec2Storage` (`spec2-storage.yml`, миграция из `spec2.yml`) |
 | Спек 2.0: сервис | `spec/service/Spec2Service` + `Spec2EffectsApplier`; `spec/listen/Spec2RoleListener` |
 | Атрибуты | `AttributeService` (фасад) + `HpPool` (план B) + `AttributeModifiers` |
 | HUD | `HpBarService` (HP и ресурс, отложенная запись `health.yml`) + `HudService` (DoT-строка, dirty-rendering) |
-| Книга | `ClassBook` (фасад) + `gui/book/*Tab` (5 вкладок: пагинация рядов, переключатель спек, ПКМ-респец узла) |
-| Команды | `RaskolCommand` (роутер) + `command/sub/*Sub` (debug, gear, foliant, health, cc) |
+| Книга | `ClassBook` (фасад) + `gui/book/*Tab` (6 вкладок, включая «Снаряжение») |
+| Команды | `RaskolCommand` (роутер) + `command/sub/*Sub` (debug, item, set, gear alias, foliant, health, cc) |
 | Конфиг | `config.yml` (avoidance и hp-display в корне с 1.14.6-fix) + per-class `kits/<class>.yml` |
-| Тесты | `/rc selftest` — **122 headless-чека** |
+| Тесты | `/rc selftest` — **130 headless-чеков** |
 
 ## Команды
 
 | Команда | Права | Описание |
 | --- | --- | --- |
 | `/rc` | — | Сводка игрока |
-| `/rc menu` | `raskolclasses.menu` | Книга класса (5 вкладок) |
-| `/rc gear [player]` | `raskolclasses.debug` | Экипировка, статы шмота, сеты N/4 |
+| `/rc menu` | `raskolclasses.menu` | Книга класса (6 вкладок, включая экипировку) |
+| `/rc item list|info|give|roll|browse|stats` | `raskolclasses.admin.item` / `.give` / `debug` | Реестр и управление предметами |
+| `/rc set list|info|active` | `raskolclasses.admin.item` | Сеты и активные пороги |
+| `/rc gear [player]` | `raskolclasses.debug` | Псевдоним статистики экипировки |
 | `/rc debug [player]` | `raskolclasses.debug` | Атрибуты, резисты, pen, стихии, CC/DR, очки путей |
+| `/rc debug profile` | `raskolclasses.debug` | Боевой профиль моба в прицеле |
 | `/rc debug simulate …` | `raskolclasses.debug` | Дуэль и матрица TTK 6×6 |
 | `/rc health` | `raskolclasses.debug` | MSPT/TPS, purge, аптайм, per-class конфиги |
-| `/rc selftest` | `raskolclasses.debug` | 120 headless-чеков |
+| `/rc selftest` | `raskolclasses.debug` | 130 headless-чеков |
 | `/rc cc list\|status\|clear\|test\|reset` | `raskolclasses.admin.cc` | Админка контроля с DR |
 | `/rc foliant give <ник>` | `raskolclasses.admin` | Выдать Фолиант Душ |
 | `/rc reload` | `raskolclasses.admin` | Перезагрузка `config.yml` + `kits/*.yml` |
@@ -318,7 +322,7 @@ API для RaskolMobs: `dev.raskol.classes.api.items.ItemsApi`, `dev.raskol.clas
 mvn -B clean package
 cp target/raskol-classes-1.15.0.jar plugins/
 # перезапуск сервера
-/rc selftest   # ожидается 125/125 PASS
+/rc selftest   # ожидается 130/130 PASS
 ```
 
 > [!NOTE]
@@ -327,7 +331,7 @@ cp target/raskol-classes-1.15.0.jar plugins/
 **Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints`. Каждый опционален, деградация graceful.
 
 <details>
-<summary><b>Регресс-матрица selftest</b> · 125 чеков</summary>
+<summary><b>Регресс-матрица selftest</b> · 130 чеков</summary>
 
 | Область | Чеки |
 | --- | :-: |
@@ -349,6 +353,7 @@ cp target/raskol-classes-1.15.0.jar plugins/
 | HAS_DEPENDENTS, антиспам-метка | 117–118 |
 | Стоп-лист и достижимость spec2 | 121–122 |
 | raskolspec+: шаблоны/подписка/stale | 123–125 |
+| Предметы 1.15.0: реестр, инварианты, удаление Gear | 128–130 |
 
 Полный прогон — перед любым хотфиксом и релизом. Skip-чеки считаются отдельно и не входят в PASS-счётчик (с sprint 1).
 
@@ -366,3 +371,4 @@ cp target/raskol-classes-1.15.0.jar plugins/
 <p align="center">
   <sub>© 2026 hayferdahmer · RASKOL Proprietary License v1.0<br/>использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
 </p>
+
