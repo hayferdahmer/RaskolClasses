@@ -2,9 +2,6 @@
 package dev.raskol.classes.gui;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.gui.book.BookSession;
-import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.build.Archetype;
 import dev.raskol.classes.spec.build.BuildTemplate;
 import dev.raskol.classes.spec.build.BuildTemplates;
@@ -21,6 +18,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -35,27 +33,28 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 1.14.15 (raskolspec+): GUI подписки.
  *
- * Экран 1 (upsell / каталог): 27 слотов.
- *   - слот 4: иконка статуса подписки (активна / не активна);
- *   - слоты 11, 15: карточки PvP/PvE шаблонов текущей спеки;
+ * Экран 1 (CATALOG, 27 слотов):
+ *   - слот 4: иконка статуса подписки (активна / не активна + цена);
+ *   - слоты 11, 15: карточки PvP/PvE шаблонов текущей основной спеки;
  *   - слот 22: выход.
  *
- * Экран 2 (confirm-apply): 27 слотов.
- *   - слот 4: икона применяемого шаблона + лор (топ-5 узлов);
+ * Экран 2 (CONFIRM, 27 слотов):
+ *   - слот 4: икона применяемого шаблона + лор (узлы/очки/патч);
  *   - слот 11: «✔ Применить» (двойной клик: взвод 30 с + подтверждение);
  *   - слот 15: «✖ Назад».
  *
- * Без подписки: карточки заблокированы (lore: «🔒 требуется raskolspec+»),
- * клик по ним открывает upsell-экран с ценой/путём покупки.
- * Stale-шаблоны: помечены «⚠ обновляется после баланс-патча», не применимы.
+ * Без подписки: карточки показывают тизер (имя/tagline/счётчики + «🔒 требуется
+ * raskolspec+»), клик шлёт upsell-сообщение с ценой и путём покупки (тезер-модель
+ * Dota Plus, согласована в ТЗ 1.14.15). Stale-шаблоны помечаются
+ * «⚠ обновляется после баланс-патча» и не применимы.
  *
- * Архитектурно: PlusGui — stateless-facade, сессия игрока в BookSession
- * (существующая книга класса переиспользует ту же инфраструктуру).
- * Confirm-взвод (arm-window 30 с) — per-player ConcurrentHashMap,
- * чистится onClose / onApply / периодической sweep-задачей.
+ * 1.14.15-fix: маршрутизация кликов — через InventoryHolder с enum-экраном
+ * (паттерн FoliantService.FoliantHolder). Прежний детект по title() был
+ * некорректен (examinableName() возвращает тип Adventure-компонента, а не текст),
+ * а импорт несуществующего BookSession убран.
  *
- * 1.14.15: первый чек-ин; apply-логика делегируется в ApplyApplier (будет в 15B-финале,
- * пока возвращаем OK-сообщение без фактического сброса дерева — safety first).
+ * Apply-логика в первом чек-ине 15B — заглушка с OK-сообщением (UX-валидация);
+ * реальный resetTree+setRanks+reconcile подключается в 15C после ручного теста.
  */
 public final class PlusGui implements Listener {
 
@@ -71,6 +70,28 @@ public final class PlusGui implements Listener {
 
     private static final long ARM_WINDOW_MS = 30_000L;
 
+    /** Экран GUI — хранится в holder'е, клик маршрутизируется по нему. */
+    public enum Screen { CATALOG, CONFIRM }
+
+    /** 1.14.15-fix: holder вместо парсинга title (паттерн FoliantHolder). */
+    private static final class PlusHolder implements InventoryHolder {
+        private final Screen screen;
+        private Inventory inventory;
+
+        PlusHolder(Screen screen) {
+            this.screen = screen;
+        }
+
+        Screen screen() {
+            return screen;
+        }
+
+        @Override
+        public Inventory getInventory() {
+            return inventory;
+        }
+    }
+
     private final RaskolClasses plugin;
     private final Map<UUID, Long> armedUntil = new ConcurrentHashMap<>();
     private final Map<UUID, PendingApply> pending = new ConcurrentHashMap<>();
@@ -81,7 +102,7 @@ public final class PlusGui implements Listener {
 
     /* ------------------------------ публичный API ------------------------------ */
 
-    /** Открыть upsell/каталог-экран для текущей спеки игрока. */
+    /** Открыть каталог-экран для основной спеки игрока. */
     public void openCatalog(Player player) {
         BuildTemplates templates = plugin.getBuildTemplates();
         PlusSubscription sub = plugin.getPlusSubscription();
@@ -95,8 +116,11 @@ public final class PlusGui implements Listener {
             return;
         }
 
-        String title = plugin.getRaskolConfig().message("plus.gui.title", "⚜ raskolspec+");
-        Inventory inv = Bukkit.createInventory(null, SIZE, Component.text(title, NamedTextColor.GOLD));
+        PlusHolder holder = new PlusHolder(Screen.CATALOG);
+        Inventory inv = Bukkit.createInventory(holder, SIZE,
+                Component.text(plugin.getRaskolConfig()
+                        .message("plus.gui.title", "⚜ raskolspec+"), NamedTextColor.GOLD));
+        holder.inventory = inv;
 
         boolean active = sub.active(uuid);
         inv.setItem(SLOT_STATUS, statusItem(active, sub.remainingDays(uuid), sub));
@@ -117,57 +141,53 @@ public final class PlusGui implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-        String title = event.getView().title().examinableName()
-                .replace("net.kyori.adventure.text.", "");
-        if (!title.contains("raskolspec+")) return;
-
-        event.setCancelled(true);
-        int slot = event.getRawSlot();
-        if (slot < 0 || slot >= SIZE) return;
-
-        PlusSubscription sub = plugin.getPlusSubscription();
-        UUID uuid = player.getUniqueId();
-        boolean active = sub.active(uuid);
-
-        // Confirm-экран (27 слотов, но слот 11 = «Применить», 15 = «Назад»)
-        if (title.contains("Применить") || isConfirmView(event)) {
-            handleConfirmClick(player, slot, active);
+        if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
+        // 1.14.15-fix: маршрутизация по holder'у, а не по тексту title
+        if (!(event.getInventory().getHolder() instanceof PlusHolder holder)) {
+            return;
+        }
+        event.setCancelled(true);
+        int slot = event.getRawSlot();
+        if (slot < 0 || slot >= SIZE) {
+            return; // клик в нижний инвентарь игрока — только блокировка
+        }
 
-        // Каталог-экран
-        switch (slot) {
-            case SLOT_PVP -> handleCardClick(player, Archetype.PVP, active);
-            case SLOT_PVE -> handleCardClick(player, Archetype.PVE, active);
-            case SLOT_EXIT -> player.closeInventory();
-            default -> { /* pane, некликабельно */ }
+        PlusSubscription sub = plugin.getPlusSubscription();
+        boolean active = sub.active(player.getUniqueId());
+
+        switch (holder.screen()) {
+            case CATALOG -> {
+                switch (slot) {
+                    case SLOT_PVP -> handleCardClick(player, Archetype.PVP, active);
+                    case SLOT_PVE -> handleCardClick(player, Archetype.PVE, active);
+                    case SLOT_EXIT -> player.closeInventory();
+                    default -> { /* pane/status — некликабельно */ }
+                }
+            }
+            case CONFIRM -> handleConfirmClick(player, slot);
         }
     }
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
-        if (!(event.getPlayer() instanceof Player player)) return;
-        // Чистим armed-state только если закрыт PlusGui (защита от утечки памяти)
-        String title = event.getView().title().examinableName();
-        if (title.contains("raskolspec+")) {
+        if (!(event.getPlayer() instanceof Player player)) {
+            return;
+        }
+        if (event.getInventory().getHolder() instanceof PlusHolder) {
             armedUntil.remove(player.getUniqueId());
             pending.remove(player.getUniqueId());
         }
     }
 
-    private boolean isConfirmView(InventoryClickEvent event) {
-        // Детект по наличию pending-записи + слоту CONFIRM_APPLY
-        UUID uuid = event.getWhoClicked().getUniqueId();
-        return pending.containsKey(uuid);
-    }
-
     private void handleCardClick(Player player, Archetype archetype, boolean active) {
+        PlusSubscription sub = plugin.getPlusSubscription();
         if (!active) {
-            // Upsell: открыть экран с ценой/путём покупки
-            PlusSubscription sub = plugin.getPlusSubscription();
-            player.sendMessage(msg(plugin.getRaskolConfig().message("plus.no-sub",
-                    "⚜ Требуется подписка raskolspec+ · цена: {price} ⚜ империалов / {days} дн.")
+            // Тизер-модель: upsell-сообщение с ценой и путём покупки
+            player.sendMessage(msg(plugin.getRaskolConfig()
+                    .message("plus.no-sub",
+                            "⚜ Требуется подписка raskolspec+ · цена: {price} ⚜ империалов / {days} дн.")
                     .replace("{price}", String.valueOf(sub.pricePerPeriod()))
                     .replace("{days}", String.valueOf(sub.periodDays()))));
             return;
@@ -201,11 +221,12 @@ public final class PlusGui implements Listener {
     }
 
     private void openConfirmScreen(Player player, BuildTemplate t) {
-        String title = plugin.getRaskolConfig()
-                .message("plus.gui.confirm-title", "⚜ Применить «{name}»?")
-                .replace("{name}", t.name());
-        Inventory inv = Bukkit.createInventory(null, SIZE,
-                Component.text(title, NamedTextColor.GOLD));
+        PlusHolder holder = new PlusHolder(Screen.CONFIRM);
+        Inventory inv = Bukkit.createInventory(holder, SIZE,
+                Component.text(plugin.getRaskolConfig()
+                        .message("plus.gui.confirm-title", "⚜ Применить «{name}»?")
+                        .replace("{name}", t.name()), NamedTextColor.GOLD));
+        holder.inventory = inv;
 
         inv.setItem(CONFIRM_TEMPLATE, templateIcon(t));
         inv.setItem(CONFIRM_APPLY, confirmApplyItem());
@@ -219,7 +240,7 @@ public final class PlusGui implements Listener {
         player.openInventory(inv);
     }
 
-    private void handleConfirmClick(Player player, int slot, boolean active) {
+    private void handleConfirmClick(Player player, int slot) {
         UUID uuid = player.getUniqueId();
         PendingApply p = pending.get(uuid);
 
@@ -236,7 +257,7 @@ public final class PlusGui implements Listener {
         long now = System.currentTimeMillis();
         Long armed = armedUntil.get(uuid);
         if (armed == null || now > armed) {
-            // Первый клик — взводим
+            // Первый клик — взвод (паттерн респека кристаллом)
             armedUntil.put(uuid, now + ARM_WINDOW_MS);
             player.sendMessage(msg(plugin.getRaskolConfig()
                     .message("plus.gui.confirm-arm",
@@ -244,18 +265,16 @@ public final class PlusGui implements Listener {
             return;
         }
 
-        // Второй клик в окне — применяем
+        // Второй клик в окне — применение
         pending.remove(uuid);
         armedUntil.remove(uuid);
         applyTemplate(player, p);
     }
 
     /**
-     * 1.14.15: применение шаблона.
-     * В первом чек-ине 15B — только сообщение без реального resetTree/setRanks,
-     * чтобы не сломать живые билды игроков на dev-сервере. Реальная логика
-     * (resetTree(treeId, free=true для админа) + setRanks из шаблона + reconcile)
-     * будет подключена в финальном коммите 15B после ручного UX-теста.
+     * 1.14.15: применение шаблона. В первом чек-ине 15B — только сообщение
+     * (UX-валидация GUI-флоу); реальный resetTree + setRanks + reconcile
+     * подключается в 15C.
      */
     private void applyTemplate(Player player, PendingApply p) {
         BuildTemplates templates = plugin.getBuildTemplates();
@@ -272,8 +291,8 @@ public final class PlusGui implements Listener {
             return;
         }
 
-        // TODO(15B-final): подключить Spec2Service.resetTree + storage.setRanks.
-        // Сейчас — только OK-сообщение для UX-валидации GUI-флоу.
+        // TODO(15C): Spec2Service.resetTree(tree, free=admin) + storage.setRanks(template)
+        //           + reconcile; экономика — только стоимость респека дерева.
         player.sendMessage(msg(plugin.getRaskolConfig()
                 .message("plus.apply-ok",
                         "⚜ Шаблон «{name}» применён. Респец-плата: {cost} монет.")
@@ -307,7 +326,7 @@ public final class PlusGui implements Listener {
     }
 
     private ItemStack cardItem(BuildTemplates templates, String specId,
-                                Archetype archetype, boolean active) {
+                               Archetype archetype, boolean active) {
         Optional<BuildTemplate> opt = templates.get(specId, archetype);
         if (opt.isEmpty()) {
             return item(Material.BARRIER,
@@ -319,9 +338,13 @@ public final class PlusGui implements Listener {
 
         Material mat = archetype == Archetype.PVP ? Material.IRON_SWORD : Material.IRON_PICKAXE;
         NamedTextColor color;
-        if (stale) color = NamedTextColor.YELLOW;
-        else if (!active) color = NamedTextColor.GRAY;
-        else color = archetype == Archetype.PVP ? NamedTextColor.RED : NamedTextColor.GREEN;
+        if (stale) {
+            color = NamedTextColor.YELLOW;
+        } else if (!active) {
+            color = NamedTextColor.GRAY;
+        } else {
+            color = archetype == Archetype.PVP ? NamedTextColor.RED : NamedTextColor.GREEN;
+        }
 
         Component name = Component.text((active ? "⚜ " : "🔒 ") + t.name(), color)
                 .decoration(TextDecoration.ITALIC, false);
@@ -335,6 +358,10 @@ public final class PlusGui implements Listener {
                     .message("plus.gui.stale", "⚠ обновляется после баланс-патча"),
                     NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         } else if (!active) {
+            // Тизер: существование меты видно, содержимое платно
+            lore.add(Component.text("Узлов: " + t.nodeCount()
+                    + " · Очков: " + t.spentPoints(), NamedTextColor.DARK_GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
             lore.add(Component.text(plugin.getRaskolConfig()
                     .message("plus.gui.locked", "🔒 Требуется подписка"),
                     NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
@@ -411,7 +438,7 @@ public final class PlusGui implements Listener {
                 .decoration(TextDecoration.ITALIC, false);
     }
 
-    /** Pending-apply record. */
+    /** Pending-apply: спека + архетип выбранного шаблона. */
     private record PendingApply(String spec, Archetype arch) {
     }
 }
