@@ -65,16 +65,16 @@ public final class PlusSubscription implements Listener {
         long current = storage.expiresAt(uuid);
         long base = current > now ? current : now;
         long newExpires = base + TimeUnit.DAYS.toMillis((long) periods * periodDays);
-        storage.setExpires(uuid, newExpires);
+        if (!storage.setExpires(uuid, newExpires)) return -1L;
         LOG.info("raskolspec+: grant " + uuid + " +" + (periods * periodDays) + "d");
         return newExpires;
     }
 
     /** Админский отзыв. */
-    public void revoke(UUID uuid) {
-        if (uuid == null) return;
-        storage.setExpires(uuid, 0L);
+    public boolean revoke(UUID uuid) {
+        if (uuid == null || !storage.setExpires(uuid, 0L)) return false;
         LOG.info("raskolspec+: revoke " + uuid);
+        return true;
     }
 
     /* ------------------------------ gift ------------------------------ */
@@ -86,7 +86,32 @@ public final class PlusSubscription implements Listener {
      *  - SELF_GIFT: даритель = получатель;
      *  - WALLET_UNAVAILABLE: кошелёк не подключён.
      */
-    public enum GiftResult { OK, INSUFFICIENT, SELF_GIFT, WALLET_UNAVAILABLE }
+    public enum GiftResult { OK, INSUFFICIENT, SELF_GIFT, WALLET_UNAVAILABLE, STORAGE_FAILED, DISABLED }
+
+    public enum BuyResult { OK, INVALID_PERIODS, INSUFFICIENT, WALLET_UNAVAILABLE, STORAGE_FAILED, DISABLED }
+
+    /** Purchase for the player using PlayerPoints, refunding the debit if persistence fails. */
+    public BuyResult buy(UUID player, int periods) {
+        if (!isEnabled()) return BuyResult.DISABLED;
+        if (player == null || periods < 1
+                || periods > plugin.getRaskolConfig().getIntOr("plus.max-gift-periods", 12)) {
+            return BuyResult.INVALID_PERIODS;
+        }
+        if (!wallet.isAvailable()) return BuyResult.WALLET_UNAVAILABLE;
+        int price = pricePerPeriod();
+        long costLong = (long) periods * price;
+        if (price <= 0 || costLong > Integer.MAX_VALUE) return BuyResult.INVALID_PERIODS;
+        int cost = (int) costLong;
+        if (!wallet.take(player, cost)) return BuyResult.INSUFFICIENT;
+        long expires = Math.max(storage.expiresAt(player), System.currentTimeMillis())
+                + TimeUnit.DAYS.toMillis((long) periods * periodDays);
+        if (!storage.setExpires(player, expires)) {
+            wallet.give(player, cost);
+            return BuyResult.STORAGE_FAILED;
+        }
+        LOG.info("raskolspec+: purchase " + player + " " + periods + " period(s), cost=" + cost);
+        return BuyResult.OK;
+    }
 
     /**
      * Атомарный подарок: списание у from → выдача to.
@@ -96,6 +121,7 @@ public final class PlusSubscription implements Listener {
      * @param offlineNote текст уведомления оффлайн-получателю (или null)
      */
     public GiftResult gift(UUID from, UUID to, int periods, String offlineNote) {
+        if (!isEnabled()) return GiftResult.DISABLED;
         if (from == null || to == null || periods <= 0) {
             return GiftResult.INSUFFICIENT;
         }
@@ -105,11 +131,18 @@ public final class PlusSubscription implements Listener {
         if (!wallet.isAvailable()) {
             return GiftResult.WALLET_UNAVAILABLE;
         }
-        int cost = periods * pricePerPeriod();
+        long costLong = (long) periods * pricePerPeriod();
+        if (costLong <= 0 || costLong > Integer.MAX_VALUE) return GiftResult.INSUFFICIENT;
+        int cost = (int) costLong;
         if (!wallet.take(from, cost)) {
             return GiftResult.INSUFFICIENT;
         }
-        grant(to, periods);
+        long expires = Math.max(storage.expiresAt(to), System.currentTimeMillis())
+                + TimeUnit.DAYS.toMillis((long) periods * periodDays);
+        if (!storage.setExpires(to, expires)) {
+            wallet.give(from, cost);
+            return GiftResult.STORAGE_FAILED;
+        }
         Player target = plugin.getServer().getPlayer(to);
         if (target != null && target.isOnline()) {
             target.sendMessage(Component.text(
@@ -126,6 +159,19 @@ public final class PlusSubscription implements Listener {
     public boolean active(UUID uuid) {
         if (uuid == null) return false;
         return storage.expiresAt(uuid) > System.currentTimeMillis();
+    }
+
+    /**
+     * Whether a player may use premium builds. The explicit disabled mode is
+     * documented as a public preview; it must affect the authoritative check,
+     * not just the configuration comments.
+     */
+    public boolean hasAccess(UUID uuid) {
+        return !isEnabled() || active(uuid);
+    }
+
+    public boolean isEnabled() {
+        return plugin.getConfig().getBoolean("plus.enabled", true);
     }
 
     public int remainingDays(UUID uuid) {
@@ -155,3 +201,4 @@ public final class PlusSubscription implements Listener {
         }
     }
 }
+
