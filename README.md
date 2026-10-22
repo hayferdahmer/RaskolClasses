@@ -265,7 +265,7 @@ Amplifier следующего удара ставится на защищавш
 | Спек 2.0: сервис | `spec/service/Spec2Service` + `Spec2EffectsApplier`; `spec/listen/Spec2RoleListener` |
 | Атрибуты | `AttributeService` (фасад) + `HpPool` (план B) + `AttributeModifiers` |
 | HUD | `HpBarService` (HP и ресурс, отложенная запись `health.yml`) + `HudService` (DoT-строка, dirty-rendering) |
-| Книга | `ClassBook` (фасад) + `gui/book/*Tab` (6 вкладок, включая «Снаряжение») |
+| Книга | `ClassBook` (фасад) + `gui/book/*Tab` (5 вкладок, включая «Снаряжение») |
 | Команды | `RaskolCommand` (роутер) + `command/sub/*Sub` (debug, item, set, gear alias, foliant, health, cc) |
 | Конфиг | `config.yml` (avoidance и hp-display в корне с 1.14.6-fix) + per-class `kits/<class>.yml` |
 | Тесты | `/rc selftest` — **130 headless-чеков** |
@@ -275,7 +275,7 @@ Amplifier следующего удара ставится на защищавш
 | Команда | Права | Описание |
 | --- | --- | --- |
 | `/rc` | — | Сводка игрока |
-| `/rc menu` | `raskolclasses.menu` | Книга класса (6 вкладок, включая экипировку) |
+| `/rc menu` | `raskolclasses.menu` | Книга класса (5 вкладок, включая экипировку) |
 | `/rc item list|info|give|roll|browse|stats` | `raskolclasses.admin.item` / `.give` / `debug` | Реестр и управление предметами |
 | `/rc set list|info|active` | `raskolclasses.admin.item` | Сеты и активные пороги |
 | `/rc gear [player]` | `raskolclasses.debug` | Псевдоним статистики экипировки |
