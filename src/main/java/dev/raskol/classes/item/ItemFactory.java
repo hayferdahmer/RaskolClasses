@@ -12,8 +12,9 @@ import java.util.Map;
 
 /** Creates item stacks from validated registry definitions. */
 public final class ItemFactory {
+    private final RaskolClasses plugin;
     private final ItemPdc pdc;
-    public ItemFactory(RaskolClasses plugin) { pdc=new ItemPdc(plugin); }
+    public ItemFactory(RaskolClasses plugin) { this.plugin=plugin; pdc=new ItemPdc(plugin); }
     public ItemStack create(ItemDefinition def,long seed) {
         Material material=Material.matchMaterial(def.material());
         if(material==null || !material.isItem()) throw new IllegalArgumentException("Invalid material: "+def.material());
