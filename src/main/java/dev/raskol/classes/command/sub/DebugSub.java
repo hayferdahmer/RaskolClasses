@@ -20,6 +20,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.LivingEntity;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,6 +54,19 @@ public final class DebugSub implements CommandSub {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
+        if(args.length>=1&&"profile".equalsIgnoreCase(args[0])){
+            if(!(sender instanceof Player player)){sender.sendMessage(Component.text("Команда доступна игроку.",NamedTextColor.RED));return true;}
+            var trace=player.getWorld().rayTraceEntities(player.getEyeLocation(),player.getEyeLocation().getDirection(),32.0,0.25,
+                    entity->entity instanceof LivingEntity&&entity!=player);
+            if(trace==null||!(trace.getHitEntity() instanceof LivingEntity target)){
+                sender.sendMessage(Component.text("В прицеле нет живой сущности.",NamedTextColor.RED));return true;}
+            var profile=plugin.getCombatProfiles().profileOf(target.getUniqueId());
+            if(profile==null){sender.sendMessage(Component.text("У сущности нет CombatProfile.",NamedTextColor.YELLOW));return true;}
+            sender.sendMessage(Component.text("CombatProfile "+target.getType()+" · lvl "+profile.level()+" · атака "+profile.attackDamage(),NamedTextColor.GOLD));
+            sender.sendMessage(Component.text("Урон P/M/T: "+profile.damageWeights().physical()+"/"+profile.damageWeights().magic()+"/"+profile.damageWeights().trueDamage()
+                    +" · резисты физ/маг: "+profile.physResist()+"/"+profile.magicResist()+"% · CC "+profile.ccResist()+"% · reflect "+profile.reflect()+"%",NamedTextColor.GRAY));
+            return true;
+        }
         if (args.length >= 1 && "simulate".equalsIgnoreCase(args[0])) {
             if (args.length >= 2 && "matrix".equalsIgnoreCase(args[1])) {
                 int level = SubUtil.parseLevel(args, 2);
@@ -126,7 +140,7 @@ public final class DebugSub implements CommandSub {
     @Override
     public List<String> complete(CommandSender sender, String[] fullArgs) {
         if (fullArgs.length == 2) {
-            List<String> out = new ArrayList<>(List.of("simulate", "matrix"));
+            List<String> out = new ArrayList<>(List.of("simulate", "matrix", "profile"));
             out.addAll(SubUtil.onlinePlayerNames());
             return SubUtil.filter(out, fullArgs[1]);
         }
@@ -292,3 +306,4 @@ public final class DebugSub implements CommandSub {
                 NamedTextColor.GRAY));
     }
 }
+
