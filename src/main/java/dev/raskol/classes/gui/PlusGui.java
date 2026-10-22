@@ -6,6 +6,7 @@ import dev.raskol.classes.spec.build.Archetype;
 import dev.raskol.classes.spec.build.BuildTemplate;
 import dev.raskol.classes.spec.build.BuildTemplates;
 import dev.raskol.classes.spec.build.PlusSubscription;
+import dev.raskol.classes.spec.service.Spec2Service;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -44,7 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   - слот 15: «✖ Назад».
  *
  * Без подписки: карточки показывают тизер (имя/tagline/счётчики + «🔒 требуется
- * raskolspec+»), клик шлёт upsell-сообщение с ценой и путём покупки (тезер-модель
+ * raskolspec+»), клик шлёт upsell-сообщение с ценой и путём покупки (тизер-модель
  * Dota Plus, согласована в ТЗ 1.14.15). Stale-шаблоны помечаются
  * «⚠ обновляется после баланс-патча» и не применимы.
  *
@@ -53,8 +54,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * некорректен (examinableName() возвращает тип Adventure-компонента, а не текст),
  * а импорт несуществующего BookSession убран.
  *
- * Apply-логика в первом чек-ине 15B — заглушка с OK-сообщением (UX-валидация);
- * реальный resetTree+setRanks+reconcile подключается в 15C после ручного теста.
+ * 1.14.16 (Волна 15C): РЕАЛЬНАЯ apply-логика — applyTemplate делегирует в
+ * Spec2Service.applyBuild (пре-проверки parity/очки/экономика → списание респеца
+ * дерева → setRanks → reconcile → защитный rollback). Админ-путь
+ * (raskolclasses.admin.plus) применяет бесплатно (free=true). Все коды результата
+ * маппятся в сообщения messages.plus.* / inline-фолбэки.
  */
 public final class PlusGui implements Listener {
 
@@ -272,9 +276,10 @@ public final class PlusGui implements Listener {
     }
 
     /**
-     * 1.14.15: применение шаблона. В первом чек-ине 15B — только сообщение
-     * (UX-валидация GUI-флоу); реальный resetTree + setRanks + reconcile
-     * подключается в 15C.
+     * 1.14.16 (Волна 15C): реальное применение шаблона через Spec2Service.applyBuild.
+     * Экономика: списывается только стоимость респеца дерева (админ — бесплатно).
+     * Все отказы приходят ДО списания (инвариант applyBuild): игрок не теряет
+     * монеты при нехватке очков/шаблоне-несоответствии.
      */
     private void applyTemplate(Player player, PendingApply p) {
         BuildTemplates templates = plugin.getBuildTemplates();
@@ -291,14 +296,38 @@ public final class PlusGui implements Listener {
             return;
         }
 
-        // TODO(15C): Spec2Service.resetTree(tree, free=admin) + storage.setRanks(template)
-        //           + reconcile; экономика — только стоимость респека дерева.
-        player.sendMessage(msg(plugin.getRaskolConfig()
-                .message("plus.apply-ok",
-                        "⚜ Шаблон «{name}» применён. Респец-плата: {cost} монет.")
-                .replace("{name}", t.name())
-                .replace("{cost}", "—")));
-        player.closeInventory();
+        boolean free = player.hasPermission("raskolclasses.admin.plus");
+        Spec2Service.BuildApplyOutcome out =
+                plugin.getSpec2Service().applyBuild(player, t.spec(), t.ranks(), free);
+
+        switch (out.result()) {
+            case OK -> {
+                player.sendMessage(msg(plugin.getRaskolConfig()
+                        .message("plus.apply-ok",
+                                "⚜ Шаблон «{name}» применён. Респец-плата: {cost} монет.")
+                        .replace("{name}", t.name())
+                        .replace("{cost}", free ? "0 (админ-путь)" : String.valueOf(out.cost()))));
+                player.closeInventory();
+            }
+            case POOR -> player.sendMessage(msg(plugin.getRaskolConfig()
+                    .message("plus.apply-poor", "Не хватает монет на респец: нужно {cost}")
+                    .replace("{cost}", String.valueOf(out.cost()))));
+            case NO_ECONOMY -> player.sendMessage(msg(plugin.getRaskolConfig()
+                    .message("plus.apply-no-econ", "Экономика недоступна — применение отключено")));
+            case NO_MAIN -> player.sendMessage(msg(plugin.getRaskolConfig()
+                    .message("plus.apply-no-spec",
+                            "Сначала выбери основную спеку в «Специализации»")));
+            case NOT_ENOUGH_POINTS -> player.sendMessage(msg(
+                    "Не хватает очков путей: нужно " + out.needPoints()
+                            + ", доступно " + out.poolPoints() + " (после сброса дерева)"));
+            case WRONG_CLASS_TREE, TREE_NOT_FOUND -> player.sendMessage(
+                    msg("⚜ Шаблон недоступен для текущей спеки"));
+            case TEMPLATE_INVALID -> player.sendMessage(
+                    msg("⚜ Шаблон несовместим с правилами дерева (сообщи админу)"));
+            case RATE_LIMITED -> player.sendMessage(msg("Слишком часто: повтори через секунду"));
+            case PRUNED -> player.sendMessage(
+                    msg("⚜ Применение отклонено сервером: изменения откачены. Сообщи админу."));
+        }
     }
 
     /* ------------------------------ предметы ------------------------------ */
