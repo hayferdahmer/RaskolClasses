@@ -31,6 +31,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Контракт CommandSub: name/execute/complete/permission — синхронизирован с роутером
  * RaskolCommand. execute возвращает boolean (true = команда обработана, false = показать help).
+ *
+ * 1.14.15-fix: ключи сообщений без префикса "messages." — RaskolConfig.message(key, fallback)
+ * автоматически дописывает префикс "messages." перед поиском в конфиге, поэтому
+ * передача "messages.no-permission" искала ключ "messages.messages.no-permission"
+ * и всегда падала в fallback (текст правильный, но override в config.yml мёртв).
  */
 public final class PlusSub implements CommandSub {
 
@@ -48,6 +53,7 @@ public final class PlusSub implements CommandSub {
         return "plus";
     }
 
+    /** Базовая нода для /rc plus и /rc plus status/gift. Admin-подкоманды (grant/revoke) проверяют admin.plus внутри метода. */
     @Override
     public String permission() {
         return "raskolclasses.plus.use";
@@ -103,8 +109,9 @@ public final class PlusSub implements CommandSub {
         Player target;
         if (args.length >= 2) {
             if (!sender.hasPermission("raskolclasses.admin.plus")) {
+                // 1.14.15-fix: ключ без префикса "messages." — ищется "messages.no-permission"
                 sender.sendMessage(err(plugin.getRaskolConfig()
-                        .message("messages.no-permission", "Недостаточно прав")));
+                        .message("no-permission", "Недостаточно прав")));
                 return;
             }
             target = Bukkit.getPlayer(args[1]);
@@ -225,8 +232,9 @@ public final class PlusSub implements CommandSub {
 
     private void cmdGrant(CommandSender sender, String[] args) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
+            // 1.14.15-fix: ключ без префикса "messages."
             sender.sendMessage(err(plugin.getRaskolConfig()
-                    .message("messages.no-permission", "Недостаточно прав")));
+                    .message("no-permission", "Недостаточно прав")));
             return;
         }
         if (args.length < 3) {
@@ -260,8 +268,9 @@ public final class PlusSub implements CommandSub {
 
     private void cmdRevoke(CommandSender sender, String[] args) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
+            // 1.14.15-fix: ключ без префикса "messages."
             sender.sendMessage(err(plugin.getRaskolConfig()
-                    .message("messages.no-permission", "Недостаточно прав")));
+                    .message("no-permission", "Недостаточно прав")));
             return;
         }
         if (args.length < 2) {
