@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/1.14.15-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.14.15"/>
+  <img src="https://img.shields.io/badge/1.14.16-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.14.16"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a" alt="paper 1.21.4+"/>
   <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a" alt="java 21"/>
   <img src="https://img.shields.io/badge/125%2F125-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 125/125"/>
@@ -227,16 +227,17 @@ Amplifier следующего удара ставится на защищавш
 | **Валидация** | prereq-замкнутость, ранги ≤ maxRank, сумма ≤ 46 очков; битый шаблон отключается точечно |
 | **Stale-маркер** | шаблон с узлом из `spec2.disabled-nodes` помечается «⚠ обновляется после баланс-патча» |
 | **Подписка** | 100 ⚜ империалов / 30 дней (PlayerPoints); продление суммирует дни |
-| **Подарок** | `/rc plus gift <ник> <периоды>` — атомарное списание у дарителя → грант получателю; оффлайн-нота на вход |
+| **Подарок** | `/rc plus gift <ник> <периоды>` — списание и грант онлайн- или известному оффлайн-игроку; оффлайн-нота на вход |
 | **GUI** | `/rc plus`: каталог (статус + 2 карточки) → confirm-экран (двойной клик, взвод 30 с) |
 | **Тизер-модель** | без подписки видны имя/tagline/счётчики узлов и замок; содержимое и применение — платные |
-| **Витрина** | DeluxeMenus `raskolspec.yml`: пакеты 30/90/180 дней с проверкой баланса и LP settemp |
+| **Покупка** | `/rc plus buy <периоды>` списывает PlayerPoints и продлевает срок; DeluxeMenus не требуется |
 | **Бейдж** | `%raskolclasses_plus%` — дни до истечения или `expired`; LP-нода `raskolclasses.plus.active` |
 
 > [!NOTE]
-> В 1.14.15 применение шаблона работает в preview-режиме (подтверждение без изменения
-> билда). Реальная apply-логика с экономикой респека — в 1.14.16 (волна 15C);
-> до неё витрину DeluxeMenus не подключаем.
+> Применение шаблона сбрасывает выбранное дерево, списывает внутриигровую цену респека
+> и применяет ранги шаблона. Перед применением сервер повторно проверяет доступ: окончание
+> или отзыв подписки во время открытого окна подтверждения не даёт обойти ограничение.
+> Для бесплатного публичного режима установи `plus.enabled: false`.
 
 ## Архитектура
 
@@ -284,8 +285,9 @@ Amplifier следующего удара ставится на защищавш
 | `/rc reload` | `raskolclasses.admin` | Перезагрузка `config.yml` + `kits/*.yml` |
 | `/rc plus` | `raskolclasses.plus.use` | GUI raskolspec+: каталог шаблонов текущей спеки |
 | `/rc plus status [ник]` | `raskolclasses.plus.use` | статус подписки (дни/истёк) |
+| `/rc plus buy <периоды>` | `raskolclasses.plus.use` | купить или продлить подписку за PlayerPoints |
 | `/rc plus gift <ник> <n>` | `raskolclasses.plus.use` | подарить n периодов (списание империалов) |
-| `/rc plus grant <ник> <n>` | `raskolclasses.admin.plus` | выдать подписку (консоль/DeluxeMenus) |
+| `/rc plus grant <ник> <n>` | `raskolclasses.admin.plus` | выдать подписку онлайн- или известному оффлайн-игроку |
 | `/rc plus revoke <ник>` | `raskolclasses.admin.plus` | отозвать подписку |
 
 ## Плейсхолдеры
@@ -317,7 +319,7 @@ WARLOCK-сеты добавляются секциями `weapons.WARLOCK.*` и 
 
 ```bash
 mvn -B clean package
-cp target/raskol-classes-1.14.15.jar plugins/
+cp target/raskol-classes-1.14.16.jar plugins/
 # перезапуск сервера
 /rc selftest   # ожидается 125/125 PASS
 ```
