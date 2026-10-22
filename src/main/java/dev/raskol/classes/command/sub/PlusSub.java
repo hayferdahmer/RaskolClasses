@@ -8,6 +8,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.util.List;
@@ -21,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Команды:
  *   /rc plus                      — открыть GUI (player-only, perm: raskolclasses.plus.use)
+ *   /rc plus buy <периоды>        — купить себе подписку за PlayerPoints
  *   /rc plus status [ник]         — статус подписки (player-only / [ник] op-only)
  *   /rc plus gift <ник> <периоды> — подарить (player-only, perm: raskolclasses.plus.use,
  *                                   rate-limit по plus.cooldown-gift-ms)
@@ -71,11 +73,12 @@ public final class PlusSub implements CommandSub {
         switch (sub) {
             case "status" -> cmdStatus(sender, args);
             case "gift" -> cmdGift(sender, args);
+            case "buy" -> cmdBuy(sender, args);
             case "grant" -> cmdGrant(sender, args);
             case "revoke" -> cmdRevoke(sender, args);
             case "export" -> cmdExport(sender);
             default -> sender.sendPlainMessage("Неизвестная подкоманда: " + sub
-                    + ". Доступны: status, gift, grant, revoke, export.");
+                    + ". Доступны: status, buy, gift, grant, revoke, export.");
         }
         return true;
     }
@@ -83,13 +86,16 @@ public final class PlusSub implements CommandSub {
     @Override
     public List<String> complete(CommandSender sender, String[] args) {
         if (args.length == 1) {
-            return List.of("status", "gift", "grant", "revoke", "export");
+            return List.of("status", "buy", "gift", "grant", "revoke", "export");
         }
         if (args.length == 2 && (args[0].equalsIgnoreCase("gift")
                 || args[0].equalsIgnoreCase("grant")
                 || args[0].equalsIgnoreCase("revoke")
                 || args[0].equalsIgnoreCase("status"))) {
             return null; // таб-комплит ников — стандартный механизм Bukkit
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("buy")) {
+            return List.of("1", "3", "6", "12");
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("gift")) {
             return List.of("1", "3", "6", "12");
@@ -104,14 +110,14 @@ public final class PlusSub implements CommandSub {
 
     private void cmdStatus(CommandSender sender, String[] args) {
         PlusSubscription sub = plugin.getPlusSubscription();
-        Player target;
+        OfflinePlayer target;
         if (args.length >= 2) {
             if (!sender.hasPermission("raskolclasses.admin.plus")) {
                 sender.sendMessage(err(plugin.getRaskolConfig()
                         .message("no-permission", "Недостаточно прав")));
                 return;
             }
-            target = Bukkit.getPlayer(args[1]);
+            target = findKnownPlayer(args[1]);
             if (target == null) {
                 sender.sendMessage(err("Игрок не найден: " + args[1]));
                 return;
@@ -128,15 +134,50 @@ public final class PlusSub implements CommandSub {
                     .message("plus.status-active",
                             "⚜ raskolspec+ активна · осталось {days} дн.")
                     .replace("{days}", String.valueOf(sub.remainingDays(target.getUniqueId())))
-                    + " (" + target.getName() + ")"));
+                    + " (" + playerName(target, args.length >= 2 ? args[1] : target.getName()) + ")"));
         } else {
             sender.sendMessage(err(plugin.getRaskolConfig()
                     .message("plus.status-inactive", "⚜ raskolspec+ не активна")
-                    + " (" + target.getName() + ")"));
+                    + " (" + playerName(target, args.length >= 2 ? args[1] : target.getName()) + ")"));
         }
     }
 
     /* ------------------------------ gift ------------------------------ */
+
+    private void cmdBuy(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendPlainMessage("Покупка доступна только игроку.");
+            return;
+        }
+        if (args.length < 2) {
+            player.sendMessage(err("Используй: /rc plus buy <периоды>"));
+            return;
+        }
+        int periods;
+        try {
+            periods = Integer.parseInt(args[1]);
+        } catch (NumberFormatException ex) {
+            player.sendMessage(err("Число периодов должно быть целым"));
+            return;
+        }
+        PlusSubscription sub = plugin.getPlusSubscription();
+        PlusSubscription.BuyResult result = sub.buy(player.getUniqueId(), periods);
+        switch (result) {
+            case OK -> player.sendMessage(ok("⚜ raskolspec+ продлена на "
+                    + (periods * sub.periodDays()) + " дн. Стоимость: "
+                    + (periods * sub.pricePerPeriod()) + " империалов."));
+            case INVALID_PERIODS -> player.sendMessage(err("Период должен быть от 1 до "
+                    + plugin.getRaskolConfig().getIntOr("plus.max-gift-periods", 12)
+                    + "; проверь цену в конфигурации."));
+            case INSUFFICIENT -> player.sendMessage(err("Недостаточно империалов: нужно "
+                    + ((long) periods * sub.pricePerPeriod()) + ", у вас "
+                    + plugin.getImperialWallet().balance(player.getUniqueId())));
+            case WALLET_UNAVAILABLE -> player.sendMessage(err("Кошелёк империалов недоступен"));
+            case STORAGE_FAILED -> player.sendMessage(err("Покупка отменена: не удалось сохранить подписку. "
+                    + "Списание возвращено; сообщи администратору, если баланс не восстановился."));
+            case DISABLED -> player.sendMessage(err("Покупка raskolspec+ временно отключена"));
+        }
+    }
 
     private void cmdGift(CommandSender sender, String[] args) {
         if (!(sender instanceof Player from)) {
@@ -162,7 +203,7 @@ public final class PlusSub implements CommandSub {
             return;
         }
 
-        Player to = Bukkit.getPlayer(args[1]);
+        OfflinePlayer to = findKnownPlayer(args[1]);
         if (to == null) {
             from.sendMessage(err("Игрок не найден: " + args[1]));
             return;
@@ -204,7 +245,7 @@ public final class PlusSub implements CommandSub {
                 from.sendMessage(ok(plugin.getRaskolConfig()
                         .message("plus.gift-sent",
                                 "⚜ Подписка raskolspec+ подарена {target} на {days} дн.")
-                        .replace("{target}", to.getName())
+                        .replace("{target}", playerName(to, args[1]))
                         .replace("{days}", String.valueOf(days))));
             }
             case INSUFFICIENT -> {
@@ -222,6 +263,9 @@ public final class PlusSub implements CommandSub {
             case WALLET_UNAVAILABLE -> from.sendMessage(err(plugin.getRaskolConfig()
                     .message("plus.gift-wallet-off",
                             "Кошелёк империалов недоступен")));
+            case STORAGE_FAILED -> from.sendMessage(err("Подарок отменён: не удалось сохранить подписку. "
+                    + "Списание возвращено; сообщи администратору, если баланс не восстановился."));
+            case DISABLED -> from.sendMessage(err("Подарки raskolspec+ временно отключены"));
         }
     }
 
@@ -237,7 +281,7 @@ public final class PlusSub implements CommandSub {
             sender.sendPlainMessage("Используй: /rc plus grant <ник> <периоды>");
             return;
         }
-        Player target = Bukkit.getPlayer(args[1]);
+        OfflinePlayer target = findKnownPlayer(args[1]);
         if (target == null) {
             sender.sendMessage(err("Игрок не найден: " + args[1]));
             return;
@@ -255,8 +299,12 @@ public final class PlusSub implements CommandSub {
         }
         PlusSubscription sub = plugin.getPlusSubscription();
         long expires = sub.grant(target.getUniqueId(), periods);
+        if (expires < 0L) {
+            sender.sendMessage(err("Не удалось сохранить подписку; смотри лог сервера."));
+            return;
+        }
         int days = periods * sub.periodDays();
-        sender.sendMessage(ok("⚜ " + target.getName()
+        sender.sendMessage(ok("⚜ " + playerName(target, args[1])
                 + ": подписка активна, + " + days + " дн. (expires=" + expires + ")"));
     }
 
@@ -272,13 +320,16 @@ public final class PlusSub implements CommandSub {
             sender.sendPlainMessage("Используй: /rc plus revoke <ник>");
             return;
         }
-        Player target = Bukkit.getPlayer(args[1]);
+        OfflinePlayer target = findKnownPlayer(args[1]);
         if (target == null) {
             sender.sendMessage(err("Игрок не найден: " + args[1]));
             return;
         }
-        plugin.getPlusSubscription().revoke(target.getUniqueId());
-        sender.sendMessage(ok("⚜ " + target.getName() + ": подписка отозвана"));
+        if (!plugin.getPlusSubscription().revoke(target.getUniqueId())) {
+            sender.sendMessage(err("Не удалось сохранить отзыв подписки; смотри лог сервера."));
+            return;
+        }
+        sender.sendMessage(ok("⚜ " + playerName(target, args[1]) + ": подписка отозвана"));
     }
 
     /* ------------------------------ export (admin, 1.14.16-fix2) ------------------------------ */
@@ -311,4 +362,16 @@ public final class PlusSub implements CommandSub {
     private static Component err(String raw) {
         return Component.text(raw, NamedTextColor.RED);
     }
+
+    /** Resolve online or cached offline players without a blocking profile lookup. */
+    private static OfflinePlayer findKnownPlayer(String name) {
+        Player online = Bukkit.getPlayerExact(name);
+        return online != null ? online : Bukkit.getOfflinePlayerIfCached(name);
+    }
+
+    private static String playerName(OfflinePlayer player, String fallback) {
+        String name = player.getName();
+        return name == null || name.isBlank() ? fallback : name;
+    }
 }
+
