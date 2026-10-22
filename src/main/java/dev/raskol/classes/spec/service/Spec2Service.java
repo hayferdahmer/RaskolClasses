@@ -59,8 +59,16 @@ import java.util.concurrent.ConcurrentHashMap;
  *         после /rc reload (раньше — мгновенно на следующий вызов); это плата за
  *         отсутствие чтений конфига в hot-пути, согласуется с политикой reload.
  * 1.14.15 (raskolspec+): добавлен disabledNodesSnapshot() — говорящий алиас
- *         disabledSet() для внешних потребителей (BuildTemplates: stale-маркировка
- *         шаблонов с узлом в стоп-листе).
+ *         disabledSet() для BuildTemplates (stale-маркировка шаблонов).
+ * 1.14.16 (Волна 15C): РЕАЛЬНАЯ apply-логика raskolspec+:
+ *         - simulateApply(tree, ranks) — публичный симулятор validate(): единый
+ *           источник правды «выживет ли набор рангов после reconcile» для
+ *           BuildTemplates (валидация при загрузке) и applyBuild (пре-проверка);
+ *         - applyBuild(player, treeId, ranks, free) — атомарное применение шаблона:
+ *           пре-проверки (parity, очки, экономика) → списание респеца дерева →
+ *           setRanks → reconcile → защитный rollback (PRUNED, недостижим из-за
+ *           пре-проверок). Подписка НЕ проверяется здесь — сервис подписочно-
+ *           независим, гейт держит GUI/команда.
  */
 public final class Spec2Service {
 
@@ -77,6 +85,34 @@ public final class Spec2Service {
     public enum NodeResetResult {
         OK, RATE_LIMITED, NO_MAIN, TREE_NOT_FOUND, NODE_NOT_FOUND,
         NO_RANKS, POOR, NO_ECONOMY, HAS_DEPENDENTS
+    }
+
+    /**
+     * 1.14.16 (Волна 15C): результат применения шаблона raskolspec+.
+     *  - OK: ранги установлены и пережили reconcile;
+     *  - RATE_LIMITED: окно 150 мс (actionAllowed);
+     *  - NO_MAIN: основная спека не выбрана;
+     *  - WRONG_CLASS_TREE: дерево не принадлежит классу игрока;
+     *  - TREE_NOT_FOUND: дерева нет в реестре;
+     *  - TEMPLATE_INVALID: simulateApply проредил набор (несоответствие row-gates/
+     *    prereq-порядку) — для загруженных шаблонов недостижимо (валидатор загрузки
+     *    имеет тот же parity-шаг), остаётся защитой от ручных/устаревших данных;
+     *  - NOT_ENOUGH_POINTS: очков пула (available + spentTree) не хватает на шаблон;
+     *  - NO_ECONOMY / POOR: Vault-экономика недоступна / не хватает монет на респец;
+     *  - PRUNED: защитный rollback после коммита (теоретически недостижимо).
+     */
+    public enum BuildApplyResult {
+        OK, RATE_LIMITED, NO_MAIN, WRONG_CLASS_TREE, TREE_NOT_FOUND,
+        TEMPLATE_INVALID, NOT_ENOUGH_POINTS, NO_ECONOMY, POOR, PRUNED
+    }
+
+    /**
+     * 1.14.16 (Волна 15C): исход применения шаблона с данными для сообщений GUI:
+     * cost — списанная/требуемая стоимость респеца дерева; needPoints/poolPoints —
+     * бюджет очков (для отказа NOT_ENOUGH_POINTS).
+     */
+    public record BuildApplyOutcome(BuildApplyResult result, int cost,
+                                    int needPoints, int poolPoints) {
     }
 
     /** Агрегат эффектов игрока (пересобирается только в reconcile). */
@@ -449,6 +485,108 @@ public final class Spec2Service {
         return base + perRank * rank;
     }
 
+    /* ------------------------------ 1.14.16 (Волна 15C): применение шаблонов raskolspec+ ------------------------------ */
+
+    /**
+     * 1.14.16 (Волна 15C): публичный симулятор reconcile-валидации произвольного
+     * набора рангов. Возвращает ранги, которые ПЕРЕЖИВУТ reconcile (ряд-гейты по
+     * накопленным очкам в порядке рядов + пререквизиты по накопленному kept +
+     * maxRank + disabled-прунинг). ЕДИНСТВЕННЫЙ источник правды для:
+     *  - BuildTemplates.load() — parity-шаг валидатора загрузки (шаблон, который
+     *    reconcile позже проредил бы, отклоняется на старте с warning);
+     *  - applyBuild() — пре-проверка перед списанием монет (TEMPLATE_INVALID).
+     * Тело идентично приватному validate(): дублирования логики нет.
+     */
+    public Map<String, Integer> simulateApply(Spec2Tree tree, Map<String, Integer> ranks) {
+        return validate(tree, ranks);
+    }
+
+    /**
+     * 1.14.16 (Волна 15C): атомарное применение шаблона raskolspec+ к дереву.
+     *
+     * Экономика: списывается ТОЛЬКО стоимость респека дерева
+     * (spec2.respec-base-cost + spec2.respec-per-level × spentInTree(текущие ранги));
+     * free=true (админ-путь raskolclasses.admin.plus) — без списания. Если дерево
+     * пустое — респец не нужен, стоимость 0 даже при free=false.
+     *
+     * Очки: пул после сброса дерева = availablePoints(uuid) + spentInTree(current);
+     * сумма рангов шаблона должна помещаться в пул (иначе NOT_ENOUGH_POINTS ДО списания).
+     *
+     * Порядок гарантий (инвариант «отказ не оставляет потерь»):
+     *  1) rate-limit / main / класс-дерево / реестр;
+     *  2) simulateApply-parity: шаблон должен переживать reconcile целиком;
+     *  3) бюджет очков;
+     *  4) экономика (available/balance) — списание ТОЛЬКО после пунктов 1–3;
+     *  5) коммит: setRanks(шаблон) + reconcile;
+     *  6) защитная сверка: если reconcile всё же проредил ранги (PRUNED, теоретически
+     *     недостижимо из-за пункта 2) — rollback предыдущих рангов + reconcile +
+     *     severe-лог; возврат монет НЕ выполняется (ситуация требует расследования
+     *     админом, монеты списаны не будут, если отказ произошёл до пункта 4).
+     *
+     * Подписка raskolspec+ здесь НЕ проверяется: сервис подписочно-независим,
+     * гейт держит PlusGui/команда (разделение ответственности 15A).
+     */
+    public BuildApplyOutcome applyBuild(Player player, String treeId,
+                                        Map<String, Integer> ranks, boolean free) {
+        UUID uuid = player.getUniqueId();
+        if (!actionAllowed(uuid)) {
+            return new BuildApplyOutcome(BuildApplyResult.RATE_LIMITED, 0, 0, 0);
+        }
+        if (storage.getMain(uuid) == null) {
+            return new BuildApplyOutcome(BuildApplyResult.NO_MAIN, 0, 0, 0);
+        }
+        if (!classTreeIds(uuid).contains(treeId)) {
+            return new BuildApplyOutcome(BuildApplyResult.WRONG_CLASS_TREE, 0, 0, 0);
+        }
+        Spec2Tree tree = Spec2Registry.treeOf(treeId);
+        if (tree == null) {
+            return new BuildApplyOutcome(BuildApplyResult.TREE_NOT_FOUND, 0, 0, 0);
+        }
+        // 2) parity: шаблон должен переживать reconcile целиком
+        Map<String, Integer> kept = simulateApply(tree, ranks);
+        if (!kept.equals(ranks)) {
+            return new BuildApplyOutcome(BuildApplyResult.TEMPLATE_INVALID, 0, 0, 0);
+        }
+        // 3) бюджет очков после сброса дерева
+        Map<String, Integer> current = storage.getRanks(uuid, treeId);
+        int spentTree = tree.spentInTree(current);
+        int pool = availablePoints(uuid) + spentTree;
+        int need = 0;
+        for (int rank : ranks.values()) {
+            need += rank;
+        }
+        if (need > pool) {
+            return new BuildApplyOutcome(BuildApplyResult.NOT_ENOUGH_POINTS, 0, need, pool);
+        }
+        // 4) экономика респеца — списание только после всех пре-проверок
+        int cost = 0;
+        if (!free && !current.isEmpty()) {
+            cost = plugin.getConfig().getInt("spec2.respec-base-cost", 250)
+                    + plugin.getConfig().getInt("spec2.respec-per-level", 10) * spentTree;
+            if (!economy.available()) {
+                return new BuildApplyOutcome(BuildApplyResult.NO_ECONOMY, cost, need, pool);
+            }
+            if (economy.balance(uuid) < cost) {
+                return new BuildApplyOutcome(BuildApplyResult.POOR, cost, need, pool);
+            }
+        }
+        if (cost > 0) {
+            economy.withdraw(uuid, cost);
+        }
+        // 5) коммит
+        storage.setRanks(uuid, treeId, new HashMap<>(ranks));
+        reconcile(uuid);
+        // 6) защитная сверка + rollback
+        if (!storage.getRanks(uuid, treeId).equals(ranks)) {
+            plugin.getLogger().severe("spec2: applyBuild PRUNED после пре-проверок — rollback: игрок "
+                    + uuid + ", дерево " + treeId + " (сообщи разработчику: simulateApply/validate рассинхрон)");
+            storage.setRanks(uuid, treeId, current);
+            reconcile(uuid);
+            return new BuildApplyOutcome(BuildApplyResult.PRUNED, cost, need, pool);
+        }
+        return new BuildApplyOutcome(BuildApplyResult.OK, cost, need, pool);
+    }
+
     /* ------------------------------ reconcile + агрегация ------------------------------ */
 
     public void reconcile(UUID uuid) {
@@ -485,6 +623,8 @@ public final class Spec2Service {
      * очки возвращаются в пул (spentGlobal пересчитывается из kept).
      * 1.14.8-fix (Волна 6.1): пререквизит из стоп-листа считается выполненным —
      * включённый зависимый узел больше не прунится из-за отключённого пререка.
+     * 1.14.16 (Волна 15C): тело доступно публично через simulateApply() —
+     * единый источник правды для BuildTemplates и applyBuild.
      */
     private Map<String, Integer> validate(Spec2Tree tree, Map<String, Integer> raw) {
         Map<String, Integer> kept = new HashMap<>();
