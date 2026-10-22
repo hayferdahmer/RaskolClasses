@@ -11,6 +11,7 @@ import dev.raskol.classes.event.CustomHealEvent;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.storage.SafeStorage;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
