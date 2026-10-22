@@ -29,6 +29,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * без hashCode), а не дефект плагина: реестр расширений PAPI ведётся по строковому
  * identifier, объект-ключом нигде не используется. Закрыта точечным exclude в
  * spotbugs-exclude.xml с этим обоснованием.
+ *
+ * 1.14.15 (raskolspec+): добавлен плейсхолдер %raskolclasses_plus% —
+ * возвращает число оставшихся дней активной подписки или "expired".
+ * Используется DeluxeMenus-витриной и TAB-индикаторами статуса raskolspec+.
  */
 public final class RaskolPlaceholder extends PlaceholderExpansion {
 
@@ -125,6 +129,15 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
             case "talents":
                 return plugin.getSpec2Service().spentGlobal(uuid) + "/"
                         + plugin.getSpec2Service().earnedPoints(uuid);
+            // 1.14.15 (raskolspec+): число оставшихся дней подписки или "expired".
+            // TTL-кэш в onPlaceholderRequest автоматически защищает от частых запросов
+            // (1 с), поэтому прямые вызовы PlusSubscription.active/remainingDays безопасны.
+            case "plus": {
+                if (!plugin.getPlusSubscription().active(uuid)) {
+                    return "expired";
+                }
+                return String.valueOf(plugin.getPlusSubscription().remainingDays(uuid));
+            }
             default:
                 return null;
         }
