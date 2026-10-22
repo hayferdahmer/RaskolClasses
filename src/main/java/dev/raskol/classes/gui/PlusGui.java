@@ -128,9 +128,10 @@ public final class PlusGui implements Listener {
         holder.inventory = inv;
 
         boolean active = sub.active(uuid);
+        boolean hasAccess = sub.hasAccess(uuid) || player.hasPermission("raskolclasses.admin.plus");
         inv.setItem(SLOT_STATUS, statusItem(active, sub.remainingDays(uuid), sub));
-        inv.setItem(SLOT_PVP, cardItem(templates, specId, Archetype.PVP, active));
-        inv.setItem(SLOT_PVE, cardItem(templates, specId, Archetype.PVE, active));
+        inv.setItem(SLOT_PVP, cardItem(templates, specId, Archetype.PVP, hasAccess));
+        inv.setItem(SLOT_PVE, cardItem(templates, specId, Archetype.PVE, hasAccess));
         inv.setItem(SLOT_EXIT, exitItem());
 
         for (int i = 0; i < SIZE; i++) {
@@ -159,7 +160,8 @@ public final class PlusGui implements Listener {
         }
 
         PlusSubscription sub = plugin.getPlusSubscription();
-        boolean active = sub.active(player.getUniqueId());
+        boolean active = sub.hasAccess(player.getUniqueId())
+                || player.hasPermission("raskolclasses.admin.plus");
 
         switch (holder.screen()) {
             case CATALOG -> {
@@ -301,6 +303,17 @@ public final class PlusGui implements Listener {
      * сообщением в чат с числами (очки/монеты), чтобы игрок понимал причину.
      */
     private void applyTemplate(Player player, PendingApply p) {
+        PlusSubscription subscription = plugin.getPlusSubscription();
+        if (!subscription.hasAccess(player.getUniqueId())
+                && !player.hasPermission("raskolclasses.admin.plus")) {
+            player.sendMessage(msg(plugin.getRaskolConfig()
+                    .message("plus.no-sub",
+                            "⚜ Требуется подписка raskolspec+ · цена: {price} ⚜ империалов / {days} дн.")
+                    .replace("{price}", String.valueOf(subscription.pricePerPeriod()))
+                    .replace("{days}", String.valueOf(subscription.periodDays()))));
+            openCatalog(player);
+            return;
+        }
         BuildTemplates templates = plugin.getBuildTemplates();
         Optional<BuildTemplate> tpl = templates.get(p.spec(), p.arch());
         if (tpl.isEmpty()) {
@@ -352,8 +365,10 @@ public final class PlusGui implements Listener {
     /* ------------------------------ предметы ------------------------------ */
 
     private ItemStack statusItem(boolean active, int remainingDays, PlusSubscription sub) {
-        Material mat = active ? Material.GOLD_INGOT : Material.GRAY_DYE;
-        NamedTextColor color = active ? NamedTextColor.GOLD : NamedTextColor.GRAY;
+        boolean preview = !sub.isEnabled();
+        Material mat = active ? Material.GOLD_INGOT : preview ? Material.EMERALD : Material.GRAY_DYE;
+        NamedTextColor color = active ? NamedTextColor.GOLD
+                : preview ? NamedTextColor.GREEN : NamedTextColor.GRAY;
         Component name = Component.text("⚜ raskolspec+", color)
                 .decoration(TextDecoration.ITALIC, false);
         List<Component> lore = new ArrayList<>();
@@ -362,12 +377,17 @@ public final class PlusGui implements Listener {
                     .message("plus.gui.active", "⚜ Активна · осталось {days} дн.")
                     .replace("{days}", String.valueOf(remainingDays)),
                     NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+        } else if (preview) {
+            lore.add(Component.text("Тестовый режим · шаблоны доступны всем",
+                    NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
         } else {
             lore.add(Component.text(plugin.getRaskolConfig()
                     .message("plus.gui.locked", "🔒 Требуется подписка"),
                     NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
             lore.add(Component.text("Цена: " + sub.pricePerPeriod() + " ⚜ / "
                     + sub.periodDays() + " дн.", NamedTextColor.YELLOW)
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("Купить: /rc plus buy 1", NamedTextColor.AQUA)
                     .decoration(TextDecoration.ITALIC, false));
         }
         return item(mat, name, lore);
@@ -502,3 +522,4 @@ public final class PlusGui implements Listener {
     private record PendingApply(String spec, Archetype arch) {
     }
 }
+
