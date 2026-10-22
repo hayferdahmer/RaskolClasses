@@ -1,15 +1,14 @@
 # ============================================================
-#  RaskolClasses · builds.yml · схема v1
+#  RaskolClasses · builds.yml · схема v1 · редакция 1.14.16-fix
 #  Кураторские шаблоны билдов raskolspec+ (подписка).
-#  Извлекается из jar при первом старте; правится админом без пересборки.
-#  /rc reload — перечитать. Ошибочный шаблон отключается с warning,
-#  остальные работают.
+#  Правится админом без пересборки; /rc reload — перечитать.
+#  Ошибочный шаблон отключается точечно с warning, остальные работают.
 #
-#  Цена и срок:
-#    plus.price-per-period: 100   (империалов за период)
-#    plus.period-days:      30    (дней в периоде)
-#  Покупка через PlayerPoints, витрина — через DeluxeMenus.
-#  1.14.15 (raskolspec+): 36 шаблонов (18 спек × 2 архетипа).
+#  Редакция 1.14.16-fix: все 36 шаблонов пересобраны parity-безопасно:
+#   - пререквизиты замкнуты внутри шаблона;
+#   - накопленные очки перед каждым рядом ≥ гейта ряда [0,5,10,15,20,30];
+#   - сумма очков ≤ spec2.max-points (46);
+#   - дубли ключей устранены (dm_felguard_prep).
 # ============================================================
 schema: 1
 
@@ -20,17 +19,15 @@ subscription:
   max-gift-periods: 12
   cooldown-gift-ms: 5000
 
-current-patch: "1.14.15"
+current-patch: "1.14.16"
 
 templates:
-  # ============================================================
-  # ВОИН
-  # ============================================================
+  # ============================ ВОИН ============================
   arms:
     pvp:
       name: "Оружие · Дуэлянт"
-      tagline: "Бурст и контроль: stun-цепочки, execute-финиш"
-      updated: "1.14.15"
+      tagline: "Бурст и контроль: bleed-цепочка, execute-финиш"
+      updated: "1.14.16"
       nodes:
         arms_training: 3
         precision: 3
@@ -40,84 +37,92 @@ templates:
         rend_master: 2
         whirlwind_slash: 1
         war_acumen: 2
-        execute_drill: 2
+        shield_wall_echo: 2
         mortal_strike: 1
         executioner: 2
         titan_grip: 2
     pve:
       name: "Оружие · Авангард"
       tagline: "Выживаемость и AoE-фарм"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         arms_training: 3
         hardened_skin: 3
-        precision: 2
         field_medkit: 3
         deep_wounds: 2
+        sword_and_board: 2
+        rend_master: 2
         whirlwind_slash: 1
-        war_acumen: 3
         execute_drill: 2
-        rend_master: 3
         bloodletting: 2
         mortal_strike: 1
         shield_wall_echo: 2
+        titan_grip: 2
   fury:
     pvp:
       name: "Неистовство · Берсерк"
-      tagline: "Макс. DPS в дуэлях, enrage-бурст"
-      updated: "1.14.15"
+      tagline: "Макс. DPS: enrage → bloodthirst → bloodbath"
+      updated: "1.14.16"
       nodes:
         fury_rage_pool: 3
         fury_bloodlust: 3
-        fury_battle_cry: 3
+        fury_battle_cry: 2
         fury_enrage: 2
         fury_frenzy: 3
-        fury_berserkers_rage: 2
         fury_bloodthirst: 1
         fury_rampage: 1
         fury_concussive_blow: 1
         fury_wild_strikes: 2
         fury_death_wish: 2
+        fury_unstoppable_force: 2
+        fury_piercing_howl: 2
         fury_bloodbath: 2
+        fury_relentless: 2
     pve:
       name: "Неистовство · Вихрь"
       tagline: "AoE-зачистка + lifesteal sustain"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         fury_rage_pool: 4
-        fury_bloodlust: 3
         fury_unyielding: 3
         fury_battle_cry: 2
+        fury_enrage: 2
         fury_frenzy: 2
         fury_berserkers_rage: 2
         fury_bloodthirst: 1
         fury_rampage: 1
         fury_wild_strikes: 2
+        fury_death_wish: 2
         fury_unstoppable_force: 2
         fury_massacre: 2
+        fury_bloodbath: 2
+        fury_relentless: 2
         fury_battle_hardened: 2
   guard:
     pvp:
       name: "Защита · Крепость"
-      tagline: "ccResist, зеркало магии, контроль толпы"
-      updated: "1.14.15"
+      tagline: "Блок-цепочки, зеркало магии, контроль"
+      updated: "1.14.16"
       nodes:
         guard_shield_mastery: 3
         guard_toughness: 3
-        guard_vigilance: 3
+        guard_vigilance: 2
         guard_shield_bash: 1
         guard_spell_reflection: 2
-        guard_last_stand_prep: 2
         guard_shield_wall: 2
+        guard_vigilant_guardian: 2
         guard_taunt: 1
         guard_revenge: 2
         guard_shield_specialization: 2
+        guard_spell_ward: 2
+        guard_intervene: 2
         guard_warbringer: 2
         guard_shield_slam: 2
+        guard_devastate: 2
     pve:
       name: "Защита · Оплот"
-      tagline: "Танк рейда: щиты, таунт, last_stand"
-      updated: "1.14.15"
+      tagline: "Танк рейда: щиты, таунт, sustain"
+      updated: "1.14.16"
       nodes:
         guard_shield_mastery: 4
         guard_toughness: 3
@@ -128,18 +133,19 @@ templates:
         guard_vigilant_guardian: 2
         guard_taunt: 1
         guard_shield_specialization: 2
+        guard_spell_ward: 2
         guard_intervene: 2
+        guard_warbringer: 2
+        guard_devastate: 2
         guard_safeguard: 2
-        guard_last_stand: 1
+        guard_unbreakable: 2
 
-  # ============================================================
-  # ОХОТНИК
-  # ============================================================
+  # ============================ ОХОТНИК ============================
   marksmanship:
     pvp:
       name: "Стрельба · Снайпер"
-      tagline: "Бурст одиночных целей, silence, pen_phys"
-      updated: "1.14.15"
+      tagline: "Бурст одиночных целей, silence, pen"
+      updated: "1.14.16"
       nodes:
         mm_steady_hand: 3
         mm_eagle_eye: 3
@@ -147,34 +153,38 @@ templates:
         mm_aimed_shot: 1
         mm_lethal_shots: 2
         mm_piercing_shots: 2
+        mm_master_marksman: 2
+        mm_arrow_fan: 1
         mm_silencing_shot: 1
+        mm_barrage: 2
         mm_careful_aim: 2
         mm_sniper_training: 2
         mm_true_shot: 1
         mm_headshot: 2
-        mm_penetrating_shots: 2
     pve:
       name: "Стрельба · Лучник"
-      tagline: "Стабильный DPS, AoE arrow_rain"
-      updated: "1.14.15"
+      tagline: "Стабильный DPS, AoE-веер"
+      updated: "1.14.16"
       nodes:
         mm_steady_hand: 4
         mm_swift_quiver: 3
         mm_survivalist: 2
         mm_aimed_shot: 1
+        mm_lethal_shots: 2
         mm_arrow_fan: 1
         mm_master_marksman: 2
         mm_rapid_fire: 2
-        mm_chimera_shot: 1
         mm_barrage: 2
+        mm_chimera_shot: 1
+        mm_careful_aim: 2
         mm_true_shot: 1
         mm_penetrating_shots: 2
-        mm_master_of_arrows: 2
+        mm_headshot: 2
   survival:
     pvp:
       name: "Выживание · Ловчий"
-      tagline: "Ловушки, ROOT-контроль, trap-burst"
-      updated: "1.14.15"
+      tagline: "Ловушки, ROOT-контроль, expose"
+      updated: "1.14.16"
       nodes:
         sv_endurance: 3
         sv_trap_mastery: 3
@@ -182,73 +192,81 @@ templates:
         sv_poison_shot: 1
         sv_counterattack: 2
         sv_explosive_trap: 1
-        sv_trap_expert: 2
+        sv_noxious_stings: 2
         sv_resourcefulness: 2
         sv_black_arrow: 2
-        sv_surefooted: 2
+        sv_savage_strikes: 2
         sv_wyvern_sting: 1
+        sv_survivor: 2
+        sv_expose_weakness: 2
         sv_master_trapper: 2
     pve:
       name: "Выживание · Следопыт"
-      tagline: "DoT-фарм, serpent_sting ульт"
-      updated: "1.14.15"
+      tagline: "DoT-фарм, трапы, sustain"
+      updated: "1.14.16"
       nodes:
         sv_endurance: 4
-        sv_trap_mastery: 2
-        sv_naturalist: 3
+        sv_trap_mastery: 4
+        sv_naturalist: 2
         sv_poison_shot: 1
+        sv_counterattack: 2
         sv_noxious_stings: 2
         sv_explosive_trap: 1
         sv_savage_strikes: 2
+        sv_resourcefulness: 2
         sv_black_arrow: 2
-        sv_surefooted: 2
+        sv_survivor: 2
+        sv_wyvern_sting: 1
         sv_expose_weakness: 2
-        sv_hunters_mark: 2
-        sv_serpent_sting: 1
+        sv_master_trapper: 2
   beastmaster:
     pvp:
       name: "Звери · Хищник"
       tagline: "Питомец-контроль + intimidation"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         bm_animal_handler: 3
         bm_ferocity: 3
         bm_thick_hide: 2
         bm_intimidation: 1
         bm_focused_fire: 2
-        bm_endurance_training: 2
         bm_pet_wolf: 1
         bm_bestial_discipline: 2
+        bm_endurance_training: 2
         bm_cobra_reflexes: 2
         bm_beast_ferocity: 1
         bm_spirit_bond: 2
         bm_primal_fury: 2
+        bm_the_beast_within: 2
+        bm_frenzy: 2
     pve:
       name: "Звери · Вожак"
-      tagline: "Питомец ×2 DPS, bestial_wrath ульт"
-      updated: "1.14.15"
+      tagline: "Питомец ×2 DPS, групп-баффы"
+      updated: "1.14.16"
       nodes:
         bm_animal_handler: 4
         bm_ferocity: 3
         bm_wild_bond: 2
+        bm_intimidation: 1
         bm_focused_fire: 3
         bm_pet_wolf: 1
         bm_bestial_discipline: 3
         bm_ferocious_inspiration: 2
+        bm_cobra_reflexes: 2
         bm_beast_ferocity: 1
+        bm_spirit_bond: 2
         bm_go_for_the_throat: 2
         bm_primal_fury: 2
+        bm_the_beast_within: 2
         bm_frenzy: 2
-        bm_bestial_wrath: 1
+        bm_pack_leader: 2
 
-  # ============================================================
-  # РАЗБОЙНИК
-  # ============================================================
+  # ============================ РАЗБОЙНИК ============================
   assassination:
     pvp:
       name: "Ликвидация · Отравитель"
-      tagline: "Deathmark, poison-burst, vendetta"
-      updated: "1.14.15"
+      tagline: "Poison-стеки, детонации, envenom"
+      updated: "1.14.16"
       nodes:
         as_improved_poisons: 4
         as_malice: 3
@@ -256,16 +274,19 @@ templates:
         as_poison_burst: 1
         as_vile_poisons: 2
         as_deadly_brew: 2
+        as_borgia_poison: 1
         as_improved_expose: 2
         as_cold_blood: 1
         as_venomous_wounds: 2
-        as_vendetta: 1
+        as_master_poisoner: 2
+        as_toxic_mastery: 2
         as_deadly_poison: 2
-        as_cut_to_the_chase: 2
+        as_envenom: 1
+        as_shadow_focus: 2
     pve:
       name: "Ликвидация · Теневой клинок"
       tagline: "Stable DoT + envenom sustain"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         as_improved_poisons: 3
         as_quick_recovery: 4
@@ -274,68 +295,76 @@ templates:
         as_vile_poisons: 2
         as_borgia_poison: 1
         as_improved_expose: 2
+        as_venomous_wounds: 2
         as_master_poisoner: 2
-        as_envenom: 1
         as_deadly_poison: 2
-        as_shadow_focus: 2
-        as_deathmark: 1
+        as_envenom: 1
   outlaw:
     pvp:
       name: "Головорез · Пистолет"
-      tagline: "Stun-цепочки, between_the_eyes"
-      updated: "1.14.15"
+      tagline: "Stun-цепочки, riposte-контргейм"
+      updated: "1.14.16"
       nodes:
         ol_improved_sinister_strike: 3
-        ol_lightning_reflexes: 3
-        ol_improved_sprint: 2
+        ol_precision: 3
+        ol_lightning_reflexes: 2
         ol_pistol_shot: 1
-        ol_precision: 2
         ol_quick_draw: 2
         ol_blade_flurry: 1
+        ol_blade_master: 2
+        ol_adrenaline_rush: 1
         ol_dual_wield_specialization: 2
+        ol_killing_spree: 1
         ol_improved_adrenaline: 2
+        ol_swordmaster: 2
+        ol_ruthlessness: 2
         ol_riposte: 2
         ol_surprise_attacks: 2
-        ol_between_the_eyes: 1
+        ol_combat_potency: 2
     pve:
       name: "Головорез · Клинок"
       tagline: "Blade flurry, AoE killing_spree"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         ol_improved_sinister_strike: 4
         ol_endurance: 3
         ol_lightning_reflexes: 2
+        ol_pistol_shot: 1
+        ol_precision: 2
         ol_blade_flurry: 1
         ol_blade_master: 2
         ol_adrenaline_rush: 1
         ol_killing_spree: 1
         ol_improved_adrenaline: 2
         ol_swordmaster: 2
-        ol_combat_potency: 2
         ol_riposte: 2
-        ol_vitality: 2
+        ol_combat_potency: 2
+        ol_surprise_attacks: 2
   subtlety:
     pvp:
       name: "Скрытность · Ассасин"
       tagline: "Stealth-burst, backstab-циклы"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         su_improved_evasion: 3
         su_malicious_intent: 3
         su_fleet_footed: 3
         su_backstab: 1
         su_opportunity: 2
+        su_camouflage: 2
         su_shadowstep: 1
         su_serrated_blades: 2
         su_initiative: 2
         su_shadow_dance: 1
         su_death_from_above: 2
+        su_cloak_of_shadows: 1
         su_find_weakness: 2
-        su_master_of_subtlety: 2
+        su_hemorrhage: 1
+        su_nerve_strike: 2
     pve:
       name: "Скрытность · Тень"
-      tagline: "Shadow dance ротация, shadow_blades ульт"
-      updated: "1.14.15"
+      tagline: "Shadow dance ротация, prep-циклы"
+      updated: "1.14.16"
       nodes:
         su_improved_evasion: 4
         su_fleet_footed: 3
@@ -343,38 +372,38 @@ templates:
         su_backstab: 1
         su_camouflage: 2
         su_shadowstep: 1
-        su_serrated_blades: 2
+        su_initiative: 2
         su_prep: 1
         su_shadow_dance: 1
-        su_cloak_of_shadows: 1
         su_master_of_deception: 2
-        su_shadow_blades: 1
+        su_find_weakness: 2
+        su_master_of_subtlety: 2
 
-  # ============================================================
-  # МАГ
-  # ============================================================
+  # ============================ МАГ ============================
   arcane:
     pvp:
       name: "Тайная · Контроль"
-      tagline: "Counterspell, silence, aegis"
-      updated: "1.14.15"
+      tagline: "Counterspell, silence-цепочки"
+      updated: "1.14.16"
       nodes:
         arc_attunement: 3
         arc_mind: 3
-        arc_barrier: 3
+        arc_barrier: 2
         arc_missiles: 1
         arc_power_surge: 2
         arc_focus: 2
         arc_missiles_enh: 2
         arc_stability: 2
+        arc_spellflow: 2
         arc_counterspell: 1
-        arc_ward: 2
+        arc_potency: 2
         arc_improved_counter: 2
         arc_presence_of_mind: 1
+        arc_empowerment: 2
     pve:
       name: "Тайная · Бурст"
-      tagline: "Zeus_wrath ульт, arcane missiles burst"
-      updated: "1.14.15"
+      tagline: "SP-стек, missiles-ротация"
+      updated: "1.14.16"
       nodes:
         arc_attunement: 4
         arc_mind: 3
@@ -382,204 +411,221 @@ templates:
         arc_missiles: 1
         arc_power_surge: 2
         arc_mana_gem: 2
-        arc_missiles_enh: 3
+        arc_missiles_enh: 2
         arc_mind_mastery: 2
+        arc_stability: 2
         arc_potency: 2
-        arc_spell_mastery: 2
+        arc_ward: 2
         arc_empowerment: 2
-        arc_zeus_wrath: 1
+        arc_spell_mastery: 2
   fire:
     pvp:
       name: "Огонь · Поджигатель"
-      tagline: "Burning-контроль, combustion"
-      updated: "1.14.15"
+      tagline: "Burning-контроль, combustion-окно"
+      updated: "1.14.16"
       nodes:
         fi_power: 3
         fi_molten_skin: 3
         fi_ignite_training: 3
         fi_scorch: 1
         fi_burning_soul: 2
-        fi_firestarter: 2
         fi_flame_barrier: 2
         fi_scorch_enh: 2
         fi_blaze: 2
         fi_critical_mass: 2
+        fi_flamestrike: 1
+        fi_combustion_prep: 2
         fi_combustion: 1
-        fi_fire_mastery: 2
+        fi_pyroclasm: 2
     pve:
       name: "Огонь · Пиромант"
-      tagline: "Pyroburst + AoE flamestrike"
-      updated: "1.14.15"
+      tagline: "AoE flamestrike, burning-стек"
+      updated: "1.14.16"
       nodes:
         fi_power: 4
         fi_ignite_training: 3
         fi_thermal_void: 3
         fi_scorch: 1
         fi_burning_soul: 2
+        fi_firestarter: 2
         fi_scorch_enh: 2
+        fi_blaze: 2
+        fi_pyromaniac: 2
         fi_flamestrike: 1
         fi_combustion_prep: 2
-        fi_pyromaniac: 2
+        fi_molten_fury: 2
         fi_combustion: 1
         fi_pyroclasm: 2
-        fi_pyroblast: 1
+        fi_fire_mastery: 2
   frost:
     pvp:
       name: "Лёд · Мороз"
       tagline: "Chilled-контроль, shatter-бурст"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         fr_power: 3
         fr_permafrost_training: 3
-        fr_icy_veins: 2
         fr_frost_armor: 3
+        fr_frostbolt: 1
+        fr_deep_freeze_prep: 2
+        fr_glacial_mastery: 2
+        fr_frostbolt_enh: 2
+        fr_ice_floes: 2
+        fr_blizzard: 1
+        fr_shatter_prep: 2
+        fr_frozen_mastery: 2
+        fr_glacial_spike: 2
+    pve:
+      name: "Лёд · Метель"
+      tagline: "Blizzard AoE, chilled-стек"
+      updated: "1.14.16"
+      nodes:
+        fr_power: 4
+        fr_permafrost_training: 3
+        fr_icy_veins: 3
         fr_frostbolt: 1
         fr_deep_freeze_prep: 2
         fr_winter_chill: 2
         fr_frostbolt_enh: 2
         fr_ice_floes: 2
-        fr_frost_ward: 2
-        fr_ice_barrier: 2
-        fr_frozen_mastery: 2
-    pve:
-      name: "Лёд · Метель"
-      tagline: "Blizzard AoE, ice_barrier sustain"
-      updated: "1.14.15"
-      nodes:
-        fr_power: 4
-        fr_permafrost_training: 3
-        fr_icy_veins: 3
-        fr_frost_armor: 3
-        fr_frostbolt: 1
-        fr_winter_chill: 2
-        fr_frostbolt_enh: 2
+        fr_frozen_veins: 2
         fr_blizzard: 1
         fr_shatter_prep: 2
-        fr_frozen_veins: 2
+        fr_frost_ward: 2
         fr_frozen_mastery: 2
-        fr_ice_lance_shatter: 1
+        fr_glacial_spike: 2
 
-  # ============================================================
-  # ЖРЕЦ
-  # ============================================================
+  # ============================ ЖРЕЦ ============================
   discipline:
     pvp:
       name: "Послушание · Инквизитор"
-      tagline: "Pain suppression, purge, spirit_shell"
-      updated: "1.14.15"
+      tagline: "Pain suppression, purge, щиты"
+      updated: "1.14.16"
       nodes:
         dis_focus: 3
         dis_inner_strength: 3
-        dis_resilience: 3
+        dis_resilience: 2
         dis_purge: 1
         dis_power_word_prep: 2
         dis_borrowed_time: 2
         dis_radiant_grace: 2
+        dis_mastery: 2
         dis_shield_discipline: 2
         dis_pain_suppression: 1
+        dis_divine_providence: 2
         dis_soul_guard: 2
-        dis_improved_purge: 2
-        dis_spirit_shell: 1
+        dis_evangelism: 2
+        dis_grace_of_light: 2
     pve:
       name: "Послушание · Пастырь"
-      tagline: "Щиты + кара, group sustain"
-      updated: "1.14.15"
+      tagline: "Груп-щиты, atonement-ротация"
+      updated: "1.14.16"
       nodes:
         dis_focus: 4
         dis_inner_strength: 3
         dis_atonement_training: 3
+        dis_purge: 1
         dis_power_word_prep: 2
-        dis_borrowed_time: 2
+        dis_mental_agility: 2
         dis_radiant_grace: 2
         dis_mastery: 2
-        dis_mental_agility: 2
+        dis_improved_purge: 2
+        dis_pain_suppression: 1
         dis_divine_providence: 2
-        dis_shield_mastery: 2
         dis_evangelism: 2
         dis_grace_of_light: 2
   holy:
     pvp:
       name: "Свет · Хранитель"
-      tagline: "Burst-хил + holy_mending"
-      updated: "1.14.15"
+      tagline: "Burst-хил, surge-проки"
+      updated: "1.14.16"
       nodes:
         ho_power: 3
         ho_divine_grace: 3
-        ho_holy_ward: 3
+        ho_holy_ward: 2
         ho_flash_heal: 1
         ho_holy_mending: 2
         ho_light_infusion: 2
-        ho_blessed_hands: 2
         ho_flash_heal_enh: 2
         ho_concentration: 2
         ho_surge_of_light: 2
+        ho_circle_elysium: 1
         ho_sanctuary: 2
-        ho_blessed_resilience: 2
+        ho_light_of_dawn: 2
+        ho_lightwell: 1
+        ho_holy_mastery: 2
     pve:
       name: "Свет · Жрец"
       tagline: "Divine hymn, circle_elysium, lightwell"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         ho_power: 4
         ho_divine_grace: 3
         ho_blessed_recovery: 3
         ho_flash_heal: 1
         ho_holy_mending: 2
+        ho_light_infusion: 2
         ho_flash_heal_enh: 2
+        ho_concentration: 2
+        ho_surge_of_light: 2
         ho_circle_elysium: 1
+        ho_sanctuary: 2
         ho_light_of_dawn: 2
+        ho_blessed_resilience: 2
         ho_lightwell: 1
         ho_holy_mastery: 2
         ho_radiant_veil: 2
-        ho_divine_hymn: 1
   shadow:
     pvp:
       name: "Тьма · Жнец"
       tagline: "Wither-контроль, mind_flay канал"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         sh_power: 3
         sh_dark_embrace: 3
-        sh_wither_training: 3
+        sh_wither_training: 2
         sh_withering_touch: 1
         sh_shadow_focus: 2
         sh_dark_pact: 2
         sh_wither_enh: 2
+        sh_shadow_mastery: 2
         sh_void_corruption: 2
-        sh_dark_veil: 2
         sh_mind_flay: 1
         sh_shadow_affinity: 2
+        sh_void_tendrils: 2
+        sh_shadowfiend: 1
+        sh_void_mastery: 2
         sh_shadow_form: 2
     pve:
       name: "Тьма · Проповедник"
-      tagline: "Shadowfiend sustain, wrath_heaven execute"
-      updated: "1.14.15"
+      tagline: "Shadowfiend sustain, weave-стек"
+      updated: "1.14.16"
       nodes:
         sh_power: 4
         sh_wither_training: 3
-        sh_mind_mastery: 3
+        sh_dark_embrace: 3
         sh_withering_touch: 1
         sh_shadow_focus: 2
         sh_shadow_weave: 2
         sh_wither_enh: 2
         sh_shadow_mastery: 2
+        sh_dark_veil: 2
+        sh_mind_flay: 1
+        sh_shadow_affinity: 2
+        sh_dark_resilience: 2
         sh_shadowfiend: 1
         sh_void_mastery: 2
-        sh_shadow_form: 2
-        sh_wrath_heaven: 1
 
-  # ============================================================
-  # ЧЕРНОКНИЖНИК
-  # ============================================================
+  # ============================ ЧЕРНОКНИЖНИК ============================
   affliction:
     pvp:
       name: "Колдовство · Проклинатель"
-      tagline: "Wither-stack, soul_harvest детонация"
-      updated: "1.14.15"
+      tagline: "Wither-стек, soul_harvest детонация"
+      updated: "1.14.16"
       nodes:
         af_corruption_training: 3
         af_shadow_mind: 3
-        af_dark_embrace: 3
+        af_dark_embrace: 2
         af_withering: 1
         af_agony: 2
         af_unstable_affliction: 2
@@ -587,47 +633,54 @@ templates:
         af_soul_conduit: 2
         af_malefic: 2
         af_unwriting: 1
+        af_haunt: 2
         af_drain_mastery: 2
+        af_soul_siphon: 1
         af_malefic_grasp: 2
     pve:
       name: "Колдовство · Жнец"
-      tagline: "Stable DoT, soul_siphon sustain"
-      updated: "1.14.15"
+      tagline: "Stable DoT, siphon sustain"
+      updated: "1.14.16"
       nodes:
         af_corruption_training: 4
         af_soul_drain: 3
-        af_nightfall: 3
+        af_shadow_mind: 3
         af_withering: 1
         af_agony: 2
-        af_unstable_affliction: 2
+        af_nightfall: 2
         af_withering_enh: 2
+        af_soul_conduit: 2
+        af_corruptor: 2
+        af_unwriting: 1
         af_haunt: 2
+        af_dark_pact: 2
         af_soul_siphon: 1
         af_malefic_grasp: 2
-        af_shadow_mastery: 2
-        af_soul_harvest: 1
   destruction:
     pvp:
       name: "Разрушение · Пироклазм"
       tagline: "Chaos_bolt burst, conflagrate"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         de_immolate_training: 3
         de_aftermath: 3
-        de_molten_ward: 3
+        de_molten_ward: 2
         de_immolate: 1
         de_backdraft: 2
         de_fire_brimstone: 2
         de_immolate_enh: 2
+        de_incinerate: 2
         de_emberstorm: 2
         de_chaos_bolt: 1
         de_chaos_prep_enh: 2
         de_ruin: 2
         de_conflagrate: 1
+        de_cataclysm_prep: 2
+        de_shadowburn_mastery: 2
     pve:
       name: "Разрушение · Инферно"
-      tagline: "Soul_rift канал, immolate spam"
-      updated: "1.14.15"
+      tagline: "Immolate spam, ember-стек"
+      updated: "1.14.16"
       nodes:
         de_immolate_training: 4
         de_ember_master: 3
@@ -639,40 +692,50 @@ templates:
         de_incinerate: 2
         de_flame_rift: 2
         de_chaos_bolt: 1
-        de_cataclysm_prep: 2
-        de_soul_rift: 1
+        de_ruin: 2
+        de_ashen_veil: 2
+        de_conflagrate: 1
+        de_shadowburn_mastery: 2
   demonology:
     pvp:
       name: "Демонология · Повелитель"
       tagline: "Demon-soul burst, CC-иммунитет"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         dm_demonic_embrace: 3
         dm_dark_pact: 3
-        dm_conjuror_prep: 3
+        dm_conjuror_prep: 2
         dm_dreadfire: 1
         dm_soul_link: 2
         dm_demonic_knowledge: 2
+        dm_felguard_prep: 2
         dm_dreadfire_enh: 2
         dm_metamorphosis_prep: 2
+        dm_summon_prep: 2
+        dm_demonic_resilience: 2
         dm_summon_demon: 1
         dm_demonic_empowerment: 2
         dm_master_summoner: 2
         dm_demonic_pact: 1
+        dm_metamorphosis: 2
+        dm_grimoire: 2
     pve:
       name: "Демонология · Призыватель"
       tagline: "Pet ×2 DPS, demonic_pact group buff"
-      updated: "1.14.15"
+      updated: "1.14.16"
       nodes:
         dm_demonic_embrace: 4
         dm_fel_synergy: 3
-        dm_felguard_prep: 3
+        dm_dark_pact: 3
         dm_dreadfire: 1
         dm_soul_link: 2
+        dm_demonic_knowledge: 2
         dm_felguard_prep: 2
         dm_dreadfire_enh: 2
         dm_summon_prep: 2
+        dm_demonic_resilience: 2
         dm_summon_demon: 1
         dm_master_summoner: 2
+        dm_fel_pact: 2
+        dm_demonic_pact: 1
         dm_grimoire: 2
-        dm_demon_soul: 1
