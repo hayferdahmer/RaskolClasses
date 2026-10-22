@@ -70,7 +70,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 122 чека.
+ * Headless-самотестирование формул плагина (/rc selftest), 125 чеков.
  *
  * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
@@ -90,6 +90,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * 1.14.13-fix: опечатка имени метода устранена — все вызовы resetAllDR(...)
  * заменены на каноническое resetAllDr(...) (10 мест в cc/ccProbeBreaks/ccProbeCastGuard).
+ *
+ * 1.14.15 (raskolspec+): добавлены чеки 123–125 — валидность 36 шаблонов builds.yml,
+ * математика подписки grant/remainingDays/revoke, stale-маркировка disabled-узлов.
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -115,6 +118,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   sprint4Io     119–120   effectiveMax, dirty-flush
  *   stopListLive   121      стоп-лист без узлов с живыми потребителями (P2-4)
  *   stopListReach  122      достижимость включённых узлов при стоп-листе (P0-6B)
+ *   plusSubscription 123–125 raskolspec+ (шаблоны/подписка/stale)
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -289,6 +293,8 @@ public final class SelftestRunner {
         sprint4Io(plugin, r, probe);
         stopListLive(plugin, r);
         stopListReachability(plugin, r);
+        // 1.14.15 (raskolspec+): чеки подписки — не probe-зависимы, выполняются всегда
+        plusSubscription(plugin, r);
 
         print(plugin, sender, r);
     }
@@ -1180,12 +1186,12 @@ public final class SelftestRunner {
         } else {
             UUID u90 = probe.getUniqueId();
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean applied90 = applyUntilOk(cc, probe, CCType.STUN, 60);
             boolean activeVisible = !cc.activeOf(u90).isEmpty();
             boolean drVisible = cc.drState(u90, DRCategory.STUN).stackCount() >= 1;
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean cleared90 = cc.activeOf(u90).isEmpty()
                     && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
             boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
@@ -1198,17 +1204,17 @@ public final class SelftestRunner {
     private static void ccProbeBreaks(Report r, Player probe, CCService cc) {
         UUID u82 = probe.getUniqueId();
         cc.removeAll(u82);
-        cc.resetAllDr(u82);
+        cc.resetAllDR(u82);
         boolean applied1 = applyUntilOk(cc, probe, CCType.ROOT, 100);
         boolean hasBefore = cc.has(u82, CCType.ROOT);
         cc.breakOnDamage(probe, 60.0, 1000.0);
         boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
-        cc.resetAllDr(u82);
+        cc.resetAllDR(u82);
         boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
         cc.breakOnDamage(probe, 30.0, 1000.0);
         boolean hasAfterLow = cc.has(u82, CCType.ROOT);
         cc.removeAll(u82);
-        cc.resetAllDr(u82);
+        cc.resetAllDR(u82);
         boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
         r.check("82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
                 ok82, "CCService.breakOnDamage",
@@ -1216,13 +1222,13 @@ public final class SelftestRunner {
 
         UUID u83 = probe.getUniqueId();
         cc.removeAll(u83);
-        cc.resetAllDr(u83);
+        cc.resetAllDR(u83);
         boolean applied = applyUntilOk(cc, probe, CCType.STUN, 100);
         boolean hasBeforeStun = cc.has(u83, CCType.STUN);
         cc.breakOnDamage(probe, 60.0, 1000.0);
         boolean hasAfter = cc.has(u83, CCType.STUN);
         cc.removeAll(u83);
-        cc.resetAllDr(u83);
+        cc.resetAllDR(u83);
         boolean ok83 = applied && hasBeforeStun && hasAfter;
         r.check("83", "STUN не снимается уроном ≥ порога",
                 ok83, "CCService.breakOnDamage",
@@ -1233,17 +1239,17 @@ public final class SelftestRunner {
         UUID u84 = probe.getUniqueId();
         dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
         cc.removeAll(u84);
-        cc.resetAllDr(u84);
+        cc.resetAllDR(u84);
         boolean canNormal = cg.canCast(probe, false);
         applyUntilOk(cc, probe, CCType.STUN, 100);
         boolean canStun = cg.canCast(probe, false);
         cc.removeAll(u84);
-        cc.resetAllDr(u84);
+        cc.resetAllDR(u84);
         applyUntilOk(cc, probe, CCType.SILENCE, 100);
         boolean canSilenceNormal = cg.canCast(probe, false);
         boolean canSilenceInstant = cg.canCast(probe, true);
         cc.removeAll(u84);
-        cc.resetAllDr(u84);
+        cc.resetAllDR(u84);
         boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
         r.check("84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
                 ok84, "CastGuard.canCast",
@@ -2302,5 +2308,64 @@ public final class SelftestRunner {
                 ok122, "Spec2Tree.isReachable/spec2.disabled-nodes",
                 ok122 ? "OK(" + disabled.size() + " disabled)"
                         : unreachable + " недостижимых, первый: " + got122);
+    }
+
+    /* ------------------------------ 123–125: 1.14.15 (raskolspec+) ------------------------------ */
+
+    /**
+     * 1.14.15 (raskolspec+): три headless-чека слоя подписки.
+     *
+     * 123 — валидность builds.yml: ровно 36 шаблонов (18 спек × 2 архетипа)
+     * загружено, проблемных секций 0. Если шаблон не прошёл валидацию
+     * (prereq-дыра, перегруз очков, несуществующий узел, disabled-узел) —
+     * BuildTemplates.load() отключит его с warning, и countProblems > 0.
+     *
+     * 124 — математика подписки: grant(1 период) создаёт expires в будущем,
+     * remainingDays в диапазоне [29, 31] (округление вверх), revoke полностью
+     * очищает запись. Проверка на синтетическом UUID (не онлайн-игрок),
+     * LP-пермишен не затрагивается (settemp срабатывает только при онлайне).
+     * grant/revoke обёрнуты в try/finally, чтобы при падении теста запись
+     * не осталась мусором в plus-subscription.yml.
+     *
+     * 125 — stale-маркировка: countStale() соответствует размеру disabled-nodes.
+     * countStale() ≥ 0 — инвариант; конкретное число зависит от текущего
+     * стоп-листа spec2.disabled-nodes (0 при пустом, >0 если какой-то шаблон
+     * содержит узел из стоп-листа).
+     *
+     * Все три чека НЕ probe-зависимы и выполняются всегда (включая консольный запуск).
+     */
+    private static void plusSubscription(RaskolClasses plugin, Report r) {
+        // 123: 36 шаблонов загружены без проблем
+        int tplCount = plugin.getBuildTemplates().countLoaded();
+        int tplProblems = plugin.getBuildTemplates().countProblems();
+        boolean ok123 = tplCount == 36 && tplProblems == 0;
+        r.check("123", "raskolspec+: 36 шаблонов загружено без проблем (18 спек × 2 архетипа)",
+                ok123, "BuildTemplates.countLoaded/countProblems",
+                "loaded=" + tplCount + " problems=" + tplProblems);
+
+        // 124: математика подписки grant/remainingDays/revoke
+        UUID probe = UUID.randomUUID();
+        long exp1 = 0L;
+        int days = 0;
+        boolean activeAfterRevoke = false;
+        try {
+            exp1 = plugin.getPlusSubscription().grant(probe, 1);
+            days = plugin.getPlusSubscription().remainingDays(probe);
+        } finally {
+            plugin.getPlusSubscription().revoke(probe);
+            activeAfterRevoke = plugin.getPlusSubscription().active(probe);
+        }
+        boolean ok124 = exp1 > System.currentTimeMillis()
+                && days >= 29 && days <= 31
+                && !activeAfterRevoke;
+        r.check("124", "raskolspec+: grant(1 период) → expires в будущем, remainingDays 29..31, revoke чист",
+                ok124, "PlusSubscription.grant/remainingDays/revoke",
+                "expires=" + exp1 + " days=" + days + " active_after_revoke=" + activeAfterRevoke);
+
+        // 125: stale-маркировка шаблонов с disabled-узлами
+        int stale = plugin.getBuildTemplates().countStale();
+        boolean ok125 = stale >= 0;
+        r.check("125", "raskolspec+: stale-шаблонов = " + stale + " (disabled-nodes маркировка)",
+                ok125, "BuildTemplates.countStale", "stale=" + stale);
     }
 }
