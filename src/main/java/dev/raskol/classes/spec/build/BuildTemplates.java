@@ -41,13 +41,15 @@ import java.util.logging.Logger;
  *  2. archetype ∈ {PVP, PVE};
  *  3. каждый id в ranks существует в дереве спеки;
  *  4. ранг ∈ [1, maxRank] узла;
- *  5. сумма рангов ≤ Spec2Points.snapshot().maxPoints();
- *  6. prereq-замкнутость: для (nodeId, rank) с rank≥1 все prereqs имеют rank≥required;
- *  7. (1.14.16, 15C) PARITY с reconcile: simulateApply(tree, ranks) должен вернуть
- *     набор целиком (ряд-гейты в порядке рядов + prereqs по накопленному kept);
- *     шаблон, который reconcile позже проредил бы, отклоняется здесь — applyBuild
- *     в рантайме никогда не получит TEMPLATE_INVALID от загруженного шаблона;
- *  8. узлы не входят в spec2.disabled-nodes (иначе шаблон помечается stale).
+ *  5. сумма рангов ≤ Spec2Points.snapshot().maxPoints().
+ *
+ * 1.14.16-fix (AUTO-HEAL): вместо жёсткого отказа при расхождении с reconcile
+ *  загрузчик прогоняет ranks через Spec2Service.simulateApply() и СОХРАНЯЕТ
+ *  выживший набор как шаблон. Вырезаются: узлы из стоп-листа disabled-nodes,
+ *  узлы с невыполненными prereq-цепочками, узлы ниже ряд-гейтов. Куратор получает
+ *  WARNING со списком вырезанных узлов (прозрачность), игрок — всегда применимый
+ *  шаблон. Если после auto-heal не осталось ни одного узла — шаблон отключается.
+ *  Это устраняет ситуацию «половина спек недоступна» из-за одного битого узла.
  *
  * 1.14.15-fix: поиск узла в дереве — Spec2Tree.find(id) (каноническое имя метода).
  */
@@ -121,6 +123,7 @@ public final class BuildTemplates {
         Set<String> stale = new HashSet<>();
 
         Set<String> disabledNodes = disabledNodesSnapshot();
+        Spec2Service svc = plugin.getSpec2Service();
 
         for (String specId : templatesSec.getKeys(false)) {
             ConfigurationSection specSec = templatesSec.getConfigurationSection(specId);
@@ -150,14 +153,33 @@ public final class BuildTemplates {
                 }
                 try {
                     BuildTemplate t = parseTemplate(specId, arch, archSec);
-                    List<String> v = validate(t, tree, disabledNodes);
+                    List<String> v = validate(t, tree);
                     if (!v.isEmpty()) {
                         specProblems.add(arch.yamlKey() + ": " + String.join("; ", v));
-                    } else {
-                        archetypeMap.put(arch, t);
-                        if (hasStaleNode(t, disabledNodes)) {
-                            stale.add(specId);
+                        continue;
+                    }
+                    // 1.14.16-fix (AUTO-HEAL): приводим шаблон к множеству, которое
+                    // гарантированно переживает reconcile (стоп-лист, prereq, ряд-гейты).
+                    if (svc != null) {
+                        Map<String, Integer> kept = svc.simulateApply(tree, t.ranks());
+                        if (!kept.equals(t.ranks())) {
+                            if (kept.isEmpty()) {
+                                specProblems.add(arch.yamlKey()
+                                        + ": после auto-heal не осталось узлов (весь шаблон в стоп-листе/без prereq)");
+                                continue;
+                            }
+                            List<String> removed = new ArrayList<>(t.ranks().keySet());
+                            removed.removeAll(kept.keySet());
+                            LOG.warning("raskolspec+: [" + specId + "] " + arch.yamlKey()
+                                    + ": auto-heal вырезал узлы " + removed
+                                    + " (стоп-лист/prereq/ряд-гейты) — обнови builds.yml, чтобы убрать warning");
+                            t = BuildTemplate.of(t.spec(), t.archetype(), t.name(),
+                                    t.tagline(), kept, t.updated());
                         }
+                    }
+                    archetypeMap.put(arch, t);
+                    if (hasStaleNode(t, disabledNodes)) {
+                        stale.add(specId);
                     }
                 } catch (Exception ex) {
                     specProblems.add(arch.yamlKey() + ": парсинг — " + ex.getMessage());
@@ -213,18 +235,17 @@ public final class BuildTemplates {
     /* ------------------------------ валидация ------------------------------ */
 
     /**
-     * 1.14.16 (Волна 15C): шаг 7 — parity с reconcile через simulateApply:
-     * валидатор загрузки и applyBuild используют ОДНУ логику (Spec2Service.validate),
-     * поэтому валидный на загрузке шаблон гарантированно переживает применение.
+     * Структурная валидация (жёсткие ошибки): существование узлов, границы рангов,
+     * бюджет очков. Prereq/ряд-гейты/стоп-лист НЕ являются ошибкой с 1.14.16-fix —
+     * их нормализует auto-heal через simulateApply (шаблон остаётся применимым).
      */
-    private List<String> validate(BuildTemplate t, Spec2Tree tree, Set<String> disabledNodes) {
+    private List<String> validate(BuildTemplate t, Spec2Tree tree) {
         List<String> errs = new ArrayList<>();
 
         int totalPoints = 0;
         Spec2Points.Snapshot snap = Spec2Points.snapshot();
         int maxPoints = snap.maxPoints();
 
-        // 3, 4: узлы и ранги
         for (Map.Entry<String, Integer> e : t.ranks().entrySet()) {
             String id = e.getKey();
             int rank = e.getValue();
@@ -239,38 +260,8 @@ public final class BuildTemplates {
             totalPoints += rank;
         }
 
-        // 5: сумма очков
         if (totalPoints > maxPoints) {
             errs.add("сумма очков " + totalPoints + " превышает maxPoints=" + maxPoints);
-        }
-
-        // 6: prereq-замкнутость (быстрая проверка с внятными сообщениями)
-        for (Map.Entry<String, Integer> e : t.ranks().entrySet()) {
-            String id = e.getKey();
-            int rank = e.getValue();
-            if (rank < 1) continue;
-            Spec2Node node = tree.find(id);
-            if (node == null) continue;
-            for (Map.Entry<String, Integer> pre : node.prereqs().entrySet()) {
-                String preId = pre.getKey();
-                int required = pre.getValue();
-                int actual = t.ranks().getOrDefault(preId, 0);
-                if (actual < required) {
-                    errs.add("узел " + id + " требует " + preId + "≥" + required
-                            + ", в шаблоне " + actual);
-                }
-            }
-        }
-
-        // 7 (1.14.16, 15C): parity с reconcile — ряд-гейты в порядке рядов +
-        // prereqs по накопленному kept. simulateApply = Spec2Service.validate.
-        Spec2Service svc = plugin.getSpec2Service();
-        if (svc != null && errs.isEmpty()) {
-            Map<String, Integer> kept = svc.simulateApply(tree, t.ranks());
-            if (!kept.equals(t.ranks())) {
-                errs.add("не переживёт reconcile (ряд-гейты/порядок prereq): выжило "
-                        + kept.size() + " из " + t.ranks().size() + " узлов");
-            }
         }
 
         return errs;
