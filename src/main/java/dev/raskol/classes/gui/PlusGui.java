@@ -41,24 +41,20 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * Экран 2 (CONFIRM, 27 слотов):
  *   - слот 4: икона применяемого шаблона + лор (узлы/очки/патч);
- *   - слот 11: «✔ Применить» (двойной клик: взвод 30 с + подтверждение);
+ *   - слот 11: «✔ Применить» → после первого клика визуально переходит в состояние
+ *     «⚠ Подтвердить применение» (1.14.16-fix: клик больше не выглядит мёртвым);
  *   - слот 15: «✖ Назад».
  *
  * Без подписки: карточки показывают тизер (имя/tagline/счётчики + «🔒 требуется
  * raskolspec+»), клик шлёт upsell-сообщение с ценой и путём покупки (тизер-модель
- * Dota Plus, согласована в ТЗ 1.14.15). Stale-шаблоны помечаются
- * «⚠ обновляется после баланс-патча» и не применимы.
+ * Dota Plus). Stale-шаблоны помечаются «⚠ обновляется после баланс-патча».
  *
- * 1.14.15-fix: маршрутизация кликов — через InventoryHolder с enum-экраном
- * (паттерн FoliantService.FoliantHolder). Прежний детект по title() был
- * некорректен (examinableName() возвращает тип Adventure-компонента, а не текст),
- * а импорт несуществующего BookSession убран.
+ * 1.14.16 (Волна 15C): applyTemplate делегирует в Spec2Service.applyBuild
+ * (пре-проверки parity/очки/экономика → списание респеца дерева → setRanks →
+ * reconcile → защитный rollback). Админ-путь (raskolclasses.admin.plus) — бесплатно.
  *
- * 1.14.16 (Волна 15C): РЕАЛЬНАЯ apply-логика — applyTemplate делегирует в
- * Spec2Service.applyBuild (пре-проверки parity/очки/экономика → списание респеца
- * дерева → setRanks → reconcile → защитный rollback). Админ-путь
- * (raskolclasses.admin.plus) применяет бесплатно (free=true). Все коды результата
- * маппятся в сообщения messages.plus.* / inline-фолбэки.
+ * 1.14.16-fix: маршрутизация кликов через InventoryHolder (PlusHolder); взвод
+ * подтверждения отражается заменой предмета в слоте_apply на armed-вариант.
  */
 public final class PlusGui implements Listener {
 
@@ -77,7 +73,7 @@ public final class PlusGui implements Listener {
     /** Экран GUI — хранится в holder'е, клик маршрутизируется по нему. */
     public enum Screen { CATALOG, CONFIRM }
 
-    /** 1.14.15-fix: holder вместо парсинга title (паттерн FoliantHolder). */
+    /** Holder вместо парсинга title (паттерн FoliantService.FoliantHolder). */
     private static final class PlusHolder implements InventoryHolder {
         private final Screen screen;
         private Inventory inventory;
@@ -148,7 +144,6 @@ public final class PlusGui implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) {
             return;
         }
-        // 1.14.15-fix: маршрутизация по holder'у, а не по тексту title
         if (!(event.getInventory().getHolder() instanceof PlusHolder holder)) {
             return;
         }
@@ -261,8 +256,12 @@ public final class PlusGui implements Listener {
         long now = System.currentTimeMillis();
         Long armed = armedUntil.get(uuid);
         if (armed == null || now > armed) {
-            // Первый клик — взвод (паттерн респека кристаллом)
+            // Первый клик — взвод: ВИЗУАЛЬНАЯ обратная связь в самом GUI (1.14.16-fix)
             armedUntil.put(uuid, now + ARM_WINDOW_MS);
+            Inventory top = player.getOpenInventory().getTopInventory();
+            if (top.getHolder() instanceof PlusHolder) {
+                top.setItem(CONFIRM_APPLY, confirmArmedItem());
+            }
             player.sendMessage(msg(plugin.getRaskolConfig()
                     .message("plus.gui.confirm-arm",
                             "ПКМ №1 — взвести, ПКМ №2 (30 с) — применить")));
@@ -278,8 +277,7 @@ public final class PlusGui implements Listener {
     /**
      * 1.14.16 (Волна 15C): реальное применение шаблона через Spec2Service.applyBuild.
      * Экономика: списывается только стоимость респеца дерева (админ — бесплатно).
-     * Все отказы приходят ДО списания (инвариант applyBuild): игрок не теряет
-     * монеты при нехватке очков/шаблоне-несоответствии.
+     * Все отказы приходят ДО списания (инвариант applyBuild).
      */
     private void applyTemplate(Player player, PendingApply p) {
         BuildTemplates templates = plugin.getBuildTemplates();
@@ -425,10 +423,22 @@ public final class PlusGui implements Listener {
                 Component.text("✔ Применить", NamedTextColor.GREEN)
                         .decoration(TextDecoration.ITALIC, false),
                 List.of(
-                        Component.text("ПКМ №1 — взвести", NamedTextColor.YELLOW)
+                        Component.text("Клик №1 — взвести подтверждение", NamedTextColor.YELLOW)
                                 .decoration(TextDecoration.ITALIC, false),
-                        Component.text("ПКМ №2 (30 с) — подтвердить", NamedTextColor.YELLOW)
+                        Component.text("Клик №2 (30 с) — применить шаблон", NamedTextColor.YELLOW)
                                 .decoration(TextDecoration.ITALIC, false)));
+    }
+
+    /** 1.14.16-fix: взведённое состояние кнопки применения — видимая обратная связь. */
+    private ItemStack confirmArmedItem() {
+        return item(Material.ORANGE_DYE,
+                Component.text("⚠ Подтвердить применение", NamedTextColor.GOLD)
+                        .decoration(TextDecoration.ITALIC, false),
+                List.of(
+                        Component.text("Взведено: кликни ещё раз в течение 30 с",
+                                NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false),
+                        Component.text("Билд дерева будет ЗАМЕНЁН шаблоном",
+                                NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)));
     }
 
     private ItemStack confirmBackItem() {
