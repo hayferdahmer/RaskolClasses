@@ -8,6 +8,7 @@ import dev.raskol.classes.command.sub.DebugSub;
 import dev.raskol.classes.command.sub.FoliantSub;
 import dev.raskol.classes.command.sub.GearSub;
 import dev.raskol.classes.command.sub.HealthSub;
+import dev.raskol.classes.command.sub.PlusSub;
 import dev.raskol.classes.command.sub.SubUtil;
 import dev.raskol.classes.gui.ClassBook;
 import net.kyori.adventure.text.Component;
@@ -26,7 +27,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Исполнитель и автодополнение /rc (1.4.0 → 1.11.4 → 1.13.0).
+ * Исполнитель и автодополнение /rc (1.4.0 → 1.11.4 → 1.13.0 → 1.14.15).
  * 1.11.4 (P4d): РОУТЕР. menu/reload/selftest остаются здесь;
  * debug/gear/foliant/health вынесены в command/sub/*Sub (контракт CommandSub).
  * Права проверяются роутером через CommandSub.permission().
@@ -36,12 +37,15 @@ import java.util.concurrent.ConcurrentHashMap;
  *         нода была в plugin.yml, но не проверялась исполнителем (аудит 7-02).
  * 1.14.12 (Sprint 8, Волна 12B, P0-7-04): per-sender rate-limit 10 с на /rc reload
  *         и /rc selftest — обе команды тяжёлые на main-thread (аудит 7-04).
+ * 1.14.15 (raskolspec+): добавлен PlusSub — /rc plus [|status|gift|grant|revoke]
+ *         (perm: raskolclasses.plus.use для игроков, raskolclasses.admin.plus для grant/revoke).
  */
 public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     // 1.13.0 (Б4): "cc" добавлен для таб-комплита /rc <Tab>
+    // 1.14.15 (raskolspec+): "plus" добавлен в список подкоманд
     private static final List<String> ROOT_SUBS = List.of(
-            "menu", "reload", "debug", "health", "selftest", "gear", "foliant", "cc");
+            "menu", "reload", "debug", "health", "selftest", "gear", "foliant", "cc", "plus");
 
     /** 1.14.12 (Волна 12B, 7-04): rate-limit для тяжёлых команд (мс). */
     private static final long HEAVY_CMD_COOLDOWN_MS = 10_000L;
@@ -59,7 +63,10 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 new FoliantSub(plugin),
                 new HealthSub(plugin),
                 // 1.13.0 (Б4): подкоманда /rc cc — админ-поверхность CC/DR
-                new CcSub(plugin))) {
+                new CcSub(plugin),
+                // 1.14.15 (raskolspec+): подписка на кураторские билды.
+                // plusGui уже создан в onEnable до registerCommand — порядок гарантирован.
+                new PlusSub(plugin, plugin.getPlusGui()))) {
             subs.put(sub.name(), sub);
         }
     }
@@ -179,6 +186,13 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 NamedTextColor.GRAY));
         sender.sendMessage(Component.text("Способности 1–5 и инсталляции — только свитками в хотбаре",
                 NamedTextColor.GRAY));
+        // 1.14.15 (raskolspec+): справка для holders raskolclasses.plus.use
+        if (sender.hasPermission("raskolclasses.plus.use")) {
+            sender.sendMessage(Component.text("/rc plus — меню raskolspec+ (36 курируемых билдов)",
+                    NamedTextColor.GREEN));
+            sender.sendMessage(Component.text("/rc plus status [ник] · gift <ник> <n>",
+                    NamedTextColor.GREEN));
+        }
         if (sender.hasPermission("raskolclasses.debug")) {
             sender.sendMessage(Component.text("/rc debug [player] — диагностика",
                     NamedTextColor.YELLOW));
@@ -201,6 +215,11 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
         // 1.13.0 (Б4): справка /rc cc для holders raskolclasses.admin.cc
         if (sender.hasPermission("raskolclasses.admin.cc")) {
             sender.sendMessage(Component.text("/rc cc status|clear|test|reset|list — CC/DR админка",
+                    NamedTextColor.RED));
+        }
+        // 1.14.15 (raskolspec+): админ-поверхность подписки
+        if (sender.hasPermission("raskolclasses.admin.plus")) {
+            sender.sendMessage(Component.text("/rc plus grant <ник> <n> · revoke <ник>",
                     NamedTextColor.RED));
         }
     }
