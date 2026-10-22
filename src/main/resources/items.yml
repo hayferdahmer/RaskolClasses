@@ -1,18 +1,47 @@
 schema-version: 1
 
-# Default generated stock: 6 classes × 5 equipment slots × 3 levels × 3 rarities = 270.
-# Every stat in a generated template has a consumer in the 1.15.0 combat pipeline.
+# Curated level bands × class gear templates. Names and set identity are server-owned content.
 settings:
   max-item-level: 60
   generated-levels: [20, 40, 60]
   generated-rarities: [COMMON, RARE, EPIC]
   weapon-types:
-    SWORD: { materials: [IRON_SWORD, DIAMOND_SWORD, NETHERITE_SWORD], classes: [WARRIOR], damage-type: PHYSICAL }
-    AXE: { materials: [IRON_AXE, DIAMOND_AXE, NETHERITE_AXE], classes: [WARRIOR], damage-type: PHYSICAL }
-    MACE: { materials: [MACE], classes: [WARRIOR, PRIEST], damage-type: PHYSICAL }
-    DAGGER: { materials: [IRON_SWORD, GOLDEN_SWORD], classes: [ROGUE], damage-type: PHYSICAL }
-    BOW: { materials: [BOW, CROSSBOW], classes: [HUNTER], damage-type: PHYSICAL }
-    STAFF: { materials: [BLAZE_ROD, STICK], classes: [MAGE, PRIEST, WARLOCK], damage-type: MAGIC }
+    SWORD:
+      materials: [IRON_SWORD]
+      classes: [WARRIOR, ROGUE]
+      damage-type: PHYSICAL
+    AXE:
+      materials: [IRON_AXE]
+      classes: [WARRIOR]
+      damage-type: PHYSICAL
+    MACE:
+      materials: [MACE]
+      classes: [WARRIOR, PRIEST]
+      damage-type: PHYSICAL
+    DAGGER:
+      materials: [IRON_SWORD]
+      classes: [ROGUE]
+      damage-type: PHYSICAL
+    BOW:
+      materials: [BOW]
+      classes: [HUNTER]
+      damage-type: PHYSICAL
+    CROSSBOW:
+      materials: [CROSSBOW]
+      classes: [HUNTER]
+      damage-type: PHYSICAL
+    SPEAR:
+      materials: [TRIDENT]
+      classes: [HUNTER, WARRIOR]
+      damage-type: PHYSICAL
+    STAFF:
+      materials: [BLAZE_ROD]
+      classes: [PRIEST, MAGE, WARLOCK]
+      damage-type: MAGIC
+    WAND:
+      materials: [BLAZE_ROD]
+      classes: [PRIEST, MAGE, WARLOCK]
+      damage-type: MAGIC
   budget:
     rarity-mult: { COMMON: 1.0, UNCOMMON: 1.15, RARE: 1.35, EPIC: 1.6, LEGENDARY: 1.9, MYTHIC: 2.3 }
     slot-weight: { MAIN_HAND: 1.0, CHEST: 0.9, LEGS: 0.8, HEAD: 0.6, FEET: 0.5, OFF_HAND: 0.5 }
@@ -33,14 +62,40 @@ settings:
       crit-damage: 10.0
       attack-damage: 0.5
 
-# Explicit templates/items can be added here. If omitted, balanced starter templates for all six classes are used.
+# Each class weapon family and four armor slots is represented by a named template.
 templates:
-  warrior_main_hand:
+  warrior_sword_main_hand:
     class: WARRIOR
     slot: MAIN_HAND
     weapon-type: SWORD
     material: IRON_SWORD
-    names: ["Воин оружие"]
+    custom-model-data: 1001
+    names: ["Меч дружинника"]
+    set: warrior_regalia
+    distribution:
+      attack-damage: 30
+      weapon-power: 45
+      crit-melee: 25
+  warrior_axe_main_hand:
+    class: WARRIOR
+    slot: MAIN_HAND
+    weapon-type: AXE
+    material: IRON_AXE
+    custom-model-data: 1003
+    names: ["Секира пролома"]
+    set: warrior_regalia
+    distribution:
+      attack-damage: 30
+      weapon-power: 45
+      crit-melee: 25
+  warrior_mace_main_hand:
+    class: WARRIOR
+    slot: MAIN_HAND
+    weapon-type: MACE
+    material: MACE
+    custom-model-data: 1004
+    names: ["Молот судеб"]
+    set: warrior_regalia
     distribution:
       attack-damage: 30
       weapon-power: 45
@@ -49,7 +104,9 @@ templates:
     class: WARRIOR
     slot: HEAD
     material: IRON_HELMET
-    names: ["Воин шлем"]
+    custom-model-data: 2001
+    names: ["Шлем Кровавого дозора"]
+    set: warrior_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -58,7 +115,9 @@ templates:
     class: WARRIOR
     slot: CHEST
     material: IRON_CHESTPLATE
-    names: ["Воин нагрудник"]
+    custom-model-data: 2002
+    names: ["Кираса Железной клятвы"]
+    set: warrior_regalia
     distribution:
       hp-bonus: 45
       phys-resist: 30
@@ -67,7 +126,9 @@ templates:
     class: WARRIOR
     slot: LEGS
     material: IRON_LEGGINGS
-    names: ["Воин поножи"]
+    custom-model-data: 2003
+    names: ["Поножи бастиона"]
+    set: warrior_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -76,17 +137,45 @@ templates:
     class: WARRIOR
     slot: FEET
     material: IRON_BOOTS
-    names: ["Воин ботинки"]
+    custom-model-data: 2004
+    names: ["Сапоги штурмовика"]
+    set: warrior_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
       str: 25
-  hunter_main_hand:
+  hunter_bow_main_hand:
     class: HUNTER
     slot: MAIN_HAND
     weapon-type: BOW
     material: BOW
-    names: ["Охотник оружие"]
+    custom-model-data: 1005
+    names: ["Лук дальнего следа"]
+    set: hunter_regalia
+    distribution:
+      attack-damage: 30
+      weapon-power: 45
+      crit-melee: 25
+  hunter_crossbow_main_hand:
+    class: HUNTER
+    slot: MAIN_HAND
+    weapon-type: CROSSBOW
+    material: CROSSBOW
+    custom-model-data: 1006
+    names: ["Арбалет пограничника"]
+    set: hunter_regalia
+    distribution:
+      attack-damage: 30
+      weapon-power: 45
+      crit-melee: 25
+  hunter_spear_main_hand:
+    class: HUNTER
+    slot: MAIN_HAND
+    weapon-type: SPEAR
+    material: TRIDENT
+    custom-model-data: 1007
+    names: ["Копьё речного дозора"]
+    set: hunter_regalia
     distribution:
       attack-damage: 30
       weapon-power: 45
@@ -94,8 +183,10 @@ templates:
   hunter_head:
     class: HUNTER
     slot: HEAD
-    material: IRON_HELMET
-    names: ["Охотник шлем"]
+    material: LEATHER_HELMET
+    custom-model-data: 2101
+    names: ["Капюшон дальнего следа"]
+    set: hunter_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -103,8 +194,10 @@ templates:
   hunter_chest:
     class: HUNTER
     slot: CHEST
-    material: IRON_CHESTPLATE
-    names: ["Охотник нагрудник"]
+    material: LEATHER_CHESTPLATE
+    custom-model-data: 2102
+    names: ["Куртка следопыта"]
+    set: hunter_regalia
     distribution:
       hp-bonus: 45
       phys-resist: 30
@@ -112,8 +205,10 @@ templates:
   hunter_legs:
     class: HUNTER
     slot: LEGS
-    material: IRON_LEGGINGS
-    names: ["Охотник поножи"]
+    material: LEATHER_LEGGINGS
+    custom-model-data: 2103
+    names: ["Поножи тихой тропы"]
+    set: hunter_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -121,18 +216,34 @@ templates:
   hunter_feet:
     class: HUNTER
     slot: FEET
-    material: IRON_BOOTS
-    names: ["Охотник ботинки"]
+    material: LEATHER_BOOTS
+    custom-model-data: 2104
+    names: ["Сапоги без следа"]
+    set: hunter_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
       agi: 25
-  rogue_main_hand:
+  rogue_dagger_main_hand:
     class: ROGUE
     slot: MAIN_HAND
     weapon-type: DAGGER
     material: IRON_SWORD
-    names: ["Разбойник оружие"]
+    custom-model-data: 1002
+    names: ["Клинок тихой руки"]
+    set: rogue_regalia
+    distribution:
+      attack-damage: 30
+      weapon-power: 45
+      crit-melee: 25
+  rogue_sword_main_hand:
+    class: ROGUE
+    slot: MAIN_HAND
+    weapon-type: SWORD
+    material: IRON_SWORD
+    custom-model-data: 1001
+    names: ["Короткий меч серого плаща"]
+    set: rogue_regalia
     distribution:
       attack-damage: 30
       weapon-power: 45
@@ -140,8 +251,10 @@ templates:
   rogue_head:
     class: ROGUE
     slot: HEAD
-    material: IRON_HELMET
-    names: ["Разбойник шлем"]
+    material: LEATHER_HELMET
+    custom-model-data: 2101
+    names: ["Маска серого плаща"]
+    set: rogue_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -149,8 +262,10 @@ templates:
   rogue_chest:
     class: ROGUE
     slot: CHEST
-    material: IRON_CHESTPLATE
-    names: ["Разбойник нагрудник"]
+    material: LEATHER_CHESTPLATE
+    custom-model-data: 2102
+    names: ["Дублет невидимой руки"]
+    set: rogue_regalia
     distribution:
       hp-bonus: 45
       phys-resist: 30
@@ -158,8 +273,10 @@ templates:
   rogue_legs:
     class: ROGUE
     slot: LEGS
-    material: IRON_LEGGINGS
-    names: ["Разбойник поножи"]
+    material: LEATHER_LEGGINGS
+    custom-model-data: 2103
+    names: ["Штаны ночного дозора"]
+    set: rogue_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -167,18 +284,34 @@ templates:
   rogue_feet:
     class: ROGUE
     slot: FEET
-    material: IRON_BOOTS
-    names: ["Разбойник ботинки"]
+    material: LEATHER_BOOTS
+    custom-model-data: 2104
+    names: ["Сапоги бесшумного шага"]
+    set: rogue_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
       agi: 25
-  priest_main_hand:
+  priest_mace_main_hand:
     class: PRIEST
     slot: MAIN_HAND
     weapon-type: MACE
     material: MACE
-    names: ["Жрец оружие"]
+    custom-model-data: 1004
+    names: ["Булава милосердия"]
+    set: priest_regalia
+    distribution:
+      attack-damage: 30
+      spell-power: 45
+      crit-spell: 25
+  priest_staff_main_hand:
+    class: PRIEST
+    slot: MAIN_HAND
+    weapon-type: STAFF
+    material: BLAZE_ROD
+    custom-model-data: 1008
+    names: ["Посох белого огня"]
+    set: priest_regalia
     distribution:
       attack-damage: 30
       spell-power: 45
@@ -186,8 +319,10 @@ templates:
   priest_head:
     class: PRIEST
     slot: HEAD
-    material: IRON_HELMET
-    names: ["Жрец шлем"]
+    material: CHAINMAIL_HELMET
+    custom-model-data: 2201
+    names: ["Митра Белого Пламени"]
+    set: priest_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -195,8 +330,10 @@ templates:
   priest_chest:
     class: PRIEST
     slot: CHEST
-    material: IRON_CHESTPLATE
-    names: ["Жрец нагрудник"]
+    material: CHAINMAIL_CHESTPLATE
+    custom-model-data: 2202
+    names: ["Облачение милосердия"]
+    set: priest_regalia
     distribution:
       hp-bonus: 45
       phys-resist: 30
@@ -204,8 +341,10 @@ templates:
   priest_legs:
     class: PRIEST
     slot: LEGS
-    material: IRON_LEGGINGS
-    names: ["Жрец поножи"]
+    material: CHAINMAIL_LEGGINGS
+    custom-model-data: 2203
+    names: ["Поножи хранителя"]
+    set: priest_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -213,18 +352,34 @@ templates:
   priest_feet:
     class: PRIEST
     slot: FEET
-    material: IRON_BOOTS
-    names: ["Жрец ботинки"]
+    material: CHAINMAIL_BOOTS
+    custom-model-data: 2204
+    names: ["Сандалии последней молитвы"]
+    set: priest_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
       int: 25
-  mage_main_hand:
+  mage_staff_main_hand:
     class: MAGE
     slot: MAIN_HAND
     weapon-type: STAFF
     material: BLAZE_ROD
-    names: ["Маг оружие"]
+    custom-model-data: 1008
+    names: ["Посох расколотой звезды"]
+    set: mage_regalia
+    distribution:
+      attack-damage: 30
+      spell-power: 45
+      crit-spell: 25
+  mage_wand_main_hand:
+    class: MAGE
+    slot: MAIN_HAND
+    weapon-type: WAND
+    material: BLAZE_ROD
+    custom-model-data: 1009
+    names: ["Жезл семи искр"]
+    set: mage_regalia
     distribution:
       attack-damage: 30
       spell-power: 45
@@ -232,8 +387,10 @@ templates:
   mage_head:
     class: MAGE
     slot: HEAD
-    material: IRON_HELMET
-    names: ["Маг шлем"]
+    material: GOLD_HELMET
+    custom-model-data: 2301
+    names: ["Диадема расколотой звезды"]
+    set: mage_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -241,8 +398,10 @@ templates:
   mage_chest:
     class: MAGE
     slot: CHEST
-    material: IRON_CHESTPLATE
-    names: ["Маг нагрудник"]
+    material: GOLD_CHESTPLATE
+    custom-model-data: 2302
+    names: ["Мантия небесного осколка"]
+    set: mage_regalia
     distribution:
       hp-bonus: 45
       phys-resist: 30
@@ -250,8 +409,10 @@ templates:
   mage_legs:
     class: MAGE
     slot: LEGS
-    material: IRON_LEGGINGS
-    names: ["Маг поножи"]
+    material: GOLD_LEGGINGS
+    custom-model-data: 2303
+    names: ["Поножи астролога"]
+    set: mage_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -259,18 +420,34 @@ templates:
   mage_feet:
     class: MAGE
     slot: FEET
-    material: IRON_BOOTS
-    names: ["Маг ботинки"]
+    material: GOLD_BOOTS
+    custom-model-data: 2304
+    names: ["Сапоги между мирами"]
+    set: mage_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
       int: 25
-  warlock_main_hand:
+  warlock_staff_main_hand:
     class: WARLOCK
     slot: MAIN_HAND
     weapon-type: STAFF
     material: BLAZE_ROD
-    names: ["Чернокнижник оружие"]
+    custom-model-data: 1008
+    names: ["Посох девятого угля"]
+    set: warlock_regalia
+    distribution:
+      attack-damage: 30
+      spell-power: 45
+      crit-spell: 25
+  warlock_wand_main_hand:
+    class: WARLOCK
+    slot: MAIN_HAND
+    weapon-type: WAND
+    material: BLAZE_ROD
+    custom-model-data: 1009
+    names: ["Жезл пустой клятвы"]
+    set: warlock_regalia
     distribution:
       attack-damage: 30
       spell-power: 45
@@ -278,8 +455,10 @@ templates:
   warlock_head:
     class: WARLOCK
     slot: HEAD
-    material: IRON_HELMET
-    names: ["Чернокнижник шлем"]
+    material: CHAINMAIL_HELMET
+    custom-model-data: 2201
+    names: ["Капюшон девятого угля"]
+    set: warlock_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -287,8 +466,10 @@ templates:
   warlock_chest:
     class: WARLOCK
     slot: CHEST
-    material: IRON_CHESTPLATE
-    names: ["Чернокнижник нагрудник"]
+    material: CHAINMAIL_CHESTPLATE
+    custom-model-data: 2202
+    names: ["Кираса чёрной печати"]
+    set: warlock_regalia
     distribution:
       hp-bonus: 45
       phys-resist: 30
@@ -296,8 +477,10 @@ templates:
   warlock_legs:
     class: WARLOCK
     slot: LEGS
-    material: IRON_LEGGINGS
-    names: ["Чернокнижник поножи"]
+    material: CHAINMAIL_LEGGINGS
+    custom-model-data: 2203
+    names: ["Поножи связанного духа"]
+    set: warlock_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
@@ -305,11 +488,111 @@ templates:
   warlock_feet:
     class: WARLOCK
     slot: FEET
-    material: IRON_BOOTS
-    names: ["Чернокнижник ботинки"]
+    material: CHAINMAIL_BOOTS
+    custom-model-data: 2204
+    names: ["Сапоги пепельного пути"]
+    set: warlock_regalia
     distribution:
       hp-bonus: 45
       magic-resist: 30
       int: 25
+
 items: {}
-sets: {}
+
+sets:
+  warrior_regalia:
+    display-name: "Железный приговор"
+    bonuses:
+      2:
+        description: "Части комплекта: Клятва держать строй пережила падение обеих корон."
+        stats:
+          phys-resist: 2
+          hp-bonus: 35
+      4:
+        description: "Полный строй усиливает основную роль класса."
+        stats:
+          str: 3
+          weapon-power: 3
+      5:
+        description: "Завершённый комплект раскрывает наследие РАСКОЛА."
+        stats:
+          attack-damage: 5
+  hunter_regalia:
+    display-name: "След последнего дозора"
+    bonuses:
+      2:
+        description: "Части комплекта: Охотник оставляет след лишь там, где враг уже обречён."
+        stats:
+          agi: 3
+      4:
+        description: "Полный строй усиливает основную роль класса."
+        stats:
+          attack-damage: 4
+      5:
+        description: "Завершённый комплект раскрывает наследие РАСКОЛА."
+        stats:
+          crit-melee: 3
+  rogue_regalia:
+    display-name: "Тихая рука Борджа"
+    bonuses:
+      2:
+        description: "Части комплекта: Ни герба, ни имени — только метка на рукояти."
+        stats:
+          agi: 4
+      4:
+        description: "Полный строй усиливает основную роль класса."
+        stats:
+          pen-phys-pct: 2
+      5:
+        description: "Завершённый комплект раскрывает наследие РАСКОЛА."
+        stats:
+          crit-melee: 3
+  priest_regalia:
+    display-name: "Литургия Белого Пламени"
+    bonuses:
+      2:
+        description: "Части комплекта: Каждая трещина на позолоте — чья-то спасённая жизнь."
+        stats:
+          heal-power: 4
+      4:
+        description: "Полный строй усиливает основную роль класса."
+        stats:
+          int: 3
+      5:
+        description: "Завершённый комплект раскрывает наследие РАСКОЛА."
+        stats:
+          magic-resist: 3
+          spell-power: 3
+  mage_regalia:
+    display-name: "Астролябия Расколотой звезды"
+    bonuses:
+      2:
+        description: "Части комплекта: Звёздная пыль шепчет имя того, кто осмелится её коснуться."
+        stats:
+          int: 4
+      4:
+        description: "Полный строй усиливает основную роль класса."
+        stats:
+          spell-power: 4
+      5:
+        description: "Завершённый комплект раскрывает наследие РАСКОЛА."
+        stats:
+          cooldown-reduction: 2
+          crit-spell: 2
+  warlock_regalia:
+    display-name: "Печать Девятого угля"
+    bonuses:
+      2:
+        description: "Части комплекта: Тепло печати не греет — оно напоминает, что долг ещё не уплачен."
+        stats:
+          spell-power: 3
+          hp-bonus: 25
+      4:
+        description: "Полный строй усиливает основную роль класса."
+        stats:
+          pen-magic-pct: 2
+      5:
+        description: "Завершённый комплект раскрывает наследие РАСКОЛА."
+        stats:
+          crit-spell: 3
+          cc-power: 2

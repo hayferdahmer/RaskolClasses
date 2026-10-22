@@ -81,7 +81,7 @@ public final class ItemHook implements Listener {
         applySpeed(player,Attribute.ATTACK_SPEED,attackSpeedKey,stats.getOrDefault(ItemStat.ATTACK_SPEED,0.0));
         applySpeed(player,Attribute.MOVEMENT_SPEED,movementSpeedKey,stats.getOrDefault(ItemStat.MOVEMENT_SPEED,0.0));
         ItemDefinition weapon=items.definitionOf(main);
-        String type=weapon==null?"PHYSICAL":(weapon.weaponType()==WeaponType.STAFF?"MAGIC":"PHYSICAL");
+        String type=weapon==null?"PHYSICAL":(weapon.weaponType()==WeaponType.STAFF||weapon.weaponType()==WeaponType.WAND?"MAGIC":"PHYSICAL");
         items.snapshot(uuid,new ItemStatSnapshot(stats,unmet,weapon==null?null:weapon.id(),type,hash));
         for(ItemSlot slot:ItemSlot.values()) {
             String source="item:"+slot.name();
@@ -172,4 +172,3 @@ public final class ItemHook implements Listener {
     @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();hashes.remove(id);items.clear(id);items.setBonuses().clear(id);ItemUidRegistry.release(id);
         clearItemModifiers(id);}
 }
-

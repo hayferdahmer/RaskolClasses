@@ -12,8 +12,9 @@ import java.util.Map;
 
 /** Creates item stacks from validated registry definitions. */
 public final class ItemFactory {
+    private final RaskolClasses plugin;
     private final ItemPdc pdc;
-    public ItemFactory(RaskolClasses plugin) { pdc=new ItemPdc(plugin); }
+    public ItemFactory(RaskolClasses plugin) { this.plugin=plugin; pdc=new ItemPdc(plugin); }
     public ItemStack create(ItemDefinition def,long seed) {
         Material material=Material.matchMaterial(def.material());
         if(material==null || !material.isItem()) throw new IllegalArgumentException("Invalid material: "+def.material());
@@ -22,6 +23,13 @@ public final class ItemFactory {
                 def.rarity()==ItemRarity.RARE?NamedTextColor.BLUE:NamedTextColor.WHITE));
         List<Component> lore=new ArrayList<>();
         for(String line:def.lore()) lore.add(Component.text(color(line),NamedTextColor.GRAY));
+        if(def.setId()!=null) {
+            SetDefinition set=plugin.getItems().registry().sets().get(def.setId());
+            lore.add(Component.empty());
+            lore.add(Component.text("Комплект: "+(set==null?def.setId():set.displayName()),NamedTextColor.GOLD));
+            if(set!=null) set.bonuses().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry ->
+                    lore.add(Component.text(entry.getKey()+" предмета: "+entry.getValue().description(),NamedTextColor.DARK_PURPLE)));
+        }
         String requirement=def.playerClass()==null?"Любой класс":def.playerClass().getDisplayName();
         if(def.spec()!=null)requirement+=" · "+def.spec();
         requirement+=" · уровень "+def.levelRequirement();

@@ -24,7 +24,8 @@ public final class NullWallet implements ImperialWallet {
     }
 
     @Override
-    public void give(UUID uuid, int amount) {
+    public boolean give(UUID uuid, int amount) {
+        return false;
         // no-op
     }
 

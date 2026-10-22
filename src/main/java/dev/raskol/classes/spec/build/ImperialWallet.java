@@ -13,7 +13,7 @@ import java.util.UUID;
  *  - balance(uuid): текущий баланс, 0 при ошибке;
  *  - take(uuid, amount): атомарно списать amount≥0; true если списано, false
  *    если не хватило или ошибка; amount==0 → true без списания;
- *  - give(uuid, amount): атомарно начислить (используется для отката gift);
+ *  - give(uuid, amount): начислить; true только если кошелёк подтвердил запись;
  *  - isAvailable(): true если реализация рабочая.
  *
  * Все реализации обязаны быть потокобезопасными (PlayerPoints API сам по себе
@@ -25,7 +25,7 @@ public interface ImperialWallet {
 
     boolean take(UUID uuid, int amount);
 
-    void give(UUID uuid, int amount);
+    boolean give(UUID uuid, int amount);
 
     boolean isAvailable();
 

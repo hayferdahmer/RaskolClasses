@@ -138,7 +138,9 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-artifacts/*.jar
+          files: |
+            release-artifacts/*.jar
+            resource-pack/*.zip
           body_path: release-notes.md
           draft: false
           prerelease: false
