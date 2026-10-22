@@ -3,6 +3,7 @@ package dev.raskol.classes.item;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -145,7 +146,8 @@ public final class ItemHook implements Listener {
         if(!(e.getEntity() instanceof Player p))return;
         reconcile(p);
         ItemStatSnapshot snapshot=items.snapshot(p.getUniqueId());double damage=snapshot.value(ItemStat.ATTACK_DAMAGE);
-        if(damage>0)items.pdc().writeShot(e.getProjectile(),damage,snapshot.autoAttackType());
+        if(damage>0&&e.getProjectile() instanceof Projectile projectile)
+            items.pdc().writeShot(projectile,damage,snapshot.autoAttackType());
     }
     @EventHandler(priority=EventPriority.MONITOR) public void held(PlayerItemHeldEvent e){schedule(e.getPlayer());}
     @EventHandler(priority=EventPriority.MONITOR) public void swap(PlayerSwapHandItemsEvent e){schedule(e.getPlayer());}
@@ -156,3 +158,4 @@ public final class ItemHook implements Listener {
     @EventHandler(priority=EventPriority.MONITOR) public void quit(PlayerQuitEvent e){UUID id=e.getPlayer().getUniqueId();hashes.remove(id);items.clear(id);items.setBonuses().clear(id);ItemUidRegistry.release(id);
         clearItemModifiers(id);}
 }
+
