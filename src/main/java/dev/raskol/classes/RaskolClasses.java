@@ -37,7 +37,7 @@ import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.PassportChangeListener;
-import dev.raskol.classes.item.ItemSystem;
+import dev.raskol.classes.item.service.ItemSystem;
 import dev.raskol.classes.api.items.ItemsApi;
 import dev.raskol.classes.api.combat.CombatProfileRegistry;
 import dev.raskol.classes.api.combat.CombatProfileLifecycleListener;
@@ -117,6 +117,10 @@ import java.util.List;
  *         через RaskolCommand (который инициализируется после PlusGui).
  * 1.14.15-fix: чтение plus.period-days через getConfig() — внутри RaskolClasses
  *         нет поля plugin (класс сам является JavaPlugin).
+ * 1.15.0: предметный слой — ItemSystem (342 определения, PDC v1, снапшоты экипировки),
+ *         ItemsApi/CombatProfileRegistry для интеграций (RaskolMobs), ItemBrowserMenu;
+ *         RaskolGear-хук и старые сет-бонусы удалены полностью.
+ * 1.15.1-A: ItemSystem импортирован из item.service после реструктуризации item-пакета.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -212,9 +216,9 @@ public final class RaskolClasses extends JavaPlugin {
         this.items = new ItemSystem(this);
         this.itemsApi = new ItemsApi(this);
         this.combatProfiles = new CombatProfileRegistry();
-        pluginManager.registerEvents(new CombatProfileLifecycleListener(combatProfiles),this);
+        pluginManager.registerEvents(new CombatProfileLifecycleListener(combatProfiles), this);
         this.itemBrowser = new ItemBrowserMenu(this);
-        pluginManager.registerEvents(itemBrowser,this);
+        pluginManager.registerEvents(itemBrowser, this);
 
         this.blueprintHook = new BlueprintHook(this);
         blueprintHook.registerBlueprints();
@@ -247,7 +251,11 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.resists = new ResistService(this);
         this.combat = new CombatService(this, resists);
-        if (items != null && getConfig().getBoolean("item.enabled", true)) items.start();
+        // 1.15.0: start() регистрирует слушателей и задачи; при item.enabled=false
+        // слой остаётся пассивным (реестр загружен, событий нет).
+        if (getConfig().getBoolean("item.enabled", true)) {
+            items.start();
+        }
         // 1.14.13 (Волна 13B-b): DotService создаётся в конструкторе CombatService
         // (чистая ссылка); регистрируем и запускаем тик отсюда.
         combat.dots().registerListeners();
@@ -531,9 +539,9 @@ public final class RaskolClasses extends JavaPlugin {
     public ItemsApi getItemsApi() { return itemsApi; }
     public ItemBrowserMenu getItemBrowser() { return itemBrowser; }
     public CombatProfileRegistry getCombatProfiles() { return combatProfiles; }
-    /** Register an optional provider implemented by RaskolMobs. */
-    public void setEntityLevelProvider(EntityLevelProvider provider) { this.entityLevelProvider=provider; }
-    /** Return the current integration-owned level provider, if one is registered. */
+    /** Опциональный провайдер уровней сущностей — реализует RaskolMobs через API. */
+    public void setEntityLevelProvider(EntityLevelProvider provider) { this.entityLevelProvider = provider; }
+    /** Текущий провайдер уровней интеграции или null, если не зарегистрирован. */
     public EntityLevelProvider getEntityLevelProvider() { return entityLevelProvider; }
     public BlueprintHook getBlueprintHook() { return blueprintHook; }
     public FoliantService getFoliantService() { return foliantService; }
