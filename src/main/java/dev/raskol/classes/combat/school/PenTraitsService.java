@@ -2,7 +2,7 @@
 package dev.raskol.classes.combat.school;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.item.ItemStat;
+import dev.raskol.classes.item.model.ItemStat;
 
 import java.util.UUID;
 
@@ -56,7 +56,7 @@ public final class PenTraitsService {
     public Penetration channelPen(UUID uuid, boolean physical, double cap) {
         double pct = totalPenPercent(uuid, physical ? "phys" : "magic");
         ItemStat flat = physical ? ItemStat.PEN_PHYS_FLAT : ItemStat.PEN_MAGIC_FLAT;
-        double amount=plugin.getItems()==null?0.0:plugin.getItems().value(uuid,flat);
+        double amount = plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, flat);
         return Penetration.of(amount, clampSumPercent(pct, cap));
     }
 
