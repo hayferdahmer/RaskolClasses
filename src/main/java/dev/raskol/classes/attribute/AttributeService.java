@@ -5,7 +5,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.config.ConfigReads;
-import dev.raskol.classes.item.ItemStat;
+import dev.raskol.classes.item.model.ItemStat;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Bukkit;
