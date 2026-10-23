@@ -2,6 +2,7 @@
 package dev.raskol.classes.item.factory;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.item.model.Affix;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemStat;
 import org.bukkit.NamespacedKey;
