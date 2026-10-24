@@ -33,6 +33,7 @@ import java.util.UUID;
  * 1.12.2 (Б5): строки пробития и стихийных резистов.
  * 1.13.0 (Б4): секция контроля (активные CC + DR-стеки с таймером окна).
  * 1.14.0 (Б8.2): спека читается из spec2 (Spec2Service.mainSpec), legacy SpecService удалён.
+ * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
  */
 public final class DebugSub implements CommandSub {
 
@@ -290,8 +291,8 @@ public final class DebugSub implements CommandSub {
 
         var itemStats = plugin.getItems().snapshot(uuid);
         if (!itemStats.stats().isEmpty()) sender.sendMessage(Component.text("Статы снаряжения: "
-                + itemStats.stats().size() + " · HP +" + (int)itemStats.value(dev.raskol.classes.item.ItemStat.HP_BONUS)
-                + " · отражение " + (int)itemStats.value(dev.raskol.classes.item.ItemStat.REFLECT) + "%",NamedTextColor.DARK_AQUA));
+                + itemStats.stats().size() + " · HP +" + (int)itemStats.value(dev.raskol.classes.item.model.ItemStat.HP_BONUS)
+                + " · отражение " + (int)itemStats.value(dev.raskol.classes.item.model.ItemStat.REFLECT) + "%",NamedTextColor.DARK_AQUA));
 
         sender.sendMessage(Component.text("Ресурс: " + (int) plugin.getResources().getValue(uuid)
                 + "/100", NamedTextColor.AQUA));
@@ -306,4 +307,3 @@ public final class DebugSub implements CommandSub {
                 NamedTextColor.GRAY));
     }
 }
-
