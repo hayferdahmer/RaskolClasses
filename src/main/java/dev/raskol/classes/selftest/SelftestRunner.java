@@ -37,7 +37,7 @@ import dev.raskol.classes.command.sub.CcSub;
 import dev.raskol.classes.config.CcSanity;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
-import dev.raskol.classes.item.ItemStat;
+import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.pet.PetDef;
 import dev.raskol.classes.pet.PetMath;
 import dev.raskol.classes.resource.ResourceState;
@@ -98,6 +98,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * применение узла ряда 1 + откат) и отказы БЕЗ изменения состояния (чужое дерево →
  * WRONG_CLASS_TREE, prereq-дыра → TEMPLATE_INVALID). pauseMs(200) между вызовами —
  * rate-limit actionAllowed (150 мс).
+ *
+ * 1.15.1-A: импорт ItemStat перенесён в item.model после реструктуризации item-пакета.
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
