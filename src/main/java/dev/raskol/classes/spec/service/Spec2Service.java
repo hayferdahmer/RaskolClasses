@@ -69,6 +69,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *           setRanks → reconcile → защитный rollback (PRUNED, недостижим из-за
  *           пре-проверок). Подписка НЕ проверяется здесь — сервис подписочно-
  *           независим, гейт держит GUI/команда.
+ * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
  */
 public final class Spec2Service {
 
@@ -746,7 +747,7 @@ public final class Spec2Service {
     }
 
     public double cooldownMult(UUID uuid, String abilityId) {
-        double itemReduction=plugin.getItems()==null?0.0:plugin.getItems().value(uuid,dev.raskol.classes.item.ItemStat.COOLDOWN_REDUCTION)/100.0;
+        double itemReduction=plugin.getItems()==null?0.0:plugin.getItems().value(uuid,dev.raskol.classes.item.model.ItemStat.COOLDOWN_REDUCTION)/100.0;
         return Math.max(0.1, (1.0 - agg(uuid).cdPct.getOrDefault(abilityId, 0.0))*(1.0-itemReduction));
     }
 
