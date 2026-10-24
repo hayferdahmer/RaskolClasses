@@ -55,6 +55,7 @@ import java.util.UUID;
  *   - onDamage: `attacker instanceof Player playerAttacker` заменено на
  *     `attacker != null` — переменная УЖЕ типизирована как Player, instanceof
  *     был vacuous для любого non-null значения (SpotBugs BC_VACUOUS_INSTANCEOF).
+ * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -256,7 +257,7 @@ public final class VanillaDamageListener implements Listener {
         if(!suppressed&&event.getCause()!=EntityDamageEvent.DamageCause.CUSTOM
                 &&event.getDamage()>0.0&&event instanceof EntityDamageByEntityEvent by){
             double reflect=targetProfile!=null?targetProfile.reflect():
-                    plugin.getItems().value(target.getUniqueId(),dev.raskol.classes.item.ItemStat.REFLECT);
+                    plugin.getItems().value(target.getUniqueId(),dev.raskol.classes.item.model.ItemStat.REFLECT);
             reflect(by,event.getDamage(),reflect);
         }
 
@@ -356,7 +357,7 @@ public final class VanillaDamageListener implements Listener {
         }
         add *= caps.scaleOf(by.getEntity());
         double base = event.getDamage();
-        double itemDamage=plugin.getItems().value(uuid,dev.raskol.classes.item.ItemStat.ATTACK_DAMAGE);
+        double itemDamage=plugin.getItems().value(uuid,dev.raskol.classes.item.model.ItemStat.ATTACK_DAMAGE);
         if(by.getDamager() instanceof Projectile projectile) {
             Double shot=plugin.getItems().pdc().shotDamage(projectile);
             if(shot!=null&&Double.isFinite(shot)&&shot>=0)itemDamage=shot;
@@ -449,12 +450,12 @@ public final class VanillaDamageListener implements Listener {
     /** 1.14.3 (3C1+3C2): базовый melee-mult × crit_mult_bonus. */
     private double meleeMult(Player attacker) {
         return cfgD("attributes.crit.melee-mult", 1.5) * combat.procs().critMultBonus(attacker)
-                * (1.0 + plugin.getItems().value(attacker.getUniqueId(),dev.raskol.classes.item.ItemStat.CRIT_DAMAGE)/100.0);
+                * (1.0 + plugin.getItems().value(attacker.getUniqueId(),dev.raskol.classes.item.model.ItemStat.CRIT_DAMAGE)/100.0);
     }
 
     private double spellMult(Player attacker) {
         return cfgD("attributes.crit.spell-mult", 1.5) * combat.procs().critMultBonus(attacker)
-                * (1.0 + plugin.getItems().value(attacker.getUniqueId(),dev.raskol.classes.item.ItemStat.CRIT_DAMAGE)/100.0);
+                * (1.0 + plugin.getItems().value(attacker.getUniqueId(),dev.raskol.classes.item.model.ItemStat.CRIT_DAMAGE)/100.0);
     }
 
     private static boolean isPvp(EntityDamageEvent event) {
