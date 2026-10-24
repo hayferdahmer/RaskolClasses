@@ -37,6 +37,8 @@ import java.util.UUID;
  * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble
  * (аудит 1-01: единая NaN-проверка). baseOf оставлен локальным: секционированное
  * чтение attributes.power.<section>.<CLASS> с собственным default'ом — не общий паттерн.
+ *
+ * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
  */
 public final class PowerService {
 
@@ -133,7 +135,7 @@ public final class PowerService {
                 attrs.value(uuid, AttributeType.AGI),
                 cfgD("attributes.power.str-to-wp", 1.5),
                 cfgD("attributes.power.agi-to-wp", 0.5));
-        return (base + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, dev.raskol.classes.item.ItemStat.WEAPON_POWER))) * wpMultiplier(uuid);
+        return (base + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, dev.raskol.classes.item.model.ItemStat.WEAPON_POWER))) * wpMultiplier(uuid);
     }
 
     /** 1.14.3 (3B): базовая SP × (1 + spPct/100). */
@@ -148,7 +150,7 @@ public final class PowerService {
                 baseOf("base-sp", pc, defaultSp(pc)),
                 attrs.value(uuid, AttributeType.INT),
                 cfgD("attributes.power.int-to-sp", 1.5));
-        return (base + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, dev.raskol.classes.item.ItemStat.SPELL_POWER))) * spMultiplier(uuid);
+        return (base + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, dev.raskol.classes.item.model.ItemStat.SPELL_POWER))) * spMultiplier(uuid);
     }
 
     /** 1.14.3 (3B): базовая HPow × (1 + hpowPct/100). */
@@ -163,7 +165,7 @@ public final class PowerService {
                 baseOf("base-hpow", pc, defaultHp(pc)),
                 attrs.value(uuid, AttributeType.INT),
                 cfgD("attributes.power.int-to-hpow", 1.4));
-        return (base + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, dev.raskol.classes.item.ItemStat.HEAL_POWER))) * hpowMultiplier(uuid);
+        return (base + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, dev.raskol.classes.item.model.ItemStat.HEAL_POWER))) * hpowMultiplier(uuid);
     }
 
     /** Power по тегу способности: wp | sp | hpow (неизвестный тег → 0). */
