@@ -7,6 +7,7 @@ import dev.raskol.classes.item.factory.ItemFactory;
 import dev.raskol.classes.item.factory.ItemPdc;
 import dev.raskol.classes.item.listener.EquipGuard;
 import dev.raskol.classes.item.listener.ItemHook;
+import dev.raskol.classes.item.listener.UnbreakableGuard;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.item.model.ItemStatSnapshot;
@@ -22,6 +23,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * Runtime owner of the validated item registry, factory and equipment snapshots.
  * 1.15.1-C: start() регистрирует UnbreakableGuard (страховка прочности legacy-предметов).
  * 1.15.1-D: start() регистрирует EquipGuard — классовые/уровневые запреты экипировки.
+ * 1.15.1-D-fix: восстановлен импорт UnbreakableGuard, потерянный при перезаписи файла в D.
  */
 public final class ItemSystem implements ItemStatsProvider {
     private final RaskolClasses plugin;
