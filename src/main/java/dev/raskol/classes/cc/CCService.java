@@ -41,6 +41,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *         (тик 20 раз/сек критичен для производительности — явная отмена в onDisable).
  * 1.14.13-fix: опечатка имени метода в onQuit/onDeath устранена — каноническое
  *         имя resetAllDr(UUID) (нижнее «r»), как во всём коде проекта и selftest.
+ * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
  */
 public final class CCService implements Listener {
 
@@ -161,7 +162,7 @@ public final class CCService implements Listener {
         if (plugin.getSpec2Service() != null) {
             base += plugin.getSpec2Service().ccResistBonus(target.getUniqueId());
         }
-        if(target instanceof Player p&&plugin.getItems()!=null)base+=plugin.getItems().value(p.getUniqueId(),dev.raskol.classes.item.ItemStat.CC_RESIST)/100.0;
+        if(target instanceof Player p&&plugin.getItems()!=null)base+=plugin.getItems().value(p.getUniqueId(),dev.raskol.classes.item.model.ItemStat.CC_RESIST)/100.0;
         dev.raskol.classes.api.combat.CombatProfile profile=plugin.getCombatProfiles()==null?null:
                 plugin.getCombatProfiles().profileOf(target.getUniqueId());
         if(profile!=null)base+=profile.ccResist()/100.0;
@@ -189,7 +190,7 @@ public final class CCService implements Listener {
         if (caster != null && plugin.getSpec2Service() != null) {
             base += plugin.getSpec2Service().ccPowerBonus(caster.getUniqueId());
         }
-        if(caster!=null&&plugin.getItems()!=null)base+=plugin.getItems().value(caster.getUniqueId(),dev.raskol.classes.item.ItemStat.CC_POWER)/100.0;
+        if(caster!=null&&plugin.getItems()!=null)base+=plugin.getItems().value(caster.getUniqueId(),dev.raskol.classes.item.model.ItemStat.CC_POWER)/100.0;
         return Math.max(0.0, Math.min(base, powerCap()));
     }
 
