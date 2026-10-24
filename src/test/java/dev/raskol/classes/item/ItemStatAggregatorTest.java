@@ -1,5 +1,14 @@
 package dev.raskol.classes.item;
 
+import dev.raskol.classes.item.model.Affix;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.ItemRarity;
+import dev.raskol.classes.item.model.ItemSlot;
+import dev.raskol.classes.item.model.ItemStat;
+import dev.raskol.classes.item.model.ItemStatSnapshot;
+import dev.raskol.classes.item.model.SetDefinition;
+import dev.raskol.classes.item.model.WeaponType;
+import dev.raskol.classes.item.service.ItemStatAggregator;
 import dev.raskol.classes.classsystem.PlayerClass;
 import org.junit.jupiter.api.Test;
 import java.util.List;
