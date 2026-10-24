@@ -1,9 +1,17 @@
+// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
 package dev.raskol.classes.item;
 
+import dev.raskol.classes.item.config.ItemTemplateExpander;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.ItemRarity;
+import dev.raskol.classes.item.model.ItemStat;
 import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.Map;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ItemTemplateExpanderTest {
     @Test void starterStockHas270DefinitionsAndIncludesWarlock(){
