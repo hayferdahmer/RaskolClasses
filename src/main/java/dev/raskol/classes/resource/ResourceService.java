@@ -60,6 +60,7 @@ import java.util.logging.Logger;
  *         Числовые значения регена/окон по-прежнему читаются из конфига
  *         (config.resourceRegen / combatWindowSeconds / mageRegenTier* / warlock*) —
  *         админ тюнит баланс без пересборки.
+ * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
  */
 public final class ResourceService implements Listener {
 
@@ -96,9 +97,9 @@ public final class ResourceService implements Listener {
         Player player=Bukkit.getPlayer(uuid);
         if(player!=null&&plugin.getItems()!=null){
             PlayerClass pc=classProvider.getClassOf(player);
-            dev.raskol.classes.item.ItemStat maxStat=pc==PlayerClass.WARRIOR?dev.raskol.classes.item.ItemStat.MAX_RAGE
-                    :pc==PlayerClass.ROGUE||pc==PlayerClass.HUNTER?dev.raskol.classes.item.ItemStat.MAX_ENERGY
-                    :dev.raskol.classes.item.ItemStat.MAX_MANA;
+            dev.raskol.classes.item.model.ItemStat maxStat=pc==PlayerClass.WARRIOR?dev.raskol.classes.item.model.ItemStat.MAX_RAGE
+                    :pc==PlayerClass.ROGUE||pc==PlayerClass.HUNTER?dev.raskol.classes.item.model.ItemStat.MAX_ENERGY
+                    :dev.raskol.classes.item.model.ItemStat.MAX_MANA;
             double itemBonus=plugin.getItems().value(uuid,maxStat);
             if(!Double.isFinite(itemBonus)||itemBonus<0)itemBonus=0.0;
             maxBonus+=itemBonus;
@@ -214,7 +215,7 @@ public final class ResourceService implements Listener {
                 }
                 default -> rate = config.resourceRegen(pc); // PLAIN: PRIEST, ROGUE
             }
-            if(rate>0&&plugin.getItems()!=null)rate+=plugin.getItems().value(uuid,dev.raskol.classes.item.ItemStat.RESOURCE_REGEN);
+            if(rate>0&&plugin.getItems()!=null)rate+=plugin.getItems().value(uuid,dev.raskol.classes.item.model.ItemStat.RESOURCE_REGEN);
             // 1.14.0 (Б7): regen-бонусы только из spec2-агрегата (узлы regen)
             if (svc != null) {
                 rate += svc.regenBonus(uuid);
