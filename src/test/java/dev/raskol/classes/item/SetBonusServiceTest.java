@@ -1,10 +1,19 @@
+// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
 package dev.raskol.classes.item;
 
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.ItemRarity;
+import dev.raskol.classes.item.model.ItemSlot;
+import dev.raskol.classes.item.model.ItemStat;
+import dev.raskol.classes.item.model.SetDefinition;
+import dev.raskol.classes.item.service.SetBonusService;
 import org.junit.jupiter.api.Test;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class SetBonusServiceTest {
     @Test void thresholdsAccumulateAndPublishImmutableActiveSets(){
