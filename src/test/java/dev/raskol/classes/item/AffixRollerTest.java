@@ -1,8 +1,15 @@
+// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
 package dev.raskol.classes.item;
 
+import dev.raskol.classes.item.factory.AffixRoller;
+import dev.raskol.classes.item.model.Affix;
+import dev.raskol.classes.item.model.ItemStat;
 import org.junit.jupiter.api.Test;
+
 import java.util.List;
-import static org.junit.jupiter.api.Assertions.*;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AffixRollerTest {
     @Test void sameSeedProducesSameAffixesWithoutDuplicateStats(){
