@@ -5,8 +5,8 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.item.api.ItemStatsProvider;
 import dev.raskol.classes.item.factory.ItemFactory;
 import dev.raskol.classes.item.factory.ItemPdc;
+import dev.raskol.classes.item.listener.EquipGuard;
 import dev.raskol.classes.item.listener.ItemHook;
-import dev.raskol.classes.item.listener.UnbreakableGuard;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.item.model.ItemStatSnapshot;
@@ -20,14 +20,15 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Runtime owner of the validated item registry, factory and equipment snapshots.
- * 1.15.1-C: start() регистрирует UnbreakableGuard — страховку прочности для
- * legacy-предметов 1.15.0 (новые предметы несут флаг unbreakable из ItemFactory).
+ * 1.15.1-C: start() регистрирует UnbreakableGuard (страховка прочности legacy-предметов).
+ * 1.15.1-D: start() регистрирует EquipGuard — классовые/уровневые запреты экипировки.
  */
 public final class ItemSystem implements ItemStatsProvider {
     private final RaskolClasses plugin;
     private final ItemFactory factory;
     private final ItemHook hook;
     private final UnbreakableGuard unbreakableGuard;
+    private final EquipGuard equipGuard;
     private final SetBonusService setBonuses = new SetBonusService();
     private final Map<UUID, ItemStatSnapshot> snapshots = new ConcurrentHashMap<>();
     private final java.util.Set<String> warnedUnknownIds = ConcurrentHashMap.newKeySet();
@@ -38,6 +39,7 @@ public final class ItemSystem implements ItemStatsProvider {
         factory = new ItemFactory(plugin);
         hook = new ItemHook(plugin, this);
         unbreakableGuard = new UnbreakableGuard(factory.pdc());
+        equipGuard = new EquipGuard(plugin, this);
         reload();
     }
 
@@ -64,6 +66,7 @@ public final class ItemSystem implements ItemStatsProvider {
 
     public void start() {
         plugin.getServer().getPluginManager().registerEvents(unbreakableGuard, plugin);
+        plugin.getServer().getPluginManager().registerEvents(equipGuard, plugin);
         hook.start();
     }
 
