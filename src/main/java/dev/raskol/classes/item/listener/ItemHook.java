@@ -51,6 +51,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - SetBonusService.apply() возвращает новую map — itemOnly остаётся честной копией
  *    предметных статов для расчёта set-diff резистов/стихий.
  * Запреты экипировки (класс/спек/уровень) — в EquipGuard, этот класс только reconcile.
+ *
+ * 1.15.1-D-fix: блок аккумуляции статов разбит на две переменные (acc + stats),
+ * обе effectively final в своём скоупе — лямбды больше не используют не-final
+ * локальную переменную.
  */
 public final class ItemHook implements Listener {
     private final RaskolClasses plugin;
@@ -137,19 +141,25 @@ public final class ItemHook implements Listener {
             rolled.add(items.pdc().affixes(stack, def));
         }
 
-        Map<ItemStat, Double> stats = new EnumMap<>(ItemStat.class);
+        // 1.15.1-D-fix: acc и stats — две отдельные переменные, обе effectively final
+        // в своём скоупе; лямбды forEach больше не обращаются к reassign-переменной.
+        Map<ItemStat, Double> acc = new EnumMap<>(ItemStat.class);
         for (int i = 0; i < defs.size(); i++) {
-            boolean weaponSlot = defs.get(i).slot() == ItemSlot.MAIN_HAND;
-            defs.get(i).baseStats().forEach((s, v) -> {
-                if (s != ItemStat.ATTACK_DAMAGE || weaponSlot) stats.merge(s, v, Double::sum);
-            });
-            rolled.get(i).forEach((s, v) -> {
-                if (s != ItemStat.ATTACK_DAMAGE || weaponSlot) stats.merge(s, v, Double::sum);
-            });
+            ItemDefinition def = defs.get(i);
+            boolean weaponSlot = def.slot() == ItemSlot.MAIN_HAND;
+            for (Map.Entry<ItemStat, Double> e : def.baseStats().entrySet()) {
+                if (e.getKey() != ItemStat.ATTACK_DAMAGE || weaponSlot) {
+                    acc.merge(e.getKey(), e.getValue(), Double::sum);
+                }
+            }
+            for (Map.Entry<ItemStat, Double> e : rolled.get(i).entrySet()) {
+                if (e.getKey() != ItemStat.ATTACK_DAMAGE || weaponSlot) {
+                    acc.merge(e.getKey(), e.getValue(), Double::sum);
+                }
+            }
         }
-        Map<ItemStat, Double> itemOnly = new EnumMap<>(stats);
-        // 1.15.1-D: apply возвращает новую map (item + set), вход не мутирует
-        stats = items.setBonuses().apply(uuid, defs, stats);
+        Map<ItemStat, Double> itemOnly = new EnumMap<>(acc);
+        Map<ItemStat, Double> stats = items.setBonuses().apply(uuid, defs, acc);
         stats.replaceAll((s, v) -> Double.isFinite(v) ? v : 0.0);
 
         applySpeed(player, Attribute.ATTACK_SPEED, attackSpeedKey, stats.getOrDefault(ItemStat.ATTACK_SPEED, 0.0));
