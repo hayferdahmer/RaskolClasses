@@ -19,6 +19,8 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
+import java.util.Map;
+
 /**
  * 1.15.1-D: запреты экипировки по классу/спеке/уровню (пункт 5 дорожной карты).
  *
@@ -32,6 +34,8 @@ import org.bukkit.inventory.PlayerInventory;
  *
  * Сообщения игроку — inline до выноса в messages.yml (1.15.2): причина
  * дифференцируется (класс / спек / уровень).
+ *
+ * 1.15.1-D-fix: добавлен импорт java.util.Map (используется в onDrag).
  */
 public final class EquipGuard implements Listener {
 
