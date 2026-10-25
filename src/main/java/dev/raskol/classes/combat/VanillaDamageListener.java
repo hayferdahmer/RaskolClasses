@@ -4,6 +4,7 @@ package dev.raskol.classes.combat;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.PowerService;
+import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.school.Penetration;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.combat.school.SchoolConfig;
@@ -11,6 +12,8 @@ import dev.raskol.classes.combat.school.SchoolImmunity;
 import dev.raskol.classes.combat.school.SchoolMitigation;
 import dev.raskol.classes.api.combat.CombatProfile;
 import dev.raskol.classes.config.ConfigReads;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.WeaponType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
@@ -30,32 +33,18 @@ import java.util.UUID;
 
 /**
  * 1.11.4 (P3): ПУТЬ A — ванильные события урона.
- *  - ally-гейт фракций;
- *  - исходящий офенс (атака оружия + WP/SP × coeff и критические множители);
- *  - seal-амплификация «Печати Погибели» (универсально, до резистов);
- *  - резист-фактор канала, single-hit cap, burst-окно (через DamageCaps);
- *  - avoidance (dodge/parry) для PHYSICAL.
  * 1.12.1: иммунитеты/уязвимости сущностей к школам + глобальный множитель школы.
  * 1.12.2 (Блок 4): живая проводка пробития и стихийного слоя.
  * 1.13.0 (Б2): breaksOnDamage-хуки.
  * 1.14.3 (Волна 3, 3C1): интеграция ProcService — avoid-result, expose, second_wind.
  * 1.14.3 (Волна 3, 3C2): stealth_bonus/crit_mult_bonus в офенсе, setUndodgeable на крит,
  *         reflect_magic после финального маг-урона.
- * 1.14.3 (фикс красного рана #1301): УБРАН несуществующий EntityDamageByEntityEvent.isBlocked().
- *         Блок щита детектируется детерминированно: PARRY + щит в руке = блок
- *         (guard-проки revenge/shield_slam), PARRY без щита = парирование (riposte),
- *         DODGE = уклонение (counterattack). Amplifier ставится на защищавшегося.
+ * 1.14.3 (фикс #1301): УБРАН несуществующий EntityDamageByEntityEvent.isBlocked().
  * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): клон critFeedback удалён — вызов
  *         combat.critFeedback() (единая точка в CombatService).
  * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble.
- * 1.14.14 (фаза 2, FE/BC-фиксы):
- *   - applyOutgoingOffense: сравнение `total != base` заменено на
- *     `Math.abs(total - base) > 1e-9` — epsilon-сравнение вместо прямого
- *     равенства floating-point (SpotBugs FE_FLOATING_POINT_EQUALITY).
- *   - onDamage: `attacker instanceof Player playerAttacker` заменено на
- *     `attacker != null` — переменная УЖЕ типизирована как Player, instanceof
- *     был vacuous для любого non-null значения (SpotBugs BC_VACUOUS_INSTANCEOF).
- * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
+ * 1.14.14 (фаза 2, FE/BC-фиксы): epsilon-сравнение floating-point.
+ * 1.15.2: WeaponMastery — множитель владения оружием (×1.0/×0.75/×0.5) для PHYSICAL-урона.
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -311,7 +300,7 @@ public final class VanillaDamageListener implements Listener {
         }
     }
 
-    /* --------------------- исходящий офенс (1.7.1 + 1.14.3 3C1/3C2) --------------------- */
+    /* --------------------- исходящий офенс (1.7.1 + 1.14.3 3C1/3C2 + 1.15.2 mastery) --------------------- */
 
     private void applyOutgoingOffense(EntityDamageEvent event) {
         if (!(event instanceof EntityDamageByEntityEvent by)) {
@@ -365,6 +354,16 @@ public final class VanillaDamageListener implements Listener {
         if(itemDamage>0.0)itemDamage*=caps.scaleOf(by.getEntity());
         if(itemDamage>0.0)base=itemDamage;
         double total = base + add;
+
+        // 1.15.2: WeaponMastery — множитель владения оружием для PHYSICAL-урона
+        if (type == DamageType.PHYSICAL) {
+            PlayerClass pc = plugin.getClassProvider().getClassOf(attacker);
+            org.bukkit.inventory.ItemStack mainHand = attacker.getInventory().getItemInMainHand();
+            ItemDefinition weaponDef = plugin.getItems().definitionOf(mainHand);
+            WeaponType weaponType = weaponDef != null ? weaponDef.weaponType() : null;
+            double mastery = WeaponMastery.masteryMultiplier(pc, weaponType);
+            total *= mastery;
+        }
 
         // 1.14.3 (3C2): stealth_bonus — множитель урона при ударе из невидимости
         double stealth = combat.procs().rollStealthBonus(attacker);
