@@ -13,7 +13,10 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
+import dev.raskol.classes.combat.WeaponMastery;
 import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.WeaponType;
 import dev.raskol.classes.spec.Spec;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -33,7 +36,7 @@ import java.util.UUID;
  * 1.12.2 (Б5): строки пробития и стихийных резистов.
  * 1.13.0 (Б4): секция контроля (активные CC + DR-стеки с таймером окна).
  * 1.14.0 (Б8.2): спека читается из spec2 (Spec2Service.mainSpec), legacy SpecService удалён.
- * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
+ * 1.15.2: строка WeaponMastery — множитель владения оружием (NATIVE/FAMILIAR/FOREIGN).
  */
 public final class DebugSub implements CommandSub {
 
@@ -293,6 +296,18 @@ public final class DebugSub implements CommandSub {
         if (!itemStats.stats().isEmpty()) sender.sendMessage(Component.text("Статы снаряжения: "
                 + itemStats.stats().size() + " · HP +" + (int)itemStats.value(dev.raskol.classes.item.model.ItemStat.HP_BONUS)
                 + " · отражение " + (int)itemStats.value(dev.raskol.classes.item.model.ItemStat.REFLECT) + "%",NamedTextColor.DARK_AQUA));
+
+        // 1.15.2: WeaponMastery — множитель владения оружием
+        org.bukkit.inventory.ItemStack mainHand = target.getInventory().getItemInMainHand();
+        ItemDefinition weaponDef = plugin.getItems().definitionOf(mainHand);
+        WeaponType weaponType = weaponDef != null ? weaponDef.weaponType() : null;
+        if (weaponType != null) {
+            double mastery = WeaponMastery.masteryMultiplier(pc, weaponType);
+            String level = WeaponMastery.masteryLevel(pc, weaponType);
+            sender.sendMessage(Component.text("Владение оружием: " + weaponType
+                    + " → " + level + " (×" + SubUtil.fmt1(mastery * 100) + "% урона)",
+                    NamedTextColor.YELLOW));
+        }
 
         sender.sendMessage(Component.text("Ресурс: " + (int) plugin.getResources().getValue(uuid)
                 + "/100", NamedTextColor.AQUA));
