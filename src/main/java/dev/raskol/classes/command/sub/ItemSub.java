@@ -18,6 +18,7 @@ import java.util.List;
  * 1.15.3: подкоманды локализованы через messages.item.*.
  * 1.15.4: +salvage (разбор предмета в руке на фрагменты) и +craft [id]
  * (крафт по рецепту; без id — открыть GUI крафта).
+ * 1.15.4-B-fix3: удалена dev-команда debug (ссылалась на несуществующий ItemPdc.uidOwner).
  */
 public final class ItemSub implements CommandSub {
 
@@ -40,7 +41,7 @@ public final class ItemSub implements CommandSub {
     @Override
     public boolean execute(CommandSender sender, String[] args) {
         if (args.length < 1) {
-            sender.sendMessage(Component.text("Использование: /rc item <give|stats|browser|debug|reload|salvage|craft>",
+            sender.sendMessage(Component.text("Использование: /rc item <give|stats|browser|reload|salvage|craft>",
                     NamedTextColor.RED));
             return true;
         }
@@ -49,7 +50,6 @@ public final class ItemSub implements CommandSub {
             case "give" -> executeGive(sender, args);
             case "stats" -> executeStats(sender, args);
             case "browser" -> executeBrowser(sender, args);
-            case "debug" -> executeDebug(sender, args);
             case "reload" -> executeReload(sender);
             case "salvage" -> executeSalvage(sender);
             case "craft" -> executeCraft(sender, args);
@@ -63,7 +63,7 @@ public final class ItemSub implements CommandSub {
     @Override
     public List<String> complete(CommandSender sender, String[] fullArgs) {
         if (fullArgs.length == 2) {
-            return SubUtil.filter(List.of("give", "stats", "browser", "debug",
+            return SubUtil.filter(List.of("give", "stats", "browser",
                     "reload", "salvage", "craft"), fullArgs[1]);
         }
         if (fullArgs.length >= 3 && "give".equalsIgnoreCase(fullArgs[1])) {
@@ -169,23 +169,6 @@ public final class ItemSub implements CommandSub {
             return true;
         }
         plugin.getItems().browser().open(player, 0);
-        return true;
-    }
-
-    private boolean executeDebug(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("raskolclasses.item.debug")) {
-            sender.sendMessage(Component.text(plugin.getRaskolConfig()
-                    .message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
-            return true;
-        }
-        if (args.length < 2) {
-            sender.sendMessage(Component.text("Использование: /rc item debug <uid>", NamedTextColor.RED));
-            return true;
-        }
-        String uid = args[1];
-        var owner = plugin.getItems().pdc().uidOwner(uid);
-        sender.sendMessage(Component.text("UID " + uid + ": владелец "
-                + (owner == null ? "—" : owner.toString()), NamedTextColor.AQUA));
         return true;
     }
 
