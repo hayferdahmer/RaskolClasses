@@ -1,5 +1,5 @@
 # ============================================================
-#  RaskolClasses v1.15.3 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
+#  RaskolClasses v1.15.4 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
 #  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -45,6 +45,12 @@
 #
 #  1.15.3: блок messages.item.* — локализация сообщений предметного слоя
 #  (EquipGuard: запреты экипировки; ItemFactory: lore-маркер; DebugSub: владение).
+#
+#  1.15.4 (крафт и фрагменты): корневая секция item.* (enabled / reconcile-ticks /
+#  starter-kit / salvage / craft) и сообщения messages.item.* для разбора и крафта.
+#  Рецепты крафта — в crafting.yml (извлекается из jar при первом старте).
+#  Экономика: фрагменты НЕ продаются, разбор убыточен (~30% ценности предмета),
+#  дневной лимит разбора — анти-ферма фрагментов.
 # ============================================================
 
 hud:
@@ -130,6 +136,25 @@ plus:
   period-days: 30
   max-gift-periods: 12
   cooldown-gift-ms: 5000
+
+# ------------------------------------------------------------
+# 1.15.0–1.15.4: предметный слой.
+# enabled=false — слой пассивен (реестр загружен, слушатели не регистрируются).
+# reconcile-ticks — период сверки снапшотов экипировки (хэш-оптимизация).
+# starter-kit — выдача комплекта COMMON ур. 1 при назначении класса (выкл. по умолчанию).
+# salvage/craft — экономика 1.15.4: разбор убыточен (~30% ценности), дневной
+# лимит разбора — анти-ферма фрагментов; рецепты крафта — в crafting.yml.
+# ------------------------------------------------------------
+item:
+  enabled: true
+  reconcile-ticks: 20
+  starter-kit:
+    enabled: false
+  salvage:
+    enabled: true
+    daily-limit: 20
+  craft:
+    enabled: true
 
 class-accept:
   enabled: true
@@ -780,14 +805,26 @@ messages:
       diff-points: "Очков нужно: {n}"
       confirm-title: "⚜ Применить «{name}»?"
       confirm-arm: "ПКМ №1 — взвести, ПКМ №2 (30 с) — применить"
-  # 1.15.3: сообщения предметного слоя (EquipGuard / ItemFactory / DebugSub).
-  # Fallback в коде идентичен — ключи нужны для локализации без пересборки.
+  # 1.15.3 + 1.15.4: сообщения предметного слоя (EquipGuard / ItemFactory / DebugSub /
+  # SalvageService / CraftingService). Fallback в коде идентичен — ключи для локализации.
   item:
     equip-class: "⛔ «{item}»: примет только {class}"
     equip-spec: "⛔ «{item}»: требуется спек {spec}"
     equip-level: "⛔ «{item}»: требуется уровень {level} (у вас {current})"
     unbreakable-lore: "⛨ Неразрушаемый"
     mastery-line: "Владение: {weapon} → {level} (×{pct}% урона)"
+    salvage-ok: "♻ Разобрано: {item} → {fragments}"
+    salvage-disabled: "♻ Разбор отключён"
+    salvage-empty: "♻ В руке нет предмета для разбора"
+    salvage-not-ours: "♻ Этот предмет не разобрать: он не из RaskolClasses"
+    salvage-limit: "♻ Дневной лимит разбора исчерпан ({limit})"
+    craft-ok: "⚒ Создано: {item}"
+    craft-disabled: "⚒ Крафт отключён"
+    craft-unknown: "⚒ Рецепт не найден"
+    craft-target: "⚒ Цель рецепта недоступна"
+    craft-no-econ: "⚒ Экономика недоступна — крафт с монетами отключён"
+    craft-coins: "⚒ Не хватает монет: нужно {coins}"
+    craft-frags: "⚒ Не хватает фрагментов: {missing}"
 
 classes:
   WARRIOR:
@@ -2523,5 +2560,5 @@ vfx:
       tag: "☾ Чёрная Месса"
 
 # ============================================================
-#  КОНЕЦ config.yml · RaskolClasses 1.15.3
+#  КОНЕЦ config.yml · RaskolClasses 1.15.4
 # ============================================================
