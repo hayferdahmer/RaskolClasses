@@ -72,7 +72,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 134 чека.
+ * Headless-самотестирование формул плагина (/rc selftest), 137 чеков.
  *
  * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
@@ -106,6 +106,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 1.15.3: добавлен чек 134 — messages.item.* присутствуют в конфиге и непустые
  * (canary: живой config.yml без блока 1.15.3 даёт красный чек).
  *
+ * 1.15.4: добавлены чеки 135–137 — крафт и фрагменты (FragmentRegistry 13 записей,
+ * pure-математика SalvageService.fragmentsFor, загрузка рецептов crafting.yml).
+ *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
  *   ttkLevels      17–20    TTK-дуэли и topNAverage
@@ -135,6 +138,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   items115      128–130   реестр экипировки 1.15.0, инварианты, RaskolGear удалён
  *   weaponMastery 131–133   WeaponMastery матрица 8×6 (native/familiar/foreign)
  *   itemMessages   134      messages.item.* присутствуют в конфиге (1.15.3)
+ *   crafting1154   135–137  крафт/фрагменты 1.15.4 (реестр/pure-математика/reload crafting.yml)
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -318,6 +322,8 @@ public final class SelftestRunner {
         weaponMastery(r);
         // 1.15.3: сообщения item-слоя присутствуют в конфиге
         itemMessages(plugin, r);
+        // 1.15.4: крафт и фрагменты
+        crafting1154(plugin, r);
 
         print(plugin, sender, r);
     }
@@ -387,7 +393,7 @@ public final class SelftestRunner {
     /* ------------------------------ 134: messages.item.* (1.15.3) ------------------------------ */
 
     /**
-     * 134: все 5 ключей messages.item.* присутствуют в конфиге и резолвятся
+     * 134: все 5 базовых ключей messages.item.* присутствуют в конфиге и резолвятся
      * в непустую строку через RaskolConfig.message (fallback = дефолтный текст).
      * Canary: если живой config.yml не получил блок 1.15.3 — чек красный.
      */
@@ -410,6 +416,52 @@ public final class SelftestRunner {
         }
         r.check("134", "1.15.3: messages.item.* в конфиге, 5 ключей непустые",
                 ok, "config messages.item", ok ? "OK(5)" : "missing: " + missing);
+    }
+
+    /* ------------------------------ 135–137: 1.15.4 крафт и фрагменты ------------------------------ */
+
+    /**
+     * 135: реестр фрагментов — 13 записей (6 осколков weapon/armor × тир,
+     * 6 эссенций классов, 1 реликвия).
+     * 136: pure-математика fragmentsFor на синтетическом определении
+     * (RARE оружие 40 ур. WARRIOR → {frag_weapon_rare:2, frag_essence_warrior:1}).
+     * 137: CraftingService.reload() загрузил crafting.yml и содержит ≥1 рецепт.
+     */
+    private static void crafting1154(RaskolClasses plugin, Report r) {
+        boolean registry13 = plugin.getItems() != null
+                && plugin.getItems().fragments() != null
+                && plugin.getItems().fragments().all().size() == 13;
+        r.check("135", "1.15.4: FragmentRegistry содержит 13 фрагментов (6 осколков + 6 эссенций + реликвия)",
+                registry13, "FragmentRegistry.all().size()",
+                plugin.getItems() != null && plugin.getItems().fragments() != null
+                        ? String.valueOf(plugin.getItems().fragments().all().size()) : "null");
+
+        dev.raskol.classes.item.model.ItemDefinition testDef = new dev.raskol.classes.item.model.ItemDefinition(
+                "selftest_sword_40_rare", "Selftest Sword", "IRON_SWORD",
+                dev.raskol.classes.item.model.ItemSlot.MAIN_HAND,
+                dev.raskol.classes.item.model.WeaponType.SWORD,
+                dev.raskol.classes.item.model.ItemRarity.RARE,
+                40, dev.raskol.classes.classsystem.PlayerClass.WARRIOR,
+                null, 1, Map.of(), List.of(), 0, null,
+                List.of(), false, null);
+        Map<dev.raskol.classes.item.craft.Fragment, Integer> fragments =
+                plugin.getItems() != null && plugin.getItems().fragments() != null
+                        ? dev.raskol.classes.item.craft.SalvageService
+                        .fragmentsFor(plugin.getItems().fragments(), testDef)
+                        : Map.of();
+        boolean math136 = fragments.size() == 2
+                && fragments.entrySet().stream().anyMatch(e -> e.getKey().id().equals("frag_weapon_rare")
+                && e.getValue() == 2)
+                && fragments.entrySet().stream().anyMatch(e -> e.getKey().id().equals("frag_essence_warrior")
+                && e.getValue() == 1);
+        r.check("136", "1.15.4: fragmentsFor(RARE оружие 40 ур. WARRIOR) = {weapon_rare:2, essence_warrior:1}",
+                math136, "SalvageService.fragmentsFor", fragments.toString());
+
+        int recipeCount = plugin.getItems() != null && plugin.getItems().crafting() != null
+                ? plugin.getItems().crafting().recipes().size() : 0;
+        boolean recipes137 = recipeCount >= 1;
+        r.check("137", "1.15.4: CraftingService.reload() загрузил ≥1 рецепт из crafting.yml",
+                recipes137, "CraftingService.recipes()", String.valueOf(recipeCount));
     }
 
     private static void print(RaskolClasses plugin, CommandSender sender, Report r) {
