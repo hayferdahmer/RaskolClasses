@@ -3,6 +3,7 @@ package dev.raskol.classes.item.listener;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.service.ItemStatAggregator;
 import dev.raskol.classes.item.service.ItemSystem;
@@ -32,10 +33,8 @@ import java.util.Map;
  * класса/спека — он перестаёт давать статы (unmet в снапшоте) и не может быть
  * надет снова после снятия. Предметы не теряются.
  *
- * Сообщения игроку — inline до выноса в messages.yml (1.15.2): причина
- * дифференцируется (класс / спек / уровень).
- *
- * 1.15.1-D-fix: добавлен импорт java.util.Map (используется в onDrag).
+ * 1.15.3: тексты отказов читаются из messages.item.* (RaskolConfig.message с
+ * fallback = дефолтный русский текст) — локализация без пересборки.
  */
 public final class EquipGuard implements Listener {
 
@@ -104,19 +103,31 @@ public final class EquipGuard implements Listener {
         if (ItemStatAggregator.eligible(def, pc, spec, level)) {
             return false;
         }
-        player.sendMessage(Component.text("⛔ «" + def.displayName() + "»: " + reason(def, pc, spec, level),
-                NamedTextColor.RED));
+        player.sendMessage(Component.text(reasonMessage(def, pc, spec, level), NamedTextColor.RED));
         return true;
     }
 
-    private static String reason(ItemDefinition def, PlayerClass pc, String spec, int level) {
+    /**
+     * 1.15.3: причина отказа из messages.item.* с подстановкой плейсхолдеров.
+     * Порядок проверок совпадает с ItemStatAggregator.eligible: класс → спек → уровень.
+     */
+    private String reasonMessage(ItemDefinition def, PlayerClass pc, String spec, int level) {
+        RaskolConfig cfg = plugin.getRaskolConfig();
+        String item = def.displayName();
         if (def.playerClass() != null && def.playerClass() != pc) {
-            return "примет только " + def.playerClass().getDisplayName();
+            return cfg.message("item.equip-class", "⛔ «{item}»: примет только {class}")
+                    .replace("{item}", item)
+                    .replace("{class}", def.playerClass().getDisplayName());
         }
         if (def.spec() != null && !def.spec().equalsIgnoreCase(spec)) {
-            return "требуется спек " + def.spec();
+            return cfg.message("item.equip-spec", "⛔ «{item}»: требуется спек {spec}")
+                    .replace("{item}", item)
+                    .replace("{spec}", def.spec());
         }
-        return "требуется уровень " + def.levelRequirement() + " (у вас " + level + ")";
+        return cfg.message("item.equip-level", "⛔ «{item}»: требуется уровень {level} (у вас {current})")
+                .replace("{item}", item)
+                .replace("{level}", String.valueOf(def.levelRequirement()))
+                .replace("{current}", String.valueOf(level));
     }
 
     /** Armor-слоты 5–8 и offhand 45 в окне крафта игрока (CRAFTING-view). */
