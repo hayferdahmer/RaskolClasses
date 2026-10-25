@@ -3,8 +3,13 @@ package dev.raskol.classes.item.service;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.item.api.ItemStatsProvider;
+import dev.raskol.classes.item.craft.CraftingGui;
+import dev.raskol.classes.item.craft.CraftingService;
+import dev.raskol.classes.item.craft.FragmentRegistry;
+import dev.raskol.classes.item.craft.SalvageService;
 import dev.raskol.classes.item.factory.ItemFactory;
 import dev.raskol.classes.item.factory.ItemPdc;
+import dev.raskol.classes.item.gui.ItemBrowserMenu;
 import dev.raskol.classes.item.listener.EquipGuard;
 import dev.raskol.classes.item.listener.ItemHook;
 import dev.raskol.classes.item.listener.UnbreakableGuard;
@@ -23,7 +28,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * Runtime owner of the validated item registry, factory and equipment snapshots.
  * 1.15.1-C: start() регистрирует UnbreakableGuard (страховка прочности legacy-предметов).
  * 1.15.1-D: start() регистрирует EquipGuard — классовые/уровневые запреты экипировки.
- * 1.15.1-D-fix: восстановлен импорт UnbreakableGuard, потерянный при перезаписи файла в D.
+ * 1.15.4: сервисы крафта/разбора (FragmentRegistry, SalvageService, CraftingService,
+ * CraftingGui) создаются в конструкторе; CraftingGui регистрируется как Listener в start();
+ * CraftingService.reload() вызывается из reload() вместе с items.yml.
  */
 public final class ItemSystem implements ItemStatsProvider {
     private final RaskolClasses plugin;
@@ -31,10 +38,15 @@ public final class ItemSystem implements ItemStatsProvider {
     private final ItemHook hook;
     private final UnbreakableGuard unbreakableGuard;
     private final EquipGuard equipGuard;
+    private final FragmentRegistry fragmentRegistry;
+    private final SalvageService salvageService;
+    private final CraftingService craftingService;
+    private final CraftingGui craftingGui;
     private final SetBonusService setBonuses = new SetBonusService();
     private final Map<UUID, ItemStatSnapshot> snapshots = new ConcurrentHashMap<>();
     private final java.util.Set<String> warnedUnknownIds = ConcurrentHashMap.newKeySet();
     private volatile ItemRegistry registry;
+    private ItemBrowserMenu browser;
 
     public ItemSystem(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -42,6 +54,10 @@ public final class ItemSystem implements ItemStatsProvider {
         hook = new ItemHook(plugin, this);
         unbreakableGuard = new UnbreakableGuard(factory.pdc());
         equipGuard = new EquipGuard(plugin, this);
+        fragmentRegistry = new FragmentRegistry(plugin);
+        salvageService = new SalvageService(plugin, fragmentRegistry);
+        craftingService = new CraftingService(plugin, fragmentRegistry);
+        craftingGui = new CraftingGui(plugin, craftingService, fragmentRegistry);
         reload();
     }
 
@@ -53,6 +69,7 @@ public final class ItemSystem implements ItemStatsProvider {
             registry = loaded;
             setBonuses.definitions(loaded.sets());
             plugin.getLogger().info("Загружено определений предметов: " + loaded.size());
+            craftingService.reload();
             return true;
         } catch (Exception ex) {
             plugin.getLogger().severe("items.yml отклонён; прежний реестр сохранён: " + ex.getMessage());
@@ -65,10 +82,22 @@ public final class ItemSystem implements ItemStatsProvider {
     public ItemPdc pdc() { return factory.pdc(); }
     public ItemHook hook() { return hook; }
     public SetBonusService setBonuses() { return setBonuses; }
+    public FragmentRegistry fragments() { return fragmentRegistry; }
+    public SalvageService salvage() { return salvageService; }
+    public CraftingService crafting() { return craftingService; }
+    public CraftingGui craftingGui() { return craftingGui; }
+
+    public ItemBrowserMenu browser() {
+        if (browser == null) {
+            browser = new ItemBrowserMenu(plugin, this);
+        }
+        return browser;
+    }
 
     public void start() {
         plugin.getServer().getPluginManager().registerEvents(unbreakableGuard, plugin);
         plugin.getServer().getPluginManager().registerEvents(equipGuard, plugin);
+        plugin.getServer().getPluginManager().registerEvents(craftingGui, plugin);
         hook.start();
     }
 
