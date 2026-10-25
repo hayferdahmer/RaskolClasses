@@ -11,7 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.time.LocalDate;
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,6 +30,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * дневной лимит item.salvage.daily-limit (дефолт 20) — анти-ферма фрагментов.
  * Лимит хранится in-memory (день/счёт на игрока): потеря счётчика при рестарте
  * осознанно приемлема (лимит анти-фармовый, не балансный).
+ *
+ * 1.15.4-A-fix: карта фрагментов — LinkedHashMap (Fragment это record, не enum,
+ * поэтому EnumMap не применим; LinkedHashMap сохраняет порядок для читаемых логов).
  */
 public final class SalvageService {
 
@@ -46,7 +49,7 @@ public final class SalvageService {
 
     /** Pure: карта фрагментов за разбор определения (без состояния). */
     public static Map<Fragment, Integer> fragmentsFor(FragmentRegistry registry, ItemDefinition def) {
-        Map<Fragment, Integer> out = new EnumMap<>(Fragment.class);
+        Map<Fragment, Integer> out = new LinkedHashMap<>();
         boolean weapon = def.slot() == ItemSlot.MAIN_HAND || def.slot() == ItemSlot.OFF_HAND;
         ItemRarity tier = tierOf(def.rarity());
         Fragment shard = registry.byId((weapon ? "frag_weapon_" : "frag_armor_")
