@@ -6,15 +6,16 @@ import dev.raskol.classes.hook.EconomyHook;
 import dev.raskol.classes.item.model.ItemDefinition;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.plugin.RegisteredServiceProvider;
 
 import java.io.File;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,11 +36,15 @@ import java.util.concurrent.ThreadLocalRandom;
  *         frag_essence_warrior: 2
  *
  * Гарантии: проверка наличия фрагментов ДО списания монет; списание монет ДО
- * создания предмета; ошибка создания → возврат монет через прямой Vault Economy
- * (EconomyHook экспонирует только withdraw/balance — compensation идёт мимо).
+ * создания предмета; ошибка создания → возврат монет.
  * Рецепт с неизвестной целью/фрагментом отключается точечно с warning.
  *
- * 1.15.4-A-fix: refund-путь — прямой Vault Economy (нет метода deposit в EconomyHook).
+ * 1.15.4-A-fix2: Vault НЕ является compile-зависимостью проекта (pom.xml чистый,
+ * EconomyHook работает без импорта milkbowl). Compensation-путь refundCoins()
+ * идёт через reflection: ServicesManager → интерфейс Economy по имени класса →
+ * depositPlayer(OfflinePlayer, double) → поле EconomyResponse.transactionSuccess.
+ * При отсутствии Vault/провайдера возврат не выполняется, но инцидент логируется
+ * warning'ом с ником и суммой для ручной компенсации админом.
  */
 public final class CraftingService {
 
@@ -163,28 +168,60 @@ public final class CraftingService {
             return CraftResult.OK;
         } catch (RuntimeException ex) {
             if (coinsPaid) {
-                // EconomyHook не экспонирует deposit; возврат через прямой Vault Economy
-                // (EconomyHook используется для withdraw/balance, deposit идёт мимо).
-                RegisteredServiceProvider<Economy> rsp = Bukkit.getServicesManager()
-                        .getRegistration(Economy.class);
-                if (rsp != null && rsp.getProvider() != null) {
-                    try {
-                        rsp.getProvider().depositPlayer(
-                                Bukkit.getOfflinePlayer(player.getUniqueId()),
-                                (double) recipe.coins());
-                    } catch (Throwable refundEx) {
-                        plugin.getLogger().warning("crafting: refund failed for "
-                                + player.getName() + " (" + recipe.coins()
-                                + " coins): " + refundEx.getMessage());
-                    }
-                } else {
-                    plugin.getLogger().warning("crafting: no Vault Economy provider, "
-                            + recipe.coins() + " coins lost for " + player.getName());
+                boolean refunded = refundCoins(player, recipe.coins());
+                plugin.getLogger().warning("crafting: создание " + recipe.target()
+                        + " не удалось; монеты " + (refunded ? "возвращены через Vault"
+                        : "НЕ возвращены (нет провайдера/метода) — компенсируй вручную")
+                        + ": игрок " + player.getName() + ", сумма " + recipe.coins()
+                        + "; причина: " + ex.getMessage());
+            } else {
+                plugin.getLogger().warning("crafting: создание " + recipe.target()
+                        + " не удалось: " + ex.getMessage());
+            }
+            return CraftResult.NO_TARGET;
+        }
+    }
+
+    /**
+     * 1.15.4-A-fix2: возврат монет через reflection над Vault Economy.
+     * Путь: Class.forName("net.milkbowl.vault.economy.Economy") →
+     * ServicesManager.getRegistration(iface).getProvider() →
+     * depositPlayer(OfflinePlayer, double) → EconomyResponse.transactionSuccess.
+     * Любая неудача (нет Vault, нет провайдера, нет метода) = false + warning у вызывающего.
+     */
+    private boolean refundCoins(Player player, int coins) {
+        try {
+            Class<?> economyIface = Class.forName("net.milkbowl.vault.economy.Economy");
+            var registration = plugin.getServer().getServicesManager().getRegistration(economyIface);
+            if (registration == null) {
+                return false;
+            }
+            Object provider = registration.getProvider();
+            if (provider == null) {
+                return false;
+            }
+            Method deposit = null;
+            for (Method m : economyIface.getMethods()) {
+                Class<?>[] p = m.getParameterTypes();
+                if ("depositPlayer".equals(m.getName()) && p.length == 2
+                        && p[0] == OfflinePlayer.class && p[1] == double.class) {
+                    deposit = m;
+                    break;
                 }
             }
-            plugin.getLogger().warning("crafting: создание " + recipe.target()
-                    + " не удалось: " + ex.getMessage());
-            return CraftResult.NO_TARGET;
+            if (deposit == null) {
+                return false;
+            }
+            Object response = deposit.invoke(provider,
+                    Bukkit.getOfflinePlayer(player.getUniqueId()), (double) coins);
+            if (response == null) {
+                return true; // void-подобная имплементация: считаем возврат выполненным
+            }
+            Field success = response.getClass().getField("transactionSuccess");
+            return success.getBoolean(response);
+        } catch (Throwable t) {
+            plugin.getLogger().warning("crafting: vault-refund exception: " + t);
+            return false;
         }
     }
 
