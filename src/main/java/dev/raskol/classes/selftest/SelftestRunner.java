@@ -22,6 +22,7 @@ import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.DamageType;
 import dev.raskol.classes.combat.ProcService;
+import dev.raskol.classes.combat.WeaponMastery;
 import dev.raskol.classes.combat.dot.DotDef;
 import dev.raskol.classes.combat.dot.DotInstance;
 import dev.raskol.classes.combat.dot.DotMath;
@@ -38,6 +39,7 @@ import dev.raskol.classes.config.CcSanity;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.item.model.ItemStat;
+import dev.raskol.classes.item.model.WeaponType;
 import dev.raskol.classes.pet.PetDef;
 import dev.raskol.classes.pet.PetMath;
 import dev.raskol.classes.resource.ResourceState;
@@ -70,7 +72,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 127 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 133 чека.
  *
  * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
@@ -99,7 +101,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * WRONG_CLASS_TREE, prereq-дыра → TEMPLATE_INVALID). pauseMs(200) между вызовами —
  * rate-limit actionAllowed (150 мс).
  *
- * 1.15.1-A: импорт ItemStat перенесён в item.model после реструктуризации item-пакета.
+ * 1.15.2: добавлены чеки 131-133 — WeaponMastery (матрица 9×6, native/familiar/foreign).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -127,10 +129,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   stopListReach  122      достижимость включённых узлов при стоп-листе (P0-6B)
  *   plusSubscription 123–125 raskolspec+ (шаблоны/подписка/stale)
  *   plusApply     126–127   raskolspec+ applyBuild (probe): применение и отказы
- *
- * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
- * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
- * в отдельный счётчик skipped — PASS-итог больше не завышается.
+ *   weaponMastery 131–133   WeaponMastery матрица 9×6 (native/familiar/foreign)
  */
 public final class SelftestRunner {
 
@@ -306,6 +305,8 @@ public final class SelftestRunner {
         // 1.14.16 (Волна 15C): apply-чеки — probe-зависимы (меняют и восстанавливают ранги)
         plusApply(plugin, r, probe);
         items115(plugin, r);
+        // 1.15.2: WeaponMastery — матрица владения оружием
+        weaponMastery(r);
 
         print(plugin, sender, r);
     }
@@ -325,6 +326,51 @@ public final class SelftestRunner {
                 &&!plugin.getDescription().getSoftDepend().contains("RaskolGear");
         r.check("130","1.15.0: обратная зависимость от RaskolGear удалена",
                 gearRemoved,"plugin.yml/PluginManager",gearRemoved?"OK":"RaskolGear still referenced");
+    }
+
+    /* ------------------------------ 131–133: WeaponMastery ------------------------------ */
+
+    private static void weaponMastery(Report r) {
+        // 131: матрица 9×6 корректна (все ячейки заполнены, значения ∈ {1.0, 0.75, 0.5})
+        boolean ok131 = true;
+        String got131 = "";
+        for (PlayerClass pc : PlayerClass.values()) {
+            for (WeaponType wt : WeaponType.values()) {
+                double mult = WeaponMastery.masteryMultiplier(pc, wt);
+                if (mult != WeaponMastery.NATIVE && mult != WeaponMastery.FAMILIAR && mult != WeaponMastery.FOREIGN) {
+                    ok131 = false;
+                    got131 = pc + "+" + wt + "=" + mult;
+                    break;
+                }
+            }
+            if (!ok131) break;
+        }
+        r.check("131", "WeaponMastery: матрица 9×6 заполнена (значения ∈ {1.0, 0.75, 0.5})",
+                ok131, "WeaponMastery.masteryMultiplier", ok131 ? "OK(54 cells)" : got131);
+
+        // 132: native/familiar/foreign для конкретных пар
+        double wSword = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.SWORD);
+        double wDagger = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.DAGGER);
+        double wBow = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.BOW);
+        double hBow = WeaponMastery.masteryMultiplier(PlayerClass.HUNTER, WeaponType.BOW);
+        double hAxe = WeaponMastery.masteryMultiplier(PlayerClass.HUNTER, WeaponType.AXE);
+        double hSword = WeaponMastery.masteryMultiplier(PlayerClass.HUNTER, WeaponType.SWORD);
+        boolean ok132 = wSword == 1.0 && wDagger == 0.75 && wBow == 0.5
+                && hBow == 1.0 && hAxe == 0.75 && hSword == 0.5;
+        r.check("132", "WeaponMastery: WARRIOR(SWORD=1.0/DAGGER=0.75/BOW=0.5), HUNTER(BOW=1.0/AXE=0.75/SWORD=0.5)",
+                ok132, "WeaponMastery.masteryMultiplier",
+                String.format(Locale.ROOT, "%.2f/%.2f/%.2f vs %.2f/%.2f/%.2f",
+                        wSword, wDagger, wBow, hBow, hAxe, hSword));
+
+        // 133: null-защита и defensive programming
+        double nullPc = WeaponMastery.masteryMultiplier(null, WeaponType.SWORD);
+        double nullWt = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, null);
+        double nullBoth = WeaponMastery.masteryMultiplier(null, null);
+        String level133 = WeaponMastery.masteryLevel(PlayerClass.WARRIOR, WeaponType.SWORD);
+        boolean ok133 = nullPc == 0.5 && nullWt == 0.5 && nullBoth == 0.5 && "NATIVE".equals(level133);
+        r.check("133", "WeaponMastery: null-защита (→0.5), masteryLevel(NATIVE/FAMILIAR/FOREIGN)",
+                ok133, "WeaponMastery.masteryMultiplier/masteryLevel",
+                String.format(Locale.ROOT, "%.2f/%.2f/%.2f level=%s", nullPc, nullWt, nullBoth, level133));
     }
 
     private static void print(RaskolClasses plugin, CommandSender sender, Report r) {
