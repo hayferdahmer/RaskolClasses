@@ -4,6 +4,26 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/),
 семантическое версионирование по [SemVer](https://semver.org/).
 
+## [1.15.2] — 2026-10-25
+### Реализм урона оружия (WeaponMastery)
+**Новое:**
+- Матрица владения оружием 8 типов × 6 классов: `×1.00` (native), `×0.75` (familiar), `×0.50` (foreign).
+- Множитель применяется к PHYSICAL-урону в `applyOutgoingOffense` (после base+add, до stealth/amplifier/crit).
+- Строка разбора в `/rc debug <ник>`: «Владение оружием: SWORD → NATIVE (×100.0% урона)».
+- Selftest-чеки 131–133: матрица 48 ячеек, конкретные пары WARRIOR/HUNTER, null-защита.
+
+**Матрица:**
+| Класс    | Native           | Familiar        | Foreign                    |
+|----------|------------------|-----------------|----------------------------|
+| WARRIOR  | SWORD/AXE/MACE   | DAGGER          | BOW/CROSSBOW/STAFF/WAND    |
+| HUNTER   | BOW/CROSSBOW     | DAGGER/AXE      | MACE/SWORD/STAFF/WAND      |
+| ROGUE    | DAGGER           | SWORD           | все остальные              |
+| MAGE     | STAFF/WAND       | —               | все остальные              |
+| PRIEST   | MACE             | STAFF/WAND      | все остальные              |
+| WARLOCK  | WAND             | STAFF           | все остальные              |
+
+**Файлы:** `WeaponMastery.java` (новый), `VanillaDamageListener.java`, `DebugSub.java`, `SelftestRunner.java`.
+
 ## [1.15.0] — 2026-10-22 (ядро оружия и брони)
 
 ### Добавлено
