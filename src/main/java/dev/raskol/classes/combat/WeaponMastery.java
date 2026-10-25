@@ -15,13 +15,13 @@ import java.util.Map;
  *   - ×0.75 (familiar)  — знакомое оружие, сниженный урон;
  *   - ×0.50 (foreign)   — чужое оружие, минимальный урон.
  *
- * Матрица 9 типов × 6 классов:
- *   WARRIOR:  SWORD(1.0) AXE(1.0) MACE(1.0) POLEARM(1.0) DAGGER(0.75) BOW(0.5) CROSSBOW(0.5) STAFF(0.5) WAND(0.5)
- *   HUNTER:   BOW(1.0) CROSSBOW(1.0) DAGGER(0.75) AXE(0.75) MACE(0.5) POLEARM(0.5) SWORD(0.5) STAFF(0.5) WAND(0.5)
- *   ROGUE:    DAGGER(1.0) SWORD(0.75) AXE(0.5) MACE(0.5) POLEARM(0.5) BOW(0.5) CROSSBOW(0.5) STAFF(0.5) WAND(0.5)
- *   MAGE:     STAFF(1.0) WAND(1.0) DAGGER(0.5) SWORD(0.5) AXE(0.5) MACE(0.5) POLEARM(0.5) BOW(0.5) CROSSBOW(0.5)
- *   PRIEST:   MACE(1.0) STAFF(0.75) WAND(0.75) DAGGER(0.5) SWORD(0.5) AXE(0.5) POLEARM(0.5) BOW(0.5) CROSSBOW(0.5)
- *   WARLOCK:  WAND(1.0) STAFF(0.75) DAGGER(0.5) SWORD(0.5) AXE(0.5) MACE(0.5) POLEARM(0.5) BOW(0.5) CROSSBOW(0.5)
+ * Матрица 8 типов × 6 классов:
+ *   WARRIOR:  SWORD(1.0) AXE(1.0) MACE(1.0) DAGGER(0.75) BOW(0.5) CROSSBOW(0.5) STAFF(0.5) WAND(0.5)
+ *   HUNTER:   BOW(1.0) CROSSBOW(1.0) DAGGER(0.75) AXE(0.75) MACE(0.5) SWORD(0.5) STAFF(0.5) WAND(0.5)
+ *   ROGUE:    DAGGER(1.0) SWORD(0.75) AXE(0.5) MACE(0.5) BOW(0.5) CROSSBOW(0.5) STAFF(0.5) WAND(0.5)
+ *   MAGE:     STAFF(1.0) WAND(1.0) DAGGER(0.5) SWORD(0.5) AXE(0.5) MACE(0.5) BOW(0.5) CROSSBOW(0.5)
+ *   PRIEST:   MACE(1.0) STAFF(0.75) WAND(0.75) DAGGER(0.5) SWORD(0.5) AXE(0.5) BOW(0.5) CROSSBOW(0.5)
+ *   WARLOCK:  WAND(1.0) STAFF(0.75) DAGGER(0.5) SWORD(0.5) AXE(0.5) MACE(0.5) BOW(0.5) CROSSBOW(0.5)
  *
  * Pure-функция без side-effect; вызывается из applyOutgoingOffense для физического урона.
  * Магическое оружие (STAFF/WAND) уже даёт MAGIC-автоатаку; mastery применяется только
@@ -75,7 +75,6 @@ public final class WeaponMastery {
         warrior.put(WeaponType.SWORD, NATIVE);
         warrior.put(WeaponType.AXE, NATIVE);
         warrior.put(WeaponType.MACE, NATIVE);
-        warrior.put(WeaponType.POLEARM, NATIVE);
         warrior.put(WeaponType.DAGGER, FAMILIAR);
         warrior.put(WeaponType.BOW, FOREIGN);
         warrior.put(WeaponType.CROSSBOW, FOREIGN);
@@ -89,7 +88,6 @@ public final class WeaponMastery {
         hunter.put(WeaponType.DAGGER, FAMILIAR);
         hunter.put(WeaponType.AXE, FAMILIAR);
         hunter.put(WeaponType.MACE, FOREIGN);
-        hunter.put(WeaponType.POLEARM, FOREIGN);
         hunter.put(WeaponType.SWORD, FOREIGN);
         hunter.put(WeaponType.STAFF, FOREIGN);
         hunter.put(WeaponType.WAND, FOREIGN);
@@ -100,7 +98,6 @@ public final class WeaponMastery {
         rogue.put(WeaponType.SWORD, FAMILIAR);
         rogue.put(WeaponType.AXE, FOREIGN);
         rogue.put(WeaponType.MACE, FOREIGN);
-        rogue.put(WeaponType.POLEARM, FOREIGN);
         rogue.put(WeaponType.BOW, FOREIGN);
         rogue.put(WeaponType.CROSSBOW, FOREIGN);
         rogue.put(WeaponType.STAFF, FOREIGN);
@@ -114,7 +111,6 @@ public final class WeaponMastery {
         mage.put(WeaponType.SWORD, FOREIGN);
         mage.put(WeaponType.AXE, FOREIGN);
         mage.put(WeaponType.MACE, FOREIGN);
-        mage.put(WeaponType.POLEARM, FOREIGN);
         mage.put(WeaponType.BOW, FOREIGN);
         mage.put(WeaponType.CROSSBOW, FOREIGN);
         matrix.put(PlayerClass.MAGE, Map.copyOf(mage));
@@ -126,7 +122,6 @@ public final class WeaponMastery {
         priest.put(WeaponType.DAGGER, FOREIGN);
         priest.put(WeaponType.SWORD, FOREIGN);
         priest.put(WeaponType.AXE, FOREIGN);
-        priest.put(WeaponType.POLEARM, FOREIGN);
         priest.put(WeaponType.BOW, FOREIGN);
         priest.put(WeaponType.CROSSBOW, FOREIGN);
         matrix.put(PlayerClass.PRIEST, Map.copyOf(priest));
@@ -138,7 +133,6 @@ public final class WeaponMastery {
         warlock.put(WeaponType.SWORD, FOREIGN);
         warlock.put(WeaponType.AXE, FOREIGN);
         warlock.put(WeaponType.MACE, FOREIGN);
-        warlock.put(WeaponType.POLEARM, FOREIGN);
         warlock.put(WeaponType.BOW, FOREIGN);
         warlock.put(WeaponType.CROSSBOW, FOREIGN);
         matrix.put(PlayerClass.WARLOCK, Map.copyOf(warlock));
