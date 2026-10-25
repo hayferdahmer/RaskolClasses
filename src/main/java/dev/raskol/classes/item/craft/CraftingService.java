@@ -6,10 +6,13 @@ import dev.raskol.classes.hook.EconomyHook;
 import dev.raskol.classes.item.model.ItemDefinition;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.milkbowl.vault.economy.Economy;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.RegisteredServiceProvider;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -32,8 +35,11 @@ import java.util.concurrent.ThreadLocalRandom;
  *         frag_essence_warrior: 2
  *
  * Гарантии: проверка наличия фрагментов ДО списания монет; списание монет ДО
- * создания предмета; ошибка создания → возврат монет (компенсация, как в plus.buy).
+ * создания предмета; ошибка создания → возврат монет через прямой Vault Economy
+ * (EconomyHook экспонирует только withdraw/balance — compensation идёт мимо).
  * Рецепт с неизвестной целью/фрагментом отключается точечно с warning.
+ *
+ * 1.15.4-A-fix: refund-путь — прямой Vault Economy (нет метода deposit в EconomyHook).
  */
 public final class CraftingService {
 
@@ -157,10 +163,27 @@ public final class CraftingService {
             return CraftResult.OK;
         } catch (RuntimeException ex) {
             if (coinsPaid) {
-                economy.deposit(player.getUniqueId(), recipe.coins());
+                // EconomyHook не экспонирует deposit; возврат через прямой Vault Economy
+                // (EconomyHook используется для withdraw/balance, deposit идёт мимо).
+                RegisteredServiceProvider<Economy> rsp = Bukkit.getServicesManager()
+                        .getRegistration(Economy.class);
+                if (rsp != null && rsp.getProvider() != null) {
+                    try {
+                        rsp.getProvider().depositPlayer(
+                                Bukkit.getOfflinePlayer(player.getUniqueId()),
+                                (double) recipe.coins());
+                    } catch (Throwable refundEx) {
+                        plugin.getLogger().warning("crafting: refund failed for "
+                                + player.getName() + " (" + recipe.coins()
+                                + " coins): " + refundEx.getMessage());
+                    }
+                } else {
+                    plugin.getLogger().warning("crafting: no Vault Economy provider, "
+                            + recipe.coins() + " coins lost for " + player.getName());
+                }
             }
             plugin.getLogger().warning("crafting: создание " + recipe.target()
-                    + " не удалось, монеты возвращены: " + ex.getMessage());
+                    + " не удалось: " + ex.getMessage());
             return CraftResult.NO_TARGET;
         }
     }
