@@ -20,8 +20,8 @@ import java.util.Map;
  * Creates item stacks from validated registry definitions.
  * 1.15.1-C: все генерируемые предметы получают флаг unbreakable (броня и оружие
  * не ломаются); legacy-предметы 1.15.0 без флага страхует UnbreakableGuard.
- * Флаг виден игроком как отсутствие полоски прочности; lore-маркер «⛨ Неразрушаемый»
- * добавляет явную подпись RaskolClasses.
+ * 1.15.3: lore-маркер неразрушаемости читается из messages.item.unbreakable-lore
+ * (локализация без пересборки).
  */
 public final class ItemFactory {
     private final RaskolClasses plugin;
@@ -72,8 +72,9 @@ public final class ItemFactory {
                 "+" + String.format(java.util.Locale.ROOT, "%.1f", value) + " " + stat.id() + " (аффикс)",
                 NamedTextColor.AQUA)));
         lore.add(Component.text(def.rarity() + " · ур. " + def.itemLevel(), NamedTextColor.DARK_GRAY));
-        // 1.15.1-C: предмет не теряет прочность; маркер для игрока
-        lore.add(Component.text("⛨ Неразрушаемый", NamedTextColor.GRAY));
+        // 1.15.1-C: предмет не теряет прочность; 1.15.3: маркер из messages.item.unbreakable-lore
+        lore.add(Component.text(plugin.getRaskolConfig()
+                .message("item.unbreakable-lore", "⛨ Неразрушаемый"), NamedTextColor.GRAY));
         meta.lore(lore);
         meta.setEnchantmentGlintOverride(def.glow());
         meta.setUnbreakable(true);
