@@ -74,7 +74,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Headless-самотестирование формул плагина (/rc selftest), 134 чека.
  *
- * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на методы
+ * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
  * инкапсулировано в приватный держатель Report. Номера чеков, их логика, порядок
  * вывода и skip-семантика НЕ изменены — рефакторинг чисто структурный.
@@ -101,11 +101,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * WRONG_CLASS_TREE, prereq-дыра → TEMPLATE_INVALID). pauseMs(200) между вызовами —
  * rate-limit actionAllowed (150 мс).
  *
- * 1.15.2: добавлены чеки 131–133 — WeaponMastery (матрица 8×6, native/familiar/foreign,
- * null-защита).
+ * 1.15.2: добавлены чеки 131–133 — WeaponMastery (матрица 8×6, native/familiar/foreign).
  *
- * 1.15.3: добавлен чек 134 — messages.item.* присутствуют в конфиге и резолвятся
- * в непустую строку (canary локализации item-слоя).
+ * 1.15.3: добавлен чек 134 — messages.item.* присутствуют в конфиге и непустые
+ * (canary: живой config.yml без блока 1.15.3 даёт красный чек).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -133,9 +132,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   stopListReach  122      достижимость включённых узлов при стоп-листе (P0-6B)
  *   plusSubscription 123–125 raskolspec+ (шаблоны/подписка/stale)
  *   plusApply     126–127   raskolspec+ applyBuild (probe): применение и отказы
- *   items115      128–130   реестр 1.15.0, инварианты, отсутствие RaskolGear
+ *   items115      128–130   реестр экипировки 1.15.0, инварианты, RaskolGear удалён
  *   weaponMastery 131–133   WeaponMastery матрица 8×6 (native/familiar/foreign)
- *   itemMessages   134      messages.item.* в конфиге (1.15.3)
+ *   itemMessages   134      messages.item.* присутствуют в конфиге (1.15.3)
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -385,7 +384,7 @@ public final class SelftestRunner {
                 String.format(Locale.ROOT, "%.2f/%.2f/%.2f level=%s", nullPc, nullWt, nullBoth, level133));
     }
 
-    /* ------------------------------ 134: 1.15.3 messages.item.* ------------------------------ */
+    /* ------------------------------ 134: messages.item.* (1.15.3) ------------------------------ */
 
     /**
      * 134: все 5 ключей messages.item.* присутствуют в конфиге и резолвятся
@@ -913,7 +912,7 @@ public final class SelftestRunner {
                 && fireLegacy.trueDamage() == 0.0;
         r.check("51", "SchoolProfile legacy round-trip", ok51, "SchoolProfile.toLegacy",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f dom=%s",
-                back.physical(), back.magic(), back.trueDamage(), legacy.dominant()));
+                        back.physical(), back.magic(), back.trueDamage(), legacy.dominant()));
 
         Penetration pen52 = Penetration.of(20.0, 0.25);
         double mit1 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 0.0, false, 0.80);
