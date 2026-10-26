@@ -532,7 +532,17 @@ Sprint 7: тестируемость, связность, единая точк�
   кулдауны, активные эффекты, HUD actionbar, атрибуты STR/AGI/INT, WP/SP/HPow,
   уклонение/парирование с DR, криты.
 
-[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.10...HEAD
+[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.5...HEAD
+[1.15.5]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.4...v1.15.5
+[1.15.4]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.3...v1.15.4
+[1.15.3]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.2...v1.15.3
+[1.15.2]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.0...v1.15.2
+[1.15.0]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.16...v1.15.0
+[1.14.16]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.15...v1.14.16
+[1.14.15]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.14...v1.14.15
+[1.14.14]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.12...v1.14.14
+[1.14.12]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.10...v1.14.12
+[1.14.10]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.9...v1.14.10
 [1.14.10]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.9...v1.14.10
 [1.14.9]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.8...v1.14.9
 [1.14.8]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.7...v1.14.8
