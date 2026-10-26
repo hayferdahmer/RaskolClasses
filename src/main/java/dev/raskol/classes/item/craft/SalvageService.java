@@ -2,6 +2,7 @@
 package dev.raskol.classes.item.craft;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.item.gui.ItemHover;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
 import dev.raskol.classes.item.model.ItemSlot;
@@ -31,8 +32,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * Лимит хранится in-memory (день/счёт на игрока): потеря счётчика при рестарте
  * осознанно приемлема (лимит анти-фармовый, не балансный).
  *
- * 1.15.4-A-fix: карта фрагментов — LinkedHashMap (Fragment это record, не enum,
- * поэтому EnumMap не применим; LinkedHashMap сохраняет порядок для читаемых логов).
+ * 1.15.4-A-fix: карта фрагментов — LinkedHashMap (Fragment это record, не enum).
+ * 1.15.5-B: сообщение результата несёт hover-превью разобранного предмета
+ * (клон стака снимается ДО потребления — предмет уже израсходован к моменту отправки).
  */
 public final class SalvageService {
 
@@ -105,6 +107,9 @@ public final class SalvageService {
         }
         counter[1]++;
 
+        // 1.15.5-B: превью ДО потребления стака (hover в сообщении результата)
+        ItemStack preview = hand.clone();
+
         Map<Fragment, Integer> gained = fragmentsFor(fragments, def);
         hand.setAmount(hand.getAmount() - 1);
         if (hand.getAmount() <= 0) {
@@ -117,10 +122,10 @@ public final class SalvageService {
                 .append(" ×").append(count).append(", "));
         String pretty = list.length() > 0
                 ? list.substring(0, list.length() - 2) : "";
-        player.sendMessage(Component.text(plugin.getRaskolConfig()
+        player.sendMessage(ItemHover.withPreview(Component.text(plugin.getRaskolConfig()
                 .message("item.salvage-ok", "♻ Разобрано: {item} → {fragments}")
                 .replace("{item}", def.displayName())
-                .replace("{fragments}", pretty), NamedTextColor.GREEN));
+                .replace("{fragments}", pretty), NamedTextColor.GREEN), preview));
         return SalvageResult.OK;
     }
 
