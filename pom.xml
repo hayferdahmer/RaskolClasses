@@ -8,6 +8,11 @@
   1.14.10: Sprint 7 — JUnit 5 + CI verify, декомпозиция God Objects, ConfigReads.
   1.14.12: Sprint 8 — харденинг (Hp.max, security, hot-path, logger.warning).
   1.14.13: Sprint 9 — архитектура (профиль -Pdev с -Xlint:all + SpotBugs, release-job).
+  1.15.0: ядро оружия и брони (каталог 342, PDC v1, ItemsApi, 130 чеков).
+  1.15.2: реализм урона (WeaponMastery 8×6, 133 чека).
+  1.15.3: локализация предметного слоя (messages.item.*, 134 чека).
+  1.15.4: крафт и фрагменты (salvage/craft, crafting.yml, 137 чеков).
+  1.15.5: UI/UX (hover-превью, браузер с фильтрами, stats/sets, 139 чеков).
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -16,7 +21,7 @@
 
     <groupId>dev.raskol</groupId>
     <artifactId>raskol-classes</artifactId>
-    <version>1.15.0</version>
+    <version>1.15.5</version>
     <packaging>jar</packaging>
 
     <name>RaskolClasses</name>
