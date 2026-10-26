@@ -28,10 +28,10 @@ import java.util.UUID;
  * 1.15.0: GUI-браузер предметов реестра (/rc item browser [запрос]).
  * 1.15.5: фильтры класс/редкость кнопками-циклами (слоты 46/47), запрос из
  * аргумента команды (слот 48 показывает и сбрасывает), пагинация 45/53.
- * Chat-capture НЕ используется: поиск только через аргумент команды —
- * меньше состояний сессии, нет утечек при выходе игрока из чата.
- * Клик по предмету — выдача (право raskolclasses.item.give).
- * Pure-фильтр matches() вынесен статиком для selftest 139.
+ * 1.15.5-fix: слушатель регистрируется в ItemSystem.start(); все open() из
+ * обработчика клика перенесены на следующий тик (scheduleOpen) — синхронный
+ * openInventory внутри InventoryClickEvent рассинхронизирует курсор клиента
+ * («кнопка прилипает к курсору»).
  */
 public final class ItemBrowserMenu implements Listener {
 
@@ -117,13 +117,11 @@ public final class ItemBrowserMenu implements Listener {
 
         int offset = safe * PAGE_SIZE;
         for (int i = offset; i < Math.min(offset + PAGE_SIZE, ids.size()); i++) {
-            inv.setItem(i - offset, iconFor(ids.get(i), classFilter, rarityFilter));
+            inv.setItem(i - offset, iconFor(ids.get(i)));
         }
         inv.setItem(SLOT_PREV, nav(Material.ARROW, "Назад", safe > 0));
-        inv.setItem(SLOT_CLASS, filterButton(Material.NAME_TAG,
-                "Класс: " + classFilter, NamedTextColor.AQUA));
-        inv.setItem(SLOT_RARITY, filterButton(Material.NETHER_STAR,
-                "Редкость: " + rarityFilter, NamedTextColor.LIGHT_PURPLE));
+        inv.setItem(SLOT_CLASS, filterButton(Material.NAME_TAG, "Класс: " + classFilter, NamedTextColor.AQUA));
+        inv.setItem(SLOT_RARITY, filterButton(Material.NETHER_STAR, "Редкость: " + rarityFilter, NamedTextColor.LIGHT_PURPLE));
         inv.setItem(SLOT_QUERY, filterButton(Material.PAPER,
                 query == null || query.isBlank() ? "Поиск: выключен (клик — сброс)" : "Поиск: «" + query + "» (клик — сброс)",
                 NamedTextColor.YELLOW));
@@ -137,7 +135,16 @@ public final class ItemBrowserMenu implements Listener {
         player.openInventory(inv);
     }
 
-    private ItemStack iconFor(String itemId, String classFilter, String rarityFilter) {
+    /** 1.15.5-fix: открытие GUI только на следующем тике — курсор не рассинхронизируется. */
+    private void scheduleOpen(Player player, int page, String query, String classFilter, String rarityFilter) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) {
+                open(player, page, query, classFilter, rarityFilter);
+            }
+        });
+    }
+
+    private ItemStack iconFor(String itemId) {
         ItemDefinition def = items.registry().get(itemId);
         if (def == null) {
             return pane();
@@ -172,23 +179,23 @@ public final class ItemBrowserMenu implements Listener {
             return;
         }
         if (slot == SLOT_PREV) {
-            open(player, holder.page - 1, holder.query, holder.classFilter, holder.rarityFilter);
+            scheduleOpen(player, holder.page - 1, holder.query, holder.classFilter, holder.rarityFilter);
             return;
         }
         if (slot == SLOT_NEXT) {
-            open(player, holder.page + 1, holder.query, holder.classFilter, holder.rarityFilter);
+            scheduleOpen(player, holder.page + 1, holder.query, holder.classFilter, holder.rarityFilter);
             return;
         }
         if (slot == SLOT_CLASS) {
-            open(player, 0, holder.query, nextClass(holder.classFilter), holder.rarityFilter);
+            scheduleOpen(player, 0, holder.query, nextClass(holder.classFilter), holder.rarityFilter);
             return;
         }
         if (slot == SLOT_RARITY) {
-            open(player, 0, holder.query, holder.classFilter, nextRarity(holder.rarityFilter));
+            scheduleOpen(player, 0, holder.query, holder.classFilter, nextRarity(holder.rarityFilter));
             return;
         }
         if (slot == SLOT_QUERY) {
-            open(player, 0, null, holder.classFilter, holder.rarityFilter);
+            scheduleOpen(player, 0, null, holder.classFilter, holder.rarityFilter);
             return;
         }
         if (slot < 0 || slot >= PAGE_SIZE) {
@@ -213,7 +220,7 @@ public final class ItemBrowserMenu implements Listener {
             player.sendMessage(Component.text(plugin.getRaskolConfig()
                     .message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
         }
-        open(player, holder.page, holder.query, holder.classFilter, holder.rarityFilter);
+        scheduleOpen(player, holder.page, holder.query, holder.classFilter, holder.rarityFilter);
     }
 
     /** Цикл: ALL → классы по порядку → ALL. */
