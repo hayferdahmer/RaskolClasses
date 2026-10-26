@@ -4,6 +4,52 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/),
 семантическое версионирование по [SemVer](https://semver.org/).
 
+## [1.15.5] — 2026-10-26
+### UI/UX: hover-превью, браузер с фильтрами, расширенный stats
+**Новое:**
+- Hover-превью предметов в чате через `ItemHover` (`showText` с displayName+lore — `showItem` не рендерит кастомное lore, решение зафиксировано в javadoc).
+- `ItemBrowserMenu`: фильтры класс/редкость кнопками-циклами (слоты 46/47), поиск аргументом команды `/rc item browser <запрос>` (без chat-capture), pure-метод `matches()` для headless-чека.
+- `/rc item stats` расширен: построчный вывод экипировки с hover по каждому слоту, причина каждого unmet-требования (класс/спек/уровень), прогресс к следующему порогу каждого надетого сета.
+- `/rc item sets [ник]` (новая): активные пороги + потенциал (след. порог / «комплект полный»); считает только eligible-предметы (консистентно с reconcile).
+- Сообщения salvage/craft несут hover-превью предмета (превью снимается клоном стака ДО потребления).
+- Selftest-чеки 138–139: hover-превью + pure-фильтр браузера (9 сценариев). Итого **139 чеков**.
+
+**Изменено:**
+- `messages.item.*` +1 ключ: `sets-none` (итого 6).
+- `ItemSub`: добавлена подкоманда `sets`; `stats` расширен; `browser` принимает поисковый запрос аргументами.
+- `/rc item debug` удалён — ссылался на несуществующий `ItemPdc.uidOwner` (compile-фикс волны B).
+
+**Файлы:** `ItemHover.java` (новый), `ItemBrowserMenu.java` (расширение), `ItemSub.java` (расширение), `SalvageService.java`/`CraftingService.java` (hover в сообщениях), `SelftestRunner.java` (139 чеков).
+
+---
+
+## [1.15.4] — 2026-10-26
+### Крафт и фрагменты
+**Новое:**
+- Фрагменты — 13 видов расходной валюты крафта (6 осколков weapon/armor × тир, 6 эссенций классов, 1 реликвия). PDC-формат `frag_v/frag_id` изолирован от `item_v`.
+- Разбор (`/rc item salvage`): предмет в руке → фрагменты. Pure-математика: `itemLevel/20` осколков + классовая эссенция (RARE=1, EPIC+=2) + реликвия для LEGENDARY/MYTHIC. Дневной лимит (`item.salvage.daily-limit=20`) — анти-ферма.
+- Крафт (`/rc item craft [id]`): фрагменты + монеты → предмет. `crafting.yml` извлекается из jar при первом старте. Компенсация монет при ошибке создания через reflection-доступ к Vault Economy (pom.xml без compile-зависимости).
+- GUI крафта (пагинация 45 иконок, live-счётчики фрагментов в lore, авто-обновление).
+- Selftest 135–137: реестр фрагментов (13), pure-математика `SalvageService.fragmentsFor`, загрузка рецептов `crafting.yml`.
+
+**Изменено:**
+- `ItemSystem`: конструктор создаёт `FragmentRegistry`/`SalvageService`/`CraftingService`/`CraftingGui`; `CraftingGui` регистрируется как Listener; `crafting.yml` перечитывается вместе с `items.yml` по `/rc item reload`.
+- `messages.item.*`: +12 ключей (salvage-*/craft-*).
+
+**Файлы:** `Fragment.java`, `FragmentRegistry.java`, `SalvageService.java`, `CraftingService.java`, `CraftingGui.java`, `crafting.yml` (все новые).
+
+---
+
+## [1.15.3] — 2026-10-26
+### Локализация предметного слоя
+**Новое:**
+- Блок `messages.item.*` в `config.yml` — локализация сообщений предметного слоя (EquipGuard: запреты экипировки; ItemFactory: lore-маркер; DebugSub: владение).
+- Selftest-чек 134: canary «живой `config.yml` получил блок 1.15.3» — 5 ключей `messages.item.*` присутствуют и непустые.
+
+**Файлы:** `config.yml` (блок `messages.item.*`), `SelftestRunner.java` (чек 134).
+
+---
+
 ## [1.15.2] — 2026-10-25
 ### Реализм урона оружия (WeaponMastery)
 **Новое:**
