@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/1.15.2-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.15.2"/>
+  <img src="https://img.shields.io/badge/1.15.5-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.15.5"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a" alt="paper 1.21.4+"/>
   <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a" alt="java 21"/>
   <img src="https://img.shields.io/badge/139%2F139-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 139/139"/>
