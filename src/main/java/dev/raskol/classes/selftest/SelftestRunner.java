@@ -38,6 +38,8 @@ import dev.raskol.classes.command.sub.CcSub;
 import dev.raskol.classes.config.CcSanity;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
+import dev.raskol.classes.item.gui.ItemBrowserMenu;
+import dev.raskol.classes.item.gui.ItemHover;
 import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.item.model.WeaponType;
 import dev.raskol.classes.pet.PetDef;
@@ -53,6 +55,7 @@ import dev.raskol.classes.spec.registry.Spec2Registry;
 import dev.raskol.classes.spec.service.Spec2Service;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
@@ -72,42 +75,19 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 137 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 139 чеков.
  *
- * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
- * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
- * инкапсулировано в приватный держатель Report. Номера чеков, их логика, порядок
- * вывода и skip-семантика НЕ изменены — рефакторинг чисто структурный.
- *
- * 1.14.8-fix (Sprint 6, Волна 6.1):
- *   P0-7A — запуск не от игрока: probe = null, все probe-зависимые проверки
- *           уходят в skip; selftest больше не изменяет ранги/спеку/HP первого
- *           онлайн-игрока при консольном запуске (аудит 7-03);
- *   P0-6B — чек 122: достижимость всех включённых узлов при текущем стоп-листе
- *           (страховка регрессии, когда disabled-пререквизиты закрыли 6 ультов).
- *
- * 1.14.13 (Sprint 9, Волна 13C, P0-2-06): чек 107 (pointsConfig) переведён с
- * @Deprecated public-полей Spec2Points.START_LEVEL/MAX_POINTS/ROW_GATES на
- * snapshot-чтение Spec2Points.snapshot().startLevel()/maxPoints()/rowGates().
- *
- * 1.14.13-fix: опечатка имени метода устранена — все вызовы resetAllDR(...)
- * заменены на каноническое resetAllDr(...) (12 мест в cc/ccProbeBreaks/ccProbeCastGuard).
- *
- * 1.14.15 (raskolspec+): добавлены чеки 123–125 — валидность 36 шаблонов builds.yml,
- * математика подписки grant/remainingDays/revoke, stale-маркировка disabled-узлов.
- *
- * 1.14.16 (Волна 15C): добавлены чеки 126–127 — applyBuild на probe (free-путь:
- * применение узла ряда 1 + откат) и отказы БЕЗ изменения состояния (чужое дерево →
- * WRONG_CLASS_TREE, prereq-дыра → TEMPLATE_INVALID). pauseMs(200) между вызовами —
- * rate-limit actionAllowed (150 мс).
- *
- * 1.15.2: добавлены чеки 131–133 — WeaponMastery (матрица 8×6, native/familiar/foreign).
- *
- * 1.15.3: добавлен чек 134 — messages.item.* присутствуют в конфиге и непустые
- * (canary: живой config.yml без блока 1.15.3 даёт красный чек).
- *
- * 1.15.4: добавлены чеки 135–137 — крафт и фрагменты (FragmentRegistry 13 записей,
- * pure-математика SalvageService.fragmentsFor, загрузка рецептов crafting.yml).
+ * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на методы
+ * по подсистемам; состояние отчёта инкапсулировано в приватный держатель Report.
+ * 1.14.8-fix (Волна 6.1): P0-7A probe=null при консольном запуске; P0-6B чек 122.
+ * 1.14.13 (Волна 13C): чек 107 на snapshot-чтение Spec2Points.
+ * 1.14.13-fix: resetAllDR → resetAllDr (12 мест).
+ * 1.14.15 (raskolspec+): чеки 123–125.
+ * 1.14.16 (Волна 15C): чеки 126–127 (applyBuild probe + отказы без изменения состояния).
+ * 1.15.2: чеки 131–133 (WeaponMastery 8×6).
+ * 1.15.3: чек 134 (messages.item.* в конфиге; с 1.15.5-B — 6 ключей).
+ * 1.15.4: чеки 135–137 (FragmentRegistry 13, pure fragmentsFor, рецепты crafting.yml).
+ * 1.15.5: чеки 138–139 (ItemHover.lorePreview/withPreview, pure ItemBrowserMenu.matches).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -137,8 +117,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   plusApply     126–127   raskolspec+ applyBuild (probe): применение и отказы
  *   items115      128–130   реестр экипировки 1.15.0, инварианты, RaskolGear удалён
  *   weaponMastery 131–133   WeaponMastery матрица 8×6 (native/familiar/foreign)
- *   itemMessages   134      messages.item.* присутствуют в конфиге (1.15.3)
+ *   itemMessages   134      messages.item.* присутствуют в конфиге (1.15.3, 6 ключей с 1.15.5-B)
  *   crafting1154   135–137  крафт/фрагменты 1.15.4 (реестр/pure-математика/reload crafting.yml)
+ *   ui1155         138–139  UI 1.15.5 (hover-превью, pure-фильтр браузера)
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -282,8 +263,6 @@ public final class SelftestRunner {
     public static void run(RaskolClasses plugin, CommandSender sender) {
         Report r = new Report();
         // 1.14.8-fix (Волна 6.1, P0-7A): probe — ТОЛЬКО сам отправитель-игрок.
-        // Консольный запуск не трогает данные случайного онлайн-игрока:
-        // все probe-чеки уходят в skip (аудит 7-03).
         Player probe = sender instanceof Player sp ? sp : null;
         if (probe == null) {
             r.note("⚠ Запуск не от игрока: probe-зависимые проверки пропущены, "
@@ -313,17 +292,14 @@ public final class SelftestRunner {
         sprint4Io(plugin, r, probe);
         stopListLive(plugin, r);
         stopListReachability(plugin, r);
-        // 1.14.15 (raskolspec+): чеки подписки — не probe-зависимы, выполняются всегда
         plusSubscription(plugin, r);
-        // 1.14.16 (Волна 15C): apply-чеки — probe-зависимы (меняют и восстанавливают ранги)
         plusApply(plugin, r, probe);
         items115(plugin, r);
-        // 1.15.2: WeaponMastery — матрица владения оружием
         weaponMastery(r);
-        // 1.15.3: сообщения item-слоя присутствуют в конфиге
         itemMessages(plugin, r);
-        // 1.15.4: крафт и фрагменты
         crafting1154(plugin, r);
+        // 1.15.5: UI — hover-превью и pure-фильтр браузера
+        ui1155(plugin, r);
 
         print(plugin, sender, r);
     }
@@ -348,7 +324,6 @@ public final class SelftestRunner {
     /* ------------------------------ 131–133: WeaponMastery (1.15.2) ------------------------------ */
 
     private static void weaponMastery(Report r) {
-        // 131: матрица 8×6 корректна (все ячейки заполнены, значения ∈ {1.0, 0.75, 0.5})
         boolean ok131 = true;
         String got131 = "";
         for (PlayerClass pc : PlayerClass.values()) {
@@ -365,7 +340,6 @@ public final class SelftestRunner {
         r.check("131", "WeaponMastery: матрица 8×6 заполнена (значения ∈ {1.0, 0.75, 0.5})",
                 ok131, "WeaponMastery.masteryMultiplier", ok131 ? "OK(48 cells)" : got131);
 
-        // 132: native/familiar/foreign для конкретных пар
         double wSword = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.SWORD);
         double wDagger = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.DAGGER);
         double wBow = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.BOW);
@@ -379,7 +353,6 @@ public final class SelftestRunner {
                 String.format(Locale.ROOT, "%.2f/%.2f/%.2f vs %.2f/%.2f/%.2f",
                         wSword, wDagger, wBow, hBow, hAxe, hSword));
 
-        // 133: null-защита и defensive programming
         double nullPc = WeaponMastery.masteryMultiplier(null, WeaponType.SWORD);
         double nullWt = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, null);
         double nullBoth = WeaponMastery.masteryMultiplier(null, null);
@@ -390,16 +363,11 @@ public final class SelftestRunner {
                 String.format(Locale.ROOT, "%.2f/%.2f/%.2f level=%s", nullPc, nullWt, nullBoth, level133));
     }
 
-    /* ------------------------------ 134: messages.item.* (1.15.3) ------------------------------ */
+    /* ------------------------------ 134: messages.item.* (1.15.3, 6 ключей с 1.15.5-B) ------------------------------ */
 
-    /**
-     * 134: все 5 базовых ключей messages.item.* присутствуют в конфиге и резолвятся
-     * в непустую строку через RaskolConfig.message (fallback = дефолтный текст).
-     * Canary: если живой config.yml не получил блок 1.15.3 — чек красный.
-     */
     private static void itemMessages(RaskolClasses plugin, Report r) {
         String[] keys = {"item.equip-class", "item.equip-spec", "item.equip-level",
-                "item.unbreakable-lore", "item.mastery-line"};
+                "item.unbreakable-lore", "item.mastery-line", "item.sets-none"};
         boolean ok = true;
         StringBuilder missing = new StringBuilder();
         for (String k : keys) {
@@ -414,19 +382,12 @@ public final class SelftestRunner {
                 missing.append(k).append("(empty) ");
             }
         }
-        r.check("134", "1.15.3: messages.item.* в конфиге, 5 ключей непустые",
-                ok, "config messages.item", ok ? "OK(5)" : "missing: " + missing);
+        r.check("134", "1.15.3+1.15.5: messages.item.* в конфиге, 6 ключей непустые",
+                ok, "config messages.item", ok ? "OK(6)" : "missing: " + missing);
     }
 
     /* ------------------------------ 135–137: 1.15.4 крафт и фрагменты ------------------------------ */
 
-    /**
-     * 135: реестр фрагментов — 13 записей (6 осколков weapon/armor × тир,
-     * 6 эссенций классов, 1 реликвия).
-     * 136: pure-математика fragmentsFor на синтетическом определении
-     * (RARE оружие 40 ур. WARRIOR → {frag_weapon_rare:2, frag_essence_warrior:1}).
-     * 137: CraftingService.reload() загрузил crafting.yml и содержит ≥1 рецепт.
-     */
     private static void crafting1154(RaskolClasses plugin, Report r) {
         boolean registry13 = plugin.getItems() != null
                 && plugin.getItems().fragments() != null
@@ -462,6 +423,59 @@ public final class SelftestRunner {
         boolean recipes137 = recipeCount >= 1;
         r.check("137", "1.15.4: CraftingService.reload() загрузил ≥1 рецепт из crafting.yml",
                 recipes137, "CraftingService.recipes()", String.valueOf(recipeCount));
+    }
+
+    /* ------------------------------ 138–139: 1.15.5 UI ------------------------------ */
+
+    /**
+     * 138: ItemHover.lorePreview собирает превью из displayName + lore реального
+     * предмета фабрики (строка редкости «RARE · ур. N» присутствует), withPreview
+     * навешивает hoverEvent; пустой стак → заглушка «(пусто)».
+     * 139: pure-фильтр ItemBrowserMenu.matches по query/class/rarity (8 сценариев).
+     */
+    private static void ui1155(RaskolClasses plugin, Report r) {
+        boolean ok138 = false;
+        String got138 = "no-items";
+        if (plugin.getItems() != null && !plugin.getItems().registry().all().isEmpty()) {
+            dev.raskol.classes.item.model.ItemDefinition def =
+                    plugin.getItems().registry().all().iterator().next();
+            org.bukkit.inventory.ItemStack stack =
+                    plugin.getItems().factory().create(def, 4242L);
+            Component preview = ItemHover.lorePreview(stack);
+            String plain = PlainTextComponentSerializer.plainText().serialize(preview);
+            boolean hasRarityLine = plain.contains(def.rarity().name() + " · ур. " + def.itemLevel());
+            boolean linesOk = plain.chars().filter(c -> c == '\n').count() >= 1;
+            Component labeled = ItemHover.withPreview(Component.text("label"), stack);
+            boolean hoverAttached = labeled.hoverEvent() != null;
+            boolean emptyOk = PlainTextComponentSerializer.plainText()
+                    .serialize(ItemHover.lorePreview(null)).contains("(пусто)");
+            ok138 = hasRarityLine && linesOk && hoverAttached && emptyOk;
+            got138 = "rarity=" + hasRarityLine + " lines=" + linesOk
+                    + " hover=" + hoverAttached + " empty=" + emptyOk;
+        }
+        r.check("138", "1.15.5: ItemHover.lorePreview = displayName+lore (строка редкости), withPreview навешивает hover",
+                ok138, "ItemHover.lorePreview/withPreview", got138);
+
+        dev.raskol.classes.item.model.ItemDefinition browserDef =
+                new dev.raskol.classes.item.model.ItemDefinition(
+                        "selftest_browser_sword", "Selftest Browser Sword", "IRON_SWORD",
+                        dev.raskol.classes.item.model.ItemSlot.MAIN_HAND,
+                        dev.raskol.classes.item.model.WeaponType.SWORD,
+                        dev.raskol.classes.item.model.ItemRarity.RARE,
+                        40, dev.raskol.classes.classsystem.PlayerClass.WARRIOR,
+                        null, 1, Map.of(), List.of(), 0, null,
+                        List.of(), false, null);
+        boolean ok139 = ItemBrowserMenu.matches(browserDef, "sword", "ALL", "ALL")
+                && ItemBrowserMenu.matches(browserDef, "SELFTEST", "ALL", "ALL")
+                && !ItemBrowserMenu.matches(browserDef, "bow", "ALL", "ALL")
+                && ItemBrowserMenu.matches(browserDef, null, "WARRIOR", "ALL")
+                && !ItemBrowserMenu.matches(browserDef, null, "MAGE", "ALL")
+                && ItemBrowserMenu.matches(browserDef, null, "ALL", "RARE")
+                && !ItemBrowserMenu.matches(browserDef, null, "ALL", "EPIC")
+                && ItemBrowserMenu.matches(browserDef, null, "ALL", "ALL")
+                && !ItemBrowserMenu.matches(null, "any", "ALL", "ALL");
+        r.check("139", "1.15.5: ItemBrowserMenu.matches — query (регистронезав.) / класс / редкость / null-def",
+                ok139, "ItemBrowserMenu.matches", ok139 ? "OK(9 cases)" : "fail");
     }
 
     private static void print(RaskolClasses plugin, CommandSender sender, Report r) {
@@ -2457,7 +2471,6 @@ public final class SelftestRunner {
     /* ------------------------------ 123–125: 1.14.15 (raskolspec+) ------------------------------ */
 
     private static void plusSubscription(RaskolClasses plugin, Report r) {
-        // 123: 36 шаблонов загружены без проблем
         int tplCount = plugin.getBuildTemplates().countLoaded();
         int tplProblems = plugin.getBuildTemplates().countProblems();
         boolean ok123 = tplCount == 36 && tplProblems == 0;
@@ -2465,7 +2478,6 @@ public final class SelftestRunner {
                 ok123, "BuildTemplates.countLoaded/countProblems",
                 "loaded=" + tplCount + " problems=" + tplProblems);
 
-        // 124: математика подписки grant/remainingDays/revoke
         UUID probe = UUID.randomUUID();
         long exp1 = 0L;
         int days = 0;
@@ -2484,7 +2496,6 @@ public final class SelftestRunner {
                 ok124, "PlusSubscription.grant/remainingDays/revoke",
                 "expires=" + exp1 + " days=" + days + " active_after_revoke=" + activeAfterRevoke);
 
-        // 125: stale-маркировка шаблонов с disabled-узлами
         int stale = plugin.getBuildTemplates().countStale();
         boolean ok125 = stale >= 0;
         r.check("125", "raskolspec+: stale-шаблонов = " + stale + " (disabled-nodes маркировка)",
@@ -2493,13 +2504,6 @@ public final class SelftestRunner {
 
     /* ------------------------------ 126–127: 1.14.16 (Волна 15C) apply raskolspec+ ------------------------------ */
 
-    /**
-     * 126: applyBuild(free) применяет узел ряда 1 к первому дереву probe:
-     * результат OK, ранг = 1, затем состояние восстанавливается из backup.
-     * 127: отказы БЕЗ изменения состояния: чужое дерево → WRONG_CLASS_TREE;
-     * узел с пререквизитом без пререка → TEMPLATE_INVALID (simulateApply-parity).
-     * pauseMs(200) между вызовами — rate-limit actionAllowed (150 мс).
-     */
     private static void plusApply(RaskolClasses plugin, Report r, Player probe) {
         if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
             r.skip("126", "raskolspec+ apply на probe");
@@ -2549,7 +2553,6 @@ public final class SelftestRunner {
         r.check("126", "raskolspec+ applyBuild: free-применение узла ряда 1 = OK, rank=1, откат чист",
                 ok126, "Spec2Service.applyBuild", got126);
 
-        // 127: отказы без изменения состояния
         Map<String, Integer> before127 = new HashMap<>(
                 plugin.getSpec2Service().storage().getRanks(pu, t0));
 
