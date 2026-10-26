@@ -28,9 +28,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * Runtime owner of the validated item registry, factory and equipment snapshots.
  * 1.15.1-C: start() регистрирует UnbreakableGuard (страховка прочности legacy-предметов).
  * 1.15.1-D: start() регистрирует EquipGuard — классовые/уровневые запреты экипировки.
- * 1.15.4: сервисы крафта/разбора (FragmentRegistry, SalvageService, CraftingService,
- * CraftingGui) создаются в конструкторе; CraftingGui регистрируется как Listener в start();
- * CraftingService.reload() вызывается из reload() вместе с items.yml.
+ * 1.15.4: сервисы крафта/разбора создаются в конструкторе; CraftingGui регистрируется в start().
+ * 1.15.5-fix: ItemBrowserMenu создаётся EAGER в конструкторе и регистрируется в start() —
+ * ранее новый браузер (item.gui) не регистрировался вообще, клики по навигации
+ * уходили в ванильное поведение («кнопка прилипает к курсору»).
  */
 public final class ItemSystem implements ItemStatsProvider {
     private final RaskolClasses plugin;
@@ -42,11 +43,11 @@ public final class ItemSystem implements ItemStatsProvider {
     private final SalvageService salvageService;
     private final CraftingService craftingService;
     private final CraftingGui craftingGui;
+    private final ItemBrowserMenu browser;
     private final SetBonusService setBonuses = new SetBonusService();
     private final Map<UUID, ItemStatSnapshot> snapshots = new ConcurrentHashMap<>();
     private final java.util.Set<String> warnedUnknownIds = ConcurrentHashMap.newKeySet();
     private volatile ItemRegistry registry;
-    private ItemBrowserMenu browser;
 
     public ItemSystem(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -58,6 +59,7 @@ public final class ItemSystem implements ItemStatsProvider {
         salvageService = new SalvageService(plugin, fragmentRegistry);
         craftingService = new CraftingService(plugin, fragmentRegistry);
         craftingGui = new CraftingGui(plugin, craftingService, fragmentRegistry);
+        browser = new ItemBrowserMenu(plugin, this);
         reload();
     }
 
@@ -86,18 +88,14 @@ public final class ItemSystem implements ItemStatsProvider {
     public SalvageService salvage() { return salvageService; }
     public CraftingService crafting() { return craftingService; }
     public CraftingGui craftingGui() { return craftingGui; }
-
-    public ItemBrowserMenu browser() {
-        if (browser == null) {
-            browser = new ItemBrowserMenu(plugin, this);
-        }
-        return browser;
-    }
+    public ItemBrowserMenu browser() { return browser; }
 
     public void start() {
         plugin.getServer().getPluginManager().registerEvents(unbreakableGuard, plugin);
         plugin.getServer().getPluginManager().registerEvents(equipGuard, plugin);
         plugin.getServer().getPluginManager().registerEvents(craftingGui, plugin);
+        // 1.15.5-fix: браузер предметов — слушатель навигации/фильтров/выдачи
+        plugin.getServer().getPluginManager().registerEvents(browser, plugin);
         hook.start();
     }
 
