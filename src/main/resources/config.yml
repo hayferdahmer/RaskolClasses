@@ -825,6 +825,7 @@ messages:
     craft-no-econ: "⚒ Экономика недоступна — крафт с монетами отключён"
     craft-coins: "⚒ Не хватает монет: нужно {coins}"
     craft-frags: "⚒ Не хватает фрагментов: {missing}"
+    sets-none: "Активных сетов нет."
 
 classes:
   WARRIOR:
