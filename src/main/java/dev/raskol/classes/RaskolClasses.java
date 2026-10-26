@@ -32,7 +32,6 @@ import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.gui.PlusGui;
-import dev.raskol.classes.gui.book.ItemBrowserMenu;
 import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
@@ -185,7 +184,6 @@ public final class RaskolClasses extends JavaPlugin {
     private PlusSubscription plusSubscription;
     /** 1.14.15 (фаза 2): raskolspec+ — GUI каталога и применения шаблонов. */
     private PlusGui plusGui;
-    private ItemBrowserMenu itemBrowser;
 
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
@@ -217,8 +215,6 @@ public final class RaskolClasses extends JavaPlugin {
         this.itemsApi = new ItemsApi(this);
         this.combatProfiles = new CombatProfileRegistry();
         pluginManager.registerEvents(new CombatProfileLifecycleListener(combatProfiles), this);
-        this.itemBrowser = new ItemBrowserMenu(this);
-        pluginManager.registerEvents(itemBrowser, this);
 
         this.blueprintHook = new BlueprintHook(this);
         blueprintHook.registerBlueprints();
@@ -537,7 +533,6 @@ public final class RaskolClasses extends JavaPlugin {
     public CrownFlavorService getFlavorService() { return flavorService; }
     public ItemSystem getItems() { return items; }
     public ItemsApi getItemsApi() { return itemsApi; }
-    public ItemBrowserMenu getItemBrowser() { return itemBrowser; }
     public CombatProfileRegistry getCombatProfiles() { return combatProfiles; }
     /** Опциональный провайдер уровней сущностей — реализует RaskolMobs через API. */
     public void setEntityLevelProvider(EntityLevelProvider provider) { this.entityLevelProvider = provider; }
