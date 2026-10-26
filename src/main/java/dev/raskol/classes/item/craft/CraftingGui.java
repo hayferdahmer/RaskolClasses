@@ -24,11 +24,16 @@ import java.util.UUID;
  * Иконка — превью цели (factory.create с фикс-seed 777, без ItemCreatedEvent),
  * lore — стоимость (фрагменты + монеты) и подсказка клика. Клик = попытка крафта
  * с сообщением результата/отказа (CraftingService.notifyFailure).
- * Регистрация слушателя — в ItemSystem.start() (подшаг B).
+ * 1.15.5-fix: навигация (45/49/53) и освежение после крафта — через scheduleOpen
+ * (следующий тик): синхронный openInventory внутри InventoryClickEvent
+ * рассинхронизирует курсор клиента («кнопка прилипает к курсору»).
  */
 public final class CraftingGui implements Listener {
 
     private static final int PAGE_SIZE = 45;
+    private static final int SLOT_PREV = 45;
+    private static final int SLOT_CLOSE = 49;
+    private static final int SLOT_NEXT = 53;
     private static final long PREVIEW_SEED = 777L;
 
     private final RaskolClasses plugin;
@@ -72,15 +77,24 @@ public final class CraftingGui implements Listener {
         for (int i = offset; i < Math.min(offset + PAGE_SIZE, ids.size()); i++) {
             inv.setItem(i - offset, iconFor(player, crafting.recipe(ids.get(i))));
         }
-        inv.setItem(45, nav(Material.ARROW, "Назад", safe > 0));
-        inv.setItem(49, nav(Material.BARRIER, "Закрыть", true));
-        inv.setItem(53, nav(Material.ARROW, "Далее", safe < pages - 1));
-        for (int i = 0; i < 45; i++) {
+        inv.setItem(SLOT_PREV, nav(Material.ARROW, "Назад", safe > 0));
+        inv.setItem(SLOT_CLOSE, nav(Material.BARRIER, "Закрыть", true));
+        inv.setItem(SLOT_NEXT, nav(Material.ARROW, "Далее", safe < pages - 1));
+        for (int i = 0; i < PAGE_SIZE; i++) {
             if (inv.getItem(i) == null) {
                 inv.setItem(i, pane());
             }
         }
         player.openInventory(inv);
+    }
+
+    /** 1.15.5-fix: открытие GUI только на следующем тике. */
+    private void scheduleOpen(Player player, int page) {
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) {
+                open(player, page);
+            }
+        });
     }
 
     private ItemStack iconFor(Player player, CraftingService.Recipe recipe) {
@@ -121,16 +135,16 @@ public final class CraftingGui implements Listener {
             return;
         }
         int slot = event.getRawSlot();
-        if (slot == 49) {
+        if (slot == SLOT_CLOSE) {
             player.closeInventory();
             return;
         }
-        if (slot == 45) {
-            open(player, holder.page - 1);
+        if (slot == SLOT_PREV) {
+            scheduleOpen(player, holder.page - 1);
             return;
         }
-        if (slot == 53) {
-            open(player, holder.page + 1);
+        if (slot == SLOT_NEXT) {
+            scheduleOpen(player, holder.page + 1);
             return;
         }
         if (slot < 0 || slot >= PAGE_SIZE) {
@@ -140,12 +154,13 @@ public final class CraftingGui implements Listener {
         if (index >= holder.recipeIds.size()) {
             return;
         }
-        CraftingService.Recipe recipe = crafting.recipe(holder.recipeIds.get(index));
-        CraftingService.CraftResult result = crafting.craft(player, holder.recipeIds.get(index));
+        String recipeId = holder.recipeIds.get(index);
+        CraftingService.Recipe recipe = crafting.recipe(recipeId);
+        CraftingService.CraftResult result = crafting.craft(player, recipeId);
         if (result != CraftingService.CraftResult.OK) {
             crafting.notifyFailure(player, result, recipe);
         }
-        open(player, holder.page); // освежить счётчики фрагментов в lore
+        scheduleOpen(player, holder.page); // освежить счётчики фрагментов в lore
     }
 
     private static ItemStack nav(Material material, String name, boolean active) {
