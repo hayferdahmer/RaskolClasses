@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/1.15.2-8b0000?style=flat-square&label=release&labelColor=0a0a0a" alt="release 1.15.2"/>
   <img src="https://img.shields.io/badge/1.21.4%2B-3a3a3a?style=flat-square&label=paper&labelColor=0a0a0a" alt="paper 1.21.4+"/>
   <img src="https://img.shields.io/badge/21-3a3a3a?style=flat-square&label=java&labelColor=0a0a0a" alt="java 21"/>
-  <img src="https://img.shields.io/badge/133%2F133-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 133/133"/>
+  <img src="https://img.shields.io/badge/139%2F139-b08d3e?style=flat-square&label=selftest&labelColor=0a0a0a" alt="selftest 139/139"/>
   <img src="https://img.shields.io/badge/proprietary-3a3a3a?style=flat-square&label=license&labelColor=0a0a0a" alt="license proprietary"/>
 </p>
 
@@ -36,7 +36,7 @@
     <td align="center"><b>8</b><br/><sub>школ урона</sub></td>
     <td align="center"><b>9</b><br/><sub>типов контроля</sub></td>
     <td align="center"><b>5</b><br/><sub>видов DoT</sub></td>
-    <td align="center"><b>133</b><br/><sub>headless-чека</sub></td>
+    <td align="center"><b>139</b><br/><sub>headless-чека</sub></td>
   </tr>
 </table>
 
@@ -309,7 +309,7 @@ Amplifier следующего удара ставится на защищавш
 | Книга | `ClassBook` (фасад) + `gui/book/*Tab` (5 вкладок, включая «Снаряжение») |
 | Команды | `RaskolCommand` (роутер) + `command/sub/*Sub` (debug, item, set, gear alias, foliant, health, cc) |
 | Конфиг | `config.yml` (avoidance и hp-display в корне с 1.14.6-fix) + per-class `kits/<class>.yml` |
-| Тесты | `/rc selftest` — **133 headless-чека** |
+| Тесты | `/rc selftest` — **139 headless-чека** |
 
 Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — на них и держатся headless-чеки.
 
@@ -321,14 +321,14 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 | --- | --- | --- |
 | `/rc` | — | Сводка игрока |
 | `/rc menu` | `raskolclasses.menu` | Книга класса: 5 вкладок, включая экипировку |
-| `/rc item list \| info \| give \| roll \| browse \| stats` | `raskolclasses.admin.item` · `.give` · `.debug` | Реестр и управление предметами |
+| `/rc item list \| info \| give \| roll \| browse \| stats \| sets \| salvage \| craft` | `raskolclasses.admin.item` · `.give` · `.salvage` · `.craft` | Реестр, статистика, разбор и крафт предметов |
 | `/rc set list \| info \| active` | `raskolclasses.admin.item` | Сеты и активные пороги |
 | `/rc gear [ник]` | `raskolclasses.debug` | Псевдоним статистики экипировки |
 | `/rc debug [ник]` | `raskolclasses.debug` | Атрибуты, резисты, pen, стихии, CC/DR, очки путей, владение оружием |
 | `/rc debug profile` | `raskolclasses.debug` | Боевой профиль моба в прицеле |
 | `/rc debug simulate …` | `raskolclasses.debug` | Дуэль и матрица TTK 6×6 |
 | `/rc health` | `raskolclasses.debug` | MSPT/TPS, purge, аптайм, per-class конфиги |
-| `/rc selftest` | `raskolclasses.debug` | 133 headless-чека |
+| `/rc selftest` | `raskolclasses.debug` | 139 headless-чека |
 | `/rc cc list \| status \| clear \| test \| reset` | `raskolclasses.admin.cc` | Админка контроля с DR |
 | `/rc foliant give <ник>` | `raskolclasses.admin` | Выдать Фолиант Душ |
 | `/rc reload` | `raskolclasses.admin` | Перезагрузка `config.yml` + `kits/*.yml` |
@@ -357,7 +357,7 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 
 **Ресурс-пак.** Для оружия и иконок брони рядом с JAR публикуется `RaskolClasses-1.15.0-resource-pack.zip` (Minecraft Java 1.21.4). Он использует `custom-model-data`, который предметы получают из шаблонов `items.yml`. В первой редакции текстуры брони меняют иконку в инвентаре; надетая броня пока отображается ванильной.
 
-**Команды.** `/rc item list`, `/rc item info <id>`, `/rc item give <ник> <id> [кол-во]`, `/rc item roll <ник> <id> [seed]`, `/rc item browse [класс] [слот] [редкость]`, `/rc item stats [ник]`; браузер циклически переключает класс, слот и редкость. Сеты: `/rc set list|info <id>|active <ник>`. `/rc gear [ник]` остаётся алиасом для `/rc item stats`.
+**Команды.** `/rc item list`, `/rc item info <id>`, `/rc item give <ник> <id> [кол-во]`, `/rc item roll <ник> <id> [seed]`, `/rc item browse [запрос]`, `/rc item stats [ник]`, `/rc item sets [ник]`, `/rc item salvage`, `/rc item craft [id]`; браузер принимает поисковый запрос и фильтры класс/редкость, `stats` показывает hover-превью экипировки и прогресс сетов, `sets` выводит активные и потенциальные бонусы, `salvage` разбирает предмет в руке на фрагменты, `craft` создаёт предмет из фрагментов и монет. Сеты: `/rc set list|info <id>|active <ник>`. `/rc gear [ник]` остаётся алиасом для `/rc item stats`.
 
 **Совместимость.** Предметы должны быть выданы через ItemsApi или админ-команду. Они хранят PDC формата v1; старые предметы RaskolGear не поддерживаются и не мигрируют. Удалите RaskolGear после обновления на 1.15.0.
 
@@ -371,7 +371,7 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 mvn -B clean verify
 cp target/raskol-classes-*.jar plugins/
 # перезапуск сервера
-/rc selftest   # ожидается 133/133 PASS
+/rc selftest   # ожидается 139/139 PASS
 ```
 
 Профиль `-Pdev` добавляет `-Xlint:all` и SpotBugs: `mvn -Pdev -B verify`.
@@ -382,7 +382,7 @@ cp target/raskol-classes-*.jar plugins/
 **Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints`. Каждый опционален, деградация graceful.
 
 <details>
-<summary><b>Регресс-матрица selftest</b> · 133 чека</summary>
+<summary><b>Регресс-матрица selftest</b> · 139 чека</summary>
 
 | Область | Чеки |
 | --- | :-: |
@@ -406,6 +406,9 @@ cp target/raskol-classes-*.jar plugins/
 | raskolspec+: шаблоны/подписка/stale | 123–125 |
 | Предметы 1.15.0: реестр, инварианты, удаление Gear | 128–130 |
 | Владение оружием: матрица, пары, null | 131–133 |
+| Локализация сообщений предметного слоя | 134 |
+| Крафт и фрагменты 1.15.4: реестр, pure-математика, рецепты | 135–137 |
+| UI/UX 1.15.5: hover-превью, pure-фильтр браузера | 138–139 |
 
 Полный прогон — перед любым хотфиксом и релизом. Skip-чеки считаются отдельно и не входят в PASS-счётчик.
 
