@@ -3,6 +3,7 @@ package dev.raskol.classes.item.craft;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.hook.EconomyHook;
+import dev.raskol.classes.item.gui.ItemHover;
 import dev.raskol.classes.item.model.ItemDefinition;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -43,8 +44,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * EconomyHook работает без импорта milkbowl). Compensation-путь refundCoins()
  * идёт через reflection: ServicesManager → интерфейс Economy по имени класса →
  * depositPlayer(OfflinePlayer, double) → поле EconomyResponse.transactionSuccess.
- * При отсутствии Vault/провайдера возврат не выполняется, но инцидент логируется
- * warning'ом с ником и суммой для ручной компенсации админом.
+ *
+ * 1.15.5-B: сообщение успеха несёт hover-превью созданного предмета.
  */
 public final class CraftingService {
 
@@ -162,9 +163,10 @@ public final class CraftingService {
             plugin.getItems().pdc().markCraftedBy(created, player.getUniqueId());
             player.getInventory().addItem(created).values()
                     .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
-            player.sendMessage(Component.text(plugin.getRaskolConfig()
+            // 1.15.5-B: hover-превью созданного предмета в сообщении успеха
+            player.sendMessage(ItemHover.withPreview(Component.text(plugin.getRaskolConfig()
                     .message("item.craft-ok", "⚒ Создано: {item}")
-                    .replace("{item}", def.displayName()), NamedTextColor.GREEN));
+                    .replace("{item}", def.displayName()), NamedTextColor.GREEN), created));
             return CraftResult.OK;
         } catch (RuntimeException ex) {
             if (coinsPaid) {
