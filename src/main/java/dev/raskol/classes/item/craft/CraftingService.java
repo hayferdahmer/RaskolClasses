@@ -3,7 +3,6 @@ package dev.raskol.classes.item.craft;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.hook.EconomyHook;
-import dev.raskol.classes.item.gui.ItemHover;
 import dev.raskol.classes.item.model.ItemDefinition;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -30,26 +29,28 @@ import java.util.concurrent.ThreadLocalRandom;
  *   schema-version: 1
  *   recipes:
  *     warrior_sword_40:
- *       target: warrior_main_hand_40_rare     # id из реестра items.yml
- *       coins: 500                             # цена в монетах Vault (0 = бесплатно)
+ *       target: warrior_sword_main_hand_40_rare
+ *       coins: 500
  *       fragments:
  *         frag_weapon_rare: 5
  *         frag_essence_warrior: 2
  *
- * Гарантии: проверка наличия фрагментов ДО списания монет; списание монет ДО
- * создания предмета; ошибка создания → возврат монет.
- * Рецепт с неизвестной целью/фрагментом отключается точечно с warning.
+ * Гарантии порядка операций (инвариант «отказ не оставляет потерь»):
+ *  1) гейты (enabled/recipe/target/фрагменты/экономика/баланс) — ДО любых списаний;
+ *  2) списание фрагментов;
+ *  3) списание монет С ПРОВЕРКОЙ результата (аудит 2.6-14): баланс до/после,
+ *     недостача → возврат фрагментов и PAY_FAILED;
+ *  4) создание предмета; RuntimeException → возврат монет (reflection Vault)
+ *     И возврат фрагментов (аудит 2.6-15) → NO_TARGET.
+ * Рецепт с неизвестной целью/фрагментом отключается точечно с warning при reload.
  *
- * 1.15.4-A-fix2: Vault НЕ является compile-зависимостью проекта (pom.xml чистый,
- * EconomyHook работает без импорта milkbowl). Compensation-путь refundCoins()
- * идёт через reflection: ServicesManager → интерфейс Economy по имени класса →
- * depositPlayer(OfflinePlayer, double) → поле EconomyResponse.transactionSuccess.
- *
- * 1.15.5-B: сообщение успеха несёт hover-превью созданного предмета.
+ * 1.15.4-A-fix2: Vault НЕ compile-зависимость; refund через reflection
+ * (ServicesManager → Economy.depositPlayer(OfflinePlayer,double)).
+ * 1.15.5 (Волна 2): проверки списания (2.6-14) и полный откат фрагментов (2.6-15).
  */
 public final class CraftingService {
 
-    public enum CraftResult { OK, DISABLED, UNKNOWN, NO_TARGET, NO_FRAGS, NO_COINS, NO_ECON }
+    public enum CraftResult { OK, DISABLED, UNKNOWN, NO_TARGET, NO_FRAGS, NO_COINS, NO_ECON, PAY_FAILED }
 
     public record Recipe(String id, String target, int coins, Map<String, Integer> fragments) {
     }
@@ -84,6 +85,7 @@ public final class CraftingService {
                 String target = s.getString("target", "");
                 int coins = Math.max(0, s.getInt("coins", 0));
                 Map<String, Integer> frags = new LinkedHashMap<>();
+                boolean broken = false;
                 ConfigurationSection fragSec = s.getConfigurationSection("fragments");
                 if (fragSec != null) {
                     for (String fragId : fragSec.getKeys(false)) {
@@ -93,12 +95,12 @@ public final class CraftingService {
                         } else if (count > 0) {
                             plugin.getLogger().warning("crafting: рецепт " + id
                                     + " отключён: неизвестный фрагмент " + fragId);
-                            frags = null;
+                            broken = true;
                             break;
                         }
                     }
                 }
-                if (frags == null) {
+                if (broken) {
                     continue;
                 }
                 if (plugin.getItems() != null && plugin.getItems().registry().get(target) == null) {
@@ -121,7 +123,7 @@ public final class CraftingService {
         return recipes.get(id);
     }
 
-    /** Выполнить крафт: фрагменты → монеты → предмет с меткой crafted_by. */
+    /** Выполнить крафт с полным откатом при любой ошибке после списаний. */
     public CraftResult craft(Player player, String recipeId) {
         if (!plugin.getConfig().getBoolean("item.craft.enabled", true)) {
             return CraftResult.DISABLED;
@@ -140,7 +142,6 @@ public final class CraftingService {
                 return CraftResult.NO_FRAGS;
             }
         }
-        boolean coinsPaid = false;
         if (recipe.coins() > 0) {
             if (!economy.available()) {
                 return CraftResult.NO_ECON;
@@ -149,24 +150,37 @@ public final class CraftingService {
                 return CraftResult.NO_COINS;
             }
         }
-        // списание: фрагменты → монеты (компенсация при ошибке создания)
-        for (Map.Entry<String, Integer> e : recipe.fragments().entrySet()) {
-            fragments.consume(player, fragments.byId(e.getKey()), e.getValue());
-        }
+
+        // 2) списание фрагментов (после всех гейтов)
+        Map<Fragment, Integer> spent = fragmentAmounts(recipe);
+        spent.forEach((fragment, count) -> fragments.consume(player, fragment, count));
+
+        // 3) списание монет С ПРОВЕРКОЙ (аудит 2.6-14): баланс до/после
+        boolean coinsPaid = false;
         if (recipe.coins() > 0) {
+            double before = economy.balance(player.getUniqueId());
             economy.withdraw(player.getUniqueId(), recipe.coins());
+            double after = economy.balance(player.getUniqueId());
+            if (before - after < recipe.coins() - 1e-9) {
+                // списание не прошло — возвращаем фрагменты, предмет не создаём
+                fragments.addFragments(player, spent);
+                plugin.getLogger().warning("crafting: withdraw не списал монеты ("
+                        + recipe.coins() + ") для " + player.getName() + "; фрагменты возвращены");
+                return CraftResult.PAY_FAILED;
+            }
             coinsPaid = true;
         }
+
+        // 4) создание предмета; любой сбой → полный откат (монеты + фрагменты, аудит 2.6-15)
         try {
             ItemStack created = plugin.getItems().create(recipe.target(), def.itemLevel(),
                     ThreadLocalRandom.current().nextLong());
             plugin.getItems().pdc().markCraftedBy(created, player.getUniqueId());
             player.getInventory().addItem(created).values()
                     .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
-            // 1.15.5-B: hover-превью созданного предмета в сообщении успеха
-            player.sendMessage(ItemHover.withPreview(Component.text(plugin.getRaskolConfig()
+            player.sendMessage(Component.text(plugin.getRaskolConfig()
                     .message("item.craft-ok", "⚒ Создано: {item}")
-                    .replace("{item}", def.displayName()), NamedTextColor.GREEN), created));
+                    .replace("{item}", def.displayName()), NamedTextColor.GREEN));
             return CraftResult.OK;
         } catch (RuntimeException ex) {
             if (coinsPaid) {
@@ -176,20 +190,27 @@ public final class CraftingService {
                         : "НЕ возвращены (нет провайдера/метода) — компенсируй вручную")
                         + ": игрок " + player.getName() + ", сумма " + recipe.coins()
                         + "; причина: " + ex.getMessage());
-            } else {
-                plugin.getLogger().warning("crafting: создание " + recipe.target()
-                        + " не удалось: " + ex.getMessage());
             }
+            fragments.addFragments(player, spent);
             return CraftResult.NO_TARGET;
         }
     }
 
+    /** Рецепт → карта Fragment→count (для списания и отката). */
+    private Map<Fragment, Integer> fragmentAmounts(Recipe recipe) {
+        Map<Fragment, Integer> out = new LinkedHashMap<>();
+        recipe.fragments().forEach((fragId, count) -> {
+            Fragment fragment = fragments.byId(fragId);
+            if (fragment != null) {
+                out.merge(fragment, count, Integer::sum);
+            }
+        });
+        return out;
+    }
+
     /**
-     * 1.15.4-A-fix2: возврат монет через reflection над Vault Economy.
-     * Путь: Class.forName("net.milkbowl.vault.economy.Economy") →
-     * ServicesManager.getRegistration(iface).getProvider() →
-     * depositPlayer(OfflinePlayer, double) → EconomyResponse.transactionSuccess.
-     * Любая неудача (нет Vault, нет провайдера, нет метода) = false + warning у вызывающего.
+     * 1.15.4-A-fix2: возврат монет через reflection над Vault Economy
+     * (EconomyHook не экспонирует deposit; compile-зависимости Vault нет).
      */
     private boolean refundCoins(Player player, int coins) {
         try {
@@ -217,7 +238,7 @@ public final class CraftingService {
             Object response = deposit.invoke(provider,
                     Bukkit.getOfflinePlayer(player.getUniqueId()), (double) coins);
             if (response == null) {
-                return true; // void-подобная имплементация: считаем возврат выполненным
+                return true;
             }
             Field success = response.getClass().getField("transactionSuccess");
             return success.getBoolean(response);
@@ -238,6 +259,7 @@ public final class CraftingService {
             case NO_ECON -> { key = "item.craft-no-econ"; fallback = "⚒ Экономика недоступна — крафт с монетами отключён"; }
             case NO_COINS -> { key = "item.craft-coins"; fallback = "⚒ Не хватает монет: нужно {coins}"; }
             case NO_FRAGS -> { key = "item.craft-frags"; fallback = "⚒ Не хватает фрагментов: {missing}"; }
+            case PAY_FAILED -> { key = "item.craft-pay"; fallback = "⚒ Списание монет не прошло: фрагменты возвращены"; }
             default -> { return; }
         }
         String missing = "";
