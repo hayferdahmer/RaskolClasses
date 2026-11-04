@@ -11,22 +11,23 @@ import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
 import org.bukkit.entity.Player;
 
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * LP-бэкенд определения класса: группа LuckPerms вида class_<NAME> → PlayerClass.
  * Конструктор бросает IllegalStateException/NoClassDefFoundError, если LuckPerms
- * не загружен — ClassProvider ловит это и живёт без бэкенда (sourceOf() = "off"/"core").
+ * не загружен — ClassProvider ловит это и живёт без бэкенда.
  *
- * Подписка на UserDataRecalculateEvent: при пересчёте данных игрока (смена группы)
- * инвалидируем кэш класса в ClassProvider и сбрасываем ресурс игрока, чтобы новый
- * класс начинал с чистой шкалы.
+ * Подписка на UserDataRecalculateEvent: инвалидация кэша класса всегда;
+ * сброс ресурса — ТОЛЬКО при фактической смене класса.
  *
- * 1.7.4.1 фикс 4 (сборка): вызов resourceService.reset(uuid) заменён на
- * resourceService.clear(uuid) — единственное публичное имя метода в ResourceService.
- * 1.14.14 (фаза 2, URF-фикс): мёртвое поле `config` и его сеттер удалены —
- * значение нигде не читалось после установки (SpotBugs URF_UNREAD_FIELD).
- * Импорт `dev.raskol.classes.config.RaskolConfig` убран за ненадобностью.
+ * 1.15.5 (аудит 2.6-78): ранее resourceService.clear(uuid) вызывался на ЛЮБОЙ
+ * пересчёт данных LP (vault-синхронизация, выдача несвязанной группы, временная
+ * нода) — шкала ресурса обнулялась посреди боя. Теперь бэкенд держит lastClass
+ * и сбрасывает ресурс только при prev != now. Оффлайн-смена класса помечается
+ * resetOnJoin: ResourceService обнулит шкалу при входе вместо восстановления старой.
  */
 public final class LuckPermsBackend {
 
@@ -34,6 +35,7 @@ public final class LuckPermsBackend {
     private final RaskolClasses plugin;
     private final LuckPerms api;
     private final EventSubscription<UserDataRecalculateEvent> subscription;
+    private final Map<UUID, PlayerClass> lastClass = new ConcurrentHashMap<>();
 
     private ResourceService resourceService;
 
@@ -58,7 +60,11 @@ public final class LuckPermsBackend {
         if (api == null || player == null) {
             return null;
         }
-        User user = api.getUserManager().getUser(player.getUniqueId());
+        return resolveUser(api.getUserManager().getUser(player.getUniqueId()));
+    }
+
+    /** Резолв по LP-User (работает и для оффлайн-событий). */
+    private PlayerClass resolveUser(User user) {
         if (user == null) {
             return null;
         }
@@ -76,14 +82,26 @@ public final class LuckPermsBackend {
     }
 
     /**
-     * Пересчёт данных LP (смена группы/класса): сбрасываем кэш класса и ресурс,
-     * чтобы игрок не тащил шкалу старого класса в новый.
+     * Пересчёт данных LP: инвалидируем кэш класса всегда; ресурс сбрасываем
+     * ТОЛЬКО при фактической смене класса (prev != now). Первый sighting игрока
+     * (prev == null) сбросом не считается.
      */
     private void onRecalculate(UserDataRecalculateEvent event) {
         UUID uuid = event.getUser().getUniqueId();
+        PlayerClass now = resolveUser(event.getUser());
+        PlayerClass prev = lastClass.put(uuid, now);
         provider.invalidate(uuid);
-        if (resourceService != null) {
-            resourceService.clear(uuid); // 1.7.4.1: было reset(uuid) — метода нет
+        if (prev == null || prev == now) {
+            return;
+        }
+        if (resourceService == null) {
+            return;
+        }
+        Player online = plugin.getServer().getPlayer(uuid);
+        if (online != null) {
+            resourceService.clear(uuid);
+        } else {
+            resourceService.markResetOnJoin(uuid);
         }
     }
 
