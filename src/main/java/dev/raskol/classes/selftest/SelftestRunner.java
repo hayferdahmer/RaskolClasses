@@ -48,7 +48,6 @@ import dev.raskol.classes.item.model.WeaponType;
 import dev.raskol.classes.pet.PetDef;
 import dev.raskol.classes.pet.PetMath;
 import dev.raskol.classes.resource.ResourceState;
-import dev.raskol.classes.resource.ResourceService;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecRole;
 import dev.raskol.classes.spec.SpecRoles;
@@ -79,7 +78,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 142 чека.
+ * Headless-самотестирование формул плагина (/rc selftest), 146 чеков.
  *
  * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
@@ -119,6 +118,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 1.15.5 (волна аудита): добавлены чеки 138–142 — покрытие прав plugin.yml,
  * AuthGate fail-closed по умолчанию, резолв целей crafting.yml, архитектурный
  * контракт LuckPermsBackend (lastClass-гард), семантика saveIfDirty для spec2.
+ * Чек 138 читает плоский список имён getDescription().getPermissions(): с 1.15.5-b
+ * дети item.* объявлены в plugin.yml топ-уровнем, поэтому видны в этом списке.
+ *
+ * 1.15.5-b (волна 2, экономика/данные): добавлены чеки 143–146 — SafeStorage
+ * round-trip без leftover .tmp + создание .bak, foliant saveLocksIfDirty идемпотентен
+ * при отсутствии изменений, craft UNKNOWN не трогает инвентарь, daily-limit гард ≥1
+ * (мусор в конфиге → дефолт, без краша).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -150,7 +156,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   weaponMastery 131–133   WeaponMastery матрица 8×6 (native/familiar/foreign)
  *   itemMessages   134      messages.item.* присутствуют в конфиге (1.15.3)
  *   crafting1154   135–137  крафт/фрагменты 1.15.4 (реестр/pure-математика/reload crafting.yml)
- *   auditing1155    138–142   волна аудита 1.15.5 (права/AuthGate/crafting/LP/spec2)
+ *   auditing1155   138–142  волна аудита 1.15.5 (права/AuthGate/crafting/LP/spec2)
+ *   economyData1155 143–146 экономика/данные 1.15.5 (SafeStorage/foliant/craft/daily-limit)
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -338,6 +345,8 @@ public final class SelftestRunner {
         crafting1154(plugin, r);
         // 1.15.5: волна аудита (Wave 0+1+1b)
         auditing1155(plugin, r);
+        // 1.15.5-b: экономика и данные (Wave 2)
+        economyData1155(plugin, r);
 
         print(plugin, sender, r);
     }
@@ -474,25 +483,18 @@ public final class SelftestRunner {
     /* ------------------------------ 138–142: 1.15.5 волна аудита ------------------------------ */
 
     /**
-     * 138: права plugin.yml покрывают все действия ItemSub (игровая ветка
-     * item.{stats,salvage,craft} default true; админ-ветка item.{give,reload,
-     * debug,browser} default op + parent item.admin). PluginDescriptionFile
-     * возвращает List<Permission> — собираем имена и сверяем покрытие.
-     * 139: AuthGate fail-closed по умолчанию (audit 2.7-3): compat.authme-fail-open
-     * не задан в конфиге → getBoolean(..., false) = false → при сломанной рефлексии
-     * доступ запрещён, а не открыт.
-     * 140: все recipe.target из crafting.yml существуют в реестре предметов
-     * (audit 2.8-5): если CraftingService.reload() отключил рецепт с warning,
-     * recipes.size() будет меньше 6 → чек красный.
-     * 141: архитектурный контракт LuckPermsBackend (audit 2.6-78): класс имеет
-     * приватное поле lastClass типа Map — гарантия что LP-гард реализован
-     * (не вызываем напрямую, т.к. LP runtime-only).
-     * 142: семантика saveIfDirty для Spec2Storage (audit 2.6-91): setRanks
-     * помечает store dirty, saveIfDirty() возвращает true и сбрасывает флаг,
-     * повторный вызов = false. Требует онлайн-игрока с деревом, иначе skip.
+     * 138: права plugin.yml покрывают дерево item.* (9 узлов). С 1.15.5-b дети
+     * объявлены топ-уровнем, поэтому getDescription().getPermissions() видит все имена.
+     * 139: AuthGate fail-closed (аудит 2.7-3): compat.authme-fail-open по умолчанию false.
+     * 140: все recipe.target из crafting.yml существуют в реестре (аудит 2.8-5):
+     * дефолт = 6 активных рецептов; битая цель отключается reload'ом → чек красный.
+     * 141: архитектурный контракт LuckPermsBackend (аудит 2.6-78): приватное поле
+     * lastClass типа Map — гарантия наличия LP-гарда сброса ресурса.
+     * 142: семантика Spec2Storage.saveIfDirty (аудит 2.6-91): setRanks помечает dirty,
+     * первый saveIfDirty = true и сбрасывает флаг, повторный = false. Probe-зависим.
      */
     private static void auditing1155(RaskolClasses plugin, Report r) {
-        // 138: права plugin.yml (List<Permission>)
+        // 138: права plugin.yml (плоский список имён; дети топ-уровнем с 1.15.5-b)
         List<String> permNames = new ArrayList<>();
         for (Permission p : plugin.getDescription().getPermissions()) {
             permNames.add(p.getName());
@@ -523,17 +525,15 @@ public final class SelftestRunner {
         // 139: AuthGate fail-closed по умолчанию
         boolean authmeFailOpen = plugin.getConfig().getBoolean("compat.authme-fail-open", false);
         r.check("139", "1.15.5: AuthGate fail-closed — compat.authme-fail-open по умолчанию false",
-                !authmeFailOpen, "config compat.authme-fail-open",
-                String.valueOf(authmeFailOpen));
+                !authmeFailOpen, "config compat.authme-fail-open", String.valueOf(authmeFailOpen));
 
-        // 140: все цели crafting.yml резолвятся в реестр
+        // 140: все цели crafting.yml резолвятся (6 рецептов дефолта активны)
         int recipeCount = plugin.getItems() != null && plugin.getItems().crafting() != null
                 ? plugin.getItems().crafting().recipes().size() : 0;
-        boolean recipes140 = recipeCount >= 6; // 6 рецептов в дефолтном crafting.yml
-        r.check("140", "1.15.5: все 6 рецептов crafting.yml активны (цели резолвятся в реестр)",
-                recipes140, "CraftingService.recipes()", String.valueOf(recipeCount));
+        r.check("140", "1.15.5: crafting.yml — 6 рецептов активны (цели существуют в реестре)",
+                recipeCount >= 6, "CraftingService.recipes()", String.valueOf(recipeCount));
 
-        // 141: архитектурный контракт LuckPermsBackend — поле lastClass типа Map
+        // 141: LuckPermsBackend.lastClass (Map) — архитектурный контракт LP-гарда
         boolean lpGuard141 = false;
         String got141 = "";
         try {
@@ -545,61 +545,185 @@ public final class SelftestRunner {
                     break;
                 }
             }
-            if (field != null) {
-                boolean isMap = Map.class.isAssignableFrom(field.getType());
-                lpGuard141 = isMap;
-                got141 = "field=" + field.getType().getSimpleName() + " isMap=" + isMap;
+            if (field != null && Map.class.isAssignableFrom(field.getType())) {
+                lpGuard141 = true;
+                got141 = "lastClass:" + field.getType().getSimpleName();
             } else {
-                got141 = "no-field:lastClass";
+                got141 = field == null ? "no-field:lastClass"
+                        : "not-map:" + field.getType().getSimpleName();
             }
         } catch (ClassNotFoundException ex) {
             got141 = "class-not-found";
         } catch (RuntimeException ex) {
             got141 = "exception:" + ex.getClass().getSimpleName();
         }
-        r.check("141", "1.15.5: LuckPermsBackend имеет поле lastClass типа Map (LP-гард 2.6-78)",
+        r.check("141", "1.15.5: LuckPermsBackend.lastClass — Map-гард сброса ресурса (2.6-78)",
                 lpGuard141, "LuckPermsBackend.lastClass", got141);
 
-        // 142: семантика saveIfDirty (требует онлайн-игрока с деревом)
-        boolean ok142 = true;
-        String got142 = "no-probe";
+        // 142: saveIfDirty: dirty→true→сброс; повтор→false (probe-зависим)
         java.util.Collection<? extends Player> online = plugin.getServer().getOnlinePlayers();
-        if (!online.isEmpty()) {
-            Player p = online.iterator().next();
-            UUID pu = p.getUniqueId();
-            List<String> trees = plugin.getSpec2Service().classTreeIds(pu);
-            if (!trees.isEmpty()) {
-                String t0 = trees.get(0);
-                Map<String, Integer> backup = new HashMap<>(
-                        plugin.getSpec2Service().storage().getRanks(pu, t0));
-                try {
-                    // «высушим» store: первый saveIfDirty сбрасывает прежний dirty (если был)
-                    plugin.getSpec2Service().storage().saveIfDirty();
-                    // помечаем dirty записью временного ранга
-                    Map<String, Integer> dummy = new HashMap<>(backup);
-                    dummy.put("selftest_dirty_" + System.nanoTime(), 1);
-                    plugin.getSpec2Service().storage().setRanks(pu, t0, dummy);
-                    boolean first = plugin.getSpec2Service().storage().saveIfDirty();
-                    boolean second = plugin.getSpec2Service().storage().saveIfDirty();
-                    ok142 = first && !second;
-                    got142 = "first=" + first + " second=" + second;
-                } finally {
-                    plugin.getSpec2Service().storage().setRanks(pu, t0, backup);
-                    plugin.getSpec2Service().storage().saveIfDirty();
-                    plugin.getSpec2Service().reconcile(pu);
-                }
-            } else {
-                r.skip("142", "saveIfDirty (у первого онлайн-игрока нет деревьев)");
-                got142 = null;
+        if (online.isEmpty()) {
+            r.skip("142", "Spec2Storage.saveIfDirty (нет онлайн-игрока для dirty-пробы)");
+            return;
+        }
+        Player p = online.iterator().next();
+        UUID pu = p.getUniqueId();
+        List<String> trees = plugin.getSpec2Service().classTreeIds(pu);
+        if (trees.isEmpty()) {
+            r.skip("142", "Spec2Storage.saveIfDirty (у probe нет деревьев класса)");
+            return;
+        }
+        String t0 = trees.get(0);
+        Map<String, Integer> backup = new HashMap<>(
+                plugin.getSpec2Service().storage().getRanks(pu, t0));
+        boolean ok142;
+        String got142;
+        try {
+            plugin.getSpec2Service().storage().saveIfDirty(); // осушить флаг перед пробой
+            Map<String, Integer> dummy = new HashMap<>(backup);
+            dummy.put("selftest_dirty_probe", 1);
+            plugin.getSpec2Service().storage().setRanks(pu, t0, dummy);
+            boolean first = plugin.getSpec2Service().storage().saveIfDirty();
+            boolean second = plugin.getSpec2Service().storage().saveIfDirty();
+            ok142 = first && !second;
+            got142 = "first=" + first + " second=" + second;
+        } finally {
+            plugin.getSpec2Service().storage().setRanks(pu, t0, backup);
+            plugin.getSpec2Service().storage().saveIfDirty();
+            plugin.getSpec2Service().reconcile(pu);
+        }
+        r.check("142", "1.15.5: Spec2Storage.saveIfDirty — dirty→true→сброс, повтор→false (2.6-91)",
+                ok142, "Spec2Storage.saveIfDirty", got142);
+    }
+
+    /* ------------------------------ 143–146: 1.15.5-b экономика/данные ------------------------------ */
+
+    /**
+     * 143: SafeStorage round-trip (аудит 2.6-79/2.6-107): запись через saveAtomic
+     *         оставляет основной файл и создаёт .bak; при последующей
+     *         loadWithFallback leftover .tmp удаляется (аудит 2.6-107).
+     * 144: Foliant.saveLocksIfDirty идемпотентен: два вызова подряд без изменений
+     *         между ними оба возвращают false (аудит 2.6-6).
+     * 145: CraftingService.craft с несуществующим id (UNKNOWN) НЕ трогает
+     *         инвентарь игрока: рука и размер снапшота инвентаря идентичны до
+     *         и после; результат = UNKNOWN (аудит 2.6-15, порядок гейтов ДО списаний).
+     * 146: SalvageService.daily-limit гард: значение 0 в конфиге не роняет
+     *         сервис и не даёт DAILY_LIMIT — salvage возвращает EMPTY_HAND на
+     *         пустой руке (аудит 2.6-27, ежедневный лимит ≥1 через гард).
+     */
+    private static void economyData1155(RaskolClasses plugin, Report r) {
+        // 143: SafeStorage round-trip без leftover .tmp
+        java.io.File tmpDir = new java.io.File(plugin.getDataFolder(),
+                "selftest_143_" + System.nanoTime());
+        tmpDir.mkdirs();
+        java.io.File tmpFile = new java.io.File(tmpDir, "test.yml");
+        org.bukkit.configuration.file.YamlConfiguration cfg =
+                new org.bukkit.configuration.file.YamlConfiguration();
+        cfg.set("key", "value");
+        boolean firstSaved = dev.raskol.classes.storage.SafeStorage.saveAtomic(
+                cfg, tmpFile, plugin.getLogger());
+        boolean fileExists = tmpFile.exists();
+        boolean bakAbsentAfterFirst = !new java.io.File(tmpDir, "test.yml.bak").exists();
+        cfg.set("key2", "value2");
+        boolean secondSaved = dev.raskol.classes.storage.SafeStorage.saveAtomic(
+                cfg, tmpFile, plugin.getLogger());
+        boolean bakPresentAfterSecond = new java.io.File(tmpDir, "test.yml.bak").exists();
+        // loadWithFallback: при успешной загрузке основного файла удаляется leftover .tmp
+        org.bukkit.configuration.file.YamlConfiguration loaded =
+                dev.raskol.classes.storage.SafeStorage.loadWithFallback(tmpFile, plugin.getLogger());
+        boolean loadedOk = "value2".equals(loaded.getString("key2"));
+        boolean tmpCleanAfter = !new java.io.File(tmpDir, "test.yml.tmp").exists();
+        boolean ok143 = firstSaved && secondSaved && fileExists
+                && bakAbsentAfterFirst && bakPresentAfterSecond
+                && loadedOk && tmpCleanAfter;
+        // cleanup
+        java.io.File[] leftovers = tmpDir.listFiles();
+        if (leftovers != null) {
+            for (java.io.File f : leftovers) {
+                f.delete();
             }
-        } else {
-            r.skip("142", "saveIfDirty (нет онлайн-игроков)");
-            got142 = null;
         }
-        if (got142 != null) {
-            r.check("142", "1.15.5: Spec2Storage.saveIfDirty() — dirty→true→сброс, повтор→false (2.6-91)",
-                    ok142, "Spec2Storage.saveIfDirty", got142);
+        tmpDir.delete();
+        r.check("143", "1.15.5: SafeStorage round-trip — .bak после 2-й записи, без leftover .tmp",
+                ok143, "SafeStorage.saveAtomic/loadWithFallback",
+                "1st=" + firstSaved + " 2nd=" + secondSaved + " bak=" + bakPresentAfterSecond
+                        + " loaded=" + loadedOk + " tmp_clean=" + tmpCleanAfter);
+
+        // 144: Foliant.saveLocksIfDirty идемпотентен без изменений
+        boolean ok144 = false;
+        String got144 = "no-service";
+        if (plugin.getFoliantService() != null) {
+            boolean first = plugin.getFoliantService().saveLocksIfDirty();
+            boolean second = plugin.getFoliantService().saveLocksIfDirty();
+            ok144 = !first && !second;
+            got144 = "first=" + first + " second=" + second;
         }
+        r.check("144", "1.15.5: Foliant.saveLocksIfDirty идемпотентен без изменений (false/false)",
+                ok144, "FoliantService.saveLocksIfDirty", got144);
+
+        // 145: craft UNKNOWN не трогает инвентарь
+        boolean ok145 = true;
+        String got145 = "no-probe";
+        java.util.Collection<? extends Player> online145 = plugin.getServer().getOnlinePlayers();
+        if (!online145.isEmpty()
+                && plugin.getItems() != null
+                && plugin.getItems().crafting() != null) {
+            Player p = online145.iterator().next();
+            int sizeBefore = 0;
+            for (org.bukkit.inventory.ItemStack stack : p.getInventory().getContents()) {
+                if (stack != null && !stack.getType().isAir()) {
+                    sizeBefore++;
+                }
+            }
+            org.bukkit.inventory.ItemStack handBefore = p.getInventory().getItemInMainHand();
+            dev.raskol.classes.item.craft.CraftingService.CraftResult result =
+                    plugin.getItems().crafting().craft(p, "definitely_nonexistent_recipe_xyz");
+            int sizeAfter = 0;
+            for (org.bukkit.inventory.ItemStack stack : p.getInventory().getContents()) {
+                if (stack != null && !stack.getType().isAir()) {
+                    sizeAfter++;
+                }
+            }
+            org.bukkit.inventory.ItemStack handAfter = p.getInventory().getItemInMainHand();
+            boolean handIntact = (handBefore == null && handAfter == null)
+                    || (handBefore != null && handAfter != null && handBefore.isSimilar(handAfter));
+            boolean sizeIntact = sizeBefore == sizeAfter;
+            boolean resultIsUnknown = result
+                    == dev.raskol.classes.item.craft.CraftingService.CraftResult.UNKNOWN;
+            ok145 = handIntact && sizeIntact && resultIsUnknown;
+            got145 = "hand=" + handIntact + " size=" + sizeBefore + "→" + sizeAfter
+                    + " result=" + result;
+        }
+        r.check("145", "1.15.5: craft UNKNOWN не трогает инвентарь (рука + размер)",
+                ok145, "CraftingService.craft", got145);
+
+        // 146: daily-limit гард ≥1
+        int savedLimit = plugin.getConfig().getInt("item.salvage.daily-limit", 20);
+        boolean ok146 = false;
+        String got146 = "n/a";
+        try {
+            plugin.getConfig().set("item.salvage.daily-limit", 0);
+            if (!online145.isEmpty()
+                    && plugin.getItems() != null
+                    && plugin.getItems().salvage() != null) {
+                Player p = online145.iterator().next();
+                org.bukkit.inventory.ItemStack savedHand = p.getInventory().getItemInMainHand();
+                p.getInventory().setItemInMainHand(null);
+                try {
+                    dev.raskol.classes.item.craft.SalvageService.SalvageResult result =
+                            plugin.getItems().salvage().salvage(p);
+                    ok146 = result
+                            == dev.raskol.classes.item.craft.SalvageService.SalvageResult.EMPTY_HAND;
+                    got146 = "result=" + result + " (limit=0→дефолт ≥1)";
+                } finally {
+                    p.getInventory().setItemInMainHand(savedHand);
+                }
+            }
+        } finally {
+            plugin.getConfig().set("item.salvage.daily-limit", savedLimit);
+        }
+        r.check("146", "1.15.5: daily-limit гард ≥1 (limit=0 → дефолт, salvage не крашится)",
+                ok146, "SalvageService.dailyLimit/salvage", got146);
     }
 
     private static void print(RaskolClasses plugin, CommandSender sender, Report r) {
