@@ -1,0 +1,26 @@
+# Сборка
+target/
+*.class
+*.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Рантайм-данные сервера НИКОГДА не в репозитории
+plugins/
+server/
+run/
+*.db
+*.db-journal
+
+# Локальные конфиги админа (живут на сервере, не в git)
+config-local/
