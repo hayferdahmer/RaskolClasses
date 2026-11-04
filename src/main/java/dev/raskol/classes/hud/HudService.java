@@ -18,6 +18,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -34,6 +35,9 @@ import java.util.UUID;
  * O1 dirty-rendering: sendActionBar только при изменении кадра (ключ включает
  * ресурс, искру и DoT-снапшот); статичный кадр повторяется раз в ~1 с.
  * O8: SPECTATOR и vanished/disappeared пропускаются.
+ * 1.15.5 (Волна 3, аудит 2.6-97): mutable ArrayList перед sort в renderDots и
+ * dotSnapshotHash. DotService.activeDotsOf возвращает List.copyOf (immutable),
+ * поэтому прямой sort на нём падал UnsupportedOperationException.
  */
 public final class HudService {
 
@@ -256,11 +260,17 @@ public final class HudService {
         return Component.text(text, DOT_COLOR);
     }
 
+    /**
+     * 1.15.5 (Волна 3, аудит 2.6-97): mutable ArrayList перед sort.
+     * DotService.activeDotsOf возвращает List.copyOf (immutable), поэтому
+     * прямой sort на нём падает UnsupportedOperationException.
+     */
     private Component renderDots(UUID targetUuid) {
-        List<DotInstance> dots = plugin.getCombat().dots().activeDotsOf(targetUuid);
-        if (dots.isEmpty()) {
+        List<DotInstance> snapshot = plugin.getCombat().dots().activeDotsOf(targetUuid);
+        if (snapshot.isEmpty()) {
             return NO_EXTRA;
         }
+        List<DotInstance> dots = new ArrayList<>(snapshot);
         dots.sort((a, b) -> a.def().id().compareTo(b.def().id()));
         String sep = plugin.getConfig().getString("messages.hud.dot-separator", " ");
         long now = System.currentTimeMillis();
@@ -276,11 +286,17 @@ public final class HudService {
         return out.build();
     }
 
+    /**
+     * 1.15.5 (Волна 3, аудит 2.6-97): mutable ArrayList для консистентного
+     * хеша (порядок тот же, что в renderDots — сортировка по id).
+     */
     private String dotSnapshotHash(UUID targetUuid) {
-        List<DotInstance> dots = plugin.getCombat().dots().activeDotsOf(targetUuid);
-        if (dots.isEmpty()) {
+        List<DotInstance> snapshot = plugin.getCombat().dots().activeDotsOf(targetUuid);
+        if (snapshot.isEmpty()) {
             return "";
         }
+        List<DotInstance> dots = new ArrayList<>(snapshot);
+        dots.sort((a, b) -> a.def().id().compareTo(b.def().id()));
         long now = System.currentTimeMillis();
         StringBuilder sb = new StringBuilder(dots.size() * 12);
         for (DotInstance inst : dots) {
