@@ -66,6 +66,9 @@ import java.util.logging.Logger;
  * 1.14.13 (Sprint 9, Волна 13B, P0-10-04): lock-flush задача вынесена из конструктора
  *         в startLockFlushTask(); вызывает RaskolClasses.onEnable, ручка задачи
  *         складывается в activeTasks и отменяется в onDisable явно.
+ * 1.15.5 (Волна 2, аудит 2.6-6): добавлен saveLocksIfDirty() — владелец вызывает его
+ *         в onDisable ДО отмены задач; окно потери счётчиков релока сжимается
+ *         с «до 60 с» до нуля при плановой остановке.
  */
 public final class FoliantService implements Listener {
 
@@ -125,6 +128,21 @@ public final class FoliantService implements Listener {
                 saveLocks();
             }
         }, 1200L, 1200L);
+    }
+
+    /**
+     * 1.15.5 (Волна 2, аудит 2.6-6): flush для onDisable владельца.
+     * Пишет foliant-lock.yml только при наличии несохранённых изменений
+     * (инкременты счётчиков релока между тиками flush-задачи).
+     *
+     * @return true если файл был записан
+     */
+    public boolean saveLocksIfDirty() {
+        if (!lockDirty) {
+            return false;
+        }
+        saveLocks();
+        return true;
     }
 
     private void loadLocks() {
@@ -577,8 +595,8 @@ public final class FoliantService implements Listener {
             plugin.getLogger().info("Foliant: sorcery выдан командой: " + exec);
             return;
         }
-        plugin.getLogger().warning("Foliant: не удалось выдать sorcery автоматически. Игрок: "
-                + player.getName());
+        plugin.getLogger().warning("Foliant: не удалось выдать sorcery автоматически. Игрок: " +
+                player.getName());
     }
 
     private void burstParticles(Player player) {
