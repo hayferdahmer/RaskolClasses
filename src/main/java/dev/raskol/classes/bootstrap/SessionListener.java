@@ -14,10 +14,14 @@ import java.util.UUID;
 /**
  * 1.14.10 (Sprint 7, Волна 7.2, P0-4-01): сессионные слушатели входа/выхода,
  * вынесенные из анонимных new Listener() в RaskolClasses.onEnable (аудит 4-01).
- * Поведение идентично прежним анонимным слушателям:
  *  - onQuit: чистка резистов/атрибутов/уровней/spec2-кэша + GUI-сессии книги (P1-3);
  *  - onJoin: reconcile spec2 и синхронизация HP-атрибута;
- *  - resyncOnline(): разовый прогон по онлайну при старте (вызывает владелец).
+ *  - resyncOnline(): разовый прогон по онлайну при старте.
+ *
+ * 1.15.5 (аудит 2.6-91): onQuit вызывает spec2Storage.saveIfDirty() — покупки/сбросы
+ * игрока фиксируются в файле в момент выхода, окно потери данных сжимается
+ * с «до autosave (5 мин)» до нуля для выходящего игрока. Запись атомарная
+ * (SafeStorage), выполняется один раз только при грязном store.
  */
 public final class SessionListener implements Listener {
 
@@ -36,6 +40,8 @@ public final class SessionListener implements Listener {
         plugin.getSpec2Service().clear(quitUuid);
         // 1.14.7 (Sprint 4, P1-3): GUI-сессия книги не переживает выход
         TalentsTab.clearSession(quitUuid);
+        // 1.15.5 (аудит 2.6-91): фиксация spec2-изменений выходящего игрока
+        plugin.getSpec2Storage().saveIfDirty();
     }
 
     @EventHandler
