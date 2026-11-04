@@ -64,12 +64,13 @@ import java.util.UUID;
  *         downstream или цель получила лечение в том же тике), фактический
  *         урон для этого канала считается 0. Лечение-на-отменённом-уроне не идёт.
  * 1.15.6 (Волна 4, аудит 2.6-2): ЕДИНАЯ ПОЛИТИКА ОКНА НЕУЯЗВИМОСТИ.
- *         Vanilla noDamageTicks сохраняется ТОЛЬКО для пути A (авто-атаки через
- *         EntityDamageEvent). Путь B (способности) сбрасывает окно перед КАЖДЫМ
- *         ударом (setNoDamageTicks(0)) — иначе мульти-ударки (rampage 3 удара,
- *         killing_spree 5 ударов, arcane_missiles 3 залпа) теряют hits 2..N:
- *         vanilla-механика глотает повторный урон в течение 20 тиков.
- *         DoT-тики сбрасывают окно в DotService.tick (та же политика).
+ *         Путь B сбрасывает vanilla noDamageTicks перед каждым ударом
+ *         (setNoDamageTicks(0)) — мульти-ударки (rampage, killing_spree,
+ *         arcane_missiles, тики Раскола Души) бьют все hits; путь A сохраняет окно.
+ * 1.15.6 (Волна 4, аудит 2.6-32): стихийный резист и school-pen маг-канала в пути B
+ *         используют школу каста (FIRE/FROST/NATURE/SHADOW/HOLY), а не всегда ARCANE:
+ *         resist-fire на предмете теперь реально режет огненное заклинание.
+ *         Физ-канал остаётся School.PHYSICAL (стихийный резист PHYSICAL = резист-узлы).
  */
 public final class CombatService implements Listener {
 
@@ -266,6 +267,7 @@ public final class CombatService implements Listener {
      * не идёт).
      * 1.15.6 (2.6-2): setNoDamageTicks(0) перед каждым ударом пути B — мульти-ударки
      * не теряют hits 2..N из-за vanilla-окна неуязвимости.
+     * 1.15.6 (2.6-32): маг-канал использует школу каста для стихийного резиста.
      */
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
                              boolean allowOverCap, boolean fromProc) {
@@ -288,6 +290,10 @@ public final class CombatService implements Listener {
 
         // 1.12.3: школа каста → иммунитеты и множители школ
         School castSchool = currentCastSchool();
+        // 1.15.6 (2.6-32): школа маг-канала для стихийного резиста и school-pen:
+        // школа каста с маг-каналом, иначе legacy ARCANE
+        School magicSchool = (castSchool != null && castSchool.channel() == DamageType.MAGIC)
+                ? castSchool : School.ARCANE;
         double schoolMult = 1.0;
         if (castSchool != null && schoolConfig.enabled()) {
             schoolMult *= schoolConfig.multiplier(castSchool);
@@ -423,11 +429,12 @@ public final class CombatService implements Listener {
                     physResistPct = penPhys.effectiveResist(physResistPct, schoolConfig.penPctCap());
                     magicResistPct = penMagic.effectiveResist(magicResistPct, schoolConfig.penPctCap());
                     double elPhys = elemental.resistOf(uuid, School.PHYSICAL);
-                    double elMagic = elemental.resistOf(uuid, School.ARCANE);
+                    // 1.15.6 (2.6-32): стихийный резист цели против школы каста, не ARCANE
+                    double elMagic = elemental.resistOf(uuid, magicSchool);
                     double spPhys = penTraits.schoolPenFraction(
                             sUuid, School.PHYSICAL, schoolConfig.penPctCap());
                     double spMagic = penTraits.schoolPenFraction(
-                            sUuid, School.ARCANE, schoolConfig.penPctCap());
+                            sUuid, magicSchool, schoolConfig.penPctCap());
                     effElPhys = CombatMath.effectiveResist(elPhys, 0.0, spPhys, schoolConfig.penPctCap());
                     effElMagic = CombatMath.effectiveResist(elMagic, 0.0, spMagic, schoolConfig.penPctCap());
                 }
@@ -493,8 +500,7 @@ public final class CombatService implements Listener {
         try {
             if (applyPhys > 0.0) {
                 double before = target.getHealth();
-                // 1.15.6 (2.6-2): путь B bypass'ит vanilla-окно неуязвимости —
-                // мульти-ударки (rampage/killing_spree/arcane_missiles) бьют все hits
+                // 1.15.6 (2.6-2): путь B bypass'ит vanilla-окно неуязвимости
                 target.setNoDamageTicks(0);
                 setSuppress(true);
                 try {
@@ -507,7 +513,6 @@ public final class CombatService implements Listener {
                     setSuppress(false);
                 }
                 double after = target.getHealth();
-                // Если HP не уменьшился — урон был отменён/схвачен downstream
                 if (after < before) {
                     actualPhys = (before - after) / scale;
                 }
@@ -553,8 +558,6 @@ public final class CombatService implements Listener {
         procs.onDefenderDamaged(target, actualTaken);
 
         // 1.14.3 (3C2): reflect_magic — отражение маг-урона обратно атакующему.
-        // Дизайн: отражённый удар идёт физ-каналом и МОЖЕТ быть уклонён (контр-плей),
-        // резисты не применяет (чистое отражение); beginReflect глушит рефлект-цепочки.
         if (actualMagic > 0.0 && source instanceof Player srcP) {
             procs.onDefenderDamagedByMagic(target, srcP, actualMagic * scale);
         }
