@@ -56,6 +56,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *         Итерация по списку DoT-инстансов больше не мутирует коллекцию: пары
  *         (inst, damage) собираются в отдельный список, удаление expired/extinguished/
  *         invalid инстансов происходит отдельным проходом после вычислений.
+ * 1.15.6 (Волна 4, аудит 2.6-2): ЕДИНАЯ ПОЛИТИКА ОКНА НЕУЯЗВИМОСТИ — DoT-тик
+ *         сбрасывает vanilla noDamageTicks перед damage(...). Без этого DoT-урон
+ *         клипался окном от авто-атаки владельца в тот же тик (период DoT = 20 тиков
+ *         совпадает с окном): каждый второй тик burning/poison терял урон.
+ *         Путь A (авто-атаки) окно СОХРАНЯЕТ — политика только для B и DoT.
  */
 public final class DotService implements Listener {
 
@@ -406,11 +411,9 @@ public final class DotService implements Listener {
             // Применение cap и нанесение урона
             double[] damages = new double[outcomes.size()];
             int validCount = 0;
-            double totalDps = 0.0;
             for (TickOutcome outcome : outcomes) {
                 if (outcome.damage() > 0.0) {
                     damages[validCount++] = outcome.damage();
-                    totalDps += outcome.damage();
                 }
             }
             if (validCount == 0) {
@@ -425,7 +428,6 @@ public final class DotService implements Listener {
             double factor = DotMath.capFactor(pending, limit);
             double scale = combat.scaleOf(target);
 
-            int validIdx = 0;
             for (TickOutcome outcome : outcomes) {
                 if (outcome.damage() <= 0.0) {
                     continue;
@@ -441,13 +443,16 @@ public final class DotService implements Listener {
                 CombatService.setSuppress(true);
                 CombatService.beginReflect();
                 try {
+                    // 1.15.6 (2.6-2): DoT-тик bypass'ит vanilla-окно неуязвимости —
+                    // период DoT (20 тиков) совпадает с окном, без сброса каждый
+                    // второй тик терял урон от авто-атаки владельца в тот же тик
+                    target.setNoDamageTicks(0);
                     target.damage(amount, owner);
                 } finally {
                     CombatService.endReflect();
                     CombatService.setSuppress(false);
                 }
                 tickVfx(target, outcome.inst().def().school());
-                validIdx++;
             }
             if (list.isEmpty()) {
                 dots.remove(targetUuid);
