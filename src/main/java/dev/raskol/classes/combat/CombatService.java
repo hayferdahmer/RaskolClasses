@@ -63,6 +63,13 @@ import java.util.UUID;
  *         если после target.damage(...) HP цели не уменьшился (урон был отменён
  *         downstream или цель получила лечение в том же тике), фактический
  *         урон для этого канала считается 0. Лечение-на-отменённом-уроне не идёт.
+ * 1.15.6 (Волна 4, аудит 2.6-2): ЕДИНАЯ ПОЛИТИКА ОКНА НЕУЯЗВИМОСТИ.
+ *         Vanilla noDamageTicks сохраняется ТОЛЬКО для пути A (авто-атаки через
+ *         EntityDamageEvent). Путь B (способности) сбрасывает окно перед КАЖДЫМ
+ *         ударом (setNoDamageTicks(0)) — иначе мульти-ударки (rampage 3 удара,
+ *         killing_spree 5 ударов, arcane_missiles 3 залпа) теряют hits 2..N:
+ *         vanilla-механика глотает повторный урон в течение 20 тиков.
+ *         DoT-тики сбрасывают окно в DotService.tick (та же политика).
  */
 public final class CombatService implements Listener {
 
@@ -257,6 +264,8 @@ public final class CombatService implements Listener {
      * 1.15.5 (2.6-31): before/after health guard — если HP цели не уменьшился
      * после damage(...), фактический урон обнуляется (лечение-на-отменённом-уроне
      * не идёт).
+     * 1.15.6 (2.6-2): setNoDamageTicks(0) перед каждым ударом пути B — мульти-ударки
+     * не теряют hits 2..N из-за vanilla-окна неуязвимости.
      */
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
                              boolean allowOverCap, boolean fromProc) {
@@ -484,6 +493,9 @@ public final class CombatService implements Listener {
         try {
             if (applyPhys > 0.0) {
                 double before = target.getHealth();
+                // 1.15.6 (2.6-2): путь B bypass'ит vanilla-окно неуязвимости —
+                // мульти-ударки (rampage/killing_spree/arcane_missiles) бьют все hits
+                target.setNoDamageTicks(0);
                 setSuppress(true);
                 try {
                     if (source != null) {
@@ -502,6 +514,8 @@ public final class CombatService implements Listener {
             }
             if (applyMagic > 0.0) {
                 double before = target.getHealth();
+                // 1.15.6 (2.6-2): та же политика для маг-канала
+                target.setNoDamageTicks(0);
                 setSuppress(true);
                 try {
                     org.bukkit.damage.DamageType magic = magicType();
