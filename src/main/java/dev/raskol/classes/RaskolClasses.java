@@ -122,6 +122,13 @@ import java.util.List;
  * 1.15.1-A: ItemSystem импортирован из item.service после реструктуризации item-пакета.
  * 1.15.5 (Волна 2, аудит 2.6-6): foliantService.saveLocksIfDirty() в onDisable
  *         ДО отмены задач — несохранённые счётчики релока фиксируются при плановой остановке.
+ * 1.15.6 (Волна 4, аудит 2.6-1 CRITICAL): РЕГИСТРАЦИЯ VanillaDamageListener.
+ *         С 1.14.10 слушатель создавался в конструкторе CombatService, но registerEvents
+ *         для него не вызывался НИГДЕ (CHANGELOG 1.14.10 заявлял перенос в onEnable —
+ *         переноса не было). Путь A (ванильный урон: резисты, капы, уклонение/парирование,
+ *         WeaponMastery 1.15.2, отражение, профили RaskolMobs) не работал полностью.
+ *         Добавлен registerEvents(combat.vanillaListener(), this) сразу после регистрации
+ *         самого CombatService; порядок NORMAL-слушателей пути A не меняется.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -356,6 +363,10 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
+        // 1.15.6 (Волна 4, аудит 2.6-1 CRITICAL): путь A — резисты, капы, уклонение,
+        // WeaponMastery, отражение, профили RaskolMobs. Слушатель создавался в
+        // конструкторе CombatService с 1.14.10, но не регистрировался НИГДЕ.
+        pluginManager.registerEvents(combat.vanillaListener(), this);
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
         pluginManager.registerEvents(hpBarService, this);
         pluginManager.registerEvents(fx, this);
