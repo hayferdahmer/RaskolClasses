@@ -45,6 +45,10 @@ import java.util.UUID;
  * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble.
  * 1.14.14 (фаза 2, FE/BC-фиксы): epsilon-сравнение floating-point.
  * 1.15.2: WeaponMastery — множитель владения оружием (×1.0/×0.75/×0.5) для PHYSICAL-урона.
+ * 1.15.5 (Волна 3, аудит 2.6-32): школа теперь берётся из CombatService.currentCastSchool()
+ *         (ThreadLocal кастера), если каст активен; иначе — из schoolConfig.schoolOf(cause).
+ *         Hardcoded School.ARCANE для MAGIC убран; огненное заклинание по цели с
+ *         resist-fire теперь правильно идёт через School.FIRE, а не ARCANE.
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -111,10 +115,22 @@ public final class VanillaDamageListener implements Listener {
             }
         }
 
-        // 1.12.1: школы — иммунитеты/уязвимости сущности + глобальный множитель школы
+        // 1.15.5 (2.6-32): школа из currentCastSchool (кастер установил), иначе
+        // PHYSICAL из incomingType, иначе schoolConfig.schoolOf(cause).
+        // Hardcoded School.ARCANE для MAGIC убран.
         DamageType incomingType = effectiveType(event);
-        School school = incomingType == DamageType.MAGIC ? School.ARCANE
-                : incomingType == DamageType.PHYSICAL ? School.PHYSICAL : schoolConfig.schoolOf(event.getCause());
+        School castSchool = CombatService.currentCastSchool();
+        School school;
+        if (castSchool != null) {
+            school = castSchool;
+        } else if (incomingType == DamageType.PHYSICAL) {
+            school = School.PHYSICAL;
+        } else if (incomingType == DamageType.TRUE) {
+            school = School.TRUE;
+        } else {
+            school = schoolConfig.schoolOf(event.getCause());
+        }
+
         if (!suppressed && event.getEntity() instanceof LivingEntity ent) {
             double mult = immunity.multiplierFor(ent.getType(), school)
                     * schoolConfig.multiplier(school);
