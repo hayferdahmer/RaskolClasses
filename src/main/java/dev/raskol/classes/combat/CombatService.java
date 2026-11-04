@@ -59,6 +59,10 @@ import java.util.UUID;
  * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble.
  * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): hpFractionOf читает максимум через Hp.max
  *         (атрибут MAX_HEALTH) вместо deprecated LivingEntity#getMaxHealth().
+ * 1.15.5 (Волна 3, аудит 2.6-31): before/after health guard в dealDamage:
+ *         если после target.damage(...) HP цели не уменьшился (урон был отменён
+ *         downstream или цель получила лечение в том же тике), фактический
+ *         урон для этого канала считается 0. Лечение-на-отменённом-уроне не идёт.
  */
 public final class CombatService implements Listener {
 
@@ -250,6 +254,9 @@ public final class CombatService implements Listener {
     /**
      * 1.14.3 (3C1): fromProc=true блокирует повторный вызов proc_double_strike
      * и других триггеров, которые не должны рекурсивно срабатывать.
+     * 1.15.5 (2.6-31): before/after health guard — если HP цели не уменьшился
+     * после damage(...), фактический урон обнуляется (лечение-на-отменённом-уроне
+     * не идёт).
      */
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
                              boolean allowOverCap, boolean fromProc) {
@@ -469,9 +476,14 @@ public final class CombatService implements Listener {
         double applyPhys = physPart * scale;
         double applyMagic = magicTruePart * scale;
 
+        // 1.15.5 (2.6-31): before/after health guard
+        double actualPhys = 0.0;
+        double actualMagic = 0.0;
+
         ABILITY_SOURCE.set(source instanceof Player s2 ? s2.getUniqueId() : null);
         try {
             if (applyPhys > 0.0) {
+                double before = target.getHealth();
                 setSuppress(true);
                 try {
                     if (source != null) {
@@ -482,8 +494,14 @@ public final class CombatService implements Listener {
                 } finally {
                     setSuppress(false);
                 }
+                double after = target.getHealth();
+                // Если HP не уменьшился — урон был отменён/схвачен downstream
+                if (after < before) {
+                    actualPhys = (before - after) / scale;
+                }
             }
             if (applyMagic > 0.0) {
+                double before = target.getHealth();
                 setSuppress(true);
                 try {
                     org.bukkit.damage.DamageType magic = magicType();
@@ -499,32 +517,38 @@ public final class CombatService implements Listener {
                 } finally {
                     setSuppress(false);
                 }
+                double after = target.getHealth();
+                if (after < before) {
+                    actualMagic = (before - after) / scale;
+                }
             }
         } finally {
             ABILITY_SOURCE.remove();
         }
 
-        // 1.13.0 (Б2): breaksOnDamage — урон ≥ порога (% formula-maxHP) снимает ROOT/FEAR с цели
-        if (taken > 0.0) {
-            plugin.getCC().breakOnDamage(target, taken, caps.formulaMaxOf(target));
+        // Пересчёт taken на основе фактически прошедшего урона
+        double actualTaken = (actualPhys + actualMagic) * scale;
+        if (actualTaken <= 0.0) {
+            return 0.0;
         }
 
+        // 1.13.0 (Б2): breaksOnDamage — урон ≥ порога (% formula-maxHP) снимает ROOT/FEAR с цели
+        plugin.getCC().breakOnDamage(target, actualTaken, caps.formulaMaxOf(target));
+
         // 1.14.3 (3C1): on-damaged triggers (second_wind)
-        if (taken > 0.0) {
-            procs.onDefenderDamaged(target, taken);
-        }
+        procs.onDefenderDamaged(target, actualTaken);
 
         // 1.14.3 (3C2): reflect_magic — отражение маг-урона обратно атакующему.
         // Дизайн: отражённый удар идёт физ-каналом и МОЖЕТ быть уклонён (контр-плей),
         // резисты не применяет (чистое отражение); beginReflect глушит рефлект-цепочки.
-        if (magicTruePart > 0.0 && source instanceof Player srcP) {
-            procs.onDefenderDamagedByMagic(target, srcP, magicTruePart);
+        if (actualMagic > 0.0 && source instanceof Player srcP) {
+            procs.onDefenderDamagedByMagic(target, srcP, actualMagic * scale);
         }
 
         // 1.14.3 (3C1+3C2): crit/hit procs — только для мили-части и не рекурсивно
         if (!fromProc && source instanceof Player srcP) {
             // 1.14.7 (P0-6A): A2 battle_trance — счётчик ударов (3-й удар даёт ярость)
-            if (physPart > 0.0) {
+            if (actualPhys > 0.0) {
                 procs.onMeleeHitLand(srcP, target);
             }
             procs.rollCritProcs(srcP, target, physCrit || magicCrit, physCrit);
@@ -533,19 +557,19 @@ public final class CombatService implements Listener {
             }
             procs.applyExpose(srcP, target);
             // double_strike: recurse once with fromProc=true
-            if (physPart > 0.0) {
-                final double recurPhys = physPart;
+            if (actualPhys > 0.0) {
+                final double recurPhys = actualPhys * scale;
                 procs.rollDoubleStrike(srcP, target, () ->
                         dealDamage(target, srcP, DamageProfile.physical(recurPhys), true, true));
             }
         }
 
         // откат чернокнижника 6.66% (глушится для рефлект-урона)
-        if (source instanceof Player attacker && taken > 0.0
+        if (source instanceof Player attacker && actualTaken > 0.0
                 && !reflectSuppressed()
                 && plugin.getClassProvider().getClassOf(attacker) == PlayerClass.WARLOCK) {
             RaskolConfig cfg = plugin.getRaskolConfig();
-            double recoil = taken * cfg.warlockRecoilPercent() / 100.0;
+            double recoil = actualTaken * cfg.warlockRecoilPercent() / 100.0;
             double maxRecoil = caps.formulaMaxOf(attacker) * cfg.warlockRecoilCapPct() / 100.0;
             recoil = Math.min(recoil, maxRecoil);
             double scaleA = caps.scaleOf(attacker);
@@ -554,7 +578,7 @@ public final class CombatService implements Listener {
             attacker.setHealth(Math.max(cfg.warlockRecoilMinHp(), newCarrier));
         }
 
-        return taken;
+        return actualTaken;
     }
 
     /** 1.14.3 (3B+3C1): базовый critMelee + critMeleeBonus из spec2. */
