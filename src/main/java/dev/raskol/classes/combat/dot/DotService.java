@@ -25,6 +25,7 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -51,6 +52,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *         event.getEntity() по контракту ProjectileHitEvent возвращает Projectile,
  *         поэтому проверка instanceof была всегда true для non-null значения.
  *         Заменено на прямое присваивание + null-guard.
+ * 1.15.5 (Волна 3, аудит 2.6-30): tick() переписан через чистую функцию computeTicks.
+ *         Итерация по списку DoT-инстансов больше не мутирует коллекцию: пары
+ *         (inst, damage) собираются в отдельный список, удаление expired/extinguished/
+ *         invalid инстансов происходит отдельным проходом после вычислений.
  */
 public final class DotService implements Listener {
 
@@ -319,7 +324,57 @@ public final class DotService implements Listener {
         return dotKey;
     }
 
-    /* ------------------------------ тик ------------------------------ */
+    /* ------------------------------ тик (1.15.5: чистая функция computeTicks) ------------------------------ */
+
+    /**
+     * 1.15.5 (Волна 3, аудит 2.6-30): пара (экземпляр, урон) для одного DoT-тика.
+     * damage = 0 означает «инстанс нужно удалить» (expired/extinguished/invalid);
+     * положительные значения — фактический dps за тик (после mitigation/cap).
+     */
+    private record TickOutcome(DotInstance inst, double damage) {
+    }
+
+    /**
+     * 1.15.5 (Волна 3, аудит 2.6-30): чистая функция — вычисление тиков без мутации
+     * списка инстансов. Принимает снапшот списка, возвращает список пар
+     * (инстанс, damage). Мутация (удаление expired/extinguished/invalid)
+     * выполняется отдельным проходом после этой функции.
+     */
+    private List<TickOutcome> computeTicks(LivingEntity target,
+                                           List<DotInstance> snapshot,
+                                           long now) {
+        List<TickOutcome> outcomes = new ArrayList<>(snapshot.size());
+        for (DotInstance inst : snapshot) {
+            if (inst.expired(now)) {
+                outcomes.add(new TickOutcome(inst, 0.0));
+                continue;
+            }
+            if (shouldExtinguish(inst.def().school(),
+                    target.getLocation().getBlock().getType())) {
+                puff(target, inst.def().school());
+                outcomes.add(new TickOutcome(inst, 0.0));
+                continue;
+            }
+            Player owner = plugin.getServer().getPlayer(inst.ownerUuid());
+            if (owner == null || !combat.canHit(owner, target)) {
+                outcomes.add(new TickOutcome(inst, 0.0));
+                continue;
+            }
+            School school = inst.def().school();
+            double immunity = combat.schoolImmunity().multiplierFor(target.getType(), school);
+            if (immunity <= 0.0) {
+                outcomes.add(new TickOutcome(inst, 0.0));
+                continue;
+            }
+            double baseDps = inst.def().dps() * inst.stacks();
+            double seal = WarlockAbilities.sealAmplifyOf(target.getUniqueId());
+            double dps = DotMath.withMults(baseDps,
+                    combat.schoolConfig().multiplier(school), immunity, seal);
+            dps *= 1.0 - mitigationFor(target, owner, school);
+            outcomes.add(new TickOutcome(inst, dps));
+        }
+        return outcomes;
+    }
 
     private void tick() {
         long now = System.currentTimeMillis();
@@ -333,65 +388,53 @@ public final class DotService implements Listener {
                 continue;
             }
 
-            int n = list.size();
-            double[] pending = new double[n];
-            int idx = 0;
-            for (DotInstance inst : list) {
-                if (inst.expired(now)) {
-                    list.remove(inst);
-                    pending[idx++] = 0.0;
-                    continue;
+            // 1.15.5 (2.6-30): снапшот перед вычислениями; мутация в конце
+            List<DotInstance> snapshot = List.copyOf(list);
+            List<TickOutcome> outcomes = computeTicks(target, snapshot, now);
+
+            // Удаление невалидных инстансов отдельным проходом
+            for (TickOutcome outcome : outcomes) {
+                if (outcome.damage() <= 0.0) {
+                    list.remove(outcome.inst());
                 }
-                if (shouldExtinguish(inst.def().school(),
-                        target.getLocation().getBlock().getType())) {
-                    list.remove(inst);
-                    puff(target, inst.def().school());
-                    pending[idx++] = 0.0;
-                    continue;
-                }
-                Player owner = plugin.getServer().getPlayer(inst.ownerUuid());
-                if (owner == null || !combat.canHit(owner, target)) {
-                    list.remove(inst);
-                    pending[idx++] = 0.0;
-                    continue;
-                }
-                School school = inst.def().school();
-                double immunity = combat.schoolImmunity().multiplierFor(target.getType(), school);
-                if (immunity <= 0.0) {
-                    list.remove(inst);
-                    pending[idx++] = 0.0;
-                    continue;
-                }
-                double baseDps = inst.def().dps() * inst.stacks();
-                double seal = WarlockAbilities.sealAmplifyOf(targetUuid);
-                double dps = DotMath.withMults(baseDps,
-                        combat.schoolConfig().multiplier(school), immunity, seal);
-                dps *= 1.0 - mitigationFor(target, owner, school);
-                pending[idx] = dps;
-                idx++;
             }
             if (list.isEmpty()) {
                 dots.remove(targetUuid);
                 continue;
             }
 
+            // Применение cap и нанесение урона
+            double[] damages = new double[outcomes.size()];
+            int validCount = 0;
+            double totalDps = 0.0;
+            for (TickOutcome outcome : outcomes) {
+                if (outcome.damage() > 0.0) {
+                    damages[validCount++] = outcome.damage();
+                    totalDps += outcome.damage();
+                }
+            }
+            if (validCount == 0) {
+                continue;
+            }
+
             double maxHp = combat.caps().formulaMaxOf(target);
             double capPct = plugin.getConfig().getDouble("combat.dot-dps-cap-pct", 6.0);
             double limit = DotMath.dpsLimit(maxHp, capPct);
+            double[] pending = new double[validCount];
+            System.arraycopy(damages, 0, pending, 0, validCount);
             double factor = DotMath.capFactor(pending, limit);
-
             double scale = combat.scaleOf(target);
-            idx = 0;
-            for (DotInstance inst : list) {
-                double dps = pending[idx++];
-                if (dps <= 0.0) {
+
+            int validIdx = 0;
+            for (TickOutcome outcome : outcomes) {
+                if (outcome.damage() <= 0.0) {
                     continue;
                 }
-                Player owner = plugin.getServer().getPlayer(inst.ownerUuid());
+                Player owner = plugin.getServer().getPlayer(outcome.inst().ownerUuid());
                 if (owner == null) {
                     continue;
                 }
-                double amount = dps * factor * (TICK_MILLIS / 1000.0) * scale;
+                double amount = outcome.damage() * factor * (TICK_MILLIS / 1000.0) * scale;
                 if (amount <= 0.0) {
                     continue;
                 }
@@ -403,7 +446,8 @@ public final class DotService implements Listener {
                     CombatService.endReflect();
                     CombatService.setSuppress(false);
                 }
-                tickVfx(target, inst.def().school());
+                tickVfx(target, outcome.inst().def().school());
+                validIdx++;
             }
             if (list.isEmpty()) {
                 dots.remove(targetUuid);
