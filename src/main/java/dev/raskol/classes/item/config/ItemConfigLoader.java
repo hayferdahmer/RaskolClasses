@@ -28,14 +28,9 @@ import java.util.stream.Collectors;
 /**
  * 1.15.0: загрузка items.yml → ItemRegistry (явные предметы + генерация из шаблонов + сеты).
  * 1.15.1 (Итерация B): ДЕКОМПОЗИЦИЯ. Валидация вынесена в ItemValidator; load() стал
- * оркестратором четырёх шагов:
- *   1) parseExplicitItems   — секция items: ошибка одного предмета = warning + отключение;
- *   2) parseAndExpandTemplates — секция templates + generate + budget → ItemTemplateExpander;
- *      ошибка шаблона/бюджета = отказ ВСЕГО файла (реестр сохраняется прежний);
- *   3) parseSets            — секция sets с порогами 2..6;
- *   4) filterUnknownRefs    — пост-фильтры: предмет с неизвестным сетом/шаблоном =
- *      warning + отключение (семантика 1.15.0 сохранена).
- * Контракт load(File, Consumer<String>) не изменён — ItemSystem.reload() не тронут.
+ * оркестратором четырёх шагов.
+ * 1.15.5 (аудит 2.8-4): бюджет генерации читается из settings.budget (канон схемы),
+ * с фолбэком на корневой budget для живых конфигов 1.15.x — оба варианта валидны.
  */
 public final class ItemConfigLoader {
 
@@ -170,7 +165,6 @@ public final class ItemConfigLoader {
             ts.addAll(ItemTemplateExpander.starterTemplates());
         }
 
-        // generate: переопределение материалов шаблонов без правки templates
         for (Map<?, ?> generated : yaml.getMapList("generate")) {
             Object template = generated.get("template");
             Object material = generated.get("material");
@@ -180,7 +174,11 @@ public final class ItemConfigLoader {
         }
 
         List<Integer> levels = ItemValidator.parseLevels(yaml, maxLevel);
-        ConfigurationSection budget = yaml.getConfigurationSection("budget");
+        // 1.15.5 (аудит 2.8-4): канон — settings.budget; фолбэк — корневой budget (живые конфиги 1.15.x)
+        ConfigurationSection budget = yaml.getConfigurationSection("settings.budget");
+        if (budget == null) {
+            budget = yaml.getConfigurationSection("budget");
+        }
         List<ItemDefinition> expanded = ItemTemplateExpander.expand(ts, materials, levels,
                 ItemValidator.parseRarityList(yaml),
                 ItemValidator.parseEnumDoubleMap(budget == null ? null : budget.getConfigurationSection("rarity-mult"), ItemRarity.class),
