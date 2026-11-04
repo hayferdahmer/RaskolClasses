@@ -47,6 +47,7 @@ import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.item.model.WeaponType;
 import dev.raskol.classes.pet.PetDef;
 import dev.raskol.classes.pet.PetMath;
+import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.resource.ResourceService;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.SpecRole;
