@@ -1,9 +1,12 @@
 # ============================================================
-#  RaskolClasses · crafting.yml · схема v1 · 1.15.4
+#  RaskolClasses · crafting.yml · схема v1 · 1.15.5
 #  Рецепты крафта предметов из фрагментов (SalvageService/CraftingService).
 #  Извлекается из jar при первом старте; правится админом; /rc reload перечитывает.
-#  target — id предмета из реестра items.yml (шаблоны генерируют id вида
-#  <template>_<level>_<rarity>, например warrior_main_hand_40_rare).
+#  target — id предмета из реестра items.yml: шаблоны генерируют id вида
+#  <template-id>_<level>_<rarity>; template-id берутся ИЗ СЕКЦИИ templates items.yml
+#  (например warrior_sword_main_hand), поэтому цели вида
+#  warrior_sword_main_hand_40_rare, а не warrior_main_hand_40_rare.
+#  1.15.5 (аудит 2.8-5): цели исправлены под живые id шаблонов.
 #  coins — цена в монетах Vault (0 = бесплатно); fragments — фрагменты и количества.
 #  Рецепт с неизвестной целью/фрагментом отключается точечно с warning.
 # ============================================================
@@ -11,19 +14,19 @@ schema-version: 1
 
 recipes:
   warrior_sword_40:
-    target: warrior_main_hand_40_rare
+    target: warrior_sword_main_hand_40_rare
     coins: 500
     fragments:
       frag_weapon_rare: 5
       frag_essence_warrior: 2
   hunter_bow_40:
-    target: hunter_main_hand_40_rare
+    target: hunter_bow_main_hand_40_rare
     coins: 500
     fragments:
       frag_weapon_rare: 5
       frag_essence_hunter: 2
   mage_staff_40:
-    target: mage_main_hand_40_rare
+    target: mage_staff_main_hand_40_rare
     coins: 500
     fragments:
       frag_weapon_rare: 5
