@@ -13,15 +13,18 @@ import java.util.UUID;
 import java.util.logging.Logger;
 
 /**
- * 1.14.0 «Спек 2.0»: персист spec2.yml (атомарно, .bak, фолбэк).
+ * 1.14.0 «Спек 2.0»: персист spec2-storage.yml (атомарно, .bak, фолбэк).
  * Схема v2:
  *   players.<uuid>.main: <specId>
  *   players.<uuid>.ranks.<treeId>.<nodeId>: <rank>
  *
- * 1.14.4 (Волна 4, П10): файл переименован spec2.yml → spec2-storage.yml.
- * Одноразовая миграция в конструкторе: если старый файл существует, а нового
- * ещё нет — renameTo. Содержимое не меняется, схема остаётся v2. Если renameTo
- * не удался — логируем warning и заводим новый пустой файл через SafeStorage.
+ * 1.14.4 (Волна 4, П10): миграция spec2.yml → spec2-storage.yml (renameTo).
+ * 1.14.9 (Волна 6.3, P0-5-01): синхронные save() на каждый клик убраны —
+ *         персист в autosave-задаче и onDisable.
+ * 1.15.5 (аудит 2.6-91): dirty-flag. setMain/setRanks помечают store грязным;
+ *         saveIfDirty() пишет файл ТОЛЬКО при наличии изменений — вызывается
+ *         SessionListener.onQuit (окно потери данных закрывается выходом игрока)
+ *         и autosave-задачей (без лишней перезаписи чистого файла).
  */
 public final class Spec2Storage {
 
@@ -32,6 +35,7 @@ public final class Spec2Storage {
     private final JavaPlugin plugin;
     private final File file;
     private final YamlConfiguration store;
+    private volatile boolean dirty = false;
 
     public Spec2Storage(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -59,6 +63,7 @@ public final class Spec2Storage {
 
     public void setMain(UUID uuid, String specId) {
         store.set("players." + uuid + ".main", specId);
+        dirty = true;
     }
 
     public Map<String, Integer> getRanks(UUID uuid, String treeId) {
@@ -85,9 +90,30 @@ public final class Spec2Storage {
                 }
             }
         }
+        dirty = true;
     }
 
+    /** Принудительная запись (onDisable, autosave). Сбрасывает dirty. */
     public void save() {
         SafeStorage.saveAtomic(store, file, LOGGER);
+        dirty = false;
+    }
+
+    /**
+     * 1.15.5 (аудит 2.6-91): запись только при наличии изменений.
+     * Вызов: SessionListener.onQuit (закрыть окно потери при краше до autosave).
+     * @return true если файл был записан
+     */
+    public boolean saveIfDirty() {
+        if (!dirty) {
+            return false;
+        }
+        save();
+        return true;
+    }
+
+    /** Диагностика: есть ли несохранённые изменения (для /rc health). */
+    public boolean isDirty() {
+        return dirty;
     }
 }
