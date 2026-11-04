@@ -51,7 +51,9 @@ permissions:
     default: op
 
   # 1.15.5 (аудит 2.7-2/2.7-5): дерево прав предметного слоя.
-  # Игровая ветка (default true): свои статы, свой разбор, свой крафт.
+  # 1.15.5-b: дети объявлены ОДНОВРЕМЕННО топ-уровнем — Bukkit getDescription()
+  # возвращает только верхнеуровневые Permission, а selftest-чек 138 и LuckPerms
+  # должны видеть каждый узел явно (inline-children не попадают в список).
   raskolclasses.item:
     description: "Базовый доступ к предметному слою (stats/salvage/craft — свои)"
     default: true
@@ -59,7 +61,15 @@ permissions:
       raskolclasses.item.stats: true
       raskolclasses.item.salvage: true
       raskolclasses.item.craft: true
-  # Админ-ветка (default op): выдача, reload, debug-UID, браузер.
+  raskolclasses.item.stats:
+    description: "Свои статы снаряжения (/rc item stats)"
+    default: true
+  raskolclasses.item.salvage:
+    description: "Разбор своего предмета на фрагменты (/rc item salvage)"
+    default: true
+  raskolclasses.item.craft:
+    description: "Крафт из фрагментов (/rc item craft, GUI)"
+    default: true
   raskolclasses.item.admin:
     description: "Админ-доступ к предметному слою (give/reload/debug/browser)"
     default: op
@@ -68,3 +78,15 @@ permissions:
       raskolclasses.item.reload: true
       raskolclasses.item.debug: true
       raskolclasses.item.browser: true
+  raskolclasses.item.give:
+    description: "Выдача предметов (/rc item give|roll)"
+    default: op
+  raskolclasses.item.reload:
+    description: "Перезагрузка реестра предметов (/rc item reload)"
+    default: op
+  raskolclasses.item.debug:
+    description: "UID-диагностика и stats чужих игроков"
+    default: op
+  raskolclasses.item.browser:
+    description: "Админ-браузер предметов (/rc item browse)"
+    default: op
