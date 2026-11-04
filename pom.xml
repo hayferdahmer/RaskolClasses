@@ -1,188 +1,153 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
-  RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
-  1.14.7: стабилизация Спека 2.0 (проки, лечение, запись HP, шкала ресурса).
-  1.14.8: архитектурный Sprint 5 — AbstractKit, декомпозиция selftest, ревизия стоп-листа.
-  1.14.9: стабилизационный Sprint 6 — закрытие критических находок аудита 1.14.8.
-  1.14.10: Sprint 7 — JUnit 5 + CI verify, декомпозиция God Objects, ConfigReads.
-  1.14.12: Sprint 8 — харденинг (Hp.max, security, hot-path, logger.warning).
-  1.14.13: Sprint 9 — архитектура (профиль -Pdev с -Xlint:all + SpotBugs, release-job).
-  1.15.0: ядро оружия и брони (каталог 342, PDC v1, ItemsApi, 130 чеков).
-  1.15.2: реализм урона (WeaponMastery 8×6, 133 чека).
-  1.15.3: локализация предметного слоя (messages.item.*, 134 чека).
-  1.15.4: крафт и фрагменты (salvage/craft, crafting.yml, 137 чеков).
-  1.15.5: UI/UX (hover-превью, браузер с фильтрами, stats/sets, 139 чеков).
+© 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
+1.15.5: волна аудита (Wave 0+1): гигиена репо, дерево прав item.*,
+        budget-путь settings.budget, crafting-права. Боевое ядро не тронуто.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+  <modelVersion>4.0.0</modelVersion>
 
-    <groupId>dev.raskol</groupId>
-    <artifactId>raskol-classes</artifactId>
-    <version>1.15.5</version>
-    <packaging>jar</packaging>
+  <groupId>dev.raskol</groupId>
+  <artifactId>raskol-classes</artifactId>
+  <version>1.15.5</version>
+  <packaging>jar</packaging>
 
-    <name>RaskolClasses</name>
-    <description>Классы, ресурсы, способности, деревья путей (Spec 2.0), CC/DR, школы урона, DoT, проки, пет-система</description>
+  <name>RaskolClasses</name>
+  <description>Классы, ресурсы, способности, деревья путей (Spec 2.0), CC/DR, школы урона, DoT, проки, пет-система, предметы, крафт</description>
 
-    <properties>
-        <maven.compiler.release>21</maven.compiler.release>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
-        <luckperms.version>5.4</luckperms.version>
-        <placeholderapi.version>2.11.6</placeholderapi.version>
-        <!-- 1.14.10 (Sprint 7): тест-стек -->
-        <junit.version>5.10.2</junit.version>
-        <surefire.version>3.2.5</surefire.version>
-        <!-- 1.14.13 (Sprint 9, 13A): статический анализ и расширенная компиляция -->
-        <spotbugs.version>4.8.6.6</spotbugs.version>
-    </properties>
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
+    <luckperms.version>5.4</luckperms.version>
+    <placeholderapi.version>2.11.6</placeholderapi.version>
+    <junit.version>5.10.2</junit.version>
+    <surefire.version>3.2.5</surefire.version>
+    <spotbugs.version>4.8.6.6</spotbugs.version>
+  </properties>
 
-    <repositories>
-        <repository>
-            <id>papermc</id>
-            <url>https://repo.papermc.io/repository/maven-public/</url>
-        </repository>
-        <repository>
-            <id>placeholderapi</id>
-            <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
-        </repository>
-        <repository>
-            <id>luck</id>
-            <url>https://repo.lucko.me/</url>
-        </repository>
-    </repositories>
+  <repositories>
+    <repository>
+      <id>papermc</id>
+      <url>https://repo.papermc.io/repository/maven-public/</url>
+    </repository>
+    <repository>
+      <id>placeholderapi</id>
+      <url>https://repo.extendedclip.com/content/repositories/placeholderapi/</url>
+    </repository>
+    <repository>
+      <id>luck</id>
+      <url>https://repo.lucko.me/</url>
+    </repository>
+  </repositories>
 
-    <dependencies>
-        <dependency>
-            <groupId>io.papermc.paper</groupId>
-            <artifactId>paper-api</artifactId>
-            <version>${paper.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.luckperms</groupId>
-            <artifactId>api</artifactId>
-            <version>${luckperms.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>me.clip</groupId>
-            <artifactId>placeholderapi</artifactId>
-            <version>${placeholderapi.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <!-- 1.14.10 (Sprint 7): JUnit 5 только для тестов, в jar не попадает -->
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>${junit.version}</version>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
+  <dependencies>
+    <dependency>
+      <groupId>io.papermc.paper</groupId>
+      <artifactId>paper-api</artifactId>
+      <version>${paper.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>net.luckperms</groupId>
+      <artifactId>api</artifactId>
+      <version>${luckperms.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>me.clip</groupId>
+      <artifactId>placeholderapi</artifactId>
+      <version>${placeholderapi.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 
-    <build>
-        <finalName>raskol-classes-${project.version}</finalName>
+  <build>
+    <finalName>raskol-classes-${project.version}</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.15.0</version>
+        <configuration>
+          <release>21</release>
+          <encoding>UTF-8</encoding>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${surefire.version}</version>
+      </plugin>
+    </plugins>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+        <includes>
+          <include>plugin.yml</include>
+        </includes>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>plugin.yml</exclude>
+        </excludes>
+      </resource>
+    </resources>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>dev</id>
+      <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.15.0</version>
-                <configuration>
-                    <release>21</release>
-                    <encoding>UTF-8</encoding>
-                </configuration>
-            </plugin>
-            <!-- 1.14.10 (Sprint 7): Surefire 3.x нативно гоняет JUnit 5 на фазе test -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>${surefire.version}</version>
-            </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.15.0</version>
+            <configuration>
+              <release>21</release>
+              <encoding>UTF-8</encoding>
+              <showWarnings>true</showWarnings>
+              <compilerArgs>
+                <arg>-Xlint:all</arg>
+                <arg>-Xlint:-serial</arg>
+              </compilerArgs>
+            </configuration>
+          </plugin>
+          <plugin>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-maven-plugin</artifactId>
+            <version>${spotbugs.version}</version>
+            <configuration>
+              <effort>Max</effort>
+              <threshold>Medium</threshold>
+              <xmlOutput>true</xmlOutput>
+              <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+              <failOnError>false</failOnError>
+            </configuration>
+            <executions>
+              <execution>
+                <phase>verify</phase>
+                <goals>
+                  <goal>check</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
         </plugins>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-                <includes>
-                    <include>plugin.yml</include>
-                </includes>
-            </resource>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>false</filtering>
-                <excludes>
-                    <exclude>plugin.yml</exclude>
-                </excludes>
-            </resource>
-        </resources>
-    </build>
-
-    <!--
-      1.14.13 (Sprint 9, 13A): профиль dev — расширенная компиляция и статический анализ.
-      Активируется флагом -Pdev: `mvn -Pdev verify`.
-      Поведение по умолчанию (mvn verify) не меняется: CI-гейт остаётся зелёным без
-      новых warning'ов и SpotBugs-отчёта.
-
-      Профиль включает:
-       - -Xlint:all (все предупреждения javac как warning'и, не ошибки — билд не падает);
-       - SpotBugs (анализ байткода: NPE-риски, race conditions, мёртвый код);
-       - -Werror опционально (для будущей жёсткой стадии — сейчас выключен).
-
-      SpotBugs не падает на warning'ах — только пишет target/spotbugsXml.xml;
-      интеграция с CI — через парсинг отчёта в отдельном шаге (см. .github/workflows).
-    -->
-    <profiles>
-        <profile>
-            <id>dev</id>
-            <build>
-                <plugins>
-                    <!-- 1.14.13 (13A): расширенная компиляция — все warning'и javac -->
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-compiler-plugin</artifactId>
-                        <version>3.15.0</version>
-                        <configuration>
-                            <release>21</release>
-                            <encoding>UTF-8</encoding>
-                            <showWarnings>true</showWarnings>
-                            <compilerArgs>
-                                <arg>-Xlint:all</arg>
-                                <arg>-Xlint:-serial</arg>
-                                <!-- serial — сериализуемые классы без serialVersionUID;
-                                     шумит без пользы, Bukkit-сущности не сериализуются -->
-                            </compilerArgs>
-                        </configuration>
-                    </plugin>
-                    <!-- 1.14.13 (13A): SpotBugs — статический анализ байткода.
-                         Пишет отчёт в target/spotbugsXml.xml; не падает на warning'ах.
-                         Для CI: отдельный шаг парсит отчёт и публикует как артефакт. -->
-                    <plugin>
-                        <groupId>com.github.spotbugs</groupId>
-                        <artifactId>spotbugs-maven-plugin</artifactId>
-                        <version>${spotbugs.version}</version>
-                        <configuration>
-                            <effort>Max</effort>
-                            <threshold>Medium</threshold>
-                            <xmlOutput>true</xmlOutput>
-                            <!-- Исключения: тестовый код и автоматически генерируемые
-                                 классы (если появятся). -->
-                            <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
-                            <failOnError>false</failOnError>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>check</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
+      </build>
+    </profile>
+  </profiles>
 </project>
