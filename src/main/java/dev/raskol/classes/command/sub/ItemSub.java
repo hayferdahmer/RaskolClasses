@@ -17,11 +17,13 @@ import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Админ-реестр предметов и операции игрока: /rc item list|info|give|roll|stats|browse|salvage|craft.
- * 1.15.5 (аудит 2.7-2/2.7-5): права приведены к дереву plugin.yml:
+ * Реестр предметов и операции игрока: /rc item list|info|give|roll|stats|browse|salvage|craft.
+ * 1.15.5 (аудит 2.7-2/2.7-5): права по дереву plugin.yml:
  *   игровые  — raskolclasses.item.{stats,salvage,craft} (default true);
  *   админские — raskolclasses.item.{give,reload,debug,browser} (default op, дети item.admin).
- * stats по чужому нику требует item.debug; salvage/craft — только свои (без аргумента-цели).
+ * stats по чужому нику требует item.debug.
+ * 1.15.5-fix: браузер живёт в ItemSystem.browser() (gui/book/ItemBrowserMenu удалён в #1825,
+ * геттер RaskolClasses.getItemBrowser() убран в #1826) — вызов через plugin.getItems().browser().
  */
 public final class ItemSub implements CommandSub {
     private final RaskolClasses plugin;
@@ -45,7 +47,6 @@ public final class ItemSub implements CommandSub {
             if (!sender.hasPermission("raskolclasses.item.stats")) return deny(sender);
             Player p;
             if (args.length > 1) {
-                // чужой ник — только админ (item.debug)
                 if (!sender.hasPermission("raskolclasses.item.debug")) return deny(sender);
                 p = Bukkit.getPlayer(args[1]);
             } else {
@@ -135,7 +136,8 @@ public final class ItemSub implements CommandSub {
             case "browse" -> {
                 if (!sender.hasPermission("raskolclasses.item.browser")) return deny(sender);
                 if (!(sender instanceof Player p)) { sender.sendMessage(Component.text("Команда доступна игроку.", NamedTextColor.RED)); return true; }
-                plugin.getItemBrowser().open(p, 0, filter(args, 1), filter(args, 2), filter(args, 3));
+                // 1.15.5-fix: браузер переехал в ItemSystem (gui/book-класс удалён)
+                plugin.getItems().browser().open(p, 0, filter(args, 1), filter(args, 2), filter(args, 3));
             }
             case "reload" -> {
                 if (!sender.hasPermission("raskolclasses.item.reload")) return deny(sender);
