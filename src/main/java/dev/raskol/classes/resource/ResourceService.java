@@ -34,33 +34,13 @@ import java.util.logging.Logger;
 
 /**
  * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), по умолчанию 0–100.
- * 1.9.3.2: знаковый tickDelta. 1.10.x: Скверна событийная. 1.11.1: декэй Демонологии.
- * 1.14.0 (Б7): legacy-слой отключён — regen-бонусы только из Spec2Service.regenBonus
- *         (узлы regen деревьев + роли); ARCANE-прибавка маны теперь рангами дерева arcane.
- * 1.14.4 (Волна 4, 3B): stateOf применяет расширяемый потолок (100 + resourceMaxBonus);
- *         положительный rate регенерации умножается на (1 + resourceRegenPercent/100).
- * 1.14.7 (Спринт 2, P1-1): ресурс-он-хил (classes.<CLASS>.resource-on-heal) переведён
- *         с ванильного EntityRegainHealthEvent + stale-маркера хилера на CustomHealEvent:
- *         начисление детерминированно происходит на каждое кит-лечение с атрибуцией
- *         целителя, а не случайно на ванильных регенах с устаревшей меткой.
- *         onRegainHealth-обработчик удалён; PassiveListener.pollHealerMark больше не зовётся.
- * 1.14.8 (Sprint 6, Волна 6.3b, P0-5-01): выход игрока больше не пишет resources.yml
- *         синхронно на главном потоке. Секция игрока фиксируется в in-memory store
- *         (store.set), атомарный persist — в autosave-задаче (saveAll, каждые
- *         storage.autosave-minutes) и в onDisable.
- * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): overflow-тик Скверны читает carrier через
- *         Hp.max (атрибут MAX_HEALTH) вместо deprecated Player#getMaxHealth().
- * 1.14.13 (Sprint 9, Волна 13D, финал, P0-4-05): switch в tick() ключуется по
- *         PlayerClass.RegenModel (COMBAT_PAUSE/PLAIN/TIERED/FLOOR_DECAY), а не по классу:
- *         новый класс = выбор существующей модели без правки switch (OCP, аудит 4-05).
- *         Кламп пола и overflow-тик Скверны тоже ключуются по модели FLOOR_DECAY.
- *         onEntityDeath остаётся с проверкой pc == WARLOCK: onKill-ресурс читает
- *         warlock-именованные конфиг-ключи (warlockResourceOnKill) — привязка к модели
- *         была бы преждевременным обобщением до появления per-class ключей.
- *         Числовые значения регена/окон по-прежнему читаются из конфига
- *         (config.resourceRegen / combatWindowSeconds / mageRegenTier* / warlock*) —
- *         админ тюнит баланс без пересборки.
- * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
+ * 1.14.7 (P1-1): ресурс-он-хил через CustomHealEvent.
+ * 1.14.8 (Волна 6.3b, P0-5-01): quit не пишет файл синхронно.
+ * 1.14.12 (Волна 12A, P0-3-02): overflow-тик Скверны через Hp.max.
+ * 1.14.13 (Волна 13D, финал, P0-4-05): switch по PlayerClass.RegenModel (OCP).
+ * 1.15.5 (аудит 2.6-78): markResetOnJoin — оффлайн-смена класса (LuckPermsBackend)
+ *         помечает игрока; onJoin обнуляет шкалу ВМЕСТО восстановления старого значения
+ *         из resources.yml. Без флага поведение прежнее (restore из store).
  */
 public final class ResourceService implements Listener {
 
@@ -73,6 +53,7 @@ public final class ResourceService implements Listener {
     private final ClassProvider classProvider;
     private final Map<UUID, ResourceState> states = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastGainMs = new ConcurrentHashMap<>();
+    private final java.util.Set<UUID> resetOnJoin = ConcurrentHashMap.newKeySet();
     private final File file;
     private final YamlConfiguration store;
 
@@ -84,6 +65,14 @@ public final class ResourceService implements Listener {
         this.classProvider = classProvider;
         this.file = new File(plugin.getDataFolder(), "resources.yml");
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
+    }
+
+    /**
+     * 1.15.5 (аудит 2.6-78): пометить игрока на обнуление шкалы при входе
+     * (класс сменился оффлайн — старое значение ресурса не восстанавливаем).
+     */
+    public void markResetOnJoin(UUID uuid) {
+        resetOnJoin.add(uuid);
     }
 
     /**
@@ -138,6 +127,12 @@ public final class ResourceService implements Listener {
     public void onJoin(PlayerJoinEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         String key = uuid.toString();
+        // 1.15.5 (аудит 2.6-78): класс сменился оффлайн — шкала стартует с нуля
+        if (resetOnJoin.remove(uuid)) {
+            clear(uuid);
+            store.set(key, null);
+            return;
+        }
         ResourceState st = stateOf(uuid);
         if (store.isSet(key)) {
             double v = Math.max(0.0, store.getDouble(key, 0.0));
@@ -147,8 +142,6 @@ public final class ResourceService implements Listener {
 
     /**
      * 1.14.8-fix (Волна 6.3b, P0-5-01): синхронная запись файла на выходе убрана.
-     * store.set фиксирует ресурс игрока в in-memory (он переживёт autosave и попадёт
-     * в файл на ближайшем saveAll/onDisable), после чего оперативная карта освобождается.
      */
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
@@ -188,7 +181,6 @@ public final class ResourceService implements Listener {
             Spec spec = spec2Spec(uuid);
 
             // 1.14.13 (Волна 13D, финал, 4-05): switch по МОДЕЛИ регена, а не по классу.
-            // Соответствие модель↔класс сегодня 1:1, поведение идентично pre-13D.
             double rate;
             switch (pc.regenModel()) {
                 case COMBAT_PAUSE -> rate = inCombat ? 0.0 : config.resourceRegen(pc);
@@ -221,7 +213,6 @@ public final class ResourceService implements Listener {
                 rate += svc.regenBonus(uuid);
             }
             // 1.14.4 (3B): множитель положительного rate из spec2 (узлы resource_regen_pct).
-            // Применяется ТОЛЬКО к rate > 0 — декэй WARLOCK не усиливается.
             if (rate > 0.0 && svc != null) {
                 double regenPct = svc.resourceRegenPercent(uuid);
                 if (Double.isFinite(regenPct) && regenPct > 0.0) {
@@ -245,8 +236,7 @@ public final class ResourceService implements Listener {
                 st.tickDelta(rate);
             }
 
-            // 1.14.12 (Волна 12A, 3-02): carrier через Hp.max (атрибут, NaN-guard).
-            // 1.14.13 (Волна 13D, финал): overflow-тик — по модели FLOOR_DECAY.
+            // 1.14.12 (Волна 12A, 3-02) + 1.14.13: carrier через Hp.max; overflow по FLOOR_DECAY.
             if (pc.regenModel() == PlayerClass.RegenModel.FLOOR_DECAY
                     && st.getValue() >= config.warlockThresholdOverflow()) {
                 double carrier = Hp.max(player);
@@ -310,9 +300,6 @@ public final class ResourceService implements Listener {
 
     /**
      * 1.14.7 (Sprint 2, P1-1): ресурс-он-хил через CustomHealEvent.
-     * Событие несёт целителя напрямую (атрибуция из HpBarService.heal),
-     * stale-маркер PassiveListener больше не участвует. Rate-limit 1 с (gainAllowed)
-     * сохраняет прежнее поведение «+5 Света за событие лечения, не за тик».
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onCustomHeal(CustomHealEvent event) {
@@ -331,9 +318,7 @@ public final class ResourceService implements Listener {
     }
 
     /**
-     * OnKill-ресурс: осознанно привязан к WARLOCK (конфиг-ключ warlockResourceOnKill
-     * именован по классу). При появлении второго класса с onKill-механикой сначала
-     * заводим per-class конфиг-ключи, затем переводим проверку на модель/ключ.
+     * OnKill-ресурс: привязан к WARLOCK (конфиг-ключ warlockResourceOnKill).
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
