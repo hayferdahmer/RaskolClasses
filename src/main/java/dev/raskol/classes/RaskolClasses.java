@@ -120,6 +120,8 @@ import java.util.List;
  *         ItemsApi/CombatProfileRegistry для интеграций (RaskolMobs), ItemBrowserMenu;
  *         RaskolGear-хук и старые сет-бонусы удалены полностью.
  * 1.15.1-A: ItemSystem импортирован из item.service после реструктуризации item-пакета.
+ * 1.15.5 (Волна 2, аудит 2.6-6): foliantService.saveLocksIfDirty() в onDisable
+ *         ДО отмены задач — несохранённые счётчики релока фиксируются при плановой остановке.
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -416,6 +418,15 @@ public final class RaskolClasses extends JavaPlugin {
             blueprintHook.unregisterBlueprints();
         }
         WarlockAbilities.cancelAllChannelTasks();
+
+        // 1.15.5 (Волна 2, аудит 2.6-6): flush foliant-lock.yml ДО отмены задач.
+        // Счётчики релока (kills/deaths/no-chance) между тиками flush-задачи
+        // фиксируются здесь; без этого при остановке сервера данные теряются
+        // на срок до 60 секунд (интервал flush-задачи).
+        if (foliantService != null) {
+            foliantService.saveLocksIfDirty();
+        }
+
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
         if (items != null) items.stop();
