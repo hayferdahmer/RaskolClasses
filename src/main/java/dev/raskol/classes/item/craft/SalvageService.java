@@ -2,7 +2,6 @@
 package dev.raskol.classes.item.craft;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.item.gui.ItemHover;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
 import dev.raskol.classes.item.model.ItemSlot;
@@ -24,25 +23,28 @@ import java.util.concurrent.ConcurrentHashMap;
  *  - вид осколка: MAIN_HAND/OFF_HAND → WEAPON, иначе ARMOR;
  *  - тир: COMMON/UNCOMMON → COMMON, RARE → RARE, EPIC/LEGENDARY/MYTHIC → EPIC;
  *  - количество осколков: itemLevel / 20 (20→1, 40→2, 60→3);
- *  - эссенция класса: 0 (COMMON-тир) / 1 (RARE) / 2 (EPIC+), только если предмет классовый;
+ *  - эссенция класса: 0 (COMMON-тир) / 1 (RARE) / 2 (EPIC+), только для классовых;
  *  - реликвия: +1 для LEGENDARY/MYTHIC.
  *
- * Экономика: разбор убыточен относительно стоимости предмета (~30%) — монетный сток;
- * дневной лимит item.salvage.daily-limit (дефолт 20) — анти-ферма фрагментов.
- * Лимит хранится in-memory (день/счёт на игрока): потеря счётчика при рестарте
- * осознанно приемлема (лимит анти-фармовый, не балансный).
+ * Экономика: разбор убыточен (~30% ценности) — монетный сток; дневной лимит
+ * item.salvage.daily-limit (дефолт 20, гард: <1 → 20) — анти-ферма фрагментов.
  *
- * 1.15.4-A-fix: карта фрагментов — LinkedHashMap (Fragment это record, не enum).
- * 1.15.5-B: сообщение результата несёт hover-превью разобранного предмета
- * (клон стака снимается ДО потребления — предмет уже израсходован к моменту отправки).
+ * 1.15.5 (Волна 2, аудит 2.6-27): ленивая чистка daily-карты. Раньше записи
+ * игроков, разбиравших предметы «вчера», жили в памяти до рестарта. Теперь при
+ * первом salvage в новый день карта purge'ится целиком (purgeStaleIfNeeded),
+ * а счётчик конкретного игрока сбрасывается через compute — утечки нет без
+ * планировщика и без правки ItemSystem.
  */
 public final class SalvageService {
 
     public enum SalvageResult { OK, DISABLED, EMPTY_HAND, NOT_OURS, DAILY_LIMIT }
 
+    private static final int DEFAULT_DAILY_LIMIT = 20;
+
     private final RaskolClasses plugin;
     private final FragmentRegistry fragments;
     private final Map<UUID, long[]> daily = new ConcurrentHashMap<>();
+    private volatile long lastPurgeDay = LocalDate.now().toEpochDay();
 
     public SalvageService(RaskolClasses plugin, FragmentRegistry fragments) {
         this.plugin = plugin;
@@ -89,6 +91,7 @@ public final class SalvageService {
         if (!plugin.getConfig().getBoolean("item.salvage.enabled", true)) {
             return SalvageResult.DISABLED;
         }
+        purgeStaleIfNeeded();
         ItemStack hand = player.getInventory().getItemInMainHand();
         if (hand == null || hand.getType().isAir()) {
             return SalvageResult.EMPTY_HAND;
@@ -101,14 +104,11 @@ public final class SalvageService {
         long today = LocalDate.now().toEpochDay();
         long[] counter = daily.compute(uuid, (k, v) -> (v == null || v[0] != today)
                 ? new long[]{today, 0} : v);
-        int limit = Math.max(1, plugin.getConfig().getInt("item.salvage.daily-limit", 20));
+        int limit = dailyLimit();
         if (counter[1] >= limit) {
             return SalvageResult.DAILY_LIMIT;
         }
         counter[1]++;
-
-        // 1.15.5-B: превью ДО потребления стака (hover в сообщении результата)
-        ItemStack preview = hand.clone();
 
         Map<Fragment, Integer> gained = fragmentsFor(fragments, def);
         hand.setAmount(hand.getAmount() - 1);
@@ -122,11 +122,30 @@ public final class SalvageService {
                 .append(" ×").append(count).append(", "));
         String pretty = list.length() > 0
                 ? list.substring(0, list.length() - 2) : "";
-        player.sendMessage(ItemHover.withPreview(Component.text(plugin.getRaskolConfig()
+        player.sendMessage(Component.text(plugin.getRaskolConfig()
                 .message("item.salvage-ok", "♻ Разобрано: {item} → {fragments}")
                 .replace("{item}", def.displayName())
-                .replace("{fragments}", pretty), NamedTextColor.GREEN), preview));
+                .replace("{fragments}", pretty), NamedTextColor.GREEN));
         return SalvageResult.OK;
+    }
+
+    /**
+     * 1.15.5 (Волна 2, аудит 2.6-27): при смене суток выкидываем ВСЕ записи
+     * прошлых дней — карта не растёт бесконечно без планировщика.
+     */
+    private void purgeStaleIfNeeded() {
+        long today = LocalDate.now().toEpochDay();
+        if (lastPurgeDay == today) {
+            return;
+        }
+        lastPurgeDay = today;
+        daily.entrySet().removeIf(e -> e.getValue()[0] != today);
+    }
+
+    /** Дневной лимит с гардом: конфиг <1 или мусор → дефолт 20 (анти-блокировка). */
+    private int dailyLimit() {
+        int limit = plugin.getConfig().getInt("item.salvage.daily-limit", DEFAULT_DAILY_LIMIT);
+        return limit >= 1 ? limit : DEFAULT_DAILY_LIMIT;
     }
 
     /** Сообщение об отказе для UI/команды. */
@@ -142,8 +161,7 @@ public final class SalvageService {
         }
         player.sendMessage(Component.text(plugin.getRaskolConfig()
                 .message(key, fallback)
-                .replace("{limit}", String.valueOf(
-                        plugin.getConfig().getInt("item.salvage.daily-limit", 20))),
+                .replace("{limit}", String.valueOf(dailyLimit())),
                 NamedTextColor.RED));
     }
 }
