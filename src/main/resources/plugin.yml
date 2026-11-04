@@ -17,11 +17,12 @@ softdepend:
   - Essentials
   - packetevents
   - PlayerPoints
+  - MythicMobs
 
 commands:
   rc:
     description: "Главная команда RaskolClasses"
-    usage: "/rc [menu|reload|debug|health|selftest|gear|foliant|cc|plus]"
+    usage: "/rc [menu|reload|debug|health|selftest|gear|foliant|cc|plus|item]"
     aliases: [raskol, raskolclasses]
 
 permissions:
@@ -40,16 +41,30 @@ permissions:
   raskolclasses.admin.cc:
     description: "CC/DR-админка: /rc cc status|clear|test|reset|list"
     default: op
-  raskolclasses.admin.item:
-    description: "Просмотр реестра предметов и админский браузер"
-    default: op
-  raskolclasses.admin.item.give:
-    description: "Выдача и тестовый ролл предметов"
-    default: op
+
   # 1.14.15: raskolspec+
   raskolclasses.plus.use:
-    description: "Использование raskolspec+ (status, apply, gift)"
+    description: "Использование raskolspec+ (status, buy, gift, apply)"
     default: true
   raskolclasses.admin.plus:
-    description: "Администрирование raskolspec+ (grant, revoke)"
+    description: "Администрирование raskolspec+ (grant, revoke, export)"
     default: op
+
+  # 1.15.5 (аудит 2.7-2/2.7-5): дерево прав предметного слоя.
+  # Игровая ветка (default true): свои статы, свой разбор, свой крафт.
+  raskolclasses.item:
+    description: "Базовый доступ к предметному слою (stats/salvage/craft — свои)"
+    default: true
+    children:
+      raskolclasses.item.stats: true
+      raskolclasses.item.salvage: true
+      raskolclasses.item.craft: true
+  # Админ-ветка (default op): выдача, reload, debug-UID, браузер.
+  raskolclasses.item.admin:
+    description: "Админ-доступ к предметному слою (give/reload/debug/browser)"
+    default: op
+    children:
+      raskolclasses.item.give: true
+      raskolclasses.item.reload: true
+      raskolclasses.item.debug: true
+      raskolclasses.item.browser: true
