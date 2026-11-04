@@ -1,0 +1,18 @@
+# Нормализация окончаний строк: в репо всегда LF, чекаут по ОС не меняет байты.
+* text=auto eol=lf
+
+# Явные текстовые
+*.java   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.xml    text eol=lf
+*.md     text eol=lf
+*.txt    text eol=lf
+*.properties text eol=lf
+
+# Явные бинарные (не нормализуются, не диффятся как текст)
+*.png  binary
+*.jpg  binary
+*.zip  binary
+*.jar  binary
+*.dat  binary
