@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="assets/headers/runbook.svg" alt="RUNBOOK — Книга хранителя очага" width="100%"/>
+</p>
+
+# Runbook
+
 ## 7. Конфиг-карта 1.14.10 (Sprint 7: тестируемость + декомпозиция)
 
 ### 7.1. ConfigReads — единая точка чтения (аудит 1-01)
@@ -146,4 +152,3 @@ parent-группу `citizen` (default: true).
 Для интеграционной диагностики `/rc debug profile` показывает `CombatProfile` живой сущности в прицеле.
 
 **Конец RUNBOOK 1.15.0.** Лицензия: RASKOL Proprietary License v1.0.
-
