@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/headers/changelog.svg" alt="CHANGELOG — Летопись версий" width="100%"/>
+</p>
+
 # Changelog
 
 Все заметные изменения проекта документируются в этом файле.
