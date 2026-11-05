@@ -65,6 +65,9 @@ import java.util.logging.Logger;
  *         метаданных PlayerClass (pc.getResourceSymbol()) вместо switch —
  *         метаданные resourceName/resourceSymbol/combatWindowSeconds/resourceRegenPerTick
  *         теперь поля enum-значений, а не результат switch.
+ * 1.15.6 (Волна 4, аудит 2.6-105): applyStrRegen уважает антихил («Печать Погибели»
+ *         и запрет лечения Чернокнижника): регенерация от СИЛЫ — это лечение,
+ *         раньше она шла мимо WarlockAbilities.isAntihealed и лечила защищённых целей.
  */
 public final class HpBarService implements Listener {
 
@@ -377,11 +380,19 @@ public final class HpBarService implements Listener {
         return Math.max(0.0, Math.min(1.0, healthStore.getDouble(key, 1.0)));
     }
 
+    /**
+     * 1.15.6 (Волна 4, аудит 2.6-105): регенерация от СИЛЫ — это лечение и она
+     * уважает антихил: цели под «Печатью Погибели»/запретом лечения Чернокнижника
+     * не восстанавливают HP через strRegen (раньше реген шёл мимо isAntihealed).
+     */
     private void applyStrRegen(Player player) {
         if (player.isDead()) {
             return;
         }
         UUID uuid = player.getUniqueId();
+        if (WarlockAbilities.isAntihealed(uuid)) {
+            return;
+        }
         double formula = attrs().maxHp(uuid);
         double hpFormula = attrs().currentFormulaHp(player);
         if (hpFormula >= formula) {
