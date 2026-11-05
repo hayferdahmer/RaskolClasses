@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "🛡 Сообщить об уязвимости"
+    url: https://github.com/hayferdahmer/RaskolClasses/security/advisories/new
+    about: "Не создавайте публичный issue: откройте приватный отчёт — мейнтейнеры увидят его первыми."
+  - name: "📘 Runbook: аварии и troubleshooting"
+    url: https://github.com/hayferdahmer/RaskolClasses/blob/main/docs/RUNBOOK.md
+    about: "Прежде чем писать, загляните в книгу хранителя очага — ответ может быть уже там."
