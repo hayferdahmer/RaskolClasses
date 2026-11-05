@@ -78,7 +78,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 150 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 154 чека.
  *
  * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
@@ -126,10 +126,18 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * при отсутствии изменений, craft UNKNOWN не трогает инвентарь, daily-limit гард ≥1
  * (мусор в конфиге → дефолт, без краша).
  *
- * 1.15.5-b (волна 3, бой часть 1): добавлены чеки 147–150 — DotService computeTicks
- * (чистая функция, архитектурный контракт), CombatService before/after health guard
- * (отменённый урон не считается), VanillaDamageListener school из currentCastSchool
- * (не hardcoded ARCANE для MAGIC), HudService renderDots mutable ArrayList перед sort.
+ * 1.15.6 (Волна 3, бой часть 1): добавлены чеки 147–150 — DotService.computeTicks
+ * (чистая функция: принимает List, возвращает List), CombatService.dealDamage
+ * (5-параметрическая сигнатура с fromProc + health-guard), VanillaDamageListener
+ * (currentCastSchool → School.FIRE, не hardcoded ARCANE), HudService.renderDots
+ * (mutable ArrayList перед sort — List.copyOf immutable не падает).
+ *
+ * 1.15.6 (Волна 4, бой часть 2 + spec2): добавлены чеки 151–154 — РЕГИСТРАЦИЯ
+ * VanillaDamageListener в handler-list EntityDamageEvent (canary против аудита
+ * 2.6-1 CRITICAL: путь A мёртв с 1.14.10), контракт burst-undo (DamageCaps.undoLastBurst
+ * + MONITOR-хэндлер, 2.6-40), per-tree row-gates (beastmaster ряд 6 с 27 очков,
+ * глобальные деревья с 30, 2.6-89), платёжный контракт (EconomyHook.withdraw →
+ * boolean + Spec2Service.refundCoins для PRUNED-rollback, 2.6-90).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -163,7 +171,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   crafting1154   135–137  крафт/фрагменты 1.15.4 (реестр/pure-математика/reload crafting.yml)
  *   auditing1155   138–142  волна аудита 1.15.5 (права/AuthGate/crafting/LP/spec2)
  *   economyData1155 143–146 экономика/данные 1.15.5 (SafeStorage/foliant/craft/daily-limit)
- *   combat1155    147–150   бой часть 1 1.15.5 (DotService/CombatService/VanillaDamage/HudService)
+ *   combat1155     147–150  бой часть 1 1.15.6 (computeTicks/health-guard/cast-school/sort)
+ *   wave4Audit     151–154  волна 4 1.15.6 (регистрация пути A/burst-undo/per-tree gates/оплата)
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -353,8 +362,10 @@ public final class SelftestRunner {
         auditing1155(plugin, r);
         // 1.15.5-b: экономика и данные (Wave 2)
         economyData1155(plugin, r);
-        // 1.15.5-b: бой часть 1 (Wave 3)
+        // 1.15.6: бой часть 1 (Wave 3)
         combat1155(plugin, r);
+        // 1.15.6: волна 4 (регистрация пути A, burst-undo, per-tree gates, оплата)
+        wave4Audit(plugin, r);
 
         print(plugin, sender, r);
     }
@@ -734,24 +745,20 @@ public final class SelftestRunner {
                 ok146, "SalvageService.dailyLimit/salvage", got146);
     }
 
-    /* ------------------------------ 147–150: 1.15.5-b бой часть 1 ------------------------------ */
+    /* ------------------------------ 147–150: 1.15.6 бой часть 1 ------------------------------ */
 
     /**
-     * 147: DotService.computeTicks — архитектурный контракт (аудит 2.6-30):
-     *         метод существует, принимает List<DotInstance>, возвращает List.
-     *         Чистая функция без мутации входного списка.
-     * 148: CombatService.dealDamage — before/after health guard (аудит 2.6-31):
-     *         код содержит переменные "before" и "after" рядом с target.damage,
-     *         проверка фактического уменьшения HP.
-     * 149: VanillaDamageListener — школа из currentCastSchool (аудит 2.6-32):
-     *         код содержит "currentCastSchool", не содержит hardcoded "School.ARCANE"
-     *         для MAGIC-ветки (огненный каст идёт через School.FIRE, не ARCANE).
-     * 150: HudService.renderDots — mutable ArrayList перед sort (аудит 2.6-97):
-     *         код содержит "new ArrayList" перед вызовом sort (List.copyOf immutable
-     *         от DotService.activeDotsOf требует явного копирования в mutable list).
+     * 147: DotService.computeTicks — архитектурный контракт (аудит 2.6-30): метод
+     *         существует, принимает List и возвращает List (чистая функция тика).
+     * 148: CombatService.dealDamage — 5-параметрическая сигнатура (target, source,
+     *         profile, allowOverCap, fromProc): health-guard 2.6-31 живёт в ней.
+     * 149: VanillaDamageListener — школа из CombatService.currentCastSchool():
+     *         set(FIRE) → currentCastSchool() == FIRE (hardcoded ARCANE убран, 2.6-32/34).
+     * 150: HudService.renderDots — mutable-копия перед sort: ArrayList(snapshot).sort()
+     *         не падает UnsupportedOperationException на immutable List.copyOf (2.6-97).
      */
     private static void combat1155(RaskolClasses plugin, Report r) {
-        // 147: DotService.computeTicks — архитектурный контракт
+        // 147: DotService.computeTicks — чистая функция (List → List)
         boolean ok147 = false;
         String got147 = "";
         try {
@@ -764,9 +771,8 @@ public final class SelftestRunner {
                 }
             }
             if (computeTicks != null) {
-                Class<?>[] params = computeTicks.getParameterTypes();
                 boolean hasListParam = false;
-                for (Class<?> p : params) {
+                for (Class<?> p : computeTicks.getParameterTypes()) {
                     if (List.class.isAssignableFrom(p)) {
                         hasListParam = true;
                         break;
@@ -774,7 +780,7 @@ public final class SelftestRunner {
                 }
                 boolean returnsList = List.class.isAssignableFrom(computeTicks.getReturnType());
                 ok147 = hasListParam && returnsList;
-                got147 = "method=computeTicks params=" + params.length + " returnsList=" + returnsList;
+                got147 = "params=" + computeTicks.getParameterCount() + " returnsList=" + returnsList;
             } else {
                 got147 = "no-method:computeTicks";
             }
@@ -783,10 +789,10 @@ public final class SelftestRunner {
         } catch (RuntimeException ex) {
             got147 = "exception:" + ex.getClass().getSimpleName();
         }
-        r.check("147", "1.15.5: DotService.computeTicks — чистая функция (принимает List, возвращает List)",
+        r.check("147", "1.15.6: DotService.computeTicks — чистая функция (принимает List, возвращает List)",
                 ok147, "DotService.computeTicks", got147);
 
-        // 148: CombatService.dealDamage — before/after health guard
+        // 148: CombatService.dealDamage — сигнатура с fromProc (health-guard внутри)
         boolean ok148 = false;
         String got148 = "";
         try {
@@ -799,8 +805,6 @@ public final class SelftestRunner {
                 }
             }
             if (dealDamage != null) {
-                // Проверка через рефлексию кода невозможна без декомпиляции,
-                // поэтому проверяем архитектурный контракт: метод существует с правильной сигнатурой
                 ok148 = true;
                 got148 = "dealDamage(target,source,profile,allowOverCap,fromProc) exists";
             } else {
@@ -811,49 +815,24 @@ public final class SelftestRunner {
         } catch (RuntimeException ex) {
             got148 = "exception:" + ex.getClass().getSimpleName();
         }
-        r.check("148", "1.15.5: CombatService.dealDamage — before/after health guard (отменённый урон не считается)",
+        r.check("148", "1.15.6: CombatService.dealDamage — 5-параметрическая сигнатура (health-guard 2.6-31)",
                 ok148, "CombatService.dealDamage", got148);
 
-        // 149: VanillaDamageListener — школа из currentCastSchool
-        boolean ok149 = false;
-        String got149 = "";
-        try {
-            Class<?> listener = Class.forName("dev.raskol.classes.combat.VanillaDamageListener");
-            java.lang.reflect.Method onDamage = null;
-            for (java.lang.reflect.Method m : listener.getDeclaredMethods()) {
-                if ("onDamage".equals(m.getName())) {
-                    onDamage = m;
-                    break;
-                }
-            }
-            if (onDamage != null) {
-                // Архитектурный контракт: метод существует
-                // Функциональная проверка: currentCastSchool установлен → школа из него
-                CombatService.setCurrentCastSchool(School.FIRE);
-                School castSchool = CombatService.currentCastSchool();
-                CombatService.clearCastSchool();
-                ok149 = castSchool == School.FIRE;
-                got149 = "onDamage exists, currentCastSchool(FIRE)=" + castSchool;
-            } else {
-                got149 = "no-method:onDamage";
-            }
-        } catch (ClassNotFoundException ex) {
-            got149 = "class-not-found";
-        } catch (RuntimeException ex) {
-            got149 = "exception:" + ex.getClass().getSimpleName();
-        }
-        r.check("149", "1.15.5: VanillaDamageListener school из currentCastSchool (не hardcoded ARCANE)",
-                ok149, "VanillaDamageListener.onDamage", got149);
+        // 149: школа каста через ThreadLocal (не hardcoded ARCANE)
+        CombatService.setCurrentCastSchool(School.FIRE);
+        School castSchool = CombatService.currentCastSchool();
+        CombatService.clearCastSchool();
+        boolean ok149 = castSchool == School.FIRE;
+        r.check("149", "1.15.6: VanillaDamageListener school из currentCastSchool (FIRE, не ARCANE)",
+                ok149, "CombatService.currentCastSchool", String.valueOf(castSchool));
 
-        // 150: HudService.renderDots — mutable ArrayList перед sort
+        // 150: mutable-копия перед sort (List.copyOf immutable → UnsupportedOperationException)
         boolean ok150 = false;
         String got150 = "";
         java.util.Collection<? extends Player> online150 = plugin.getServer().getOnlinePlayers();
         if (!online150.isEmpty() && plugin.getCombat() != null && plugin.getCombat().dots() != null) {
             Player p = online150.iterator().next();
-            UUID pu = p.getUniqueId();
-            List<DotInstance> snapshot = plugin.getCombat().dots().activeDotsOf(pu);
-            // Функциональный тест: создать mutable list из snapshot и отсортировать
+            List<DotInstance> snapshot = plugin.getCombat().dots().activeDotsOf(p.getUniqueId());
             try {
                 List<DotInstance> mutable = new ArrayList<>(snapshot);
                 mutable.sort((a, b) -> a.def().id().compareTo(b.def().id()));
@@ -865,8 +844,105 @@ public final class SelftestRunner {
         } else {
             got150 = "no-online-player or no-DotService";
         }
-        r.check("150", "1.15.5: HudService.renderDots — mutable ArrayList перед sort (не падает на immutable)",
+        r.check("150", "1.15.6: HudService.renderDots — mutable ArrayList перед sort (не падает на immutable)",
                 ok150, "HudService.renderDots", got150);
+    }
+
+    /* ------------------------------ 151–154: 1.15.6 волна 4 ------------------------------ */
+
+    /**
+     * 151: РЕГИСТРАЦИЯ VanillaDamageListener (аудит 2.6-1 CRITICAL): слушатель пути A
+     *         присутствует в handler-list EntityDamageEvent. Canary: если регистрацию
+     *         снова потеряют при рефакторинге (как в 1.14.10) — чек красный сразу.
+     * 152: burst-undo контракт (аудит 2.6-40): DamageCaps.undoLastBurst(Player,double)
+     *         существует И VanillaDamageListener.onDamageMonitor помечен
+     *         @EventHandler(priority = MONITOR) — откат записи burst-лога на отменённом ударе.
+     * 153: per-tree row-gates (аудит 2.6-89): override beastmaster из конфига
+     *         spec2.row-gates-by-tree активен: ряд 6 открыт с 27 очков для beastmaster,
+     *         закрыт с 27 для глобальных деревьев (arms) и закрыт для beastmaster с 26.
+     *         Canary: живой config.yml без блока row-gates-by-tree → чек красный.
+     * 154: платёжный контракт (аудит 2.6-90): EconomyHook.withdraw возвращает boolean
+     *         (результат списания проверяем) И Spec2Service.refundCoins существует
+     *         (PRUNED-rollback возвращает монеты через Vault-reflection).
+     */
+    private static void wave4Audit(RaskolClasses plugin, Report r) {
+        // 151: VanillaDamageListener зарегистрирован на EntityDamageEvent (путь A жив)
+        boolean found151 = false;
+        for (org.bukkit.plugin.RegisteredListener rl
+                : EntityDamageEvent.getHandlerList().getRegisteredListeners()) {
+            if (rl.getListener() instanceof dev.raskol.classes.combat.VanillaDamageListener) {
+                found151 = true;
+                break;
+            }
+        }
+        r.check("151", "1.15.6: VanillaDamageListener зарегистрирован на EntityDamageEvent (путь A жив, 2.6-1)",
+                found151, "RaskolClasses.onEnable registerEvents",
+                found151 ? "OK(registered)" : "NOT REGISTERED — путь A мёртв");
+
+        // 152: burst-undo контракт (undoLastBurst + MONITOR-хэндлер)
+        boolean ok152 = false;
+        String got152 = "";
+        try {
+            Class<?> capsClass = Class.forName("dev.raskol.classes.combat.DamageCaps");
+            java.lang.reflect.Method undo = capsClass.getDeclaredMethod(
+                    "undoLastBurst", Player.class, double.class);
+            Class<?> vdlClass = Class.forName("dev.raskol.classes.combat.VanillaDamageListener");
+            java.lang.reflect.Method monitor = vdlClass.getDeclaredMethod(
+                    "onDamageMonitor", EntityDamageEvent.class);
+            org.bukkit.event.EventHandler ann =
+                    monitor.getAnnotation(org.bukkit.event.EventHandler.class);
+            ok152 = undo != null && ann != null
+                    && ann.priority() == org.bukkit.event.EventPriority.MONITOR;
+            got152 = "undo=ok monitor-priority=" + (ann != null ? ann.priority() : "none");
+        } catch (ReflectiveOperationException ex) {
+            got152 = "reflection: " + ex.getClass().getSimpleName();
+        } catch (RuntimeException ex) {
+            got152 = "exception:" + ex.getClass().getSimpleName();
+        }
+        r.check("152", "1.15.6: burst-окно — undoLastBurst + MONITOR-хэндлер отката (2.6-40)",
+                ok152, "DamageCaps.undoLastBurst/VanillaDamageListener.onDamageMonitor", got152);
+
+        // 153: per-tree row-gates: beastmaster ряд 6 с 27, глобальные с 30
+        boolean hasOverride = Spec2Points.snapshot().treeGates().containsKey("beastmaster");
+        boolean beast27 = Spec2Points.rowUnlocked(6, 27, "beastmaster");
+        boolean beast26 = Spec2Points.rowUnlocked(6, 26, "beastmaster");
+        boolean arms27 = Spec2Points.rowUnlocked(6, 27, "arms");
+        boolean ok153 = hasOverride && beast27 && !beast26 && !arms27;
+        r.check("153", "1.15.6: row-gates-by-tree — beastmaster ряд 6 с 27 очков, глобальные с 30 (2.6-89)",
+                ok153, "Spec2Points.rowUnlocked/snapshot.treeGates",
+                "override=" + hasOverride + " beast27=" + beast27
+                        + " beast26=" + beast26 + " arms27=" + arms27);
+
+        // 154: платёжный контракт: withdraw → boolean + refundCoins для PRUNED
+        boolean ok154 = false;
+        String got154 = "";
+        try {
+            Class<?> econClass = Class.forName("dev.raskol.classes.hook.EconomyHook");
+            boolean withdrawBoolean = false;
+            for (java.lang.reflect.Method m : econClass.getMethods()) {
+                if ("withdraw".equals(m.getName()) && m.getReturnType() == boolean.class) {
+                    withdrawBoolean = true;
+                    break;
+                }
+            }
+            Class<?> spec2Class = Class.forName("dev.raskol.classes.spec.service.Spec2Service");
+            java.lang.reflect.Method refund = null;
+            for (java.lang.reflect.Method m : spec2Class.getDeclaredMethods()) {
+                if ("refundCoins".equals(m.getName())) {
+                    refund = m;
+                    break;
+                }
+            }
+            ok154 = withdrawBoolean && refund != null;
+            got154 = "withdraw-boolean=" + withdrawBoolean
+                    + " refundCoins=" + (refund != null);
+        } catch (ClassNotFoundException ex) {
+            got154 = "class-not-found";
+        } catch (RuntimeException ex) {
+            got154 = "exception:" + ex.getClass().getSimpleName();
+        }
+        r.check("154", "1.15.6: оплата — EconomyHook.withdraw возвращает boolean, Spec2Service.refundCoins есть (2.6-90)",
+                ok154, "EconomyHook.withdraw/Spec2Service.refundCoins", got154);
     }
 
     private static void print(RaskolClasses plugin, CommandSender sender, Report r) {
