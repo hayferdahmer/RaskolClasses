@@ -39,6 +39,16 @@ import java.util.concurrent.atomic.AtomicInteger;
  *         Обоснование: Sound.valueOf бросает IllegalArgumentException на неизвестных
  *         ключах, но мы ловим его и логируем один раз через warnedSounds — hot-путь
  *         не спамит, нагрузка минимальна.
+ * 1.15.6 (Волна 5, аудит 2.6-102): procByKey составляет ключ "uuid:procId" — визуал
+ *         проков per-player: два игрока с одним proc_id (например, execute_passive)
+ *         видят свой визуал независимо, а не один раз на двоих в течение 2 с.
+ *         Глобального ключа "procId" в карте больше не появляется.
+ * 1.15.6 (Волна 5, аудит 2.6-103): startAura сохраняет AuraTask локально как
+ *         scheduledTask и в runTaskLater сравнивает current == scheduledTask по
+ *         identity. Раньше отложенная задача старой ауры снимала ТЕКУЩУЮ запись
+ *         из auras — и это была уже новая аура, которая перезатёрла старую.
+ *         Теперь: если новая аура уже перезатёрла старую, отложенная задача
+ *         старой видит current != scheduledTask и ничего не делает.
  */
 public final class FxService implements Listener {
 
@@ -55,6 +65,7 @@ public final class FxService implements Listener {
     private final RaskolClasses plugin;
     private final Set<String> warnedSounds = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedParticles = ConcurrentHashMap.newKeySet();
+    /** 1.15.6 (2.6-102): ключ = "uuid:procId" (per-player кулдаун). */
     private final Map<String, Long> procVisualCd = new ConcurrentHashMap<>();
     private final Map<UUID, ChargedShot> chargedShots = new ConcurrentHashMap<>();
     private final Map<UUID, BukkitTask> trailTasks = new ConcurrentHashMap<>();
@@ -133,13 +144,19 @@ public final class FxService implements Listener {
         }
     }
 
+    /**
+     * 1.15.6 (2.6-102): ключ кулдауна — "uuid:procId".
+     * Раньше ключ был только procId, и визуал одного прока не показывался
+     * второму игроку в течение 2 с (оба видели один раз на двоих).
+     */
     public void procByKey(Player player, String fallbackTag, String procId) {
         long now = System.currentTimeMillis();
-        Long prev = procVisualCd.get(procId);
+        String key = player.getUniqueId() + ":" + procId;
+        Long prev = procVisualCd.get(key);
         if (prev != null && now - prev < 2000L) {
             return;
         }
-        procVisualCd.put(procId, now);
+        procVisualCd.put(key, now);
         String tag = plugin.getConfig().getString("vfx.proc." + procId + ".tag", fallbackTag);
         player.showTitle(net.kyori.adventure.title.Title.title(
                 Component.empty(),
@@ -222,6 +239,14 @@ public final class FxService implements Listener {
 
     /* --------------------------------- ауры --------------------------------- */
 
+    /**
+     * 1.15.6 (2.6-103): Identity-check в отложенной задаче.
+     * scheduledTask сохраняется в локальную переменную и сравнивается по identity
+     * с текущей записью auras в runTaskLater. Если новая аура уже перезатёрла
+     * старую (current != scheduledTask) — отложенная задача ничего не делает.
+     * Раньше auras.remove(playerUuid) убирал ТЕКУЩУЮ запись, то есть новую ауру,
+     * и cancel() прерывал её — новая аура умирала раньше срока.
+     */
     public void startAura(UUID playerUuid, Particle particle, int ticks, int perTick,
                           String expireSoundKey) {
         stopAura(playerUuid);
@@ -242,12 +267,16 @@ public final class FxService implements Listener {
                 player.getWorld().spawnParticle(particle, p, 1, 0.0, 0.0, 0.0, 0.0);
             }
         }, 0L, 10L);
-        auras.put(playerUuid, new AuraTask(task, expiresAt));
+        final AuraTask scheduledTask = new AuraTask(task, expiresAt);
+        auras.put(playerUuid, scheduledTask);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            AuraTask at = auras.remove(playerUuid);
-            if (at != null) {
-                at.task().cancel();
+            AuraTask current = auras.get(playerUuid);
+            if (current != scheduledTask) {
+                // Новая аура перезатёрла старую — не трогаем текущую
+                return;
             }
+            auras.remove(playerUuid);
+            scheduledTask.task().cancel();
             Player player = plugin.getServer().getPlayer(playerUuid);
             if (player != null && expireSoundKey != null) {
                 Sound s = resolveSound(expireSoundKey);
@@ -367,6 +396,7 @@ public final class FxService implements Listener {
             }
             return expired;
         });
+        // 1.15.6 (2.6-102): ключи "uuid:procId" чистятся теми же правилами
         procVisualCd.entrySet().removeIf(e -> now - e.getValue() > 30_000L);
     }
 
