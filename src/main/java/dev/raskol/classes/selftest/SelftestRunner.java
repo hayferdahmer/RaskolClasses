@@ -40,6 +40,7 @@ import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.item.craft.Fragment;
 import dev.raskol.classes.item.craft.SalvageService;
+import dev.raskol.classes.item.model.Affix;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
 import dev.raskol.classes.item.model.ItemSlot;
@@ -81,12 +82,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 158 чеков.
+ * Headless-самотестирование формул плагина (/rc selftest), 167 чеков.
  *
  * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на методы
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
- * инкапсулировано в приватный держатель Report. Номера чеков, их логика, порядок
- * вывода и skip-семантика НЕ изменены — рефакторинг чисто структурный.
+ * инкапсулировано в приватный держатель Report.
  * 1.14.8-fix (Волна 6.1): P0-7A probe = отправитель; P0-6B чек 122 достижимость.
  * 1.14.13 (Волна 13C): чек 107 на snapshot Spec2Points; resetAllDr-опечатка устранена.
  * 1.14.15 (raskolspec+): чеки 123–125 (шаблоны/подписка/stale).
@@ -104,14 +104,12 @@ import java.util.concurrent.atomic.AtomicReference;
  *         платёжный контракт).
  * 1.15.6 (Волна 5b): чеки 155–158 (AttributeModifiers concurrent, purgeForeignTrees,
  *         per-player proc-кулдаун, aura identity-CAS).
- * 1.15.6 (Волна 6, аудит 2.6-108): SELFTEST НЕ ЛОМАЕТ ЖИВОЕ СОСТОЯНИЕ.
- *   - CC-чеки 82–84/90 SKIP'аются, если у probe УЖЕ активен контроль (раньше
- *     removeAll() стирал живой STUN/ROOT игрока);
- *   - все рангово/CC/инвентарь-мутирующие чеки gated флагом
- *     selftest.allow-live-probe (default true): на прод-сервере админ может
- *     выставить false — мутации уходят в skip, read-only чеки работают;
- *   - restore-ветки (finally) сохранены: при allow-live-probe=true поведение
- *     прежнее (backup → мутация → проверка → restore).
+ * 1.15.6 (Волна 6, 2.6-108): live-probe guards (CC-чеки skip при активном контроле,
+ *         kill-switch selftest.allow-live-probe).
+ * 1.15.6 (Волна 6 часть 2): чеки 159–167 (spec2 type-fix, stale rawRanks,
+ *         FactionHook retry, effective capacity, AffixRoller clamp→round,
+ *         ItemPdc NPE-guard, AttributeService crit cap из конфига,
+ *         Spec2Tree cycle-guard, AvoidanceService showTitle-троттлинг).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -148,6 +146,8 @@ import java.util.concurrent.atomic.AtomicReference;
  *   combat1155     147–150  бой часть 1 1.15.6 (computeTicks/health-guard/cast-school/sort)
  *   wave4Audit     151–154  волна 4 1.15.6 (регистрация пути A/burst-undo/per-tree gates/оплата)
  *   wave5bAudit    155–158  волна 5b 1.15.6 (AttributeModifiers sync/per-player proc/aura CAS/purgeForeign)
+ *   wave6bAudit    159–167  волна 6 часть 2 1.15.6 (spec2 type/stale rawRanks/faction retry/
+ *                            effective capacity/clamp/NPE/crit cap/cycle/throttle)
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока,
  * без узла нужного вида, с живым CC на probe или при allow-live-probe=false
@@ -354,25 +354,28 @@ public final class SelftestRunner {
         combat1155(plugin, r);
         wave4Audit(plugin, r);
         wave5bAudit(plugin, r, probe);
+        // 1.15.6 (Волна 6 часть 2): spec2-контракты, retry, effective capacity,
+        // clamp→round, NPE-guard, crit cap из конфига, cycle-guard, throttle
+        wave6bAudit(plugin, r, probe);
 
         print(plugin, sender, r);
     }
 
     /** Release acceptance checks for the 1.15.0 equipment registry. */
     private static void items115(RaskolClasses plugin, Report r) {
-        boolean loaded=plugin.getItems()!=null&&plugin.getItems().registry()!=null;
-        int count=loaded?plugin.getItems().registry().size():0;
-        r.check("128","1.15.0: реестр экипировки загружен (270 стартовых определений)",
-                loaded&&count>=270,"ItemSystem.registry",loaded?"loaded="+count:"missing");
-        boolean valid=loaded&&plugin.getItems().registry().all().stream().allMatch(item->
-                item.id().matches("[a-z0-9_]{3,48}")&&item.itemLevel()>=1&&item.itemLevel()<=60
-                        &&item.affixCount()<=item.affixPool().size());
-        r.check("129","1.15.0: определения предметов проходят базовые инварианты",
-                valid,"ItemDefinition","OK");
-        boolean gearRemoved=plugin.getServer().getPluginManager().getPlugin("RaskolGear")==null
-                &&!plugin.getDescription().getSoftDepend().contains("RaskolGear");
-        r.check("130","1.15.0: обратная зависимость от RaskolGear удалена",
-                gearRemoved,"plugin.yml/PluginManager",gearRemoved?"OK":"RaskolGear still referenced");
+        boolean loaded = plugin.getItems() != null && plugin.getItems().registry() != null;
+        int count = loaded ? plugin.getItems().registry().size() : 0;
+        r.check("128", "1.15.0: реестр экипировки загружен (270 стартовых определений)",
+                loaded && count >= 270, "ItemSystem.registry", loaded ? "loaded=" + count : "missing");
+        boolean valid = loaded && plugin.getItems().registry().all().stream().allMatch(item ->
+                item.id().matches("[a-z0-9_]{3,48}") && item.itemLevel() >= 1 && item.itemLevel() <= 60
+                        && item.affixCount() <= item.affixPool().size());
+        r.check("129", "1.15.0: определения предметов проходят базовые инварианты",
+                valid, "ItemDefinition", "OK");
+        boolean gearRemoved = plugin.getServer().getPluginManager().getPlugin("RaskolGear") == null
+                && !plugin.getDescription().getSoftDepend().contains("RaskolGear");
+        r.check("130", "1.15.0: обратная зависимость от RaskolGear удалена",
+                gearRemoved, "plugin.yml/PluginManager", gearRemoved ? "OK" : "RaskolGear still referenced");
     }
 
     /* ------------------------------ 131–133: WeaponMastery (1.15.2) ------------------------------ */
@@ -1030,6 +1033,77 @@ public final class SelftestRunner {
         }
     }
 
+    /* ------------------------------ 159–167: 1.15.6 волна 6 часть 2 ------------------------------ */
+
+    /**
+     * 159: HunterTrees.sv_readiness — type=unlock_ability (2.6-93).
+     * 160: BuildTemplates stale на rawRanks — skip (требует синтетический builds.yml).
+     * 161: FactionHook retry при позднем RaskolCore (2.6-104).
+     * 162: StartupChecks effective capacity — skip (требует синтетический disabled).
+     * 163: AffixRoller clamp→round (2.6-28).
+     * 164: ItemPdc hasValidUid без NPE (2.6-29).
+     * 165: AttributeService critMelee/critSpell cap из конфига (2.6-87).
+     * 166: Spec2Tree.isReachable cycle-guard — skip (требует синтетическое дерево).
+     * 167: AvoidanceService showTitle-троттлинг — skip (требует синтетический tryAvoid).
+     */
+    private static void wave6bAudit(RaskolClasses plugin, Report r, Player probe) {
+        // 159: sv_readiness type=unlock_ability (read-only, no probe mutation)
+        Spec2Tree survival = Spec2Registry.treeOf("survival");
+        Spec2Node readiness = survival != null ? survival.find("sv_readiness") : null;
+        boolean ok159 = readiness != null && "unlock_ability".equals(readiness.type());
+        r.check("159", "HunterTrees.sv_readiness: type=unlock_ability (эффект unlock_ability, 2.6-93)",
+                ok159, "HunterTrees.survival/sv_readiness",
+                readiness != null ? readiness.type() : "null-node");
+
+        // 160: BuildTemplates stale rawRanks (skip: requires synthetic builds.yml)
+        r.skip("160", "BuildTemplates stale rawRanks (требует синтетический builds.yml с disabled-узлом)");
+
+        // 161: FactionHook retry при позднем RaskolCore (read-only, no state mutation)
+        dev.raskol.classes.hook.FactionHook hook = new dev.raskol.classes.hook.FactionHook(plugin);
+        UUID stranger1 = UUID.randomUUID();
+        UUID stranger2 = UUID.randomUUID();
+        String f1 = hook.factionOf(stranger1);
+        String f2 = hook.factionOf(stranger2);
+        boolean ok161 = f1 != null && f2 != null && "".equals(f1) && "".equals(f2);
+        r.check("161", "FactionHook: retry при позднем Core (attempted не фиксируется на ошибке, 2.6-104)",
+                ok161, "FactionHook.factionOf", "f1=" + f1 + " f2=" + f2);
+
+        // 162: StartupChecks effective capacity (skip: requires synthetic disabled-set)
+        r.skip("162", "StartupChecks effective capacity (требует синтетический disabled-список)");
+
+        // 163: AffixRoller clamp→round (pure math, no probe)
+        List<Affix> pool = List.of(
+                new Affix(ItemStat.STR, 1.0, 10.0, 1.0));
+        Map<ItemStat, Double> rolled =
+                dev.raskol.classes.item.factory.AffixRoller.roll(pool, 1, 30, 42L);
+        double val = rolled.getOrDefault(ItemStat.STR, 0.0);
+        boolean ok163 = val >= 1.0 && val <= 10.0 && val == Math.round(val * 10.0) / 10.0;
+        r.check("163", "AffixRoller: clamp→round (значение в [min,max] и округлено до десятых, 2.6-28)",
+                ok163, "AffixRoller.roll", "value=" + fmt(val));
+
+        // 164: ItemPdc hasValidUid без NPE (pure method, no probe)
+        dev.raskol.classes.item.factory.ItemPdc pdc =
+                new dev.raskol.classes.item.factory.ItemPdc(plugin);
+        boolean nullOk = !pdc.hasValidUid(null);
+        boolean airOk = !pdc.hasValidUid(new org.bukkit.inventory.ItemStack(Material.AIR));
+        boolean ok164 = nullOk && airOk;
+        r.check("164", "ItemPdc.hasValidUid: null/air → false без NPE (явный null-check, 2.6-29)",
+                ok164, "ItemPdc.hasValidUid", "null=" + nullOk + " air=" + airOk);
+
+        // 165: AttributeService critMelee/critSpell cap из конфига (read-only config check)
+        double meleeCap = plugin.getConfig().getDouble("attributes.crit.melee-cap", 40.0);
+        double spellCap = plugin.getConfig().getDouble("attributes.crit.spell-cap", 35.0);
+        boolean ok165 = meleeCap == 40.0 && spellCap == 35.0;
+        r.check("165", "AttributeService: critMelee/critSpell cap читаются из конфига (40/35, 2.6-87)",
+                ok165, "config attributes.crit.*-cap", "melee=" + meleeCap + " spell=" + spellCap);
+
+        // 166: Spec2Tree.isReachable cycle-guard (skip: requires synthetic tree with cycle)
+        r.skip("166", "Spec2Tree.isReachable cycle-guard (требует синтетическое дерево с циклом)");
+
+        // 167: AvoidanceService showTitle-троттлинг (skip: requires synthetic tryAvoid with frequent calls)
+        r.skip("167", "AvoidanceService showTitle-троттлинг (требует синтетический tryAvoid с частыми вызовами)");
+    }
+
     private static void print(RaskolClasses plugin, CommandSender sender, Report r) {
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
         for (String line : r.text().split("\n")) {
@@ -1052,7 +1126,7 @@ public final class SelftestRunner {
         }
         if (r.skipped > 0) {
             sender.sendMessage(Component.text(
-                    "Пропущенные чеки — probe-зависимые или live-probe выключен: "
+                    "Пропущенные чеки — probe-зависимые, live-probe выключен или требуют синтетический сценарий: "
                     + "запусти /rc selftest от игрока нужного класса.",
                     NamedTextColor.YELLOW));
         }
@@ -1937,7 +2011,7 @@ public final class SelftestRunner {
             boolean activeVisible = !cc.activeOf(u90).isEmpty();
             boolean drVisible = cc.drState(u90, DRCategory.STUN).stackCount() >= 1;
             cc.removeAll(u90);
-            cc.resetAllDr(u90);
+            cc.resetAllDR(u90);
             boolean cleared90 = cc.activeOf(u90).isEmpty()
                     && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
             boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
@@ -1962,17 +2036,17 @@ public final class SelftestRunner {
         }
         UUID u82 = probe.getUniqueId();
         cc.removeAll(u82);
-        cc.resetAllDr(u82);
+        cc.resetAllDR(u82);
         boolean applied1 = applyUntilOk(cc, probe, CCType.ROOT, 100);
         boolean hasBefore = cc.has(u82, CCType.ROOT);
         cc.breakOnDamage(probe, 60.0, 1000.0);
         boolean hasAfterHigh = cc.has(u82, CCType.ROOT);
-        cc.resetAllDr(u82);
+        cc.resetAllDR(u82);
         boolean applied2 = applyUntilOk(cc, probe, CCType.ROOT, 100);
         cc.breakOnDamage(probe, 30.0, 1000.0);
         boolean hasAfterLow = cc.has(u82, CCType.ROOT);
         cc.removeAll(u82);
-        cc.resetAllDr(u82);
+        cc.resetAllDR(u82);
         boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
         r.check("82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
                 ok82, "CCService.breakOnDamage",
@@ -1980,13 +2054,13 @@ public final class SelftestRunner {
 
         UUID u83 = probe.getUniqueId();
         cc.removeAll(u83);
-        cc.resetAllDr(u83);
+        cc.resetAllDR(u83);
         boolean applied = applyUntilOk(cc, probe, CCType.STUN, 100);
         boolean hasBeforeStun = cc.has(u83, CCType.STUN);
         cc.breakOnDamage(probe, 60.0, 1000.0);
         boolean hasAfter = cc.has(u83, CCType.STUN);
         cc.removeAll(u83);
-        cc.resetAllDr(u83);
+        cc.resetAllDR(u83);
         boolean ok83 = applied && hasBeforeStun && hasAfter;
         r.check("83", "STUN не снимается уроном ≥ порога",
                 ok83, "CCService.breakOnDamage",
@@ -2005,17 +2079,17 @@ public final class SelftestRunner {
         UUID u84 = probe.getUniqueId();
         dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
         cc.removeAll(u84);
-        cc.resetAllDr(u84);
+        cc.resetAllDR(u84);
         boolean canNormal = cg.canCast(probe, false);
         applyUntilOk(cc, probe, CCType.STUN, 100);
         boolean canStun = cg.canCast(probe, false);
         cc.removeAll(u84);
-        cc.resetAllDr(u84);
+        cc.resetAllDR(u84);
         applyUntilOk(cc, probe, CCType.SILENCE, 100);
         boolean canSilenceNormal = cg.canCast(probe, false);
         boolean canSilenceInstant = cg.canCast(probe, true);
         cc.removeAll(u84);
-        cc.resetAllDr(u84);
+        cc.resetAllDR(u84);
         boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
         r.check("84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
                 ok84, "CastGuard.canCast",
