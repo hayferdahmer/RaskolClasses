@@ -4,15 +4,23 @@
 -->
 
 <p align="center">
-  <img src="banner.svg" alt="RASKOL CLASSES — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ»" width="100%"/>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="banner-dark.svg"/>
+    <source media="(prefers-color-scheme: light)" srcset="banner-light.svg"/>
+    <img src="banner.svg" alt="RASKOL CLASSES — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ»" width="100%"/>
+  </picture>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/1.15.5-8b0000?style=flat-square&label=release&labelColor=2d1b45" alt="release 1.15.5"/>
-  <img src="https://img.shields.io/badge/1.21.4%2B-b08d3e?style=flat-square&label=paper&labelColor=2d1b45" alt="paper 1.21.4+"/>
-  <img src="https://img.shields.io/badge/21-b08d3e?style=flat-square&label=java&labelColor=2d1b45" alt="java 21"/>
-  <img src="https://img.shields.io/badge/139%2F139-4f7a3a?style=flat-square&label=selftest&labelColor=2d1b45" alt="selftest 139/139"/>
-  <img src="https://img.shields.io/badge/proprietary-8b0000?style=flat-square&label=license&labelColor=2d1b45" alt="license proprietary"/>
+  <a href="https://github.com/hayferdahmer/RaskolClasses/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/hayferdahmer/RaskolClasses/build.yml?branch=main&style=flat-square&label=build&labelColor=2d1b45" alt="build"/></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Frelease.json" alt="release"/></a>
+  <a href="#install"><img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Fselftest.json" alt="selftest"/></a>
+  <img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Ftests.json" alt="unit-тесты"/>
+  <br/>
+  <img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Fpaper.json" alt="paper"/>
+  <img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Fjava.json" alt="java"/>
+  <a href="https://github.com/hayferdahmer/RaskolClasses/commits/main"><img src="https://img.shields.io/github/last-commit/hayferdahmer/RaskolClasses?style=flat-square&label=%D0%BF%D0%BE%D1%81%D0%BB%D0%B5%D0%B4%D0%BD%D0%B8%D0%B9%20%D0%BA%D0%BE%D1%81%D1%82%D1%91%D1%80&labelColor=2d1b45&color=b08d3e" alt="last commit"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/proprietary-8b0000?style=flat-square&label=license&labelColor=2d1b45" alt="license"/></a>
 </p>
 
 <p align="center">
@@ -70,13 +78,20 @@ cp target/raskol-classes-*.jar plugins/ # положить в мастерску
 /rc selftest                            # ждём ровное пламя: 139/139 PASS
 ```
 
-<p align="center"><b>⚜ ⚜ ⚜</b></p>
+<p align="center"><img src="docs/assets/divider.svg" width="640" alt="⚜"/></p>
 
 <a id="crowns"></a>
 
 ## ⚜ Глава I · Две короны
 
 <sub><i>Золото и порядок против багрянца и пепла. Короны задают тон серверу.</i></sub>
+
+<table align="center">
+  <tr>
+    <td align="center" width="260"><img src="docs/assets/emblems/dawn.svg" width="190" alt="Рассвет"/><br/><b>Рассвет</b><br/><sub>золото · свет · клятва</sub></td>
+    <td align="center" width="260"><img src="docs/assets/emblems/valradis.svg" width="190" alt="Вальрадис"/><br/><b>Вальрадис</b><br/><sub>багрянец · пепел · долг</sub></td>
+  </tr>
+</table>
 
 ```text
 ╔══════════════════════╗  ╱╲  ╔══════════════════════╗
@@ -97,6 +112,19 @@ cp target/raskol-classes-*.jar plugins/ # положить в мастерску
 ## ⚜ Глава II · Шесть путей
 
 <sub><i>У каждого пути — своя традиция, свой ресурс и свой главный атрибут.</i></sub>
+
+<table align="center">
+  <tr>
+    <td align="center" width="150"><img src="docs/assets/emblems/warrior.svg" width="120" alt="Воин"/><br/><b>Воин</b><br/><sub>Нордика</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/hunter.svg" width="120" alt="Охотник"/><br/><b>Охотник</b><br/><sub>Путь ведьмака</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/priest.svg" width="120" alt="Жрец"/><br/><b>Жрец</b><br/><sub>Католика</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="150"><img src="docs/assets/emblems/mage.svg" width="120" alt="Маг"/><br/><b>Маг</b><br/><sub>Эллада</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/rogue.svg" width="120" alt="Разбойник"/><br/><b>Разбойник</b><br/><sub>Ночные гильдии</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/warlock.svg" width="120" alt="Чернокнижник"/><br/><b>Чернокнижник</b><br/><sub>Фолиант Душ · скрытый</sub></td>
+  </tr>
+</table>
 
 | Класс | Традиция | Ресурс | Атрибут | Роль |
 | --- | --- | --- | :-: | --- |
@@ -452,6 +480,8 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 
 **⚒️ Каталог.** `items.yml` содержит настройки генерации, шаблоны, определения и сеты; при первом старте файл копируется из JAR. Штатный каталог — 342 предмета: 38 именных шаблонов оружия и брони × уровни 20/40/60 × редкости COMMON/RARE/EPIC. Доступны мечи, топоры, булавы, кинжалы, луки, арбалеты, копья, посохи и жезлы; каждому классу назначен тематический пятичастный комплект с бонусами за 2/4/5 надетых частей.
 
+**🎨 Ресурс-пак.** Для оружия и иконок брони рядом с JAR публикуется `RaskolClasses-1.15.0-resource-pack.zip` (Minecraft Java 1.21.4). Он использует `custom-model-data`, который предметы получают из шаблонов `items.yml`. В первой редакции текстуры брони меняют иконку в инвентаре; надетая броня пока отображается ванильной.
+
 **📜 Команды.** `/rc item list`, `/rc item info <id>`, `/rc item give <ник> <id> [кол-во]`, `/rc item roll <ник> <id> [seed]`, `/rc item browse [запрос]`, `/rc item stats [ник]`, `/rc item sets [ник]`, `/rc item salvage`, `/rc item craft [id]`; браузер принимает поисковый запрос и фильтры класс/редкость, `stats` показывает hover-превью экипировки и прогресс сетов, `sets` выводит активные и потенциальные бонусы, `salvage` разбирает предмет в руке на фрагменты, `craft` создаёт предмет из фрагментов и монет. Сеты: `/rc set list|info <id>|active <ник>`. `/rc gear [ник]` остаётся алиасом для `/rc item stats`.
 
 **🤝 Совместимость.** Предметы должны быть выданы через ItemsApi или админ-команду. Они хранят PDC формата v1; старые предметы RaskolGear не поддерживаются и не мигрируют. Удалите RaskolGear после обновления на 1.15.0.
@@ -531,9 +561,27 @@ cp target/raskol-classes-*.jar plugins/
 | 📖 [`CHANGELOG.md`](CHANGELOG.md) | История версий (не переписывается задним числом) |
 | ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v1.0 |
 
+<details>
+<summary>🎨 <b>Как устроено оформление</b></summary>
+
 <br/>
 
-<p align="center"><b>⚜ ⚜ ⚜</b></p>
+| Что | Где | Как обновляется |
+| --- | --- | --- |
+| Баннер, тёмная и светлая тема | `banner-dark.svg` · `banner-light.svg` (запасной — `banner.svg`) | `<picture>` в начале README выбирает вариант по теме GitHub |
+| Эмблемы шести путей и двух корон | `docs/assets/emblems/*.svg` | Рисуются генератором `tools/art/` |
+| Шапки страниц | `docs/assets/headers/*.svg` | Подключены в `CHANGELOG.md`, `SECURITY.md`, `docs/RUNBOOK.md` |
+| Разделитель | `docs/assets/divider.svg` | — |
+| Social preview 1280×640 | `docs/assets/social/social-preview.jpg` | Загрузить в **Settings → Social preview**; GitHub принимает PNG/JPG/GIF до 1 МБ |
+| Живые бейджи | `.github/badges/*.json`, воркфлоу `.github/workflows/badges.yml` | Версия, Paper, Java, число selftest-чеков и unit-тестов считаются из исходников при каждом push в `main` |
+
+**Перерисовать всё:** `python3 tools/art/build_all.py .` (нужен `playwright` только для JPG).
+
+</details>
+
+<br/>
+
+<p align="center"><img src="docs/assets/divider.svg" width="640" alt="⚜"/></p>
 
 <p align="center">
   <i>Пусть огонь не гаснет, а короны не сходятся.</i><br/><br/>
