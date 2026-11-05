@@ -25,6 +25,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *         (аудит 1-01: единая NaN-проверка).
  * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): carrierMaxOf читает максимум через Hp.max
  *         (атрибут MAX_HEALTH) вместо deprecated LivingEntity#getMaxHealth().
+ * 1.15.6 (Волна 4, аудит 2.6-40): undoLastBurst — откат записи burst-лога, если
+ *         событие урона отменено downstream (регион/другой плагин): окно больше
+ *         не «съедает» бюджет уроном, который не прошёл.
+ * 1.15.6 (Волна 4, аудит 2.6-52): purge-окно burst-лога читается из конфига
+ *         combat.burst-window-seconds вместо зашитых 10 с.
  */
 public final class DamageCaps {
 
@@ -152,12 +157,43 @@ public final class DamageCaps {
         }
     }
 
-    /** Чистка записей оффлайн-игроков (вызывается фасадом purgeBurstLog). */
+    /**
+     * 1.15.6 (Волна 4, аудит 2.6-40): откат ПОСЛЕДНЕЙ записи burst-лога на amount,
+     * если событие урона отменено downstream. Вызывается из MONITOR-хэндлера
+     * VanillaDamageListener. Защита от чужого отката: снимаем не больше последней
+     * записи; если последняя запись меньше amount — убираем её целиком.
+     */
+    public void undoLastBurst(Player target, double amount) {
+        if (amount <= 0.0) {
+            return;
+        }
+        Deque<double[]> dq = burstLog.get(target.getUniqueId());
+        if (dq == null) {
+            return;
+        }
+        synchronized (dq) {
+            double[] last = dq.peekLast();
+            if (last == null) {
+                return;
+            }
+            if (last[1] <= amount + 1e-9) {
+                dq.pollLast();
+            } else {
+                last[1] -= amount;
+            }
+            if (dq.isEmpty()) {
+                burstLog.remove(target.getUniqueId());
+            }
+        }
+    }
+
+    /** 1.15.6 (2.6-52): окно purge = combat.burst-window-seconds (ранее зашитые 10 с). */
     public void purge() {
         long now = System.currentTimeMillis();
+        long windowMillis = (long) (cfgD("combat.burst-window-seconds", 3.0) * 1000.0);
         burstLog.entrySet().removeIf(entry -> {
             synchronized (entry.getValue()) {
-                entry.getValue().removeIf(e -> now - e[0] > 10_000L);
+                entry.getValue().removeIf(e -> now - e[0] > windowMillis);
                 return entry.getValue().isEmpty();
             }
         });
