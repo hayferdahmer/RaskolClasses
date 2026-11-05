@@ -343,10 +343,6 @@ mvn -B verify          # 57 unit, BUILD SUCCESS
 mvn -Pdev -B verify    # Step Summary: SpotBugs findings: 0
 /rc selftest           # 122/122 PASS
 
-###
-
----
-
 ## [1.14.13] — 2026-10-02
 ### Sprint 9 (Волны 13A–13D)
 - **13B:** конструкторы PetService/FoliantService/DotService/CCService без побочных эффектов; регистрация и задачи — из onEnable (activeTasks).
