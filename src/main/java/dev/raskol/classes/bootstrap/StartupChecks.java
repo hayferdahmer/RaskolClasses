@@ -2,6 +2,7 @@
 package dev.raskol.classes.bootstrap;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.spec.model.Spec2Node;
 import dev.raskol.classes.spec.model.Spec2Tree;
 import dev.raskol.classes.spec.registry.Spec2Registry;
 import org.bukkit.ChatColor;
@@ -9,6 +10,7 @@ import org.bukkit.ChatColor;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 1.14.10 (Sprint 7, Волна 7.2, P0-4-01): startup-проверки и сервисные действия
@@ -20,6 +22,11 @@ import java.util.List;
  *  - logCoreVersion: проверка совместимости RaskolCore (рефлексия, soft-depend);
  *  - warnLowCapacityTrees: startup-warning P0-4 для деревьев ниже tree-capacity-min;
  *  - printBanner: консольный баннер релиза.
+ *
+ * 1.15.6 (Волна 6 часть 2, аудит 2.6-106): warnLowCapacityTrees учитывает
+ * spec2.disabled-nodes: disabled-узлы не могут быть куплены, их maxRank не входит
+ * в effective capacity. Раньше сумма включала disabled-узлы, warning был ложным
+ * для деревьев с большим стоп-листом.
  */
 public final class StartupChecks {
 
@@ -75,24 +82,43 @@ public final class StartupChecks {
     }
 
     /**
-     * 1.14.7 (Sprint 2, P0-4): startup-warning для деревьев с ёмкостью ниже
-     * spec2.tree-capacity-min. Не блокирует старт: это напоминание добить ранги.
+     * 1.14.7 (Sprint 2, P0-4): startup-warning для деревьев с эффективной ёмкостью
+     * ниже spec2.tree-capacity-min.
+     * 1.15.6 (2.6-106): effective capacity = сумма maxRank включённых узлов (disabled
+     * из стоп-листа не учитываются — их нельзя купить, и они не должны влиять на
+     * warning).
      */
     public static void warnLowCapacityTrees(RaskolClasses plugin) {
         int capMin = plugin.getConfig().getInt("spec2.tree-capacity-min", 50);
         if (capMin < 1) {
             capMin = 50;
         }
+        // 1.15.6 (2.6-106): читаем стоп-лист для effective capacity
+        Set<String> disabled = plugin.getSpec2Service() != null
+                ? plugin.getSpec2Service().disabledSet()
+                : Set.of();
+
         List<String> lowCap = new ArrayList<>();
         for (dev.raskol.classes.spec.Spec s : dev.raskol.classes.spec.Spec.values()) {
             Spec2Tree t = Spec2Registry.treeOf(s.id());
-            if (t != null && t.capacity() < capMin) {
-                lowCap.add(s.id() + "=" + t.capacity());
+            if (t == null) {
+                continue;
+            }
+            int effectiveCapacity = 0;
+            for (Spec2Node n : t.nodes()) {
+                if (!disabled.contains(n.id())) {
+                    effectiveCapacity += n.maxRank();
+                }
+            }
+            if (effectiveCapacity < capMin) {
+                lowCap.add(s.id() + "=" + effectiveCapacity
+                        + " (raw=" + t.capacity() + ", disabled=" + disabled.size() + ")");
             }
         }
         if (!lowCap.isEmpty()) {
             plugin.getLogger().warning("P0-4: " + lowCap.size() + " деревьев ниже tree-capacity-min="
-                    + capMin + ": " + String.join(", ", lowCap)
+                    + capMin + " (effective capacity, без disabled-узлов): "
+                    + String.join(", ", lowCap)
                     + " — добавьте maxRank существующим пассивным узлам");
         }
     }
