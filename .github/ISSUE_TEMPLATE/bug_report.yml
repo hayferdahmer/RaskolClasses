@@ -1,0 +1,104 @@
+name: "🐛 Что-то сломалось"
+description: "Сообщить об ошибке в RaskolClasses"
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 🕯 Присядь к огню, путник
+        Расскажи, что пошло не так: чем подробнее, тем быстрее найдём.
+        **Уязвимости сюда не пишем** — для них есть [приватный отчёт](https://github.com/hayferdahmer/RaskolClasses/security/advisories/new).
+  - type: input
+    id: version
+    attributes:
+      label: Версия плагина
+      description: "Из pom.xml, `/rc` или имени jar."
+      placeholder: "1.15.5"
+    validations:
+      required: true
+  - type: input
+    id: paper
+    attributes:
+      label: Версия Paper и Java
+      description: "Вывод `/version` и `java -version`."
+      placeholder: "Paper 1.21.4 build 232 · Java 21"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Где сломалось
+      options:
+        - Классы и ресурсы
+        - Деревья путей (Спек 2.0)
+        - Школы урона и митигация
+        - DoT
+        - Контроль (CC / DR)
+        - Проки
+        - Петы
+        - Лечение и роли
+        - Предметы, сеты, крафт
+        - raskolspec+ (подписка и шаблоны)
+        - Команды /rc
+        - GUI и книга класса
+        - Конфиги и reload
+        - Другое
+    validations:
+      required: true
+  - type: dropdown
+    id: class
+    attributes:
+      label: Класс и путь игрока
+      description: "Если баг зависит от класса."
+      multiple: true
+      options:
+        - Воин
+        - Охотник
+        - Жрец
+        - Маг
+        - Разбойник
+        - Чернокнижник
+        - Не зависит от класса
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      description: "Минимальный набор шагов."
+      placeholder: |
+        1. Взять класс Маг, спек Огонь
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что должно было произойти
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Что произошло на самом деле
+    validations:
+      required: true
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Результат `/rc selftest`
+      description: "Особенно важно, если сломался бой, лечение или ресурсы."
+      render: text
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи и скриншоты
+      description: "Стек-трейс из latest.log, `/rc health`, скриншоты. Перетащи файлы прямо сюда."
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Перед отправкой
+      options:
+        - label: Я посмотрел(а) `docs/RUNBOOK.md` и CHANGELOG — это не известная проблема
+          required: true
+        - label: Я проверил(а), что баг воспроизводится на последней версии
