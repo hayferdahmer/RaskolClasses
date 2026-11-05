@@ -1,0 +1,80 @@
+# © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+# «Живые бейджи»: считает версию, Paper, Java, число selftest-чеков и unit-тестов
+# прямо из исходников и кладёт JSON для shields.io в .github/badges/.
+# README читает эти файлы через https://img.shields.io/endpoint — цифры в шапке
+# больше не нужно править руками.
+#
+# Источники истины:
+#   release  — <version> в pom.xml
+#   paper    — <paper.version> в pom.xml
+#   java     — <maven.compiler.release> в pom.xml
+#   selftest — число «N чеков» в javadoc SelftestRunner («(/rc selftest), N чеков»)
+#   unit     — количество @Test / @ParameterizedTest в src/test
+#
+# Если main защищён правилами (запрещён push от GITHUB_TOKEN), разреши боту обход
+# или переведи коммит на отдельную ветку badges.
+name: Живые бейджи
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'pom.xml'
+      - 'src/**'
+      - '.github/workflows/badges.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: badges
+  cancel-in-progress: true
+
+jobs:
+  badges:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Посчитать значения
+        id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          VER=$(grep -m1 -oP '(?<=<version>)[^<]+' pom.xml)
+          PAPER=$(grep -m1 -oP '(?<=<paper.version>)[0-9]+\.[0-9]+(\.[0-9]+)?' pom.xml)
+          JAVA=$(grep -m1 -oP '(?<=<maven.compiler.release>)[0-9]+' pom.xml)
+          CHECKS=$(grep -m1 -oP '\(/rc selftest\),\s*\K[0-9]+(?=\s+чек)' src/main/java/dev/raskol/classes/selftest/SelftestRunner.java || echo "?")
+          TESTS=$(grep -rhoE '@(Parameterized)?Test\b' src/test | wc -l | tr -d ' ')
+          {
+            echo "ver=$VER"; echo "paper=$PAPER"; echo "java=$JAVA"
+            echo "checks=$CHECKS"; echo "tests=$TESTS"
+          } >> "$GITHUB_OUTPUT"
+          echo "### Живые бейджи: $VER · Paper $PAPER+ · Java $JAVA · selftest $CHECKS · unit $TESTS" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Записать JSON для shields.io
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .github/badges
+          mk() { printf '{"schemaVersion":1,"label":"%s","message":"%s","color":"%s","labelColor":"2d1b45"}\n' "$1" "$2" "$3" > ".github/badges/$4.json"; }
+          mk "release"    "${{ steps.v.outputs.ver }}"          "b3262c" release
+          mk "paper"      "${{ steps.v.outputs.paper }}+"       "b08d3e" paper
+          mk "java"       "${{ steps.v.outputs.java }}"         "b08d3e" java
+          mk "selftest"   "${{ steps.v.outputs.checks }} чеков" "4f7a3a" selftest
+          mk "unit-тесты" "${{ steps.v.outputs.tests }}"        "4f7a3a" tests
+
+      - name: Закоммитить, если что-то изменилось
+        shell: bash
+        run: |
+          git config user.name  "raskol-badges[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/badges
+          if git diff --cached --quiet; then
+            echo "Бейджи актуальны."
+          else
+            git commit -m "chore(badges): обновить живые бейджи [skip ci]"
+            git push
+          fi
