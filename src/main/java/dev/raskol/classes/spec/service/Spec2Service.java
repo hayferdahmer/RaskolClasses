@@ -81,6 +81,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.15.6 (Волна 4, аудит 2.6-89): контекст Spec2Points.beginTree/endTree вокруг
  *         purchase/reconcile/hasDependents/applyBuild — per-tree row-gates работают
  *         внутри Spec2Tree.canBuy/prereqsMet, которые вызывают rowUnlocked без treeId.
+ * 1.15.6 (Волна 5, аудит 2.6-96): reconcile purge'ит ранги деревьев ЧУЖИХ классов
+ *         (purgeForeignTrees) — хранилище больше не копит записи прошлых классов
+ *         после смены LP-группы. Только для онлайн-игроков: оффлайн classTreeIds
+ *         пуст и purge уничтожил бы все ранги.
  */
 public final class Spec2Service {
 
@@ -101,17 +105,6 @@ public final class Spec2Service {
 
     /**
      * 1.14.16 (Волна 15C): результат применения шаблона raskolspec+.
-     *  - OK: ранги установлены и пережили reconcile;
-     *  - RATE_LIMITED: окно 150 мс (actionAllowed);
-     *  - NO_MAIN: основная спека не выбрана;
-     *  - WRONG_CLASS_TREE: дерево не принадлежит классу игрока;
-     *  - TREE_NOT_FOUND: дерева нет в реестре;
-     *  - TEMPLATE_INVALID: simulateApply проредил набор (несоответствие row-gates/
-     *    prereq-порядку) — для загруженных шаблонов недостижимо (валидатор загрузки
-     *    имеет тот же parity-шаг), остаётся защитой от ручных/устаревших данных;
-     *  - NOT_ENOUGH_POINTS: очков пула (available + spentTree) не хватает на шаблон;
-     *  - NO_ECONOMY / POOR: Vault-экономика недоступна / не хватает монет на респец;
-     *  - PRUNED: защитный rollback после коммита (теоретически недостижимо).
      */
     public enum BuildApplyResult {
         OK, RATE_LIMITED, NO_MAIN, WRONG_CLASS_TREE, TREE_NOT_FOUND,
@@ -119,9 +112,7 @@ public final class Spec2Service {
     }
 
     /**
-     * 1.14.16 (Волна 15C): исход применения шаблона с данными для сообщений GUI:
-     * cost — списанная/требуемая стоимость респеца дерева; needPoints/poolPoints —
-     * бюджет очков (для отказа NOT_ENOUGH_POINTS).
+     * 1.14.16 (Волна 15C): исход применения шаблона с данными для сообщений GUI.
      */
     public record BuildApplyOutcome(BuildApplyResult result, int cost,
                                     int needPoints, int poolPoints) {
@@ -180,11 +171,6 @@ public final class Spec2Service {
 
     /* ------------------------------ 1.14.7 (P0-6B): стоп-лист узлов ------------------------------ */
 
-    /**
-     * 1.14.12 (12A, 5-05): неизменяемый снапшот стоп-листа. Ленивая сборка +
-     * пересборка в refreshDisabledCache(); без аллокаций и чтений конфига на вызов.
-     * Возвращаемый Set иммутабелен (Set.copyOf) — потребители не могут испортить кэш.
-     */
     public Set<String> disabledSet() {
         Set<String> local = disabledCache;
         if (local == null) {
@@ -194,19 +180,10 @@ public final class Spec2Service {
         return local;
     }
 
-    /**
-     * 1.14.15 (raskolspec+): говорящий алиас disabledSet() для внешних потребителей
-     * (BuildTemplates проверяет stale-маркировку шаблонов с узлом в стоп-листе).
-     * Семантика идентична disabledSet(): иммутабельный снапшот, O(1).
-     */
     public Set<String> disabledNodesSnapshot() {
         return disabledSet();
     }
 
-    /**
-     * 1.14.12 (12A, 5-05): пересборка снапшота стоп-листа.
-     * Вызывается в RaskolClasses.onEnable (после ConfigMigrator) и reloadPlugin().
-     */
     public void refreshDisabledCache() {
         disabledCache = Set.copyOf(plugin.getConfig().getStringList("spec2.disabled-nodes"));
     }
@@ -470,10 +447,7 @@ public final class Spec2Service {
 
     /**
      * 1.14.7 (P1-5): есть ли купленные включённые узлы, которые сломаются,
-     * если у nodeId снять один ранг. Логика идентична validate():
-     * пререквизиты + ряд-гейты по очкам дерева после снятия.
-     * Disabled-узлы пропускаются: они не могут держать ранги (прунятся reconcile).
-     * 1.14.8-fix (Волна 6.1): пререквизиты сверяются с учётом стоп-листа.
+     * если у nodeId снять один ранг. Логика идентична validate().
      * Вызывается ТОЛЬКО внутри Spec2Points.beginTree/endTree-контекста (resetNode).
      */
     private boolean hasDependents(Spec2Tree tree, Map<String, Integer> ranks, String nodeId) {
@@ -523,17 +497,9 @@ public final class Spec2Service {
 
     /**
      * 1.14.16 (Волна 15C): публичный симулятор reconcile-валидации произвольного
-     * набора рангов. Возвращает ранги, которые ПЕРЕЖИВУТ reconcile (ряд-гейты по
-     * накопленным очкам в порядке рядов + пререквизиты по накопленному kept +
-     * maxRank + disabled-прунинг). ЕДИНСТВЕННЫЙ источник правды для:
-     *  - BuildTemplates.load() — parity-шаг валидатора загрузки (шаблон, который
-     *    reconcile позже проредил бы, отклоняется на старте с warning);
-     *  - applyBuild() — пре-проверка перед списанием монет (TEMPLATE_INVALID).
-     * Тело идентично приватному validate(): дублирования логики нет.
+     * набора рангов. ЕДИНСТВЕННЫЙ источник правды для BuildTemplates и applyBuild.
      * 1.15.6 (2.6-89): ВАЖНО — вне контекста дерева validate использует ГЛОБАЛЬНЫЕ
      * гейты; applyBuild ставит контекст, поэтому parity на применении строже/точнее.
-     * Шаблоны raskolspec+ для деревьев с per-tree override должны держаться
-     * глобальных гейтов на этапе загрузки (BuildTemplates) — осознанное ограничение.
      */
     public Map<String, Integer> simulateApply(Spec2Tree tree, Map<String, Integer> ranks) {
         return validate(tree, ranks);
@@ -541,26 +507,12 @@ public final class Spec2Service {
 
     /**
      * 1.14.16 (Волна 15C): атомарное применение шаблона raskolspec+ к дереву.
-     *
-     * Экономика: списывается ТОЛЬКО стоимость респека дерева
-     * (spec2.respec-base-cost + spec2.respec-per-level × spentInTree(текущие ранги));
-     * free=true (админ-путь raskolclasses.admin.plus) — без списания. Если дерево
-     * пустое — респец не нужен, стоимость 0 даже при free=false.
-     *
-     * Очки: пул после сброса дерева = availablePoints(uuid) + spentInTree(current);
-     * сумма рангов шаблона должна помещаться в пул (иначе NOT_ENOUGH_POINTS ДО списания).
-     *
      * Порядок гарантий (инвариант «отказ не оставляет потерь»):
      *  1) rate-limit / main / класс-дерево / реестр;
-     *  2) simulateApply-parity: шаблон должен переживать reconcile целиком;
-     *  3) бюджет очков;
+     *  2) simulateApply-parity; 3) бюджет очков;
      *  4) экономика (available/balance/withdraw-результат) — списание ТОЛЬКО после 1–3;
      *  5) коммит: setRanks(шаблон) + reconcile;
-     *  6) защитная сверка: если reconcile всё же проредил ранги (PRUNED) — rollback
-     *     предыдущих рангов + reconcile + severe-лог + ВОЗВРАТ МОНЕТ (1.15.6, 2.6-90).
-     *
-     * Подписка raskolspec+ здесь НЕ проверяется: сервис подписочно-независим,
-     * гейт держит PlusGui/команда (разделение ответственности 15A).
+     *  6) защитная сверка: PRUNED → rollback + severe-лог + ВОЗВРАТ МОНЕТ (1.15.6, 2.6-90).
      * 1.15.6 (2.6-89): контекст дерева вокруг parity/коммита/сверки.
      */
     public BuildApplyOutcome applyBuild(Player player, String treeId,
@@ -680,10 +632,16 @@ public final class Spec2Service {
     /* ------------------------------ reconcile + агрегация ------------------------------ */
 
     /**
+     * 1.15.6 (Волна 5, аудит 2.6-96): purgeForeignTrees вызывается ПЕРВЫМ шагом
+     * reconcile для онлайн-игроков: ранги деревьев прошлых классов удаляются из
+     * хранилища (файл не растёт бесконечно после смен LP-класса).
      * 1.15.6 (2.6-89): контекст дерева ставится ВОКРУГ validate на каждое дерево —
      * per-tree row-gates применяются и к прунингу, и к агрегации рангов.
      */
     public void reconcile(UUID uuid) {
+        if (plugin.getServer().getPlayer(uuid) != null) {
+            purgeForeignTrees(uuid);
+        }
         Agg agg = new Agg();
         for (String treeId : classTreeIds(uuid)) {
             Spec2Tree tree = Spec2Registry.treeOf(treeId);
@@ -714,6 +672,21 @@ public final class Spec2Service {
         caches.put(uuid, agg);
         if (plugin.getSpec2Applier() != null) {
             plugin.getSpec2Applier().apply(uuid);
+        }
+    }
+
+    /**
+     * 1.15.6 (Волна 5, аудит 2.6-96): удалить из хранилища ранги деревьев,
+     * не принадлежащих текущему классу игрока (следы прошлых классов).
+     * Вызывается ТОЛЬКО для онлайн-игроков: classTreeIds оффлайна = пустой список,
+     * purge без этого гарда уничтожил бы все ранги.
+     */
+    private void purgeForeignTrees(UUID uuid) {
+        List<String> current = classTreeIds(uuid);
+        for (String stored : storage.storedTreeIds(uuid)) {
+            if (!current.contains(stored)) {
+                storage.removeTree(uuid, stored);
+            }
         }
     }
 
