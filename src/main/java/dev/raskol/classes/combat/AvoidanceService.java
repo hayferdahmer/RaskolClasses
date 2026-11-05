@@ -22,8 +22,13 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.util.Vector;
 
@@ -71,8 +76,16 @@ import java.util.concurrent.ThreadLocalRandom;
  * и звуками. Теперь последний вызов showTitle запоминается для каждого игрока;
  * повторный вызов в течение 300 мс пропускается (звуки и партиклы — всегда,
  * они легче для клиента).
+ *
+ * 1.15.6 (Волна 7, аудит 2.6-45): класс реализует Listener; снимает
+ * персистентный модификатор parry_stagger на PlayerQuit И PlayerJoin.
+ * Раньше при выходе игрока в окне 600 мс отложенная задача снятия НЕ успевала
+ * (игрок оффлайн, scheduler не срабатывает), и дебафф attack-speed оставался
+ * в данных игрока навсегда — переживал рестарты, чистился только ручным
+ * /attribute reset. Join-хэндлер — страховка от данных, сохранённых до фикса.
+ * Регистрация: RaskolClasses.onEnable → registerEvents(combat.avoidance(), this).
  */
-public final class AvoidanceService {
+public final class AvoidanceService implements Listener {
 
     /** Минимальный интервал между showTitle dodge/parry (миллисекунды). */
     private static final long TAG_THROTTLE_MS = 300L;
@@ -104,6 +117,39 @@ public final class AvoidanceService {
     private boolean visuals() {
         return plugin.getConfig().getBoolean("avoidance.visuals", true);
     }
+
+    /* ------------------------------ 2.6-45: lifecycle ------------------------------ */
+
+    /**
+     * 1.15.6 (2.6-45): при выходе игрока — принудительный снятие stagger-модификатора.
+     * Отложенная задача (runTaskLater 600 мс) в stagger() не сработает, потому что
+     * scheduler не вызывает задачи для оффлайн-игроков, и дебафф остался бы навсегда.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        clearStagger(event.getPlayer());
+        // Очистка троттлинг-карты — игрок уходит, запись больше не нужна.
+        lastAvoidTagMs.remove(event.getPlayer().getUniqueId());
+    }
+
+    /**
+     * 1.15.6 (2.6-45): при входе — страховка от данных, сохранённых до фикса.
+     * Если дебафф парирования уже в данных игрока (остался от версии без 2.6-45),
+     * снимаем его при первом входе.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(PlayerJoinEvent event) {
+        clearStagger(event.getPlayer());
+    }
+
+    private void clearStagger(Player player) {
+        AttributeInstance instance = player.getAttribute(Attribute.ATTACK_SPEED);
+        if (instance != null) {
+            removeStagger(instance);
+        }
+    }
+
+    /* ------------------------------ ролл уклонения ------------------------------ */
 
     /**
      * Ролл уклонения/парирования для входящего ФИЗИЧЕСКОГО урона.
