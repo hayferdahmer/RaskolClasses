@@ -8,6 +8,42 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/),
 семантическое версионирование по [SemVer](https://semver.org/).
 
+---
+
+## [1.15.6] — 2026-11-06
+### Волны аудита 3–6: боевой конвейер, spec2-контракты, конкурентность, хранилище, FX
+Релиз, закрывающий **35 находок** статического аудита по подсистемам боя, spec2,
+хранилища, FX, атрибутов и selftest. Selftest вырос с 150 до 158 чеков, включая
+8 боевых и архитектурных canary (путь A мёртв → красный сразу).
+
+**Волна 3 — боевой конвейер (аудит 2.6-30/31/32/34, 2.6-97):**
+- `DotService.computeTicks` — чистая функция (принимает `List<DotInstance>`, возвращает `List<DotInstance>`); hot-путь тика тестируется изолированно.
+- `CombatService.dealDamage` — 5-параметрическая сигнатура с `fromProc`: health-guard, canHit, школы, капы и suppress-флаги применяются единообразно.
+- `VanillaDamageListener` — школа урона читается из `CombatService.currentCastSchool()` (ThreadLocal), а не hardcoded `ARCANE`.
+- `HudService.renderDots` — mutable `ArrayList(snapshot).sort()` перед упорядочиванием; `List.copyOf`-immutable больше не падает `UnsupportedOperationException`.
+
+**Волна 4 — spec2-контракты и путь A (аудит 2.6-1/40/89/90/13/105):**
+- **Путь A восстановлен (2.6-1 CRITICAL):** `VanillaDamageListener` регистрируется явно в `onEnable`. С 1.14.10 слушатель создавался в конструкторе `CombatService`, но `registerEvents` для него не вызывался — резисты, капы, уклонение, WeaponMastery на авто-атаках и профили RaskolMobs были мертвы.
+- **burst-undo контракт (2.6-40):** `DamageCaps.undoLastBurst(Player, double)` + `@EventHandler(priority=MONITOR)` на `onDamageMonitor` — burst-лог откатывается при отменённом ударе.
+- **per-tree row-gates (2.6-89):** `spec2.row-gates-by-tree.beastmaster = [0,5,10,15,20,27]` в `config.yml` открывает ульт `bm_bestial_wrath` с 27 очков.
+- **Платёжный контракт (2.6-90):** `EconomyHook.withdraw` возвращает `boolean`; `Spec2Service.refundCoins` возвращает монеты через Vault-reflection при PRUNED-rollback.
+
+**Волна 5 — конкурентность, хранилище, FX (аудит 2.6-4/86/96/102/103):**
+- **AttributeModifiers sync (2.6-86):** `addTimedModifier`/`addPermanentModifier` держат `synchronized(list)` на время `removeIf + add`.
+- **Spec2Storage purge (2.6-96):** `purgeForeignTrees` в `reconcile` удаляет ранги деревьев чужих классов после смены LP-группы.
+- **FxService per-player proc (2.6-102):** ключ `procVisualCd` = `uuid + ":" + procId`.
+- **FxService aura CAS (2.6-103):** `startAura` сравнивает `current == scheduledTask` по identity — новая аура не снимается отложенной задачей старой.
+- **BLOOD_FURY через dealDamage (2.6-4):** возвратный урон идёт через `combat.dealDamage(..., fromProc=true)`; ThreadLocal-гард исключает взаимную рекурсию.
+
+**Волна 6 — selftest-гигиена (аудит 2.6-108, 2.12-1):**
+- CC-чеки 82–84/90 skip'ятся, если у probe УЖЕ активен контроль.
+- Kill-switch `selftest.allow-live-probe` в `config.yml` (default `true`).
+- CHANGELOG backfill: восстановлены `1.15.1`, `1.14.12`, `1.14.13`, `1.14.1`–`1.14.3`, `1.14.5`.
+
+**Файлы:** `attribute/AttributeModifiers.java`, `fx/FxService.java`, `effect/ActiveEffectManager.java`, `combat/VanillaDamageListener.java`, `combat/DamageCaps.java`, `combat/CombatService.java`, `spec/storage/Spec2Storage.java`, `spec/service/Spec2Service.java`, `selftest/SelftestRunner.java` (158 чеков), `config.yml` (блоки `spec2.row-gates-by-tree`, `selftest.*`).
+
+---
+
 ## [1.15.5] — 2026-10-26
 ### UI/UX: hover-превью, браузер с фильтрами, расширенный stats
 **Новое:**
@@ -73,6 +109,23 @@
 | WARLOCK  | WAND             | STAFF           | все остальные              |
 
 **Файлы:** `WeaponMastery.java` (новый), `VanillaDamageListener.java`, `DebugSub.java`, `SelftestRunner.java`.
+
+---
+
+## [1.15.1] — 2026-10-23
+### Предметный слой: декомпозиция и запреты (итерации A–D)
+**Новое:**
+- A: `ItemPdc`/`ItemFactory`/`AffixRoller` вынесены в `item.factory`; PDC-ключи v1 зафиксированы.
+- B: `ItemConfigLoader` декомпозирован (ItemValidator), `items.yml` schema v1 + `settings.budget`.
+- C: `UnbreakableGuard` — страховка прочности legacy-предметов 1.15.0.
+- D: `EquipGuard` — классовые/спек/уровневые запреты экипировки (клик/shift/drag/F-swap);
+  `UidRegistry` instance-класс; `SetBonusService.apply()` — pure (возвращает новую map);
+  `ItemHook.reconcile` — O(n) кэш экипировки.
+- Сообщения запретов вынесены в `messages.item.*` (1.15.3).
+
+**Файлы:** `item/factory/ItemPdc.java`, `item/factory/ItemFactory.java`, `item/factory/AffixRoller.java`, `item/guard/EquipGuard.java`, `item/guard/UnbreakableGuard.java`, `item/set/SetBonusService.java`, `item/registry/UidRegistry.java`.
+
+---
 
 ## [1.15.0] — 2026-10-22 (ядро оружия и брони)
 
@@ -284,6 +337,25 @@ mvn -B verify          # 57 unit, BUILD SUCCESS
 mvn -Pdev -B verify    # Step Summary: SpotBugs findings: 0
 /rc selftest           # 122/122 PASS
 
+---
+
+## [1.14.13] — 2026-10-02
+### Sprint 9 (Волны 13A–13D)
+- **13B:** конструкторы PetService/FoliantService/DotService/CCService без побочных эффектов; регистрация и задачи — из onEnable (activeTasks).
+- **13C:** Spec2Points — snapshot-аксессоры; deprecated-поля START_LEVEL/MAX_POINTS/ROW_GATES удалены.
+- **13D:** ResourceService — switch по PlayerClass.RegenModel (OCP); overflow-тик Скверны через Hp.max.
+- **Selftest:** чек 107 переведён на snapshot-чтение Spec2Points; resetAllDr-опечатка устранена.
+
+---
+
+## [1.14.12] — 2026-09-28
+### Sprint 8 (Волны 12A–12C)
+- **12A:** снапшот стоп-листа `refreshDisabledCache()`; `hpFractionOf` через Hp.max.
+- **12B:** Foliant — isSafeName ПЕРЕД fallback-командой (аудит 7-01); catch сужены до Exception.
+- **12C:** HpBarService — warning с ключом конфига вместо пустых catch; symbolOf из метаданных PlayerClass.
+
+---
+
 ## [1.14.10] — 2026-10-18
 
 Sprint 7: тестируемость, связность, единая точка чтения конфига.
@@ -460,6 +532,9 @@ Sprint 7: тестируемость, связность, единая точк�
   спавн через `World.spawnEntity` + `instanceof LivingEntity` (wildcard
   `getEntityClass()` ломал generic-вывод `World.spawn`).
 
+## [1.14.5] — 2026-10-08 (hotfix)
+- Хотфикс: `KitSanity.validatePassiveMults` в selftest; RUNBOOK-пассивки сверены с китами.
+
 ## [1.14.4] — 2026-10-08
 
 Закрытие аудита П1–П10 волнами 1–4 (внутренние метки 1.14.1–1.14.3).
@@ -481,6 +556,18 @@ Sprint 7: тестируемость, связность, единая точк�
 ### Changed
 - Amplifier proc-узлов (riposte/counterattack/revenge/shield_slam) ставится на
   защищавшегося, а не на атакующего.
+
+## [1.14.3] — 2026-10-06
+### Боевые проки и процентные агрегаты (Волна 3)
+- 3A/3B: phys_dmg_pct/magic_dmg_pct/block_pct/crit_melee_pct в хот-пути урона.
+- 3C1/3C2: ProcService — мили- и каст-проки (bleed_on_crit, double_strike, riposte,
+  revenge, shield_slam, second_wind, expose, stealth_bonus, armor_pen, reflect_magic).
+
+## [1.14.2] — 2026-10-05 (hotfix)
+- Хотфикс reconcile spec2 при смене мира; purge карт китов по расписанию.
+
+## [1.14.1] — 2026-10-05
+- HpBarService.saveAll() в onDisable — здоровье не теряется при краше/остановке.
 
 ## [1.14.0] — 2026-10-05
 
@@ -536,23 +623,29 @@ Sprint 7: тестируемость, связность, единая точк�
   кулдауны, активные эффекты, HUD actionbar, атрибуты STR/AGI/INT, WP/SP/HPow,
   уклонение/парирование с DR, криты.
 
-[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.5...HEAD
+[Unreleased]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.6...HEAD
+[1.15.6]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.5...v1.15.6
 [1.15.5]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.4...v1.15.5
 [1.15.4]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.3...v1.15.4
 [1.15.3]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.2...v1.15.3
-[1.15.2]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.0...v1.15.2
+[1.15.2]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.1...v1.15.2
+[1.15.1]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.15.0...v1.15.1
 [1.15.0]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.16...v1.15.0
 [1.14.16]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.15...v1.14.16
 [1.14.15]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.14...v1.14.15
-[1.14.14]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.12...v1.14.14
+[1.14.14]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.13...v1.14.14
+[1.14.13]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.12...v1.14.13
 [1.14.12]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.10...v1.14.12
-[1.14.10]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.9...v1.14.10
 [1.14.10]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.9...v1.14.10
 [1.14.9]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.8...v1.14.9
 [1.14.8]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.7...v1.14.8
 [1.14.7]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.6...v1.14.7
-[1.14.6]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.4...v1.14.6
-[1.14.4]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.0...v1.14.4
+[1.14.6]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.5...v1.14.6
+[1.14.5]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.4...v1.14.5
+[1.14.4]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.3...v1.14.4
+[1.14.3]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.2...v1.14.3
+[1.14.2]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.1...v1.14.2
+[1.14.1]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.14.0...v1.14.1
 [1.14.0]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.12.0...v1.13.0
 [1.12.0]: https://github.com/hayferdahmer/RaskolClasses/compare/v1.11.0...v1.12.0
