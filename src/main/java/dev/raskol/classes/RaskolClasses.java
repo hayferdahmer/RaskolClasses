@@ -369,6 +369,8 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
+        // 1.15.6 (Волна 7, 2.6-45): AvoidanceService — Listener (quit/join lifecycle)
+        pluginManager.registerEvents(combat.avoidance(), this);
         // 1.15.6 (аудит 2.6-1, CRITICAL): ПУТЬ A — ванильные события урона.
         // Слушатель создавался в конструкторе CombatService с 1.14.10, но не
         // регистрировался нигде: резисты/капы/уклонение/мастерство оружия на
