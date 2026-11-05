@@ -75,10 +75,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Headless-самотестирование формул плагина (/rc selftest), 154 чека.
+ * Headless-самотестирование формул плагина (/rc selftest), 158 чеков.
  *
  * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
@@ -139,6 +142,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * глобальные деревья с 30, 2.6-89), платёжный контракт (EconomyHook.withdraw →
  * boolean + Spec2Service.refundCoins для PRUNED-rollback, 2.6-90).
  *
+ * 1.15.6 (Волна 5b, конкурентность + FX): добавлены чеки 155–158 —
+ * AttributeModifiers concurrent safety (8 потоков × 200 итераций, без CME, 2.6-86),
+ * Spec2Storage purgeForeignTrees после reconcile (2.6-96), FxService.procByKey
+ * per-player ключ uuid:procId (2.6-102), FxService.startAura identity-check
+ * отложенной задачи (2.6-103).
+ *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
  *   ttkLevels      17–20    TTK-дуэли и topNAverage
@@ -173,6 +182,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   economyData1155 143–146 экономика/данные 1.15.5 (SafeStorage/foliant/craft/daily-limit)
  *   combat1155     147–150  бой часть 1 1.15.6 (computeTicks/health-guard/cast-school/sort)
  *   wave4Audit     151–154  волна 4 1.15.6 (регистрация пути A/burst-undo/per-tree gates/оплата)
+ *   wave5bAudit    155–158  волна 5b 1.15.6 (AttributeModifiers sync/per-player proc/aura CAS/purgeForeign)
  *
  * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
  * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
@@ -366,6 +376,8 @@ public final class SelftestRunner {
         combat1155(plugin, r);
         // 1.15.6: волна 4 (регистрация пути A, burst-undo, per-tree gates, оплата)
         wave4Audit(plugin, r);
+        // 1.15.6: волна 5b (конкурентность + FX)
+        wave5bAudit(plugin, r, probe);
 
         print(plugin, sender, r);
     }
@@ -943,6 +955,188 @@ public final class SelftestRunner {
         }
         r.check("154", "1.15.6: оплата — EconomyHook.withdraw возвращает boolean, Spec2Service.refundCoins есть (2.6-90)",
                 ok154, "EconomyHook.withdraw/Spec2Service.refundCoins", got154);
+    }
+
+    /* ------------------------------ 155–158: 1.15.6 волна 5b ------------------------------ */
+
+    /**
+     * 155: AttributeModifiers concurrent safety (2.6-86) — 8 потоков × 200 итераций
+     *      смешанных add/remove/has без ConcurrentModificationException и без
+     *      потерянных модификаторов. Fresh-instance тест, не probe-зависим.
+     * 156: Spec2Storage purgeForeignTrees (2.6-96) — после reconcile ранги чужих
+     *      классов удалены из storage; оффлайн-игроки не затрагиваются (их
+     *      classTreeIds = [] и purge уничтожил бы все ранги). Probe-зависим.
+     * 157: FxService.procByKey per-player кулдаун (2.6-102) — ключ в procVisualCd
+     *      = "uuid:procId", глобального "procId" не появляется. Probe-зависим.
+     * 158: FxService.startAura identity-check (2.6-103) — после перезатирания
+     *      старой ауры новой отложенная задача старой не отменяет новую
+     *      (current == scheduledTask). Probe-зависим.
+     */
+    private static void wave5bAudit(RaskolClasses plugin, Report r, Player probe) {
+        // 155: AttributeModifiers concurrent safety (не probe-зависим)
+        dev.raskol.classes.attribute.AttributeModifiers mods =
+                new dev.raskol.classes.attribute.AttributeModifiers();
+        UUID probeId155 = UUID.randomUUID();
+        int threads = 8;
+        int iterations = 200;
+        CountDownLatch start155 = new CountDownLatch(1);
+        CountDownLatch done155 = new CountDownLatch(threads);
+        AtomicReference<Throwable> failure155 = new AtomicReference<>();
+        for (int t = 0; t < threads; t++) {
+            final int threadId = t;
+            Thread th = new Thread(() -> {
+                try {
+                    start155.await();
+                    for (int i = 0; i < iterations; i++) {
+                        String src = "src-" + threadId + "-" + i;
+                        int mod = i % 4;
+                        if (mod == 0) {
+                            mods.addPermanentModifier(probeId155, src, 1, 1, 1);
+                        } else if (mod == 1) {
+                            mods.addTimedModifier(probeId155, src, 1, 1, 1, 60_000L);
+                        } else if (mod == 2) {
+                            mods.removeModifiersBySource(probeId155, src);
+                        } else {
+                            mods.activeModifiers(probeId155);
+                            mods.hasModifier(probeId155, src);
+                        }
+                    }
+                } catch (Throwable e) {
+                    failure155.compareAndSet(null, e);
+                } finally {
+                    done155.countDown();
+                }
+            }, "selftest-155-" + t);
+            th.setDaemon(true);
+            th.start();
+        }
+        start155.countDown();
+        boolean finished155;
+        try {
+            finished155 = done155.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            finished155 = false;
+        }
+        Throwable err155 = failure155.get();
+        boolean ok155 = finished155 && err155 == null;
+        String got155 = !finished155 ? "timeout"
+                : err155 != null ? err155.getClass().getSimpleName()
+                                 + (err155.getMessage() != null ? ":" + err155.getMessage() : "")
+                : "OK(threads=" + threads + "×" + iterations + ")";
+        r.check("155", "AttributeModifiers: 8 потоков × 200 итераций add/remove/has без падений (2.6-86)",
+                ok155, "AttributeModifiers", got155);
+
+        // 156: Spec2Storage purgeForeignTrees (probe-зависим)
+        if (probe == null) {
+            r.skip("156", "Spec2Storage purgeForeignTrees (нет probe)");
+        } else {
+            UUID pu = probe.getUniqueId();
+            List<String> current = plugin.getSpec2Service().classTreeIds(pu);
+            String foreign = null;
+            String[] allTrees = {"arms", "fury", "guard", "marksmanship", "survival", "beastmaster",
+                    "discipline", "holy", "shadow", "arcane", "fire", "frost",
+                    "assassination", "outlaw", "subtlety", "affliction", "destruction", "demonology"};
+            for (String c : allTrees) {
+                if (!current.contains(c)) {
+                    foreign = c;
+                    break;
+                }
+            }
+            if (current.isEmpty() || foreign == null) {
+                r.skip("156", "Spec2Storage purgeForeignTrees (нет деревьев класса/нет чужого)");
+            } else {
+                Spec2Tree foreignTree = Spec2Registry.treeOf(foreign);
+                Spec2Node foreignNode = firstRow1(foreignTree);
+                if (foreignNode == null) {
+                    r.skip("156", "Spec2Storage purgeForeignTrees (нет узла ряда 1)");
+                } else {
+                    try {
+                        plugin.getSpec2Service().storage().setRanks(pu, foreign,
+                                Map.of(foreignNode.id(), 1));
+                        plugin.getSpec2Service().reconcile(pu);
+                        Map<String, Integer> after = plugin.getSpec2Service().storage()
+                                .getRanks(pu, foreign);
+                        boolean ok156 = after.isEmpty();
+                        r.check("156", "Spec2Storage purgeForeignTrees: ранги чужого дерева удалены после reconcile (2.6-96)",
+                                ok156, "Spec2Storage.storedTreeIds/Spec2Service.reconcile",
+                                "foreign=" + foreign + " empty=" + after.isEmpty());
+                    } finally {
+                        plugin.getSpec2Service().storage().setRanks(pu, foreign, new HashMap<>());
+                        plugin.getSpec2Service().reconcile(pu);
+                    }
+                }
+            }
+        }
+
+        // 157: FxService.procByKey per-player ключ (probe-зависим)
+        if (probe == null) {
+            r.skip("157", "FxService per-player proc-кулдаун (нет probe)");
+        } else {
+            dev.raskol.classes.fx.FxService fx = plugin.getFx();
+            fx.purgeStale();
+            fx.procByKey(probe, "fallback-tag", "execute_passive");
+            boolean ok157 = false;
+            String got157 = "";
+            try {
+                java.lang.reflect.Field f = fx.getClass().getDeclaredField("procVisualCd");
+                f.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Map<String, Long> map = (Map<String, Long>) f.get(fx);
+                String expected = probe.getUniqueId() + ":execute_passive";
+                boolean hasPlayerScoped = map.containsKey(expected);
+                boolean hasGlobalKey = map.containsKey("execute_passive");
+                ok157 = hasPlayerScoped && !hasGlobalKey;
+                got157 = "playerScoped=" + hasPlayerScoped + " global=" + hasGlobalKey;
+            } catch (ReflectiveOperationException ex) {
+                got157 = "reflection:" + ex.getClass().getSimpleName();
+            } catch (RuntimeException ex) {
+                got157 = "exception:" + ex.getClass().getSimpleName();
+            }
+            r.check("157", "FxService.procByKey: ключ uuid:procId, глобального procId нет (2.6-102)",
+                    ok157, "FxService.procByKey/procVisualCd", got157);
+        }
+
+        // 158: FxService.startAura identity-check (probe-зависим)
+        if (probe == null) {
+            r.skip("158", "FxService aura-таймер (нет probe)");
+        } else {
+            dev.raskol.classes.fx.FxService fx = plugin.getFx();
+            UUID pu = probe.getUniqueId();
+            fx.stopAura(pu);
+            boolean ok158 = false;
+            String got158 = "";
+            try {
+                // стартуем первую ауру (40 тиков ≈ 2.0 с)
+                fx.startAura(pu, org.bukkit.Particle.FLAME, 40, 1, null);
+                java.lang.reflect.Field aurasField = fx.getClass().getDeclaredField("auras");
+                aurasField.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Map<UUID, Object> auras = (Map<UUID, Object>) aurasField.get(fx);
+                Object firstTask = auras.get(pu);
+                if (firstTask == null) {
+                    got158 = "no-aura-after-first-start";
+                } else {
+                    // стартуем вторую ауру (200 тиков ≈ 10 с) — должна перезатереть первую
+                    fx.startAura(pu, org.bukkit.Particle.CRIT, 200, 1, null);
+                    Object secondTask = auras.get(pu);
+                    boolean replaced = secondTask != null && secondTask != firstTask;
+                    // ждём >2.05 с — отложенная задача первой ауры (40+1 тик) должна была сработать
+                    // но не должна была отменить новую ауру
+                    Thread.sleep(2500);
+                    Object after = auras.get(pu);
+                    boolean stillActive = after == secondTask;
+                    ok158 = replaced && stillActive;
+                    got158 = "replaced=" + replaced + " stillActive=" + stillActive;
+                }
+            } catch (ReflectiveOperationException | InterruptedException ex) {
+                got158 = "exception:" + ex.getClass().getSimpleName();
+            } finally {
+                fx.stopAura(pu);
+            }
+            r.check("158", "FxService.startAura: новая аура перезатёрла старую; отложенная задача старой НЕ сняла новую (2.6-103)",
+                    ok158, "FxService.startAura/auras", got158);
+        }
     }
 
     private static void print(RaskolClasses plugin, CommandSender sender, Report r) {
