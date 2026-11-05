@@ -7,7 +7,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -18,13 +20,18 @@ import java.util.logging.Logger;
  *   players.<uuid>.main: <specId>
  *   players.<uuid>.ranks.<treeId>.<nodeId>: <rank>
  *
- * 1.14.4 (Волна 4, П10): миграция spec2.yml → spec2-storage.yml (renameTo).
- * 1.14.9 (Волна 6.3, P0-5-01): синхронные save() на каждый клик убраны —
- *         персист в autosave-задаче и onDisable.
- * 1.15.5 (аудит 2.6-91): dirty-flag. setMain/setRanks помечают store грязным;
- *         saveIfDirty() пишет файл ТОЛЬКО при наличии изменений — вызывается
- *         SessionListener.onQuit (окно потери данных закрывается выходом игрока)
- *         и autosave-задачей (без лишней перезаписи чистого файла).
+ * 1.14.4 (Волна 4, П10): файл переименован spec2.yml → spec2-storage.yml.
+ * Одноразовая миграция в конструкторе: если старый файл существует, а нового
+ * ещё нет — renameTo. Содержимое не меняется, схема остаётся v2. Если renameTo
+ * не удался — логируем warning и заводим новый пустой файл через SafeStorage.
+ * 1.15.5 (Волна 2, аудит 2.6-91): dirty-flag. setMain/setRanks помечают store
+ *         грязным; saveIfDirty() пишет файл ТОЛЬКО при наличии изменений —
+ *         вызывается SessionListener.onQuit (окно потери данных закрывается
+ *         выходом игрока) и autosave-задачей (без лишней перезаписи чистого файла).
+ * 1.15.6 (Волна 5, аудит 2.6-96): storedTreeIds/removeTree — очистка хранилища
+ *         от рангов деревьев ЧУЖИХ классов: при смене класса (LP-группы) старые
+ *         ранги раньше оставались в файле навсегда и файл рос без границы.
+ *         Вызывает Spec2Service.reconcile для онлайн-игроков.
  */
 public final class Spec2Storage {
 
@@ -90,6 +97,28 @@ public final class Spec2Storage {
                 }
             }
         }
+        dirty = true;
+    }
+
+    /**
+     * 1.15.6 (Волна 5, аудит 2.6-96): id деревьев, по которым у игрока есть
+     * сохранённые ранги (секция players.<uuid>.ranks.*). Пустой список = записей нет.
+     */
+    public List<String> storedTreeIds(UUID uuid) {
+        ConfigurationSection sec = store.getConfigurationSection(
+                "players." + uuid + ".ranks");
+        if (sec == null) {
+            return List.of();
+        }
+        return new ArrayList<>(sec.getKeys(false));
+    }
+
+    /**
+     * 1.15.6 (Волна 5, аудит 2.6-96): удалить ранги ЦЕЛИКОМ одного дерева
+     * (дерево чужого класса после смены класса). Помечает store dirty.
+     */
+    public void removeTree(UUID uuid, String treeId) {
+        store.set("players." + uuid + ".ranks." + treeId, null);
         dirty = true;
     }
 
