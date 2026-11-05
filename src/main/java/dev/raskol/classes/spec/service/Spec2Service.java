@@ -12,8 +12,12 @@ import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.model.Spec2Tree;
 import dev.raskol.classes.spec.registry.Spec2Registry;
 import dev.raskol.classes.spec.storage.Spec2Storage;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -70,6 +74,13 @@ import java.util.concurrent.ConcurrentHashMap;
  *           пре-проверок). Подписка НЕ проверяется здесь — сервис подписочно-
  *           независим, гейт держит GUI/команда.
  * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
+ * 1.15.6 (Волна 4, аудит 2.6-90): РЕЗУЛЬТАТ economy.withdraw ПРОВЕРЯЕТСЯ в resetTree,
+ *         resetNode и applyBuild: отказ списания = NO_ECONOMY ДО изменения состояния.
+ *         PRUNED-rollback возвращает монеты через Vault-reflection (depositPlayer),
+ *         как в CraftingService (единый паттерн компенсации).
+ * 1.15.6 (Волна 4, аудит 2.6-89): контекст Spec2Points.beginTree/endTree вокруг
+ *         purchase/reconcile/hasDependents/applyBuild — per-tree row-gates работают
+ *         внутри Spec2Tree.canBuy/prereqsMet, которые вызывают rowUnlocked без treeId.
  */
 public final class Spec2Service {
 
@@ -295,6 +306,7 @@ public final class Spec2Service {
      * 1.14.8-fix (Волна 6.1, P0-6B): canBuy и дискриминация отказа получают стоп-лист —
      * отключённый пререквизит считается выполненным, включённые узлы достижимы.
      * 1.14.8 (Волна 6.3, P0-5-01): синхронный save убран — персист в autosave/onDisable.
+     * 1.15.6 (2.6-89): контекст дерева для per-tree row-gates.
      */
     public PurchaseResult purchase(Player player, String treeId, String nodeId) {
         if (!enabled()) {
@@ -318,32 +330,37 @@ public final class Spec2Service {
         if (node == null) {
             return PurchaseResult.NODE_NOT_FOUND;
         }
-        Set<String> disabled = disabledSet();
-        // узел в стоп-листе — очки не тратятся
-        if (disabled.contains(nodeId)) {
-            return PurchaseResult.NODE_DISABLED;
+        Spec2Points.beginTree(treeId);
+        try {
+            Set<String> disabled = disabledSet();
+            // узел в стоп-листе — очки не тратятся
+            if (disabled.contains(nodeId)) {
+                return PurchaseResult.NODE_DISABLED;
+            }
+            Map<String, Integer> ranks = storage.getRanks(uuid, treeId);
+            if (!tree.canBuy(node, ranks, availablePoints(uuid), disabled)) {
+                int spent = tree.spentInTree(ranks);
+                if (ranks.getOrDefault(nodeId, 0) >= node.maxRank()) {
+                    return PurchaseResult.MAX_RANK;
+                }
+                if (!Spec2Points.rowUnlocked(node.row(), spent)) {
+                    return PurchaseResult.ROW_GATE;
+                }
+                if (!tree.prereqsMet(node, ranks, disabled)) {
+                    return PurchaseResult.PREREQ;
+                }
+                return PurchaseResult.NOT_ENOUGH_POINTS;
+            }
+            ranks.merge(nodeId, 1, Integer::sum);
+            storage.setRanks(uuid, treeId, ranks);
+            reconcile(uuid);
+            return PurchaseResult.OK;
+        } finally {
+            Spec2Points.endTree();
         }
-        Map<String, Integer> ranks = storage.getRanks(uuid, treeId);
-        if (!tree.canBuy(node, ranks, availablePoints(uuid), disabled)) {
-            int spent = tree.spentInTree(ranks);
-            if (ranks.getOrDefault(nodeId, 0) >= node.maxRank()) {
-                return PurchaseResult.MAX_RANK;
-            }
-            if (!Spec2Points.rowUnlocked(node.row(), spent)) {
-                return PurchaseResult.ROW_GATE;
-            }
-            if (!tree.prereqsMet(node, ranks, disabled)) {
-                return PurchaseResult.PREREQ;
-            }
-            return PurchaseResult.NOT_ENOUGH_POINTS;
-        }
-        ranks.merge(nodeId, 1, Integer::sum);
-        storage.setRanks(uuid, treeId, ranks);
-        reconcile(uuid);
-        return PurchaseResult.OK;
     }
 
-    /** Платный сброс дерева (очки возвращаются в пул). */
+    /** Платный сброс дерева (очки возвращаются в пул). 1.15.6 (2.6-90): withdraw проверяется. */
     public ResetResult resetTree(Player player, String treeId, boolean free) {
         UUID uuid = player.getUniqueId();
         if (!actionAllowed(uuid)) {
@@ -370,7 +387,10 @@ public final class Spec2Service {
             if (economy.balance(uuid) < cost) {
                 return ResetResult.POOR;
             }
-            economy.withdraw(uuid, cost);
+            // 1.15.6 (аудит 2.6-90): результат списания проверяется ДО изменения состояния
+            if (!economy.withdraw(uuid, cost)) {
+                return ResetResult.NO_ECONOMY;
+            }
         }
         storage.setRanks(uuid, treeId, new HashMap<>());
         reconcile(uuid);
@@ -388,6 +408,8 @@ public final class Spec2Service {
      * состояние и хранилище не меняются.
      * 1.14.8 (Волна 6.1): hasDependents учитывает стоп-лист в пререквизитах.
      * 1.14.8 (Волна 6.3, P0-5-01): синхронный save убран.
+     * 1.15.6 (2.6-90): withdraw проверяется ДО снятия ранга.
+     * 1.15.6 (2.6-89): контекст дерева вокруг hasDependents.
      */
     public NodeResetResult resetNode(Player player, String treeId, String nodeId, boolean free) {
         UUID uuid = player.getUniqueId();
@@ -411,7 +433,14 @@ public final class Spec2Service {
             return NodeResetResult.NO_RANKS;
         }
         // 1.14.7 (P1-5): гипотетическое состояние и проверка зависимостей
-        if (hasDependents(tree, ranks, nodeId)) {
+        Spec2Points.beginTree(treeId);
+        boolean dependents;
+        try {
+            dependents = hasDependents(tree, ranks, nodeId);
+        } finally {
+            Spec2Points.endTree();
+        }
+        if (dependents) {
             return NodeResetResult.HAS_DEPENDENTS;
         }
         if (!free) {
@@ -424,7 +453,10 @@ public final class Spec2Service {
             if (economy.balance(uuid) < cost) {
                 return NodeResetResult.POOR;
             }
-            economy.withdraw(uuid, cost);
+            // 1.15.6 (аудит 2.6-90): результат списания проверяется ДО изменения состояния
+            if (!economy.withdraw(uuid, cost)) {
+                return NodeResetResult.NO_ECONOMY;
+            }
         }
         if (currentRank == 1) {
             ranks.remove(nodeId);
@@ -442,6 +474,7 @@ public final class Spec2Service {
      * пререквизиты + ряд-гейты по очкам дерева после снятия.
      * Disabled-узлы пропускаются: они не могут держать ранги (прунятся reconcile).
      * 1.14.8-fix (Волна 6.1): пререквизиты сверяются с учётом стоп-листа.
+     * Вызывается ТОЛЬКО внутри Spec2Points.beginTree/endTree-контекста (resetNode).
      */
     private boolean hasDependents(Spec2Tree tree, Map<String, Integer> ranks, String nodeId) {
         Set<String> disabled = disabledSet();
@@ -497,6 +530,10 @@ public final class Spec2Service {
      *    reconcile позже проредил бы, отклоняется на старте с warning);
      *  - applyBuild() — пре-проверка перед списанием монет (TEMPLATE_INVALID).
      * Тело идентично приватному validate(): дублирования логики нет.
+     * 1.15.6 (2.6-89): ВАЖНО — вне контекста дерева validate использует ГЛОБАЛЬНЫЕ
+     * гейты; applyBuild ставит контекст, поэтому parity на применении строже/точнее.
+     * Шаблоны raskolspec+ для деревьев с per-tree override должны держаться
+     * глобальных гейтов на этапе загрузки (BuildTemplates) — осознанное ограничение.
      */
     public Map<String, Integer> simulateApply(Spec2Tree tree, Map<String, Integer> ranks) {
         return validate(tree, ranks);
@@ -517,15 +554,14 @@ public final class Spec2Service {
      *  1) rate-limit / main / класс-дерево / реестр;
      *  2) simulateApply-parity: шаблон должен переживать reconcile целиком;
      *  3) бюджет очков;
-     *  4) экономика (available/balance) — списание ТОЛЬКО после пунктов 1–3;
+     *  4) экономика (available/balance/withdraw-результат) — списание ТОЛЬКО после 1–3;
      *  5) коммит: setRanks(шаблон) + reconcile;
-     *  6) защитная сверка: если reconcile всё же проредил ранги (PRUNED, теоретически
-     *     недостижимо из-за пункта 2) — rollback предыдущих рангов + reconcile +
-     *     severe-лог; возврат монет НЕ выполняется (ситуация требует расследования
-     *     админом, монеты списаны не будут, если отказ произошёл до пункта 4).
+     *  6) защитная сверка: если reconcile всё же проредил ранги (PRUNED) — rollback
+     *     предыдущих рангов + reconcile + severe-лог + ВОЗВРАТ МОНЕТ (1.15.6, 2.6-90).
      *
      * Подписка raskolspec+ здесь НЕ проверяется: сервис подписочно-независим,
      * гейт держит PlusGui/команда (разделение ответственности 15A).
+     * 1.15.6 (2.6-89): контекст дерева вокруг parity/коммита/сверки.
      */
     public BuildApplyOutcome applyBuild(Player player, String treeId,
                                         Map<String, Integer> ranks, boolean free) {
@@ -543,53 +579,110 @@ public final class Spec2Service {
         if (tree == null) {
             return new BuildApplyOutcome(BuildApplyResult.TREE_NOT_FOUND, 0, 0, 0);
         }
-        // 2) parity: шаблон должен переживать reconcile целиком
-        Map<String, Integer> kept = simulateApply(tree, ranks);
-        if (!kept.equals(ranks)) {
-            return new BuildApplyOutcome(BuildApplyResult.TEMPLATE_INVALID, 0, 0, 0);
-        }
-        // 3) бюджет очков после сброса дерева
-        Map<String, Integer> current = storage.getRanks(uuid, treeId);
-        int spentTree = tree.spentInTree(current);
-        int pool = availablePoints(uuid) + spentTree;
-        int need = 0;
-        for (int rank : ranks.values()) {
-            need += rank;
-        }
-        if (need > pool) {
-            return new BuildApplyOutcome(BuildApplyResult.NOT_ENOUGH_POINTS, 0, need, pool);
-        }
-        // 4) экономика респеца — списание только после всех пре-проверок
-        int cost = 0;
-        if (!free && !current.isEmpty()) {
-            cost = plugin.getConfig().getInt("spec2.respec-base-cost", 250)
-                    + plugin.getConfig().getInt("spec2.respec-per-level", 10) * spentTree;
-            if (!economy.available()) {
-                return new BuildApplyOutcome(BuildApplyResult.NO_ECONOMY, cost, need, pool);
+        Spec2Points.beginTree(treeId);
+        try {
+            // 2) parity: шаблон должен переживать reconcile целиком
+            Map<String, Integer> kept = simulateApply(tree, ranks);
+            if (!kept.equals(ranks)) {
+                return new BuildApplyOutcome(BuildApplyResult.TEMPLATE_INVALID, 0, 0, 0);
             }
-            if (economy.balance(uuid) < cost) {
-                return new BuildApplyOutcome(BuildApplyResult.POOR, cost, need, pool);
+            // 3) бюджет очков после сброса дерева
+            Map<String, Integer> current = storage.getRanks(uuid, treeId);
+            int spentTree = tree.spentInTree(current);
+            int pool = availablePoints(uuid) + spentTree;
+            int need = 0;
+            for (int rank : ranks.values()) {
+                need += rank;
             }
-        }
-        if (cost > 0) {
-            economy.withdraw(uuid, cost);
-        }
-        // 5) коммит
-        storage.setRanks(uuid, treeId, new HashMap<>(ranks));
-        reconcile(uuid);
-        // 6) защитная сверка + rollback
-        if (!storage.getRanks(uuid, treeId).equals(ranks)) {
-            plugin.getLogger().severe("spec2: applyBuild PRUNED после пре-проверок — rollback: игрок "
-                    + uuid + ", дерево " + treeId + " (сообщи разработчику: simulateApply/validate рассинхрон)");
-            storage.setRanks(uuid, treeId, current);
+            if (need > pool) {
+                return new BuildApplyOutcome(BuildApplyResult.NOT_ENOUGH_POINTS, 0, need, pool);
+            }
+            // 4) экономика респеца — списание только после всех пре-проверок
+            int cost = 0;
+            if (!free && !current.isEmpty()) {
+                cost = plugin.getConfig().getInt("spec2.respec-base-cost", 250)
+                        + plugin.getConfig().getInt("spec2.respec-per-level", 10) * spentTree;
+                if (!economy.available()) {
+                    return new BuildApplyOutcome(BuildApplyResult.NO_ECONOMY, cost, need, pool);
+                }
+                if (economy.balance(uuid) < cost) {
+                    return new BuildApplyOutcome(BuildApplyResult.POOR, cost, need, pool);
+                }
+                // 1.15.6 (аудит 2.6-90): результат списания проверяется ДО коммита
+                if (!economy.withdraw(uuid, cost)) {
+                    return new BuildApplyOutcome(BuildApplyResult.NO_ECONOMY, cost, need, pool);
+                }
+            }
+            // 5) коммит
+            storage.setRanks(uuid, treeId, new HashMap<>(ranks));
             reconcile(uuid);
-            return new BuildApplyOutcome(BuildApplyResult.PRUNED, cost, need, pool);
+            // 6) защитная сверка + rollback + возврат монет
+            if (!storage.getRanks(uuid, treeId).equals(ranks)) {
+                plugin.getLogger().severe("spec2: applyBuild PRUNED после пре-проверок — rollback: игрок "
+                        + uuid + ", дерево " + treeId + " (сообщи разработчику: simulateApply/validate рассинхрон)");
+                storage.setRanks(uuid, treeId, current);
+                reconcile(uuid);
+                if (cost > 0) {
+                    boolean refunded = refundCoins(player, cost);
+                    plugin.getLogger().warning("spec2: applyBuild PRUNED — монеты "
+                            + (refunded ? "возвращены через Vault" : "НЕ возвращены (нет провайдера) — компенсируй вручную")
+                            + ": игрок " + player.getName() + ", сумма " + cost);
+                }
+                return new BuildApplyOutcome(BuildApplyResult.PRUNED, cost, need, pool);
+            }
+            return new BuildApplyOutcome(BuildApplyResult.OK, cost, need, pool);
+        } finally {
+            Spec2Points.endTree();
         }
-        return new BuildApplyOutcome(BuildApplyResult.OK, cost, need, pool);
+    }
+
+    /**
+     * 1.15.6 (2.6-90): возврат монет через reflection над Vault Economy
+     * (EconomyHook не экспонирует deposit; compile-зависимости Vault нет).
+     * Паттерн идентичен CraftingService.refundCoins.
+     */
+    private boolean refundCoins(Player player, int coins) {
+        try {
+            Class<?> economyIface = Class.forName("net.milkbowl.vault.economy.Economy");
+            var registration = plugin.getServer().getServicesManager().getRegistration(economyIface);
+            if (registration == null) {
+                return false;
+            }
+            Object provider = registration.getProvider();
+            if (provider == null) {
+                return false;
+            }
+            Method deposit = null;
+            for (Method m : economyIface.getMethods()) {
+                Class<?>[] p = m.getParameterTypes();
+                if ("depositPlayer".equals(m.getName()) && p.length == 2
+                        && p[0] == OfflinePlayer.class && p[1] == double.class) {
+                    deposit = m;
+                    break;
+                }
+            }
+            if (deposit == null) {
+                return false;
+            }
+            Object response = deposit.invoke(provider,
+                    Bukkit.getOfflinePlayer(player.getUniqueId()), (double) coins);
+            if (response == null) {
+                return true;
+            }
+            Field success = response.getClass().getField("transactionSuccess");
+            return success.getBoolean(response);
+        } catch (Throwable t) {
+            plugin.getLogger().warning("spec2: vault-refund exception: " + t);
+            return false;
+        }
     }
 
     /* ------------------------------ reconcile + агрегация ------------------------------ */
 
+    /**
+     * 1.15.6 (2.6-89): контекст дерева ставится ВОКРУГ validate на каждое дерево —
+     * per-tree row-gates применяются и к прунингу, и к агрегации рангов.
+     */
     public void reconcile(UUID uuid) {
         Agg agg = new Agg();
         for (String treeId : classTreeIds(uuid)) {
@@ -598,7 +691,13 @@ public final class Spec2Service {
                 continue;
             }
             Map<String, Integer> raw = storage.getRanks(uuid, treeId);
-            Map<String, Integer> kept = validate(tree, raw);
+            Spec2Points.beginTree(treeId);
+            Map<String, Integer> kept;
+            try {
+                kept = validate(tree, raw);
+            } finally {
+                Spec2Points.endTree();
+            }
             if (kept.size() != raw.size()) {
                 storage.setRanks(uuid, treeId, kept);
                 plugin.getLogger().warning("spec2: ранги дерева " + treeId + " игрока " + uuid
@@ -626,6 +725,7 @@ public final class Spec2Service {
      * включённый зависимый узел больше не прунится из-за отключённого пререка.
      * 1.14.16 (Волна 15C): тело доступно публично через simulateApply() —
      * единый источник правды для BuildTemplates и applyBuild.
+     * 1.15.6 (2.6-89): гейты читаются с учётом ThreadLocal-контекста дерева.
      */
     private Map<String, Integer> validate(Spec2Tree tree, Map<String, Integer> raw) {
         Map<String, Integer> kept = new HashMap<>();
