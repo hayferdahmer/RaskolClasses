@@ -1,6 +1,8 @@
 // © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
 package dev.raskol.classes.effect;
 
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.DamageProfile;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.AbstractArrow;
@@ -31,18 +33,35 @@ import java.util.concurrent.ConcurrentHashMap;
  * Раньше все боевые обработчики сидели на HIGH — ПОСЛЕ VanillaDamageListener
  * (NORMAL), который применяет резисты и капы: множители STEALTH ×1.5,
  * AIMED_SHOT ×2 и SHIELD_WALL ×0.2 обходили combat.max-single-hit-pct и
- * попадали в burst-окно уже уменьшенными/увеличенными (связка с 2.6-40).
+ * попадали в burst-окно уже изменёнными (связка с 2.6-40).
  * Новая схема:
  *  - LOW  (onIncomingEarly / onOutgoingEarly): отмены и МНОЖИТЕЛИ — до капов пути A;
  *  - HIGH (onIncomingLate / onOutgoingLate): потребления флагов и сайд-эффекты
  *    (срыв скрытности, расход AIMED_SHOT, замедление, BLOOD_FURY) — только после
  *    подтверждения попадания (ignoreCancelled=true: отменённый удар не тратит флаги).
- * 2.6-4 (BLOOD_FURY в обход canHit/капов) осознанно отложен в Волну 5: требует
- * инъекцию CombatService и рекурсион-гард, делается вместе с MitigationEngine.
+ *
+ * 1.15.6 (Волна 5, аудит 2.6-4): BLOOD_FURY маршрутизируется через
+ * CombatService.dealDamage(aggressor, victim, physical(20% урона), false, fromProc=true):
+ * возвратный урон теперь проходит canHit/школы/резисты/капы и suppress-флаги,
+ * вместо прямого aggressor.damage(...) в обход всего боевого конвейера.
+ * ThreadLocal-гард BLOOD_FURY_ACTIVE исключает бесконечную взаимную рекурсию
+ * двух носителей эффекта (урон ×0.2 за итерацию сходился, но цепочка событий
+ * была синхронной и глубокой).
+ * Конструктор принимает RaskolClasses (инъекция вместо service-locator'а в обработчике).
  */
 public final class ActiveEffectManager implements Listener {
 
     private final Map<UUID, Map<EffectType, Long>> expiresAt = new ConcurrentHashMap<>();
+
+    /** 1.15.6 (2.6-4): рекурсион-гард взаимного BLOOD_FURY двух носителей. */
+    private static final ThreadLocal<Boolean> BLOOD_FURY_ACTIVE =
+            ThreadLocal.withInitial(() -> Boolean.FALSE);
+
+    private final RaskolClasses plugin;
+
+    public ActiveEffectManager(RaskolClasses plugin) {
+        this.plugin = plugin;
+    }
 
     public void addTimed(UUID playerId, EffectType type, long durationMillis) {
         byPlayer(playerId).put(type, System.currentTimeMillis() + durationMillis);
@@ -185,8 +204,8 @@ public final class ActiveEffectManager implements Listener {
      * 1.15.6 (2.6-3): потребления флагов и сайд-эффекты ПОСЛЕ подтверждения
      * попадания (HIGH + ignoreCancelled): отменённый удар (альянс-гейт, регион,
      * уклонение) НЕ тратит скрытность и AIMED_SHOT.
-     * 2.6-4: BLOOD_FURY пока прямой damage() — маршрутизация через dealDamage
-     * отложена в Волну 5 (нужны canHit/капы/рекурсион-гард).
+     * 1.15.6 (Волна 5, 2.6-4): BLOOD_FURY — через combat.dealDamage с fromProc=true
+     * (canHit/школы/капы/suppress применяются) + ThreadLocal-гард рекурсии.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onOutgoingLate(EntityDamageByEntityEvent event) {
@@ -207,11 +226,19 @@ public final class ActiveEffectManager implements Listener {
             }
         }
 
-        // Кровавое безумие: 20% входящего урона возвращается агрессору
+        // Кровавое безумие: 20% входящего урона возвращается агрессору —
+        // теперь через боевой конвейер (2.6-4), с гардом взаимной рекурсии
         if (event.getEntity() instanceof Player victim
                 && has(victim.getUniqueId(), EffectType.BLOOD_FURY)
-                && event.getDamager() instanceof LivingEntity aggressor) {
-            aggressor.damage(event.getDamage() * 0.2, victim);
+                && event.getDamager() instanceof LivingEntity aggressor
+                && !BLOOD_FURY_ACTIVE.get()) {
+            BLOOD_FURY_ACTIVE.set(Boolean.TRUE);
+            try {
+                plugin.getCombat().dealDamage(aggressor, victim,
+                        DamageProfile.physical(event.getDamage() * 0.2), false, true);
+            } finally {
+                BLOOD_FURY_ACTIVE.set(Boolean.FALSE);
+            }
         }
     }
 
