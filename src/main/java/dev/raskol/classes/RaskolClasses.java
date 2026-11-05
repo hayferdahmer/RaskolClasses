@@ -131,6 +131,9 @@ import java.util.List;
  *         ВНИМАНИЕ ПОСЛЕ ВКЛЮЧЕНИЯ: баланс авто-атак изменится (резисты/капы начнут
  *         действовать) — якоря TTK (selftest 17–20, 75) требуют прогона и возможной
  *         перекалибровки basic-coeff.
+ * 1.15.6 (Волна 5, аудит 2.6-4): ActiveEffectManager получает plugin через конструктор
+ *         (new ActiveEffectManager(this)) — BLOOD_FURY маршрутизируется через
+ *         CombatService.dealDamage вместо прямого aggressor.damage(...).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -242,7 +245,8 @@ public final class RaskolClasses extends JavaPlugin {
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
                 raskolConfig.readyNotifyMessage());
-        this.effects = new ActiveEffectManager();
+        // 1.15.6 (Волна 5, 2.6-4): инъекция plugin — BLOOD_FURY через dealDamage
+        this.effects = new ActiveEffectManager(this);
 
         this.abilities = new AbilityRegistry(this);
         abilities.loadFromConfig(raskolConfig);
