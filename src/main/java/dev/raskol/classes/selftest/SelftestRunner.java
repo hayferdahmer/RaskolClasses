@@ -83,70 +83,35 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Headless-самотестирование формул плагина (/rc selftest), 158 чеков.
  *
- * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на 23 метода
+ * 1.14.8 (Sprint 5, P2-1): ДЕКОМПОЗИЦИЯ. Монолитный run() разбит на методы
  * по подсистемам; состояние отчёта (StringBuilder + счётчики passed/failed/skipped)
  * инкапсулировано в приватный держатель Report. Номера чеков, их логика, порядок
  * вывода и skip-семантика НЕ изменены — рефакторинг чисто структурный.
- *
- * 1.14.8-fix (Sprint 6, Волна 6.1):
- *   P0-7A — запуск не от игрока: probe = null, все probe-зависимые проверки
- *           уходят в skip; selftest больше не изменяет ранги/спеку/HP первого
- *           онлайн-игрока при консольном запуске (аудит 7-03);
- *   P0-6B — чек 122: достижимость всех включённых узлов при текущем стоп-листе
- *           (страховка регрессии, когда disabled-пререквизиты закрыли 6 ультов).
- *
- * 1.14.13 (Sprint 9, Волна 13C, P0-2-06): чек 107 (pointsConfig) переведён с
- * @Deprecated public-полей Spec2Points.START_LEVEL/MAX_POINTS/ROW_GATES на
- * snapshot-чтение Spec2Points.snapshot().startLevel()/maxPoints()/rowGates().
- *
- * 1.14.13-fix: опечатка имени метода устранена — все вызовы resetAllDR(...)
- * заменены на каноническое resetAllDr(...) (12 мест в cc/ccProbeBreaks/ccProbeCastGuard).
- *
- * 1.14.15 (raskolspec+): добавлены чеки 123–125 — валидность 36 шаблонов builds.yml,
- * математика подписки grant/remainingDays/revoke, stale-маркировка disabled-узлов.
- *
- * 1.14.16 (Волна 15C): добавлены чеки 126–127 — applyBuild на probe (free-путь:
- * применение узла ряда 1 + откат) и отказы БЕЗ изменения состояния (чужое дерево →
- * WRONG_CLASS_TREE, prereq-дыра → TEMPLATE_INVALID). pauseMs(200) между вызовами —
- * rate-limit actionAllowed (150 мс).
- *
- * 1.15.2: добавлены чеки 131–133 — WeaponMastery (матрица 8×6, native/familiar/foreign).
- *
- * 1.15.3: добавлен чек 134 — messages.item.* присутствуют в конфиге и непустые
- * (canary: живой config.yml без блока 1.15.3 даёт красный чек).
- *
- * 1.15.4 (крафт и фрагменты): добавлены чеки 135–137 — FragmentRegistry (13 фрагментов),
- * pure-математика SalvageService.fragmentsFor, загрузка рецептов CraftingService из crafting.yml.
- *
- * 1.15.5 (волна аудита): добавлены чеки 138–142 — покрытие прав plugin.yml,
- * AuthGate fail-closed по умолчанию, резолв целей crafting.yml, архитектурный
- * контракт LuckPermsBackend (lastClass-гард), семантика saveIfDirty для spec2.
- * Чек 138 читает плоский список имён getDescription().getPermissions(): с 1.15.5-b
- * дети item.* объявлены в plugin.yml топ-уровнем, поэтому видны в этом списке.
- *
- * 1.15.5-b (волна 2, экономика/данные): добавлены чеки 143–146 — SafeStorage
- * round-trip без leftover .tmp + создание .bak, foliant saveLocksIfDirty идемпотентен
- * при отсутствии изменений, craft UNKNOWN не трогает инвентарь, daily-limit гард ≥1
- * (мусор в конфиге → дефолт, без краша).
- *
- * 1.15.6 (Волна 3, бой часть 1): добавлены чеки 147–150 — DotService.computeTicks
- * (чистая функция: принимает List, возвращает List), CombatService.dealDamage
- * (5-параметрическая сигнатура с fromProc + health-guard), VanillaDamageListener
- * (currentCastSchool → School.FIRE, не hardcoded ARCANE), HudService.renderDots
- * (mutable ArrayList перед sort — List.copyOf immutable не падает).
- *
- * 1.15.6 (Волна 4, бой часть 2 + spec2): добавлены чеки 151–154 — РЕГИСТРАЦИЯ
- * VanillaDamageListener в handler-list EntityDamageEvent (canary против аудита
- * 2.6-1 CRITICAL: путь A мёртв с 1.14.10), контракт burst-undo (DamageCaps.undoLastBurst
- * + MONITOR-хэндлер, 2.6-40), per-tree row-gates (beastmaster ряд 6 с 27 очков,
- * глобальные деревья с 30, 2.6-89), платёжный контракт (EconomyHook.withdraw →
- * boolean + Spec2Service.refundCoins для PRUNED-rollback, 2.6-90).
- *
- * 1.15.6 (Волна 5b, конкурентность + FX): добавлены чеки 155–158 —
- * AttributeModifiers concurrent safety (8 потоков × 200 итераций, без CME, 2.6-86),
- * Spec2Storage purgeForeignTrees после reconcile (2.6-96), FxService.procByKey
- * per-player ключ uuid:procId (2.6-102), FxService.startAura identity-check
- * отложенной задачи (2.6-103).
+ * 1.14.8-fix (Волна 6.1): P0-7A probe = отправитель; P0-6B чек 122 достижимость.
+ * 1.14.13 (Волна 13C): чек 107 на snapshot Spec2Points; resetAllDr-опечатка устранена.
+ * 1.14.15 (raskolspec+): чеки 123–125 (шаблоны/подписка/stale).
+ * 1.14.16 (Волна 15C): чеки 126–127 (applyBuild probe + отказы без мутаций).
+ * 1.15.2: чеки 131–133 (WeaponMastery 8×6).
+ * 1.15.3: чек 134 (messages.item.*).
+ * 1.15.4: чеки 135–137 (FragmentRegistry/fragmentsFor/crafting-рецепты).
+ * 1.15.5: чеки 138–142 (права plugin.yml, AuthGate fail-closed, crafting-цели,
+ *         LP-гард lastClass, saveIfDirty).
+ * 1.15.5-b: чеки 143–146 (SafeStorage round-trip, foliant flush, craft UNKNOWN,
+ *         daily-limit гард).
+ * 1.15.6 (Волна 3): чеки 147–150 (computeTicks, dealDamage-сигнатура, cast-school,
+ *         mutable sort).
+ * 1.15.6 (Волна 4): чеки 151–154 (регистрация пути A, burst-undo, per-tree gates,
+ *         платёжный контракт).
+ * 1.15.6 (Волна 5b): чеки 155–158 (AttributeModifiers concurrent, purgeForeignTrees,
+ *         per-player proc-кулдаун, aura identity-CAS).
+ * 1.15.6 (Волна 6, аудит 2.6-108): SELFTEST НЕ ЛОМАЕТ ЖИВОЕ СОСТОЯНИЕ.
+ *   - CC-чеки 82–84/90 SKIP'аются, если у probe УЖЕ активен контроль (раньше
+ *     removeAll() стирал живой STUN/ROOT игрока);
+ *   - все рангово/CC/инвентарь-мутирующие чеки gated флагом
+ *     selftest.allow-live-probe (default true): на прод-сервере админ может
+ *     выставить false — мутации уходят в skip, read-only чеки работают;
+ *   - restore-ветки (finally) сохранены: при allow-live-probe=true поведение
+ *     прежнее (backup → мутация → проверка → restore).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -184,13 +149,31 @@ import java.util.concurrent.atomic.AtomicReference;
  *   wave4Audit     151–154  волна 4 1.15.6 (регистрация пути A/burst-undo/per-tree gates/оплата)
  *   wave5bAudit    155–158  волна 5b 1.15.6 (AttributeModifiers sync/per-player proc/aura CAS/purgeForeign)
  *
- * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока
- * или без узла нужного вида у класса probe помечаются «↷ пропущено» и попадают
- * в отдельный счётчик skipped — PASS-итог больше не завышается.
+ * SKIP-семантика (Sprint 1, P0-1): probe-зависимые чеки без онлайн-игрока,
+ * без узла нужного вида, с живым CC на probe или при allow-live-probe=false
+ * помечаются «↷ пропущено» и попадают в отдельный счётчик skipped.
  */
 public final class SelftestRunner {
 
     private SelftestRunner() {
+    }
+
+    /**
+     * 1.15.6 (Волна 6, 2.6-108): kill-switch живых мутаций.
+     * selftest.allow-live-probe=false → ранговые/CC/инвентарь-мутирующие чеки
+     * уходят в skip; read-only чеки (формулы, конфиги, контракты) работают всегда.
+     */
+    private static volatile boolean liveProbeAllowed = true;
+
+    /** Гард живых мутаций: false + skip-пометки, если kill-switch выключен. */
+    private static boolean liveGuard(Report r, String... nums) {
+        if (liveProbeAllowed) {
+            return true;
+        }
+        for (String n : nums) {
+            r.skip(n, "live-probe отключён (selftest.allow-live-probe=false)");
+        }
+        return false;
     }
 
     /* ------------------------------ держатель отчёта (1.14.8) ------------------------------ */
@@ -325,13 +308,16 @@ public final class SelftestRunner {
 
     public static void run(RaskolClasses plugin, CommandSender sender) {
         Report r = new Report();
+        // 1.15.6 (Волна 6, 2.6-108): kill-switch живых мутаций из конфига
+        liveProbeAllowed = plugin.getConfig().getBoolean("selftest.allow-live-probe", true);
         // 1.14.8-fix (Волна 6.1, P0-7A): probe — ТОЛЬКО сам отправитель-игрок.
-        // Консольный запуск не трогает данные случайного онлайн-игрока:
-        // все probe-чеки уходят в skip (аудит 7-03).
         Player probe = sender instanceof Player sp ? sp : null;
         if (probe == null) {
             r.note("⚠ Запуск не от игрока: probe-зависимые проверки пропущены, "
                     + "данные игроков не изменяются. Полный прогон: /rc selftest от игрока.");
+        }
+        if (!liveProbeAllowed) {
+            r.note("⚠ selftest.allow-live-probe=false: мутации рангов/CC/инвентаря пропущены.");
         }
 
         mathBasics(r);
@@ -357,26 +343,16 @@ public final class SelftestRunner {
         sprint4Io(plugin, r, probe);
         stopListLive(plugin, r);
         stopListReachability(plugin, r);
-        // 1.14.15 (raskolspec+): чеки подписки — не probe-зависимы, выполняются всегда
         plusSubscription(plugin, r);
-        // 1.14.16 (Волна 15C): apply-чеки — probe-зависимы (меняют и восстанавливают ранги)
         plusApply(plugin, r, probe);
         items115(plugin, r);
-        // 1.15.2: WeaponMastery — матрица владения оружием
         weaponMastery(r);
-        // 1.15.3: сообщения item-слоя присутствуют в конфиге
         itemMessages(plugin, r);
-        // 1.15.4: крафт и фрагменты
         crafting1154(plugin, r);
-        // 1.15.5: волна аудита (Wave 0+1+1b)
         auditing1155(plugin, r);
-        // 1.15.5-b: экономика и данные (Wave 2)
         economyData1155(plugin, r);
-        // 1.15.6: бой часть 1 (Wave 3)
         combat1155(plugin, r);
-        // 1.15.6: волна 4 (регистрация пути A, burst-undo, per-tree gates, оплата)
         wave4Audit(plugin, r);
-        // 1.15.6: волна 5b (конкурентность + FX)
         wave5bAudit(plugin, r, probe);
 
         print(plugin, sender, r);
@@ -402,7 +378,6 @@ public final class SelftestRunner {
     /* ------------------------------ 131–133: WeaponMastery (1.15.2) ------------------------------ */
 
     private static void weaponMastery(Report r) {
-        // 131: матрица 8×6 корректна (все ячейки заполнены, значения ∈ {1.0, 0.75, 0.5})
         boolean ok131 = true;
         String got131 = "";
         for (PlayerClass pc : PlayerClass.values()) {
@@ -419,7 +394,6 @@ public final class SelftestRunner {
         r.check("131", "WeaponMastery: матрица 8×6 заполнена (значения ∈ {1.0, 0.75, 0.5})",
                 ok131, "WeaponMastery.masteryMultiplier", ok131 ? "OK(48 cells)" : got131);
 
-        // 132: native/familiar/foreign для конкретных пар
         double wSword = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.SWORD);
         double wDagger = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.DAGGER);
         double wBow = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.BOW);
@@ -433,7 +407,6 @@ public final class SelftestRunner {
                 String.format(Locale.ROOT, "%.2f/%.2f/%.2f vs %.2f/%.2f/%.2f",
                         wSword, wDagger, wBow, hBow, hAxe, hSword));
 
-        // 133: null-защита и defensive programming
         double nullPc = WeaponMastery.masteryMultiplier(null, WeaponType.SWORD);
         double nullWt = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, null);
         double nullBoth = WeaponMastery.masteryMultiplier(null, null);
@@ -446,11 +419,6 @@ public final class SelftestRunner {
 
     /* ------------------------------ 134: messages.item.* (1.15.3) ------------------------------ */
 
-    /**
-     * 134: все 5 базовых ключей messages.item.* присутствуют в конфиге и резолвятся
-     * в непустую строку через RaskolConfig.message (fallback = дефолтный текст).
-     * Canary: если живой config.yml не получил блок 1.15.3 — чек красный.
-     */
     private static void itemMessages(RaskolClasses plugin, Report r) {
         String[] keys = {"item.equip-class", "item.equip-spec", "item.equip-level",
                 "item.unbreakable-lore", "item.mastery-line"};
@@ -474,15 +442,6 @@ public final class SelftestRunner {
 
     /* ------------------------------ 135–137: 1.15.4 крафт и фрагменты ------------------------------ */
 
-    /**
-     * 135: FragmentRegistry содержит ровно 13 фрагментов (6 осколков weapon/armor по
-     * тирам COMMON/RARE/EPIC, 6 классовых эссенций, 1 реликвия).
-     * 136: pure-математика SalvageService.fragmentsFor на синтетическом определении:
-     * RARE-оружие 40 ур. класса WARRIOR → {frag_weapon_rare: 2, frag_essence_warrior: 1}
-     * (осколки = itemLevel/20; эссенция тира RARE = 1).
-     * 137: CraftingService.reload() загрузил ≥1 рецепт из crafting.yml (canary: файл
-     * отсутствует/битый → рецептов 0 → чек красный).
-     */
     private static void crafting1154(RaskolClasses plugin, Report r) {
         boolean registryOk = plugin.getItems() != null && plugin.getItems().fragments() != null
                 && plugin.getItems().fragments().all().size() == 13;
@@ -513,19 +472,7 @@ public final class SelftestRunner {
 
     /* ------------------------------ 138–142: 1.15.5 волна аудита ------------------------------ */
 
-    /**
-     * 138: права plugin.yml покрывают дерево item.* (9 узлов). С 1.15.5-b дети
-     * объявлены топ-уровнем, поэтому getDescription().getPermissions() видит все имена.
-     * 139: AuthGate fail-closed (аудит 2.7-3): compat.authme-fail-open по умолчанию false.
-     * 140: все recipe.target из crafting.yml существуют в реестре (аудит 2.8-5):
-     * дефолт = 6 активных рецептов; битая цель отключается reload'ом → чек красный.
-     * 141: архитектурный контракт LuckPermsBackend (аудит 2.6-78): приватное поле
-     * lastClass типа Map — гарантия наличия LP-гарда сброса ресурса.
-     * 142: семантика Spec2Storage.saveIfDirty (аудит 2.6-91): setRanks помечает dirty,
-     * первый saveIfDirty = true и сбрасывает флаг, повторный = false. Probe-зависим.
-     */
     private static void auditing1155(RaskolClasses plugin, Report r) {
-        // 138: права plugin.yml (плоский список имён; дети топ-уровнем с 1.15.5-b)
         List<String> permNames = new ArrayList<>();
         for (Permission p : plugin.getDescription().getPermissions()) {
             permNames.add(p.getName());
@@ -553,18 +500,15 @@ public final class SelftestRunner {
                 perms138, "plugin.yml permissions",
                 perms138 ? "OK(9)" : "missing: " + missing138);
 
-        // 139: AuthGate fail-closed по умолчанию
         boolean authmeFailOpen = plugin.getConfig().getBoolean("compat.authme-fail-open", false);
         r.check("139", "1.15.5: AuthGate fail-closed — compat.authme-fail-open по умолчанию false",
                 !authmeFailOpen, "config compat.authme-fail-open", String.valueOf(authmeFailOpen));
 
-        // 140: все цели crafting.yml резолвятся (6 рецептов дефолта активны)
         int recipeCount = plugin.getItems() != null && plugin.getItems().crafting() != null
                 ? plugin.getItems().crafting().recipes().size() : 0;
         r.check("140", "1.15.5: crafting.yml — 6 рецептов активны (цели существуют в реестре)",
                 recipeCount >= 6, "CraftingService.recipes()", String.valueOf(recipeCount));
 
-        // 141: LuckPermsBackend.lastClass (Map) — архитектурный контракт LP-гарда
         boolean lpGuard141 = false;
         String got141 = "";
         try {
@@ -591,10 +535,13 @@ public final class SelftestRunner {
         r.check("141", "1.15.5: LuckPermsBackend.lastClass — Map-гард сброса ресурса (2.6-78)",
                 lpGuard141, "LuckPermsBackend.lastClass", got141);
 
-        // 142: saveIfDirty: dirty→true→сброс; повтор→false (probe-зависим)
+        // 142: saveIfDirty (probe-зависим + live-guard: пишет ранги)
         java.util.Collection<? extends Player> online = plugin.getServer().getOnlinePlayers();
         if (online.isEmpty()) {
             r.skip("142", "Spec2Storage.saveIfDirty (нет онлайн-игрока для dirty-пробы)");
+            return;
+        }
+        if (!liveGuard(r, "142")) {
             return;
         }
         Player p = online.iterator().next();
@@ -610,7 +557,7 @@ public final class SelftestRunner {
         boolean ok142;
         String got142;
         try {
-            plugin.getSpec2Service().storage().saveIfDirty(); // осушить флаг перед пробой
+            plugin.getSpec2Service().storage().saveIfDirty();
             Map<String, Integer> dummy = new HashMap<>(backup);
             dummy.put("selftest_dirty_probe", 1);
             plugin.getSpec2Service().storage().setRanks(pu, t0, dummy);
@@ -629,21 +576,7 @@ public final class SelftestRunner {
 
     /* ------------------------------ 143–146: 1.15.5-b экономика/данные ------------------------------ */
 
-    /**
-     * 143: SafeStorage round-trip (аудит 2.6-79/2.6-107): запись через saveAtomic
-     *         оставляет основной файл и создаёт .bak; при последующей
-     *         loadWithFallback leftover .tmp удаляется (аудит 2.6-107).
-     * 144: Foliant.saveLocksIfDirty идемпотентен: два вызова подряд без изменений
-     *         между ними оба возвращают false (аудит 2.6-6).
-     * 145: CraftingService.craft с несуществующим id (UNKNOWN) НЕ трогает
-     *         инвентарь игрока: рука и размер снапшота инвентаря идентичны до
-     *         и после; результат = UNKNOWN (аудит 2.6-15, порядок гейтов ДО списаний).
-     * 146: SalvageService.daily-limit гард: значение 0 в конфиге не роняет
-     *         сервис и не даёт DAILY_LIMIT — salvage возвращает EMPTY_HAND на
-     *         пустой руке (аудит 2.6-27, ежедневный лимит ≥1 через гард).
-     */
     private static void economyData1155(RaskolClasses plugin, Report r) {
-        // 143: SafeStorage round-trip без leftover .tmp
         java.io.File tmpDir = new java.io.File(plugin.getDataFolder(),
                 "selftest_143_" + System.nanoTime());
         tmpDir.mkdirs();
@@ -659,7 +592,6 @@ public final class SelftestRunner {
         boolean secondSaved = dev.raskol.classes.storage.SafeStorage.saveAtomic(
                 cfg, tmpFile, plugin.getLogger());
         boolean bakPresentAfterSecond = new java.io.File(tmpDir, "test.yml.bak").exists();
-        // loadWithFallback: при успешной загрузке основного файла удаляется leftover .tmp
         org.bukkit.configuration.file.YamlConfiguration loaded =
                 dev.raskol.classes.storage.SafeStorage.loadWithFallback(tmpFile, plugin.getLogger());
         boolean loadedOk = "value2".equals(loaded.getString("key2"));
@@ -667,7 +599,6 @@ public final class SelftestRunner {
         boolean ok143 = firstSaved && secondSaved && fileExists
                 && bakAbsentAfterFirst && bakPresentAfterSecond
                 && loadedOk && tmpCleanAfter;
-        // cleanup
         java.io.File[] leftovers = tmpDir.listFiles();
         if (leftovers != null) {
             for (java.io.File f : leftovers) {
@@ -680,7 +611,6 @@ public final class SelftestRunner {
                 "1st=" + firstSaved + " 2nd=" + secondSaved + " bak=" + bakPresentAfterSecond
                         + " loaded=" + loadedOk + " tmp_clean=" + tmpCleanAfter);
 
-        // 144: Foliant.saveLocksIfDirty идемпотентен без изменений
         boolean ok144 = false;
         String got144 = "no-service";
         if (plugin.getFoliantService() != null) {
@@ -692,11 +622,12 @@ public final class SelftestRunner {
         r.check("144", "1.15.5: Foliant.saveLocksIfDirty идемпотентен без изменений (false/false)",
                 ok144, "FoliantService.saveLocksIfDirty", got144);
 
-        // 145: craft UNKNOWN не трогает инвентарь
+        // 145/146: live-guard (146 трогает руку и конфиг)
         boolean ok145 = true;
         String got145 = "no-probe";
         java.util.Collection<? extends Player> online145 = plugin.getServer().getOnlinePlayers();
-        if (!online145.isEmpty()
+        boolean live145 = liveGuard(r, "145", "146");
+        if (live145 && !online145.isEmpty()
                 && plugin.getItems() != null
                 && plugin.getItems().crafting() != null) {
             Player p = online145.iterator().next();
@@ -724,53 +655,47 @@ public final class SelftestRunner {
             ok145 = handIntact && sizeIntact && resultIsUnknown;
             got145 = "hand=" + handIntact + " size=" + sizeBefore + "→" + sizeAfter
                     + " result=" + result;
+        } else if (live145) {
+            got145 = "no-probe";
         }
-        r.check("145", "1.15.5: craft UNKNOWN не трогает инвентарь (рука + размер)",
-                ok145, "CraftingService.craft", got145);
+        if (live145) {
+            r.check("145", "1.15.5: craft UNKNOWN не трогает инвентарь (рука + размер)",
+                    ok145, "CraftingService.craft", got145);
+        }
 
-        // 146: daily-limit гард ≥1
         int savedLimit = plugin.getConfig().getInt("item.salvage.daily-limit", 20);
         boolean ok146 = false;
         String got146 = "n/a";
-        try {
-            plugin.getConfig().set("item.salvage.daily-limit", 0);
-            if (!online145.isEmpty()
-                    && plugin.getItems() != null
-                    && plugin.getItems().salvage() != null) {
-                Player p = online145.iterator().next();
-                org.bukkit.inventory.ItemStack savedHand = p.getInventory().getItemInMainHand();
-                p.getInventory().setItemInMainHand(null);
-                try {
-                    dev.raskol.classes.item.craft.SalvageService.SalvageResult result =
-                            plugin.getItems().salvage().salvage(p);
-                    ok146 = result
-                            == dev.raskol.classes.item.craft.SalvageService.SalvageResult.EMPTY_HAND;
-                    got146 = "result=" + result + " (limit=0→дефолт ≥1)";
-                } finally {
-                    p.getInventory().setItemInMainHand(savedHand);
+        if (live145) {
+            try {
+                plugin.getConfig().set("item.salvage.daily-limit", 0);
+                if (!online145.isEmpty()
+                        && plugin.getItems() != null
+                        && plugin.getItems().salvage() != null) {
+                    Player p = online145.iterator().next();
+                    org.bukkit.inventory.ItemStack savedHand = p.getInventory().getItemInMainHand();
+                    p.getInventory().setItemInMainHand(null);
+                    try {
+                        dev.raskol.classes.item.craft.SalvageService.SalvageResult result =
+                                plugin.getItems().salvage().salvage(p);
+                        ok146 = result
+                                == dev.raskol.classes.item.craft.SalvageService.SalvageResult.EMPTY_HAND;
+                        got146 = "result=" + result + " (limit=0→дефолт ≥1)";
+                    } finally {
+                        p.getInventory().setItemInMainHand(savedHand);
+                    }
                 }
+            } finally {
+                plugin.getConfig().set("item.salvage.daily-limit", savedLimit);
             }
-        } finally {
-            plugin.getConfig().set("item.salvage.daily-limit", savedLimit);
+            r.check("146", "1.15.5: daily-limit гард ≥1 (limit=0 → дефолт, salvage не крашится)",
+                    ok146, "SalvageService.dailyLimit/salvage", got146);
         }
-        r.check("146", "1.15.5: daily-limit гард ≥1 (limit=0 → дефолт, salvage не крашится)",
-                ok146, "SalvageService.dailyLimit/salvage", got146);
     }
 
     /* ------------------------------ 147–150: 1.15.6 бой часть 1 ------------------------------ */
 
-    /**
-     * 147: DotService.computeTicks — архитектурный контракт (аудит 2.6-30): метод
-     *         существует, принимает List и возвращает List (чистая функция тика).
-     * 148: CombatService.dealDamage — 5-параметрическая сигнатура (target, source,
-     *         profile, allowOverCap, fromProc): health-guard 2.6-31 живёт в ней.
-     * 149: VanillaDamageListener — школа из CombatService.currentCastSchool():
-     *         set(FIRE) → currentCastSchool() == FIRE (hardcoded ARCANE убран, 2.6-32/34).
-     * 150: HudService.renderDots — mutable-копия перед sort: ArrayList(snapshot).sort()
-     *         не падает UnsupportedOperationException на immutable List.copyOf (2.6-97).
-     */
     private static void combat1155(RaskolClasses plugin, Report r) {
-        // 147: DotService.computeTicks — чистая функция (List → List)
         boolean ok147 = false;
         String got147 = "";
         try {
@@ -804,7 +729,6 @@ public final class SelftestRunner {
         r.check("147", "1.15.6: DotService.computeTicks — чистая функция (принимает List, возвращает List)",
                 ok147, "DotService.computeTicks", got147);
 
-        // 148: CombatService.dealDamage — сигнатура с fromProc (health-guard внутри)
         boolean ok148 = false;
         String got148 = "";
         try {
@@ -830,7 +754,6 @@ public final class SelftestRunner {
         r.check("148", "1.15.6: CombatService.dealDamage — 5-параметрическая сигнатура (health-guard 2.6-31)",
                 ok148, "CombatService.dealDamage", got148);
 
-        // 149: школа каста через ThreadLocal (не hardcoded ARCANE)
         CombatService.setCurrentCastSchool(School.FIRE);
         School castSchool = CombatService.currentCastSchool();
         CombatService.clearCastSchool();
@@ -838,7 +761,6 @@ public final class SelftestRunner {
         r.check("149", "1.15.6: VanillaDamageListener school из currentCastSchool (FIRE, не ARCANE)",
                 ok149, "CombatService.currentCastSchool", String.valueOf(castSchool));
 
-        // 150: mutable-копия перед sort (List.copyOf immutable → UnsupportedOperationException)
         boolean ok150 = false;
         String got150 = "";
         java.util.Collection<? extends Player> online150 = plugin.getServer().getOnlinePlayers();
@@ -862,23 +784,7 @@ public final class SelftestRunner {
 
     /* ------------------------------ 151–154: 1.15.6 волна 4 ------------------------------ */
 
-    /**
-     * 151: РЕГИСТРАЦИЯ VanillaDamageListener (аудит 2.6-1 CRITICAL): слушатель пути A
-     *         присутствует в handler-list EntityDamageEvent. Canary: если регистрацию
-     *         снова потеряют при рефакторинге (как в 1.14.10) — чек красный сразу.
-     * 152: burst-undo контракт (аудит 2.6-40): DamageCaps.undoLastBurst(Player,double)
-     *         существует И VanillaDamageListener.onDamageMonitor помечен
-     *         @EventHandler(priority = MONITOR) — откат записи burst-лога на отменённом ударе.
-     * 153: per-tree row-gates (аудит 2.6-89): override beastmaster из конфига
-     *         spec2.row-gates-by-tree активен: ряд 6 открыт с 27 очков для beastmaster,
-     *         закрыт с 27 для глобальных деревьев (arms) и закрыт для beastmaster с 26.
-     *         Canary: живой config.yml без блока row-gates-by-tree → чек красный.
-     * 154: платёжный контракт (аудит 2.6-90): EconomyHook.withdraw возвращает boolean
-     *         (результат списания проверяем) И Spec2Service.refundCoins существует
-     *         (PRUNED-rollback возвращает монеты через Vault-reflection).
-     */
     private static void wave4Audit(RaskolClasses plugin, Report r) {
-        // 151: VanillaDamageListener зарегистрирован на EntityDamageEvent (путь A жив)
         boolean found151 = false;
         for (org.bukkit.plugin.RegisteredListener rl
                 : EntityDamageEvent.getHandlerList().getRegisteredListeners()) {
@@ -891,7 +797,6 @@ public final class SelftestRunner {
                 found151, "RaskolClasses.onEnable registerEvents",
                 found151 ? "OK(registered)" : "NOT REGISTERED — путь A мёртв");
 
-        // 152: burst-undo контракт (undoLastBurst + MONITOR-хэндлер)
         boolean ok152 = false;
         String got152 = "";
         try {
@@ -914,7 +819,6 @@ public final class SelftestRunner {
         r.check("152", "1.15.6: burst-окно — undoLastBurst + MONITOR-хэндлер отката (2.6-40)",
                 ok152, "DamageCaps.undoLastBurst/VanillaDamageListener.onDamageMonitor", got152);
 
-        // 153: per-tree row-gates: beastmaster ряд 6 с 27, глобальные с 30
         boolean hasOverride = Spec2Points.snapshot().treeGates().containsKey("beastmaster");
         boolean beast27 = Spec2Points.rowUnlocked(6, 27, "beastmaster");
         boolean beast26 = Spec2Points.rowUnlocked(6, 26, "beastmaster");
@@ -925,7 +829,6 @@ public final class SelftestRunner {
                 "override=" + hasOverride + " beast27=" + beast27
                         + " beast26=" + beast26 + " arms27=" + arms27);
 
-        // 154: платёжный контракт: withdraw → boolean + refundCoins для PRUNED
         boolean ok154 = false;
         String got154 = "";
         try {
@@ -959,21 +862,7 @@ public final class SelftestRunner {
 
     /* ------------------------------ 155–158: 1.15.6 волна 5b ------------------------------ */
 
-    /**
-     * 155: AttributeModifiers concurrent safety (2.6-86) — 8 потоков × 200 итераций
-     *      смешанных add/remove/has без ConcurrentModificationException и без
-     *      потерянных модификаторов. Fresh-instance тест, не probe-зависим.
-     * 156: Spec2Storage purgeForeignTrees (2.6-96) — после reconcile ранги чужих
-     *      классов удалены из storage; оффлайн-игроки не затрагиваются (их
-     *      classTreeIds = [] и purge уничтожил бы все ранги). Probe-зависим.
-     * 157: FxService.procByKey per-player кулдаун (2.6-102) — ключ в procVisualCd
-     *      = "uuid:procId", глобального "procId" не появляется. Probe-зависим.
-     * 158: FxService.startAura identity-check (2.6-103) — после перезатирания
-     *      старой ауры новой отложенная задача старой не отменяет новую
-     *      (current == scheduledTask). Probe-зависим.
-     */
     private static void wave5bAudit(RaskolClasses plugin, Report r, Player probe) {
-        // 155: AttributeModifiers concurrent safety (не probe-зависим)
         dev.raskol.classes.attribute.AttributeModifiers mods =
                 new dev.raskol.classes.attribute.AttributeModifiers();
         UUID probeId155 = UUID.randomUUID();
@@ -1027,9 +916,11 @@ public final class SelftestRunner {
         r.check("155", "AttributeModifiers: 8 потоков × 200 итераций add/remove/has без падений (2.6-86)",
                 ok155, "AttributeModifiers", got155);
 
-        // 156: Spec2Storage purgeForeignTrees (probe-зависим)
+        // 156: purgeForeignTrees (live-guard: пишет ранги)
         if (probe == null) {
             r.skip("156", "Spec2Storage purgeForeignTrees (нет probe)");
+        } else if (!liveGuard(r, "156")) {
+            // skip уже помечен
         } else {
             UUID pu = probe.getUniqueId();
             List<String> current = plugin.getSpec2Service().classTreeIds(pu);
@@ -1069,9 +960,11 @@ public final class SelftestRunner {
             }
         }
 
-        // 157: FxService.procByKey per-player ключ (probe-зависим)
+        // 157: per-player proc-кулдаун (визуал на probe; live-guard)
         if (probe == null) {
             r.skip("157", "FxService per-player proc-кулдаун (нет probe)");
+        } else if (!liveGuard(r, "157")) {
+            // skip уже помечен
         } else {
             dev.raskol.classes.fx.FxService fx = plugin.getFx();
             fx.purgeStale();
@@ -1097,9 +990,11 @@ public final class SelftestRunner {
                     ok157, "FxService.procByKey/procVisualCd", got157);
         }
 
-        // 158: FxService.startAura identity-check (probe-зависим)
+        // 158: aura identity-CAS (визуал на probe; live-guard)
         if (probe == null) {
             r.skip("158", "FxService aura-таймер (нет probe)");
+        } else if (!liveGuard(r, "158")) {
+            // skip уже помечен
         } else {
             dev.raskol.classes.fx.FxService fx = plugin.getFx();
             UUID pu = probe.getUniqueId();
@@ -1107,7 +1002,6 @@ public final class SelftestRunner {
             boolean ok158 = false;
             String got158 = "";
             try {
-                // стартуем первую ауру (40 тиков ≈ 2.0 с)
                 fx.startAura(pu, org.bukkit.Particle.FLAME, 40, 1, null);
                 java.lang.reflect.Field aurasField = fx.getClass().getDeclaredField("auras");
                 aurasField.setAccessible(true);
@@ -1117,12 +1011,9 @@ public final class SelftestRunner {
                 if (firstTask == null) {
                     got158 = "no-aura-after-first-start";
                 } else {
-                    // стартуем вторую ауру (200 тиков ≈ 10 с) — должна перезатереть первую
                     fx.startAura(pu, org.bukkit.Particle.CRIT, 200, 1, null);
                     Object secondTask = auras.get(pu);
                     boolean replaced = secondTask != null && secondTask != firstTask;
-                    // ждём >2.05 с — отложенная задача первой ауры (40+1 тик) должна была сработать
-                    // но не должна была отменить новую ауру
                     Thread.sleep(2500);
                     Object after = auras.get(pu);
                     boolean stillActive = after == secondTask;
@@ -1161,7 +1052,8 @@ public final class SelftestRunner {
         }
         if (r.skipped > 0) {
             sender.sendMessage(Component.text(
-                    "Пропущенные чеки — probe-зависимые: запусти /rc selftest от игрока нужного класса.",
+                    "Пропущенные чеки — probe-зависимые или live-probe выключен: "
+                    + "запусти /rc selftest от игрока нужного класса.",
                     NamedTextColor.YELLOW));
         }
         plugin.getLogger().info("Selftest: " + r.passed + "/" + total + " PASS, skipped=" + r.skipped);
@@ -1279,6 +1171,9 @@ public final class SelftestRunner {
             r.skip("24", "reconcile-цикл spec2");
             return;
         }
+        if (!liveGuard(r, "24")) {
+            return;
+        }
         boolean ok24 = false;
         String got24 = "no-trees";
         UUID pu24 = probe.getUniqueId();
@@ -1339,6 +1234,9 @@ public final class SelftestRunner {
         if (probe == null) {
             r.skip("31", "глобальный бюджет spec2");
             r.skip("32", "reconcile-прунинг spec2");
+            return;
+        }
+        if (!liveGuard(r, "31", "32")) {
             return;
         }
         UUID pu = probe.getUniqueId();
@@ -1417,6 +1315,9 @@ public final class SelftestRunner {
             r.skip("33", "scale");
             r.skip("34", "healFormula");
             r.skip("35", "targetCarrier");
+            return;
+        }
+        if (!liveGuard(r, "33", "34", "35")) {
             return;
         }
         AttributeService attrs = plugin.getAttributes();
@@ -2021,8 +1922,13 @@ public final class SelftestRunner {
                 ok89, "CcSanity.validateCc",
                 ccProblems.isEmpty() ? "OK" : ccProblems.size() + ": " + ccProblems.get(0));
 
+        // 90: 1.15.6 (2.6-108) — НЕ трогаем probe с живым CC: skip вместо removeAll
         if (probe == null || cc == null) {
             r.skip("90", "debug CC/DR данные");
+        } else if (!liveGuard(r, "90")) {
+            // skip помечен liveGuard
+        } else if (!cc.activeOf(probe.getUniqueId()).isEmpty()) {
+            r.skip("90", "debug CC/DR данные (у probe активен CC — живое состояние не ломаем)");
         } else {
             UUID u90 = probe.getUniqueId();
             cc.removeAll(u90);
@@ -2041,7 +1947,19 @@ public final class SelftestRunner {
         }
     }
 
+    /**
+     * 1.15.6 (Волна 6, 2.6-108): если у probe УЖЕ активен CC — чеки 82/83 skip'аются:
+     * прежняя версия делала cc.removeAll() и стирала живой STUN/ROOT игрока.
+     */
     private static void ccProbeBreaks(Report r, Player probe, CCService cc) {
+        if (!liveGuard(r, "82", "83")) {
+            return;
+        }
+        if (!cc.activeOf(probe.getUniqueId()).isEmpty()) {
+            r.skip("82", "breakOnDamage ROOT (у probe активен CC — живое состояние не ломаем)");
+            r.skip("83", "STUN breakOnDamage (у probe активен CC)");
+            return;
+        }
         UUID u82 = probe.getUniqueId();
         cc.removeAll(u82);
         cc.resetAllDr(u82);
@@ -2075,7 +1993,15 @@ public final class SelftestRunner {
                 applied + "/" + hasBeforeStun + "/" + hasAfter);
     }
 
+    /** 1.15.6 (Волна 6, 2.6-108): гард живого CC аналогично ccProbeBreaks. */
     private static void ccProbeCastGuard(RaskolClasses plugin, Report r, Player probe, CCService cc) {
+        if (!liveGuard(r, "84")) {
+            return;
+        }
+        if (!cc.activeOf(probe.getUniqueId()).isEmpty()) {
+            r.skip("84", "CastGuard.canCast (у probe активен CC — живое состояние не ломаем)");
+            return;
+        }
         UUID u84 = probe.getUniqueId();
         dev.raskol.classes.cc.CastGuard cg = new dev.raskol.classes.cc.CastGuard(plugin);
         cc.removeAll(u84);
@@ -2347,6 +2273,9 @@ public final class SelftestRunner {
             r.skip("100", "heal-агрегат");
             return;
         }
+        if (!liveGuard(r, "100")) {
+            return;
+        }
         UUID pu100 = probe.getUniqueId();
         KindHit ho = findKind(plugin, probe, "heal_out_pct");
         KindHit hr = findKind(plugin, probe, "heal_received_pct");
@@ -2396,6 +2325,9 @@ public final class SelftestRunner {
     private static void probePowers(RaskolClasses plugin, Report r, Player probe) {
         if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
             r.skip("101", "павер-множители");
+            return;
+        }
+        if (!liveGuard(r, "101")) {
             return;
         }
         UUID pu101 = probe.getUniqueId();
@@ -2472,7 +2404,7 @@ public final class SelftestRunner {
                 && plugin.getSpec2Service().resourceRegenPercent(stranger102) == 0.0;
         boolean ok102 = pureOk && strangerZero;
         String got102 = "pure=" + pureOk;
-        if (probe != null) {
+        if (probe != null && liveProbeAllowed) {
             UUID pu102 = probe.getUniqueId();
             KindHit rmax = findKind(plugin, probe, "resource_max");
             KindHit rreg = findKind(plugin, probe, "resource_regen_pct");
@@ -2500,6 +2432,8 @@ public final class SelftestRunner {
                 if (rmax != null && bMax != null) restore(plugin, pu102, rmax.treeId(), bMax);
                 if (rreg != null && bReg != null) restore(plugin, pu102, rreg.treeId(), bReg);
             }
+        } else if (probe != null) {
+            got102 += " (live-probe off: probe-часть пропущена)";
         }
         r.check("102", "ресурс: setCeiling расширяет/сжимает/мусор-guard; resource_max/regen_pct из узлов",
                 ok102, "ResourceState.setCeiling/Spec2Service.resourceMaxBonus", got102);
@@ -2513,7 +2447,7 @@ public final class SelftestRunner {
                 && !ProcService.rollChance(0.0);
         boolean stripOk = true;
         String got103 = "pure=" + pureOk;
-        if (probe != null) {
+        if (probe != null && liveProbeAllowed) {
             UUID pu103 = probe.getUniqueId();
             KindHit pn = findKindPrefix(plugin, probe, "proc_");
             if (pn == null) {
@@ -2535,6 +2469,8 @@ public final class SelftestRunner {
                     }
                 }
             }
+        } else if (probe != null) {
+            got103 += " (live-probe off: probe-часть пропущена)";
         }
         r.check("103", "проки: clampFraction/rollChance pure + префикс proc_ срезан в агрегате",
                 pureOk && stripOk, "ProcService/Spec2Service.accumulate", got103);
@@ -2543,6 +2479,9 @@ public final class SelftestRunner {
     private static void probeCombatPct(RaskolClasses plugin, Report r, Player probe) {
         if (probe == null) {
             r.skip("104", "боевые pct-агрегаты");
+            return;
+        }
+        if (!liveGuard(r, "104")) {
             return;
         }
         UUID pu104 = probe.getUniqueId();
@@ -2620,6 +2559,9 @@ public final class SelftestRunner {
             r.skip("105", "resist-школа");
             return;
         }
+        if (!liveGuard(r, "105")) {
+            return;
+        }
         UUID pu105 = probe.getUniqueId();
         String foundTree = null;
         String foundNode = null;
@@ -2665,6 +2607,9 @@ public final class SelftestRunner {
     private static void resetNodeCheck(RaskolClasses plugin, Report r, Player probe) {
         if (probe == null) {
             r.skip("106", "resetNode");
+            return;
+        }
+        if (!liveGuard(r, "106")) {
             return;
         }
         UUID pu106 = probe.getUniqueId();
@@ -2819,6 +2764,9 @@ public final class SelftestRunner {
             r.skip("116", "контракт C value2");
             return;
         }
+        if (!liveGuard(r, "114", "115", "116")) {
+            return;
+        }
         UUID pu = probe.getUniqueId();
         PlayerClass pc = plugin.getClassProvider().getClassOf(probe);
 
@@ -2929,6 +2877,9 @@ public final class SelftestRunner {
         if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
             r.skip("117", "HAS_DEPENDENTS");
             r.skip("118", "антиспам-метка гейтов");
+            return;
+        }
+        if (!liveGuard(r, "117", "118")) {
             return;
         }
         UUID pu117 = probe.getUniqueId();
@@ -3112,7 +3063,7 @@ public final class SelftestRunner {
             }
             for (Spec2Node n : t.nodes()) {
                 if (disabled.contains(n.id())) {
-                    continue; // сам узел в стоп-листе — покупка и не ожидается
+                    continue;
                 }
                 if (!t.isReachable(n.id(), disabled)) {
                     unreachable++;
@@ -3132,7 +3083,6 @@ public final class SelftestRunner {
     /* ------------------------------ 123–125: 1.14.15 (raskolspec+) ------------------------------ */
 
     private static void plusSubscription(RaskolClasses plugin, Report r) {
-        // 123: 36 шаблонов загружены без проблем
         int tplCount = plugin.getBuildTemplates().countLoaded();
         int tplProblems = plugin.getBuildTemplates().countProblems();
         boolean ok123 = tplCount == 36 && tplProblems == 0;
@@ -3140,7 +3090,6 @@ public final class SelftestRunner {
                 ok123, "BuildTemplates.countLoaded/countProblems",
                 "loaded=" + tplCount + " problems=" + tplProblems);
 
-        // 124: математика подписки grant/remainingDays/revoke
         UUID probe = UUID.randomUUID();
         long exp1 = 0L;
         int days = 0;
@@ -3159,7 +3108,6 @@ public final class SelftestRunner {
                 ok124, "PlusSubscription.grant/remainingDays/revoke",
                 "expires=" + exp1 + " days=" + days + " active_after_revoke=" + activeAfterRevoke);
 
-        // 125: stale-маркировка шаблонов с disabled-узлами
         int stale = plugin.getBuildTemplates().countStale();
         boolean ok125 = stale >= 0;
         r.check("125", "raskolspec+: stale-шаблонов = " + stale + " (disabled-nodes маркировка)",
@@ -3168,17 +3116,13 @@ public final class SelftestRunner {
 
     /* ------------------------------ 126–127: 1.14.16 (Волна 15C) apply raskolspec+ ------------------------------ */
 
-    /**
-     * 126: applyBuild(free) применяет узел ряда 1 к первому дереву probe:
-     * результат OK, ранг = 1, затем состояние восстанавливается из backup.
-     * 127: отказы БЕЗ изменения состояния: чужое дерево → WRONG_CLASS_TREE;
-     * узел с пререквизитом без пререка → TEMPLATE_INVALID (simulateApply-parity).
-     * pauseMs(200) между вызовами — rate-limit actionAllowed (150 мс).
-     */
     private static void plusApply(RaskolClasses plugin, Report r, Player probe) {
         if (probe == null || plugin.getClassProvider().getClassOf(probe) == null) {
             r.skip("126", "raskolspec+ apply на probe");
             r.skip("127", "raskolspec+ apply-отказы");
+            return;
+        }
+        if (!liveGuard(r, "126", "127")) {
             return;
         }
         UUID pu = probe.getUniqueId();
@@ -3224,7 +3168,6 @@ public final class SelftestRunner {
         r.check("126", "raskolspec+ applyBuild: free-применение узла ряда 1 = OK, rank=1, откат чист",
                 ok126, "Spec2Service.applyBuild", got126);
 
-        // 127: отказы без изменения состояния
         Map<String, Integer> before127 = new HashMap<>(
                 plugin.getSpec2Service().storage().getRanks(pu, t0));
 
