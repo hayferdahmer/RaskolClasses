@@ -45,10 +45,14 @@ import java.util.UUID;
  * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble.
  * 1.14.14 (фаза 2, FE/BC-фиксы): epsilon-сравнение floating-point.
  * 1.15.2: WeaponMastery — множитель владения оружием (×1.0/×0.75/×0.5) для PHYSICAL-урона.
- * 1.15.5 (Волна 3, аудит 2.6-32): школа теперь берётся из CombatService.currentCastSchool()
- *         (ThreadLocal кастера), если каст активен; иначе — из schoolConfig.schoolOf(cause).
- *         Hardcoded School.ARCANE для MAGIC убран; огненное заклинание по цели с
- *         resist-fire теперь правильно идёт через School.FIRE, а не ARCANE.
+ * 1.15.5 (Волна 3, аудит 2.6-32/2.6-34): школа берётся из CombatService.currentCastSchool()
+ *         (ThreadLocal кастера), если каст активен; иначе PHYSICAL/TRUE из канала,
+ *         иначе schoolConfig.schoolOf(cause). Hardcoded ARCANE для MAGIC убран:
+ *         ванильный огонь/лава/яд/иссушение и огненные касты идут через свои школы.
+ * 1.15.6 (Волна 4, аудит 2.6-40): burst-окно исчерпано (allowed == 0) → событие
+ *         ОТМЕНЯЕТСЯ целиком (без анимации удара и без proc-триггеров); запись
+ *         burst-лога откатывается через DamageCaps.undoLastBurst, если событие
+ *         отменено downstream (MONITOR-хэндлер onDamageMonitor).
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -60,6 +64,11 @@ public final class VanillaDamageListener implements Listener {
     private final DamageCaps caps;
     private final SchoolConfig schoolConfig;
     private final SchoolImmunity immunity;
+
+    /** 1.15.6 (2.6-40): armed-состояние отката burst-лога (main-thread only). */
+    private boolean undoArmed = false;
+    private UUID undoUuid = null;
+    private double undoAmount = 0.0;
 
     public VanillaDamageListener(RaskolClasses plugin, CombatService combat,
                                  ResistService resists, AvoidanceService avoidance,
@@ -86,6 +95,7 @@ public final class VanillaDamageListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
+        undoArmed = false;
         boolean suppressed = CombatService.consumeSuppress();
         CombatProfile targetProfile=event.getEntity() instanceof LivingEntity living
                 ?plugin.getCombatProfiles().profileOf(living.getUniqueId()):null;
@@ -115,9 +125,8 @@ public final class VanillaDamageListener implements Listener {
             }
         }
 
-        // 1.15.5 (2.6-32): школа из currentCastSchool (кастер установил), иначе
-        // PHYSICAL из incomingType, иначе schoolConfig.schoolOf(cause).
-        // Hardcoded School.ARCANE для MAGIC убран.
+        // 1.15.5 (2.6-32/2.6-34): школа из currentCastSchool (кастер установил), иначе
+        // PHYSICAL/TRUE из канала, иначе schoolConfig.schoolOf(cause).
         DamageType incomingType = effectiveType(event);
         School castSchool = CombatService.currentCastSchool();
         School school;
@@ -257,6 +266,16 @@ public final class VanillaDamageListener implements Listener {
         double scale = caps.scaleOf(target);
         double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
         effective = caps.applyBurstCap(target, effective, caps.formulaMaxOf(target));
+        // 1.15.6 (2.6-40): burst-окно исчерпано — отмена БЕЗ анимации и proc-триггеров
+        if (effective <= 0.0) {
+            event.setCancelled(true);
+            return;
+        }
+        // 1.15.6 (2.6-40): armed-undo: если событие отменят downstream, MONITOR
+        // откатит запись burst-лога (окно не теряет бюджет на непрошедшем уроне)
+        undoUuid = uuid;
+        undoAmount = effective;
+        undoArmed = true;
         event.setDamage(effective * scale);
 
         if(!suppressed&&event.getCause()!=EntityDamageEvent.DamageCause.CUSTOM
@@ -279,6 +298,26 @@ public final class VanillaDamageListener implements Listener {
                     combat.procs().onDefenderDamagedByMagic(target, attacker, formulaDamage);
                 }
             }
+        }
+    }
+
+    /**
+     * 1.15.6 (Волна 4, аудит 2.6-40): MONITOR-стадия — финальный вердикт события.
+     * Если удар отменён downstream (регион, другой плагин, HIGHEST-хэндлер),
+     * запись burst-лога откатывается: окно учитывает ТОЛЬКО прошедший урон.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onDamageMonitor(EntityDamageEvent event) {
+        if (!undoArmed) {
+            return;
+        }
+        boolean armed = undoArmed;
+        UUID armedUuid = undoUuid;
+        double armedAmount = undoAmount;
+        undoArmed = false;
+        if (armed && event.isCancelled() && event.getEntity() instanceof Player tp
+                && tp.getUniqueId().equals(armedUuid)) {
+            caps.undoLastBurst(tp, armedAmount);
         }
     }
 
