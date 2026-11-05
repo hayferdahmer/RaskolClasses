@@ -25,6 +25,10 @@ import java.util.Map;
  *   гейты рядов, пререквизиты и ширина рядов (≤9 узлов) не изменились.
  *   Баланс: суммарная доступная сила дерева выросла незначительно (бюджет очков
  *   по-прежнему 46, закрыть дерево целиком всё ещё нельзя).
+ *
+ * 1.15.6 (Волна 6 часть 2, аудит 2.6-93): sv_readiness тип исправлен с
+ * enhance_ability на unlock_ability. Эффект Spec2Effect.of("unlock_ability", ...)
+ * требует type="unlock_ability" для корректного резолва в AbilityRegistry.
  */
 public final class HunterTrees {
 
@@ -173,7 +177,8 @@ public final class HunterTrees {
                 n("sv_expose_weakness", T, 5, 1, 3, Map.of("sv_black_arrow", 1), "passive_proc",
                         "Обнаружение слабости", "20% за ранг: цель получает +5% урона 6 с",
                         Spec2Effect.of("proc_expose", "target", 0.20)),
-                n("sv_readiness", T, 5, 2, 2, Map.of("sv_surefooted", 1), "enhance_ability",
+                // 1.15.6 (Волна 6 часть 2, 2.6-93): type=unlock_ability (эффект unlock_ability)
+                n("sv_readiness", T, 5, 2, 2, Map.of("sv_surefooted", 1), "unlock_ability",
                         "Готовность", "сброс КД всех ловушек, КД 180 с",
                         Spec2Effect.of("unlock_ability", "readiness", 1.0)),
                 n("sv_hunters_mark", T, 5, 3, 2, Map.of("sv_wyvern_sting", 1), "enhance_ability",
