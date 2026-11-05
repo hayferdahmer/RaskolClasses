@@ -2,8 +2,12 @@
 package dev.raskol.classes.spec.model;
 
 import dev.raskol.classes.RaskolClasses;
+import org.bukkit.configuration.ConfigurationSection;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 /**
@@ -23,6 +27,16 @@ import java.util.logging.Logger;
  *         Единственный legacy-читатель (selftest чек 107) переведён на snapshot().
  *         Поля были read-only копиями снимка, писались ТОЛЬКО внутри configure();
  *         удаление не меняет поведение, только чистит публичный API.
+ * 1.15.6 (Волна 4, аудит 2.6-89): PER-TREE ROW-GATES. config spec2.row-gates-by-tree
+ *         (map treeId → 6 ints) переопределяет глобальные гейты для конкретного дерева.
+ *         Кейс: beastmaster после стоп-листа имеет 27 доступных рангов в рядах 1–5,
+ *         глобальный гейт ряда 6 = 30 делал ульт bm_bestial_wrath НЕДОСТИЖИМЫМ.
+ *         Override [0,5,10,15,20,27] открывает ряд 6 только этому дереву.
+ *         Контекст дерева передаётся ThreadLocal (beginTree/endTree) — Spec2Tree.canBuy/
+ *         prereqsMet вызывают rowUnlocked(row, spent) БЕЗ treeId, контекст ставит
+ *         Spec2Service вокруг purchase/validate/hasDependents/reconcile.
+ *         Прямые вызовы rowUnlocked(row, spent) без контекста (selftest 46/107)
+ *         читают глобальные гейты — поведение прежних чеков не меняется.
  */
 public final class Spec2Points {
 
@@ -30,24 +44,49 @@ public final class Spec2Points {
 
     /**
      * Неизменяемый снимок настроек экономики очков.
-     * rowGates клонируется на входе и на выходе — снаружи массив не_mutabel.
+     * rowGates клонируется на входе и на выходе — снаружи массив не mutabel.
+     * treeGates — иммутабельная map treeId → 6 гейтов (clone массивов на входе).
      */
-    public record Snapshot(int startLevel, int maxPoints, int[] rowGates) {
+    public record Snapshot(int startLevel, int maxPoints, int[] rowGates,
+                           Map<String, int[]> treeGates) {
 
         public Snapshot {
             rowGates = rowGates == null ? new int[0] : rowGates.clone();
+            if (treeGates != null) {
+                Map<String, int[]> copy = new HashMap<>();
+                treeGates.forEach((k, v) -> copy.put(k, v == null ? new int[0] : v.clone()));
+                treeGates = Map.copyOf(copy);
+            } else {
+                treeGates = Map.of();
+            }
+        }
+
+        /** Convenience-конструктор без per-tree overrides (дефолты, миграция). */
+        public Snapshot(int startLevel, int maxPoints, int[] rowGates) {
+            this(startLevel, maxPoints, rowGates, Map.of());
         }
 
         public int[] rowGates() {
             return rowGates.clone();
         }
 
-        /** Гейт ряда (1..6); для невалидного ряда — Integer.MAX_VALUE (ряд закрыт). */
+        /** Гейт ряда (1..6) глобально; для невалидного ряда — Integer.MAX_VALUE (ряд закрыт). */
         public int rowGate(int row) {
             if (row < 1 || row > rowGates.length) {
                 return Integer.MAX_VALUE;
             }
             return rowGates[row - 1];
+        }
+
+        /** Гейт ряда с учётом per-tree override; override отсутствует → глобальный. */
+        public int rowGate(int row, String treeId) {
+            if (treeId != null) {
+                int[] override = treeGates.get(treeId);
+                if (override != null && row >= 1 && row <= override.length) {
+                    return override[row - 1];
+                }
+            }
+            return rowGate(row);
         }
     }
 
@@ -56,7 +95,25 @@ public final class Spec2Points {
     /** 1.14.7 (Sprint 4, P1-4): единственный источник истины; publishes атомарно. */
     private static volatile Snapshot snap = DEFAULTS;
 
+    /**
+     * 1.15.6 (2.6-89): контекст дерева для per-tree гейтов. Spec2Tree.canBuy и
+     * prereqsMet вызывают rowUnlocked(row, spent) без treeId — контекст подаёт
+     * treeId из вызывающего Scope Spec2Service. Main-thread + scheduler-потоки
+     * reconcile ставят/снимают контекст парно (finally).
+     */
+    private static final ThreadLocal<String> CTX_TREE = new ThreadLocal<>();
+
     private Spec2Points() {
+    }
+
+    /* ------------------------------ контекст дерева (1.15.6) ------------------------------ */
+
+    public static void beginTree(String treeId) {
+        CTX_TREE.set(treeId);
+    }
+
+    public static void endTree() {
+        CTX_TREE.remove();
     }
 
     /* ------------------------------ аксессоры снимка ------------------------------ */
@@ -83,10 +140,9 @@ public final class Spec2Points {
 
     /**
      * 1.14.7 (P1-4): читает spec2.start-level / spec2.max-points / spec2.row-gates,
-     * валидирует и атомарно publishes новый Snapshot. Вызывается в onEnable и reloadPlugin.
+     * 1.15.6: + spec2.row-gates-by-tree; валидирует и атомарно publishes новый Snapshot.
+     * Вызывается в onEnable и reloadPlugin.
      * Невалидные значения → warning + сохранение текущего снимка (или дефолта для поля).
-     * 1.14.13 (Волна 13C, 2-06): запись в deprecated-поля START_LEVEL/MAX_POINTS/ROW_GATES
-     * удалена (поля удалены).
      */
     public static void configure(RaskolClasses plugin) {
         if (plugin == null || plugin.getConfig() == null) {
@@ -107,50 +163,68 @@ public final class Spec2Points {
         }
 
         int[] gates = cur.rowGates();
-        java.util.List<?> raw = plugin.getConfig().getList("spec2.row-gates", null);
+        List<?> raw = plugin.getConfig().getList("spec2.row-gates", null);
         if (raw == null) {
             LOGGER.info("spec2.row-gates не указан в конфиге, оставлен текущий снимок гейтов");
         } else if (raw.size() != 6) {
             LOGGER.warning("spec2.row-gates имеет длину " + raw.size()
                     + " (ожидалось 6 рядов), оставлен текущий снимок " + Arrays.toString(gates));
         } else {
-            int[] cand = new int[6];
-            boolean valid = true;
-            int prev = -1;
-            for (int i = 0; i < 6; i++) {
-                Object v = raw.get(i);
-                if (!(v instanceof Number n)) {
-                    valid = false;
-                    LOGGER.warning("spec2.row-gates[" + i + "] не число: " + v);
-                    break;
-                }
-                int iv = n.intValue();
-                if (iv < 0) {
-                    valid = false;
-                    LOGGER.warning("spec2.row-gates[" + i + "]=" + iv + " недопустим (<0)");
-                    break;
-                }
-                if (iv < prev) {
-                    valid = false;
-                    LOGGER.warning("spec2.row-gates[" + i + "]=" + iv
-                            + " < предыдущего " + prev + " (должна быть неубывающая)");
-                    break;
-                }
-                cand[i] = iv;
-                prev = iv;
-            }
-            if (valid) {
+            int[] cand = parseGates(raw, "spec2.row-gates");
+            if (cand != null) {
                 gates = cand;
-            } else {
-                LOGGER.warning("spec2.row-gates невалиден, оставлен текущий снимок "
-                        + Arrays.toString(gates));
             }
         }
 
-        // атомарная публикация снимка (без записи в deprecated-поля — они удалены в 1.14.13)
-        snap = new Snapshot(sl, mp, gates);
+        // 1.15.6 (2.6-89): per-tree overrides
+        Map<String, int[]> overrides = new HashMap<>();
+        ConfigurationSection sec = plugin.getConfig().getConfigurationSection("spec2.row-gates-by-tree");
+        if (sec != null) {
+            for (String treeId : sec.getKeys(false)) {
+                List<?> treeRaw = sec.getList(treeId, null);
+                if (treeRaw == null || treeRaw.size() != 6) {
+                    LOGGER.warning("spec2.row-gates-by-tree." + treeId
+                            + " должен содержать 6 чисел — override пропущен");
+                    continue;
+                }
+                int[] cand = parseGates(treeRaw, "spec2.row-gates-by-tree." + treeId);
+                if (cand != null) {
+                    overrides.put(treeId, cand);
+                }
+            }
+        }
+
+        // атомарная публикация снимка
+        snap = new Snapshot(sl, mp, gates, Map.copyOf(overrides));
         LOGGER.info("spec2: configure → start=" + sl + " max=" + mp
-                + " gates=" + Arrays.toString(snap.rowGates()));
+                + " gates=" + Arrays.toString(snap.rowGates())
+                + " tree-overrides=" + overrides.keySet());
+    }
+
+    /** Парсер 6 гейтов: числа, ≥0, неубывающие; null = невалидно (warning уже внутри). */
+    private static int[] parseGates(List<?> raw, String path) {
+        int[] cand = new int[6];
+        int prev = -1;
+        for (int i = 0; i < 6; i++) {
+            Object v = raw.get(i);
+            if (!(v instanceof Number n)) {
+                LOGGER.warning(path + "[" + i + "] не число: " + v);
+                return null;
+            }
+            int iv = n.intValue();
+            if (iv < 0) {
+                LOGGER.warning(path + "[" + i + "]=" + iv + " недопустим (<0)");
+                return null;
+            }
+            if (iv < prev) {
+                LOGGER.warning(path + "[" + i + "]=" + iv
+                        + " < предыдущего " + prev + " (должна быть неубывающая)");
+                return null;
+            }
+            cand[i] = iv;
+            prev = iv;
+        }
+        return cand;
     }
 
     public static int earnedPoints(int charLevel) {
@@ -161,7 +235,13 @@ public final class Spec2Points {
         return Math.min(s.maxPoints(), charLevel - s.startLevel() + 1);
     }
 
+    /** Глобальный гейт с учётом ThreadLocal-контекста дерева (1.15.6). */
     public static boolean rowUnlocked(int row, int spentInTree) {
-        return spentInTree >= snap.rowGate(row);
+        return rowUnlocked(row, spentInTree, CTX_TREE.get());
+    }
+
+    /** Явный treeId: per-tree override → глобальный гейт. */
+    public static boolean rowUnlocked(int row, int spentInTree, String treeId) {
+        return spentInTree >= snap.rowGate(row, treeId);
     }
 }
