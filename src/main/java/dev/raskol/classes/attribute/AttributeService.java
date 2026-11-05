@@ -38,6 +38,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble —
  *         единая NaN-проверка (аудит 1-01). baseOf/growthOf оставлены локальными:
  *         у них отдельный guard (v ≥ 0) и специфический default — это не общий паттерн.
+ *
+ * 1.15.6 (Волна 6 часть 2, аудит 2.6-87): critMeleeChance/critSpellChance cap
+ * читается из конфига (attributes.crit.melee-cap / attributes.crit.spell-cap),
+ * а не hardcoded 50. Раньше cap=50 был жёстким: spec2+item бонусы не могли его
+ * превысить, но и конфиг-ключ не работал. Теперь cap из конфига применяется к
+ * итоговой сумме (base + spec2-bonus + item-bonus).
  */
 public final class AttributeService {
 
@@ -241,7 +247,9 @@ public final class AttributeService {
             formula = AttributeMath.maxHp(value(uuid, AttributeType.STR), level, strMain,
                     baseHp, perStr, perLevel, mainBonus);
         }
-        if (plugin.getItems() != null) formula += plugin.getItems().value(uuid, ItemStat.HP_BONUS);
+        if (plugin.getItems() != null) {
+            formula += plugin.getItems().value(uuid, ItemStat.HP_BONUS);
+        }
         // 1.14.3 (3B): hp_pct множитель из spec2 (fury_metamorphosis, dm_metamorphosis и т.п.)
         double hpPct = plugin.getSpec2Service().hpPercent(uuid);
         if (Double.isFinite(hpPct) && hpPct > 0.0) {
@@ -250,7 +258,12 @@ public final class AttributeService {
         return Math.max(1.0, formula);
     }
 
-    /** 1.14.3 (3B): базовый critMelee + critMeleeBonus из spec2. */
+    /**
+     * Шанс критического удара ближнего боя.
+     * 1.14.3 (3B): базовый critMelee + critMeleeBonus из spec2.
+     * 1.15.6 (2.6-87): cap читается из конфига (attributes.crit.melee-cap),
+     * а не hardcoded 50. Применяется к итоговой сумме (base + spec2 + item).
+     */
     public double critMeleeChance(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
@@ -262,10 +275,19 @@ public final class AttributeService {
                 cfgD("attributes.crit.melee-per-agi", 0.05),
                 cfgD("attributes.crit.melee-cap", 40.0));
         double bonus = plugin.getSpec2Service().critMeleeBonus(uuid);
-        return Math.min(50.0, base + (Double.isFinite(bonus) && bonus > 0 ? bonus : 0.0)
-                + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, ItemStat.CRIT_MELEE)));
+        double itemBonus = plugin.getItems() == null ? 0.0
+                : plugin.getItems().value(uuid, ItemStat.CRIT_MELEE);
+        double total = base + (Double.isFinite(bonus) && bonus > 0 ? bonus : 0.0) + itemBonus;
+        // 1.15.6 (2.6-87): cap из конфига, не hardcoded 50
+        double cap = cfgD("attributes.crit.melee-cap", 40.0);
+        return Math.min(cap, total);
     }
 
+    /**
+     * Шанс критического удара заклинания.
+     * 1.15.6 (2.6-87): cap читается из конфига (attributes.crit.spell-cap),
+     * а не hardcoded 50. Применяется к итоговой сумме (base + item).
+     */
     public double critSpellChance(UUID uuid) {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
@@ -278,7 +300,12 @@ public final class AttributeService {
                 cfgD("attributes.crit.spell-per-int", 0.03),
                 cfgD("attributes.crit.spell-main-mult", 1.5),
                 cfgD("attributes.crit.spell-cap", 35.0));
-        return Math.min(50.0, base + (plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, ItemStat.CRIT_SPELL)));
+        double itemBonus = plugin.getItems() == null ? 0.0
+                : plugin.getItems().value(uuid, ItemStat.CRIT_SPELL);
+        double total = base + itemBonus;
+        // 1.15.6 (2.6-87): cap из конфига, не hardcoded 50
+        double cap = cfgD("attributes.crit.spell-cap", 35.0);
+        return Math.min(cap, total);
     }
 
     /**
