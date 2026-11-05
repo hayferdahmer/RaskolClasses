@@ -33,26 +33,16 @@ import java.util.UUID;
 
 /**
  * 1.11.4 (P3): ПУТЬ A — ванильные события урона.
- * 1.12.1: иммунитеты/уязвимости сущностей к школам + глобальный множитель школы.
- * 1.12.2 (Блок 4): живая проводка пробития и стихийного слоя.
- * 1.13.0 (Б2): breaksOnDamage-хуки.
- * 1.14.3 (Волна 3, 3C1): интеграция ProcService — avoid-result, expose, second_wind.
- * 1.14.3 (Волна 3, 3C2): stealth_bonus/crit_mult_bonus в офенсе, setUndodgeable на крит,
- *         reflect_magic после финального маг-урона.
- * 1.14.3 (фикс #1301): УБРАН несуществующий EntityDamageByEntityEvent.isBlocked().
- * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): клон critFeedback удалён — вызов
- *         combat.critFeedback() (единая точка в CombatService).
- * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble.
- * 1.14.14 (фаза 2, FE/BC-фиксы): epsilon-сравнение floating-point.
- * 1.15.2: WeaponMastery — множитель владения оружием (×1.0/×0.75/×0.5) для PHYSICAL-урона.
- * 1.15.5 (Волна 3, аудит 2.6-32/2.6-34): школа берётся из CombatService.currentCastSchool()
- *         (ThreadLocal кастера), если каст активен; иначе PHYSICAL/TRUE из канала,
- *         иначе schoolConfig.schoolOf(cause). Hardcoded ARCANE для MAGIC убран:
- *         ванильный огонь/лава/яд/иссушение и огненные касты идут через свои школы.
- * 1.15.6 (Волна 4, аудит 2.6-40): burst-окно исчерпано (allowed == 0) → событие
- *         ОТМЕНЯЕТСЯ целиком (без анимации удара и без proc-триггеров); запись
- *         burst-лога откатывается через DamageCaps.undoLastBurst, если событие
- *         отменено downstream (MONITOR-хэндлер onDamageMonitor).
+ * 1.12.1–1.13.0: школы, иммунитеты, pen+elemental, breaksOnDamage.
+ * 1.14.3 (3C1/3C2): ProcService-интеграция, stealth/crit-множители, reflect.
+ * 1.14.10 (7.2B/7.3): critFeedback единая точка; cfgD → ConfigReads.
+ * 1.14.14 (фаза 2): epsilon-сравнения.
+ * 1.15.2: WeaponMastery для PHYSICAL.
+ * 1.15.5 (Волна 3, 2.6-32/34): школа из currentCastSchool / schoolOf(cause).
+ * 1.15.6 (Волна 4, 2.6-40): burst allowed==0 → отмена; MONITOR-откат burst-лога.
+ * 1.15.6 (Волна 7, 2.6-38): suppressed-события (DoT-тики и удары пути B) выходят
+ *         ДО блока уклонения: магические DoT больше не уклоняются/парируются,
+ *         парирование не накладывает stagger на владельца DoT.
  */
 public final class VanillaDamageListener implements Listener {
 
@@ -83,10 +73,6 @@ public final class VanillaDamageListener implements Listener {
         this.immunity = new SchoolImmunity(plugin);
     }
 
-    /**
-     * 1.14.10 (Волна 7.3, P0-1-01): делегат в ConfigReads.finiteDouble —
-     * единая NaN-проверка (аудит 1-01: 9 дублей cfgD).
-     */
     private double cfgD(String path, double def) {
         return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
@@ -118,15 +104,12 @@ public final class VanillaDamageListener implements Listener {
 
         if (!suppressed) {
             applyOutgoingOffense(event);
-            // «Печать Погибели»: +26% урона от ВСЕХ источников (универсально)
             double amp = WarlockAbilities.sealAmplifyOf(event.getEntity().getUniqueId());
             if (amp > 0.0 && event.getDamage() > 0.0) {
                 event.setDamage(event.getDamage() * (1.0 + amp));
             }
         }
 
-        // 1.15.5 (2.6-32/2.6-34): школа из currentCastSchool (кастер установил), иначе
-        // PHYSICAL/TRUE из канала, иначе schoolConfig.schoolOf(cause).
         DamageType incomingType = effectiveType(event);
         School castSchool = CombatService.currentCastSchool();
         School school;
@@ -154,7 +137,6 @@ public final class VanillaDamageListener implements Listener {
             }
         }
 
-        // 1.13.0 (Б2): мобы — резист-митигации в пути A нет, урон финален уже здесь
         if (!(event.getEntity() instanceof Player target)) {
             if(!suppressed&&targetProfile!=null&&event.getDamage()>0.0&&incomingType!=DamageType.TRUE){
                 double channel=incomingType==DamageType.PHYSICAL?targetProfile.physResist():targetProfile.magicResist();
@@ -193,13 +175,18 @@ public final class VanillaDamageListener implements Listener {
             return;
         }
 
-        // 1.14.3 (3C1 + фикс #1301): avoidance с различением dodge/parry и маршрутизацией
+        // 1.15.6 (Волна 7, аудит 2.6-38): suppressed-события (DoT/путь B) НЕ проходят
+        // уклонение/парирование: маг-DoT не dodge'ится, парирование не вешает stagger
+        // на владельца DoT. Выход ДО блока avoidance.
+        if (suppressed) {
+            return;
+        }
+
+        // 1.14.3 (3C1 + фикс #1301): avoidance с различением dodge/parry
         if (type == DamageType.PHYSICAL) {
             ProcService.AvoidResult avoidResult = avoidance.tryAvoid(target, event);
             if (avoidResult != ProcService.AvoidResult.NONE) {
                 event.setCancelled(true);
-                // 1.14.14 (фаза 2, BC_VACUOUS-фикс): attacker объявлен как Player,
-                // поэтому `attacker instanceof Player` был vacuous. Нужен только null-check.
                 if (attacker != null) {
                     if (avoidResult == ProcService.AvoidResult.PARRY && holdsShield(target)) {
                         combat.procs().onDefenderBlock(target, attacker);
@@ -211,17 +198,12 @@ public final class VanillaDamageListener implements Listener {
             }
         }
 
-        if (suppressed) {
-            return;
-        }
-
         double cap = isPvp(event) ? resists.pvpCap() : resists.cap();
         UUID uuid = target.getUniqueId();
         double factor = type == DamageType.PHYSICAL
                 ? resists.physicalFactor(uuid, cap)
                 : resists.magicFactor(uuid, cap);
 
-        // 1.12.2 (Блок 4): пробитие атакующего + стихийный слой цели.
         double defenseMult = 1.0;
         if (Double.isFinite(factor) && factor >= 0.0 && factor < 1.0) {
             double channelResistPct = (1.0 - factor) * 100.0;
@@ -242,7 +224,7 @@ public final class VanillaDamageListener implements Listener {
                         schoolConfig.penPctCap(), effEl,
                         schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
             } else {
-                mitigation = channelResistPct / 100.0; // legacy-поведение
+                mitigation = channelResistPct / 100.0;
             }
             defenseMult = 1.0 - mitigation;
             if (defenseMult <= 0.0) {
@@ -254,7 +236,6 @@ public final class VanillaDamageListener implements Listener {
             event.setDamage(event.getDamage() * defenseMult);
         }
 
-        // 1.14.3 (3C1): expose — цель получает больше входящего урона
         if (attacker != null) {
             double expose = combat.procs().readExposeMult(target);
             if (expose > 1.0) {
@@ -266,29 +247,24 @@ public final class VanillaDamageListener implements Listener {
         double scale = caps.scaleOf(target);
         double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
         effective = caps.applyBurstCap(target, effective, caps.formulaMaxOf(target));
-        // 1.15.6 (2.6-40): burst-окно исчерпано — отмена БЕЗ анимации и proc-триггеров
         if (effective <= 0.0) {
             event.setCancelled(true);
             return;
         }
-        // 1.15.6 (2.6-40): armed-undo: если событие отменят downstream, MONITOR
-        // откатит запись burst-лога (окно не теряет бюджет на непрошедшем уроне)
         undoUuid = uuid;
         undoAmount = effective;
         undoArmed = true;
         event.setDamage(effective * scale);
 
-        if(!suppressed&&event.getCause()!=EntityDamageEvent.DamageCause.CUSTOM
+        if(event.getCause()!=EntityDamageEvent.DamageCause.CUSTOM
                 &&event.getDamage()>0.0&&event instanceof EntityDamageByEntityEvent by){
             double reflect=targetProfile!=null?targetProfile.reflect():
                     plugin.getItems().value(target.getUniqueId(),dev.raskol.classes.item.model.ItemStat.REFLECT);
             reflect(by,event.getDamage(),reflect);
         }
 
-        // 1.13.0 (Б2): финальный урон по игроку (после митигации и капов) → breaksOnDamage
         hookBreaksCarrier(target, event.getDamage());
 
-        // 1.14.3 (3C1+3C2): post-damage proc-триггеры (formula-единицы)
         if (event.getDamage() > 0.0) {
             double formulaDamage = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
             combat.procs().onDefenderDamaged(target, formulaDamage);
@@ -301,11 +277,6 @@ public final class VanillaDamageListener implements Listener {
         }
     }
 
-    /**
-     * 1.15.6 (Волна 4, аудит 2.6-40): MONITOR-стадия — финальный вердикт события.
-     * Если удар отменён downstream (регион, другой плагин, HIGHEST-хэндлер),
-     * запись burst-лога откатывается: окно учитывает ТОЛЬКО прошедший урон.
-     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDamageMonitor(EntityDamageEvent event) {
         if (!undoArmed) {
@@ -330,7 +301,6 @@ public final class VanillaDamageListener implements Listener {
         }
     }
 
-    /** 1.14.3 (фикс #1301): щит в любой руке — маркер «блока» для guard-проков. */
     private static boolean holdsShield(Player player) {
         org.bukkit.inventory.ItemStack off = player.getInventory().getItemInOffHand();
         if (off != null && off.getType().name().endsWith("SHIELD")) {
@@ -340,10 +310,6 @@ public final class VanillaDamageListener implements Listener {
         return main != null && main.getType().name().endsWith("SHIELD");
     }
 
-    /**
-     * 1.13.0 (Б2): конвертация carrier-урона в formula-единицы и передача
-     * в CCService.breakOnDamage (порог сравнивается с formula-maxHP, план B).
-     */
     private void hookBreaksCarrier(LivingEntity victim, double carrierDamage) {
         if (carrierDamage <= 0.0) {
             return;
@@ -355,7 +321,7 @@ public final class VanillaDamageListener implements Listener {
         }
     }
 
-    /* --------------------- исходящий офенс (1.7.1 + 1.14.3 3C1/3C2 + 1.15.2 mastery) --------------------- */
+    /* --------------------- исходящий офенс --------------------- */
 
     private void applyOutgoingOffense(EntityDamageEvent event) {
         if (!(event instanceof EntityDamageByEntityEvent by)) {
@@ -410,7 +376,6 @@ public final class VanillaDamageListener implements Listener {
         if(itemDamage>0.0)base=itemDamage;
         double total = base + add;
 
-        // 1.15.2: WeaponMastery — множитель владения оружием для PHYSICAL-урона
         if (type == DamageType.PHYSICAL) {
             PlayerClass pc = plugin.getClassProvider().getClassOf(attacker);
             org.bukkit.inventory.ItemStack mainHand = attacker.getInventory().getItemInMainHand();
@@ -420,13 +385,11 @@ public final class VanillaDamageListener implements Listener {
             total *= mastery;
         }
 
-        // 1.14.3 (3C2): stealth_bonus — множитель урона при ударе из невидимости
         double stealth = combat.procs().rollStealthBonus(attacker);
         if (stealth > 1.0) {
             total *= stealth;
         }
 
-        // 1.14.3 (3C1): amplifier (next-hit bonus) перед crit
         double amp = combat.procs().getAmplifier(attacker);
         if (amp > 1.0) {
             total *= amp;
@@ -436,9 +399,7 @@ public final class VanillaDamageListener implements Listener {
         if (crit) {
             double baseMult = type == DamageType.PHYSICAL ? meleeMult(attacker) : spellMult(attacker);
             total *= baseMult;
-            // 1.14.10 (Волна 7.2B): вызов единой точки critFeedback в CombatService
             combat.critFeedback(attacker, type == DamageType.PHYSICAL);
-            // 1.14.3 (3C1+3C2): crit procs (bleed_on_crit, apply_poison, extend'ы, vendetta_refresh)
             combat.procs().rollCritProcs(attacker, (LivingEntity) by.getEntity(), true,
                     type == DamageType.PHYSICAL);
             if (type == DamageType.PHYSICAL) {
@@ -446,9 +407,6 @@ public final class VanillaDamageListener implements Listener {
             }
         }
 
-        // 1.14.14 (фаза 2, FE-фикс): прямое равенство floating-point заменено на
-        // epsilon-сравнение (1e-9) — безопаснее для малых отклонений в офенс-формулах.
-        // Поведение идентично: event.setDamage(total) только когда модификация есть.
         if (Math.abs(total - base) > 1e-9 && Double.isFinite(total) && total >= 0.0) {
             event.setDamage(total);
         }
@@ -490,7 +448,6 @@ public final class VanillaDamageListener implements Listener {
         return typeOf(event.getCause());
     }
 
-
     private boolean rollMeleeCrit(Player player) {
         return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0
                 < plugin.getAttributes().critMeleeChance(player.getUniqueId());
@@ -501,7 +458,6 @@ public final class VanillaDamageListener implements Listener {
                 < plugin.getAttributes().critSpellChance(player.getUniqueId());
     }
 
-    /** 1.14.3 (3C1+3C2): базовый melee-mult × crit_mult_bonus. */
     private double meleeMult(Player attacker) {
         return cfgD("attributes.crit.melee-mult", 1.5) * combat.procs().critMultBonus(attacker)
                 * (1.0 + plugin.getItems().value(attacker.getUniqueId(),dev.raskol.classes.item.model.ItemStat.CRIT_DAMAGE)/100.0);
