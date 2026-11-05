@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/headers/security.svg" alt="SECURITY — Стража очага" width="100%"/>
+</p>
+
 # Политика безопасности RaskolClasses
 
 ## Поддерживаемые версии
