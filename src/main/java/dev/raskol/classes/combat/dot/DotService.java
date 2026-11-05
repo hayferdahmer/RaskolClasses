@@ -36,58 +36,51 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * 1.12.4–1.12.6: DoT-ядро (реестр, тик 1 с, атрибуция, стеки, кап DPS, триггеры среды).
- * 1.14.0 (Б2): spec2-тюнинг источника — узлы dot_dur/dot_stacks/dot_mult дерева
- *         кастера меняют длительность/стеки/dps накладываемого им DoT (specTuned).
- * 1.14.0 (Б7): wither (SHADOW) в дефолтах реестра + партиклы школ SHADOW/HOLY/
- *         ARCANE/TRUE в defaultDotParticle.
- * 1.14.7 (Sprint 3, P0-6A): applyByIdWithDpsBonus — DoT с надбавкой к dps из
- *         proc-узла (deep_wounds: +0.5 dps за ранг). Надбавка фиксируется в def
- *         при ПЕРВОМ наложении; повторные применения того же owner+id освежают
- *         стеки/время, но не меняют dps уже висящего экземпляра (осознанно).
- * 1.14.13 (Sprint 9, Волна 13B-b, P0-10-03/04): конструктор без побочных эффектов —
- *         registerEvents и runTaskTimer вынесены в registerListeners()/startTickTask();
- *         создаётся CombatService в конструкторе (чистая ссылка), регистрация/запуск
- *         задачи — из RaskolClasses.onEnable, ручка задачи в activeTasks.
- * 1.14.14 (фаза 1, BC_VACUOUS-фикс): в onProjectileHit убран vacuous instanceof —
- *         event.getEntity() по контракту ProjectileHitEvent возвращает Projectile,
- *         поэтому проверка instanceof была всегда true для non-null значения.
- *         Заменено на прямое присваивание + null-guard.
- * 1.15.5 (Волна 3, аудит 2.6-30): tick() переписан через чистую функцию computeTicks.
- *         Итерация по списку DoT-инстансов больше не мутирует коллекцию: пары
- *         (inst, damage) собираются в отдельный список, удаление expired/extinguished/
- *         invalid инстансов происходит отдельным проходом после вычислений.
- * 1.15.6 (Волна 4, аудит 2.6-2): ЕДИНАЯ ПОЛИТИКА ОКНА НЕУЯЗВИМОСТИ — DoT-тик
- *         сбрасывает vanilla noDamageTicks перед damage(...). Без этого DoT-урон
- *         клипался окном от авто-атаки владельца в тот же тик (период DoT = 20 тиков
- *         совпадает с окном): каждый второй тик burning/poison терял урон.
- *         Путь A (авто-атаки) окно СОХРАНЯЕТ — политика только для B и DoT.
+ * 1.14.0 (Б2/Б7): spec2-тюнинг источника; wither + партиклы всех школ.
+ * 1.14.7 (P0-6A): applyByIdWithDpsBonus.
+ * 1.14.13 (Волна 13B-b): конструктор без побочных эффектов.
+ * 1.14.14 (фаза 1): vacuous instanceof убран.
+ * 1.15.5 (Волна 3, аудит 2.6-30): tick() через чистую функцию computeTicks.
+ * 1.15.6 (Волна 4, аудит 2.6-2): setNoDamageTicks(0) перед damage.
+ * 1.15.6 (Волна 7, аудит 2.6-38): DamageSource по каналу школы. Раньше тик всегда
+ *         бил target.damage(amount, owner) → причина ENTITY_ATTACK → PHYSICAL:
+ *         магические DoT (burning/poison/wither/chilled) могли уклоняться/парироваться,
+ *         парирование накладывало stagger на владельца DoT. Теперь MAGIC/TRUE-школы
+ *         идут через magic-DamageSource (cause MAGIC), PHYSICAL — по-прежнему melee.
  */
 public final class DotService implements Listener {
 
     private static final long TICK_MILLIS = 1000L;
+
+    private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
     private final RaskolClasses plugin;
     private final CombatService combat;
     private final NamespacedKey dotKey;
     private final Map<UUID, CopyOnWriteArrayList<DotInstance>> dots = new ConcurrentHashMap<>();
 
-    /**
-     * Конструктор без побочных эффектов (1.14.13, Волна 13B-b): только инициализация
-     * полей. Регистрацию слушателей и запуск тик-задачи выполняет владелец
-     * (CombatService создаёт ссылку, RaskolClasses.onEnable регистрирует и запускает).
-     */
     public DotService(RaskolClasses plugin, CombatService combat) {
         this.plugin = plugin;
         this.combat = combat;
         this.dotKey = new NamespacedKey(plugin, "rc_dot");
     }
 
-    /** 1.14.13 (Волна 13B-b): регистрация слушателей — вызов из RaskolClasses.onEnable. */
+    /** 1.15.6 (2.6-38): magic-DamageType из реестра (кэш, лениво). */
+    private static org.bukkit.damage.DamageType magicType() {
+        org.bukkit.damage.DamageType local = magicTypeCache;
+        if (local == null) {
+            local = io.papermc.paper.registry.RegistryAccess.registryAccess()
+                    .getRegistry(io.papermc.paper.registry.RegistryKey.DAMAGE_TYPE)
+                    .get(NamespacedKey.minecraft("magic"));
+            magicTypeCache = local;
+        }
+        return local;
+    }
+
     public void registerListeners() {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
-    /** 1.14.13 (Волна 13B-b): тик-задача 1 с (20 тиков); ручка в activeTasks владельца. */
     public BukkitTask startTickTask() {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
@@ -177,12 +170,6 @@ public final class DotService implements Listener {
         return true;
     }
 
-    /**
-     * 1.14.7 (P0-6A): DoT с надбавкой к dps (deep_wounds: +0.5 dps за ранг).
-     * Надбавка добавляется к базовому dps из реестра ДО specTuned (узлы dot_mult
-     * владельца умножат итог). Повторное наложение тем же владельцем освежает
-     * существующий экземпляр (apply), dps которого зафиксирован при первом наложении.
-     */
     public boolean applyByIdWithDpsBonus(Player owner, LivingEntity target, String dotId, double dpsBonus) {
         DotDef def = defById(dotId);
         if (def == null) {
@@ -203,7 +190,6 @@ public final class DotService implements Listener {
         if (!combat.canHit(owner, target)) {
             return;
         }
-        // 1.14.0 (Б2): spec2-тюнинг источника (dot_dur/dot_stacks/dot_mult)
         def = specTuned(owner, def);
         UUID targetUuid = target.getUniqueId();
         long now = System.currentTimeMillis();
@@ -219,7 +205,6 @@ public final class DotService implements Listener {
         list.add(new DotInstance(def, owner.getUniqueId(), now));
     }
 
-    /** 1.14.0 (Б2): ранги узлов дерева кастера тюнят его DoT. */
     private DotDef specTuned(Player owner, DotDef def) {
         Spec2Service spec2 = plugin.getSpec2Service();
         if (spec2 == null) {
@@ -296,12 +281,6 @@ public final class DotService implements Listener {
 
     /* ------------------------------ снарядные Dot'ы ------------------------------ */
 
-    /**
-     * 1.14.14 (фаза 1, BC_VACUOUS-фикс): event.getEntity() по контракту
-     * ProjectileHitEvent возвращает Projectile (override от EntityEvent,
-     * фактический тип всегда Projectile); instanceof был vacuous для non-null
-     * значения. Заменено на прямое присваивание + null-guard.
-     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent event) {
         Projectile proj = event.getEntity();
@@ -329,22 +308,11 @@ public final class DotService implements Listener {
         return dotKey;
     }
 
-    /* ------------------------------ тик (1.15.5: чистая функция computeTicks) ------------------------------ */
+    /* ------------------------------ тик ------------------------------ */
 
-    /**
-     * 1.15.5 (Волна 3, аудит 2.6-30): пара (экземпляр, урон) для одного DoT-тика.
-     * damage = 0 означает «инстанс нужно удалить» (expired/extinguished/invalid);
-     * положительные значения — фактический dps за тик (после mitigation/cap).
-     */
     private record TickOutcome(DotInstance inst, double damage) {
     }
 
-    /**
-     * 1.15.5 (Волна 3, аудит 2.6-30): чистая функция — вычисление тиков без мутации
-     * списка инстансов. Принимает снапшот списка, возвращает список пар
-     * (инстанс, damage). Мутация (удаление expired/extinguished/invalid)
-     * выполняется отдельным проходом после этой функции.
-     */
     private List<TickOutcome> computeTicks(LivingEntity target,
                                            List<DotInstance> snapshot,
                                            long now) {
@@ -393,11 +361,9 @@ public final class DotService implements Listener {
                 continue;
             }
 
-            // 1.15.5 (2.6-30): снапшот перед вычислениями; мутация в конце
             List<DotInstance> snapshot = List.copyOf(list);
             List<TickOutcome> outcomes = computeTicks(target, snapshot, now);
 
-            // Удаление невалидных инстансов отдельным проходом
             for (TickOutcome outcome : outcomes) {
                 if (outcome.damage() <= 0.0) {
                     list.remove(outcome.inst());
@@ -408,7 +374,6 @@ public final class DotService implements Listener {
                 continue;
             }
 
-            // Применение cap и нанесение урона
             double[] damages = new double[outcomes.size()];
             int validCount = 0;
             for (TickOutcome outcome : outcomes) {
@@ -443,11 +408,22 @@ public final class DotService implements Listener {
                 CombatService.setSuppress(true);
                 CombatService.beginReflect();
                 try {
-                    // 1.15.6 (2.6-2): DoT-тик bypass'ит vanilla-окно неуязвимости —
-                    // период DoT (20 тиков) совпадает с окном, без сброса каждый
-                    // второй тик терял урон от авто-атаки владельца в тот же тик
                     target.setNoDamageTicks(0);
-                    target.damage(amount, owner);
+                    // 1.15.6 (Волна 7, аудит 2.6-38): канал школы → тип события урона.
+                    // MAGIC/TRUE идут через magic-DamageSource: путь A не считает их
+                    // PHYSICAL (уклонение/парирование/stagger на маг-DoT исключены).
+                    School channelSchool = outcome.inst().def().school();
+                    if (channelSchool.channel() == DamageType.PHYSICAL) {
+                        target.damage(amount, owner);
+                    } else {
+                        org.bukkit.damage.DamageType magic = magicType();
+                        if (magic != null) {
+                            target.damage(amount, org.bukkit.damage.DamageSource.builder(magic)
+                                    .withDirectEntity(owner).withCausingEntity(owner).build());
+                        } else {
+                            target.damage(amount, owner);
+                        }
+                    }
                 } finally {
                     CombatService.endReflect();
                     CombatService.setSuppress(false);
@@ -475,7 +451,6 @@ public final class DotService implements Listener {
                 6, 0.3, 0.4, 0.3, 0.01);
     }
 
-    /** 1.14.0 (Б7): партиклы всех 8 школ (раньше SHADOW/HOLY/ARCANE/TRUE = null). */
     private Particle defaultDotParticle(School school) {
         return switch (school) {
             case FIRE -> Particle.FLAME;
