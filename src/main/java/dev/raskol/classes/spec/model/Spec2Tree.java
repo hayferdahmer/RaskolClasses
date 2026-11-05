@@ -1,6 +1,7 @@
 // © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
 package dev.raskol.classes.spec.model;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,6 +23,11 @@ import java.util.Set;
  * Редакция заменяет 1/5-fix волны 6.1: восстановлена двухкомпонентная форма
  * record'а (конструктор (String, List) для *Trees.java), capacity() снова
  * вычисляемый метод, а не компонента.
+ *
+ * 1.15.6 (Волна 6 часть 2, аудит 2.6-95): isReachable с visited-множеством.
+ * Раньше рекурсивный обход пререквизитов мог зациклиться при циклических prereq
+ * (A требует B, B требует A) — StackOverflowError. Теперь каждый посещённый
+ * узел добавляется в visited; повторный визит возвращает false (недостижимо).
  */
 public record Spec2Tree(
         String id,
@@ -133,11 +139,24 @@ public record Spec2Tree(
 
     /**
      * 1.14.8-fix (P0-6B): достижим ли включённый узел при текущем стоп-листе.
-     * Узел достижим, если сам не отключён и каждый его пререквизит либо
-     * отключён (считается выполненным), либо достижим рекурсивно.
-     * Используется чеком 122 selftest (волна 6.1, 5/5).
+     * 1.15.6 (2.6-95): публичная точка входа с инициализацией visited-множества.
      */
     public boolean isReachable(String nodeId, Set<String> disabledNodes) {
+        return isReachable(nodeId, disabledNodes, new HashSet<>());
+    }
+
+    /**
+     * Рекурсивная проверка достижимости с visited-множеством (защита от циклов).
+     *
+     * @param nodeId        id узла для проверки
+     * @param disabledNodes стоп-лист; null → ничто не отключено
+     * @param visited       множество уже посещённых узлов (защита от StackOverflow)
+     */
+    private boolean isReachable(String nodeId, Set<String> disabledNodes, Set<String> visited) {
+        // 1.15.6 (2.6-95): защита от циклов — повторный визит возвращает false
+        if (!visited.add(nodeId)) {
+            return false;
+        }
         if (disabledNodes != null && disabledNodes.contains(nodeId)) {
             return false;
         }
@@ -149,7 +168,7 @@ public record Spec2Tree(
             if (disabledNodes != null && disabledNodes.contains(prereqId)) {
                 continue; // отключённый пререквизит = выполнен
             }
-            if (!isReachable(prereqId, disabledNodes)) {
+            if (!isReachable(prereqId, disabledNodes, visited)) {
                 return false;
             }
         }
