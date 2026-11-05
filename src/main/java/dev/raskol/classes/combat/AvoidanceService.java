@@ -28,7 +28,9 @@ import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.util.Vector;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -62,11 +64,23 @@ import java.util.concurrent.ThreadLocalRandom;
  * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble,
  *         cfgS — в ConfigReads.stringNonEmptyOr (пустой тег/звук → дефолт);
  *         удалён неиспользуемый импорт java.util.Locale (аудит 2-02).
+ *
+ * 1.15.6 (Волна 6 часть 2, аудит 2.6-53): showTitle-троттлинг 300 мс.
+ * Раньше dodgeFeedback/parryFeedback вызывали showTitle на КАЖДОМ уклонении/
+ * парировании — при частых атаках (пулемёт стрел, AoE) клиент спамился тегами
+ * и звуками. Теперь последний вызов showTitle запоминается для каждого игрока;
+ * повторный вызов в течение 300 мс пропускается (звуки и партиклы — всегда,
+ * они легче для клиента).
  */
 public final class AvoidanceService {
 
+    /** Минимальный интервал между showTitle dodge/parry (миллисекунды). */
+    private static final long TAG_THROTTLE_MS = 300L;
+
     private final RaskolClasses plugin;
     private final NamespacedKey staggerKey;
+    /** 1.15.6 (2.6-53): время последнего showTitle dodge/parry для каждого игрока. */
+    private final Map<UUID, Long> lastAvoidTagMs = new ConcurrentHashMap<>();
 
     public AvoidanceService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -267,30 +281,55 @@ public final class AvoidanceService {
 
     /* -------------------------------- визуал -------------------------------- */
 
+    /**
+     * 1.15.6 (2.6-53): проверка троттлинга — можно ли показать тег сейчас?
+     * Обновляет lastAvoidTagMs при разрешении; не обновляет при пропуске.
+     *
+     * @param uuid    UUID игрока
+     * @param now     текущее время (System.currentTimeMillis())
+     * @return true если showTitle разрешён, false если пропущен (в пределах 300 мс)
+     */
+    private boolean canShowTag(UUID uuid, long now) {
+        Long last = lastAvoidTagMs.get(uuid);
+        if (last != null && now - last < TAG_THROTTLE_MS) {
+            return false;
+        }
+        lastAvoidTagMs.put(uuid, now);
+        return true;
+    }
+
     private void dodgeFeedback(Player defender) {
         if (!visuals()) {
             return;
         }
-        tag(defender, cfgS("avoidance.dodge-tag", "💨 Уклонение!"), NamedTextColor.AQUA);
+        // 1.15.6 (2.6-53): троттлинг showTitle — звуки и партиклы всегда
         Sound s = plugin.getFx().resolveSound(cfgS("avoidance.dodge-sound", "ENTITY_ENDERMAN_TELEPORT"));
         if (s != null) {
             plugin.getFx().playSound(defender.getLocation(), s, 0.5f, 1.3f);
         }
         defender.spawnParticle(Particle.CLOUD,
                 defender.getLocation().add(0.0, 1.0, 0.0), 8, 0.3, 0.3, 0.3, 0.02);
+        // showTitle — только если троттлинг разрешает
+        if (canShowTag(defender.getUniqueId(), System.currentTimeMillis())) {
+            tag(defender, cfgS("avoidance.dodge-tag", "💨 Уклонение!"), NamedTextColor.AQUA);
+        }
     }
 
     private void parryFeedback(Player defender) {
         if (!visuals()) {
             return;
         }
-        tag(defender, cfgS("avoidance.parry-tag", "⚔ Парирование!"), NamedTextColor.GOLD);
+        // 1.15.6 (2.6-53): троттлинг showTitle — звуки и партиклы всегда
         Sound s = plugin.getFx().resolveSound(cfgS("avoidance.parry-sound", "ENTITY_SHIELD_BLOCK"));
         if (s != null) {
             plugin.getFx().playSound(defender.getLocation(), s, 0.6f, 1.1f);
         }
         defender.spawnParticle(Particle.SWEEP_ATTACK,
                 defender.getLocation().add(0.0, 1.2, 0.0), 1, 0.0, 0.0, 0.0, 0.0);
+        // showTitle — только если троттлинг разрешает
+        if (canShowTag(defender.getUniqueId(), System.currentTimeMillis())) {
+            tag(defender, cfgS("avoidance.parry-tag", "⚔ Парирование!"), NamedTextColor.GOLD);
+        }
     }
 
     private static void tag(Player player, String text, NamedTextColor color) {
