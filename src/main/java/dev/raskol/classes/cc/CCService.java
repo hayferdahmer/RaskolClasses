@@ -9,6 +9,7 @@ import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -42,6 +43,17 @@ import java.util.concurrent.ThreadLocalRandom;
  * 1.14.13-fix: опечатка имени метода в onQuit/onDeath устранена — каноническое
  *         имя resetAllDr(UUID) (нижнее «r»), как во всём коде проекта и selftest.
  * 1.15.1-A: FQN ItemStat перенесены в item.model после реструктуризации item-пакета.
+ *
+ * 1.15.6 (Волна 7b, аудит 2.6-36): CC для мобов. Раньше CC применялся только
+ *         к игрокам (walkSpeed, BLINDNESS potion); мобы под STUN/ROOT продолжали
+ *         атаковать и стрелять. Теперь:
+ *         - STUN/ROOT: Mob.setAware(false) (Paper 1.16+) + setTarget(null) — моб
+ *           перестаёт искать цели и атаковать; velocity=0 (уже было);
+ *         - FEAR: setTarget(null) + случайное движение (уже было);
+ *         - SILENCE: setTarget(null) для мобов-кастеров (evoker, illusioner);
+ *         - BLIND: addPotionEffect BLINDNESS (уже было);
+ *         - DISARM: у мобов нет оружия, но setTarget(null) (не атакует).
+ *         При снятии CC: Mob.setAware(true) восстанавливает нормальное поведение.
  */
 public final class CCService implements Listener {
 
@@ -448,6 +460,36 @@ public final class CCService implements Listener {
         if (type == CCType.BLIND) {
             applyBlindFog(target, appliedTicks);
         }
+        // 1.15.6 (2.6-36): CC для мобов — setAware(false) + setTarget(null)
+        if (target instanceof Mob mob) {
+            applyMobCc(mob, type);
+        }
+    }
+
+    /**
+     * 1.15.6 (2.6-36): применение CC к мобам.
+     * STUN/ROOT: setAware(false) (Paper 1.16+) + setTarget(null) — моб перестаёт
+     *   искать цели и атаковать; velocity=0 (уже было в tick).
+     * FEAR: setTarget(null) + случайное движение (уже было в tick).
+     * SILENCE: setTarget(null) для мобов-кастеров (evoker, illusioner).
+     * DISARM: setTarget(null) (моб не атакует).
+     */
+    private void applyMobCc(Mob mob, CCType type) {
+        switch (type) {
+            case STUN, ROOT -> {
+                mob.setAware(false);
+                mob.setTarget(null);
+            }
+            case FEAR -> mob.setTarget(null);
+            case SILENCE -> {
+                String typeName = mob.getType().name();
+                if ("EVOKER".equals(typeName) || "ILLUSIONER".equals(typeName)) {
+                    mob.setTarget(null);
+                }
+            }
+            case DISARM -> mob.setTarget(null);
+            default -> { }
+        }
     }
 
     private void applyBlindFog(LivingEntity target, int ticks) {
@@ -474,6 +516,14 @@ public final class CCService implements Listener {
                 removeBlindFog(le);
             }
         }
+        // 1.15.6 (2.6-36): восстановление поведения моба при снятии CC
+        if (type == CCType.STUN || type == CCType.ROOT || type == CCType.FEAR
+                || type == CCType.SILENCE || type == CCType.DISARM) {
+            Entity e = plugin.getServer().getEntity(targetUuid);
+            if (e instanceof Mob mob) {
+                clearMobCc(mob, type);
+            }
+        }
         if (type != CCType.SLOW) {
             return;
         }
@@ -486,6 +536,17 @@ public final class CCService implements Listener {
         } else if (entity instanceof LivingEntity le) {
             removeSlowModifier(le);
             slowAttrApplied.remove(targetUuid);
+        }
+    }
+
+    /**
+     * 1.15.6 (2.6-36): восстановление поведения моба при снятии CC.
+     * setAware(true) возвращает моба к нормальному AI; setTarget не восстанавливаем
+     * (моб сам найдёт новую цель через AI).
+     */
+    private void clearMobCc(Mob mob, CCType type) {
+        if (type == CCType.STUN || type == CCType.ROOT) {
+            mob.setAware(true);
         }
     }
 
@@ -566,6 +627,11 @@ public final class CCService implements Listener {
             if (stunOrRoot) {
                 Vector v = target.getVelocity();
                 target.setVelocity(new Vector(0.0, v.getY(), 0.0));
+                // 1.15.6 (2.6-36): мобы под STUN/ROOT — setTarget(null) каждый тик
+                // (на случай, если AI нашёл новую цель после предыдущего setTarget)
+                if (target instanceof Mob mob) {
+                    mob.setTarget(null);
+                }
             }
             if (fear) {
                 Long turnAt = nextFearTurn.get(uuid);
@@ -574,6 +640,10 @@ public final class CCService implements Listener {
                     Vector dir = new Vector(Math.cos(angle), 0.0, Math.sin(angle)).multiply(0.5);
                     target.setVelocity(dir.setY(0.0));
                     nextFearTurn.put(uuid, now + 50L * (20 + ThreadLocalRandom.current().nextInt(21)));
+                    // 1.15.6 (2.6-36): мобы под FEAR — setTarget(null)
+                    if (target instanceof Mob mob) {
+                        mob.setTarget(null);
+                    }
                 }
             } else {
                 nextFearTurn.remove(uuid);
