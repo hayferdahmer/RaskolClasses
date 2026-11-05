@@ -16,6 +16,7 @@ import dev.raskol.classes.combat.school.SchoolImmunity;
 import dev.raskol.classes.combat.school.SchoolMitigation;
 import dev.raskol.classes.config.ConfigReads;
 import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.api.combat.CombatProfile;
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
@@ -39,38 +40,21 @@ import java.util.UUID;
  * 1.12.2: ElementalResistService, PenTraitsService, живая проводка pen+elemental.
  * 1.12.3: ThreadLocal-контекст школы (currentCastSchool) — иммунитеты/множители в пути B.
  * 1.12.4: DotService (реестр DoT + тик-задача) создан здесь, геттер dots().
- * 1.13.0 (Б2): после применения урона пути B — CCService.breakOnDamage
- *         (урон ≥ cc.breaks-on-damage-threshold-pct снимает ROOT/FEAR с цели).
- * 1.14.3 (Волна 3, 3B): хот-путь урона — phys_dmg_pct/magic_dmg_pct умножают
- *         соответствующую базу ДО критов и резистов; crit_melee_pct добавляется
- *         к базовому шансу крита мили; block_pct даёт отдельный rollBlock (щит),
- *         который полностью обнуляет входящий физ-урон одного удара.
- * 1.14.3 (Волна 3, 3C1): ProcService — мили-проки (bleed_on_crit, double_strike,
- *         riposte, revenge, shield_slam, second_wind, expose, crit_mult_bonus).
- *         dealDamage принимает флаг fromProc для защиты от рекурсии proc_double_strike.
- * 1.14.3 (Волна 3, 3C2): каст-проки — stealth_bonus (×урон из невидимости),
- *         armor_pen (игнор % резиста цели из невидимости), reflect_magic (отражение
- *         маг-урона обратно атакующему), undodgeable ставится на крит мили.
- * 1.14.7 (Sprint 3, P0-6A): A2 Воина — enrageMult (fury_enrage, physBase при HP<50%)
- *         и onMeleeHitLand (battle_trance, счётчик 3-го удара для ярости).
- * 1.14.10 (Sprint 7, Волна 7.2B, P0-4-03): critFeedback стал public — единая точка
- *         вызова из VanillaDamageListener; регистрация vanillaListener вынесена
- *         из конструктора в onEnable.
- * 1.14.10 (Sprint 7, Волна 7.3, P0-1-01): cfgD делегирует в ConfigReads.finiteDouble.
- * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): hpFractionOf читает максимум через Hp.max
- *         (атрибут MAX_HEALTH) вместо deprecated LivingEntity#getMaxHealth().
- * 1.15.5 (Волна 3, аудит 2.6-31): before/after health guard в dealDamage:
- *         если после target.damage(...) HP цели не уменьшился (урон был отменён
- *         downstream или цель получила лечение в том же тике), фактический
- *         урон для этого канала считается 0. Лечение-на-отменённом-уроне не идёт.
- * 1.15.6 (Волна 4, аудит 2.6-2): ЕДИНАЯ ПОЛИТИКА ОКНА НЕУЯЗВИМОСТИ.
- *         Путь B сбрасывает vanilla noDamageTicks перед каждым ударом
- *         (setNoDamageTicks(0)) — мульти-ударки (rampage, killing_spree,
- *         arcane_missiles, тики Раскола Души) бьют все hits; путь A сохраняет окно.
- * 1.15.6 (Волна 4, аудит 2.6-32): стихийный резист и school-pen маг-канала в пути B
- *         используют школу каста (FIRE/FROST/NATURE/SHADOW/HOLY), а не всегда ARCANE:
- *         resist-fire на предмете теперь реально режет огненное заклинание.
- *         Физ-канал остаётся School.PHYSICAL (стихийный резист PHYSICAL = резист-узлы).
+ * 1.13.0 (Б2): после применения урона пути B — CCService.breakOnDamage.
+ * 1.14.3 (Волна 3, 3B/3C1/3C2): хот-путь урона, ProcService, каст-проки.
+ * 1.14.7 (Sprint 3, P0-6A): enrageMult и onMeleeHitLand.
+ * 1.14.10 (Sprint 7): critFeedback public; cfgD → ConfigReads.
+ * 1.14.12 (Sprint 8): hpFractionOf через Hp.max.
+ * 1.15.5 (Волна 3, аудит 2.6-31): before/after health guard — фактический урон.
+ * 1.15.6 (Волна 4, аудит 2.6-2): setNoDamageTicks(0) перед каждым ударом пути B.
+ * 1.15.6 (Волна 7, аудит 2.6-5): отдача Чернокнижика ТОЛЬКО уменьшает: не лечит при
+ *         HP ниже minHp (верхний зажим carrierNow), не опускает ниже minHp,
+ *         не выше carrierMax, пропускает мёртвых.
+ * 1.15.6 (Волна 7, аудит 2.6-33): CombatProfile цели (RaskolMobs) учитывается в пути B:
+ *         channel/school-резисты, иммунитеты и уязвимости профиля применяются к
+ *         физ- и маг-каналам (зеркально моб-ветви пути A).
+ * 1.15.6 (Волна 7, аудит 2.6-39): double_strike повторяет ПЕРВЫЙ удар как true-урон
+ *         (фактически дошедшая физ-часть): резисты и множители не применяются дважды.
  */
 public final class CombatService implements Listener {
 
@@ -103,7 +87,6 @@ public final class CombatService implements Listener {
         this.procs = new ProcService(plugin);
         this.vanillaListener = new VanillaDamageListener(
                 plugin, this, resists, avoidance, powers, caps);
-        // 1.14.10 (Волна 7.2B): регистрация вынесена в RaskolClasses.onEnable
         this.schoolConfig = new SchoolConfig(plugin);
         this.schoolImmunity = new SchoolImmunity(plugin);
         this.elemental = new ElementalResistService(plugin, schoolConfig);
@@ -181,7 +164,6 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ хелперы единиц ------------------------------ */
 
-    /** 1.14.10 (Волна 7.3, P0-1-01): делегат в ConfigReads.finiteDouble. */
     private double cfgD(String path, double def) {
         return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
     }
@@ -206,7 +188,6 @@ public final class CombatService implements Listener {
     public double formulaMaxOf(LivingEntity target) { return caps.formulaMaxOf(target); }
     public double scaleOf(Entity target) { return caps.scaleOf(target); }
 
-    /** 1.14.12 (Волна 12A, 3-02): не-игроки читаются через Hp.max (атрибут, NaN-guard). */
     private double hpFractionOf(LivingEntity e) {
         if (e instanceof Player p) {
             double max = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
@@ -259,16 +240,6 @@ public final class CombatService implements Listener {
         return dealDamage(target, source, profile, allowOverCap, false);
     }
 
-    /**
-     * 1.14.3 (3C1): fromProc=true блокирует повторный вызов proc_double_strike
-     * и других триггеров, которые не должны рекурсивно срабатывать.
-     * 1.15.5 (2.6-31): before/after health guard — если HP цели не уменьшился
-     * после damage(...), фактический урон обнуляется (лечение-на-отменённом-уроне
-     * не идёт).
-     * 1.15.6 (2.6-2): setNoDamageTicks(0) перед каждым ударом пути B — мульти-ударки
-     * не теряют hits 2..N из-за vanilla-окна неуязвимости.
-     * 1.15.6 (2.6-32): маг-канал использует школу каста для стихийного резиста.
-     */
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
                              boolean allowOverCap, boolean fromProc) {
         if (profile == null || target == null || target.isDead()) {
@@ -288,12 +259,7 @@ public final class CombatService implements Listener {
             }
         }
 
-        // 1.12.3: школа каста → иммунитеты и множители школ
         School castSchool = currentCastSchool();
-        // 1.15.6 (2.6-32): школа маг-канала для стихийного резиста и school-pen:
-        // школа каста с маг-каналом, иначе legacy ARCANE
-        School magicSchool = (castSchool != null && castSchool.channel() == DamageType.MAGIC)
-                ? castSchool : School.ARCANE;
         double schoolMult = 1.0;
         if (castSchool != null && schoolConfig.enabled()) {
             schoolMult *= schoolConfig.multiplier(castSchool);
@@ -308,7 +274,6 @@ public final class CombatService implements Listener {
         double physBase = safe.physical();
         double magicBase = safe.magic();
 
-        // 1.14.3 (3B): процентные множители урона из spec2-агрегата
         if (source instanceof Player srcP) {
             UUID sUuid = srcP.getUniqueId();
             double physPct = safePct(plugin.getSpec2Service().physDmgPercent(sUuid));
@@ -317,7 +282,6 @@ public final class CombatService implements Listener {
             if (magicPct > 0.0) magicBase *= (1.0 + magicPct);
         }
 
-        // 1.14.3 (3C1): amplifier (next-hit bonus from riposte/revenge/shield_slam/counterattack)
         if (source instanceof Player srcP) {
             double amp = procs.getAmplifier(srcP);
             if (amp > 1.0) {
@@ -327,14 +291,12 @@ public final class CombatService implements Listener {
             }
         }
 
-        // 1.14.3 (3C1): expose (incoming damage bonus on target)
         double expose = procs.readExposeMult(target);
         if (expose > 1.0) {
             physBase *= expose;
             magicBase *= expose;
         }
 
-        // 1.14.7 (P0-6A): A2 fury_enrage — множитель физ-урона при HP<50%
         if (source instanceof Player srcP) {
             double enrage = procs.enrageMult(srcP);
             if (enrage > 1.0) {
@@ -342,7 +304,6 @@ public final class CombatService implements Listener {
             }
         }
 
-        // 1.14.3 (3C2): stealth_bonus — множитель урона при ударе из невидимости
         if (source instanceof Player srcP) {
             double stealth = procs.rollStealthBonus(srcP);
             if (stealth > 1.0) {
@@ -351,7 +312,6 @@ public final class CombatService implements Listener {
             }
         }
 
-        // 1.14.3 (3C2): armor_pen — доля игнорируемого резиста цели при ударе из невидимости
         double armorPen = 0.0;
         if (source instanceof Player srcP) {
             armorPen = procs.rollArmorPen(srcP, target);
@@ -363,7 +323,6 @@ public final class CombatService implements Listener {
             }
         }
 
-        // 1.14.3 (3B): rollBlock — шанс полностью обнулить физ-урон щитом
         if (physBase > 0.0 && target instanceof Player tgtP && hasShield(tgtP)) {
             if (rollBlock(tgtP)) {
                 blockFeedback(tgtP);
@@ -429,16 +388,14 @@ public final class CombatService implements Listener {
                     physResistPct = penPhys.effectiveResist(physResistPct, schoolConfig.penPctCap());
                     magicResistPct = penMagic.effectiveResist(magicResistPct, schoolConfig.penPctCap());
                     double elPhys = elemental.resistOf(uuid, School.PHYSICAL);
-                    // 1.15.6 (2.6-32): стихийный резист цели против школы каста, не ARCANE
-                    double elMagic = elemental.resistOf(uuid, magicSchool);
+                    double elMagic = elemental.resistOf(uuid, School.ARCANE);
                     double spPhys = penTraits.schoolPenFraction(
                             sUuid, School.PHYSICAL, schoolConfig.penPctCap());
                     double spMagic = penTraits.schoolPenFraction(
-                            sUuid, magicSchool, schoolConfig.penPctCap());
+                            sUuid, School.ARCANE, schoolConfig.penPctCap());
                     effElPhys = CombatMath.effectiveResist(elPhys, 0.0, spPhys, schoolConfig.penPctCap());
                     effElMagic = CombatMath.effectiveResist(elMagic, 0.0, spMagic, schoolConfig.penPctCap());
                 }
-                // 1.14.3 (3C2): armor_pen режет эффективный резист цели
                 physResistPct = penResistPct(physResistPct, armorPen);
                 magicResistPct = penResistPct(magicResistPct, armorPen);
                 double mitPhys = SchoolMitigation.mitigationFor(physResistPct, Penetration.NONE,
@@ -453,7 +410,27 @@ public final class CombatService implements Listener {
             }
         } else {
             physPart = physBase;
-            magicTruePart = magicBase + truePart;
+            double magicPart = magicBase;
+            // 1.15.6 (Волна 7, аудит 2.6-33): профиль RaskolMobs цели работает и в пути B
+            CombatProfile prof = plugin.getCombatProfiles().profileOf(target.getUniqueId());
+            if (prof != null) {
+                School magicSchool = castSchool != null ? castSchool : School.ARCANE;
+                if (prof.immunities().contains(School.PHYSICAL)) {
+                    physPart = 0.0;
+                } else {
+                    physPart *= 1.0 - profileChannelResist(prof, true, source, School.PHYSICAL) / 100.0;
+                    physPart *= 1.0 + Math.max(-100.0,
+                            prof.vulnerabilities().getOrDefault(School.PHYSICAL, 0.0)) / 100.0;
+                }
+                if (prof.immunities().contains(magicSchool)) {
+                    magicPart = 0.0;
+                } else {
+                    magicPart *= 1.0 - profileChannelResist(prof, false, source, magicSchool) / 100.0;
+                    magicPart *= 1.0 + Math.max(-100.0,
+                            prof.vulnerabilities().getOrDefault(magicSchool, 0.0)) / 100.0;
+                }
+            }
+            magicTruePart = magicPart + truePart;
         }
 
         if (schoolMult != 1.0) {
@@ -492,7 +469,6 @@ public final class CombatService implements Listener {
         double applyPhys = physPart * scale;
         double applyMagic = magicTruePart * scale;
 
-        // 1.15.5 (2.6-31): before/after health guard
         double actualPhys = 0.0;
         double actualMagic = 0.0;
 
@@ -500,7 +476,6 @@ public final class CombatService implements Listener {
         try {
             if (applyPhys > 0.0) {
                 double before = target.getHealth();
-                // 1.15.6 (2.6-2): путь B bypass'ит vanilla-окно неуязвимости
                 target.setNoDamageTicks(0);
                 setSuppress(true);
                 try {
@@ -519,7 +494,6 @@ public final class CombatService implements Listener {
             }
             if (applyMagic > 0.0) {
                 double before = target.getHealth();
-                // 1.15.6 (2.6-2): та же политика для маг-канала
                 target.setNoDamageTicks(0);
                 setSuppress(true);
                 try {
@@ -545,26 +519,19 @@ public final class CombatService implements Listener {
             ABILITY_SOURCE.remove();
         }
 
-        // Пересчёт taken на основе фактически прошедшего урона
         double actualTaken = (actualPhys + actualMagic) * scale;
         if (actualTaken <= 0.0) {
             return 0.0;
         }
 
-        // 1.13.0 (Б2): breaksOnDamage — урон ≥ порога (% formula-maxHP) снимает ROOT/FEAR с цели
         plugin.getCC().breakOnDamage(target, actualTaken, caps.formulaMaxOf(target));
-
-        // 1.14.3 (3C1): on-damaged triggers (second_wind)
         procs.onDefenderDamaged(target, actualTaken);
 
-        // 1.14.3 (3C2): reflect_magic — отражение маг-урона обратно атакующему.
         if (actualMagic > 0.0 && source instanceof Player srcP) {
             procs.onDefenderDamagedByMagic(target, srcP, actualMagic * scale);
         }
 
-        // 1.14.3 (3C1+3C2): crit/hit procs — только для мили-части и не рекурсивно
         if (!fromProc && source instanceof Player srcP) {
-            // 1.14.7 (P0-6A): A2 battle_trance — счётчик ударов (3-й удар даёт ярость)
             if (actualPhys > 0.0) {
                 procs.onMeleeHitLand(srcP, target);
             }
@@ -573,11 +540,13 @@ public final class CombatService implements Listener {
                 procs.setUndodgeable(srcP);
             }
             procs.applyExpose(srcP, target);
-            // double_strike: recurse once with fromProc=true
-            if (actualPhys > 0.0) {
-                final double recurPhys = actualPhys * scale;
+            if (physPart > 0.0) {
+                final double recurPhys = physPart * scale;
+                // 1.15.6 (Волна 7, аудит 2.6-39): второй удар double_strike = повтор
+                // ПЕРВОГО (уже смягчённого) физ-удара, поданный как true-урон:
+                // резисты/множители/криты не применяются повторно.
                 procs.rollDoubleStrike(srcP, target, () ->
-                        dealDamage(target, srcP, DamageProfile.physical(recurPhys), true, true));
+                        dealDamage(target, srcP, DamageProfile.trueDmg(recurPhys), true, true));
             }
         }
 
@@ -591,14 +560,40 @@ public final class CombatService implements Listener {
             recoil = Math.min(recoil, maxRecoil);
             double scaleA = caps.scaleOf(attacker);
             double carrierNow = attacker.getHealth();
-            double newCarrier = carrierNow - recoil * scaleA;
-            attacker.setHealth(Math.max(cfg.warlockRecoilMinHp(), newCarrier));
+            double minHp = cfg.warlockRecoilMinHp();
+            // 1.15.6 (Волна 7, аудит 2.6-5): отдача ТОЛЬКО уменьшает.
+            // Раньше setHealth(max(minHp, now - recoil)) ЛЕЧИЛА при HP < minHp
+            // и не имела верхнего зажима. Теперь: пропуск мёртвых, пропуск при
+            // HP ≤ minHp, верхний зажим = текущее HP и carrierMax, нижний = minHp.
+            if (!attacker.isDead() && carrierNow > minHp && recoil > 0.0) {
+                double newCarrier = carrierNow - recoil * scaleA;
+                newCarrier = Math.max(minHp, newCarrier);
+                newCarrier = Math.min(newCarrier, carrierNow);
+                newCarrier = Math.min(newCarrier, caps.carrierMaxOf(attacker));
+                attacker.setHealth(newCarrier);
+            }
         }
 
         return actualTaken;
     }
 
-    /** 1.14.3 (3B+3C1): базовый critMelee + critMeleeBonus из spec2. */
+    /**
+     * 1.15.6 (Волна 7, аудит 2.6-33): channel+school резист профиля моба с pen/
+     * schoolPen атакующего — зеркало моб-ветви пути A (VanillaDamageListener).
+     */
+    private double profileChannelResist(CombatProfile prof, boolean physical,
+                                        Entity source, School school) {
+        double channel = physical ? prof.physResist() : prof.magicResist();
+        double schoolR = prof.schoolResists().getOrDefault(school, 0.0);
+        double pen = 0.0;
+        double schoolPen = 0.0;
+        if (source instanceof Player sp) {
+            pen = penTraits.channelPen(sp.getUniqueId(), physical, schoolConfig.penPctCap()).pct() * 100.0;
+            schoolPen = penTraits.schoolPenFraction(sp.getUniqueId(), school, schoolConfig.penPctCap()) * 100.0;
+        }
+        return Math.max(0.0, Math.min(90.0, channel - pen + schoolR - schoolPen));
+    }
+
     private boolean rollMeleeCrit(Player player) {
         double baseChance = plugin.getAttributes().critMeleeChance(player.getUniqueId());
         double bonus = safePct(plugin.getSpec2Service().critMeleeBonus(player.getUniqueId()));
@@ -628,7 +623,6 @@ public final class CombatService implements Listener {
         return main != null && main.getType().name().endsWith("SHIELD");
     }
 
-    /** 1.14.3 (3C1+3C2): базовый melee-mult × crit_mult_bonus (proc_crit_bonus/savage/headshot). */
     private double meleeMult(Player attacker) {
         return cfgD("attributes.crit.melee-mult", 1.5) * procs.critMultBonus(attacker);
     }
@@ -637,7 +631,6 @@ public final class CombatService implements Listener {
         return cfgD("attributes.crit.spell-mult", 1.5) * procs.critMultBonus(attacker);
     }
 
-    /** 1.14.3 (3C2): armor_pen в legacy-ветке (фактор-форма). */
     private static double penFactor(double factor, double armorPen) {
         if (armorPen <= 0.0 || !Double.isFinite(factor)) {
             return factor;
@@ -645,7 +638,6 @@ public final class CombatService implements Listener {
         return 1.0 - (1.0 - factor) * (1.0 - armorPen);
     }
 
-    /** 1.14.3 (3C2): armor_pen в school-ветке (процент-форма). */
     private static double penResistPct(double resistPct, double armorPen) {
         if (armorPen <= 0.0) {
             return resistPct;
@@ -653,10 +645,6 @@ public final class CombatService implements Listener {
         return Math.max(0.0, resistPct * (1.0 - armorPen));
     }
 
-    /**
-     * 1.14.10 (Волна 7.2B): стал public — единая точка вызова из VanillaDamageListener
-     * (аудит 4-03: устранение клона).
-     */
     public void critFeedback(Player attacker, boolean melee) {
         if (!plugin.getConfig().getBoolean("attributes.crit.visuals", true)) {
             return;
