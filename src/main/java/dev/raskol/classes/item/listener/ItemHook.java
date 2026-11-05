@@ -55,6 +55,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.15.1-D-fix: блок аккумуляции статов разбит на две переменные (acc + stats),
  * обе effectively final в своём скоупе — лямбды больше не используют не-final
  * локальную переменную.
+ * 1.15.6 (Волна 4, аудит 2.6-13): резист-цикл СТРОИТСЯ ИЗ ПЕРВОГО цикла (defs+rolled):
+ * ранее второй цикл читал eq по слотам без проверки def.slot() == slot и результата
+ * uidRegistry.claim — броня в основной руке давала резисты, предмет с дублированным
+ * item_uid терял статы, но сохранял резисты. Теперь источник резистов — тот же
+ * валидированный набор, что и источник статов (единая точка правды).
  */
 public final class ItemHook implements Listener {
     private final RaskolClasses plugin;
@@ -170,13 +175,15 @@ public final class ItemHook implements Listener {
                 : (weapon.weaponType() == WeaponType.STAFF || weapon.weaponType() == WeaponType.WAND ? "MAGIC" : "PHYSICAL");
         items.snapshot(uuid, new ItemStatSnapshot(stats, unmet, weapon == null ? null : weapon.id(), type, hash));
 
-        for (ItemSlot slot : ItemSlot.values()) {
-            String source = "item:" + slot.name();
-            ItemDefinition def = items.definitionOf(eq.get(slot));
-            if (def == null || !ItemStatAggregator.eligible(def, pc, spec, level)) continue;
+        // 1.15.6 (аудит 2.6-13): резисты/стихии строятся ИЗ ПЕРВОГО цикла (defs+rolled):
+        // slot-match и uid-claim уже проверены там; броня в руке и дубли uid больше
+        // не дают резистов без статов.
+        for (int i = 0; i < defs.size(); i++) {
+            ItemDefinition def = defs.get(i);
+            String source = "item:" + def.slot().name();
             Map<ItemStat, Double> values = new EnumMap<>(ItemStat.class);
             values.putAll(def.baseStats());
-            values.putAll(items.pdc().affixes(eq.get(slot), def));
+            values.putAll(rolled.get(i));
             double phys = values.getOrDefault(ItemStat.PHYS_RESIST, 0.0);
             double magic = values.getOrDefault(ItemStat.MAGIC_RESIST, 0.0);
             if (phys > 0 || magic > 0) plugin.getResists().addPermanentModifier(uuid, source, phys, magic);
