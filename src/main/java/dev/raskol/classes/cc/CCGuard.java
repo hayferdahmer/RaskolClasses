@@ -2,6 +2,7 @@
 package dev.raskol.classes.cc;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.CombatService;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
@@ -34,6 +35,15 @@ import java.util.concurrent.ThreadLocalRandom;
  * 1.14.13 (Sprint 9, Волна 13B-b, P0-10-03): конструктор без побочных эффектов —
  *         registerEvents вынесен в registerListeners(); RaskolClasses.onEnable
  *         регистрирует слушатель явно.
+ *
+ * 1.15.6 (Волна 7b, аудит 2.6-37): suppressed-события (DoT-тики и путь B)
+ *         пропускаются без блокировки. Раньше CCGuard отменял DoT-урон от
+ *         игрока под CC (потому что DotService.tick вызывает target.damage(amount, owner),
+ *         что генерирует EntityDamageByEntityEvent, и CCGuard его перехватывал).
+ *         Теперь CombatService.consumeSuppress() проверяется первым: если событие
+ *         помечено как suppressed (setSuppress(true) в DotService/CombatService),
+ *         CCGuard не блокирует его. Это позволяет уже активным DoT тикать даже
+ *         если кастер под CC (DoT уже запущен, отмена нелогична).
  */
 public final class CCGuard implements Listener {
 
@@ -73,9 +83,14 @@ public final class CCGuard implements Listener {
     /**
      * STUN/FEAR блокируют атаки; BLIND даёт промах; DISARM снимает оружие.
      * 1.14.0-fix: DISARM блокирует ЛЮБОЙ не-воздушный предмет (оружие/инструмент/еда/блоки).
+     * 1.15.6 (2.6-37): suppressed-события (DoT/путь B) пропускаются без блокировки.
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
+        // 1.15.6 (2.6-37): suppressed-событие (DoT/путь B) — не блокируем
+        if (CombatService.consumeSuppress()) {
+            return;
+        }
         if (!(event.getDamager() instanceof Player attacker)) {
             return;
         }
@@ -106,6 +121,10 @@ public final class CCGuard implements Listener {
     /** 1.14.0-fix: DISARM блокирует стрельбу из лука/арбалета. */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onShootBow(EntityShootBowEvent event) {
+        // 1.15.6 (2.6-37): suppressed-событие — не блокируем
+        if (CombatService.consumeSuppress()) {
+            return;
+        }
         if (!(event.getEntity() instanceof Player shooter)) {
             return;
         }
@@ -117,6 +136,10 @@ public final class CCGuard implements Listener {
     /** 1.14.0-fix: DISARM блокирует бросок снарядов (зелья, снежки, жемчуг). */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onProjectileLaunch(ProjectileLaunchEvent event) {
+        // 1.15.6 (2.6-37): suppressed-событие — не блокируем
+        if (CombatService.consumeSuppress()) {
+            return;
+        }
         if (!(event.getEntity().getShooter() instanceof Player shooter)) {
             return;
         }
