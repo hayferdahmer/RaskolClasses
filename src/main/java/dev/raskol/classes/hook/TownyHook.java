@@ -9,8 +9,8 @@ import org.bukkit.plugin.Plugin;
 import java.lang.reflect.Method;
 
 /**
- * 1.8.1 (S4): Towny-гейт телепортов (hermes_step): нельзя блинковаться в чужой
- * клейм в обход ворот/осад/прав города. Рефлексия (softdepend Towny),
+ * 1.8.1 (S4): Towny-гейт телепортов (hermes_step, shadowstep): нельзя блинковаться
+ * в чужой клейм в обход ворот/осад/прав города. Рефлексия (softdepend Towny),
  * статический ленивый init, без изменения RaskolClasses.
  *
  * Правила canBlink:
@@ -20,6 +20,11 @@ import java.lang.reflect.Method;
  *  - цель в том же городе         → разрешено;
  *  - цель в городе, где игрок резидент → разрешено;
  *  - чужой город                  → запрещено.
+ *
+ * 1.15.6 (Волна 7b, аудит 2.7-1): поддержка двух пакетов TownyAPI:
+ *   - Towny 0.98.x и ранее: com.palmergames.bukkit.towny.object.TownyAPI
+ *   - Towny 0.99.x+: com.palmergames.bukkit.towny.TownyAPI
+ *   init пробует оба варианта; если ни один не резолвится — fail closed.
  */
 public final class TownyHook {
 
@@ -48,7 +53,13 @@ public final class TownyHook {
         }
         townyPresent = true;
         try {
-            Class<?> apiClass = Class.forName("com.palmergames.bukkit.towny.object.TownyAPI");
+            // 1.15.6 (2.7-1): пробуем оба пакета TownyAPI (0.98 vs 0.99+)
+            Class<?> apiClass = tryLoadApiClass();
+            if (apiClass == null) {
+                available = false;
+                plugin.getLogger().warning("TownyHook: TownyAPI не найден ни в одном пакете — блинк в клеймы ЗАПРЕЩЁН (fail closed)");
+                return;
+            }
             api = apiClass.getMethod("getInstance").invoke(null);
             getTownBlock = apiClass.getMethod("getTownBlock", Location.class);
             Class<?> tbClass = Class.forName("com.palmergames.bukkit.towny.object.TownBlock");
@@ -64,7 +75,7 @@ public final class TownyHook {
             townHasResident = townClass.getMethod("hasResident", String.class);
             available = api != null;
             if (available) {
-                plugin.getLogger().info("TownyHook: гейт блинка через клеймы включён");
+                plugin.getLogger().info("TownyHook: гейт блинка через клеймы включён (API=" + apiClass.getName() + ")");
             } else {
                 plugin.getLogger().warning("TownyHook: TownyAPI null — блинк в клеймы ЗАПРЕЩЁН (fail closed)");
             }
@@ -72,6 +83,25 @@ public final class TownyHook {
             available = false;
             plugin.getLogger().warning("TownyHook: рефлексия недоступна — блинк в клеймы ЗАПРЕЩЁН (fail closed): " + t);
         }
+    }
+
+    /**
+     * 1.15.6 (2.7-1): пробуем загрузить TownyAPI из двух пакетов.
+     * Towny 0.98.x: com.palmergames.bukkit.towny.object.TownyAPI
+     * Towny 0.99.x+: com.palmergames.bukkit.towny.TownyAPI
+     *
+     * @return Class TownyAPI или null, если ни один не найден
+     */
+    private static Class<?> tryLoadApiClass() {
+        try {
+            return Class.forName("com.palmergames.bukkit.towny.TownyAPI");
+        } catch (ClassNotFoundException ignored) {
+        }
+        try {
+            return Class.forName("com.palmergames.bukkit.towny.object.TownyAPI");
+        } catch (ClassNotFoundException ignored) {
+        }
+        return null;
     }
 
     /** Разрешён ли телепорт игрока из from в to с учётом клеймов Towny. */
