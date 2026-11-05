@@ -59,6 +59,12 @@ import java.util.logging.Logger;
  *  «YAML ↔ reconcile» больше не нужна. Запись атомарная (tmp + move).
  *
  * 1.14.15-fix: поиск узла в дереве — Spec2Tree.find(id) (каноническое имя метода).
+ *
+ * 1.15.6 (Волна 6 часть 2, аудит 2.6-94): stale-флаг проверяется на ИСХОДНЫХ
+ *  (до auto-heal) рангах. Раньше hasStaleNode проверял нормализованные ranks
+ *  (после simulateApply), которые уже не содержат узлов из стоп-листа — флаг
+ *  был почти всегда пуст. Теперь BuildTemplate хранит rawRanks (оригинал из YAML)
+ *  и hasStaleNode проверяет пересечение rawRanks со стоп-листом.
  */
 public final class BuildTemplates {
 
@@ -165,6 +171,10 @@ public final class BuildTemplates {
                         specProblems.add(arch.yamlKey() + ": " + String.join("; ", v));
                         continue;
                     }
+                    // 1.15.6 (2.6-94): проверяем stale на ИСХОДНЫХ (до auto-heal) ranks
+                    if (hasStaleNode(t.rawRanks(), disabledNodes)) {
+                        stale.add(specId);
+                    }
                     // 1.14.16-fix (AUTO-HEAL): приводим шаблон к множеству, которое
                     // гарантированно переживает reconcile (стоп-лист, prereq, ряд-гейты).
                     if (svc != null) {
@@ -177,21 +187,16 @@ public final class BuildTemplates {
                             }
                             List<String> removed = new ArrayList<>(t.ranks().keySet());
                             removed.removeAll(kept.keySet());
-                            // 1.14.16-fix2: нормализация по стоп-листу/гейтам — ожидание,
-                            // а не дефект; INFO сохраняет прозрачность без замусоривания WARN.
-                            // Постоянно убрать строки можно командой /rc plus export.
                             LOG.info("raskolspec+: [" + specId + "] " + arch.yamlKey()
                                     + ": нормализовано по стоп-листу/гейтам, вырезано узлов "
                                     + removed.size() + ": " + removed
                                     + " — /rc plus export перезапишет builds.yml");
+                            // 1.15.6 (2.6-94): rawRanks сохраняется, ranks нормализуются
                             t = BuildTemplate.of(t.spec(), t.archetype(), t.name(),
-                                    t.tagline(), kept, t.updated());
+                                    t.tagline(), t.rawRanks(), kept, t.updated());
                         }
                     }
                     archetypeMap.put(arch, t);
-                    if (hasStaleNode(t, disabledNodes)) {
-                        stale.add(specId);
-                    }
                 } catch (Exception ex) {
                     specProblems.add(arch.yamlKey() + ": парсинг — " + ex.getMessage());
                 }
@@ -226,7 +231,7 @@ public final class BuildTemplates {
 
     /**
      * Перезаписать builds.yml фактическим нормализованным содержимым
-     (ранги = множество, пережившее reconcile). Устраняет расхождение «YAML ↔ боевые
+     * (ранги = множество, пережившее reconcile). Устраняет расхождение «YAML ↔ боевые
      * правила» без ручной правки 36 шаблонов. Вызывается командой /rc plus export
      * (право raskolclasses.admin.plus).
      *
@@ -343,7 +348,8 @@ public final class BuildTemplates {
                 }
             }
         }
-        return BuildTemplate.of(spec, archetype, name, tagline, ranks, updated);
+        // 1.15.6 (2.6-94): rawRanks = ranks (исходные из YAML), ranks = ranks (до auto-heal)
+        return BuildTemplate.of(spec, archetype, name, tagline, ranks, ranks, updated);
     }
 
     /* ------------------------------ валидация ------------------------------ */
@@ -381,8 +387,16 @@ public final class BuildTemplates {
         return errs;
     }
 
-    private boolean hasStaleNode(BuildTemplate t, Set<String> disabledNodes) {
-        for (String id : t.ranks().keySet()) {
+    /**
+     * 1.15.6 (2.6-94): проверяет пересечение ИСХОДНЫХ (rawRanks) рангов со стоп-листом.
+     * Раньше проверялись нормализованные ranks — они уже не содержат disabled-узлов
+     * (auto-heal их вырезал), поэтому флаг был почти всегда пуст.
+     */
+    private boolean hasStaleNode(Map<String, Integer> rawRanks, Set<String> disabledNodes) {
+        if (rawRanks == null || rawRanks.isEmpty() || disabledNodes.isEmpty()) {
+            return false;
+        }
+        for (String id : rawRanks.keySet()) {
             if (disabledNodes.contains(id)) {
                 return true;
             }
@@ -412,7 +426,7 @@ public final class BuildTemplates {
         return m == null ? Optional.empty() : Optional.ofNullable(m.get(archetype));
     }
 
-    /** Шаблон stale (содержит узел из disabled-nodes)? */
+    /** Шаблон stale (содержит узел из disabled-nodes в исходных рангах)? */
     public boolean isStale(BuildTemplate t) {
         return staleSpecs.contains(t.spec());
     }
