@@ -1,0 +1,55 @@
+name: "✨ Идея для королевства"
+description: "Предложить новую механику, предмет или улучшение"
+title: "[idea] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### 🔨 Расскажи, что бы ты выковал
+        Хорошая идея начинается с проблемы: что сейчас неудобно или чего не хватает игрокам.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую проблему решаем
+      placeholder: "Например: у Жреца нет способа ..."
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Как это должно работать
+      description: "Механика, числа, команды, конфиг-ключи — всё, что уже придумано."
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: К какой главе относится
+      options:
+        - Классы и ресурсы
+        - Деревья путей (Спек 2.0)
+        - Бой (школы, DoT, CC, проки, петы)
+        - Предметы и крафт
+        - raskolspec+
+        - Команды и GUI
+        - API для RaskolMobs
+        - Оформление и документация
+        - Другое
+    validations:
+      required: true
+  - type: dropdown
+    id: balance
+    attributes:
+      label: Влияет ли на баланс
+      options:
+        - Нет
+        - Да, затрагивает один класс
+        - Да, затрагивает несколько классов
+        - Не уверен(а)
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Какие были альтернативы
