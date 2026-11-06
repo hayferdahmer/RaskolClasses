@@ -12,7 +12,6 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -27,12 +26,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.15.6 (Волна 7b, аудит 2.6-46): переработка голограмм:
  *   - ВИДИМОСТЬ: глобальная голограмма над целью для всех КРОМЕ жертвы;
  *     личная голограмма ПЕРЕД жертвой-игроком, видна ТОЛЬКО жертве
- *     (через Display.addViewer — Paper API);
+ *     (через Paper API: hideEntity/showEntity + setVisibleByDefault);
  *   - ПРИВЯЗКА: оба TextDisplay — passenger цели (Display.addPassenger),
  *     автоматически следуют за целью при движении/телепортах;
  *   - ОЧИСТКА: статический Map activeHologram; clearHologram вызывается из
  *     CCService.clearBehavior при снятии CC (включая breakOnDamage, expiry,
  *     removeAll). При повторном CC на цель старая голограмма перезаписывается.
+ *
+ * 1.15.7 (compile-fix #1952): addViewer/removeViewer НЕ СУЩЕСТВУЕТ в Paper 1.21.4.
+ * Пер-плеер видимость через:
+ *   - Player.hideEntity(plugin, entity) — скрыть от конкретного игрока;
+ *   - Player.showEntity(plugin, entity) — показать скрытое конкретному игроку;
+ *   - Entity.setVisibleByDefault(false) — энтити не видна никому по умолчанию.
  */
 public final class CCFeedback {
 
@@ -137,10 +142,13 @@ public final class CCFeedback {
     /* ------------------------------ 2.6-46: голограммы ------------------------------ */
 
     /**
-     * 1.15.6 (2.6-46): создаёт пару TextDisplay — глобальную (над целью, для всех)
-     * и личную (перед целью, только для жертвы-игрока). Оба — passenger цели,
-     * следуют за ней автоматически. Вызывается из onApply; при повторном CC
-     * на цель старая голограмма удаляется.
+     * 1.15.6 (2.6-46) + compile-fix #1952: пара TextDisplay — глобальная над целью
+     * и личная перед целью. Пер-плеер видимость через Paper API:
+     *  - глобальная: видна всем по умолчанию; ЖЕРТВЕ скрываем через
+     *    Player.hideEntity(plugin, display);
+     *  - личная: setVisibleByDefault(false) в spawn-консьюмере + Player.showEntity —
+     *    видна ТОЛЬКО жертве, включая игроков, зашедших позже.
+     * Оба дисплея — passenger цели: едут за ней при движении/телепортах.
      */
     private static void hologram(RaskolClasses plugin, LivingEntity target, CCType type, int ticks) {
         if (!plugin.getConfig().getBoolean("cc.feedback-hologram", true)) {
@@ -150,7 +158,7 @@ public final class CCFeedback {
             return;
         }
         UUID targetUuid = target.getUniqueId();
-        // Очистка предыдущей голограммы (если был CC и не был снят)
+        // Очистка предыдущей голограммы (если CC наложили повторно)
         clearHologram(targetUuid);
 
         double seconds = ticks / 20.0;
@@ -158,27 +166,20 @@ public final class CCFeedback {
                 + " · " + String.format(Locale.ROOT, "%.1f", seconds) + "с",
                 NamedTextColor.RED);
 
-        // Глобальная голограмма: над целью, видна всем КРОМЕ жертвы-игрока
+        // Глобальная голограмма: над целью, видна всем КРОМЕ жертвы
         TextDisplay global = target.getWorld().spawn(
                 target.getLocation().add(0.0, 2.2, 0.0), TextDisplay.class, td -> {
                     td.text(text);
                     td.setBillboard(Display.Billboard.CENTER);
                     td.setSeeThrough(true);
                     td.setShadowed(true);
-                    td.setCustomNameVisible(true);
                 });
-        // Скрываем глобальную голограмму от самой жертвы
         if (target instanceof Player tp) {
-            global.addViewer(tp); // addViewer делает видимым ТОЛЬКО для tp? Нет!
-            // Paper API: addViewer(Player) — показывает Display игроку в whitelist-режиме.
-            // Но нам нужно наоборот: показать всем КРОМЕ жертвы.
-            // Решение: используем глобальную голограмму как есть (видят все),
-            // а для жертвы отдельно создаём персональную через addViewer
-            global.removeViewer(tp);
+            tp.hideEntity(plugin, global);
         }
         target.addPassenger(global);
 
-        // Личная голограмма: перед целью, только для жертвы-игрока
+        // Личная голограмма: перед целью, видна ТОЛЬКО жертве
         TextDisplay local = null;
         if (target instanceof Player tp) {
             Location personalLoc = target.getLocation().clone()
@@ -191,9 +192,10 @@ public final class CCFeedback {
                 td.setBillboard(Display.Billboard.CENTER);
                 td.setSeeThrough(true);
                 td.setShadowed(true);
-                td.setCustomNameVisible(true);
-                td.addViewer(tp); // Paper API: видима ТОЛЬКО для tp
+                // Paper per-player visibility: по умолчанию не видна никому
+                td.setVisibleByDefault(false);
             });
+            tp.showEntity(plugin, local);
             target.addPassenger(local);
         }
 
