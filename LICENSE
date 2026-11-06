@@ -1,35 +1,399 @@
-RASKOL PROPRIETARY LICENSE v1.0
+RASKOL PROPRIETARY LICENSE
+Version 2.0
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+
 Copyright (c) 2026 hayferdahmer. All rights reserved.
 
-1. GRANT OF LICENSE
-   Permission is hereby granted, free of charge, to any person obtaining a copy
-   of this software ("RaskolClasses"), to use the software ONLY on Minecraft
-   servers operated by or explicitly authorized by the copyright holder
-   ("Authorized Servers"), subject to the following conditions.
+Effective Date: the date on which this file is first committed to the
+RaskolClasses repository (https://github.com/hayferdahmer/RaskolClasses).
 
-2. RESTRICTIONS
-   You may NOT, without prior written permission of the copyright holder:
-   (a) copy, modify, merge, publish, distribute, sublicense, or sell copies of
-       the Software outside Authorized Servers;
-   (b) decompile, reverse-engineer, or create derivative works for the purpose
-       of competing with the Software;
-   (c) remove or alter any proprietary notices, labels, or marks on the Software.
+READ THIS FIRST. RaskolClasses is SOURCE-AVAILABLE, NOT OPEN SOURCE. The
+source code is visible so that it can be read, audited and improved by invited
+contributors. Visibility is not permission. Except for the narrow rights
+expressly granted in Section 2, all rights are reserved, and any other use,
+copying, modification or distribution is prohibited and will be enforced.
 
-3. NO WARRANTY
-   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-   SOFTWARE.
+=== 1. DEFINITIONS ===
 
-4. TERMINATION
-   This License terminates automatically if you fail to comply with Section 2.
-   Upon termination you must cease all use and destroy all copies.
+1.1. "Licensor" means Yaroslav Vadimovich Zakharov (Захаров Ярослав
+     Вадимович), an individual residing in Moscow, Russian Federation,
+     publicly known as "hayferdahmer", and the Licensor's successors and
+     assigns. Contact: hayferdahmer@gmail.com.
 
-5. GOVERNING LAW
-   This License is governed by the laws of the jurisdiction of the copyright
-   holder's residence, excluding conflict-of-law provisions.
+1.2. "Software" means RaskolClasses in every version, in whole and in part,
+     including: source code; compiled code, bytecode and JAR files; build
+     scripts; configuration, data and resource files (including config.yml,
+     builds.yml, items.yml, crafting.yml and kit files); balance formulas,
+     tables and numeric values; the structure, sequence and organization of
+     classes, specializations, abilities, path trees, items and combat systems
+     as expressed in any of the foregoing; documentation; and all updates,
+     modifications and Derivative Works of any of them.
+
+1.3. "Derivative Work" means any work that incorporates, is based on, or is
+     derived from the Software or any part of it, including modifications,
+     translations, adaptations, ports to another programming language, game
+     engine, platform or mod loader, forks, recompiled, repackaged, obfuscated
+     or decompiled versions, and re-implementations that copy protected
+     expression of the Software.
+
+1.4. "Authorized Server" means a Minecraft server that is (a) operated by the
+     Licensor under the name "РАСКОЛ | ДВЕ КОРОНЫ" (RASKOL | TWO CROWNS),
+     including its development, test and staging instances that are not
+     offered to the public as a separate service; or (b) expressly authorized
+     by the Licensor in a Written Permit that identifies that server.
+
+1.5. "Written Permit" means a written authorization from the Licensor (a
+     signed document, or an e-mail sent from the Licensor's contact address
+     given in Section 1.1) that names the permitted server or person, the
+     scope, and any term and conditions. A Written Permit is personal and may
+     not be transferred.
+
+1.6. "Authorized Personnel" means administrators, developers and staff of an
+     Authorized Server who act under the direction of the Licensor or of the
+     holder of a Written Permit, and who are bound by this License.
+
+1.7. "Public API" means the Java packages dev.raskol.classes.api and its
+     subpackages, as published in the Software.
+
+1.8. "Brand Assets" means the names and marks RASKOL, РАСКОЛ, "РАСКОЛ | ДВЕ
+     КОРОНЫ", RaskolClasses, RaskolCore, RaskolGear and RaskolMobs, and all
+     logos, banners, emblems, class and crown artwork, SVG files, README and
+     other texts and design elements of the repository.
+
+1.9. "Use" means to install, load, run, execute, host, deploy, or otherwise
+     make the Software operate or available.
+
+1.10. "You" means any person or entity that views, copies, downloads,
+      installs, uses or otherwise deals with the Software.
+
+=== 2. LIMITED GRANTS ===
+
+The Licensor grants You only the following rights. Each is limited,
+non-exclusive, non-transferable, non-sublicensable and revocable as stated in
+this License, and each is subject to Section 3.
+
+2.1. Production use. Authorized Personnel may install, run and configure the
+     compiled Software on an Authorized Server, and may edit the provided
+     configuration files as intended by the documentation.
+
+2.2. Reading. Any person may view the source code on GitHub and clone it to a
+     local machine solely to read, study, audit and review it, and to conduct
+     good-faith security research and coordinated disclosure in accordance
+     with SECURITY.md. This right does not include any right to compile for
+     use, run, copy elsewhere or distribute.
+
+2.3. Contribution testing. A person preparing a Contribution (Section 4.4) for
+     the Licensor may build and run the Software privately on a local machine,
+     in a non-production environment that is not accessible to other players
+     or the public, solely to develop and test that Contribution. This right
+     ends when the Contribution is submitted or abandoned.
+
+2.4. Integration through the Public API. You may write and distribute a
+     separate plugin that interoperates with the Software solely through the
+     Public API at runtime, provided that (a) the plugin does not contain,
+     copy or embed any part of the Software other than unmodified Public API
+     type declarations needed to compile; (b) the plugin does not grant,
+     purport to grant or facilitate any right in the Software; (c) anyone who
+     runs the plugin together with the Software must hold their own right to
+     do so under this License; and (d) the plugin is not used to circumvent
+     any restriction of this License.
+
+2.5. GitHub. GitHub's Terms of Service allow other GitHub users to view and
+     fork a public repository within GitHub. The Licensor acknowledges that,
+     and this License does not restrict it. Those rights are limited to what
+     GitHub's Terms provide (viewing, forking within GitHub, and proposing
+     changes by pull request). They confer no right of Use, redistribution,
+     modification or any other right in this License or under copyright law.
+
+2.6. Reservation of rights. The Software is licensed, not sold. All rights not
+     expressly granted are reserved by the Licensor. No other license or right
+     is granted by implication, estoppel, exhaustion, course of dealing, or
+     otherwise. The public availability of the source code, the absence of
+     technical protection, the Licensor's tolerance of a violation, and any
+     delay in enforcing rights are not permission and not a waiver.
+
+2.7. Territory and term. Every grant in this Section applies worldwide and
+     lasts for the term stated in Section 5.2, unless it is withdrawn earlier
+     under Section 5. This statement is made for the purposes of Article 1235
+     of the Civil Code of the Russian Federation.
+
+2.8. No fee. The grants in this Section are made free of charge unless a
+     Written Permit says otherwise. That does not make the Software public
+     domain, open source, or free software.
+
+=== 3. RESTRICTIONS ===
+
+Without the Licensor's prior Written Permit, You must NOT, and must not allow
+or assist anyone else to:
+
+(a) Use the Software on any server, network, hosting, service or device that
+    is not an Authorized Server, including any other Minecraft server, private
+    server, network of servers, competition, or demonstration open to others;
+
+(b) copy, reproduce, publish, upload, mirror, distribute, sell, resell, rent,
+    lease, lend, sublicense, or otherwise make the Software or any part of it
+    available to any third party, by any means and on any platform, including
+    repositories, file hosts, forums, chat services, plugin marketplaces and
+    server templates or packs;
+
+(c) offer the Software, or access to it, as a hosted or managed service, as a
+    perk or reward, or as a bundled component of a server or product you sell
+    or distribute;
+
+(d) modify, adapt, translate, port or create Derivative Works of the Software,
+    except for (i) editing configuration files as intended, and (ii)
+    Contributions made under Section 2.3 and Section 4.4;
+
+(e) re-implement, in any language, engine or platform, the Software's source
+    code, structure, sequence and organization, class, specialization, ability
+    and path-tree systems, formulas, balance tables, configuration schema, or
+    item and crafting data, to the extent they are protected by law. This
+    clause does not restrict independent creation of a work that neither
+    copies nor is derived from the protected expression of the Software, and
+    does not restrict ideas, methods or functional elements that law leaves
+    unprotected;
+
+(f) decompile, disassemble, reverse engineer, deobfuscate or attempt to derive
+    source code from compiled Software, except to the limited extent that
+    applicable law expressly permits despite this restriction (for example,
+    for interoperability);
+
+(g) remove, alter, hide or falsify any copyright notice, source header, SPDX
+    identifier, license file, attribution, watermark, fingerprint, identifier,
+    license check or other technical protection measure in the Software, or
+    circumvent or disable any of them;
+
+(h) use the Software, its source code, documentation, configuration or data to
+    train, fine-tune, evaluate or build any machine-learning model, dataset or
+    index, or scrape or mine the repository by automated means for such
+    purposes. This does not prohibit interactive use of an AI assistant by
+    Authorized Personnel or Authorized Contributors to work on the Software
+    for the Licensor, provided the tool does not retain that material or use
+    it for training;
+
+(i) use the Brand Assets, or any confusingly similar name, logo or artwork,
+    for any purpose, or suggest that You or your server, product or service is
+    affiliated with, endorsed by or the origin of the Software, other than a
+    truthful statement that an Authorized Server uses RaskolClasses;
+
+(j) use the Software or any Derivative Work to build, run or promote a product
+    or service that substitutes for the Software;
+
+(k) assign, transfer or sublicense this License or any right under it, or
+    permit anyone else to exercise Your rights, other than Authorized
+    Personnel acting for the Authorized Server;
+
+(l) use the Software in violation of applicable law or the rights of others.
+
+=== 4. OWNERSHIP; DERIVATIVE WORKS; CONTRIBUTIONS ===
+
+4.1. Ownership. As between You and the Licensor, the Licensor exclusively owns
+     the Software and all intellectual property rights in it, including
+     copyright, database rights, rights in unpublished material and trade
+     secrets, and the Brand Assets. This License transfers no ownership.
+
+4.2. Derivative Works. If any Derivative Work is created, with or without
+     permission, then to the fullest extent permitted by law the Licensor owns
+     the Software-derived portions of it. You hereby assign to the Licensor
+     all rights You may have in those portions, and where assignment is not
+     possible You grant the Licensor an exclusive, perpetual, worldwide,
+     irrevocable, royalty-free, sublicensable license to them. This does not
+     give You any right to create a Derivative Work, and it does not transfer
+     Your independently written code that contains no part of the Software.
+
+4.3. Work for the Licensor. Work product of Authorized Personnel and team
+     members is owned as set out in their written agreement with the Licensor.
+     This License does not make anyone a co-owner.
+
+4.4. Contributions. "Contribution" means any code, configuration, text, art,
+     idea, bug report, patch, pull request or other material that You submit
+     for inclusion in or improvement of the Software. Contributions are
+     governed by CONTRIBUTING.md and docs/legal/CONTRIBUTOR-AGREEMENT.md. By
+     submitting a Contribution You accept that agreement. The Licensor has no
+     obligation to accept, credit or use any Contribution.
+
+4.5. Feedback. Any suggestion or feedback about the Software may be used by
+     the Licensor freely, without payment or obligation.
+
+=== 5. ACCEPTANCE, TERM AND TERMINATION ===
+
+5.1. Acceptance. By cloning, downloading, installing, running, modifying,
+     copying or otherwise using the Software, You accept this License. This
+     License is an adhesion agreement, and acceptance by those actions is
+     acceptance under applicable law, including Articles 428, 438 and 1286 of
+     the Civil Code of the Russian Federation. If You do not agree, do not use
+     the Software. If You act for an organization, You confirm that You have
+     authority to bind it.
+
+5.2. Term. This License lasts for as long as the Software is protected by
+     copyright, unless terminated earlier under this Section.
+
+5.3. Automatic termination. All rights granted to You end automatically,
+     immediately and without notice if You breach Section 2 or Section 3. A
+     breach is not subject to any cure period.
+
+5.4. Termination by the Licensor. The Licensor may withdraw any grant or
+     Written Permit (a) immediately, for breach, or for conduct that harms the
+     Software, the Authorized Server or its community; and (b) otherwise on
+     thirty (30) days' notice, unless the Written Permit states a different
+     term.
+
+5.5. Effect of termination. On termination You must immediately stop all Use,
+     uninstall the Software, and permanently delete all copies, including
+     forks you control, local clones, backups, build artifacts and Derivative
+     Works, and on request certify this in writing within seven (7) days.
+     Termination does not release You from liability for earlier breaches.
+     Sections 1, 2.5, 2.6, 3 (for acts already done), 4, 5.5, 7 to 13 survive
+     termination.
+
+5.6. Reinstatement. Rights terminated under Section 5.3 are reinstated only if
+     the Licensor says so in writing. The Licensor may refuse in its sole
+     discretion.
+
+=== 6. VERIFICATION AND COOPERATION ===
+
+6.1. Verification. On reasonable written request, a holder of a Written Permit
+     must, within fourteen (14) days, identify each server on which the
+     Software is used (name, address and operator) and provide reasonable
+     evidence of authorized use. The Licensor may also verify use through
+     public information, server listings and server query protocols.
+
+6.2. Technical measures. The Software may contain, now or in future versions,
+     license keys, license checks, notices, watermarks and fingerprints. You
+     must keep them intact and must not circumvent them.
+
+6.3. Evidence. The Licensor may keep and rely on records of its repository
+     history, release history and commit signatures as evidence of authorship
+     and the date of creation.
+
+=== 7. ENFORCEMENT AND REMEDIES ===
+
+7.1. Equitable relief. You acknowledge that use outside this License causes
+     harm to the Licensor that money cannot fully repair. The Licensor may
+     seek injunctions, specific performance and other equitable relief, to the
+     extent allowed by law without proof of actual damage and without posting
+     a bond.
+
+7.2. Money remedies. Anyone who uses the Software outside this License is
+     liable to the Licensor for the Licensor's actual losses and any profits
+     attributable to the violation, or, where the law offers it and the
+     Licensor elects, statutory or alternative compensation (for example,
+     compensation under Article 1301 of the Civil Code of the Russian
+     Federation). The reasonable cost of enforcement, including attorneys'
+     fees, is recoverable to the extent permitted by law.
+
+7.3. Takedowns. You agree that the Licensor may send takedown and infringement
+     notices (including under 17 U.S.C. 512 and equivalent laws) to GitHub,
+     hosting providers, marketplaces, chat and file-sharing services, search
+     engines and server-listing sites about any copy or Derivative Work made
+     or published outside this License.
+
+7.4. Cumulative remedies; no waiver. Remedies are cumulative with those under
+     law. Failure or delay to enforce any right is not a waiver. A waiver is
+     effective only if in writing and signed or sent by the Licensor, and
+     applies only to the case it describes.
+
+=== 8. DISCLAIMER OF WARRANTY ===
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS, IMPLIED OR STATUTORY, INCLUDING WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY,
+AVAILABILITY, COMPATIBILITY WITH ANY MINECRAFT OR PAPER VERSION OR ANY OTHER
+PLUGIN, AND UNINTERRUPTED OR ERROR-FREE OPERATION. THE LICENSOR HAS NO DUTY TO
+PROVIDE SUPPORT, UPDATES OR BACKUPS. YOU ARE RESPONSIBLE FOR BACKING UP YOUR
+SERVER AND DATA.
+
+=== 9. LIMITATION OF LIABILITY ===
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR IS NOT LIABLE FOR ANY
+INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY OR PUNITIVE DAMAGES,
+OR FOR LOSS OF DATA, PROFITS, REVENUE, PLAYERS OR GOODWILL, ARISING OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THIS LICENSE, UNDER ANY THEORY OF
+LIABILITY, EVEN IF ADVISED OF THE POSSIBILITY. THE LICENSOR'S TOTAL LIABILITY
+IS LIMITED TO THE AMOUNT YOU PAID THE LICENSOR FOR THE SOFTWARE IN THE
+PRECEDING TWELVE MONTHS (WHICH MAY BE ZERO). NOTHING IN THIS LICENSE EXCLUDES
+OR LIMITS LIABILITY THAT CANNOT BE EXCLUDED OR LIMITED BY LAW, SUCH AS
+LIABILITY FOR INTENT OR GROSS NEGLIGENCE OR FOR DEATH OR PERSONAL INJURY.
+
+=== 10. INDEMNIFICATION ===
+
+You will defend and indemnify the Licensor against all claims, losses, damages
+and costs (including reasonable legal fees) arising from Your breach of this
+License, Your operation of any server, Your handling of player data, or Your
+violation of law or third-party rights.
+
+=== 11. COMPLIANCE, THIRD-PARTY TERMS AND TRADEMARKS ===
+
+11.1. Your compliance. You alone are responsible for running Your server in
+      compliance with applicable law (including data-protection,
+      consumer-protection, sanctions and export laws), the Minecraft End User
+      License Agreement, Mojang's usage guidelines, and the terms of any
+      platform You use.
+
+11.2. Third-party software. The Software does not bundle third-party code.
+      Paper, LuckPerms, PlaceholderAPI and other plugins or APIs it may
+      interoperate with are licensed by their own owners under their own
+      terms, which this License does not change. See NOTICE.
+
+11.3. Trademarks. "Minecraft" is a trademark of Mojang AB and Microsoft. The
+      Software is an independent project and is not approved by, affiliated
+      with or endorsed by Mojang, Microsoft, PaperMC or any other third party.
+
+=== 12. GOVERNING LAW AND DISPUTES ===
+
+12.1. Governing law. This License and any dispute about it or the Software are
+      governed by the laws of the Russian Federation, without regard to
+      conflict-of-law rules. Mandatory rules of law that protect You and
+      cannot be waived still apply.
+
+12.2. Courts. The courts of the city of Moscow, Russian Federation (the
+      Arbitrazh Court of the City of Moscow or the courts of general
+      jurisdiction of the City of Moscow, according to their subject-matter
+      jurisdiction) have exclusive jurisdiction, except that the Licensor may
+      also bring an action for infringement, misappropriation, or for an
+      injunction in any court that has jurisdiction over You or over where the
+      infringement occurs, and may use the notice procedures of any platform
+      at any time.
+
+=== 13. GENERAL ===
+
+13.1. Severability. If a provision is invalid or unenforceable in a
+      jurisdiction, it is enforced to the maximum extent permitted and
+      reformed to the minimum extent necessary, and the rest of this License
+      and the provision in other jurisdictions stay in force.
+
+13.2. Entire agreement. This License, any Written Permit and the Contributor
+      Agreement are the entire agreement about the Software and replace
+      earlier understandings. If a Written Permit conflicts with this License,
+      the Written Permit controls for the matters it expressly addresses.
+
+13.3. Assignment. The Licensor may assign this License and the Software, in
+      whole or in part, including to a company or on a change of control,
+      without notice. You may not.
+
+13.4. Notices. Notices to the Licensor go to the e-mail in Section 1.1. The
+      Licensor may notify You by e-mail, by a GitHub issue or repository
+      notice, or through the Authorized Server.
+
+13.5. Interpretation. Headings are for convenience only. "Including" means
+      "including without limitation". The word "may" in grants of rights means
+      permission only.
+
+13.6. Languages. This License is published in English and Russian
+      (LICENSE.ru.txt). Both texts have equal force. If they differ, the
+      Russian text prevails.
+
+=== 14. VERSIONS AND SUPERSESSION ===
+
+14.1. This Version 2.0 replaces "RASKOL Proprietary License v1.0" for the
+      Software and for all versions of it, from the Effective Date. It
+      restates and clarifies Version 1.0, which already limited Use to servers
+      operated or authorized by the Licensor; it does not widen what any
+      person was allowed to do.
+
+14.2. The Licensor may publish later versions of this License. A new version
+      applies to Software versions released after its publication. Earlier
+      releases stay under the version in force when they were released, until
+      a grant is withdrawn under Section 5.
 
 END OF LICENSE.
