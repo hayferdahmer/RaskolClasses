@@ -6,6 +6,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.compat.AuthGate;
 import dev.raskol.classes.config.ConfigReads;
+import dev.raskol.classes.hook.TownyHook;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.FluidCollisionMode;
@@ -30,12 +31,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD/cfgI делегируют в ConfigReads
  * (finiteDouble / finiteInt) — единая NaN-проверка (аудит 1-01).
  *
- * 1.15.7 (Волна 7c, аудит 2.7-9): проверка canBuild перед постановкой.
- * Раньше инсталляции ставились в любых регионах (WG deny-build, Towny-клеймы,
- * spawn-защита). Теперь:
- *   - если HookManager доступен, проверяем canBuild(player, location);
- *   - если HookManager недоступен, проверяем только worldborder + spawn-radius.
- * Отказ с сообщением «Постановка запрещена в этом регионе».
+ * 1.15.7 (Волна 7c, аудит 2.7-9): проверка canBuild через TownyHook перед постановкой.
+ * Раньше инсталляции ставились в любых регионах (Towny-клеймы без проверки).
+ * Теперь TownyHook.canBuild(player, location) — если Towny недоступен, не ограничиваем;
+ * если доступен и игрок не резидент — отказ с сообщением.
  */
 public final class InstallationService {
 
@@ -70,19 +69,12 @@ public final class InstallationService {
     }
 
     /**
-     * 1.15.7 (2.7-9): проверка canBuild через HookManager (WorldGuard/Towny).
-     * Если HookManager недоступен, возвращает true (fallback на worldborder/spawn).
+     * 1.15.7 (2.7-9): проверка canBuild через TownyHook.
+     * Делегация в статический TownyHook.canBuild (рефлексия к TownyAPI.testBuild);
+     * fail closed если Towny сломан, fail open если Towny не установлен.
      */
     private boolean canBuild(Player player, Location loc) {
-        try {
-            var hookManager = plugin.getHookManager();
-            if (hookManager != null) {
-                return hookManager.canBuild(player, loc);
-            }
-        } catch (NoSuchMethodError | RuntimeException ignored) {
-            // HookManager не подключён — fallback
-        }
-        return true;
+        return TownyHook.canBuild(plugin, player, loc);
     }
 
     /* ------------------------------ гейты и постановка ------------------------------ */
@@ -154,7 +146,7 @@ public final class InstallationService {
             return false;
         }
 
-        // 1.15.7 (2.7-9): проверка canBuild (WG/Towny)
+        // 1.15.7 (2.7-9): проверка canBuild через TownyHook
         if (!canBuild(p, loc)) {
             p.sendMessage(Component.text(plugin.getRaskolConfig().message(
                     "install.region-denied", "Постановка запрещена в этом регионе."),
