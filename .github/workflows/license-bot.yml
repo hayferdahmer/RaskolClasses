@@ -1,21 +1,17 @@
 # © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 # SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
-# CI: авто-применение лицензионных шапок v2.0 на main (1.15.7, новый workflow).
+# CI: авто-применение лицензионных шапок v2.0 на main (1.15.7).
 #
 # Как работает:
 #   push в main (или ручной dispatch) → --apply → если есть изменения:
-#   commit + push от raskol-license-bot. Пуш выполняется GITHUB_TOKEN,
-#   а GitHub НЕ триггерит workflow'ы на пуши с GITHUB_TOKEN — бесконечный
-#   цикл исключён конструктивно (коммит бота не запускает ни build, ни бота).
-#   Следом гоняем --check для самопроверки идемпотентности скрипта.
+#   commit + push через PAT с scope `workflow` (секрет LICENSE_BOT_PAT).
+#   Цикл исключён: скрипт идемпотентен, второй прогон не найдёт изменений.
 #
-# Цена такого дизайна: коммит бота приходит БЕЗ зелёной галки build
-# (CI на него не запускается). Валидация шапок прилетает на следующем
-# человеческом пуше. Если хочешь, чтобы коммит бота триггерил CI —
-# заведи PAT с правами contents:write в secrets.LICENSE_BOT_PAT и
-# раскомментируй альтернативный push в шаге Commit (токен автора ≠ GITHUB_TOKEN
-# → события триггерятся как обычно; цикл всё равно не возникнет, т.к.
-# второй прогон бота не найдёт изменений и не сделает коммит).
+# Предусловие: в репозитории создан secret `LICENSE_BOT_PAT`:
+#   Settings → Secrets and variables → Actions → New repository secret
+#   Fine-grained PAT: repo RaskolClasses, permissions:
+#     Contents: Read and write
+#     Workflows: Read and write ← обязательно, иначе пуш workflow-файлов заблокирован
 name: License Bot
 
 on:
@@ -43,15 +39,19 @@ jobs:
         run: python3 tools/apply-license-header.py --check
 
       - name: Commit and push if changed
+        env:
+          BOT_TOKEN: ${{ secrets.LICENSE_BOT_PAT }}
         run: |
           if [ -z "$(git status --porcelain)" ]; then
             echo "Заголовки v2.0 уже в порядке — коммит не нужен."
             exit 0
           fi
+          if [ -z "$BOT_TOKEN" ]; then
+            echo "::error::secret LICENSE_BOT_PAT не задан. Создай его в Settings → Secrets → Actions."
+            exit 1
+          fi
           git config user.name "raskol-license-bot"
           git config user.email "raskol-license-bot@users.noreply.github.com"
           git add -A
           git commit -m "chore(license): auto-apply v2.0 headers"
-          git push origin HEAD:main
-          # Альтернатива с триггером CI (нужен secret LICENSE_BOT_PAT):
-          # git push https://x-access-token:${{ secrets.LICENSE_BOT_PAT }}@github.com/${{ github.repository }}.git HEAD:main
+          git push https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
