@@ -1,4 +1,5 @@
-// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
@@ -67,6 +68,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.8 (Sprint 6, Волна 6.3, P0-6-02): purgeStale() — чистка LAST_HEAL по
  *   оффлайн-игрокам общей purge-задачей RaskolClasses (у записи нет срока
  *   годности, критерий — отсутствие игрока онлайн).
+ *
+ * 1.15.7 (Волна 7c, аудит 2.6-58): «Колодец Света» лечит вокруг ТОЧКИ постановки
+ *   (spot), а не вокруг кастера. Раньше groupHeal(caster, ...) брал соседей
+ *   кастера: жрец ставил колодец и убегал — зона «уезжала» с ним, а описание
+ *   способности обещало статичную зону r4 на 8 с. Теперь точка фиксируется
+ *   clone'ом при касте, тики лечат через groupHealAt(caster, spot, ...).
  */
 public final class PriestAbilities extends AbstractKit {
 
@@ -198,11 +205,38 @@ public final class PriestAbilities extends AbstractKit {
         return applyHealWith(caster, target, def, defBase, defCoeff, false);
     }
 
-    /** Групповой хил без спама сообщений (lightwell/divine_hymn). */
+    /** Групповой хил без спама сообщений (divine_hymn — вокруг кастера). */
     private int groupHeal(Player caster, double radius, double amount) {
         LAST_HEAL.put(caster.getUniqueId(), amount);
         int healed = 0;
         for (Entity e : caster.getNearbyEntities(radius, radius, radius)) {
+            if (!(e instanceof Player t) || !isAllyOrSelf(caster, t)) {
+                continue;
+            }
+            double formula = plugin.getHpBarService().formulaMaxHp(t.getUniqueId());
+            double scale = plugin.getHpBarService().scale(t);
+            double hpFormula = scale > 0.0 ? t.getHealth() / scale : t.getHealth();
+            double missing = formula - hpFormula;
+            if (missing <= 0.0) {
+                continue;
+            }
+            plugin.getHpBarService().heal(t, Math.min(amount, missing), caster);
+            t.getWorld().spawnParticle(Particle.HEART,
+                    t.getLocation().add(0.0, 1.2, 0.0), 2, 0.2, 0.3, 0.2, 0.0);
+            healed++;
+        }
+        return healed;
+    }
+
+    /**
+     * 1.15.7 (2.6-58): групповой хил вокруг ФИКСИРОВАННОЙ точки (не кастера).
+     * Используется «Колодцем Света»: зона ставится один раз и живёт 8 с
+     * независимо от перемещений жреца.
+     */
+    private int groupHealAt(Player caster, Location center, double radius, double amount) {
+        LAST_HEAL.put(caster.getUniqueId(), amount);
+        int healed = 0;
+        for (Entity e : center.getWorld().getNearbyEntities(center, radius, radius, radius)) {
             if (!(e instanceof Player t) || !isAllyOrSelf(caster, t)) {
                 continue;
             }
@@ -411,12 +445,18 @@ public final class PriestAbilities extends AbstractKit {
         return true;
     }
 
-    /** holy T5: зона-хил: 4 тика по 2 с, +2 HP/с-эквивалент союзникам r4. */
+    /**
+     * holy T5: зона-хил: 4 тика по 2 с, +2 HP/с-эквивалент союзникам r4.
+     * 1.15.7 (Волна 7c, аудит 2.6-58): зона СТАТИЧНА — точка постановки
+     * фиксируется clone'ом при касте (spot); тики лечат через groupHealAt(spot),
+     * а не вокруг кастера. Жрец может поставить колодец и уйти — зона остаётся.
+     */
     public boolean lightwell(Player p, AbilityDef def) {
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 4.0);
         double per = thealAmount(p, def, 6.0, 0.3);
         UUID pid = p.getUniqueId();
-        Location spot = p.getLocation();
+        // 1.15.7 (2.6-58): точка постановки — неизменяемая копия на все 4 тика
+        Location spot = p.getLocation().clone();
         castFx(p, "lightwell", "BLOCK_BEACON_ACTIVATE", "ENCHANTED_HIT", 0.7f, 1.0f, 20);
         for (int tick = 0; tick < 4; tick++) {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
@@ -424,9 +464,10 @@ public final class PriestAbilities extends AbstractKit {
                 if (caster == null || !caster.isOnline()) {
                     return;
                 }
-                caster.getWorld().spawnParticle(Particle.ENCHANTED_HIT,
+                // партиклы и лечение — вокруг spot, а не вокруг кастера
+                spot.getWorld().spawnParticle(Particle.ENCHANTED_HIT,
                         spot.clone().add(0.0, 1.0, 0.0), 10, radius * 0.5, 0.4, radius * 0.5, 0.02);
-                groupHeal(caster, radius, per);
+                groupHealAt(caster, spot, radius, per);
             }, tick * 40L);
         }
         p.sendMessage(Component.text("Колодец Света: зона лечения " + radius
