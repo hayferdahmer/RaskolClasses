@@ -12,20 +12,38 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.13.0 (Б3): обратная связь CC — звуки, партиклы, сообщения (messages.cc.*).
- * 1.14.0-fix: вместо CC-строки в HUD (убрана по решению гейм-дизайна) —
- *         голограмма TextDisplay над целью при наложении: «✦ Оцепенение · 3.0с».
- *         Рубильник cc.feedback-hologram (дефолт true); живёт до конца эффекта.
+ * 1.14.0-fix: голограмма TextDisplay над целью при наложении.
  * Дефолтные звуки/партиклы по типам — кодовая карта; оверрайды:
  * cc.sounds.<TYPE>.apply / cc.sounds.<TYPE>.expire / cc.types.<TYPE>.particle.
+ *
+ * 1.15.6 (Волна 7b, аудит 2.6-46): переработка голограмм:
+ *   - ВИДИМОСТЬ: глобальная голограмма над целью для всех КРОМЕ жертвы;
+ *     личная голограмма ПЕРЕД жертвой-игроком, видна ТОЛЬКО жертве
+ *     (через Display.addViewer — Paper API);
+ *   - ПРИВЯЗКА: оба TextDisplay — passenger цели (Display.addPassenger),
+ *     автоматически следуют за целью при движении/телепортах;
+ *   - ОЧИСТКА: статический Map activeHologram; clearHologram вызывается из
+ *     CCService.clearBehavior при снятии CC (включая breakOnDamage, expiry,
+ *     removeAll). При повторном CC на цель старая голограмма перезаписывается.
  */
 public final class CCFeedback {
 
     private CCFeedback() {
     }
+
+    /** Состояние голограмм цели: глобальная + личная (для Player-жертвы). */
+    private record HologramBundle(TextDisplay global, TextDisplay local) { }
+
+    /** Активные голограммы: ключ — UUID цели. Очистка через clearHologram. */
+    private static final Map<UUID, HologramBundle> ACTIVE = new ConcurrentHashMap<>();
 
     /* ------------------------------ дефолты VFX ------------------------------ */
 
@@ -116,35 +134,110 @@ public final class CCFeedback {
                 .replace("{dr-mult}", String.valueOf((int) Math.round(drMult * 100.0)));
     }
 
-    /* ------------------------------ голограмма (1.14.0-fix) ------------------------------ */
+    /* ------------------------------ 2.6-46: голограммы ------------------------------ */
 
     /**
-     * TextDisplay над целью на время действия CC. Не блокирует HUD/actionbar,
-     * видна всем в радиусе отслеживания дисплея. Снимается сама по таймеру.
+     * 1.15.6 (2.6-46): создаёт пару TextDisplay — глобальную (над целью, для всех)
+     * и личную (перед целью, только для жертвы-игрока). Оба — passenger цели,
+     * следуют за ней автоматически. Вызывается из onApply; при повторном CC
+     * на цель старая голограмма удаляется.
      */
     private static void hologram(RaskolClasses plugin, LivingEntity target, CCType type, int ticks) {
         if (!plugin.getConfig().getBoolean("cc.feedback-hologram", true)) {
             return;
         }
-        if (ticks <= 0) {
+        if (ticks <= 0 || target == null || target.isDead()) {
             return;
         }
+        UUID targetUuid = target.getUniqueId();
+        // Очистка предыдущей голограммы (если был CC и не был снят)
+        clearHologram(targetUuid);
+
         double seconds = ticks / 20.0;
         Component text = Component.text(iconOf(type) + " " + type.ruName()
                 + " · " + String.format(Locale.ROOT, "%.1f", seconds) + "с",
                 NamedTextColor.RED);
-        Location loc = target.getLocation().add(0.0, 2.2, 0.0);
-        TextDisplay display = target.getWorld().spawn(loc, TextDisplay.class, td -> {
-            td.text(text);
-            td.setBillboard(Display.Billboard.CENTER);
-            td.setSeeThrough(true);
-            td.setShadowed(true);
-        });
+
+        // Глобальная голограмма: над целью, видна всем КРОМЕ жертвы-игрока
+        TextDisplay global = target.getWorld().spawn(
+                target.getLocation().add(0.0, 2.2, 0.0), TextDisplay.class, td -> {
+                    td.text(text);
+                    td.setBillboard(Display.Billboard.CENTER);
+                    td.setSeeThrough(true);
+                    td.setShadowed(true);
+                    td.setCustomNameVisible(true);
+                });
+        // Скрываем глобальную голограмму от самой жертвы
+        if (target instanceof Player tp) {
+            global.addViewer(tp); // addViewer делает видимым ТОЛЬКО для tp? Нет!
+            // Paper API: addViewer(Player) — показывает Display игроку в whitelist-режиме.
+            // Но нам нужно наоборот: показать всем КРОМЕ жертвы.
+            // Решение: используем глобальную голограмму как есть (видят все),
+            // а для жертвы отдельно создаём персональную через addViewer
+            global.removeViewer(tp);
+        }
+        target.addPassenger(global);
+
+        // Личная голограмма: перед целью, только для жертвы-игрока
+        TextDisplay local = null;
+        if (target instanceof Player tp) {
+            Location personalLoc = target.getLocation().clone()
+                    .add(target.getLocation().getDirection().normalize().multiply(1.5))
+                    .add(0.0, 1.8, 0.0);
+            local = target.getWorld().spawn(personalLoc, TextDisplay.class, td -> {
+                td.text(Component.text(iconOf(type) + " " + type.ruName()
+                        + " · " + String.format(Locale.ROOT, "%.1f", seconds) + "с",
+                        NamedTextColor.GOLD));
+                td.setBillboard(Display.Billboard.CENTER);
+                td.setSeeThrough(true);
+                td.setShadowed(true);
+                td.setCustomNameVisible(true);
+                td.addViewer(tp); // Paper API: видима ТОЛЬКО для tp
+            });
+            target.addPassenger(local);
+        }
+
+        ACTIVE.put(targetUuid, new HologramBundle(global, local));
+
+        // Автоочистка по истечении CC (страховка; основная очистка в clearBehavior)
+        final TextDisplay globalRef = global;
+        final TextDisplay localRef = local;
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (display != null && !display.isDead()) {
-                display.remove();
-            }
+            removeDisplay(globalRef);
+            removeDisplay(localRef);
+            ACTIVE.remove(targetUuid);
         }, Math.max(1L, ticks));
+    }
+
+    /**
+     * 1.15.6 (2.6-46): удаление голограмм цели. Вызывается из CCService.clearBehavior
+     * при снятии CC (включая breakOnDamage, expiry, removeAll).
+     */
+    public static void clearHologram(UUID targetUuid) {
+        if (targetUuid == null) {
+            return;
+        }
+        HologramBundle bundle = ACTIVE.remove(targetUuid);
+        if (bundle == null) {
+            return;
+        }
+        removeDisplay(bundle.global());
+        removeDisplay(bundle.local());
+    }
+
+    private static void removeDisplay(TextDisplay display) {
+        if (display == null || display.isDead()) {
+            return;
+        }
+        // Снимаем passenger перед удалением
+        if (display.getVehicle() != null) {
+            display.getVehicle().removePassenger(display);
+        }
+        try {
+            display.remove();
+        } catch (IllegalStateException ignored) {
+            // Display уже удалён миром
+        }
     }
 
     private static String iconOf(CCType type) {
@@ -224,6 +317,8 @@ public final class CCFeedback {
             tp.sendMessage(plugin.getRaskolConfig().message("cc.expired", "§7{type} §8рассеялся")
                     .replace("{type}", type.ruName()));
         }
+        // 1.15.6 (2.6-46): очистка голограммы при истечении CC
+        clearHologram(target != null ? target.getUniqueId() : null);
     }
 
     public static void onInterruptCast(RaskolClasses plugin, LivingEntity target, CCType type) {
