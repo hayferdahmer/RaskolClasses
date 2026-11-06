@@ -39,6 +39,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * на две фазы: items.yml → crafting.yml; если crafting падает, лог пишет
  * «крафт не обновлён, реестр предметов обновлён» (раньше врало
  * «прежний реестр сохранён», хотя registry уже был обновлён).
+ *
+ * 1.15.7 (compile-fix #1952): конструктор ItemRegistry принимает Collection<ItemDefinition>,
+ * не Map. Инициализация: new ItemRegistry(java.util.List.of(), Map.of()).
  */
 public final class ItemSystem implements ItemStatsProvider {
     private final RaskolClasses plugin;
@@ -73,9 +76,9 @@ public final class ItemSystem implements ItemStatsProvider {
         craftingService = new CraftingService(plugin, fragmentRegistry);
         craftingGui = new CraftingGui(plugin, craftingService, fragmentRegistry);
         browser = new ItemBrowserMenu(plugin, this);
-                // 1.15.7 (2.6-16): пустой реестр до первой загрузки.
+        // 1.15.7 (2.6-16) + compile-fix #1952: пустой реестр до первой загрузки.
         // Конструктор ItemRegistry: (Collection<ItemDefinition>, Map<...>) —
-        // первый аргумент КОЛЛЕКЦИЯ, не Map (compile-fix #1952).
+        // первый аргумент КОЛЛЕКЦИЯ, не Map.
         this.registry = new ItemRegistry(java.util.List.of(), Map.of());
         reload();
     }
