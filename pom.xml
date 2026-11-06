@@ -2,8 +2,8 @@
 <!--
 © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
 RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
-1.15.5: волна аудита (Wave 0+1): гигиена репо, дерево прав item.*,
-        budget-путь settings.budget, crafting-права. Боевое ядро не тронуто.
+1.15.6: волны аудита 3–6: боевой конвейер, spec2-контракты, конкурентность,
+        хранилище, FX; README: выравнивание и актуализация.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -12,7 +12,7 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
 
   <groupId>dev.raskol</groupId>
   <artifactId>raskol-classes</artifactId>
-  <version>1.15.5</version>
+  <version>1.15.6</version>
   <packaging>jar</packaging>
 
   <name>RaskolClasses</name>
