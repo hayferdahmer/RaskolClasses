@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
+© 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+-->
+<!--
   1.14.13 (Sprint 9, Волна 13A): исключения SpotBugs по итогам триажа отчёта.
   1.14.14 (фаза 1): расширено правилами для test-only классов (BalanceSimulator,
   SelftestRunner) и пет-бэклога (PetService$PetState).
@@ -14,7 +18,7 @@
    - PetService$PetState.dmgMult/speedMult: зарезервированы для будущего pet-damage
      слоя (1.15.0), пока нечитаемы — исключены до появления читателей.
 
-  Лицензия: RASKOL Proprietary License v1.0.
+  Лицензия: RASKOL Proprietary License v2.0.
 -->
 <FindBugsFilter>
 

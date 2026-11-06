@@ -151,4 +151,4 @@ parent-группу `citizen` (default: true).
 
 Для интеграционной диагностики `/rc debug profile` показывает `CombatProfile` живой сущности в прицеле.
 
-**Конец RUNBOOK 1.15.0.** Лицензия: RASKOL Proprietary License v1.0.
+**Конец RUNBOOK 1.15.0.** Лицензия: RASKOL Proprietary License v2.0.

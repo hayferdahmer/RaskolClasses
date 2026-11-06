@@ -1,4 +1,5 @@
-// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 /**
  * Пет-система (1.14.6+): PetDef-реестр (wolf/demon/shadowfiend), pure-масштабирование
  * PetMath (hp = base + attr×2, dmg = base + power×0.3, × pet_pct-узлы),

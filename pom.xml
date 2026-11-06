@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-© 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+© 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
 1.15.6: волны аудита 3–6: боевой конвейер, spec2-контракты, конкурентность,
         хранилище, FX; README: выравнивание и актуализация.

@@ -597,7 +597,7 @@ cp target/raskol-classes-*.jar plugins/
 | --- | --- |
 | 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Аварии и гейты, тюнинг без пересборки, контроль и DR, проки, респеки, миграции, troubleshooting |
 | 📖 [`CHANGELOG.md`](CHANGELOG.md) | История версий (не переписывается задним числом) |
-| ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v1.0 |
+| ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v2.0 |
 
 <br/>
 
@@ -605,5 +605,5 @@ cp target/raskol-classes-*.jar plugins/
 
 <p align="center">
   <i>Пусть огонь не гаснет, а короны не сходятся.</i><br/><br/>
-  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v1.0<br/>использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
+  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v2.0<br/>использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
 </p>
