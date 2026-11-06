@@ -40,6 +40,9 @@
 - Kill-switch `selftest.allow-live-probe` в `config.yml` (default `true`).
 - CHANGELOG backfill: восстановлены `1.15.1`, `1.14.12`, `1.14.13`, `1.14.1`–`1.14.3`, `1.14.5`.
 
+**Документация:**
+- README: убран ASCII-схема корон и раздел «Как устроено оформление»; выровнены отступы и ширины таблиц и эмблем; счётчик selftest и регресс-матрица приведены к `SelftestRunner` (167 чеков).
+
 **Файлы:** `attribute/AttributeModifiers.java`, `fx/FxService.java`, `effect/ActiveEffectManager.java`, `combat/VanillaDamageListener.java`, `combat/DamageCaps.java`, `combat/CombatService.java`, `spec/storage/Spec2Storage.java`, `spec/service/Spec2Service.java`, `selftest/SelftestRunner.java` (158 чеков), `config.yml` (блоки `spec2.row-gates-by-tree`, `selftest.*`).
 
 ---
