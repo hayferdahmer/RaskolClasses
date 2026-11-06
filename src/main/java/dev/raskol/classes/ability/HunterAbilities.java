@@ -1,4 +1,5 @@
-// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
@@ -18,6 +19,10 @@ import org.bukkit.entity.AbstractArrow;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -59,6 +64,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.8 (Sprint 6, Волна 6.3, P0-6-02): purgeStale() — чистка протухших меток
  *   «Верный выстрел» общей purge-задачей RaskolClasses; статическая карта больше
  *   не растёт до перезапуска.
+ *
+ * 1.15.7 (Волна 7c, аудит 2.6-76): «Веер стрел» больше не бьёт ванильным
+ *   arrow.setDamage(...) в обход боевого конвейера. Стрела летит с damage=0 и
+ *   PDC-тегом fan_arrow=DOUBLE (урон в formula-единицах); попадание обрабатывает
+ *   вложенный listener FanArrowHit через CombatService.dealDamage — резисты,
+ *   школы, капы и профили RaskolMobs применяются как для любого урона пути B.
+ *   Ключ fan_arrow теперь DOUBLE (ранее BYTE-маркер без урона), читатель один —
+ *   FanArrowHit; ScrollSanitizer/PDC-формат предметов не затронуты (тег на снаряде,
+ *   не на предмете).
  */
 public final class HunterAbilities extends AbstractKit {
 
@@ -71,7 +85,15 @@ public final class HunterAbilities extends AbstractKit {
 
     public HunterAbilities(RaskolClasses plugin) {
         super(plugin, PC, "wp");
-        this.fanArrowKey = new NamespacedKey(plugin, "fan_arrow");
+        this.fanArrowKey = fanArrowKey(plugin);
+    }
+
+    /**
+     * 1.15.7 (2.6-76): публичный PDC-ключ стрел веера — общий для кита
+     * (запись урона) и FanArrowHit (чтение урона). Один литерал, два потребителя.
+     */
+    public static NamespacedKey fanArrowKey(RaskolClasses plugin) {
+        return new NamespacedKey(plugin, "fan_arrow");
     }
 
     /* ------------------------------ 1.14.8 (P2-3): классовый множитель ------------------------------ */
@@ -93,6 +115,54 @@ public final class HunterAbilities extends AbstractKit {
     public static void purgeStale() {
         long now = System.currentTimeMillis();
         TRUE_SHOT_UNTIL.entrySet().removeIf(e -> e.getValue() <= now);
+    }
+
+    /* ------------------------------ 1.15.7 (2.6-76): listener стрел веера ------------------------------ */
+
+    /**
+     * Вложенный listener: попадание стрелы веера → dealDamage.
+     * Регистрируется из RaskolClasses.onEnable:
+     * pluginManager.registerEvents(new HunterAbilities.FanArrowHit(this), this).
+     * Кит НЕ является Listener'ом целиком: его экземпляр создаётся внутри
+     * TreeAbilities.registerCasters, и регистрация кита из RaskolClasses
+     * создала бы ВТОРОЙ экземпляр (повтор регрессии 13C с WarlockAbilities).
+     */
+    public static final class FanArrowHit implements Listener {
+
+        private final RaskolClasses plugin;
+        private final NamespacedKey key;
+
+        public FanArrowHit(RaskolClasses plugin) {
+            this.plugin = plugin;
+            this.key = fanArrowKey(plugin);
+        }
+
+        /**
+         * 1.15.7 (2.6-76): стрела с тегом fan_arrow наносит урон через боевой
+         * конвейер. Ванильный урон стрелы = 0 (ставится в launchFanArrow),
+         * поэтому двойного применения нет: путь A видит событие с damage=0
+         * (нейтрально), фактический урон идёт путём B (suppressed).
+         */
+        @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+        public void onProjectileHit(ProjectileHitEvent event) {
+            if (!(event.getEntity() instanceof AbstractArrow arrow)) {
+                return;
+            }
+            if (!(arrow.getShooter() instanceof Player shooter)) {
+                return;
+            }
+            Double damage = arrow.getPersistentDataContainer().get(key, PersistentDataType.DOUBLE);
+            if (damage == null || !Double.isFinite(damage) || damage <= 0.0) {
+                return; // обычная стрела (игрок/скелет) — не трогаем
+            }
+            if (!(event.getHitEntity() instanceof LivingEntity target) || target.isDead()) {
+                return; // попадание в блок — урона нет
+            }
+            if (!plugin.getCombat().canHit(shooter, target)) {
+                return;
+            }
+            plugin.getCombat().dealDamage(target, shooter, DamageProfile.physical(damage));
+        }
     }
 
     /* -------------------------------- базовые способности -------------------------------- */
@@ -158,13 +228,18 @@ public final class HunterAbilities extends AbstractKit {
         return true;
     }
 
+    /**
+     * 1.15.7 (2.6-76): стрела веера: ванильный урон = 0, фактический урон —
+     * PDC-тег fan_arrow (DOUBLE), применяется в FanArrowHit через dealDamage.
+     * Неподбираемость тройной страховкой (сразу + 2 тика) сохранена.
+     */
     private void launchFanArrow(Player p, Vector velocity, double damage) {
         AbstractArrow arrow = p.launchProjectile(AbstractArrow.class, velocity);
         arrow.setShooter(p);
-        arrow.setDamage(damage);
+        arrow.setDamage(0.0);
         arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
         arrow.setLifetimeTicks(600);
-        arrow.getPersistentDataContainer().set(fanArrowKey, PersistentDataType.BYTE, (byte) 1);
+        arrow.getPersistentDataContainer().set(fanArrowKey, PersistentDataType.DOUBLE, damage);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (arrow.isValid()) {
                 arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
