@@ -33,6 +33,12 @@ import java.util.UUID;
  *         reconcile идёт через Spec2Service (passive-резисты автоматически
  *         пересчитываются внутри Spec2EffectsApplier при reconcile),
  *         спека читается через Spec.fromId(spec2Service.mainSpec).
+ *
+ * 1.15.7 (Волна 7c, аудит 2.6-92): при CLASS-смене инвалидируем кэш
+ * AttributeService (формулы HP, криты) и HpBarService (formulaMaxHp).
+ * Раньше reconcileImmediate пересчитывал spec2-агрегаты, но AttributeService
+ * использовал старый кэш (TTL 5 с) — игрок 5 секунд жил со старыми
+ * формулами HP после смены класса.
  */
 public final class PassportChangeListener implements Listener {
 
@@ -109,8 +115,17 @@ public final class PassportChangeListener implements Listener {
      *  - Spec2EffectsApplier (зарегистрирован Spec2RoleListener) автоматически
      *    подтягивает passive-резисты спеки — отдельный restorePassiveResists не нужен;
      *  - при CLASS-смене проверяем mismatch класса у основной спеки.
+     *
+     * 1.15.7 (2.6-92): инвалидируем кэш AttributeService и HpBarService,
+     * чтобы формулы HP/криты пересчитались немедленно (не ждали 5 с TTL).
      */
     private void reconcileImmediate(UUID uuid, String reason) {
+        // 1.15.7 (2.6-92): инвалидация кэша атрибутов ДО reconcile,
+        // чтобы spec2-агрегаты применялись к свежим формулам
+        if (plugin.getAttributes() != null) {
+            plugin.getAttributes().invalidate(uuid);
+        }
+
         // Spec2: полный reconcile (снимает/вешает модификаторы source=spec2,
         // Spec2EffectsApplier в тике подтянет passive-резисты спеки)
         if (plugin.getSpec2Service() != null) {
