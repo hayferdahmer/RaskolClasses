@@ -32,6 +32,13 @@ import java.util.concurrent.ThreadLocalRandom;
  * 1.15.5-fix: ItemBrowserMenu создаётся EAGER в конструкторе и регистрируется в start() —
  * ранее новый браузер (item.gui) не регистрировался вообще, клики по навигации
  * уходили в ванильное поведение («кнопка прилипает к курсору»).
+ *
+ * 1.15.7 (Волна 7c, аудит 2.6-16): registry инициализируется пустым реестром
+ * в конструкторе (до первого reload), чтобы неудачная первая загрузка items.yml
+ * не оставляла registry = null (NPE в definitionOf/create). Reload разделён
+ * на две фазы: items.yml → crafting.yml; если crafting падает, лог пишет
+ * «крафт не обновлён, реестр предметов обновлён» (раньше врало
+ * «прежний реестр сохранён», хотя registry уже был обновлён).
  */
 public final class ItemSystem implements ItemStatsProvider {
     private final RaskolClasses plugin;
@@ -47,6 +54,12 @@ public final class ItemSystem implements ItemStatsProvider {
     private final SetBonusService setBonuses = new SetBonusService();
     private final Map<UUID, ItemStatSnapshot> snapshots = new ConcurrentHashMap<>();
     private final java.util.Set<String> warnedUnknownIds = ConcurrentHashMap.newKeySet();
+    /**
+     * 1.15.7 (2.6-16): volatile registry, инициализируется пустым реестром
+     * в конструкторе. Если первая загрузка items.yml падает, registry остаётся
+     * пустым (не null) — definitionOf/create возвращают null/бросают
+     * IllegalArgumentException вместо NPE.
+     */
     private volatile ItemRegistry registry;
 
     public ItemSystem(RaskolClasses plugin) {
@@ -60,9 +73,18 @@ public final class ItemSystem implements ItemStatsProvider {
         craftingService = new CraftingService(plugin, fragmentRegistry);
         craftingGui = new CraftingGui(plugin, craftingService, fragmentRegistry);
         browser = new ItemBrowserMenu(plugin, this);
+        // 1.15.7 (2.6-16): пустой реестр до первой загрузки
+        this.registry = new ItemRegistry(Map.of(), Map.of());
         reload();
     }
 
+    /**
+     * 1.15.7 (2.6-16): reload разделён на две фазы:
+     * 1) загрузка items.yml → обновление registry;
+     * 2) загрузка crafting.yml → обновление craftingService.
+     * Если фаза 2 падает, лог пишет «крафт не обновлён, реестр предметов обновлён»
+     * (раньше врало «прежний реестр сохранён», хотя registry уже был обновлён).
+     */
     public synchronized boolean reload() {
         File file = new File(plugin.getDataFolder(), "items.yml");
         if (!file.exists()) plugin.saveResource("items.yml", false);
@@ -71,12 +93,18 @@ public final class ItemSystem implements ItemStatsProvider {
             registry = loaded;
             setBonuses.definitions(loaded.sets());
             plugin.getLogger().info("Загружено определений предметов: " + loaded.size());
-            craftingService.reload();
-            return true;
         } catch (Exception ex) {
-            plugin.getLogger().severe("items.yml отклонён; прежний реестр сохранён: " + ex.getMessage());
+            plugin.getLogger().severe("items.yml отклонён; реестр предметов не обновлён: " + ex.getMessage());
             return false;
         }
+        // Фаза 2: crafting.yml (отдельный try-catch, чтобы не откатывать items.yml)
+        try {
+            craftingService.reload();
+        } catch (Exception ex) {
+            plugin.getLogger().warning("crafting.yml отклонён; крафт не обновлён, реестр предметов обновлён: " + ex.getMessage());
+            return false;
+        }
+        return true;
     }
 
     public ItemRegistry registry() { return registry; }
