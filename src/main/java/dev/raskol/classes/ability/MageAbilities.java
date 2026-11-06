@@ -9,12 +9,14 @@ import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.Targeting;
 import dev.raskol.classes.combat.dot.DotInstance;
 import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.hook.TownyHook;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.WorldBorder;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -39,33 +41,21 @@ import java.util.concurrent.ConcurrentHashMap;
  *  5. «Гнев Зевса» — мгновенный урон + сцена; поджог = DoT burning.
  * 1.12.3: школы FIRE/ARCANE/FROST, каст/impact/execute-VFX конфиг-драйвен.
  * 1.14.0 (Б4): хуки baseBonus/coeffMult из Spec2Service.
- * 1.14.0 (контент-долг 4): +11 древесных способностей Мага:
- *   arcane: arcane_missiles, counterspell, presence_of_mind;
- *   fire: scorch, flamestrike, combustion, pyroblast (ульт);
- *   frost: frostbolt, blizzard, ice_barrier, ice_lance_shatter (ульт).
- *   Бафф «Возгорание» — статическая карта COMBUSTION_UNTIL.
- * 1.14.0 (Б11.1.2-A): base/coeff/power/duration + threshold/execute-mult(zeus_wrath)
- *   читаются через TreeAbilities.*OrKit (treeAbilities → abilities → код-дефолт),
- *   чтобы переносимые (athena_aegis/zeus_wrath) пережили резку abilities.
- *   projectile-speed/distance/radius(boreas) у slots 1–3 НЕ тронуты (не переносимые).
- * 1.14.7 (Sprint 3, P0-6A): ice_barrier читает длительность через
- *   TreeAbilities.durationWithSpec (kit_dur fr_ice_ward_enh: +2 с/ранг).
- * 1.14.7 (Sprint 4, P1-6): удаление дубля treeUnlocked() — гейт hasUnlocked
- *   централизован в AbilityRegistry.castOn. Текст отказа идентичен
- *   («откроется узлом дерева путей Мага.»), поведение игрока не изменилось.
- * 1.14.8 (Sprint 5, P2-3): миграция на AbstractKit — конфиг-хелперы, числа с
- *   фолбэком, уронное ядро с spec2-хуками, таргетинг и VFX унаследованы;
- *   combustionMult стал override postMult (×1.25 урона заклинаний под баффом).
- *   В ките остались только маг-специфика: счётчики chilled/burning,
- *   distanceToSegment для блинка, executeFx для Зевса.
- * 1.14.8 (Sprint 6, Волна 6.3, P0-6-02): purgeStale() — чистка протухших меток
- *   «Возгорание» общей purge-задачей RaskolClasses.
+ * 1.14.0 (контент-долг 4): +11 древесных способностей Мага.
+ * 1.14.7 (Sprint 3, P0-6A): ice_barrier читает длительность через durationWithSpec.
+ * 1.14.8 (Sprint 5, P2-3): миграция на AbstractKit.
+ * 1.14.8 (Sprint 6, Волна 6.3, P0-6-02): purgeStale().
+ *
+ * 1.15.6 (Волна 7b, аудит 2.6-7): полная валидация точки назначения блинка
+ *   (hermesStep): граница мира, загруженный чанк, высота, Towny-клеймы, canHit.
+ * 1.15.6 (Волна 7b, аудит 2.6-74): zeusWrath подброс цели учитывает
+ *   CC-иммунитет к KNOCKBACK (CombatProfile.ccImmunities + конфиг).
  */
 public final class MageAbilities extends AbstractKit {
 
     private static final PlayerClass PC = PlayerClass.MAGE;
 
-    /** 1.14.0: «Возгорание» — ×1.25 урона заклинаний на 8 с. */
+    /** 1.14.0: «Возгорание» — ×1.25 к урону заклинаний, пока бафф активен. */
     private static final Map<UUID, Long> COMBUSTION_UNTIL = new ConcurrentHashMap<>();
 
     public MageAbilities(RaskolClasses plugin) {
@@ -83,11 +73,6 @@ public final class MageAbilities extends AbstractKit {
 
     /* ------------------------------ 1.14.8 (Волна 6.3, P0-6-02): чистка ------------------------------ */
 
-    /**
-     * Чистка протухших меток «Возгорание». Вызывается общей purge-задачей
-     * RaskolClasses; без неё UUID игроков, завершивших сессию, оставались
-     * в карте до перезапуска.
-     */
     public static void purgeStale() {
         long now = System.currentTimeMillis();
         COMBUSTION_UNTIL.entrySet().removeIf(e -> e.getValue() <= now);
@@ -136,6 +121,54 @@ public final class MageAbilities extends AbstractKit {
         return point.toVector().distance(closest);
     }
 
+    /**
+     * 1.15.6 (2.6-7): валидация точки назначения блинка.
+     * Проверяет: граница мира, загруженный чанк, высота [min..max],
+     * Towny-клеймы (TownyHook), passability блока, ненулевое смещение от from.
+     *
+     * @return true если точка безопасна, false — блинк отменяется
+     */
+    private boolean isBlinkDestinationSafe(Player player, Location from, Location to) {
+        if (to == null || from == null || to.getWorld() == null) {
+            return false;
+        }
+        // Не телепортируемся на ту же позицию
+        if (from.getBlockX() == to.getBlockX()
+                && from.getBlockY() == to.getBlockY()
+                && from.getBlockZ() == to.getBlockZ()) {
+            return false;
+        }
+        // Граница мира
+        WorldBorder border = to.getWorld().getWorldBorder();
+        if (!border.isInside(to)) {
+            return false;
+        }
+        // Высота: между min и max
+        int minY = to.getWorld().getMinHeight();
+        int maxY = to.getWorld().getMaxHeight();
+        if (to.getBlockY() < minY || to.getBlockY() >= maxY) {
+            return false;
+        }
+        // Загруженный чанк
+        if (!to.getWorld().isChunkLoaded(to.getBlockX() >> 4, to.getBlockZ() >> 4)) {
+            return false;
+        }
+        // Passability блока (игрок не должен застрять)
+        if (!to.getBlock().isPassable()) {
+            return false;
+        }
+        // Блок над головой (2-блочная высота для игрока)
+        Location above = to.clone().add(0.0, 1.0, 0.0);
+        if (!above.getBlock().isPassable()) {
+            return false;
+        }
+        // Towny-клеймы (2.7-1)
+        if (!TownyHook.canBlink(plugin, player, from, to)) {
+            return false;
+        }
+        return true;
+    }
+
     /* -------------------------------- базовые способности -------------------------------- */
 
     /** 1. «Огонь Прометея»: снаряд с тегом rc_dot=burning; ванильного поджога нет. */
@@ -153,7 +186,10 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /** 2. «Шаг Гермеса»: блинк с уроном по пути; VFX конфиг-драйвен. */
+    /**
+     * 2. «Шаг Гермеса»: блинк с уроном по пути.
+     * 1.15.6 (2.6-7): валидация точки назначения (граница/чанк/высота/Towny/passable).
+     */
     public boolean hermesStep(Player p, AbilityDef def) {
         double maxDist = cfgD("classes.MAGE.abilities." + def.id() + ".distance", 16.0);
         Vector dir = p.getLocation().getDirection().setY(0).normalize();
@@ -174,6 +210,13 @@ public final class MageAbilities extends AbstractKit {
         }
         dest.setYaw(origin.getYaw());
         dest.setPitch(origin.getPitch());
+
+        // 1.15.6 (2.6-7): валидация точки назначения
+        if (!isBlinkDestinationSafe(p, origin, dest)) {
+            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "blink-unsafe", "Скачок невозможен: нет безопасной точки"), NamedTextColor.GRAY));
+            return false;
+        }
 
         castFx(p, "hermes_step", "ENTITY_ENDERMAN_TELEPORT", "REVERSE_PORTAL", 0.5f, 1.2f, 16);
 
@@ -289,7 +332,10 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /** 5. «Гнев Зевса»: урон МГНОВЕННО при касте; сцена молнии/подброса поверх. */
+    /**
+     * 5. «Гнев Зевса»: урон МГНОВЕННО при касте; сцена молнии/подброса поверх.
+     * 1.15.6 (2.6-74): подброс цели учитывает CC-иммунитет к KNOCKBACK.
+     */
     public boolean zeusWrath(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
         if (t == null) {
@@ -304,7 +350,6 @@ public final class MageAbilities extends AbstractKit {
         UUID targetId = t.getUniqueId();
         castFx(p, "zeus_wrath", "ENTITY_EVOKER_CAST_SPELL", "ELECTRIC_SPARK", 0.7f, 0.9f, 14);
         double dmg = dmg(p, def, 25.0, 2.0);
-        // 1.14.0 (Б11.1.2-A): threshold/execute-mult через фолбэк-хелпер (переносимая slot 5)
         double threshold = TreeAbilities.numberOrKit(plugin, PC, def.id(), "threshold", 0.25);
         double execMult = TreeAbilities.numberOrKit(plugin, PC, def.id(), "execute-mult", 3.0);
 
@@ -341,11 +386,16 @@ public final class MageAbilities extends AbstractKit {
             plugin.getFx().impactBurst(castLoc, spark, 30, null, 0f, 1f);
         }
 
+        // 1.15.6 (2.6-74): подброс с учётом CC-иммунитета к KNOCKBACK
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             Entity e = plugin.getServer().getEntity(targetId);
-            if (e instanceof LivingEntity living && living.isValid()) {
-                living.setVelocity(new Vector(0.0, 1.2, 0.0));
+            if (!(e instanceof LivingEntity living) || !living.isValid()) {
+                return;
             }
+            if (plugin.getCC().isImmune(living, CCType.KNOCKBACK)) {
+                return;
+            }
+            living.setVelocity(new Vector(0.0, 1.2, 0.0));
         }, 10L);
 
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
@@ -364,10 +414,10 @@ public final class MageAbilities extends AbstractKit {
             Particle flash = resolveParticle(cfgS("vfx.zeus_wrath.impact-particle", "FLASH"));
             if (flash != null) {
                 plugin.getFx().impactBurst(strikeLoc, flash, 12, null, 0f, 1f);
+                Particle castParticle = resolveParticle(
+                        cfgS("vfx.zeus_wrath.cast-particle", "ELECTRIC_SPARK"));
                 plugin.getFx().impactBurst(strikeLoc,
-                        resolveParticle(cfgS("vfx.zeus_wrath.cast-particle", "ELECTRIC_SPARK")) != null
-                                ? resolveParticle(cfgS("vfx.zeus_wrath.cast-particle", "ELECTRIC_SPARK"))
-                                : Particle.ELECTRIC_SPARK,
+                        castParticle != null ? castParticle : Particle.ELECTRIC_SPARK,
                         30, impactSound, 0.8f, 1.0f);
             }
             if (plugin.getCombat().canHit(caster, living)) {
@@ -379,25 +429,16 @@ public final class MageAbilities extends AbstractKit {
     }
 
     /* --------------------- древесные способности (1.14.0, контент-долг 4) --------------------- */
-    /* 1.14.7 (Sprint 4, P1-6): вызовы treeUnlocked() удалены — гейт централизован в castOn. */
 
     /** arcane T2: 3 залпа маг-урона по цели (до 20 блоков). */
     public boolean arcaneMissiles(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) {
-            noTarget(p);
-            return false;
-        }
-        if (!plugin.getCombat().canHit(p, t)) {
-            allyTarget(p);
-            return false;
-        }
+        if (t == null) { noTarget(p); return false; }
+        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
         castFx(p, "arcane_missiles", "ENTITY_EVOKER_CAST_SPELL", "REVERSE_PORTAL", 0.6f, 1.1f, 12);
         double per = tdmg(p, def, 5.0, 0.45);
         for (int i = 0; i < 3; i++) {
-            if (t.isDead()) {
-                break;
-            }
+            if (t.isDead()) break;
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(per));
             impactFx(t, "arcane_missiles", "ENTITY_EVOKER_FANGS", "REVERSE_PORTAL",
                     0.35f, 1.0f + i * 0.1f, 6);
@@ -405,17 +446,11 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /** arcane T4: маг-урон + Немота 3 с + прерывание канала (CastChannels). */
+    /** arcane T4: маг-урон + Немота 3 с + прерывание канала. */
     public boolean counterspell(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) {
-            noTarget(p);
-            return false;
-        }
-        if (!plugin.getCombat().canHit(p, t)) {
-            allyTarget(p);
-            return false;
-        }
+        if (t == null) { noTarget(p); return false; }
+        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
         castFx(p, "counterspell", "BLOCK_NOTE_BLOCK_BASS", "REVERSE_PORTAL", 0.7f, 0.8f, 14);
         double dmg = tdmg(p, def, 4.0, 0.3);
         plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
@@ -427,11 +462,6 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /**
-     * arcane T5: «Присутствие разума».
-     * ОТКЛОНЕНИЕ: мана → 100 + снятие с себя Немоты (бесплатный каст требует правок
-     * AbilityRegistry.castOn — отдельный долг).
-     */
     public boolean presenceOfMind(Player p, AbilityDef def) {
         UUID uuid = p.getUniqueId();
         plugin.getResources().refund(uuid, 100.0);
@@ -442,17 +472,10 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /** fire T2: маг-урон + горение (DoT burning). */
     public boolean scorch(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) {
-            noTarget(p);
-            return false;
-        }
-        if (!plugin.getCombat().canHit(p, t)) {
-            allyTarget(p);
-            return false;
-        }
+        if (t == null) { noTarget(p); return false; }
+        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
         castFx(p, "scorch", "ITEM_FIRECHARGE_USE", "FLAME", 0.6f, 1.1f, 10);
         double dmg = tdmg(p, def, 7.0, 0.6);
         plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
@@ -461,10 +484,6 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /**
-     * fire T4: «Огненный столб» — AoE по точке (цель или блок до 20): урон + горение.
-     * ОТКЛОНЕНИЕ: мгновенная зона вместо персистентной.
-     */
     public boolean flamestrike(Player p, AbilityDef def) {
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 4.0);
         LivingEntity target = rayTarget(p, 20);
@@ -481,15 +500,9 @@ public final class MageAbilities extends AbstractKit {
         double dmg = tdmg(p, def, 9.0, 0.8);
         int hits = 0;
         for (Entity e : p.getWorld().getNearbyEntities(spot, radius, radius, radius)) {
-            if (!(e instanceof LivingEntity t) || t.equals(p) || t.isDead()) {
-                continue;
-            }
-            if (!plugin.getCombat().canHit(p, t)) {
-                continue;
-            }
-            if (t.getLocation().distanceSquared(spot) > radius * radius) {
-                continue;
-            }
+            if (!(e instanceof LivingEntity t) || t.equals(p) || t.isDead()) continue;
+            if (!plugin.getCombat().canHit(p, t)) continue;
+            if (t.getLocation().distanceSquared(spot) > radius * radius) continue;
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
             plugin.getCombat().dots().applyById(p, t, "burning");
             impactFx(t, "flamestrike", "ENTITY_BLAZE_HURT", "LAVA", 0.4f, 0.9f, 8);
@@ -503,7 +516,6 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /** fire T5: «Возгорание» — ×1.25 урона заклинаний на 8 с. */
     public boolean combustion(Player p, AbilityDef def) {
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
         COMBUSTION_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
@@ -513,17 +525,10 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /** fire T6 (ульт): огромный урон; по горящей цели ×1.5 + обновляет горение. */
     public boolean pyroblast(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) {
-            noTarget(p);
-            return false;
-        }
-        if (!plugin.getCombat().canHit(p, t)) {
-            allyTarget(p);
-            return false;
-        }
+        if (t == null) { noTarget(p); return false; }
+        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
         boolean burning = isBurning(t);
         castFx(p, "pyroblast", "ENTITY_EVOKER_CAST_SPELL", "LAVA", 0.9f, 0.7f, 22);
         double dmg = tdmg(p, def, 20.0, 1.8) * (burning ? 1.5 : 1.0);
@@ -536,17 +541,10 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /** frost T2: маг-урон + охлаждение (chilled) + Slowness I 2 с. */
     public boolean frostbolt(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) {
-            noTarget(p);
-            return false;
-        }
-        if (!plugin.getCombat().canHit(p, t)) {
-            allyTarget(p);
-            return false;
-        }
+        if (t == null) { noTarget(p); return false; }
+        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
         castFx(p, "frostbolt", "BLOCK_SNOW_BREAK", "SNOWFLAKE", 0.6f, 1.0f, 10);
         double dmg = tdmg(p, def, 8.0, 0.7);
         plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
@@ -556,10 +554,6 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /**
-     * frost T4: «Снежная буря» — AoE по точке: урон + chilled + Slowness I 3 с.
-     * ОТКЛОНЕНИЕ: мгновенная зона вместо персистентной.
-     */
     public boolean blizzard(Player p, AbilityDef def) {
         double radius = TreeAbilities.radiusOf(plugin, PC, def.id(), 5.0);
         LivingEntity target = rayTarget(p, 20);
@@ -576,15 +570,9 @@ public final class MageAbilities extends AbstractKit {
         double dmg = tdmg(p, def, 6.0, 0.5);
         int hits = 0;
         for (Entity e : p.getWorld().getNearbyEntities(spot, radius, radius, radius)) {
-            if (!(e instanceof LivingEntity t) || t.equals(p) || t.isDead()) {
-                continue;
-            }
-            if (!plugin.getCombat().canHit(p, t)) {
-                continue;
-            }
-            if (t.getLocation().distanceSquared(spot) > radius * radius) {
-                continue;
-            }
+            if (!(e instanceof LivingEntity t) || t.equals(p) || t.isDead()) continue;
+            if (!plugin.getCombat().canHit(p, t)) continue;
+            if (t.getLocation().distanceSquared(spot) > radius * radius) continue;
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
             plugin.getCombat().dots().applyById(p, t, "chilled");
             t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 3 * 20, 0));
@@ -599,10 +587,6 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /**
-     * frost T4: «Ледяная преграда» — щит-пул 15% formula-maxHP на 6 с (Absorption).
-     * 1.14.7 (P0-6A): длительность через durationWithSpec (fr_ice_ward_enh: +2 с/ранг).
-     */
     public boolean iceBarrier(Player p, AbilityDef def) {
         int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 6, p.getUniqueId());
         double formula = plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
@@ -616,17 +600,10 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /** frost T6 (ульт): урон; по охлаждённой цели ×(1+стеки) и скол (снятие chilled). */
     public boolean iceLanceShatter(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) {
-            noTarget(p);
-            return false;
-        }
-        if (!plugin.getCombat().canHit(p, t)) {
-            allyTarget(p);
-            return false;
-        }
+        if (t == null) { noTarget(p); return false; }
+        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
         int stacks = chilledStacks(t);
         castFx(p, "ice_lance_shatter", "BLOCK_GLASS_BREAK", "SNOWFLAKE", 0.9f, 0.8f, 20);
         double dmg = tdmg(p, def, 12.0, 1.1);
@@ -645,7 +622,6 @@ public final class MageAbilities extends AbstractKit {
         return true;
     }
 
-    /** 1.14.0: ids древесных способностей для сверки с TreeAbilities. */
     public static List<String> treeAbilityIds() {
         return List.of("arcane_missiles", "counterspell", "presence_of_mind",
                 "scorch", "flamestrike", "combustion", "pyroblast",
