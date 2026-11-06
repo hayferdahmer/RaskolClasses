@@ -32,7 +32,7 @@ NEW_MARK = "RASKOL Proprietary License v2.0"
 OLD_TEXT = "RASKOL Proprietary License v1.0"
 
 # пропускаются только служебные каталоги в КОРНЕ репозитория (пакеты вроде spec/build/ — не трогаем)
-SKIP_TOP = {".git", "target", "node_modules", ".idea", ".vscode", "out", "build"}
+SKIP_TOP = {".git", ".github", "target", "node_modules", ".idea", ".vscode", "out", "build"}
 SKIP_ANY = {".git", "node_modules"}
 SLASH = {".java"}
 HASH = {".yml", ".yaml", ".properties"}
