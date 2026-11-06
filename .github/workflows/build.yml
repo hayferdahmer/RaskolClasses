@@ -112,8 +112,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: License headers
+      - name: License headers (check)
         run: python3 tools/apply-license-header.py --check
+
+      - name: License headers (apply)
         run: python3 tools/apply-license-header.py --apply
 
       - name: Download artifact
