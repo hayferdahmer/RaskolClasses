@@ -24,6 +24,12 @@ import java.util.UUID;
  *         1.14.7-fix: имя операции исправлено с несуществующего ADD_SCALAR_1
  *         на MULTIPLY_SCALAR_1 (legacy-enum Bukkit: ADD_NUMBER / ADD_SCALAR /
  *         MULTIPLY_SCALAR_1).
+ *
+ * 1.15.7 (Волна 7c, аудит 2.6-77): добавлен modifier movement_speed из
+ *         Spec2Service.moveSpeedPercent (узлы ol_improved_sprint / su_fleet_footed).
+ *         Раньше move_speed_pct агрегировался в Spec2Service, но нигде не
+ *         применялся к живому атрибуту игрока — узлы не действовали.
+ *         Операция MULTIPLY_SCALAR_1: итоговая скорость × (1 + pct/100).
  */
 public final class Spec2EffectsApplier {
 
@@ -34,22 +40,34 @@ public final class Spec2EffectsApplier {
     private final RaskolClasses plugin;
     private final NamespacedKey attackSpeedKey;
     private final Attribute attackSpeedAttr;
+    /** 1.15.7 (2.6-77): ключ и атрибут для movement_speed modifier. */
+    private final NamespacedKey moveSpeedKey;
+    private final Attribute moveSpeedAttr;
 
     public Spec2EffectsApplier(RaskolClasses plugin) {
         this.plugin = plugin;
         this.attackSpeedKey = new NamespacedKey(plugin, "spec2_attack_speed");
-        Attribute resolved = null;
+        this.moveSpeedKey = new NamespacedKey(plugin, "spec2_move_speed");
+
+        Attribute resolvedAttack = null;
+        Attribute resolvedMove = null;
         try {
-            resolved = io.papermc.paper.registry.RegistryAccess.registryAccess()
-                    .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
-                    .get(NamespacedKey.minecraft("attack_speed"));
+            var registry = io.papermc.paper.registry.RegistryAccess.registryAccess()
+                    .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE);
+            resolvedAttack = registry.get(NamespacedKey.minecraft("attack_speed"));
+            resolvedMove = registry.get(NamespacedKey.minecraft("movement_speed"));
         } catch (RuntimeException ex) {
-            resolved = null;
+            // оставим null — apply пропустит применение
         }
-        this.attackSpeedAttr = resolved;
-        if (resolved == null) {
+        this.attackSpeedAttr = resolvedAttack;
+        this.moveSpeedAttr = resolvedMove;
+        if (resolvedAttack == null) {
             plugin.getLogger().warning("Spec2EffectsApplier: атрибут attack_speed не резолвится — "
                     + "узлы attack_speed_pct не будут применяться");
+        }
+        if (resolvedMove == null) {
+            plugin.getLogger().warning("Spec2EffectsApplier: атрибут movement_speed не резолвится — "
+                    + "узлы move_speed_pct не будут применяться");
         }
     }
 
@@ -81,6 +99,8 @@ public final class Spec2EffectsApplier {
         }
         // 1.14.7 (P0-6A, A4): скорость атаки из узлов attack_speed_pct
         applyAttackSpeed(player, plugin.getSpec2Service().attackSpeedPercent(uuid));
+        // 1.15.7 (2.6-77): скорость передвижения из узлов move_speed_pct
+        applyMoveSpeed(player, plugin.getSpec2Service().moveSpeedPercent(uuid));
     }
 
     /**
@@ -101,6 +121,24 @@ public final class Spec2EffectsApplier {
                 org.bukkit.inventory.EquipmentSlotGroup.ANY));
     }
 
+    /**
+     * 1.15.7 (2.6-77): MULTIPLY_SCALAR_1 modifier на movement_speed.
+     * amount = pct/100 (10% → 0.10), итоговая скорость = база × (1 + 0.10).
+     * Идемпотентно: старый modifier снимается в remove().
+     */
+    private void applyMoveSpeed(Player player, double pct) {
+        if (moveSpeedAttr == null || !Double.isFinite(pct) || pct == 0.0) {
+            return;
+        }
+        AttributeInstance inst = player.getAttribute(moveSpeedAttr);
+        if (inst == null) {
+            return;
+        }
+        inst.addModifier(new AttributeModifier(
+                moveSpeedKey, pct / 100.0, AttributeModifier.Operation.MULTIPLY_SCALAR_1,
+                org.bukkit.inventory.EquipmentSlotGroup.ANY));
+    }
+
     /** Снять все модификаторы источников spec2 и spec2_el (quit, сброс, reconcile-пусто). */
     public void remove(UUID uuid) {
         plugin.getAttributes().removeModifiersBySource(uuid, SOURCE);
@@ -115,6 +153,19 @@ public final class Spec2EffectsApplier {
                 if (inst != null) {
                     inst.getModifiers().stream()
                             .filter(m -> attackSpeedKey.equals(m.getKey()))
+                            .toList()
+                            .forEach(inst::removeModifier);
+                }
+            }
+        }
+        // 1.15.7 (2.6-77): move-speed modifier
+        if (moveSpeedAttr != null) {
+            Player player = plugin.getServer().getPlayer(uuid);
+            if (player != null) {
+                AttributeInstance inst = player.getAttribute(moveSpeedAttr);
+                if (inst != null) {
+                    inst.getModifiers().stream()
+                            .filter(m -> moveSpeedKey.equals(m.getKey()))
                             .toList()
                             .forEach(inst::removeModifier);
                 }
