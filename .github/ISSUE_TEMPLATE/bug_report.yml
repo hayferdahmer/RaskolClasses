@@ -14,7 +14,7 @@ body:
     attributes:
       label: Версия плагина
       description: "Из pom.xml, `/rc` или имени jar."
-      placeholder: "1.15.5"
+      placeholder: "1.15.6"
     validations:
       required: true
   - type: input
