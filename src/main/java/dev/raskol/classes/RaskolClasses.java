@@ -1,8 +1,10 @@
-// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
+import dev.raskol.classes.ability.HunterAbilities;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.ability.passive.PassiveListener;
@@ -134,6 +136,12 @@ import java.util.List;
  * 1.15.6 (Волна 5, аудит 2.6-4): ActiveEffectManager получает plugin через конструктор
  *         (new ActiveEffectManager(this)) — BLOOD_FURY маршрутизируется через
  *         CombatService.dealDamage вместо прямого aggressor.damage(...).
+ * 1.15.6 (Волна 7a, аудит 2.6-45): AvoidanceService реализует Listener и регистрируется
+ *         здесь (combat.avoidance()) — снимает parry_stagger на quit/join.
+ * 1.15.7 (Волна 7c, аудит 2.6-76): регистрируется вложенный listener
+ *         HunterAbilities.FanArrowHit — стрелы веера наносят урон через dealDamage.
+ *         Кит НЕ регистрируется целиком: его экземпляр живёт в TreeAbilities,
+ *         повторное создание кита здесь дало бы второй экземпляр (регесс 13C).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -369,13 +377,17 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
-        // 1.15.6 (Волна 7, 2.6-45): AvoidanceService — Listener (quit/join lifecycle)
-        pluginManager.registerEvents(combat.avoidance(), this);
         // 1.15.6 (аудит 2.6-1, CRITICAL): ПУТЬ A — ванильные события урона.
         // Слушатель создавался в конструкторе CombatService с 1.14.10, но не
         // регистрировался нигде: резисты/капы/уклонение/мастерство оружия на
         // авто-атаках были мёртвы. Регистрация — явно, рядом с combat.
         pluginManager.registerEvents(combat.vanillaListener(), this);
+        // 1.15.6 (Волна 7a, аудит 2.6-45): AvoidanceService — Listener:
+        // снимает parry_stagger на quit/join (иначе дебафф переживает выход и рестарт)
+        pluginManager.registerEvents(combat.avoidance(), this);
+        // 1.15.7 (Волна 7c, аудит 2.6-76): стрелы веера — урон через dealDamage.
+        // Регистрируется ТОЛЬКО вложенный listener, не кит целиком (кит живёт в TreeAbilities)
+        pluginManager.registerEvents(new HunterAbilities.FanArrowHit(this), this);
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
         pluginManager.registerEvents(hpBarService, this);
         pluginManager.registerEvents(fx, this);
