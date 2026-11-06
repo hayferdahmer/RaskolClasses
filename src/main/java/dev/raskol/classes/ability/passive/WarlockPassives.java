@@ -19,6 +19,9 @@ import java.util.UUID;
  * чистым уроном по врагам в r8 (союзники-игроки защищены гейтом).
  * S4: recoil/overflow/плата Слова идут через setHealth без события → рефлект молчит;
  * рефлект-урон помечен beginReflect/endReflect → без цепочек и без отката.
+ *
+ * 1.15.7 (Волна 7c): без изменений. 2.6-62 уже закрыт: рефлект Чёрной Мессы
+ * бьёт вокруг ЖЕРТВЫ (victim.getLocation()), а не кастера.
  */
 public final class WarlockPassives extends BaseClassPassive {
 
