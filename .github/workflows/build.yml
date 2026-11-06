@@ -114,6 +114,7 @@ jobs:
 
       - name: License headers
         run: python3 tools/apply-license-header.py --check
+        run: python3 tools/apply-license-header.py --apply
 
       - name: Download artifact
         uses: actions/download-artifact@v5
