@@ -22,7 +22,6 @@ import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.ManaSoakedService;
-import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.ConfigMigrator;
 import dev.raskol.classes.config.ConfigValidator;
@@ -78,70 +77,29 @@ import java.util.List;
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ». Точка сборки сервиса: конструирование
  * слоёв, регистрация слушателей, владение периодическими задачами и геттеры-локаторы.
+ * 
+ * 1.15.7 (Волна 7d): PetService.despawnAll() вызывается в onDisable до отмены задач —
+ * петы дезспавнятся при выгрузке плагина, а не остаются в мире.
+ * 1.15.7 (Волна 7c): регистрация HunterAbilities.FanArrowHit — стрелы веера наносят
+ * урон через dealDamage (проходят resist-систему).
+ * 1.15.7 (Волна 7a): AvoidanceService регистрируется как Listener — снимает
+ * parry_stagger на quit/join.
+ * 1.15.6 (Волна 7b): CCFeedback переработан — голограммы TextDisplay, сообщения,
+ * звуки по типам CC; clearHologram вызывается из CCService.clearBehavior.
+ * 1.15.6 (Волна 5): ActiveEffectManager получает plugin через конструктор —
+ * BLOOD_FURY через dealDamage, а не прямой aggressor.damage(...).
+ * 1.14.15: слой подписки на кураторские билды — ImperialWallet, PlusStorage,
+ * BuildTemplates, PlusSubscription, PlusGui.
+ * 1.14.14: WarlockAbilities создаётся через статическую фабрику install().
+ * 1.14.13: побочные эффекты конструкторов перенесены в onEnable (registerListeners,
+ * startTickTask, scheduleOrphanScan, startLockFlushTask).
+ * 1.14.10: декомпозиция God Object'а — startup-проверки в bootstrap.StartupChecks,
+ * периодические задачи в bootstrap.PluginTasks, слушатели входа/выхода в bootstrap.SessionListener.
+ * 1.14.8: ConfigMigrator.migrate148() в начале onEnable.
+ * 1.14.6: PetService — единое ядро боевых петов (wolf/demon/shadowfiend).
+ * 1.14.4: Spec2Points.configure(this) до инициализации spec2-слоя.
+ * 1.14.0: spec2-слой (деревья путей), legacy TalentService/SpecService удалены.
  * 1.13.0: CC-слой (CCService/CCGuard/CastGuard).
- * 1.14.0 (Б8.2): legacy-слой (talent/*, spec/Spec*, specs.yml) УДАЛЁН;
- *         единственная система спеков/талантов — spec2.
- * 1.14.0 (контент-долг 1): TreeAbilities.registerCasters — древесные способности Воина.
- * 1.14.1 (Волна 1): hpBarService.saveAll() в onDisable — здоровье не теряется при краше.
- * 1.14.4 (Волна 4, П9): Spec2Points.configure(this) в onEnable ДО инициализации
- *         spec2-слоя — очки/гейты рядов читаются из config.yml.
- * 1.14.6 (Волна 6a): PetService — единое ядро боевых петов (wolf/demon/shadowfiend).
- * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) также в reloadPlugin().
- * 1.14.7 (Спринт 2, P0-4): startup-warning для деревьев ниже tree-capacity-min.
- * 1.14.7 (Спринт 4, P1-3): onQuit чистит GUI-сессию книги (TalentsTab.clearSession).
- * 1.14.8 (Спринт 6, Волна 6.2, P0-8-01): ConfigMigrator.migrate148(this) в начале onEnable.
- * 1.14.8 (Спринт 6, Волна 6.3, P0-6-02): purge-задача чистит карты китов и боевые логи.
- * 1.14.10 (Sprint 7, Волна 7.2, P0-4-01): ДЕКОМПОЗИЦИЯ God Object'а (аудит 4-01):
- *         startup-проверки и баннер → bootstrap.StartupChecks; периодические задачи →
- *         bootstrap.PluginTasks; анонимные слушатели входа/выхода → bootstrap.SessionListener.
- * 1.14.12 (Sprint 8, Волна 12A, P0-5-05): refreshDisabledCache() вызывается в onEnable
- *         после создания spec2-слоя и в reloadPlugin() — снапшот стоп-листа актуален
- *         на старте и после /rc reload.
- * 1.14.13 (Sprint 9, Волна 13B, P0-10-03/04): побочные эффекты конструкторов PetService
- *         и FoliantService перенесены сюда: registerListeners()/startTickTask()/
- *         scheduleOrphanScan() и startLockFlushTask() вызываются в onEnable,
- *         ручки задач складываются в activeTasks и отменяются в onDisable явно.
- * 1.14.13 (Sprint 9, Волна 13B-b, P0-10-03/04): побочные эффекты конструкторов
- *         DotService/CCService/CCGuard/VanillaCCWrapper перенесены сюда; ВАЖНО —
- *         экземпляр VanillaCCWrapper раньше не создавался, слушатель EntityPotionEffectEvent
- *         был мёртв (ванильные CC-эффекты не оборачивались в CCService). Теперь создаётся
- *         и регистрируется явно.
- * 1.14.14 (фаза 1, ST_WRITE-фикс): WarlockAbilities создаётся через статическую фабрику
- *         WarlockAbilities.install(this) вместо new WarlockAbilities(this). Это исключает
- *         запись в static-поле из instance-конструктора (SpotBugs ST_WRITE_TO_STATIC).
- * 1.14.15 (фаза 1, raskolspec+): слой подписки на кураторские билды — ImperialWallet
- *         (PlayerPoints по reflection, NullWallet-фолбэк), PlusStorage (plus-subscription.yml),
- *         BuildTemplates (builds.yml), PlusSubscription (grant/revoke/gift/active).
- *         Извлечение builds.yml из jar при первом старте, reload перечитывает на /rc reload.
- * 1.14.15 (фаза 2, raskolspec+ GUI): PlusGui — каталог/confirm-экран raskolspec+,
- *         создаётся и регистрируется после PlusSubscription; передаётся в PlusSub
- *         через RaskolCommand (который инициализируется после PlusGui).
- * 1.14.15-fix: чтение plus.period-days через getConfig() — внутри RaskolClasses
- *         нет поля plugin (класс сам является JavaPlugin).
- * 1.15.0: предметный слой — ItemSystem (342 определения, PDC v1, снапшоты экипировки),
- *         ItemsApi/CombatProfileRegistry для интеграций (RaskolMobs), ItemBrowserMenu;
- *         RaskolGear-хук и старые сет-бонусы удалены полностью.
- * 1.15.1-A: ItemSystem импортирован из item.service после реструктуризации item-пакета.
- * 1.15.5 (Волна 2, аудит 2.6-6): foliantService.saveLocksIfDirty() в onDisable
- *         ДО отмены задач — несохранённые счётчики релока фиксируются при плановой остановке.
- * 1.15.6 (аудит 2.6-1, CRITICAL): РЕГИСТРАЦИЯ VanillaDamageListener. С 1.14.10 слушатель
- *         пути A создавался в конструкторе CombatService, но registerEvents для него
- *         не вызывался нигде (CHANGELOG 1.14.10 заявлял перенос в onEnable — строка
- *         потерялась при рефакторинге). Путь A (резисты, капы, уклонение/парирование,
- *         исходящий бонус урона, WeaponMastery на авто-атаках, профили RaskolMobs)
- *         был мёртв на живом сервере. Регистрация добавлена явно рядом с combat.
- *         ВНИМАНИЕ ПОСЛЕ ВКЛЮЧЕНИЯ: баланс авто-атак изменится (резисты/капы начнут
- *         действовать) — якоря TTK (selftest 17–20, 75) требуют прогона и возможной
- *         перекалибровки basic-coeff.
- * 1.15.6 (Волна 5, аудит 2.6-4): ActiveEffectManager получает plugin через конструктор
- *         (new ActiveEffectManager(this)) — BLOOD_FURY маршрутизируется через
- *         CombatService.dealDamage вместо прямого aggressor.damage(...).
- * 1.15.6 (Волна 7a, аудит 2.6-45): AvoidanceService реализует Listener и регистрируется
- *         здесь (combat.avoidance()) — снимает parry_stagger на quit/join.
- * 1.15.7 (Волна 7c, аудит 2.6-76): регистрируется вложенный listener
- *         HunterAbilities.FanArrowHit — стрелы веера наносят урон через dealDamage.
- *         Кит НЕ регистрируется целиком: его экземпляр живёт в TreeAbilities,
- *         повторное создание кита здесь дало бы второй экземпляр (регесс 13C).
  */
 public final class RaskolClasses extends JavaPlugin {
 
@@ -191,20 +149,18 @@ public final class RaskolClasses extends JavaPlugin {
 
     private WarlockAbilities warlockAbilities;
 
-    /** 1.14.6 (6a): пет-слой. */
+    /** 1.14.6: пет-слой. */
     private PetService pets;
 
     private CCService ccService;
     private CCGuard ccGuard;
     private CastGuard castGuard;
-    /** 1.14.13 (Волна 13B-b): обёртка ванильных CC — раньше не создавался. */
     private VanillaCCWrapper vanillaCCWrapper;
 
     /** 1.14.15: raskolspec+ — подписка на кураторские билды. */
     private BuildTemplates buildTemplates;
     private ImperialWallet imperialWallet;
     private PlusSubscription plusSubscription;
-    /** 1.14.15 (фаза 2): raskolspec+ — GUI каталога и применения шаблонов. */
     private PlusGui plusGui;
 
     private volatile long lastPurgeMillis = System.currentTimeMillis();
@@ -215,14 +171,11 @@ public final class RaskolClasses extends JavaPlugin {
     @Override
     public void onEnable() {
         this.raskolConfig = new RaskolConfig(this);
-
-        // 1.14.8 (Волна 6.2, P0-8-01): миграция конфига до чтения ключей сервисами
         ConfigMigrator.migrate148(this);
 
         getLogger().info(() -> "Paper: " + getServer().getVersion()
                 + " / Bukkit: " + getServer().getBukkitVersion());
 
-        // 1.14.10 (Волна 7.2): startup-проверки вынесены в bootstrap.StartupChecks
         StartupChecks.logCoreVersion(this);
         StartupChecks.cleanupTmpFiles(this);
 
@@ -253,12 +206,10 @@ public final class RaskolClasses extends JavaPlugin {
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
                 raskolConfig.readyNotifyMessage());
-        // 1.15.6 (Волна 5, 2.6-4): инъекция plugin — BLOOD_FURY через dealDamage
         this.effects = new ActiveEffectManager(this);
 
         this.abilities = new AbilityRegistry(this);
         abilities.loadFromConfig(raskolConfig);
-        // 1.14.0 (контент-долг 1): кастеры древесных способностей Воина
         TreeAbilities.registerCasters(this, abilities);
 
         this.hud = new HudService(this);
@@ -270,32 +221,22 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.resists = new ResistService(this);
         this.combat = new CombatService(this, resists);
-        // 1.15.0: start() регистрирует слушателей и задачи; при item.enabled=false
-        // слой остаётся пассивным (реестр загружен, событий нет).
         if (getConfig().getBoolean("item.enabled", true)) {
             items.start();
         }
-        // 1.14.13 (Волна 13B-b): DotService создаётся в конструкторе CombatService
-        // (чистая ссылка); регистрируем и запускаем тик отсюда.
         combat.dots().registerListeners();
         activeTasks.add(combat.dots().startTickTask());
         this.manaSoaked = new ManaSoakedService(this);
 
-        // 1.14.13 (Волна 13B-b): CCService — конструктор чистый, регистрируем
-        // слушатели и запускаем тик-задачу (каждый тик, критична для STUN/ROOT/FEAR)
         this.ccService = new CCService(this);
         ccService.registerListeners();
         activeTasks.add(ccService.startTickTask());
 
-        // 1.14.13 (Волна 13B-b): CCGuard — конструктор чистый, регистрируем явно
         this.ccGuard = new CCGuard(this);
         ccGuard.registerListeners();
 
         this.castGuard = new CastGuard(this);
 
-        // 1.14.13 (Волна 13B-b): VanillaCCWrapper — ВАЖНО: ранее экземпляр НЕ создавался,
-        // слушатель EntityPotionEffectEvent был мёртв. Создаём и регистрируем — теперь
-        // ванильные SLOWNESS/BLINDNESS/WEAKNESS (зелья/стрелы) оборачиваются в CCService.
         this.vanillaCCWrapper = new VanillaCCWrapper(this);
         vanillaCCWrapper.registerListeners();
 
@@ -309,21 +250,14 @@ public final class RaskolClasses extends JavaPlugin {
         hpSync.startSweep(100L);
         this.hpBarService = new HpBarService(this);
 
-        // 1.14.4 (Волна 4, П9): конфиг-ключи spec2.* ДО инициализации spec2-слоя
         Spec2Points.configure(this);
 
-        // 1.14.0: spec2 — единственная система спеков/талантов
         this.spec2Storage = new Spec2Storage(this);
         this.spec2Applier = new Spec2EffectsApplier(this);
         this.spec2Service = new Spec2Service(this, spec2Storage);
-        // 1.14.12 (Волна 12A, 5-05): первичная сборка снапшота стоп-листа
         this.spec2Service.refreshDisabledCache();
         pluginManager.registerEvents(new Spec2RoleListener(this), this);
 
-        // 1.14.15 (raskolspec+): кошелёк, хранилище, загрузчик шаблонов, подписка.
-        // Создаётся ПОСЛЕ spec2-слоя — BuildTemplates.load() читает disabledNodesSnapshot
-        // для stale-маркировки шаблонов.
-        // 1.14.15-fix: внутри RaskolClasses нет поля plugin — читаем getConfig() напрямую.
         ImperialWallet wallet = PlayerPointsWallet.tryCreate();
         if (wallet == null) {
             wallet = new NullWallet();
@@ -338,8 +272,6 @@ public final class RaskolClasses extends JavaPlugin {
         this.plusSubscription = new PlusSubscription(this, imperialWallet, plusStorage, periodDays);
         pluginManager.registerEvents(plusSubscription, this);
 
-        // 1.14.15 (фаза 2): PlusGui — после PlusSubscription (использует его в openCatalog)
-        // и до registerCommand() (PlusSub получает plusGui через plugin.getPlusGui()).
         this.plusGui = new PlusGui(this);
         pluginManager.registerEvents(plusGui, this);
 
@@ -350,18 +282,11 @@ public final class RaskolClasses extends JavaPlugin {
         this.installToken = new InstallToken(this);
 
         this.foliantService = new FoliantService(this);
-        // 1.14.13 (Волна 13B, 10-04): flush-задача foliant-lock.yml из onEnable,
-        // ручка — в activeTasks (отменяется в onDisable явно)
         activeTasks.add(foliantService.startLockFlushTask());
 
-        // 1.14.14 (фаза 1, ST_WRITE-фикс): через статическую фабрику install() —
-        // запись в static-поле instance больше не происходит в конструкторе
         this.warlockAbilities = WarlockAbilities.install(this);
 
-        // 1.14.6 (6a): пет-ядро
         this.pets = new PetService(this);
-        // 1.14.13 (Волна 13B, 10-03/10-04): слушатели и задачи пет-слоя из onEnable;
-        // конструктор PetService больше не имеет побочных эффектов
         pets.registerListeners();
         activeTasks.add(pets.startTickTask());
         activeTasks.add(pets.scheduleOrphanScan());
@@ -377,16 +302,8 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
-        // 1.15.6 (аудит 2.6-1, CRITICAL): ПУТЬ A — ванильные события урона.
-        // Слушатель создавался в конструкторе CombatService с 1.14.10, но не
-        // регистрировался нигде: резисты/капы/уклонение/мастерство оружия на
-        // авто-атаках были мёртвы. Регистрация — явно, рядом с combat.
         pluginManager.registerEvents(combat.vanillaListener(), this);
-        // 1.15.6 (Волна 7a, аудит 2.6-45): AvoidanceService — Listener:
-        // снимает parry_stagger на quit/join (иначе дебафф переживает выход и рестарт)
         pluginManager.registerEvents(combat.avoidance(), this);
-        // 1.15.7 (Волна 7c, аудит 2.6-76): стрелы веера — урон через dealDamage.
-        // Регистрируется ТОЛЬКО вложенный listener, не кит целиком (кит живёт в TreeAbilities)
         pluginManager.registerEvents(new HunterAbilities.FanArrowHit(this), this);
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
         pluginManager.registerEvents(hpBarService, this);
@@ -397,7 +314,6 @@ public final class RaskolClasses extends JavaPlugin {
         this.passportListener = new PassportChangeListener(this);
         passportListener.register();
 
-        // 1.14.10 (Волна 7.2): анонимные слушатели заменены именованным классом
         SessionListener sessions = new SessionListener(this);
         pluginManager.registerEvents(sessions, this);
         sessions.resyncOnline();
@@ -424,11 +340,9 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(installations.startSweepTask());
         activeTasks.add(new ScrollCooldownTask(this).start());
         activeTasks.add(manaSoaked.start());
-        // 1.14.10 (Волна 7.2): периодические задачи вынесены в bootstrap.PluginTasks
         activeTasks.add(PluginTasks.startPurgeTask(this));
         activeTasks.add(PluginTasks.startAutosaveTask(this));
 
-        // registerCommand() — после PlusGui: RaskolCommand в конструкторе читает plugin.getPlusGui()
         registerCommand();
         StartupChecks.printBanner(this);
         StartupChecks.warnLowCapacityTrees(this);
@@ -436,7 +350,6 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
     }
 
-    /** 1.14.10 (Волна 7.2): отметка времени последнего purge-цикла (для /rc health). */
     public void markPurgeNow() {
         lastPurgeMillis = System.currentTimeMillis();
     }
@@ -451,12 +364,13 @@ public final class RaskolClasses extends JavaPlugin {
         }
         WarlockAbilities.cancelAllChannelTasks();
 
-        // 1.15.5 (Волна 2, аудит 2.6-6): flush foliant-lock.yml ДО отмены задач.
-        // Счётчики релока (kills/deaths/no-chance) между тиками flush-задачи
-        // фиксируются здесь; без этого при остановке сервера данные теряются
-        // на срок до 60 секунд (интервал flush-задачи).
         if (foliantService != null) {
             foliantService.saveLocksIfDirty();
+        }
+
+        // 1.15.7 (Волна 7d): петы дезспавнятся до отмены задач
+        if (pets != null) {
+            pets.despawnAll();
         }
 
         activeTasks.forEach(BukkitTask::cancel);
@@ -468,7 +382,6 @@ public final class RaskolClasses extends JavaPlugin {
         if (resources != null) {
             resources.saveAll();
         }
-        // 1.14.1 (Волна 1): сохранение здоровья перед выгрузкой
         if (hpBarService != null) {
             hpBarService.saveAll();
         }
@@ -505,21 +418,12 @@ public final class RaskolClasses extends JavaPlugin {
         command.setTabCompleter(executor);
     }
 
-    /**
-     * 1.14.7 (Спринт 2, P1-4): Spec2Points.configure(this) — snapshot очков/гейтов
-     * обновляется при /rc reload без рестарта сервера.
-     * 1.14.12 (Волна 12A, 5-05): снапшот стоп-листа пересобирается здесь же.
-     * 1.14.15 (raskolspec+): перезагрузка builds.yml.
-     */
     public void reloadPlugin() {
         raskolConfig.reload();
-        // 1.14.7 (P1-4): snapshot очков/гейтов обновляется при reload
         Spec2Points.configure(this);
-        // 1.14.12 (Волна 12A, 5-05): снапшот стоп-листа пересобирается на reload
         if (spec2Service != null) {
             spec2Service.refreshDisabledCache();
         }
-        // 1.14.15 (raskolspec+): перечитать builds.yml после обновления стоп-листа
         if (buildTemplates != null) {
             buildTemplates.reload();
         }
@@ -547,14 +451,8 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info("Конфигурация перезагружена");
     }
 
-    public long getLastPurgeMillis() {
-        return lastPurgeMillis;
-    }
-
-    public long getEnabledAtMillis() {
-        return enabledAtMillis;
-    }
-
+    public long getLastPurgeMillis() { return lastPurgeMillis; }
+    public long getEnabledAtMillis() { return enabledAtMillis; }
     public RaskolConfig getRaskolConfig() { return raskolConfig; }
     public ClassProvider getClassProvider() { return classProvider; }
     public SkillLevelProvider getSkillLevels() { return skillLevels; }
@@ -568,7 +466,6 @@ public final class RaskolClasses extends JavaPlugin {
     public BossBarService getBossBars() { return bossBars; }
     public HpBarService getHpBarService() { return hpBarService; }
     public AbilityToken getTokens() { return tokens; }
-    /** 1.14.0: spec2-слой. */
     public Spec2Storage getSpec2Storage() { return spec2Storage; }
     public Spec2Service getSpec2Service() { return spec2Service; }
     public Spec2EffectsApplier getSpec2Applier() { return spec2Applier; }
@@ -577,9 +474,7 @@ public final class RaskolClasses extends JavaPlugin {
     public ItemSystem getItems() { return items; }
     public ItemsApi getItemsApi() { return itemsApi; }
     public CombatProfileRegistry getCombatProfiles() { return combatProfiles; }
-    /** Опциональный провайдер уровней сущностей — реализует RaskolMobs через API. */
     public void setEntityLevelProvider(EntityLevelProvider provider) { this.entityLevelProvider = provider; }
-    /** Текущий провайдер уровней интеграции или null, если не зарегистрирован. */
     public EntityLevelProvider getEntityLevelProvider() { return entityLevelProvider; }
     public BlueprintHook getBlueprintHook() { return blueprintHook; }
     public FoliantService getFoliantService() { return foliantService; }
@@ -594,18 +489,12 @@ public final class RaskolClasses extends JavaPlugin {
     public HpAttributeSync getHpSync() { return hpSync; }
     public PassiveListener getPassives() { return passiveListener; }
     public WarlockAbilities getWarlockAbilities() { return warlockAbilities; }
-    /** 1.14.6 (6a): пет-слой. */
     public PetService getPets() { return pets; }
     public CCService getCC() { return ccService; }
     public CastGuard getCastGuard() { return castGuard; }
-    /** 1.14.13 (Волна 13B-b): обёртка ванильных CC-эффектов (SLOWNESS/BLINDNESS/WEAKNESS). */
     public VanillaCCWrapper getVanillaCCWrapper() { return vanillaCCWrapper; }
-    /** 1.14.15: raskolspec+ — шаблоны. */
     public BuildTemplates getBuildTemplates() { return buildTemplates; }
-    /** 1.14.15: raskolspec+ — кошелёк империалов. */
     public ImperialWallet getImperialWallet() { return imperialWallet; }
-    /** 1.14.15: raskolspec+ — подписка. */
     public PlusSubscription getPlusSubscription() { return plusSubscription; }
-    /** 1.14.15 (фаза 2): raskolspec+ — GUI каталога и применения шаблонов. */
     public PlusGui getPlusGui() { return plusGui; }
 }
