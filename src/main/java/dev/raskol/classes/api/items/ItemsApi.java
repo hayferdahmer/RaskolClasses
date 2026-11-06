@@ -8,9 +8,12 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 
-/** Stable public API for RaskolMobs and other plugins to create configured items. */
+/**
+ * Стабильный публичный API для RaskolMobs и других плагинов для создания
+ * сконфигурированных предметов.
+ */
 public final class ItemsApi {
-    /** Public API contract revision. */
+    /** Ревизия контракта публичного API. */
     public static final int API_VERSION = 1;
     private final RaskolClasses plugin;
 
