@@ -1,4 +1,5 @@
-// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
 import dev.raskol.classes.RaskolClasses;
@@ -81,6 +82,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *         instance-конструктора в static install(). Конструктор приватный — исключает
  *         случайное создание второго экземпляра. RaskolClasses.onEnable вызывает
  *         WarlockAbilities.install(this) ровно один раз.
+ *
+ * 1.15.7 (Волна 7c, аудит 2.6-63): тик-урон Раскола Души (soulRift) читается из
+ *         конфига classes.WARLOCK.abilities.soul_rift.tick-damage (дефолт 6.0),
+ *         финальный взрыв — final-damage (дефолт 30.0) + final-coeff (дефолт 2.4).
+ *         Раньше были захардкожены 6.0 / 30.0 / 2.4 — узлы дерева не могли их тюнить.
  */
 public final class WarlockAbilities extends AbstractKit implements Listener {
 
@@ -514,7 +520,10 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         return true;
     }
 
-    /** 1.11.2 (T2) + 1.11.4 + 1.13.0 (Б3): канал с задачами в channelTasks + CastChannels. */
+    /**
+     * 1.11.2 (T2) + 1.11.4 + 1.13.0 (Б3): канал с задачами в channelTasks + CastChannels.
+     * 1.15.7 (2.6-63): тик-урон и финальный взрыв читаются из конфига.
+     */
     public boolean soulRift(Player caster, AbilityDef def) {
         double radius = radius(def, 8.0) + specRiftRadiusBonus(caster);
         // 1.14.0 (Б11.1.2-A): channel/antiheal/missing-hp-bonus через фолбэк-хелпер
@@ -538,7 +547,9 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
                     return;
                 }
                 Location center = caster.getLocation();
-                double tickDmg = 6.0 * damageMult(caster);
+                // 1.15.7 (2.6-63): тик-урон из конфига (дефолт 6.0)
+                double tickDmg = cfgD("classes.WARLOCK.abilities.soul_rift.tick-damage", 6.0)
+                        * damageMult(caster);
                 WarlockFx.ringFx(center, radius, Particle.SCULK_SOUL, 1);
                 for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
                     if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
@@ -562,9 +573,12 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
                 return;
             }
             Location center = caster.getLocation();
-            // 1.14.7 (P0-5): финальный взрыв Раскола тоже читает spec2-хуки чисел
+            // 1.15.7 (2.6-63): финальный взрыв из конфига (дефолт 30.0 base / 2.4 coeff)
             double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
-            double baseDmg = (kitBase(caster, def, 30.0) + sp * kitCoeff(caster, def, 2.4))
+            double baseDmg = (kitBase(caster, def,
+                    cfgD("classes.WARLOCK.abilities.soul_rift.final-damage", 30.0))
+                    + sp * kitCoeff(caster, def,
+                    cfgD("classes.WARLOCK.abilities.soul_rift.final-coeff", 2.4)))
                     * damageMult(caster);
             WarlockFx.ringFx(center, radius, Particle.SONIC_BOOM, 1);
             WarlockFx.ringFx(center, radius * 0.6, Particle.ASH, 3);
