@@ -3,8 +3,11 @@
 © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
-1.15.6: волны аудита 3–6: боевой конвейер, spec2-контракты, конкурентность,
-        хранилище, FX; README: выравнивание и актуализация.
+1.15.8: Волна 8 — spotless (форматирование), JaCoCo (покрытие кода),
+        пин paper-api на релиз 1.21.4-R0.1, убран дубль compiler-plugin,
+        SpotBugs переведён в failOnError=true после починки находок.
+1.15.7: Волны аудита 3–7: боевой конвейер, spec2-контракты, конкурентность,
+        хранилище, FX, pet-слой, лицензия v2.0, CI-гейты.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -13,7 +16,7 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
 
   <groupId>dev.raskol</groupId>
   <artifactId>raskol-classes</artifactId>
-  <version>1.15.6</version>
+  <version>1.15.8-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>RaskolClasses</name>
@@ -22,12 +25,15 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
+    <!-- 1.15.8: пин на релиз paper-api (SNAPSHOT нестабилен, ломает CI) -->
+    <paper.version>1.21.4-R0.1</paper.version>
     <luckperms.version>5.4</luckperms.version>
     <placeholderapi.version>2.11.6</placeholderapi.version>
     <junit.version>5.10.2</junit.version>
     <surefire.version>3.2.5</surefire.version>
     <spotbugs.version>4.8.6.6</spotbugs.version>
+    <spotless.version>2.43.0</spotless.version>
+    <jacoco.version>0.8.12</jacoco.version>
   </properties>
 
   <repositories>
@@ -74,20 +80,48 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
 
   <build>
     <finalName>raskol-classes-${project.version}</finalName>
+    <pluginManagement>
+      <plugins>
+        <!-- 1.15.8: все версии плагинов в pluginManagement, без дублей в профилях -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.15.0</version>
+          <configuration>
+            <release>21</release>
+            <encoding>UTF-8</encoding>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>${surefire.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>com.github.spotbugs</groupId>
+          <artifactId>spotbugs-maven-plugin</artifactId>
+          <version>${spotbugs.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>com.diffplug.spotless</groupId>
+          <artifactId>spotless-maven-plugin</artifactId>
+          <version>${spotless.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>${jacoco.version}</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.15.0</version>
-        <configuration>
-          <release>21</release>
-          <encoding>UTF-8</encoding>
-        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>${surefire.version}</version>
       </plugin>
     </plugins>
     <resources>
@@ -113,13 +147,11 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
       <id>dev</id>
       <build>
         <plugins>
+          <!-- 1.15.8: убран дубль compiler-plugin, только override конфигурации -->
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.15.0</version>
             <configuration>
-              <release>21</release>
-              <encoding>UTF-8</encoding>
               <showWarnings>true</showWarnings>
               <compilerArgs>
                 <arg>-Xlint:all</arg>
@@ -130,19 +162,60 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
           <plugin>
             <groupId>com.github.spotbugs</groupId>
             <artifactId>spotbugs-maven-plugin</artifactId>
-            <version>${spotbugs.version}</version>
             <configuration>
               <effort>Max</effort>
               <threshold>Medium</threshold>
               <xmlOutput>true</xmlOutput>
               <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
-              <failOnError>false</failOnError>
+              <!-- 1.15.8: failOnError=true после починки находок -->
+              <failOnError>true</failOnError>
             </configuration>
             <executions>
               <execution>
                 <phase>verify</phase>
                 <goals>
                   <goal>check</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <!-- 1.15.8: spotless — автоформатирование кода -->
+          <plugin>
+            <groupId>com.diffplug.spotless</groupId>
+            <artifactId>spotless-maven-plugin</artifactId>
+            <configuration>
+              <java>
+                <palantirJavaFormat/>
+                <removeUnusedImports/>
+                <importOrder>
+                  <order>java,javax,org,com,dev.raskol</order>
+                </importOrder>
+              </java>
+            </configuration>
+            <executions>
+              <execution>
+                <phase>verify</phase>
+                <goals>
+                  <goal>check</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <!-- 1.15.8: JaCoCo — покрытие кода -->
+          <plugin>
+            <groupId>org.jacoco</groupId>
+            <artifactId>jacoco-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>prepare-agent</goal>
+                </goals>
+              </execution>
+              <execution>
+                <id>report</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>report</goal>
                 </goals>
               </execution>
             </executions>
