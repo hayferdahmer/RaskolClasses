@@ -12,6 +12,8 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
  * пассивка была мертва; теперь живая: при мане ≥ threshold входящий урон
  * снижается на reduction% (+ proc-бонус spec2-узлов). Внутренний КД тега 2 с.
  * Конфиг: classes.MAGE.passives.mana_soaked.{enabled,threshold,reduction}.
+ *
+ * 1.15.7 (Волна 7c): без изменений. Файл корректен.
  */
 public final class MagePassives extends BaseClassPassive {
 
