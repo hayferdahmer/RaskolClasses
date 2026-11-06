@@ -4,14 +4,18 @@
 #
 # Как работает:
 #   push в main (или ручной dispatch) → --apply → если есть изменения:
-#   commit + push через PAT с scope `workflow` (секрет LICENSE_BOT_PAT).
+#   commit + push через PAT (секрет LICENSE_BOT_PAT).
 #   Цикл исключён: скрипт идемпотентен, второй прогон не найдёт изменений.
+#
+# 1.15.7-fix: actions/checkout настраивает extraheader с GITHUB_TOKEN, и обычный
+#   `git push` использует его вместо нашего URL с BOT_TOKEN. Сбрасываем extraheader
+#   и создаём отдельный remote `bot` с URL, содержащим PAT.
 #
 # Предусловие: в репозитории создан secret `LICENSE_BOT_PAT`:
 #   Settings → Secrets and variables → Actions → New repository secret
 #   Fine-grained PAT: repo RaskolClasses, permissions:
 #     Contents: Read and write
-#     Workflows: Read and write ← обязательно, иначе пуш workflow-файлов заблокирован
+#     Workflows: Read and write ← обязательно
 name: License Bot
 
 on:
@@ -47,11 +51,14 @@ jobs:
             exit 0
           fi
           if [ -z "$BOT_TOKEN" ]; then
-            echo "::error::secret LICENSE_BOT_PAT не задан. Создай его в Settings → Secrets → Actions."
+            echo "::error::secret LICENSE_BOT_PAT не задан. Создай его в Settings → Secrets → Actions (Fine-grained PAT с scopes Contents+Workflows R/W)."
             exit 1
           fi
           git config user.name "raskol-license-bot"
           git config user.email "raskol-license-bot@users.noreply.github.com"
           git add -A
           git commit -m "chore(license): auto-apply v2.0 headers"
-          git push https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
+          # 1.15.7-fix: сбрасываем extraheader от actions/checkout и пушим через отдельный remote
+          git config --unset-all http.https://github.com/.extraheader || true
+          git remote add bot "https://x-access-token:${BOT_TOKEN}@github.com/${{ github.repository }}.git" 2>/dev/null || true
+          git push bot HEAD:main
