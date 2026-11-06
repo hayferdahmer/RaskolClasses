@@ -24,6 +24,10 @@ import java.util.UUID;
  * Реальный боевой пул = formula (effective), живёт в HpBarService/CombatService.
  * Sync устанавливает carrier на join/respawn/reload/invalidate + sweep 5 с.
  * Datapack больше НЕ требуется: потолок 1024 обходится масштабированием, а не оверрайдом.
+ *
+ * 1.15.7 (Волна 7c): без изменений. 2.6-85 (max_health сохраняется в данных
+ * игрока) относится к HpBarService (PDC-сохранение в health.yml), не к
+ * HpAttributeSync (baseValue — runtime-атрибут, не сохраняется в player data).
  */
 public final class HpAttributeSync implements Listener {
 
