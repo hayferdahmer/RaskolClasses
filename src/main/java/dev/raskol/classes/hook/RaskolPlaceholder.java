@@ -33,6 +33,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1.14.15 (raskolspec+): добавлен плейсхолдер %raskolclasses_plus% —
  * возвращает число оставшихся дней активной подписки или "expired".
  * Используется DeluxeMenus-витриной и TAB-индикаторами статуса raskolspec+.
+ *
+ * 1.15.7 (Волна 7c, аудит 2.6-99): thread-safety. PlaceholderAPI вызывает
+ * onPlaceholderRequest из async-потоков (TAB/hologram). Все вызываемые сервисы
+ * (AttributeService, Spec2Service, HpBarService, ResistsService) используют
+ * ConcurrentHashMap/CopyOnWriteArrayList (исправлено в Волнах 5b/6). Кэш cache
+ * — ConcurrentHashMap, thread-safe. ConcurrentModificationException исключён.
  */
 public final class RaskolPlaceholder extends PlaceholderExpansion {
 
