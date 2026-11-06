@@ -73,8 +73,10 @@ public final class ItemSystem implements ItemStatsProvider {
         craftingService = new CraftingService(plugin, fragmentRegistry);
         craftingGui = new CraftingGui(plugin, craftingService, fragmentRegistry);
         browser = new ItemBrowserMenu(plugin, this);
-        // 1.15.7 (2.6-16): пустой реестр до первой загрузки
-        this.registry = new ItemRegistry(Map.of(), Map.of());
+                // 1.15.7 (2.6-16): пустой реестр до первой загрузки.
+        // Конструктор ItemRegistry: (Collection<ItemDefinition>, Map<...>) —
+        // первый аргумент КОЛЛЕКЦИЯ, не Map (compile-fix #1952).
+        this.registry = new ItemRegistry(java.util.List.of(), Map.of());
         reload();
     }
 
