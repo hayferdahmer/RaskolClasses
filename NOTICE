@@ -1,0 +1,23 @@
+RaskolClasses
+Copyright (c) 2026 hayferdahmer. All rights reserved.
+Licensed under the RASKOL Proprietary License v2.0 (see LICENSE and
+LICENSE.ru.txt). This is source-available software, not open source.
+
+THIRD-PARTY SOFTWARE
+RaskolClasses does not bundle or redistribute third-party code. It is
+compiled against the following APIs with "provided" scope; they are supplied by
+the server at runtime and remain under their owners' own licenses:
+  - Paper API (PaperMC)          https://papermc.io
+  - LuckPerms API                https://luckperms.net
+  - PlaceholderAPI               https://github.com/PlaceholderAPI/PlaceholderAPI
+Optional integrations (AuraSkills, Towny, Vault, AuthMe, Essentials,
+packetevents, PlayerPoints, MythicMobs and others) are separate products with
+their own licenses. Build and test tooling (Maven, JUnit, SpotBugs) is used
+only during development and is not part of the distributed Software.
+
+TRADEMARKS
+"Minecraft" is a trademark of Mojang AB and Microsoft. RaskolClasses is an
+independent project and is not approved by, affiliated with or endorsed by
+Mojang, Microsoft or PaperMC.
+RASKOL, РАСКОЛ, "РАСКОЛ | ДВЕ КОРОНЫ", RaskolClasses, RaskolCore and RaskolMobs, and the repository's logos, banners and emblems, are Brand
+Assets of the Licensor and are not licensed for any use (License Section 3(i)).
