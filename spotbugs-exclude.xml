@@ -10,13 +10,19 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
   1.14.14 (фаза 2): HE_INHERITS_EQUALS_USE_HASHCODE для *Placeholder закрыт
   точечным exclude — equals(Object) final в апстрим-PlaceholderExpansion,
   переопределение невозможно; hashCode апстрим не предоставляет.
+  1.15.7 (Волна 7c): правило URF_UNREAD_FIELD для PetService$PetState УДАЛЕНО —
+  мёртвые поля dmgMult/speedMult удалены из кода (более не «бэклог пет-damage»,
+  а устранённый дефект). Комментарии бэклогов актуализированы по датам.
 
   Каждое правило — осознанное решение, а не «заглушить шум»; причины зафиксированы
   в комментариях и в CHANGELOG.
 
-  Бэклог 1.14.15+ (НЕ исключено навсегда):
-   - PetService$PetState.dmgMult/speedMult: зарезервированы для будущего pet-damage
-     слоя (1.15.0), пока нечитаемы — исключены до появления читателей.
+  Бэклог Волны 8 (аудит 2.15-1, НЕ закрыто):
+   - сузить глобальные exclude (EI_EXPOSE_REP/2, NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE,
+     RCN_REDUNDANT_NULLCHECK, MS_PKGPROTECT, RV_RETURN_VALUE_IGNORED) до классов
+     по свежему spotbugsXml.xml из analyze-job;
+   - перевести analyze-job с continue-on-error на блокирующий гейт после двух
+     подряд релизов с нулём находок сверх исключений.
 
   Лицензия: RASKOL Proprietary License v2.0.
 -->
@@ -38,6 +44,7 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
       (г) коллекции моделей Spec2Node/Spec2Tree/GearStats построены из иммутабельных
           литералов (Map.of/List.of) при старте реестра и не мутируют после; защитные
           копии в hot-петлях рендера книги дали бы аллокации на каждый клик.
+      Волна 8: сузить до классов-владелцев живых сервисов по отчёту.
     -->
     <Match>
         <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
@@ -56,6 +63,7 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
       NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE: во всех разобранных экземплярах
       null-guard стоит явно; остаточные пути — ложные срабатывания на контрактах
       Bukkit-геттеров (priority 2, rank 13–18 = низкая достоверность детектора).
+      Волна 8: сузить до классов с вызовами getPlayer/getEntity по отчёту.
     -->
     <Match>
         <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
@@ -71,15 +79,17 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     </Match>
 
     <!--
-      RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT: косметика стиля в hotbar-слое;
-      конкретный вызов ревизуется в волне 1.14.15 (бэклог), не блокирует релиз.
+      RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT: косметика стиля в hotbar-слое.
+      1.15.7: ревизия выполнена — игнорируемые возвраты ограничены декоративными
+      вызовами (setItemMeta-цепочки hotbar); семантики не несут. Исключение сохранено
+      до Волны 8, где hotbar-слой получит явные проверки в рамках гигиены.
     -->
     <Match>
         <Bug pattern="RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT"/>
     </Match>
 
     <!-- ================================================================ -->
-    <!-- 1.14.14 (фаза 1): правила для test-only и пет-бэклога            -->
+    <!-- 1.14.14 (фаза 1): правила для test-only                          -->
     <!-- ================================================================ -->
 
     <!--
@@ -96,17 +106,6 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     <Match>
         <Class name="dev.raskol.classes.selftest.SelftestRunner"/>
         <Bug pattern="FE_FLOATING_POINT_EQUALITY"/>
-    </Match>
-
-    <!--
-      URF_UNREAD_FIELD в PetService$PetState: dmgMult/speedMult зарезервированы
-      для будущего pet-damage слоя (планируется в 1.15.0 — модификаторы урона
-      и скорости петов от spec2-узлов хозяина). Пока читателей нет — исключены.
-      При реализации pet-damage убрать исключение и покрыть тестами.
-    -->
-    <Match>
-        <Class name="dev.raskol.classes.pet.PetService$PetState"/>
-        <Bug pattern="URF_UNREAD_FIELD"/>
     </Match>
 
     <!-- ================================================================ -->
