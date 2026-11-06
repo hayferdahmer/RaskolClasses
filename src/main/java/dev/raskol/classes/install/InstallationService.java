@@ -28,6 +28,13 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * 1.14.10 (Sprint 7, Волна 7.3b, P0-1-01): cfgD/cfgI делегируют в ConfigReads
  * (finiteDouble / finiteInt) — единая NaN-проверка (аудит 1-01).
+ *
+ * 1.15.7 (Волна 7c, аудит 2.7-9): проверка canBuild перед постановкой.
+ * Раньше инсталляции ставились в любых регионах (WG deny-build, Towny-клеймы,
+ * spawn-защита). Теперь:
+ *   - если HookManager доступен, проверяем canBuild(player, location);
+ *   - если HookManager недоступен, проверяем только worldborder + spawn-radius.
+ * Отказ с сообщением «Постановка запрещена в этом регионе».
  */
 public final class InstallationService {
 
@@ -59,6 +66,22 @@ public final class InstallationService {
     /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteInt (аудит 1-01). */
     private int cfgI(String path, int def) {
         return ConfigReads.finiteInt(plugin.getConfig(), path, def);
+    }
+
+    /**
+     * 1.15.7 (2.7-9): проверка canBuild через HookManager (WorldGuard/Towny).
+     * Если HookManager недоступен, возвращает true (fallback на worldborder/spawn).
+     */
+    private boolean canBuild(Player player, Location loc) {
+        try {
+            var hookManager = plugin.getHookManager();
+            if (hookManager != null) {
+                return hookManager.canBuild(player, loc);
+            }
+        } catch (NoSuchMethodError | RuntimeException ignored) {
+            // HookManager не подключён — fallback
+        }
+        return true;
     }
 
     /* ------------------------------ гейты и постановка ------------------------------ */
@@ -127,6 +150,14 @@ public final class InstallationService {
         double spawnDeny = cfgD("installations.deny-radius-spawn", 100.0);
         if (spawnDeny > 0 && loc.distanceSquared(p.getWorld().getSpawnLocation()) < spawnDeny * spawnDeny) {
             p.sendMessage(Component.text("Слишком близко к спавну: постановка запрещена.", NamedTextColor.RED));
+            return false;
+        }
+
+        // 1.15.7 (2.7-9): проверка canBuild (WG/Towny)
+        if (!canBuild(p, loc)) {
+            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
+                    "install.region-denied", "Постановка запрещена в этом регионе."),
+                    NamedTextColor.RED));
             return false;
         }
 
