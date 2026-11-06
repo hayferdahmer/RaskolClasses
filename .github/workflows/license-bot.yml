@@ -1,0 +1,57 @@
+# © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+# SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+# CI: авто-применение лицензионных шапок v2.0 на main (1.15.7, новый workflow).
+#
+# Как работает:
+#   push в main (или ручной dispatch) → --apply → если есть изменения:
+#   commit + push от raskol-license-bot. Пуш выполняется GITHUB_TOKEN,
+#   а GitHub НЕ триггерит workflow'ы на пуши с GITHUB_TOKEN — бесконечный
+#   цикл исключён конструктивно (коммит бота не запускает ни build, ни бота).
+#   Следом гоняем --check для самопроверки идемпотентности скрипта.
+#
+# Цена такого дизайна: коммит бота приходит БЕЗ зелёной галки build
+# (CI на него не запускается). Валидация шапок прилетает на следующем
+# человеческом пуше. Если хочешь, чтобы коммит бота триггерил CI —
+# заведи PAT с правами contents:write в secrets.LICENSE_BOT_PAT и
+# раскомментируй альтернативный push в шаге Commit (токен автора ≠ GITHUB_TOKEN
+# → события триггерятся как обычно; цикл всё равно не возникнет, т.к.
+# второй прогон бота не найдёт изменений и не сделает коммит).
+name: License Bot
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: license-bot-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply-headers:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Apply license headers v2.0
+        run: python3 tools/apply-license-header.py --apply
+
+      - name: Self-check (идемпотентность после apply)
+        run: python3 tools/apply-license-header.py --check
+
+      - name: Commit and push if changed
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "Заголовки v2.0 уже в порядке — коммит не нужен."
+            exit 0
+          fi
+          git config user.name "raskol-license-bot"
+          git config user.email "raskol-license-bot@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(license): auto-apply v2.0 headers"
+          git push origin HEAD:main
+          # Альтернатива с триггером CI (нужен secret LICENSE_BOT_PAT):
+          # git push https://x-access-token:${{ secrets.LICENSE_BOT_PAT }}@github.com/${{ github.repository }}.git HEAD:main
