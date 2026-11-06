@@ -1,4 +1,5 @@
-// © 2026 hayferdahmer — RASKOL Proprietary License v1.0. See LICENSE.
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
 import dev.raskol.classes.RaskolClasses;
@@ -25,6 +26,11 @@ import java.lang.reflect.Method;
  *   - Towny 0.98.x и ранее: com.palmergames.bukkit.towny.object.TownyAPI
  *   - Towny 0.99.x+: com.palmergames.bukkit.towny.TownyAPI
  *   init пробует оба варианта; если ни один не резолвится — fail closed.
+ *
+ * 1.15.7 (Волна 7c, аудит 2.7-9): добавлен canBuild(plugin, player, location)
+ *   для инсталляций. Использует TownyAPI.testBuild(Location, Player) если доступен,
+ *   иначе fallback: wilderness → разрешено, чужой город без резидентства → запрещено.
+ *   Fail closed: если рефлексия сломана — canBuild=false.
  */
 public final class TownyHook {
 
@@ -36,6 +42,8 @@ public final class TownyHook {
     private static Method townOrNull;      // TownBlock.getTownOrNull() -> Town | null
     private static Method townGetName;     // Town.getName() -> String
     private static Method townHasResident; // Town.hasResident(String) -> boolean
+    /** 1.15.7 (2.7-9): TownyAPI.testBuild(Location, Player) -> boolean (если доступен). */
+    private static Method testBuild;
 
     private TownyHook() {
     }
@@ -73,9 +81,17 @@ public final class TownyHook {
             Class<?> townClass = Class.forName("com.palmergames.bukkit.towny.object.Town");
             townGetName = townClass.getMethod("getName");
             townHasResident = townClass.getMethod("hasResident", String.class);
+            // 1.15.7 (2.7-9): testBuild для canBuild
+            try {
+                testBuild = apiClass.getMethod("testBuild", Location.class, Player.class);
+            } catch (NoSuchMethodException ignored) {
+                // Старая версия Towny без testBuild — fallback на резидентство
+                testBuild = null;
+            }
             available = api != null;
             if (available) {
-                plugin.getLogger().info("TownyHook: гейт блинка через клеймы включён (API=" + apiClass.getName() + ")");
+                plugin.getLogger().info("TownyHook: гейт блинка через клеймы включён (API="
+                        + apiClass.getName() + ", testBuild=" + (testBuild != null) + ")");
             } else {
                 plugin.getLogger().warning("TownyHook: TownyAPI null — блинк в клеймы ЗАПРЕЩЁН (fail closed)");
             }
@@ -124,6 +140,44 @@ public final class TownyHook {
             }
             Object tbTo = getTownBlock.invoke(api, to);
             Object town = tbTo == null ? null : townOrNull.invoke(tbTo);
+            if (town != null
+                    && Boolean.TRUE.equals(townHasResident.invoke(town, player.getName()))) {
+                return true; // резидент этого города
+            }
+            return false; // чужой город
+        } catch (Throwable t) {
+            return false; // fail closed
+        }
+    }
+
+    /**
+     * 1.15.7 (2.7-9): может ли игрок строить в локации.
+     * Использует TownyAPI.testBuild(Location, Player) если доступен,
+     * иначе fallback: wilderness → разрешено, резидент города → разрешено,
+     * чужой город → запрещено.
+     * Fail closed: если Towny недоступен или рефлексия сломана — false.
+     */
+    public static boolean canBuild(RaskolClasses plugin, Player player, Location location) {
+        init(plugin);
+        if (!townyPresent) {
+            return true; // Towny нет — не ограничиваем
+        }
+        if (!available) {
+            return false; // fail closed
+        }
+        try {
+            // Предпочитаем testBuild (если доступен в этой версии Towny)
+            if (testBuild != null) {
+                Object result = testBuild.invoke(api, location, player);
+                return Boolean.TRUE.equals(result);
+            }
+            // Fallback: проверяем резидентство в городе
+            String townName = townName(getTownBlock.invoke(api, location));
+            if (townName == null) {
+                return true; // wilderness — строить можно
+            }
+            Object tb = getTownBlock.invoke(api, location);
+            Object town = tb == null ? null : townOrNull.invoke(tb);
             if (town != null
                     && Boolean.TRUE.equals(townHasResident.invoke(town, player.getName()))) {
                 return true; // резидент этого города
