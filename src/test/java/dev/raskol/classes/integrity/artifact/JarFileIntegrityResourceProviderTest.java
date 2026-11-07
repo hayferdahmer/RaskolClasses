@@ -150,21 +150,17 @@ class JarFileIntegrityResourceProviderTest {
     }
 
     @Test
-    void shouldEnforceLimitWhileReadingResource() throws IOException {
+    void shouldEnforceLimitBeforeReturningOversizedResourceStream() throws IOException {
         byte[] content = "123456789".getBytes(StandardCharsets.UTF_8);
         Path jarPath = createJar("resource.txt", content);
 
         JarFileIntegrityResourceProvider provider =
                 new JarFileIntegrityResourceProvider(jarPath, 5);
 
-        try (InputStream input = provider.openResource("resource.txt")) {
-            assertNotNull(input);
-
-            assertThrows(
-                    IOException.class,
-                    input::readAllBytes
-            );
-        }
+        assertThrows(
+                IOException.class,
+                () -> provider.openResource("resource.txt")
+        );
     }
 
     @Test
