@@ -1,6 +1,5 @@
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
-
 package dev.raskol.classes.integrity.reporting;
 
 import dev.raskol.classes.integrity.verification.IntegrityStatus;
@@ -84,6 +83,16 @@ class SecurityReporterTest {
                 SecuritySeverity.WARNING,
                 reporter.severityFor(
                         IntegrityStatus.TRUSTED_KEY_UNAVAILABLE
+                )
+        );
+    }
+
+    @Test
+    void shouldClassifyUnavailableArtifactAsWarning() {
+        assertEquals(
+                SecuritySeverity.WARNING,
+                reporter.severityFor(
+                        IntegrityStatus.ARTIFACT_UNAVAILABLE
                 )
         );
     }
