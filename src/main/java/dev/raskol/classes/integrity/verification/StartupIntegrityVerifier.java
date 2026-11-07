@@ -116,7 +116,7 @@ public final class StartupIntegrityVerifier {
                 expectedIdentity,
                 null,
                 trustedPublicKey == null
-                        ? null
+                        ? List.of()
                         : List.of(trustedPublicKey)
         );
     }
