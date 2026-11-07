@@ -94,7 +94,7 @@ class ArtifactIntegrityIntegrationTest {
         IntegrityVerificationResult startupResult =
                 startupVerifier.verify();
 
-        ArchiveIntegrityVerificationResult archiveResult =
+        JarArchiveIntegrityVerificationResult archiveResult =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(IntegrityStatus.VERIFIED, startupResult.status());
@@ -138,7 +138,7 @@ class ArtifactIntegrityIntegrationTest {
         IntegrityVerificationResult startupResult =
                 startupVerifier.verify();
 
-        ArchiveIntegrityVerificationResult archiveResult =
+        JarArchiveIntegrityVerificationResult archiveResult =
                 new JarArchiveIntegrityVerifier(archive)
                         .verify(originalManifest);
 
@@ -193,7 +193,7 @@ class ArtifactIntegrityIntegrationTest {
         IntegrityVerificationResult startupResult =
                 startupVerifier.verify();
 
-        ArchiveIntegrityVerificationResult archiveResult =
+        JarArchiveIntegrityVerificationResult archiveResult =
                 new JarArchiveIntegrityVerifier(archive)
                         .verify(originalManifest);
 
@@ -267,7 +267,7 @@ class ArtifactIntegrityIntegrationTest {
         IntegrityVerificationResult startupResult =
                 startupVerifier.verify();
 
-        ArchiveIntegrityVerificationResult archiveResult =
+        JarArchiveIntegrityVerificationResult archiveResult =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         /*
@@ -344,7 +344,7 @@ class ArtifactIntegrityIntegrationTest {
         IntegrityVerificationResult startupResult =
                 startupVerifier.verify();
 
-        ArchiveIntegrityVerificationResult archiveResult =
+        JarArchiveIntegrityVerificationResult archiveResult =
                 new JarArchiveIntegrityVerifier(locatedArchive)
                         .verify(createManifest(protectedFiles));
 
