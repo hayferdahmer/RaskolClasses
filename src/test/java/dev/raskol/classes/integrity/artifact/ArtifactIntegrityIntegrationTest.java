@@ -157,6 +157,61 @@ class ArtifactIntegrityIntegrationTest {
     }
 
     @Test
+    void shouldRejectModifiedProtectedFileWithSameSize()
+            throws Exception {
+
+        Map<String, byte[]> originalFiles = standardProtectedFiles();
+
+        Map<String, byte[]> modifiedFiles = new LinkedHashMap<>(originalFiles);
+        modifiedFiles.put(
+                CONFIG_PATH,
+                bytes("debug: true\nlanguage: ru\n")
+        );
+
+        assertEquals(
+                originalFiles.get(CONFIG_PATH).length,
+                modifiedFiles.get(CONFIG_PATH).length,
+                "Test data must preserve the original file size."
+        );
+
+        Path archive = createSignedArchive(
+                "modified-same-size-artifact.jar",
+                originalFiles,
+                modifiedFiles,
+                false
+        );
+
+        IntegrityManifest originalManifest = createManifest(originalFiles);
+
+        StartupIntegrityVerifier startupVerifier =
+                new StartupIntegrityVerifier(
+                        new JarFileIntegrityResourceProvider(archive),
+                        buildIdentity,
+                        keyPair.getPublic()
+                );
+
+        IntegrityVerificationResult startupResult =
+                startupVerifier.verify();
+
+        ArchiveIntegrityVerificationResult archiveResult =
+                new JarArchiveIntegrityVerifier(archive)
+                        .verify(originalManifest);
+
+        assertEquals(
+                IntegrityStatus.PROTECTED_FILE_HASH_MISMATCH,
+                startupResult.status()
+        );
+
+        assertEquals(
+                ArchiveIntegrityStatus.ENTRY_HASH_MISMATCH,
+                archiveResult.status()
+        );
+
+        assertFalse(startupResult.isVerified());
+        assertFalse(archiveResult.isVerified());
+    }
+
+    @Test
     void shouldRejectInvalidManifestSignature()
             throws Exception {
 
@@ -256,6 +311,48 @@ class ArtifactIntegrityIntegrationTest {
 
         assertEquals(IntegrityStatus.SIGNATURE_MISSING, result.status());
         assertFalse(result.isVerified());
+    }
+
+    @Test
+    void shouldVerifyArtifactLocatedThroughArtifactLocator()
+            throws Exception {
+
+        Map<String, byte[]> protectedFiles = standardProtectedFiles();
+
+        Path archive = createSignedArchive(
+                "located-artifact.jar",
+                protectedFiles,
+                Map.of(),
+                false
+        );
+
+        Path locatedArchive = ArtifactLocator.locate(archive.toUri());
+
+        assertEquals(
+                archive.toRealPath(),
+                locatedArchive,
+                "ArtifactLocator must return the canonical artifact path."
+        );
+
+        StartupIntegrityVerifier startupVerifier =
+                new StartupIntegrityVerifier(
+                        new JarFileIntegrityResourceProvider(locatedArchive),
+                        buildIdentity,
+                        keyPair.getPublic()
+                );
+
+        IntegrityVerificationResult startupResult =
+                startupVerifier.verify();
+
+        ArchiveIntegrityVerificationResult archiveResult =
+                new JarArchiveIntegrityVerifier(locatedArchive)
+                        .verify(createManifest(protectedFiles));
+
+        assertEquals(IntegrityStatus.VERIFIED, startupResult.status());
+        assertTrue(startupResult.isVerified());
+
+        assertEquals(ArchiveIntegrityStatus.VERIFIED, archiveResult.status());
+        assertTrue(archiveResult.isVerified());
     }
 
     private Path createSignedArchive(
