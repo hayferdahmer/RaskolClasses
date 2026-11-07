@@ -5,7 +5,7 @@ package dev.raskol.classes.integrity.verification;
 import dev.raskol.classes.integrity.build.BuildIdentity;
 import dev.raskol.classes.integrity.build.BuildIdentityLoader;
 import dev.raskol.classes.integrity.build.DevelopmentMode;
-import dev.raskol.classes.integrity.crypto.TrustedPublicKeyLoader;
+import dev.raskol.classes.integrity.crypto.TrustedPublicKeyRegistry;
 import dev.raskol.classes.integrity.manifest.IntegrityManifest;
 import dev.raskol.classes.integrity.manifest.IntegrityManifestParser;
 import dev.raskol.classes.integrity.manifest.ManifestFileEntry;
@@ -27,6 +27,9 @@ import java.util.Objects;
  * <p>The verifier checks the detached Ed25519 signature before
  * parsing the manifest, compares build identity and verifies
  * every file declared in the signed manifest.</p>
+ *
+ * <p>Trusted public keys are obtained exclusively from the
+ * source-pinned TrustedPublicKeyRegistry.</p>
  *
  * <p>Development builds require explicit authorization through
  * the JVM development-mode property.</p>
@@ -57,9 +60,7 @@ public final class StartupIntegrityVerifier {
 
     private final BuildIdentity expectedIdentity;
 
-    private final Class<?> anchor;
-
-    private final PublicKey injectedPublicKey;
+    private final List<PublicKey> injectedPublicKeys;
 
     /**
      * Creates a verifier using the plugin's own classpath resources
@@ -69,8 +70,10 @@ public final class StartupIntegrityVerifier {
      */
     public StartupIntegrityVerifier(Class<?> anchor) {
         this(
-                anchor,
-                BuildIdentityLoader.load()
+                new ClassLoaderIntegrityResourceProvider(anchor),
+                BuildIdentityLoader.load(),
+                null,
+                null
         );
     }
 
@@ -87,16 +90,17 @@ public final class StartupIntegrityVerifier {
         this(
                 new ClassLoaderIntegrityResourceProvider(anchor),
                 expectedIdentity,
-                anchor,
+                null,
                 null
         );
     }
 
     /**
-     * Creates a verifier with injected dependencies.
+     * Creates a verifier with an injected public key.
      *
-     * <p>This constructor is intended for isolated tests.
-     * A null public key is permitted for development builds.</p>
+     * <p>This constructor is retained for isolated tests and
+     * compatibility with existing integrations. Production
+     * verification should use the pinned registry.</p>
      *
      * @param resourceProvider resource provider
      * @param expectedIdentity current build identity
@@ -111,15 +115,28 @@ public final class StartupIntegrityVerifier {
                 resourceProvider,
                 expectedIdentity,
                 null,
-                trustedPublicKey
+                trustedPublicKey == null
+                        ? null
+                        : List.of(trustedPublicKey)
         );
     }
 
-    private StartupIntegrityVerifier(
+    /**
+     * Creates a verifier with an injected list of trusted public keys.
+     *
+     * <p>Used by artifact-bound verification and isolated tests.
+     * The supplied list is defensively copied.</p>
+     *
+     * @param resourceProvider resource provider
+     * @param expectedIdentity current build identity
+     * @param anchor optional class anchor, retained for integration compatibility
+     * @param trustedPublicKeys trusted Ed25519 public keys; null uses the pinned registry
+     */
+    public StartupIntegrityVerifier(
             IntegrityResourceProvider resourceProvider,
             BuildIdentity expectedIdentity,
             Class<?> anchor,
-            PublicKey injectedPublicKey
+            List<PublicKey> trustedPublicKeys
     ) {
         this.resourceProvider = Objects.requireNonNull(
                 resourceProvider,
@@ -131,8 +148,9 @@ public final class StartupIntegrityVerifier {
                 "expectedIdentity cannot be null"
         );
 
-        this.anchor = anchor;
-        this.injectedPublicKey = injectedPublicKey;
+        this.injectedPublicKeys = trustedPublicKeys == null
+                ? null
+                : List.copyOf(trustedPublicKeys);
     }
 
     /**
@@ -159,14 +177,14 @@ public final class StartupIntegrityVerifier {
             );
         }
 
-        PublicKey trustedPublicKey;
+        final List<PublicKey> trustedPublicKeys;
 
         try {
-            trustedPublicKey = loadTrustedPublicKey();
-        } catch (IOException | GeneralSecurityException exception) {
+            trustedPublicKeys = loadTrustedPublicKeys();
+        } catch (GeneralSecurityException | ExceptionInInitializerError exception) {
             return result(
                     IntegrityStatus.TRUSTED_KEY_UNAVAILABLE,
-                    "Trusted public key is missing or invalid.",
+                    "Trusted public key registry is missing or invalid.",
                     0
             );
         }
@@ -244,10 +262,10 @@ public final class StartupIntegrityVerifier {
         final boolean signatureValid;
 
         try {
-            signatureValid = ManifestSignatureService.verify(
+            signatureValid = verifyAgainstTrustedKeys(
                     manifestBytes,
                     signature,
-                    trustedPublicKey
+                    trustedPublicKeys
             );
         } catch (GeneralSecurityException exception) {
             return result(
@@ -317,20 +335,58 @@ public final class StartupIntegrityVerifier {
         );
     }
 
-    private PublicKey loadTrustedPublicKey()
-            throws IOException, GeneralSecurityException {
+    private List<PublicKey> loadTrustedPublicKeys()
+            throws GeneralSecurityException {
 
-        if (injectedPublicKey != null) {
-            return injectedPublicKey;
+        if (injectedPublicKeys != null) {
+            if (injectedPublicKeys.isEmpty()) {
+                throw new GeneralSecurityException(
+                        "Injected trusted public key list is empty"
+                );
+            }
+
+            return injectedPublicKeys;
         }
 
-        if (anchor == null) {
-            throw new IOException(
-                    "No trusted public key source is configured"
+        List<PublicKey> trustedKeys =
+                TrustedPublicKeyRegistry.trustedKeys();
+
+        if (trustedKeys.isEmpty()) {
+            throw new GeneralSecurityException(
+                    "RIPS trusted public key registry is empty"
             );
         }
 
-        return TrustedPublicKeyLoader.load(anchor);
+        return trustedKeys;
+    }
+
+    private boolean verifyAgainstTrustedKeys(
+            byte[] manifestBytes,
+            byte[] signature,
+            List<PublicKey> trustedKeys
+    ) throws GeneralSecurityException {
+
+        GeneralSecurityException lastException = null;
+
+        for (PublicKey trustedKey : trustedKeys) {
+            try {
+                if (ManifestSignatureService.verify(
+                        manifestBytes,
+                        signature,
+                        trustedKey
+                )) {
+                    return true;
+                }
+            } catch (GeneralSecurityException exception) {
+                lastException = exception;
+            }
+        }
+
+        if (lastException != null) {
+            throw lastException;
+        }
+
+        return false;
     }
 
     private byte[] readRequiredResource(
