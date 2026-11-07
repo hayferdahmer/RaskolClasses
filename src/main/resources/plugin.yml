@@ -24,7 +24,21 @@ softdepend:
 commands:
   rc:
     description: "Главная команда RaskolClasses"
-    usage: "/rc [menu|reload|debug|health|selftest|gear|foliant|cc|plus|item]"
+    usage: |
+      /rc version — версия плагина и статус RIPS
+      /rc menu — открыть Книгу класса
+      /rc reload — перезагрузка конфигов (admin)
+      /rc debug [player] — диагностика (admin)
+      /rc health — показать свои HP/ресурс
+      /rc selftest — headless-самотестирование (admin)
+      /rc gear — статы снаряжения (alias item stats)
+      /rc foliant give <player> — выдать Фолиант Душ (admin)
+      /rc cc <status|clear|test|reset|list> — админка CC/DR (admin)
+      /rc set <class> — назначить класс игроку (admin)
+      /rc plus <status|buy|gift|apply> — подписка raskolspec+
+      /rc plus <grant|revoke> <player> <days> — администрирование подписки (admin)
+      /rc item <stats|salvage|craft> — предметный слой (игрок)
+      /rc item <give|reload|debug|browse> — предметный слой (admin)
     aliases: [raskol, raskolclasses]
 
 permissions:
@@ -38,7 +52,7 @@ permissions:
     description: "Диагностика: /rc debug, /rc gear, /rc health, /rc selftest"
     default: op
   raskolclasses.admin:
-    description: "Админские команды: /rc reload, /rc foliant give"
+    description: "Админские команды: /rc reload, /rc foliant give, /rc set"
     default: op
   raskolclasses.admin.cc:
     description: "CC/DR-админка: /rc cc status|clear|test|reset|list"
