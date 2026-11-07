@@ -57,7 +57,11 @@ public record BuildIdentity(
         );
 
         if (buildType == BuildType.OFFICIAL) {
-            validateOfficialIdentity();
+            validateOfficialIdentity(
+                    buildId,
+                    commitSha,
+                    buildTimestamp
+            );
         }
     }
 
@@ -102,7 +106,18 @@ public record BuildIdentity(
         return buildType == BuildType.DEVELOPMENT;
     }
 
-    private void validateOfficialIdentity() {
+    /**
+     * Проверяет обязательные ограничения идентификатора официальной сборки.
+     *
+     * @param buildId идентификатор сборки
+     * @param commitSha идентификатор исходного коммита
+     * @param buildTimestamp время создания сборки
+     */
+    private static void validateOfficialIdentity(
+            String buildId,
+            String commitSha,
+            Instant buildTimestamp
+    ) {
         if ("UNKNOWN".equalsIgnoreCase(commitSha)) {
             throw new IllegalArgumentException(
                     "Official build must contain a valid commit SHA"
