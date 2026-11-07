@@ -1,3 +1,4 @@
+
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes;
@@ -38,6 +39,9 @@ import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.item.service.ItemSystem;
+import dev.raskol.classes.integrity.reporting.SecurityReporter;
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
+import dev.raskol.classes.integrity.verification.StartupIntegrityVerifier;
 import dev.raskol.classes.api.items.ItemsApi;
 import dev.raskol.classes.api.combat.CombatProfileRegistry;
 import dev.raskol.classes.api.combat.CombatProfileLifecycleListener;
@@ -77,7 +81,7 @@ import java.util.List;
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ». Точка сборки сервиса: конструирование
  * слоёв, регистрация слушателей, владение периодическими задачами и геттеры-локаторы.
- * 
+ *
  * 1.15.7 (Волна 7d): PetService.despawnAll() вызывается в onDisable до отмены задач —
  * петы дезспавнятся при выгрузке плагина, а не остаются в мире.
  * 1.15.7 (Волна 7c): регистрация HunterAbilities.FanArrowHit — стрелы веера наносят
@@ -168,8 +172,33 @@ public final class RaskolClasses extends JavaPlugin {
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
+    /** Результат стартовой проверки целостности RIPS. */
+    private IntegrityVerificationResult integrityVerificationResult;
+
+    /**
+     * Runs RIPS integrity verification before gameplay initialization.
+     *
+     * This method only verifies and reports the result.
+     * Startup failure policy is handled separately.
+     *
+     * @return the startup integrity verification result
+     */
+    private IntegrityVerificationResult verifyStartupIntegrity() {
+        StartupIntegrityVerifier verifier =
+                new StartupIntegrityVerifier(RaskolClasses.class);
+
+        IntegrityVerificationResult result = verifier.verify();
+
+        SecurityReporter reporter = new SecurityReporter(getLogger());
+        reporter.report(result);
+
+        return result;
+    }
+
     @Override
     public void onEnable() {
+        this.integrityVerificationResult = verifyStartupIntegrity();
+
         this.raskolConfig = new RaskolConfig(this);
         ConfigMigrator.migrate148(this);
 
