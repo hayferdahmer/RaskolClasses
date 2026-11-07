@@ -12,6 +12,10 @@ Checks:
 5. The public key derived from the CI private key matches the ACTIVE key.
 
 Private key material is never printed or stored in the repository.
+
+1.15.8-fix: trailing-ошибка парсинга PINNED_KEYS унифицирована с фразой
+"Unsupported expression ..." (ранее "Unsupported trailing expression ..."),
+чтобы контракт сообщения совпадал с тестом test_rejects_unknown_registry_expression.
 """
 
 from __future__ import annotations
@@ -155,7 +159,8 @@ def parse_pinned_keys(source: str) -> tuple[RegistryKey, ...]:
 
     if not re.fullmatch(r"[\s,]*", remaining):
         raise ValueError(
-            "Unsupported trailing expression in PINNED_KEYS"
+            "Unsupported expression in PINNED_KEYS configuration "
+            "(trailing content)"
         )
 
     active_keys = [
