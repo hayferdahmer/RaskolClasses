@@ -14,6 +14,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 public final class RuntimeIntegrityMonitor implements AutoCloseable {
@@ -23,6 +24,7 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
     private final long intervalMillis;
     private final RuntimeIntegrityStateManager stateManager;
     private final RuntimeSecurityReporter securityReporter;
+    private final Consumer<RuntimeIntegritySnapshot> failureHandler;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean checking = new AtomicBoolean(false);
@@ -38,16 +40,10 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
         this(
                 verificationTask,
                 interval,
-                Executors.newSingleThreadScheduledExecutor(runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "RaskolClasses-RIPS-Monitor"
-                    );
-                    thread.setDaemon(true);
-                    return thread;
-                }),
+                createExecutor(),
                 new RuntimeIntegrityStateManager(),
-                null
+                null,
+                snapshot -> { }
         );
     }
 
@@ -61,7 +57,8 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                 interval,
                 executor,
                 new RuntimeIntegrityStateManager(),
-                null
+                null,
+                snapshot -> { }
         );
     }
 
@@ -76,7 +73,8 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                 interval,
                 executor,
                 stateManager,
-                null
+                null,
+                snapshot -> { }
         );
     }
 
@@ -86,6 +84,31 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
             ScheduledExecutorService executor,
             RuntimeIntegrityStateManager stateManager,
             RuntimeSecurityReporter securityReporter
+    ) {
+        this(
+                verificationTask,
+                interval,
+                executor,
+                stateManager,
+                securityReporter,
+                snapshot -> { }
+        );
+    }
+
+    /**
+     * Creates a runtime integrity monitor with a failure callback.
+     *
+     * <p>The failure callback is invoked on the monitoring thread.
+     * Implementations that interact with Bukkit or Paper must schedule
+     * their work on the server's main thread.</p>
+     */
+    public RuntimeIntegrityMonitor(
+            Supplier<IntegrityVerificationResult> verificationTask,
+            Duration interval,
+            ScheduledExecutorService executor,
+            RuntimeIntegrityStateManager stateManager,
+            RuntimeSecurityReporter securityReporter,
+            Consumer<RuntimeIntegritySnapshot> failureHandler
     ) {
         this.verificationTask = Objects.requireNonNull(
                 verificationTask,
@@ -106,6 +129,10 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                 "stateManager"
         );
         this.securityReporter = securityReporter;
+        this.failureHandler = Objects.requireNonNull(
+                failureHandler,
+                "failureHandler"
+        );
 
         this.intervalMillis = interval.toMillis();
 
@@ -283,14 +310,22 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
     }
 
     private void publish(RuntimeIntegritySnapshot snapshot) {
-        if (securityReporter == null) {
+        if (securityReporter != null) {
+            try {
+                securityReporter.report(snapshot);
+            } catch (RuntimeException exception) {
+                // Reporting must never interrupt integrity verification.
+            }
+        }
+
+        if (snapshot.state() != RuntimeIntegrityState.FAILED) {
             return;
         }
 
         try {
-            securityReporter.report(snapshot);
+            failureHandler.accept(snapshot);
         } catch (RuntimeException exception) {
-            // Reporting must never interrupt integrity verification.
+            // Failure handling must not break the monitoring executor.
         }
     }
 
@@ -306,6 +341,17 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
         CompletableFuture<T> future = new CompletableFuture<>();
         future.completeExceptionally(throwable);
         return future;
+    }
+
+    private static ScheduledExecutorService createExecutor() {
+        return Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(
+                    runnable,
+                    "RaskolClasses-RIPS-Monitor"
+            );
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     @Override
