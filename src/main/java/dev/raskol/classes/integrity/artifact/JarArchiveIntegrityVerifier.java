@@ -1,92 +1,66 @@
-// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
-// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.artifact;
 
 import dev.raskol.classes.integrity.manifest.IntegrityManifest;
 import dev.raskol.classes.integrity.manifest.ManifestFileEntry;
+import dev.raskol.classes.integrity.manifest.Sha256HashService;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.HexFormat;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.zip.ZipFile;
 
 /**
- * Verifies the complete contents of a physical JAR archive against
- * a signed integrity manifest.
+ * Verifies all protected file entries in a JAR archive against an integrity
+ * manifest.
  *
- * <p>Every non-directory archive entry must be declared in the manifest,
- * except for the manifest and its detached signature.</p>
- *
- * <p>All declared files are verified using their actual decompressed
- * size and SHA-256 digest.</p>
+ * The manifest and its signature are excluded from the protected file list
+ * to avoid circular integrity dependencies.
  */
 public final class JarArchiveIntegrityVerifier {
 
-    private static final String MANIFEST_RESOURCE =
-            "META-INF/raskol/integrity/manifest.rips";
-
-    private static final String SIGNATURE_RESOURCE =
-            "META-INF/raskol/integrity/manifest.sig";
-
-    private static final long DEFAULT_MAX_ENTRY_BYTES =
-            64L * 1024L * 1024L;
-
-    private static final long DEFAULT_MAX_TOTAL_BYTES =
-            512L * 1024L * 1024L;
-
-    private static final int DEFAULT_MAX_ARCHIVE_ENTRIES = 100_000;
+    public static final long DEFAULT_MAX_ENTRY_BYTES = 64L * 1024L * 1024L;
+    public static final long DEFAULT_MAX_TOTAL_BYTES = 512L * 1024L * 1024L;
+    public static final int DEFAULT_MAX_ARCHIVE_ENTRIES = 100_000;
 
     private static final int BUFFER_SIZE = 8192;
 
-    private final Path artifactPath;
+    private static final String MANIFEST_PATH =
+            "META-INF/raskol/integrity/manifest.rips";
+
+    private static final String SIGNATURE_PATH =
+            "META-INF/raskol/integrity/manifest.sig";
+
+    private final Path archivePath;
     private final long maxEntryBytes;
     private final long maxTotalBytes;
     private final int maxArchiveEntries;
 
-    /**
-     * Creates a verifier with default archive limits.
-     *
-     * @param artifactPath physical JAR artifact
-     * @throws IOException if the artifact path is invalid
-     */
-    public JarArchiveIntegrityVerifier(Path artifactPath) throws IOException {
+    public JarArchiveIntegrityVerifier(Path archivePath) {
         this(
-                artifactPath,
+                archivePath,
                 DEFAULT_MAX_ENTRY_BYTES,
                 DEFAULT_MAX_TOTAL_BYTES,
                 DEFAULT_MAX_ARCHIVE_ENTRIES
         );
     }
 
-    /**
-     * Creates a verifier with configurable archive limits.
-     *
-     * @param artifactPath physical JAR artifact
-     * @param maxEntryBytes maximum decompressed size of one file
-     * @param maxTotalBytes maximum total decompressed size of verified files
-     * @param maxArchiveEntries maximum number of archive entries
-     * @throws IOException if the artifact path is invalid
-     */
     public JarArchiveIntegrityVerifier(
-            Path artifactPath,
+            Path archivePath,
             long maxEntryBytes,
             long maxTotalBytes,
             int maxArchiveEntries
-    ) throws IOException {
-        Objects.requireNonNull(artifactPath, "artifactPath");
+    ) {
+        this.archivePath = Objects.requireNonNull(archivePath, "archivePath")
+                .toAbsolutePath()
+                .normalize();
 
         if (maxEntryBytes <= 0) {
             throw new IllegalArgumentException("maxEntryBytes must be positive");
@@ -100,82 +74,105 @@ public final class JarArchiveIntegrityVerifier {
             throw new IllegalArgumentException("maxArchiveEntries must be positive");
         }
 
-        Path realPath = artifactPath.toRealPath();
-
-        if (!Files.isRegularFile(realPath)) {
-            throw new IOException("Artifact path is not a regular file");
-        }
-
-        if (!Files.isReadable(realPath)) {
-            throw new IOException("Artifact file is not readable");
-        }
-
-        this.artifactPath = realPath;
         this.maxEntryBytes = maxEntryBytes;
         this.maxTotalBytes = maxTotalBytes;
         this.maxArchiveEntries = maxArchiveEntries;
     }
 
     /**
-     * Verifies every relevant entry in the JAR against the manifest.
+     * Verifies the complete archive against the supplied manifest.
      *
-     * @param manifest integrity manifest
-     * @return archive verification result
+     * @param manifest expected integrity manifest
+     * @return verification result
      */
     public ArchiveIntegrityVerificationResult verify(IntegrityManifest manifest) {
         Objects.requireNonNull(manifest, "manifest");
 
-        List<ManifestFileEntry> manifestFiles = manifest.files();
-
-        if (manifestFiles.isEmpty()) {
-            return failure(
+        if (manifest.files().isEmpty()) {
+            return result(
                     ArchiveIntegrityStatus.MANIFEST_EMPTY,
-                    "Integrity manifest contains no protected files",
+                    "Integrity manifest contains no protected files.",
                     0,
                     0,
-                    List.of()
+                    Set.of()
             );
         }
 
         Map<String, ManifestFileEntry> expectedFiles = new HashMap<>();
+        Set<String> expectedComparisonKeys = new HashSet<>();
 
-        for (ManifestFileEntry file : manifestFiles) {
-            if (isIntegrityMetadata(file.path())) {
-                return failure(
+        for (ManifestFileEntry file : manifest.files()) {
+            if (file == null) {
+                return result(
                         ArchiveIntegrityStatus.INVALID_MANIFEST,
-                        "Integrity metadata must not be included in the protected file list",
+                        "Integrity manifest contains a null file entry.",
                         0,
                         0,
-                        List.of(file.path())
+                        Set.of()
                 );
             }
 
-            if (expectedFiles.putIfAbsent(file.path(), file) != null) {
-                return failure(
+            final String validatedPath;
+
+            try {
+                validatedPath = ArchiveEntryPathValidator.validate(
+                        file.path(),
+                        false
+                );
+            } catch (IllegalArgumentException exception) {
+                return result(
                         ArchiveIntegrityStatus.INVALID_MANIFEST,
-                        "Manifest contains duplicate file paths",
+                        "Integrity manifest contains an invalid file path.",
                         0,
                         0,
-                        List.of(file.path())
+                        Set.of(file.path())
+                );
+            }
+
+            if (MANIFEST_PATH.equals(validatedPath)
+                    || SIGNATURE_PATH.equals(validatedPath)) {
+                return result(
+                        ArchiveIntegrityStatus.INVALID_MANIFEST,
+                        "Integrity metadata must not be included in its own manifest.",
+                        0,
+                        0,
+                        Set.of(validatedPath)
+                );
+            }
+
+            if (expectedFiles.putIfAbsent(validatedPath, file) != null) {
+                return result(
+                        ArchiveIntegrityStatus.INVALID_MANIFEST,
+                        "Integrity manifest contains duplicate file paths.",
+                        0,
+                        0,
+                        Set.of(validatedPath)
+                );
+            }
+
+            String comparisonKey =
+                    ArchiveEntryPathValidator.comparisonKey(validatedPath);
+
+            if (!expectedComparisonKeys.add(comparisonKey)) {
+                return result(
+                        ArchiveIntegrityStatus.INVALID_MANIFEST,
+                        "Integrity manifest contains case-insensitive path collisions.",
+                        0,
+                        0,
+                        Set.of(validatedPath)
                 );
             }
         }
 
-        try (JarFile jarFile = new JarFile(
-                artifactPath.toFile(),
-                false,
-                ZipFile.OPEN_READ,
-                JarFile.baseVersion()
-        )) {
+        try (JarFile jarFile = new JarFile(archivePath.toFile(), false)) {
             return verifyArchiveEntries(jarFile, expectedFiles);
-
         } catch (IOException | SecurityException exception) {
-            return failure(
+            return result(
                     ArchiveIntegrityStatus.ARCHIVE_READ_ERROR,
-                    "Unable to read or inspect the JAR archive",
+                    "Unable to read the JAR archive.",
                     0,
                     0,
-                    List.of()
+                    Set.of()
             );
         }
     }
@@ -184,10 +181,14 @@ public final class JarArchiveIntegrityVerifier {
             JarFile jarFile,
             Map<String, ManifestFileEntry> expectedFiles
     ) {
-        Map<String, JarEntry> actualFiles = new HashMap<>();
-        Set<String> encounteredNames = new HashSet<>();
+        Set<String> seenEntries = new HashSet<>();
+        Set<String> comparisonKeys = new HashSet<>();
+        Set<String> verifiedFiles = new HashSet<>();
+        Set<String> failedFiles = new HashSet<>();
 
         int archiveEntries = 0;
+        int checkedFiles = 0;
+        long totalBytesRead = 0;
 
         Enumeration<JarEntry> entries = jarFile.entries();
 
@@ -196,285 +197,294 @@ public final class JarArchiveIntegrityVerifier {
             archiveEntries++;
 
             if (archiveEntries > maxArchiveEntries) {
-                return failure(
+                return result(
                         ArchiveIntegrityStatus.ARCHIVE_ENTRY_COUNT_LIMIT_EXCEEDED,
-                        "Archive contains too many entries",
+                        "JAR archive contains too many entries.",
                         archiveEntries,
-                        0,
-                        List.of(entry.getName())
+                        checkedFiles,
+                        failedFiles
                 );
             }
 
             String entryName = entry.getName();
 
-            if (!isValidArchiveEntryName(entryName, entry.isDirectory())) {
-                return failure(
+            final String validatedPath;
+
+            try {
+                validatedPath = ArchiveEntryPathValidator.validate(
+                        entryName,
+                        entry.isDirectory()
+                );
+            } catch (IllegalArgumentException exception) {
+                failedFiles.add(entryName);
+
+                return result(
                         ArchiveIntegrityStatus.INVALID_ARCHIVE_ENTRY_PATH,
-                        "Archive contains an invalid entry path",
+                        "JAR archive contains an invalid entry path.",
                         archiveEntries,
-                        0,
-                        List.of(entryName)
+                        checkedFiles,
+                        failedFiles
                 );
             }
 
-            if (!encounteredNames.add(entryName)) {
-                return failure(
+            if (!seenEntries.add(entryName)) {
+                failedFiles.add(entryName);
+
+                return result(
                         ArchiveIntegrityStatus.DUPLICATE_ARCHIVE_ENTRY,
-                        "Archive contains duplicate entry names",
+                        "JAR archive contains duplicate entry names.",
                         archiveEntries,
-                        0,
-                        List.of(entryName)
+                        checkedFiles,
+                        failedFiles
+                );
+            }
+
+            String comparisonKey =
+                    ArchiveEntryPathValidator.comparisonKey(validatedPath);
+
+            if (!comparisonKeys.add(comparisonKey)) {
+                failedFiles.add(entryName);
+
+                return result(
+                        ArchiveIntegrityStatus.ARCHIVE_PATH_COLLISION,
+                        "JAR archive contains case-insensitive path collisions.",
+                        archiveEntries,
+                        checkedFiles,
+                        failedFiles
                 );
             }
 
             if (entry.isDirectory()) {
+                if (!isExpectedDirectory(validatedPath, expectedFiles.keySet())) {
+                    failedFiles.add(entryName);
+
+                    return result(
+                            ArchiveIntegrityStatus.UNEXPECTED_ARCHIVE_DIRECTORY,
+                            "JAR archive contains an unexpected directory.",
+                            archiveEntries,
+                            checkedFiles,
+                            failedFiles
+                    );
+                }
+
                 continue;
             }
 
-            if (isIntegrityMetadata(entryName)) {
+            if (MANIFEST_PATH.equals(validatedPath)
+                    || SIGNATURE_PATH.equals(validatedPath)) {
                 continue;
             }
 
-            if (!expectedFiles.containsKey(entryName)) {
-                return failure(
+            ManifestFileEntry expected = expectedFiles.get(validatedPath);
+
+            if (expected == null) {
+                failedFiles.add(validatedPath);
+
+                return result(
                         ArchiveIntegrityStatus.UNEXPECTED_ARCHIVE_ENTRY,
-                        "Archive contains a file not declared in the integrity manifest",
+                        "JAR archive contains an entry not declared in the integrity manifest.",
                         archiveEntries,
-                        0,
-                        List.of(entryName)
+                        checkedFiles,
+                        failedFiles
                 );
             }
 
-            actualFiles.put(entryName, entry);
+            if (entry.getSize() > maxEntryBytes) {
+                failedFiles.add(validatedPath);
+
+                return result(
+                        ArchiveIntegrityStatus.ENTRY_TOO_LARGE,
+                        "JAR entry exceeds the configured size limit.",
+                        archiveEntries,
+                        checkedFiles,
+                        failedFiles
+                );
+            }
+
+            if (entry.getSize() >= 0
+                    && entry.getSize() > maxTotalBytes - totalBytesRead) {
+                failedFiles.add(validatedPath);
+
+                return result(
+                        ArchiveIntegrityStatus.ARCHIVE_TOTAL_SIZE_LIMIT_EXCEEDED,
+                        "JAR archive exceeds the configured total size limit.",
+                        archiveEntries,
+                        checkedFiles,
+                        failedFiles
+                );
+            }
+
+            EntryVerification entryResult = verifyEntry(
+                    jarFile,
+                    entry,
+                    expected,
+                    totalBytesRead
+            );
+
+            totalBytesRead += entryResult.bytesRead();
+            checkedFiles++;
+
+            if (entryResult.status() != ArchiveIntegrityStatus.VERIFIED) {
+                failedFiles.add(validatedPath);
+
+                return result(
+                        entryResult.status(),
+                        entryResult.message(),
+                        archiveEntries,
+                        checkedFiles,
+                        failedFiles
+                );
+            }
+
+            verifiedFiles.add(validatedPath);
         }
 
         for (String expectedPath : expectedFiles.keySet()) {
-            if (!actualFiles.containsKey(expectedPath)) {
-                return failure(
+            if (!verifiedFiles.contains(expectedPath)) {
+                failedFiles.add(expectedPath);
+
+                return result(
                         ArchiveIntegrityStatus.MANIFEST_ENTRY_MISSING,
-                        "A manifest file is missing from the archive",
+                        "A protected file declared in the manifest is missing from the JAR archive.",
                         archiveEntries,
-                        0,
-                        List.of(expectedPath)
+                        checkedFiles,
+                        failedFiles
                 );
             }
         }
 
-        return verifyFileContents(
-                jarFile,
-                expectedFiles,
-                actualFiles,
-                archiveEntries
-        );
-    }
-
-    private ArchiveIntegrityVerificationResult verifyFileContents(
-            JarFile jarFile,
-            Map<String, ManifestFileEntry> expectedFiles,
-            Map<String, JarEntry> actualFiles,
-            int archiveEntries
-    ) {
-        long totalBytesRead = 0;
-        int checkedFiles = 0;
-
-        for (ManifestFileEntry expected : expectedFiles.values()) {
-            String path = expected.path();
-            JarEntry actual = actualFiles.get(path);
-
-            if (expected.size() > maxEntryBytes
-                    || actual.getSize() > maxEntryBytes) {
-                return failure(
-                        ArchiveIntegrityStatus.ENTRY_TOO_LARGE,
-                        "Archive entry exceeds the configured size limit",
-                        archiveEntries,
-                        checkedFiles,
-                        List.of(path)
-                );
-            }
-
-            if (actual.getSize() >= 0 && actual.getSize() != expected.size()) {
-                return failure(
-                        ArchiveIntegrityStatus.ENTRY_SIZE_MISMATCH,
-                        "Archive entry size does not match the integrity manifest",
-                        archiveEntries,
-                        checkedFiles,
-                        List.of(path)
-                );
-            }
-
-            if (expected.size() > maxTotalBytes - totalBytesRead) {
-                return failure(
-                        ArchiveIntegrityStatus.ARCHIVE_TOTAL_SIZE_LIMIT_EXCEEDED,
-                        "Total protected file size exceeds the configured limit",
-                        archiveEntries,
-                        checkedFiles,
-                        List.of(path)
-                );
-            }
-
-            try (InputStream input = jarFile.getInputStream(actual)) {
-                MessageDigest digest = newSha256Digest();
-
-                long fileBytesRead = 0;
-                byte[] buffer = new byte[BUFFER_SIZE];
-
-                int count;
-
-                while ((count = input.read(buffer)) != -1) {
-                    fileBytesRead += count;
-                    totalBytesRead += count;
-
-                    if (fileBytesRead > maxEntryBytes) {
-                        return failure(
-                                ArchiveIntegrityStatus.ENTRY_TOO_LARGE,
-                                "Decompressed archive entry exceeds the configured size limit",
-                                archiveEntries,
-                                checkedFiles,
-                                List.of(path)
-                        );
-                    }
-
-                    if (totalBytesRead > maxTotalBytes) {
-                        return failure(
-                                ArchiveIntegrityStatus.ARCHIVE_TOTAL_SIZE_LIMIT_EXCEEDED,
-                                "Total decompressed archive size exceeds the configured limit",
-                                archiveEntries,
-                                checkedFiles,
-                                List.of(path)
-                        );
-                    }
-
-                    digest.update(buffer, 0, count);
-                }
-
-                if (fileBytesRead != expected.size()) {
-                    return failure(
-                            ArchiveIntegrityStatus.ENTRY_SIZE_MISMATCH,
-                            "Actual file size does not match the integrity manifest",
-                            archiveEntries,
-                            checkedFiles,
-                            List.of(path)
-                    );
-                }
-
-                String actualHash = HexFormat.of().formatHex(digest.digest());
-
-                if (!actualHash.equals(expected.sha256())) {
-                    return failure(
-                            ArchiveIntegrityStatus.ENTRY_HASH_MISMATCH,
-                            "Actual file hash does not match the integrity manifest",
-                            archiveEntries,
-                            checkedFiles,
-                            List.of(path)
-                    );
-                }
-
-                checkedFiles++;
-
-            } catch (IOException exception) {
-                return failure(
-                        ArchiveIntegrityStatus.ENTRY_READ_ERROR,
-                        "Unable to read an archive entry",
-                        archiveEntries,
-                        checkedFiles,
-                        List.of(path)
-                );
-            }
-        }
-
-        return new ArchiveIntegrityVerificationResult(
+        return result(
                 ArchiveIntegrityStatus.VERIFIED,
-                "All archive entries match the integrity manifest",
+                "JAR archive integrity verification completed successfully.",
                 archiveEntries,
                 checkedFiles,
-                List.of()
+                Set.of()
         );
     }
 
-    private static boolean isValidArchiveEntryName(
-            String entryName,
-            boolean directory
+    private EntryVerification verifyEntry(
+            JarFile jarFile,
+            JarEntry entry,
+            ManifestFileEntry expected,
+            long totalBytesRead
     ) {
-        if (entryName == null || entryName.isEmpty()) {
-            return false;
-        }
+        MessageDigest digest;
 
-        if (entryName.startsWith("/")
-                || entryName.startsWith("\\")
-                || entryName.contains("\\")
-                || entryName.indexOf('\0') >= 0) {
-            return false;
-        }
-
-        for (int i = 0; i < entryName.length(); i++) {
-            if (Character.isISOControl(entryName.charAt(i))) {
-                return false;
-            }
-        }
-
-        String normalized = entryName;
-
-        if (directory) {
-            if (!normalized.endsWith("/")) {
-                return false;
-            }
-
-            normalized = normalized.substring(0, normalized.length() - 1);
-        } else if (normalized.endsWith("/")) {
-            return false;
-        }
-
-        if (normalized.isEmpty() || normalized.matches("^[A-Za-z]:.*")) {
-            return false;
-        }
-
-        String[] segments = normalized.split("/", -1);
-
-        for (String segment : segments) {
-            if (segment.isEmpty()
-                    || ".".equals(segment)
-                    || "..".equals(segment)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static boolean isIntegrityMetadata(String path) {
-        return MANIFEST_RESOURCE.equals(path)
-                || SIGNATURE_RESOURCE.equals(path);
-    }
-
-    private static MessageDigest newSha256Digest() {
         try {
-            return MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(
-                    "SHA-256 algorithm is unavailable",
-                    exception
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            return new EntryVerification(
+                    ArchiveIntegrityStatus.ENTRY_READ_ERROR,
+                    "SHA-256 algorithm is unavailable.",
+                    0
             );
         }
+
+        long entryBytesRead = 0;
+        byte[] buffer = new byte[BUFFER_SIZE];
+
+        try (InputStream inputStream = jarFile.getInputStream(entry)) {
+            int read;
+
+            while ((read = inputStream.read(buffer)) != -1) {
+                entryBytesRead += read;
+
+                if (entryBytesRead > maxEntryBytes) {
+                    return new EntryVerification(
+                            ArchiveIntegrityStatus.ENTRY_TOO_LARGE,
+                            "JAR entry exceeds the configured decompressed size limit.",
+                            entryBytesRead
+                    );
+                }
+
+                if (read > maxTotalBytes - totalBytesRead - (entryBytesRead - read)) {
+                    return new EntryVerification(
+                            ArchiveIntegrityStatus.ARCHIVE_TOTAL_SIZE_LIMIT_EXCEEDED,
+                            "JAR archive exceeds the configured total decompressed size limit.",
+                            entryBytesRead
+                    );
+                }
+
+                digest.update(buffer, 0, read);
+            }
+        } catch (IOException | SecurityException exception) {
+            return new EntryVerification(
+                    ArchiveIntegrityStatus.ENTRY_READ_ERROR,
+                    "Unable to read a JAR archive entry.",
+                    entryBytesRead
+            );
+        }
+
+        if (entryBytesRead != expected.size()) {
+            return new EntryVerification(
+                    ArchiveIntegrityStatus.ENTRY_SIZE_MISMATCH,
+                    "JAR entry size does not match the integrity manifest.",
+                    entryBytesRead
+            );
+        }
+
+        byte[] actualHash = digest.digest();
+        byte[] expectedHash;
+
+        try {
+            expectedHash = Sha256HashService.decode(expected.sha256());
+        } catch (IllegalArgumentException exception) {
+            return new EntryVerification(
+                    ArchiveIntegrityStatus.INVALID_MANIFEST,
+                    "Integrity manifest contains an invalid SHA-256 hash.",
+                    entryBytesRead
+            );
+        }
+
+        if (!MessageDigest.isEqual(actualHash, expectedHash)) {
+            return new EntryVerification(
+                    ArchiveIntegrityStatus.ENTRY_HASH_MISMATCH,
+                    "JAR entry hash does not match the integrity manifest.",
+                    entryBytesRead
+            );
+        }
+
+        return new EntryVerification(
+                ArchiveIntegrityStatus.VERIFIED,
+                "Entry verified.",
+                entryBytesRead
+        );
     }
 
-    private static ArchiveIntegrityVerificationResult failure(
+    private boolean isExpectedDirectory(
+            String directoryPath,
+            Set<String> expectedFiles
+    ) {
+        String prefix = directoryPath + "/";
+
+        for (String expectedPath : expectedFiles) {
+            if (expectedPath.startsWith(prefix)) {
+                return true;
+            }
+        }
+
+        return MANIFEST_PATH.startsWith(prefix)
+                || SIGNATURE_PATH.startsWith(prefix);
+    }
+
+    private ArchiveIntegrityVerificationResult result(
             ArchiveIntegrityStatus status,
             String message,
             int archiveEntries,
             int checkedFiles,
-            List<String> failedFiles
+            Set<String> failedFiles
     ) {
         return new ArchiveIntegrityVerificationResult(
                 status,
                 message,
                 archiveEntries,
                 checkedFiles,
-                failedFiles
+                failedFiles.stream().sorted().toList()
         );
     }
 
-    public Path getArtifactPath() {
-        return artifactPath;
+    public Path getArchivePath() {
+        return archivePath;
     }
 
     public long getMaxEntryBytes() {
@@ -487,5 +497,12 @@ public final class JarArchiveIntegrityVerifier {
 
     public int getMaxArchiveEntries() {
         return maxArchiveEntries;
+    }
+
+    private record EntryVerification(
+            ArchiveIntegrityStatus status,
+            String message,
+            long bytesRead
+    ) {
     }
 }
