@@ -23,8 +23,8 @@ import java.util.jar.JarFile;
  * Verifies all protected file entries in a JAR archive against an integrity
  * manifest.
  *
- * The manifest and its signature are excluded from the protected file list
- * to avoid circular integrity dependencies.
+ * <p>RIPS metadata resources are not included in the protected file list:
+ * the manifest, its detached signature and the embedded public key.</p>
  */
 public final class JarArchiveIntegrityVerifier {
 
@@ -43,6 +43,9 @@ public final class JarArchiveIntegrityVerifier {
 
     private static final String SIGNATURE_PATH =
             "META-INF/raskol/integrity/manifest.sig";
+
+    private static final String PUBLIC_KEY_PATH =
+            "META-INF/raskol/integrity/public-key.txt";
 
     private final Path archivePath;
     private final long maxEntryBytes;
@@ -144,8 +147,7 @@ public final class JarArchiveIntegrityVerifier {
                 );
             }
 
-            if (MANIFEST_PATH.equals(validatedPath)
-                    || SIGNATURE_PATH.equals(validatedPath)) {
+            if (isIntegrityMetadata(validatedPath)) {
                 return result(
                         ArchiveIntegrityStatus.INVALID_MANIFEST,
                         "Integrity metadata must not be included in its own manifest.",
@@ -291,8 +293,7 @@ public final class JarArchiveIntegrityVerifier {
                 continue;
             }
 
-            if (MANIFEST_PATH.equals(validatedPath)
-                    || SIGNATURE_PATH.equals(validatedPath)) {
+            if (isIntegrityMetadata(validatedPath)) {
                 continue;
             }
 
@@ -501,7 +502,14 @@ public final class JarArchiveIntegrityVerifier {
         }
 
         return MANIFEST_PATH.startsWith(prefix)
-                || SIGNATURE_PATH.startsWith(prefix);
+                || SIGNATURE_PATH.startsWith(prefix)
+                || PUBLIC_KEY_PATH.startsWith(prefix);
+    }
+
+    private static boolean isIntegrityMetadata(String path) {
+        return MANIFEST_PATH.equals(path)
+                || SIGNATURE_PATH.equals(path)
+                || PUBLIC_KEY_PATH.equals(path);
     }
 
     private ArchiveIntegrityVerificationResult result(
