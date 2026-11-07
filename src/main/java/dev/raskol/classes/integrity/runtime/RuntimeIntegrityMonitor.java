@@ -1,5 +1,3 @@
-// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
-// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.runtime;
 
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
@@ -22,6 +20,7 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final long intervalMillis;
     private final RuntimeIntegrityStateManager stateManager;
+    private final RuntimeSecurityReporter securityReporter;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean checking = new AtomicBoolean(false);
@@ -45,7 +44,8 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                     thread.setDaemon(true);
                     return thread;
                 }),
-                new RuntimeIntegrityStateManager()
+                new RuntimeIntegrityStateManager(),
+                null
         );
     }
 
@@ -58,7 +58,8 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                 verificationTask,
                 interval,
                 executor,
-                new RuntimeIntegrityStateManager()
+                new RuntimeIntegrityStateManager(),
+                null
         );
     }
 
@@ -67,6 +68,22 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
             Duration interval,
             ScheduledExecutorService executor,
             RuntimeIntegrityStateManager stateManager
+    ) {
+        this(
+                verificationTask,
+                interval,
+                executor,
+                stateManager,
+                null
+        );
+    }
+
+    public RuntimeIntegrityMonitor(
+            Supplier<IntegrityVerificationResult> verificationTask,
+            Duration interval,
+            ScheduledExecutorService executor,
+            RuntimeIntegrityStateManager stateManager,
+            RuntimeSecurityReporter securityReporter
     ) {
         this.verificationTask = Objects.requireNonNull(
                 verificationTask,
@@ -86,6 +103,7 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                 stateManager,
                 "stateManager"
         );
+        this.securityReporter = securityReporter;
 
         this.intervalMillis = interval.toMillis();
 
@@ -223,6 +241,8 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                 return stateManager.getSnapshot();
             }
 
+            publish(stateManager.getSnapshot());
+
             long startNanos = System.nanoTime();
 
             try {
@@ -235,24 +255,40 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                         System.nanoTime() - startNanos
                 );
 
-                return stateManager.completeCheck(
-                        result,
-                        durationMillis
-                );
+                RuntimeIntegritySnapshot completed =
+                        stateManager.completeCheck(result, durationMillis);
+
+                publish(completed);
+                return completed;
 
             } catch (RuntimeException exception) {
                 long durationMillis = TimeUnit.NANOSECONDS.toMillis(
                         System.nanoTime() - startNanos
                 );
 
-                return stateManager.failCheck(
+                RuntimeIntegritySnapshot failed = stateManager.failCheck(
                         exception,
                         durationMillis
                 );
+
+                publish(failed);
+                return failed;
             }
 
         } finally {
             checking.set(false);
+        }
+    }
+
+    private void publish(RuntimeIntegritySnapshot snapshot) {
+        if (securityReporter == null) {
+            return;
+        }
+
+        try {
+            securityReporter.report(snapshot);
+        } catch (RuntimeException exception) {
+            // Reporting must never interrupt integrity verification.
         }
     }
 
@@ -276,7 +312,8 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
             return;
         }
 
-        stateManager.stop();
+        RuntimeIntegritySnapshot stopped = stateManager.stop();
+        publish(stopped);
 
         IllegalStateException stoppedException = new IllegalStateException(
                 "Runtime integrity monitor has been stopped"
