@@ -1,3 +1,4 @@
+
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.crypto;
@@ -22,7 +23,7 @@ public record TrustedPublicKeyEntry(
         Objects.requireNonNull(publicKey, "publicKey");
         Objects.requireNonNull(descriptor, "descriptor");
 
-        byte[] encoded = Objects.requireNonNull(
+        Objects.requireNonNull(
                 publicKey.getEncoded(),
                 "Public key encoding must not be null"
         );
