@@ -50,7 +50,7 @@ public final class TrustedPublicKeyRegistry {
                             TrustedKeyStatus.ACTIVE
                     ),
                     new PinnedKeyConfiguration(
-                            "MCowBQYDK2VwAyEAhUN83jyPkPFpZw6deKdnAAVOm94H6TRHg6ASZwv8GD4=",
+                            "MCowBQYDK2VwAyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q=",
                             TrustedKeyStatus.VERIFY_ONLY
                     )
             );
