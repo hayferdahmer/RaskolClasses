@@ -38,6 +38,7 @@ import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.item.service.ItemSystem;
+import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
 import dev.raskol.classes.integrity.reporting.SecurityReporter;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 import dev.raskol.classes.integrity.verification.StartupIntegrityVerifier;
@@ -80,7 +81,7 @@ import java.util.List;
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ». Точка сборки сервиса: конструирование
  * слоёв, регистрация слушателей, владение периодическими задачами и геттеры-локаторы.
- *
+ * 
  * 1.15.7 (Волна 7d): PetService.despawnAll() вызывается в onDisable до отмены задач —
  * петы дезспавнятся при выгрузке плагина, а не остаются в мире.
  * 1.15.7 (Волна 7c): регистрация HunterAbilities.FanArrowHit — стрелы веера наносят
@@ -171,7 +172,7 @@ public final class RaskolClasses extends JavaPlugin {
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
-    /** Результат стартовой проверки целостности RIPS. */
+    /** Result of the RIPS startup integrity verification. */
     private IntegrityVerificationResult integrityVerificationResult;
 
     /**
@@ -197,6 +198,16 @@ public final class RaskolClasses extends JavaPlugin {
     @Override
     public void onEnable() {
         this.integrityVerificationResult = verifyStartupIntegrity();
+
+        IntegrityFailurePolicy failurePolicy = new IntegrityFailurePolicy();
+        if (!failurePolicy.mayContinueStartup(integrityVerificationResult)) {
+            getLogger().severe(
+                    "[RIPS] Startup denied: integrity verification failed. Status: "
+                            + integrityVerificationResult.status()
+            );
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
 
         this.raskolConfig = new RaskolConfig(this);
         ConfigMigrator.migrate148(this);
