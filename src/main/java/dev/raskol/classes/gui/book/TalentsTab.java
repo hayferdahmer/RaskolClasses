@@ -50,6 +50,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *   подсвечен как выполненный), иначе включённые узлы выглядели закрытыми;
  *   P0-7B — цена респеца в lore считается по UUID просматривающего игрока,
  *   а не по первому онлайн (раньше подсказка врала при втором игроке на сервере).
+ *
+ * 1.15.8 (Волна 8e, аудит 2.12-16): терминология синхронизирована со spec2-контрактом:
+ *   «ранг»/«узел»/«дерево» вместо legacy «talent point»/«talent cost»; стоимость
+ *   1 очко за ранг (spec2.points-per-level=1); сообщения о гейтах рядов читаются
+ *   из spec2.row-gates через Spec2Points.rowGate(row).
  */
 public final class TalentsTab implements BookTabView {
 
@@ -194,7 +199,7 @@ public final class TalentsTab implements BookTabView {
             lore.add(Component.text("Ряды: ", NamedTextColor.YELLOW).append(rowProgress(tree, ranks)));
             lore.add(Component.empty());
             lore.add(Component.text("◀ ▶ — листать ряды", NamedTextColor.DARK_GRAY));
-            lore.add(Component.text("ЛКМ по узлу — купить ранг", NamedTextColor.DARK_GRAY));
+            lore.add(Component.text("ЛКМ по узлу — купить ранг (1 очко)", NamedTextColor.DARK_GRAY));
             lore.add(Component.text("ПКМ по купленному узлу — респец (×2, 30 с)",
                     NamedTextColor.DARK_GRAY));
             meta.lore(lore);
@@ -560,7 +565,7 @@ public final class TalentsTab implements BookTabView {
                     rowOk ? NamedTextColor.GREEN : NamedTextColor.RED));
             lore.add(Component.text(node.lore(), NamedTextColor.GRAY));
             lore.add(Component.text(describeEffect(node), NamedTextColor.WHITE));
-            lore.add(Component.text("кол. " + node.col() + " · " + node.type(),
+            lore.add(Component.text("столбец " + node.col() + " · " + node.type(),
                     branchColor(treeId)));
             for (Map.Entry<String, Integer> e : node.prereqs().entrySet()) {
                 Spec2Node prereqNode = tree.find(e.getKey());
