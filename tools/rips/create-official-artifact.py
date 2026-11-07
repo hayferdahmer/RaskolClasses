@@ -179,16 +179,20 @@ def create_release_artifact(jar_path: Path, version: str, build_id: str,
                 raise ValueError("Input JAR already contains RIPS release metadata")
             content: list[tuple[zipfile.ZipInfo, bytes]] = []
             manifest_entries: list[tuple[str, bytes]] = []
+            comparison_keys: set[str] = set()
             for info in infos:
                 name = info.filename
+                validated_name = validate_archive_entry(name, info.is_dir())
+                comparison_key = validated_name.casefold()
+                if comparison_key in comparison_keys:
+                    raise ValueError(f"JAR contains a case-insensitive path collision: {name}")
+                comparison_keys.add(comparison_key)
                 if info.is_dir():
                     content.append((info, b""))
                     continue
-                if name.startswith("/") or "\\" in name or any(part in ("", ".", "..") for part in name.split("/")):
-                    raise ValueError(f"Unsafe JAR entry path: {name}")
                 data = source.read(info)
                 content.append((info, data))
-                manifest_entries.append((name, data))
+                manifest_entries.append((validated_name, data))
 
         manifest_entries.append((BUILD_IDENTITY, identity))
         manifest_bytes = canonical_manifest(
