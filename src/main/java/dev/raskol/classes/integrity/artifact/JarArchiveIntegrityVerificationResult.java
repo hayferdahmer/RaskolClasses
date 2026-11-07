@@ -85,15 +85,6 @@ public record JarArchiveIntegrityVerificationResult(
     /**
      * Универсальная фабрика для провального результата с произвольным статусом.
      * Все специализированные фабрики ниже делегируют сюда.
-     *
-     * @param status любая константа ArchiveIntegrityStatus кроме VERIFIED
-     * @param message человеко-читаемое описание
-     * @param archiveEntries число записей (0 если архив не открыт)
-     * @param checkedFiles число проверенных файлов
-     * @param failedFiles список путей с ошибками
-     * @param expectedSha256 ожидаемый SHA-256 (пустая строка если N/A)
-     * @param actualSha256 фактический SHA-256 (пустая строка если N/A)
-     * @param archiveSizeBytes размер архива в байтах (0 если N/A)
      */
     public static JarArchiveIntegrityVerificationResult failed(
             ArchiveIntegrityStatus status,
