@@ -76,6 +76,37 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
+     * Returns the single ACTIVE public key (the only key authorized
+     * for signing new releases).
+     *
+     * <p>Returns null if no ACTIVE key is configured (should never
+     * happen in production — the registry must always have exactly
+     * one ACTIVE key).</p>
+     *
+     * @return ACTIVE public key, or null if none configured
+     */
+    public static PublicKey activePublicKey() {
+        for (TrustedPublicKeyEntry entry : ALL_ENTRIES) {
+            if (entry.descriptor().status() == TrustedKeyStatus.ACTIVE) {
+                return entry.publicKey();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns all keys authorized for signature verification.
+     *
+     * <p>This is an alias for {@link #trustedKeys()} provided for
+     * compatibility with {@link Ed25519SignatureService} contract.</p>
+     *
+     * @return immutable list of verification-eligible public keys
+     */
+    public static List<PublicKey> verifiablePublicKeys() {
+        return TRUSTED_KEYS;
+    }
+
+    /**
      * Returns every pinned key entry, including revoked entries.
      *
      * <p>This method is intended for lifecycle inspection and
