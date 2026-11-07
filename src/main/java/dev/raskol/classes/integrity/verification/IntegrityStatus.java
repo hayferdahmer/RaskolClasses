@@ -1,6 +1,5 @@
-// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
-
 package dev.raskol.classes.integrity.verification;
 
 /**
@@ -21,6 +20,8 @@ public enum IntegrityStatus {
 
     TRUSTED_KEY_UNAVAILABLE,
 
+    ARTIFACT_UNAVAILABLE,
+
     MANIFEST_MISSING,
     MANIFEST_TOO_LARGE,
     SIGNATURE_MISSING,
@@ -34,6 +35,8 @@ public enum IntegrityStatus {
     PROTECTED_FILE_SIZE_MISMATCH,
     PROTECTED_FILE_HASH_MISMATCH,
     PROTECTED_FILE_READ_ERROR,
+
+    ARCHIVE_INTEGRITY_FAILURE,
 
     CRYPTOGRAPHIC_ERROR,
     RESOURCE_READ_ERROR
