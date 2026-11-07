@@ -1,3 +1,4 @@
+
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.crypto;
@@ -13,38 +14,44 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Registry of public keys trusted by RIPS.
+ * Реестр публичных ключей, которым доверяет RIPS.
  *
- * <p>Trusted keys are pinned directly in the plugin source code.
- * External resources must never be used as a trust anchor.</p>
+ * <p>Доверенные ключи закрепляются непосредственно в исходном коде плагина.
+ * Внешние ресурсы не должны использоваться в качестве корня доверия.</p>
  *
- * <p>Each pinned key has an explicit lifecycle status. Only ACTIVE
- * and VERIFY_ONLY keys are returned for signature verification.
- * REVOKED keys remain recorded for auditability but are never trusted.</p>
+ * <p>Каждый закреплённый ключ имеет явный статус жизненного цикла.
+ * Для проверки подписей используются ACTIVE и VERIFY_ONLY.
+ * REVOKED сохраняются для аудита, но больше не считаются доверенными.</p>
  *
- * <p>Only public keys may be stored here. Private keys must remain
- * outside the repository and be available only to the trusted
- * release-signing process.</p>
+ * <p>В реестре разрешено хранить только публичные ключи.
+ * Приватные ключи должны находиться вне репозитория и быть доступны
+ * исключительно доверенному процессу подписания релизов.</p>
  */
 public final class TrustedPublicKeyRegistry {
 
     /*
-     * Key rotation policy:
+     * Политика ротации ключей:
      *
-     * 1. Add the new public key with status ACTIVE.
-     * 2. Change the previous ACTIVE key to VERIFY_ONLY.
-     * 3. Sign new releases with the new private key in the external
-     *    trusted release pipeline.
-     * 4. Keep VERIFY_ONLY keys while old releases must remain valid.
-     * 5. Change a compromised key to REVOKED immediately.
+     * 1. Добавить новый публичный ключ со статусом VERIFY_ONLY.
+     * 2. Выпустить переходную версию плагина.
+     * 3. Перевести старый ACTIVE-ключ в VERIFY_ONLY,
+     *    а новый ключ — в ACTIVE.
+     * 4. Переключить CI на новый приватный ключ.
+     * 5. Сохранять VERIFY_ONLY-ключи, пока необходима проверка
+     *    подписей ранее выпущенных версий.
+     * 6. Скомпрометированный ключ немедленно переводить в REVOKED.
      *
-     * Never add private keys to this registry.
+     * Никогда не добавлять приватные ключи в этот реестр.
      */
     private static final List<PinnedKeyConfiguration> PINNED_KEYS =
             List.of(
                     new PinnedKeyConfiguration(
-                            "MCowBQYDK2VwAyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q=",
+                            "MCowBQYDK2V2AyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q=",
                             TrustedKeyStatus.ACTIVE
+                    ),
+                    new PinnedKeyConfiguration(
+                            "MCowBQYDK2VwAyEAhUN83jyPkPFpZw6deKdnAAVOm94H6TRHg6ASZwv8GD4=",
+                            TrustedKeyStatus.VERIFY_ONLY
                     )
             );
 
@@ -52,7 +59,7 @@ public final class TrustedPublicKeyRegistry {
             loadPinnedEntries();
 
     /**
-     * Contains only keys authorized for signature verification.
+     * Содержит только ключи, разрешённые для проверки подписей.
      */
     private static final List<PublicKey> TRUSTED_KEYS =
             verificationKeys(ALL_ENTRIES);
@@ -64,26 +71,24 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Returns an immutable list of keys authorized for verification.
+     * Возвращает неизменяемый список ключей, разрешённых для проверки подписей.
      *
-     * <p>ACTIVE and VERIFY_ONLY keys are included.
-     * REVOKED keys are excluded.</p>
+     * <p>В список входят ACTIVE и VERIFY_ONLY.
+     * REVOKED исключаются.</p>
      *
-     * @return immutable list of trusted public keys
+     * @return неизменяемый список доверенных публичных ключей
      */
     public static List<PublicKey> trustedKeys() {
         return TRUSTED_KEYS;
     }
 
     /**
-     * Returns the single ACTIVE public key (the only key authorized
-     * for signing new releases).
+     * Возвращает единственный ACTIVE-публичный ключ.
      *
-     * <p>Returns null if no ACTIVE key is configured (should never
-     * happen in production — the registry must always have exactly
-     * one ACTIVE key).</p>
+     * <p>Только этот ключ разрешён политикой для подписания новых релизов.
+     * Возвращает null, если ACTIVE-ключ не настроен.</p>
      *
-     * @return ACTIVE public key, or null if none configured
+     * @return ACTIVE-публичный ключ или null
      */
     public static PublicKey activePublicKey() {
         for (TrustedPublicKeyEntry entry : ALL_ENTRIES) {
@@ -95,38 +100,34 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Returns all keys authorized for signature verification.
+     * Возвращает все ключи, разрешённые для проверки подписей.
      *
-     * <p>This is an alias for {@link #trustedKeys()} provided for
-     * compatibility with {@link Ed25519SignatureService} contract.</p>
+     * <p>Метод является псевдонимом trustedKeys() для совместимости
+     * с контрактом Ed25519SignatureService.</p>
      *
-     * @return immutable list of verification-eligible public keys
+     * @return неизменяемый список публичных ключей
      */
     public static List<PublicKey> verifiablePublicKeys() {
         return TRUSTED_KEYS;
     }
 
     /**
-     * Returns every pinned key entry, including revoked entries.
+     * Возвращает все записи закреплённых ключей, включая отозванные.
      *
-     * <p>This method is intended for lifecycle inspection and
-     * security diagnostics. Verification code must use trustedKeys().</p>
+     * <p>Предназначен для анализа жизненного цикла и диагностики безопасности.
+     * Код проверки подписей должен использовать trustedKeys().</p>
      *
-     * @return immutable list of all configured key entries
+     * @return неизменяемый список всех записей
      */
     public static List<TrustedPublicKeyEntry> allEntries() {
         return ALL_ENTRIES;
     }
 
     /**
-     * Extracts keys authorized for signature verification from
-     * lifecycle entries.
+     * Извлекает ключи, разрешённые для проверки подписей.
      *
-     * <p>ACTIVE and VERIFY_ONLY entries are included.
-     * REVOKED entries are excluded.</p>
-     *
-     * @param entries configured trusted key entries
-     * @return immutable list of verification-eligible public keys
+     * @param entries записи доверенных ключей
+     * @return неизменяемый список ключей для проверки
      */
     public static List<PublicKey> verificationKeys(
             List<TrustedPublicKeyEntry> entries
@@ -147,11 +148,10 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Checks whether the supplied public key is currently trusted
-     * for signature verification.
+     * Проверяет, является ли переданный публичный ключ доверенным.
      *
-     * @param candidate public key to check
-     * @return true if the key is ACTIVE or VERIFY_ONLY
+     * @param candidate проверяемый публичный ключ
+     * @return true, если ключ имеет статус ACTIVE или VERIFY_ONLY
      */
     public static boolean isTrusted(PublicKey candidate) {
         if (candidate == null || candidate.getEncoded() == null) {
@@ -172,10 +172,9 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Returns SHA-256 fingerprints of keys currently trusted
-     * for signature verification.
+     * Возвращает SHA-256-отпечатки ключей, разрешённых для проверки подписей.
      *
-     * @return immutable list of lowercase hexadecimal fingerprints
+     * @return неизменяемый список отпечатков в нижнем регистре
      */
     public static List<String> fingerprints() {
         List<String> fingerprints =
@@ -189,11 +188,10 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Calculates the SHA-256 fingerprint of an X.509 encoded
-     * public key.
+     * Вычисляет SHA-256-отпечаток публичного ключа в формате X.509.
      *
-     * @param publicKey public key
-     * @return lowercase hexadecimal SHA-256 fingerprint
+     * @param publicKey публичный ключ
+     * @return SHA-256-отпечаток в виде строки из 64 hex-символов
      */
     public static String fingerprint(PublicKey publicKey) {
         Objects.requireNonNull(publicKey, "publicKey");
@@ -217,14 +215,11 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Decodes and validates a list of pinned Ed25519 public keys.
+     * Декодирует и проверяет список закреплённых Ed25519-ключей.
      *
-     * <p>This method is retained for compatibility with existing tests
-     * and integrations.</p>
-     *
-     * @param encodedKeys Base64-encoded X.509 public keys
-     * @return immutable list of decoded public keys
-     * @throws GeneralSecurityException if the list or any key is invalid
+     * @param encodedKeys публичные ключи в Base64
+     * @return неизменяемый список декодированных ключей
+     * @throws GeneralSecurityException если список или ключ некорректен
      */
     static List<PublicKey> decodePinnedKeys(
             List<String> encodedKeys
@@ -294,14 +289,11 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Decodes key configurations and attaches their lifecycle statuses.
+     * Декодирует конфигурации ключей и присваивает им статусы жизненного цикла.
      *
-     * <p>Package-private to allow isolated lifecycle tests without
-     * changing the production trust configuration.</p>
-     *
-     * @param configurations pinned key configurations
-     * @return immutable list of entries, including revoked entries
-     * @throws GeneralSecurityException if configuration is invalid
+     * @param configurations конфигурации закреплённых ключей
+     * @return неизменяемый список записей, включая REVOKED
+     * @throws GeneralSecurityException если конфигурация некорректна
      */
     static List<TrustedPublicKeyEntry> decodePinnedEntries(
             List<PinnedKeyConfiguration> configurations
@@ -370,9 +362,10 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Source-level configuration for one pinned public key.
+     * Конфигурация одного закреплённого публичного ключа.
      *
-     * <p>Package-private for isolated tests.</p>
+     * @param encodedPublicKey публичный ключ в Base64
+     * @param status статус жизненного цикла
      */
     record PinnedKeyConfiguration(
             String encodedPublicKey,
