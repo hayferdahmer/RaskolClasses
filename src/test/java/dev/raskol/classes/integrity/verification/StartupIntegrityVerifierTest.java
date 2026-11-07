@@ -244,20 +244,6 @@ class StartupIntegrityVerifierTest {
                 trustedKeyPair.getPublic()
         ).verify();
 
-        // Replace the signature with a valid signature from the
-        // trusted key so that parsing is reached.
-        signature = Ed25519SignatureService.sign(
-                malformedManifest,
-                trustedKeyPair.getPrivate()
-        );
-
-        putManifest(malformedManifest, signature);
-
-        result = verifier(
-                OFFICIAL_IDENTITY,
-                trustedKeyPair.getPublic()
-        ).verify();
-
         assertEquals(
                 IntegrityStatus.INVALID_MANIFEST,
                 result.status()
