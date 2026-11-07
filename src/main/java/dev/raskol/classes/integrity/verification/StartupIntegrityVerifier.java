@@ -1,10 +1,10 @@
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
-
 package dev.raskol.classes.integrity.verification;
 
 import dev.raskol.classes.integrity.build.BuildIdentity;
 import dev.raskol.classes.integrity.build.BuildIdentityLoader;
+import dev.raskol.classes.integrity.build.DevelopmentMode;
 import dev.raskol.classes.integrity.crypto.TrustedPublicKeyLoader;
 import dev.raskol.classes.integrity.manifest.IntegrityManifest;
 import dev.raskol.classes.integrity.manifest.IntegrityManifestParser;
@@ -27,6 +27,9 @@ import java.util.Objects;
  * <p>The verifier checks the detached Ed25519 signature before
  * parsing the manifest, compares build identity and verifies
  * every file declared in the signed manifest.</p>
+ *
+ * <p>Development builds require explicit authorization through
+ * the JVM development-mode property.</p>
  *
  * <p>This class does not start or stop the Minecraft server.
  * It only returns a verification result.</p>
@@ -140,9 +143,18 @@ public final class StartupIntegrityVerifier {
     public IntegrityVerificationResult verify() {
 
         if (expectedIdentity.isDevelopment()) {
+            if (!DevelopmentMode.isEnabled()) {
+                return result(
+                        IntegrityStatus.DEVELOPMENT_MODE_REQUIRED,
+                        "Development build rejected. "
+                                + "Explicit JVM development mode is required.",
+                        0
+                );
+            }
+
             return result(
                     IntegrityStatus.DEVELOPMENT_BUILD,
-                    "Development build does not require official signature verification.",
+                    "Development build explicitly authorized by the server operator.",
                     0
             );
         }
