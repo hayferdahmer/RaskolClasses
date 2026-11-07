@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 import zipfile
 
 from pathlib import Path
@@ -51,6 +52,44 @@ def validate_text(value: str, label: str) -> str:
     if not value or value.strip() != value or any(c in value for c in "\r\n\t"):
         raise ValueError(f"Invalid {label}")
     return value
+
+
+def validate_archive_entry(name: str, is_directory: bool) -> str:
+    """Mirror ArchiveEntryPathValidator so signing never blesses an archive RIPS rejects."""
+    def utf16_length(value: str) -> int:
+        return len(value.encode("utf-16-le")) // 2
+
+    if not name or utf16_length(name) > 4096:
+        raise ValueError("Archive entry path has an invalid length")
+    if unicodedata.normalize("NFC", name) != name:
+        raise ValueError(f"Archive entry path is not Unicode NFC-normalized: {name!r}")
+    if name.startswith(("/", "\\\\")) or "\\\\" in name or "\\0" in name:
+        raise ValueError(f"Archive entry path is absolute or contains forbidden separators: {name!r}")
+
+    path = name
+    if is_directory:
+        if not path.endswith("/") or path.endswith("//"):
+            raise ValueError(f"Directory entry must have exactly one trailing slash: {name!r}")
+        path = path[:-1]
+    elif path.endswith("/"):
+        raise ValueError(f"File entry must not end with a slash: {name!r}")
+
+    if not path or utf16_length(path) > 4096 or re.match(r"^[A-Za-z]:", path):
+        raise ValueError(f"Archive entry path is empty, too long, or drive-qualified: {name!r}")
+
+    for segment in path.split("/"):
+        if not segment or segment in (".", "..") or utf16_length(segment) > 255:
+            raise ValueError(f"Archive entry contains an invalid path segment: {name!r}")
+        if segment.endswith((".", " ")):
+            raise ValueError(f"Archive path segment has a non-portable suffix: {name!r}")
+        for character in segment:
+            category = __import__("unicodedata").category(character)
+            if category in ("Cc", "Cf", "Cs") or character in '<>:"|?*':
+                raise ValueError(f"Archive path contains a non-portable character: {name!r}")
+        device = segment.split(".", 1)[0].upper()
+        if device in {"CON", "PRN", "AUX", "NUL"} or re.fullmatch(r"(?:COM|LPT)[1-9]", device):
+            raise ValueError(f"Archive path contains a reserved device name: {name!r}")
+    return path
 
 
 def canonical_manifest(version: str, build_id: str, commit: str, timestamp: str,
