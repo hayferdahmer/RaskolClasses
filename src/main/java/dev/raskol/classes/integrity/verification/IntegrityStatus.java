@@ -13,10 +13,16 @@ public enum IntegrityStatus {
     VERIFIED,
 
     /**
-     * Local development build.
-     * This status does not establish official authenticity.
+     * Local development build explicitly authorized
+     * by the server operator.
      */
     DEVELOPMENT_BUILD,
+
+    /**
+     * Development build detected, but explicit JVM authorization
+     * was not provided.
+     */
+    DEVELOPMENT_MODE_REQUIRED,
 
     TRUSTED_KEY_UNAVAILABLE,
 
