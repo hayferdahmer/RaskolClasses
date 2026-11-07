@@ -18,17 +18,32 @@ import java.util.Objects;
  * <p>Trusted keys are pinned directly in the plugin source code.
  * External resources must never be used as a trust anchor.</p>
  *
+ * <p>Multiple keys are supported to allow safe key rotation.
+ * Old and new keys may coexist during a migration period.</p>
+ *
  * <p>Only public keys may be stored here. Private keys must remain
  * outside the repository and be available only to the trusted
  * release-signing process.</p>
  */
 public final class TrustedPublicKeyRegistry {
 
+    /*
+     * Key rotation:
+     *
+     * 1. Add the new public key to this list.
+     * 2. Keep the old public key during the migration period.
+     * 3. Sign new releases with the new private key.
+     * 4. Remove the old public key only after old releases
+     *    are no longer required to be supported.
+     *
+     * Never add private keys to this list.
+     */
     private static final List<String> PINNED_PUBLIC_KEYS = List.of(
             "MCowBQYDK2VwAyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q="
     );
 
-    private static final List<PublicKey> TRUSTED_KEYS = loadPinnedKeys();
+    private static final List<PublicKey> TRUSTED_KEYS =
+            loadPinnedKeys();
 
     private TrustedPublicKeyRegistry() {
         throw new UnsupportedOperationException(
@@ -76,7 +91,8 @@ public final class TrustedPublicKeyRegistry {
      * @return immutable list of lowercase hexadecimal fingerprints
      */
     public static List<String> fingerprints() {
-        List<String> fingerprints = new ArrayList<>(TRUSTED_KEYS.size());
+        List<String> fingerprints =
+                new ArrayList<>(TRUSTED_KEYS.size());
 
         for (PublicKey key : TRUSTED_KEYS) {
             fingerprints.add(fingerprint(key));
@@ -113,52 +129,88 @@ public final class TrustedPublicKeyRegistry {
         }
     }
 
-    private static List<PublicKey> loadPinnedKeys() {
-        if (PINNED_PUBLIC_KEYS.isEmpty()) {
-            throw new ExceptionInInitializerError(
+    /**
+     * Decodes and validates a list of pinned Ed25519 public keys.
+     *
+     * <p>This method is package-private to allow isolated registry
+     * tests without changing the production trust configuration.</p>
+     *
+     * @param encodedKeys Base64-encoded X.509 public keys
+     * @return immutable list of decoded public keys
+     * @throws GeneralSecurityException if the list or any key is invalid
+     */
+    static List<PublicKey> decodePinnedKeys(
+            List<String> encodedKeys
+    ) throws GeneralSecurityException {
+
+        Objects.requireNonNull(encodedKeys, "encodedKeys");
+
+        if (encodedKeys.isEmpty()) {
+            throw new GeneralSecurityException(
                     "RIPS trusted public key registry is empty"
             );
         }
 
-        List<PublicKey> keys = new ArrayList<>(PINNED_PUBLIC_KEYS.size());
+        List<PublicKey> keys =
+                new ArrayList<>(encodedKeys.size());
 
-        for (String encodedKey : PINNED_PUBLIC_KEYS) {
-            try {
-                byte[] decoded = Base64.getDecoder().decode(encodedKey);
-
-                if (!Base64.getEncoder().encodeToString(decoded)
-                        .equals(encodedKey)) {
-                    throw new GeneralSecurityException(
-                            "Non-canonical Base64 public key"
-                    );
-                }
-
-                PublicKey publicKey =
-                        Ed25519SignatureService.decodePublicKey(encodedKey);
-
-                if (publicKey == null || publicKey.getEncoded() == null) {
-                    throw new GeneralSecurityException(
-                            "Decoded public key is invalid"
-                    );
-                }
-
-                for (PublicKey existing : keys) {
-                    if (MessageDigest.isEqual(
-                            existing.getEncoded(),
-                            publicKey.getEncoded()
-                    )) {
-                        throw new GeneralSecurityException(
-                                "Duplicate trusted public key"
-                        );
-                    }
-                }
-
-                keys.add(publicKey);
-            } catch (IllegalArgumentException | GeneralSecurityException exception) {
-                throw new ExceptionInInitializerError(exception);
+        for (String encodedKey : encodedKeys) {
+            if (encodedKey == null || encodedKey.isBlank()) {
+                throw new GeneralSecurityException(
+                        "Trusted public key cannot be null or blank"
+                );
             }
+
+            final byte[] decoded;
+
+            try {
+                decoded = Base64.getDecoder().decode(encodedKey);
+            } catch (IllegalArgumentException exception) {
+                throw new GeneralSecurityException(
+                        "Invalid Base64 trusted public key",
+                        exception
+                );
+            }
+
+            if (!Base64.getEncoder()
+                    .encodeToString(decoded)
+                    .equals(encodedKey)) {
+                throw new GeneralSecurityException(
+                        "Non-canonical Base64 public key"
+                );
+            }
+
+            PublicKey publicKey =
+                    Ed25519SignatureService.decodePublicKey(encodedKey);
+
+            if (publicKey.getEncoded() == null) {
+                throw new GeneralSecurityException(
+                        "Decoded public key has no encoded representation"
+                );
+            }
+
+            for (PublicKey existing : keys) {
+                if (MessageDigest.isEqual(
+                        existing.getEncoded(),
+                        publicKey.getEncoded()
+                )) {
+                    throw new GeneralSecurityException(
+                            "Duplicate trusted public key"
+                    );
+                }
+            }
+
+            keys.add(publicKey);
         }
 
         return List.copyOf(keys);
+    }
+
+    private static List<PublicKey> loadPinnedKeys() {
+        try {
+            return decodePinnedKeys(PINNED_PUBLIC_KEYS);
+        } catch (GeneralSecurityException exception) {
+            throw new ExceptionInInitializerError(exception);
+        }
     }
 }
