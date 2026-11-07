@@ -40,6 +40,9 @@ import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.item.service.ItemSystem;
 import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
 import dev.raskol.classes.integrity.reporting.SecurityReporter;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegrityMonitor;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegrityStateManager;
+import dev.raskol.classes.integrity.runtime.RuntimeSecurityReporter;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 import dev.raskol.classes.integrity.verification.StartupIntegrityVerifier;
 import dev.raskol.classes.api.items.ItemsApi;
@@ -77,11 +80,13 @@ import org.bukkit.scheduler.BukkitTask;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Duration;
+import java.util.concurrent.Executors;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ». Точка сборки сервиса: конструирование
  * слоёв, регистрация слушателей, владение периодическими задачами и геттеры-локаторы.
- * 
+ *
  * 1.15.7 (Волна 7d): PetService.despawnAll() вызывается в onDisable до отмены задач —
  * петы дезспавнятся при выгрузке плагина, а не остаются в мире.
  * 1.15.7 (Волна 7c): регистрация HunterAbilities.FanArrowHit — стрелы веера наносят
@@ -174,6 +179,9 @@ public final class RaskolClasses extends JavaPlugin {
 
     /** Result of the RIPS startup integrity verification. */
     private IntegrityVerificationResult integrityVerificationResult;
+
+    /** RIPS runtime integrity monitor; started only after successful plugin initialization. */
+    private RuntimeIntegrityMonitor runtimeIntegrityMonitor;
 
     /**
      * Runs RIPS integrity verification before gameplay initialization.
@@ -386,7 +394,38 @@ public final class RaskolClasses extends JavaPlugin {
         StartupChecks.printBanner(this);
         StartupChecks.warnLowCapacityTrees(this);
 
+        startRuntimeIntegrityMonitoring();
+
         getLogger().info(() -> "RaskolClasses v" + getPluginMeta().getVersion() + " запущен");
+    }
+
+    /**
+     * Starts periodic RIPS verification after the plugin has completed startup.
+     * Runtime checks run on a dedicated daemon thread, never on the Paper main thread.
+     */
+    private void startRuntimeIntegrityMonitoring() {
+        RuntimeSecurityReporter runtimeReporter = new RuntimeSecurityReporter(
+                new SecurityReporter(getLogger()),
+                getLogger()
+        );
+
+        this.runtimeIntegrityMonitor = new RuntimeIntegrityMonitor(
+                () -> new StartupIntegrityVerifier(RaskolClasses.class).verify(),
+                Duration.ofMinutes(30),
+                Executors.newSingleThreadScheduledExecutor(runnable -> {
+                    Thread thread = new Thread(
+                            runnable,
+                            "RaskolClasses-RIPS-Monitor"
+                    );
+                    thread.setDaemon(true);
+                    return thread;
+                }),
+                new RuntimeIntegrityStateManager(),
+                runtimeReporter
+        );
+
+        runtimeIntegrityMonitor.start();
+        getLogger().info("[RIPS] Runtime integrity monitoring started (interval: 30 minutes)");
     }
 
     public void markPurgeNow() {
@@ -395,6 +434,11 @@ public final class RaskolClasses extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (runtimeIntegrityMonitor != null) {
+            runtimeIntegrityMonitor.close();
+            runtimeIntegrityMonitor = null;
+        }
+
         if (hpSync != null) {
             hpSync.stopSweep();
         }
