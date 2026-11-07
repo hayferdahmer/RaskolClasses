@@ -5,9 +5,8 @@ package dev.raskol.classes.config;
 import dev.raskol.classes.classsystem.PlayerClass;
 import org.bukkit.configuration.ConfigurationSection;
 
-import java.util.EnumMap;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.11.4 (P5): кэш значений, прочитанных через KitConfigLoader.
@@ -18,14 +17,20 @@ import java.util.function.Function;
  *   cache.getI(PlayerClass.WARRIOR, "passives.execute_passive.cooldown-seconds", 6);
  *
  * Поддерживает dotted-пути через ConfigurationSection.get.
+ *
+ * 1.15.8 (Волна 8, аудит 2.8-16): дефолт ВХОДИТ в ключ кэша. Раньше ключ был
+ *   pc::path, и первый вызов с дефолтом X «замораживал» X для всех последующих
+ *   вызовов того же пути с другим дефолтом Y (возвращалось X). Теперь ключ
+ *   pc::path::def — разные дефолты не пересекаются. Размер кэша растёт только
+ *   на число различных дефолтов по пути (в практике — 1).
  */
 public final class KitConfigCache {
 
     private final KitConfigLoader loader;
-    private final Map<String, Double> doubles = new java.util.concurrent.ConcurrentHashMap<>();
-    private final Map<String, Integer> ints = new java.util.concurrent.ConcurrentHashMap<>();
-    private final Map<String, Boolean> bools = new java.util.concurrent.ConcurrentHashMap<>();
-    private final Map<String, String> strings = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, Double> doubles = new ConcurrentHashMap<>();
+    private final Map<String, Integer> ints = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> bools = new ConcurrentHashMap<>();
+    private final Map<String, String> strings = new ConcurrentHashMap<>();
 
     public KitConfigCache(KitConfigLoader loader) {
         this.loader = loader;
@@ -39,47 +44,52 @@ public final class KitConfigCache {
         strings.clear();
     }
 
+    /** 1.15.8 (2.8-16): ключ включает дефолт — разные дефолты не пересекаются. */
+    private static String key(PlayerClass pc, String path, Object def) {
+        return pc.name() + "::" + path + "::" + def;
+    }
+
     public double getD(PlayerClass pc, String path, double def) {
-        String key = pc.name() + "::" + path;
-        Double cached = doubles.get(key);
+        String k = key(pc, path, def);
+        Double cached = doubles.get(k);
         if (cached != null) {
             return cached;
         }
         double v = readD(pc, path, def);
-        doubles.put(key, v);
+        doubles.put(k, v);
         return v;
     }
 
     public int getI(PlayerClass pc, String path, int def) {
-        String key = pc.name() + "::" + path;
-        Integer cached = ints.get(key);
+        String k = key(pc, path, def);
+        Integer cached = ints.get(k);
         if (cached != null) {
             return cached;
         }
         int v = readI(pc, path, def);
-        ints.put(key, v);
+        ints.put(k, v);
         return v;
     }
 
     public boolean getB(PlayerClass pc, String path, boolean def) {
-        String key = pc.name() + "::" + path;
-        Boolean cached = bools.get(key);
+        String k = key(pc, path, def);
+        Boolean cached = bools.get(k);
         if (cached != null) {
             return cached;
         }
         boolean v = readB(pc, path, def);
-        bools.put(key, v);
+        bools.put(k, v);
         return v;
     }
 
     public String getS(PlayerClass pc, String path, String def) {
-        String key = pc.name() + "::" + path;
-        String cached = strings.get(key);
+        String k = key(pc, path, def);
+        String cached = strings.get(k);
         if (cached != null) {
             return cached;
         }
         String v = readS(pc, path, def);
-        strings.put(key, v != null ? v : "");
+        strings.put(k, v != null ? v : "");
         return v;
     }
 
