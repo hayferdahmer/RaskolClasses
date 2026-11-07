@@ -10,6 +10,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
@@ -17,6 +18,16 @@ import java.util.Set;
  * 1.9.1: харденинг конфига (расширение с 1.6.7).
  * 1.10.1: logSummary печатает ТОЛЬКО пять основных классов —
  *         Чернокнижник скрыт из стартовых логов.
+ *
+ * 1.15.8 (Волна 8, аудит 2.3-1): проверки legacy-ключей talents.* УДАЛЕНЫ вместе
+ *         с самими ключами из config.yml (legacy-слой talent/spec мёртв с 1.14.0).
+ * 1.15.8 (Волна 8, аудит 2.8-13): сообщение warning больше не обещает «применено
+ *         значение по умолчанию» от валидатора — формулировка честная: значение
+ *         НЕВАЛИДНО, читатель (ConfigReads/геттеры с гардами) применит дефолт/зажим.
+ *         Покрытие расширено: spec2 (start-level/max-points/row-gates/respec),
+ *         avoidance (k-коэффициенты/капы), cc (окно/капы/порог), combat (burst/капы),
+ *         item (daily-limit ≥ 1), plus (цена/периоды) — секции, которые валидатор
+ *         раньше не смотрел вовсе.
  */
 public final class ConfigValidator {
 
@@ -95,17 +106,54 @@ public final class ConfigValidator {
             }
         }
 
-        checkNonNegative(cfg, "talents.start-level");
-        checkPositive(cfg, "talents.points-per-level", 1);
-        checkNonNegative(cfg, "talents.max-points");
-        checkNonNegative(cfg, "talents.reset-base");
-        checkNonNegative(cfg, "talents.reset-per-point");
+        // 1.15.8 (2.3-1): legacy-проверки talents.* удалены вместе с ключами.
 
         checkPositive(cfg, "character-level.top-n", 1);
         checkNonNegative(cfg, "character-level.fallback");
 
-        checkNonNegative(cfg, "combat.burst-window-seconds");
+        // 1.15.8 (2.8-13): combat — burst-окно и капы
+        checkPositive(cfg, "combat.burst-window-seconds", 1);
         checkRange(cfg, "combat.burst-window-pct", 0.0, 100.0);
+        checkRange(cfg, "combat.max-single-hit-pct", 0.0, 100.0);
+        checkNonNegative(cfg, "combat.dot-dps-cap-pct");
+        checkNonNegative(cfg, "combat.true-damage-cap-per-hit");
+
+        // 1.15.8 (2.8-13): spec2 — очки, гейты рядов, респец
+        checkPositive(cfg, "spec2.start-level", 1);
+        checkPositive(cfg, "spec2.max-points", 1);
+        checkPositive(cfg, "spec2.tree-capacity-min", 1);
+        checkNonNegative(cfg, "spec2.respec-base-cost");
+        checkNonNegative(cfg, "spec2.respec-per-level");
+        checkNonNegative(cfg, "spec2.node-respec-base");
+        checkNonNegative(cfg, "spec2.node-respec-per-rank");
+        checkRowGates(cfg);
+
+        // 1.15.8 (2.8-13): avoidance — коэффициенты и капы уклонения/парирования
+        checkPositive(cfg, "avoidance.dodge-k", 1);
+        checkPositive(cfg, "avoidance.parry-k", 1);
+        checkRange(cfg, "avoidance.soft-cap", 0.0, 100.0);
+        checkRange(cfg, "avoidance.hard-cap", 0.0, 100.0);
+        checkRange(cfg, "avoidance.dr-factor", 0.0, 1.0);
+        checkRange(cfg, "avoidance.dodge-mult", 0.0, 1.0);
+        checkRange(cfg, "avoidance.front-angle", 0.0, 360.0);
+        checkRange(cfg, "avoidance.back-angle", 0.0, 360.0);
+
+        // 1.15.8 (2.8-13): cc — окно DR и капы сопротивлений
+        checkPositive(cfg, "cc.window-seconds", 1);
+        checkRange(cfg, "cc.resist-cap", 0.0, 1.0);
+        checkRange(cfg, "cc.power-cap", 0.0, 1.0);
+        checkRange(cfg, "cc.duration-reduction-cap", 0.0, 1.0);
+        checkRange(cfg, "cc.breaks-on-damage-threshold-pct", 0.0, 1.0);
+        checkDrMultipliers(cfg);
+
+        // 1.15.8 (2.8-13): item — дневной лимит разбора ≥ 1 (гард в SalvageService)
+        checkPositive(cfg, "item.salvage.daily-limit", 1);
+
+        // 1.15.8 (2.8-13): plus — экономика подписки
+        checkPositive(cfg, "plus.price-per-period", 1);
+        checkPositive(cfg, "plus.period-days", 1);
+        checkPositive(cfg, "plus.max-gift-periods", 1);
+        checkNonNegative(cfg, "plus.cooldown-gift-ms");
 
         checkNonNegative(cfg, "installations.frost_rune.radius");
         checkNonNegative(cfg, "installations.frost_rune.duration");
@@ -130,12 +178,63 @@ public final class ConfigValidator {
         checkRange(cfg, "foliant.drop-chance-percent", 0.0, 100.0);
 
         if (problems == 0) {
-            plugin.getLogger().info("ConfigValidator: конфиг валиден (resist/damage/talents/character-level/burst/frost_rune/hp).");
+            plugin.getLogger().info("ConfigValidator: конфиг валиден "
+                    + "(resist/damage/classes/installations/character-level/combat/spec2/"
+                    + "avoidance/cc/item/plus/attributes/foliant).");
         } else {
-            plugin.getLogger().warning("ConfigValidator: проблем в конфиге: "
-                    + problems + " (см. WARNING выше; значения подменены дефолтом/зажимом).");
+            plugin.getLogger().warning("ConfigValidator: невалидных ключей: "
+                    + problems + " (см. WARNING выше; читатели применят дефолт/зажим).");
         }
         return problems;
+    }
+
+    /**
+     * 1.15.8 (2.8-13): row-gates — список целых ≥ 0, неубывающий, длина ≥ 2.
+     * Нарушение = warning: Spec2Points.snapshot() использует глобальные гейты,
+     * пер-tree override'ы проверяются отдельно в selftest-чеке 153.
+     */
+    private void checkRowGates(FileConfiguration cfg) {
+        List<?> gates = cfg.getList("spec2.row-gates", null);
+        if (gates == null) {
+            return;
+        }
+        if (gates.size() < 2) {
+            warn("spec2.row-gates", "size=" + gates.size(), "≥ 2 значений");
+            return;
+        }
+        int prev = -1;
+        for (int i = 0; i < gates.size(); i++) {
+            Object v = gates.get(i);
+            if (!(v instanceof Number n) || n.intValue() < 0) {
+                warn("spec2.row-gates[" + i + "]", String.valueOf(v), "целое ≥ 0");
+                return;
+            }
+            int cur = n.intValue();
+            if (cur < prev) {
+                warn("spec2.row-gates[" + i + "]", String.valueOf(cur),
+                        "не убывание (предыдущее " + prev + ")");
+                return;
+            }
+            prev = cur;
+        }
+    }
+
+    /**
+     * 1.15.8 (2.8-13): cc.dr-multipliers — непустой список дробей [0..1],
+     * последний элемент = 0.0 (иммунитет после исчерпания стеков).
+     */
+    private void checkDrMultipliers(FileConfiguration cfg) {
+        List<?> mults = cfg.getDoubleList("cc.dr-multipliers");
+        if (mults == null || mults.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < mults.size(); i++) {
+            Object v = mults.get(i);
+            if (!(v instanceof Number n) || !Double.isFinite(n.doubleValue())
+                    || n.doubleValue() < 0.0 || n.doubleValue() > 1.0) {
+                warn("cc.dr-multipliers[" + i + "]", String.valueOf(v), "дробь [0..1]");
+            }
+        }
     }
 
     /** 1.10.1: сводка только по пяти основным классам (Чернокнижник скрыт). */
@@ -193,9 +292,15 @@ public final class ConfigValidator {
         }
     }
 
+    /**
+     * 1.15.8 (2.8-13): честная формулировка — валидатор НЕ подменяет значение,
+     * он только сигнализирует; дефолт/зажим применяет читатель (ConfigReads
+     * или геттер с гардом). Прежний текст вводил в заблуждение.
+     */
     private void warn(String path, String value, String expected) {
         problems++;
         plugin.getLogger().warning("RaskolClasses конфиг: некорректно " + path + " = " + value
-                + " (ожидание: " + expected + ") — применено значение по умолчанию/зажим.");
+                + " (ожидание: " + expected + ") — читатель применит дефолт/зажим, "
+                + "значение в конфиге игнорируется.");
     }
 }
