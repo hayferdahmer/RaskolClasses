@@ -29,16 +29,13 @@ public final class TrustedPublicKeyLoader {
      * @return primary trusted public key
      * @throws GeneralSecurityException if the registry cannot be initialized
      */
-    public static PublicKey load(Class<?> anchor)
-            throws GeneralSecurityException {
+    public static PublicKey load(Class<?> anchor) throws GeneralSecurityException {
         Objects.requireNonNull(anchor, "anchor cannot be null");
 
         List<PublicKey> keys = loadAll();
 
         if (keys.isEmpty()) {
-            throw new GeneralSecurityException(
-                    "RIPS trusted public key registry is empty"
-            );
+            throw new GeneralSecurityException("RIPS trusted public key registry is empty");
         }
 
         return keys.get(0);
@@ -50,23 +47,17 @@ public final class TrustedPublicKeyLoader {
      * @return immutable list of trusted public keys
      * @throws GeneralSecurityException if the registry cannot be initialized
      */
-    public static List<PublicKey> loadAll()
-            throws GeneralSecurityException {
+    public static List<PublicKey> loadAll() throws GeneralSecurityException {
         try {
             List<PublicKey> keys = TrustedPublicKeyRegistry.trustedKeys();
 
             if (keys.isEmpty()) {
-                throw new GeneralSecurityException(
-                        "RIPS trusted public key registry is empty"
-                );
+                throw new GeneralSecurityException("RIPS trusted public key registry is empty");
             }
 
             return keys;
         } catch (ExceptionInInitializerError error) {
-            throw new GeneralSecurityException(
-                    "RIPS trusted public key registry is invalid",
-                    error
-            );
+            throw new GeneralSecurityException("RIPS trusted public key registry is invalid", error);
         }
     }
 
@@ -80,25 +71,17 @@ public final class TrustedPublicKeyLoader {
      * @return decoded public key
      * @throws GeneralSecurityException if the key is invalid
      */
-    public static PublicKey decode(String encodedKey)
-            throws GeneralSecurityException {
-        Objects.requireNonNull(
-                encodedKey,
-                "encodedKey cannot be null"
-        );
+    public static PublicKey decode(String encodedKey) throws GeneralSecurityException {
+        Objects.requireNonNull(encodedKey, "encodedKey cannot be null");
 
         String normalized = encodedKey.strip();
 
         if (normalized.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "Public key cannot be blank"
-            );
+            throw new IllegalArgumentException("Public key cannot be blank");
         }
 
         if (normalized.chars().anyMatch(Character::isWhitespace)) {
-            throw new IllegalArgumentException(
-                    "Public key contains internal whitespace"
-            );
+            throw new IllegalArgumentException("Public key contains internal whitespace");
         }
 
         final byte[] decodedBytes;
@@ -106,27 +89,17 @@ public final class TrustedPublicKeyLoader {
         try {
             decodedBytes = Base64.getDecoder().decode(normalized);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(
-                    "Public key is not valid Base64",
-                    exception
-            );
+            throw new IllegalArgumentException("Public key is not valid Base64", exception);
         }
 
-        if (!Base64.getEncoder()
-                .encodeToString(decodedBytes)
-                .equals(normalized)) {
-            throw new IllegalArgumentException(
-                    "Public key Base64 is not canonical"
-            );
+        if (!Base64.getEncoder().encodeToString(decodedBytes).equals(normalized)) {
+            throw new IllegalArgumentException("Public key Base64 is not canonical");
         }
 
-        PublicKey publicKey =
-                Ed25519SignatureService.decodePublicKey(normalized);
+        PublicKey publicKey = Ed25519SignatureService.decodePublicKey(normalized);
 
         if (publicKey == null || publicKey.getEncoded() == null) {
-            throw new GeneralSecurityException(
-                    "Encoded data is not a valid Ed25519 public key"
-            );
+            throw new GeneralSecurityException("Encoded data is not a valid Ed25519 public key");
         }
 
         return publicKey;

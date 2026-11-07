@@ -18,8 +18,7 @@ import org.bukkit.entity.LivingEntity;
  */
 public final class Hp {
 
-    private Hp() {
-    }
+    private Hp() {}
 
     /** Максимум здоровья сущности в carrier-единицах (ванильные сердца). */
     public static double max(LivingEntity entity) {

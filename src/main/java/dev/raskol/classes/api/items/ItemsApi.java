@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.api.items;
 
+import java.util.Map;
+import java.util.Set;
+
+import org.bukkit.inventory.ItemStack;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
-import org.bukkit.inventory.ItemStack;
-
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Стабильный публичный API для RaskolMobs и других плагинов для создания
@@ -17,6 +18,7 @@ import java.util.Set;
 public final class ItemsApi {
     /** Ревизия контракта публичного API. */
     public static final int API_VERSION = 1;
+
     private final RaskolClasses plugin;
 
     /**
@@ -32,10 +34,12 @@ public final class ItemsApi {
      * В реестре items.yml есть только RARE/EPIC/LEGENDARY (COMMON/UNCOMMON/MYTHIC
      * не имеют шаблонов). Если RaskolMobs запросит MYTHIC, fallback на LEGENDARY.
      */
-    private static final Set<ItemRarity> VALID_RARITIES = Set.of(
-            ItemRarity.RARE, ItemRarity.EPIC, ItemRarity.LEGENDARY);
+    private static final Set<ItemRarity> VALID_RARITIES =
+            Set.of(ItemRarity.RARE, ItemRarity.EPIC, ItemRarity.LEGENDARY);
 
-    public ItemsApi(RaskolClasses plugin) { this.plugin = plugin; }
+    public ItemsApi(RaskolClasses plugin) {
+        this.plugin = plugin;
+    }
 
     public ItemStack create(String itemId, int itemLevel, long seed) {
         return plugin.getItems().create(itemId, itemLevel, seed);
@@ -50,7 +54,8 @@ public final class ItemsApi {
     public ItemStack createFromTemplate(String templateId, int level, ItemRarity rarity, long seed) {
         int validLevel = nearestLevel(level);
         ItemRarity validRarity = VALID_RARITIES.contains(rarity) ? rarity : ItemRarity.LEGENDARY;
-        String prefix = templateId.toLowerCase(java.util.Locale.ROOT) + "_" + validLevel + "_" + validRarity.name().toLowerCase(java.util.Locale.ROOT);
+        String prefix = templateId.toLowerCase(java.util.Locale.ROOT) + "_" + validLevel + "_"
+                + validRarity.name().toLowerCase(java.util.Locale.ROOT);
         ItemDefinition d = plugin.getItems().registry().get(prefix);
         if (d == null) {
             throw new IllegalArgumentException("Unknown item template/variant: " + prefix
@@ -81,7 +86,8 @@ public final class ItemsApi {
     public ItemRarity rollRarity(Map<ItemRarity, Double> weights, long seed) {
         double total = weights.values().stream()
                 .filter(v -> v != null && Double.isFinite(v) && v > 0)
-                .mapToDouble(Double::doubleValue).sum();
+                .mapToDouble(Double::doubleValue)
+                .sum();
         if (total <= 0) throw new IllegalArgumentException("At least one positive rarity weight is required");
         java.util.SplittableRandom random = new java.util.SplittableRandom(seed);
         double point = random.nextDouble(total);

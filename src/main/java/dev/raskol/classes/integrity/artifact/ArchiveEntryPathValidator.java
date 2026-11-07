@@ -92,9 +92,7 @@ public final class ArchiveEntryPathValidator {
     }
 
     private static void validateSegment(String segment) throws IOException {
-        if (segment.isEmpty()
-                || ".".equals(segment)
-                || "..".equals(segment)) {
+        if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) {
             throw new IOException("Archive entry contains an invalid path segment");
         }
 
@@ -106,15 +104,13 @@ public final class ArchiveEntryPathValidator {
             throw new IOException("Archive path segment has a non-portable suffix");
         }
 
-        for (int offset = 0; offset < segment.length();) {
+        for (int offset = 0; offset < segment.length(); ) {
             int codePoint = segment.codePointAt(offset);
             offset += Character.charCount(codePoint);
 
             int type = Character.getType(codePoint);
 
-            if (Character.isISOControl(codePoint)
-                    || type == Character.FORMAT
-                    || type == Character.SURROGATE) {
+            if (Character.isISOControl(codePoint) || type == Character.FORMAT || type == Character.SURROGATE) {
                 throw new IOException("Archive path contains control or formatting characters");
             }
 

@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.classsystem;
 
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.entity.Player;
+import org.bukkit.plugin.PluginManager;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.hook.RaskolCoreHook;
 import dev.raskol.classes.resource.ResourceService;
-import org.bukkit.entity.Player;
-import org.bukkit.plugin.PluginManager;
-
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 1.14.14 (фаза 2): удалён вызов backend.setConfig(config) — поле и сеттер удалены
@@ -22,8 +23,7 @@ public final class ClassProvider {
 
     private static final long CACHE_TTL_MILLIS = 5_000L;
 
-    private record CacheEntry(PlayerClass playerClass, long expiresAt) {
-    }
+    private record CacheEntry(PlayerClass playerClass, long expiresAt) {}
 
     private final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
     private final LuckPermsBackend backend;

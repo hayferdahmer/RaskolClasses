@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.runtime;
 
-import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
-
 import java.time.Instant;
+
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 
 /**
  * Immutable snapshot of runtime integrity monitoring.
@@ -24,8 +24,7 @@ public record RuntimeIntegritySnapshot(
         long totalChecks,
         long consecutiveFailures,
         long lastDurationMillis,
-        String lastError
-) {
+        String lastError) {
 
     public RuntimeIntegritySnapshot {
         if (state == null) {
@@ -33,27 +32,19 @@ public record RuntimeIntegritySnapshot(
         }
 
         if (totalChecks < 0) {
-            throw new IllegalArgumentException(
-                    "totalChecks must not be negative"
-            );
+            throw new IllegalArgumentException("totalChecks must not be negative");
         }
 
         if (consecutiveFailures < 0) {
-            throw new IllegalArgumentException(
-                    "consecutiveFailures must not be negative"
-            );
+            throw new IllegalArgumentException("consecutiveFailures must not be negative");
         }
 
         if (lastDurationMillis < 0) {
-            throw new IllegalArgumentException(
-                    "lastDurationMillis must not be negative"
-            );
+            throw new IllegalArgumentException("lastDurationMillis must not be negative");
         }
 
         if (consecutiveFailures > totalChecks) {
-            throw new IllegalArgumentException(
-                    "consecutiveFailures cannot exceed totalChecks"
-            );
+            throw new IllegalArgumentException("consecutiveFailures cannot exceed totalChecks");
         }
     }
 }

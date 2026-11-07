@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.item.model.WeaponType;
-
 import java.util.EnumMap;
 import java.util.Map;
+
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.item.model.WeaponType;
 
 /**
  * 1.15.2: матрица владения оружием (weapon mastery).
@@ -39,8 +39,7 @@ public final class WeaponMastery {
 
     private static final Map<PlayerClass, Map<WeaponType, Double>> MATRIX = buildMatrix();
 
-    private WeaponMastery() {
-    }
+    private WeaponMastery() {}
 
     /**
      * Возвращает множитель владения для пары (класс, тип оружия).

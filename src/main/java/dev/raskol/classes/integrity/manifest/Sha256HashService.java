@@ -45,12 +45,8 @@ public final class Sha256HashService {
      * @return lowercase hexadecimal digest
      * @throws IOException if reading the stream fails
      */
-    public static String hash(InputStream inputStream)
-            throws IOException {
-        Objects.requireNonNull(
-                inputStream,
-                "inputStream cannot be null"
-        );
+    public static String hash(InputStream inputStream) throws IOException {
+        Objects.requireNonNull(inputStream, "inputStream cannot be null");
 
         MessageDigest digest = newDigest();
         byte[] buffer = new byte[BUFFER_SIZE];
@@ -70,10 +66,7 @@ public final class Sha256HashService {
         try {
             return MessageDigest.getInstance(ALGORITHM);
         } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(
-                    "SHA-256 is not available in this Java runtime",
-                    exception
-            );
+            throw new IllegalStateException("SHA-256 is not available in this Java runtime", exception);
         }
     }
 

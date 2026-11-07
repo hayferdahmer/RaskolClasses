@@ -2,6 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.command.sub;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+
+import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
@@ -19,18 +30,9 @@ import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.WeaponType;
 import dev.raskol.classes.spec.Spec;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
-import org.bukkit.entity.LivingEntity;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
 
 /**
  * 1.11.4 (P4d): /rc debug [player] · simulate · matrix.
@@ -59,27 +61,50 @@ public final class DebugSub implements CommandSub {
 
     @Override
     public boolean execute(CommandSender sender, String[] args) {
-        if(args.length>=1&&"profile".equalsIgnoreCase(args[0])){
-            if(!(sender instanceof Player player)){sender.sendMessage(Component.text("Команда доступна игроку.",NamedTextColor.RED));return true;}
-            var trace=player.getWorld().rayTraceEntities(player.getEyeLocation(),player.getEyeLocation().getDirection(),32.0,0.25,
-                    entity->entity instanceof LivingEntity&&entity!=player);
-            if(trace==null||!(trace.getHitEntity() instanceof LivingEntity target)){
-                sender.sendMessage(Component.text("В прицеле нет живой сущности.",NamedTextColor.RED));return true;}
-            var profile=plugin.getCombatProfiles().profileOf(target.getUniqueId());
-            if(profile==null){sender.sendMessage(Component.text("У сущности нет CombatProfile.",NamedTextColor.YELLOW));return true;}
-            sender.sendMessage(Component.text("CombatProfile "+target.getType()+" · lvl "+profile.level()+" · атака "+profile.attackDamage(),NamedTextColor.GOLD));
-            sender.sendMessage(Component.text("Урон P/M/T: "+profile.damageWeights().physical()+"/"+profile.damageWeights().magic()+"/"+profile.damageWeights().trueDamage()
-                    +" · резисты физ/маг: "+profile.physResist()+"/"+profile.magicResist()+"% · CC "+profile.ccResist()+"% · reflect "+profile.reflect()+"%",NamedTextColor.GRAY));
+        if (args.length >= 1 && "profile".equalsIgnoreCase(args[0])) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage(Component.text("Команда доступна игроку.", NamedTextColor.RED));
+                return true;
+            }
+            var trace = player.getWorld()
+                    .rayTraceEntities(
+                            player.getEyeLocation(),
+                            player.getEyeLocation().getDirection(),
+                            32.0,
+                            0.25,
+                            entity -> entity instanceof LivingEntity && entity != player);
+            if (trace == null || !(trace.getHitEntity() instanceof LivingEntity target)) {
+                sender.sendMessage(Component.text("В прицеле нет живой сущности.", NamedTextColor.RED));
+                return true;
+            }
+            var profile = plugin.getCombatProfiles().profileOf(target.getUniqueId());
+            if (profile == null) {
+                sender.sendMessage(Component.text("У сущности нет CombatProfile.", NamedTextColor.YELLOW));
+                return true;
+            }
+            sender.sendMessage(Component.text(
+                    "CombatProfile " + target.getType() + " · lvl " + profile.level() + " · атака "
+                            + profile.attackDamage(),
+                    NamedTextColor.GOLD));
+            sender.sendMessage(Component.text(
+                    "Урон P/M/T: " + profile.damageWeights().physical() + "/"
+                            + profile.damageWeights().magic() + "/"
+                            + profile.damageWeights().trueDamage() + " · резисты физ/маг: " + profile.physResist() + "/"
+                            + profile.magicResist() + "% · CC " + profile.ccResist() + "% · reflect "
+                            + profile.reflect() + "%",
+                    NamedTextColor.GRAY));
             return true;
         }
         if (args.length >= 1 && "simulate".equalsIgnoreCase(args[0])) {
             if (args.length >= 2 && "matrix".equalsIgnoreCase(args[1])) {
                 int level = SubUtil.parseLevel(args, 2);
-                sender.sendMessage(Component.text("=== TTK-матрица (seed 42, уровень "
-                        + level + ") ===", NamedTextColor.GOLD));
-                sender.sendMessage(Component.text("Якорь balance.target-ttk-seconds = "
-                        + SubUtil.fmt1(plugin.getConfig().getDouble("balance.target-ttk-seconds", 20.0))
-                        + " с · «—» = не убивает за 60 с", NamedTextColor.GRAY));
+                sender.sendMessage(
+                        Component.text("=== TTK-матрица (seed 42, уровень " + level + ") ===", NamedTextColor.GOLD));
+                sender.sendMessage(Component.text(
+                        "Якорь balance.target-ttk-seconds = "
+                                + SubUtil.fmt1(plugin.getConfig().getDouble("balance.target-ttk-seconds", 20.0))
+                                + " с · «—» = не убивает за 60 с",
+                        NamedTextColor.GRAY));
                 printMatrix(sender, level);
                 return true;
             }
@@ -111,29 +136,34 @@ public final class DebugSub implements CommandSub {
                 b = a;
             }
             BalanceSimulator.DuelResult r = BalanceSimulator.duel(plugin, a, b, level, 42L);
-            sender.sendMessage(Component.text("=== Симуляция " + a.name() + " ↔ "
-                    + b.name() + " (уровень " + level + ", seed 42) ===", NamedTextColor.GOLD));
-            sender.sendMessage(Component.text(r.timeout()
-                    ? "Таймаут 60 с (лидер: " + (r.winner() == null ? "ничья" : r.winner().name()) + ")"
-                    : "TTK: " + SubUtil.fmt1(r.ttkSeconds()) + " с, победил " + r.winner().name(),
+            sender.sendMessage(Component.text(
+                    "=== Симуляция " + a.name() + " ↔ " + b.name() + " (уровень " + level + ", seed 42) ===",
+                    NamedTextColor.GOLD));
+            sender.sendMessage(Component.text(
+                    r.timeout()
+                            ? "Таймаут 60 с (лидер: "
+                                    + (r.winner() == null ? "ничья" : r.winner().name()) + ")"
+                            : "TTK: " + SubUtil.fmt1(r.ttkSeconds()) + " с, победил "
+                                    + r.winner().name(),
                     NamedTextColor.AQUA));
-            sender.sendMessage(Component.text("Касты: " + r.castsA() + " / " + r.castsB()
-                    + " · Уклонения: " + r.dodgesA() + " / " + r.dodgesB(),
+            sender.sendMessage(Component.text(
+                    "Касты: " + r.castsA() + " / " + r.castsB() + " · Уклонения: " + r.dodgesA() + " / " + r.dodgesB(),
                     NamedTextColor.GRAY));
             return true;
         }
         if (args.length >= 1 && "matrix".equalsIgnoreCase(args[0])) {
             int level = SubUtil.parseLevel(args, 1);
-            sender.sendMessage(Component.text("=== TTK-матрица (seed 42, уровень "
-                    + level + ") ===", NamedTextColor.GOLD));
-            sender.sendMessage(Component.text("Якорь balance.target-ttk-seconds = "
-                    + SubUtil.fmt1(plugin.getConfig().getDouble("balance.target-ttk-seconds", 20.0))
-                    + " с · «—» = не убивает за 60 с", NamedTextColor.GRAY));
+            sender.sendMessage(
+                    Component.text("=== TTK-матрица (seed 42, уровень " + level + ") ===", NamedTextColor.GOLD));
+            sender.sendMessage(Component.text(
+                    "Якорь balance.target-ttk-seconds = "
+                            + SubUtil.fmt1(plugin.getConfig().getDouble("balance.target-ttk-seconds", 20.0))
+                            + " с · «—» = не убивает за 60 с",
+                    NamedTextColor.GRAY));
             printMatrix(sender, level);
             return true;
         }
-        Player target = args.length > 0 ? Bukkit.getPlayer(args[0])
-                : (sender instanceof Player p ? p : null);
+        Player target = args.length > 0 ? Bukkit.getPlayer(args[0]) : (sender instanceof Player p ? p : null);
         if (target == null) {
             sender.sendMessage(Component.text("Игрок не найден.", NamedTextColor.RED));
             return true;
@@ -149,8 +179,8 @@ public final class DebugSub implements CommandSub {
             out.addAll(SubUtil.onlinePlayerNames());
             return SubUtil.filter(out, fullArgs[1]);
         }
-        if (fullArgs.length == 3 && ("simulate".equalsIgnoreCase(fullArgs[1])
-                || "matrix".equalsIgnoreCase(fullArgs[1]))) {
+        if (fullArgs.length == 3
+                && ("simulate".equalsIgnoreCase(fullArgs[1]) || "matrix".equalsIgnoreCase(fullArgs[1]))) {
             List<String> out = new ArrayList<>();
             for (PlayerClass pc : PlayerClass.values()) {
                 out.add(pc.name());
@@ -183,9 +213,10 @@ public final class DebugSub implements CommandSub {
             StringBuilder row = new StringBuilder(String.format(Locale.ROOT, "%-8s", SubUtil.shortName(pcs[i])));
             for (int j = 0; j < pcs.length; j++) {
                 double v = m[i][j];
-                row.append(Double.isFinite(v)
-                        ? String.format(Locale.ROOT, "%8s", SubUtil.fmt1(v))
-                        : String.format(Locale.ROOT, "%8s", "—"));
+                row.append(
+                        Double.isFinite(v)
+                                ? String.format(Locale.ROOT, "%8s", SubUtil.fmt1(v))
+                                : String.format(Locale.ROOT, "%8s", "—"));
             }
             sender.sendMessage(Component.text(row.toString(), NamedTextColor.WHITE));
         }
@@ -203,13 +234,16 @@ public final class DebugSub implements CommandSub {
         Spec spec = Spec.fromId(plugin.getSpec2Service().mainSpec(uuid));
 
         sender.sendMessage(Component.text("=== " + target.getName() + " ===", NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("Класс: " + (pc != null ? pc.getDisplayName() : "—")
-                + " (source=" + plugin.getConfig().getString("attributes.level-source", "character") + ")",
+        sender.sendMessage(Component.text(
+                "Класс: " + (pc != null ? pc.getDisplayName() : "—") + " (source="
+                        + plugin.getConfig().getString("attributes.level-source", "character") + ")",
                 NamedTextColor.AQUA));
-        sender.sendMessage(Component.text("Спека: " + (spec != null ? spec.displayName() : "—")
-                + " · деревья путей — в Книге класса", NamedTextColor.YELLOW));
-        sender.sendMessage(Component.text("Уровень персонажа: " + charLevel
-                + " (топ-" + topN + " скиллов, кап " + cap + ")", NamedTextColor.AQUA));
+        sender.sendMessage(Component.text(
+                "Спека: " + (spec != null ? spec.displayName() : "—") + " · деревья путей — в Книге класса",
+                NamedTextColor.YELLOW));
+        sender.sendMessage(Component.text(
+                "Уровень персонажа: " + charLevel + " (топ-" + topN + " скиллов, кап " + cap + ")",
+                NamedTextColor.AQUA));
         if (pc == null) {
             return;
         }
@@ -222,28 +256,35 @@ public final class DebugSub implements CommandSub {
         double hpow = plugin.getCombat().powers().healPower(uuid);
         double[] eff = attrs.effectiveAvoidance(uuid);
 
-        sender.sendMessage(Component.text("STR " + (int) str + " · AGI " + (int) agi
-                + " · INT " + (int) intel, NamedTextColor.WHITE));
-        sender.sendMessage(Component.text("maxHP " + (int) max + " · WP " + SubUtil.fmt1(wp)
-                + " · SP " + SubUtil.fmt1(sp) + " · HPow " + SubUtil.fmt1(hpow), NamedTextColor.WHITE));
-        sender.sendMessage(Component.text("Уклонение: " + SubUtil.fmt1(eff[0]) + "% · Парирование: "
-                + SubUtil.fmt1(eff[1]) + "%", NamedTextColor.GREEN));
-        sender.sendMessage(Component.text("Крит мили: " + SubUtil.fmt1(attrs.critMeleeChance(uuid))
-                + "% · Крит магии: " + SubUtil.fmt1(attrs.critSpellChance(uuid)) + "%",
+        sender.sendMessage(Component.text(
+                "STR " + (int) str + " · AGI " + (int) agi + " · INT " + (int) intel, NamedTextColor.WHITE));
+        sender.sendMessage(Component.text(
+                "maxHP " + (int) max + " · WP " + SubUtil.fmt1(wp) + " · SP " + SubUtil.fmt1(sp) + " · HPow "
+                        + SubUtil.fmt1(hpow),
+                NamedTextColor.WHITE));
+        sender.sendMessage(Component.text(
+                "Уклонение: " + SubUtil.fmt1(eff[0]) + "% · Парирование: " + SubUtil.fmt1(eff[1]) + "%",
+                NamedTextColor.GREEN));
+        sender.sendMessage(Component.text(
+                "Крит мили: " + SubUtil.fmt1(attrs.critMeleeChance(uuid)) + "% · Крит магии: "
+                        + SubUtil.fmt1(attrs.critSpellChance(uuid)) + "%",
                 NamedTextColor.YELLOW));
-        sender.sendMessage(Component.text("Резист физ: " + (int) rb.physicalTotal()
-                + "% · маг: " + (int) rb.magicTotal() + "%", NamedTextColor.LIGHT_PURPLE));
+        sender.sendMessage(Component.text(
+                "Резист физ: " + (int) rb.physicalTotal() + "% · маг: " + (int) rb.magicTotal() + "%",
+                NamedTextColor.LIGHT_PURPLE));
         for (ResistService.Modifier m : rb.active()) {
-            sender.sendMessage(Component.text("  • " + m.source() + ": +" + (int) m.physicalPct()
-                    + " физ / +" + (int) m.magicPct() + " маг", NamedTextColor.GRAY));
+            sender.sendMessage(Component.text(
+                    "  • " + m.source() + ": +" + (int) m.physicalPct() + " физ / +" + (int) m.magicPct() + " маг",
+                    NamedTextColor.GRAY));
         }
 
         var penTraits = plugin.getCombat().penTraits();
         double penPhys = penTraits.totalPenPercent(uuid, "phys");
         double penMagic = penTraits.totalPenPercent(uuid, "magic");
         double penCapPct = plugin.getConfig().getDouble("schools.pen-pct-cap", 0.40) * 100.0;
-        sender.sendMessage(Component.text("Пробитие: физ " + SubUtil.fmt1(penPhys)
-                + "% · маг " + SubUtil.fmt1(penMagic) + "% (кап " + SubUtil.fmt1(penCapPct) + "%)",
+        sender.sendMessage(Component.text(
+                "Пробитие: физ " + SubUtil.fmt1(penPhys) + "% · маг " + SubUtil.fmt1(penMagic) + "% (кап "
+                        + SubUtil.fmt1(penCapPct) + "%)",
                 NamedTextColor.DARK_AQUA));
         var elem = plugin.getCombat().elemental();
         StringBuilder elLine = new StringBuilder();
@@ -253,9 +294,8 @@ public final class DebugSub implements CommandSub {
                 elLine.append(school.id()).append(" ").append((int) r).append("%  ");
             }
         }
-        sender.sendMessage(Component.text("Стихии: "
-                + (elLine.length() > 0 ? elLine.toString().trim() : "—"),
-                NamedTextColor.DARK_AQUA));
+        sender.sendMessage(Component.text(
+                "Стихии: " + (elLine.length() > 0 ? elLine.toString().trim() : "—"), NamedTextColor.DARK_AQUA));
 
         CCService ccSvc = plugin.getCC();
         List<CCInstance> ccs = ccSvc.activeOf(uuid);
@@ -265,11 +305,12 @@ public final class DebugSub implements CommandSub {
             long now = System.currentTimeMillis();
             StringBuilder ccLine = new StringBuilder();
             for (CCInstance inst : ccs) {
-                ccLine.append(inst.type().ruName()).append(' ')
-                        .append(inst.remainingTicks(now) / 20L).append("с  ");
+                ccLine.append(inst.type().ruName())
+                        .append(' ')
+                        .append(inst.remainingTicks(now) / 20L)
+                        .append("с  ");
             }
-            sender.sendMessage(Component.text("Контроль: " + ccLine.toString().trim(),
-                    NamedTextColor.RED));
+            sender.sendMessage(Component.text("Контроль: " + ccLine.toString().trim(), NamedTextColor.RED));
         }
         long windowMs = (long) (plugin.getConfig().getDouble("cc.window-seconds", 15.0) * 1000.0);
         StringBuilder drLine = new StringBuilder();
@@ -279,24 +320,33 @@ public final class DebugSub implements CommandSub {
                 continue;
             }
             long left = Math.max(0L, windowMs - (System.currentTimeMillis() - st.lastAppliedAt()));
-            drLine.append(cat.id()).append('=').append(st.stackCount())
-                    .append(" (сброс ").append(left / 1000L).append("с)  ");
+            drLine.append(cat.id())
+                    .append('=')
+                    .append(st.stackCount())
+                    .append(" (сброс ")
+                    .append(left / 1000L)
+                    .append("с)  ");
         }
-        sender.sendMessage(Component.text("DR-стеки: "
-                + (drLine.length() > 0 ? drLine.toString().trim() : "—"),
-                NamedTextColor.DARK_AQUA));
+        sender.sendMessage(Component.text(
+                "DR-стеки: " + (drLine.length() > 0 ? drLine.toString().trim() : "—"), NamedTextColor.DARK_AQUA));
 
         // 1.14.0: очки деревьев путей
-        sender.sendMessage(Component.text("Путь: очков доступно "
-                + plugin.getSpec2Service().availablePoints(uuid)
-                + " · потрачено " + plugin.getSpec2Service().spentGlobal(uuid)
-                + " · заработано " + plugin.getSpec2Service().earnedPoints(uuid),
+        sender.sendMessage(Component.text(
+                "Путь: очков доступно "
+                        + plugin.getSpec2Service().availablePoints(uuid)
+                        + " · потрачено " + plugin.getSpec2Service().spentGlobal(uuid)
+                        + " · заработано " + plugin.getSpec2Service().earnedPoints(uuid),
                 NamedTextColor.DARK_AQUA));
 
         var itemStats = plugin.getItems().snapshot(uuid);
-        if (!itemStats.stats().isEmpty()) sender.sendMessage(Component.text("Статы снаряжения: "
-                + itemStats.stats().size() + " · HP +" + (int)itemStats.value(dev.raskol.classes.item.model.ItemStat.HP_BONUS)
-                + " · отражение " + (int)itemStats.value(dev.raskol.classes.item.model.ItemStat.REFLECT) + "%",NamedTextColor.DARK_AQUA));
+        if (!itemStats.stats().isEmpty())
+            sender.sendMessage(Component.text(
+                    "Статы снаряжения: "
+                            + itemStats.stats().size() + " · HP +"
+                            + (int) itemStats.value(dev.raskol.classes.item.model.ItemStat.HP_BONUS)
+                            + " · отражение " + (int) itemStats.value(dev.raskol.classes.item.model.ItemStat.REFLECT)
+                            + "%",
+                    NamedTextColor.DARK_AQUA));
 
         // 1.15.2: WeaponMastery — множитель владения оружием
         org.bukkit.inventory.ItemStack mainHand = target.getInventory().getItemInMainHand();
@@ -305,21 +355,23 @@ public final class DebugSub implements CommandSub {
         if (weaponType != null) {
             double mastery = WeaponMastery.masteryMultiplier(pc, weaponType);
             String level = WeaponMastery.masteryLevel(pc, weaponType);
-            sender.sendMessage(Component.text("Владение оружием: " + weaponType
-                    + " → " + level + " (×" + SubUtil.fmt1(mastery * 100) + "% урона)",
+            sender.sendMessage(Component.text(
+                    "Владение оружием: " + weaponType + " → " + level + " (×" + SubUtil.fmt1(mastery * 100)
+                            + "% урона)",
                     NamedTextColor.YELLOW));
         }
 
-        sender.sendMessage(Component.text("Ресурс: " + (int) plugin.getResources().getValue(uuid)
-                + "/100", NamedTextColor.AQUA));
+        sender.sendMessage(
+                Component.text("Ресурс: " + (int) plugin.getResources().getValue(uuid) + "/100", NamedTextColor.AQUA));
 
         DamageProfile profile = new DamageProfile(20.0, 10.0, 5.0);
         double taken = plugin.getCombat().simulateTaken(target, profile);
-        sender.sendMessage(Component.text("Симул. урона (20/10/5): дойдёт "
-                + SubUtil.fmt1(taken) + " из 35", NamedTextColor.GRAY));
+        sender.sendMessage(Component.text(
+                "Симул. урона (20/10/5): дойдёт " + SubUtil.fmt1(taken) + " из 35", NamedTextColor.GRAY));
         int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-        sender.sendMessage(Component.text("Уровень " + pc.profileSkillName() + ": "
-                + (level == SkillLevelProvider.NO_SKILL_SYSTEM ? "AuraSkills не подключён" : level),
+        sender.sendMessage(Component.text(
+                "Уровень " + pc.profileSkillName() + ": "
+                        + (level == SkillLevelProvider.NO_SKILL_SYSTEM ? "AuraSkills не подключён" : level),
                 NamedTextColor.GRAY));
     }
 }

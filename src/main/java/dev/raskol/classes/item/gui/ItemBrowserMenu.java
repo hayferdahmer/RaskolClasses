@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.gui;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.item.model.ItemDefinition;
-import dev.raskol.classes.item.model.ItemRarity;
-import dev.raskol.classes.item.service.ItemSystem;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -19,11 +18,14 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.ItemRarity;
+import dev.raskol.classes.item.service.ItemSystem;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.15.0: GUI-браузер предметов реестра (/rc item browser [запрос]).
@@ -61,8 +63,7 @@ public final class ItemBrowserMenu implements Listener {
         private final List<String> itemIds;
         private Inventory inventory;
 
-        Holder(UUID owner, int page, String query, String classFilter,
-               String rarityFilter, List<String> itemIds) {
+        Holder(UUID owner, int page, String query, String classFilter, String rarityFilter, List<String> itemIds) {
             this.owner = owner;
             this.page = page;
             this.query = query;
@@ -112,7 +113,9 @@ public final class ItemBrowserMenu implements Listener {
         int safe = Math.max(0, Math.min(page, pages - 1));
         Holder holder = new Holder(player.getUniqueId(), safe, query, classFilter, rarityFilter, ids);
         String titleSuffix = query == null || query.isBlank() ? "" : " · «" + query + "»";
-        Inventory inv = Bukkit.createInventory(holder, 54,
+        Inventory inv = Bukkit.createInventory(
+                holder,
+                54,
                 Component.text("📦 Браузер · " + (safe + 1) + "/" + pages + titleSuffix, NamedTextColor.GOLD));
         holder.inventory = inv;
 
@@ -122,10 +125,17 @@ public final class ItemBrowserMenu implements Listener {
         }
         inv.setItem(SLOT_PREV, nav(Material.ARROW, "Назад", safe > 0));
         inv.setItem(SLOT_CLASS, filterButton(Material.NAME_TAG, "Класс: " + classFilter, NamedTextColor.AQUA));
-        inv.setItem(SLOT_RARITY, filterButton(Material.NETHER_STAR, "Редкость: " + rarityFilter, NamedTextColor.LIGHT_PURPLE));
-        inv.setItem(SLOT_QUERY, filterButton(Material.PAPER,
-                query == null || query.isBlank() ? "Поиск: выключен (клик — сброс)" : "Поиск: «" + query + "» (клик — сброс)",
-                NamedTextColor.YELLOW));
+        inv.setItem(
+                SLOT_RARITY,
+                filterButton(Material.NETHER_STAR, "Редкость: " + rarityFilter, NamedTextColor.LIGHT_PURPLE));
+        inv.setItem(
+                SLOT_QUERY,
+                filterButton(
+                        Material.PAPER,
+                        query == null || query.isBlank()
+                                ? "Поиск: выключен (клик — сброс)"
+                                : "Поиск: «" + query + "» (клик — сброс)",
+                        NamedTextColor.YELLOW));
         inv.setItem(SLOT_CLOSE, nav(Material.BARRIER, "Закрыть", true));
         inv.setItem(SLOT_NEXT, nav(Material.ARROW, "Далее", safe < pages - 1));
         for (int i = 0; i < PAGE_SIZE; i++) {
@@ -213,13 +223,13 @@ public final class ItemBrowserMenu implements Listener {
         }
         if (player.hasPermission("raskolclasses.item.give")) {
             ItemStack created = items.create(itemId, def.itemLevel());
-            player.getInventory().addItem(created).values()
-                    .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
+            player.getInventory().addItem(created).values().forEach(left -> player.getWorld()
+                    .dropItemNaturally(player.getLocation(), left));
             player.sendMessage(ItemHover.withPreview(
                     Component.text("Получен предмет: " + def.displayName(), NamedTextColor.GREEN), created));
         } else {
-            player.sendMessage(Component.text(plugin.getRaskolConfig()
-                    .message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
+            player.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("no-permission", "Недостаточно прав"), NamedTextColor.RED));
         }
         scheduleOpen(player, holder.page, holder.query, holder.classFilter, holder.rarityFilter);
     }
@@ -254,8 +264,8 @@ public final class ItemBrowserMenu implements Listener {
 
     private static ItemStack nav(Material material, String name, boolean active) {
         ItemStack stack = new ItemStack(active ? material : Material.GRAY_DYE);
-        stack.editMeta(meta -> meta.displayName(Component.text(name,
-                active ? NamedTextColor.YELLOW : NamedTextColor.DARK_GRAY)));
+        stack.editMeta(meta ->
+                meta.displayName(Component.text(name, active ? NamedTextColor.YELLOW : NamedTextColor.DARK_GRAY)));
         return stack;
     }
 

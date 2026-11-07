@@ -2,18 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.craft;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.hook.EconomyHook;
-import dev.raskol.classes.item.model.ItemDefinition;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -22,6 +10,20 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.hook.EconomyHook;
+import dev.raskol.classes.item.model.ItemDefinition;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.15.4: крафт предметов из фрагментов + монет (crafting.yml).
@@ -51,10 +53,18 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class CraftingService {
 
-    public enum CraftResult { OK, DISABLED, UNKNOWN, NO_TARGET, NO_FRAGS, NO_COINS, NO_ECON, PAY_FAILED }
-
-    public record Recipe(String id, String target, int coins, Map<String, Integer> fragments) {
+    public enum CraftResult {
+        OK,
+        DISABLED,
+        UNKNOWN,
+        NO_TARGET,
+        NO_FRAGS,
+        NO_COINS,
+        NO_ECON,
+        PAY_FAILED
     }
+
+    public record Recipe(String id, String target, int coins, Map<String, Integer> fragments) {}
 
     private final RaskolClasses plugin;
     private final FragmentRegistry fragments;
@@ -94,8 +104,8 @@ public final class CraftingService {
                         if (count > 0 && fragments.byId(fragId) != null) {
                             frags.put(fragId, count);
                         } else if (count > 0) {
-                            plugin.getLogger().warning("crafting: рецепт " + id
-                                    + " отключён: неизвестный фрагмент " + fragId);
+                            plugin.getLogger()
+                                    .warning("crafting: рецепт " + id + " отключён: неизвестный фрагмент " + fragId);
                             broken = true;
                             break;
                         }
@@ -105,8 +115,7 @@ public final class CraftingService {
                     continue;
                 }
                 if (plugin.getItems() != null && plugin.getItems().registry().get(target) == null) {
-                    plugin.getLogger().warning("crafting: рецепт " + id
-                            + " отключён: неизвестная цель " + target);
+                    plugin.getLogger().warning("crafting: рецепт " + id + " отключён: неизвестная цель " + target);
                     continue;
                 }
                 loaded.put(id, new Recipe(id, target, coins, Map.copyOf(frags)));
@@ -165,8 +174,9 @@ public final class CraftingService {
             if (before - after < recipe.coins() - 1e-9) {
                 // списание не прошло — возвращаем фрагменты, предмет не создаём
                 fragments.addFragments(player, spent);
-                plugin.getLogger().warning("crafting: withdraw не списал монеты ("
-                        + recipe.coins() + ") для " + player.getName() + "; фрагменты возвращены");
+                plugin.getLogger()
+                        .warning("crafting: withdraw не списал монеты (" + recipe.coins() + ") для " + player.getName()
+                                + "; фрагменты возвращены");
                 return CraftResult.PAY_FAILED;
             }
             coinsPaid = true;
@@ -174,23 +184,31 @@ public final class CraftingService {
 
         // 4) создание предмета; любой сбой → полный откат (монеты + фрагменты, аудит 2.6-15)
         try {
-            ItemStack created = plugin.getItems().create(recipe.target(), def.itemLevel(),
-                    ThreadLocalRandom.current().nextLong());
+            ItemStack created = plugin.getItems()
+                    .create(
+                            recipe.target(),
+                            def.itemLevel(),
+                            ThreadLocalRandom.current().nextLong());
             plugin.getItems().pdc().markCraftedBy(created, player.getUniqueId());
-            player.getInventory().addItem(created).values()
-                    .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
-            player.sendMessage(Component.text(plugin.getRaskolConfig()
-                    .message("item.craft-ok", "⚒ Создано: {item}")
-                    .replace("{item}", def.displayName()), NamedTextColor.GREEN));
+            player.getInventory().addItem(created).values().forEach(left -> player.getWorld()
+                    .dropItemNaturally(player.getLocation(), left));
+            player.sendMessage(Component.text(
+                    plugin.getRaskolConfig()
+                            .message("item.craft-ok", "⚒ Создано: {item}")
+                            .replace("{item}", def.displayName()),
+                    NamedTextColor.GREEN));
             return CraftResult.OK;
         } catch (RuntimeException ex) {
             if (coinsPaid) {
                 boolean refunded = refundCoins(player, recipe.coins());
-                plugin.getLogger().warning("crafting: создание " + recipe.target()
-                        + " не удалось; монеты " + (refunded ? "возвращены через Vault"
-                        : "НЕ возвращены (нет провайдера/метода) — компенсируй вручную")
-                        + ": игрок " + player.getName() + ", сумма " + recipe.coins()
-                        + "; причина: " + ex.getMessage());
+                plugin.getLogger()
+                        .warning("crafting: создание " + recipe.target()
+                                + " не удалось; монеты "
+                                + (refunded
+                                        ? "возвращены через Vault"
+                                        : "НЕ возвращены (нет провайдера/метода) — компенсируй вручную")
+                                + ": игрок " + player.getName() + ", сумма " + recipe.coins()
+                                + "; причина: " + ex.getMessage());
             }
             fragments.addFragments(player, spent);
             return CraftResult.NO_TARGET;
@@ -227,8 +245,10 @@ public final class CraftingService {
             Method deposit = null;
             for (Method m : economyIface.getMethods()) {
                 Class<?>[] p = m.getParameterTypes();
-                if ("depositPlayer".equals(m.getName()) && p.length == 2
-                        && p[0] == OfflinePlayer.class && p[1] == double.class) {
+                if ("depositPlayer".equals(m.getName())
+                        && p.length == 2
+                        && p[0] == OfflinePlayer.class
+                        && p[1] == double.class) {
                     deposit = m;
                     break;
                 }
@@ -236,8 +256,7 @@ public final class CraftingService {
             if (deposit == null) {
                 return false;
             }
-            Object response = deposit.invoke(provider,
-                    Bukkit.getOfflinePlayer(player.getUniqueId()), (double) coins);
+            Object response = deposit.invoke(provider, Bukkit.getOfflinePlayer(player.getUniqueId()), (double) coins);
             if (response == null) {
                 return true;
             }
@@ -254,14 +273,37 @@ public final class CraftingService {
         String key;
         String fallback;
         switch (result) {
-            case DISABLED -> { key = "item.craft-disabled"; fallback = "⚒ Крафт отключён"; }
-            case UNKNOWN -> { key = "item.craft-unknown"; fallback = "⚒ Рецепт не найден"; }
-            case NO_TARGET -> { key = "item.craft-target"; fallback = "⚒ Цель рецепта недоступна"; }
-            case NO_ECON -> { key = "item.craft-no-econ"; fallback = "⚒ Экономика недоступна — крафт с монетами отключён"; }
-            case NO_COINS -> { key = "item.craft-coins"; fallback = "⚒ Не хватает монет: нужно {coins}"; }
-            case NO_FRAGS -> { key = "item.craft-frags"; fallback = "⚒ Не хватает фрагментов: {missing}"; }
-            case PAY_FAILED -> { key = "item.craft-pay"; fallback = "⚒ Списание монет не прошло: фрагменты возвращены"; }
-            default -> { return; }
+            case DISABLED -> {
+                key = "item.craft-disabled";
+                fallback = "⚒ Крафт отключён";
+            }
+            case UNKNOWN -> {
+                key = "item.craft-unknown";
+                fallback = "⚒ Рецепт не найден";
+            }
+            case NO_TARGET -> {
+                key = "item.craft-target";
+                fallback = "⚒ Цель рецепта недоступна";
+            }
+            case NO_ECON -> {
+                key = "item.craft-no-econ";
+                fallback = "⚒ Экономика недоступна — крафт с монетами отключён";
+            }
+            case NO_COINS -> {
+                key = "item.craft-coins";
+                fallback = "⚒ Не хватает монет: нужно {coins}";
+            }
+            case NO_FRAGS -> {
+                key = "item.craft-frags";
+                fallback = "⚒ Не хватает фрагментов: {missing}";
+            }
+            case PAY_FAILED -> {
+                key = "item.craft-pay";
+                fallback = "⚒ Списание монет не прошло: фрагменты возвращены";
+            }
+            default -> {
+                return;
+            }
         }
         String missing = "";
         if (result == CraftResult.NO_FRAGS && recipe != null) {
@@ -271,14 +313,20 @@ public final class CraftingService {
                 int have = fragment == null ? 0 : fragments.countInInventory(player, fragment);
                 if (have < count) {
                     sb.append(fragment == null ? fragId : fragment.displayName())
-                            .append(" ").append(have).append("/").append(count).append(", ");
+                            .append(" ")
+                            .append(have)
+                            .append("/")
+                            .append(count)
+                            .append(", ");
                 }
             });
             missing = sb.length() > 0 ? sb.substring(0, sb.length() - 2) : "";
         }
-        player.sendMessage(Component.text(plugin.getRaskolConfig()
-                .message(key, fallback)
-                .replace("{coins}", String.valueOf(recipe == null ? 0 : recipe.coins()))
-                .replace("{missing}", missing), NamedTextColor.RED));
+        player.sendMessage(Component.text(
+                plugin.getRaskolConfig()
+                        .message(key, fallback)
+                        .replace("{coins}", String.valueOf(recipe == null ? 0 : recipe.coins()))
+                        .replace("{missing}", missing),
+                NamedTextColor.RED));
     }
 }

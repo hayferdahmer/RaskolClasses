@@ -2,12 +2,28 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes;
 
+import java.io.File;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.bukkit.command.PluginCommand;
+import org.bukkit.plugin.PluginManager;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
+
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
 import dev.raskol.classes.ability.HunterAbilities;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.ability.passive.PassiveListener;
+import dev.raskol.classes.api.combat.CombatProfileLifecycleListener;
+import dev.raskol.classes.api.combat.CombatProfileRegistry;
+import dev.raskol.classes.api.combat.EntityLevelProvider;
+import dev.raskol.classes.api.items.ItemsApi;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.HpAttributeSync;
 import dev.raskol.classes.bootstrap.PluginTasks;
@@ -38,21 +54,6 @@ import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.PassportChangeListener;
-import dev.raskol.classes.item.service.ItemSystem;
-import dev.raskol.classes.integrity.artifact.ArtifactBoundIntegrityVerifier;
-import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
-import dev.raskol.classes.integrity.policy.RuntimeIntegrityEnforcementPolicy;
-import dev.raskol.classes.integrity.reporting.SecurityReporter;
-import dev.raskol.classes.integrity.runtime.RuntimeIntegrityMonitor;
-import dev.raskol.classes.integrity.runtime.RuntimeIntegritySnapshot;
-import dev.raskol.classes.integrity.runtime.RuntimeIntegrityState;
-import dev.raskol.classes.integrity.runtime.RuntimeIntegrityStateManager;
-import dev.raskol.classes.integrity.runtime.RuntimeSecurityReporter;
-import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
-import dev.raskol.classes.api.items.ItemsApi;
-import dev.raskol.classes.api.combat.CombatProfileRegistry;
-import dev.raskol.classes.api.combat.CombatProfileLifecycleListener;
-import dev.raskol.classes.api.combat.EntityLevelProvider;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
@@ -63,6 +64,17 @@ import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
+import dev.raskol.classes.integrity.artifact.ArtifactBoundIntegrityVerifier;
+import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
+import dev.raskol.classes.integrity.policy.RuntimeIntegrityEnforcementPolicy;
+import dev.raskol.classes.integrity.reporting.SecurityReporter;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegrityMonitor;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegritySnapshot;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegrityState;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegrityStateManager;
+import dev.raskol.classes.integrity.runtime.RuntimeSecurityReporter;
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
+import dev.raskol.classes.item.service.ItemSystem;
 import dev.raskol.classes.pet.PetService;
 import dev.raskol.classes.resource.ResourceService;
 import dev.raskol.classes.spec.build.BuildTemplates;
@@ -76,17 +88,6 @@ import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.service.Spec2EffectsApplier;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.spec.storage.Spec2Storage;
-import org.bukkit.command.PluginCommand;
-import org.bukkit.plugin.PluginManager;
-import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
-
-import java.io.File;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ». Точка сборки сервиса: конструирование
@@ -132,6 +133,7 @@ public final class RaskolClasses extends JavaPlugin {
 
     /** 1.14.0: spec2-слой (деревья путей). */
     private Spec2Storage spec2Storage;
+
     private Spec2Service spec2Service;
     private Spec2EffectsApplier spec2Applier;
 
@@ -173,6 +175,7 @@ public final class RaskolClasses extends JavaPlugin {
 
     /** 1.14.15: raskolspec+ — подписка на кураторские билды. */
     private BuildTemplates buildTemplates;
+
     private ImperialWallet imperialWallet;
     private PlusSubscription plusSubscription;
     private PlusGui plusGui;
@@ -199,8 +202,7 @@ public final class RaskolClasses extends JavaPlugin {
      * Prevents multiple runtime integrity failures from scheduling
      * multiple plugin-disable tasks.
      */
-    private final AtomicBoolean runtimeIntegrityFailureScheduled =
-            new AtomicBoolean(false);
+    private final AtomicBoolean runtimeIntegrityFailureScheduled = new AtomicBoolean(false);
 
     /**
      * Runs artifact-bound RIPS verification before gameplay initialization.
@@ -208,11 +210,9 @@ public final class RaskolClasses extends JavaPlugin {
      * @return the startup integrity verification result
      */
     private IntegrityVerificationResult verifyStartupIntegrity() {
-        this.artifactBoundIntegrityVerifier =
-                new ArtifactBoundIntegrityVerifier(RaskolClasses.class);
+        this.artifactBoundIntegrityVerifier = new ArtifactBoundIntegrityVerifier(RaskolClasses.class);
 
-        IntegrityVerificationResult result =
-                artifactBoundIntegrityVerifier.verify();
+        IntegrityVerificationResult result = artifactBoundIntegrityVerifier.verify();
 
         SecurityReporter reporter = new SecurityReporter(getLogger());
         reporter.report(result);
@@ -226,10 +226,9 @@ public final class RaskolClasses extends JavaPlugin {
 
         IntegrityFailurePolicy failurePolicy = new IntegrityFailurePolicy();
         if (!failurePolicy.mayContinueStartup(integrityVerificationResult)) {
-            getLogger().severe(
-                    "[RIPS] Startup denied: integrity verification failed. Status: "
-                            + integrityVerificationResult.status()
-            );
+            getLogger()
+                    .severe("[RIPS] Startup denied: integrity verification failed. Status: "
+                            + integrityVerificationResult.status());
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
@@ -237,8 +236,9 @@ public final class RaskolClasses extends JavaPlugin {
         this.raskolConfig = new RaskolConfig(this);
         ConfigMigrator.migrate148(this);
 
-        getLogger().info(() -> "Paper: " + getServer().getVersion()
-                + " / Bukkit: " + getServer().getBukkitVersion());
+        getLogger()
+                .info(() -> "Paper: " + getServer().getVersion() + " / Bukkit: "
+                        + getServer().getBukkitVersion());
 
         StartupChecks.logCoreVersion(this);
         StartupChecks.cleanupTmpFiles(this);
@@ -265,7 +265,8 @@ public final class RaskolClasses extends JavaPlugin {
         classProvider.setResourceService(resources);
 
         this.cooldowns = new CooldownManager(new File(getDataFolder(), "cooldowns.yml"));
-        this.cooldowns.attachScheduler(this,
+        this.cooldowns.attachScheduler(
+                this,
                 raskolConfig.isReadyNotifyEnabled(),
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
@@ -385,15 +386,13 @@ public final class RaskolClasses extends JavaPlugin {
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
             new FlavorPlaceholder(this).register();
-            getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% "
-                    + "и %raskolcrown_*% зарегистрированы");
+            getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% " + "и %raskolcrown_*% зарегистрированы");
         } else {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
 
         boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
-        boolean hpVanilla = "vanilla".equalsIgnoreCase(
-                getConfig().getString("hp-display.mode", "actionbar"));
+        boolean hpVanilla = "vanilla".equalsIgnoreCase(getConfig().getString("hp-display.mode", "actionbar"));
         if (hudEnabled && hpVanilla) {
             activeTasks.add(hud.start());
         }
@@ -424,37 +423,27 @@ public final class RaskolClasses extends JavaPlugin {
      */
     private void startRuntimeIntegrityMonitoring() {
         if (artifactBoundIntegrityVerifier == null) {
-            getLogger().severe(
-                    "[RIPS] Runtime monitoring was not started: verifier is unavailable."
-            );
+            getLogger().severe("[RIPS] Runtime monitoring was not started: verifier is unavailable.");
             return;
         }
 
-        RuntimeSecurityReporter runtimeReporter = new RuntimeSecurityReporter(
-                new SecurityReporter(getLogger()),
-                getLogger()
-        );
+        RuntimeSecurityReporter runtimeReporter =
+                new RuntimeSecurityReporter(new SecurityReporter(getLogger()), getLogger());
 
         this.runtimeIntegrityMonitor = new RuntimeIntegrityMonitor(
                 () -> artifactBoundIntegrityVerifier.verify(),
                 Duration.ofMinutes(30),
                 Executors.newSingleThreadScheduledExecutor(runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "RaskolClasses-RIPS-Monitor"
-                    );
+                    Thread thread = new Thread(runnable, "RaskolClasses-RIPS-Monitor");
                     thread.setDaemon(true);
                     return thread;
                 }),
                 new RuntimeIntegrityStateManager(),
                 runtimeReporter,
-                this::handleRuntimeIntegrityFailure
-        );
+                this::handleRuntimeIntegrityFailure);
 
         runtimeIntegrityMonitor.start();
-        getLogger().info(
-                "[RIPS] Artifact-bound runtime integrity monitoring started (interval: 30 minutes)"
-        );
+        getLogger().info("[RIPS] Artifact-bound runtime integrity monitoring started (interval: 30 minutes)");
     }
 
     /**
@@ -469,11 +458,8 @@ public final class RaskolClasses extends JavaPlugin {
      *
      * @param snapshot failed runtime integrity snapshot
      */
-    private void handleRuntimeIntegrityFailure(
-            RuntimeIntegritySnapshot snapshot
-    ) {
-        if (snapshot == null
-                || snapshot.state() != RuntimeIntegrityState.FAILED) {
+    private void handleRuntimeIntegrityFailure(RuntimeIntegritySnapshot snapshot) {
+        if (snapshot == null || snapshot.state() != RuntimeIntegrityState.FAILED) {
             return;
         }
 
@@ -482,15 +468,13 @@ public final class RaskolClasses extends JavaPlugin {
                     ? "VERIFICATION_EXECUTION_ERROR"
                     : snapshot.lastResult().status().name();
 
-            getLogger().warning(
-                    "[RIPS] Runtime verification failure tolerated. "
+            getLogger()
+                    .warning("[RIPS] Runtime verification failure tolerated. "
                             + "Status: " + status
                             + ", consecutiveFailures="
                             + snapshot.consecutiveFailures()
                             + "/"
-                            + runtimeIntegrityEnforcementPolicy
-                                    .getTransientFailureThreshold()
-            );
+                            + runtimeIntegrityEnforcementPolicy.getTransientFailureThreshold());
 
             return;
         }
@@ -509,27 +493,23 @@ public final class RaskolClasses extends JavaPlugin {
                         ? "VERIFICATION_EXECUTION_ERROR"
                         : snapshot.lastResult().status().name();
 
-                getLogger().severe(
-                        "[RIPS] Runtime integrity enforcement triggered. "
+                getLogger()
+                        .severe("[RIPS] Runtime integrity enforcement triggered. "
                                 + "Status: " + status
                                 + ", consecutiveFailures="
-                                + snapshot.consecutiveFailures()
-                );
+                                + snapshot.consecutiveFailures());
 
-                getLogger().severe(
-                        "[RIPS] Disabling RaskolClasses because runtime "
-                                + "integrity verification failed."
-                );
+                getLogger()
+                        .severe("[RIPS] Disabling RaskolClasses because runtime " + "integrity verification failed.");
 
                 getServer().getPluginManager().disablePlugin(this);
             });
         } catch (RuntimeException exception) {
             runtimeIntegrityFailureScheduled.set(false);
 
-            getLogger().severe(
-                    "[RIPS] Unable to schedule plugin shutdown on the Paper "
-                            + "main thread: " + exception.getMessage()
-            );
+            getLogger()
+                    .severe("[RIPS] Unable to schedule plugin shutdown on the Paper " + "main thread: "
+                            + exception.getMessage());
         }
     }
 
@@ -618,7 +598,8 @@ public final class RaskolClasses extends JavaPlugin {
         raskolConfig.reloadKits();
         abilities.loadFromConfig(raskolConfig);
         hud.applyConfig();
-        cooldowns.attachScheduler(this,
+        cooldowns.attachScheduler(
+                this,
                 raskolConfig.isReadyNotifyEnabled(),
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
@@ -639,50 +620,187 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info("Конфигурация перезагружена");
     }
 
-    public long getLastPurgeMillis() { return lastPurgeMillis; }
-    public long getEnabledAtMillis() { return enabledAtMillis; }
-    public RaskolConfig getRaskolConfig() { return raskolConfig; }
-    public ClassProvider getClassProvider() { return classProvider; }
-    public SkillLevelProvider getSkillLevels() { return skillLevels; }
-    public CharacterLevelService getCharacterLevels() { return characterLevels; }
-    public ResourceService getResources() { return resources; }
-    public CooldownManager getCooldowns() { return cooldowns; }
-    public AbilityRegistry getAbilities() { return abilities; }
-    public AbilityRegistry getAbilityRegistry() { return abilities; }
-    public ActiveEffectManager getEffects() { return effects; }
-    public HudService getHud() { return hud; }
-    public BossBarService getBossBars() { return bossBars; }
-    public HpBarService getHpBarService() { return hpBarService; }
-    public AbilityToken getTokens() { return tokens; }
-    public Spec2Storage getSpec2Storage() { return spec2Storage; }
-    public Spec2Service getSpec2Service() { return spec2Service; }
-    public Spec2EffectsApplier getSpec2Applier() { return spec2Applier; }
-    public FactionHook getFactionHook() { return factionHook; }
-    public CrownFlavorService getFlavorService() { return flavorService; }
-    public ItemSystem getItems() { return items; }
-    public ItemsApi getItemsApi() { return itemsApi; }
-    public CombatProfileRegistry getCombatProfiles() { return combatProfiles; }
-    public void setEntityLevelProvider(EntityLevelProvider provider) { this.entityLevelProvider = provider; }
-    public EntityLevelProvider getEntityLevelProvider() { return entityLevelProvider; }
-    public BlueprintHook getBlueprintHook() { return blueprintHook; }
-    public FoliantService getFoliantService() { return foliantService; }
-    public FxService getFx() { return fx; }
-    public InstallationService getInstallations() { return installations; }
-    public InstallToken getInstallToken() { return installToken; }
-    public ResistService getResists() { return resists; }
-    public CombatService getCombat() { return combat; }
-    public ManaSoakedService getManaSoaked() { return manaSoaked; }
-    public ConfigValidator getConfigValidator() { return configValidator; }
-    public AttributeService getAttributes() { return attributes; }
-    public HpAttributeSync getHpSync() { return hpSync; }
-    public PassiveListener getPassives() { return passiveListener; }
-    public WarlockAbilities getWarlockAbilities() { return warlockAbilities; }
-    public PetService getPets() { return pets; }
-    public CCService getCC() { return ccService; }
-    public CastGuard getCastGuard() { return castGuard; }
-    public VanillaCCWrapper getVanillaCCWrapper() { return vanillaCCWrapper; }
-    public BuildTemplates getBuildTemplates() { return buildTemplates; }
-    public ImperialWallet getImperialWallet() { return imperialWallet; }
-    public PlusSubscription getPlusSubscription() { return plusSubscription; }
-    public PlusGui getPlusGui() { return plusGui; }
+    public long getLastPurgeMillis() {
+        return lastPurgeMillis;
+    }
+
+    public long getEnabledAtMillis() {
+        return enabledAtMillis;
+    }
+
+    public RaskolConfig getRaskolConfig() {
+        return raskolConfig;
+    }
+
+    public ClassProvider getClassProvider() {
+        return classProvider;
+    }
+
+    public SkillLevelProvider getSkillLevels() {
+        return skillLevels;
+    }
+
+    public CharacterLevelService getCharacterLevels() {
+        return characterLevels;
+    }
+
+    public ResourceService getResources() {
+        return resources;
+    }
+
+    public CooldownManager getCooldowns() {
+        return cooldowns;
+    }
+
+    public AbilityRegistry getAbilities() {
+        return abilities;
+    }
+
+    public AbilityRegistry getAbilityRegistry() {
+        return abilities;
+    }
+
+    public ActiveEffectManager getEffects() {
+        return effects;
+    }
+
+    public HudService getHud() {
+        return hud;
+    }
+
+    public BossBarService getBossBars() {
+        return bossBars;
+    }
+
+    public HpBarService getHpBarService() {
+        return hpBarService;
+    }
+
+    public AbilityToken getTokens() {
+        return tokens;
+    }
+
+    public Spec2Storage getSpec2Storage() {
+        return spec2Storage;
+    }
+
+    public Spec2Service getSpec2Service() {
+        return spec2Service;
+    }
+
+    public Spec2EffectsApplier getSpec2Applier() {
+        return spec2Applier;
+    }
+
+    public FactionHook getFactionHook() {
+        return factionHook;
+    }
+
+    public CrownFlavorService getFlavorService() {
+        return flavorService;
+    }
+
+    public ItemSystem getItems() {
+        return items;
+    }
+
+    public ItemsApi getItemsApi() {
+        return itemsApi;
+    }
+
+    public CombatProfileRegistry getCombatProfiles() {
+        return combatProfiles;
+    }
+
+    public void setEntityLevelProvider(EntityLevelProvider provider) {
+        this.entityLevelProvider = provider;
+    }
+
+    public EntityLevelProvider getEntityLevelProvider() {
+        return entityLevelProvider;
+    }
+
+    public BlueprintHook getBlueprintHook() {
+        return blueprintHook;
+    }
+
+    public FoliantService getFoliantService() {
+        return foliantService;
+    }
+
+    public FxService getFx() {
+        return fx;
+    }
+
+    public InstallationService getInstallations() {
+        return installations;
+    }
+
+    public InstallToken getInstallToken() {
+        return installToken;
+    }
+
+    public ResistService getResists() {
+        return resists;
+    }
+
+    public CombatService getCombat() {
+        return combat;
+    }
+
+    public ManaSoakedService getManaSoaked() {
+        return manaSoaked;
+    }
+
+    public ConfigValidator getConfigValidator() {
+        return configValidator;
+    }
+
+    public AttributeService getAttributes() {
+        return attributes;
+    }
+
+    public HpAttributeSync getHpSync() {
+        return hpSync;
+    }
+
+    public PassiveListener getPassives() {
+        return passiveListener;
+    }
+
+    public WarlockAbilities getWarlockAbilities() {
+        return warlockAbilities;
+    }
+
+    public PetService getPets() {
+        return pets;
+    }
+
+    public CCService getCC() {
+        return ccService;
+    }
+
+    public CastGuard getCastGuard() {
+        return castGuard;
+    }
+
+    public VanillaCCWrapper getVanillaCCWrapper() {
+        return vanillaCCWrapper;
+    }
+
+    public BuildTemplates getBuildTemplates() {
+        return buildTemplates;
+    }
+
+    public ImperialWallet getImperialWallet() {
+        return imperialWallet;
+    }
+
+    public PlusSubscription getPlusSubscription() {
+        return plusSubscription;
+    }
+
+    public PlusGui getPlusGui() {
+        return plusGui;
+    }
 }

@@ -32,8 +32,7 @@ public final class SpecRoles {
             Map.entry("destruction", SpecRole.FIGHTER),
             Map.entry("demonology", SpecRole.FIGHTER));
 
-    private SpecRoles() {
-    }
+    private SpecRoles() {}
 
     public static SpecRole roleOf(String specId) {
         return ROLES.getOrDefault(specId, SpecRole.FIGHTER);

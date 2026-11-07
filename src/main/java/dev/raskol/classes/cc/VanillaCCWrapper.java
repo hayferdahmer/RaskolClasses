@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.cc;
 
-import dev.raskol.classes.RaskolClasses;
 import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -12,6 +11,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.potion.PotionEffectType;
+
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.13.0 (Б3): обёртка ванильных эффектов контроля в нашу CC-систему (ТЗ п.8).
@@ -79,8 +80,7 @@ public final class VanillaCCWrapper implements Listener {
         // 1.13.0-fix: event.getModifiedType() вместо event.getType()
         PotionEffectType modifiedType = event.getModifiedType();
         // наш туман слепоты не оборачиваем и не даём ему уйти в DR повторно
-        if (PotionEffectType.BLINDNESS.equals(modifiedType)
-                && plugin.getCC().has(le.getUniqueId(), CCType.BLIND)) {
+        if (PotionEffectType.BLINDNESS.equals(modifiedType) && plugin.getCC().has(le.getUniqueId(), CCType.BLIND)) {
             return;
         }
         if (event.getAction() == EntityPotionEffectEvent.Action.CLEARED) {

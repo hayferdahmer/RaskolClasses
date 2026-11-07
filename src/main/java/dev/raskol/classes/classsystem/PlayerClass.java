@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.classsystem;
 
-import net.kyori.adventure.text.format.NamedTextColor;
-
 import java.util.Locale;
+
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Шесть классов сервера «РАСКОЛ». Цвета сообщений и скиллы — по ТЗ.
@@ -23,19 +23,12 @@ import java.util.Locale;
  *         Числовые значения регена/окна остаются в конфиге — админ тюнит без сборки.
  */
 public enum PlayerClass {
-
-    WARRIOR("Воин", NamedTextColor.RED, "fighting",
-            "Ярость", "⚔", RegenModel.COMBAT_PAUSE),
-    HUNTER("Охотник", NamedTextColor.DARK_GREEN, "archery",
-            "Концентрация", "➳", RegenModel.COMBAT_PAUSE),
-    PRIEST("Жрец", NamedTextColor.WHITE, "healing",
-            "Свет", "✚", RegenModel.PLAIN),
-    MAGE("Маг", NamedTextColor.BLUE, "sorcery",
-            "Мана", "✦", RegenModel.TIERED),
-    ROGUE("Разбойник", NamedTextColor.DARK_PURPLE, "agility",
-            "Энергия", "☠", RegenModel.PLAIN),
-    WARLOCK("Чернокнижник", NamedTextColor.LIGHT_PURPLE, "sorcery",
-            "Скверна", "☾", RegenModel.FLOOR_DECAY);
+    WARRIOR("Воин", NamedTextColor.RED, "fighting", "Ярость", "⚔", RegenModel.COMBAT_PAUSE),
+    HUNTER("Охотник", NamedTextColor.DARK_GREEN, "archery", "Концентрация", "➳", RegenModel.COMBAT_PAUSE),
+    PRIEST("Жрец", NamedTextColor.WHITE, "healing", "Свет", "✚", RegenModel.PLAIN),
+    MAGE("Маг", NamedTextColor.BLUE, "sorcery", "Мана", "✦", RegenModel.TIERED),
+    ROGUE("Разбойник", NamedTextColor.DARK_PURPLE, "agility", "Энергия", "☠", RegenModel.PLAIN),
+    WARLOCK("Чернокнижник", NamedTextColor.LIGHT_PURPLE, "sorcery", "Скверна", "☾", RegenModel.FLOOR_DECAY);
 
     /**
      * 1.14.13 (Волна 13D): модель регена ресурса класса — ключ switch в ResourceService.
@@ -66,8 +59,13 @@ public enum PlayerClass {
     /** 1.14.13 (Волна 13D, финал): модель регена ресурса (вместо switch по классу). */
     private final RegenModel regenModel;
 
-    PlayerClass(String displayName, NamedTextColor color, String profileSkillName,
-                String resourceName, String resourceSymbol, RegenModel regenModel) {
+    PlayerClass(
+            String displayName,
+            NamedTextColor color,
+            String profileSkillName,
+            String resourceName,
+            String resourceSymbol,
+            RegenModel regenModel) {
         this.displayName = displayName;
         this.color = color;
         this.profileSkillName = profileSkillName;

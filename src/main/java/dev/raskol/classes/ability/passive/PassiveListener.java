@@ -2,9 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability.passive;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.event.CustomHealEvent;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -12,10 +14,9 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.event.CustomHealEvent;
 
 /**
  * 1.11.4 (P1): ТОНКИЙ диспетчер пассивок. Вся логика — в ClassPassive-файлах.

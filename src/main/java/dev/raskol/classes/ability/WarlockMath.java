@@ -16,12 +16,10 @@ package dev.raskol.classes.ability;
  */
 public final class WarlockMath {
 
-    private WarlockMath() {
-    }
+    private WarlockMath() {}
 
     /** Величина отката: taken × recoilPct%, но не больше formulaMaxHp × capPct%. */
-    public static double recoilAmount(double taken, double recoilPct,
-                                      double formulaMaxHp, double capPct) {
+    public static double recoilAmount(double taken, double recoilPct, double formulaMaxHp, double capPct) {
         if (!Double.isFinite(taken) || taken <= 0.0) {
             return 0.0;
         }
@@ -50,8 +48,8 @@ public final class WarlockMath {
      * Множитель урона чернокнижника:
      * (Скверна ≥ thresholdOpen ? 1.2 : 1) × (в аду ? netherMult : 1) × specMult.
      */
-    public static double damageMult(double corruption, double thresholdOpen,
-                                    double netherMult, double specMult, boolean inNether) {
+    public static double damageMult(
+            double corruption, double thresholdOpen, double netherMult, double specMult, boolean inNether) {
         double mult = 1.0;
         if (safe(corruption, 0.0) >= safe(thresholdOpen, 75.0)) {
             mult *= 1.2;
@@ -80,8 +78,7 @@ public final class WarlockMath {
     }
 
     /** Новое formula-HP после платы «Чёрного Слова»: pct% от maxHP, не ниже minHp. */
-    public static double selfCostNewHp(double maxFormulaHp, double pct,
-                                       double currentFormulaHp, double minHp) {
+    public static double selfCostNewHp(double maxFormulaHp, double pct, double currentFormulaHp, double minHp) {
         double cost = safe(maxFormulaHp, 0.0) * Math.max(0.0, safe(pct, 10.0)) / 100.0;
         double next = safe(currentFormulaHp, 0.0) - cost;
         return Math.max(safe(minHp, 1.0), next);

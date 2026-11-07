@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.craft;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.item.model.ItemDefinition;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -16,9 +16,11 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.item.model.ItemDefinition;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.15.4: GUI крафта (/rc item craft): страницы рецептов из crafting.yml.
@@ -66,12 +68,13 @@ public final class CraftingGui implements Listener {
     }
 
     public void open(Player player, int page) {
-        List<String> ids = crafting.recipes().stream().map(CraftingService.Recipe::id).toList();
+        List<String> ids =
+                crafting.recipes().stream().map(CraftingService.Recipe::id).toList();
         int pages = Math.max(1, (ids.size() + PAGE_SIZE - 1) / PAGE_SIZE);
         int safe = Math.max(0, Math.min(page, pages - 1));
         Holder holder = new Holder(player.getUniqueId(), safe, ids);
-        Inventory inv = Bukkit.createInventory(holder, 54,
-                Component.text("⚒ Крафт · " + (safe + 1) + "/" + pages, NamedTextColor.DARK_PURPLE));
+        Inventory inv = Bukkit.createInventory(
+                holder, 54, Component.text("⚒ Крафт · " + (safe + 1) + "/" + pages, NamedTextColor.DARK_PURPLE));
         holder.inventory = inv;
 
         int offset = safe * PAGE_SIZE;
@@ -113,8 +116,8 @@ public final class CraftingGui implements Listener {
             Fragment fragment = fragments.byId(fragId);
             int have = fragment == null ? 0 : fragments.countInInventory(player, fragment);
             NamedTextColor color = have >= count ? NamedTextColor.GREEN : NamedTextColor.RED;
-            lore.add(Component.text("  " + (fragment == null ? fragId : fragment.displayName())
-                    + ": " + have + "/" + count, color));
+            lore.add(Component.text(
+                    "  " + (fragment == null ? fragId : fragment.displayName()) + ": " + have + "/" + count, color));
         });
         if (recipe.coins() > 0) {
             lore.add(Component.text("  Монеты: " + recipe.coins(), NamedTextColor.YELLOW));
@@ -166,8 +169,8 @@ public final class CraftingGui implements Listener {
 
     private static ItemStack nav(Material material, String name, boolean active) {
         ItemStack stack = new ItemStack(active ? material : Material.GRAY_DYE);
-        stack.editMeta(meta -> meta.displayName(Component.text(name,
-                active ? NamedTextColor.YELLOW : NamedTextColor.DARK_GRAY)));
+        stack.editMeta(meta ->
+                meta.displayName(Component.text(name, active ? NamedTextColor.YELLOW : NamedTextColor.DARK_GRAY)));
         return stack;
     }
 

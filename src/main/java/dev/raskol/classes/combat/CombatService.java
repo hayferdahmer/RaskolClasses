@@ -2,8 +2,23 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
+import java.util.Locale;
+import java.util.UUID;
+
+import org.bukkit.GameMode;
+import org.bukkit.NamespacedKey;
+import org.bukkit.damage.DamageSource;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.api.combat.CombatProfile;
 import dev.raskol.classes.attribute.Hp;
 import dev.raskol.classes.attribute.PowerService;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -17,24 +32,11 @@ import dev.raskol.classes.combat.school.SchoolImmunity;
 import dev.raskol.classes.combat.school.SchoolMitigation;
 import dev.raskol.classes.config.ConfigReads;
 import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.api.combat.CombatProfile;
+
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.GameMode;
-import org.bukkit.NamespacedKey;
-import org.bukkit.damage.DamageSource;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityRegainHealthEvent;
-
-import java.util.Locale;
-import java.util.UUID;
 
 /**
  * 1.11.4 (P3): ТОНКИЙ ФАСАД боевого ядра. Публичный API сохранён полностью.
@@ -64,6 +66,7 @@ public final class CombatService implements Listener {
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
     private static final ThreadLocal<School> CURRENT_CAST_SCHOOL = new ThreadLocal<>();
+
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
     private final RaskolClasses plugin;
@@ -86,8 +89,7 @@ public final class CombatService implements Listener {
         this.powers = new PowerService(plugin);
         this.caps = new DamageCaps(plugin);
         this.procs = new ProcService(plugin);
-        this.vanillaListener = new VanillaDamageListener(
-                plugin, this, resists, avoidance, powers, caps);
+        this.vanillaListener = new VanillaDamageListener(plugin, this, resists, avoidance, powers, caps);
         this.schoolConfig = new SchoolConfig(plugin);
         this.schoolImmunity = new SchoolImmunity(plugin);
         this.elemental = new ElementalResistService(plugin, schoolConfig);
@@ -143,17 +145,49 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ геттеры слоёв ------------------------------ */
 
-    public ResistService resists() { return resists; }
-    public AvoidanceService avoidance() { return avoidance; }
-    public PowerService powers() { return powers; }
-    public DamageCaps caps() { return caps; }
-    public VanillaDamageListener vanillaListener() { return vanillaListener; }
-    public ElementalResistService elemental() { return elemental; }
-    public PenTraitsService penTraits() { return penTraits; }
-    public SchoolConfig schoolConfig() { return schoolConfig; }
-    public SchoolImmunity schoolImmunity() { return schoolImmunity; }
-    public DotService dots() { return dots; }
-    public ProcService procs() { return procs; }
+    public ResistService resists() {
+        return resists;
+    }
+
+    public AvoidanceService avoidance() {
+        return avoidance;
+    }
+
+    public PowerService powers() {
+        return powers;
+    }
+
+    public DamageCaps caps() {
+        return caps;
+    }
+
+    public VanillaDamageListener vanillaListener() {
+        return vanillaListener;
+    }
+
+    public ElementalResistService elemental() {
+        return elemental;
+    }
+
+    public PenTraitsService penTraits() {
+        return penTraits;
+    }
+
+    public SchoolConfig schoolConfig() {
+        return schoolConfig;
+    }
+
+    public SchoolImmunity schoolImmunity() {
+        return schoolImmunity;
+    }
+
+    public DotService dots() {
+        return dots;
+    }
+
+    public ProcService procs() {
+        return procs;
+    }
 
     public static double cappedDamage(double damage, double maxHp, double pct) {
         return CombatMath.cappedDamage(damage, maxHp, pct);
@@ -185,9 +219,17 @@ public final class CombatService implements Listener {
         return v >= 0.0 ? v : 1000.0;
     }
 
-    public double carrierMaxOf(LivingEntity target) { return caps.carrierMaxOf(target); }
-    public double formulaMaxOf(LivingEntity target) { return caps.formulaMaxOf(target); }
-    public double scaleOf(Entity target) { return caps.scaleOf(target); }
+    public double carrierMaxOf(LivingEntity target) {
+        return caps.carrierMaxOf(target);
+    }
+
+    public double formulaMaxOf(LivingEntity target) {
+        return caps.formulaMaxOf(target);
+    }
+
+    public double scaleOf(Entity target) {
+        return caps.scaleOf(target);
+    }
 
     private double hpFractionOf(LivingEntity e) {
         if (e instanceof Player p) {
@@ -236,13 +278,12 @@ public final class CombatService implements Listener {
         return dealDamage(target, source, profile, false, false);
     }
 
-    public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
-                             boolean allowOverCap) {
+    public double dealDamage(LivingEntity target, Entity source, DamageProfile profile, boolean allowOverCap) {
         return dealDamage(target, source, profile, allowOverCap, false);
     }
 
-    public double dealDamage(LivingEntity target, Entity source, DamageProfile profile,
-                             boolean allowOverCap, boolean fromProc) {
+    public double dealDamage(
+            LivingEntity target, Entity source, DamageProfile profile, boolean allowOverCap, boolean fromProc) {
         if (profile == null || target == null || target.isDead()) {
             return 0.0;
         }
@@ -347,7 +388,8 @@ public final class CombatService implements Listener {
         }
 
         boolean warlockIgnoreMagic = false;
-        if (source instanceof Player spSrc && magicBase > 0.0
+        if (source instanceof Player spSrc
+                && magicBase > 0.0
                 && plugin.getClassProvider().getClassOf(spSrc) == PlayerClass.WARLOCK) {
             double thr = cfgD("classes.WARLOCK.ignore-magic-resist-below-hp", 0.25);
             warlockIgnoreMagic = hpFractionOf(target) <= thr || hpFractionOf(spSrc) <= thr;
@@ -382,29 +424,33 @@ public final class CombatService implements Listener {
                 double effElMagic = 0.0;
                 if (source instanceof Player srcP) {
                     UUID sUuid = srcP.getUniqueId();
-                    Penetration penPhys = penTraits.channelPen(
-                            sUuid, true, schoolConfig.penPctCap());
-                    Penetration penMagic = penTraits.channelPen(
-                            sUuid, false, schoolConfig.penPctCap());
+                    Penetration penPhys = penTraits.channelPen(sUuid, true, schoolConfig.penPctCap());
+                    Penetration penMagic = penTraits.channelPen(sUuid, false, schoolConfig.penPctCap());
                     physResistPct = penPhys.effectiveResist(physResistPct, schoolConfig.penPctCap());
                     magicResistPct = penMagic.effectiveResist(magicResistPct, schoolConfig.penPctCap());
                     double elPhys = elemental.resistOf(uuid, School.PHYSICAL);
                     double elMagic = elemental.resistOf(uuid, School.ARCANE);
-                    double spPhys = penTraits.schoolPenFraction(
-                            sUuid, School.PHYSICAL, schoolConfig.penPctCap());
-                    double spMagic = penTraits.schoolPenFraction(
-                            sUuid, School.ARCANE, schoolConfig.penPctCap());
+                    double spPhys = penTraits.schoolPenFraction(sUuid, School.PHYSICAL, schoolConfig.penPctCap());
+                    double spMagic = penTraits.schoolPenFraction(sUuid, School.ARCANE, schoolConfig.penPctCap());
                     effElPhys = CombatMath.effectiveResist(elPhys, 0.0, spPhys, schoolConfig.penPctCap());
                     effElMagic = CombatMath.effectiveResist(elMagic, 0.0, spMagic, schoolConfig.penPctCap());
                 }
                 physResistPct = penResistPct(physResistPct, armorPen);
                 magicResistPct = penResistPct(magicResistPct, armorPen);
-                double mitPhys = SchoolMitigation.mitigationFor(physResistPct, Penetration.NONE,
-                        schoolConfig.penPctCap(), effElPhys,
-                        schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
-                double mitMagic = SchoolMitigation.mitigationFor(magicResistPct, Penetration.NONE,
-                        schoolConfig.penPctCap(), effElMagic,
-                        schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
+                double mitPhys = SchoolMitigation.mitigationFor(
+                        physResistPct,
+                        Penetration.NONE,
+                        schoolConfig.penPctCap(),
+                        effElPhys,
+                        schoolConfig.elementalEnabled(),
+                        schoolConfig.mitigationCap());
+                double mitMagic = SchoolMitigation.mitigationFor(
+                        magicResistPct,
+                        Penetration.NONE,
+                        schoolConfig.penPctCap(),
+                        effElMagic,
+                        schoolConfig.elementalEnabled(),
+                        schoolConfig.mitigationCap());
                 physPart = physBase * (1.0 - mitPhys);
                 double magicScaled = magicBase * (1.0 - mitMagic);
                 magicTruePart = magicScaled + truePart;
@@ -420,15 +466,14 @@ public final class CombatService implements Listener {
                     physPart = 0.0;
                 } else {
                     physPart *= 1.0 - profileChannelResist(prof, true, source, School.PHYSICAL) / 100.0;
-                    physPart *= 1.0 + Math.max(-100.0,
-                            prof.vulnerabilities().getOrDefault(School.PHYSICAL, 0.0)) / 100.0;
+                    physPart *=
+                            1.0 + Math.max(-100.0, prof.vulnerabilities().getOrDefault(School.PHYSICAL, 0.0)) / 100.0;
                 }
                 if (prof.immunities().contains(magicSchool)) {
                     magicPart = 0.0;
                 } else {
                     magicPart *= 1.0 - profileChannelResist(prof, false, source, magicSchool) / 100.0;
-                    magicPart *= 1.0 + Math.max(-100.0,
-                            prof.vulnerabilities().getOrDefault(magicSchool, 0.0)) / 100.0;
+                    magicPart *= 1.0 + Math.max(-100.0, prof.vulnerabilities().getOrDefault(magicSchool, 0.0)) / 100.0;
                 }
             }
             magicTruePart = magicPart + truePart;
@@ -546,13 +591,14 @@ public final class CombatService implements Listener {
                 // 1.15.6 (Волна 7, аудит 2.6-39): второй удар double_strike = повтор
                 // ПЕРВОГО (уже смягчённого) физ-удара, поданный как true-урон:
                 // резисты/множители/криты не применяются повторно.
-                procs.rollDoubleStrike(srcP, target, () ->
-                        dealDamage(target, srcP, DamageProfile.trueDmg(recurPhys), true, true));
+                procs.rollDoubleStrike(
+                        srcP, target, () -> dealDamage(target, srcP, DamageProfile.trueDmg(recurPhys), true, true));
             }
         }
 
         // откат чернокнижника 6.66% (глушится для рефлект-урона)
-        if (source instanceof Player attacker && actualTaken > 0.0
+        if (source instanceof Player attacker
+                && actualTaken > 0.0
                 && !reflectSuppressed()
                 && plugin.getClassProvider().getClassOf(attacker) == PlayerClass.WARLOCK) {
             RaskolConfig cfg = plugin.getRaskolConfig();
@@ -582,14 +628,16 @@ public final class CombatService implements Listener {
      * 1.15.6 (Волна 7, аудит 2.6-33): channel+school резист профиля моба с pen/
      * schoolPen атакующего — зеркало моб-ветви пути A (VanillaDamageListener).
      */
-    private double profileChannelResist(CombatProfile prof, boolean physical,
-                                        Entity source, School school) {
+    private double profileChannelResist(CombatProfile prof, boolean physical, Entity source, School school) {
         double channel = physical ? prof.physResist() : prof.magicResist();
         double schoolR = prof.schoolResists().getOrDefault(school, 0.0);
         double pen = 0.0;
         double schoolPen = 0.0;
         if (source instanceof Player sp) {
-            pen = penTraits.channelPen(sp.getUniqueId(), physical, schoolConfig.penPctCap()).pct() * 100.0;
+            pen = penTraits
+                            .channelPen(sp.getUniqueId(), physical, schoolConfig.penPctCap())
+                            .pct()
+                    * 100.0;
             schoolPen = penTraits.schoolPenFraction(sp.getUniqueId(), school, schoolConfig.penPctCap()) * 100.0;
         }
         return Math.max(0.0, Math.min(90.0, channel - pen + schoolR - schoolPen));
@@ -598,8 +646,7 @@ public final class CombatService implements Listener {
     private boolean rollMeleeCrit(Player player) {
         double baseChance = plugin.getAttributes().critMeleeChance(player.getUniqueId());
         double bonus = safePct(plugin.getSpec2Service().critMeleeBonus(player.getUniqueId()));
-        return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0
-                < (baseChance + bonus * 100.0);
+        return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0 < (baseChance + bonus * 100.0);
     }
 
     private boolean rollSpellCrit(Player player) {
@@ -675,8 +722,7 @@ public final class CombatService implements Listener {
             return;
         }
         dev.raskol.classes.fx.FxService fx = plugin.getFx();
-        org.bukkit.Sound s = fx.resolveSound(
-                plugin.getConfig().getString("combat.block.sound", "ITEM_SHIELD_BLOCK"));
+        org.bukkit.Sound s = fx.resolveSound(plugin.getConfig().getString("combat.block.sound", "ITEM_SHIELD_BLOCK"));
         if (s != null) {
             fx.playSound(target.getLocation(), s, 0.6f, 1.0f);
         }
@@ -698,10 +744,11 @@ public final class CombatService implements Listener {
         }
         event.setCancelled(true);
         if (plugin.getConfig().getBoolean("combat.debug-damage", false)) {
-            String reason = event.getRegainReason() != null ? event.getRegainReason().name() : "UNKNOWN";
+            String reason =
+                    event.getRegainReason() != null ? event.getRegainReason().name() : "UNKNOWN";
             Component msg = Component.text(
-                    "[antiheal] " + le.getName() + " блокировано лечение ("
-                            + reason + ", amount=" + event.getAmount() + ")",
+                    "[antiheal] " + le.getName() + " блокировано лечение (" + reason + ", amount=" + event.getAmount()
+                            + ")",
                     NamedTextColor.DARK_PURPLE);
             for (Player online : plugin.getServer().getOnlinePlayers()) {
                 if (online.hasPermission("raskolclasses.debug")) {
@@ -713,26 +760,33 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ debug-лог ------------------------------ */
 
-    private void debugLog(LivingEntity target, Entity source, DamageProfile profile,
-                          double taken, School school) {
+    private void debugLog(LivingEntity target, Entity source, DamageProfile profile, double taken, School school) {
         if (!plugin.getConfig().getBoolean("combat.debug-damage", false)) {
             return;
         }
         String resistInfo;
         if (target instanceof Player tp) {
             UUID uuid = tp.getUniqueId();
-            resistInfo = String.format(Locale.ROOT, "резисты: физ %.0f%% / маг %.0f%%",
-                    resists.physicalResist(uuid), resists.magicResist(uuid));
+            resistInfo = String.format(
+                    Locale.ROOT,
+                    "резисты: физ %.0f%% / маг %.0f%%",
+                    resists.physicalResist(uuid),
+                    resists.magicResist(uuid));
         } else {
             resistInfo = "резисты: физ 0% / маг 0%";
         }
         String schoolTag = school != null ? " · school=" + school.id() : "";
-        String line = String.format(Locale.ROOT,
+        String line = String.format(
+                Locale.ROOT,
                 "[dmg] %s → %s: профиль %.1f физ / %.1f маг / %.1f чист → дошло %.1f (%s)%s",
                 source != null ? source.getName() : "env",
                 target.getName(),
-                profile.physical(), profile.magic(), profile.trueDamage(),
-                taken, resistInfo, schoolTag);
+                profile.physical(),
+                profile.magic(),
+                profile.trueDamage(),
+                taken,
+                resistInfo,
+                schoolTag);
         Component message = Component.text(line, NamedTextColor.DARK_GRAY);
         for (Player online : plugin.getServer().getOnlinePlayers()) {
             if (online.hasPermission("raskolclasses.debug")) {

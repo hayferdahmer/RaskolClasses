@@ -12,8 +12,7 @@ package dev.raskol.classes.combat;
  */
 public final class CombatMath {
 
-    private CombatMath() {
-    }
+    private CombatMath() {}
 
     /** Анти-ваншот: урон за один удар ≤ pct% от maxHp. pct ≤ 0 = выключено. */
     public static double cappedDamage(double damage, double maxHp, double pct) {
@@ -46,12 +45,10 @@ public final class CombatMath {
      * Порядок: flat вычитается ПЕРВЫМ (не съедается процентом), затем pct от остатка.
      * pctPen ограничен капом (рекомендация 40%), результат не ниже 0.
      */
-    public static double effectiveResist(double resistPct, double flatPen,
-                                         double pctPen, double pctPenCap) {
+    public static double effectiveResist(double resistPct, double flatPen, double pctPen, double pctPenCap) {
         double safeFlat = Math.max(0.0, Double.isFinite(flatPen) ? flatPen : 0.0);
-        double safePct = Math.max(0.0, Math.min(
-                Double.isFinite(pctPenCap) ? pctPenCap : 0.40,
-                Double.isFinite(pctPen) ? pctPen : 0.0));
+        double safePct = Math.max(
+                0.0, Math.min(Double.isFinite(pctPenCap) ? pctPenCap : 0.40, Double.isFinite(pctPen) ? pctPen : 0.0));
         double afterFlat = Math.max(0.0, resistPct - safeFlat);
         return Math.max(0.0, afterFlat * (1.0 - safePct));
     }

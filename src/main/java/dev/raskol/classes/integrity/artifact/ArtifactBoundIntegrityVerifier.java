@@ -2,6 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.artifact;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Path;
+import java.security.PublicKey;
+import java.util.List;
+import java.util.Objects;
+
 import dev.raskol.classes.integrity.build.BuildIdentity;
 import dev.raskol.classes.integrity.build.BuildIdentityLoader;
 import dev.raskol.classes.integrity.build.DevelopmentMode;
@@ -11,13 +18,6 @@ import dev.raskol.classes.integrity.manifest.IntegrityManifestParser;
 import dev.raskol.classes.integrity.verification.IntegrityStatus;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 import dev.raskol.classes.integrity.verification.StartupIntegrityVerifier;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Path;
-import java.security.PublicKey;
-import java.util.List;
-import java.util.Objects;
 
 /**
  * Coordinates artifact-bound integrity verification.
@@ -46,10 +46,7 @@ public final class ArtifactBoundIntegrityVerifier {
     private final Class<?> anchor;
 
     public ArtifactBoundIntegrityVerifier(Class<?> anchor) {
-        this.anchor = Objects.requireNonNull(
-                anchor,
-                "anchor"
-        );
+        this.anchor = Objects.requireNonNull(anchor, "anchor");
     }
 
     /**
@@ -63,27 +60,21 @@ public final class ArtifactBoundIntegrityVerifier {
         try {
             buildIdentity = BuildIdentityLoader.load();
         } catch (RuntimeException exception) {
-            return failure(
-                    IntegrityStatus.INVALID_MANIFEST,
-                    "Unable to load or validate build identity."
-            );
+            return failure(IntegrityStatus.INVALID_MANIFEST, "Unable to load or validate build identity.");
         }
 
         if (buildIdentity.isDevelopment()) {
             if (!DevelopmentMode.isEnabled()) {
                 return failure(
                         IntegrityStatus.DEVELOPMENT_MODE_REQUIRED,
-                        "Development build rejected. "
-                                + "Explicit JVM development mode is required."
-                );
+                        "Development build rejected. " + "Explicit JVM development mode is required.");
             }
 
             return new IntegrityVerificationResult(
                     IntegrityStatus.DEVELOPMENT_BUILD,
                     "Development build explicitly authorized by the server operator.",
                     0,
-                    List.of()
-            );
+                    List.of());
         }
 
         final Path artifactPath;
@@ -92,22 +83,15 @@ public final class ArtifactBoundIntegrityVerifier {
             artifactPath = ArtifactLocator.locate(anchor);
         } catch (IOException | SecurityException exception) {
             return failure(
-                    IntegrityStatus.ARTIFACT_UNAVAILABLE,
-                    "Unable to locate or access the physical plugin artifact."
-            );
+                    IntegrityStatus.ARTIFACT_UNAVAILABLE, "Unable to locate or access the physical plugin artifact.");
         }
 
         final JarFileIntegrityResourceProvider resourceProvider;
 
         try {
-            resourceProvider = new JarFileIntegrityResourceProvider(
-                    artifactPath
-            );
+            resourceProvider = new JarFileIntegrityResourceProvider(artifactPath);
         } catch (IOException | SecurityException exception) {
-            return failure(
-                    IntegrityStatus.ARTIFACT_UNAVAILABLE,
-                    "Unable to open the physical plugin artifact."
-            );
+            return failure(IntegrityStatus.ARTIFACT_UNAVAILABLE, "Unable to open the physical plugin artifact.");
         }
 
         final List<PublicKey> trustedPublicKeys;
@@ -116,28 +100,16 @@ public final class ArtifactBoundIntegrityVerifier {
             trustedPublicKeys = TrustedPublicKeyRegistry.trustedKeys();
 
             if (trustedPublicKeys.isEmpty()) {
-                return failure(
-                        IntegrityStatus.TRUSTED_KEY_UNAVAILABLE,
-                        "RIPS trusted public key registry is empty."
-                );
+                return failure(IntegrityStatus.TRUSTED_KEY_UNAVAILABLE, "RIPS trusted public key registry is empty.");
             }
         } catch (ExceptionInInitializerError exception) {
-            return failure(
-                    IntegrityStatus.TRUSTED_KEY_UNAVAILABLE,
-                    "RIPS trusted public key registry is invalid."
-            );
+            return failure(IntegrityStatus.TRUSTED_KEY_UNAVAILABLE, "RIPS trusted public key registry is invalid.");
         }
 
         StartupIntegrityVerifier startupVerifier =
-                new StartupIntegrityVerifier(
-                        resourceProvider,
-                        buildIdentity,
-                        null,
-                        trustedPublicKeys
-                );
+                new StartupIntegrityVerifier(resourceProvider, buildIdentity, null, trustedPublicKeys);
 
-        IntegrityVerificationResult startupResult =
-                startupVerifier.verify();
+        IntegrityVerificationResult startupResult = startupVerifier.verify();
 
         if (!startupResult.isVerified()) {
             return startupResult;
@@ -148,85 +120,55 @@ public final class ArtifactBoundIntegrityVerifier {
         try {
             manifest = loadVerifiedManifest(resourceProvider);
         } catch (IOException exception) {
-            return failure(
-                    IntegrityStatus.RESOURCE_READ_ERROR,
-                    "Unable to read the verified integrity manifest."
-            );
+            return failure(IntegrityStatus.RESOURCE_READ_ERROR, "Unable to read the verified integrity manifest.");
         } catch (IllegalArgumentException exception) {
-            return failure(
-                    IntegrityStatus.INVALID_MANIFEST,
-                    "The integrity manifest is not canonical or valid."
-            );
+            return failure(IntegrityStatus.INVALID_MANIFEST, "The integrity manifest is not canonical or valid.");
         }
 
         JarArchiveIntegrityVerificationResult archiveResult =
-                new JarArchiveIntegrityVerifier(artifactPath)
-                        .verify(manifest);
+                new JarArchiveIntegrityVerifier(artifactPath).verify(manifest);
 
         if (!archiveResult.isVerified()) {
-            IntegrityStatus failureStatus = switch (archiveResult.status()) {
-                case ARCHIVE_READ_ERROR, ENTRY_READ_ERROR ->
-                        IntegrityStatus.ARTIFACT_UNAVAILABLE;
+            IntegrityStatus failureStatus =
+                    switch (archiveResult.status()) {
+                        case ARCHIVE_READ_ERROR, ENTRY_READ_ERROR -> IntegrityStatus.ARTIFACT_UNAVAILABLE;
 
-                default ->
-                        IntegrityStatus.ARCHIVE_INTEGRITY_FAILURE;
-            };
+                        default -> IntegrityStatus.ARCHIVE_INTEGRITY_FAILURE;
+                    };
 
             return new IntegrityVerificationResult(
                     failureStatus,
-                    "Full archive verification failed: "
-                            + archiveResult.status()
-                            + ". "
-                            + archiveResult.message(),
+                    "Full archive verification failed: " + archiveResult.status() + ". " + archiveResult.message(),
                     archiveResult.checkedFiles(),
-                    archiveResult.failedFiles()
-            );
+                    archiveResult.failedFiles());
         }
 
         return new IntegrityVerificationResult(
                 IntegrityStatus.VERIFIED,
                 "Artifact signature, build identity, protected files and complete JAR archive were verified successfully.",
                 archiveResult.checkedFiles(),
-                List.of()
-        );
+                List.of());
     }
 
-    private IntegrityManifest loadVerifiedManifest(
-            JarFileIntegrityResourceProvider resourceProvider
-    ) throws IOException {
+    private IntegrityManifest loadVerifiedManifest(JarFileIntegrityResourceProvider resourceProvider)
+            throws IOException {
 
-        try (InputStream input = resourceProvider.openResource(
-                StartupIntegrityVerifier.MANIFEST_RESOURCE
-        )) {
+        try (InputStream input = resourceProvider.openResource(StartupIntegrityVerifier.MANIFEST_RESOURCE)) {
             if (input == null) {
-                throw new IOException(
-                        "Integrity manifest disappeared from the artifact."
-                );
+                throw new IOException("Integrity manifest disappeared from the artifact.");
             }
 
-            byte[] manifestBytes = input.readNBytes(
-                    MAX_MANIFEST_SIZE + 1
-            );
+            byte[] manifestBytes = input.readNBytes(MAX_MANIFEST_SIZE + 1);
 
             if (manifestBytes.length > MAX_MANIFEST_SIZE) {
-                throw new IOException(
-                        "Integrity manifest exceeds the maximum allowed size."
-                );
+                throw new IOException("Integrity manifest exceeds the maximum allowed size.");
             }
 
             return IntegrityManifestParser.parse(manifestBytes);
         }
     }
 
-    private IntegrityVerificationResult failure(
-            IntegrityStatus status,
-            String message
-    ) {
-        return new IntegrityVerificationResult(
-                status,
-                message,
-                0,
-                List.of()
-        );
+    private IntegrityVerificationResult failure(IntegrityStatus status, String message) {
+        return new IntegrityVerificationResult(status, message, 0, List.of());
     }
 }

@@ -2,6 +2,20 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.gui;
 
+import java.util.Map;
+import java.util.UUID;
+
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
@@ -14,21 +28,9 @@ import dev.raskol.classes.gui.book.EquipmentTab;
 import dev.raskol.classes.gui.book.RenderCtx;
 import dev.raskol.classes.gui.book.SpecsTab;
 import dev.raskol.classes.gui.book.TalentsTab;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.Material;
-import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.ClickType;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
-
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * Книга класса: фасад + каркас (рамка, эмблема, навигация) и роутинг кликов.
@@ -37,7 +39,13 @@ import java.util.UUID;
  */
 public final class ClassBook implements InventoryHolder {
 
-    public enum Tab { ABILITIES, SPECS, CLASS, TALENTS, GEAR }
+    public enum Tab {
+        ABILITIES,
+        SPECS,
+        CLASS,
+        TALENTS,
+        GEAR
+    }
 
     private static final Map<Tab, BookTabView> VIEWS = Map.of(
             Tab.ABILITIES, new AbilitiesTab(),
@@ -63,12 +71,15 @@ public final class ClassBook implements InventoryHolder {
     public static void open(RaskolClasses plugin, Player player, Tab tab) {
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
-            player.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "no-class", "Класс не выбран — посетите герольда"), NamedTextColor.GRAY));
+            player.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("no-class", "Класс не выбран — посетите герольда"),
+                    NamedTextColor.GRAY));
             return;
         }
         ClassBook book = new ClassBook(player.getUniqueId(), tab);
-        Inventory inv = Bukkit.createInventory(book, BookSlots.SIZE,
+        Inventory inv = Bukkit.createInventory(
+                book,
+                BookSlots.SIZE,
                 Component.text(plugin.getRaskolConfig().message("book.title", "Книга класса: "))
                         .append(Component.text(pc.getDisplayName(), pc.getColor())));
         book.inventory = inv;
@@ -93,16 +104,22 @@ public final class ClassBook implements InventoryHolder {
             inventory.setItem(i, BookItems.filler());
         }
         inventory.setItem(BookSlots.SLOT_EMBLEM, BookItems.emblem(plugin, player, pc));
-        inventory.setItem(BookSlots.SLOT_TAB_ABILITIES, BookItems.tabIcon(plugin, Material.BOOK,
-                "book.tab.abilities", "Способности", tab == Tab.ABILITIES));
-        inventory.setItem(BookSlots.SLOT_TAB_SPECS, BookItems.tabIcon(plugin, Material.NETHER_STAR,
-                "book.tab.specs", "Специализации", tab == Tab.SPECS));
-        inventory.setItem(BookSlots.SLOT_TAB_CLASS, BookItems.tabIcon(plugin, Material.NAME_TAG,
-                "book.tab.class", "Класс и пассивки", tab == Tab.CLASS));
-        inventory.setItem(BookSlots.SLOT_TAB_TALENTS, BookItems.tabIcon(plugin, Material.END_CRYSTAL,
-                "book.tab.talents", "Деревья путей", tab == Tab.TALENTS));
-        inventory.setItem(BookSlots.SLOT_TAB_GEAR, BookItems.tabIcon(plugin, Material.ANVIL,
-                "book.tab.gear", "Шмот и сеты", tab == Tab.GEAR));
+        inventory.setItem(
+                BookSlots.SLOT_TAB_ABILITIES,
+                BookItems.tabIcon(plugin, Material.BOOK, "book.tab.abilities", "Способности", tab == Tab.ABILITIES));
+        inventory.setItem(
+                BookSlots.SLOT_TAB_SPECS,
+                BookItems.tabIcon(plugin, Material.NETHER_STAR, "book.tab.specs", "Специализации", tab == Tab.SPECS));
+        inventory.setItem(
+                BookSlots.SLOT_TAB_CLASS,
+                BookItems.tabIcon(plugin, Material.NAME_TAG, "book.tab.class", "Класс и пассивки", tab == Tab.CLASS));
+        inventory.setItem(
+                BookSlots.SLOT_TAB_TALENTS,
+                BookItems.tabIcon(
+                        plugin, Material.END_CRYSTAL, "book.tab.talents", "Деревья путей", tab == Tab.TALENTS));
+        inventory.setItem(
+                BookSlots.SLOT_TAB_GEAR,
+                BookItems.tabIcon(plugin, Material.ANVIL, "book.tab.gear", "Шмот и сеты", tab == Tab.GEAR));
         inventory.setItem(BookSlots.SLOT_CLOSE, BookItems.closeIcon());
 
         BookTabView view = VIEWS.get(tab);
@@ -145,11 +162,26 @@ public final class ClassBook implements InventoryHolder {
                 player.closeInventory();
                 return;
             }
-            if (slot == BookSlots.SLOT_TAB_ABILITIES) { open(plugin, player, Tab.ABILITIES); return; }
-            if (slot == BookSlots.SLOT_TAB_SPECS) { open(plugin, player, Tab.SPECS); return; }
-            if (slot == BookSlots.SLOT_TAB_CLASS) { open(plugin, player, Tab.CLASS); return; }
-            if (slot == BookSlots.SLOT_TAB_TALENTS) { open(plugin, player, Tab.TALENTS); return; }
-            if (slot == BookSlots.SLOT_TAB_GEAR) { open(plugin, player, Tab.GEAR); return; }
+            if (slot == BookSlots.SLOT_TAB_ABILITIES) {
+                open(plugin, player, Tab.ABILITIES);
+                return;
+            }
+            if (slot == BookSlots.SLOT_TAB_SPECS) {
+                open(plugin, player, Tab.SPECS);
+                return;
+            }
+            if (slot == BookSlots.SLOT_TAB_CLASS) {
+                open(plugin, player, Tab.CLASS);
+                return;
+            }
+            if (slot == BookSlots.SLOT_TAB_TALENTS) {
+                open(plugin, player, Tab.TALENTS);
+                return;
+            }
+            if (slot == BookSlots.SLOT_TAB_GEAR) {
+                open(plugin, player, Tab.GEAR);
+                return;
+            }
 
             BookTabView view = VIEWS.get(book.tab);
             if (view != null) {

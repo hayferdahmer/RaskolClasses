@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.school.School;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.school.School;
 
 /**
  * 1.14.0 (контент-долги 1–6): способности, открываемые узлами деревьев путей
@@ -45,45 +45,93 @@ import java.util.UUID;
  */
 public final class TreeAbilities {
 
-    private TreeAbilities() {
-    }
+    private TreeAbilities() {}
 
     /** Id древесных способностей класса (порядок = порядок слотов витрины). */
     public static List<String> idsFor(PlayerClass pc) {
         return switch (pc) {
             case WARRIOR -> List.of(
-                    "whirlwind_slash", "mortal_strike", "bloodthirst", "rampage",
-                    "concussive_blow", "shield_bash", "taunt", "bladestorm", "last_stand");
+                    "whirlwind_slash",
+                    "mortal_strike",
+                    "bloodthirst",
+                    "rampage",
+                    "concussive_blow",
+                    "shield_bash",
+                    "taunt",
+                    "bladestorm",
+                    "last_stand");
             case HUNTER -> List.of(
-                    "aimed_shot", "silencing_shot", "chimera_shot", "true_shot",
-                    "poison_shot", "explosive_trap", "black_arrow", "wyvern_sting",
-                    "readiness", "serpent_sting", "intimidation", "pet_wolf",
-                    "beast_ferocity", "bestial_wrath");
+                    "aimed_shot",
+                    "silencing_shot",
+                    "chimera_shot",
+                    "true_shot",
+                    "poison_shot",
+                    "explosive_trap",
+                    "black_arrow",
+                    "wyvern_sting",
+                    "readiness",
+                    "serpent_sting",
+                    "intimidation",
+                    "pet_wolf",
+                    "beast_ferocity",
+                    "bestial_wrath");
             case ROGUE -> List.of(
-                    "poison_burst", "cold_blood", "vendetta", "envenom", "deathmark",
-                    "pistol_shot", "blade_flurry", "adrenaline_rush", "killing_spree",
-                    "between_the_eyes", "backstab", "shadowstep", "preparation",
-                    "cloak_of_shadows", "hemorrhage", "shadow_blades");
+                    "poison_burst",
+                    "cold_blood",
+                    "vendetta",
+                    "envenom",
+                    "deathmark",
+                    "pistol_shot",
+                    "blade_flurry",
+                    "adrenaline_rush",
+                    "killing_spree",
+                    "between_the_eyes",
+                    "backstab",
+                    "shadowstep",
+                    "preparation",
+                    "cloak_of_shadows",
+                    "hemorrhage",
+                    "shadow_blades");
             case MAGE -> List.of(
-                    "arcane_missiles", "counterspell", "presence_of_mind",
-                    "scorch", "flamestrike", "combustion", "pyroblast",
-                    "frostbolt", "blizzard", "ice_barrier", "ice_lance_shatter");
+                    "arcane_missiles",
+                    "counterspell",
+                    "presence_of_mind",
+                    "scorch",
+                    "flamestrike",
+                    "combustion",
+                    "pyroblast",
+                    "frostbolt",
+                    "blizzard",
+                    "ice_barrier",
+                    "ice_lance_shatter");
             case PRIEST -> List.of(
-                    "purge", "pain_suppression", "spirit_shell",
-                    "flash_heal", "lightwell", "divine_hymn",
-                    "withering_touch", "mind_flay", "shadowfiend");
+                    "purge",
+                    "pain_suppression",
+                    "spirit_shell",
+                    "flash_heal",
+                    "lightwell",
+                    "divine_hymn",
+                    "withering_touch",
+                    "mind_flay",
+                    "shadowfiend");
             case WARLOCK -> List.of(
-                    "withering", "soul_siphon", "soul_harvest",
-                    "immolate", "chaos_bolt", "conflagrate",
-                    "dreadfire", "summon_demon", "demonic_pact", "demon_soul");
+                    "withering",
+                    "soul_siphon",
+                    "soul_harvest",
+                    "immolate",
+                    "chaos_bolt",
+                    "conflagrate",
+                    "dreadfire",
+                    "summon_demon",
+                    "demonic_pact",
+                    "demon_soul");
         };
     }
 
     /** Def древесной способности из конфига; null если секции нет. */
     public static AbilityDef defFor(RaskolClasses plugin, PlayerClass pc, String id, int slot) {
         String base = "classes." + pc.name() + ".treeAbilities." + id + ".";
-        if (!plugin.getConfig().isConfigurationSection(
-                "classes." + pc.name() + ".treeAbilities." + id)) {
+        if (!plugin.getConfig().isConfigurationSection("classes." + pc.name() + ".treeAbilities." + id)) {
             return null;
         }
         String name = plugin.getConfig().getString(base + "name", id);
@@ -126,15 +174,13 @@ public final class TreeAbilities {
      * как в текущих radius()/drain()/threshold()/execute-mult()/per-purged()/channel()/
      * antiheal()/missing-hp-bonus()/base()/coeff()).
      */
-    public static double numberOrKit(RaskolClasses plugin, PlayerClass pc, String id,
-                                     String key, double def) {
-        double v = plugin.getConfig().getDouble(
-                "classes." + pc.name() + ".treeAbilities." + id + "." + key, Double.NaN);
+    public static double numberOrKit(RaskolClasses plugin, PlayerClass pc, String id, String key, double def) {
+        double v =
+                plugin.getConfig().getDouble("classes." + pc.name() + ".treeAbilities." + id + "." + key, Double.NaN);
         if (Double.isFinite(v)) {
             return v;
         }
-        v = plugin.getConfig().getDouble(
-                "classes." + pc.name() + ".abilities." + id + "." + key, Double.NaN);
+        v = plugin.getConfig().getDouble("classes." + pc.name() + ".abilities." + id + "." + key, Double.NaN);
         return Double.isFinite(v) ? v : def;
     }
 
@@ -143,8 +189,7 @@ public final class TreeAbilities {
      * Использует isSet-проверку, чтобы отсутствующий ключ в treeAbilities не «съедал»
      * значение из abilities (getInt на unset вернул бы def, а не abilities).
      */
-    public static int intOrKit(RaskolClasses plugin, PlayerClass pc, String id,
-                               String key, int def) {
+    public static int intOrKit(RaskolClasses plugin, PlayerClass pc, String id, String key, int def) {
         String tPath = "classes." + pc.name() + ".treeAbilities." + id + "." + key;
         if (plugin.getConfig().isSet(tPath)) {
             return plugin.getConfig().getInt(tPath, def);
@@ -161,15 +206,12 @@ public final class TreeAbilities {
      * abilities.<id>.<key> → def. Пустая строка трактуется как отсутствие
      * (соответствует текущему cfgS/getString-поведению с дефолтом).
      */
-    public static String stringOrKit(RaskolClasses plugin, PlayerClass pc, String id,
-                                     String key, String def) {
-        String v = plugin.getConfig().getString(
-                "classes." + pc.name() + ".treeAbilities." + id + "." + key, null);
+    public static String stringOrKit(RaskolClasses plugin, PlayerClass pc, String id, String key, String def) {
+        String v = plugin.getConfig().getString("classes." + pc.name() + ".treeAbilities." + id + "." + key, null);
         if (v != null && !v.isEmpty()) {
             return v;
         }
-        v = plugin.getConfig().getString(
-                "classes." + pc.name() + ".abilities." + id + "." + key, null);
+        v = plugin.getConfig().getString("classes." + pc.name() + ".abilities." + id + "." + key, null);
         return (v != null && !v.isEmpty()) ? v : def;
     }
 
@@ -202,8 +244,7 @@ public final class TreeAbilities {
      * @param defv        фолбэк-длительность (секунды), если конфиг пуст
      * @param ownerUuid   владелец дерева (читатель kitDurBonus)
      */
-    public static int durationWithSpec(RaskolClasses plugin, PlayerClass pc, String id,
-                                       int defv, UUID ownerUuid) {
+    public static int durationWithSpec(RaskolClasses plugin, PlayerClass pc, String id, int defv, UUID ownerUuid) {
         int base = durationOrKit(plugin, pc, id, defv);
         double bonus = plugin.getSpec2Service().kitDurBonus(ownerUuid, id);
         if (!Double.isFinite(bonus) || bonus <= 0.0) {
@@ -304,14 +345,12 @@ public final class TreeAbilities {
     }
 
     public static double radiusOf(RaskolClasses plugin, PlayerClass pc, String id, double def) {
-        double v = plugin.getConfig().getDouble(
-                "classes." + pc.name() + ".treeAbilities." + id + ".radius", def);
+        double v = plugin.getConfig().getDouble("classes." + pc.name() + ".treeAbilities." + id + ".radius", def);
         return Double.isFinite(v) && v > 0.0 ? v : def;
     }
 
     public static int durationOf(RaskolClasses plugin, PlayerClass pc, String id, int def) {
-        int v = plugin.getConfig().getInt(
-                "classes." + pc.name() + ".treeAbilities." + id + ".duration", def);
+        int v = plugin.getConfig().getInt("classes." + pc.name() + ".treeAbilities." + id + ".duration", def);
         return v > 0 ? v : def;
     }
 

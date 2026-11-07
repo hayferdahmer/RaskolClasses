@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.registry;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import dev.raskol.classes.spec.model.Spec2Tree;
 import dev.raskol.classes.spec.registry.trees.HunterTrees;
 import dev.raskol.classes.spec.registry.trees.MageTrees;
@@ -9,9 +12,6 @@ import dev.raskol.classes.spec.registry.trees.PriestTrees;
 import dev.raskol.classes.spec.registry.trees.RogueTrees;
 import dev.raskol.classes.spec.registry.trees.WarlockTrees;
 import dev.raskol.classes.spec.registry.trees.WarriorTrees;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * 1.14.0: реестр деревьев spec2. Наполняется из per-class файлов trees/*Trees.java.
@@ -30,8 +30,7 @@ public final class Spec2Registry {
         WarlockTrees.register(TREES);
     }
 
-    private Spec2Registry() {
-    }
+    private Spec2Registry() {}
 
     public static Spec2Tree treeOf(String specId) {
         return TREES.get(specId);

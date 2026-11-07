@@ -2,6 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.gui.book;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+
+import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.ability.TreeAbilities;
@@ -10,18 +21,9 @@ import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.util.TextFx;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Material;
-import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemFlag;
-import org.bukkit.inventory.ItemStack;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
 
 /**
  * 1.11.4 (P4b): вкладка «Способности»: 5 слотов кита + слот инсталляции.
@@ -61,8 +63,7 @@ public final class AbilitiesTab implements BookTabView {
             if (!plugin.getSpec2Service().hasUnlocked(player.getUniqueId(), def.id())) {
                 continue;
             }
-            ctx.inv().setItem(BookSlots.TREE_ABILITY_SLOTS[slotIdx],
-                    abilityItem(plugin, player, pc, def, true));
+            ctx.inv().setItem(BookSlots.TREE_ABILITY_SLOTS[slotIdx], abilityItem(plugin, player, pc, def, true));
             slotIdx++;
         }
         InstallationType type = InstallationType.forClass(pc);
@@ -103,13 +104,14 @@ public final class AbilitiesTab implements BookTabView {
                 plugin.getInstallations().tryPlace(player);
             } else {
                 if (countInstallScrolls(plugin, player, type) > 0) {
-                    player.sendMessage(Component.text(BookItems.msg(plugin,
-                            "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
+                    player.sendMessage(Component.text(
+                            BookItems.msg(plugin, "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
                             NamedTextColor.GRAY));
                 } else {
                     player.getInventory().addItem(plugin.getInstallToken().create(type, pc));
-                    player.sendMessage(Component.text(BookItems.msg(plugin,
-                            "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
+                    player.sendMessage(Component.text(
+                                    BookItems.msg(plugin, "book.msg.scroll.got", "Свиток получен: "),
+                                    NamedTextColor.GRAY)
                             .append(Component.text(type.displayName(), pc.getColor())));
                 }
             }
@@ -132,8 +134,8 @@ public final class AbilitiesTab implements BookTabView {
         return null;
     }
 
-    private void handleAbilityClick(RenderCtx ctx, Player player, PlayerClass pc,
-                                    AbilityDef def, boolean left, boolean right) {
+    private void handleAbilityClick(
+            RenderCtx ctx, Player player, PlayerClass pc, AbilityDef def, boolean left, boolean right) {
         RaskolClasses plugin = ctx.plugin();
         if (left) {
             if (plugin.getAbilities().tryCast(player, def)) {
@@ -141,13 +143,13 @@ public final class AbilitiesTab implements BookTabView {
             }
         } else {
             if (countAbilityScrolls(plugin, player, def.id()) > 0) {
-                player.sendMessage(Component.text(BookItems.msg(plugin,
-                        "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
+                player.sendMessage(Component.text(
+                        BookItems.msg(plugin, "book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан."),
                         NamedTextColor.GRAY));
             } else {
                 player.getInventory().addItem(plugin.getTokens().create(def, pc));
-                player.sendMessage(Component.text(BookItems.msg(plugin,
-                        "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
+                player.sendMessage(Component.text(
+                                BookItems.msg(plugin, "book.msg.scroll.got", "Свиток получен: "), NamedTextColor.GRAY)
                         .append(Component.text(def.displayName(), pc.getColor())));
             }
         }
@@ -160,21 +162,21 @@ public final class AbilitiesTab implements BookTabView {
         return abilityItem(plugin, player, pc, def, false);
     }
 
-    private ItemStack abilityItem(RaskolClasses plugin, Player player, PlayerClass pc,
-                                  AbilityDef def, boolean treeAbility) {
+    private ItemStack abilityItem(
+            RaskolClasses plugin, Player player, PlayerClass pc, AbilityDef def, boolean treeAbility) {
         UUID uuid = player.getUniqueId();
         long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
         double resource = plugin.getResources().getValue(uuid);
         int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-        boolean unlocked = level == SkillLevelProvider.NO_SKILL_SYSTEM
-                || level >= def.unlockLevel();
+        boolean unlocked = level == SkillLevelProvider.NO_SKILL_SYSTEM || level >= def.unlockLevel();
         boolean ready = remaining <= 0 && resource >= def.cost() && unlocked;
         int scrolls = countAbilityScrolls(plugin, player, def.id());
 
         ItemStack item = new ItemStack(treeAbility ? Material.ENCHANTED_BOOK : Material.BOOK);
         item.editMeta(meta -> {
             Component name = unlocked
-                    ? TextFx.gradient((treeAbility ? "⌥ " : "[" + def.slot() + "] ") + def.displayName(),
+                    ? TextFx.gradient(
+                            (treeAbility ? "⌥ " : "[" + def.slot() + "] ") + def.displayName(),
                             plugin.getRaskolConfig().themeOf(pc).primary(),
                             plugin.getRaskolConfig().themeOf(pc).secondary())
                     : Component.text("[" + def.slot() + "] " + def.displayName(), NamedTextColor.DARK_GRAY);
@@ -190,25 +192,30 @@ public final class AbilitiesTab implements BookTabView {
             }
             lore.add(Component.empty());
             lore.add(Component.text("Цена: ", NamedTextColor.GRAY)
-                    .append(Component.text(def.cost() + " " + pc.getResourceName(),
+                    .append(Component.text(
+                            def.cost() + " " + pc.getResourceName(),
                             resource >= def.cost() ? NamedTextColor.WHITE : NamedTextColor.RED)));
             if (remaining > 0) {
-                lore.add(Component.text(BookItems.msg(plugin, "book.recharging", "Перезарядка: {sec} с")
-                        .replace("{sec}", String.valueOf(remaining / 1000L + 1)),
+                lore.add(Component.text(
+                        BookItems.msg(plugin, "book.recharging", "Перезарядка: {sec} с")
+                                .replace("{sec}", String.valueOf(remaining / 1000L + 1)),
                         NamedTextColor.RED));
             } else {
-                lore.add(Component.text(BookItems.msg(plugin, "book.cooldown", "Кулдаун: {sec} с")
-                        .replace("{sec}", String.valueOf(def.cooldownMillis() / 1000L)),
+                lore.add(Component.text(
+                        BookItems.msg(plugin, "book.cooldown", "Кулдаун: {sec} с")
+                                .replace("{sec}", String.valueOf(def.cooldownMillis() / 1000L)),
                         NamedTextColor.GRAY));
             }
-            lore.add(Component.text(scrolls > 0
-                    ? BookItems.msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
-                            .replace("{count}", String.valueOf(scrolls))
-                    : BookItems.msg(plugin, "book.scroll.none", "Свиток: нет"),
+            lore.add(Component.text(
+                    scrolls > 0
+                            ? BookItems.msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
+                                    .replace("{count}", String.valueOf(scrolls))
+                            : BookItems.msg(plugin, "book.scroll.none", "Свиток: нет"),
                     scrolls > 0 ? NamedTextColor.WHITE : NamedTextColor.DARK_GRAY));
             lore.add(Component.empty());
             lore.add(Component.text(BookItems.msg(plugin, "book.use.left", "ЛКМ — применить"), NamedTextColor.YELLOW));
-            lore.add(Component.text(BookItems.msg(plugin, "book.use.right", "ПКМ — свиток в хотбар"), NamedTextColor.GRAY));
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.use.right", "ПКМ — свиток в хотбар"), NamedTextColor.GRAY));
             meta.lore(lore);
             if (ready) {
                 meta.addEnchant(Enchantment.LURE, 1, true);
@@ -222,28 +229,36 @@ public final class AbilitiesTab implements BookTabView {
         int scrolls = countInstallScrolls(plugin, player, type);
         ItemStack item = new ItemStack(type.displayItem());
         item.editMeta(meta -> {
-            meta.displayName(TextFx.gradient("⚙ " + type.displayName(),
+            meta.displayName(TextFx.gradient(
+                    "⚙ " + type.displayName(),
                     plugin.getRaskolConfig().themeOf(pc).primary(),
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text(BookItems.msg(plugin,
-                    "book.install.desc." + type.id().toLowerCase(Locale.ROOT), installDescDef(type)),
+            lore.add(Component.text(
+                    BookItems.msg(
+                            plugin, "book.install.desc." + type.id().toLowerCase(Locale.ROOT), installDescDef(type)),
                     NamedTextColor.GRAY));
             lore.add(Component.empty());
-            lore.add(Component.text(BookItems.msg(plugin, "book.install.active", "Активно: {count}/2 · TTL {ttl} с")
-                    .replace("{count}", String.valueOf(
-                            plugin.getInstallations().countOf(player.getUniqueId())))
-                    .replace("{ttl}", String.valueOf(
-                            plugin.getConfig().getInt("installations.ttl-seconds", 60))),
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.install.active", "Активно: {count}/2 · TTL {ttl} с")
+                            .replace(
+                                    "{count}",
+                                    String.valueOf(plugin.getInstallations().countOf(player.getUniqueId())))
+                            .replace(
+                                    "{ttl}",
+                                    String.valueOf(plugin.getConfig().getInt("installations.ttl-seconds", 60))),
                     NamedTextColor.WHITE));
-            lore.add(Component.text(scrolls > 0
-                    ? BookItems.msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
-                            .replace("{count}", String.valueOf(scrolls))
-                    : BookItems.msg(plugin, "book.scroll.none", "Свиток: нет"),
+            lore.add(Component.text(
+                    scrolls > 0
+                            ? BookItems.msg(plugin, "book.scroll.have", "Свиток: в инвентаре ({count})")
+                                    .replace("{count}", String.valueOf(scrolls))
+                            : BookItems.msg(plugin, "book.scroll.none", "Свиток: нет"),
                     scrolls > 0 ? NamedTextColor.WHITE : NamedTextColor.DARK_GRAY));
             lore.add(Component.empty());
-            lore.add(Component.text(BookItems.msg(plugin, "book.place.left", "ЛКМ — поставить здесь"), NamedTextColor.YELLOW));
-            lore.add(Component.text(BookItems.msg(plugin, "book.place.right", "ПКМ — свиток постановки"), NamedTextColor.GRAY));
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.place.left", "ЛКМ — поставить здесь"), NamedTextColor.YELLOW));
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.place.right", "ПКМ — свиток постановки"), NamedTextColor.GRAY));
             meta.lore(lore);
         });
         return item;

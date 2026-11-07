@@ -2,12 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.cc.CCType;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.DamageProfile;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.UUID;
+
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -19,7 +15,13 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.cc.CCType;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.DamageProfile;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.7.2: КИТ ВОИНА. 1.9.3 (план B): effectiveMaxHp() читает formulaMaxHp();
@@ -54,16 +56,15 @@ public final class WarriorAbilities extends AbstractKit {
         if (target instanceof Player p) {
             return plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
         }
-        org.bukkit.attribute.AttributeInstance ai = target.getAttribute(
-                io.papermc.paper.registry.RegistryAccess.registryAccess()
+        org.bukkit.attribute.AttributeInstance ai =
+                target.getAttribute(io.papermc.paper.registry.RegistryAccess.registryAccess()
                         .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
                         .get(org.bukkit.NamespacedKey.minecraft("max_health")));
         return ai != null ? ai.getValue() : 20.0;
     }
 
     private void executeFx(Player caster, LivingEntity target) {
-        Sound sound = plugin.getFx().resolveSound(
-                cfgS("vfx.ragnarok.execute-sound", "ENTITY_GENERIC_EXPLODE"));
+        Sound sound = plugin.getFx().resolveSound(cfgS("vfx.ragnarok.execute-sound", "ENTITY_GENERIC_EXPLODE"));
         Location loc = target.getLocation().add(0.0, 1.0, 0.0);
         if (sound != null) {
             plugin.getFx().playSound(loc, sound, 0.9f, 0.7f);
@@ -119,16 +120,15 @@ public final class WarriorAbilities extends AbstractKit {
         double scale = plugin.getHpBarService().scale(p);
         double hpFormula = scale > 0.0 ? p.getHealth() / scale : p.getHealth();
         if (hpFormula >= formula - 0.001) {
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "target-full-hp", "Цель здорова"), NamedTextColor.GRAY));
+            p.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("target-full-hp", "Цель здорова"), NamedTextColor.GRAY));
             return false;
         }
         castFx(p, "fenrir_blood", "ENTITY_WOLF_AMBIENT", "CRIMSON_SPORE", 0.6f, 1.0f, 16);
         double amount = dmg(p, def, 15.0, 0.5);
         // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
         plugin.getHpBarService().heal(p, amount, p);
-        Sound healSound = plugin.getFx().resolveSound(
-                cfgS("vfx.fenrir_blood.impact-sound", "ENTITY_PLAYER_LEVELUP"));
+        Sound healSound = plugin.getFx().resolveSound(cfgS("vfx.fenrir_blood.impact-sound", "ENTITY_PLAYER_LEVELUP"));
         Location loc = p.getLocation().add(0.0, 1.0, 0.0);
         if (healSound != null) {
             plugin.getFx().playSound(loc, healSound, 0.5f, 1.2f);
@@ -156,8 +156,8 @@ public final class WarriorAbilities extends AbstractKit {
             dmg *= TreeAbilities.numberOrKit(plugin, PC, def.id(), "execute-mult", 3.0);
             plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg), true);
             executeFx(p, t);
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "tag.execute", "Казнь ×3!"), NamedTextColor.RED));
+            p.sendMessage(
+                    Component.text(plugin.getRaskolConfig().message("tag.execute", "Казнь ×3!"), NamedTextColor.RED));
         } else {
             plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
             impactFx(t, "ragnarok", "ENTITY_GENERIC_EXPLODE", "LARGE_SMOKE", 0.6f, 0.9f, 6);
@@ -182,7 +182,10 @@ public final class WarriorAbilities extends AbstractKit {
             if (!plugin.getCombat().canHit(p, t)) {
                 continue;
             }
-            Vector to = t.getLocation().toVector().subtract(p.getLocation().toVector()).setY(0);
+            Vector to = t.getLocation()
+                    .toVector()
+                    .subtract(p.getLocation().toVector())
+                    .setY(0);
             if (to.lengthSquared() < 1e-6) {
                 continue;
             }
@@ -215,8 +218,7 @@ public final class WarriorAbilities extends AbstractKit {
         castFx(p, "mortal_strike", "ENTITY_PLAYER_ATTACK_CRIT", "DAMAGE_INDICATOR", 0.7f, 0.9f, 12);
         double dmg = tdmg(p, def, 14.0, 1.1);
         plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
-        WarlockAbilities.addAntiheal(t.getUniqueId(),
-                TreeAbilities.durationOf(plugin, PC, def.id(), 3));
+        WarlockAbilities.addAntiheal(t.getUniqueId(), TreeAbilities.durationOf(plugin, PC, def.id(), 3));
         impactFx(t, "mortal_strike", "ENTITY_PLAYER_HURT", "LARGE_SMOKE", 0.5f, 0.9f, 8);
         return true;
     }
@@ -239,8 +241,7 @@ public final class WarriorAbilities extends AbstractKit {
         if (heal > 0.0) {
             // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
             plugin.getHpBarService().heal(p, heal, p);
-            p.getWorld().spawnParticle(Particle.HEART,
-                    p.getLocation().add(0.0, 1.2, 0.0), 4, 0.2, 0.3, 0.2, 0.0);
+            p.getWorld().spawnParticle(Particle.HEART, p.getLocation().add(0.0, 1.2, 0.0), 4, 0.2, 0.3, 0.2, 0.0);
         }
         impactFx(t, "bloodthirst", "ENTITY_PLAYER_HURT", "CRIMSON_SPORE", 0.4f, 1.0f, 8);
         return true;
@@ -332,13 +333,18 @@ public final class WarriorAbilities extends AbstractKit {
             taunted++;
         }
         if (taunted > 0) {
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                for (Entity e : p.getNearbyEntities(radius + 8, radius + 8, radius + 8)) {
-                    if (e instanceof Mob mob && mob.isGlowing()) {
-                        mob.setGlowing(false);
-                    }
-                }
-            }, secs * 20L);
+            plugin.getServer()
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                for (Entity e : p.getNearbyEntities(radius + 8, radius + 8, radius + 8)) {
+                                    if (e instanceof Mob mob && mob.isGlowing()) {
+                                        mob.setGlowing(false);
+                                    }
+                                }
+                            },
+                            secs * 20L);
         }
         p.sendMessage(Component.text("Вызов брошен: мобов — " + taunted, NamedTextColor.GREEN));
         return taunted > 0;
@@ -351,23 +357,35 @@ public final class WarriorAbilities extends AbstractKit {
         UUID pid = p.getUniqueId();
         castFx(p, "bladestorm", "ENTITY_RAVAGER_ROAR", "SWEEP_ATTACK", 0.9f, 0.9f, 24);
         for (int tick = 0; tick < 4; tick++) {
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                Player caster = plugin.getServer().getPlayer(pid);
-                if (caster == null || !caster.isOnline() || caster.isDead()) {
-                    return;
-                }
-                caster.getWorld().spawnParticle(Particle.SWEEP_ATTACK,
-                        caster.getLocation().add(0.0, 1.0, 0.0), 12, radius * 0.6, 0.4, radius * 0.6, 0.02);
-                for (Entity e : caster.getNearbyEntities(radius, radius, radius)) {
-                    if (!(e instanceof LivingEntity t) || t.equals(caster) || t.isDead()) {
-                        continue;
-                    }
-                    if (!plugin.getCombat().canHit(caster, t)) {
-                        continue;
-                    }
-                    plugin.getCombat().dealDamage(t, caster, DamageProfile.physical(dmg));
-                }
-            }, tick * 20L);
+            plugin.getServer()
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                Player caster = plugin.getServer().getPlayer(pid);
+                                if (caster == null || !caster.isOnline() || caster.isDead()) {
+                                    return;
+                                }
+                                caster.getWorld()
+                                        .spawnParticle(
+                                                Particle.SWEEP_ATTACK,
+                                                caster.getLocation().add(0.0, 1.0, 0.0),
+                                                12,
+                                                radius * 0.6,
+                                                0.4,
+                                                radius * 0.6,
+                                                0.02);
+                                for (Entity e : caster.getNearbyEntities(radius, radius, radius)) {
+                                    if (!(e instanceof LivingEntity t) || t.equals(caster) || t.isDead()) {
+                                        continue;
+                                    }
+                                    if (!plugin.getCombat().canHit(caster, t)) {
+                                        continue;
+                                    }
+                                    plugin.getCombat().dealDamage(t, caster, DamageProfile.physical(dmg));
+                                }
+                            },
+                            tick * 20L);
         }
         return true;
     }
@@ -383,8 +401,8 @@ public final class WarriorAbilities extends AbstractKit {
         int level = Math.max(0, (absorptionHp + 3) / 4 - 1); // 4 HP-сердца за уровень
         p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, secs * 20, level));
         castFx(p, "last_stand", "BLOCK_ANVIL_LAND", "ENCHANTED_HIT", 0.9f, 0.7f, 28);
-        p.sendMessage(Component.text("Последний рубеж: щит " + absorptionHp + " HP на " + secs + " с",
-                NamedTextColor.GREEN));
+        p.sendMessage(
+                Component.text("Последний рубеж: щит " + absorptionHp + " HP на " + secs + " с", NamedTextColor.GREEN));
         return true;
     }
 }

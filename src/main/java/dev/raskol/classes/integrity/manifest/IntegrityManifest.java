@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.manifest;
 
-import dev.raskol.classes.integrity.build.BuildIdentity;
-
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -12,6 +10,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+
+import dev.raskol.classes.integrity.build.BuildIdentity;
 
 /**
  * Immutable, deterministic integrity manifest.
@@ -24,8 +24,7 @@ import java.util.Set;
  */
 public final class IntegrityManifest {
 
-    private static final String FORMAT_HEADER =
-            "RASKOL-INTEGRITY-MANIFEST\t1";
+    private static final String FORMAT_HEADER = "RASKOL-INTEGRITY-MANIFEST\t1";
 
     private static final String NEW_LINE = "\n";
 
@@ -33,32 +32,18 @@ public final class IntegrityManifest {
 
     private final List<ManifestFileEntry> files;
 
-    public IntegrityManifest(
-            BuildIdentity buildIdentity,
-            List<ManifestFileEntry> files
-    ) {
-        this.buildIdentity = Objects.requireNonNull(
-                buildIdentity,
-                "buildIdentity cannot be null"
-        );
+    public IntegrityManifest(BuildIdentity buildIdentity, List<ManifestFileEntry> files) {
+        this.buildIdentity = Objects.requireNonNull(buildIdentity, "buildIdentity cannot be null");
 
         Objects.requireNonNull(files, "files cannot be null");
 
-        List<ManifestFileEntry> sortedFiles =
-                new ArrayList<>(files.size());
+        List<ManifestFileEntry> sortedFiles = new ArrayList<>(files.size());
 
         for (ManifestFileEntry file : files) {
-            sortedFiles.add(
-                    Objects.requireNonNull(
-                            file,
-                            "Manifest cannot contain null file entries"
-                    )
-            );
+            sortedFiles.add(Objects.requireNonNull(file, "Manifest cannot contain null file entries"));
         }
 
-        sortedFiles.sort(
-                Comparator.comparing(ManifestFileEntry::path)
-        );
+        sortedFiles.sort(Comparator.comparing(ManifestFileEntry::path));
 
         validateUniquePaths(sortedFiles);
 
@@ -88,23 +73,11 @@ public final class IntegrityManifest {
         appendMetadata(builder, "BUILD_ID", buildIdentity.buildId());
         appendMetadata(builder, "COMMIT", buildIdentity.commitSha());
 
-        appendMetadata(
-                builder,
-                "TIMESTAMP",
-                buildIdentity.buildTimestamp().toString()
-        );
+        appendMetadata(builder, "TIMESTAMP", buildIdentity.buildTimestamp().toString());
 
-        appendMetadata(
-                builder,
-                "REPOSITORY",
-                buildIdentity.sourceRepository()
-        );
+        appendMetadata(builder, "REPOSITORY", buildIdentity.sourceRepository());
 
-        appendMetadata(
-                builder,
-                "BUILD_TYPE",
-                buildIdentity.buildType().name()
-        );
+        appendMetadata(builder, "BUILD_TYPE", buildIdentity.buildType().name());
 
         for (ManifestFileEntry file : files) {
             builder.append("FILE")
@@ -120,35 +93,20 @@ public final class IntegrityManifest {
         return builder.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private static void appendMetadata(
-            StringBuilder builder,
-            String key,
-            String value
-    ) {
-        builder.append(key)
-                .append('\t')
-                .append(encode(value))
-                .append(NEW_LINE);
+    private static void appendMetadata(StringBuilder builder, String key, String value) {
+        builder.append(key).append('\t').append(encode(value)).append(NEW_LINE);
     }
 
     private static String encode(String value) {
-        return Base64.getUrlEncoder()
-                .withoutPadding()
-                .encodeToString(
-                        value.getBytes(StandardCharsets.UTF_8)
-                );
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static void validateUniquePaths(
-            List<ManifestFileEntry> files
-    ) {
+    private static void validateUniquePaths(List<ManifestFileEntry> files) {
         Set<String> paths = new HashSet<>();
 
         for (ManifestFileEntry file : files) {
             if (!paths.add(file.path())) {
-                throw new IllegalArgumentException(
-                        "Duplicate manifest file path: " + file.path()
-                );
+                throw new IllegalArgumentException("Duplicate manifest file path: " + file.path());
             }
         }
     }

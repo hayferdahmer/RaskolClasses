@@ -2,20 +2,21 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.Hp;
-import dev.raskol.classes.config.ConfigReads;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
-import org.bukkit.event.entity.EntityDamageEvent;
-
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityDamageEvent;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.Hp;
+import dev.raskol.classes.config.ConfigReads;
 
 /**
  * 1.11.4 (P3): капы и оконные ограничения урона + carrier/formula-хелперы.
@@ -34,8 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class DamageCaps {
 
-    private static final List<String> DEFAULT_ENV =
-            List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION");
+    private static final List<String> DEFAULT_ENV = List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION");
 
     private static final List<String> DEFAULT_EXEMPT =
             List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION", "VOID", "SONIC_BOOM");
@@ -149,7 +149,7 @@ public final class DamageCaps {
             double allowed = Math.max(0.0, cap - sum);
             double finalDmg = Math.min(damage, allowed);
             if (finalDmg > 0.0) {
-                dq.addLast(new double[]{now, finalDmg});
+                dq.addLast(new double[] {now, finalDmg});
             }
             if (dq.isEmpty()) {
                 burstLog.remove(target.getUniqueId());

@@ -2,19 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.cc.CCType;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.classsystem.SkillLevelProvider;
-import dev.raskol.classes.combat.CombatService;
-import dev.raskol.classes.combat.school.School;
-import dev.raskol.classes.compat.AuthGate;
-import dev.raskol.classes.config.RaskolConfig;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
-
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -25,6 +12,21 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+
+import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.cc.CCType;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.compat.AuthGate;
+import dev.raskol.classes.config.RaskolConfig;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Реестр способностей шести классов.
@@ -70,6 +72,7 @@ public final class AbilityRegistry {
 
     /** Дефолтная школа каждой способности (override в конфиге имеет приоритет). */
     private static final Map<String, School> DEFAULT_SCHOOLS = new HashMap<>();
+
     static {
         DEFAULT_SCHOOLS.put("tyr_strike", School.PHYSICAL);
         DEFAULT_SCHOOLS.put("balder_skin", School.PHYSICAL);
@@ -116,46 +119,57 @@ public final class AbilityRegistry {
     private static final Map<PlayerClass, List<AbilityDef>> DEFAULTS = new EnumMap<>(PlayerClass.class);
 
     static {
-        DEFAULTS.put(PlayerClass.WARRIOR, List.of(
-                def("tyr_strike", "Удар Тира", 1, 10, 20, 8),
-                def("balder_skin", "Шкура Бальдра", 2, 25, 25, 30),
-                def("berserkergang", "Берсеркерганг", 3, 50, 35, 45),
-                def("fenrir_blood", "Кровь Фенрира", 4, 65, 30, 25),
-                def("ragnarok", "Рагнарёк", 5, 75, 60, 60)));
-        DEFAULTS.put(PlayerClass.HUNTER, List.of(
-                def("wolf_mark", "Метка Волка", 1, 10, 20, 12),
-                def("swallow", "Ласточка", 2, 25, 15, 40),
-                def("piercing_shot", "Пронзающий выстрел", 3, 50, 30, 20),
-                def("arrow_fan", "Веер стрел", 4, 65, 35, 22),
-                def("arrow_rain", "Дождь стрел", 5, 75, 60, 90)));
-        DEFAULTS.put(PlayerClass.PRIEST, List.of(
-                def("saint_tear", "Слеза Святой", 1, 10, 10, 3),
-                def("word_of_life", "Слово Жизни", 2, 25, 20, 6),
-                def("aegis_faith", "Эгида Веры", 3, 50, 30, 30),
-                def("circle_elysium", "Круг Элизия", 4, 65, 50, 60),
-                def("wrath_heaven", "Кара Небес", 5, 75, 60, 90)));
-        DEFAULTS.put(PlayerClass.MAGE, List.of(
-                def("fire_prometheus", "Огонь Прометея", 1, 10, 15, 6),
-                def("hermes_step", "Шаг Гермеса", 2, 25, 20, 20),
-                def("boreas_breath", "Дыхание Борея", 3, 50, 40, 45),
-                def("athena_aegis", "Эгида Афины", 4, 65, 30, 30),
-                def("zeus_wrath", "Гнев Зевса", 5, 75, 60, 90)));
-        DEFAULTS.put(PlayerClass.ROGUE, List.of(
-                def("shadow_cloak", "Плащ теней", 1, 10, 30, 30),
-                def("blade_fan", "Веер клинков", 2, 25, 25, 15),
-                def("strangle", "Удушение палача", 3, 50, 40, 40),
-                def("borgia_poison", "Яд Борджа", 4, 65, 35, 30),
-                def("shadow_dance", "Танец теней", 5, 75, 60, 120)));
-        DEFAULTS.put(PlayerClass.WARLOCK, List.of(
-                def("black_word", "Чёрное Слово", 1, 10, 10, 4),
-                def("ruin_seal", "Печать Погибели", 2, 25, 15, 16),
-                def("hunger_corruption", "Голод Скверны", 3, 50, 25, 26),
-                def("unwriting", "Небытие", 4, 65, 30, 22),
-                def("soul_rift", "Раскол Души", 5, 75, 50, 80)));
+        DEFAULTS.put(
+                PlayerClass.WARRIOR,
+                List.of(
+                        def("tyr_strike", "Удар Тира", 1, 10, 20, 8),
+                        def("balder_skin", "Шкура Бальдра", 2, 25, 25, 30),
+                        def("berserkergang", "Берсеркерганг", 3, 50, 35, 45),
+                        def("fenrir_blood", "Кровь Фенрира", 4, 65, 30, 25),
+                        def("ragnarok", "Рагнарёк", 5, 75, 60, 60)));
+        DEFAULTS.put(
+                PlayerClass.HUNTER,
+                List.of(
+                        def("wolf_mark", "Метка Волка", 1, 10, 20, 12),
+                        def("swallow", "Ласточка", 2, 25, 15, 40),
+                        def("piercing_shot", "Пронзающий выстрел", 3, 50, 30, 20),
+                        def("arrow_fan", "Веер стрел", 4, 65, 35, 22),
+                        def("arrow_rain", "Дождь стрел", 5, 75, 60, 90)));
+        DEFAULTS.put(
+                PlayerClass.PRIEST,
+                List.of(
+                        def("saint_tear", "Слеза Святой", 1, 10, 10, 3),
+                        def("word_of_life", "Слово Жизни", 2, 25, 20, 6),
+                        def("aegis_faith", "Эгида Веры", 3, 50, 30, 30),
+                        def("circle_elysium", "Круг Элизия", 4, 65, 50, 60),
+                        def("wrath_heaven", "Кара Небес", 5, 75, 60, 90)));
+        DEFAULTS.put(
+                PlayerClass.MAGE,
+                List.of(
+                        def("fire_prometheus", "Огонь Прометея", 1, 10, 15, 6),
+                        def("hermes_step", "Шаг Гермеса", 2, 25, 20, 20),
+                        def("boreas_breath", "Дыхание Борея", 3, 50, 40, 45),
+                        def("athena_aegis", "Эгида Афины", 4, 65, 30, 30),
+                        def("zeus_wrath", "Гнев Зевса", 5, 75, 60, 90)));
+        DEFAULTS.put(
+                PlayerClass.ROGUE,
+                List.of(
+                        def("shadow_cloak", "Плащ теней", 1, 10, 30, 30),
+                        def("blade_fan", "Веер клинков", 2, 25, 25, 15),
+                        def("strangle", "Удушение палача", 3, 50, 40, 40),
+                        def("borgia_poison", "Яд Борджа", 4, 65, 35, 30),
+                        def("shadow_dance", "Танец теней", 5, 75, 60, 120)));
+        DEFAULTS.put(
+                PlayerClass.WARLOCK,
+                List.of(
+                        def("black_word", "Чёрное Слово", 1, 10, 10, 4),
+                        def("ruin_seal", "Печать Погибели", 2, 25, 15, 16),
+                        def("hunger_corruption", "Голод Скверны", 3, 50, 25, 26),
+                        def("unwriting", "Небытие", 4, 65, 30, 22),
+                        def("soul_rift", "Раскол Души", 5, 75, 50, 80)));
     }
 
-    private static AbilityDef def(String id, String name, int slot,
-                                  int unlock, int cost, int cooldownSeconds) {
+    private static AbilityDef def(String id, String name, int slot, int unlock, int cost, int cooldownSeconds) {
         return new AbilityDef(id, name, slot, unlock, cost, cooldownSeconds * 1000L);
     }
 
@@ -176,10 +190,12 @@ public final class AbilityRegistry {
     private final Map<PlayerClass, List<AbilityDef>> byClass = new EnumMap<>(PlayerClass.class);
     /** 1.14.4-fix: def'ы древесных способностей (slot 6+) по классам. */
     private final Map<PlayerClass, Map<String, AbilityDef>> treeDefs = new EnumMap<>(PlayerClass.class);
+
     private final Map<String, Caster> casters = new HashMap<>();
     private final Map<String, TargetedCaster> targetedCasters = new HashMap<>();
     /** 1.14.0 (контент-долг 1): id древесных кастеров (не считаются сиротами). */
     private final Set<String> treeCasterIds = new HashSet<>();
+
     private final Map<UUID, Map<String, Long>> lastAttempts = new ConcurrentHashMap<>();
 
     public AbilityRegistry(RaskolClasses plugin) {
@@ -303,10 +319,8 @@ public final class AbilityRegistry {
                             base.slot(),
                             cfg.abilityUnlock(pc, base.id(), base.unlockLevel()),
                             cfg.abilityCost(pc, base.id(), base.cost()),
-                            cfg.abilityCooldownSeconds(pc, base.id(),
-                                    (int) (base.cooldownMillis() / 1000L)) * 1000L,
-                            readSchool(pc, base.id())
-                    ))
+                            cfg.abilityCooldownSeconds(pc, base.id(), (int) (base.cooldownMillis() / 1000L)) * 1000L,
+                            readSchool(pc, base.id())))
                     .toList();
             byClass.put(pc, defs);
         }
@@ -431,8 +445,7 @@ public final class AbilityRegistry {
         for (PlayerClass pc : PlayerClass.values()) {
             for (AbilityDef base : DEFAULTS.get(pc)) {
                 if (!DEFAULT_SCHOOLS.containsKey(base.id())) {
-                    problems.add("DEFAULT_SCHOOLS: нет школы для " + base.id()
-                            + " (" + pc.name() + ")");
+                    problems.add("DEFAULT_SCHOOLS: нет школы для " + base.id() + " (" + pc.name() + ")");
                 }
             }
         }
@@ -478,8 +491,8 @@ public final class AbilityRegistry {
 
         // --- гейт 1: auth ---
         if (!AuthGate.canAct(plugin, caster)) {
-            caster.sendMessage(Component.text(cfg.message("gate.blocked",
-                    "Способности недоступны в этом режиме или до входа в аккаунт."),
+            caster.sendMessage(Component.text(
+                    cfg.message("gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт."),
                     NamedTextColor.RED));
             return false;
         }
@@ -487,8 +500,8 @@ public final class AbilityRegistry {
         // --- гейт 2: class ---
         PlayerClass pc = plugin.getClassProvider().getClassOf(caster);
         if (pc == null) {
-            caster.sendMessage(Component.text(cfg.message("no-class-cast",
-                    "Класс не выбран — способности недоступны"), NamedTextColor.GRAY));
+            caster.sendMessage(Component.text(
+                    cfg.message("no-class-cast", "Класс не выбран — способности недоступны"), NamedTextColor.GRAY));
             return false;
         }
 
@@ -505,9 +518,9 @@ public final class AbilityRegistry {
         // --- гейт 3: CC (STUN/FEAR/SILENCE) ---
         if (!plugin.getCastGuard().canCast(caster, false)) {
             CCType block = plugin.getCastGuard().blockReason(caster, false);
-            caster.sendMessage(Component.text(cfg.message("cc.cast-interrupted",
-                    "Каст прерван: {type}")
-                    .replace("{type}", block != null ? block.ruName() : "контроль"),
+            caster.sendMessage(Component.text(
+                    cfg.message("cc.cast-interrupted", "Каст прерван: {type}")
+                            .replace("{type}", block != null ? block.ruName() : "контроль"),
                     NamedTextColor.RED));
             return false;
         }
@@ -515,25 +528,25 @@ public final class AbilityRegistry {
         // --- гейт 4: level (skill-уровень класса, если система скиллов активна) ---
         int level = plugin.getSkillLevels().getLevel(id, pc.profileSkillName());
         if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < def.unlockLevel()) {
-            caster.sendMessage(Component.text("«" + def.displayName() + "» откроется на уровне "
-                    + def.unlockLevel() + " (у вас " + level + ")", NamedTextColor.RED));
+            caster.sendMessage(Component.text(
+                    "«" + def.displayName() + "» откроется на уровне " + def.unlockLevel() + " (у вас " + level + ")",
+                    NamedTextColor.RED));
             return false;
         }
 
         // --- гейт 5: transferable (slots 4–5 → unlock_ability в дереве) ---
         if (TransferableAbilities.isTransferable(def.id())
                 && !plugin.getSpec2Service().hasUnlocked(id, def.id())) {
-            caster.sendMessage(Component.text("«" + def.displayName()
-                    + "» откроется узлом дерева путей " + pc.name() + ".",
+            caster.sendMessage(Component.text(
+                    "«" + def.displayName() + "» откроется узлом дерева путей " + pc.name() + ".",
                     NamedTextColor.GRAY));
             return false;
         }
 
         // --- гейт 6: tree (slot 6+, зарегистрированные через registerTreeCaster) ---
-        if (treeCasterIds.contains(def.id())
-                && !plugin.getSpec2Service().hasUnlocked(id, def.id())) {
-            caster.sendMessage(Component.text("«" + def.displayName()
-                    + "» откроется узлом дерева путей " + pc.name() + ".",
+        if (treeCasterIds.contains(def.id()) && !plugin.getSpec2Service().hasUnlocked(id, def.id())) {
+            caster.sendMessage(Component.text(
+                    "«" + def.displayName() + "» откроется узлом дерева путей " + pc.name() + ".",
                     NamedTextColor.GRAY));
             return false;
         }
@@ -541,16 +554,19 @@ public final class AbilityRegistry {
         // --- гейт 7: cooldown ---
         if (plugin.getCooldowns().isOnCooldown(id, def.id())) {
             long remaining = plugin.getCooldowns().getRemainingMillis(id, def.id());
-            caster.sendMessage(Component.text("«" + def.displayName() + "»: перезарядка ещё "
-                    + (remaining / 1000L + 1L) + "с", NamedTextColor.GRAY));
+            caster.sendMessage(Component.text(
+                    "«" + def.displayName() + "»: перезарядка ещё " + (remaining / 1000L + 1L) + "с",
+                    NamedTextColor.GRAY));
             return false;
         }
 
         // --- гейт 8: consume (ресурс) ---
         if (def.cost() > 0 && !plugin.getResources().consume(id, def.cost())) {
-            caster.sendMessage(Component.text("Не хватает ресурса «" + pc.getResourceName()
-                    + "»: нужно " + def.cost() + ", у вас "
-                    + (int) plugin.getResources().getValue(id), NamedTextColor.RED));
+            caster.sendMessage(Component.text(
+                    "Не хватает ресурса «" + pc.getResourceName()
+                            + "»: нужно " + def.cost() + ", у вас "
+                            + (int) plugin.getResources().getValue(id),
+                    NamedTextColor.RED));
             return false;
         }
 
@@ -603,12 +619,10 @@ public final class AbilityRegistry {
         if (!Double.isFinite(cdSecBonus)) {
             cdSecBonus = 0.0;
         }
-        long cdMillis = Math.max(500L,
-                (long) (def.cooldownMillis() * cdMult - cdSecBonus * 1000L));
+        long cdMillis = Math.max(500L, (long) (def.cooldownMillis() * cdMult - cdSecBonus * 1000L));
         plugin.getCooldowns().start(id, def.id(), cdMillis, def.displayName());
         if (!targeted) {
-            caster.sendMessage(Component.text("«" + def.displayName() + "» — активирована",
-                    NamedTextColor.GREEN));
+            caster.sendMessage(Component.text("«" + def.displayName() + "» — активирована", NamedTextColor.GREEN));
         }
         return true;
     }
@@ -633,8 +647,7 @@ public final class AbilityRegistry {
 
     public void purgeStaleAttempts() {
         long now = System.currentTimeMillis();
-        lastAttempts.values().forEach(map ->
-                map.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L));
+        lastAttempts.values().forEach(map -> map.entrySet().removeIf(entry -> now - entry.getValue() > 60_000L));
         lastAttempts.entrySet().removeIf(entry -> entry.getValue().isEmpty());
     }
 }

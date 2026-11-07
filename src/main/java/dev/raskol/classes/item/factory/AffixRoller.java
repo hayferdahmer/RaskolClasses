@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.factory;
 
-import dev.raskol.classes.item.model.Affix;
-import dev.raskol.classes.item.model.ItemStat;
-
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SplittableRandom;
+
+import dev.raskol.classes.item.model.Affix;
+import dev.raskol.classes.item.model.ItemStat;
 
 /**
  * Детерминированный взвешенный выбор аффиксов и ролл значений, масштабированных уровнем.
@@ -24,8 +24,7 @@ import java.util.SplittableRandom;
  */
 public final class AffixRoller {
 
-    private AffixRoller() {
-    }
+    private AffixRoller() {}
 
     /**
      * Ролл аффиксов для предмета.
@@ -38,8 +37,7 @@ public final class AffixRoller {
      */
     public static Map<ItemStat, Double> roll(List<Affix> pool, int count, int itemLevel, long seed) {
         if (itemLevel < 1 || itemLevel > 60 || count < 0) {
-            throw new IllegalArgumentException("Некорректные параметры ролла: level="
-                    + itemLevel + " count=" + count);
+            throw new IllegalArgumentException("Некорректные параметры ролла: level=" + itemLevel + " count=" + count);
         }
         List<Affix> remaining = new ArrayList<>(pool);
         Map<ItemStat, Double> result = new EnumMap<>(ItemStat.class);

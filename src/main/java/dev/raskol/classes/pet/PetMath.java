@@ -11,8 +11,7 @@ package dev.raskol.classes.pet;
  */
 public final class PetMath {
 
-    private PetMath() {
-    }
+    private PetMath() {}
 
     private static double safe(double v) {
         return Double.isFinite(v) && v >= 0.0 ? v : 0.0;

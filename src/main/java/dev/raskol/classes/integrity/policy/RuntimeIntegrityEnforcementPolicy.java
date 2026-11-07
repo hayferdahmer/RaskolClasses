@@ -25,40 +25,32 @@ public final class RuntimeIntegrityEnforcementPolicy {
 
     public RuntimeIntegrityEnforcementPolicy(int transientFailureThreshold) {
         if (transientFailureThreshold <= 0) {
-            throw new IllegalArgumentException(
-                    "Transient failure threshold must be positive"
-            );
+            throw new IllegalArgumentException("Transient failure threshold must be positive");
         }
 
         this.transientFailureThreshold = transientFailureThreshold;
     }
 
     public boolean shouldDisable(RuntimeIntegritySnapshot snapshot) {
-        if (snapshot == null
-                || snapshot.state() != RuntimeIntegrityState.FAILED) {
+        if (snapshot == null || snapshot.state() != RuntimeIntegrityState.FAILED) {
             return false;
         }
 
         if (snapshot.lastResult() == null) {
-            return snapshot.consecutiveFailures()
-                    >= transientFailureThreshold;
+            return snapshot.consecutiveFailures() >= transientFailureThreshold;
         }
 
         IntegrityStatus status = snapshot.lastResult().status();
 
         return switch (status) {
             case ARTIFACT_UNAVAILABLE,
-                 TRUSTED_KEY_UNAVAILABLE,
-                 PROTECTED_FILE_READ_ERROR,
-                 RESOURCE_READ_ERROR ->
-                    snapshot.consecutiveFailures()
-                            >= transientFailureThreshold;
+                    TRUSTED_KEY_UNAVAILABLE,
+                    PROTECTED_FILE_READ_ERROR,
+                    RESOURCE_READ_ERROR -> snapshot.consecutiveFailures() >= transientFailureThreshold;
 
-            case VERIFIED, DEVELOPMENT_BUILD ->
-                    false;
+            case VERIFIED, DEVELOPMENT_BUILD -> false;
 
-            default ->
-                    true;
+            default -> true;
         };
     }
 

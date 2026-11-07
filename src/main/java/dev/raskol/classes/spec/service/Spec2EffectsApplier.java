@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.service;
 
-import dev.raskol.classes.RaskolClasses;
+import java.util.UUID;
+
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.entity.Player;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.14.0 «Спек 2.0» (Б2): применение постоянных модификаторов агрегата Spec2Service
@@ -43,6 +44,7 @@ public final class Spec2EffectsApplier {
     private final Attribute attackSpeedAttr;
     /** 1.15.7 (2.6-77): ключ и атрибут для movement_speed modifier. */
     private final NamespacedKey moveSpeedKey;
+
     private final Attribute moveSpeedAttr;
 
     public Spec2EffectsApplier(RaskolClasses plugin) {
@@ -63,12 +65,14 @@ public final class Spec2EffectsApplier {
         this.attackSpeedAttr = resolvedAttack;
         this.moveSpeedAttr = resolvedMove;
         if (resolvedAttack == null) {
-            plugin.getLogger().warning("Spec2EffectsApplier: атрибут attack_speed не резолвится — "
-                    + "узлы attack_speed_pct не будут применяться");
+            plugin.getLogger()
+                    .warning("Spec2EffectsApplier: атрибут attack_speed не резолвится — "
+                            + "узлы attack_speed_pct не будут применяться");
         }
         if (resolvedMove == null) {
-            plugin.getLogger().warning("Spec2EffectsApplier: атрибут movement_speed не резолвится — "
-                    + "узлы move_speed_pct не будут применяться");
+            plugin.getLogger()
+                    .warning("Spec2EffectsApplier: атрибут movement_speed не резолвится — "
+                            + "узлы move_speed_pct не будут применяться");
         }
     }
 
@@ -81,8 +85,7 @@ public final class Spec2EffectsApplier {
         remove(uuid);
         Spec2Service.Agg agg = plugin.getSpec2Service().aggOf(uuid);
         if (agg.attrStr != 0.0 || agg.attrAgi != 0.0 || agg.attrInt != 0.0) {
-            plugin.getAttributes().addPermanentModifier(
-                    uuid, SOURCE, agg.attrStr, agg.attrAgi, agg.attrInt);
+            plugin.getAttributes().addPermanentModifier(uuid, SOURCE, agg.attrStr, agg.attrAgi, agg.attrInt);
         }
         if (agg.resPhys != 0.0 || agg.resMagic != 0.0) {
             plugin.getResists().addPermanentModifier(uuid, SOURCE, agg.resPhys, agg.resMagic);
@@ -118,7 +121,9 @@ public final class Spec2EffectsApplier {
             return;
         }
         inst.addModifier(new AttributeModifier(
-                attackSpeedKey, pct / 100.0, AttributeModifier.Operation.MULTIPLY_SCALAR_1,
+                attackSpeedKey,
+                pct / 100.0,
+                AttributeModifier.Operation.MULTIPLY_SCALAR_1,
                 org.bukkit.inventory.EquipmentSlotGroup.ANY));
     }
 
@@ -136,7 +141,9 @@ public final class Spec2EffectsApplier {
             return;
         }
         inst.addModifier(new AttributeModifier(
-                moveSpeedKey, pct / 100.0, AttributeModifier.Operation.MULTIPLY_SCALAR_1,
+                moveSpeedKey,
+                pct / 100.0,
+                AttributeModifier.Operation.MULTIPLY_SCALAR_1,
                 org.bukkit.inventory.EquipmentSlotGroup.ANY));
     }
 

@@ -52,9 +52,14 @@ public record BuildTemplate(
      * @param rawRanks исходные ранги из YAML (до auto-heal) — для stale-маркировки
      * @param ranks    нормализованные ранги (после auto-heal) — для применения
      */
-    public static BuildTemplate of(String spec, Archetype archetype, String name,
-                                    String tagline, Map<String, Integer> rawRanks,
-                                    Map<String, Integer> ranks, String updated) {
+    public static BuildTemplate of(
+            String spec,
+            Archetype archetype,
+            String name,
+            String tagline,
+            Map<String, Integer> rawRanks,
+            Map<String, Integer> ranks,
+            String updated) {
         if (spec == null || spec.isBlank()) {
             throw new IllegalArgumentException("spec пустой");
         }
@@ -79,9 +84,8 @@ public record BuildTemplate(
         // Валидация обоих наборов — защита от мусора в YAML и от simulateApply-багов.
         validateRanks(rawSnapshot, spec, "rawRanks");
         validateRanks(ranksSnapshot, spec, "ranks");
-        return new BuildTemplate(spec, archetype,
-                name, tagline, rawSnapshot, ranksSnapshot,
-                updated == null ? "" : updated);
+        return new BuildTemplate(
+                spec, archetype, name, tagline, rawSnapshot, ranksSnapshot, updated == null ? "" : updated);
     }
 
     /**
@@ -89,9 +93,8 @@ public record BuildTemplate(
      * внешние точки создания). Делегирует в 7-параметровую версию.
      * Сохранена для обратной совместимости со старыми вызовами.
      */
-    public static BuildTemplate of(String spec, Archetype archetype, String name,
-                                    String tagline, Map<String, Integer> ranks,
-                                    String updated) {
+    public static BuildTemplate of(
+            String spec, Archetype archetype, String name, String tagline, Map<String, Integer> ranks, String updated) {
         return of(spec, archetype, name, tagline, ranks, ranks, updated);
     }
 
@@ -102,12 +105,10 @@ public record BuildTemplate(
     private static void validateRanks(Map<String, Integer> snapshot, String spec, String label) {
         for (Map.Entry<String, Integer> e : snapshot.entrySet()) {
             if (e.getKey() == null || e.getKey().isBlank()) {
-                throw new IllegalArgumentException(
-                        label + ": ключ ранга пустой в spec=" + spec);
+                throw new IllegalArgumentException(label + ": ключ ранга пустой в spec=" + spec);
             }
             if (e.getValue() == null || e.getValue() < 0) {
-                throw new IllegalArgumentException(
-                        label + ": некорректный ранг " + e + " в spec=" + spec);
+                throw new IllegalArgumentException(label + ": некорректный ранг " + e + " в spec=" + spec);
             }
         }
     }

@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability.passive;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.11.4 (P1): Разбойник — «Отравленные клинки» + «Садизм».
@@ -26,14 +27,13 @@ public final class RoguePassives extends BaseClassPassive {
     }
 
     private String cfgS(String passiveId, String key, String def) {
-        String v = plugin.getConfig().getString(
-                "classes." + playerClass().name() + ".passives." + passiveId + "." + key, def);
+        String v = plugin.getConfig()
+                .getString("classes." + playerClass().name() + ".passives." + passiveId + "." + key, def);
         return (v != null && !v.isEmpty()) ? v : def;
     }
 
     @Override
-    public void onDamageOut(EntityDamageByEntityEvent event, Player attacker,
-                            LivingEntity target, double damage) {
+    public void onDamageOut(EntityDamageByEntityEvent event, Player attacker, LivingEntity target, double damage) {
         // «Отравленные клинки»: 30% шанс → DoT NATURE poison_passive (2 с, 1 стек)
         if (enabled("poisoned_blades")) {
             double chance = cfgD("poisoned_blades", "chance", 0.30)
@@ -47,8 +47,8 @@ public final class RoguePassives extends BaseClassPassive {
         }
         // «Садизм»: +3 урона при атаке со спины (КД 2 с)
         if (enabled("sadism") && isBehind(target, attacker)) {
-            double bonus = cfgD("sadism", "bonus", 3.0)
-                    + plugin.getSpec2Service().procBonus(attacker.getUniqueId(), "sadism");
+            double bonus =
+                    cfgD("sadism", "bonus", 3.0) + plugin.getSpec2Service().procBonus(attacker.getUniqueId(), "sadism");
             int cd = cfgI("sadism", "cooldown-seconds", 2);
             if (procCdOk(attacker.getUniqueId(), "sadism", cd)) {
                 event.setDamage(damage + bonus);

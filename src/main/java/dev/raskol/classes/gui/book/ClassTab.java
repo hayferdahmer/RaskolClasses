@@ -2,6 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.gui.book;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
@@ -10,16 +19,9 @@ import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.util.TextFx;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Material;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
 
 /**
  * 1.11.4 (P4b): вкладка «Класс и пассивки»: пассивки, атрибуты, резисты, корона.
@@ -49,8 +51,7 @@ public final class ClassTab implements BookTabView {
         RaskolConfig cfg = plugin.getRaskolConfig();
         ItemStack item = new ItemStack(Material.EXPERIENCE_BOTTLE);
         item.editMeta(meta -> {
-            meta.displayName(Component.text(cfg.passiveDisplayName(pc, id, id),
-                    NamedTextColor.GOLD));
+            meta.displayName(Component.text(cfg.passiveDisplayName(pc, id, id), NamedTextColor.GOLD));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text(cfg.passiveDescription(pc, id, ""), NamedTextColor.GRAY));
             lore.add(Component.text(passiveNumbers(id), NamedTextColor.WHITE));
@@ -90,37 +91,52 @@ public final class ClassTab implements BookTabView {
                     plugin.getRaskolConfig().themeOf(pc).primary(),
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text(BookItems.msg(plugin, "book.attributes.char-level",
-                    "Уровень персонажа: {value} (топ-{n} скиллов, кап {cap})")
-                    .replace("{value}", String.valueOf(charLevel))
-                    .replace("{n}", String.valueOf(topN))
-                    .replace("{cap}", String.valueOf(cap)), NamedTextColor.WHITE));
+            lore.add(Component.text(
+                    BookItems.msg(
+                                    plugin,
+                                    "book.attributes.char-level",
+                                    "Уровень персонажа: {value} (топ-{n} скиллов, кап {cap})")
+                            .replace("{value}", String.valueOf(charLevel))
+                            .replace("{n}", String.valueOf(topN))
+                            .replace("{cap}", String.valueOf(cap)),
+                    NamedTextColor.WHITE));
             lore.add(Component.empty());
-            lore.add(Component.text((main == AttributeType.STR ? "★ " : "  ")
-                    + BookItems.msg(plugin, "book.attributes.str", "СИЛА: {value}")
-                    .replace("{value}", String.valueOf((int) str)), NamedTextColor.WHITE));
-            lore.add(Component.text((main == AttributeType.AGI ? "★ " : "  ")
-                    + BookItems.msg(plugin, "book.attributes.agi", "ЛОВКОСТЬ: {value}")
-                    .replace("{value}", String.valueOf((int) agi)), NamedTextColor.WHITE));
-            lore.add(Component.text((main == AttributeType.INT ? "★ " : "  ")
-                    + BookItems.msg(plugin, "book.attributes.int", "ИНТЕЛЛЕКТ: {value}")
-                    .replace("{value}", String.valueOf((int) intel)), NamedTextColor.WHITE));
+            lore.add(Component.text(
+                    (main == AttributeType.STR ? "★ " : "  ")
+                            + BookItems.msg(plugin, "book.attributes.str", "СИЛА: {value}")
+                                    .replace("{value}", String.valueOf((int) str)),
+                    NamedTextColor.WHITE));
+            lore.add(Component.text(
+                    (main == AttributeType.AGI ? "★ " : "  ")
+                            + BookItems.msg(plugin, "book.attributes.agi", "ЛОВКОСТЬ: {value}")
+                                    .replace("{value}", String.valueOf((int) agi)),
+                    NamedTextColor.WHITE));
+            lore.add(Component.text(
+                    (main == AttributeType.INT ? "★ " : "  ")
+                            + BookItems.msg(plugin, "book.attributes.int", "ИНТЕЛЛЕКТ: {value}")
+                                    .replace("{value}", String.valueOf((int) intel)),
+                    NamedTextColor.WHITE));
             lore.add(Component.empty());
-            lore.add(Component.text(BookItems.msg(plugin, "book.attributes.hp", "Макс. HP: {value}")
-                    .replace("{value}", String.valueOf((int) attrs.maxHp(uuid))),
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.attributes.hp", "Макс. HP: {value}")
+                            .replace("{value}", String.valueOf((int) attrs.maxHp(uuid))),
                     NamedTextColor.WHITE));
-            lore.add(Component.text(BookItems.msg(plugin, "book.attributes.dodge", "Уклонение: {value}%")
-                    .replace("{value}", String.format(Locale.ROOT, "%.1f", eff[0])),
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.attributes.dodge", "Уклонение: {value}%")
+                            .replace("{value}", String.format(Locale.ROOT, "%.1f", eff[0])),
                     NamedTextColor.WHITE));
-            lore.add(Component.text(BookItems.msg(plugin, "book.attributes.parry", "Парирование: {value}%")
-                    .replace("{value}", String.format(Locale.ROOT, "%.1f", eff[1])),
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.attributes.parry", "Парирование: {value}%")
+                            .replace("{value}", String.format(Locale.ROOT, "%.1f", eff[1])),
                     NamedTextColor.WHITE));
-            lore.add(Component.text(BookItems.msg(plugin, "book.attributes.crit-melee", "Крит мили: {value}%")
-                    .replace("{value}", String.format(Locale.ROOT, "%.1f",
-                            attrs.critMeleeChance(uuid))), NamedTextColor.WHITE));
-            lore.add(Component.text(BookItems.msg(plugin, "book.attributes.crit-spell", "Крит магии: {value}%")
-                    .replace("{value}", String.format(Locale.ROOT, "%.1f",
-                            attrs.critSpellChance(uuid))), NamedTextColor.WHITE));
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.attributes.crit-melee", "Крит мили: {value}%")
+                            .replace("{value}", String.format(Locale.ROOT, "%.1f", attrs.critMeleeChance(uuid))),
+                    NamedTextColor.WHITE));
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.attributes.crit-spell", "Крит магии: {value}%")
+                            .replace("{value}", String.format(Locale.ROOT, "%.1f", attrs.critSpellChance(uuid))),
+                    NamedTextColor.WHITE));
             meta.lore(lore);
         });
         return item;
@@ -131,29 +147,33 @@ public final class ClassTab implements BookTabView {
         var rb = plugin.getResists().breakdown(uuid);
         ItemStack item = new ItemStack(Material.SHIELD);
         item.editMeta(meta -> {
-            meta.displayName(TextFx.gradient(BookItems.msg(plugin, "book.resist.title", "Сопротивления"),
+            meta.displayName(TextFx.gradient(
+                    BookItems.msg(plugin, "book.resist.title", "Сопротивления"),
                     plugin.getRaskolConfig().themeOf(pc).primary(),
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text(BookItems.msg(plugin, "book.resist.phys", "Физ: {total}% (база {base}%)")
-                    .replace("{total}", String.valueOf((int) rb.physicalTotal()))
-                    .replace("{base}", String.valueOf((int) rb.basePhysical())),
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.resist.phys", "Физ: {total}% (база {base}%)")
+                            .replace("{total}", String.valueOf((int) rb.physicalTotal()))
+                            .replace("{base}", String.valueOf((int) rb.basePhysical())),
                     NamedTextColor.WHITE));
-            lore.add(Component.text(BookItems.msg(plugin, "book.resist.magic", "Маг: {total}% (база {base}%)")
-                    .replace("{total}", String.valueOf((int) rb.magicTotal()))
-                    .replace("{base}", String.valueOf((int) rb.baseMagic())),
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.resist.magic", "Маг: {total}% (база {base}%)")
+                            .replace("{total}", String.valueOf((int) rb.magicTotal()))
+                            .replace("{base}", String.valueOf((int) rb.baseMagic())),
                     NamedTextColor.WHITE));
             lore.add(Component.empty());
             if (rb.active().isEmpty()) {
-                lore.add(Component.text(BookItems.msg(plugin, "book.resist.none",
-                        "Активных модификаторов нет"), NamedTextColor.DARK_GRAY));
+                lore.add(Component.text(
+                        BookItems.msg(plugin, "book.resist.none", "Активных модификаторов нет"),
+                        NamedTextColor.DARK_GRAY));
             } else {
                 for (var m : rb.active()) {
-                    lore.add(Component.text(BookItems.msg(plugin, "book.resist.mod",
-                            "• {source}: +{phys} физ / +{magic} маг")
-                            .replace("{source}", m.source())
-                            .replace("{phys}", String.valueOf((int) m.physicalPct()))
-                            .replace("{magic}", String.valueOf((int) m.magicPct())),
+                    lore.add(Component.text(
+                            BookItems.msg(plugin, "book.resist.mod", "• {source}: +{phys} физ / +{magic} маг")
+                                    .replace("{source}", m.source())
+                                    .replace("{phys}", String.valueOf((int) m.physicalPct()))
+                                    .replace("{magic}", String.valueOf((int) m.magicPct())),
                             NamedTextColor.GRAY));
                 }
             }
@@ -161,8 +181,8 @@ public final class ClassTab implements BookTabView {
             var penTraits = plugin.getCombat().penTraits();
             double penPhys = penTraits.totalPenPercent(uuid, "phys");
             double penMagic = penTraits.totalPenPercent(uuid, "magic");
-            lore.add(Component.text("Пробитие: физ " + (int) penPhys + "% · маг " + (int) penMagic + "%",
-                    NamedTextColor.DARK_AQUA));
+            lore.add(Component.text(
+                    "Пробитие: физ " + (int) penPhys + "% · маг " + (int) penMagic + "%", NamedTextColor.DARK_AQUA));
             var elem = plugin.getCombat().elemental();
             StringBuilder elLine = new StringBuilder();
             for (School school : School.values()) {
@@ -171,10 +191,11 @@ public final class ClassTab implements BookTabView {
                     elLine.append(school.id()).append(" ").append((int) r).append("%  ");
                 }
             }
-            lore.add(Component.text("Стихии: " + (elLine.length() > 0 ? elLine.toString().trim() : "—"),
-                    NamedTextColor.DARK_AQUA));
-            lore.add(Component.text(BookItems.msg(plugin, "book.resist.cap", "Кап: {cap}%")
-                    .replace("{cap}", String.valueOf((int) plugin.getResists().cap())),
+            lore.add(Component.text(
+                    "Стихии: " + (elLine.length() > 0 ? elLine.toString().trim() : "—"), NamedTextColor.DARK_AQUA));
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.resist.cap", "Кап: {cap}%").replace("{cap}", String.valueOf((int)
+                            plugin.getResists().cap())),
                     NamedTextColor.DARK_GRAY));
             meta.lore(lore);
         });
@@ -186,17 +207,21 @@ public final class ClassTab implements BookTabView {
         String title = plugin.getFlavorService().titleOf(uuid, pc);
         ItemStack item = new ItemStack(Material.GOLDEN_HELMET);
         item.editMeta(meta -> {
-            meta.displayName(Component.text(BookItems.msg(plugin, "book.crown.title", "Корона и титул"),
-                    NamedTextColor.GOLD));
+            meta.displayName(
+                    Component.text(BookItems.msg(plugin, "book.crown.title", "Корона и титул"), NamedTextColor.GOLD));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.empty());
-            lore.add(Component.text(BookItems.msg(plugin, "book.crown.crown", "Корона: {name}")
-                    .replace("{name}", plugin.getFlavorService().crownDisplayName(uuid)),
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.crown.crown", "Корона: {name}")
+                            .replace("{name}", plugin.getFlavorService().crownDisplayName(uuid)),
                     NamedTextColor.WHITE));
-            lore.add(Component.text(BookItems.msg(plugin, "book.crown.titleline", "Титул: {name}")
-                    .replace("{name}", title.isEmpty() ? "—" : title), NamedTextColor.WHITE));
-            lore.add(Component.text(BookItems.msg(plugin, "book.crown.aura",
-                    "Аура-партикл видна союзникам и врагам"), NamedTextColor.DARK_GRAY));
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.crown.titleline", "Титул: {name}")
+                            .replace("{name}", title.isEmpty() ? "—" : title),
+                    NamedTextColor.WHITE));
+            lore.add(Component.text(
+                    BookItems.msg(plugin, "book.crown.aura", "Аура-партикл видна союзникам и врагам"),
+                    NamedTextColor.DARK_GRAY));
             meta.lore(lore);
         });
         return item;

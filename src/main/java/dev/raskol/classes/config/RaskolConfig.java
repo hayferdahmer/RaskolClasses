@@ -2,19 +2,21 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.config;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import net.kyori.adventure.text.format.TextColor;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Registry;
 import org.bukkit.Sound;
 import org.bukkit.configuration.file.FileConfiguration;
 
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+
+import net.kyori.adventure.text.format.TextColor;
 
 /**
  * Конфиг-слой плагина.
@@ -65,9 +67,7 @@ public final class RaskolConfig {
         reload();
     }
 
-    public record ClassTheme(TextColor primary, TextColor secondary, String symbol,
-                             Particle particle, Sound sound) {
-    }
+    public record ClassTheme(TextColor primary, TextColor secondary, String symbol, Particle particle, Sound sound) {}
 
     /* ------------------------------ P5 funnel ------------------------------ */
 
@@ -165,10 +165,10 @@ public final class RaskolConfig {
         config.addDefault("resist.classes.WARLOCK.physical", 10.0);
 
         config.addDefault("damage-types.env-lethal-scale", true);
-        config.addDefault("damage-types.env-lethal",
-                List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION"));
+        config.addDefault("damage-types.env-lethal", List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION"));
         config.addDefault("combat.max-single-hit-pct", 35.0);
-        config.addDefault("combat.cap-exempt-causes",
+        config.addDefault(
+                "combat.cap-exempt-causes",
                 List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION", "VOID", "SONIC_BOOM"));
         for (Map.Entry<String, String> e : VANILLA_MAP_DEFAULTS.entrySet()) {
             config.addDefault("damage-types.vanilla-map." + e.getKey(), e.getValue());
@@ -212,8 +212,11 @@ public final class RaskolConfig {
         config.addDefault("messages.shield-you", "{caster} наложил на тебя щит");
         config.addDefault("messages.target-full-hp", "Цель здорова");
         config.addDefault("messages.gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
-        config.addDefault("messages.gate.blocked.install", "Инсталляции недоступны в этом режиме или до входа в аккаунт.");
-        config.addDefault("messages.foliant.not-mage-priest", "Страницы не отвечают тебе. Том ждёт знающих письмена света или веры.");
+        config.addDefault(
+                "messages.gate.blocked.install", "Инсталляции недоступны в этом режиме или до входа в аккаунт.");
+        config.addDefault(
+                "messages.foliant.not-mage-priest",
+                "Страницы не отвечают тебе. Том ждёт знающих письмена света или веры.");
         config.addDefault("messages.foliant.too-low-level", "Том тяжёл для твоего разума: нужен уровень персонажа 40.");
         config.addDefault("messages.foliant.already-warlock", "Том уже прочитан тобой.");
         config.addDefault("messages.foliant.spec-chosen", "Том не откроется, пока ты держишься старого пути.");
@@ -240,7 +243,8 @@ public final class RaskolConfig {
         config.addDefault("messages.book.place.left", "ЛКМ — поставить здесь");
         config.addDefault("messages.book.place.right", "ПКМ — свиток постановки");
         config.addDefault("messages.book.install.active", "Активных инсталляций: {count} из 2 · Время жизни: {ttl} с");
-        config.addDefault("messages.book.install.desc.heresy_circle",
+        config.addDefault(
+                "messages.book.install.desc.heresy_circle",
                 "Пентаграмма: круг 6 блоков 25 с: врагам маг-урон и запрет лечения; чернокнижнику +3 Скверны/с; в аду урон ×6");
         config.addDefault("messages.book.spec.passive", "Пассив: {text}");
         config.addDefault("messages.book.spec.chosen", "Выбрана тобой");
@@ -255,7 +259,9 @@ public final class RaskolConfig {
         config.addDefault("messages.book.msg.scroll.dup", "Свиток уже в инвентаре — дубль не выдан.");
         config.addDefault("messages.book.msg.spec.other", "Спека уже выбрана: {name}. Отречение — кристалл ниже.");
         config.addDefault("messages.book.msg.respec.none", "Спеки нет — отрекаться не от чего.");
-        config.addDefault("messages.book.msg.respec.arm", "Отречение взведено: ПКМ по кристаллу ещё раз в течение 30 с. Цена: {price} монет");
+        config.addDefault(
+                "messages.book.msg.respec.arm",
+                "Отречение взведено: ПКМ по кристаллу ещё раз в течение 30 с. Цена: {price} монет");
         config.addDefault("messages.book.msg.respec.ok", "Путь сброшен. Выбери новую спеку.");
         config.addDefault("messages.book.msg.respec.poor", "Не хватает монет на отречение.");
         config.addDefault("messages.book.msg.respec.noecon", "Экономика недоступна — респец отключён.");
@@ -264,7 +270,8 @@ public final class RaskolConfig {
         config.addDefault("messages.book.resource.priest", "Свет: +2/с всегда; +5 за событие лечения");
         config.addDefault("messages.book.resource.mage", "Мана: +1/1.5/2/2.5 в секунду по порогам 25/50/75");
         config.addDefault("messages.book.resource.rogue", "Энергия: +10/с");
-        config.addDefault("messages.book.resource.warlock",
+        config.addDefault(
+                "messages.book.resource.warlock",
                 "Скверна: +9 за урон, +5 при получении, +15 за убийство, +25 за Чёрное Слово; вне боя −4/с до 0. При 75+ урон ×1.2; при 100 — тик 1% maxHP/с");
         config.addDefault("messages.book.emblem.resource", "Ресурс сейчас: {value}/100");
         config.addDefault("messages.book.emblem.crown", "Корона: {name}");
@@ -289,7 +296,8 @@ public final class RaskolConfig {
         config.addDefault("messages.plus.apply-ok", "⚜ Шаблон «{name}» применён. Респец-плата: {cost} монет.");
         config.addDefault("messages.plus.apply-poor", "Не хватает монет на респец: нужно {cost}");
         config.addDefault("messages.plus.apply-no-econ", "Экономика недоступна — применение отключено");
-        config.addDefault("messages.plus.no-sub", "⚜ Требуется подписка raskolspec+ · цена: {price} ⚜ империалов / {days} дн.");
+        config.addDefault(
+                "messages.plus.no-sub", "⚜ Требуется подписка raskolspec+ · цена: {price} ⚜ империалов / {days} дн.");
         config.addDefault("messages.plus.gui.title", "⚜ raskolspec+");
         config.addDefault("messages.plus.gui.upsell-title", "⚜ raskolspec+ · курируемые билды");
         config.addDefault("messages.plus.gui.locked", "🔒 Требуется подписка");
@@ -401,40 +409,109 @@ public final class RaskolConfig {
         return Double.isFinite(v) && v > 0.0 ? v : 20.0;
     }
 
-    public boolean isHudEnabled() { return plugin.getConfig().getBoolean("hud.enabled", true); }
-    public int hudUpdatePeriodTicks() { return plugin.getConfig().getInt("hud.update-period-ticks", 10); }
-    public boolean hudSkipSpectator() { return plugin.getConfig().getBoolean("hud.skip-spectator", true); }
-    public boolean hudFullResourceAura() { return plugin.getConfig().getBoolean("hud.full-resource-aura", true); }
-    public boolean hudDebugSkip() { return plugin.getConfig().getBoolean("hud.debug-skip", false); }
+    public boolean isHudEnabled() {
+        return plugin.getConfig().getBoolean("hud.enabled", true);
+    }
 
-    public boolean isBindEnabled() { return plugin.getConfig().getBoolean("hotbar-bind.enabled", true); }
-    public String bindMaterial() { return plugin.getConfig().getString("hotbar-bind.material", "AMETHYST_SHARD"); }
+    public int hudUpdatePeriodTicks() {
+        return plugin.getConfig().getInt("hud.update-period-ticks", 10);
+    }
 
-    public boolean isTargetCastEnabled() { return plugin.getConfig().getBoolean("target-cast.enabled", true); }
-    public boolean isTargetCastDebug() { return plugin.getConfig().getBoolean("target-cast.debug", false); }
+    public boolean hudSkipSpectator() {
+        return plugin.getConfig().getBoolean("hud.skip-spectator", true);
+    }
 
-    public boolean authMeGate() { return plugin.getConfig().getBoolean("compat.authme-gate", true); }
-    public boolean blockCastsInCreative() { return plugin.getConfig().getBoolean("compat.block-casts-in-creative", true); }
+    public boolean hudFullResourceAura() {
+        return plugin.getConfig().getBoolean("hud.full-resource-aura", true);
+    }
 
-    public boolean raskolCoreEnabled() { return plugin.getConfig().getBoolean("hooks.raskolcore.enabled", true); }
+    public boolean hudDebugSkip() {
+        return plugin.getConfig().getBoolean("hud.debug-skip", false);
+    }
 
-    public boolean isBossBarEnabled() { return plugin.getConfig().getBoolean("hud.boss-bar.enabled", true); }
-    public int bossBarMinDurationSeconds() { return plugin.getConfig().getInt("hud.boss-bar.min-duration-seconds", 8); }
-    public int bossBarMaxVisible() { return plugin.getConfig().getInt("hud.boss-bar.max-visible", 2); }
-    public int bossBarTickPeriod() { return plugin.getConfig().getInt("hud.boss-bar.tick-period", 5); }
-    public String bossBarFormat() { return plugin.getConfig().getString("hud.boss-bar.format", "{name} — {sec}с"); }
-    public String bossBarFormatInfinite() { return plugin.getConfig().getString("hud.boss-bar.format-infinite", "{name}"); }
+    public boolean isBindEnabled() {
+        return plugin.getConfig().getBoolean("hotbar-bind.enabled", true);
+    }
 
-    public int purgeIntervalTicks() { return plugin.getConfig().getInt("performance.purge-interval-ticks", 1200); }
-    public long castClickCooldownMillis() { return plugin.getConfig().getLong("performance.cast-click-cooldown-ms", 150L); }
+    public String bindMaterial() {
+        return plugin.getConfig().getString("hotbar-bind.material", "AMETHYST_SHARD");
+    }
 
-    public boolean isReadyNotifyEnabled() { return plugin.getConfig().getBoolean("performance.ready-notify.enabled", true); }
-    public int readyNotifyMinCooldownSeconds() { return plugin.getConfig().getInt("performance.ready-notify.min-cooldown-seconds", 30); }
-    public String readyNotifySoundKey() { return plugin.getConfig().getString("performance.ready-notify.sound", "ENTITY_PLAYER_LEVELUP"); }
-    public String readyNotifyMessage() { return plugin.getConfig().getString("performance.ready-notify.message", "{ability} — готова"); }
+    public boolean isTargetCastEnabled() {
+        return plugin.getConfig().getBoolean("target-cast.enabled", true);
+    }
 
-    public boolean isClassAcceptEnabled() { return plugin.getConfig().getBoolean("class-accept.enabled", true); }
-    public String classAcceptSubtitle() { return plugin.getConfig().getString("class-accept.subtitle", "Твой путь избран"); }
+    public boolean isTargetCastDebug() {
+        return plugin.getConfig().getBoolean("target-cast.debug", false);
+    }
+
+    public boolean authMeGate() {
+        return plugin.getConfig().getBoolean("compat.authme-gate", true);
+    }
+
+    public boolean blockCastsInCreative() {
+        return plugin.getConfig().getBoolean("compat.block-casts-in-creative", true);
+    }
+
+    public boolean raskolCoreEnabled() {
+        return plugin.getConfig().getBoolean("hooks.raskolcore.enabled", true);
+    }
+
+    public boolean isBossBarEnabled() {
+        return plugin.getConfig().getBoolean("hud.boss-bar.enabled", true);
+    }
+
+    public int bossBarMinDurationSeconds() {
+        return plugin.getConfig().getInt("hud.boss-bar.min-duration-seconds", 8);
+    }
+
+    public int bossBarMaxVisible() {
+        return plugin.getConfig().getInt("hud.boss-bar.max-visible", 2);
+    }
+
+    public int bossBarTickPeriod() {
+        return plugin.getConfig().getInt("hud.boss-bar.tick-period", 5);
+    }
+
+    public String bossBarFormat() {
+        return plugin.getConfig().getString("hud.boss-bar.format", "{name} — {sec}с");
+    }
+
+    public String bossBarFormatInfinite() {
+        return plugin.getConfig().getString("hud.boss-bar.format-infinite", "{name}");
+    }
+
+    public int purgeIntervalTicks() {
+        return plugin.getConfig().getInt("performance.purge-interval-ticks", 1200);
+    }
+
+    public long castClickCooldownMillis() {
+        return plugin.getConfig().getLong("performance.cast-click-cooldown-ms", 150L);
+    }
+
+    public boolean isReadyNotifyEnabled() {
+        return plugin.getConfig().getBoolean("performance.ready-notify.enabled", true);
+    }
+
+    public int readyNotifyMinCooldownSeconds() {
+        return plugin.getConfig().getInt("performance.ready-notify.min-cooldown-seconds", 30);
+    }
+
+    public String readyNotifySoundKey() {
+        return plugin.getConfig().getString("performance.ready-notify.sound", "ENTITY_PLAYER_LEVELUP");
+    }
+
+    public String readyNotifyMessage() {
+        return plugin.getConfig().getString("performance.ready-notify.message", "{ability} — готова");
+    }
+
+    public boolean isClassAcceptEnabled() {
+        return plugin.getConfig().getBoolean("class-accept.enabled", true);
+    }
+
+    public String classAcceptSubtitle() {
+        return plugin.getConfig().getString("class-accept.subtitle", "Твой путь избран");
+    }
 
     public String message(String key, String fallback) {
         String v = plugin.getConfig().getString("messages." + key, null);
@@ -461,95 +538,130 @@ public final class RaskolConfig {
         return plugin.getConfig().getBoolean(path, def);
     }
 
-    public double mageRegenTier1() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-1", 3.0); }
-    public double mageRegenTier2() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-2", 4.0); }
-    public double mageRegenTier3() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-3", 5.0); }
-    public double mageRegenTier4() { return plugin.getConfig().getDouble("classes.MAGE.regen-tier-4", 6.0); }
+    public double mageRegenTier1() {
+        return plugin.getConfig().getDouble("classes.MAGE.regen-tier-1", 3.0);
+    }
+
+    public double mageRegenTier2() {
+        return plugin.getConfig().getDouble("classes.MAGE.regen-tier-2", 4.0);
+    }
+
+    public double mageRegenTier3() {
+        return plugin.getConfig().getDouble("classes.MAGE.regen-tier-3", 5.0);
+    }
+
+    public double mageRegenTier4() {
+        return plugin.getConfig().getDouble("classes.MAGE.regen-tier-4", 6.0);
+    }
 
     /* ------------------------------ WARLOCK (funnel P5) ------------------------------ */
 
     public double warlockResourceOnKill() {
-        return classDouble(PlayerClass.WARLOCK, "resource.on-kill",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "resource.on-kill",
                 plugin.getConfig().getDouble("classes.WARLOCK.resource-on-kill", 10.0));
     }
 
     public double warlockResourceDecay() {
-        return classDouble(PlayerClass.WARLOCK, "resource.decay-out-of-combat",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "resource.decay-out-of-combat",
                 plugin.getConfig().getDouble("classes.WARLOCK.resource-decay-out-of-combat", -4.0));
     }
 
     public double warlockResourceFloor() {
-        return classDouble(PlayerClass.WARLOCK, "resource.floor",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "resource.floor",
                 plugin.getConfig().getDouble("classes.WARLOCK.resource-floor", 0.0));
     }
 
     public double warlockResourceFloorRegen() {
-        return classDouble(PlayerClass.WARLOCK, "resource.floor-regen",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "resource.floor-regen",
                 plugin.getConfig().getDouble("classes.WARLOCK.resource-floor-regen", 2.0));
     }
 
     public double warlockThresholdOpen() {
-        return classDouble(PlayerClass.WARLOCK, "thresholds.open",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "thresholds.open",
                 plugin.getConfig().getDouble("classes.WARLOCK.threshold-open", 75.0));
     }
 
     public double warlockThresholdOverflow() {
-        return classDouble(PlayerClass.WARLOCK, "thresholds.overflow",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "thresholds.overflow",
                 plugin.getConfig().getDouble("classes.WARLOCK.threshold-overflow", 100.0));
     }
 
     public double warlockRecoilPercent() {
-        return classDouble(PlayerClass.WARLOCK, "recoil.percent",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "recoil.percent",
                 plugin.getConfig().getDouble("classes.WARLOCK.recoil-percent", 6.66));
     }
 
     public double warlockRecoilCapPct() {
-        return classDouble(PlayerClass.WARLOCK, "recoil.cap-percent",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "recoil.cap-percent",
                 plugin.getConfig().getDouble("classes.WARLOCK.recoil-cap-pct", 30.0));
     }
 
     public double warlockRecoilMinHp() {
-        return classDouble(PlayerClass.WARLOCK, "recoil.min-hp",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "recoil.min-hp",
                 plugin.getConfig().getDouble("classes.WARLOCK.recoil-min-hp", 1.0));
     }
 
     public double warlockNetherMult() {
-        return classDouble(PlayerClass.WARLOCK, "nether-mult",
-                plugin.getConfig().getDouble("classes.WARLOCK.nether-mult", 6.0));
+        return classDouble(
+                PlayerClass.WARLOCK, "nether-mult", plugin.getConfig().getDouble("classes.WARLOCK.nether-mult", 6.0));
     }
 
     public double warlockLifestealCap() {
-        return classDouble(PlayerClass.WARLOCK, "lifesteal-cap",
+        return classDouble(
+                PlayerClass.WARLOCK,
+                "lifesteal-cap",
                 plugin.getConfig().getDouble("classes.WARLOCK.lifesteal-cap", 0.85));
     }
 
     /* ------------------------------ пассивки (funnel P5) ------------------------------ */
 
     public boolean passiveEnabled(PlayerClass pc, String id) {
-        return classBool(pc, "passives." + id + ".enabled",
-                plugin.getConfig().getBoolean(passivePath(pc, id, "enabled"), true));
+        return classBool(
+                pc, "passives." + id + ".enabled", plugin.getConfig().getBoolean(passivePath(pc, id, "enabled"), true));
     }
 
     public double passiveDouble(PlayerClass pc, String id, String key, double fallback) {
-        return classDouble(pc, "passives." + id + "." + key,
-                plugin.getConfig().getDouble(passivePath(pc, id, key), fallback));
+        return classDouble(
+                pc, "passives." + id + "." + key, plugin.getConfig().getDouble(passivePath(pc, id, key), fallback));
     }
 
     public int passiveInt(PlayerClass pc, String id, String key, int fallback) {
-        return classInt(pc, "passives." + id + "." + key,
-                plugin.getConfig().getInt(passivePath(pc, id, key), fallback));
+        return classInt(
+                pc, "passives." + id + "." + key, plugin.getConfig().getInt(passivePath(pc, id, key), fallback));
     }
 
     public String passiveDisplayName(PlayerClass pc, String id, String fallback) {
-        return classString(pc, "passives." + id + ".display-name",
-                plugin.getConfig().getString(passivePath(pc, id, "display-name"),
-                        DEFAULTS.passiveDisplayName(pc, id, fallback)));
+        return classString(
+                pc,
+                "passives." + id + ".display-name",
+                plugin.getConfig()
+                        .getString(passivePath(pc, id, "display-name"), DEFAULTS.passiveDisplayName(pc, id, fallback)));
     }
 
     public String passiveDescription(PlayerClass pc, String id, String fallback) {
-        return classString(pc, "passives." + id + ".description",
-                plugin.getConfig().getString(passivePath(pc, id, "description"),
-                        DEFAULTS.passiveDescription(pc, id, fallback)));
+        return classString(
+                pc,
+                "passives." + id + ".description",
+                plugin.getConfig()
+                        .getString(passivePath(pc, id, "description"), DEFAULTS.passiveDescription(pc, id, fallback)));
     }
 
     public static List<String> passiveIds(PlayerClass pc) {
@@ -570,27 +682,34 @@ public final class RaskolConfig {
     /* ------------------------------ ресурсы (funnel P5) ------------------------------ */
 
     public double resourceRegen(PlayerClass pc) {
-        return classDouble(pc, "resource.regen",
-                plugin.getConfig().getDouble("classes." + pc.name() + ".resource-regen",
-                        DEFAULTS.resourceRegen(pc)));
+        return classDouble(
+                pc,
+                "resource.regen",
+                plugin.getConfig().getDouble("classes." + pc.name() + ".resource-regen", DEFAULTS.resourceRegen(pc)));
     }
 
     public double resourceOnDeal(PlayerClass pc) {
-        return classDouble(pc, "resource.on-deal",
-                plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-deal",
-                        DEFAULTS.resourceOnDeal(pc)));
+        return classDouble(
+                pc,
+                "resource.on-deal",
+                plugin.getConfig()
+                        .getDouble("classes." + pc.name() + ".resource-on-deal", DEFAULTS.resourceOnDeal(pc)));
     }
 
     public double resourceOnTake(PlayerClass pc) {
-        return classDouble(pc, "resource.on-take",
-                plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-take",
-                        DEFAULTS.resourceOnTake(pc)));
+        return classDouble(
+                pc,
+                "resource.on-take",
+                plugin.getConfig()
+                        .getDouble("classes." + pc.name() + ".resource-on-take", DEFAULTS.resourceOnTake(pc)));
     }
 
     public double resourceOnHeal(PlayerClass pc) {
-        return classDouble(pc, "resource.on-heal",
-                plugin.getConfig().getDouble("classes." + pc.name() + ".resource-on-heal",
-                        DEFAULTS.resourceOnHeal(pc)));
+        return classDouble(
+                pc,
+                "resource.on-heal",
+                plugin.getConfig()
+                        .getDouble("classes." + pc.name() + ".resource-on-heal", DEFAULTS.resourceOnHeal(pc)));
     }
 
     public int combatWindowSeconds(PlayerClass pc) {
@@ -600,75 +719,82 @@ public final class RaskolConfig {
     /* ------------------------------ кит-мета (funnel P5) ------------------------------ */
 
     public int abilityUnlock(PlayerClass pc, String id, int fallback) {
-        return classInt(pc, "abilities." + id + ".unlock",
-                plugin.getConfig().getInt(path(pc, id, "unlock"), fallback));
+        return classInt(pc, "abilities." + id + ".unlock", plugin.getConfig().getInt(path(pc, id, "unlock"), fallback));
     }
 
     public int abilityCost(PlayerClass pc, String id, int fallback) {
-        return classInt(pc, "abilities." + id + ".cost",
-                plugin.getConfig().getInt(path(pc, id, "cost"), fallback));
+        return classInt(pc, "abilities." + id + ".cost", plugin.getConfig().getInt(path(pc, id, "cost"), fallback));
     }
 
     public int abilityCooldownSeconds(PlayerClass pc, String id, int fallback) {
-        return classInt(pc, "abilities." + id + ".cooldown",
-                plugin.getConfig().getInt(path(pc, id, "cooldown"), fallback));
+        return classInt(
+                pc, "abilities." + id + ".cooldown", plugin.getConfig().getInt(path(pc, id, "cooldown"), fallback));
     }
 
     public String abilityName(PlayerClass pc, String id, String fallback) {
-        return classString(pc, "abilities." + id + ".name",
-                plugin.getConfig().getString(path(pc, id, "name"), fallback));
+        return classString(
+                pc, "abilities." + id + ".name", plugin.getConfig().getString(path(pc, id, "name"), fallback));
     }
 
     public String abilityDescription(PlayerClass pc, String id, String fallback) {
         AbilityDefaults d = DEFAULTS.abilities(pc).get(id);
         String codeDefault = d != null ? d.description() : "";
-        return classString(pc, "abilities." + id + ".description",
-                plugin.getConfig().getString(path(pc, id, "description"),
-                        codeDefault.isEmpty() ? fallback : codeDefault));
+        return classString(
+                pc,
+                "abilities." + id + ".description",
+                plugin.getConfig()
+                        .getString(path(pc, id, "description"), codeDefault.isEmpty() ? fallback : codeDefault));
     }
 
     public double abilityDrain(PlayerClass pc, String id) {
-        return classDouble(pc, "abilities." + id + ".drain",
-                plugin.getConfig().getDouble(path(pc, id, "drain"), 0.0));
+        return classDouble(pc, "abilities." + id + ".drain", plugin.getConfig().getDouble(path(pc, id, "drain"), 0.0));
     }
 
     public double abilityAmplify(PlayerClass pc, String id) {
-        return classDouble(pc, "abilities." + id + ".amplify",
-                plugin.getConfig().getDouble(path(pc, id, "amplify"), 0.0));
+        return classDouble(
+                pc, "abilities." + id + ".amplify", plugin.getConfig().getDouble(path(pc, id, "amplify"), 0.0));
     }
 
     public boolean abilityUnremovable(PlayerClass pc, String id) {
-        return classBool(pc, "abilities." + id + ".unremovable",
+        return classBool(
+                pc,
+                "abilities." + id + ".unremovable",
                 plugin.getConfig().getBoolean(path(pc, id, "unremovable"), false));
     }
 
     public int abilityPerPurged(PlayerClass pc, String id) {
-        return classInt(pc, "abilities." + id + ".per-purged",
-                plugin.getConfig().getInt(path(pc, id, "per-purged"), 0));
+        return classInt(
+                pc, "abilities." + id + ".per-purged", plugin.getConfig().getInt(path(pc, id, "per-purged"), 0));
     }
 
     public int abilityCorruptionGain(PlayerClass pc, String id) {
-        return classInt(pc, "abilities." + id + ".corruption-gain",
+        return classInt(
+                pc,
+                "abilities." + id + ".corruption-gain",
                 plugin.getConfig().getInt(path(pc, id, "corruption-gain"), 0));
     }
 
     public double abilityMissingHpBonus(PlayerClass pc, String id) {
-        return classDouble(pc, "abilities." + id + ".missing-hp-bonus",
+        return classDouble(
+                pc,
+                "abilities." + id + ".missing-hp-bonus",
                 plugin.getConfig().getDouble(path(pc, id, "missing-hp-bonus"), 0.0));
     }
 
     public double abilityAntiheal(PlayerClass pc, String id) {
-        return classDouble(pc, "abilities." + id + ".antiheal",
-                plugin.getConfig().getDouble(path(pc, id, "antiheal"), 0.0));
+        return classDouble(
+                pc, "abilities." + id + ".antiheal", plugin.getConfig().getDouble(path(pc, id, "antiheal"), 0.0));
     }
 
     public double abilityChannel(PlayerClass pc, String id) {
-        return classDouble(pc, "abilities." + id + ".channel",
-                plugin.getConfig().getDouble(path(pc, id, "channel"), 0.0));
+        return classDouble(
+                pc, "abilities." + id + ".channel", plugin.getConfig().getDouble(path(pc, id, "channel"), 0.0));
     }
 
     public int durationSeconds(PlayerClass pc, String abilityId, int fallbackSeconds) {
-        return classInt(pc, "abilities." + abilityId + ".duration",
+        return classInt(
+                pc,
+                "abilities." + abilityId + ".duration",
                 plugin.getConfig().getInt(path(pc, abilityId, "duration"), fallbackSeconds));
     }
 
@@ -702,21 +828,37 @@ public final class RaskolConfig {
         for (PlayerClass pc : PlayerClass.values()) {
             String base = "classes." + pc.name();
             FileConfiguration config = plugin.getConfig();
-            themes.put(pc, new ClassTheme(
-                    parseColor(classString(pc, "theme.primary",
-                            config.getString(base + ".theme.primary", DEFAULTS.primary(pc))),
-                            DEFAULTS.primary(pc)),
-                    parseColor(classString(pc, "theme.secondary",
-                            config.getString(base + ".theme.secondary", DEFAULTS.secondary(pc))),
-                            DEFAULTS.secondary(pc)),
-                    classString(pc, "theme.symbol",
-                            config.getString(base + ".theme.symbol", DEFAULTS.symbol(pc))),
-                    parseParticle(classString(pc, "cast-particle",
-                            config.getString(base + ".cast-particle", DEFAULTS.particle(pc).name())),
-                            DEFAULTS.particle(pc)),
-                    parseSound(classString(pc, "cast-sound",
-                            config.getString(base + ".cast-sound", "ENTITY_PLAYER_LEVELUP")),
-                            Sound.ENTITY_PLAYER_LEVELUP)));
+            themes.put(
+                    pc,
+                    new ClassTheme(
+                            parseColor(
+                                    classString(
+                                            pc,
+                                            "theme.primary",
+                                            config.getString(base + ".theme.primary", DEFAULTS.primary(pc))),
+                                    DEFAULTS.primary(pc)),
+                            parseColor(
+                                    classString(
+                                            pc,
+                                            "theme.secondary",
+                                            config.getString(base + ".theme.secondary", DEFAULTS.secondary(pc))),
+                                    DEFAULTS.secondary(pc)),
+                            classString(
+                                    pc, "theme.symbol", config.getString(base + ".theme.symbol", DEFAULTS.symbol(pc))),
+                            parseParticle(
+                                    classString(
+                                            pc,
+                                            "cast-particle",
+                                            config.getString(
+                                                    base + ".cast-particle",
+                                                    DEFAULTS.particle(pc).name())),
+                                    DEFAULTS.particle(pc)),
+                            parseSound(
+                                    classString(
+                                            pc,
+                                            "cast-sound",
+                                            config.getString(base + ".cast-sound", "ENTITY_PLAYER_LEVELUP")),
+                                    Sound.ENTITY_PLAYER_LEVELUP)));
         }
     }
 
@@ -729,8 +871,11 @@ public final class RaskolConfig {
 
     private Particle parseParticle(String name, Particle fallback) {
         if (name == null) return fallback;
-        try { return Particle.valueOf(name.toUpperCase(Locale.ROOT)); }
-        catch (IllegalArgumentException e) { return fallback; }
+        try {
+            return Particle.valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return fallback;
+        }
     }
 
     private Sound parseSound(String name, Sound fallback) {
@@ -756,9 +901,7 @@ public final class RaskolConfig {
         };
     }
 
-    public record AbilityDefaults(int unlock, int cost, int cooldown, String name,
-                                  int duration, String description) {
-    }
+    public record AbilityDefaults(int unlock, int cost, int cooldown, String name, int duration, String description) {}
 
     private static final class DEFAULTS {
         static double resourceRegen(PlayerClass pc) {
@@ -770,6 +913,7 @@ public final class RaskolConfig {
                 case WARLOCK -> 0.0;
             };
         }
+
         static double resourceOnDeal(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> 10.0;
@@ -777,6 +921,7 @@ public final class RaskolConfig {
                 default -> 0.0;
             };
         }
+
         static double resourceOnTake(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> 10.0;
@@ -784,12 +929,14 @@ public final class RaskolConfig {
                 default -> 0.0;
             };
         }
+
         static double resourceOnHeal(PlayerClass pc) {
             return switch (pc) {
                 case PRIEST -> 5.0;
                 default -> 0.0;
             };
         }
+
         static String primary(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> "#8B0000";
@@ -800,6 +947,7 @@ public final class RaskolConfig {
                 case WARLOCK -> "#1B0022";
             };
         }
+
         static String secondary(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> "#FF4500";
@@ -810,6 +958,7 @@ public final class RaskolConfig {
                 case WARLOCK -> "#9B30FF";
             };
         }
+
         static String symbol(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> "⚔";
@@ -820,6 +969,7 @@ public final class RaskolConfig {
                 case WARLOCK -> "☾";
             };
         }
+
         static Particle particle(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> Particle.FLAME;
@@ -830,106 +980,170 @@ public final class RaskolConfig {
                 case WARLOCK -> Particle.SCULK_SOUL;
             };
         }
+
         static String passiveDisplayName(PlayerClass pc, String id, String fallback) {
-            String name = switch (pc) {
-                case WARRIOR -> "execute_passive".equals(id) ? "Казнь" : null;
-                case HUNTER -> "predator".equals(id) ? "Хищник" : null;
-                case PRIEST -> "grace".equals(id) ? "Благодать" : null;
-                case MAGE -> "mana_soaked".equals(id) ? "Пропитанный маной" : null;
-                case ROGUE -> switch (id) {
-                    case "poisoned_blades" -> "Отравленные клинки";
-                    case "sadism" -> "Садизм";
-                    default -> null;
-                };
-                case WARLOCK -> "black_mass".equals(id) ? "Чёрная Месса" : null;
-            };
+            String name =
+                    switch (pc) {
+                        case WARRIOR -> "execute_passive".equals(id) ? "Казнь" : null;
+                        case HUNTER -> "predator".equals(id) ? "Хищник" : null;
+                        case PRIEST -> "grace".equals(id) ? "Благодать" : null;
+                        case MAGE -> "mana_soaked".equals(id) ? "Пропитанный маной" : null;
+                        case ROGUE -> switch (id) {
+                            case "poisoned_blades" -> "Отравленные клинки";
+                            case "sadism" -> "Садизм";
+                            default -> null;
+                        };
+                        case WARLOCK -> "black_mass".equals(id) ? "Чёрная Месса" : null;
+                    };
             return name != null ? name : fallback;
         }
+
         static String passiveDescription(PlayerClass pc, String id, String fallback) {
-            String desc = switch (pc) {
-                case WARRIOR -> "execute_passive".equals(id)
-                        ? "20% шанс — ×3 урона по цели с ≤20% HP" : null;
-                case HUNTER -> "predator".equals(id) ? "×1.2 урона, пока HP ≥ 80%" : null;
-                case PRIEST -> "grace".equals(id) ? "×1.15 к исходящему лечению" : null;
-                case MAGE -> "mana_soaked".equals(id) ? "мана ≥ 50 → −15% входящего урона" : null;
-                case ROGUE -> switch (id) {
-                    case "poisoned_blades" -> "30% шанс — Яд I на 2 с";
-                    case "sadism" -> "+3 урона при атаке со спины";
-                    default -> null;
-                };
-                case WARLOCK -> "black_mass".equals(id)
-                        ? "6.66% lifesteal · 6.66% рефлекта чистым уроном в r8" : null;
-            };
+            String desc =
+                    switch (pc) {
+                        case WARRIOR -> "execute_passive".equals(id) ? "20% шанс — ×3 урона по цели с ≤20% HP" : null;
+                        case HUNTER -> "predator".equals(id) ? "×1.2 урона, пока HP ≥ 80%" : null;
+                        case PRIEST -> "grace".equals(id) ? "×1.15 к исходящему лечению" : null;
+                        case MAGE -> "mana_soaked".equals(id) ? "мана ≥ 50 → −15% входящего урона" : null;
+                        case ROGUE -> switch (id) {
+                            case "poisoned_blades" -> "30% шанс — Яд I на 2 с";
+                            case "sadism" -> "+3 урона при атаке со спины";
+                            default -> null;
+                        };
+                        case WARLOCK -> "black_mass".equals(id)
+                                ? "6.66% lifesteal · 6.66% рефлекта чистым уроном в r8"
+                                : null;
+                    };
             return desc != null ? desc : fallback;
         }
+
         static Map<String, AbilityDefaults> abilities(PlayerClass pc) {
             return switch (pc) {
                 case WARRIOR -> Map.of(
-                        "tyr_strike", new AbilityDefaults(10, 20, 8, "Удар Тира", 0,
-                                "Тяжёлый удар бога войны: физ-урон, скалируется от Силы оружия"),
-                        "balder_skin", new AbilityDefaults(25, 25, 30, "Шкура Бальдра", 5,
-                                "Кожа неуязвимого бога: +физрезист на 5 с"),
-                        "berserkergang", new AbilityDefaults(50, 35, 45, "Берсеркерганг", 6,
-                                "Ярость берсерка: Сила II + Сопротивление I на 6 с"),
-                        "fenrir_blood", new AbilityDefaults(65, 30, 25, "Кровь Фенрира", 0,
-                                "Волчья кровь лечит тебя"),
-                        "ragnarok", new AbilityDefaults(75, 60, 60, "Рагнарёк", 0,
-                                "Сумерки богов: тяжёлый удар; цель ниже 25% HP получает ×3"));
+                        "tyr_strike",
+                                new AbilityDefaults(
+                                        10,
+                                        20,
+                                        8,
+                                        "Удар Тира",
+                                        0,
+                                        "Тяжёлый удар бога войны: физ-урон, скалируется от Силы оружия"),
+                        "balder_skin",
+                                new AbilityDefaults(
+                                        25, 25, 30, "Шкура Бальдра", 5, "Кожа неуязвимого бога: +физрезист на 5 с"),
+                        "berserkergang",
+                                new AbilityDefaults(
+                                        50,
+                                        35,
+                                        45,
+                                        "Берсеркерганг",
+                                        6,
+                                        "Ярость берсерка: Сила II + Сопротивление I на 6 с"),
+                        "fenrir_blood", new AbilityDefaults(65, 30, 25, "Кровь Фенрира", 0, "Волчья кровь лечит тебя"),
+                        "ragnarok",
+                                new AbilityDefaults(
+                                        75,
+                                        60,
+                                        60,
+                                        "Рагнарёк",
+                                        0,
+                                        "Сумерки богов: тяжёлый удар; цель ниже 25% HP получает ×3"));
                 case HUNTER -> Map.of(
-                        "wolf_mark", new AbilityDefaults(10, 20, 12, "Метка Волка", 0,
-                                "Ведьмачья метка: урон, Slowness I 3 с и подсветка цели"),
-                        "swallow", new AbilityDefaults(25, 15, 40, "Ласточка", 8,
-                                "Ведьмачье зелье: Скорость II + Регенерация I на 8 с"),
-                        "piercing_shot", new AbilityDefaults(50, 30, 20, "Пронзающий выстрел", 0,
-                                "Бронебойный выстрел: тяжёлый одиночный урон"),
-                        "arrow_fan", new AbilityDefaults(65, 35, 22, "Веер стрел", 0,
-                                "Три стрелы конусом"),
-                        "arrow_rain", new AbilityDefaults(75, 60, 90, "Дождь стрел", 0,
-                                "Шквал стрел по площади радиусом 5"));
+                        "wolf_mark",
+                                new AbilityDefaults(
+                                        10,
+                                        20,
+                                        12,
+                                        "Метка Волка",
+                                        0,
+                                        "Ведьмачья метка: урон, Slowness I 3 с и подсветка цели"),
+                        "swallow",
+                                new AbilityDefaults(
+                                        25,
+                                        15,
+                                        40,
+                                        "Ласточка",
+                                        8,
+                                        "Ведьмачье зелье: Скорость II + Регенерация I на 8 с"),
+                        "piercing_shot",
+                                new AbilityDefaults(
+                                        50,
+                                        30,
+                                        20,
+                                        "Пронзающий выстрел",
+                                        0,
+                                        "Бронебойный выстрел: тяжёлый одиночный урон"),
+                        "arrow_fan", new AbilityDefaults(65, 35, 22, "Веер стрел", 0, "Три стрелы конусом"),
+                        "arrow_rain",
+                                new AbilityDefaults(75, 60, 90, "Дождь стрел", 0, "Шквал стрел по площади радиусом 5"));
                 case PRIEST -> Map.of(
-                        "saint_tear", new AbilityDefaults(10, 10, 3, "Слеза Святой", 0,
-                                "Литургический хил себе или союзнику"),
-                        "word_of_life", new AbilityDefaults(25, 20, 6, "Слово Жизни", 0,
-                                "Мощное слово: большой хил себе или союзнику"),
-                        "aegis_faith", new AbilityDefaults(50, 30, 30, "Эгида Веры", 5,
-                                "Щит веры: +физрезист и +магрезист на 5 с"),
-                        "circle_elysium", new AbilityDefaults(65, 50, 60, "Круг Элизия", 0,
-                                "Лечит себя и союзников в радиусе 6"),
-                        "wrath_heaven", new AbilityDefaults(75, 60, 90, "Кара Небес", 0,
-                                "Тяжёлый маг-урон; цель ниже 25% HP получает ×3"));
+                        "saint_tear",
+                                new AbilityDefaults(
+                                        10, 10, 3, "Слеза Святой", 0, "Литургический хил себе или союзнику"),
+                        "word_of_life",
+                                new AbilityDefaults(
+                                        25, 20, 6, "Слово Жизни", 0, "Мощное слово: большой хил себе или союзнику"),
+                        "aegis_faith",
+                                new AbilityDefaults(
+                                        50, 30, 30, "Эгида Веры", 5, "Щит веры: +физрезист и +магрезист на 5 с"),
+                        "circle_elysium",
+                                new AbilityDefaults(65, 50, 60, "Круг Элизия", 0, "Лечит себя и союзников в радиусе 6"),
+                        "wrath_heaven",
+                                new AbilityDefaults(
+                                        75, 60, 90, "Кара Небес", 0, "Тяжёлый маг-урон; цель ниже 25% HP получает ×3"));
                 case MAGE -> Map.of(
-                        "fire_prometheus", new AbilityDefaults(10, 15, 6, "Огонь Прометея", 0,
-                                "Огненный шар: гибридный урон + поджог 3 с"),
-                        "hermes_step", new AbilityDefaults(25, 20, 20, "Шаг Гермеса", 0,
-                                "Блинк до 16 блоков вперёд"),
-                        "boreas_breath", new AbilityDefaults(50, 40, 45, "Дыхание Борея", 4,
-                                "Ледяная nova: урон r5 + Slowness II 4 с"),
-                        "athena_aegis", new AbilityDefaults(65, 30, 30, "Эгида Афины", 5,
-                                "Щит богини: +магрезист на 5 с"),
-                        "zeus_wrath", new AbilityDefaults(75, 60, 90, "Гнев Зевса", 0,
-                                "Молния: тяжёлый маг-урон; цель ниже 25% HP получает ×3"));
+                        "fire_prometheus",
+                                new AbilityDefaults(
+                                        10, 15, 6, "Огонь Прометея", 0, "Огненный шар: гибридный урон + поджог 3 с"),
+                        "hermes_step", new AbilityDefaults(25, 20, 20, "Шаг Гермеса", 0, "Блинк до 16 блоков вперёд"),
+                        "boreas_breath",
+                                new AbilityDefaults(
+                                        50, 40, 45, "Дыхание Борея", 4, "Ледяная nova: урон r5 + Slowness II 4 с"),
+                        "athena_aegis",
+                                new AbilityDefaults(65, 30, 30, "Эгида Афины", 5, "Щит богини: +магрезист на 5 с"),
+                        "zeus_wrath",
+                                new AbilityDefaults(
+                                        75,
+                                        60,
+                                        90,
+                                        "Гнев Зевса",
+                                        0,
+                                        "Молния: тяжёлый маг-урон; цель ниже 25% HP получает ×3"));
                 case ROGUE -> Map.of(
-                        "shadow_cloak", new AbilityDefaults(10, 30, 30, "Плащ теней", 15,
-                                "Невидимость 15 с"),
-                        "blade_fan", new AbilityDefaults(25, 25, 15, "Веер клинков", 0,
-                                "Вихрь ножей по площади радиусом 3"),
-                        "strangle", new AbilityDefaults(50, 40, 40, "Удушение палача", 0,
-                                "Урон + Blind 2 с + Slowness 2 с"),
-                        "borgia_poison", new AbilityDefaults(65, 35, 30, "Яд Борджа", 0,
-                                "Урон + Яд I 5 с"),
-                        "shadow_dance", new AbilityDefaults(75, 60, 120, "Танец теней", 4,
-                                "+30 ЛОВКОСТИ на 4 с"));
+                        "shadow_cloak", new AbilityDefaults(10, 30, 30, "Плащ теней", 15, "Невидимость 15 с"),
+                        "blade_fan",
+                                new AbilityDefaults(25, 25, 15, "Веер клинков", 0, "Вихрь ножей по площади радиусом 3"),
+                        "strangle",
+                                new AbilityDefaults(
+                                        50, 40, 40, "Удушение палача", 0, "Урон + Blind 2 с + Slowness 2 с"),
+                        "borgia_poison", new AbilityDefaults(65, 35, 30, "Яд Борджа", 0, "Урон + Яд I 5 с"),
+                        "shadow_dance", new AbilityDefaults(75, 60, 120, "Танец теней", 4, "+30 ЛОВКОСТИ на 4 с"));
                 case WARLOCK -> Map.of(
-                        "black_word", new AbilityDefaults(10, 10, 4, "Чёрное Слово", 0,
-                                "Маг-урон цели; 66.6% урона → HP; откат 6.66%"),
-                        "ruin_seal", new AbilityDefaults(25, 15, 16, "Печать Погибели", 67,
-                                "+26% входящего урона цели на 66.6 с (неснимаемо)"),
-                        "hunger_corruption", new AbilityDefaults(50, 25, 26, "Голод Скверны", 0,
-                                "Маг-урон r6; 66.6% → HP; +12 Скверны"),
-                        "unwriting", new AbilityDefaults(65, 30, 22, "Небытие", 0,
-                                "Диспел положительных эффектов; +16 урона за каждый"),
-                        "soul_rift", new AbilityDefaults(75, 50, 80, "Раскол Души", 0,
-                                "Канал 2.5 с r8: тик-урон + анти-хил; взрыв до +66.6% missing-HP"));
+                        "black_word",
+                                new AbilityDefaults(
+                                        10, 10, 4, "Чёрное Слово", 0, "Маг-урон цели; 66.6% урона → HP; откат 6.66%"),
+                        "ruin_seal",
+                                new AbilityDefaults(
+                                        25,
+                                        15,
+                                        16,
+                                        "Печать Погибели",
+                                        67,
+                                        "+26% входящего урона цели на 66.6 с (неснимаемо)"),
+                        "hunger_corruption",
+                                new AbilityDefaults(
+                                        50, 25, 26, "Голод Скверны", 0, "Маг-урон r6; 66.6% → HP; +12 Скверны"),
+                        "unwriting",
+                                new AbilityDefaults(
+                                        65, 30, 22, "Небытие", 0, "Диспел положительных эффектов; +16 урона за каждый"),
+                        "soul_rift",
+                                new AbilityDefaults(
+                                        75,
+                                        50,
+                                        80,
+                                        "Раскол Души",
+                                        0,
+                                        "Канал 2.5 с r8: тик-урон + анти-хил; взрыв до +66.6% missing-HP"));
             };
         }
     }

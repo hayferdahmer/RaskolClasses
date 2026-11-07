@@ -1,4 +1,3 @@
-
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.crypto;
@@ -14,6 +13,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 class TrustedPublicKeyRegistryTest {
@@ -26,8 +26,7 @@ class TrustedPublicKeyRegistryTest {
 
     @Test
     void shouldContainPinnedPublicKey() {
-        List<PublicKey> keys =
-                TrustedPublicKeyRegistry.trustedKeys();
+        List<PublicKey> keys = TrustedPublicKeyRegistry.trustedKeys();
 
         assertEquals(2, keys.size());
         assertNotNull(keys.get(0));
@@ -37,174 +36,103 @@ class TrustedPublicKeyRegistryTest {
     @Test
     void shouldExposeExpectedFingerprints() {
         assertEquals(
-                List.of(
-                        EXPECTED_OLD_FINGERPRINT,
-                        EXPECTED_NEW_FINGERPRINT
-                ),
-                TrustedPublicKeyRegistry.fingerprints()
-        );
+                List.of(EXPECTED_OLD_FINGERPRINT, EXPECTED_NEW_FINGERPRINT), TrustedPublicKeyRegistry.fingerprints());
     }
 
     @Test
     void shouldRecognizePinnedPublicKeyAsTrusted() {
-        PublicKey pinnedKey =
-                TrustedPublicKeyRegistry.trustedKeys().get(0);
+        PublicKey pinnedKey = TrustedPublicKeyRegistry.trustedKeys().get(0);
 
-        assertTrue(
-                TrustedPublicKeyRegistry.isTrusted(pinnedKey)
-        );
+        assertTrue(TrustedPublicKeyRegistry.isTrusted(pinnedKey));
     }
 
     @Test
     void shouldRecognizeVerifyOnlyKeyAsTrustedForVerification() {
-        PublicKey verifyOnlyKey =
-                TrustedPublicKeyRegistry.trustedKeys().get(1);
+        PublicKey verifyOnlyKey = TrustedPublicKeyRegistry.trustedKeys().get(1);
 
-        assertTrue(
-                TrustedPublicKeyRegistry.isTrusted(verifyOnlyKey)
-        );
+        assertTrue(TrustedPublicKeyRegistry.isTrusted(verifyOnlyKey));
     }
 
     @Test
     void shouldExposeOldKeyAsActive() {
         assertEquals(
                 EXPECTED_OLD_FINGERPRINT,
-                TrustedPublicKeyRegistry.fingerprint(
-                        TrustedPublicKeyRegistry.activePublicKey()
-                )
-        );
+                TrustedPublicKeyRegistry.fingerprint(TrustedPublicKeyRegistry.activePublicKey()));
     }
 
     @Test
     void shouldRejectUnknownPublicKey() throws Exception {
-        PublicKey unknownKey = Ed25519SignatureService
-                .generateKeyPair()
-                .getPublic();
+        PublicKey unknownKey = Ed25519SignatureService.generateKeyPair().getPublic();
 
-        assertFalse(
-                TrustedPublicKeyRegistry.isTrusted(unknownKey)
-        );
+        assertFalse(TrustedPublicKeyRegistry.isTrusted(unknownKey));
     }
 
     @Test
     void shouldRejectNullPublicKey() {
-        assertFalse(
-                TrustedPublicKeyRegistry.isTrusted(null)
-        );
+        assertFalse(TrustedPublicKeyRegistry.isTrusted(null));
     }
 
     @Test
-    void shouldLoadMultipleKeysForRotation()
-            throws GeneralSecurityException {
+    void shouldLoadMultipleKeysForRotation() throws GeneralSecurityException {
 
-        PublicKey oldKey =
-                TrustedPublicKeyRegistry.trustedKeys().get(0);
+        PublicKey oldKey = TrustedPublicKeyRegistry.trustedKeys().get(0);
 
-        KeyPair newKeyPair =
-                Ed25519SignatureService.generateKeyPair();
+        KeyPair newKeyPair = Ed25519SignatureService.generateKeyPair();
 
-        String encodedOldKey =
-                Ed25519SignatureService.encodePublicKey(oldKey);
+        String encodedOldKey = Ed25519SignatureService.encodePublicKey(oldKey);
 
-        String encodedNewKey =
-                Ed25519SignatureService.encodePublicKey(
-                        newKeyPair.getPublic()
-                );
+        String encodedNewKey = Ed25519SignatureService.encodePublicKey(newKeyPair.getPublic());
 
-        List<PublicKey> rotatedKeys =
-                TrustedPublicKeyRegistry.decodePinnedKeys(
-                        List.of(encodedOldKey, encodedNewKey)
-                );
+        List<PublicKey> rotatedKeys = TrustedPublicKeyRegistry.decodePinnedKeys(List.of(encodedOldKey, encodedNewKey));
 
         assertEquals(2, rotatedKeys.size());
 
-        assertArrayEquals(
-                oldKey.getEncoded(),
-                rotatedKeys.get(0).getEncoded()
-        );
+        assertArrayEquals(oldKey.getEncoded(), rotatedKeys.get(0).getEncoded());
 
         assertArrayEquals(
-                newKeyPair.getPublic().getEncoded(),
-                rotatedKeys.get(1).getEncoded()
-        );
+                newKeyPair.getPublic().getEncoded(), rotatedKeys.get(1).getEncoded());
     }
 
     @Test
-    void shouldPreserveOldKeyWhenNewKeyIsAdded()
-            throws GeneralSecurityException {
+    void shouldPreserveOldKeyWhenNewKeyIsAdded() throws GeneralSecurityException {
 
-        PublicKey oldKey =
-                TrustedPublicKeyRegistry.trustedKeys().get(0);
+        PublicKey oldKey = TrustedPublicKeyRegistry.trustedKeys().get(0);
 
-        KeyPair newKeyPair =
-                Ed25519SignatureService.generateKeyPair();
+        KeyPair newKeyPair = Ed25519SignatureService.generateKeyPair();
 
-        List<PublicKey> rotatedKeys =
-                TrustedPublicKeyRegistry.decodePinnedKeys(
-                        List.of(
-                                Ed25519SignatureService.encodePublicKey(oldKey),
-                                Ed25519SignatureService.encodePublicKey(
-                                        newKeyPair.getPublic()
-                                )
-                        )
-                );
+        List<PublicKey> rotatedKeys = TrustedPublicKeyRegistry.decodePinnedKeys(List.of(
+                Ed25519SignatureService.encodePublicKey(oldKey),
+                Ed25519SignatureService.encodePublicKey(newKeyPair.getPublic())));
 
-        assertTrue(
-                rotatedKeys.stream().anyMatch(key ->
-                        java.security.MessageDigest.isEqual(
-                                key.getEncoded(),
-                                oldKey.getEncoded()
-                        )
-                )
-        );
+        assertTrue(rotatedKeys.stream()
+                .anyMatch(key -> java.security.MessageDigest.isEqual(key.getEncoded(), oldKey.getEncoded())));
 
-        assertTrue(
-                rotatedKeys.stream().anyMatch(key ->
-                        java.security.MessageDigest.isEqual(
-                                key.getEncoded(),
-                                newKeyPair.getPublic().getEncoded()
-                        )
-                )
-        );
+        assertTrue(rotatedKeys.stream()
+                .anyMatch(key -> java.security.MessageDigest.isEqual(
+                        key.getEncoded(), newKeyPair.getPublic().getEncoded())));
     }
 
     @Test
-    void shouldRejectDuplicateKeys()
-            throws GeneralSecurityException {
+    void shouldRejectDuplicateKeys() throws GeneralSecurityException {
 
-        String encodedKey =
-                Ed25519SignatureService.encodePublicKey(
-                        TrustedPublicKeyRegistry.trustedKeys().get(0)
-                );
+        String encodedKey = Ed25519SignatureService.encodePublicKey(
+                TrustedPublicKeyRegistry.trustedKeys().get(0));
 
         assertThrows(
                 GeneralSecurityException.class,
-                () -> TrustedPublicKeyRegistry.decodePinnedKeys(
-                        List.of(encodedKey, encodedKey)
-                )
-        );
+                () -> TrustedPublicKeyRegistry.decodePinnedKeys(List.of(encodedKey, encodedKey)));
     }
 
     @Test
     void shouldRejectEmptyKeyList() {
 
-        assertThrows(
-                GeneralSecurityException.class,
-                () -> TrustedPublicKeyRegistry.decodePinnedKeys(
-                        List.of()
-                )
-        );
+        assertThrows(GeneralSecurityException.class, () -> TrustedPublicKeyRegistry.decodePinnedKeys(List.of()));
     }
 
     @Test
     void shouldRejectBlankKey() {
 
-        assertThrows(
-                GeneralSecurityException.class,
-                () -> TrustedPublicKeyRegistry.decodePinnedKeys(
-                        List.of(" ")
-                )
-        );
+        assertThrows(GeneralSecurityException.class, () -> TrustedPublicKeyRegistry.decodePinnedKeys(List.of(" ")));
     }
 
     @Test
@@ -212,31 +140,20 @@ class TrustedPublicKeyRegistryTest {
 
         assertThrows(
                 GeneralSecurityException.class,
-                () -> TrustedPublicKeyRegistry.decodePinnedKeys(
-                        List.of("not-a-valid-key")
-                )
-        );
+                () -> TrustedPublicKeyRegistry.decodePinnedKeys(List.of("not-a-valid-key")));
     }
 
     @Test
     void shouldReturnImmutableTrustedKeyList() {
-        List<PublicKey> keys =
-                TrustedPublicKeyRegistry.trustedKeys();
+        List<PublicKey> keys = TrustedPublicKeyRegistry.trustedKeys();
 
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> keys.add(keys.get(0))
-        );
+        assertThrows(UnsupportedOperationException.class, () -> keys.add(keys.get(0)));
     }
 
     @Test
     void shouldReturnImmutableFingerprintList() {
-        List<String> fingerprints =
-                TrustedPublicKeyRegistry.fingerprints();
+        List<String> fingerprints = TrustedPublicKeyRegistry.fingerprints();
 
-        assertThrows(
-                UnsupportedOperationException.class,
-                () -> fingerprints.add("unknown")
-        );
+        assertThrows(UnsupportedOperationException.class, () -> fingerprints.add("unknown"));
     }
 }

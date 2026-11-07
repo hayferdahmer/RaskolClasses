@@ -22,7 +22,6 @@ import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
  * FREEZE остаётся MAGIC (магический холод, тематически резистируется).
  */
 public enum DamageType {
-
     PHYSICAL,
     MAGIC,
     TRUE;
@@ -30,10 +29,8 @@ public enum DamageType {
     /** Дефолтная типизация ванильных причин урона. */
     public static DamageType defaultFor(DamageCause cause) {
         return switch (cause) {
-            case MAGIC, POISON, WITHER, FIRE, FIRE_TICK, LAVA, HOT_FLOOR,
-                 DRAGON_BREATH, FREEZE, LIGHTNING -> MAGIC;
-            case VOID, SONIC_BOOM,
-                 FALL, DROWNING, SUFFOCATION, STARVATION -> TRUE; // 1.7.0.2: неотвратимая среда
+            case MAGIC, POISON, WITHER, FIRE, FIRE_TICK, LAVA, HOT_FLOOR, DRAGON_BREATH, FREEZE, LIGHTNING -> MAGIC;
+            case VOID, SONIC_BOOM, FALL, DROWNING, SUFFOCATION, STARVATION -> TRUE; // 1.7.0.2: неотвратимая среда
             case CRAMMING, DRYOUT -> PHYSICAL; // 1.6.8: явное перечисление
             default -> PHYSICAL;
         };

@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.listener;
 
-import dev.raskol.classes.item.factory.ItemPdc;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerItemDamageEvent;
+
+import dev.raskol.classes.item.factory.ItemPdc;
 
 /**
  * 1.15.1-C: страховка прочности для предметов RaskolClasses.

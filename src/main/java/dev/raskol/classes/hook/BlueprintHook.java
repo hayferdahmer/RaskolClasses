@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
-import dev.raskol.classes.RaskolClasses;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.plugin.Plugin;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.9.3: Хук RaskolEnchant (чертежи и крафт).
@@ -59,11 +60,10 @@ public final class BlueprintHook {
      *             (каждый символ — ключ из ingredients, пробел = пусто)
      */
     @SuppressWarnings("unused")
-    private void registerRecipe(String id, ItemStack result, String[] rows,
-                                Map<Character, ItemStack> ingredients) {
+    private void registerRecipe(String id, ItemStack result, String[] rows, Map<Character, ItemStack> ingredients) {
         NamespacedKey key = new NamespacedKey(plugin, id);
         ShapedRecipe recipe = new ShapedRecipe(key, result);
-        recipe.shape(rows);                       // FIX: String[] → varargs String...
+        recipe.shape(rows); // FIX: String[] → varargs String...
         for (Map.Entry<Character, ItemStack> entry : ingredients.entrySet()) {
             recipe.setIngredient(entry.getKey(), entry.getValue().getType());
         }

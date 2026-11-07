@@ -2,20 +2,22 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.craft;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.item.model.ItemDefinition;
-import dev.raskol.classes.item.model.ItemRarity;
-import dev.raskol.classes.item.model.ItemSlot;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.ItemRarity;
+import dev.raskol.classes.item.model.ItemSlot;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.15.4: разбор (salvage) предметов RaskolClasses на фрагменты.
@@ -38,7 +40,13 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class SalvageService {
 
-    public enum SalvageResult { OK, DISABLED, EMPTY_HAND, NOT_OURS, DAILY_LIMIT }
+    public enum SalvageResult {
+        OK,
+        DISABLED,
+        EMPTY_HAND,
+        NOT_OURS,
+        DAILY_LIMIT
+    }
 
     private static final int DEFAULT_DAILY_LIMIT = 20;
 
@@ -57,14 +65,14 @@ public final class SalvageService {
         Map<Fragment, Integer> out = new LinkedHashMap<>();
         boolean weapon = def.slot() == ItemSlot.MAIN_HAND || def.slot() == ItemSlot.OFF_HAND;
         ItemRarity tier = tierOf(def.rarity());
-        Fragment shard = registry.byId((weapon ? "frag_weapon_" : "frag_armor_")
-                + tier.name().toLowerCase(java.util.Locale.ROOT));
+        Fragment shard = registry.byId(
+                (weapon ? "frag_weapon_" : "frag_armor_") + tier.name().toLowerCase(java.util.Locale.ROOT));
         if (shard != null) {
             out.merge(shard, Math.max(1, def.itemLevel() / 20), Integer::sum);
         }
         if (def.playerClass() != null) {
-            Fragment essence = registry.byId("frag_essence_"
-                    + def.playerClass().name().toLowerCase(java.util.Locale.ROOT));
+            Fragment essence =
+                    registry.byId("frag_essence_" + def.playerClass().name().toLowerCase(java.util.Locale.ROOT));
             int essenceCount = tier == ItemRarity.COMMON ? 0 : tier == ItemRarity.RARE ? 1 : 2;
             if (essence != null && essenceCount > 0) {
                 out.merge(essence, essenceCount, Integer::sum);
@@ -103,8 +111,7 @@ public final class SalvageService {
         }
         UUID uuid = player.getUniqueId();
         long today = LocalDate.now().toEpochDay();
-        long[] counter = daily.compute(uuid, (k, v) -> (v == null || v[0] != today)
-                ? new long[]{today, 0} : v);
+        long[] counter = daily.compute(uuid, (k, v) -> (v == null || v[0] != today) ? new long[] {today, 0} : v);
         int limit = dailyLimit();
         if (counter[1] >= limit) {
             return SalvageResult.DAILY_LIMIT;
@@ -119,14 +126,15 @@ public final class SalvageService {
         fragments.addFragments(player, gained);
 
         StringBuilder list = new StringBuilder();
-        gained.forEach((fragment, count) -> list.append(fragment.displayName())
-                .append(" ×").append(count).append(", "));
-        String pretty = list.length() > 0
-                ? list.substring(0, list.length() - 2) : "";
-        player.sendMessage(Component.text(plugin.getRaskolConfig()
-                .message("item.salvage-ok", "♻ Разобрано: {item} → {fragments}")
-                .replace("{item}", def.displayName())
-                .replace("{fragments}", pretty), NamedTextColor.GREEN));
+        gained.forEach((fragment, count) ->
+                list.append(fragment.displayName()).append(" ×").append(count).append(", "));
+        String pretty = list.length() > 0 ? list.substring(0, list.length() - 2) : "";
+        player.sendMessage(Component.text(
+                plugin.getRaskolConfig()
+                        .message("item.salvage-ok", "♻ Разобрано: {item} → {fragments}")
+                        .replace("{item}", def.displayName())
+                        .replace("{fragments}", pretty),
+                NamedTextColor.GREEN));
         return SalvageResult.OK;
     }
 
@@ -154,15 +162,28 @@ public final class SalvageService {
         String key;
         String fallback;
         switch (result) {
-            case DISABLED -> { key = "item.salvage-disabled"; fallback = "♻ Разбор отключён"; }
-            case EMPTY_HAND -> { key = "item.salvage-empty"; fallback = "♻ В руке нет предмета для разбора"; }
-            case NOT_OURS -> { key = "item.salvage-not-ours"; fallback = "♻ Этот предмет не разобрать: он не из RaskolClasses"; }
-            case DAILY_LIMIT -> { key = "item.salvage-limit"; fallback = "♻ Дневной лимит разбора исчерпан ({limit})"; }
-            default -> { return; }
+            case DISABLED -> {
+                key = "item.salvage-disabled";
+                fallback = "♻ Разбор отключён";
+            }
+            case EMPTY_HAND -> {
+                key = "item.salvage-empty";
+                fallback = "♻ В руке нет предмета для разбора";
+            }
+            case NOT_OURS -> {
+                key = "item.salvage-not-ours";
+                fallback = "♻ Этот предмет не разобрать: он не из RaskolClasses";
+            }
+            case DAILY_LIMIT -> {
+                key = "item.salvage-limit";
+                fallback = "♻ Дневной лимит разбора исчерпан ({limit})";
+            }
+            default -> {
+                return;
+            }
         }
-        player.sendMessage(Component.text(plugin.getRaskolConfig()
-                .message(key, fallback)
-                .replace("{limit}", String.valueOf(dailyLimit())),
+        player.sendMessage(Component.text(
+                plugin.getRaskolConfig().message(key, fallback).replace("{limit}", String.valueOf(dailyLimit())),
                 NamedTextColor.RED));
     }
 }

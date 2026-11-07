@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.6.0 пакет 3: «Пропитанный маной» как честный резист (+физ/+маг при мана ≥ порога).
@@ -50,8 +51,7 @@ public final class ManaSoakedService {
             lastScanTick = tick;
             scanForMages();
         }
-        double threshold = plugin.getConfig()
-                .getDouble("classes.MAGE.passives.mana_soaked.threshold", 50.0);
+        double threshold = plugin.getConfig().getDouble("classes.MAGE.passives.mana_soaked.threshold", 50.0);
         double phys = plugin.getConfig().getDouble("resist.mana-soaked.physical", 15.0);
         double magic = plugin.getConfig().getDouble("resist.mana-soaked.magic", 15.0);
 

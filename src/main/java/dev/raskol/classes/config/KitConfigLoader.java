@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.config;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
+import java.io.File;
+import java.util.EnumMap;
+import java.util.Map;
+
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import java.io.File;
-import java.util.EnumMap;
-import java.util.Map;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.11.4 (P5): загрузчик per-class yml с фолбэком в основной config.yml.
@@ -36,8 +37,9 @@ public final class KitConfigLoader {
         this.plugin = plugin;
         this.kitsDir = new File(plugin.getDataFolder(), "kits");
         if (!kitsDir.exists() && !kitsDir.mkdirs()) {
-            plugin.getLogger().warning("Не удалось создать папку kits/ — "
-                    + "per-class конфиги недоступны, работаем через config.yml");
+            plugin.getLogger()
+                    .warning("Не удалось создать папку kits/ — "
+                            + "per-class конфиги недоступны, работаем через config.yml");
         }
         reload();
     }
@@ -55,9 +57,10 @@ public final class KitConfigLoader {
             loaded.put(pc, cfg);
         }
         int count = loaded.size();
-        plugin.getLogger().info("Per-class конфиги: загружено " + count
-                + " из " + PlayerClass.values().length
-                + " (папка kits/, фолбэк — config.yml)");
+        plugin.getLogger()
+                .info("Per-class конфиги: загружено " + count
+                        + " из " + PlayerClass.values().length
+                        + " (папка kits/, фолбэк — config.yml)");
     }
 
     /**
@@ -66,12 +69,12 @@ public final class KitConfigLoader {
      */
     public ConfigurationSection sectionOf(PlayerClass pc) {
         FileConfiguration perClass = loaded.get(pc);
-        if (perClass != null && perClass.getKeys(false) != null
+        if (perClass != null
+                && perClass.getKeys(false) != null
                 && !perClass.getKeys(false).isEmpty()) {
             return perClass;
         }
-        return plugin.getConfig().getConfigurationSection(
-                "classes." + pc.name());
+        return plugin.getConfig().getConfigurationSection("classes." + pc.name());
     }
 
     /** Прямой доступ к загруженному per-class yml (для диагностики). */
@@ -91,8 +94,7 @@ public final class KitConfigLoader {
 
     /** WARN-лог: ключ существует и в per-class yml, и в config.yml.classes.<CLASS>. */
     private void warnDuplicates(PlayerClass pc, FileConfiguration perClass) {
-        ConfigurationSection legacy = plugin.getConfig().getConfigurationSection(
-                "classes." + pc.name());
+        ConfigurationSection legacy = plugin.getConfig().getConfigurationSection("classes." + pc.name());
         if (legacy == null) {
             return;
         }
@@ -101,17 +103,19 @@ public final class KitConfigLoader {
             if (legacy.contains(key)) {
                 dupes++;
                 if (dupes <= 3) {
-                    plugin.getLogger().warning("kits/"
-                            + pc.name().toLowerCase(java.util.Locale.ROOT) + ".yml: "
-                            + "ключ «" + key + "» переопределяет classes." + pc.name()
-                            + "." + key + " в config.yml");
+                    plugin.getLogger()
+                            .warning("kits/"
+                                    + pc.name().toLowerCase(java.util.Locale.ROOT) + ".yml: "
+                                    + "ключ «" + key + "» переопределяет classes." + pc.name()
+                                    + "." + key + " в config.yml");
                 }
             }
         }
         if (dupes > 3) {
-            plugin.getLogger().warning("kits/"
-                    + pc.name().toLowerCase(java.util.Locale.ROOT) + ".yml: "
-                    + "ещё " + (dupes - 3) + " дублей ключей");
+            plugin.getLogger()
+                    .warning("kits/"
+                            + pc.name().toLowerCase(java.util.Locale.ROOT) + ".yml: "
+                            + "ещё " + (dupes - 3) + " дублей ключей");
         }
     }
 }

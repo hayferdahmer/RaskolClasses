@@ -8,8 +8,7 @@ import net.kyori.adventure.text.format.TextColor;
 /** Текстовые эффекты Adventure: посимвольный градиент между двумя цветами. */
 public final class TextFx {
 
-    private TextFx() {
-    }
+    private TextFx() {}
 
     /** Градиент from → to по каждому символу (lerp Adventure API). */
     public static Component gradient(String text, TextColor from, TextColor to) {

@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.bootstrap;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.spec.model.Spec2Node;
-import dev.raskol.classes.spec.model.Spec2Tree;
-import dev.raskol.classes.spec.registry.Spec2Registry;
-import org.bukkit.ChatColor;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import org.bukkit.ChatColor;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.spec.model.Spec2Node;
+import dev.raskol.classes.spec.model.Spec2Tree;
+import dev.raskol.classes.spec.registry.Spec2Registry;
 
 /**
  * 1.14.10 (Sprint 7, Волна 7.2, P0-4-01): startup-проверки и сервисные действия
@@ -31,8 +32,7 @@ import java.util.Set;
  */
 public final class StartupChecks {
 
-    private StartupChecks() {
-    }
+    private StartupChecks() {}
 
     /** 1.11.2 (T5): удаляет .yml.tmp старше 1 часа в папке плагина. */
     public static void cleanupTmpFiles(RaskolClasses plugin) {
@@ -67,18 +67,21 @@ public final class StartupChecks {
             Object versionObj = api.getMethod("coreVersion").invoke(null);
             String version = versionObj == null ? "" : versionObj.toString();
             if (version.isEmpty()) {
-                plugin.getLogger().warning("RaskolCore: плагин не включён или версия недоступна — "
-                        + "мгновенный reconcile на смену паспорта может не работать");
+                plugin.getLogger()
+                        .warning("RaskolCore: плагин не включён или версия недоступна — "
+                                + "мгновенный reconcile на смену паспорта может не работать");
             } else {
                 plugin.getLogger().info("RaskolCore: версия " + version);
                 if ("1.0.0".equals(version) || "1.1.0".equals(version) || "1.2.0".equals(version)) {
-                    plugin.getLogger().warning("RaskolCore: версия " + version + " устарела — "
-                            + "рекомендуется обновить до 1.3.0 для мгновенного reconcile");
+                    plugin.getLogger()
+                            .warning("RaskolCore: версия " + version + " устарела — "
+                                    + "рекомендуется обновить до 1.3.0 для мгновенного reconcile");
                 }
             }
         } catch (Throwable t) {
-            plugin.getLogger().info("RaskolCore: не найден — плагин работает в автономном режиме "
-                    + "(мгновенный reconcile на смену паспорта отключён)");
+            plugin.getLogger()
+                    .info("RaskolCore: не найден — плагин работает в автономном режиме "
+                            + "(мгновенный reconcile на смену паспорта отключён)");
         }
     }
 
@@ -95,9 +98,8 @@ public final class StartupChecks {
             capMin = 50;
         }
         // 1.15.6 (2.6-106): читаем стоп-лист для effective capacity
-        Set<String> disabled = plugin.getSpec2Service() != null
-                ? plugin.getSpec2Service().disabledSet()
-                : Set.of();
+        Set<String> disabled =
+                plugin.getSpec2Service() != null ? plugin.getSpec2Service().disabledSet() : Set.of();
 
         List<String> lowCap = new ArrayList<>();
         for (dev.raskol.classes.spec.Spec s : dev.raskol.classes.spec.Spec.values()) {
@@ -112,15 +114,16 @@ public final class StartupChecks {
                 }
             }
             if (effectiveCapacity < capMin) {
-                lowCap.add(s.id() + "=" + effectiveCapacity
-                        + " (raw=" + t.capacity() + ", disabled=" + disabled.size() + ")");
+                lowCap.add(s.id() + "=" + effectiveCapacity + " (raw=" + t.capacity() + ", disabled=" + disabled.size()
+                        + ")");
             }
         }
         if (!lowCap.isEmpty()) {
-            plugin.getLogger().warning("P0-4: " + lowCap.size() + " деревьев ниже tree-capacity-min="
-                    + capMin + " (effective capacity, без disabled-узлов): "
-                    + String.join(", ", lowCap)
-                    + " — добавьте maxRank существующим пассивным узлам");
+            plugin.getLogger()
+                    .warning("P0-4: " + lowCap.size() + " деревьев ниже tree-capacity-min="
+                            + capMin + " (effective capacity, без disabled-узлов): "
+                            + String.join(", ", lowCap)
+                            + " — добавьте maxRank существующим пассивным узлам");
         }
     }
 

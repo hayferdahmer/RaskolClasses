@@ -2,36 +2,26 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.runtime;
 
-import dev.raskol.classes.integrity.reporting.SecurityReporter;
-
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import dev.raskol.classes.integrity.reporting.SecurityReporter;
 
 public final class RuntimeSecurityReporter {
 
     private final SecurityReporter securityReporter;
     private final Logger logger;
 
-    private RuntimeIntegrityState lastReportedState =
-            RuntimeIntegrityState.NOT_STARTED;
+    private RuntimeIntegrityState lastReportedState = RuntimeIntegrityState.NOT_STARTED;
 
     private Object lastReportedResult;
     private String lastReportedError;
 
-    public RuntimeSecurityReporter(
-            SecurityReporter securityReporter,
-            Logger logger
-    ) {
-        this.securityReporter = Objects.requireNonNull(
-                securityReporter,
-                "securityReporter"
-        );
+    public RuntimeSecurityReporter(SecurityReporter securityReporter, Logger logger) {
+        this.securityReporter = Objects.requireNonNull(securityReporter, "securityReporter");
 
-        this.logger = Objects.requireNonNull(
-                logger,
-                "logger"
-        );
+        this.logger = Objects.requireNonNull(logger, "logger");
     }
 
     /**
@@ -54,19 +44,12 @@ public final class RuntimeSecurityReporter {
             return;
         }
 
-        logger.info(
-                "[RIPS] Runtime integrity state changed: "
-                        + lastReportedState
-                        + " -> "
-                        + currentState
-        );
+        logger.info("[RIPS] Runtime integrity state changed: " + lastReportedState + " -> " + currentState);
 
         if (lastReportedState == RuntimeIntegrityState.FAILED
                 && (currentState == RuntimeIntegrityState.VERIFIED
-                || currentState == RuntimeIntegrityState.DEVELOPMENT_BUILD)) {
-            logger.info(
-                    "[RIPS] Runtime integrity verification recovered"
-            );
+                        || currentState == RuntimeIntegrityState.DEVELOPMENT_BUILD)) {
+            logger.info("[RIPS] Runtime integrity verification recovered");
         }
 
         lastReportedState = currentState;
@@ -88,11 +71,7 @@ public final class RuntimeSecurityReporter {
             securityReporter.report(snapshot.lastResult());
             lastReportedResult = result;
         } catch (RuntimeException exception) {
-            logger.log(
-                    Level.SEVERE,
-                    "[RIPS] Failed to report runtime integrity result",
-                    exception
-            );
+            logger.log(Level.SEVERE, "[RIPS] Failed to report runtime integrity result", exception);
         }
     }
 
@@ -108,18 +87,12 @@ public final class RuntimeSecurityReporter {
             return;
         }
 
-        logger.severe(
-                "[RIPS] Runtime integrity verification error: "
-                        + sanitize(error)
-        );
+        logger.severe("[RIPS] Runtime integrity verification error: " + sanitize(error));
 
         lastReportedError = error;
     }
 
     private String sanitize(String value) {
-        return value
-                .replace('\r', ' ')
-                .replace('\n', ' ')
-                .replace('\t', ' ');
+        return value.replace('\r', ' ').replace('\n', ' ').replace('\t', ' ');
     }
 }

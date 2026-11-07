@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.runtime;
 
-import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
-
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Set;
@@ -16,6 +14,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 
 public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
@@ -30,52 +30,25 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
     private final AtomicBoolean checking = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    private final Set<CompletableFuture<RuntimeIntegritySnapshot>> pendingChecks =
-            ConcurrentHashMap.newKeySet();
+    private final Set<CompletableFuture<RuntimeIntegritySnapshot>> pendingChecks = ConcurrentHashMap.newKeySet();
 
-    public RuntimeIntegrityMonitor(
-            Supplier<IntegrityVerificationResult> verificationTask,
-            Duration interval
-    ) {
-        this(
-                verificationTask,
-                interval,
-                createExecutor(),
-                new RuntimeIntegrityStateManager(),
-                null,
-                snapshot -> { }
-        );
+    public RuntimeIntegrityMonitor(Supplier<IntegrityVerificationResult> verificationTask, Duration interval) {
+        this(verificationTask, interval, createExecutor(), new RuntimeIntegrityStateManager(), null, snapshot -> {});
     }
 
     public RuntimeIntegrityMonitor(
             Supplier<IntegrityVerificationResult> verificationTask,
             Duration interval,
-            ScheduledExecutorService executor
-    ) {
-        this(
-                verificationTask,
-                interval,
-                executor,
-                new RuntimeIntegrityStateManager(),
-                null,
-                snapshot -> { }
-        );
+            ScheduledExecutorService executor) {
+        this(verificationTask, interval, executor, new RuntimeIntegrityStateManager(), null, snapshot -> {});
     }
 
     public RuntimeIntegrityMonitor(
             Supplier<IntegrityVerificationResult> verificationTask,
             Duration interval,
             ScheduledExecutorService executor,
-            RuntimeIntegrityStateManager stateManager
-    ) {
-        this(
-                verificationTask,
-                interval,
-                executor,
-                stateManager,
-                null,
-                snapshot -> { }
-        );
+            RuntimeIntegrityStateManager stateManager) {
+        this(verificationTask, interval, executor, stateManager, null, snapshot -> {});
     }
 
     public RuntimeIntegrityMonitor(
@@ -83,16 +56,8 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
             Duration interval,
             ScheduledExecutorService executor,
             RuntimeIntegrityStateManager stateManager,
-            RuntimeSecurityReporter securityReporter
-    ) {
-        this(
-                verificationTask,
-                interval,
-                executor,
-                stateManager,
-                securityReporter,
-                snapshot -> { }
-        );
+            RuntimeSecurityReporter securityReporter) {
+        this(verificationTask, interval, executor, stateManager, securityReporter, snapshot -> {});
     }
 
     /**
@@ -108,44 +73,28 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
             ScheduledExecutorService executor,
             RuntimeIntegrityStateManager stateManager,
             RuntimeSecurityReporter securityReporter,
-            Consumer<RuntimeIntegritySnapshot> failureHandler
-    ) {
-        this.verificationTask = Objects.requireNonNull(
-                verificationTask,
-                "verificationTask"
-        );
+            Consumer<RuntimeIntegritySnapshot> failureHandler) {
+        this.verificationTask = Objects.requireNonNull(verificationTask, "verificationTask");
 
         Objects.requireNonNull(interval, "interval");
 
         if (interval.isZero() || interval.isNegative()) {
-            throw new IllegalArgumentException(
-                    "Monitoring interval must be positive"
-            );
+            throw new IllegalArgumentException("Monitoring interval must be positive");
         }
 
         this.executor = Objects.requireNonNull(executor, "executor");
-        this.stateManager = Objects.requireNonNull(
-                stateManager,
-                "stateManager"
-        );
+        this.stateManager = Objects.requireNonNull(stateManager, "stateManager");
         this.securityReporter = securityReporter;
-        this.failureHandler = Objects.requireNonNull(
-                failureHandler,
-                "failureHandler"
-        );
+        this.failureHandler = Objects.requireNonNull(failureHandler, "failureHandler");
 
         this.intervalMillis = interval.toMillis();
 
         if (intervalMillis <= 0) {
-            throw new IllegalArgumentException(
-                    "Monitoring interval must be at least 1 millisecond"
-            );
+            throw new IllegalArgumentException("Monitoring interval must be at least 1 millisecond");
         }
 
         if (stateManager.getSnapshot().state() == RuntimeIntegrityState.STOPPED) {
-            throw new IllegalArgumentException(
-                    "Cannot use a stopped state manager"
-            );
+            throw new IllegalArgumentException("Cannot use a stopped state manager");
         }
     }
 
@@ -162,19 +111,12 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
         try {
             executor.scheduleWithFixedDelay(
-                    this::runScheduledCheck,
-                    intervalMillis,
-                    intervalMillis,
-                    TimeUnit.MILLISECONDS
-            );
+                    this::runScheduledCheck, intervalMillis, intervalMillis, TimeUnit.MILLISECONDS);
         } catch (RejectedExecutionException exception) {
             started.set(false);
 
             if (closed.get()) {
-                throw new IllegalStateException(
-                        "Runtime integrity monitor has been stopped",
-                        exception
-                );
+                throw new IllegalStateException("Runtime integrity monitor has been stopped", exception);
             }
 
             throw exception;
@@ -186,25 +128,16 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
      */
     public CompletableFuture<RuntimeIntegritySnapshot> checkNow() {
         if (closed.get()) {
-            return failedFuture(
-                    new IllegalStateException(
-                            "Runtime integrity monitor has been stopped"
-                    )
-            );
+            return failedFuture(new IllegalStateException("Runtime integrity monitor has been stopped"));
         }
 
-        CompletableFuture<RuntimeIntegritySnapshot> future =
-                new CompletableFuture<>();
+        CompletableFuture<RuntimeIntegritySnapshot> future = new CompletableFuture<>();
 
         pendingChecks.add(future);
 
         if (closed.get()) {
             pendingChecks.remove(future);
-            future.completeExceptionally(
-                    new IllegalStateException(
-                            "Runtime integrity monitor has been stopped"
-                    )
-            );
+            future.completeExceptionally(new IllegalStateException("Runtime integrity monitor has been stopped"));
             return future;
         }
 
@@ -275,30 +208,20 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
             long startNanos = System.nanoTime();
 
             try {
-                IntegrityVerificationResult result = Objects.requireNonNull(
-                        verificationTask.get(),
-                        "Integrity verification task returned null"
-                );
+                IntegrityVerificationResult result =
+                        Objects.requireNonNull(verificationTask.get(), "Integrity verification task returned null");
 
-                long durationMillis = TimeUnit.NANOSECONDS.toMillis(
-                        System.nanoTime() - startNanos
-                );
+                long durationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
 
-                RuntimeIntegritySnapshot completed =
-                        stateManager.completeCheck(result, durationMillis);
+                RuntimeIntegritySnapshot completed = stateManager.completeCheck(result, durationMillis);
 
                 publish(completed);
                 return completed;
 
             } catch (RuntimeException exception) {
-                long durationMillis = TimeUnit.NANOSECONDS.toMillis(
-                        System.nanoTime() - startNanos
-                );
+                long durationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
 
-                RuntimeIntegritySnapshot failed = stateManager.failCheck(
-                        exception,
-                        durationMillis
-                );
+                RuntimeIntegritySnapshot failed = stateManager.failCheck(exception, durationMillis);
 
                 publish(failed);
                 return failed;
@@ -331,9 +254,7 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
     private void ensureNotClosed() {
         if (closed.get()) {
-            throw new IllegalStateException(
-                    "Runtime integrity monitor has been stopped"
-            );
+            throw new IllegalStateException("Runtime integrity monitor has been stopped");
         }
     }
 
@@ -345,10 +266,7 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
     private static ScheduledExecutorService createExecutor() {
         return Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(
-                    runnable,
-                    "RaskolClasses-RIPS-Monitor"
-            );
+            Thread thread = new Thread(runnable, "RaskolClasses-RIPS-Monitor");
             thread.setDaemon(true);
             return thread;
         });
@@ -363,9 +281,8 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
         RuntimeIntegritySnapshot stopped = stateManager.stop();
         publish(stopped);
 
-        IllegalStateException stoppedException = new IllegalStateException(
-                "Runtime integrity monitor has been stopped"
-        );
+        IllegalStateException stoppedException =
+                new IllegalStateException("Runtime integrity monitor has been stopped");
 
         for (CompletableFuture<RuntimeIntegritySnapshot> future : pendingChecks) {
             future.completeExceptionally(stoppedException);

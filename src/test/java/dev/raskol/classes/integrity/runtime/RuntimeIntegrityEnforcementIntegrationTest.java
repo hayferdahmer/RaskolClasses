@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.runtime;
 
-import dev.raskol.classes.integrity.policy.RuntimeIntegrityEnforcementPolicy;
-import dev.raskol.classes.integrity.verification.IntegrityStatus;
-import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.util.List;
@@ -16,34 +16,30 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+
+import dev.raskol.classes.integrity.policy.RuntimeIntegrityEnforcementPolicy;
+import dev.raskol.classes.integrity.verification.IntegrityStatus;
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 
 class RuntimeIntegrityEnforcementIntegrationTest {
 
     private static final Duration INTERVAL = Duration.ofHours(1);
 
-    private final RuntimeIntegrityEnforcementPolicy policy =
-            new RuntimeIntegrityEnforcementPolicy();
+    private final RuntimeIntegrityEnforcementPolicy policy = new RuntimeIntegrityEnforcementPolicy();
 
     @Test
-    void shouldEnforceShutdownAfterThreeConsecutiveTransientFailures()
-            throws Exception {
+    void shouldEnforceShutdownAfterThreeConsecutiveTransientFailures() throws Exception {
 
         AtomicBoolean shutdownScheduled = new AtomicBoolean(false);
         AtomicInteger enforcementDecisions = new AtomicInteger();
 
-        try (RuntimeIntegrityMonitor monitor = createMonitor(
-                () -> result(IntegrityStatus.ARTIFACT_UNAVAILABLE),
-                snapshot -> {
-                    if (policy.shouldDisable(snapshot)
-                            && shutdownScheduled.compareAndSet(false, true)) {
+        try (RuntimeIntegrityMonitor monitor =
+                createMonitor(() -> result(IntegrityStatus.ARTIFACT_UNAVAILABLE), snapshot -> {
+                    if (policy.shouldDisable(snapshot) && shutdownScheduled.compareAndSet(false, true)) {
                         enforcementDecisions.incrementAndGet();
                     }
-                }
-        )) {
+                })) {
             RuntimeIntegritySnapshot first = check(monitor);
 
             assertEquals(1, first.consecutiveFailures());
@@ -63,44 +59,35 @@ class RuntimeIntegrityEnforcementIntegrationTest {
     }
 
     @Test
-    void shouldEnforceShutdownImmediatelyForInvalidSignature()
-            throws Exception {
+    void shouldEnforceShutdownImmediatelyForInvalidSignature() throws Exception {
 
         AtomicBoolean shutdownScheduled = new AtomicBoolean(false);
 
-        try (RuntimeIntegrityMonitor monitor = createMonitor(
-                () -> result(IntegrityStatus.INVALID_SIGNATURE),
-                snapshot -> {
+        try (RuntimeIntegrityMonitor monitor =
+                createMonitor(() -> result(IntegrityStatus.INVALID_SIGNATURE), snapshot -> {
                     if (policy.shouldDisable(snapshot)) {
                         shutdownScheduled.compareAndSet(false, true);
                     }
-                }
-        )) {
+                })) {
             RuntimeIntegritySnapshot snapshot = check(monitor);
 
             assertEquals(1, snapshot.consecutiveFailures());
-            assertEquals(
-                    RuntimeIntegrityState.FAILED,
-                    snapshot.state()
-            );
+            assertEquals(RuntimeIntegrityState.FAILED, snapshot.state());
             assertTrue(shutdownScheduled.get());
         }
     }
 
     @Test
-    void shouldEnforceShutdownImmediatelyForArchiveIntegrityFailure()
-            throws Exception {
+    void shouldEnforceShutdownImmediatelyForArchiveIntegrityFailure() throws Exception {
 
         AtomicBoolean shutdownScheduled = new AtomicBoolean(false);
 
-        try (RuntimeIntegrityMonitor monitor = createMonitor(
-                () -> result(IntegrityStatus.ARCHIVE_INTEGRITY_FAILURE),
-                snapshot -> {
+        try (RuntimeIntegrityMonitor monitor =
+                createMonitor(() -> result(IntegrityStatus.ARCHIVE_INTEGRITY_FAILURE), snapshot -> {
                     if (policy.shouldDisable(snapshot)) {
                         shutdownScheduled.compareAndSet(false, true);
                     }
-                }
-        )) {
+                })) {
             RuntimeIntegritySnapshot snapshot = check(monitor);
 
             assertEquals(1, snapshot.consecutiveFailures());
@@ -109,22 +96,17 @@ class RuntimeIntegrityEnforcementIntegrationTest {
     }
 
     @Test
-    void shouldResetFailureSequenceAfterSuccessfulVerification()
-            throws Exception {
+    void shouldResetFailureSequenceAfterSuccessfulVerification() throws Exception {
 
-        AtomicReference<IntegrityStatus> currentStatus =
-                new AtomicReference<>(IntegrityStatus.ARTIFACT_UNAVAILABLE);
+        AtomicReference<IntegrityStatus> currentStatus = new AtomicReference<>(IntegrityStatus.ARTIFACT_UNAVAILABLE);
 
         AtomicBoolean shutdownScheduled = new AtomicBoolean(false);
 
-        try (RuntimeIntegrityMonitor monitor = createMonitor(
-                () -> result(currentStatus.get()),
-                snapshot -> {
-                    if (policy.shouldDisable(snapshot)) {
-                        shutdownScheduled.compareAndSet(false, true);
-                    }
-                }
-        )) {
+        try (RuntimeIntegrityMonitor monitor = createMonitor(() -> result(currentStatus.get()), snapshot -> {
+            if (policy.shouldDisable(snapshot)) {
+                shutdownScheduled.compareAndSet(false, true);
+            }
+        })) {
             RuntimeIntegritySnapshot first = check(monitor);
             RuntimeIntegritySnapshot second = check(monitor);
 
@@ -136,10 +118,7 @@ class RuntimeIntegrityEnforcementIntegrationTest {
 
             RuntimeIntegritySnapshot recovered = check(monitor);
 
-            assertEquals(
-                    RuntimeIntegrityState.VERIFIED,
-                    recovered.state()
-            );
+            assertEquals(RuntimeIntegrityState.VERIFIED, recovered.state());
             assertEquals(0, recovered.consecutiveFailures());
             assertFalse(shutdownScheduled.get());
 
@@ -153,23 +132,19 @@ class RuntimeIntegrityEnforcementIntegrationTest {
     }
 
     @Test
-    void shouldEnforceShutdownAfterThreeConsecutiveExecutionExceptions()
-            throws Exception {
+    void shouldEnforceShutdownAfterThreeConsecutiveExecutionExceptions() throws Exception {
 
         AtomicBoolean shutdownScheduled = new AtomicBoolean(false);
 
         try (RuntimeIntegrityMonitor monitor = createMonitor(
                 () -> {
-                    throw new IllegalStateException(
-                            "Simulated verification execution failure"
-                    );
+                    throw new IllegalStateException("Simulated verification execution failure");
                 },
                 snapshot -> {
                     if (policy.shouldDisable(snapshot)) {
                         shutdownScheduled.compareAndSet(false, true);
                     }
-                }
-        )) {
+                })) {
             RuntimeIntegritySnapshot first = check(monitor);
 
             assertEquals(1, first.consecutiveFailures());
@@ -189,21 +164,17 @@ class RuntimeIntegrityEnforcementIntegrationTest {
     }
 
     @Test
-    void shouldScheduleEnforcementOnlyOnce()
-            throws Exception {
+    void shouldScheduleEnforcementOnlyOnce() throws Exception {
 
         AtomicInteger enforcementDecisions = new AtomicInteger();
         AtomicBoolean shutdownScheduled = new AtomicBoolean(false);
 
-        try (RuntimeIntegrityMonitor monitor = createMonitor(
-                () -> result(IntegrityStatus.INVALID_SIGNATURE),
-                snapshot -> {
-                    if (policy.shouldDisable(snapshot)
-                            && shutdownScheduled.compareAndSet(false, true)) {
+        try (RuntimeIntegrityMonitor monitor =
+                createMonitor(() -> result(IntegrityStatus.INVALID_SIGNATURE), snapshot -> {
+                    if (policy.shouldDisable(snapshot) && shutdownScheduled.compareAndSet(false, true)) {
                         enforcementDecisions.incrementAndGet();
                     }
-                }
-        )) {
+                })) {
             check(monitor);
             check(monitor);
             check(monitor);
@@ -214,56 +185,37 @@ class RuntimeIntegrityEnforcementIntegrationTest {
     }
 
     @Test
-    void shouldInvokeEnforcementCallbackOnMonitoringThread()
-            throws Exception {
+    void shouldInvokeEnforcementCallbackOnMonitoringThread() throws Exception {
 
         AtomicReference<String> callbackThread = new AtomicReference<>();
 
         try (RuntimeIntegrityMonitor monitor = createMonitor(
                 () -> result(IntegrityStatus.INVALID_SIGNATURE),
-                snapshot -> callbackThread.set(
-                        Thread.currentThread().getName()
-                )
-        )) {
+                snapshot -> callbackThread.set(Thread.currentThread().getName()))) {
             check(monitor);
 
             assertNotNull(callbackThread.get());
-            assertFalse(
-                    Thread.currentThread().getName().equals(
-                            callbackThread.get()
-                    )
-            );
+            assertFalse(Thread.currentThread().getName().equals(callbackThread.get()));
         }
     }
 
     private static RuntimeIntegrityMonitor createMonitor(
             Supplier<IntegrityVerificationResult> verificationTask,
-            java.util.function.Consumer<RuntimeIntegritySnapshot> failureHandler
-    ) {
+            java.util.function.Consumer<RuntimeIntegritySnapshot> failureHandler) {
         return new RuntimeIntegrityMonitor(
                 verificationTask,
                 INTERVAL,
                 Executors.newSingleThreadScheduledExecutor(),
                 new RuntimeIntegrityStateManager(),
                 null,
-                failureHandler
-        );
+                failureHandler);
     }
 
-    private static RuntimeIntegritySnapshot check(
-            RuntimeIntegrityMonitor monitor
-    ) throws Exception {
+    private static RuntimeIntegritySnapshot check(RuntimeIntegrityMonitor monitor) throws Exception {
         return monitor.checkNow().get(2, TimeUnit.SECONDS);
     }
 
-    private static IntegrityVerificationResult result(
-            IntegrityStatus status
-    ) {
-        return new IntegrityVerificationResult(
-                status,
-                "Runtime enforcement integration test",
-                1,
-                List.of()
-        );
+    private static IntegrityVerificationResult result(IntegrityStatus status) {
+        return new IntegrityVerificationResult(status, "Runtime enforcement integration test", 1, List.of());
     }
 }

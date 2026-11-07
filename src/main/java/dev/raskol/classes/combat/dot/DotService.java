@@ -2,16 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat.dot;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.WarlockAbilities;
-import dev.raskol.classes.combat.CombatMath;
-import dev.raskol.classes.combat.CombatService;
-import dev.raskol.classes.combat.DamageType;
-import dev.raskol.classes.combat.school.Penetration;
-import dev.raskol.classes.combat.school.School;
-import dev.raskol.classes.combat.school.SchoolConfig;
-import dev.raskol.classes.combat.school.SchoolMitigation;
-import dev.raskol.classes.spec.service.Spec2Service;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -26,14 +25,16 @@ import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.combat.CombatMath;
+import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.DamageType;
+import dev.raskol.classes.combat.school.Penetration;
+import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.combat.school.SchoolConfig;
+import dev.raskol.classes.combat.school.SchoolMitigation;
+import dev.raskol.classes.spec.service.Spec2Service;
 
 /**
  * 1.12.4–1.12.6: DoT-ядро (реестр, тик 1 с, атрибуция, стеки, кап DPS, триггеры среды).
@@ -177,8 +178,13 @@ public final class DotService implements Listener {
             return false;
         }
         if (Double.isFinite(dpsBonus) && dpsBonus > 0.0) {
-            def = DotDef.of(def.id(), def.school(), def.dps() + dpsBonus,
-                    def.durationMillis(), def.maxStacks(), def.sourceAbility());
+            def = DotDef.of(
+                    def.id(),
+                    def.school(),
+                    def.dps() + dpsBonus,
+                    def.durationMillis(),
+                    def.maxStacks(),
+                    def.sourceAbility());
         }
         apply(owner, target, def);
         return true;
@@ -194,11 +200,9 @@ public final class DotService implements Listener {
         def = specTuned(owner, def);
         UUID targetUuid = target.getUniqueId();
         long now = System.currentTimeMillis();
-        CopyOnWriteArrayList<DotInstance> list =
-                dots.computeIfAbsent(targetUuid, k -> new CopyOnWriteArrayList<>());
+        CopyOnWriteArrayList<DotInstance> list = dots.computeIfAbsent(targetUuid, k -> new CopyOnWriteArrayList<>());
         for (DotInstance inst : list) {
-            if (inst.ownerUuid().equals(owner.getUniqueId())
-                    && inst.def().id().equals(def.id())) {
+            if (inst.ownerUuid().equals(owner.getUniqueId()) && inst.def().id().equals(def.id())) {
                 inst.refresh(now);
                 return;
             }
@@ -270,12 +274,10 @@ public final class DotService implements Listener {
             return false;
         }
         if (school == School.FIRE) {
-            return block == Material.WATER || block == Material.BUBBLE_COLUMN
-                    || block == Material.POWDER_SNOW;
+            return block == Material.WATER || block == Material.BUBBLE_COLUMN || block == Material.POWDER_SNOW;
         }
         if (school == School.FROST) {
-            return block == Material.FIRE || block == Material.SOUL_FIRE
-                    || block == Material.LAVA;
+            return block == Material.FIRE || block == Material.SOUL_FIRE || block == Material.LAVA;
         }
         return false;
     }
@@ -311,20 +313,17 @@ public final class DotService implements Listener {
 
     /* ------------------------------ тик ------------------------------ */
 
-    private record TickOutcome(DotInstance inst, double damage) {
-    }
+    private record TickOutcome(DotInstance inst, double damage) {}
 
-    private List<TickOutcome> computeTicks(LivingEntity target,
-                                           List<DotInstance> snapshot,
-                                           long now) {
+    private List<TickOutcome> computeTicks(LivingEntity target, List<DotInstance> snapshot, long now) {
         List<TickOutcome> outcomes = new ArrayList<>(snapshot.size());
         for (DotInstance inst : snapshot) {
             if (inst.expired(now)) {
                 outcomes.add(new TickOutcome(inst, 0.0));
                 continue;
             }
-            if (shouldExtinguish(inst.def().school(),
-                    target.getLocation().getBlock().getType())) {
+            if (shouldExtinguish(
+                    inst.def().school(), target.getLocation().getBlock().getType())) {
                 puff(target, inst.def().school());
                 outcomes.add(new TickOutcome(inst, 0.0));
                 continue;
@@ -342,8 +341,7 @@ public final class DotService implements Listener {
             }
             double baseDps = inst.def().dps() * inst.stacks();
             double seal = WarlockAbilities.sealAmplifyOf(target.getUniqueId());
-            double dps = DotMath.withMults(baseDps,
-                    combat.schoolConfig().multiplier(school), immunity, seal);
+            double dps = DotMath.withMults(baseDps, combat.schoolConfig().multiplier(school), immunity, seal);
             dps *= 1.0 - mitigationFor(target, owner, school);
             outcomes.add(new TickOutcome(inst, dps));
         }
@@ -419,8 +417,12 @@ public final class DotService implements Listener {
                     } else {
                         org.bukkit.damage.DamageType magic = magicType();
                         if (magic != null) {
-                            target.damage(amount, org.bukkit.damage.DamageSource.builder(magic)
-                                    .withDirectEntity(owner).withCausingEntity(owner).build());
+                            target.damage(
+                                    amount,
+                                    org.bukkit.damage.DamageSource.builder(magic)
+                                            .withDirectEntity(owner)
+                                            .withCausingEntity(owner)
+                                            .build());
                         } else {
                             target.damage(amount, owner);
                         }
@@ -438,18 +440,16 @@ public final class DotService implements Listener {
     }
 
     private void tickVfx(LivingEntity target, School school) {
-        Particle p = resolveParticle(plugin.getConfig().getString(
-                "vfx.dot." + school.id() + ".particle", null), defaultDotParticle(school));
+        Particle p = resolveParticle(
+                plugin.getConfig().getString("vfx.dot." + school.id() + ".particle", null), defaultDotParticle(school));
         if (p != null) {
-            target.getWorld().spawnParticle(p, target.getLocation().add(0.0, 1.0, 0.0),
-                    2, 0.2, 0.3, 0.2, 0.01);
+            target.getWorld().spawnParticle(p, target.getLocation().add(0.0, 1.0, 0.0), 2, 0.2, 0.3, 0.2, 0.01);
         }
     }
 
     private void puff(LivingEntity target, School school) {
         Particle p = school == School.FIRE ? Particle.SMOKE : Particle.CLOUD;
-        target.getWorld().spawnParticle(p, target.getLocation().add(0.0, 1.0, 0.0),
-                6, 0.3, 0.4, 0.3, 0.01);
+        target.getWorld().spawnParticle(p, target.getLocation().add(0.0, 1.0, 0.0), 6, 0.3, 0.4, 0.3, 0.01);
     }
 
     private Particle defaultDotParticle(School school) {
@@ -494,15 +494,13 @@ public final class DotService implements Listener {
             factor = 1.0;
         }
         double channelResistPct = (1.0 - factor) * 100.0;
-        Penetration pen = combat.penTraits().channelPen(
-                owner.getUniqueId(), channel == DamageType.PHYSICAL,
-                sc.penPctCap());
+        Penetration pen =
+                combat.penTraits().channelPen(owner.getUniqueId(), channel == DamageType.PHYSICAL, sc.penPctCap());
         double effChannel = pen.effectiveResist(channelResistPct, sc.penPctCap());
         double elResist = combat.elemental().resistOf(targetUuid, school);
-        double schoolPen = combat.penTraits().schoolPenFraction(
-                owner.getUniqueId(), school, sc.penPctCap());
+        double schoolPen = combat.penTraits().schoolPenFraction(owner.getUniqueId(), school, sc.penPctCap());
         double effEl = CombatMath.effectiveResist(elResist, 0.0, schoolPen, sc.penPctCap());
-        return SchoolMitigation.mitigationFor(effChannel, Penetration.NONE,
-                sc.penPctCap(), effEl, sc.elementalEnabled(), sc.mitigationCap());
+        return SchoolMitigation.mitigationFor(
+                effChannel, Penetration.NONE, sc.penPctCap(), effEl, sc.elementalEnabled(), sc.mitigationCap());
     }
 }

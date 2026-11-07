@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.fx;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -16,6 +14,9 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileLaunchEvent;
 import org.bukkit.scheduler.BukkitRunnable;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * Трейлы снарядов (1.5.0, Пакет 1):
@@ -59,16 +60,17 @@ public final class TrailListener implements Listener {
         }
     }
 
-    private void startTrail(Projectile projectile, Particle particle,
-                            Sound sound, int period) {
+    private void startTrail(Projectile projectile, Particle particle, Sound sound, int period) {
         new BukkitRunnable() {
             int elapsed = 0;
 
             @Override
             public void run() {
                 elapsed += period;
-                if (projectile.isDead() || !projectile.isValid()
-                        || elapsed > MAX_TRAIL_TICKS || projectile.getWorld() == null) {
+                if (projectile.isDead()
+                        || !projectile.isValid()
+                        || elapsed > MAX_TRAIL_TICKS
+                        || projectile.getWorld() == null) {
                     cancel();
                     return;
                 }

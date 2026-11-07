@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
-import dev.raskol.classes.RaskolClasses;
+import java.lang.reflect.Method;
+
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
-import java.lang.reflect.Method;
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.8.1 (S4): Towny-гейт телепортов (hermes_step, shadowstep): нельзя блинковаться
@@ -38,15 +39,14 @@ public final class TownyHook {
     private static boolean townyPresent = false;
     private static boolean available = false;
     private static Object api;
-    private static Method getTownBlock;    // TownyAPI.getTownBlock(Location) -> TownBlock | null
-    private static Method townOrNull;      // TownBlock.getTownOrNull() -> Town | null
-    private static Method townGetName;     // Town.getName() -> String
+    private static Method getTownBlock; // TownyAPI.getTownBlock(Location) -> TownBlock | null
+    private static Method townOrNull; // TownBlock.getTownOrNull() -> Town | null
+    private static Method townGetName; // Town.getName() -> String
     private static Method townHasResident; // Town.hasResident(String) -> boolean
     /** 1.15.7 (2.7-9): TownyAPI.testBuild(Location, Player) -> boolean (если доступен). */
     private static Method testBuild;
 
-    private TownyHook() {
-    }
+    private TownyHook() {}
 
     private static synchronized void init(RaskolClasses plugin) {
         if (attempted) {
@@ -65,7 +65,9 @@ public final class TownyHook {
             Class<?> apiClass = tryLoadApiClass();
             if (apiClass == null) {
                 available = false;
-                plugin.getLogger().warning("TownyHook: TownyAPI не найден ни в одном пакете — блинк в клеймы ЗАПРЕЩЁН (fail closed)");
+                plugin.getLogger()
+                        .warning(
+                                "TownyHook: TownyAPI не найден ни в одном пакете — блинк в клеймы ЗАПРЕЩЁН (fail closed)");
                 return;
             }
             api = apiClass.getMethod("getInstance").invoke(null);
@@ -90,8 +92,9 @@ public final class TownyHook {
             }
             available = api != null;
             if (available) {
-                plugin.getLogger().info("TownyHook: гейт блинка через клеймы включён (API="
-                        + apiClass.getName() + ", testBuild=" + (testBuild != null) + ")");
+                plugin.getLogger()
+                        .info("TownyHook: гейт блинка через клеймы включён (API=" + apiClass.getName() + ", testBuild="
+                                + (testBuild != null) + ")");
             } else {
                 plugin.getLogger().warning("TownyHook: TownyAPI null — блинк в клеймы ЗАПРЕЩЁН (fail closed)");
             }
@@ -140,8 +143,7 @@ public final class TownyHook {
             }
             Object tbTo = getTownBlock.invoke(api, to);
             Object town = tbTo == null ? null : townOrNull.invoke(tbTo);
-            if (town != null
-                    && Boolean.TRUE.equals(townHasResident.invoke(town, player.getName()))) {
+            if (town != null && Boolean.TRUE.equals(townHasResident.invoke(town, player.getName()))) {
                 return true; // резидент этого города
             }
             return false; // чужой город
@@ -178,8 +180,7 @@ public final class TownyHook {
             }
             Object tb = getTownBlock.invoke(api, location);
             Object town = tb == null ? null : townOrNull.invoke(tb);
-            if (town != null
-                    && Boolean.TRUE.equals(townHasResident.invoke(town, player.getName()))) {
+            if (town != null && Boolean.TRUE.equals(townHasResident.invoke(town, player.getName()))) {
                 return true; // резидент этого города
             }
             return false; // чужой город

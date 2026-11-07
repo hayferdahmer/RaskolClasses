@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.classsystem;
 
-import dev.raskol.classes.RaskolClasses;
-import org.bukkit.Bukkit;
-import org.bukkit.entity.Player;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.8.0: УРОВЕНЬ ПЕРСОНАЖА = среднее (floor) топ-N скиллов AuraSkills,
@@ -27,11 +28,18 @@ public final class CharacterLevelService {
     private static final long CACHE_TTL_MILLIS = 1_000L;
 
     private static final List<String> DEFAULT_SKILLS = List.of(
-            "fighting", "defense", "archery", "agility", "healing",
-            "sorcery", "alchemy", "enchanting", "mining", "forging");
+            "fighting",
+            "defense",
+            "archery",
+            "agility",
+            "healing",
+            "sorcery",
+            "alchemy",
+            "enchanting",
+            "mining",
+            "forging");
 
-    private record CacheEntry(int level, long expiresAt) {
-    }
+    private record CacheEntry(int level, long expiresAt) {}
 
     private final RaskolClasses plugin;
     private final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
@@ -117,7 +125,7 @@ public final class CharacterLevelService {
 
     public void purgeStale() {
         long now = System.currentTimeMillis();
-        cache.entrySet().removeIf(entry ->
-                entry.getValue().expiresAt() <= now && Bukkit.getPlayer(entry.getKey()) == null);
+        cache.entrySet()
+                .removeIf(entry -> entry.getValue().expiresAt() <= now && Bukkit.getPlayer(entry.getKey()) == null);
     }
 }

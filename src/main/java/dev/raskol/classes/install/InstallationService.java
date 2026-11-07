@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.install;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.compat.AuthGate;
-import dev.raskol.classes.config.ConfigReads;
-import dev.raskol.classes.hook.TownyHook;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -16,12 +16,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.RayTraceResult;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.compat.AuthGate;
+import dev.raskol.classes.config.ConfigReads;
+import dev.raskol.classes.hook.TownyHook;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.11.4 (P2): ТОНКИЙ реестр инсталляций: гейты, лимиты, TTL, кулдауны, sweep.
@@ -39,8 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class InstallationService {
 
     private final RaskolClasses plugin;
-    private final Map<InstallationType, InstallationHandler> handlers =
-            new EnumMap<>(InstallationType.class);
+    private final Map<InstallationType, InstallationHandler> handlers = new EnumMap<>(InstallationType.class);
     private final Map<UUID, ActiveInstallation> installations = new ConcurrentHashMap<>();
     private final Map<String, Long> placeCooldowns = new ConcurrentHashMap<>();
     private BukkitTask sweepTask;
@@ -81,8 +82,11 @@ public final class InstallationService {
 
     public boolean tryPlace(Player p) {
         if (!AuthGate.canAct(plugin, p)) {
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "gate.blocked.install", "Инсталляции недоступны в этом режиме или до входа в аккаунт."),
+            p.sendMessage(Component.text(
+                    plugin.getRaskolConfig()
+                            .message(
+                                    "gate.blocked.install",
+                                    "Инсталляции недоступны в этом режиме или до входа в аккаунт."),
                     NamedTextColor.RED));
             return false;
         }
@@ -93,8 +97,9 @@ public final class InstallationService {
         }
         PlayerClass pc = plugin.getClassProvider().getClassOf(p);
         if (pc == null) {
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "no-class", "Класс не выбран — посетите герольда"), NamedTextColor.GRAY));
+            p.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("no-class", "Класс не выбран — посетите герольда"),
+                    NamedTextColor.GRAY));
             return false;
         }
         InstallationType type = InstallationType.forClass(pc);
@@ -106,21 +111,22 @@ public final class InstallationService {
         int unlock = cfgI("installations.unlock-level", 50);
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
         if (charLevel < unlock) {
-            p.sendMessage(Component.text("Инсталляции откроются на уровне персонажа "
-                    + unlock + " (у вас " + charLevel + ")", NamedTextColor.RED));
+            p.sendMessage(Component.text(
+                    "Инсталляции откроются на уровне персонажа " + unlock + " (у вас " + charLevel + ")",
+                    NamedTextColor.RED));
             return false;
         }
         String cdKey = uuid + ":" + type.name();
         long now = System.currentTimeMillis();
         Long next = placeCooldowns.get(cdKey);
         if (next != null && next > now) {
-            p.sendMessage(Component.text(type.displayName() + ": готовность через "
-                    + ((next - now) / 1000L + 1) + " с", NamedTextColor.GRAY));
+            p.sendMessage(Component.text(
+                    type.displayName() + ": готовность через " + ((next - now) / 1000L + 1) + " с",
+                    NamedTextColor.GRAY));
             return false;
         }
         if (countOf(uuid) >= cfgI("installations.max-per-player", 2)) {
-            p.sendMessage(Component.text("Достигнут лимит активных инсталляций на игрока (2).",
-                    NamedTextColor.RED));
+            p.sendMessage(Component.text("Достигнут лимит активных инсталляций на игрока (2).", NamedTextColor.RED));
             return false;
         }
         if (countGlobal() >= cfgI("installations.max-global", 200)) {
@@ -128,8 +134,8 @@ public final class InstallationService {
             return false;
         }
         Location loc;
-        RayTraceResult hit = p.getWorld().rayTraceBlocks(p.getEyeLocation(),
-                p.getLocation().getDirection(), 6.0, FluidCollisionMode.NEVER);
+        RayTraceResult hit = p.getWorld()
+                .rayTraceBlocks(p.getEyeLocation(), p.getLocation().getDirection(), 6.0, FluidCollisionMode.NEVER);
         if (hit != null) {
             loc = hit.getHitPosition().toLocation(p.getWorld());
         } else {
@@ -148,8 +154,8 @@ public final class InstallationService {
 
         // 1.15.7 (2.7-9): проверка canBuild через TownyHook
         if (!canBuild(p, loc)) {
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "install.region-denied", "Постановка запрещена в этом регионе."),
+            p.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("install.region-denied", "Постановка запрещена в этом регионе."),
                     NamedTextColor.RED));
             return false;
         }
@@ -163,8 +169,7 @@ public final class InstallationService {
             return false;
         }
         long placedAt = System.currentTimeMillis();
-        installations.put(id, new ActiveInstallation(id, type, uuid, loc,
-                placedAt + h.durationSeconds() * 1000L));
+        installations.put(id, new ActiveInstallation(id, type, uuid, loc, placedAt + h.durationSeconds() * 1000L));
         placeCooldowns.put(cdKey, placedAt + h.cooldownSeconds() * 1000L);
         return true;
     }
@@ -185,25 +190,31 @@ public final class InstallationService {
     /* ------------------------------ sweep и жизненный цикл ------------------------------ */
 
     public BukkitTask startSweepTask() {
-        sweepTask = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            long now = System.currentTimeMillis();
-            for (ActiveInstallation inst : List.copyOf(installations.values())) {
-                InstallationHandler h = handlers.get(inst.type());
-                if (h == null) {
-                    installations.remove(inst.id());
-                    continue;
-                }
-                if (now > inst.expiresAt()) {
-                    installations.remove(inst.id());
-                    h.expire(inst);
-                    continue;
-                }
-                if (!h.tick(inst)) {
-                    installations.remove(inst.id());
-                    h.expire(inst);
-                }
-            }
-        }, 20L, 20L);
+        sweepTask = plugin.getServer()
+                .getScheduler()
+                .runTaskTimer(
+                        plugin,
+                        () -> {
+                            long now = System.currentTimeMillis();
+                            for (ActiveInstallation inst : List.copyOf(installations.values())) {
+                                InstallationHandler h = handlers.get(inst.type());
+                                if (h == null) {
+                                    installations.remove(inst.id());
+                                    continue;
+                                }
+                                if (now > inst.expiresAt()) {
+                                    installations.remove(inst.id());
+                                    h.expire(inst);
+                                    continue;
+                                }
+                                if (!h.tick(inst)) {
+                                    installations.remove(inst.id());
+                                    h.expire(inst);
+                                }
+                            }
+                        },
+                        20L,
+                        20L);
         return sweepTask;
     }
 

@@ -13,8 +13,7 @@ import dev.raskol.classes.combat.CombatMath;
  */
 public final class SchoolMitigation {
 
-    private SchoolMitigation() {
-    }
+    private SchoolMitigation() {}
 
     /**
      * Итоговое поглощение [0, mitigationCap].
@@ -26,15 +25,17 @@ public final class SchoolMitigation {
      * @param elementalEnabled   рубильник стихийного слоя (schools.elemental.enabled)
      * @param mitigationCap      кап суммарного поглощения (schools.mitigation-cap)
      */
-    public static double mitigationFor(double channelResistPct, Penetration pen, double pctPenCap,
-                                       double elementalResistPct, boolean elementalEnabled,
-                                       double mitigationCap) {
+    public static double mitigationFor(
+            double channelResistPct,
+            Penetration pen,
+            double pctPenCap,
+            double elementalResistPct,
+            boolean elementalEnabled,
+            double mitigationCap) {
         Penetration safe = pen == null ? Penetration.NONE : pen;
         double effResist = safe.effectiveResist(channelResistPct, pctPenCap);
         double mitChannel = CombatMath.mitigation(effResist, 100.0);
-        double mitElemental = elementalEnabled
-                ? CombatMath.mitigation(elementalResistPct, 100.0)
-                : 0.0;
+        double mitElemental = elementalEnabled ? CombatMath.mitigation(elementalResistPct, 100.0) : 0.0;
         double combined = 1.0 - (1.0 - mitChannel) * (1.0 - mitElemental);
         double cap = Double.isFinite(mitigationCap) ? mitigationCap : 0.80;
         return Math.max(0.0, Math.min(combined, cap));

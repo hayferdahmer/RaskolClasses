@@ -2,19 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.foliant;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.compat.AuthGate;
-import dev.raskol.classes.storage.SafeStorage;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.luckperms.api.LuckPerms;
-import net.luckperms.api.LuckPermsProvider;
-import net.luckperms.api.model.group.Group;
-import net.luckperms.api.model.user.User;
-import net.luckperms.api.node.NodeType;
-import net.luckperms.api.node.types.InheritanceNode;
+import java.io.File;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.logging.Logger;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -42,16 +40,20 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.io.File;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.logging.Logger;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.compat.AuthGate;
+import dev.raskol.classes.storage.SafeStorage;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.luckperms.api.LuckPerms;
+import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.model.group.Group;
+import net.luckperms.api.model.user.User;
+import net.luckperms.api.node.NodeType;
+import net.luckperms.api.node.types.InheritanceNode;
 
 /**
  * 1.10.0: ФОЛИАНТ ДУШ (скрытый путь Чернокнижника).
@@ -74,12 +76,10 @@ import java.util.logging.Logger;
 public final class FoliantService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
-    private static final LegacyComponentSerializer LEGACY =
-            LegacyComponentSerializer.legacySection();
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private static final String WARLOCK_GROUP = "class_warlock";
-    private static final java.util.regex.Pattern SAFE_NAME =
-            java.util.regex.Pattern.compile("^[A-Za-z0-9_]{3,16}$");
+    private static final java.util.regex.Pattern SAFE_NAME = java.util.regex.Pattern.compile("^[A-Za-z0-9_]{3,16}$");
 
     private static final class RelockState {
         boolean locked;
@@ -124,11 +124,17 @@ public final class FoliantService implements Listener {
      * вызов из RaskolClasses.onEnable, ручка — в activeTasks владельца.
      */
     public BukkitTask startLockFlushTask() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            if (lockDirty) {
-                saveLocks();
-            }
-        }, 1200L, 1200L);
+        return plugin.getServer()
+                .getScheduler()
+                .runTaskTimer(
+                        plugin,
+                        () -> {
+                            if (lockDirty) {
+                                saveLocks();
+                            }
+                        },
+                        1200L,
+                        1200L);
     }
 
     /**
@@ -193,16 +199,15 @@ public final class FoliantService implements Listener {
             st.deaths = 0;
             st.noKills = 0;
             saveLocks();
-            LOGGER.info("Foliant: релок-цикл завершён игроком " + p.getName()
-                    + " (шанс дропа восстановлен)");
+            LOGGER.info("Foliant: релок-цикл завершён игроком " + p.getName() + " (шанс дропа восстановлен)");
         }
     }
 
     public ItemStack createItem() {
         ItemStack item = new ItemStack(Material.WRITABLE_BOOK);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(LEGACY.deserialize(plugin.getConfig().getString(
-                "foliant.item-name", "§5§lФолиант Душ. Том I")));
+        meta.displayName(
+                LEGACY.deserialize(plugin.getConfig().getString("foliant.item-name", "§5§lФолиант Душ. Том I")));
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
         lore.add(Component.text("Древний том, запечатанный кровью", NamedTextColor.GRAY));
@@ -229,8 +234,7 @@ public final class FoliantService implements Listener {
         if (item == null || item.getType() != Material.WRITABLE_BOOK || !item.hasItemMeta()) {
             return false;
         }
-        return item.getItemMeta().getPersistentDataContainer()
-                .has(foliantKey, PersistentDataType.BYTE);
+        return item.getItemMeta().getPersistentDataContainer().has(foliantKey, PersistentDataType.BYTE);
     }
 
     private String ownerOf(ItemStack item) {
@@ -242,8 +246,8 @@ public final class FoliantService implements Listener {
 
     private void spillGround(Player p, ItemStack item) {
         ItemStack tagged = item.clone();
-        tagged.editMeta(m -> m.getPersistentDataContainer().set(
-                ownerKey, PersistentDataType.STRING, p.getUniqueId().toString()));
+        tagged.editMeta(m -> m.getPersistentDataContainer()
+                .set(ownerKey, PersistentDataType.STRING, p.getUniqueId().toString()));
         Item dropped = p.getWorld().dropItem(p.getLocation(), tagged);
         dropped.setPickupDelay(20);
     }
@@ -256,7 +260,8 @@ public final class FoliantService implements Listener {
         }
         boolean nether = event.getEntity().getWorld().getEnvironment() == World.Environment.NETHER;
         List<String> mobs = plugin.getConfig().getStringList("foliant.drop-mobs");
-        boolean eligibleMob = mobs.isEmpty() || mobs.contains(event.getEntity().getType().name());
+        boolean eligibleMob =
+                mobs.isEmpty() || mobs.contains(event.getEntity().getType().name());
 
         RelockState st = locks.get(killer.getUniqueId());
         if (st != null && st.locked) {
@@ -304,11 +309,11 @@ public final class FoliantService implements Listener {
         }
         plugin.getFx().playSound(killer.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 0.5f, 0.8f);
         if (killer.getWorld() != null) {
-            killer.getWorld().spawnParticle(Particle.SCULK_SOUL,
-                    killer.getLocation().add(0.0, 1.0, 0.0), 20, 0.4, 0.6, 0.4, 0.05);
+            killer.getWorld()
+                    .spawnParticle(
+                            Particle.SCULK_SOUL, killer.getLocation().add(0.0, 1.0, 0.0), 20, 0.4, 0.6, 0.4, 0.05);
         }
-        LOGGER.info("Foliant: том выпал с " + event.getEntity().getType().name()
-                + " игроку " + killer.getName());
+        LOGGER.info("Foliant: том выпал с " + event.getEntity().getType().name() + " игроку " + killer.getName());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -332,8 +337,7 @@ public final class FoliantService implements Listener {
         }
         if (plugin.getConfig().getBoolean("foliant.soulbound.prevent-drop", true)) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(Component.text(
-                    "Том не выпускает себя из рук.", NamedTextColor.DARK_PURPLE));
+            event.getPlayer().sendMessage(Component.text("Том не выпускает себя из рук.", NamedTextColor.DARK_PURPLE));
         }
     }
 
@@ -377,8 +381,7 @@ public final class FoliantService implements Listener {
         if (plugin.getSpec2Service().spentGlobal(uuid) > 0) {
             return TransitionResult.TALENTS_SPENT;
         }
-        if (plugin.getConfig().getBoolean("compat.authme-gate", true)
-                && !AuthGate.canAct(plugin, player)) {
+        if (plugin.getConfig().getBoolean("compat.authme-gate", true) && !AuthGate.canAct(plugin, player)) {
             return TransitionResult.AUTH_GATE;
         }
         return TransitionResult.OK;
@@ -408,14 +411,15 @@ public final class FoliantService implements Listener {
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             PlayerClass now = plugin.getClassProvider().getClassOf(player);
             if (now != PlayerClass.WARLOCK) {
-                plugin.getLogger().severe("Foliant: после миграции класс " + player.getName()
-                        + " = " + now + " (ожидался WARLOCK). Проверь LP-группу "
-                        + WARLOCK_GROUP + " и веса.");
+                plugin.getLogger()
+                        .severe("Foliant: после миграции класс " + player.getName()
+                                + " = " + now + " (ожидался WARLOCK). Проверь LP-группу "
+                                + WARLOCK_GROUP + " и веса.");
             }
         });
 
-        player.sendMessage(LEGACY.deserialize(plugin.getRaskolConfig().message(
-                "foliant.transitioned", "§5§lТом рассыпался пеплом. Что-то внутри тебя проснулось.")));
+        player.sendMessage(LEGACY.deserialize(plugin.getRaskolConfig()
+                .message("foliant.transitioned", "§5§lТом рассыпался пеплом. Что-то внутри тебя проснулось.")));
         plugin.getFx().playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 0.5f);
         plugin.getFx().playSound(player.getLocation(), Sound.ENTITY_WARDEN_ROAR, 0.6f, 1.5f);
         burstParticles(player);
@@ -435,9 +439,10 @@ public final class FoliantService implements Listener {
         try {
             return swapViaApi(player.getUniqueId());
         } catch (Exception e) {
-            plugin.getLogger().warning("Foliant: LP API недоступен ("
-                    + e.getClass().getSimpleName() + ": " + e.getMessage()
-                    + ") — фолбэк на console-команды");
+            plugin.getLogger()
+                    .warning("Foliant: LP API недоступен ("
+                            + e.getClass().getSimpleName() + ": " + e.getMessage()
+                            + ") — фолбэк на console-команды");
             return swapViaConsole(player);
         }
     }
@@ -467,34 +472,31 @@ public final class FoliantService implements Listener {
         }
         lp.getGroupManager().createAndLoadGroup(WARLOCK_GROUP).join();
         int weight = 15;
-        for (String src : new String[]{"class_mage", "class_priest", "class_warrior"}) {
+        for (String src : new String[] {"class_mage", "class_priest", "class_warrior"}) {
             Group s = lp.getGroupManager().getGroup(src);
             if (s != null && s.getWeight().isPresent()) {
                 weight = s.getWeight().getAsInt();
                 break;
             }
         }
-        Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
-                "lp group " + WARLOCK_GROUP + " setweight " + weight);
-        plugin.getLogger().info("Foliant: создана LP-группа " + WARLOCK_GROUP
-                + " с весом " + weight);
+        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp group " + WARLOCK_GROUP + " setweight " + weight);
+        plugin.getLogger().info("Foliant: создана LP-группа " + WARLOCK_GROUP + " с весом " + weight);
     }
 
     private boolean swapViaConsole(Player player) {
         String name = player.getName();
         if (!isSafeName(name)) {
-            plugin.getLogger().severe("Foliant: небезопасный ник '" + name
-                    + "' — console-миграция отклонена (используй LP API)");
+            plugin.getLogger()
+                    .severe("Foliant: небезопасный ник '" + name + "' — console-миграция отклонена (используй LP API)");
             return false;
         }
         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp creategroup " + WARLOCK_GROUP);
         for (PlayerClass pc : PlayerClass.values()) {
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
-                    "lp user " + name + " parent remove class_"
-                            + pc.name().toLowerCase(Locale.ROOT));
+            Bukkit.dispatchCommand(
+                    Bukkit.getConsoleSender(),
+                    "lp user " + name + " parent remove class_" + pc.name().toLowerCase(Locale.ROOT));
         }
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(),
-                "lp user " + name + " parent add " + WARLOCK_GROUP);
+        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp user " + name + " parent add " + WARLOCK_GROUP);
     }
 
     private static final Object VOID_OK = new Object();
@@ -527,13 +529,13 @@ public final class FoliantService implements Listener {
     }
 
     private Object findSorcerySkill(Object api) {
-        Object registry = invokeFirstExisting(api,
-                new String[]{"getGlobalRegistry", "getSkillRegistry", "getRegistry"});
+        Object registry =
+                invokeFirstExisting(api, new String[] {"getGlobalRegistry", "getSkillRegistry", "getRegistry"});
         if (registry == null) {
             return null;
         }
-        Object direct = invokeFirstExisting(registry,
-                new String[]{"getSkill", "getSkillById", "getSkillByName"}, "sorcery");
+        Object direct =
+                invokeFirstExisting(registry, new String[] {"getSkill", "getSkillById", "getSkillByName"}, "sorcery");
         if (direct != null && direct != VOID_OK) {
             return direct;
         }
@@ -564,11 +566,12 @@ public final class FoliantService implements Listener {
             Object user = invokeQuiet(api, "getUser", player.getUniqueId());
             Object skill = findSorcerySkill(api);
             if (user != null && skill != null && skill != VOID_OK) {
-                Object done = invokeFirstExisting(user,
-                        new String[]{"setSkillLevel", "setLevel", "addSkillLevel"}, skill, level);
+                Object done = invokeFirstExisting(
+                        user, new String[] {"setSkillLevel", "setLevel", "addSkillLevel"}, skill, level);
                 if (done != null) {
-                    plugin.getLogger().info("Foliant: выдан sorcery=" + level
-                            + " игроку " + player.getName() + " (AuraSkills API)");
+                    plugin.getLogger()
+                            .info("Foliant: выдан sorcery=" + level + " игроку " + player.getName()
+                                    + " (AuraSkills API)");
                     return;
                 }
             }
@@ -577,27 +580,27 @@ public final class FoliantService implements Listener {
                 return;
             }
         } catch (ReflectiveOperationException | LinkageError e) {
-            plugin.getLogger().warning("Foliant: рефлексия AuraSkills API упала ("
-                    + e.getClass().getSimpleName() + ": " + e.getMessage()
-                    + ") — переход на fallback-команду");
+            plugin.getLogger()
+                    .warning("Foliant: рефлексия AuraSkills API упала ("
+                            + e.getClass().getSimpleName() + ": " + e.getMessage()
+                            + ") — переход на fallback-команду");
         }
         String cmd = plugin.getConfig().getString("foliant.sorcery-grant-command", "");
         if (cmd != null && !cmd.isEmpty()) {
             // 1.14.12 (7-01): isSafeName — защита от инъекции ника в консольную команду
             if (!isSafeName(player.getName())) {
-                plugin.getLogger().severe("Foliant: небезопасный ник '" + player.getName()
-                        + "' — fallback-команда sorcery-grant отклонена. Игрок: "
-                        + player.getName() + ", уровень: " + level);
+                plugin.getLogger()
+                        .severe("Foliant: небезопасный ник '" + player.getName()
+                                + "' — fallback-команда sorcery-grant отклонена. Игрок: "
+                                + player.getName() + ", уровень: " + level);
                 return;
             }
-            String exec = cmd.replace("{player}", player.getName())
-                    .replace("{level}", String.valueOf(level));
+            String exec = cmd.replace("{player}", player.getName()).replace("{level}", String.valueOf(level));
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), exec);
             plugin.getLogger().info("Foliant: sorcery выдан командой: " + exec);
             return;
         }
-        plugin.getLogger().warning("Foliant: не удалось выдать sorcery автоматически. Игрок: " +
-                player.getName());
+        plugin.getLogger().warning("Foliant: не удалось выдать sorcery автоматически. Игрок: " + player.getName());
     }
 
     private void burstParticles(Player player) {
@@ -613,9 +616,10 @@ public final class FoliantService implements Listener {
 
     private void openConfirmGui(Player player) {
         FoliantHolder holder = new FoliantHolder();
-        Inventory gui = Bukkit.createInventory(holder, 27,
-                LEGACY.deserialize(plugin.getConfig().getString(
-                        "foliant.gui-title", "§5§lФолиант Душ · Том I")));
+        Inventory gui = Bukkit.createInventory(
+                holder,
+                27,
+                LEGACY.deserialize(plugin.getConfig().getString("foliant.gui-title", "§5§lФолиант Душ · Том I")));
         holder.inventory = gui;
 
         ItemStack filler = new ItemStack(Material.BLACK_STAINED_GLASS_PANE);
@@ -626,8 +630,7 @@ public final class FoliantService implements Listener {
 
         ItemStack yes = new ItemStack(Material.WRITTEN_BOOK);
         yes.editMeta(m -> {
-            m.displayName(LEGACY.deserialize(plugin.getConfig().getString(
-                    "foliant.gui-yes", "§c§lПрочесть страницу")));
+            m.displayName(LEGACY.deserialize(plugin.getConfig().getString("foliant.gui-yes", "§c§lПрочесть страницу")));
             m.lore(List.of(
                     Component.text("Открыть том и принять", NamedTextColor.GRAY),
                     Component.text("то, что он даст.", NamedTextColor.GRAY)));
@@ -638,10 +641,8 @@ public final class FoliantService implements Listener {
 
         ItemStack no = new ItemStack(Material.BARRIER);
         no.editMeta(m -> {
-            m.displayName(LEGACY.deserialize(plugin.getConfig().getString(
-                    "foliant.gui-no", "§7Закрыть том")));
-            m.lore(List.of(
-                    Component.text("Том подождёт другого часа.", NamedTextColor.GRAY)));
+            m.displayName(LEGACY.deserialize(plugin.getConfig().getString("foliant.gui-no", "§7Закрыть том")));
+            m.lore(List.of(Component.text("Том подождёт другого часа.", NamedTextColor.GRAY)));
         });
         gui.setItem(15, no);
 
@@ -696,37 +697,40 @@ public final class FoliantService implements Listener {
             }
         } else if (slot == 15) {
             player.closeInventory();
-            player.sendMessage(Component.text(
-                    "Том закрыт. Он останется ждать.", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("Том закрыт. Он останется ждать.", NamedTextColor.GRAY));
         }
     }
 
     public enum TransitionResult {
-        OK, LP_FAILED, NO_CLASS, ALREADY_WARLOCK, NOT_MAGE_OR_PRIEST,
-        TOO_LOW_LEVEL, SPEC_CHOSEN, TALENTS_SPENT, AUTH_GATE;
+        OK,
+        LP_FAILED,
+        NO_CLASS,
+        ALREADY_WARLOCK,
+        NOT_MAGE_OR_PRIEST,
+        TOO_LOW_LEVEL,
+        SPEC_CHOSEN,
+        TALENTS_SPENT,
+        AUTH_GATE;
 
         public String message(RaskolClasses plugin) {
             return switch (this) {
                 case OK -> "Переход завершён.";
                 case LP_FAILED -> "Том не открылся: ошибка миграции (см. лог).";
-                case NO_CLASS -> plugin.getRaskolConfig().message(
-                        "no-class", "Класс не выбран — посетите герольда");
-                case ALREADY_WARLOCK -> plugin.getRaskolConfig().message(
-                        "foliant.already-warlock", "Том уже прочитан тобой.");
-                case NOT_MAGE_OR_PRIEST -> plugin.getRaskolConfig().message(
-                        "foliant.not-mage-priest",
-                        "Страницы не отвечают тебе. Том ждёт знающих письмена света и веры.");
-                case TOO_LOW_LEVEL -> plugin.getRaskolConfig().message(
-                        "foliant.too-low-level",
-                        "Том тяжёл для твоего разума: нужен уровень персонажа 40.");
-                case SPEC_CHOSEN -> plugin.getRaskolConfig().message(
-                        "foliant.spec-chosen",
-                        "Том не откроется, пока ты держишься старого пути.");
-                case TALENTS_SPENT -> plugin.getRaskolConfig().message(
-                        "foliant.talents-spent",
-                        "Том не откроется, пока в тебе живы старые знания.");
-                case AUTH_GATE -> plugin.getRaskolConfig().message(
-                        "gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
+                case NO_CLASS -> plugin.getRaskolConfig().message("no-class", "Класс не выбран — посетите герольда");
+                case ALREADY_WARLOCK -> plugin.getRaskolConfig()
+                        .message("foliant.already-warlock", "Том уже прочитан тобой.");
+                case NOT_MAGE_OR_PRIEST -> plugin.getRaskolConfig()
+                        .message(
+                                "foliant.not-mage-priest",
+                                "Страницы не отвечают тебе. Том ждёт знающих письмена света и веры.");
+                case TOO_LOW_LEVEL -> plugin.getRaskolConfig()
+                        .message("foliant.too-low-level", "Том тяжёл для твоего разума: нужен уровень персонажа 40.");
+                case SPEC_CHOSEN -> plugin.getRaskolConfig()
+                        .message("foliant.spec-chosen", "Том не откроется, пока ты держишься старого пути.");
+                case TALENTS_SPENT -> plugin.getRaskolConfig()
+                        .message("foliant.talents-spent", "Том не откроется, пока в тебе живы старые знания.");
+                case AUTH_GATE -> plugin.getRaskolConfig()
+                        .message("gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
             };
         }
     }

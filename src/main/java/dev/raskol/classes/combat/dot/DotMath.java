@@ -9,8 +9,7 @@ package dev.raskol.classes.combat.dot;
  */
 public final class DotMath {
 
-    private DotMath() {
-    }
+    private DotMath() {}
 
     /**
      * Масштабный фактор для суммарного DPS по цели:

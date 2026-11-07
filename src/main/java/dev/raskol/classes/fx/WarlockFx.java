@@ -12,8 +12,7 @@ import org.bukkit.Particle;
  */
 public final class WarlockFx {
 
-    private WarlockFx() {
-    }
+    private WarlockFx() {}
 
     /** Облачный всплеск над точкой; IllegalArgumentException (data-партикл) → фолбэк. */
     public static void safeFx(Location loc, Particle particle, int count, double spread) {
@@ -21,11 +20,18 @@ public final class WarlockFx {
             return;
         }
         try {
-            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 1.0, 0.0),
-                    count, spread, spread * 0.6, spread, 0.04);
+            loc.getWorld()
+                    .spawnParticle(particle, loc.clone().add(0.0, 1.0, 0.0), count, spread, spread * 0.6, spread, 0.04);
         } catch (IllegalArgumentException e) {
-            loc.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc.clone().add(0.0, 1.0, 0.0),
-                    Math.max(4, count / 2), spread, spread * 0.6, spread, 0.02);
+            loc.getWorld()
+                    .spawnParticle(
+                            Particle.SOUL_FIRE_FLAME,
+                            loc.clone().add(0.0, 1.0, 0.0),
+                            Math.max(4, count / 2),
+                            spread,
+                            spread * 0.6,
+                            spread,
+                            0.02);
         }
     }
 
@@ -51,8 +57,7 @@ public final class WarlockFx {
             return;
         }
         try {
-            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 0.3, 0.0),
-                    count, 0.35, 0.9, 0.35, 0.06);
+            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 0.3, 0.0), count, 0.35, 0.9, 0.35, 0.06);
         } catch (IllegalArgumentException ignored) {
         }
     }

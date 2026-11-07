@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.reporting;
 
-import dev.raskol.classes.integrity.verification.IntegrityStatus;
-import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.logging.Handler;
@@ -13,10 +13,11 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import dev.raskol.classes.integrity.verification.IntegrityStatus;
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 
 class SecurityReporterTest {
 
@@ -26,9 +27,7 @@ class SecurityReporterTest {
 
     @BeforeEach
     void setUp() {
-        logger = Logger.getLogger(
-                "RIPS-Test-" + System.nanoTime()
-        );
+        logger = Logger.getLogger("RIPS-Test-" + System.nanoTime());
 
         logger.setUseParentHandlers(false);
         logger.setLevel(Level.ALL);
@@ -42,24 +41,14 @@ class SecurityReporterTest {
 
     @Test
     void shouldCreateVerifiedReport() {
-        IntegrityVerificationResult result = result(
-                IntegrityStatus.VERIFIED,
-                "Integrity verification successful",
-                5,
-                List.of()
-        );
+        IntegrityVerificationResult result =
+                result(IntegrityStatus.VERIFIED, "Integrity verification successful", 5, List.of());
 
         SecurityReport report = reporter.createReport(result);
 
-        assertEquals(
-                IntegrityStatus.VERIFIED,
-                report.status()
-        );
+        assertEquals(IntegrityStatus.VERIFIED, report.status());
 
-        assertEquals(
-                SecuritySeverity.INFO,
-                report.severity()
-        );
+        assertEquals(SecuritySeverity.INFO, report.severity());
 
         assertEquals(5, report.checkedFiles());
         assertTrue(report.failedFiles().isEmpty());
@@ -69,62 +58,32 @@ class SecurityReporterTest {
 
     @Test
     void shouldClassifyDevelopmentBuildAsInfo() {
-        assertEquals(
-                SecuritySeverity.INFO,
-                reporter.severityFor(
-                        IntegrityStatus.DEVELOPMENT_BUILD
-                )
-        );
+        assertEquals(SecuritySeverity.INFO, reporter.severityFor(IntegrityStatus.DEVELOPMENT_BUILD));
     }
 
     @Test
     void shouldClassifyUnavailableTrustedKeyAsWarning() {
-        assertEquals(
-                SecuritySeverity.WARNING,
-                reporter.severityFor(
-                        IntegrityStatus.TRUSTED_KEY_UNAVAILABLE
-                )
-        );
+        assertEquals(SecuritySeverity.WARNING, reporter.severityFor(IntegrityStatus.TRUSTED_KEY_UNAVAILABLE));
     }
 
     @Test
     void shouldClassifyUnavailableArtifactAsWarning() {
-        assertEquals(
-                SecuritySeverity.WARNING,
-                reporter.severityFor(
-                        IntegrityStatus.ARTIFACT_UNAVAILABLE
-                )
-        );
+        assertEquals(SecuritySeverity.WARNING, reporter.severityFor(IntegrityStatus.ARTIFACT_UNAVAILABLE));
     }
 
     @Test
     void shouldClassifyInvalidSignatureAsCritical() {
-        assertEquals(
-                SecuritySeverity.CRITICAL,
-                reporter.severityFor(
-                        IntegrityStatus.INVALID_SIGNATURE
-                )
-        );
+        assertEquals(SecuritySeverity.CRITICAL, reporter.severityFor(IntegrityStatus.INVALID_SIGNATURE));
     }
 
     @Test
     void shouldClassifyProtectedFileHashMismatchAsCritical() {
-        assertEquals(
-                SecuritySeverity.CRITICAL,
-                reporter.severityFor(
-                        IntegrityStatus.PROTECTED_FILE_HASH_MISMATCH
-                )
-        );
+        assertEquals(SecuritySeverity.CRITICAL, reporter.severityFor(IntegrityStatus.PROTECTED_FILE_HASH_MISMATCH));
     }
 
     @Test
     void shouldLogVerifiedReportAtInfoLevel() {
-        IntegrityVerificationResult result = result(
-                IntegrityStatus.VERIFIED,
-                "Verification successful",
-                3,
-                List.of()
-        );
+        IntegrityVerificationResult result = result(IntegrityStatus.VERIFIED, "Verification successful", 3, List.of());
 
         reporter.report(result);
 
@@ -140,12 +99,8 @@ class SecurityReporterTest {
 
     @Test
     void shouldLogCriticalReportAtSevereLevel() {
-        IntegrityVerificationResult result = result(
-                IntegrityStatus.INVALID_SIGNATURE,
-                "Signature verification failed",
-                0,
-                List.of()
-        );
+        IntegrityVerificationResult result =
+                result(IntegrityStatus.INVALID_SIGNATURE, "Signature verification failed", 0, List.of());
 
         reporter.report(result);
 
@@ -164,8 +119,7 @@ class SecurityReporterTest {
                 IntegrityStatus.PROTECTED_FILE_HASH_MISMATCH,
                 "Protected file hash mismatch",
                 2,
-                List.of("Example.class")
-        );
+                List.of("Example.class"));
 
         reporter.report(result);
 
@@ -176,12 +130,8 @@ class SecurityReporterTest {
 
     @Test
     void shouldSanitizeMultilineMessages() {
-        IntegrityVerificationResult result = result(
-                IntegrityStatus.INVALID_MANIFEST,
-                "Invalid manifest\nInjected log entry",
-                0,
-                List.of()
-        );
+        IntegrityVerificationResult result =
+                result(IntegrityStatus.INVALID_MANIFEST, "Invalid manifest\nInjected log entry", 0, List.of());
 
         reporter.report(result);
 
@@ -193,47 +143,28 @@ class SecurityReporterTest {
 
     @Test
     void shouldReturnImmutableFailedFiles() {
-        IntegrityVerificationResult result = result(
-                IntegrityStatus.PROTECTED_FILE_MISSING,
-                "Protected file missing",
-                1,
-                List.of("Example.class")
-        );
+        IntegrityVerificationResult result =
+                result(IntegrityStatus.PROTECTED_FILE_MISSING, "Protected file missing", 1, List.of("Example.class"));
 
         SecurityReport report = reporter.createReport(result);
 
         assertThrows(
-                UnsupportedOperationException.class,
-                () -> report.failedFiles().add("Another.class")
-        );
+                UnsupportedOperationException.class, () -> report.failedFiles().add("Another.class"));
     }
 
     @Test
     void shouldRejectNullResult() {
-        assertThrows(
-                NullPointerException.class,
-                () -> reporter.createReport(null)
-        );
+        assertThrows(NullPointerException.class, () -> reporter.createReport(null));
     }
 
     private static IntegrityVerificationResult result(
-            IntegrityStatus status,
-            String message,
-            int checkedFiles,
-            List<String> failedFiles
-    ) {
-        return new IntegrityVerificationResult(
-                status,
-                message,
-                checkedFiles,
-                failedFiles
-        );
+            IntegrityStatus status, String message, int checkedFiles, List<String> failedFiles) {
+        return new IntegrityVerificationResult(status, message, checkedFiles, failedFiles);
     }
 
     private static final class TestLogHandler extends Handler {
 
-        private final List<LogRecord> records =
-                new java.util.ArrayList<>();
+        private final List<LogRecord> records = new java.util.ArrayList<>();
 
         @Override
         public void publish(LogRecord record) {
@@ -243,8 +174,7 @@ class SecurityReporterTest {
         }
 
         @Override
-        public void flush() {
-        }
+        public void flush() {}
 
         @Override
         public void close() {

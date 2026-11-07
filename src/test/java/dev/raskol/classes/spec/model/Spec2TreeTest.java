@@ -2,19 +2,20 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.model;
 
-import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.registry.Spec2Registry;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.spec.registry.Spec2Registry;
 
 /**
  * 1.14.10 (Sprint 7, волна 7.1, P0-11-01): unit-тесты модели деревьев.
@@ -35,7 +36,8 @@ class Spec2TreeTest {
         for (Spec s : Spec.values()) {
             Spec2Tree t = Spec2Registry.treeOf(s.id());
             assertNotNull(t, "дерево отсутствует: " + s.id());
-            assertTrue(t.capacity() >= 50 && t.capacity() <= 58,
+            assertTrue(
+                    t.capacity() >= 50 && t.capacity() <= 58,
                     "ёмкость " + s.id() + " = " + t.capacity() + ", ожидалось [50, 58]");
         }
     }
@@ -49,8 +51,7 @@ class Spec2TreeTest {
         Map<String, Integer> ranks = new HashMap<>();
         ranks.put(any.id(), 3);
         ranks.put("nonexistent_node_xyz", 9);
-        assertTrue(beast.spentInTree(ranks) == 3,
-                "spent = " + beast.spentInTree(ranks) + ", ожидалось 3");
+        assertTrue(beast.spentInTree(ranks) == 3, "spent = " + beast.spentInTree(ranks) + ", ожидалось 3");
     }
 
     /**
@@ -70,14 +71,16 @@ class Spec2TreeTest {
                 }
                 // без рангов и без стоп-листа: пререквизиты не выполнены
                 Map<String, Integer> empty = new HashMap<>();
-                assertFalse(t.prereqsMet(node, empty, Set.of()),
+                assertFalse(
+                        t.prereqsMet(node, empty, Set.of()),
                         "узел " + s.id() + ":" + node.id() + " не должен быть доступен без рангов");
 
                 // все prereq'и узла в стоп-листе → выполнены
                 Set<String> allPrereqsDisabled = new HashSet<>(node.prereqs().keySet());
-                assertTrue(t.prereqsMet(node, empty, allPrereqsDisabled),
-                        "узел " + s.id() + ":" + node.id()
-                                + ": disabled prereq'и " + allPrereqsDisabled + " должны считаться выполненными");
+                assertTrue(
+                        t.prereqsMet(node, empty, allPrereqsDisabled),
+                        "узел " + s.id() + ":" + node.id() + ": disabled prereq'и " + allPrereqsDisabled
+                                + " должны считаться выполненными");
             }
         }
     }
@@ -102,16 +105,16 @@ class Spec2TreeTest {
         Set<String> fullChain = collectPrereqChain(beast, withPrereqs.id());
 
         // сам узел в стоп-листе → недостижим
-        assertFalse(beast.isReachable(withPrereqs.id(), Set.of(withPrereqs.id())),
+        assertFalse(
+                beast.isReachable(withPrereqs.id(), Set.of(withPrereqs.id())),
                 "отключённый узел недостижим по определению");
 
         // вся цепочка prereq'ов в стоп-листе → узел достижим
-        assertTrue(beast.isReachable(withPrereqs.id(), fullChain),
-                "узел достижим, если вся цепочка prereq'ов отключена");
+        assertTrue(
+                beast.isReachable(withPrereqs.id(), fullChain), "узел достижим, если вся цепочка prereq'ов отключена");
 
         // несуществующий узел
-        assertFalse(beast.isReachable("no_such_node", Set.of()),
-                "несуществующий узел недостижим");
+        assertFalse(beast.isReachable("no_such_node", Set.of()), "несуществующий узел недостижим");
     }
 
     private static Set<String> collectPrereqChain(Spec2Tree tree, String nodeId) {
@@ -158,8 +161,7 @@ class Spec2TreeTest {
         // Пустые ранги: ульт в ряду 6 (гейт 30) — покупка закрыта.
         Map<String, Integer> empty = new HashMap<>();
         Set<String> prereqsDisabled = new HashSet<>(ult.prereqs().keySet());
-        assertFalse(tree.canBuy(ult, empty, 5, prereqsDisabled),
-                "ряд 6 закрыт при нуле очков в дереве");
+        assertFalse(tree.canBuy(ult, empty, 5, prereqsDisabled), "ряд 6 закрыт при нуле очков в дереве");
 
         // Заполняем ряды 1–5 до максимума: spent ≥ 30, гейт ряда 6 открыт.
         Map<String, Integer> full = new HashMap<>();
@@ -169,11 +171,10 @@ class Spec2TreeTest {
             }
         }
         int spent = tree.spentInTree(full);
-        assertTrue(Spec2Points.rowUnlocked(ult.row(), spent),
-                "spent = " + spent + " должен открывать ряд 6");
-        assertTrue(tree.canBuy(ult, full, 1, prereqsDisabled),
+        assertTrue(Spec2Points.rowUnlocked(ult.row(), spent), "spent = " + spent + " должен открывать ряд 6");
+        assertTrue(
+                tree.canBuy(ult, full, 1, prereqsDisabled),
                 "при открытом ряде, заполненных prereq'ах и 1 очке покупка возможна");
-        assertFalse(tree.canBuy(ult, full, 0, prereqsDisabled),
-                "без свободного очка покупка закрыта");
+        assertFalse(tree.canBuy(ult, full, 0, prereqsDisabled), "без свободного очка покупка закрыта");
     }
 }

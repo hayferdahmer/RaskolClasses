@@ -2,23 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.WarlockAbilities;
-import dev.raskol.classes.attribute.PowerService;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.school.Penetration;
-import dev.raskol.classes.combat.school.School;
-import dev.raskol.classes.combat.school.SchoolConfig;
-import dev.raskol.classes.combat.school.SchoolImmunity;
-import dev.raskol.classes.combat.school.SchoolMitigation;
-import dev.raskol.classes.api.combat.CombatProfile;
-import dev.raskol.classes.config.ConfigReads;
-import dev.raskol.classes.item.model.ItemDefinition;
-import dev.raskol.classes.item.model.WeaponType;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.Locale;
+import java.util.UUID;
+
 import org.bukkit.GameMode;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -29,8 +16,19 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 
-import java.util.Locale;
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.api.combat.CombatProfile;
+import dev.raskol.classes.attribute.PowerService;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.school.Penetration;
+import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.combat.school.SchoolConfig;
+import dev.raskol.classes.combat.school.SchoolImmunity;
+import dev.raskol.classes.combat.school.SchoolMitigation;
+import dev.raskol.classes.config.ConfigReads;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.WeaponType;
 
 /**
  * 1.11.4 (P3): ПУТЬ A — ванильные события урона.
@@ -58,12 +56,17 @@ public final class VanillaDamageListener implements Listener {
 
     /** 1.15.6 (2.6-40): armed-состояние отката burst-лога (main-thread only). */
     private boolean undoArmed = false;
+
     private UUID undoUuid = null;
     private double undoAmount = 0.0;
 
-    public VanillaDamageListener(RaskolClasses plugin, CombatService combat,
-                                 ResistService resists, AvoidanceService avoidance,
-                                 PowerService powers, DamageCaps caps) {
+    public VanillaDamageListener(
+            RaskolClasses plugin,
+            CombatService combat,
+            ResistService resists,
+            AvoidanceService avoidance,
+            PowerService powers,
+            DamageCaps caps) {
         this.plugin = plugin;
         this.combat = combat;
         this.resists = resists;
@@ -84,17 +87,18 @@ public final class VanillaDamageListener implements Listener {
     public void onDamage(EntityDamageEvent event) {
         undoArmed = false;
         boolean suppressed = CombatService.consumeSuppress();
-        CombatProfile targetProfile=event.getEntity() instanceof LivingEntity living
-                ?plugin.getCombatProfiles().profileOf(living.getUniqueId()):null;
-        CombatProfile sourceProfile=event instanceof EntityDamageByEntityEvent by
-                ?profileOfSource(by):null;
+        CombatProfile targetProfile = event.getEntity() instanceof LivingEntity living
+                ? plugin.getCombatProfiles().profileOf(living.getUniqueId())
+                : null;
+        CombatProfile sourceProfile = event instanceof EntityDamageByEntityEvent by ? profileOfSource(by) : null;
 
         Player attacker = null;
         if (event instanceof EntityDamageByEntityEvent by) {
             attacker = resolveAttacker(by);
         }
 
-        if (!suppressed && attacker != null
+        if (!suppressed
+                && attacker != null
                 && event.getEntity() instanceof Player victimTarget
                 && !attacker.getUniqueId().equals(victimTarget.getUniqueId())
                 && !plugin.getConfig().getBoolean("combat.friendly-fire", false)
@@ -125,10 +129,14 @@ public final class VanillaDamageListener implements Listener {
         }
 
         if (!suppressed && event.getEntity() instanceof LivingEntity ent) {
-            double mult = immunity.multiplierFor(ent.getType(), school)
-                    * schoolConfig.multiplier(school);
-            if(targetProfile!=null){if(targetProfile.immunities().contains(school)){event.setCancelled(true);return;}
-                mult*=1.0+Math.max(-100.0,targetProfile.vulnerabilities().getOrDefault(school,0.0))/100.0;}
+            double mult = immunity.multiplierFor(ent.getType(), school) * schoolConfig.multiplier(school);
+            if (targetProfile != null) {
+                if (targetProfile.immunities().contains(school)) {
+                    event.setCancelled(true);
+                    return;
+                }
+                mult *= 1.0 + Math.max(-100.0, targetProfile.vulnerabilities().getOrDefault(school, 0.0)) / 100.0;
+            }
             if (mult <= 0.0) {
                 event.setCancelled(true);
                 return;
@@ -139,21 +147,38 @@ public final class VanillaDamageListener implements Listener {
         }
 
         if (!(event.getEntity() instanceof Player target)) {
-            if(!suppressed&&targetProfile!=null&&event.getDamage()>0.0&&incomingType!=DamageType.TRUE){
-                double channel=incomingType==DamageType.PHYSICAL?targetProfile.physResist():targetProfile.magicResist();
-                double schoolResist=targetProfile.schoolResists().getOrDefault(school,0.0);
-                double pen=sourceProfile!=null?(incomingType==DamageType.PHYSICAL?sourceProfile.penPhysPct():sourceProfile.penMagicPct())
-                        :attacker!=null?combat.penTraits().channelPen(attacker.getUniqueId(),incomingType==DamageType.PHYSICAL,0.40).pct()*100.0:0.0;
-                double schoolPen=sourceProfile!=null?sourceProfile.penSchoolPct().getOrDefault(school,0.0)
-                        :attacker!=null?combat.penTraits().schoolPenFraction(attacker.getUniqueId(),school,0.40)*100.0:0.0;
-                double resist=Math.max(0,Math.min(90,channel-pen+schoolResist-schoolPen));
-                event.setDamage(event.getDamage()*(1.0-resist/100.0));
+            if (!suppressed && targetProfile != null && event.getDamage() > 0.0 && incomingType != DamageType.TRUE) {
+                double channel =
+                        incomingType == DamageType.PHYSICAL ? targetProfile.physResist() : targetProfile.magicResist();
+                double schoolResist = targetProfile.schoolResists().getOrDefault(school, 0.0);
+                double pen = sourceProfile != null
+                        ? (incomingType == DamageType.PHYSICAL
+                                ? sourceProfile.penPhysPct()
+                                : sourceProfile.penMagicPct())
+                        : attacker != null
+                                ? combat.penTraits()
+                                                .channelPen(
+                                                        attacker.getUniqueId(),
+                                                        incomingType == DamageType.PHYSICAL,
+                                                        0.40)
+                                                .pct()
+                                        * 100.0
+                                : 0.0;
+                double schoolPen = sourceProfile != null
+                        ? sourceProfile.penSchoolPct().getOrDefault(school, 0.0)
+                        : attacker != null
+                                ? combat.penTraits().schoolPenFraction(attacker.getUniqueId(), school, 0.40) * 100.0
+                                : 0.0;
+                double resist = Math.max(0, Math.min(90, channel - pen + schoolResist - schoolPen));
+                event.setDamage(event.getDamage() * (1.0 - resist / 100.0));
             }
-            if(!suppressed&&targetProfile!=null&&event.getDamage()>0.0
-                    &&event.getCause()!=EntityDamageEvent.DamageCause.CUSTOM
-                    &&event instanceof EntityDamageByEntityEvent by) reflect(by,event.getDamage(),targetProfile.reflect());
-            if (!suppressed && event.getEntity() instanceof LivingEntity mob
-                    && event.getDamage() > 0.0) {
+            if (!suppressed
+                    && targetProfile != null
+                    && event.getDamage() > 0.0
+                    && event.getCause() != EntityDamageEvent.DamageCause.CUSTOM
+                    && event instanceof EntityDamageByEntityEvent by)
+                reflect(by, event.getDamage(), targetProfile.reflect());
+            if (!suppressed && event.getEntity() instanceof LivingEntity mob && event.getDamage() > 0.0) {
                 hookBreaksCarrier(mob, event.getDamage());
             }
             return;
@@ -201,29 +226,38 @@ public final class VanillaDamageListener implements Listener {
 
         double cap = isPvp(event) ? resists.pvpCap() : resists.cap();
         UUID uuid = target.getUniqueId();
-        double factor = type == DamageType.PHYSICAL
-                ? resists.physicalFactor(uuid, cap)
-                : resists.magicFactor(uuid, cap);
+        double factor =
+                type == DamageType.PHYSICAL ? resists.physicalFactor(uuid, cap) : resists.magicFactor(uuid, cap);
 
         double defenseMult = 1.0;
         if (Double.isFinite(factor) && factor >= 0.0 && factor < 1.0) {
             double channelResistPct = (1.0 - factor) * 100.0;
             double mitigation;
-            if ((attacker != null||sourceProfile!=null) && schoolConfig.enabled()) {
-                UUID aUuid = attacker==null?null:attacker.getUniqueId();
-                Penetration pen = sourceProfile!=null?Penetration.of(0.0,dev.raskol.classes.combat.school.PenTraitsService.clampSumPercent(
-                        type==DamageType.PHYSICAL?sourceProfile.penPhysPct():sourceProfile.penMagicPct(),schoolConfig.penPctCap()))
-                        :combat.penTraits().channelPen(aUuid,type==DamageType.PHYSICAL,schoolConfig.penPctCap());
+            if ((attacker != null || sourceProfile != null) && schoolConfig.enabled()) {
+                UUID aUuid = attacker == null ? null : attacker.getUniqueId();
+                Penetration pen = sourceProfile != null
+                        ? Penetration.of(
+                                0.0,
+                                dev.raskol.classes.combat.school.PenTraitsService.clampSumPercent(
+                                        type == DamageType.PHYSICAL
+                                                ? sourceProfile.penPhysPct()
+                                                : sourceProfile.penMagicPct(),
+                                        schoolConfig.penPctCap()))
+                        : combat.penTraits().channelPen(aUuid, type == DamageType.PHYSICAL, schoolConfig.penPctCap());
                 double effChannel = pen.effectiveResist(channelResistPct, schoolConfig.penPctCap());
                 double elResist = combat.elemental().resistOf(uuid, school);
-                double schoolPen = sourceProfile!=null?dev.raskol.classes.combat.school.PenTraitsService.clampSumPercent(
-                        sourceProfile.penSchoolPct().getOrDefault(school,0.0),schoolConfig.penPctCap())
-                        :combat.penTraits().schoolPenFraction(aUuid,school,schoolConfig.penPctCap());
-                double effEl = CombatMath.effectiveResist(
-                        elResist, 0.0, schoolPen, schoolConfig.penPctCap());
-                mitigation = SchoolMitigation.mitigationFor(effChannel, Penetration.NONE,
-                        schoolConfig.penPctCap(), effEl,
-                        schoolConfig.elementalEnabled(), schoolConfig.mitigationCap());
+                double schoolPen = sourceProfile != null
+                        ? dev.raskol.classes.combat.school.PenTraitsService.clampSumPercent(
+                                sourceProfile.penSchoolPct().getOrDefault(school, 0.0), schoolConfig.penPctCap())
+                        : combat.penTraits().schoolPenFraction(aUuid, school, schoolConfig.penPctCap());
+                double effEl = CombatMath.effectiveResist(elResist, 0.0, schoolPen, schoolConfig.penPctCap());
+                mitigation = SchoolMitigation.mitigationFor(
+                        effChannel,
+                        Penetration.NONE,
+                        schoolConfig.penPctCap(),
+                        effEl,
+                        schoolConfig.elementalEnabled(),
+                        schoolConfig.mitigationCap());
             } else {
                 mitigation = channelResistPct / 100.0;
             }
@@ -257,11 +291,13 @@ public final class VanillaDamageListener implements Listener {
         undoArmed = true;
         event.setDamage(effective * scale);
 
-        if(event.getCause()!=EntityDamageEvent.DamageCause.CUSTOM
-                &&event.getDamage()>0.0&&event instanceof EntityDamageByEntityEvent by){
-            double reflect=targetProfile!=null?targetProfile.reflect():
-                    plugin.getItems().value(target.getUniqueId(),dev.raskol.classes.item.model.ItemStat.REFLECT);
-            reflect(by,event.getDamage(),reflect);
+        if (event.getCause() != EntityDamageEvent.DamageCause.CUSTOM
+                && event.getDamage() > 0.0
+                && event instanceof EntityDamageByEntityEvent by) {
+            double reflect = targetProfile != null
+                    ? targetProfile.reflect()
+                    : plugin.getItems().value(target.getUniqueId(), dev.raskol.classes.item.model.ItemStat.REFLECT);
+            reflect(by, event.getDamage(), reflect);
         }
 
         hookBreaksCarrier(target, event.getDamage());
@@ -287,18 +323,28 @@ public final class VanillaDamageListener implements Listener {
         UUID armedUuid = undoUuid;
         double armedAmount = undoAmount;
         undoArmed = false;
-        if (armed && event.isCancelled() && event.getEntity() instanceof Player tp
+        if (armed
+                && event.isCancelled()
+                && event.getEntity() instanceof Player tp
                 && tp.getUniqueId().equals(armedUuid)) {
             caps.undoLastBurst(tp, armedAmount);
         }
     }
 
-    private void reflect(EntityDamageByEntityEvent event,double damage,double percent){
-        Entity target=event.getEntity(),source=sourceEntity(event);
-        if(source instanceof LivingEntity livingSource&&livingSource!=target&&percent>0&&damage>0){
-            CombatService.beginReflect();try{combat.dealDamage(livingSource,(LivingEntity)target,
-                    dev.raskol.classes.combat.DamageProfile.trueDmg(damage*percent/100.0),true,true);}
-            finally{CombatService.endReflect();}
+    private void reflect(EntityDamageByEntityEvent event, double damage, double percent) {
+        Entity target = event.getEntity(), source = sourceEntity(event);
+        if (source instanceof LivingEntity livingSource && livingSource != target && percent > 0 && damage > 0) {
+            CombatService.beginReflect();
+            try {
+                combat.dealDamage(
+                        livingSource,
+                        (LivingEntity) target,
+                        dev.raskol.classes.combat.DamageProfile.trueDmg(damage * percent / 100.0),
+                        true,
+                        true);
+            } finally {
+                CombatService.endReflect();
+            }
         }
     }
 
@@ -333,12 +379,14 @@ public final class VanillaDamageListener implements Listener {
         }
         Player attacker = resolveAttacker(by);
         if (attacker == null) {
-            CombatProfile profile=profileOfSource(by);
-            if(profile!=null){
-                double base=profile.attackDamage()*caps.scaleOf(by.getEntity());
-                double total=base;
-                if(profile.critChance()>0&&java.util.concurrent.ThreadLocalRandom.current().nextDouble()*100<profile.critChance())total*=profile.critMult();
-                if(Double.isFinite(total)&&total>=0)event.setDamage(total);
+            CombatProfile profile = profileOfSource(by);
+            if (profile != null) {
+                double base = profile.attackDamage() * caps.scaleOf(by.getEntity());
+                double total = base;
+                if (profile.critChance() > 0
+                        && java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100 < profile.critChance())
+                    total *= profile.critMult();
+                if (Double.isFinite(total) && total >= 0) event.setDamage(total);
             }
             return;
         }
@@ -353,28 +401,28 @@ public final class VanillaDamageListener implements Listener {
             add += powers.weaponPower(uuid) * cfgD("attributes.offense.basic-coeff", 0.35);
             if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", false)) {
                 add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.STR)
-                        + plugin.getAttributes().levelOf(uuid,
-                        plugin.getClassProvider().getClassOf(attacker));
+                        + plugin.getAttributes()
+                                .levelOf(uuid, plugin.getClassProvider().getClassOf(attacker));
             }
             crit = rollMeleeCrit(attacker);
         } else {
             add += powers.spellPower(uuid) * cfgD("attributes.offense.basic-coeff-magic", 0.35);
             if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", false)) {
                 add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.INT)
-                        + plugin.getAttributes().levelOf(uuid,
-                        plugin.getClassProvider().getClassOf(attacker));
+                        + plugin.getAttributes()
+                                .levelOf(uuid, plugin.getClassProvider().getClassOf(attacker));
             }
             crit = rollSpellCrit(attacker);
         }
         add *= caps.scaleOf(by.getEntity());
         double base = event.getDamage();
-        double itemDamage=plugin.getItems().value(uuid,dev.raskol.classes.item.model.ItemStat.ATTACK_DAMAGE);
-        if(by.getDamager() instanceof Projectile projectile) {
-            Double shot=plugin.getItems().pdc().shotDamage(projectile);
-            if(shot!=null&&Double.isFinite(shot)&&shot>=0)itemDamage=shot;
+        double itemDamage = plugin.getItems().value(uuid, dev.raskol.classes.item.model.ItemStat.ATTACK_DAMAGE);
+        if (by.getDamager() instanceof Projectile projectile) {
+            Double shot = plugin.getItems().pdc().shotDamage(projectile);
+            if (shot != null && Double.isFinite(shot) && shot >= 0) itemDamage = shot;
         }
-        if(itemDamage>0.0)itemDamage*=caps.scaleOf(by.getEntity());
-        if(itemDamage>0.0)base=itemDamage;
+        if (itemDamage > 0.0) itemDamage *= caps.scaleOf(by.getEntity());
+        if (itemDamage > 0.0) base = itemDamage;
         double total = base + add;
 
         if (type == DamageType.PHYSICAL) {
@@ -401,8 +449,7 @@ public final class VanillaDamageListener implements Listener {
             double baseMult = type == DamageType.PHYSICAL ? meleeMult(attacker) : spellMult(attacker);
             total *= baseMult;
             combat.critFeedback(attacker, type == DamageType.PHYSICAL);
-            combat.procs().rollCritProcs(attacker, (LivingEntity) by.getEntity(), true,
-                    type == DamageType.PHYSICAL);
+            combat.procs().rollCritProcs(attacker, (LivingEntity) by.getEntity(), true, type == DamageType.PHYSICAL);
             if (type == DamageType.PHYSICAL) {
                 combat.procs().setUndodgeable(attacker);
             }
@@ -424,24 +471,33 @@ public final class VanillaDamageListener implements Listener {
         return null;
     }
 
-    private Entity sourceEntity(EntityDamageByEntityEvent by){
-        Entity damager=by.getDamager();
-        return damager instanceof Projectile projectile&&projectile.getShooter() instanceof Entity shooter?shooter:damager;
+    private Entity sourceEntity(EntityDamageByEntityEvent by) {
+        Entity damager = by.getDamager();
+        return damager instanceof Projectile projectile && projectile.getShooter() instanceof Entity shooter
+                ? shooter
+                : damager;
     }
-    private CombatProfile profileOfSource(EntityDamageByEntityEvent by){
-        Entity source=sourceEntity(by);return source instanceof LivingEntity living
-                ?plugin.getCombatProfiles().profileOf(living.getUniqueId()):null;
+
+    private CombatProfile profileOfSource(EntityDamageByEntityEvent by) {
+        Entity source = sourceEntity(by);
+        return source instanceof LivingEntity living
+                ? plugin.getCombatProfiles().profileOf(living.getUniqueId())
+                : null;
     }
 
     private DamageType effectiveType(EntityDamageEvent event) {
         if (!(event instanceof EntityDamageByEntityEvent by)) return typeOf(event.getCause());
-        CombatProfile profile=profileOfSource(by);
-        if(profile!=null){double phys=profile.damageWeights().physical(),magic=profile.damageWeights().magic(),truth=profile.damageWeights().trueDamage();
-            if(truth>=phys&&truth>=magic&&truth>0)return DamageType.TRUE;
-            return magic>phys?DamageType.MAGIC:DamageType.PHYSICAL;}
+        CombatProfile profile = profileOfSource(by);
+        if (profile != null) {
+            double phys = profile.damageWeights().physical(),
+                    magic = profile.damageWeights().magic(),
+                    truth = profile.damageWeights().trueDamage();
+            if (truth >= phys && truth >= magic && truth > 0) return DamageType.TRUE;
+            return magic > phys ? DamageType.MAGIC : DamageType.PHYSICAL;
+        }
         if (by.getDamager() instanceof Projectile projectile) {
-            String shotType=plugin.getItems().pdc().shotType(projectile);
-            if (shotType != null) return "MAGIC".equals(shotType)?DamageType.MAGIC:DamageType.PHYSICAL;
+            String shotType = plugin.getItems().pdc().shotType(projectile);
+            if (shotType != null) return "MAGIC".equals(shotType) ? DamageType.MAGIC : DamageType.PHYSICAL;
             if (projectile.getShooter() instanceof Player shooter
                     && "MAGIC".equals(plugin.getItems().autoAttackType(shooter.getUniqueId()))) return DamageType.MAGIC;
         } else if (by.getDamager() instanceof Player player
@@ -460,13 +516,25 @@ public final class VanillaDamageListener implements Listener {
     }
 
     private double meleeMult(Player attacker) {
-        return cfgD("attributes.crit.melee-mult", 1.5) * combat.procs().critMultBonus(attacker)
-                * (1.0 + plugin.getItems().value(attacker.getUniqueId(),dev.raskol.classes.item.model.ItemStat.CRIT_DAMAGE)/100.0);
+        return cfgD("attributes.crit.melee-mult", 1.5)
+                * combat.procs().critMultBonus(attacker)
+                * (1.0
+                        + plugin.getItems()
+                                        .value(
+                                                attacker.getUniqueId(),
+                                                dev.raskol.classes.item.model.ItemStat.CRIT_DAMAGE)
+                                / 100.0);
     }
 
     private double spellMult(Player attacker) {
-        return cfgD("attributes.crit.spell-mult", 1.5) * combat.procs().critMultBonus(attacker)
-                * (1.0 + plugin.getItems().value(attacker.getUniqueId(),dev.raskol.classes.item.model.ItemStat.CRIT_DAMAGE)/100.0);
+        return cfgD("attributes.crit.spell-mult", 1.5)
+                * combat.procs().critMultBonus(attacker)
+                * (1.0
+                        + plugin.getItems()
+                                        .value(
+                                                attacker.getUniqueId(),
+                                                dev.raskol.classes.item.model.ItemStat.CRIT_DAMAGE)
+                                / 100.0);
     }
 
     private static boolean isPvp(EntityDamageEvent event) {
@@ -481,8 +549,7 @@ public final class VanillaDamageListener implements Listener {
     }
 
     private DamageType typeOf(EntityDamageEvent.DamageCause cause) {
-        String override = plugin.getConfig()
-                .getString("damage-types.vanilla-map." + cause.name());
+        String override = plugin.getConfig().getString("damage-types.vanilla-map." + cause.name());
         if (override != null && !override.isEmpty()) {
             try {
                 return DamageType.valueOf(override.toUpperCase(Locale.ROOT));

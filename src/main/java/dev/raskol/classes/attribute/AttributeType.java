@@ -9,7 +9,6 @@ package dev.raskol.classes.attribute;
  * INT — ИНТЕЛЛЕКТ (основной: Маг, Жрец): магический урон и крит магии.
  */
 public enum AttributeType {
-
     STR("СИЛА"),
     AGI("ЛОВКОСТЬ"),
     INT("ИНТЕЛЛЕКТ");

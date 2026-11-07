@@ -2,14 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.listener;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.item.model.ItemDefinition;
-import dev.raskol.classes.item.service.ItemStatAggregator;
-import dev.raskol.classes.item.service.ItemSystem;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.Map;
+
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -21,7 +15,15 @@ import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
-import java.util.Map;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.service.ItemStatAggregator;
+import dev.raskol.classes.item.service.ItemSystem;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.15.1-D: запреты экипировки по классу/спеке/уровню (пункт 5 дорожной карты).
@@ -53,13 +55,13 @@ public final class EquipGuard implements Listener {
             return;
         }
         // прямой клик курсором в экипировочный слот
-        if (isEquipSlot(event.getView().getTopInventory(), event.getRawSlot())
-                && blocked(player, event.getCursor())) {
+        if (isEquipSlot(event.getView().getTopInventory(), event.getRawSlot()) && blocked(player, event.getCursor())) {
             event.setCancelled(true);
             return;
         }
         // shift-клик: автоэкипировка брони из инвентаря
-        if (event.isShiftClick() && event.getClickedInventory() instanceof PlayerInventory
+        if (event.isShiftClick()
+                && event.getClickedInventory() instanceof PlayerInventory
                 && blocked(player, event.getCurrentItem())) {
             event.setCancelled(true);
         }
@@ -71,8 +73,7 @@ public final class EquipGuard implements Listener {
             return;
         }
         for (Map.Entry<Integer, ItemStack> entry : event.getNewItems().entrySet()) {
-            if (isEquipSlot(event.getView().getTopInventory(), entry.getKey())
-                    && blocked(player, entry.getValue())) {
+            if (isEquipSlot(event.getView().getTopInventory(), entry.getKey()) && blocked(player, entry.getValue())) {
                 event.setCancelled(true);
                 return;
             }

@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.build;
 
-import dev.raskol.classes.storage.SafeStorage;
-import org.bukkit.configuration.file.YamlConfiguration;
-
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
+
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import dev.raskol.classes.storage.SafeStorage;
 
 /** Durable storage for raskolspec+ expirations and pending gift notifications. */
 public final class PlusStorage {
@@ -43,7 +44,9 @@ public final class PlusStorage {
         }
     }
 
-    public synchronized long expiresAt(UUID uuid) { return uuid == null ? 0L : expires.getOrDefault(uuid, 0L); }
+    public synchronized long expiresAt(UUID uuid) {
+        return uuid == null ? 0L : expires.getOrDefault(uuid, 0L);
+    }
 
     /** Writes first, then updates memory; a failed disk write never grants access. */
     public synchronized boolean setExpires(UUID uuid, long epochMillis) {
@@ -53,7 +56,8 @@ public final class PlusStorage {
             store.set("players." + uuid + ".expires", expiresAt(uuid) == 0L ? null : expiresAt(uuid));
             return false;
         }
-        if (epochMillis == 0L) expires.remove(uuid); else expires.put(uuid, epochMillis);
+        if (epochMillis == 0L) expires.remove(uuid);
+        else expires.put(uuid, epochMillis);
         return true;
     }
 
@@ -63,8 +67,11 @@ public final class PlusStorage {
         long now = System.currentTimeMillis();
         long base = Math.max(now, expiresAt(uuid));
         final long next;
-        try { next = Math.addExact(base, durationMillis); }
-        catch (ArithmeticException overflow) { return false; }
+        try {
+            next = Math.addExact(base, durationMillis);
+        } catch (ArithmeticException overflow) {
+            return false;
+        }
 
         String path = "players." + uuid;
         store.set(path + ".expires", next);
@@ -101,11 +108,14 @@ public final class PlusStorage {
             store.set("players." + uuid + ".gift-note", old);
             return false;
         }
-        if (note == null || note.isBlank()) pendingGiftNotes.remove(uuid); else pendingGiftNotes.put(uuid, note);
+        if (note == null || note.isBlank()) pendingGiftNotes.remove(uuid);
+        else pendingGiftNotes.put(uuid, note);
         return true;
     }
 
-    private boolean flush() { return SafeStorage.saveAtomic(store, file, LOG); }
+    private boolean flush() {
+        return SafeStorage.saveAtomic(store, file, LOG);
+    }
 
     /** For selftest: number of active subscriptions in memory. */
     public int activeCount(long now) {

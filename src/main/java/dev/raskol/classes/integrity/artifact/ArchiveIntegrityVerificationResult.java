@@ -34,12 +34,7 @@ public class ArchiveIntegrityVerificationResult {
     private final String message;
 
     public ArchiveIntegrityVerificationResult(
-            boolean isVerified,
-            Status status,
-            List<String> checkedFiles,
-            List<String> failedFiles,
-            String message
-    ) {
+            boolean isVerified, Status status, List<String> checkedFiles, List<String> failedFiles, String message) {
         this.isVerified = isVerified;
         this.status = status != null ? status : Status.UNKNOWN;
         this.checkedFiles = checkedFiles == null ? List.of() : List.copyOf(checkedFiles);

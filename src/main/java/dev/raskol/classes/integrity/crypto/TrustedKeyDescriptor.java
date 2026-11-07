@@ -14,22 +14,16 @@ import java.util.regex.Pattern;
  * @param fingerprint lowercase hexadecimal SHA-256 fingerprint
  * @param status lifecycle status
  */
-public record TrustedKeyDescriptor(
-        String fingerprint,
-        TrustedKeyStatus status
-) {
+public record TrustedKeyDescriptor(String fingerprint, TrustedKeyStatus status) {
 
-    private static final Pattern FINGERPRINT_PATTERN =
-            Pattern.compile("[0-9a-f]{64}");
+    private static final Pattern FINGERPRINT_PATTERN = Pattern.compile("[0-9a-f]{64}");
 
     public TrustedKeyDescriptor {
         Objects.requireNonNull(fingerprint, "fingerprint");
         Objects.requireNonNull(status, "status");
 
         if (!FINGERPRINT_PATTERN.matcher(fingerprint).matches()) {
-            throw new IllegalArgumentException(
-                    "Fingerprint must be 64 lowercase hexadecimal characters"
-            );
+            throw new IllegalArgumentException("Fingerprint must be 64 lowercase hexadecimal characters");
         }
     }
 
@@ -39,8 +33,7 @@ public record TrustedKeyDescriptor(
      * @return true for ACTIVE and VERIFY_ONLY
      */
     public boolean canVerify() {
-        return status == TrustedKeyStatus.ACTIVE
-                || status == TrustedKeyStatus.VERIFY_ONLY;
+        return status == TrustedKeyStatus.ACTIVE || status == TrustedKeyStatus.VERIFY_ONLY;
     }
 
     /**
@@ -73,25 +66,18 @@ public record TrustedKeyDescriptor(
      * @throws NullPointerException if newStatus is null
      * @throws IllegalStateException if the transition is not allowed
      */
-    public TrustedKeyDescriptor transitionTo(
-            TrustedKeyStatus newStatus
-    ) {
+    public TrustedKeyDescriptor transitionTo(TrustedKeyStatus newStatus) {
         Objects.requireNonNull(newStatus, "newStatus");
 
-        boolean allowed = switch (status) {
-            case ACTIVE ->
-                    newStatus == TrustedKeyStatus.VERIFY_ONLY
-                    || newStatus == TrustedKeyStatus.REVOKED;
-            case VERIFY_ONLY ->
-                    newStatus == TrustedKeyStatus.REVOKED;
-            case REVOKED -> false;
-        };
+        boolean allowed =
+                switch (status) {
+                    case ACTIVE -> newStatus == TrustedKeyStatus.VERIFY_ONLY || newStatus == TrustedKeyStatus.REVOKED;
+                    case VERIFY_ONLY -> newStatus == TrustedKeyStatus.REVOKED;
+                    case REVOKED -> false;
+                };
 
         if (!allowed) {
-            throw new IllegalStateException(
-                    "Invalid trusted key lifecycle transition: "
-                            + status + " -> " + newStatus
-            );
+            throw new IllegalStateException("Invalid trusted key lifecycle transition: " + status + " -> " + newStatus);
         }
 
         return new TrustedKeyDescriptor(fingerprint, newStatus);

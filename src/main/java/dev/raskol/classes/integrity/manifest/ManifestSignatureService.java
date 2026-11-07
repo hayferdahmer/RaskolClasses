@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.manifest;
 
-import dev.raskol.classes.integrity.crypto.Ed25519SignatureService;
-
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Base64;
 import java.util.Objects;
+
+import dev.raskol.classes.integrity.crypto.Ed25519SignatureService;
 
 /**
  * Signs and verifies canonical RaskolClasses integrity manifests.
@@ -33,19 +33,14 @@ public final class ManifestSignatureService {
      * @return immutable signed manifest
      * @throws GeneralSecurityException if signing fails
      */
-    public static SignedManifest sign(
-            IntegrityManifest manifest,
-            PrivateKey privateKey
-    ) throws GeneralSecurityException {
+    public static SignedManifest sign(IntegrityManifest manifest, PrivateKey privateKey)
+            throws GeneralSecurityException {
         Objects.requireNonNull(manifest, "manifest cannot be null");
         Objects.requireNonNull(privateKey, "privateKey cannot be null");
 
         byte[] canonicalBytes = manifest.toCanonicalBytes();
 
-        byte[] signature = Ed25519SignatureService.sign(
-                canonicalBytes,
-                privateKey
-        );
+        byte[] signature = Ed25519SignatureService.sign(canonicalBytes, privateKey);
 
         return new SignedManifest(canonicalBytes, signature);
     }
@@ -58,24 +53,11 @@ public final class ManifestSignatureService {
      * @return true if the signature is valid
      * @throws GeneralSecurityException if verification cannot be performed
      */
-    public static boolean verify(
-            SignedManifest signedManifest,
-            PublicKey publicKey
-    ) throws GeneralSecurityException {
-        Objects.requireNonNull(
-                signedManifest,
-                "signedManifest cannot be null"
-        );
-        Objects.requireNonNull(
-                publicKey,
-                "publicKey cannot be null"
-        );
+    public static boolean verify(SignedManifest signedManifest, PublicKey publicKey) throws GeneralSecurityException {
+        Objects.requireNonNull(signedManifest, "signedManifest cannot be null");
+        Objects.requireNonNull(publicKey, "publicKey cannot be null");
 
-        return Ed25519SignatureService.verify(
-                signedManifest.manifestBytes(),
-                signedManifest.signature(),
-                publicKey
-        );
+        return Ed25519SignatureService.verify(signedManifest.manifestBytes(), signedManifest.signature(), publicKey);
     }
 
     /**
@@ -90,23 +72,13 @@ public final class ManifestSignatureService {
      * @return true if the signature is valid
      * @throws GeneralSecurityException if verification cannot be performed
      */
-    public static boolean verify(
-            byte[] manifestBytes,
-            byte[] signature,
-            PublicKey publicKey
-    ) throws GeneralSecurityException {
-        Objects.requireNonNull(
-                manifestBytes,
-                "manifestBytes cannot be null"
-        );
+    public static boolean verify(byte[] manifestBytes, byte[] signature, PublicKey publicKey)
+            throws GeneralSecurityException {
+        Objects.requireNonNull(manifestBytes, "manifestBytes cannot be null");
         Objects.requireNonNull(signature, "signature cannot be null");
         Objects.requireNonNull(publicKey, "publicKey cannot be null");
 
-        return Ed25519SignatureService.verify(
-                manifestBytes,
-                signature,
-                publicKey
-        );
+        return Ed25519SignatureService.verify(manifestBytes, signature, publicKey);
     }
 
     /**
@@ -128,28 +100,18 @@ public final class ManifestSignatureService {
      * @return decoded 64-byte signature
      */
     public static byte[] decodeSignature(String encodedSignature) {
-        Objects.requireNonNull(
-                encodedSignature,
-                "encodedSignature cannot be null"
-        );
+        Objects.requireNonNull(encodedSignature, "encodedSignature cannot be null");
 
         if (encodedSignature.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Encoded signature cannot be blank"
-            );
+            throw new IllegalArgumentException("Encoded signature cannot be blank");
         }
 
         final byte[] decoded;
 
         try {
-            decoded = Base64.getDecoder().decode(
-                    encodedSignature.getBytes(StandardCharsets.US_ASCII)
-            );
+            decoded = Base64.getDecoder().decode(encodedSignature.getBytes(StandardCharsets.US_ASCII));
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(
-                    "Invalid Base64 signature",
-                    exception
-            );
+            throw new IllegalArgumentException("Invalid Base64 signature", exception);
         }
 
         validateSignature(decoded);
@@ -157,15 +119,10 @@ public final class ManifestSignatureService {
     }
 
     private static void validateSignature(byte[] signature) {
-        Objects.requireNonNull(
-                signature,
-                "signature cannot be null"
-        );
+        Objects.requireNonNull(signature, "signature cannot be null");
 
         if (signature.length != SIGNATURE_LENGTH) {
-            throw new IllegalArgumentException(
-                    "Ed25519 signature must contain exactly 64 bytes"
-            );
+            throw new IllegalArgumentException("Ed25519 signature must contain exactly 64 bytes");
         }
     }
 }

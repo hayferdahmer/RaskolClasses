@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.config;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.TransferableAbilities;
-import dev.raskol.classes.classsystem.PlayerClass;
-import org.bukkit.configuration.ConfigurationSection;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
+import org.bukkit.configuration.ConfigurationSection;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.TransferableAbilities;
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.11.4 (чек 44–45): headless-валидация китов и пассив-мультипликаторов.
@@ -40,14 +41,13 @@ import java.util.Set;
  */
 public final class KitSanity {
 
-    private KitSanity() {
-    }
+    private KitSanity() {}
 
     private static final Set<String> VALID_POWERS = Set.of("wp", "sp", "hpow");
 
     /** 1.14.0-fix (чек 44): способности без урона — base не обязателен. */
-    private static final Set<String> SELF_BUFF = Set.of(
-            "berserkergang", "swallow", "hermes_step", "shadow_cloak", "ruin_seal");
+    private static final Set<String> SELF_BUFF =
+            Set.of("berserkergang", "swallow", "hermes_step", "shadow_cloak", "ruin_seal");
 
     /* ------------------------------ ЧЕК 44: sanity китов ------------------------------ */
 
@@ -75,8 +75,8 @@ public final class KitSanity {
             for (TransferableAbilities.Entry e : TransferableAbilities.forClass(pc)) {
                 String p = treePath + "." + e.id();
                 if (!plugin.getConfig().isConfigurationSection(p)) {
-                    problems.add(p + ": секция отсутствует (переносимая slot "
-                            + e.legacySlot() + " должна быть в treeAbilities)");
+                    problems.add(p + ": секция отсутствует (переносимая slot " + e.legacySlot()
+                            + " должна быть в treeAbilities)");
                     continue;
                 }
                 validateOne(problems, plugin, e.id(), p);
@@ -86,8 +86,7 @@ public final class KitSanity {
         return problems;
     }
 
-    private static void validateOne(List<String> problems, RaskolClasses plugin,
-                                    String id, String p) {
+    private static void validateOne(List<String> problems, RaskolClasses plugin, String id, String p) {
         boolean selfBuff = SELF_BUFF.contains(id);
 
         // 1.14.0-fix (чек 44): base обязателен только для damage-способностей
@@ -104,8 +103,7 @@ public final class KitSanity {
         if (plugin.getConfig().contains(p + ".power")) {
             String pw = plugin.getConfig().getString(p + ".power", "");
             if (!VALID_POWERS.contains(pw)) {
-                problems.add(p + ": power=\"" + pw
-                        + "\" вне {" + String.join(",", VALID_POWERS) + "}");
+                problems.add(p + ": power=\"" + pw + "\" вне {" + String.join(",", VALID_POWERS) + "}");
             }
         }
 
@@ -140,34 +138,24 @@ public final class KitSanity {
     /** Возвращает список проблем; пустой = OK. */
     public static List<String> validatePassiveMults(RaskolClasses plugin) {
         List<String> problems = new ArrayList<>();
-        expectDoubleEq(problems, plugin,
-                "classes.WARRIOR.passives.execute_passive.multiplier", 3.0);
-        expectDoubleEq(problems, plugin,
-                "classes.WARRIOR.passives.execute_passive.threshold", 0.20);
-        expectDoubleEq(problems, plugin,
-                "classes.HUNTER.passives.predator.multiplier", 1.20);
-        expectDoubleEq(problems, plugin,
-                "classes.HUNTER.passives.predator.threshold", 0.80);
-        expectDoubleEq(problems, plugin,
-                "classes.PRIEST.passives.grace.multiplier", 1.15);
-        expectDoubleEq(problems, plugin,
-                "classes.ROGUE.passives.poisoned_blades.chance", 0.30);
+        expectDoubleEq(problems, plugin, "classes.WARRIOR.passives.execute_passive.multiplier", 3.0);
+        expectDoubleEq(problems, plugin, "classes.WARRIOR.passives.execute_passive.threshold", 0.20);
+        expectDoubleEq(problems, plugin, "classes.HUNTER.passives.predator.multiplier", 1.20);
+        expectDoubleEq(problems, plugin, "classes.HUNTER.passives.predator.threshold", 0.80);
+        expectDoubleEq(problems, plugin, "classes.PRIEST.passives.grace.multiplier", 1.15);
+        expectDoubleEq(problems, plugin, "classes.ROGUE.passives.poisoned_blades.chance", 0.30);
         // 1.14.0-fix (чек 45): длительность яда = единственный источник истины в dots.*
         expectIntEq(problems, plugin, "dots.poison_passive.duration", 2);
-        expectDoubleEq(problems, plugin,
-                "classes.ROGUE.passives.sadism.bonus", 3.0);
-        expectDoubleEq(problems, plugin,
-                "classes.WARLOCK.passives.black_mass.lifesteal", 0.0666);
-        expectDoubleEq(problems, plugin,
-                "classes.WARLOCK.passives.black_mass.reflect", 0.0666);
+        expectDoubleEq(problems, plugin, "classes.ROGUE.passives.sadism.bonus", 3.0);
+        expectDoubleEq(problems, plugin, "classes.WARLOCK.passives.black_mass.lifesteal", 0.0666);
+        expectDoubleEq(problems, plugin, "classes.WARLOCK.passives.black_mass.reflect", 0.0666);
         return problems;
     }
 
     /* ------------------------------ хелперы ------------------------------ */
 
-    private static void checkDoubleRange(List<String> problems, RaskolClasses plugin,
-                                         String path, double min, double max,
-                                         boolean optional) {
+    private static void checkDoubleRange(
+            List<String> problems, RaskolClasses plugin, String path, double min, double max, boolean optional) {
         if (!plugin.getConfig().contains(path)) {
             if (!optional) {
                 problems.add(path + ": ключ отсутствует");
@@ -178,39 +166,33 @@ public final class KitSanity {
         if (!Double.isFinite(v)) {
             problems.add(path + ": некорректное число");
         } else if (v < min || v > max) {
-            problems.add(String.format(Locale.ROOT,
-                    "%s: %.3f вне диапазона [%.2f, %.2f]", path, v, min, max));
+            problems.add(String.format(Locale.ROOT, "%s: %.3f вне диапазона [%.2f, %.2f]", path, v, min, max));
         }
     }
 
-    private static void checkIntRange(List<String> problems, RaskolClasses plugin,
-                                      String path, int min, int max) {
+    private static void checkIntRange(List<String> problems, RaskolClasses plugin, String path, int min, int max) {
         if (!plugin.getConfig().contains(path)) {
             problems.add(path + ": ключ отсутствует");
             return;
         }
         int v = plugin.getConfig().getInt(path, -1);
         if (v < min || v > max) {
-            problems.add(String.format(Locale.ROOT,
-                    "%s: %d вне [%d, %d]", path, v, min, max));
+            problems.add(String.format(Locale.ROOT, "%s: %d вне [%d, %d]", path, v, min, max));
         }
     }
 
-    private static void expectDoubleEq(List<String> problems, RaskolClasses plugin,
-                                       String path, double expected) {
+    private static void expectDoubleEq(List<String> problems, RaskolClasses plugin, String path, double expected) {
         if (!plugin.getConfig().contains(path)) {
             problems.add(path + ": ключ отсутствует (ожидалось " + expected + ")");
             return;
         }
         double v = plugin.getConfig().getDouble(path, Double.NaN);
         if (!Double.isFinite(v) || Math.abs(v - expected) > 1e-4) {
-            problems.add(String.format(Locale.ROOT,
-                    "%s: %.4f ≠ ожидание %.4f", path, v, expected));
+            problems.add(String.format(Locale.ROOT, "%s: %.4f ≠ ожидание %.4f", path, v, expected));
         }
     }
 
-    private static void expectIntEq(List<String> problems, RaskolClasses plugin,
-                                    String path, int expected) {
+    private static void expectIntEq(List<String> problems, RaskolClasses plugin, String path, int expected) {
         if (!plugin.getConfig().contains(path)) {
             problems.add(path + ": ключ отсутствует (ожидалось " + expected + ")");
             return;

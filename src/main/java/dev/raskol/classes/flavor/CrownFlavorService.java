@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.flavor;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.hook.FactionHook;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.Locale;
+import java.util.UUID;
+
 import org.bukkit.Particle;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -14,8 +12,12 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.Locale;
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.hook.FactionHook;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Королевские вкусы (1.4.0, Пакет 4): титул + партикл-аура по фракции.
@@ -59,23 +61,28 @@ public final class CrownFlavorService implements Listener {
 
     /** Аура: раз в 40 тиков партикл короны вокруг игрока. */
     public BukkitTask startAuraTask() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            for (Player online : plugin.getServer().getOnlinePlayers()) {
-                String faction = factionHook.factionOf(online.getUniqueId());
-                if (faction.isEmpty()) {
-                    continue;
-                }
-                String fallback = "rassvet".equals(faction) ? "END_ROD" : "SOUL_FIRE_FLAME";
-                Particle particle = parseParticle(
-                        plugin.getConfig().getString("flavors." + faction + ".particle", fallback));
-                if (particle == null) {
-                    continue;
-                }
-                online.spawnParticle(particle,
-                        online.getLocation().add(0.0, 0.3, 0.0),
-                        2, 0.25, 0.2, 0.25, 0.0);
-            }
-        }, 40L, 40L);
+        return plugin.getServer()
+                .getScheduler()
+                .runTaskTimer(
+                        plugin,
+                        () -> {
+                            for (Player online : plugin.getServer().getOnlinePlayers()) {
+                                String faction = factionHook.factionOf(online.getUniqueId());
+                                if (faction.isEmpty()) {
+                                    continue;
+                                }
+                                String fallback = "rassvet".equals(faction) ? "END_ROD" : "SOUL_FIRE_FLAME";
+                                Particle particle = parseParticle(
+                                        plugin.getConfig().getString("flavors." + faction + ".particle", fallback));
+                                if (particle == null) {
+                                    continue;
+                                }
+                                online.spawnParticle(
+                                        particle, online.getLocation().add(0.0, 0.3, 0.0), 2, 0.25, 0.2, 0.25, 0.0);
+                            }
+                        },
+                        40L,
+                        40L);
     }
 
     /** При входе — напомнить титул (если есть). */
@@ -86,8 +93,7 @@ public final class CrownFlavorService implements Listener {
         String title = titleOf(player.getUniqueId(), pc);
         if (!title.isEmpty()) {
             player.sendMessage(Component.text("Твой титул: ", NamedTextColor.GRAY)
-                    .append(Component.text(title,
-                            pc != null ? pc.getColor() : NamedTextColor.GOLD)));
+                    .append(Component.text(title, pc != null ? pc.getColor() : NamedTextColor.GOLD)));
         }
     }
 

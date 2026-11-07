@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.effect;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.combat.DamageProfile;
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.AbstractArrow;
@@ -20,10 +23,8 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.DamageProfile;
 
 /**
  * Флаги активных способностей и слушатели, которые их потребляют.
@@ -55,8 +56,7 @@ public final class ActiveEffectManager implements Listener {
     private final Map<UUID, Map<EffectType, Long>> expiresAt = new ConcurrentHashMap<>();
 
     /** 1.15.6 (2.6-4): рекурсион-гард взаимного BLOOD_FURY двух носителей. */
-    private static final ThreadLocal<Boolean> BLOOD_FURY_ACTIVE =
-            ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private static final ThreadLocal<Boolean> BLOOD_FURY_ACTIVE = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
     private final RaskolClasses plugin;
 
@@ -149,15 +149,13 @@ public final class ActiveEffectManager implements Listener {
         }
         UUID id = player.getUniqueId();
 
-        if (event.getCause() == EntityDamageEvent.DamageCause.FALL
-                && has(id, EffectType.NO_FALL_DAMAGE)) {
+        if (event.getCause() == EntityDamageEvent.DamageCause.FALL && has(id, EffectType.NO_FALL_DAMAGE)) {
             event.setCancelled(true);
             return;
         }
 
         // Урон пустотой не отменяем — не ломаем ванильную механику
-        if (has(id, EffectType.EVASION)
-                && event.getCause() != EntityDamageEvent.DamageCause.VOID) {
+        if (has(id, EffectType.EVASION) && event.getCause() != EntityDamageEvent.DamageCause.VOID) {
             event.setCancelled(true);
             return;
         }
@@ -235,8 +233,8 @@ public final class ActiveEffectManager implements Listener {
                 && !BLOOD_FURY_ACTIVE.get()) {
             BLOOD_FURY_ACTIVE.set(Boolean.TRUE);
             try {
-                plugin.getCombat().dealDamage(aggressor, victim,
-                        DamageProfile.physical(event.getDamage() * 0.2), false, true);
+                plugin.getCombat()
+                        .dealDamage(aggressor, victim, DamageProfile.physical(event.getDamage() * 0.2), false, true);
             } finally {
                 BLOOD_FURY_ACTIVE.set(Boolean.FALSE);
             }
@@ -254,8 +252,7 @@ public final class ActiveEffectManager implements Listener {
         if (damager instanceof Player player) {
             return player;
         }
-        if (damager instanceof Projectile projectile
-                && projectile.getShooter() instanceof Player shooter) {
+        if (damager instanceof Projectile projectile && projectile.getShooter() instanceof Player shooter) {
             return shooter;
         }
         return null;

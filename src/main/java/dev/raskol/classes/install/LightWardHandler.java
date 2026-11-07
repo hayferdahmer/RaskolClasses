@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.install;
 
-import dev.raskol.classes.RaskolClasses;
+import java.util.UUID;
+
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
 
 /** 1.11.4 (P2): Световой вард — лечение союзников в r4. */
 public final class LightWardHandler extends BaseInstallationHandler {
@@ -31,8 +32,7 @@ public final class LightWardHandler extends BaseInstallationHandler {
     @Override
     public boolean place(Player p, Location loc, UUID instId) {
         plugin.getFx().impactBurst(loc, Particle.CLOUD, 10, Sound.BLOCK_BEACON_ACTIVATE, 0.4f, 1.1f);
-        notifyOwner(p.getUniqueId(), type().displayName() + " установлена на "
-                + durationSeconds() + " с");
+        notifyOwner(p.getUniqueId(), type().displayName() + " установлена на " + durationSeconds() + " с");
         return true;
     }
 

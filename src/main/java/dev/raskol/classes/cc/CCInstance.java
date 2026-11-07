@@ -17,8 +17,7 @@ public final class CCInstance {
     private final int appliedTicks;
     private final double drMultiplier;
 
-    public CCInstance(CCType type, UUID sourceUuid, long startedAt,
-                      int appliedTicks, double drMultiplier) {
+    public CCInstance(CCType type, UUID sourceUuid, long startedAt, int appliedTicks, double drMultiplier) {
         this.type = type;
         this.sourceUuid = sourceUuid;
         this.startedAt = startedAt;
@@ -27,12 +26,29 @@ public final class CCInstance {
         this.expiresAt = startedAt + appliedTicks * 50L;
     }
 
-    public CCType type() { return type; }
-    public UUID sourceUuid() { return sourceUuid; }
-    public long startedAt() { return startedAt; }
-    public long expiresAt() { return expiresAt; }
-    public int appliedTicks() { return appliedTicks; }
-    public double drMultiplier() { return drMultiplier; }
+    public CCType type() {
+        return type;
+    }
+
+    public UUID sourceUuid() {
+        return sourceUuid;
+    }
+
+    public long startedAt() {
+        return startedAt;
+    }
+
+    public long expiresAt() {
+        return expiresAt;
+    }
+
+    public int appliedTicks() {
+        return appliedTicks;
+    }
+
+    public double drMultiplier() {
+        return drMultiplier;
+    }
 
     public boolean expired(long nowMillis) {
         return nowMillis >= expiresAt;

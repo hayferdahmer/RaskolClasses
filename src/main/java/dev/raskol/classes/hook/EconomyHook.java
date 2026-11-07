@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
-import dev.raskol.classes.RaskolClasses;
-
 import java.util.UUID;
+
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * Мост в economy-контракт RaskolCore (1.4.0, Пакет 3 → 1.9.2 обновление).
@@ -60,12 +60,11 @@ public final class EconomyHook {
                     Object provider = reg.getClass().getMethod("get").invoke(reg);
                     if (provider != null) {
                         providerName = "RaskolCore:" + provider.getClass().getSimpleName();
-                        plugin.getLogger().info("Economy: контракт RaskolCore подключён ("
-                                + providerName + ")");
+                        plugin.getLogger().info("Economy: контракт RaskolCore подключён (" + providerName + ")");
                     } else {
                         providerName = "RaskolCore:no-provider";
-                        plugin.getLogger().info("Economy: контракт RaskolCore доступен, "
-                                + "но провайдер не зарегистрирован");
+                        plugin.getLogger()
+                                .info("Economy: контракт RaskolCore доступен, " + "но провайдер не зарегистрирован");
                     }
                 } catch (Throwable t) {
                     providerName = "RaskolCore:unknown";
@@ -75,8 +74,7 @@ public final class EconomyHook {
             return reg;
         } catch (Throwable t) {
             providerName = "none";
-            plugin.getLogger().warning("Economy: контракт RaskolCore недоступен — "
-                    + "платный респец отключён");
+            plugin.getLogger().warning("Economy: контракт RaskolCore недоступен — " + "платный респец отключён");
             return null;
         }
     }
@@ -99,8 +97,7 @@ public final class EconomyHook {
             return 0.0;
         }
         try {
-            return ((Number) p.getClass().getMethod("balance", UUID.class)
-                    .invoke(p, uuid)).doubleValue();
+            return ((Number) p.getClass().getMethod("balance", UUID.class).invoke(p, uuid)).doubleValue();
         } catch (Throwable t) {
             return 0.0;
         }
@@ -112,9 +109,8 @@ public final class EconomyHook {
             return false;
         }
         try {
-            return Boolean.TRUE.equals(p.getClass()
-                    .getMethod("withdraw", UUID.class, double.class)
-                    .invoke(p, uuid, amount));
+            return Boolean.TRUE.equals(
+                    p.getClass().getMethod("withdraw", UUID.class, double.class).invoke(p, uuid, amount));
         } catch (Throwable t) {
             return false;
         }

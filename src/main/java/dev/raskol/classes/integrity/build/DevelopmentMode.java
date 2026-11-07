@@ -11,8 +11,7 @@ package dev.raskol.classes.integrity.build;
  */
 public final class DevelopmentMode {
 
-    public static final String PROPERTY_NAME =
-            "raskol.rips.development";
+    public static final String PROPERTY_NAME = "raskol.rips.development";
 
     private DevelopmentMode() {
         throw new UnsupportedOperationException("Utility class");
@@ -28,9 +27,7 @@ public final class DevelopmentMode {
      */
     public static boolean isEnabled() {
         try {
-            return "true".equalsIgnoreCase(
-                    System.getProperty(PROPERTY_NAME)
-            );
+            return "true".equalsIgnoreCase(System.getProperty(PROPERTY_NAME));
         } catch (SecurityException exception) {
             return false;
         }

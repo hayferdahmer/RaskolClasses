@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 
 /**
  * 1.14.10 (Sprint 7, волна 7.1b, P0-11-01): полное покрытие CombatMath.
@@ -122,7 +122,8 @@ class CombatMathTest {
             // 50% резист, flat=20, pct=0.5 → (50-20) * 0.5 = 15
             assertEquals(15.0, CombatMath.effectiveResist(50.0, 20.0, 0.5, 1.0), EPS);
             // если бы порядок был обратный: 50*0.5 - 20 = 5 (неверно)
-            assertTrue(Math.abs(CombatMath.effectiveResist(50.0, 20.0, 0.5, 1.0) - 15.0) < 1e-9,
+            assertTrue(
+                    Math.abs(CombatMath.effectiveResist(50.0, 20.0, 0.5, 1.0) - 15.0) < 1e-9,
                     "flat вычитается первым, не после pct");
         }
 

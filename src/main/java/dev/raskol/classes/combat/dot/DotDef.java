@@ -21,10 +21,9 @@ public record DotDef(
         long periodMillis,
         long durationMillis,
         int maxStacks,
-        String sourceAbility
-) {
-    public static DotDef of(String id, School school, double dps,
-                            long durationMillis, int maxStacks, String sourceAbility) {
+        String sourceAbility) {
+    public static DotDef of(
+            String id, School school, double dps, long durationMillis, int maxStacks, String sourceAbility) {
         return new DotDef(id, school, dps, 1000L, durationMillis, maxStacks, sourceAbility);
     }
 

@@ -2,18 +2,19 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.factory;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.item.model.ItemDefinition;
-import dev.raskol.classes.item.model.ItemStat;
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.UUID;
+
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Projectile;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.EnumMap;
-import java.util.Map;
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.ItemStat;
 
 /**
  * Версионированный PDC-формат плагина для генерируемых предметов.

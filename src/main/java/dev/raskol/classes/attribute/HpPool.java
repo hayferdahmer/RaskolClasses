@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.attribute;
 
-import dev.raskol.classes.RaskolClasses;
+import java.util.UUID;
+
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.11.4 (P4c): ПЛАН B — виртуальный пул HP, вынесенный из AttributeService.
@@ -67,8 +68,7 @@ public final class HpPool {
      * по carrier. Мобы: scale = 1 (carrier == formula == ванильный max).
      */
     public void healFormula(LivingEntity target, double formulaAmount) {
-        if (target == null || target.isDead() || formulaAmount <= 0.0
-                || AttributeService.maxHealthAttr() == null) {
+        if (target == null || target.isDead() || formulaAmount <= 0.0 || AttributeService.maxHealthAttr() == null) {
             return;
         }
         double carrier;

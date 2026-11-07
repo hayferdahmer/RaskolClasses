@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.api;
 
+import java.util.UUID;
+
 import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.item.model.ItemStatSnapshot;
-
-import java.util.UUID;
 
 /** Read-only view over immutable per-player item snapshots. */
 public interface ItemStatsProvider {

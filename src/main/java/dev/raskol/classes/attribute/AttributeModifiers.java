@@ -39,8 +39,7 @@ public final class AttributeModifiers {
      * того же source и добавляет новый — обе операции внутри одной блокировки,
      * что согласуется с читающими hasModifier/activeModifiers.
      */
-    public void addTimedModifier(UUID uuid, String source,
-                                 double str, double agi, double intel, long millis) {
+    public void addTimedModifier(UUID uuid, String source, double str, double agi, double intel, long millis) {
         List<Modifier> list = modifiers.computeIfAbsent(uuid, k -> new ArrayList<>());
         synchronized (list) {
             list.removeIf(m -> m.source().equals(source));
@@ -51,8 +50,7 @@ public final class AttributeModifiers {
     /**
      * 1.15.6 (2.6-86): synchronized на списке (см. addTimedModifier).
      */
-    public void addPermanentModifier(UUID uuid, String source,
-                                     double str, double agi, double intel) {
+    public void addPermanentModifier(UUID uuid, String source, double str, double agi, double intel) {
         List<Modifier> list = modifiers.computeIfAbsent(uuid, k -> new ArrayList<>());
         synchronized (list) {
             list.removeIf(m -> m.source().equals(source));

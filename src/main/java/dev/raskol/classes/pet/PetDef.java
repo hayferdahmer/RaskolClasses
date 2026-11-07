@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.pet;
 
-import org.bukkit.entity.EntityType;
-
 import java.util.Map;
 import java.util.Set;
+
+import org.bukkit.entity.EntityType;
 
 /**
  * 1.14.6: определение боевого пета (реестр, pure).
@@ -18,22 +18,20 @@ import java.util.Set;
  * затем умножаются на (1 + spec2 pet_hp_pct / pet_dmg_pct / 100) в PetMath.
  * Элементалей Мага в деревьях НЕТ — в реестр не входят.
  */
-public record PetDef(String id,
-                     EntityType entityType,
-                     double baseHp,
-                     double baseDmg,
-                     int ttlSeconds,
-                     String nameTemplate,
-                     String hpAttr,
-                     String powerTag) {
+public record PetDef(
+        String id,
+        EntityType entityType,
+        double baseHp,
+        double baseDmg,
+        int ttlSeconds,
+        String nameTemplate,
+        String hpAttr,
+        String powerTag) {
 
     private static final Map<String, PetDef> REGISTRY = Map.of(
-            "wolf", new PetDef("wolf", EntityType.WOLF,
-                    20.0, 4.0, 0, "Волк %s", "str", "wp"),
-            "demon", new PetDef("demon", EntityType.VEX,
-                    30.0, 8.0, 12, "Демон %s", "int", "sp"),
-            "shadowfiend", new PetDef("shadowfiend", EntityType.VEX,
-                    12.0, 5.0, 8, "Тенескот %s", "int", "sp"));
+            "wolf", new PetDef("wolf", EntityType.WOLF, 20.0, 4.0, 0, "Волк %s", "str", "wp"),
+            "demon", new PetDef("demon", EntityType.VEX, 30.0, 8.0, 12, "Демон %s", "int", "sp"),
+            "shadowfiend", new PetDef("shadowfiend", EntityType.VEX, 12.0, 5.0, 8, "Тенескот %s", "int", "sp"));
 
     public static PetDef byId(String id) {
         return id == null ? null : REGISTRY.get(id);

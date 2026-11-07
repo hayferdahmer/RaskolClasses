@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability.passive;
 
+import org.bukkit.entity.Player;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.event.CustomHealEvent;
-import org.bukkit.entity.Player;
 
 /**
  * 1.11.4 (P1): Жрец — «Благодать» (grace).
@@ -44,8 +45,8 @@ public final class PriestPassives extends BaseClassPassive {
         if (!enabled("grace")) {
             return;
         }
-        double mult = cfgD("grace", "multiplier", 1.15)
-                + plugin.getSpec2Service().procBonus(healer.getUniqueId(), "grace");
+        double mult =
+                cfgD("grace", "multiplier", 1.15) + plugin.getSpec2Service().procBonus(healer.getUniqueId(), "grace");
         if (mult <= 1.0) {
             return;
         }

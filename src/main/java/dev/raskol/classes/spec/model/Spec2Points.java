@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.model;
 
-import dev.raskol.classes.RaskolClasses;
-import org.bukkit.configuration.ConfigurationSection;
-
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+
+import org.bukkit.configuration.ConfigurationSection;
+
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.14.0 «Спек 2.0»: pure-экономика очков (дизайн-док, раздел 1).
@@ -48,8 +49,7 @@ public final class Spec2Points {
      * rowGates клонируется на входе и на выходе — снаружи массив не mutabel.
      * treeGates — иммутабельная map treeId → 6 гейтов (clone массивов на входе).
      */
-    public record Snapshot(int startLevel, int maxPoints, int[] rowGates,
-                           Map<String, int[]> treeGates) {
+    public record Snapshot(int startLevel, int maxPoints, int[] rowGates, Map<String, int[]> treeGates) {
 
         public Snapshot {
             rowGates = rowGates == null ? new int[0] : rowGates.clone();
@@ -91,7 +91,7 @@ public final class Spec2Points {
         }
     }
 
-    private static final Snapshot DEFAULTS = new Snapshot(15, 46, new int[]{0, 5, 10, 15, 20, 30});
+    private static final Snapshot DEFAULTS = new Snapshot(15, 46, new int[] {0, 5, 10, 15, 20, 30});
 
     /** 1.14.7 (Sprint 4, P1-4): единственный источник истины; publishes атомарно. */
     private static volatile Snapshot snap = DEFAULTS;
@@ -104,8 +104,7 @@ public final class Spec2Points {
      */
     private static final ThreadLocal<String> CTX_TREE = new ThreadLocal<>();
 
-    private Spec2Points() {
-    }
+    private Spec2Points() {}
 
     /* ------------------------------ контекст дерева (1.15.6) ------------------------------ */
 
@@ -184,8 +183,8 @@ public final class Spec2Points {
             for (String treeId : sec.getKeys(false)) {
                 List<?> treeRaw = sec.getList(treeId, null);
                 if (treeRaw == null || treeRaw.size() != 6) {
-                    LOGGER.warning("spec2.row-gates-by-tree." + treeId
-                            + " должен содержать 6 чисел — override пропущен");
+                    LOGGER.warning(
+                            "spec2.row-gates-by-tree." + treeId + " должен содержать 6 чисел — override пропущен");
                     continue;
                 }
                 int[] cand = parseGates(treeRaw, "spec2.row-gates-by-tree." + treeId);
@@ -218,8 +217,7 @@ public final class Spec2Points {
                 return null;
             }
             if (iv < prev) {
-                LOGGER.warning(path + "[" + i + "]=" + iv
-                        + " < предыдущего " + prev + " (должна быть неубывающая)");
+                LOGGER.warning(path + "[" + i + "]=" + iv + " < предыдущего " + prev + " (должна быть неубывающая)");
                 return null;
             }
             cand[i] = iv;

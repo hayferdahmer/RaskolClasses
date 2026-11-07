@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.command.sub;
 
-import org.bukkit.command.CommandSender;
-
 import java.util.List;
+
+import org.bukkit.command.CommandSender;
 
 /**
  * 1.11.4 (P4d): контракт подкоманды /rc. Одна подкоманда = один файл.

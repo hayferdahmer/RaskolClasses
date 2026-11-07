@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.classsystem;
 
-import dev.raskol.classes.RaskolClasses;
-import org.bukkit.Bukkit;
-
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+
+import org.bukkit.Bukkit;
+
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * Уровень профильного скилла AuraSkills — через отражение.
@@ -24,8 +25,7 @@ public final class SkillLevelProvider {
 
     private static final long CACHE_TTL_MILLIS = 1_000L;
 
-    private record CacheEntry(int level, long expiresAt) {
-    }
+    private record CacheEntry(int level, long expiresAt) {}
 
     private final RaskolClasses plugin;
     private final Map<UUID, Map<String, CacheEntry>> cache = new ConcurrentHashMap<>();
@@ -51,8 +51,8 @@ public final class SkillLevelProvider {
             this.api = apiClass.getMethod("get").invoke(null);
             this.getUser = apiClass.getMethod("getUser", UUID.class);
             Class<?> skill = Class.forName("dev.aurelium.auraskills.api.skill.Skill");
-            this.getSkillLevel = Class.forName("dev.aurelium.auraskills.api.user.SkillsUser")
-                    .getMethod("getSkillLevel", skill);
+            this.getSkillLevel =
+                    Class.forName("dev.aurelium.auraskills.api.user.SkillsUser").getMethod("getSkillLevel", skill);
             this.available = true;
             plugin.getLogger().info("AuraSkills: хук уровней скиллов активен");
         } catch (ReflectiveOperationException | LinkageError e) {
@@ -73,8 +73,7 @@ public final class SkillLevelProvider {
         if (!available) {
             return NO_SKILL_SYSTEM;
         }
-        Map<String, CacheEntry> bySkill =
-                cache.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>());
+        Map<String, CacheEntry> bySkill = cache.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>());
         CacheEntry entry = bySkill.get(skillName);
         if (entry != null && entry.expiresAt() > System.currentTimeMillis()) {
             return entry.level();
@@ -109,7 +108,8 @@ public final class SkillLevelProvider {
     private Object resolveConstant(String enumName) {
         try {
             return Class.forName("dev.aurelium.auraskills.api.skill.Skills")
-                    .getField(enumName).get(null);
+                    .getField(enumName)
+                    .get(null);
         } catch (ReflectiveOperationException e) {
             return null;
         }

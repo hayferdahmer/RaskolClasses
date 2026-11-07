@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.config;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.cc.CCType;
-import dev.raskol.classes.classsystem.PlayerClass;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 
-import java.util.ArrayList;
-import java.util.List;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.cc.CCType;
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.13.0 (Б4): sanity-валидация секции cc.* конфига (аналог KitSanity для CC).
@@ -22,8 +23,7 @@ import java.util.List;
  */
 public final class CcSanity {
 
-    private CcSanity() {
-    }
+    private CcSanity() {}
 
     /** Pure-хелпер диапазонов (selftest-чек 89). */
     public static boolean inRange(double v, double lo, double hi) {

@@ -6,7 +6,6 @@ package dev.raskol.classes.integrity.artifact;
  * Describes the result of full JAR archive integrity verification.
  */
 public enum ArchiveIntegrityStatus {
-
     VERIFIED,
 
     MANIFEST_EMPTY,

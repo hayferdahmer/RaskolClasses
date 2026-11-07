@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.api;
 
-import dev.raskol.classes.item.model.ItemStat;
-
 import java.util.Map;
+
+import dev.raskol.classes.item.model.ItemStat;
 
 /** A future-proof, immutable contribution to an equipment stat aggregate. */
 public interface StatSource {

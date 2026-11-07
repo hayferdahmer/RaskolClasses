@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat.school;
 
-import dev.raskol.classes.combat.DamageType;
+import java.util.Locale;
+
 import org.bukkit.Particle;
 
-import java.util.Locale;
+import dev.raskol.classes.combat.DamageType;
 
 /**
  * 1.12.0: ШКОЛА урона — природа урона (визуал, иммунитеты, уязвимости, триггеры).
@@ -16,7 +17,6 @@ import java.util.Locale;
  * 1.12.0-reorg: пакет combat.school (подсистема школ).
  */
 public enum School {
-
     PHYSICAL(DamageType.PHYSICAL, Particle.SWEEP_ATTACK),
     FIRE(DamageType.MAGIC, Particle.FLAME),
     FROST(DamageType.MAGIC, Particle.SNOWFLAKE),

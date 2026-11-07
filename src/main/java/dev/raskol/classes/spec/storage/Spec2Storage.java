@@ -2,11 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.storage;
 
-import dev.raskol.classes.storage.SafeStorage;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.plugin.java.JavaPlugin;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,6 +9,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
+
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import dev.raskol.classes.storage.SafeStorage;
 
 /**
  * 1.14.0 «Спек 2.0»: персист spec2-storage.yml (атомарно, .bak, фолбэк).
@@ -56,8 +57,8 @@ public final class Spec2Storage {
             if (renamed) {
                 LOGGER.info("spec2: migrated " + OLD_FILE_NAME + " → " + NEW_FILE_NAME);
             } else {
-                LOGGER.warning("spec2: не удалось переименовать " + OLD_FILE_NAME
-                        + " → " + NEW_FILE_NAME + ", будет создан новый пустой файл");
+                LOGGER.warning("spec2: не удалось переименовать " + OLD_FILE_NAME + " → " + NEW_FILE_NAME
+                        + ", будет создан новый пустой файл");
             }
         }
 
@@ -76,8 +77,7 @@ public final class Spec2Storage {
 
     public Map<String, Integer> getRanks(UUID uuid, String treeId) {
         Map<String, Integer> out = new HashMap<>();
-        ConfigurationSection sec = store.getConfigurationSection(
-                "players." + uuid + ".ranks." + treeId);
+        ConfigurationSection sec = store.getConfigurationSection("players." + uuid + ".ranks." + treeId);
         if (sec == null) {
             return out;
         }
@@ -106,8 +106,7 @@ public final class Spec2Storage {
      * сохранённые ранги (секция players.<uuid>.ranks.*). Пустой список = записей нет.
      */
     public List<String> storedTreeIds(UUID uuid) {
-        ConfigurationSection sec = store.getConfigurationSection(
-                "players." + uuid + ".ranks");
+        ConfigurationSection sec = store.getConfigurationSection("players." + uuid + ".ranks");
         if (sec == null) {
             return List.of();
         }

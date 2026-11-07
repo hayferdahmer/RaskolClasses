@@ -4,5 +4,13 @@ package dev.raskol.classes.item.model;
 
 /** Weapon families used by item definitions and auto-attacks. */
 public enum WeaponType {
-    SWORD, AXE, MACE, DAGGER, BOW, CROSSBOW, SPEAR, STAFF, WAND
+    SWORD,
+    AXE,
+    MACE,
+    DAGGER,
+    BOW,
+    CROSSBOW,
+    SPEAR,
+    STAFF,
+    WAND
 }

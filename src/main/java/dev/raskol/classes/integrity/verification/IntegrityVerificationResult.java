@@ -15,30 +15,19 @@ import java.util.Objects;
  * @param failedFiles paths of files that failed verification
  */
 public record IntegrityVerificationResult(
-        IntegrityStatus status,
-        String message,
-        int checkedFiles,
-        List<String> failedFiles
-) {
+        IntegrityStatus status, String message, int checkedFiles, List<String> failedFiles) {
 
     public IntegrityVerificationResult {
         Objects.requireNonNull(status, "status cannot be null");
         Objects.requireNonNull(message, "message cannot be null");
-        Objects.requireNonNull(
-                failedFiles,
-                "failedFiles cannot be null"
-        );
+        Objects.requireNonNull(failedFiles, "failedFiles cannot be null");
 
         if (message.isBlank()) {
-            throw new IllegalArgumentException(
-                    "message cannot be blank"
-            );
+            throw new IllegalArgumentException("message cannot be blank");
         }
 
         if (checkedFiles < 0) {
-            throw new IllegalArgumentException(
-                    "checkedFiles cannot be negative"
-            );
+            throw new IllegalArgumentException("checkedFiles cannot be negative");
         }
 
         failedFiles = List.copyOf(failedFiles);

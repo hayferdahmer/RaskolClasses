@@ -2,18 +2,20 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.install;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.ArrayList;
-import java.util.List;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Свиток постановки инсталляции (1.5.x → 1.9.0-fix4).
@@ -51,16 +53,12 @@ public final class InstallToken {
     /** 1.10.4: покрыт HERESY_CIRCLE = «Пентаграмма». */
     private List<String> description(InstallationType type) {
         return switch (type) {
-            case WAR_BANNER -> List.of(
-                    "Знамя войны: аура Resistance I союзникам",
-                    "в радиусе 6 блоков на 8 секунд.");
+            case WAR_BANNER -> List.of("Знамя войны: аура Resistance I союзникам", "в радиусе 6 блоков на 8 секунд.");
             case BEAR_TRAP -> List.of(
                     "Капкан: враг, шагнувший в радиус 1.2,",
                     "получает 3 урона и Slowness VI на 2 с.",
                     "Капкан расходуется при срабатывании.");
-            case LIGHT_WARD -> List.of(
-                    "Световой ward: +2 HP/с союзникам",
-                    "в радиусе 4 блоков, длится 60 с.");
+            case LIGHT_WARD -> List.of("Световой ward: +2 HP/с союзникам", "в радиусе 4 блоков, длится 60 с.");
             case FROST_RUNE -> List.of(
                     "Ледяная руна-зона радиусом 8 блоков на 30 с.",
                     "Враги внутри: урон 4/с, +1/с за каждую секунду",

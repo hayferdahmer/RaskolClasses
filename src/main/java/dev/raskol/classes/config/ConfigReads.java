@@ -28,8 +28,7 @@ import org.bukkit.configuration.ConfigurationSection;
  */
 public final class ConfigReads {
 
-    private ConfigReads() {
-    }
+    private ConfigReads() {}
 
     /** Конечное double из конфига; NaN/Infinity/null-секция → def. */
     public static double finiteDouble(ConfigurationSection cfg, String path, double def) {

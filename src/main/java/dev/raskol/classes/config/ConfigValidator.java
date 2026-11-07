@@ -2,17 +2,18 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.config;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.ResistService;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.ResistService;
 
 /**
  * 1.9.1: харденинг конфига (расширение с 1.6.7).
@@ -78,8 +79,7 @@ public final class ConfigValidator {
             for (String cause : map.getKeys(false)) {
                 String value = map.getString(cause, "");
                 if (value == null || !DAMAGE_TYPES.contains(value.toLowerCase(Locale.ROOT))) {
-                    warn("damage-types.vanilla-map." + cause, String.valueOf(value),
-                            "physical|magic|true");
+                    warn("damage-types.vanilla-map." + cause, String.valueOf(value), "physical|magic|true");
                 }
             }
         }
@@ -178,12 +178,14 @@ public final class ConfigValidator {
         checkRange(cfg, "foliant.drop-chance-percent", 0.0, 100.0);
 
         if (problems == 0) {
-            plugin.getLogger().info("ConfigValidator: конфиг валиден "
-                    + "(resist/damage/classes/installations/character-level/combat/spec2/"
-                    + "avoidance/cc/item/plus/attributes/foliant).");
+            plugin.getLogger()
+                    .info("ConfigValidator: конфиг валиден "
+                            + "(resist/damage/classes/installations/character-level/combat/spec2/"
+                            + "avoidance/cc/item/plus/attributes/foliant).");
         } else {
-            plugin.getLogger().warning("ConfigValidator: невалидных ключей: "
-                    + problems + " (см. WARNING выше; читатели применят дефолт/зажим).");
+            plugin.getLogger()
+                    .warning("ConfigValidator: невалидных ключей: " + problems
+                            + " (см. WARNING выше; читатели применят дефолт/зажим).");
         }
         return problems;
     }
@@ -211,8 +213,7 @@ public final class ConfigValidator {
             }
             int cur = n.intValue();
             if (cur < prev) {
-                warn("spec2.row-gates[" + i + "]", String.valueOf(cur),
-                        "не убывание (предыдущее " + prev + ")");
+                warn("spec2.row-gates[" + i + "]", String.valueOf(cur), "не убывание (предыдущее " + prev + ")");
                 return;
             }
             prev = cur;
@@ -230,8 +231,10 @@ public final class ConfigValidator {
         }
         for (int i = 0; i < mults.size(); i++) {
             Object v = mults.get(i);
-            if (!(v instanceof Number n) || !Double.isFinite(n.doubleValue())
-                    || n.doubleValue() < 0.0 || n.doubleValue() > 1.0) {
+            if (!(v instanceof Number n)
+                    || !Double.isFinite(n.doubleValue())
+                    || n.doubleValue() < 0.0
+                    || n.doubleValue() > 1.0) {
                 warn("cc.dr-multipliers[" + i + "]", String.valueOf(v), "дробь [0..1]");
             }
         }
@@ -254,9 +257,12 @@ public final class ConfigValidator {
                     break;
                 }
             }
-            sb.append(pc.name()).append(' ')
-                    .append((int) baseMagic).append('/')
-                    .append((int) basePhys).append("; ");
+            sb.append(pc.name())
+                    .append(' ')
+                    .append((int) baseMagic)
+                    .append('/')
+                    .append((int) basePhys)
+                    .append("; ");
         }
         sb.append("кап ").append((int) plugin.getResists().cap());
         plugin.getLogger().info(sb.toString());
@@ -299,8 +305,9 @@ public final class ConfigValidator {
      */
     private void warn(String path, String value, String expected) {
         problems++;
-        plugin.getLogger().warning("RaskolClasses конфиг: некорректно " + path + " = " + value
-                + " (ожидание: " + expected + ") — читатель применит дефолт/зажим, "
-                + "значение в конфиге игнорируется.");
+        plugin.getLogger()
+                .warning("RaskolClasses конфиг: некорректно " + path + " = " + value
+                        + " (ожидание: " + expected + ") — читатель применит дефолт/зажим, "
+                        + "значение в конфиге игнорируется.");
     }
 }

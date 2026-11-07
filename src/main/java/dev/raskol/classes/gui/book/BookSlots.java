@@ -16,8 +16,7 @@ package dev.raskol.classes.gui.book;
  */
 public final class BookSlots {
 
-    private BookSlots() {
-    }
+    private BookSlots() {}
 
     public static final int SIZE = 54;
     public static final int SLOT_EMBLEM = 4;
@@ -47,12 +46,14 @@ public final class BookSlots {
      *  ради совместимости компиляции; TalentsTab его больше не использует. */
     @Deprecated
     public static final int[] TALENT_NODE_SLOTS = {11, 15, 19, 21, 23, 25, 29, 33, 40};
+
     public static final int SLOT_TALENT_INFO = 22;
     public static final int SLOT_TALENT_RESET = 44;
     public static final long RESET_ARM_MILLIS = 30_000L;
 
     /** 1.14.0-fix (ряды): навигация по рядам дерева (row2 края, свободны от ромба). */
     public static final int SLOT_ROW_PREV = 18;
+
     public static final int SLOT_ROW_NEXT = 26;
     /** 1.14.0-fix (ряды): горизонтальная линия узлов ТЕКУЩЕГО ряда (row3, 5 слотов).
      * 1.14.1 (Волна 1): расширено до 9 слотов для покрытия всех узлов ряда. */

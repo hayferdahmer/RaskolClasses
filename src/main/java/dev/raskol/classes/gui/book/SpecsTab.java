@@ -2,6 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.gui.book;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import org.bukkit.Material;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.gui.ClassBook;
@@ -11,17 +21,9 @@ import dev.raskol.classes.spec.SpecRoles;
 import dev.raskol.classes.spec.model.Spec2Tree;
 import dev.raskol.classes.spec.registry.Spec2Registry;
 import dev.raskol.classes.spec.service.Spec2Service;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Material;
-import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemFlag;
-import org.bukkit.inventory.ItemStack;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * 1.11.4 (P4b) → 1.14.0 (Б3): вкладка «Специализации» на Spec2.
@@ -46,8 +48,7 @@ public final class SpecsTab implements BookTabView {
     public void render(RenderCtx ctx) {
         List<Spec> specs = specsFor(ctx.pc());
         for (int i = 0; i < specs.size() && i < BookSlots.SPEC_SLOTS.length; i++) {
-            ctx.inv().setItem(BookSlots.SPEC_SLOTS[i],
-                    specItem(ctx.plugin(), ctx.player(), specs.get(i)));
+            ctx.inv().setItem(BookSlots.SPEC_SLOTS[i], specItem(ctx.plugin(), ctx.player(), specs.get(i)));
         }
         // 1.14.0 (Б3): кнопка «сброс пути» временно отключена до Б5 —
         // респек в Spec2 идёт через GUI-кристалл во вкладке «Деревья путей».
@@ -74,8 +75,7 @@ public final class SpecsTab implements BookTabView {
         if (main != null) {
             if (main.equals(spec.id())) {
                 player.sendMessage(Component.text(
-                        "Этот путь уже выбран тобой — основные способности активны.",
-                        NamedTextColor.GRAY));
+                        "Этот путь уже выбран тобой — основные способности активны.", NamedTextColor.GRAY));
             } else {
                 // 1.15.8 (2.12-16): актуальная процедура смены пути
                 player.sendMessage(Component.text(
@@ -88,21 +88,17 @@ public final class SpecsTab implements BookTabView {
             return;
         }
         if (plugin.getCharacterLevels().characterLevel(player.getUniqueId()) < 15) {
-            player.sendMessage(Component.text(
-                    "Путь откроется на 15 уровне персонажа.",
-                    NamedTextColor.GRAY));
+            player.sendMessage(Component.text("Путь откроется на 15 уровне персонажа.", NamedTextColor.GRAY));
             return;
         }
         boolean ok = svc.chooseMain(player, spec.id());
         if (ok) {
             player.sendMessage(Component.text(
-                    "Ты вступаешь на путь «" + spec.displayName()
-                            + "» — основные способности теперь твои.",
+                    "Ты вступаешь на путь «" + spec.displayName() + "» — основные способности теперь твои.",
                     NamedTextColor.GREEN));
         } else {
             player.sendMessage(Component.text(
-                    "Путь недоступен. Проверь уровень (≥15) и отсутствие выбранной спеки.",
-                    NamedTextColor.RED));
+                    "Путь недоступен. Проверь уровень (≥15) и отсутствие выбранной спеки.", NamedTextColor.RED));
         }
     }
 
@@ -124,8 +120,7 @@ public final class SpecsTab implements BookTabView {
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         item.editMeta(meta -> {
             boolean chosen = current != null && current == spec;
-            meta.displayName(Component.text(spec.displayName(),
-                    chosen ? NamedTextColor.GOLD : NamedTextColor.GRAY));
+            meta.displayName(Component.text(spec.displayName(), chosen ? NamedTextColor.GOLD : NamedTextColor.GRAY));
             List<Component> lore = new ArrayList<>();
             SpecRole role = SpecRoles.roleOf(spec.id());
             lore.add(Component.text("Роль: " + roleName(role), roleColor(role)));
@@ -135,24 +130,21 @@ public final class SpecsTab implements BookTabView {
                 lore.add(Component.text(rolePassive, NamedTextColor.YELLOW));
             }
             if (tree != null) {
-                lore.add(Component.text("Путь: " + tree.nodes().size() + " узлов · ёмкость "
-                        + tree.capacity() + " ранг", NamedTextColor.DARK_AQUA));
+                lore.add(Component.text(
+                        "Путь: " + tree.nodes().size() + " узлов · ёмкость " + tree.capacity() + " ранг",
+                        NamedTextColor.DARK_AQUA));
             } else {
-                lore.add(Component.text("Путь будет доступен в будущем батче.",
-                        NamedTextColor.DARK_GRAY));
+                lore.add(Component.text("Путь будет доступен в будущем батче.", NamedTextColor.DARK_GRAY));
             }
             lore.add(Component.empty());
             if (chosen) {
                 lore.add(Component.text("✔ Это твой путь", NamedTextColor.GREEN));
             } else if (current != null) {
                 // 1.15.8 (2.12-16): актуальная процедура смены пути
-                lore.add(Component.text("Выбран другой путь: «"
-                        + current.displayName() + "»", NamedTextColor.RED));
-                lore.add(Component.text("Смена: сброс дерева → повторный выбор",
-                        NamedTextColor.DARK_GRAY));
+                lore.add(Component.text("Выбран другой путь: «" + current.displayName() + "»", NamedTextColor.RED));
+                lore.add(Component.text("Смена: сброс дерева → повторный выбор", NamedTextColor.DARK_GRAY));
             } else {
-                lore.add(Component.text("Не выбран · ПКМ — вступить (уровень 15+)",
-                        NamedTextColor.YELLOW));
+                lore.add(Component.text("Не выбран · ПКМ — вступить (уровень 15+)", NamedTextColor.YELLOW));
             }
             meta.lore(lore);
             if (chosen) {
