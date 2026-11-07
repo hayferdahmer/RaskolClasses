@@ -168,7 +168,6 @@ public final class PlusGui implements Listener {
             player.closeInventory();
             return;
         }
-        boolean active = sub.active(player.getUniqueId());
 
         switch (holder.screen()) {
             case CATALOG -> {
