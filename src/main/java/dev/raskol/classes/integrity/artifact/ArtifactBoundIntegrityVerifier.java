@@ -4,6 +4,7 @@ package dev.raskol.classes.integrity.artifact;
 
 import dev.raskol.classes.integrity.build.BuildIdentity;
 import dev.raskol.classes.integrity.build.BuildIdentityLoader;
+import dev.raskol.classes.integrity.build.DevelopmentMode;
 import dev.raskol.classes.integrity.crypto.TrustedPublicKeyLoader;
 import dev.raskol.classes.integrity.manifest.IntegrityManifest;
 import dev.raskol.classes.integrity.manifest.IntegrityManifestParser;
@@ -23,13 +24,13 @@ import java.util.Objects;
  * Coordinates artifact-bound integrity verification.
  *
  * <p>Official builds are verified directly from their physical JAR artifact.
- * Development builds are explicitly identified and do not require an
- * official artifact signature.</p>
+ * Development builds are accepted only when explicitly authorized through
+ * the JVM development-mode property.</p>
  *
  * <p>The verification sequence is:</p>
  * <ol>
  *     <li>Load build identity.</li>
- *     <li>Allow explicitly identified development builds.</li>
+ *     <li>Check explicit development-mode authorization.</li>
  *     <li>Locate the physical plugin artifact.</li>
  *     <li>Load the trusted Ed25519 public key.</li>
  *     <li>Verify the signed manifest and protected files.</li>
@@ -70,9 +71,17 @@ public final class ArtifactBoundIntegrityVerifier {
         }
 
         if (buildIdentity.isDevelopment()) {
+            if (!DevelopmentMode.isEnabled()) {
+                return failure(
+                        IntegrityStatus.DEVELOPMENT_MODE_REQUIRED,
+                        "Development build rejected. "
+                                + "Explicit JVM development mode is required."
+                );
+            }
+
             return new IntegrityVerificationResult(
                     IntegrityStatus.DEVELOPMENT_BUILD,
-                    "Development build detected. Official artifact verification is not required.",
+                    "Development build explicitly authorized by the server operator.",
                     0,
                     List.of()
             );
