@@ -13,17 +13,22 @@ import unittest
 import zipfile
 
 from pathlib import Path
+import importlib.util
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+MODULE_PATH = Path(__file__).with_name("create-official-artifact.py")
+SPEC = importlib.util.spec_from_file_location("create_official_artifact", MODULE_PATH)
+if SPEC is None or SPEC.loader is None:
+    raise ImportError("Unable to load official artifact signing module")
+MODULE = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = MODULE
+SPEC.loader.exec_module(MODULE)
 
-from create_official_artifact import (
-    BUILD_IDENTITY,
-    MANIFEST,
-    PUBLIC_KEY,
-    SIGNATURE,
-    create_release_artifact,
-)
+BUILD_IDENTITY = MODULE.BUILD_IDENTITY
+MANIFEST = MODULE.MANIFEST
+PUBLIC_KEY = MODULE.PUBLIC_KEY
+SIGNATURE = MODULE.SIGNATURE
+create_release_artifact = MODULE.create_release_artifact
 
 
 @unittest.skipUnless(shutil.which("openssl"), "OpenSSL is required")
