@@ -4,6 +4,7 @@ package dev.raskol.classes.integrity.crypto;
 
 import java.security.GeneralSecurityException;
 import java.security.PublicKey;
+import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 
@@ -94,12 +95,40 @@ public final class TrustedPublicKeyLoader {
             );
         }
 
-        if (!normalized.equals(encodedKey.strip())) {
+        if (normalized.chars().anyMatch(Character::isWhitespace)) {
             throw new IllegalArgumentException(
-                    "Invalid public key formatting"
+                    "Public key contains internal whitespace"
             );
         }
 
-        return Ed25519SignatureService.decodePublicKey(normalized);
+        final byte[] decodedBytes;
+
+        try {
+            decodedBytes = Base64.getDecoder().decode(normalized);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException(
+                    "Public key is not valid Base64",
+                    exception
+            );
+        }
+
+        if (!Base64.getEncoder()
+                .encodeToString(decodedBytes)
+                .equals(normalized)) {
+            throw new IllegalArgumentException(
+                    "Public key Base64 is not canonical"
+            );
+        }
+
+        PublicKey publicKey =
+                Ed25519SignatureService.decodePublicKey(normalized);
+
+        if (publicKey == null || publicKey.getEncoded() == null) {
+            throw new GeneralSecurityException(
+                    "Encoded data is not a valid Ed25519 public key"
+            );
+        }
+
+        return publicKey;
     }
 }
