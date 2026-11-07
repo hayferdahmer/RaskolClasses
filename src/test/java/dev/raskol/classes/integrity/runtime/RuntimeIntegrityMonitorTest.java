@@ -10,6 +10,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -123,6 +125,79 @@ class RuntimeIntegrityMonitorTest {
             assertNotNull(snapshot.lastError());
             assertFalse(snapshot.lastError().contains("\n"));
             assertFalse(snapshot.lastError().contains("\t"));
+        }
+    }
+
+    @Test
+    void shouldInvokeFailureHandlerForFailedVerification()
+            throws Exception {
+
+        AtomicReference<RuntimeIntegritySnapshot> handled =
+                new AtomicReference<>();
+
+        try (RuntimeIntegrityMonitor monitor = new RuntimeIntegrityMonitor(
+                () -> result(IntegrityStatus.INVALID_SIGNATURE),
+                INTERVAL,
+                java.util.concurrent.Executors.newSingleThreadScheduledExecutor(),
+                new RuntimeIntegrityStateManager(),
+                null,
+                handled::set
+        )) {
+            RuntimeIntegritySnapshot snapshot =
+                    monitor.checkNow().get(2, TimeUnit.SECONDS);
+
+            assertEquals(RuntimeIntegrityState.FAILED, snapshot.state());
+            assertNotNull(handled.get());
+            assertEquals(
+                    RuntimeIntegrityState.FAILED,
+                    handled.get().state()
+            );
+            assertEquals(
+                    IntegrityStatus.INVALID_SIGNATURE,
+                    handled.get().lastResult().status()
+            );
+        }
+    }
+
+    @Test
+    void shouldNotInvokeFailureHandlerForSuccessfulVerification()
+            throws Exception {
+
+        AtomicInteger invocations = new AtomicInteger();
+
+        try (RuntimeIntegrityMonitor monitor = new RuntimeIntegrityMonitor(
+                () -> result(IntegrityStatus.VERIFIED),
+                INTERVAL,
+                java.util.concurrent.Executors.newSingleThreadScheduledExecutor(),
+                new RuntimeIntegrityStateManager(),
+                null,
+                snapshot -> invocations.incrementAndGet()
+        )) {
+            RuntimeIntegritySnapshot snapshot =
+                    monitor.checkNow().get(2, TimeUnit.SECONDS);
+
+            assertEquals(RuntimeIntegrityState.VERIFIED, snapshot.state());
+            assertEquals(0, invocations.get());
+        }
+    }
+
+    @Test
+    void shouldContinueWhenFailureHandlerThrows() throws Exception {
+        try (RuntimeIntegrityMonitor monitor = new RuntimeIntegrityMonitor(
+                () -> result(IntegrityStatus.INVALID_SIGNATURE),
+                INTERVAL,
+                java.util.concurrent.Executors.newSingleThreadScheduledExecutor(),
+                new RuntimeIntegrityStateManager(),
+                null,
+                snapshot -> {
+                    throw new IllegalStateException("Handler failure");
+                }
+        )) {
+            RuntimeIntegritySnapshot snapshot =
+                    monitor.checkNow().get(2, TimeUnit.SECONDS);
+
+            assertEquals(RuntimeIntegrityState.FAILED, snapshot.state());
+            assertEquals(1, snapshot.totalChecks());
         }
     }
 
