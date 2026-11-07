@@ -5,48 +5,74 @@ package dev.raskol.classes.integrity.artifact;
 import java.util.List;
 
 /**
- * Результат верификации целостности jar-архива в рамках RIPS-пайплайна.
+ * Результат верификации целостности JAR-архива в RIPS.
  *
- * @param valid true если все проверки целостности прошли (хэши, подпись манифеста,
- *              binding к публичному ключу)
- * @param message человеко-читаемое описание результата (для логов и /rc debug)
- * @param expectedSha256 ожидаемый SHA-256 дайджест архива (из манифеста или registry)
- * @param actualSha256 фактический SHA-256 дайджест прочитанного архива
- * @param mismatchedEntries список путей внутри jar, чьи хэши не совпали (пусто при valid=true)
- *
- * 1.15.8: record создан для поддержки ArtifactBoundIntegrityVerifier (класс ссылался
- * на него, но файл отсутствовал в репо).
+ * 1.15.8: подкласс ArchiveIntegrityVerificationResult — наследует контракт
+ * isVerified/status/checkedFiles/failedFiles; добавляет jar-специфичные поля
+ * (expectedSha256/actualSha256) для диагностических отчётов.
  */
-public record JarArchiveIntegrityVerificationResult(
-        boolean valid,
-        String message,
-        String expectedSha256,
-        String actualSha256,
-        List<String> mismatchedEntries
-) {
+public class JarArchiveIntegrityVerificationResult extends ArchiveIntegrityVerificationResult {
 
-    /** Фабрика успешного результата. */
+    private final String expectedSha256;
+    private final String actualSha256;
+
+    public JarArchiveIntegrityVerificationResult(
+            boolean isVerified,
+            Status status,
+            List<String> checkedFiles,
+            List<String> failedFiles,
+            String message,
+            String expectedSha256,
+            String actualSha256
+    ) {
+        super(isVerified, status, checkedFiles, failedFiles, message);
+        this.expectedSha256 = expectedSha256 == null ? "" : expectedSha256;
+        this.actualSha256 = actualSha256 == null ? "" : actualSha256;
+    }
+
+    public String expectedSha256() {
+        return expectedSha256;
+    }
+
+    public String actualSha256() {
+        return actualSha256;
+    }
+
+    /** Фабрика: целостность подтверждена. */
     public static JarArchiveIntegrityVerificationResult ok(
-            String expectedSha256, String actualSha256) {
+            List<String> checkedFiles,
+            String expectedSha256,
+            String actualSha256
+    ) {
         return new JarArchiveIntegrityVerificationResult(
-                true, "jar integrity verified",
-                expectedSha256, actualSha256, List.of());
+                true, Status.VERIFIED, checkedFiles, List.of(),
+                "jar integrity verified", expectedSha256, actualSha256);
     }
 
-    /** Фабрика провала с одной причиной. */
+    /** Фабрика: обнаружены расхождения. */
     public static JarArchiveIntegrityVerificationResult failed(
-            String message, String expectedSha256, String actualSha256) {
+            List<String> checkedFiles,
+            List<String> failedFiles,
+            String message,
+            String expectedSha256,
+            String actualSha256
+    ) {
         return new JarArchiveIntegrityVerificationResult(
-                false, message, expectedSha256, actualSha256, List.of());
+                false, Status.FAILED, checkedFiles, failedFiles,
+                message, expectedSha256, actualSha256);
     }
 
-    /** Фабрика провала со списком расходящихся путей. */
-    public static JarArchiveIntegrityVerificationResult mismatched(
-            String expectedSha256, String actualSha256, List<String> entries) {
+    /** Фабрика: манифест повреждён или отсутствует. */
+    public static JarArchiveIntegrityVerificationResult corrupt(String message) {
         return new JarArchiveIntegrityVerificationResult(
-                false,
-                entries.size() + " entries mismatched",
-                expectedSha256, actualSha256,
-                entries == null ? List.of() : List.copyOf(entries));
+                false, Status.CORRUPT_MANIFEST, List.of(), List.of(),
+                message, "", "");
+    }
+
+    /** Фабрика: архив недоступен. */
+    public static JarArchiveIntegrityVerificationResult missing(String message) {
+        return new JarArchiveIntegrityVerificationResult(
+                false, Status.MISSING, List.of(), List.of(),
+                message, "", "");
     }
 }
