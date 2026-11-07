@@ -142,7 +142,7 @@ public final class IntegrityManifestParser {
                     repository,
                     buildType
             );
-        } catch (NullPointerException | IllegalArgumentException exception) {
+        } catch (IllegalArgumentException exception) {
             throw new IllegalArgumentException(
                     "Invalid build identity in manifest",
                     exception
@@ -176,7 +176,7 @@ public final class IntegrityManifestParser {
 
             try {
                 files.add(new ManifestFileEntry(path, size, sha256));
-            } catch (NullPointerException | IllegalArgumentException exception) {
+            } catch (IllegalArgumentException exception) {
                 throw new IllegalArgumentException(
                         "Invalid file entry at line " + (index + 1),
                         exception
