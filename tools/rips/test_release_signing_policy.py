@@ -6,6 +6,7 @@ import base64
 import importlib.util
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -13,14 +14,17 @@ from pathlib import Path
 
 # 1.15.8-fix: файл политики называется verify-release-signing-policy.py (дефисы —
 # CLI-соглашение), поэтому обычный `import verify_release_signing_policy` невозможен
-# (ModuleNotFoundError в CI). Загружаем модуль явно по пути через importlib —
-# это также снимает зависимость от того, как unittest discover наполняет sys.path.
+# (ModuleNotFoundError в CI). Загружаем модуль явно по пути через importlib.
+# ВАЖНО: регистрируем модуль в sys.modules ДО exec_module — иначе декоратор
+# @dataclass внутри загружаемого файла падает на обращении к sys.modules[cls.__module__]
+# с AttributeError: 'NoneType' object has no attribute '__dict__'.
 _MODULE_PATH = Path(__file__).resolve().parent / "verify-release-signing-policy.py"
 _spec = importlib.util.spec_from_file_location(
     "verify_release_signing_policy",
     _MODULE_PATH,
 )
 _module = importlib.util.module_from_spec(_spec)
+sys.modules[_module.__name__] = _module
 _spec.loader.exec_module(_module)
 
 parse_pinned_keys = _module.parse_pinned_keys
