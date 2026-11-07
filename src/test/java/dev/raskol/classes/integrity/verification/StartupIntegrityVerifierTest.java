@@ -4,11 +4,13 @@ package dev.raskol.classes.integrity.verification;
 
 import dev.raskol.classes.integrity.build.BuildIdentity;
 import dev.raskol.classes.integrity.build.BuildType;
+import dev.raskol.classes.integrity.build.DevelopmentMode;
 import dev.raskol.classes.integrity.crypto.Ed25519SignatureService;
 import dev.raskol.classes.integrity.manifest.IntegrityManifest;
 import dev.raskol.classes.integrity.manifest.ManifestFileEntry;
 import dev.raskol.classes.integrity.manifest.ManifestSignatureService;
 import dev.raskol.classes.integrity.manifest.Sha256HashService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -55,10 +57,30 @@ class StartupIntegrityVerifierTest {
 
     private Map<String, byte[]> resources;
 
+    private String previousDevelopmentProperty;
+
     @BeforeEach
     void setUp() throws GeneralSecurityException {
+        previousDevelopmentProperty = System.getProperty(
+                DevelopmentMode.PROPERTY_NAME
+        );
+
+        System.clearProperty(DevelopmentMode.PROPERTY_NAME);
+
         trustedKeyPair = Ed25519SignatureService.generateKeyPair();
         resources = new HashMap<>();
+    }
+
+    @AfterEach
+    void restoreDevelopmentProperty() {
+        if (previousDevelopmentProperty == null) {
+            System.clearProperty(DevelopmentMode.PROPERTY_NAME);
+        } else {
+            System.setProperty(
+                    DevelopmentMode.PROPERTY_NAME,
+                    previousDevelopmentProperty
+            );
+        }
     }
 
     @Test
@@ -80,7 +102,31 @@ class StartupIntegrityVerifierTest {
     }
 
     @Test
-    void shouldAllowDevelopmentBuild() {
+    void shouldRejectDevelopmentBuildWithoutExplicitJvmProperty() {
+        BuildIdentity developmentIdentity =
+                BuildIdentity.development("1.15.8-SNAPSHOT");
+
+        IntegrityVerificationResult result = verifier(
+                developmentIdentity,
+                null
+        ).verify();
+
+        assertEquals(
+                IntegrityStatus.DEVELOPMENT_MODE_REQUIRED,
+                result.status()
+        );
+
+        assertFalse(result.isDevelopmentBuild());
+        assertFalse(result.isVerified());
+    }
+
+    @Test
+    void shouldAllowDevelopmentBuildWhenExplicitJvmPropertyIsEnabled() {
+        System.setProperty(
+                DevelopmentMode.PROPERTY_NAME,
+                "true"
+        );
+
         BuildIdentity developmentIdentity =
                 BuildIdentity.development("1.15.8-SNAPSHOT");
 
@@ -96,6 +142,27 @@ class StartupIntegrityVerifierTest {
 
         assertTrue(result.isDevelopmentBuild());
         assertFalse(result.isVerified());
+    }
+
+    @Test
+    void shouldRejectDevelopmentBuildWhenJvmPropertyIsFalse() {
+        System.setProperty(
+                DevelopmentMode.PROPERTY_NAME,
+                "false"
+        );
+
+        BuildIdentity developmentIdentity =
+                BuildIdentity.development("1.15.8-SNAPSHOT");
+
+        IntegrityVerificationResult result = verifier(
+                developmentIdentity,
+                null
+        ).verify();
+
+        assertEquals(
+                IntegrityStatus.DEVELOPMENT_MODE_REQUIRED,
+                result.status()
+        );
     }
 
     @Test
