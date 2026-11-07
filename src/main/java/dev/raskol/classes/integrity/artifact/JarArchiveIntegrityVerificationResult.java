@@ -3,76 +3,168 @@
 package dev.raskol.classes.integrity.artifact;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
- * Результат верификации целостности JAR-архива в RIPS.
+ * Иммутабельный результат полной верификации целостности JAR-архива.
  *
- * 1.15.8: подкласс ArchiveIntegrityVerificationResult — наследует контракт
- * isVerified/status/checkedFiles/failedFiles; добавляет jar-специфичные поля
- * (expectedSha256/actualSha256) для диагностических отчётов.
+ * <p>Расширяет контракт {@link ArchiveIntegrityVerificationResult} дополнительными
+ * полями, специфичными для jar: ожидаемым/фактическим SHA-256 дайджестом архива
+ * и размером архива. Эти поля используются в диагностических отчётах и при
+ * составлении сообщений об ошибках RIPS-пайплайна.</p>
+ *
+ * <p>Record не наследует базовый (record'ы в Java не поддерживают наследование),
+ * но дублирует его поля и метод {@link #isVerified()} для совместимости с
+ * {@link ArtifactBoundIntegrityVerifier}, который работает с результатом
+ * через accessor'ы record'а (status/message/checkedFiles/failedFiles).</p>
+ *
+ * @param status статус верификации (из ArchiveIntegrityStatus)
+ * @param message человеко-читаемое описание результата
+ * @param archiveEntries количество записей архива, подвергшихся проверке
+ * @param checkedFiles число файлов, успешно проверенных
+ * @param failedFiles список путей файлов, связанных с ошибкой верификации
+ * @param expectedSha256 ожидаемый SHA-256 дайджест архива (из манифеста)
+ * @param actualSha256 фактический SHA-256 дайджест прочитанного архива
+ * @param archiveSizeBytes размер архива в байтах (для диагностики)
+ *
+ * 1.15.8: record создан для поддержки ArtifactBoundIntegrityVerifier; контракт
+ * восстановлен по вызовам archiveResult.isVerified()/status()/message()/
+ * checkedFiles()/failedFiles() и по switch по статусу ARCHIVE_READ_ERROR /
+ * ENTRY_READ_ERROR в верификаторе.
  */
-public class JarArchiveIntegrityVerificationResult extends ArchiveIntegrityVerificationResult {
+public record JarArchiveIntegrityVerificationResult(
+        ArchiveIntegrityStatus status,
+        String message,
+        int archiveEntries,
+        int checkedFiles,
+        List<String> failedFiles,
+        String expectedSha256,
+        String actualSha256,
+        long archiveSizeBytes
+) {
 
-    private final String expectedSha256;
-    private final String actualSha256;
+    /** Компактный конструктор с валидацией (по аналогии с базовым record). */
+    public JarArchiveIntegrityVerificationResult {
+        Objects.requireNonNull(status, "status");
+        Objects.requireNonNull(message, "message");
+        Objects.requireNonNull(failedFiles, "failedFiles");
 
-    public JarArchiveIntegrityVerificationResult(
-            boolean isVerified,
-            Status status,
-            List<String> checkedFiles,
-            List<String> failedFiles,
-            String message,
-            String expectedSha256,
-            String actualSha256
-    ) {
-        super(isVerified, status, checkedFiles, failedFiles, message);
-        this.expectedSha256 = expectedSha256 == null ? "" : expectedSha256;
-        this.actualSha256 = actualSha256 == null ? "" : actualSha256;
+        if (archiveEntries < 0) {
+            throw new IllegalArgumentException("archiveEntries cannot be negative");
+        }
+
+        if (checkedFiles < 0) {
+            throw new IllegalArgumentException("checkedFiles cannot be negative");
+        }
+
+        if (archiveSizeBytes < 0) {
+            throw new IllegalArgumentException("archiveSizeBytes cannot be negative");
+        }
+
+        failedFiles = List.copyOf(failedFiles);
+        if (expectedSha256 == null) {
+            expectedSha256 = "";
+        }
+        if (actualSha256 == null) {
+            actualSha256 = "";
+        }
     }
 
-    public String expectedSha256() {
-        return expectedSha256;
+    /**
+     * Возвращает true, если целостность архива подтверждена
+     * (статус VERIFIED). Совпадает по контракту с аналогичным методом
+     * базового ArchiveIntegrityVerificationResult.
+     */
+    public boolean isVerified() {
+        return status == ArchiveIntegrityStatus.VERIFIED;
     }
 
-    public String actualSha256() {
-        return actualSha256;
-    }
+    /* ------------------------------ фабрики результатов ------------------------------ */
 
-    /** Фабрика: целостность подтверждена. */
+    /** Фабрика успешного результата верификации. */
     public static JarArchiveIntegrityVerificationResult ok(
-            List<String> checkedFiles,
+            int archiveEntries,
+            int checkedFiles,
             String expectedSha256,
-            String actualSha256
+            String actualSha256,
+            long archiveSizeBytes
     ) {
         return new JarArchiveIntegrityVerificationResult(
-                true, Status.VERIFIED, checkedFiles, List.of(),
-                "jar integrity verified", expectedSha256, actualSha256);
+                ArchiveIntegrityStatus.VERIFIED,
+                "JAR archive integrity verified",
+                archiveEntries,
+                checkedFiles,
+                List.of(),
+                expectedSha256,
+                actualSha256,
+                archiveSizeBytes
+        );
     }
 
-    /** Фабрика: обнаружены расхождения. */
-    public static JarArchiveIntegrityVerificationResult failed(
-            List<String> checkedFiles,
-            List<String> failedFiles,
+    /** Фабрика результата с ошибкой чтения архива (архив недоступен/повреждён). */
+    public static JarArchiveIntegrityVerificationResult archiveReadError(String message) {
+        return new JarArchiveIntegrityVerificationResult(
+                ArchiveIntegrityStatus.ARCHIVE_READ_ERROR,
+                message,
+                0,
+                0,
+                List.of(),
+                "",
+                "",
+                0L
+        );
+    }
+
+    /** Фабрика результата с ошибкой чтения конкретной записи архива. */
+    public static JarArchiveIntegrityVerificationResult entryReadError(
             String message,
-            String expectedSha256,
-            String actualSha256
+            List<String> failedFiles
     ) {
         return new JarArchiveIntegrityVerificationResult(
-                false, Status.FAILED, checkedFiles, failedFiles,
-                message, expectedSha256, actualSha256);
+                ArchiveIntegrityStatus.ENTRY_READ_ERROR,
+                message,
+                0,
+                0,
+                failedFiles == null ? List.of() : failedFiles,
+                "",
+                "",
+                0L
+        );
     }
 
-    /** Фабрика: манифест повреждён или отсутствует. */
-    public static JarArchiveIntegrityVerificationResult corrupt(String message) {
+    /** Фабрика результата с расхождением хэшей (целостность нарушена). */
+    public static JarArchiveIntegrityVerificationResult integrityFailure(
+            String message,
+            int archiveEntries,
+            int checkedFiles,
+            List<String> failedFiles,
+            String expectedSha256,
+            String actualSha256,
+            long archiveSizeBytes
+    ) {
         return new JarArchiveIntegrityVerificationResult(
-                false, Status.CORRUPT_MANIFEST, List.of(), List.of(),
-                message, "", "");
+                ArchiveIntegrityStatus.INTEGRITY_FAILURE,
+                message,
+                archiveEntries,
+                checkedFiles,
+                failedFiles == null ? List.of() : failedFiles,
+                expectedSha256,
+                actualSha256,
+                archiveSizeBytes
+        );
     }
 
-    /** Фабрика: архив недоступен. */
-    public static JarArchiveIntegrityVerificationResult missing(String message) {
+    /** Фабрика результата с невалидным/отсутствующим манифестом внутри архива. */
+    public static JarArchiveIntegrityVerificationResult invalidManifest(String message) {
         return new JarArchiveIntegrityVerificationResult(
-                false, Status.MISSING, List.of(), List.of(),
-                message, "", "");
+                ArchiveIntegrityStatus.INVALID_MANIFEST,
+                message,
+                0,
+                0,
+                List.of(),
+                "",
+                "",
+                0L
+        );
     }
 }
