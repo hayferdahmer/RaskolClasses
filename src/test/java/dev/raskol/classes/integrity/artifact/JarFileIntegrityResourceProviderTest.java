@@ -1,3 +1,4 @@
+
 package dev.raskol.classes.integrity.artifact;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -5,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -182,7 +182,10 @@ class JarFileIntegrityResourceProviderTest {
 
     @Test
     void shouldCloseResourceStreamAndRejectFurtherReads() throws IOException {
-        Path jarPath = createJar("resource.txt", "content".getBytes(StandardCharsets.UTF_8));
+        Path jarPath = createJar(
+                "resource.txt",
+                "content".getBytes(StandardCharsets.UTF_8)
+        );
 
         JarFileIntegrityResourceProvider provider =
                 new JarFileIntegrityResourceProvider(jarPath);
@@ -209,8 +212,6 @@ class JarFileIntegrityResourceProviderTest {
 
         input.close();
         input.close();
-
-        assertTrue(true);
     }
 
     @Test
