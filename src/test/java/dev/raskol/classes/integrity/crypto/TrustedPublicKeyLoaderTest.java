@@ -4,7 +4,6 @@ package dev.raskol.classes.integrity.crypto;
 
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
@@ -19,6 +18,7 @@ class TrustedPublicKeyLoaderTest {
     @Test
     void shouldDecodeGeneratedEd25519PublicKey()
             throws GeneralSecurityException {
+
         KeyPair keyPair =
                 Ed25519SignatureService.generateKeyPair();
 
@@ -42,6 +42,7 @@ class TrustedPublicKeyLoaderTest {
     @Test
     void shouldAcceptTrailingNewline()
             throws GeneralSecurityException {
+
         KeyPair keyPair =
                 Ed25519SignatureService.generateKeyPair();
 
@@ -59,6 +60,7 @@ class TrustedPublicKeyLoaderTest {
 
     @Test
     void shouldRejectBlankKey() {
+
         assertThrows(
                 IllegalArgumentException.class,
                 () -> TrustedPublicKeyLoader.decode("   ")
@@ -67,6 +69,7 @@ class TrustedPublicKeyLoaderTest {
 
     @Test
     void shouldRejectInvalidBase64() {
+
         assertThrows(
                 IllegalArgumentException.class,
                 () -> TrustedPublicKeyLoader.decode("not-a-public-key")
@@ -76,6 +79,7 @@ class TrustedPublicKeyLoaderTest {
     @Test
     void shouldRejectInternalWhitespace()
             throws GeneralSecurityException {
+
         KeyPair keyPair =
                 Ed25519SignatureService.generateKeyPair();
 
@@ -95,6 +99,7 @@ class TrustedPublicKeyLoaderTest {
 
     @Test
     void shouldRejectDataThatIsNotAnEd25519Key() {
+
         String encoded = Base64.getEncoder()
                 .encodeToString(
                         "not-an-ed25519-key".getBytes(StandardCharsets.UTF_8)
@@ -107,12 +112,18 @@ class TrustedPublicKeyLoaderTest {
     }
 
     @Test
-    void shouldFailWhenTrustedKeyResourceIsMissing() {
-        assertThrows(
-                IOException.class,
-                () -> TrustedPublicKeyLoader.load(
-                        TrustedPublicKeyLoaderTest.class
-                )
+    void shouldLoadPinnedTrustedKeyWithoutExternalResource()
+            throws GeneralSecurityException {
+
+        var loaded = TrustedPublicKeyLoader.load(
+                TrustedPublicKeyLoaderTest.class
+        );
+
+        assertArrayEquals(
+                TrustedPublicKeyRegistry.trustedKeys()
+                        .get(0)
+                        .getEncoded(),
+                loaded.getEncoded()
         );
     }
 }
