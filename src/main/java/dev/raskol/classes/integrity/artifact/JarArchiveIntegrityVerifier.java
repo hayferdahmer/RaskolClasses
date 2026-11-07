@@ -19,13 +19,6 @@ import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-/**
- * Verifies all protected file entries in a JAR archive against an integrity
- * manifest.
- *
- * <p>RIPS metadata resources are not included in the protected file list:
- * the manifest, its detached signature and the embedded public key.</p>
- */
 public final class JarArchiveIntegrityVerifier {
 
     public static final long DEFAULT_MAX_ENTRY_BYTES =
@@ -96,12 +89,12 @@ public final class JarArchiveIntegrityVerifier {
     }
 
     /**
-     * Verifies the complete archive against the supplied manifest.
+     * Проверяет весь JAR-архив по переданному манифесту целостности.
      *
-     * @param manifest expected integrity manifest
-     * @return verification result
+     * @param manifest ожидаемый манифест целостности
+     * @return результат проверки архива
      */
-    public ArchiveIntegrityVerificationResult verify(
+    public JarArchiveIntegrityVerificationResult verify(
             IntegrityManifest manifest
     ) {
         Objects.requireNonNull(manifest, "manifest");
@@ -197,7 +190,7 @@ public final class JarArchiveIntegrityVerifier {
         }
     }
 
-    private ArchiveIntegrityVerificationResult verifyArchiveEntries(
+    private JarArchiveIntegrityVerificationResult verifyArchiveEntries(
             JarFile jarFile,
             Map<String, ManifestFileEntry> expectedFiles
     ) {
@@ -512,19 +505,22 @@ public final class JarArchiveIntegrityVerifier {
                 || PUBLIC_KEY_PATH.equals(path);
     }
 
-    private ArchiveIntegrityVerificationResult result(
+    private JarArchiveIntegrityVerificationResult result(
             ArchiveIntegrityStatus status,
             String message,
             int archiveEntries,
             int checkedFiles,
             Set<String> failedFiles
     ) {
-        return new ArchiveIntegrityVerificationResult(
+        return new JarArchiveIntegrityVerificationResult(
                 status,
                 message,
                 archiveEntries,
                 checkedFiles,
-                failedFiles.stream().sorted().toList()
+                failedFiles.stream().sorted().toList(),
+                "",
+                "",
+                0L
         );
     }
 
