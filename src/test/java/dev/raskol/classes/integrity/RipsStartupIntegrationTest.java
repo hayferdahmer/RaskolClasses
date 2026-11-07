@@ -4,6 +4,7 @@ package dev.raskol.classes.integrity;
 
 import dev.raskol.classes.integrity.build.BuildIdentity;
 import dev.raskol.classes.integrity.build.BuildType;
+import dev.raskol.classes.integrity.build.DevelopmentMode;
 import dev.raskol.classes.integrity.crypto.Ed25519SignatureService;
 import dev.raskol.classes.integrity.manifest.IntegrityManifest;
 import dev.raskol.classes.integrity.manifest.ManifestFileEntry;
@@ -18,6 +19,7 @@ import dev.raskol.classes.integrity.verification.IntegrityResourceProvider;
 import dev.raskol.classes.integrity.verification.IntegrityStatus;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 import dev.raskol.classes.integrity.verification.StartupIntegrityVerifier;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -42,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * - StartupIntegrityVerifier
  * - SecurityReporter
  * - IntegrityFailurePolicy
+ * - DevelopmentMode
  *
  * No Paper server or permanent signing keys are required.
  */
@@ -73,8 +76,16 @@ class RipsStartupIntegrationTest {
 
     private SecurityReporter securityReporter;
 
+    private String previousDevelopmentProperty;
+
     @BeforeEach
     void setUp() throws GeneralSecurityException {
+        previousDevelopmentProperty = System.getProperty(
+                DevelopmentMode.PROPERTY_NAME
+        );
+
+        System.clearProperty(DevelopmentMode.PROPERTY_NAME);
+
         trustedKeyPair = Ed25519SignatureService.generateKeyPair();
 
         resources = new HashMap<>();
@@ -88,6 +99,18 @@ class RipsStartupIntegrationTest {
         logger.setUseParentHandlers(false);
 
         securityReporter = new SecurityReporter(logger);
+    }
+
+    @AfterEach
+    void restoreDevelopmentProperty() {
+        if (previousDevelopmentProperty == null) {
+            System.clearProperty(DevelopmentMode.PROPERTY_NAME);
+        } else {
+            System.setProperty(
+                    DevelopmentMode.PROPERTY_NAME,
+                    previousDevelopmentProperty
+            );
+        }
     }
 
     @Test
@@ -127,8 +150,13 @@ class RipsStartupIntegrationTest {
     }
 
     @Test
-    void shouldAllowDevelopmentBuild()
+    void shouldAllowDevelopmentBuildWhenExplicitlyAuthorized()
             throws GeneralSecurityException {
+
+        System.setProperty(
+                DevelopmentMode.PROPERTY_NAME,
+                "true"
+        );
 
         BuildIdentity developmentIdentity =
                 BuildIdentity.development("1.15.8-SNAPSHOT");
@@ -157,6 +185,63 @@ class RipsStartupIntegrationTest {
 
         assertTrue(result.isDevelopmentBuild());
         assertFalse(result.isVerified());
+    }
+
+    @Test
+    void shouldRejectDevelopmentBuildWithoutExplicitAuthorization() {
+        BuildIdentity developmentIdentity =
+                BuildIdentity.development("1.15.8-SNAPSHOT");
+
+        IntegrityVerificationResult result = verify(
+                developmentIdentity,
+                null
+        );
+
+        SecurityReport report = securityReporter.report(result);
+
+        assertEquals(
+                IntegrityStatus.DEVELOPMENT_MODE_REQUIRED,
+                result.status()
+        );
+
+        assertEquals(
+                SecuritySeverity.CRITICAL,
+                report.severity()
+        );
+
+        assertEquals(
+                IntegrityFailureDecision.DISABLE_PLUGIN,
+                failurePolicy.evaluate(result)
+        );
+
+        assertFalse(result.isDevelopmentBuild());
+        assertFalse(result.isVerified());
+    }
+
+    @Test
+    void shouldRejectDevelopmentBuildWhenJvmPropertyIsFalse() {
+        System.setProperty(
+                DevelopmentMode.PROPERTY_NAME,
+                "false"
+        );
+
+        BuildIdentity developmentIdentity =
+                BuildIdentity.development("1.15.8-SNAPSHOT");
+
+        IntegrityVerificationResult result = verify(
+                developmentIdentity,
+                null
+        );
+
+        assertEquals(
+                IntegrityStatus.DEVELOPMENT_MODE_REQUIRED,
+                result.status()
+        );
+
+        assertEquals(
+                IntegrityFailureDecision.DISABLE_PLUGIN,
+                failurePolicy.evaluate(result)
+        );
     }
 
     @Test
