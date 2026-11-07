@@ -27,6 +27,13 @@ import java.util.List;
  * 1.11.4 (P4b) → 1.14.0 (Б3): вкладка «Специализации» на Spec2.
  * Карточка спеки: роль (SpecRoles), превью дерева (Spec2Tree: ёмкость и вершина),
  * выбор = spec2Service.chooseMain (один раз, бесплатно, с 15 уровня).
+ *
+ * 1.15.8 (Волна 8e, аудит 2.12-16): сообщения о смене пути синхронизированы с
+ * текущим spec2-контрактом — упоминание legacy-команды /rc spec respec заменено
+ * на актуальную процедуру (полный сброс дерева через GUI-кристалл во вкладке
+ * «Деревья путей»). Добавлены пассивы ролей из config.yml spec2.role-passives:
+ * FIGHTER +2% урона · TANK +5% ccResist и +5% получаемого лечения · HEALER +5%
+ * исходящего лечения.
  */
 public final class SpecsTab implements BookTabView {
 
@@ -43,7 +50,7 @@ public final class SpecsTab implements BookTabView {
                     specItem(ctx.plugin(), ctx.player(), specs.get(i)));
         }
         // 1.14.0 (Б3): кнопка «сброс пути» временно отключена до Б5 —
-        // респек в Spec2 идёт через /rc spec respec (GUI-рес в Б5).
+        // респек в Spec2 идёт через GUI-кристалл во вкладке «Деревья путей».
     }
 
     @Override
@@ -70,9 +77,12 @@ public final class SpecsTab implements BookTabView {
                         "Этот путь уже выбран тобой — основные способности активны.",
                         NamedTextColor.GRAY));
             } else {
+                // 1.15.8 (2.12-16): актуальная процедура смены пути
                 player.sendMessage(Component.text(
                         "Ты уже идёшь путём «" + displayNameOf(main)
-                                + "». Смена пути доступна через /rc spec respec.",
+                                + "». Смена пути: полный сброс дерева во вкладке"
+                                + " «Деревья путей» (ПКМ по кристаллу), затем"
+                                + " повторный выбор спеки здесь.",
                         NamedTextColor.RED));
             }
             return;
@@ -119,6 +129,11 @@ public final class SpecsTab implements BookTabView {
             List<Component> lore = new ArrayList<>();
             SpecRole role = SpecRoles.roleOf(spec.id());
             lore.add(Component.text("Роль: " + roleName(role), roleColor(role)));
+            // 1.15.8 (2.12-16): пассивы ролей из config.yml spec2.role-passives
+            String rolePassive = rolePassive(role);
+            if (rolePassive != null) {
+                lore.add(Component.text(rolePassive, NamedTextColor.YELLOW));
+            }
             if (tree != null) {
                 lore.add(Component.text("Путь: " + tree.nodes().size() + " узлов · ёмкость "
                         + tree.capacity() + " ранг", NamedTextColor.DARK_AQUA));
@@ -130,8 +145,11 @@ public final class SpecsTab implements BookTabView {
             if (chosen) {
                 lore.add(Component.text("✔ Это твой путь", NamedTextColor.GREEN));
             } else if (current != null) {
+                // 1.15.8 (2.12-16): актуальная процедура смены пути
                 lore.add(Component.text("Выбран другой путь: «"
                         + current.displayName() + "»", NamedTextColor.RED));
+                lore.add(Component.text("Смена: сброс дерева → повторный выбор",
+                        NamedTextColor.DARK_GRAY));
             } else {
                 lore.add(Component.text("Не выбран · ПКМ — вступить (уровень 15+)",
                         NamedTextColor.YELLOW));
@@ -143,6 +161,22 @@ public final class SpecsTab implements BookTabView {
             }
         });
         return item;
+    }
+
+    /**
+     * 1.15.8 (2.12-16): пассив роли из config.yml spec2.role-passives.
+     * FIGHTER: +2% урона · TANK: +5% ccResist, +5% получаемого лечения ·
+     * HEALER: +5% исходящего лечения.
+     */
+    private static String rolePassive(SpecRole role) {
+        if (role == null) {
+            return null;
+        }
+        return switch (role) {
+            case FIGHTER -> "Пассив: +2% урона";
+            case TANK -> "Пассив: +5% ccResist, +5% получаемого лечения";
+            case HEALER -> "Пассив: +5% исходящего лечения";
+        };
     }
 
     private static Spec specOfMain(RaskolClasses plugin, Player player) {
