@@ -70,7 +70,8 @@ public final class SecurityReporter {
                  RESOURCE_READ_ERROR ->
                     SecuritySeverity.WARNING;
 
-            case ARCHIVE_INTEGRITY_FAILURE,
+            case DEVELOPMENT_MODE_REQUIRED,
+                 ARCHIVE_INTEGRITY_FAILURE,
                  MANIFEST_MISSING,
                  MANIFEST_TOO_LARGE,
                  SIGNATURE_MISSING,
