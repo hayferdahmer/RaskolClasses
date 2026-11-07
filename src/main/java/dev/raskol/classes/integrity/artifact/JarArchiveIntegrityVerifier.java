@@ -134,7 +134,7 @@ public final class JarArchiveIntegrityVerifier {
                         file.path(),
                         false
                 );
-            } catch (IllegalArgumentException exception) {
+            } catch (IOException exception) {
                 return result(
                         ArchiveIntegrityStatus.INVALID_MANIFEST,
                         "Integrity manifest contains an invalid file path.",
@@ -233,7 +233,7 @@ public final class JarArchiveIntegrityVerifier {
                         entryName,
                         entry.isDirectory()
                 );
-            } catch (IllegalArgumentException exception) {
+            } catch (IOException exception) {
                 failedFiles.add(entryName);
 
                 return result(
