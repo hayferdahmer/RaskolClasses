@@ -1,0 +1,208 @@
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+package dev.raskol.classes.integrity.artifact;
+
+import dev.raskol.classes.integrity.build.BuildIdentity;
+import dev.raskol.classes.integrity.build.BuildIdentityLoader;
+import dev.raskol.classes.integrity.crypto.TrustedPublicKeyLoader;
+import dev.raskol.classes.integrity.manifest.IntegrityManifest;
+import dev.raskol.classes.integrity.manifest.IntegrityManifestParser;
+import dev.raskol.classes.integrity.verification.IntegrityStatus;
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
+import dev.raskol.classes.integrity.verification.StartupIntegrityVerifier;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.PublicKey;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Coordinates artifact-bound integrity verification.
+ *
+ * <p>Official builds are verified directly from their physical JAR artifact.
+ * Development builds are explicitly identified and do not require an
+ * official artifact signature.</p>
+ *
+ * <p>The verification sequence is:</p>
+ * <ol>
+ *     <li>Load build identity.</li>
+ *     <li>Allow explicitly identified development builds.</li>
+ *     <li>Locate the physical plugin artifact.</li>
+ *     <li>Load the trusted Ed25519 public key.</li>
+ *     <li>Verify the signed manifest and protected files.</li>
+ *     <li>Parse the verified manifest.</li>
+ *     <li>Verify the complete JAR archive.</li>
+ * </ol>
+ *
+ * <p>This class does not interact with the Bukkit or Paper API.</p>
+ */
+public final class ArtifactBoundIntegrityVerifier {
+
+    private static final int MAX_MANIFEST_SIZE = 1024 * 1024;
+
+    private final Class<?> anchor;
+
+    public ArtifactBoundIntegrityVerifier(Class<?> anchor) {
+        this.anchor = Objects.requireNonNull(
+                anchor,
+                "anchor"
+        );
+    }
+
+    /**
+     * Executes artifact-bound integrity verification.
+     *
+     * @return combined integrity verification result
+     */
+    public IntegrityVerificationResult verify() {
+        final BuildIdentity buildIdentity;
+
+        try {
+            buildIdentity = BuildIdentityLoader.load();
+        } catch (RuntimeException exception) {
+            return failure(
+                    IntegrityStatus.INVALID_MANIFEST,
+                    "Unable to load or validate build identity."
+            );
+        }
+
+        if (buildIdentity.isDevelopment()) {
+            return new IntegrityVerificationResult(
+                    IntegrityStatus.DEVELOPMENT_BUILD,
+                    "Development build detected. Official artifact verification is not required.",
+                    0,
+                    List.of()
+            );
+        }
+
+        final Path artifactPath;
+
+        try {
+            artifactPath = ArtifactLocator.locate(anchor);
+        } catch (IOException | SecurityException exception) {
+            return failure(
+                    IntegrityStatus.ARTIFACT_UNAVAILABLE,
+                    "Unable to locate or access the physical plugin artifact."
+            );
+        }
+
+        final JarFileIntegrityResourceProvider resourceProvider;
+
+        try {
+            resourceProvider = new JarFileIntegrityResourceProvider(
+                    artifactPath
+            );
+        } catch (IOException | SecurityException exception) {
+            return failure(
+                    IntegrityStatus.ARTIFACT_UNAVAILABLE,
+                    "Unable to open the physical plugin artifact."
+            );
+        }
+
+        final PublicKey trustedPublicKey;
+
+        try {
+            trustedPublicKey = TrustedPublicKeyLoader.load(anchor);
+        } catch (IOException | GeneralSecurityException | SecurityException exception) {
+            return failure(
+                    IntegrityStatus.TRUSTED_KEY_UNAVAILABLE,
+                    "Trusted public key is missing or invalid."
+            );
+        }
+
+        StartupIntegrityVerifier startupVerifier =
+                new StartupIntegrityVerifier(
+                        resourceProvider,
+                        buildIdentity,
+                        trustedPublicKey
+                );
+
+        IntegrityVerificationResult startupResult =
+                startupVerifier.verify();
+
+        if (!startupResult.isVerified()) {
+            return startupResult;
+        }
+
+        final IntegrityManifest manifest;
+
+        try {
+            manifest = loadVerifiedManifest(resourceProvider);
+        } catch (IOException exception) {
+            return failure(
+                    IntegrityStatus.RESOURCE_READ_ERROR,
+                    "Unable to read the verified integrity manifest."
+            );
+        } catch (IllegalArgumentException exception) {
+            return failure(
+                    IntegrityStatus.INVALID_MANIFEST,
+                    "The integrity manifest is not canonical or valid."
+            );
+        }
+
+        JarArchiveIntegrityVerificationResult archiveResult =
+                new JarArchiveIntegrityVerifier(artifactPath)
+                        .verify(manifest);
+
+        if (!archiveResult.isVerified()) {
+            return new IntegrityVerificationResult(
+                    IntegrityStatus.ARCHIVE_INTEGRITY_FAILURE,
+                    "Full archive verification failed: "
+                            + archiveResult.status()
+                            + ". "
+                            + archiveResult.message(),
+                    archiveResult.checkedFiles(),
+                    archiveResult.failedFiles()
+            );
+        }
+
+        return new IntegrityVerificationResult(
+                IntegrityStatus.VERIFIED,
+                "Artifact signature, build identity, protected files and complete JAR archive were verified successfully.",
+                archiveResult.checkedFiles(),
+                List.of()
+        );
+    }
+
+    private IntegrityManifest loadVerifiedManifest(
+            JarFileIntegrityResourceProvider resourceProvider
+    ) throws IOException {
+
+        try (InputStream input = resourceProvider.openResource(
+                StartupIntegrityVerifier.MANIFEST_RESOURCE
+        )) {
+            if (input == null) {
+                throw new IOException(
+                        "Integrity manifest disappeared from the artifact."
+                );
+            }
+
+            byte[] manifestBytes = input.readNBytes(
+                    MAX_MANIFEST_SIZE + 1
+            );
+
+            if (manifestBytes.length > MAX_MANIFEST_SIZE) {
+                throw new IOException(
+                        "Integrity manifest exceeds the maximum allowed size."
+                );
+            }
+
+            return IntegrityManifestParser.parse(manifestBytes);
+        }
+    }
+
+    private IntegrityVerificationResult failure(
+            IntegrityStatus status,
+            String message
+    ) {
+        return new IntegrityVerificationResult(
+                status,
+                message,
+                0,
+                List.of()
+        );
+    }
+}
