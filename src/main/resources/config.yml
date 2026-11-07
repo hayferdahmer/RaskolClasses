@@ -1,7 +1,5 @@
-# © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
-# SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 # ============================================================
-#  RaskolClasses v1.15.6 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
+#  RaskolClasses v1.15.8 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
 #  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -67,6 +65,11 @@
 #  мутирующие чеки уходят в skip; read-only чеки (формулы, конфиги, контракты)
 #  выполняются всегда. Ставь false на прод-сервере, если selftest запускают
 #  не только разработчики.
+#
+#  1.15.8 (Волна 8a, аудит 2.3-1): УДАЛЕНЫ legacy-секции talents:* и spec:* —
+#  legacy-слой talent/spec мёртв с 1.14.0, ключи не читались кодом; валидатор
+#  ConfigValidator больше не проверяет их (проверки удалены синхронно).
+#  Числа респека живут в spec2.respec-base-cost / spec2.respec-per-level.
 # ============================================================
 
 hud:
@@ -203,22 +206,6 @@ character-level:
     - enchanting
     - mining
     - forging
-
-# ------------------------------------------------------------
-# LEGACY-хвост 1.13.0: ключи читались старым talent-слоем до Б8.
-# Оставлены пустыми/нейтральными; удаляются вместе с архивом конфигов 1.15.0.
-# ------------------------------------------------------------
-talents:
-  enabled: false
-  start-level: 40
-  points-per-level: 1
-  max-points: 21
-  reset-base: 500
-  reset-per-point: 25
-
-spec:
-  respec-base-cost: 250
-  respec-per-level: 10
 
 # ------------------------------------------------------------
 # 1.14.0 «Спек 2.0»: деревья путей.
@@ -608,8 +595,8 @@ cc:
   window-seconds: 15
   dr-multipliers: [1.0, 0.5, 0.25, 0.0]
   resist-cap: 0.60
-  duration-reduction-cap: 0.50
   power-cap: 0.50
+  duration-reduction-cap: 0.50
   breaks-on-damage-threshold-pct: 0.05
   corruption-resist-bonus: 0.10
   corruption-power-bonus: 0.20
@@ -1158,7 +1145,7 @@ classes:
         cooldown: 90
         school: PHYSICAL
       serpent_sting:
-        name: "Укус змея"
+        name: "Укус змеи"
         description: "УЛЬТ: урон = стеки яда × 12; обновляет яд"
         unlock: 15
         cost: 40
@@ -1194,7 +1181,7 @@ classes:
         school: NATURE
       bestial_wrath:
         name: "Звериная ярость"
-        description: "УЛЬТ: волк ×2 урона на 8 с + подсветка"
+        description: "УЛЬТ: волк ×2 урона 8 с + иммунитет к CC"
         unlock: 15
         cost: 45
         cooldown: 120
@@ -2256,7 +2243,7 @@ vfx:
     cast-particle: ENCHANTED_HIT
   ice_ring:
     cast-sound: ENTITY_PLAYER_HURT_FREEZE
-    cast-particle: SNOWFLAKE
+    cast-particle: REVERSE_PORTAL
   garrote:
     cast-sound: ENTITY_PLAYER_ATTACK_WEAK
     cast-particle: DAMAGE_INDICATOR
@@ -2598,5 +2585,5 @@ vfx:
       tag: "☾ Чёрная Месса"
 
 # ============================================================
-#  КОНЕЦ config.yml · RaskolClasses 1.15.6
+#  КОНЕЦ config.yml · RaskolClasses 1.15.8
 # ============================================================
