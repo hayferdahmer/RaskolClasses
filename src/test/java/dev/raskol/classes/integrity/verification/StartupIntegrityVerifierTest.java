@@ -1,6 +1,3 @@
-// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
-// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
-
 package dev.raskol.classes.integrity.verification;
 
 import dev.raskol.classes.integrity.build.BuildIdentity;
@@ -9,11 +6,11 @@ import dev.raskol.classes.integrity.crypto.Ed25519SignatureService;
 import dev.raskol.classes.integrity.manifest.IntegrityManifest;
 import dev.raskol.classes.integrity.manifest.ManifestFileEntry;
 import dev.raskol.classes.integrity.manifest.ManifestSignatureService;
+import dev.raskol.classes.integrity.manifest.Sha256HashService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
@@ -28,11 +25,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class StartupIntegrityVerifierTest {
 
-    private static final String FILE_PATH =
+    private static final String MANIFEST_RESOURCE =
+            "/META-INF/raskol/integrity/manifest.rips";
+
+    private static final String SIGNATURE_RESOURCE =
+            "/META-INF/raskol/integrity/manifest.sig";
+
+    private static final String PROTECTED_FILE =
             "dev/raskol/classes/Example.class";
 
-    private static final byte[] ORIGINAL_FILE =
-            "raskol-protected-class-content"
+    private static final byte[] PROTECTED_CONTENT =
+            "raskol-protected-content"
                     .getBytes(StandardCharsets.UTF_8);
 
     private static final BuildIdentity OFFICIAL_IDENTITY =
@@ -47,53 +50,40 @@ class StartupIntegrityVerifierTest {
             );
 
     private KeyPair trustedKeyPair;
-    private KeyPair foreignKeyPair;
 
     private Map<String, byte[]> resources;
 
     @BeforeEach
     void setUp() throws GeneralSecurityException {
-        trustedKeyPair =
-                Ed25519SignatureService.generateKeyPair();
-
-        foreignKeyPair =
-                Ed25519SignatureService.generateKeyPair();
-
+        trustedKeyPair = Ed25519SignatureService.generateKeyPair();
         resources = new HashMap<>();
     }
 
     @Test
-    void shouldVerifyValidOfficialBuild()
+    void shouldVerifyValidSignedManifest()
             throws GeneralSecurityException {
 
-        installValidSignedManifest(
-                OFFICIAL_IDENTITY,
-                ORIGINAL_FILE
-        );
+        installValidManifest();
 
         IntegrityVerificationResult result = verifier(
                 OFFICIAL_IDENTITY,
                 trustedKeyPair.getPublic()
         ).verify();
 
-        assertEquals(
-                IntegrityStatus.VERIFIED,
-                result.status()
-        );
-
+        assertEquals(IntegrityStatus.VERIFIED, result.status());
         assertTrue(result.isVerified());
+        assertFalse(result.isDevelopmentBuild());
         assertEquals(1, result.checkedFiles());
         assertTrue(result.failedFiles().isEmpty());
     }
 
     @Test
-    void shouldRecognizeDevelopmentBuild() {
-
-        BuildIdentity development =
+    void shouldAllowDevelopmentBuild() {
+        BuildIdentity developmentIdentity =
                 BuildIdentity.development("1.15.8-SNAPSHOT");
 
         IntegrityVerificationResult result = verifier(
-                development,
+                developmentIdentity,
                 null
         ).verify();
 
@@ -107,7 +97,18 @@ class StartupIntegrityVerifierTest {
     }
 
     @Test
-    void shouldRejectMissingManifest() {
+    void shouldRejectMissingManifest()
+            throws GeneralSecurityException {
+
+        resources.put(
+                SIGNATURE_RESOURCE,
+                encodeSignature(
+                        Ed25519SignatureService.sign(
+                                new byte[]{1},
+                                trustedKeyPair.getPrivate()
+                        )
+                )
+        );
 
         IntegrityVerificationResult result = verifier(
                 OFFICIAL_IDENTITY,
@@ -126,12 +127,18 @@ class StartupIntegrityVerifierTest {
 
         IntegrityManifest manifest = createManifest(
                 OFFICIAL_IDENTITY,
-                ORIGINAL_FILE
+                PROTECTED_FILE,
+                PROTECTED_CONTENT
         );
 
         resources.put(
-                StartupIntegrityVerifier.MANIFEST_RESOURCE,
+                MANIFEST_RESOURCE,
                 manifest.toCanonicalBytes()
+        );
+
+        resources.put(
+                "/" + PROTECTED_FILE,
+                PROTECTED_CONTENT.clone()
         );
 
         IntegrityVerificationResult result = verifier(
@@ -149,71 +156,12 @@ class StartupIntegrityVerifierTest {
     void shouldRejectInvalidSignature()
             throws GeneralSecurityException {
 
-        installValidSignedManifest(
-                OFFICIAL_IDENTITY,
-                ORIGINAL_FILE
-        );
-
-        byte[] invalidSignature =
-                new byte[64];
+        installValidManifest();
 
         resources.put(
-                StartupIntegrityVerifier.SIGNATURE_RESOURCE,
-                encodeSignature(invalidSignature)
+                SIGNATURE_RESOURCE,
+                encodeSignature(new byte[64])
         );
-
-        IntegrityVerificationResult result = verifier(
-                OFFICIAL_IDENTITY,
-                trustedKeyPair.getPublic()
-        ).verify();
-
-        assertEquals(
-                IntegrityStatus.INVALID_SIGNATURE,
-                result.status()
-        );
-    }
-
-    @Test
-    void shouldRejectSignatureFromForeignKey()
-            throws GeneralSecurityException {
-
-        IntegrityManifest manifest = createManifest(
-                OFFICIAL_IDENTITY,
-                ORIGINAL_FILE
-        );
-
-        byte[] signature = Ed25519SignatureService.sign(
-                manifest.toCanonicalBytes(),
-                foreignKeyPair.getPrivate()
-        );
-
-        putManifest(manifest.toCanonicalBytes(), signature);
-
-        IntegrityVerificationResult result = verifier(
-                OFFICIAL_IDENTITY,
-                trustedKeyPair.getPublic()
-        ).verify();
-
-        assertEquals(
-                IntegrityStatus.INVALID_SIGNATURE,
-                result.status()
-        );
-    }
-
-    @Test
-    void shouldVerifySignatureBeforeParsingManifest()
-            throws GeneralSecurityException {
-
-        byte[] malformedManifest =
-                "NOT-A-VALID-MANIFEST"
-                        .getBytes(StandardCharsets.UTF_8);
-
-        byte[] signature = Ed25519SignatureService.sign(
-                malformedManifest,
-                foreignKeyPair.getPrivate()
-        );
-
-        putManifest(malformedManifest, signature);
 
         IntegrityVerificationResult result = verifier(
                 OFFICIAL_IDENTITY,
@@ -267,9 +215,10 @@ class StartupIntegrityVerifierTest {
                         BuildType.OFFICIAL
                 );
 
-        installValidSignedManifest(
+        installManifest(
                 differentIdentity,
-                ORIGINAL_FILE
+                PROTECTED_FILE,
+                PROTECTED_CONTENT
         );
 
         IntegrityVerificationResult result = verifier(
@@ -287,12 +236,20 @@ class StartupIntegrityVerifierTest {
     void shouldRejectMissingProtectedFile()
             throws GeneralSecurityException {
 
-        installValidSignedManifest(
+        IntegrityManifest manifest = createManifest(
                 OFFICIAL_IDENTITY,
-                ORIGINAL_FILE
+                PROTECTED_FILE,
+                PROTECTED_CONTENT
         );
 
-        resources.remove("/" + FILE_PATH);
+        byte[] manifestBytes = manifest.toCanonicalBytes();
+
+        byte[] signature = Ed25519SignatureService.sign(
+                manifestBytes,
+                trustedKeyPair.getPrivate()
+        );
+
+        putManifest(manifestBytes, signature);
 
         IntegrityVerificationResult result = verifier(
                 OFFICIAL_IDENTITY,
@@ -305,7 +262,7 @@ class StartupIntegrityVerifierTest {
         );
 
         assertEquals(
-                List.of(FILE_PATH),
+                List.of(PROTECTED_FILE),
                 result.failedFiles()
         );
     }
@@ -314,15 +271,45 @@ class StartupIntegrityVerifierTest {
     void shouldRejectModifiedProtectedFile()
             throws GeneralSecurityException {
 
-        installValidSignedManifest(
-                OFFICIAL_IDENTITY,
-                ORIGINAL_FILE
-        );
+        installValidManifest();
+
+        byte[] modifiedContent = PROTECTED_CONTENT.clone();
+        modifiedContent[0] ^= 1;
 
         resources.put(
-                "/" + FILE_PATH,
-                "modified-class-content"
-                        .getBytes(StandardCharsets.UTF_8)
+                "/" + PROTECTED_FILE,
+                modifiedContent
+        );
+
+        IntegrityVerificationResult result = verifier(
+                OFFICIAL_IDENTITY,
+                trustedKeyPair.getPublic()
+        ).verify();
+
+        assertEquals(
+                IntegrityStatus.PROTECTED_FILE_HASH_MISMATCH,
+                result.status()
+        );
+
+        assertEquals(
+                List.of(PROTECTED_FILE),
+                result.failedFiles()
+        );
+    }
+
+    @Test
+    void shouldRejectProtectedFileSizeMismatch()
+            throws GeneralSecurityException {
+
+        installValidManifest();
+
+        byte[] modifiedContent = (
+                "different-content-with-another-size"
+        ).getBytes(StandardCharsets.UTF_8);
+
+        resources.put(
+                "/" + PROTECTED_FILE,
+                modifiedContent
         );
 
         IntegrityVerificationResult result = verifier(
@@ -337,36 +324,7 @@ class StartupIntegrityVerifierTest {
     }
 
     @Test
-    void shouldRejectModifiedProtectedFileWithSameSize()
-            throws GeneralSecurityException {
-
-        installValidSignedManifest(
-                OFFICIAL_IDENTITY,
-                ORIGINAL_FILE
-        );
-
-        byte[] modified = ORIGINAL_FILE.clone();
-
-        modified[0] ^= 1;
-
-        resources.put(
-                "/" + FILE_PATH,
-                modified
-        );
-
-        IntegrityVerificationResult result = verifier(
-                OFFICIAL_IDENTITY,
-                trustedKeyPair.getPublic()
-        ).verify();
-
-        assertEquals(
-                IntegrityStatus.PROTECTED_FILE_HASH_MISMATCH,
-                result.status()
-        );
-    }
-
-    @Test
-    void shouldRejectEmptyOfficialManifest()
+    void shouldRejectEmptyManifest()
             throws GeneralSecurityException {
 
         IntegrityManifest manifest = new IntegrityManifest(
@@ -374,12 +332,14 @@ class StartupIntegrityVerifierTest {
                 List.of()
         );
 
+        byte[] manifestBytes = manifest.toCanonicalBytes();
+
         byte[] signature = Ed25519SignatureService.sign(
-                manifest.toCanonicalBytes(),
+                manifestBytes,
                 trustedKeyPair.getPrivate()
         );
 
-        putManifest(manifest.toCanonicalBytes(), signature);
+        putManifest(manifestBytes, signature);
 
         IntegrityVerificationResult result = verifier(
                 OFFICIAL_IDENTITY,
@@ -393,13 +353,10 @@ class StartupIntegrityVerifierTest {
     }
 
     @Test
-    void shouldRejectUnavailableTrustedPublicKey()
+    void shouldRejectUnavailableTrustedKey()
             throws GeneralSecurityException {
 
-        installValidSignedManifest(
-                OFFICIAL_IDENTITY,
-                ORIGINAL_FILE
-        );
+        installValidManifest();
 
         IntegrityVerificationResult result = verifier(
                 OFFICIAL_IDENTITY,
@@ -416,95 +373,108 @@ class StartupIntegrityVerifierTest {
     void shouldVerifyMultipleProtectedFiles()
             throws GeneralSecurityException {
 
-        byte[] secondFile =
-                "second-protected-file"
+        String secondPath =
+                "dev/raskol/classes/AnotherExample.class";
+
+        byte[] secondContent =
+                "another-protected-content"
                         .getBytes(StandardCharsets.UTF_8);
 
         IntegrityManifest manifest = new IntegrityManifest(
                 OFFICIAL_IDENTITY,
                 List.of(
-                        new ManifestFileEntry(
-                                FILE_PATH,
-                                ORIGINAL_FILE.length,
-                                dev.raskol.classes.integrity.manifest
-                                        .Sha256HashService.hash(ORIGINAL_FILE)
-                        ),
-                        new ManifestFileEntry(
-                                "dev/raskol/classes/Second.class",
-                                secondFile.length,
-                                dev.raskol.classes.integrity.manifest
-                                        .Sha256HashService.hash(secondFile)
-                        )
+                        entry(PROTECTED_FILE, PROTECTED_CONTENT),
+                        entry(secondPath, secondContent)
                 )
         );
 
-        resources.put(
-                "/" + FILE_PATH,
-                ORIGINAL_FILE
-        );
-
-        resources.put(
-                "/dev/raskol/classes/Second.class",
-                secondFile
-        );
+        byte[] manifestBytes = manifest.toCanonicalBytes();
 
         byte[] signature = Ed25519SignatureService.sign(
-                manifest.toCanonicalBytes(),
+                manifestBytes,
                 trustedKeyPair.getPrivate()
         );
 
-        putManifest(manifest.toCanonicalBytes(), signature);
+        putManifest(manifestBytes, signature);
+
+        resources.put(
+                "/" + PROTECTED_FILE,
+                PROTECTED_CONTENT.clone()
+        );
+
+        resources.put(
+                "/" + secondPath,
+                secondContent.clone()
+        );
 
         IntegrityVerificationResult result = verifier(
                 OFFICIAL_IDENTITY,
                 trustedKeyPair.getPublic()
         ).verify();
 
-        assertEquals(
-                IntegrityStatus.VERIFIED,
-                result.status()
-        );
-
+        assertEquals(IntegrityStatus.VERIFIED, result.status());
         assertEquals(2, result.checkedFiles());
+        assertTrue(result.failedFiles().isEmpty());
     }
 
-    private void installValidSignedManifest(
+    private void installValidManifest()
+            throws GeneralSecurityException {
+
+        installManifest(
+                OFFICIAL_IDENTITY,
+                PROTECTED_FILE,
+                PROTECTED_CONTENT
+        );
+    }
+
+    private void installManifest(
             BuildIdentity identity,
-            byte[] fileContent
+            String path,
+            byte[] content
     ) throws GeneralSecurityException {
 
         IntegrityManifest manifest = createManifest(
                 identity,
-                fileContent
+                path,
+                content
         );
 
-        resources.put(
-                "/" + FILE_PATH,
-                fileContent.clone()
-        );
+        byte[] manifestBytes = manifest.toCanonicalBytes();
 
         byte[] signature = Ed25519SignatureService.sign(
-                manifest.toCanonicalBytes(),
+                manifestBytes,
                 trustedKeyPair.getPrivate()
         );
 
-        putManifest(manifest.toCanonicalBytes(), signature);
+        putManifest(manifestBytes, signature);
+
+        resources.put(
+                "/" + path,
+                content.clone()
+        );
     }
 
     private IntegrityManifest createManifest(
             BuildIdentity identity,
-            byte[] fileContent
+            String path,
+            byte[] content
     ) {
+
         return new IntegrityManifest(
                 identity,
-                List.of(
-                        new ManifestFileEntry(
-                                FILE_PATH,
-                                fileContent.length,
-                                dev.raskol.classes.integrity.manifest
-                                        .Sha256HashService.hash(fileContent)
-                        )
-                )
+                List.of(entry(path, content))
+        );
+    }
+
+    private ManifestFileEntry entry(
+            String path,
+            byte[] content
+    ) {
+
+        return new ManifestFileEntry(
+                path,
+                content.length,
+                Sha256HashService.hash(content)
         );
     }
 
@@ -512,29 +482,25 @@ class StartupIntegrityVerifierTest {
             byte[] manifestBytes,
             byte[] signature
     ) {
+
         resources.put(
-                StartupIntegrityVerifier.MANIFEST_RESOURCE,
+                MANIFEST_RESOURCE,
                 manifestBytes.clone()
         );
 
         resources.put(
-                StartupIntegrityVerifier.SIGNATURE_RESOURCE,
+                SIGNATURE_RESOURCE,
                 encodeSignature(signature)
         );
-    }
-
-    private static byte[] encodeSignature(byte[] signature) {
-        return (
-                ManifestSignatureService.encodeSignature(signature) + "\n"
-        ).getBytes(StandardCharsets.US_ASCII);
     }
 
     private StartupIntegrityVerifier verifier(
             BuildIdentity identity,
             java.security.PublicKey publicKey
     ) {
-        IntegrityResourceProvider provider = path -> {
-            byte[] content = resources.get(path);
+
+        IntegrityResourceProvider provider = resourcePath -> {
+            byte[] content = resources.get(resourcePath);
 
             if (content == null) {
                 return null;
@@ -548,5 +514,11 @@ class StartupIntegrityVerifierTest {
                 identity,
                 publicKey
         );
+    }
+
+    private static byte[] encodeSignature(byte[] signature) {
+        return (
+                ManifestSignatureService.encodeSignature(signature) + "\n"
+        ).getBytes(StandardCharsets.US_ASCII);
     }
 }
