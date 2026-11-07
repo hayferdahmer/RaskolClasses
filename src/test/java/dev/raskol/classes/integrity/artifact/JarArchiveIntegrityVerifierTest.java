@@ -199,7 +199,7 @@ class JarArchiveIntegrityVerifierTest {
     @Test
     void shouldRejectEntryHashMismatch() throws Exception {
         byte[] actualContent = bytes("actual-content");
-        byte[] expectedContent = bytes("different-content");
+        byte[] expectedContent = bytes("sample-content");
 
         Path archive = createArchive(
                 "hash-mismatch.jar",
