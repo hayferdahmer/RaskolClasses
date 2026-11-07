@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.crypto;
 
-import dev.raskol.classes.RaskolClasses;
-
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
@@ -17,53 +15,28 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Stateless Ed25519-подписи для RIPS (Release Integrity and Package Signing).
+ * Stateless Ed25519-подписи для RIPS. Все операции криптографии — статические,
+ * ключи передаются параметрами в каждом вызове (сервис не хранит приватный ключ).
  *
- * <p>Контракт:
- * <ul>
- *   <li>{@link #sign(byte[], PrivateKey)} — детерминированная подпись 64 байта.</li>
- *   <li>{@link #verify(byte[], byte[], PublicKey)} — верификация по явно переданному ключу.</li>
- *   <li>{@link #decodePublicKey(String)} — статический парсер Base64-DER X.509 Ed25519 ключа
- *       (используется {@link TrustedPublicKeyRegistry} и {@link TrustedPublicKeyLoader}).</li>
- *   <li>{@link #decodePrivateKey(String)} — статический парсер Base64-PKCS#8 Ed25519 ключа.</li>
- * </ul>
- *
- * <p>Приватный ключ НЕ хранится в полях сервиса — владелец ключа (обычно CI или
- * ManifestSignatureService) передаёт его явно в каждом вызове. Это исключает
- * утечку ключа через ссылки на синглтон и упрощает ротацию.
- *
- * 1.15.8: сервис переписан как stateless для соответствия контракту ManifestSignatureService;
- * добавлен публичный decodePublicKey для TrustedPublicKeyRegistry/Loader.
+ * 1.15.8: контракт ManifestSignatureService требует статических sign/verify;
+ * TrustedPublicKeyRegistry/Loader требуют статического decodePublicKey.
  */
 public final class Ed25519SignatureService {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses.RIPS");
 
-    /** Имя алгоритма подписи в JCA (Java 15+, Ed25519 нативно). */
     public static final String SIGNATURE_ALGORITHM = "Ed25519";
-
-    /** Имя KeyFactory для Ed25519. */
     public static final String KEY_ALGORITHM = "Ed25519";
-
-    /** Длина Ed25519-подписи в байтах. */
     public static final int SIGNATURE_LENGTH = 64;
 
-    private final RaskolClasses plugin;
-
-    public Ed25519SignatureService(RaskolClasses plugin) {
-        this.plugin = plugin;
+    private Ed25519SignatureService() {
+        throw new UnsupportedOperationException("Utility class");
     }
 
-    /* ------------------------------ core API ------------------------------ */
-
     /**
-     * Подписывает данные переданным приватным ключом. Возвращает 64-байтовую Ed25519-подпись.
-     *
-     * @param data данные для подписи (обычно SHA-256 дайджест артефакта)
-     * @param privateKey Ed25519 приватный ключ в PKCS#8
-     * @return 64 байта подписи; byte[0] при ошибке или null-ключах
+     * Подписывает данные приватным ключом. 64 байта Ed25519-подписи.
      */
-    public byte[] sign(byte[] data, PrivateKey privateKey) {
+    public static byte[] sign(byte[] data, PrivateKey privateKey) {
         if (data == null || privateKey == null) {
             return new byte[0];
         }
@@ -84,14 +57,9 @@ public final class Ed25519SignatureService {
     }
 
     /**
-     * Верифицирует подпись по явно переданному публичному ключу.
-     *
-     * @param data подписанные данные
-     * @param signature 64-байтовая Ed25519-подпись
-     * @param publicKey Ed25519 публичный ключ X.509
-     * @return true если криптографически корректна
+     * Верифицирует подпись по публичному ключу.
      */
-    public boolean verify(byte[] data, byte[] signature, PublicKey publicKey) {
+    public static boolean verify(byte[] data, byte[] signature, PublicKey publicKey) {
         if (data == null || signature == null || publicKey == null) {
             return false;
         }
@@ -109,15 +77,8 @@ public final class Ed25519SignatureService {
         }
     }
 
-    /* ------------------------------ static key parsers ------------------------------ */
-
     /**
-     * Парсит публичный Ed25519 ключ из Base64-DER X.509 SubjectPublicKeyInfo.
-     * Используется {@link TrustedPublicKeyRegistry} и {@link TrustedPublicKeyLoader}
-     * при загрузке доверенных ключей из конфигурации.
-     *
-     * @param base64Der Base64-строка X.509 DER (44 байта для Ed25519)
-     * @return PublicKey или null при ошибке
+     * Парсит публичный Ed25519 ключ из Base64 X.509 DER.
      */
     public static PublicKey decodePublicKey(String base64Der) {
         if (base64Der == null || base64Der.isBlank()) {
@@ -136,10 +97,6 @@ public final class Ed25519SignatureService {
 
     /**
      * Парсит приватный Ed25519 ключ из Base64-PKCS#8 DER.
-     * Проверяет каноничность Base64 (повторное кодирование совпадает с исходным).
-     *
-     * @param base64Pkcs8 Base64-строка PKCS#8 DER
-     * @return PrivateKey или null при ошибке/неканоничном Base64
      */
     public static PrivateKey decodePrivateKey(String base64Pkcs8) {
         if (base64Pkcs8 == null || base64Pkcs8.isBlank()) {
@@ -171,24 +128,22 @@ public final class Ed25519SignatureService {
         }
     }
 
-    /* ------------------------------ convenience ------------------------------ */
-
-    /** Подписывает UTF-8 строку. */
-    public byte[] signString(String message, PrivateKey privateKey) {
+    /** Convenience: подпись UTF-8 строки. */
+    public static byte[] signString(String message, PrivateKey privateKey) {
         if (message == null) {
             return new byte[0];
         }
         return sign(message.getBytes(StandardCharsets.UTF_8), privateKey);
     }
 
-    /** Возвращает подпись в Base64 (для .sig-файлов). */
-    public String signToBase64(byte[] data, PrivateKey privateKey) {
+    /** Convenience: подпись в Base64. */
+    public static String signToBase64(byte[] data, PrivateKey privateKey) {
         byte[] sig = sign(data, privateKey);
         return sig.length == 0 ? "" : Base64.getEncoder().encodeToString(sig);
     }
 
-    /** Декодирует Base64-подпись и верифицирует её по переданному ключу. */
-    public boolean verifyFromBase64(byte[] data, String signatureBase64, PublicKey publicKey) {
+    /** Convenience: верификация Base64-подписи. */
+    public static boolean verifyFromBase64(byte[] data, String signatureBase64, PublicKey publicKey) {
         if (signatureBase64 == null || signatureBase64.isEmpty()) {
             return false;
         }
@@ -199,10 +154,5 @@ public final class Ed25519SignatureService {
             LOGGER.log(Level.FINE, "RIPS: invalid base64 signature", ex);
             return false;
         }
-    }
-
-    /** Плагин-референс для интеграций. */
-    public RaskolClasses plugin() {
-        return plugin;
     }
 }
