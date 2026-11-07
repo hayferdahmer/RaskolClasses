@@ -13,6 +13,8 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
   1.15.7 (Волна 7c): правило URF_UNREAD_FIELD для PetService$PetState УДАЛЕНО —
   мёртвые поля dmgMult/speedMult удалены из кода (более не «бэклог пет-damage»,
   а устранённый дефект). Комментарии бэклогов актуализированы по датам.
+  1.15.8 (Волна 8): добавлен точечный exclude для WarlockAbilities.install() —
+  фабричный метод singleton by design, MS_EXPOSE_REP ложноположителен.
 
   Каждое правило — осознанное решение, а не «заглушить шум»; причины зафиксированы
   в комментариях и в CHANGELOG.
@@ -128,6 +130,24 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     <Match>
         <Class name="~dev\.raskol\.classes\.hook\.(Raskol|Flavor)Placeholder"/>
         <Bug pattern="HE_INHERITS_EQUALS_USE_HASHCODE"/>
+    </Match>
+
+    <!-- ================================================================ -->
+    <!-- 1.15.8 (Волна 8): singleton-factory, MS_EXPOSE_REP ложноположителен -->
+    <!-- ================================================================ -->
+
+    <!--
+      MS_EXPOSE_REP для WarlockAbilities.install(RaskolClasses): фабричный метод
+      возвращает singleton-экземпляр по паттерну 1.14.14 (ST_WRITE-фикс —
+      запись в static-поле вынесена из конструктора). Инстанс иммутабелен после
+      установки (все мутабельные поля — instance, не static), публичность метода
+      необходима для доступа из RaskolClasses.onEnable и CombatService.
+      Реальный риск = 0: singleton единственный на весь жизненный цикл плагина.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.ability.WarlockAbilities"/>
+        <Method name="install"/>
+        <Bug pattern="MS_EXPOSE_REP"/>
     </Match>
 
 </FindBugsFilter>
