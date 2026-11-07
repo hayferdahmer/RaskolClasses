@@ -1,14 +1,14 @@
-// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
-// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.runtime;
 
-import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 import dev.raskol.classes.integrity.verification.IntegrityStatus;
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -25,6 +25,10 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean checking = new AtomicBoolean(false);
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    private final Set<CompletableFuture<RuntimeIntegritySnapshot>> pendingChecks =
+            ConcurrentHashMap.newKeySet();
 
     private final AtomicReference<RuntimeIntegritySnapshot> snapshot =
             new AtomicReference<>(
@@ -57,6 +61,10 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
         );
     }
 
+    /**
+     * The monitor takes ownership of the supplied executor
+     * and shuts it down when close() is called.
+     */
     public RuntimeIntegrityMonitor(
             Supplier<IntegrityVerificationResult> verificationTask,
             Duration interval,
@@ -87,16 +95,10 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
     /**
      * Starts periodic integrity verification.
-     *
-     * The first verification is performed after the configured interval.
-     * Calling this method more than once has no additional effect.
+     * The first check is performed after the configured interval.
      */
     public void start() {
-        if (snapshot.get().state() == RuntimeIntegrityState.STOPPED) {
-            throw new IllegalStateException(
-                    "Runtime integrity monitor has already been stopped"
-            );
-        }
+        ensureNotClosed();
 
         if (!started.compareAndSet(false, true)) {
             return;
@@ -112,9 +114,9 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
         } catch (RejectedExecutionException exception) {
             started.set(false);
 
-            if (snapshot.get().state() == RuntimeIntegrityState.STOPPED) {
+            if (closed.get()) {
                 throw new IllegalStateException(
-                        "Runtime integrity monitor has already been stopped",
+                        "Runtime integrity monitor has been stopped",
                         exception
                 );
             }
@@ -126,25 +128,53 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
     /**
      * Requests an asynchronous integrity verification.
      *
-     * The returned future completes with the resulting snapshot.
+     * If another verification is already running, this request
+     * is executed later by the executor, unless the monitor is closed.
      */
     public CompletableFuture<RuntimeIntegritySnapshot> checkNow() {
-        if (snapshot.get().state() == RuntimeIntegrityState.STOPPED) {
-            return CompletableFuture.failedFuture(
+        if (closed.get()) {
+            return failedFuture(
                     new IllegalStateException(
                             "Runtime integrity monitor has been stopped"
                     )
             );
         }
 
-        try {
-            return CompletableFuture.supplyAsync(
-                    this::performCheck,
-                    executor
+        CompletableFuture<RuntimeIntegritySnapshot> future =
+                new CompletableFuture<>();
+
+        pendingChecks.add(future);
+
+        // close() may have been called between the initial check
+        // and registration of this future.
+        if (closed.get()) {
+            pendingChecks.remove(future);
+            future.completeExceptionally(
+                    new IllegalStateException(
+                            "Runtime integrity monitor has been stopped"
+                    )
             );
-        } catch (RejectedExecutionException exception) {
-            return CompletableFuture.failedFuture(exception);
+            return future;
         }
+
+        try {
+            executor.execute(() -> {
+                try {
+                    if (!future.isDone()) {
+                        future.complete(performCheck());
+                    }
+                } catch (RuntimeException exception) {
+                    future.completeExceptionally(exception);
+                } finally {
+                    pendingChecks.remove(future);
+                }
+            });
+        } catch (RejectedExecutionException exception) {
+            pendingChecks.remove(future);
+            future.completeExceptionally(exception);
+        }
+
+        return future;
     }
 
     public RuntimeIntegritySnapshot getSnapshot() {
@@ -156,41 +186,47 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
     }
 
     private void runScheduledCheck() {
-        if (snapshot.get().state() == RuntimeIntegrityState.STOPPED) {
+        if (closed.get()) {
             return;
         }
 
         try {
             performCheck();
         } catch (RuntimeException exception) {
-            // Prevent an unexpected runtime exception from terminating
-            // subsequent scheduled executions.
+            // Keep the periodic scheduler alive after unexpected failures.
         }
     }
 
     private RuntimeIntegritySnapshot performCheck() {
+        if (closed.get()) {
+            return snapshot.get();
+        }
+
         if (!checking.compareAndSet(false, true)) {
             return snapshot.get();
         }
 
         try {
-            RuntimeIntegritySnapshot previous = snapshot.get();
+            RuntimeIntegritySnapshot runningSnapshot =
+                    snapshot.updateAndGet(current -> {
+                        if (current.state() == RuntimeIntegrityState.STOPPED) {
+                            return current;
+                        }
 
-            if (previous.state() == RuntimeIntegrityState.STOPPED) {
-                return previous;
+                        return new RuntimeIntegritySnapshot(
+                                RuntimeIntegrityState.RUNNING,
+                                current.lastCheckAt(),
+                                current.lastResult(),
+                                current.totalChecks(),
+                                current.consecutiveFailures(),
+                                current.lastDurationMillis(),
+                                current.lastError()
+                        );
+                    });
+
+            if (runningSnapshot.state() == RuntimeIntegrityState.STOPPED) {
+                return runningSnapshot;
             }
-
-            snapshot.set(
-                    new RuntimeIntegritySnapshot(
-                            RuntimeIntegrityState.RUNNING,
-                            previous.lastCheckAt(),
-                            previous.lastResult(),
-                            previous.totalChecks(),
-                            previous.consecutiveFailures(),
-                            previous.lastDurationMillis(),
-                            previous.lastError()
-                    )
-            );
 
             long startNanos = System.nanoTime();
 
@@ -206,69 +242,52 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
                 RuntimeIntegrityState resultState = mapState(result.status());
 
-                RuntimeIntegritySnapshot current = snapshot.get();
+                return snapshot.updateAndGet(current -> {
+                    if (current.state() == RuntimeIntegrityState.STOPPED) {
+                        return current;
+                    }
 
-                if (current.state() == RuntimeIntegrityState.STOPPED) {
-                    return current;
-                }
+                    boolean successful =
+                            resultState == RuntimeIntegrityState.VERIFIED
+                                    || resultState == RuntimeIntegrityState.DEVELOPMENT_BUILD;
 
-                boolean successful =
-                        resultState == RuntimeIntegrityState.VERIFIED
-                                || resultState == RuntimeIntegrityState.DEVELOPMENT_BUILD;
+                    long consecutiveFailures = successful
+                            ? 0
+                            : current.consecutiveFailures() + 1;
 
-                long consecutiveFailures = successful
-                        ? 0
-                        : current.consecutiveFailures() + 1;
-
-                RuntimeIntegritySnapshot completed =
-                        new RuntimeIntegritySnapshot(
-                                resultState,
-                                Instant.now(),
-                                result,
-                                current.totalChecks() + 1,
-                                consecutiveFailures,
-                                durationMillis,
-                                null
-                        );
-
-                // Do not overwrite STOPPED if close() was called
-                // while the verification task was running.
-                if (snapshot.get().state() == RuntimeIntegrityState.STOPPED) {
-                    return snapshot.get();
-                }
-
-                snapshot.set(completed);
-                return completed;
+                    return new RuntimeIntegritySnapshot(
+                            resultState,
+                            Instant.now(),
+                            result,
+                            current.totalChecks() + 1,
+                            consecutiveFailures,
+                            durationMillis,
+                            null
+                    );
+                });
 
             } catch (RuntimeException exception) {
                 long durationMillis = TimeUnit.NANOSECONDS.toMillis(
                         System.nanoTime() - startNanos
                 );
 
-                RuntimeIntegritySnapshot current = snapshot.get();
+                String error = sanitizeError(exception);
 
-                // Preserve STOPPED if close() happened during verification.
-                if (current.state() == RuntimeIntegrityState.STOPPED) {
-                    return current;
-                }
+                return snapshot.updateAndGet(current -> {
+                    if (current.state() == RuntimeIntegrityState.STOPPED) {
+                        return current;
+                    }
 
-                RuntimeIntegritySnapshot failed =
-                        new RuntimeIntegritySnapshot(
-                                RuntimeIntegrityState.FAILED,
-                                Instant.now(),
-                                null,
-                                current.totalChecks() + 1,
-                                current.consecutiveFailures() + 1,
-                                durationMillis,
-                                sanitizeError(exception)
-                        );
-
-                if (snapshot.get().state() == RuntimeIntegrityState.STOPPED) {
-                    return snapshot.get();
-                }
-
-                snapshot.set(failed);
-                return failed;
+                    return new RuntimeIntegritySnapshot(
+                            RuntimeIntegrityState.FAILED,
+                            Instant.now(),
+                            null,
+                            current.totalChecks() + 1,
+                            current.consecutiveFailures() + 1,
+                            durationMillis,
+                            error
+                    );
+                });
             }
 
         } finally {
@@ -297,15 +316,27 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                 .replace('\t', ' ');
     }
 
+    private void ensureNotClosed() {
+        if (closed.get()) {
+            throw new IllegalStateException(
+                    "Runtime integrity monitor has been stopped"
+            );
+        }
+    }
+
+    private <T> CompletableFuture<T> failedFuture(Throwable throwable) {
+        CompletableFuture<T> future = new CompletableFuture<>();
+        future.completeExceptionally(throwable);
+        return future;
+    }
+
     @Override
     public void close() {
-        RuntimeIntegritySnapshot current = snapshot.get();
-
-        if (current.state() == RuntimeIntegrityState.STOPPED) {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
 
-        snapshot.set(
+        snapshot.updateAndGet(current ->
                 new RuntimeIntegritySnapshot(
                         RuntimeIntegrityState.STOPPED,
                         current.lastCheckAt(),
@@ -317,6 +348,15 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                 )
         );
 
+        IllegalStateException stoppedException = new IllegalStateException(
+                "Runtime integrity monitor has been stopped"
+        );
+
+        for (CompletableFuture<RuntimeIntegritySnapshot> future : pendingChecks) {
+            future.completeExceptionally(stoppedException);
+        }
+
+        pendingChecks.clear();
         executor.shutdownNow();
     }
 }
