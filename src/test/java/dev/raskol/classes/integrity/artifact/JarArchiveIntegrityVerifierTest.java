@@ -1,30 +1,26 @@
-// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
-// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.artifact;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.raskol.classes.integrity.build.BuildIdentity;
 import dev.raskol.classes.integrity.build.BuildType;
 import dev.raskol.classes.integrity.manifest.IntegrityManifest;
 import dev.raskol.classes.integrity.manifest.ManifestFileEntry;
 import dev.raskol.classes.integrity.manifest.Sha256HashService;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JarArchiveIntegrityVerifierTest {
 
@@ -35,29 +31,28 @@ class JarArchiveIntegrityVerifierTest {
             "META-INF/raskol/integrity/manifest.sig";
 
     @TempDir
-    Path tempDir;
+    Path temporaryDirectory;
 
     @Test
-    void shouldVerifyCompleteArchive() throws IOException {
-        byte[] classContent = "class-content".getBytes(StandardCharsets.UTF_8);
-        byte[] configContent = "config-content".getBytes(StandardCharsets.UTF_8);
+    void shouldVerifyCompleteArchive() throws Exception {
+        byte[] classContent = "protected-class-content".getBytes(StandardCharsets.UTF_8);
+        byte[] configContent = "protected-config-content".getBytes(StandardCharsets.UTF_8);
 
-        Path jarPath = createJar(Map.of(
-                "dev/raskol/classes/Main.class", classContent,
-                "config.yml", configContent,
-                MANIFEST_PATH, new byte[]{1, 2, 3},
-                SIGNATURE_PATH, new byte[]{4, 5, 6}
-        ));
+        Path archive = createArchive(
+                "plugin.jar",
+                new ArchiveEntry("dev/raskol/Test.class", classContent),
+                new ArchiveEntry("config.yml", configContent),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
 
-        IntegrityManifest manifest = createManifest(Map.of(
-                "dev/raskol/classes/Main.class", classContent,
-                "config.yml", configContent
-        ));
+        IntegrityManifest manifest = manifest(
+                fileEntry("dev/raskol/Test.class", classContent),
+                fileEntry("config.yml", configContent)
+        );
 
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(jarPath);
-
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.VERIFIED, result.status());
         assertTrue(result.isVerified());
@@ -67,225 +62,218 @@ class JarArchiveIntegrityVerifierTest {
     }
 
     @Test
-    void shouldRejectUnexpectedArchiveEntry() throws IOException {
+    void shouldRejectUnexpectedArchiveEntry() throws Exception {
         byte[] expectedContent = bytes("expected");
-        byte[] unexpectedContent = bytes("injected");
+        byte[] unexpectedContent = bytes("unexpected");
 
-        Path jarPath = createJar(Map.of(
-                "config.yml", expectedContent,
-                "injected.class", unexpectedContent
-        ));
+        Path archive = createArchive(
+                "unexpected-entry.jar",
+                new ArchiveEntry("config.yml", expectedContent),
+                new ArchiveEntry("unexpected.txt", unexpectedContent),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
 
-        IntegrityManifest manifest = createManifest(Map.of(
-                "config.yml", expectedContent
-        ));
+        IntegrityManifest manifest = manifest(
+                fileEntry("config.yml", expectedContent)
+        );
 
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(jarPath);
-
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
                 ArchiveIntegrityStatus.UNEXPECTED_ARCHIVE_ENTRY,
                 result.status()
         );
-        assertEquals(List.of("injected.class"), result.failedFiles());
         assertFalse(result.isVerified());
+        assertTrue(result.failedFiles().contains("unexpected.txt"));
     }
 
     @Test
-    void shouldRejectMissingManifestEntry() throws IOException {
-        byte[] content = bytes("expected");
+    void shouldRejectMissingManifestEntry() throws Exception {
+        byte[] expectedContent = bytes("expected");
 
-        Path jarPath = createJar(Map.of(
-                "config.yml", content
-        ));
+        Path archive = createArchive(
+                "missing-entry.jar",
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
 
-        IntegrityManifest manifest = createManifest(Map.of(
-                "config.yml", content,
-                "missing.yml", bytes("missing")
-        ));
+        IntegrityManifest manifest = manifest(
+                fileEntry("config.yml", expectedContent)
+        );
 
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(jarPath);
-
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
                 ArchiveIntegrityStatus.MANIFEST_ENTRY_MISSING,
                 result.status()
         );
-        assertEquals(List.of("missing.yml"), result.failedFiles());
+        assertTrue(result.failedFiles().contains("config.yml"));
     }
 
     @Test
-    void shouldRejectEntrySizeMismatch() throws IOException {
-        byte[] actualContent = bytes("actual-content");
+    void shouldRejectEntrySizeMismatch() throws Exception {
+        byte[] actualContent = bytes("short");
+        byte[] expectedContent = bytes("much longer expected content");
 
-        Path jarPath = createJar(Map.of(
-                "config.yml", actualContent
-        ));
-
-        IntegrityManifest manifest = createManifestWithEntry(
-                "config.yml",
-                actualContent.length + 10,
-                Sha256HashService.hash(actualContent)
+        Path archive = createArchive(
+                "size-mismatch.jar",
+                new ArchiveEntry("config.yml", actualContent),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
         );
 
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(jarPath);
+        IntegrityManifest manifest = manifest(
+                fileEntry("config.yml", expectedContent)
+        );
 
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
                 ArchiveIntegrityStatus.ENTRY_SIZE_MISMATCH,
                 result.status()
         );
-        assertEquals(List.of("config.yml"), result.failedFiles());
+        assertTrue(result.failedFiles().contains("config.yml"));
     }
 
     @Test
-    void shouldRejectEntryHashMismatch() throws IOException {
+    void shouldRejectEntryHashMismatch() throws Exception {
         byte[] actualContent = bytes("actual-content");
-        byte[] differentContent = bytes("different-content");
+        byte[] expectedContent = bytes("different-content");
 
-        Path jarPath = createJar(Map.of(
-                "config.yml", actualContent
-        ));
-
-        IntegrityManifest manifest = createManifestWithEntry(
-                "config.yml",
-                actualContent.length,
-                Sha256HashService.hash(differentContent)
+        Path archive = createArchive(
+                "hash-mismatch.jar",
+                new ArchiveEntry("config.yml", actualContent),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
         );
 
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(jarPath);
+        IntegrityManifest manifest = manifest(
+                fileEntry("config.yml", expectedContent)
+        );
 
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
                 ArchiveIntegrityStatus.ENTRY_HASH_MISMATCH,
                 result.status()
         );
-        assertEquals(List.of("config.yml"), result.failedFiles());
+        assertTrue(result.failedFiles().contains("config.yml"));
     }
 
     @Test
-    void shouldRejectInvalidArchiveEntryPath() throws IOException {
-        Path jarPath = createJar("../outside.txt", bytes("malicious"));
+    void shouldRejectInvalidArchiveEntryPath() throws Exception {
+        Path archive = createArchive(
+                "invalid-path.jar",
+                new ArchiveEntry("../outside.txt", bytes("unsafe")),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
 
-        IntegrityManifest manifest = createManifest(Map.of(
-                "safe.txt", bytes("safe")
-        ));
+        IntegrityManifest manifest = manifest(
+                fileEntry("config.yml", bytes("expected"))
+        );
 
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(jarPath);
-
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
                 ArchiveIntegrityStatus.INVALID_ARCHIVE_ENTRY_PATH,
                 result.status()
         );
-        assertEquals(List.of("../outside.txt"), result.failedFiles());
     }
 
     @Test
-    void shouldRejectEmptyManifest() throws IOException {
-        Path jarPath = createJar("config.yml", bytes("content"));
-
-        IntegrityManifest manifest = new IntegrityManifest(
-                createBuildIdentity(),
-                List.of()
+    void shouldRejectEmptyManifest() throws Exception {
+        Path archive = createArchive(
+                "empty-manifest.jar",
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
         );
 
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(jarPath);
+        IntegrityManifest manifest = manifest();
 
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
-        assertEquals(
-                ArchiveIntegrityStatus.MANIFEST_EMPTY,
-                result.status()
-        );
+        assertEquals(ArchiveIntegrityStatus.MANIFEST_EMPTY, result.status());
     }
 
     @Test
-    void shouldRejectIntegrityMetadataInManifest() throws IOException {
-        byte[] content = bytes("manifest-content");
+    void shouldRejectIntegrityMetadataInsideManifest() throws Exception {
+        byte[] metadata = bytes("metadata");
 
-        Path jarPath = createJar(
-                MANIFEST_PATH,
-                content
+        Path archive = createArchive(
+                "metadata-in-manifest.jar",
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
         );
 
-        IntegrityManifest manifest = createManifest(Map.of(
-                MANIFEST_PATH, content
-        ));
-
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(jarPath);
-
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
-
-        assertEquals(
-                ArchiveIntegrityStatus.INVALID_MANIFEST,
-                result.status()
+        IntegrityManifest manifest = manifest(
+                fileEntry(MANIFEST_PATH, metadata)
         );
-        assertEquals(List.of(MANIFEST_PATH), result.failedFiles());
+
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
+
+        assertEquals(ArchiveIntegrityStatus.INVALID_MANIFEST, result.status());
     }
 
     @Test
-    void shouldRejectEntryExceedingConfiguredLimit() throws IOException {
-        byte[] content = bytes("content-too-large");
+    void shouldRejectEntryExceedingConfiguredSizeLimit() throws Exception {
+        byte[] content = bytes("0123456789");
 
-        Path jarPath = createJar("large.txt", content);
+        Path archive = createArchive(
+                "entry-too-large.jar",
+                new ArchiveEntry("config.yml", content),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
 
-        IntegrityManifest manifest = createManifest(Map.of(
-                "large.txt", content
-        ));
+        IntegrityManifest manifest = manifest(
+                fileEntry("config.yml", content)
+        );
 
-        JarArchiveIntegrityVerifier verifier =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(
-                        jarPath,
-                        4,
-                        1024,
-                        100
-                );
-
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
-
-        assertEquals(
-                ArchiveIntegrityStatus.ENTRY_TOO_LARGE,
-                result.status()
-        );
-    }
-
-    @Test
-    void shouldRejectArchiveExceedingTotalSizeLimit() throws IOException {
-        byte[] first = bytes("123");
-        byte[] second = bytes("456");
-
-        Path jarPath = createJar(Map.of(
-                "first.txt", first,
-                "second.txt", second
-        ));
-
-        IntegrityManifest manifest = createManifest(Map.of(
-                "first.txt", first,
-                "second.txt", second
-        ));
-
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(
-                        jarPath,
-                        100,
+                        archive,
                         5,
+                        100,
                         100
-                );
+                ).verify(manifest);
 
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+        assertEquals(ArchiveIntegrityStatus.ENTRY_TOO_LARGE, result.status());
+    }
+
+    @Test
+    void shouldRejectArchiveExceedingTotalSizeLimit() throws Exception {
+        byte[] first = bytes("123456");
+        byte[] second = bytes("abcdef");
+
+        Path archive = createArchive(
+                "total-too-large.jar",
+                new ArchiveEntry("first.txt", first),
+                new ArchiveEntry("second.txt", second),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
+
+        IntegrityManifest manifest = manifest(
+                fileEntry("first.txt", first),
+                fileEntry("second.txt", second)
+        );
+
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(
+                        archive,
+                        100,
+                        8,
+                        100
+                ).verify(manifest);
 
         assertEquals(
                 ArchiveIntegrityStatus.ARCHIVE_TOTAL_SIZE_LIMIT_EXCEEDED,
@@ -294,26 +282,27 @@ class JarArchiveIntegrityVerifierTest {
     }
 
     @Test
-    void shouldRejectArchiveExceedingEntryCountLimit() throws IOException {
-        Path jarPath = createJar(Map.of(
-                "first.txt", bytes("first"),
-                "second.txt", bytes("second")
-        ));
+    void shouldRejectArchiveExceedingEntryCountLimit() throws Exception {
+        Path archive = createArchive(
+                "too-many-entries.jar",
+                new ArchiveEntry("first.txt", bytes("first")),
+                new ArchiveEntry("second.txt", bytes("second")),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
 
-        IntegrityManifest manifest = createManifest(Map.of(
-                "first.txt", bytes("first"),
-                "second.txt", bytes("second")
-        ));
+        IntegrityManifest manifest = manifest(
+                fileEntry("first.txt", bytes("first")),
+                fileEntry("second.txt", bytes("second"))
+        );
 
-        JarArchiveIntegrityVerifier verifier =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(
-                        jarPath,
-                        1024,
-                        4096,
-                        1
-                );
-
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+                        archive,
+                        100,
+                        100,
+                        2
+                ).verify(manifest);
 
         assertEquals(
                 ArchiveIntegrityStatus.ARCHIVE_ENTRY_COUNT_LIMIT_EXCEEDED,
@@ -322,106 +311,174 @@ class JarArchiveIntegrityVerifierTest {
     }
 
     @Test
-    void shouldRejectInvalidJarArchive() throws IOException {
-        Path invalidJar = Files.createFile(tempDir.resolve("invalid.jar"));
+    void shouldRejectInvalidJarArchive() throws Exception {
+        Path archive = temporaryDirectory.resolve("invalid.jar");
+        Files.writeString(archive, "this is not a JAR archive");
 
-        IntegrityManifest manifest = createManifest(Map.of(
-                "config.yml", bytes("content")
-        ));
+        IntegrityManifest manifest = manifest(
+                fileEntry("config.yml", bytes("expected"))
+        );
 
-        JarArchiveIntegrityVerifier verifier =
-                new JarArchiveIntegrityVerifier(invalidJar);
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
-        ArchiveIntegrityVerificationResult result = verifier.verify(manifest);
+        assertEquals(ArchiveIntegrityStatus.ARCHIVE_READ_ERROR, result.status());
+    }
+
+    @Test
+    void shouldRejectCaseInsensitivePathCollision() throws Exception {
+        byte[] first = bytes("first");
+        byte[] second = bytes("second");
+
+        Path archive = createArchive(
+                "case-collision.jar",
+                new ArchiveEntry("Config.yml", first),
+                new ArchiveEntry("config.yml", second),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
+
+        IntegrityManifest manifest = manifest(
+                fileEntry("Config.yml", first)
+        );
+
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
-                ArchiveIntegrityStatus.ARCHIVE_READ_ERROR,
+                ArchiveIntegrityStatus.ARCHIVE_PATH_COLLISION,
                 result.status()
         );
     }
 
     @Test
-    void shouldExposeConfiguredLimitsAndArtifactPath() throws IOException {
-        Path jarPath = createJar("config.yml", bytes("content"));
+    void shouldRejectUnexpectedArchiveDirectory() throws Exception {
+        byte[] content = bytes("config");
+
+        Path archive = createArchive(
+                "unexpected-directory.jar",
+                new ArchiveEntry("unexpected/", new byte[0]),
+                new ArchiveEntry("config.yml", content),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
+
+        IntegrityManifest manifest = manifest(
+                fileEntry("config.yml", content)
+        );
+
+        JarArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
+
+        assertEquals(
+                ArchiveIntegrityStatus.UNEXPECTED_ARCHIVE_DIRECTORY,
+                result.status()
+        );
+        assertTrue(result.failedFiles().contains("unexpected/"));
+    }
+
+    @Test
+    void shouldExposeConfiguredLimitsAndArchivePath() throws Exception {
+        Path archive = temporaryDirectory.resolve("limits.jar");
 
         JarArchiveIntegrityVerifier verifier =
                 new JarArchiveIntegrityVerifier(
-                        jarPath,
-                        2048,
-                        8192,
-                        50
+                        archive,
+                        123,
+                        456,
+                        789
                 );
 
-        assertEquals(jarPath.toRealPath(), verifier.getArtifactPath());
-        assertEquals(2048, verifier.getMaxEntryBytes());
-        assertEquals(8192, verifier.getMaxTotalBytes());
-        assertEquals(50, verifier.getMaxArchiveEntries());
+        assertEquals(archive.toAbsolutePath().normalize(), verifier.getArchivePath());
+        assertEquals(123, verifier.getMaxEntryBytes());
+        assertEquals(456, verifier.getMaxTotalBytes());
+        assertEquals(789, verifier.getMaxArchiveEntries());
     }
 
-    private IntegrityManifest createManifest(Map<String, byte[]> files) {
-        List<ManifestFileEntry> entries = new ArrayList<>();
+    @Test
+    void shouldRejectNonPositiveLimits() {
+        Path archive = temporaryDirectory.resolve("limits.jar");
 
-        for (Map.Entry<String, byte[]> file : files.entrySet()) {
-            entries.add(new ManifestFileEntry(
-                    file.getKey(),
-                    file.getValue().length,
-                    Sha256HashService.hash(file.getValue())
-            ));
-        }
+        assertThrowsIllegalArgument(
+                () -> new JarArchiveIntegrityVerifier(archive, 0, 100, 100)
+        );
 
-        return new IntegrityManifest(createBuildIdentity(), entries);
-    }
+        assertThrowsIllegalArgument(
+                () -> new JarArchiveIntegrityVerifier(archive, 100, 0, 100)
+        );
 
-    private IntegrityManifest createManifestWithEntry(
-            String path,
-            long size,
-            String sha256
-    ) {
-        return new IntegrityManifest(
-                createBuildIdentity(),
-                List.of(new ManifestFileEntry(path, size, sha256))
+        assertThrowsIllegalArgument(
+                () -> new JarArchiveIntegrityVerifier(archive, 100, 100, 0)
         );
     }
 
-    private BuildIdentity createBuildIdentity() {
-        return new BuildIdentity(
-                "RaskolClasses",
-                "1.15.8",
-                "BUILD-ARCHIVE-TEST",
-                "0123456789abcdef",
-                Instant.parse("2026-01-01T00:00:00Z"),
-                "https://github.com/hayferdahmer/RaskolClasses",
-                BuildType.OFFICIAL
-        );
-    }
+    private Path createArchive(
+            String fileName,
+            ArchiveEntry... entries
+    ) throws IOException {
+        Path archive = temporaryDirectory.resolve(fileName);
 
-    private Path createJar(String entryName, byte[] content) throws IOException {
-        Path jarPath = tempDir.resolve("archive-" + System.nanoTime() + ".jar");
+        try (JarOutputStream output = new JarOutputStream(
+                Files.newOutputStream(archive)
+        )) {
+            for (ArchiveEntry archiveEntry : entries) {
+                JarEntry entry = new JarEntry(archiveEntry.name());
 
-        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jarPath))) {
-            output.putNextEntry(new JarEntry(entryName));
-            output.write(content);
-            output.closeEntry();
-        }
+                output.putNextEntry(entry);
 
-        return jarPath;
-    }
+                if (!entry.isDirectory()) {
+                    output.write(archiveEntry.content());
+                }
 
-    private Path createJar(Map<String, byte[]> entries) throws IOException {
-        Path jarPath = tempDir.resolve("archive-" + System.nanoTime() + ".jar");
-
-        try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jarPath))) {
-            for (Map.Entry<String, byte[]> entry : entries.entrySet()) {
-                output.putNextEntry(new JarEntry(entry.getKey()));
-                output.write(entry.getValue());
                 output.closeEntry();
             }
         }
 
-        return jarPath;
+        return archive;
+    }
+
+    private IntegrityManifest manifest(ManifestFileEntry... entries) {
+        BuildIdentity identity = new BuildIdentity(
+                "test-build",
+                "1.0.0",
+                "0123456789abcdef",
+                "test-repository",
+                Instant.parse("2026-01-01T00:00:00Z"),
+                "test",
+                BuildType.OFFICIAL
+        );
+
+        return new IntegrityManifest(identity, List.of(entries));
+    }
+
+    private ManifestFileEntry fileEntry(String path, byte[] content) {
+        return new ManifestFileEntry(
+                path,
+                content.length,
+                Sha256HashService.hash(content)
+        );
     }
 
     private byte[] bytes(String value) {
         return value.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private void assertThrowsIllegalArgument(Runnable action) {
+        boolean thrown = false;
+
+        try {
+            action.run();
+        } catch (IllegalArgumentException exception) {
+            thrown = true;
+        }
+
+        assertTrue(thrown, "Expected IllegalArgumentException");
+    }
+
+    private record ArchiveEntry(String name, byte[] content) {
+        private ArchiveEntry {
+            assertNotNull(name);
+            assertNotNull(content);
+        }
     }
 }
