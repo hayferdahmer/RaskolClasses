@@ -67,6 +67,41 @@
 - Объяснение причины (не уязвимость / working as intended / вне скоупа проекта)
 - Возможность эскалации через GitHub Security (если репортёр не согласен с оценкой)
 
+## Публичная поверхность плагина
+
+Команды, доступные всем игрокам (не требуют привилегий):
+
+| Команда | Назначение |
+| ------- | ---------- |
+| `/rc version` | Показать версию плагина, билд-хэш, статус RIPS-верификации (публичная информация) |
+| `/rc menu` | Открыть Книгу класса (GUI) |
+| `/rc health` | Показать свои HP/ресурс (actionbar-формат) |
+| `/rc plus status` | Статус подписки raskolspec+ (активна/неактивна, осталось дней) |
+| `/rc plus buy` | Купить подписку за империалы (PlayerPoints) |
+| `/rc plus gift <player> <days>` | Подарить подписку другому игроку |
+| `/rc plus apply <template>` | Применить курируемый билд (требует активную подписку) |
+| `/rc item stats` | Показать статы своего снаряжения |
+| `/rc item salvage` | Разобрать предмет в руке на фрагменты |
+| `/rc item craft` | Открыть GUI крафта из фрагментов |
+
+## Привилегированные команды
+
+Команды, требующие `raskolclasses.admin` или `op`:
+
+| Команда | Назначение | Право |
+| ------- | ---------- | ----- |
+| `/rc reload` | Перезагрузка конфигов (config.yml, kits/*.yml, crafting.yml) | `raskolclasses.admin` |
+| `/rc debug [player]` | Диагностика: атрибуты, ресурсы, CC-стек, burst-лог | `raskolclasses.debug` |
+| `/rc selftest` | Headless-самотестирование формул (167 чеков) | `raskolclasses.debug` |
+| `/rc foliant give <player>` | Выдать Фолиант Душ игроку | `raskolclasses.admin` |
+| `/rc cc status\|clear\|test\|reset\|list` | Админка CC/DR-стеков игроков | `raskolclasses.admin.cc` |
+| `/rc plus grant <player> <days>` | Выдать подписку raskolspec+ бесплатно (админ) | `raskolclasses.admin.plus` |
+| `/rc plus revoke <player>` | Отозвать подписку raskolspec+ | `raskolclasses.admin.plus` |
+| `/rc item give <player> <itemId>` | Выдать предмет из реестра игроку | `raskolclasses.item.give` |
+| `/rc item reload` | Перезагрузка реестра предметов (items.yml) | `raskolclasses.item.reload` |
+| `/rc item debug <player>` | UID-диагностика и статы чужих игроков | `raskolclasses.item.debug` |
+| `/rc item browse` | Админ-браузер всех предметов реестра | `raskolclasses.item.browser` |
+
 ## Скоуп (что входит в программу)
 
 ### Входит
@@ -75,6 +110,8 @@
 - Уязвимости в API для интеграций (RaskolMobs, внешние плагины)
 - Уязвимости процесса сборки (pom.xml, GitHub Actions workflows)
 - Проблемы в зависимостях, эксплуатируемые через код плагина
+- Обход permission-гейтов (игрок без `raskolclasses.admin` вызывает admin-команду)
+- RIPS-подделка артефактов (обход `ArtifactBoundIntegrityVerifier`)
 
 ### Не входит (out of scope)
 
