@@ -6,8 +6,6 @@ import dev.raskol.classes.integrity.runtime.RuntimeIntegritySnapshot;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityState;
 import dev.raskol.classes.integrity.verification.IntegrityStatus;
 
-import java.util.Objects;
-
 /**
  * Determines whether a runtime integrity failure requires plugin shutdown.
  *
@@ -25,9 +23,7 @@ public final class RuntimeIntegrityEnforcementPolicy {
         this(DEFAULT_TRANSIENT_FAILURE_THRESHOLD);
     }
 
-    public RuntimeIntegrityEnforcementPolicy(
-            int transientFailureThreshold
-    ) {
+    public RuntimeIntegrityEnforcementPolicy(int transientFailureThreshold) {
         if (transientFailureThreshold <= 0) {
             throw new IllegalArgumentException(
                     "Transient failure threshold must be positive"
@@ -37,24 +33,15 @@ public final class RuntimeIntegrityEnforcementPolicy {
         this.transientFailureThreshold = transientFailureThreshold;
     }
 
-    /**
-     * Determines whether the plugin must be disabled.
-     *
-     * @param snapshot current runtime integrity snapshot
-     * @return true when plugin shutdown is required
-     */
     public boolean shouldDisable(RuntimeIntegritySnapshot snapshot) {
         if (snapshot == null
                 || snapshot.state() != RuntimeIntegrityState.FAILED) {
             return false;
         }
 
-        if (snapshot.consecutiveFailures() < transientFailureThreshold) {
-            return false;
-        }
-
         if (snapshot.lastResult() == null) {
-            return true;
+            return snapshot.consecutiveFailures()
+                    >= transientFailureThreshold;
         }
 
         IntegrityStatus status = snapshot.lastResult().status();
