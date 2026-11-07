@@ -42,6 +42,8 @@ import dev.raskol.classes.integrity.artifact.ArtifactBoundIntegrityVerifier;
 import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
 import dev.raskol.classes.integrity.reporting.SecurityReporter;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityMonitor;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegritySnapshot;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegrityState;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityStateManager;
 import dev.raskol.classes.integrity.runtime.RuntimeSecurityReporter;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
@@ -82,6 +84,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ». Точка сборки сервиса: конструирование
@@ -185,6 +188,13 @@ public final class RaskolClasses extends JavaPlugin {
 
     /** RIPS runtime integrity monitor; started only after successful plugin initialization. */
     private RuntimeIntegrityMonitor runtimeIntegrityMonitor;
+
+    /**
+     * Prevents multiple runtime integrity failures from scheduling
+     * multiple plugin-disable tasks.
+     */
+    private final AtomicBoolean runtimeIntegrityFailureScheduled =
+            new AtomicBoolean(false);
 
     /**
      * Runs artifact-bound RIPS verification before gameplay initialization.
@@ -403,8 +413,8 @@ public final class RaskolClasses extends JavaPlugin {
     /**
      * Starts periodic artifact-bound RIPS verification after plugin startup.
      *
-     * <p>Runtime checks run on a dedicated daemon thread and do not call
-     * Bukkit or Paper APIs.</p>
+     * <p>Runtime checks run on a dedicated daemon thread. Bukkit/Paper
+     * lifecycle operations are dispatched to the server main thread.</p>
      */
     private void startRuntimeIntegrityMonitoring() {
         if (artifactBoundIntegrityVerifier == null) {
@@ -431,13 +441,66 @@ public final class RaskolClasses extends JavaPlugin {
                     return thread;
                 }),
                 new RuntimeIntegrityStateManager(),
-                runtimeReporter
+                runtimeReporter,
+                this::handleRuntimeIntegrityFailure
         );
 
         runtimeIntegrityMonitor.start();
         getLogger().info(
                 "[RIPS] Artifact-bound runtime integrity monitoring started (interval: 30 minutes)"
         );
+    }
+
+    /**
+     * Handles a runtime integrity failure.
+     *
+     * <p>This method is invoked by the background monitoring thread.
+     * It only schedules plugin shutdown on the Paper main thread.
+     * Bukkit plugin lifecycle operations are never performed directly
+     * by the monitoring thread.</p>
+     *
+     * @param snapshot failed runtime integrity snapshot
+     */
+    private void handleRuntimeIntegrityFailure(
+            RuntimeIntegritySnapshot snapshot
+    ) {
+        if (snapshot == null
+                || snapshot.state() != RuntimeIntegrityState.FAILED) {
+            return;
+        }
+
+        if (!runtimeIntegrityFailureScheduled.compareAndSet(false, true)) {
+            return;
+        }
+
+        try {
+            getServer().getScheduler().runTask(this, () -> {
+                if (!isEnabled()) {
+                    return;
+                }
+
+                String status = snapshot.lastResult() == null
+                        ? "VERIFICATION_EXECUTION_ERROR"
+                        : snapshot.lastResult().status().name();
+
+                getLogger().severe(
+                        "[RIPS] Runtime integrity enforcement triggered. "
+                                + "Status: " + status
+                );
+
+                getLogger().severe(
+                        "[RIPS] Disabling RaskolClasses because artifact integrity "
+                                + "could not be verified."
+                );
+
+                getServer().getPluginManager().disablePlugin(this);
+            });
+        } catch (RuntimeException exception) {
+            getLogger().severe(
+                    "[RIPS] Unable to schedule plugin shutdown on the Paper main thread: "
+                            + exception.getMessage()
+            );
+        }
     }
 
     public void markPurgeNow() {
