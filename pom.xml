@@ -18,7 +18,7 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
 
   <groupId>dev.raskol</groupId>
   <artifactId>raskol-classes</artifactId>
-  <version>1.15.8-SNAPSHOT</version>
+  <version>1.15.8</version>
   <packaging>jar</packaging>
 
   <name>RaskolClasses</name>
