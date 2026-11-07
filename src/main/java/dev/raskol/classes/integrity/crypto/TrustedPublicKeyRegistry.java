@@ -55,10 +55,7 @@ public final class TrustedPublicKeyRegistry {
      * Contains only keys authorized for signature verification.
      */
     private static final List<PublicKey> TRUSTED_KEYS =
-            ALL_ENTRIES.stream()
-                    .filter(TrustedPublicKeyEntry::canVerify)
-                    .map(TrustedPublicKeyEntry::publicKey)
-                    .toList();
+            verificationKeys(ALL_ENTRIES);
 
     private TrustedPublicKeyRegistry() {
         throw new UnsupportedOperationException(
@@ -88,6 +85,34 @@ public final class TrustedPublicKeyRegistry {
      */
     public static List<TrustedPublicKeyEntry> allEntries() {
         return ALL_ENTRIES;
+    }
+
+    /**
+     * Extracts keys authorized for signature verification from
+     * lifecycle entries.
+     *
+     * <p>ACTIVE and VERIFY_ONLY entries are included.
+     * REVOKED entries are excluded.</p>
+     *
+     * @param entries configured trusted key entries
+     * @return immutable list of verification-eligible public keys
+     */
+    public static List<PublicKey> verificationKeys(
+            List<TrustedPublicKeyEntry> entries
+    ) {
+        Objects.requireNonNull(entries, "entries");
+
+        List<PublicKey> keys = new ArrayList<>(entries.size());
+
+        for (TrustedPublicKeyEntry entry : entries) {
+            Objects.requireNonNull(entry, "trusted key entry");
+
+            if (entry.canVerify()) {
+                keys.add(entry.publicKey());
+            }
+        }
+
+        return List.copyOf(keys);
     }
 
     /**
