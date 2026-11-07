@@ -56,7 +56,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", configContent)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.VERIFIED, result.status());
@@ -83,7 +83,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("dev/raskol/Test.class", classContent)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.VERIFIED, result.status());
@@ -108,7 +108,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry(PUBLIC_KEY_PATH, publicKey)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -135,7 +135,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", expectedContent)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -160,7 +160,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", expectedContent)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -186,7 +186,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", expectedContent)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -212,7 +212,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", expectedContent)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -235,7 +235,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", bytes("expected"))
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -254,7 +254,7 @@ class JarArchiveIntegrityVerifierTest {
 
         IntegrityManifest manifest = manifest();
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.MANIFEST_EMPTY, result.status());
@@ -274,7 +274,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry(MANIFEST_PATH, metadata)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.INVALID_MANIFEST, result.status());
@@ -295,7 +295,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", content)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(
                         archive,
                         5,
@@ -324,7 +324,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("second.txt", second)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(
                         archive,
                         100,
@@ -353,7 +353,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("second.txt", bytes("second"))
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(
                         archive,
                         100,
@@ -376,7 +376,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", bytes("expected"))
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.ARCHIVE_READ_ERROR, result.status());
@@ -399,7 +399,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("Config.yml", first)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -424,7 +424,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", content)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -462,7 +462,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("dev/raskol/Test.class", content)
         );
 
-        ArchiveIntegrityVerificationResult result =
+        JarArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.VERIFIED, result.status());
