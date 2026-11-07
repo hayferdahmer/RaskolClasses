@@ -6,39 +6,90 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Immutable result of complete JAR archive integrity verification.
+ * Базовый результат верификации целостности архива в RIPS.
  *
- * @param status verification status
- * @param message human-readable result description
- * @param archiveEntries number of archive entries inspected
- * @param checkedFiles number of files successfully verified
- * @param failedFiles files associated with verification failure
+ * 1.15.8: контракт восстановлен по вызовам в ArtifactBoundIntegrityVerifier —
+ * методы isVerified(), status(), checkedFiles(), failedFiles() требуются всем
+ * верификаторам архивов (JarArchiveIntegrityVerificationResult и др.).
  */
-public record ArchiveIntegrityVerificationResult(
-        ArchiveIntegrityStatus status,
-        String message,
-        int archiveEntries,
-        int checkedFiles,
-        List<String> failedFiles
-) {
+public class ArchiveIntegrityVerificationResult {
 
-    public ArchiveIntegrityVerificationResult {
-        Objects.requireNonNull(status, "status");
-        Objects.requireNonNull(message, "message");
-        Objects.requireNonNull(failedFiles, "failedFiles");
+    public enum Status {
+        /** Все хэши/подписи валидны. */
+        VERIFIED,
+        /** Обнаружены расхождения или невалидные подписи. */
+        FAILED,
+        /** Архив отсутствует или недоступен. */
+        MISSING,
+        /** Манифест не найден или повреждён. */
+        CORRUPT_MANIFEST,
+        /** Неизвестный статус (ошибка верификатора). */
+        UNKNOWN
+    }
 
-        if (archiveEntries < 0) {
-            throw new IllegalArgumentException("archiveEntries cannot be negative");
-        }
+    private final boolean isVerified;
+    private final Status status;
+    private final List<String> checkedFiles;
+    private final List<String> failedFiles;
+    private final String message;
 
-        if (checkedFiles < 0) {
-            throw new IllegalArgumentException("checkedFiles cannot be negative");
-        }
-
-        failedFiles = List.copyOf(failedFiles);
+    public ArchiveIntegrityVerificationResult(
+            boolean isVerified,
+            Status status,
+            List<String> checkedFiles,
+            List<String> failedFiles,
+            String message
+    ) {
+        this.isVerified = isVerified;
+        this.status = status != null ? status : Status.UNKNOWN;
+        this.checkedFiles = checkedFiles == null ? List.of() : List.copyOf(checkedFiles);
+        this.failedFiles = failedFiles == null ? List.of() : List.copyOf(failedFiles);
+        this.message = message == null ? "" : message;
     }
 
     public boolean isVerified() {
-        return status == ArchiveIntegrityStatus.VERIFIED;
+        return isVerified;
+    }
+
+    public Status status() {
+        return status;
+    }
+
+    public List<String> checkedFiles() {
+        return checkedFiles;
+    }
+
+    public List<String> failedFiles() {
+        return failedFiles;
+    }
+
+    public String message() {
+        return message;
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName()
+                + "{verified=" + isVerified
+                + ", status=" + status
+                + ", checked=" + checkedFiles.size()
+                + ", failed=" + failedFiles.size()
+                + ", message='" + message + "'}";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ArchiveIntegrityVerificationResult that)) return false;
+        return isVerified == that.isVerified
+                && status == that.status
+                && Objects.equals(checkedFiles, that.checkedFiles)
+                && Objects.equals(failedFiles, that.failedFiles)
+                && Objects.equals(message, that.message);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(isVerified, status, checkedFiles, failedFiles, message);
     }
 }
