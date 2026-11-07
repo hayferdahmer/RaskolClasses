@@ -148,8 +148,16 @@ public final class ArtifactBoundIntegrityVerifier {
                         .verify(manifest);
 
         if (!archiveResult.isVerified()) {
+            IntegrityStatus failureStatus = switch (archiveResult.status()) {
+                case ARCHIVE_READ_ERROR, ENTRY_READ_ERROR ->
+                        IntegrityStatus.ARTIFACT_UNAVAILABLE;
+
+                default ->
+                        IntegrityStatus.ARCHIVE_INTEGRITY_FAILURE;
+            };
+
             return new IntegrityVerificationResult(
-                    IntegrityStatus.ARCHIVE_INTEGRITY_FAILURE,
+                    failureStatus,
                     "Full archive verification failed: "
                             + archiveResult.status()
                             + ". "
