@@ -2,19 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.config;
 
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.item.model.Affix;
-import dev.raskol.classes.item.model.ItemDefinition;
-import dev.raskol.classes.item.model.ItemRarity;
-import dev.raskol.classes.item.model.ItemSlot;
-import dev.raskol.classes.item.model.ItemStat;
-import dev.raskol.classes.item.model.SetDefinition;
-import dev.raskol.classes.item.model.WeaponType;
-import dev.raskol.classes.item.service.ItemRegistry;
-import dev.raskol.classes.spec.Spec;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +13,20 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.item.model.Affix;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.ItemRarity;
+import dev.raskol.classes.item.model.ItemSlot;
+import dev.raskol.classes.item.model.ItemStat;
+import dev.raskol.classes.item.model.SetDefinition;
+import dev.raskol.classes.item.model.WeaponType;
+import dev.raskol.classes.item.service.ItemRegistry;
+import dev.raskol.classes.spec.Spec;
+
 /**
  * 1.15.0: загрузка items.yml → ItemRegistry (явные предметы + генерация из шаблонов + сеты).
  * 1.15.1 (Итерация B): ДЕКОМПОЗИЦИЯ. Валидация вынесена в ItemValidator; load() стал
@@ -35,11 +36,10 @@ import java.util.stream.Collectors;
  */
 public final class ItemConfigLoader {
 
-    private ItemConfigLoader() {
-    }
+    private ItemConfigLoader() {}
 
     public static ItemRegistry load(File file) throws Exception {
-        return load(file, ignored -> { });
+        return load(file, ignored -> {});
     }
 
     public static ItemRegistry load(File file, Consumer<String> warning) throws Exception {
@@ -56,8 +56,8 @@ public final class ItemConfigLoader {
 
     /* ------------------------------ шаг 1: явные предметы ------------------------------ */
 
-    private static List<ItemDefinition> parseExplicitItems(YamlConfiguration yaml, int maxLevel,
-                                                           Consumer<String> warning) {
+    private static List<ItemDefinition> parseExplicitItems(
+            YamlConfiguration yaml, int maxLevel, Consumer<String> warning) {
         List<ItemDefinition> defs = new ArrayList<>();
         ConfigurationSection entries = yaml.getConfigurationSection("items");
         if (entries == null) {
@@ -105,19 +105,22 @@ public final class ItemConfigLoader {
         List<Affix> pool = new ArrayList<>();
         for (Map<?, ?> a : s.getMapList("affix-pool")) {
             ItemStat stat = ItemValidator.requireStat(a.get("stat"));
-            pool.add(new Affix(stat,
+            pool.add(new Affix(
+                    stat,
                     ItemValidator.finiteNumber(a.get("min")),
                     ItemValidator.finiteNumber(a.get("max")),
                     ItemValidator.finiteNumber(a.get("weight"))));
         }
 
         Integer custom = s.contains("custom-model-data") ? s.getInt("custom-model-data") : null;
-        return new ItemDefinition(id,
+        return new ItemDefinition(
+                id,
                 s.getString("display-name", id),
                 material,
                 slot,
                 s.contains("weapon-type")
-                        ? WeaponType.valueOf(s.getString("weapon-type").toUpperCase(Locale.ROOT)) : null,
+                        ? WeaponType.valueOf(s.getString("weapon-type").toUpperCase(Locale.ROOT))
+                        : null,
                 ItemRarity.valueOf(s.getString("rarity", "").toUpperCase(Locale.ROOT)),
                 s.getInt("item-level", 1),
                 pc,
@@ -149,7 +152,8 @@ public final class ItemConfigLoader {
                 PlayerClass pc = PlayerClass.valueOf(s.getString("class", "").toUpperCase(Locale.ROOT));
                 ItemSlot slot = ItemSlot.valueOf(s.getString("slot", "").toUpperCase(Locale.ROOT));
                 WeaponType wt = s.contains("weapon-type")
-                        ? WeaponType.valueOf(s.getString("weapon-type").toUpperCase(Locale.ROOT)) : null;
+                        ? WeaponType.valueOf(s.getString("weapon-type").toUpperCase(Locale.ROOT))
+                        : null;
                 ItemValidator.validateTemplateSlotWeaponType(slot, wt, id);
                 Map<ItemStat, Double> distribution =
                         ItemValidator.parseStatMap(s.getConfigurationSection("distribution"), true);
@@ -158,8 +162,8 @@ public final class ItemConfigLoader {
                 }
                 Integer modelData = s.contains("custom-model-data") ? s.getInt("custom-model-data") : null;
                 ItemValidator.validateModelData(modelData, id);
-                ts.add(new ItemTemplateExpander.Template(id, pc, slot, wt, distribution,
-                        s.getStringList("names"), s.getString("set"), modelData));
+                ts.add(new ItemTemplateExpander.Template(
+                        id, pc, slot, wt, distribution, s.getStringList("names"), s.getString("set"), modelData));
             }
         }
         if (ts.isEmpty()) {
@@ -180,11 +184,17 @@ public final class ItemConfigLoader {
         if (budget == null) {
             budget = yaml.getConfigurationSection("budget");
         }
-        List<ItemDefinition> expanded = ItemTemplateExpander.expand(ts, materials, levels,
+        List<ItemDefinition> expanded = ItemTemplateExpander.expand(
+                ts,
+                materials,
+                levels,
                 ItemValidator.parseRarityList(yaml),
-                ItemValidator.parseEnumDoubleMap(budget == null ? null : budget.getConfigurationSection("rarity-mult"), ItemRarity.class),
-                ItemValidator.parseEnumDoubleMap(budget == null ? null : budget.getConfigurationSection("slot-weight"), ItemSlot.class),
-                ItemValidator.parseEnumDoubleMap(budget == null ? null : budget.getConfigurationSection("stat-cost"), ItemStat.class));
+                ItemValidator.parseEnumDoubleMap(
+                        budget == null ? null : budget.getConfigurationSection("rarity-mult"), ItemRarity.class),
+                ItemValidator.parseEnumDoubleMap(
+                        budget == null ? null : budget.getConfigurationSection("slot-weight"), ItemSlot.class),
+                ItemValidator.parseEnumDoubleMap(
+                        budget == null ? null : budget.getConfigurationSection("stat-cost"), ItemStat.class));
 
         for (ItemDefinition def : expanded) {
             ItemValidator.validateExpandedMaterial(def);
@@ -215,9 +225,11 @@ public final class ItemConfigLoader {
                     if (bonus == null) {
                         continue;
                     }
-                    bonuses.put(pieces, new SetDefinition.Bonus(
-                            ItemValidator.parseStatMap(bonus.getConfigurationSection("stats"), false),
-                            bonus.getString("description", "")));
+                    bonuses.put(
+                            pieces,
+                            new SetDefinition.Bonus(
+                                    ItemValidator.parseStatMap(bonus.getConfigurationSection("stats"), false),
+                                    bonus.getString("description", "")));
                 }
             }
             sets.put(id, new SetDefinition(id, set.getString("display-name", id), bonuses));
@@ -227,10 +239,11 @@ public final class ItemConfigLoader {
 
     /* ------------------------------ шаг 4: пост-фильтры ------------------------------ */
 
-    private static List<ItemDefinition> filterUnknownRefs(List<ItemDefinition> defs,
-                                                          Map<String, SetDefinition> sets,
-                                                          YamlConfiguration yaml,
-                                                          Consumer<String> warning) {
+    private static List<ItemDefinition> filterUnknownRefs(
+            List<ItemDefinition> defs,
+            Map<String, SetDefinition> sets,
+            YamlConfiguration yaml,
+            Consumer<String> warning) {
         defs.removeIf(def -> {
             if (def.setId() != null && !sets.containsKey(def.setId())) {
                 warning.accept("Предмет " + def.id() + " отключён: неизвестный сет " + def.setId());

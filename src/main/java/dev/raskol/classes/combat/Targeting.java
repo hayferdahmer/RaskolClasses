@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import dev.raskol.classes.RaskolClasses;
+import java.util.UUID;
+
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
@@ -10,7 +11,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.6.2: справедливость боя — фракционно-осознанные таргеты.
@@ -29,8 +30,7 @@ import java.util.UUID;
  */
 public final class Targeting {
 
-    private Targeting() {
-    }
+    private Targeting() {}
 
     /** Гейт дружественного огня из конфига. */
     public static boolean friendlyFire(RaskolClasses plugin) {
@@ -102,7 +102,9 @@ public final class Targeting {
         if (!plugin.getConfig().getBoolean("combat.aoe-los", true)) {
             return true;
         }
-        if (from == null || to == null || from.getWorld() == null
+        if (from == null
+                || to == null
+                || from.getWorld() == null
                 || !from.getWorld().equals(to.getWorld())) {
             return false;
         }
@@ -114,8 +116,7 @@ public final class Targeting {
             return true;
         }
         dir.normalize();
-        RayTraceResult hit = from.getWorld().rayTraceBlocks(fromLoc, dir, dist,
-                FluidCollisionMode.NEVER, true);
+        RayTraceResult hit = from.getWorld().rayTraceBlocks(fromLoc, dir, dist, FluidCollisionMode.NEVER, true);
         return hit == null;
     }
 }

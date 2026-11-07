@@ -2,14 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.command.sub;
 
-import dev.raskol.classes.RaskolClasses;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.List;
+
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-import java.util.List;
+import dev.raskol.classes.RaskolClasses;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /** 1.11.4 (P4d): /rc foliant give <ник> — админ-выдача Фолианта Душ (тест/резерв). */
 public final class FoliantSub implements CommandSub {
@@ -33,26 +35,22 @@ public final class FoliantSub implements CommandSub {
     @Override
     public boolean execute(CommandSender sender, String[] tailArgs) {
         if (tailArgs.length < 2 || !"give".equalsIgnoreCase(tailArgs[0])) {
-            sender.sendMessage(Component.text("Использование: /rc foliant give <ник>",
-                    NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("Использование: /rc foliant give <ник>", NamedTextColor.GRAY));
             return true;
         }
         Player target = Bukkit.getPlayer(tailArgs[1]);
         if (target == null) {
-            sender.sendMessage(Component.text("Игрок «" + tailArgs[1] + "» не найден онлайн.",
-                    NamedTextColor.RED));
+            sender.sendMessage(Component.text("Игрок «" + tailArgs[1] + "» не найден онлайн.", NamedTextColor.RED));
             return true;
         }
         if (!plugin.getFoliantService().giveTo(target)) {
-            sender.sendMessage(Component.text("У " + target.getName()
-                    + " нет места в инвентаре.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("У " + target.getName() + " нет места в инвентаре.", NamedTextColor.RED));
             return true;
         }
-        sender.sendMessage(Component.text("Фолиант Раскола выдан игроку "
-                + target.getName() + ".", NamedTextColor.GREEN));
+        sender.sendMessage(
+                Component.text("Фолиант Раскола выдан игроку " + target.getName() + ".", NamedTextColor.GREEN));
         target.sendMessage(Component.text(
-                "Тебе вручили §5Фолиант Раскола§f. ПКМ — прочесть страницу.",
-                NamedTextColor.LIGHT_PURPLE));
+                "Тебе вручили §5Фолиант Раскола§f. ПКМ — прочесть страницу.", NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 

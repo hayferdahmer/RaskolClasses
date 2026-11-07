@@ -41,45 +41,30 @@ class ArtifactLocatorTest {
     void shouldRejectDirectory() {
         Path directory = tempDir.resolve("classes");
 
-        assertThrows(
-                IOException.class,
-                () -> ArtifactLocator.locate(directory.toUri())
-        );
+        assertThrows(IOException.class, () -> ArtifactLocator.locate(directory.toUri()));
     }
 
     @Test
     void shouldRejectNonExistingFile() {
         Path missingArtifact = tempDir.resolve("missing.jar");
 
-        assertThrows(
-                IOException.class,
-                () -> ArtifactLocator.locate(missingArtifact.toUri())
-        );
+        assertThrows(IOException.class, () -> ArtifactLocator.locate(missingArtifact.toUri()));
     }
 
     @Test
     void shouldRejectNonFileUri() {
         URI remoteUri = URI.create("https://example.com/RaskolClasses.jar");
 
-        assertThrows(
-                IOException.class,
-                () -> ArtifactLocator.locate(remoteUri)
-        );
+        assertThrows(IOException.class, () -> ArtifactLocator.locate(remoteUri));
     }
 
     @Test
     void shouldRejectNullUri() {
-        assertThrows(
-                NullPointerException.class,
-                () -> ArtifactLocator.locate((URI) null)
-        );
+        assertThrows(NullPointerException.class, () -> ArtifactLocator.locate((URI) null));
     }
 
     @Test
     void shouldRejectNullAnchorClass() {
-        assertThrows(
-                NullPointerException.class,
-                () -> ArtifactLocator.locate((Class<?>) null)
-        );
+        assertThrows(NullPointerException.class, () -> ArtifactLocator.locate((Class<?>) null));
     }
 }

@@ -2,20 +2,22 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.factory;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
 import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.item.model.SetDefinition;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Material;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Creates item stacks from validated registry definitions.
@@ -40,9 +42,11 @@ public final class ItemFactory {
         }
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text(color(def.displayName()),
-                def.rarity() == ItemRarity.EPIC ? NamedTextColor.LIGHT_PURPLE :
-                        def.rarity() == ItemRarity.RARE ? NamedTextColor.BLUE : NamedTextColor.WHITE));
+        meta.displayName(Component.text(
+                color(def.displayName()),
+                def.rarity() == ItemRarity.EPIC
+                        ? NamedTextColor.LIGHT_PURPLE
+                        : def.rarity() == ItemRarity.RARE ? NamedTextColor.BLUE : NamedTextColor.WHITE));
         List<Component> lore = new ArrayList<>();
         for (String line : def.lore()) {
             lore.add(Component.text(color(line), NamedTextColor.GRAY));
@@ -50,32 +54,36 @@ public final class ItemFactory {
         if (def.setId() != null) {
             SetDefinition set = plugin.getItems().registry().sets().get(def.setId());
             lore.add(Component.empty());
-            lore.add(Component.text("Комплект: " + (set == null ? def.setId() : set.displayName()), NamedTextColor.GOLD));
+            lore.add(Component.text(
+                    "Комплект: " + (set == null ? def.setId() : set.displayName()), NamedTextColor.GOLD));
             if (set != null) {
                 set.bonuses().entrySet().stream()
                         .sorted(Map.Entry.comparingByKey())
                         .forEach(entry -> lore.add(Component.text(
-                                entry.getKey() + " предмета: " + entry.getValue().description(),
+                                entry.getKey() + " предмета: "
+                                        + entry.getValue().description(),
                                 NamedTextColor.DARK_PURPLE)));
             }
         }
-        String requirement = def.playerClass() == null ? "Любой класс" : def.playerClass().getDisplayName();
+        String requirement =
+                def.playerClass() == null ? "Любой класс" : def.playerClass().getDisplayName();
         if (def.spec() != null) {
             requirement += " · " + def.spec();
         }
         requirement += " · уровень " + def.levelRequirement();
         lore.add(Component.text("Требуется: " + requirement, NamedTextColor.RED));
         Map<ItemStat, Double> affixValues = AffixRoller.roll(def.affixPool(), def.affixCount(), def.itemLevel(), seed);
-        def.baseStats().forEach((stat, value) -> lore.add(Component.text(
-                "+" + String.format(java.util.Locale.ROOT, "%.1f", value) + " " + stat.id(),
-                NamedTextColor.GREEN)));
+        def.baseStats()
+                .forEach((stat, value) -> lore.add(Component.text(
+                        "+" + String.format(java.util.Locale.ROOT, "%.1f", value) + " " + stat.id(),
+                        NamedTextColor.GREEN)));
         affixValues.forEach((stat, value) -> lore.add(Component.text(
                 "+" + String.format(java.util.Locale.ROOT, "%.1f", value) + " " + stat.id() + " (аффикс)",
                 NamedTextColor.AQUA)));
         lore.add(Component.text(def.rarity() + " · ур. " + def.itemLevel(), NamedTextColor.DARK_GRAY));
         // 1.15.1-C: предмет не теряет прочность; 1.15.3: маркер из messages.item.unbreakable-lore
-        lore.add(Component.text(plugin.getRaskolConfig()
-                .message("item.unbreakable-lore", "⛨ Неразрушаемый"), NamedTextColor.GRAY));
+        lore.add(Component.text(
+                plugin.getRaskolConfig().message("item.unbreakable-lore", "⛨ Неразрушаемый"), NamedTextColor.GRAY));
         meta.lore(lore);
         meta.setEnchantmentGlintOverride(def.glow());
         meta.setUnbreakable(true);

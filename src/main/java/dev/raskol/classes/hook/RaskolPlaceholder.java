@@ -2,16 +2,18 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.spec.Spec;
-import me.clip.placeholderapi.expansion.PlaceholderExpansion;
-import org.bukkit.entity.Player;
-
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.entity.Player;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.spec.Spec;
+
+import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
 /**
  * PlaceholderAPI: %raskolclasses_*% (README, раздел VII).
@@ -46,8 +48,7 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
     /** 1.14.12 (Волна 12C, 5-07): TTL кэша плейсхолдеров (мс). */
     private static final long CACHE_TTL_MS = 1000L;
 
-    private record CacheEntry(String value, long expiresAt) {
-    }
+    private record CacheEntry(String value, long expiresAt) {}
 
     private final RaskolClasses plugin;
     /** 1.14.12 (Волна 12C, 5-07): кэш результатов per-player+param. */
@@ -136,9 +137,9 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
             case "talents":
                 return plugin.getSpec2Service().spentGlobal(uuid) + "/"
                         + plugin.getSpec2Service().earnedPoints(uuid);
-            // 1.14.15 (raskolspec+): число оставшихся дней подписки или "expired".
-            // TTL-кэш в onPlaceholderRequest автоматически защищает от частых запросов
-            // (1 с), поэтому прямые вызовы PlusSubscription.active/remainingDays безопасны.
+                // 1.14.15 (raskolspec+): число оставшихся дней подписки или "expired".
+                // TTL-кэш в onPlaceholderRequest автоматически защищает от частых запросов
+                // (1 с), поэтому прямые вызовы PlusSubscription.active/remainingDays безопасны.
             case "plus": {
                 if (!plugin.getPlusSubscription().active(uuid)) {
                     return "expired";

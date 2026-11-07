@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.craft;
 
+import org.bukkit.Material;
+
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.item.model.ItemRarity;
-import org.bukkit.Material;
 
 /**
  * 1.15.4: фрагмент — расходная валюта крафта (RaskolGear-стиль).
@@ -17,10 +18,15 @@ import org.bukkit.Material;
  * Фрагменты НЕ продаются (нет sell-цены), существуют только как мост
  * «разбор → крафт»; дроп с боссов/элиты подключает RaskolMobs через ItemsApi.
  */
-public record Fragment(String id, Kind kind, ItemRarity tier, PlayerClass fragmentClass,
-                       Material material, String displayName) {
+public record Fragment(
+        String id, Kind kind, ItemRarity tier, PlayerClass fragmentClass, Material material, String displayName) {
 
-    public enum Kind { WEAPON, ARMOR, ESSENCE, RELIC }
+    public enum Kind {
+        WEAPON,
+        ARMOR,
+        ESSENCE,
+        RELIC
+    }
 
     public Fragment {
         if (id == null || !id.matches("[a-z0-9_]{3,48}")) {

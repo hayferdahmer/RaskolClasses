@@ -2,17 +2,18 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import org.bukkit.Bukkit;
-import org.bukkit.World;
-import org.bukkit.entity.Player;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import org.bukkit.Bukkit;
+import org.bukkit.World;
+import org.bukkit.entity.Player;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.6.0: сопротивления урону (РЕЗИСТ).
@@ -25,13 +26,13 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class ResistService {
 
     public record Modifier(String source, double physicalPct, double magicPct, long expiresAt) {
-        public boolean isPermanent() { return expiresAt == Long.MAX_VALUE; }
+        public boolean isPermanent() {
+            return expiresAt == Long.MAX_VALUE;
+        }
     }
 
-    public record Breakdown(double basePhysical, double baseMagic,
-                            List<Modifier> active,
-                            double physicalTotal, double magicTotal) {
-    }
+    public record Breakdown(
+            double basePhysical, double baseMagic, List<Modifier> active, double physicalTotal, double magicTotal) {}
 
     private static final class FactorCache {
         long tick = -1;
@@ -61,19 +62,16 @@ public final class ResistService {
         if (world == null) {
             return false;
         }
-        return plugin.getConfig().getStringList("resist.disabled-worlds")
-                .contains(world.getName());
+        return plugin.getConfig().getStringList("resist.disabled-worlds").contains(world.getName());
     }
 
     public double basePhysical(PlayerClass pc) {
-        double v = plugin.getConfig().getDouble(
-                "resist.classes." + pc.name() + ".physical", defaultPhysical(pc));
+        double v = plugin.getConfig().getDouble("resist.classes." + pc.name() + ".physical", defaultPhysical(pc));
         return Double.isFinite(v) ? v : defaultPhysical(pc);
     }
 
     public double baseMagic(PlayerClass pc) {
-        double v = plugin.getConfig().getDouble(
-                "resist.classes." + pc.name() + ".magic", defaultMagic(pc));
+        double v = plugin.getConfig().getDouble("resist.classes." + pc.name() + ".magic", defaultMagic(pc));
         return Double.isFinite(v) ? v : defaultMagic(pc);
     }
 
@@ -99,22 +97,24 @@ public final class ResistService {
         };
     }
 
-    public void addTimedModifier(UUID uuid, String source,
-                                 double physicalPct, double magicPct, long millis) {
+    public void addTimedModifier(UUID uuid, String source, double physicalPct, double magicPct, long millis) {
         removeModifiersBySource(uuid, source);
-        modifiers.computeIfAbsent(uuid, k -> new CopyOnWriteArrayList<>())
-                .add(new Modifier(source,
+        modifiers
+                .computeIfAbsent(uuid, k -> new CopyOnWriteArrayList<>())
+                .add(new Modifier(
+                        source,
                         Double.isFinite(physicalPct) ? physicalPct : 0.0,
                         Double.isFinite(magicPct) ? magicPct : 0.0,
                         System.currentTimeMillis() + millis));
         invalidate(uuid);
     }
 
-    public void addPermanentModifier(UUID uuid, String source,
-                                     double physicalPct, double magicPct) {
+    public void addPermanentModifier(UUID uuid, String source, double physicalPct, double magicPct) {
         removeModifiersBySource(uuid, source);
-        modifiers.computeIfAbsent(uuid, k -> new CopyOnWriteArrayList<>())
-                .add(new Modifier(source,
+        modifiers
+                .computeIfAbsent(uuid, k -> new CopyOnWriteArrayList<>())
+                .add(new Modifier(
+                        source,
                         Double.isFinite(physicalPct) ? physicalPct : 0.0,
                         Double.isFinite(magicPct) ? magicPct : 0.0,
                         Long.MAX_VALUE));
@@ -128,8 +128,7 @@ public final class ResistService {
         }
         long now = System.currentTimeMillis();
         for (Modifier m : list) {
-            if (m.source().equals(source)
-                    && (m.isPermanent() || m.expiresAt() > now)) {
+            if (m.source().equals(source) && (m.isPermanent() || m.expiresAt() > now)) {
                 return true;
             }
         }
@@ -205,26 +204,43 @@ public final class ResistService {
         double baseMagic = pc != null ? baseMagic(pc) : 0.0;
         long now = System.currentTimeMillis();
         CopyOnWriteArrayList<Modifier> list = modifiers.get(uuid);
-        List<Modifier> active = list == null ? List.of() : list.stream()
-                .filter(m -> m.isPermanent() || m.expiresAt() > now)
-                .toList();
+        List<Modifier> active = list == null
+                ? List.of()
+                : list.stream()
+                        .filter(m -> m.isPermanent() || m.expiresAt() > now)
+                        .toList();
         double phys = basePhys;
         double magic = baseMagic;
         for (Modifier m : active) {
             phys += m.physicalPct();
             magic += m.magicPct();
         }
-        return new Breakdown(basePhys, baseMagic, active,
-                clamp(phys, cap), clamp(magic, cap));
+        return new Breakdown(basePhys, baseMagic, active, clamp(phys, cap), clamp(magic, cap));
     }
 
-    public double physicalResist(UUID uuid) { return breakdown(uuid).physicalTotal(); }
-    public double magicResist(UUID uuid) { return breakdown(uuid).magicTotal(); }
-    public double physicalResist(UUID uuid, double cap) { return breakdown(uuid, cap).physicalTotal(); }
-    public double magicResist(UUID uuid, double cap) { return breakdown(uuid, cap).magicTotal(); }
+    public double physicalResist(UUID uuid) {
+        return breakdown(uuid).physicalTotal();
+    }
 
-    public double physicalFactor(UUID uuid) { return factors(uuid).phys; }
-    public double magicFactor(UUID uuid) { return factors(uuid).magic; }
+    public double magicResist(UUID uuid) {
+        return breakdown(uuid).magicTotal();
+    }
+
+    public double physicalResist(UUID uuid, double cap) {
+        return breakdown(uuid, cap).physicalTotal();
+    }
+
+    public double magicResist(UUID uuid, double cap) {
+        return breakdown(uuid, cap).magicTotal();
+    }
+
+    public double physicalFactor(UUID uuid) {
+        return factors(uuid).phys;
+    }
+
+    public double magicFactor(UUID uuid) {
+        return factors(uuid).magic;
+    }
 
     public double physicalFactor(UUID uuid, double cap) {
         double factor = 1.0 - physicalResist(uuid, cap) / 100.0;
@@ -263,8 +279,9 @@ public final class ResistService {
             entry.getValue().removeIf(m -> !m.isPermanent() && m.expiresAt() <= now);
             return entry.getValue().isEmpty();
         });
-        factorCache.keySet().removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null
-                && !modifiers.containsKey(uuid));
+        factorCache
+                .keySet()
+                .removeIf(uuid -> plugin.getServer().getPlayer(uuid) == null && !modifiers.containsKey(uuid));
     }
 
     public void clear(UUID uuid) {

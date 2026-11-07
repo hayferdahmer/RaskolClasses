@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.runtime;
 
-import dev.raskol.classes.integrity.verification.IntegrityStatus;
-import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.util.List;
@@ -14,9 +14,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+
+import dev.raskol.classes.integrity.verification.IntegrityStatus;
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 
 class RuntimeIntegrityMonitorConcurrencyTest {
 
@@ -31,52 +32,32 @@ class RuntimeIntegrityMonitorConcurrencyTest {
 
                     try {
                         if (!releaseVerification.await(5, TimeUnit.SECONDS)) {
-                            throw new IllegalStateException(
-                                    "Timed out waiting for test release"
-                            );
+                            throw new IllegalStateException("Timed out waiting for test release");
                         }
                     } catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
 
-                        throw new IllegalStateException(
-                                "Verification interrupted",
-                                exception
-                        );
+                        throw new IllegalStateException("Verification interrupted", exception);
                     }
 
                     return successfulResult();
                 },
-                Duration.ofHours(1)
-        );
+                Duration.ofHours(1));
 
         try {
-            CompletableFuture<RuntimeIntegritySnapshot> firstCheck =
-                    monitor.checkNow();
+            CompletableFuture<RuntimeIntegritySnapshot> firstCheck = monitor.checkNow();
 
-            assertTrue(
-                    verificationStarted.await(5, TimeUnit.SECONDS),
-                    "First verification did not start"
-            );
+            assertTrue(verificationStarted.await(5, TimeUnit.SECONDS), "First verification did not start");
 
-            CompletableFuture<RuntimeIntegritySnapshot> secondCheck =
-                    monitor.checkNow();
+            CompletableFuture<RuntimeIntegritySnapshot> secondCheck = monitor.checkNow();
 
             monitor.close();
 
-            assertThrows(
-                    ExecutionException.class,
-                    () -> firstCheck.get(5, TimeUnit.SECONDS)
-            );
+            assertThrows(ExecutionException.class, () -> firstCheck.get(5, TimeUnit.SECONDS));
 
-            assertThrows(
-                    ExecutionException.class,
-                    () -> secondCheck.get(5, TimeUnit.SECONDS)
-            );
+            assertThrows(ExecutionException.class, () -> secondCheck.get(5, TimeUnit.SECONDS));
 
-            assertEquals(
-                    RuntimeIntegrityState.STOPPED,
-                    monitor.getSnapshot().state()
-            );
+            assertEquals(RuntimeIntegrityState.STOPPED, monitor.getSnapshot().state());
 
         } finally {
             releaseVerification.countDown();
@@ -98,33 +79,23 @@ class RuntimeIntegrityMonitorConcurrencyTest {
                     } catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
 
-                        throw new IllegalStateException(
-                                "Verification interrupted",
-                                exception
-                        );
+                        throw new IllegalStateException("Verification interrupted", exception);
                     }
 
                     return successfulResult();
                 },
-                Duration.ofHours(1)
-        );
+                Duration.ofHours(1));
 
         try {
             monitor.checkNow();
 
-            assertTrue(
-                    verificationStarted.await(5, TimeUnit.SECONDS),
-                    "Verification did not start"
-            );
+            assertTrue(verificationStarted.await(5, TimeUnit.SECONDS), "Verification did not start");
 
             monitor.close();
 
             releaseVerification.countDown();
 
-            assertEquals(
-                    RuntimeIntegrityState.STOPPED,
-                    monitor.getSnapshot().state()
-            );
+            assertEquals(RuntimeIntegrityState.STOPPED, monitor.getSnapshot().state());
 
             assertEquals(0, monitor.getSnapshot().totalChecks());
 
@@ -137,18 +108,13 @@ class RuntimeIntegrityMonitorConcurrencyTest {
     @Test
     void closeShouldBeIdempotent() {
         RuntimeIntegrityMonitor monitor = new RuntimeIntegrityMonitor(
-                RuntimeIntegrityMonitorConcurrencyTest::successfulResult,
-                Duration.ofHours(1)
-        );
+                RuntimeIntegrityMonitorConcurrencyTest::successfulResult, Duration.ofHours(1));
 
         monitor.close();
         monitor.close();
         monitor.close();
 
-        assertEquals(
-                RuntimeIntegrityState.STOPPED,
-                monitor.getSnapshot().state()
-        );
+        assertEquals(RuntimeIntegrityState.STOPPED, monitor.getSnapshot().state());
     }
 
     @Test
@@ -167,37 +133,24 @@ class RuntimeIntegrityMonitorConcurrencyTest {
                     } catch (InterruptedException exception) {
                         Thread.currentThread().interrupt();
 
-                        throw new IllegalStateException(
-                                "Verification interrupted",
-                                exception
-                        );
+                        throw new IllegalStateException("Verification interrupted", exception);
                     }
 
                     return successfulResult();
                 },
                 Duration.ofHours(1),
-                java.util.concurrent.Executors.newScheduledThreadPool(2)
-        );
+                java.util.concurrent.Executors.newScheduledThreadPool(2));
 
         try {
-            CompletableFuture<RuntimeIntegritySnapshot> firstCheck =
-                    monitor.checkNow();
+            CompletableFuture<RuntimeIntegritySnapshot> firstCheck = monitor.checkNow();
 
-            assertTrue(
-                    verificationStarted.await(5, TimeUnit.SECONDS),
-                    "First verification did not start"
-            );
+            assertTrue(verificationStarted.await(5, TimeUnit.SECONDS), "First verification did not start");
 
-            CompletableFuture<RuntimeIntegritySnapshot> secondCheck =
-                    monitor.checkNow();
+            CompletableFuture<RuntimeIntegritySnapshot> secondCheck = monitor.checkNow();
 
-            RuntimeIntegritySnapshot secondResult =
-                    secondCheck.get(5, TimeUnit.SECONDS);
+            RuntimeIntegritySnapshot secondResult = secondCheck.get(5, TimeUnit.SECONDS);
 
-            assertEquals(
-                    RuntimeIntegrityState.RUNNING,
-                    secondResult.state()
-            );
+            assertEquals(RuntimeIntegrityState.RUNNING, secondResult.state());
 
             assertEquals(1, executionCount.get());
 
@@ -205,8 +158,7 @@ class RuntimeIntegrityMonitorConcurrencyTest {
 
             assertEquals(
                     RuntimeIntegrityState.VERIFIED,
-                    firstCheck.get(5, TimeUnit.SECONDS).state()
-            );
+                    firstCheck.get(5, TimeUnit.SECONDS).state());
 
         } finally {
             releaseVerification.countDown();
@@ -215,11 +167,6 @@ class RuntimeIntegrityMonitorConcurrencyTest {
     }
 
     private static IntegrityVerificationResult successfulResult() {
-        return new IntegrityVerificationResult(
-                IntegrityStatus.VERIFIED,
-                "Runtime integrity test",
-                1,
-                List.of()
-        );
+        return new IntegrityVerificationResult(IntegrityStatus.VERIFIED, "Runtime integrity test", 1, List.of());
     }
 }

@@ -2,16 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.build;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.model.Spec2Node;
-import dev.raskol.classes.spec.model.Spec2Points;
-import dev.raskol.classes.spec.model.Spec2Tree;
-import dev.raskol.classes.spec.registry.Spec2Registry;
-import dev.raskol.classes.spec.service.Spec2Service;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,6 +21,17 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Logger;
+
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.spec.model.Spec2Node;
+import dev.raskol.classes.spec.model.Spec2Points;
+import dev.raskol.classes.spec.model.Spec2Tree;
+import dev.raskol.classes.spec.registry.Spec2Registry;
+import dev.raskol.classes.spec.service.Spec2Service;
 
 /**
  * 1.14.15: загрузчик и валидатор кураторских шаблонов raskolspec+ из builds.yml.
@@ -193,8 +194,8 @@ public final class BuildTemplates {
                                     + removed.size() + ": " + removed
                                     + " — /rc plus export перезапишет builds.yml");
                             // 1.15.6 (2.6-94): rawRanks сохраняется, ranks нормализуются
-                            t = BuildTemplate.of(t.spec(), t.archetype(), t.name(),
-                                    t.tagline(), t.rawRanks(), kept, t.updated());
+                            t = BuildTemplate.of(
+                                    t.spec(), t.archetype(), t.name(), t.tagline(), t.rawRanks(), kept, t.updated());
                         }
                     }
                     archetypeMap.put(arch, t);
@@ -262,12 +263,24 @@ public final class BuildTemplates {
         sb.append("# ============================================================\n");
         sb.append("schema: 1\n\n");
         sb.append("subscription:\n");
-        sb.append("  enabled: ").append(plugin.getConfig().getBoolean("plus.enabled", true)).append('\n');
-        sb.append("  price-per-period: ").append(plugin.getConfig().getInt("plus.price-per-period", 100)).append('\n');
-        sb.append("  period-days: ").append(plugin.getConfig().getInt("plus.period-days", 30)).append('\n');
-        sb.append("  max-gift-periods: ").append(plugin.getConfig().getInt("plus.max-gift-periods", 12)).append('\n');
-        sb.append("  cooldown-gift-ms: ").append(plugin.getConfig().getLong("plus.cooldown-gift-ms", 5000L)).append('\n');
-        sb.append("\ncurrent-patch: \"").append(plugin.getPluginMeta().getVersion()).append("\"\n\n");
+        sb.append("  enabled: ")
+                .append(plugin.getConfig().getBoolean("plus.enabled", true))
+                .append('\n');
+        sb.append("  price-per-period: ")
+                .append(plugin.getConfig().getInt("plus.price-per-period", 100))
+                .append('\n');
+        sb.append("  period-days: ")
+                .append(plugin.getConfig().getInt("plus.period-days", 30))
+                .append('\n');
+        sb.append("  max-gift-periods: ")
+                .append(plugin.getConfig().getInt("plus.max-gift-periods", 12))
+                .append('\n');
+        sb.append("  cooldown-gift-ms: ")
+                .append(plugin.getConfig().getLong("plus.cooldown-gift-ms", 5000L))
+                .append('\n');
+        sb.append("\ncurrent-patch: \"")
+                .append(plugin.getPluginMeta().getVersion())
+                .append("\"\n\n");
         sb.append("templates:\n");
 
         int totalNodes = 0;
@@ -284,14 +297,22 @@ public final class BuildTemplates {
                 sb.append("      nodes:\n");
                 if (tree == null) {
                     for (Map.Entry<String, Integer> r : t.ranks().entrySet()) {
-                        sb.append("        ").append(r.getKey()).append(": ").append(r.getValue()).append('\n');
+                        sb.append("        ")
+                                .append(r.getKey())
+                                .append(": ")
+                                .append(r.getValue())
+                                .append('\n');
                         totalNodes++;
                     }
                 } else {
                     for (Spec2Node n : tree.nodes()) {
                         Integer rank = t.ranks().get(n.id());
                         if (rank != null && rank > 0) {
-                            sb.append("        ").append(n.id()).append(": ").append(rank).append('\n');
+                            sb.append("        ")
+                                    .append(n.id())
+                                    .append(": ")
+                                    .append(rank)
+                                    .append('\n');
                             totalNodes++;
                         }
                     }
@@ -302,8 +323,8 @@ public final class BuildTemplates {
         if (!writeAtomic(sb.toString())) {
             return false;
         }
-        LOG.info("raskolspec+: builds.yml перезаписан нормализованными шаблонами ("
-                + countLoaded() + " шаблонов, " + totalNodes + " узлов)");
+        LOG.info("raskolspec+: builds.yml перезаписан нормализованными шаблонами (" + countLoaded() + " шаблонов, "
+                + totalNodes + " узлов)");
         return true;
     }
 
@@ -319,8 +340,7 @@ public final class BuildTemplates {
         try {
             Files.writeString(tmp, content, StandardCharsets.UTF_8);
             try {
-                Files.move(tmp, target,
-                        StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -333,8 +353,7 @@ public final class BuildTemplates {
 
     /* ------------------------------ парсинг ------------------------------ */
 
-    private BuildTemplate parseTemplate(String spec, Archetype archetype,
-                                         ConfigurationSection sec) {
+    private BuildTemplate parseTemplate(String spec, Archetype archetype, ConfigurationSection sec) {
         String name = sec.getString("name", "");
         String tagline = sec.getString("tagline", "");
         String updated = sec.getString("updated", "");

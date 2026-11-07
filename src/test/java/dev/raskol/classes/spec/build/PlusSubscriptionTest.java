@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.build;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 /**
  * 1.14.15: математика подписки raskolspec+ и атомарность подарка.
@@ -62,11 +62,10 @@ class PlusSubscriptionTest {
         // base = max(current, now); newExpires = base + periods×periodDays×86400000
         long now = System.currentTimeMillis();
         long periodMs = 30L * 24 * 3600 * 1000L;
-        long exp1 = now + periodMs;           // grant(u, 1)
-        long exp2 = exp1 + periodMs * 2;       // grant(u, 2) с активной подпиской
+        long exp1 = now + periodMs; // grant(u, 1)
+        long exp2 = exp1 + periodMs * 2; // grant(u, 2) с активной подпиской
         assertTrue(exp2 > exp1);
-        assertEquals(now + periodMs * 3, exp2,
-                "три периода по 30 дней = 90 дней от now");
+        assertEquals(now + periodMs * 3, exp2, "три периода по 30 дней = 90 дней от now");
     }
 
     @Test

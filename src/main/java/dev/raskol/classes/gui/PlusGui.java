@@ -2,15 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.gui;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.spec.build.Archetype;
-import dev.raskol.classes.spec.build.BuildTemplate;
-import dev.raskol.classes.spec.build.BuildTemplates;
-import dev.raskol.classes.spec.build.PlusSubscription;
-import dev.raskol.classes.spec.service.Spec2Service;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -25,12 +23,16 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.spec.build.Archetype;
+import dev.raskol.classes.spec.build.BuildTemplate;
+import dev.raskol.classes.spec.build.BuildTemplates;
+import dev.raskol.classes.spec.build.PlusSubscription;
+import dev.raskol.classes.spec.service.Spec2Service;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 
 /**
  * 1.14.15 (raskolspec+): GUI подписки.
@@ -78,7 +80,10 @@ public final class PlusGui implements Listener {
     private static final long ARM_WINDOW_MS = 30_000L;
 
     /** Экран GUI — хранится в holder'е, клик маршрутизируется по нему. */
-    public enum Screen { CATALOG, CONFIRM }
+    public enum Screen {
+        CATALOG,
+        CONFIRM
+    }
 
     /** Holder вместо парсинга title (паттерн FoliantService.FoliantHolder). */
     private static final class PlusHolder implements InventoryHolder {
@@ -118,15 +123,16 @@ public final class PlusGui implements Listener {
         String specId = plugin.getSpec2Service().mainSpec(uuid);
         if (specId == null) {
             player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.apply-no-spec",
-                            "Сначала выбери основную спеку в «Специализации»")));
+                    .message("plus.apply-no-spec", "Сначала выбери основную спеку в «Специализации»")));
             return;
         }
 
         PlusHolder holder = new PlusHolder(Screen.CATALOG);
-        Inventory inv = Bukkit.createInventory(holder, SIZE,
-                Component.text(plugin.getRaskolConfig()
-                        .message("plus.gui.title", "⚜ raskolspec+"), NamedTextColor.GOLD));
+        Inventory inv = Bukkit.createInventory(
+                holder,
+                SIZE,
+                Component.text(
+                        plugin.getRaskolConfig().message("plus.gui.title", "⚜ raskolspec+"), NamedTextColor.GOLD));
         holder.inventory = inv;
 
         boolean active = sub.active(uuid);
@@ -163,8 +169,7 @@ public final class PlusGui implements Listener {
         }
 
         PlusSubscription sub = plugin.getPlusSubscription();
-        if (!player.hasPermission("raskolclasses.plus.use")
-                && !player.hasPermission("raskolclasses.admin.plus")) {
+        if (!player.hasPermission("raskolclasses.plus.use") && !player.hasPermission("raskolclasses.admin.plus")) {
             player.closeInventory();
             return;
         }
@@ -176,7 +181,9 @@ public final class PlusGui implements Listener {
                     case SLOT_PVE -> handleCardClick(player, Archetype.PVE, hasAccess(player, sub));
                     case SLOT_BUY -> handlePurchase(player, sub);
                     case SLOT_EXIT -> player.closeInventory();
-                    default -> { /* pane/status — некликабельно */ }
+                    default -> {
+                        /* pane/status — некликабельно */
+                    }
                 }
             }
             case CONFIRM -> handleConfirmClick(player, slot);
@@ -195,8 +202,7 @@ public final class PlusGui implements Listener {
         if (!(event.getPlayer() instanceof Player player)) {
             return;
         }
-        if (event.getInventory().getHolder() instanceof PlusHolder holder
-                && holder.screen() == Screen.CONFIRM) {
+        if (event.getInventory().getHolder() instanceof PlusHolder holder && holder.screen() == Screen.CONFIRM) {
             armedUntil.remove(player.getUniqueId());
             pending.remove(player.getUniqueId());
         }
@@ -207,8 +213,8 @@ public final class PlusGui implements Listener {
         if (!active) {
             // Тизер-модель: upsell-сообщение с ценой и путём покупки
             player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.no-sub",
-                            "⚜ Требуется подписка raskolspec+ · цена: {price} ⚜ империалов / {days} дн.")
+                    .message(
+                            "plus.no-sub", "⚜ Требуется подписка raskolspec+ · цена: {price} ⚜ империалов / {days} дн.")
                     .replace("{price}", String.valueOf(sub.pricePerPeriod()))
                     .replace("{days}", String.valueOf(sub.periodDays()))));
             return;
@@ -218,8 +224,7 @@ public final class PlusGui implements Listener {
         String specId = plugin.getSpec2Service().mainSpec(uuid);
         if (specId == null) {
             player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.apply-no-spec",
-                            "Сначала выбери основную спеку в «Специализации»")));
+                    .message("plus.apply-no-spec", "Сначала выбери основную спеку в «Специализации»")));
             return;
         }
 
@@ -232,8 +237,7 @@ public final class PlusGui implements Listener {
         BuildTemplate t = tpl.get();
         if (templates.isStale(t)) {
             player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.apply-stale",
-                            "Шаблон устарел: куратор обновляет его после баланс-патча")));
+                    .message("plus.apply-stale", "Шаблон устарел: куратор обновляет его после баланс-патча")));
             return;
         }
 
@@ -260,10 +264,14 @@ public final class PlusGui implements Listener {
 
     private void openConfirmScreen(Player player, BuildTemplate t) {
         PlusHolder holder = new PlusHolder(Screen.CONFIRM);
-        Inventory inv = Bukkit.createInventory(holder, SIZE,
-                Component.text(plugin.getRaskolConfig()
-                        .message("plus.gui.confirm-title", "⚜ Применить «{name}»?")
-                        .replace("{name}", t.name()), NamedTextColor.GOLD));
+        Inventory inv = Bukkit.createInventory(
+                holder,
+                SIZE,
+                Component.text(
+                        plugin.getRaskolConfig()
+                                .message("plus.gui.confirm-title", "⚜ Применить «{name}»?")
+                                .replace("{name}", t.name()),
+                        NamedTextColor.GOLD));
         holder.inventory = inv;
 
         inv.setItem(CONFIRM_TEMPLATE, templateIcon(t));
@@ -309,8 +317,7 @@ public final class PlusGui implements Listener {
                 top.setItem(CONFIRM_APPLY, confirmArmedItem());
             }
             player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.gui.confirm-arm",
-                            "Клик №1 — взвести, клик №2 (30 с) — применить")));
+                    .message("plus.gui.confirm-arm", "Клик №1 — взвести, клик №2 (30 с) — применить")));
             return;
         }
 
@@ -336,27 +343,25 @@ public final class PlusGui implements Listener {
         BuildTemplate t = tpl.get();
         if (templates.isStale(t)) {
             player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.apply-stale",
-                            "Шаблон устарел: куратор обновляет его после баланс-патча")));
+                    .message("plus.apply-stale", "Шаблон устарел: куратор обновляет его после баланс-патча")));
             return;
         }
 
         PlusSubscription subscription = plugin.getPlusSubscription();
         boolean admin = player.hasPermission("raskolclasses.admin.plus");
         if (!hasAccess(player, subscription)) {
-            player.sendMessage(msg("Доступ к raskolspec+ закончился. Оформи или продли подписку и открой шаблон заново."));
+            player.sendMessage(
+                    msg("Доступ к raskolspec+ закончился. Оформи или продли подписку и открой шаблон заново."));
             openCatalog(player);
             return;
         }
         boolean free = admin;
-        Spec2Service.BuildApplyOutcome out =
-                plugin.getSpec2Service().applyBuild(player, t.spec(), t.ranks(), free);
+        Spec2Service.BuildApplyOutcome out = plugin.getSpec2Service().applyBuild(player, t.spec(), t.ranks(), free);
 
         switch (out.result()) {
             case OK -> {
                 player.sendMessage(msg(plugin.getRaskolConfig()
-                        .message("plus.apply-ok",
-                                "⚜ Шаблон «{name}» применён. Респец-плата: {cost} монет.")
+                        .message("plus.apply-ok", "⚜ Шаблон «{name}» применён. Респец-плата: {cost} монет.")
                         .replace("{name}", t.name())
                         .replace("{cost}", free ? "0 (админ-путь)" : String.valueOf(out.cost()))));
                 player.closeInventory();
@@ -367,15 +372,11 @@ public final class PlusGui implements Listener {
             case NO_ECONOMY -> player.sendMessage(msg(plugin.getRaskolConfig()
                     .message("plus.apply-no-econ", "Экономика недоступна — применение отключено")));
             case NO_MAIN -> player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.apply-no-spec",
-                            "Сначала выбери основную спеку в «Специализации»")));
-            case NOT_ENOUGH_POINTS -> player.sendMessage(msg(
-                    "Не хватает очков путей: нужно " + out.needPoints()
-                            + ", доступно " + out.poolPoints() + " (после сброса дерева)"));
-            case WRONG_CLASS_TREE, TREE_NOT_FOUND -> player.sendMessage(
-                    msg("⚜ Шаблон недоступен для текущей спеки"));
-            case TEMPLATE_INVALID -> player.sendMessage(
-                    msg("⚜ Шаблон несовместим с правилами дерева (сообщи админу)"));
+                    .message("plus.apply-no-spec", "Сначала выбери основную спеку в «Специализации»")));
+            case NOT_ENOUGH_POINTS -> player.sendMessage(msg("Не хватает очков путей: нужно " + out.needPoints()
+                    + ", доступно " + out.poolPoints() + " (после сброса дерева)"));
+            case WRONG_CLASS_TREE, TREE_NOT_FOUND -> player.sendMessage(msg("⚜ Шаблон недоступен для текущей спеки"));
+            case TEMPLATE_INVALID -> player.sendMessage(msg("⚜ Шаблон несовместим с правилами дерева (сообщи админу)"));
             case RATE_LIMITED -> player.sendMessage(msg("Слишком часто: повтори через секунду"));
             case PRUNED -> player.sendMessage(
                     msg("⚜ Применение отклонено сервером: изменения откачены. Сообщи админу."));
@@ -388,59 +389,69 @@ public final class PlusGui implements Listener {
         boolean publicMode = !sub.isEnabled();
         Material mat = active ? Material.GOLD_INGOT : publicMode ? Material.LIME_DYE : Material.GRAY_DYE;
         NamedTextColor color = active ? NamedTextColor.GOLD : publicMode ? NamedTextColor.GREEN : NamedTextColor.GRAY;
-        Component name = Component.text("⚜ raskolspec+", color)
-                .decoration(TextDecoration.ITALIC, false);
+        Component name = Component.text("⚜ raskolspec+", color).decoration(TextDecoration.ITALIC, false);
         List<Component> lore = new ArrayList<>();
         if (active) {
-            lore.add(Component.text(plugin.getRaskolConfig()
-                    .message("plus.gui.active", "⚜ Активна · осталось {days} дн.")
-                    .replace("{days}", String.valueOf(remainingDays)),
-                    NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(
+                            plugin.getRaskolConfig()
+                                    .message("plus.gui.active", "⚜ Активна · осталось {days} дн.")
+                                    .replace("{days}", String.valueOf(remainingDays)),
+                            NamedTextColor.GREEN)
+                    .decoration(TextDecoration.ITALIC, false));
         } else if (!sub.isEnabled()) {
             lore.add(Component.text("Тестовый режим · шаблоны открыты всем", NamedTextColor.GREEN)
                     .decoration(TextDecoration.ITALIC, false));
         } else {
-            lore.add(Component.text(plugin.getRaskolConfig()
-                    .message("plus.gui.locked", "🔒 Требуется подписка"),
-                    NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
-            lore.add(Component.text(sub.walletAvailable()
-                    ? "Цена: " + sub.pricePerPeriod() + " ⚜ / " + sub.periodDays() + " дн."
-                    : "Покупка недоступна: кошелёк не подключён", NamedTextColor.YELLOW)
+            lore.add(Component.text(
+                            plugin.getRaskolConfig().message("plus.gui.locked", "🔒 Требуется подписка"),
+                            NamedTextColor.RED)
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(
+                            sub.walletAvailable()
+                                    ? "Цена: " + sub.pricePerPeriod() + " ⚜ / " + sub.periodDays() + " дн."
+                                    : "Покупка недоступна: кошелёк не подключён",
+                            NamedTextColor.YELLOW)
                     .decoration(TextDecoration.ITALIC, false));
         }
         return item(mat, name, lore);
     }
 
     private ItemStack purchaseItem(PlusSubscription sub, boolean active) {
-        if (!sub.isEnabled()) return item(Material.LIME_DYE,
-                Component.text("Тестовый доступ включён", NamedTextColor.GREEN)
-                        .decoration(TextDecoration.ITALIC, false),
-                List.of(Component.text("Подписка сейчас не требуется", NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false)));
-        if (!sub.walletAvailable()) return item(Material.BARRIER,
-                Component.text("Покупка недоступна", NamedTextColor.RED)
-                        .decoration(TextDecoration.ITALIC, false),
-                List.of(Component.text("На сервере не подключён PlayerPoints", NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false)));
-        return item(Material.GOLD_INGOT,
+        if (!sub.isEnabled())
+            return item(
+                    Material.LIME_DYE,
+                    Component.text("Тестовый доступ включён", NamedTextColor.GREEN)
+                            .decoration(TextDecoration.ITALIC, false),
+                    List.of(Component.text("Подписка сейчас не требуется", NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false)));
+        if (!sub.walletAvailable())
+            return item(
+                    Material.BARRIER,
+                    Component.text("Покупка недоступна", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false),
+                    List.of(Component.text("На сервере не подключён PlayerPoints", NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false)));
+        return item(
+                Material.GOLD_INGOT,
                 Component.text(active ? "Продлить raskolspec+" : "Купить raskolspec+", NamedTextColor.GOLD)
                         .decoration(TextDecoration.ITALIC, false),
-                List.of(Component.text("+" + sub.periodDays() + " дней · " + sub.pricePerPeriod() + " империалов",
-                                NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false),
+                List.of(
+                        Component.text(
+                                        "+" + sub.periodDays() + " дней · " + sub.pricePerPeriod() + " империалов",
+                                        NamedTextColor.YELLOW)
+                                .decoration(TextDecoration.ITALIC, false),
                         Component.text("Нажми, чтобы оплатить один период", NamedTextColor.GRAY)
                                 .decoration(TextDecoration.ITALIC, false)));
     }
 
     private boolean hasAccess(Player player, PlusSubscription sub) {
-        return player.hasPermission("raskolclasses.admin.plus") || !sub.isEnabled()
-                || sub.active(player.getUniqueId());
+        return player.hasPermission("raskolclasses.admin.plus") || !sub.isEnabled() || sub.active(player.getUniqueId());
     }
 
-    private ItemStack cardItem(BuildTemplates templates, String specId,
-                               Archetype archetype, boolean active) {
+    private ItemStack cardItem(BuildTemplates templates, String specId, Archetype archetype, boolean active) {
         Optional<BuildTemplate> opt = templates.get(specId, archetype);
         if (opt.isEmpty()) {
-            return item(Material.BARRIER,
+            return item(
+                    Material.BARRIER,
                     Component.text("Шаблон недоступен", NamedTextColor.RED),
                     List.of(Component.text("Нет в builds.yml", NamedTextColor.GRAY)));
         }
@@ -457,28 +468,28 @@ public final class PlusGui implements Listener {
             color = archetype == Archetype.PVP ? NamedTextColor.RED : NamedTextColor.GREEN;
         }
 
-        Component name = Component.text((active ? "⚜ " : "🔒 ") + t.name(), color)
-                .decoration(TextDecoration.ITALIC, false);
+        Component name =
+                Component.text((active ? "⚜ " : "🔒 ") + t.name(), color).decoration(TextDecoration.ITALIC, false);
         List<Component> lore = new ArrayList<>();
-        lore.add(Component.text(t.tagline(), NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text(t.tagline(), NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         lore.add(Component.text(" "));
 
         if (stale) {
-            lore.add(Component.text(plugin.getRaskolConfig()
-                    .message("plus.gui.stale", "⚠ обновляется после баланс-патча"),
-                    NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(
+                            plugin.getRaskolConfig().message("plus.gui.stale", "⚠ обновляется после баланс-патча"),
+                            NamedTextColor.YELLOW)
+                    .decoration(TextDecoration.ITALIC, false));
         } else if (!active) {
             // Тизер: существование меты видно, содержимое платно
-            lore.add(Component.text("Узлов: " + t.nodeCount()
-                    + " · Очков: " + t.spentPoints(), NamedTextColor.DARK_GRAY)
+            lore.add(
+                    Component.text("Узлов: " + t.nodeCount() + " · Очков: " + t.spentPoints(), NamedTextColor.DARK_GRAY)
+                            .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(
+                            plugin.getRaskolConfig().message("plus.gui.locked", "🔒 Требуется подписка"),
+                            NamedTextColor.RED)
                     .decoration(TextDecoration.ITALIC, false));
-            lore.add(Component.text(plugin.getRaskolConfig()
-                    .message("plus.gui.locked", "🔒 Требуется подписка"),
-                    NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
         } else {
-            lore.add(Component.text("Узлов: " + t.nodeCount()
-                    + " · Очков: " + t.spentPoints(), NamedTextColor.AQUA)
+            lore.add(Component.text("Узлов: " + t.nodeCount() + " · Очков: " + t.spentPoints(), NamedTextColor.AQUA)
                     .decoration(TextDecoration.ITALIC, false));
             lore.add(Component.text("Актуально для патча " + t.updated(), NamedTextColor.DARK_GRAY)
                     .decoration(TextDecoration.ITALIC, false));
@@ -487,25 +498,22 @@ public final class PlusGui implements Listener {
     }
 
     private ItemStack templateIcon(BuildTemplate t) {
-        Component name = Component.text(t.name(), NamedTextColor.GOLD)
-                .decoration(TextDecoration.ITALIC, false);
+        Component name = Component.text(t.name(), NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false);
         List<Component> lore = new ArrayList<>();
-        lore.add(Component.text(t.tagline(), NamedTextColor.GRAY)
+        lore.add(Component.text(t.tagline(), NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text(" "));
+        lore.add(Component.text("Узлов: " + t.nodeCount() + " · Очков: " + t.spentPoints(), NamedTextColor.AQUA)
                 .decoration(TextDecoration.ITALIC, false));
         lore.add(Component.text(" "));
-        lore.add(Component.text("Узлов: " + t.nodeCount()
-                + " · Очков: " + t.spentPoints(), NamedTextColor.AQUA)
+        lore.add(Component.text("Применение заменит текущий билд спеки.", NamedTextColor.YELLOW)
                 .decoration(TextDecoration.ITALIC, false));
-        lore.add(Component.text(" "));
-        lore.add(Component.text("Применение заменит текущий билд спеки.",
-                NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
         return item(Material.ENCHANTED_BOOK, name, lore);
     }
 
     private ItemStack confirmApplyItem() {
-        return item(Material.LIME_DYE,
-                Component.text("✔ Применить", NamedTextColor.GREEN)
-                        .decoration(TextDecoration.ITALIC, false),
+        return item(
+                Material.LIME_DYE,
+                Component.text("✔ Применить", NamedTextColor.GREEN).decoration(TextDecoration.ITALIC, false),
                 List.of(
                         Component.text("Клик №1 — взвести подтверждение", NamedTextColor.YELLOW)
                                 .decoration(TextDecoration.ITALIC, false),
@@ -515,33 +523,33 @@ public final class PlusGui implements Listener {
 
     /** 1.14.16-fix: взведённое состояние кнопки применения — видимая обратная связь. */
     private ItemStack confirmArmedItem() {
-        return item(Material.ORANGE_DYE,
+        return item(
+                Material.ORANGE_DYE,
                 Component.text("⚠ Подтвердить применение", NamedTextColor.GOLD)
                         .decoration(TextDecoration.ITALIC, false),
                 List.of(
-                        Component.text("Взведено: кликни ещё раз в течение 30 с",
-                                NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false),
-                        Component.text("Билд дерева будет ЗАМЕНЁН шаблоном",
-                                NamedTextColor.RED).decoration(TextDecoration.ITALIC, false)));
+                        Component.text("Взведено: кликни ещё раз в течение 30 с", NamedTextColor.YELLOW)
+                                .decoration(TextDecoration.ITALIC, false),
+                        Component.text("Билд дерева будет ЗАМЕНЁН шаблоном", NamedTextColor.RED)
+                                .decoration(TextDecoration.ITALIC, false)));
     }
 
     private ItemStack confirmBackItem() {
-        return item(Material.RED_DYE,
-                Component.text("✖ Назад", NamedTextColor.RED)
-                        .decoration(TextDecoration.ITALIC, false),
+        return item(
+                Material.RED_DYE,
+                Component.text("✖ Назад", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false),
                 List.of());
     }
 
     private ItemStack exitItem() {
-        return item(Material.BARRIER,
-                Component.text("Закрыть", NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false),
+        return item(
+                Material.BARRIER,
+                Component.text("Закрыть", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
                 List.of());
     }
 
     private ItemStack pane() {
-        return item(Material.BLACK_STAINED_GLASS_PANE,
-                Component.text(" "), List.of());
+        return item(Material.BLACK_STAINED_GLASS_PANE, Component.text(" "), List.of());
     }
 
     private ItemStack item(Material mat, Component name, List<Component> lore) {
@@ -557,11 +565,9 @@ public final class PlusGui implements Listener {
     }
 
     private static Component msg(String raw) {
-        return Component.text(raw, NamedTextColor.GOLD)
-                .decoration(TextDecoration.ITALIC, false);
+        return Component.text(raw, NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false);
     }
 
     /** Pending-apply: спека + архетип выбранного шаблона. */
-    private record PendingApply(String spec, Archetype arch) {
-    }
+    private record PendingApply(String spec, Archetype arch) {}
 }

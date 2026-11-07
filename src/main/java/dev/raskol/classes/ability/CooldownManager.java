@@ -2,9 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.storage.SafeStorage;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.io.File;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
+
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -19,12 +23,10 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.io.File;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
+import dev.raskol.classes.storage.SafeStorage;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Кулдауны в миллисекундах (на игрока и способность) + персист (A1).
@@ -59,17 +61,13 @@ public final class CooldownManager implements Listener {
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
 
-    public void attachScheduler(Plugin plugin,
-                                boolean enabled,
-                                int minCooldownSeconds,
-                                String soundKey,
-                                String message) {
+    public void attachScheduler(
+            Plugin plugin, boolean enabled, int minCooldownSeconds, String soundKey, String message) {
         this.plugin = plugin;
         this.notifyEnabled = enabled;
         this.notifyMinMillis = Math.max(1L, minCooldownSeconds) * 1000L;
         this.notifySound = parseSound(soundKey, Sound.ENTITY_PLAYER_LEVELUP);
-        this.notifyMessage = message == null || message.isEmpty()
-                ? "{ability} — готова" : message;
+        this.notifyMessage = message == null || message.isEmpty() ? "{ability} — готова" : message;
     }
 
     public long getRemainingMillis(UUID playerId, String abilityId) {
@@ -100,26 +98,29 @@ public final class CooldownManager implements Listener {
             return;
         }
 
-        Map<String, BukkitTask> byAbility = tasks.computeIfAbsent(playerId,
-                id -> new ConcurrentHashMap<>());
+        Map<String, BukkitTask> byAbility = tasks.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>());
         BukkitTask old = byAbility.remove(abilityId);
         if (old != null) {
             old.cancel();
         }
 
         long delayTicks = Math.max(1L, durationMillis / 50L);
-        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            Player player = Bukkit.getPlayer(playerId);
-            if (player == null || !player.isOnline()) {
-                return;
-            }
-            if (getRemainingMillis(playerId, abilityId) > 0L) {
-                return;
-            }
-            player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
-            String text = notifyMessage.replace("{ability}", displayName);
-            player.sendActionBar(Component.text(text, NamedTextColor.GREEN));
-        }, delayTicks);
+        BukkitTask task = Bukkit.getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            Player player = Bukkit.getPlayer(playerId);
+                            if (player == null || !player.isOnline()) {
+                                return;
+                            }
+                            if (getRemainingMillis(playerId, abilityId) > 0L) {
+                                return;
+                            }
+                            player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
+                            String text = notifyMessage.replace("{ability}", displayName);
+                            player.sendActionBar(Component.text(text, NamedTextColor.GREEN));
+                        },
+                        delayTicks);
         byAbility.put(abilityId, task);
     }
 

@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.balance;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeMath;
-import dev.raskol.classes.attribute.PowerService;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.CombatService;
-
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Random;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.AttributeMath;
+import dev.raskol.classes.attribute.PowerService;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.CombatService;
 
 /**
  * 1.7.6: HEADLESS-СИМУЛЯТОР ДУЭЛЕЙ (баланс-харнесс, вариант A).
@@ -24,9 +24,8 @@ import java.util.Random;
  */
 public final class BalanceSimulator {
 
-    public record DuelResult(PlayerClass winner, double ttkSeconds, boolean timeout,
-                             int castsA, int castsB, int dodgesA, int dodgesB) {
-    }
+    public record DuelResult(
+            PlayerClass winner, double ttkSeconds, boolean timeout, int castsA, int castsB, int dodgesA, int dodgesB) {}
 
     private static final double TICK = 0.1;
     private static final double LIMIT = 60.0;
@@ -46,24 +45,34 @@ public final class BalanceSimulator {
     private static final Map<PlayerClass, String[]> IDS = new EnumMap<>(PlayerClass.class);
 
     static {
-        IDS.put(PlayerClass.WARRIOR, new String[]{
-                "tyr_strike", "balder_skin", "berserkergang", "fenrir_blood", "ragnarok"});
-        IDS.put(PlayerClass.HUNTER, new String[]{
-                "wolf_mark", "swallow", "piercing_shot", "arrow_fan", "arrow_rain"});
-        IDS.put(PlayerClass.PRIEST, new String[]{
-                "saint_tear", "word_of_life", "aegis_faith", "circle_elysium", "wrath_heaven"});
-        IDS.put(PlayerClass.MAGE, new String[]{
-                "fire_prometheus", "hermes_step", "boreas_breath", "athena_aegis", "zeus_wrath"});
-        IDS.put(PlayerClass.ROGUE, new String[]{
-                "shadow_cloak", "blade_fan", "strangle", "borgia_poison", "shadow_dance"});
+        IDS.put(
+                PlayerClass.WARRIOR,
+                new String[] {"tyr_strike", "balder_skin", "berserkergang", "fenrir_blood", "ragnarok"});
+        IDS.put(PlayerClass.HUNTER, new String[] {"wolf_mark", "swallow", "piercing_shot", "arrow_fan", "arrow_rain"});
+        IDS.put(
+                PlayerClass.PRIEST,
+                new String[] {"saint_tear", "word_of_life", "aegis_faith", "circle_elysium", "wrath_heaven"});
+        IDS.put(
+                PlayerClass.MAGE,
+                new String[] {"fire_prometheus", "hermes_step", "boreas_breath", "athena_aegis", "zeus_wrath"});
+        IDS.put(
+                PlayerClass.ROGUE,
+                new String[] {"shadow_cloak", "blade_fan", "strangle", "borgia_poison", "shadow_dance"});
         // 1.10.0: WARLOCK
-        IDS.put(PlayerClass.WARLOCK, new String[]{
-                "black_word", "ruin_seal", "hunger_corruption", "unwriting", "soul_rift"});
+        IDS.put(
+                PlayerClass.WARLOCK,
+                new String[] {"black_word", "ruin_seal", "hunger_corruption", "unwriting", "soul_rift"});
     }
 
-    private record Ab(double base, double coeff, double cd, double cost,
-                      double duration, double threshold, double exec, double drain) {
-    }
+    private record Ab(
+            double base,
+            double coeff,
+            double cd,
+            double cost,
+            double duration,
+            double threshold,
+            double exec,
+            double drain) {}
 
     /** 1.10.0: добавлено поле drain (lifesteal) — 0.0 для классов без дрейна. */
     private static final Map<String, Ab> DEFAULT_AB = Map.ofEntries(
@@ -99,11 +108,9 @@ public final class BalanceSimulator {
             Map.entry("unwriting", new Ab(16, 0.8, 22, 30, 0, 1, 1, 0)),
             Map.entry("soul_rift", new Ab(30, 2.4, 80, 50, 0, 1, 1, 0)));
 
-    private BalanceSimulator() {
-    }
+    private BalanceSimulator() {}
 
-    public static DuelResult duel(RaskolClasses plugin, PlayerClass ca, PlayerClass cb,
-                                  int level, long seed) {
+    public static DuelResult duel(RaskolClasses plugin, PlayerClass ca, PlayerClass cb, int level, long seed) {
         Random rnd = new Random(seed);
         Fighter a = newFighter(plugin, ca, level);
         Fighter b = newFighter(plugin, cb, level);
@@ -134,9 +141,7 @@ public final class BalanceSimulator {
         for (int i = 0; i < pcs.length; i++) {
             for (int j = 0; j < pcs.length; j++) {
                 DuelResult r = duel(plugin, pcs[i], pcs[j], level, seed);
-                m[i][j] = (!r.timeout() && r.winner() == pcs[i])
-                        ? r.ttkSeconds()
-                        : Double.POSITIVE_INFINITY;
+                m[i][j] = (!r.timeout() && r.winner() == pcs[i]) ? r.ttkSeconds() : Double.POSITIVE_INFINITY;
             }
         }
         return m;
@@ -168,40 +173,41 @@ public final class BalanceSimulator {
 
     /** 1.10.0: +WARLOCK (base-str 4, base-agi 4, base-int 14). */
     private static final Map<PlayerClass, double[]> BASES = new EnumMap<>(PlayerClass.class);
+
     private static final Map<PlayerClass, double[]> GROWTHS = new EnumMap<>(PlayerClass.class);
 
     static {
-        BASES.put(PlayerClass.WARRIOR, new double[]{12, 6, 4});
-        BASES.put(PlayerClass.HUNTER, new double[]{6, 12, 4});
-        BASES.put(PlayerClass.PRIEST, new double[]{5, 5, 12});
-        BASES.put(PlayerClass.MAGE, new double[]{4, 6, 12});
-        BASES.put(PlayerClass.ROGUE, new double[]{7, 11, 4});
-        BASES.put(PlayerClass.WARLOCK, new double[]{4, 4, 14});
-        GROWTHS.put(PlayerClass.WARRIOR, new double[]{1.2, 0.5, 0.3});
-        GROWTHS.put(PlayerClass.HUNTER, new double[]{0.5, 1.2, 0.3});
-        GROWTHS.put(PlayerClass.PRIEST, new double[]{0.4, 0.4, 1.2});
-        GROWTHS.put(PlayerClass.MAGE, new double[]{0.3, 0.5, 1.2});
-        GROWTHS.put(PlayerClass.ROGUE, new double[]{0.6, 1.1, 0.3});
-        GROWTHS.put(PlayerClass.WARLOCK, new double[]{0.2, 0.3, 1.4});
+        BASES.put(PlayerClass.WARRIOR, new double[] {12, 6, 4});
+        BASES.put(PlayerClass.HUNTER, new double[] {6, 12, 4});
+        BASES.put(PlayerClass.PRIEST, new double[] {5, 5, 12});
+        BASES.put(PlayerClass.MAGE, new double[] {4, 6, 12});
+        BASES.put(PlayerClass.ROGUE, new double[] {7, 11, 4});
+        BASES.put(PlayerClass.WARLOCK, new double[] {4, 4, 14});
+        GROWTHS.put(PlayerClass.WARRIOR, new double[] {1.2, 0.5, 0.3});
+        GROWTHS.put(PlayerClass.HUNTER, new double[] {0.5, 1.2, 0.3});
+        GROWTHS.put(PlayerClass.PRIEST, new double[] {0.4, 0.4, 1.2});
+        GROWTHS.put(PlayerClass.MAGE, new double[] {0.3, 0.5, 1.2});
+        GROWTHS.put(PlayerClass.ROGUE, new double[] {0.6, 1.1, 0.3});
+        GROWTHS.put(PlayerClass.WARLOCK, new double[] {0.2, 0.3, 1.4});
     }
 
     private static double attrBase(RaskolClasses plugin, PlayerClass pc, int idx) {
         String[] names = {"str", "agi", "int"};
-        return cfg(plugin, "attributes.classes." + pc.name() + ".base-" + names[idx],
-                BASES.get(pc)[idx]);
+        return cfg(plugin, "attributes.classes." + pc.name() + ".base-" + names[idx], BASES.get(pc)[idx]);
     }
 
     private static double attrGrowth(RaskolClasses plugin, PlayerClass pc, int idx) {
         String[] names = {"str", "agi", "int"};
-        return cfg(plugin, "attributes.classes." + pc.name() + ".growth-" + names[idx],
-                GROWTHS.get(pc)[idx]);
+        return cfg(plugin, "attributes.classes." + pc.name() + ".growth-" + names[idx], GROWTHS.get(pc)[idx]);
     }
 
     private static boolean mainIsAgi(RaskolClasses plugin, PlayerClass pc) {
-        String m = plugin.getConfig().getString(
-                "attributes.classes." + pc.name() + ".main",
-                pc == PlayerClass.WARRIOR ? "STR"
-                        : (pc == PlayerClass.HUNTER || pc == PlayerClass.ROGUE) ? "AGI" : "INT");
+        String m = plugin.getConfig()
+                .getString(
+                        "attributes.classes." + pc.name() + ".main",
+                        pc == PlayerClass.WARRIOR
+                                ? "STR"
+                                : (pc == PlayerClass.HUNTER || pc == PlayerClass.ROGUE) ? "AGI" : "INT");
         return "AGI".equalsIgnoreCase(m);
     }
 
@@ -211,13 +217,13 @@ public final class BalanceSimulator {
         f.str = attrBase(plugin, pc, 0) + attrGrowth(plugin, pc, 0) * level;
         f.agi0 = attrBase(plugin, pc, 1) + attrGrowth(plugin, pc, 1) * level;
         f.int0 = attrBase(plugin, pc, 2) + attrGrowth(plugin, pc, 2) * level;
-        f.maxHp = cfg(plugin, "attributes.hp.base-hp", 100.0)
-                + f.str * cfg(plugin, "attributes.hp.per-str", 20.0);
+        f.maxHp = cfg(plugin, "attributes.hp.base-hp", 100.0) + f.str * cfg(plugin, "attributes.hp.per-str", 20.0);
         f.hp = f.maxHp;
         f.resource = 100.0;
         f.wp = PowerService.weaponPowerFormula(
                 cfg(plugin, "attributes.power.base-wp." + pc.name(), defaultWp(pc)),
-                f.str, f.agi0,
+                f.str,
+                f.agi0,
                 cfg(plugin, "attributes.power.str-to-wp", 1.5),
                 cfg(plugin, "attributes.power.agi-to-wp", 0.5));
         f.sp = PowerService.spellPowerFormula(
@@ -276,14 +282,14 @@ public final class BalanceSimulator {
         double parry;
         if (mainIsAgi(plugin, f.pc)) {
             double micro = cfg(plugin, "avoidance.agi-main-parry-micro", 0.5);
-            dodge += Math.max(0.0, parryFull - micro)
-                    * cfg(plugin, "avoidance.agi-main-dodge-refund", 0.5);
+            dodge += Math.max(0.0, parryFull - micro) * cfg(plugin, "avoidance.agi-main-dodge-refund", 0.5);
             parry = micro;
         } else {
             parry = parryFull;
         }
         dodge *= cfg(plugin, "avoidance.dodge-mult", 0.5);
-        double eff = AttributeMath.applyDR(dodge + parry,
+        double eff = AttributeMath.applyDR(
+                dodge + parry,
                 cfg(plugin, "avoidance.soft-cap", 60.0),
                 cfg(plugin, "avoidance.dr-factor", 0.5),
                 cfg(plugin, "avoidance.hard-cap", 75.0));
@@ -299,17 +305,22 @@ public final class BalanceSimulator {
             case ROGUE -> rate = cfg(plugin, "classes.ROGUE.resource-regen", 10.0);
             case MAGE -> {
                 double v = f.resource;
-                rate = v < 25 ? cfg(plugin, "classes.MAGE.regen-tier-1", 3.0)
-                        : v < 50 ? cfg(plugin, "classes.MAGE.regen-tier-2", 4.0)
-                        : v < 75 ? cfg(plugin, "classes.MAGE.regen-tier-3", 5.0)
-                        : cfg(plugin, "classes.MAGE.regen-tier-4", 6.0);
+                rate = v < 25
+                        ? cfg(plugin, "classes.MAGE.regen-tier-1", 3.0)
+                        : v < 50
+                                ? cfg(plugin, "classes.MAGE.regen-tier-2", 4.0)
+                                : v < 75
+                                        ? cfg(plugin, "classes.MAGE.regen-tier-3", 5.0)
+                                        : cfg(plugin, "classes.MAGE.regen-tier-4", 6.0);
             }
             default -> rate = cfg(plugin, "classes." + f.pc.name() + ".resource-regen", 0.0);
         }
         f.resource = Math.max(0.0, Math.min(100.0, f.resource + rate * TICK));
-        double regen = AttributeMath.strRegenPerSecond(f.str,
+        double regen = AttributeMath.strRegenPerSecond(
+                f.str,
                 cfg(plugin, "attributes.hp.regen-per-str", 0.025),
-                f.maxHp, true,
+                f.maxHp,
+                true,
                 cfg(plugin, "attributes.hp.regen-combat-factor", 0.35),
                 cfg(plugin, "attributes.hp.regen-cap-pct", 1.5));
         f.hp = Math.min(f.maxHp, f.hp + regen * TICK);
@@ -329,8 +340,7 @@ public final class BalanceSimulator {
                 cfg(plugin, p + "drain", def.drain));
     }
 
-    private static void act(RaskolClasses plugin, Fighter f, Fighter foe,
-                            double t, Random rnd, double pctCap) {
+    private static void act(RaskolClasses plugin, Fighter f, Fighter foe, double t, Random rnd, double pctCap) {
         String[] ids = IDS.get(f.pc);
         for (int slot = 0; slot < 5; slot++) {
             if (foe.hp <= 0.0) {
@@ -340,9 +350,9 @@ public final class BalanceSimulator {
         }
         if (t >= f.nextAuto && foe.hp > 0.0) {
             f.nextAuto = t + AUTO_INTERVAL;
-            double dmg = WEAPON_BASE.get(f.pc)
-                    + f.wp * cfg(plugin, "attributes.offense.basic-coeff", 0.35);
-            double chance = AttributeMath.critMelee(agiOf(f, t),
+            double dmg = WEAPON_BASE.get(f.pc) + f.wp * cfg(plugin, "attributes.offense.basic-coeff", 0.35);
+            double chance = AttributeMath.critMelee(
+                    agiOf(f, t),
                     cfg(plugin, "attributes.crit.melee-base", 5.0),
                     cfg(plugin, "attributes.crit.melee-per-agi", 0.05),
                     cfg(plugin, "attributes.crit.melee-cap", 40.0));
@@ -354,8 +364,8 @@ public final class BalanceSimulator {
     }
 
     /** 1.10.0: WARLOCK-касты (дрейн, mark Печати, откат). */
-    private static void tryCast(RaskolClasses plugin, Fighter f, Fighter foe,
-                                int slot, String id, double t, Random rnd, double pctCap) {
+    private static void tryCast(
+            RaskolClasses plugin, Fighter f, Fighter foe, int slot, String id, double t, Random rnd, double pctCap) {
         if (t < f.cd[slot]) {
             return;
         }
@@ -451,7 +461,7 @@ public final class BalanceSimulator {
                     cast = true;
                 }
             }
-            // 1.10.0: WARLOCK
+                // 1.10.0: WARLOCK
             case "black_word" -> {
                 double dmg = a.base + f.sp * a.coeff;
                 double dealt = hit(plugin, f, foe, 0.0, dmg, false, t, rnd, pctCap);
@@ -501,8 +511,8 @@ public final class BalanceSimulator {
         }
     }
 
-    private static double applyBurstWindow(RaskolClasses plugin, Fighter def,
-                                           double damage, double t, boolean execute) {
+    private static double applyBurstWindow(
+            RaskolClasses plugin, Fighter def, double damage, double t, boolean execute) {
         if (execute || damage <= 0.0) {
             return damage;
         }
@@ -522,7 +532,7 @@ public final class BalanceSimulator {
         double allowed = Math.max(0.0, cap - sum);
         double finalDmg = Math.min(damage, allowed);
         if (finalDmg > 0.0) {
-            def.recent.addLast(new double[]{t, finalDmg});
+            def.recent.addLast(new double[] {t, finalDmg});
         }
         return finalDmg;
     }
@@ -531,9 +541,16 @@ public final class BalanceSimulator {
      * Применяет урон и возвращает фактически дошедшее значение (для дрейна).
      * 1.10.0: WARLOCK-множитель ×1.2 при Скверне ≥75 + откат 6.66% HP себе.
      */
-    private static double hit(RaskolClasses plugin, Fighter att, Fighter def,
-                            double phys, double magic, boolean execute,
-                            double t, Random rnd, double pctCap) {
+    private static double hit(
+            RaskolClasses plugin,
+            Fighter att,
+            Fighter def,
+            double phys,
+            double magic,
+            boolean execute,
+            double t,
+            Random rnd,
+            double pctCap) {
         if (phys > 0.0) {
             double r = rnd.nextDouble() * 100.0;
             if (r < def.dodgeEff + def.parryEff) {
@@ -549,9 +566,8 @@ public final class BalanceSimulator {
         // 1.10.0: WARLOCK ×1.2 при Скверне ≥75 (открытая страница)
         double warlockMult = (att.pc == PlayerClass.WARLOCK && att.resource >= 75.0) ? 1.2 : 1.0;
 
-        double mult = warlockMult
-                * (t < att.dmgMultUntil ? att.dmgMult : 1.0)
-                * (t < def.markUntil ? def.markMult : 1.0);
+        double mult =
+                warlockMult * (t < att.dmgMultUntil ? att.dmgMult : 1.0) * (t < def.markUntil ? def.markMult : 1.0);
         double total = (p + m) * mult;
         if (!execute) {
             total = CombatService.cappedDamage(total, def.maxHp, pctCap);

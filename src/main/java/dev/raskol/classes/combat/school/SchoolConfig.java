@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat.school;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.combat.DamageType;
-import org.bukkit.event.entity.EntityDamageEvent;
-
 import java.util.Locale;
 import java.util.logging.Logger;
+
+import org.bukkit.event.entity.EntityDamageEvent;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.DamageType;
 
 /**
  * 1.12.0: конфиг-слой школ (секция schools.* в config.yml).
@@ -37,8 +38,7 @@ public final class SchoolConfig {
 
     /** Глобальный множитель школы (кламп 0..10; битое значение → 1.0). */
     public double multiplier(School school) {
-        double v = plugin.getConfig().getDouble(
-                "schools.multiplier." + school.id(), 1.0);
+        double v = plugin.getConfig().getDouble("schools.multiplier." + school.id(), 1.0);
         if (!Double.isFinite(v) || v < 0.0 || v > 10.0) {
             return 1.0;
         }
@@ -74,8 +74,7 @@ public final class SchoolConfig {
      * логируется с ключом конфига (раньше проглатывалось молча).
      */
     public School schoolOf(EntityDamageEvent.DamageCause cause) {
-        String override = plugin.getConfig()
-                .getString("schools.vanilla-school." + cause.name());
+        String override = plugin.getConfig().getString("schools.vanilla-school." + cause.name());
         School direct = School.fromId(override);
         if (direct != null) {
             return direct;
@@ -87,8 +86,8 @@ public final class SchoolConfig {
             try {
                 channel = DamageType.valueOf(channelOverride.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                LOGGER.warning("SchoolConfig: битое значение ключа '" + channelKey
-                        + "' = '" + channelOverride + "' — используется дефолтная школа канала");
+                LOGGER.warning("SchoolConfig: битое значение ключа '" + channelKey + "' = '" + channelOverride
+                        + "' — используется дефолтная школа канала");
             }
         }
         if (channel == null) {

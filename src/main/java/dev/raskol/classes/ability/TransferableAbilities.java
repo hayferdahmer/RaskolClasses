@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.classsystem.PlayerClass;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
@@ -11,6 +9,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.14.0 (Батч 11.1.1): реестр ПЕРЕНОСИМЫХ китовых способностей.
@@ -37,12 +37,10 @@ import java.util.Set;
  */
 public final class TransferableAbilities {
 
-    private TransferableAbilities() {
-    }
+    private TransferableAbilities() {}
 
     /** Одна переносимая способность: класс, id и legacy-slot (4/5) в старом ките. */
-    public record Entry(PlayerClass pc, String id, int legacySlot) {
-    }
+    public record Entry(PlayerClass pc, String id, int legacySlot) {}
 
     /** id → запись (порядок вставки = порядок обхода для детерминизма). */
     private static final Map<String, Entry> BY_ID = new LinkedHashMap<>();

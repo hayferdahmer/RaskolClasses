@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.manifest;
 
-import dev.raskol.classes.integrity.build.BuildIdentity;
-import dev.raskol.classes.integrity.build.BuildType;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -15,6 +12,9 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
+
+import dev.raskol.classes.integrity.build.BuildIdentity;
+import dev.raskol.classes.integrity.build.BuildType;
 
 /**
  * Strict parser for canonical RaskolClasses integrity manifests.
@@ -27,13 +27,11 @@ import java.util.Objects;
  */
 public final class IntegrityManifestParser {
 
-    private static final String FORMAT_HEADER =
-            "RASKOL-INTEGRITY-MANIFEST\t1";
+    private static final String FORMAT_HEADER = "RASKOL-INTEGRITY-MANIFEST\t1";
 
     private static final int METADATA_LINE_COUNT = 7;
 
-    private static final int HEADER_LINE_COUNT =
-            METADATA_LINE_COUNT + 1;
+    private static final int HEADER_LINE_COUNT = METADATA_LINE_COUNT + 1;
 
     private IntegrityManifestParser() {
         throw new UnsupportedOperationException("Utility class");
@@ -47,55 +45,36 @@ public final class IntegrityManifestParser {
      * @throws IllegalArgumentException if the input is invalid
      */
     public static IntegrityManifest parse(byte[] manifestBytes) {
-        Objects.requireNonNull(
-                manifestBytes,
-                "manifestBytes cannot be null"
-        );
+        Objects.requireNonNull(manifestBytes, "manifestBytes cannot be null");
 
         String content = decodeUtf8(manifestBytes);
 
         if (content.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "Manifest cannot be empty"
-            );
+            throw new IllegalArgumentException("Manifest cannot be empty");
         }
 
         if (!content.endsWith("\n")) {
-            throw new IllegalArgumentException(
-                    "Manifest must end with LF"
-            );
+            throw new IllegalArgumentException("Manifest must end with LF");
         }
 
         String[] lines = content.split("\n", -1);
 
         if (lines.length < HEADER_LINE_COUNT + 1) {
-            throw new IllegalArgumentException(
-                    "Manifest is incomplete"
-            );
+            throw new IllegalArgumentException("Manifest is incomplete");
         }
 
         if (!FORMAT_HEADER.equals(lines[0])) {
-            throw new IllegalArgumentException(
-                    "Unsupported manifest header or version"
-            );
+            throw new IllegalArgumentException("Unsupported manifest header or version");
         }
 
         BuildIdentity identity = parseIdentity(lines);
 
         List<ManifestFileEntry> files = parseFiles(lines);
 
-        IntegrityManifest manifest = new IntegrityManifest(
-                identity,
-                files
-        );
+        IntegrityManifest manifest = new IntegrityManifest(identity, files);
 
-        if (!java.util.Arrays.equals(
-                manifest.toCanonicalBytes(),
-                manifestBytes
-        )) {
-            throw new IllegalArgumentException(
-                    "Manifest is not in canonical form"
-            );
+        if (!java.util.Arrays.equals(manifest.toCanonicalBytes(), manifestBytes)) {
+            throw new IllegalArgumentException("Manifest is not in canonical form");
         }
 
         return manifest;
@@ -115,10 +94,7 @@ public final class IntegrityManifestParser {
         try {
             buildTimestamp = Instant.parse(timestamp);
         } catch (DateTimeParseException exception) {
-            throw new IllegalArgumentException(
-                    "Invalid build timestamp",
-                    exception
-            );
+            throw new IllegalArgumentException("Invalid build timestamp", exception);
         }
 
         final BuildType buildType;
@@ -126,27 +102,13 @@ public final class IntegrityManifestParser {
         try {
             buildType = BuildType.valueOf(buildTypeValue);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(
-                    "Unsupported build type",
-                    exception
-            );
+            throw new IllegalArgumentException("Unsupported build type", exception);
         }
 
         try {
-            return new BuildIdentity(
-                    product,
-                    version,
-                    buildId,
-                    commit,
-                    buildTimestamp,
-                    repository,
-                    buildType
-            );
+            return new BuildIdentity(product, version, buildId, commit, buildTimestamp, repository, buildType);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(
-                    "Invalid build identity in manifest",
-                    exception
-            );
+            throw new IllegalArgumentException("Invalid build identity in manifest", exception);
         }
     }
 
@@ -157,17 +119,13 @@ public final class IntegrityManifestParser {
             String line = lines[index];
 
             if (line.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "Unexpected empty line in manifest"
-                );
+                throw new IllegalArgumentException("Unexpected empty line in manifest");
             }
 
             String[] fields = line.split("\t", -1);
 
             if (fields.length != 4 || !"FILE".equals(fields[0])) {
-                throw new IllegalArgumentException(
-                        "Invalid file entry at line " + (index + 1)
-                );
+                throw new IllegalArgumentException("Invalid file entry at line " + (index + 1));
             }
 
             String path = decode(fields[1]);
@@ -177,10 +135,7 @@ public final class IntegrityManifestParser {
             try {
                 files.add(new ManifestFileEntry(path, size, sha256));
             } catch (IllegalArgumentException exception) {
-                throw new IllegalArgumentException(
-                        "Invalid file entry at line " + (index + 1),
-                        exception
-                );
+                throw new IllegalArgumentException("Invalid file entry at line " + (index + 1), exception);
             }
         }
 
@@ -191,9 +146,7 @@ public final class IntegrityManifestParser {
         String[] fields = line.split("\t", -1);
 
         if (fields.length != 2 || !expectedKey.equals(fields[0])) {
-            throw new IllegalArgumentException(
-                    "Expected metadata field: " + expectedKey
-            );
+            throw new IllegalArgumentException("Expected metadata field: " + expectedKey);
         }
 
         return decode(fields[1]);
@@ -201,9 +154,7 @@ public final class IntegrityManifestParser {
 
     private static String decode(String encoded) {
         if (encoded.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "Encoded manifest value cannot be empty"
-            );
+            throw new IllegalArgumentException("Encoded manifest value cannot be empty");
         }
 
         final byte[] decoded;
@@ -211,20 +162,13 @@ public final class IntegrityManifestParser {
         try {
             decoded = Base64.getUrlDecoder().decode(encoded);
         } catch (IllegalArgumentException exception) {
-            throw new IllegalArgumentException(
-                    "Invalid Base64 URL value in manifest",
-                    exception
-            );
+            throw new IllegalArgumentException("Invalid Base64 URL value in manifest", exception);
         }
 
-        String canonical = Base64.getUrlEncoder()
-                .withoutPadding()
-                .encodeToString(decoded);
+        String canonical = Base64.getUrlEncoder().withoutPadding().encodeToString(decoded);
 
         if (!canonical.equals(encoded)) {
-            throw new IllegalArgumentException(
-                    "Non-canonical Base64 URL value in manifest"
-            );
+            throw new IllegalArgumentException("Non-canonical Base64 URL value in manifest");
         }
 
         return decodeUtf8(decoded);
@@ -232,9 +176,7 @@ public final class IntegrityManifestParser {
 
     private static long parseSize(String value) {
         if (value.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "File size cannot be empty"
-            );
+            throw new IllegalArgumentException("File size cannot be empty");
         }
 
         final long size;
@@ -242,16 +184,11 @@ public final class IntegrityManifestParser {
         try {
             size = Long.parseLong(value);
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException(
-                    "Invalid file size in manifest",
-                    exception
-            );
+            throw new IllegalArgumentException("Invalid file size in manifest", exception);
         }
 
         if (size < 0 || !Long.toString(size).equals(value)) {
-            throw new IllegalArgumentException(
-                    "File size is not canonical"
-            );
+            throw new IllegalArgumentException("File size is not canonical");
         }
 
         return size;
@@ -259,16 +196,14 @@ public final class IntegrityManifestParser {
 
     private static String decodeUtf8(byte[] bytes) {
         try {
-            return StandardCharsets.UTF_8.newDecoder()
+            return StandardCharsets.UTF_8
+                    .newDecoder()
                     .onMalformedInput(CodingErrorAction.REPORT)
                     .onUnmappableCharacter(CodingErrorAction.REPORT)
                     .decode(ByteBuffer.wrap(bytes))
                     .toString();
         } catch (CharacterCodingException exception) {
-            throw new IllegalArgumentException(
-                    "Manifest contains invalid UTF-8",
-                    exception
-            );
+            throw new IllegalArgumentException("Manifest contains invalid UTF-8", exception);
         }
     }
 }

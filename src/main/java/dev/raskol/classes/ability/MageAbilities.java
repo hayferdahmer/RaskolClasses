@@ -2,17 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.cc.CCType;
-import dev.raskol.classes.cc.CastChannels;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.DamageProfile;
-import dev.raskol.classes.combat.Targeting;
-import dev.raskol.classes.combat.dot.DotInstance;
-import dev.raskol.classes.combat.school.School;
-import dev.raskol.classes.hook.TownyHook;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -28,10 +22,18 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.cc.CCType;
+import dev.raskol.classes.cc.CastChannels;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.Targeting;
+import dev.raskol.classes.combat.dot.DotInstance;
+import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.hook.TownyHook;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * КИТ МАГА (1.9.0-fix7 → 1.12.5).
@@ -101,8 +103,8 @@ public final class MageAbilities extends AbstractKit {
     }
 
     private void executeFx(LivingEntity target) {
-        Sound sound = plugin.getFx().resolveSound(
-                cfgS("vfx.zeus_wrath.execute-sound", "ENTITY_LIGHTNING_BOLT_THUNDER"));
+        Sound sound =
+                plugin.getFx().resolveSound(cfgS("vfx.zeus_wrath.execute-sound", "ENTITY_LIGHTNING_BOLT_THUNDER"));
         Location loc = target.getLocation().add(0.0, 1.0, 0.0);
         if (sound != null) {
             plugin.getFx().playSound(loc, sound, 1.0f, 0.6f);
@@ -180,10 +182,9 @@ public final class MageAbilities extends AbstractKit {
         Vector dir = p.getLocation().getDirection().normalize();
         Snowball sb = p.launchProjectile(Snowball.class, dir.multiply(speed));
         sb.setShooter(p);
-        sb.getPersistentDataContainer().set(plugin.getCombat().dots().dotTagKey(),
-                PersistentDataType.STRING, "burning");
-        plugin.getFx().chargeProjectile(sb.getUniqueId(), p.getUniqueId(), def.id(),
-                0.0, dmg, 0);
+        sb.getPersistentDataContainer()
+                .set(plugin.getCombat().dots().dotTagKey(), PersistentDataType.STRING, "burning");
+        plugin.getFx().chargeProjectile(sb.getUniqueId(), p.getUniqueId(), def.id(), 0.0, dmg, 0);
         return true;
     }
 
@@ -197,8 +198,8 @@ public final class MageAbilities extends AbstractKit {
         Location origin = p.getLocation();
 
         Location dest;
-        RayTraceResult hit = p.getWorld().rayTraceBlocks(
-                origin.clone().add(0.0, 1.0, 0.0), dir, maxDist, FluidCollisionMode.NEVER);
+        RayTraceResult hit =
+                p.getWorld().rayTraceBlocks(origin.clone().add(0.0, 1.0, 0.0), dir, maxDist, FluidCollisionMode.NEVER);
         if (hit == null) {
             dest = origin.clone().add(dir.clone().multiply(maxDist));
         } else {
@@ -214,8 +215,9 @@ public final class MageAbilities extends AbstractKit {
 
         // 1.15.6 (2.6-7): валидация точки назначения
         if (!isBlinkDestinationSafe(p, origin, dest)) {
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "blink-unsafe", "Скачок невозможен: нет безопасной точки"), NamedTextColor.GRAY));
+            p.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("blink-unsafe", "Скачок невозможен: нет безопасной точки"),
+                    NamedTextColor.GRAY));
             return false;
         }
 
@@ -238,17 +240,14 @@ public final class MageAbilities extends AbstractKit {
         }
 
         p.teleport(dest);
-        Particle destParticle = resolveParticle(
-                cfgS("vfx.hermes_step.cast-particle", "REVERSE_PORTAL"));
-        Sound destSound = plugin.getFx().resolveSound(
-                cfgS("vfx.hermes_step.cast-sound", "ENTITY_ENDERMAN_TELEPORT"));
+        Particle destParticle = resolveParticle(cfgS("vfx.hermes_step.cast-particle", "REVERSE_PORTAL"));
+        Sound destSound = plugin.getFx().resolveSound(cfgS("vfx.hermes_step.cast-sound", "ENTITY_ENDERMAN_TELEPORT"));
         if (destParticle != null) {
-            plugin.getFx().impactBurst(dest.clone().add(0.0, 1.0, 0.0),
-                    destParticle, 16, destSound, 0.4f, 1.4f);
+            plugin.getFx().impactBurst(dest.clone().add(0.0, 1.0, 0.0), destParticle, 16, destSound, 0.4f, 1.4f);
         }
         if (hitCount > 0) {
-            p.sendMessage(Component.text("Шаг Гермеса: пронесено сквозь " + hitCount + " целей",
-                    NamedTextColor.LIGHT_PURPLE));
+            p.sendMessage(Component.text(
+                    "Шаг Гермеса: пронесено сквозь " + hitCount + " целей", NamedTextColor.LIGHT_PURPLE));
         }
         return true;
     }
@@ -261,7 +260,8 @@ public final class MageAbilities extends AbstractKit {
 
         int targets = 0;
         for (Entity e : p.getNearbyEntities(radius, radius, radius)) {
-            if (e instanceof LivingEntity t && !e.equals(p)
+            if (e instanceof LivingEntity t
+                    && !e.equals(p)
                     && Targeting.isValidDamageTarget(plugin, p, t)
                     && Targeting.hasLineOfSight(plugin, p, t)) {
                 targets++;
@@ -278,8 +278,7 @@ public final class MageAbilities extends AbstractKit {
             p.getWorld().spawnParticle(castParticle, center, 60, radius * 0.7, 0.2, radius * 0.7, 0.05);
         }
         p.getWorld().spawnParticle(Particle.CLOUD, center, 24, radius * 0.5, 0.3, radius * 0.5, 0.03);
-        Sound cast = plugin.getFx().resolveSound(
-                cfgS("vfx.boreas_breath.cast-sound", "BLOCK_SNOW_BREAK"));
+        Sound cast = plugin.getFx().resolveSound(cfgS("vfx.boreas_breath.cast-sound", "BLOCK_SNOW_BREAK"));
         if (cast != null) {
             plugin.getFx().playSound(p.getLocation(), cast, 0.7f, 0.9f);
         }
@@ -315,21 +314,23 @@ public final class MageAbilities extends AbstractKit {
 
         plugin.getResists().addTimedModifier(uuid, def.id(), 0.0, grant, secs * 1000L);
 
-        Sound grantSound = plugin.getFx().resolveSound(
-                cfgS("vfx.athena_aegis.cast-sound", "ITEM_ARMOR_EQUIP_DIAMOND"));
+        Sound grantSound = plugin.getFx().resolveSound(cfgS("vfx.athena_aegis.cast-sound", "ITEM_ARMOR_EQUIP_DIAMOND"));
         if (grantSound != null) {
             plugin.getFx().playSound(p.getLocation(), grantSound, 0.6f, 1.0f);
         }
-        Particle castParticle = resolveParticle(
-                cfgS("vfx.athena_aegis.cast-particle", "ENCHANTED_HIT"));
+        Particle castParticle = resolveParticle(cfgS("vfx.athena_aegis.cast-particle", "ENCHANTED_HIT"));
         if (castParticle != null) {
-            p.getWorld().spawnParticle(castParticle, p.getLocation().add(0.0, 1.0, 0.0),
-                    24, 0.4, 0.8, 0.4, 0.05);
+            p.getWorld().spawnParticle(castParticle, p.getLocation().add(0.0, 1.0, 0.0), 24, 0.4, 0.8, 0.4, 0.05);
         }
-        plugin.getFx().startAura(uuid, Particle.ENCHANT, secs * 20, 3,
-                cfgS("vfx.athena_aegis.expire-sound", "BLOCK_AMETHYST_BLOCK_CHIME"));
-        p.sendMessage(Component.text("Эгида Афины: +" + (int) grant + "% магрезиста на " + secs + " с",
-                NamedTextColor.AQUA));
+        plugin.getFx()
+                .startAura(
+                        uuid,
+                        Particle.ENCHANT,
+                        secs * 20,
+                        3,
+                        cfgS("vfx.athena_aegis.expire-sound", "BLOCK_AMETHYST_BLOCK_CHIME"));
+        p.sendMessage(
+                Component.text("Эгида Афины: +" + (int) grant + "% магрезиста на " + secs + " с", NamedTextColor.AQUA));
         return true;
     }
 
@@ -364,18 +365,19 @@ public final class MageAbilities extends AbstractKit {
         }
         double dealt = plugin.getCombat().dealDamage(t, p, DamageProfile.magic(finalDmg), true);
         if (dealt <= 0.0) {
-            plugin.getLogger().warning("zeus_wrath: урон 0 по " + t.getType()
-                    + " (событие отменено внешним плагином: WG/Towny/GrimAC?)");
+            plugin.getLogger()
+                    .warning("zeus_wrath: урон 0 по " + t.getType()
+                            + " (событие отменено внешним плагином: WG/Towny/GrimAC?)");
         }
         if (execute) {
             executeFx(t);
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "tag.execute-mage", "Кара Зевса ×3!"), NamedTextColor.RED));
+            p.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("tag.execute-mage", "Кара Зевса ×3!"), NamedTextColor.RED));
         }
 
         Location castLoc = t.getLocation().add(0.0, 1.0, 0.0);
-        Sound thunder = plugin.getFx().resolveSound(
-                cfgS("vfx.zeus_wrath.execute-sound", "ENTITY_LIGHTNING_BOLT_THUNDER"));
+        Sound thunder =
+                plugin.getFx().resolveSound(cfgS("vfx.zeus_wrath.execute-sound", "ENTITY_LIGHTNING_BOLT_THUNDER"));
         if (thunder != null) {
             plugin.getFx().playSound(castLoc, thunder, 1.0f, 0.6f);
         }
@@ -388,43 +390,58 @@ public final class MageAbilities extends AbstractKit {
         }
 
         // 1.15.6 (2.6-74): подброс с учётом CC-иммунитета к KNOCKBACK
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            Entity e = plugin.getServer().getEntity(targetId);
-            if (!(e instanceof LivingEntity living) || !living.isValid()) {
-                return;
-            }
-            if (plugin.getCC().isImmune(living, CCType.KNOCKBACK)) {
-                return;
-            }
-            living.setVelocity(new Vector(0.0, 1.2, 0.0));
-        }, 10L);
+        plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            Entity e = plugin.getServer().getEntity(targetId);
+                            if (!(e instanceof LivingEntity living) || !living.isValid()) {
+                                return;
+                            }
+                            if (plugin.getCC().isImmune(living, CCType.KNOCKBACK)) {
+                                return;
+                            }
+                            living.setVelocity(new Vector(0.0, 1.2, 0.0));
+                        },
+                        10L);
 
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            Entity e = plugin.getServer().getEntity(targetId);
-            if (!(e instanceof LivingEntity living) || !living.isValid()) {
-                return;
-            }
-            Player caster = plugin.getServer().getPlayer(casterId);
-            if (caster == null) {
-                return;
-            }
-            Location strikeLoc = living.getLocation().add(0.0, 1.0, 0.0);
-            plugin.getFx().strikeLightningVisual(strikeLoc);
-            Sound impactSound = plugin.getFx().resolveSound(
-                    cfgS("vfx.zeus_wrath.impact-sound", "ENTITY_LIGHTNING_BOLT_IMPACT"));
-            Particle flash = resolveParticle(cfgS("vfx.zeus_wrath.impact-particle", "FLASH"));
-            if (flash != null) {
-                plugin.getFx().impactBurst(strikeLoc, flash, 12, null, 0f, 1f);
-                Particle castParticle = resolveParticle(
-                        cfgS("vfx.zeus_wrath.cast-particle", "ELECTRIC_SPARK"));
-                plugin.getFx().impactBurst(strikeLoc,
-                        castParticle != null ? castParticle : Particle.ELECTRIC_SPARK,
-                        30, impactSound, 0.8f, 1.0f);
-            }
-            if (plugin.getCombat().canHit(caster, living)) {
-                plugin.getCombat().dots().applyById(caster, living, "burning");
-            }
-        }, 20L);
+        plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            Entity e = plugin.getServer().getEntity(targetId);
+                            if (!(e instanceof LivingEntity living) || !living.isValid()) {
+                                return;
+                            }
+                            Player caster = plugin.getServer().getPlayer(casterId);
+                            if (caster == null) {
+                                return;
+                            }
+                            Location strikeLoc = living.getLocation().add(0.0, 1.0, 0.0);
+                            plugin.getFx().strikeLightningVisual(strikeLoc);
+                            Sound impactSound = plugin.getFx()
+                                    .resolveSound(cfgS("vfx.zeus_wrath.impact-sound", "ENTITY_LIGHTNING_BOLT_IMPACT"));
+                            Particle flash = resolveParticle(cfgS("vfx.zeus_wrath.impact-particle", "FLASH"));
+                            if (flash != null) {
+                                plugin.getFx().impactBurst(strikeLoc, flash, 12, null, 0f, 1f);
+                                Particle castParticle =
+                                        resolveParticle(cfgS("vfx.zeus_wrath.cast-particle", "ELECTRIC_SPARK"));
+                                plugin.getFx()
+                                        .impactBurst(
+                                                strikeLoc,
+                                                castParticle != null ? castParticle : Particle.ELECTRIC_SPARK,
+                                                30,
+                                                impactSound,
+                                                0.8f,
+                                                1.0f);
+                            }
+                            if (plugin.getCombat().canHit(caster, living)) {
+                                plugin.getCombat().dots().applyById(caster, living, "burning");
+                            }
+                        },
+                        20L);
 
         return true;
     }
@@ -434,15 +451,20 @@ public final class MageAbilities extends AbstractKit {
     /** arcane T2: 3 залпа маг-урона по цели (до 20 блоков). */
     public boolean arcaneMissiles(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) { noTarget(p); return false; }
-        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
         castFx(p, "arcane_missiles", "ENTITY_EVOKER_CAST_SPELL", "REVERSE_PORTAL", 0.6f, 1.1f, 12);
         double per = tdmg(p, def, 5.0, 0.45);
         for (int i = 0; i < 3; i++) {
             if (t.isDead()) break;
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(per));
-            impactFx(t, "arcane_missiles", "ENTITY_EVOKER_FANGS", "REVERSE_PORTAL",
-                    0.35f, 1.0f + i * 0.1f, 6);
+            impactFx(t, "arcane_missiles", "ENTITY_EVOKER_FANGS", "REVERSE_PORTAL", 0.35f, 1.0f + i * 0.1f, 6);
         }
         return true;
     }
@@ -450,8 +472,14 @@ public final class MageAbilities extends AbstractKit {
     /** arcane T4: маг-урон + Немота 3 с + прерывание канала. */
     public boolean counterspell(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) { noTarget(p); return false; }
-        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
         castFx(p, "counterspell", "BLOCK_NOTE_BLOCK_BASS", "REVERSE_PORTAL", 0.7f, 0.8f, 14);
         double dmg = tdmg(p, def, 4.0, 0.3);
         plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
@@ -468,15 +496,20 @@ public final class MageAbilities extends AbstractKit {
         plugin.getResources().refund(uuid, 100.0);
         plugin.getCC().removeType(uuid, CCType.SILENCE);
         castFx(p, "presence_of_mind", "BLOCK_ENCHANTMENT_TABLE_USE", "ENCHANTED_HIT", 0.6f, 1.2f, 16);
-        p.sendMessage(Component.text("Присутствие разума: мана восполнена, немота снята",
-                NamedTextColor.AQUA));
+        p.sendMessage(Component.text("Присутствие разума: мана восполнена, немота снята", NamedTextColor.AQUA));
         return true;
     }
 
     public boolean scorch(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) { noTarget(p); return false; }
-        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
         castFx(p, "scorch", "ITEM_FIRECHARGE_USE", "FLAME", 0.6f, 1.1f, 10);
         double dmg = tdmg(p, def, 7.0, 0.6);
         plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
@@ -521,15 +554,20 @@ public final class MageAbilities extends AbstractKit {
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
         COMBUSTION_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
         castFx(p, "combustion", "ITEM_FIRECHARGE_USE", "FLAME", 0.8f, 1.0f, 20);
-        p.sendMessage(Component.text("Возгорание: +25% урона заклинаний на " + secs + " с",
-                NamedTextColor.RED));
+        p.sendMessage(Component.text("Возгорание: +25% урона заклинаний на " + secs + " с", NamedTextColor.RED));
         return true;
     }
 
     public boolean pyroblast(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) { noTarget(p); return false; }
-        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
         boolean burning = isBurning(t);
         castFx(p, "pyroblast", "ENTITY_EVOKER_CAST_SPELL", "LAVA", 0.9f, 0.7f, 22);
         double dmg = tdmg(p, def, 20.0, 1.8) * (burning ? 1.5 : 1.0);
@@ -544,8 +582,14 @@ public final class MageAbilities extends AbstractKit {
 
     public boolean frostbolt(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) { noTarget(p); return false; }
-        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
         castFx(p, "frostbolt", "BLOCK_SNOW_BREAK", "SNOWFLAKE", 0.6f, 1.0f, 10);
         double dmg = tdmg(p, def, 8.0, 0.7);
         plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
@@ -596,15 +640,21 @@ public final class MageAbilities extends AbstractKit {
         int level = Math.max(0, (shieldCarrier + 3) / 4 - 1);
         p.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, secs * 20, level));
         castFx(p, "ice_barrier", "BLOCK_GLASS_PLACE", "SNOWFLAKE", 0.7f, 1.0f, 18);
-        p.sendMessage(Component.text("Ледяная преграда: щит " + shieldCarrier + " HP на " + secs + " с",
-                NamedTextColor.AQUA));
+        p.sendMessage(Component.text(
+                "Ледяная преграда: щит " + shieldCarrier + " HP на " + secs + " с", NamedTextColor.AQUA));
         return true;
     }
 
     public boolean iceLanceShatter(Player p, AbilityDef def) {
         LivingEntity t = rayTarget(p, 20);
-        if (t == null) { noTarget(p); return false; }
-        if (!plugin.getCombat().canHit(p, t)) { allyTarget(p); return false; }
+        if (t == null) {
+            noTarget(p);
+            return false;
+        }
+        if (!plugin.getCombat().canHit(p, t)) {
+            allyTarget(p);
+            return false;
+        }
         int stacks = chilledStacks(t);
         castFx(p, "ice_lance_shatter", "BLOCK_GLASS_BREAK", "SNOWFLAKE", 0.9f, 0.8f, 20);
         double dmg = tdmg(p, def, 12.0, 1.1);
@@ -617,15 +667,24 @@ public final class MageAbilities extends AbstractKit {
         plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
         impactFx(t, "ice_lance_shatter", "BLOCK_GLASS_BREAK", "SNOWFLAKE", 0.7f, 0.9f, 24);
         if (stacks > 0) {
-            p.sendMessage(Component.text("Ледяное копьё: раскол по " + stacks + " стекам охлаждения!",
-                    NamedTextColor.AQUA));
+            p.sendMessage(
+                    Component.text("Ледяное копьё: раскол по " + stacks + " стекам охлаждения!", NamedTextColor.AQUA));
         }
         return true;
     }
 
     public static List<String> treeAbilityIds() {
-        return List.of("arcane_missiles", "counterspell", "presence_of_mind",
-                "scorch", "flamestrike", "combustion", "pyroblast",
-                "frostbolt", "blizzard", "ice_barrier", "ice_lance_shatter");
+        return List.of(
+                "arcane_missiles",
+                "counterspell",
+                "presence_of_mind",
+                "scorch",
+                "flamestrike",
+                "combustion",
+                "pyroblast",
+                "frostbolt",
+                "blizzard",
+                "ice_barrier",
+                "ice_lance_shatter");
     }
 }

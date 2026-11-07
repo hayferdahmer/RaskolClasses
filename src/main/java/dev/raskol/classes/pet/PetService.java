@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.pet;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeType;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
+
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
@@ -29,11 +31,11 @@ import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.AttributeType;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.14.6: ЕДИНЫЙ сервис боевых петов (wolf / demon / shadowfiend).
@@ -80,7 +82,12 @@ public final class PetService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
 
-    public enum SummonResult { OK, ALREADY, UNKNOWN, NO_WORLD }
+    public enum SummonResult {
+        OK,
+        ALREADY,
+        UNKNOWN,
+        NO_WORLD
+    }
 
     private static final double FOLLOW_BLOCKS = 12.0;
     /** 1.14.7 (P0-8b): запас сверх ttl для ванильного limited-lifetime бэкстопа. */
@@ -101,6 +108,7 @@ public final class PetService implements Listener {
         /** 1.15.7 (2.6-68): последняя известная позиция пета для различения
          *  «чанк выгружен» / «пет тихо удалён». */
         UUID worldUuid;
+
         int lastX;
         int lastZ;
     }
@@ -147,11 +155,14 @@ public final class PetService implements Listener {
      * миров, +100 тиков); ручка в activeTasks владельца (одноразовая задача).
      */
     public BukkitTask scheduleOrphanScan() {
-        return plugin.getServer().getScheduler().runTaskLater(plugin,
-                () -> scanOrphans(plugin.getServer().getWorlds().stream()
-                        .flatMap(w -> java.util.Arrays.stream(w.getLoadedChunks()))
-                        .toArray(Chunk[]::new)),
-                100L);
+        return plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> scanOrphans(plugin.getServer().getWorlds().stream()
+                                .flatMap(w -> java.util.Arrays.stream(w.getLoadedChunks()))
+                                .toArray(Chunk[]::new)),
+                        100L);
     }
 
     /** 1.14.6-fix (P0-8f): для selftest-чека 112. */
@@ -199,14 +210,16 @@ public final class PetService implements Listener {
                     Location dest = safeSpot(owner);
                     if (dest != null) {
                         old.teleport(dest);
-                        owner.sendMessage(Component.text("«"
-                                + PetDef.byId(existing.defId).displayName(owner.getName())
-                                + "» призван к тебе из другого мира.", NamedTextColor.GRAY));
+                        owner.sendMessage(Component.text(
+                                "«"
+                                        + PetDef.byId(existing.defId).displayName(owner.getName())
+                                        + "» призван к тебе из другого мира.",
+                                NamedTextColor.GRAY));
                         return SummonResult.OK;
                     }
                 }
-                owner.sendMessage(Component.text("Питомец уже призван: «"
-                        + PetDef.byId(existing.defId).displayName(owner.getName()) + "».",
+                owner.sendMessage(Component.text(
+                        "Питомец уже призван: «" + PetDef.byId(existing.defId).displayName(owner.getName()) + "».",
                         NamedTextColor.GRAY));
                 return SummonResult.ALREADY;
             }
@@ -214,15 +227,16 @@ public final class PetService implements Listener {
             // позиции загружен — пет удалён без события смерти: чистим handle сразу
             // и позволяем перепризыв (tick-гард ниже страхует параллельные гонки).
             if (old == null) {
-                World lastWorld = existing.worldUuid != null
-                        ? plugin.getServer().getWorld(existing.worldUuid) : null;
-                boolean chunkLoaded = lastWorld != null
-                        && lastWorld.isChunkLoaded(existing.lastX >> 4, existing.lastZ >> 4);
+                World lastWorld =
+                        existing.worldUuid != null ? plugin.getServer().getWorld(existing.worldUuid) : null;
+                boolean chunkLoaded =
+                        lastWorld != null && lastWorld.isChunkLoaded(existing.lastX >> 4, existing.lastZ >> 4);
                 if (chunkLoaded) {
                     pets.remove(ouuid);
                 } else {
-                    owner.sendMessage(Component.text("Питомец где-то далеко (чанк выгружен): "
-                            + "дождись загрузки или дозови его повторным призывом в том же мире.",
+                    owner.sendMessage(Component.text(
+                            "Питомец где-то далеко (чанк выгружен): "
+                                    + "дождись загрузки или дозови его повторным призывом в том же мире.",
                             NamedTextColor.GRAY));
                     return SummonResult.ALREADY;
                 }
@@ -231,10 +245,10 @@ public final class PetService implements Listener {
             }
         }
 
-        double hp = PetMath.hp(def.baseHp(), attrValue(owner, def),
-                plugin.getSpec2Service().petHpPercent(ouuid));
-        double dmg = PetMath.damage(def.baseDmg(), powerValue(owner, def),
-                plugin.getSpec2Service().petDmgPercent(ouuid), 1.0);
+        double hp = PetMath.hp(
+                def.baseHp(), attrValue(owner, def), plugin.getSpec2Service().petHpPercent(ouuid));
+        double dmg = PetMath.damage(
+                def.baseDmg(), powerValue(owner, def), plugin.getSpec2Service().petDmgPercent(ouuid), 1.0);
 
         Location spawn = owner.getLocation().add(1.0, 0.0, 1.0);
         Entity spawned = owner.getWorld().spawnEntity(spawn, def.entityType());
@@ -263,17 +277,14 @@ public final class PetService implements Listener {
         if (pet.getHealth() < hp) {
             pet.setHealth(hp);
         }
-        if (pet instanceof Mob m && initialTarget != null
-                && plugin.getCombat().canHit(owner, initialTarget)) {
+        if (pet instanceof Mob m && initialTarget != null && plugin.getCombat().canHit(owner, initialTarget)) {
             m.setTarget(initialTarget);
         }
 
         PetState st = new PetState();
         st.petUuid = pet.getUniqueId();
         st.defId = def.id();
-        st.expiresAt = def.temporary()
-                ? System.currentTimeMillis() + def.ttlSeconds() * 1000L
-                : 0L;
+        st.expiresAt = def.temporary() ? System.currentTimeMillis() + def.ttlSeconds() * 1000L : 0L;
         AttributeInstance ms = pet.getAttribute(MOVEMENT_SPEED);
         st.baseSpeed = ms != null ? ms.getBaseValue() : 0.0;
         // 1.15.7 (2.6-68): старт последней известной позиции
@@ -282,8 +293,7 @@ public final class PetService implements Listener {
         st.lastZ = pet.getLocation().getBlockZ();
         pets.put(ouuid, st);
 
-        pet.getWorld().spawnParticle(Particle.POOF,
-                pet.getLocation().add(0.0, 0.8, 0.0), 12, 0.4, 0.5, 0.4, 0.02);
+        pet.getWorld().spawnParticle(Particle.POOF, pet.getLocation().add(0.0, 0.8, 0.0), 12, 0.4, 0.5, 0.4, 0.02);
         return SummonResult.OK;
     }
 
@@ -291,8 +301,7 @@ public final class PetService implements Listener {
         PetState st = pets.get(owner.getUniqueId());
         LivingEntity pet = petOf(owner);
         if (st == null || pet == null) {
-            owner.sendMessage(Component.text("Бафф не применим: питомца нет рядом.",
-                    NamedTextColor.GRAY));
+            owner.sendMessage(Component.text("Бафф не применим: питомца нет рядом.", NamedTextColor.GRAY));
             return false;
         }
         PetDef def = PetDef.byId(st.defId);
@@ -300,8 +309,11 @@ public final class PetService implements Listener {
         // dmgMult/speedMult удалены из PetState.
         st.glow = glow;
         st.buffUntil = System.currentTimeMillis() + Math.max(1, seconds) * 1000L;
-        double dmg = PetMath.damage(def.baseDmg(), powerValue(owner, def),
-                plugin.getSpec2Service().petDmgPercent(owner.getUniqueId()), dmgMult);
+        double dmg = PetMath.damage(
+                def.baseDmg(),
+                powerValue(owner, def),
+                plugin.getSpec2Service().petDmgPercent(owner.getUniqueId()),
+                dmgMult);
         setAttackDamage(pet, dmg);
         setSpeed(pet, st.baseSpeed * speedMult);
         pet.setGlowing(glow);
@@ -316,8 +328,8 @@ public final class PetService implements Listener {
         LivingEntity pet = petOf(owner);
         pets.remove(owner.getUniqueId());
         if (pet != null) {
-            pet.getWorld().spawnParticle(Particle.SCULK_SOUL,
-                    pet.getLocation().add(0.0, 0.8, 0.0), 16, 0.4, 0.5, 0.4, 0.02);
+            pet.getWorld()
+                    .spawnParticle(Particle.SCULK_SOUL, pet.getLocation().add(0.0, 0.8, 0.0), 16, 0.4, 0.5, 0.4, 0.02);
             pet.remove();
         }
         return true;
@@ -386,15 +398,15 @@ public final class PetService implements Listener {
             // если чанк последней известной позиции загружен, а сущности нет —
             // пет удалён без события смерти (vex-TTL, /kill, чужой remove) → чистим handle.
             if (entity == null) {
-                World lastWorld = st.worldUuid != null
-                        ? plugin.getServer().getWorld(st.worldUuid) : null;
+                World lastWorld = st.worldUuid != null ? plugin.getServer().getWorld(st.worldUuid) : null;
                 if (lastWorld != null && lastWorld.isChunkLoaded(st.lastX >> 4, st.lastZ >> 4)) {
                     pets.remove(ownerUuid);
                     Player ownerLost = plugin.getServer().getPlayer(ownerUuid);
                     if (ownerLost != null) {
-                        ownerLost.sendMessage(Component.text("«"
-                                + PetDef.byId(st.defId).displayName(ownerLost.getName())
-                                + "» исчез бесследно. Призыв снова доступен.",
+                        ownerLost.sendMessage(Component.text(
+                                "«"
+                                        + PetDef.byId(st.defId).displayName(ownerLost.getName())
+                                        + "» исчез бесследно. Призыв снова доступен.",
                                 NamedTextColor.GRAY));
                     }
                 }
@@ -411,8 +423,9 @@ public final class PetService implements Listener {
                 continue;
             }
             if (PetMath.expired(st.expiresAt, now)) {
-                owner.sendMessage(Component.text("«" + PetDef.byId(st.defId).displayName(owner.getName())
-                        + "» рассеивается.", NamedTextColor.GRAY));
+                owner.sendMessage(Component.text(
+                        "«" + PetDef.byId(st.defId).displayName(owner.getName()) + "» рассеивается.",
+                        NamedTextColor.GRAY));
                 despawn(pet);
                 pets.remove(ownerUuid);
                 continue;
@@ -420,8 +433,13 @@ public final class PetService implements Listener {
             if (st.buffUntil > 0L && now > st.buffUntil) {
                 st.buffUntil = 0L;
                 PetDef def = PetDef.byId(st.defId);
-                setAttackDamage(pet, PetMath.damage(def.baseDmg(), powerValue(owner, def),
-                        plugin.getSpec2Service().petDmgPercent(ownerUuid), 1.0));
+                setAttackDamage(
+                        pet,
+                        PetMath.damage(
+                                def.baseDmg(),
+                                powerValue(owner, def),
+                                plugin.getSpec2Service().petDmgPercent(ownerUuid),
+                                1.0));
                 setSpeed(pet, st.baseSpeed);
                 if (st.glow) {
                     pet.setGlowing(false);
@@ -434,8 +452,7 @@ public final class PetService implements Listener {
             st.lastZ = pet.getLocation().getBlockZ();
             // 1.14.7 (P0-8c): follow работает и МЕЖДУ мирами — телепорт к владельцу
             if (!pet.getWorld().equals(owner.getWorld())
-                    || PetMath.needsTeleport(
-                            pet.getLocation().distanceSquared(owner.getLocation()), FOLLOW_BLOCKS)) {
+                    || PetMath.needsTeleport(pet.getLocation().distanceSquared(owner.getLocation()), FOLLOW_BLOCKS)) {
                 Location dest = safeSpot(owner);
                 if (dest != null) {
                     pet.teleport(dest);
@@ -457,8 +474,7 @@ public final class PetService implements Listener {
     }
 
     private void despawn(LivingEntity pet) {
-        pet.getWorld().spawnParticle(Particle.POOF,
-                pet.getLocation().add(0.0, 0.8, 0.0), 10, 0.4, 0.5, 0.4, 0.02);
+        pet.getWorld().spawnParticle(Particle.POOF, pet.getLocation().add(0.0, 0.8, 0.0), 10, 0.4, 0.5, 0.4, 0.02);
         pet.remove();
     }
 
@@ -532,8 +548,9 @@ public final class PetService implements Listener {
         Player owner = plugin.getServer().getPlayer(ownerUuid);
         if (owner != null && st != null) {
             PetDef def = PetDef.byId(st.defId);
-            owner.sendMessage(Component.text("«" + def.displayName(owner.getName())
-                    + "» пал. Призыв снова доступен после перезарядки способности.",
+            owner.sendMessage(Component.text(
+                    "«" + def.displayName(owner.getName())
+                            + "» пал. Призыв снова доступен после перезарядки способности.",
                     NamedTextColor.RED));
         }
     }
@@ -575,7 +592,7 @@ public final class PetService implements Listener {
             }
             if (event.getEntity().getUniqueId().equals(ownerUuid)
                     || (event.getEntity() instanceof Player victim
-                        && !plugin.getCombat().canHit(owner, victim))) {
+                            && !plugin.getCombat().canHit(owner, victim))) {
                 event.setCancelled(true);
             }
             return;

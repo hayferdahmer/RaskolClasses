@@ -2,6 +2,19 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hud;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.dot.DotInstance;
@@ -9,22 +22,11 @@ import dev.raskol.classes.combat.dot.DotService;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.resource.ResourceState;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.ComponentBuilder;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.GameMode;
-import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
-
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 /**
  * ActionBar-HUD в тёмной стилизации:
@@ -104,8 +106,7 @@ public final class HudService {
         if (!isVisible(player)) {
             return;
         }
-        if (plugin.getRaskolConfig().hudSkipSpectator()
-                && player.getGameMode() == GameMode.SPECTATOR) {
+        if (plugin.getRaskolConfig().hudSkipSpectator() && player.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
         if (player.hasMetadata("vanished") || player.hasMetadata("disappeared")) {
@@ -139,8 +140,11 @@ public final class HudService {
 
         boolean animating = spark != null;
         StringBuilder keyBuilder = new StringBuilder(48)
-                .append(pc.name()).append('|').append(filled)
-                .append('|').append(valueInt);
+                .append(pc.name())
+                .append('|')
+                .append(filled)
+                .append('|')
+                .append(valueInt);
         if (spark != null) {
             keyBuilder.append("|sp").append(spark);
         }
@@ -158,15 +162,20 @@ public final class HudService {
 
         player.sendActionBar(render(pc, valueInt, filled, spark, dotsComponent));
 
-        if (plugin.getRaskolConfig().hudFullResourceAura()
-                && valueInt >= ResourceState.MAX_VALUE && frame % 2 == 0) {
-            player.getWorld().spawnParticle(plugin.getRaskolConfig().themeOf(pc).particle(),
-                    player.getLocation().add(0, 1, 0), 1, 0.35, 0.5, 0.35, 0.01);
+        if (plugin.getRaskolConfig().hudFullResourceAura() && valueInt >= ResourceState.MAX_VALUE && frame % 2 == 0) {
+            player.getWorld()
+                    .spawnParticle(
+                            plugin.getRaskolConfig().themeOf(pc).particle(),
+                            player.getLocation().add(0, 1, 0),
+                            1,
+                            0.35,
+                            0.5,
+                            0.35,
+                            0.01);
         }
     }
 
-    private Component render(PlayerClass pc, int valueInt, int filled,
-                             Integer spark, Component dotsComponent) {
+    private Component render(PlayerClass pc, int valueInt, int filled, Integer spark, Component dotsComponent) {
         RaskolConfig.ClassTheme theme = plugin.getRaskolConfig().themeOf(pc);
         Component[] cells = cellsOf(pc, theme);
 
@@ -196,8 +205,7 @@ public final class HudService {
     private Component headOf(PlayerClass pc, RaskolConfig.ClassTheme theme) {
         Component cached = headCache.get(pc);
         if (cached == null) {
-            cached = Component.text(pc.getResourceName() + " " + theme.symbol() + " ",
-                    theme.primary());
+            cached = Component.text(pc.getResourceName() + " " + theme.symbol() + " ", theme.primary());
             headCache.put(pc, cached);
         }
         return cached;
@@ -209,8 +217,7 @@ public final class HudService {
             cached = new Component[BAR_CELLS];
             for (int i = 0; i < BAR_CELLS; i++) {
                 float t = (float) i / (BAR_CELLS - 1);
-                cached[i] = Component.text('▰')
-                        .color(TextColor.lerp(t, theme.primary(), theme.secondary()));
+                cached[i] = Component.text('▰').color(TextColor.lerp(t, theme.primary(), theme.secondary()));
             }
             cellCache.put(pc, cached);
         }
@@ -251,13 +258,10 @@ public final class HudService {
         }
         String stacksTpl = plugin.getConfig().getString("messages.hud.dot-stacks-x", "×{n}");
         String stacksEmpty = plugin.getConfig().getString("messages.hud.dot-stacks-empty", "");
-        String stacksPart = inst.stacks() > 1
-                ? stacksTpl.replace("{n}", String.valueOf(inst.stacks()))
-                : stacksEmpty;
+        String stacksPart = inst.stacks() > 1 ? stacksTpl.replace("{n}", String.valueOf(inst.stacks())) : stacksEmpty;
         String tpl = plugin.getConfig().getString("messages.hud.dot-format", "{icon}{stacks}·{sec}с");
-        String text = tpl.replace("{icon}", icon)
-                .replace("{stacks}", stacksPart)
-                .replace("{sec}", String.valueOf(sec));
+        String text =
+                tpl.replace("{icon}", icon).replace("{stacks}", stacksPart).replace("{sec}", String.valueOf(sec));
         return Component.text(text, DOT_COLOR);
     }
 
@@ -302,8 +306,10 @@ public final class HudService {
         StringBuilder sb = new StringBuilder(dots.size() * 12);
         for (DotInstance inst : dots) {
             sb.append(inst.def().id())
-                    .append(':').append(inst.stacks())
-                    .append(':').append(DotService.remainingSeconds(inst, now))
+                    .append(':')
+                    .append(inst.stacks())
+                    .append(':')
+                    .append(DotService.remainingSeconds(inst, now))
                     .append(';');
         }
         return sb.toString();

@@ -2,23 +2,25 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.attribute;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.classsystem.SkillLevelProvider;
-import dev.raskol.classes.config.ConfigReads;
-import dev.raskol.classes.item.model.ItemStat;
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.config.ConfigReads;
+import dev.raskol.classes.item.model.ItemStat;
+
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 
 /**
  * 1.7.0: сервис классовых атрибутов (STR/AGI/INT).
@@ -117,17 +119,21 @@ public final class AttributeService {
 
     /** Локальный хелпер: guard v ≥ 0 + default из defaultBase (не общий паттерн cfgD). */
     private double baseOf(PlayerClass pc, AttributeType type) {
-        double v = plugin.getConfig().getDouble(
-                "attributes.classes." + pc.name() + ".base-" + type.name().toLowerCase(),
-                defaultBase(pc, type));
+        double v = plugin.getConfig()
+                .getDouble(
+                        "attributes.classes." + pc.name() + ".base-"
+                                + type.name().toLowerCase(),
+                        defaultBase(pc, type));
         return Double.isFinite(v) && v >= 0 ? v : defaultBase(pc, type);
     }
 
     /** Локальный хелпер: guard v ≥ 0 + default из defaultGrowth (не общий паттерн cfgD). */
     private double growthOf(PlayerClass pc, AttributeType type) {
-        double v = plugin.getConfig().getDouble(
-                "attributes.classes." + pc.name() + ".growth-" + type.name().toLowerCase(),
-                defaultGrowth(pc, type));
+        double v = plugin.getConfig()
+                .getDouble(
+                        "attributes.classes." + pc.name() + ".growth-"
+                                + type.name().toLowerCase(),
+                        defaultGrowth(pc, type));
         return Double.isFinite(v) && v >= 0 ? v : defaultGrowth(pc, type);
     }
 
@@ -245,8 +251,8 @@ public final class AttributeService {
         } else {
             double level = levelOf(uuid, pc);
             boolean strMain = mainOf(pc) == AttributeType.STR;
-            formula = AttributeMath.maxHp(value(uuid, AttributeType.STR), level, strMain,
-                    baseHp, perStr, perLevel, mainBonus);
+            formula = AttributeMath.maxHp(
+                    value(uuid, AttributeType.STR), level, strMain, baseHp, perStr, perLevel, mainBonus);
         }
         if (plugin.getItems() != null) {
             formula += plugin.getItems().value(uuid, ItemStat.HP_BONUS);
@@ -271,13 +277,13 @@ public final class AttributeService {
         if (pc == null) {
             return 0.0;
         }
-        double base = AttributeMath.critMelee(value(uuid, AttributeType.AGI),
+        double base = AttributeMath.critMelee(
+                value(uuid, AttributeType.AGI),
                 cfgD("attributes.crit.melee-base", 5.0),
                 cfgD("attributes.crit.melee-per-agi", 0.05),
                 cfgD("attributes.crit.melee-cap", 40.0));
         double bonus = plugin.getSpec2Service().critMeleeBonus(uuid);
-        double itemBonus = plugin.getItems() == null ? 0.0
-                : plugin.getItems().value(uuid, ItemStat.CRIT_MELEE);
+        double itemBonus = plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, ItemStat.CRIT_MELEE);
         double total = base + (Double.isFinite(bonus) && bonus > 0 ? bonus : 0.0) + itemBonus;
         // 1.15.6 (2.6-87): cap из конфига, не hardcoded 50
         double cap = cfgD("attributes.crit.melee-cap", 40.0);
@@ -296,13 +302,14 @@ public final class AttributeService {
             return 0.0;
         }
         boolean intMain = mainOf(pc) == AttributeType.INT;
-        double base = AttributeMath.critSpell(value(uuid, AttributeType.INT), intMain,
+        double base = AttributeMath.critSpell(
+                value(uuid, AttributeType.INT),
+                intMain,
                 cfgD("attributes.crit.spell-base", 5.0),
                 cfgD("attributes.crit.spell-per-int", 0.03),
                 cfgD("attributes.crit.spell-main-mult", 1.5),
                 cfgD("attributes.crit.spell-cap", 35.0));
-        double itemBonus = plugin.getItems() == null ? 0.0
-                : plugin.getItems().value(uuid, ItemStat.CRIT_SPELL);
+        double itemBonus = plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, ItemStat.CRIT_SPELL);
         double total = base + itemBonus;
         // 1.15.6 (2.6-87): cap из конфига, не hardcoded 50
         double cap = cfgD("attributes.crit.spell-cap", 35.0);
@@ -318,7 +325,7 @@ public final class AttributeService {
         Player player = Bukkit.getPlayer(uuid);
         PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
         if (pc == null) {
-            return new double[]{0.0, 0.0};
+            return new double[] {0.0, 0.0};
         }
         double agi = value(uuid, AttributeType.AGI);
         double str = value(uuid, AttributeType.STR);
@@ -328,8 +335,7 @@ public final class AttributeService {
         double parryFull = AttributeMath.parryRaw(str, cfgD("avoidance.parry-k", 300.0));
         double micro = cfgD("avoidance.agi-main-parry-micro", 0.5);
         if (agiMain) {
-            dodge += Math.max(0.0, parryFull - micro)
-                    * cfgD("avoidance.agi-main-dodge-refund", 0.5);
+            dodge += Math.max(0.0, parryFull - micro) * cfgD("avoidance.agi-main-dodge-refund", 0.5);
         }
         dodge *= cfgD("avoidance.dodge-mult", 0.5);
 
@@ -342,17 +348,17 @@ public final class AttributeService {
 
         // 1.14.0 (Б8.2-fix): avoid-бонусы из spec2-слоя (legacy TalentService удалён)
         double[] avoidB = plugin.getSpec2Service().avoidBonus(uuid);
-        if (avoidB != null && avoidB.length >= 2
-                && Double.isFinite(avoidB[0]) && Double.isFinite(avoidB[1])) {
+        if (avoidB != null && avoidB.length >= 2 && Double.isFinite(avoidB[0]) && Double.isFinite(avoidB[1])) {
             dodge += avoidB[0];
             parryChance += avoidB[1];
         }
 
         double total = dodge + parryChance;
         if (total <= 0.0) {
-            return new double[]{0.0, 0.0};
+            return new double[] {0.0, 0.0};
         }
-        double eff = AttributeMath.applyDR(total,
+        double eff = AttributeMath.applyDR(
+                total,
                 cfgD("avoidance.soft-cap", 60.0),
                 cfgD("avoidance.dr-factor", 0.5),
                 cfgD("avoidance.hard-cap", 75.0));
@@ -407,14 +413,12 @@ public final class AttributeService {
 
     /* --------------- модификаторы: делегирование в AttributeModifiers --------------- */
 
-    public void addTimedModifier(UUID uuid, String source,
-                                 double str, double agi, double intel, long millis) {
+    public void addTimedModifier(UUID uuid, String source, double str, double agi, double intel, long millis) {
         modifiers.addTimedModifier(uuid, source, str, agi, intel, millis);
         invalidate(uuid);
     }
 
-    public void addPermanentModifier(UUID uuid, String source,
-                                     double str, double agi, double intel) {
+    public void addPermanentModifier(UUID uuid, String source, double str, double agi, double intel) {
         modifiers.addPermanentModifier(uuid, source, str, agi, intel);
         invalidate(uuid);
     }
@@ -434,8 +438,7 @@ public final class AttributeService {
 
     public void purgeExpired() {
         modifiers.purgeExpired(System.currentTimeMillis());
-        cache.keySet().removeIf(uuid -> Bukkit.getPlayer(uuid) == null
-                && !modifiersTracked(uuid));
+        cache.keySet().removeIf(uuid -> Bukkit.getPlayer(uuid) == null && !modifiersTracked(uuid));
     }
 
     private boolean modifiersTracked(UUID uuid) {

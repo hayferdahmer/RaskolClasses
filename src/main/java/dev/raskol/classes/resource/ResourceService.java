@@ -2,16 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.resource;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.WarlockAbilities;
-import dev.raskol.classes.attribute.Hp;
-import dev.raskol.classes.classsystem.ClassProvider;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.event.CustomHealEvent;
-import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.spec.service.Spec2Service;
-import dev.raskol.classes.storage.SafeStorage;
+import java.io.File;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
+
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
@@ -27,11 +23,16 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.io.File;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.attribute.Hp;
+import dev.raskol.classes.classsystem.ClassProvider;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.event.CustomHealEvent;
+import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.spec.service.Spec2Service;
+import dev.raskol.classes.storage.SafeStorage;
 
 /**
  * Ресурсы классов (Ярость/Концентрация/Свет/Мана/Энергия/Скверна), по умолчанию 0–100.
@@ -82,19 +83,21 @@ public final class ResourceService implements Listener {
     public ResourceState stateOf(UUID uuid) {
         ResourceState st = states.computeIfAbsent(uuid, k -> new ResourceState());
         Spec2Service svc = plugin.getSpec2Service();
-        double maxBonus=svc==null?0.0:svc.resourceMaxBonus(uuid);
-        if(!Double.isFinite(maxBonus)||maxBonus<0)maxBonus=0.0;
-        Player player=Bukkit.getPlayer(uuid);
-        if(player!=null&&plugin.getItems()!=null){
-            PlayerClass pc=classProvider.getClassOf(player);
-            dev.raskol.classes.item.model.ItemStat maxStat=pc==PlayerClass.WARRIOR?dev.raskol.classes.item.model.ItemStat.MAX_RAGE
-                    :pc==PlayerClass.ROGUE||pc==PlayerClass.HUNTER?dev.raskol.classes.item.model.ItemStat.MAX_ENERGY
-                    :dev.raskol.classes.item.model.ItemStat.MAX_MANA;
-            double itemBonus=plugin.getItems().value(uuid,maxStat);
-            if(!Double.isFinite(itemBonus)||itemBonus<0)itemBonus=0.0;
-            maxBonus+=itemBonus;
+        double maxBonus = svc == null ? 0.0 : svc.resourceMaxBonus(uuid);
+        if (!Double.isFinite(maxBonus) || maxBonus < 0) maxBonus = 0.0;
+        Player player = Bukkit.getPlayer(uuid);
+        if (player != null && plugin.getItems() != null) {
+            PlayerClass pc = classProvider.getClassOf(player);
+            dev.raskol.classes.item.model.ItemStat maxStat = pc == PlayerClass.WARRIOR
+                    ? dev.raskol.classes.item.model.ItemStat.MAX_RAGE
+                    : pc == PlayerClass.ROGUE || pc == PlayerClass.HUNTER
+                            ? dev.raskol.classes.item.model.ItemStat.MAX_ENERGY
+                            : dev.raskol.classes.item.model.ItemStat.MAX_MANA;
+            double itemBonus = plugin.getItems().value(uuid, maxStat);
+            if (!Double.isFinite(itemBonus) || itemBonus < 0) itemBonus = 0.0;
+            maxBonus += itemBonus;
         }
-        st.setCeiling(MAX_VALUE+maxBonus);
+        st.setCeiling(MAX_VALUE + maxBonus);
         return st;
     }
 
@@ -187,10 +190,11 @@ public final class ResourceService implements Listener {
                 case COMBAT_PAUSE -> rate = inCombat ? 0.0 : config.resourceRegen(pc);
                 case TIERED -> {
                     double v = st.getValue();
-                    rate = v < 25 ? config.mageRegenTier1()
-                            : v < 50 ? config.mageRegenTier2()
-                            : v < 75 ? config.mageRegenTier3()
-                            : config.mageRegenTier4();
+                    rate = v < 25
+                            ? config.mageRegenTier1()
+                            : v < 50
+                                    ? config.mageRegenTier2()
+                                    : v < 75 ? config.mageRegenTier3() : config.mageRegenTier4();
                 }
                 case FLOOR_DECAY -> {
                     double v = st.getValue();
@@ -199,8 +203,7 @@ public final class ResourceService implements Listener {
                         rate = config.warlockResourceFloorRegen();
                     } else if (v > floor && !inCombat) {
                         rate = (spec == Spec.DEMONOLOGY)
-                                ? plugin.getConfig().getDouble(
-                                        "classes.WARLOCK.specs.demonology.decay", -2.0)
+                                ? plugin.getConfig().getDouble("classes.WARLOCK.specs.demonology.decay", -2.0)
                                 : config.warlockResourceDecay();
                     } else {
                         rate = 0.0;
@@ -208,7 +211,8 @@ public final class ResourceService implements Listener {
                 }
                 default -> rate = config.resourceRegen(pc); // PLAIN: PRIEST, ROGUE
             }
-            if(rate>0&&plugin.getItems()!=null)rate+=plugin.getItems().value(uuid,dev.raskol.classes.item.model.ItemStat.RESOURCE_REGEN);
+            if (rate > 0 && plugin.getItems() != null)
+                rate += plugin.getItems().value(uuid, dev.raskol.classes.item.model.ItemStat.RESOURCE_REGEN);
             // 1.14.0 (Б7): regen-бонусы только из spec2-агрегата (узлы regen)
             if (svc != null) {
                 rate += svc.regenBonus(uuid);

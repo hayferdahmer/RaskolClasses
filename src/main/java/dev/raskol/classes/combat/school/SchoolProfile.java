@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat.school;
 
-import dev.raskol.classes.combat.DamageProfile;
-
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
+
+import dev.raskol.classes.combat.DamageProfile;
 
 /**
  * 1.12.0: профиль урона по школам: школа → абсолютная величина (formula-единицы).

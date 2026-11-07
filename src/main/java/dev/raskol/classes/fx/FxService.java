@@ -2,10 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.fx;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.combat.DamageProfile;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -20,14 +25,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicInteger;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.DamageProfile;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * VFX/SFX-слой (1.5.0 → 1.9.3).
@@ -53,21 +55,19 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class FxService implements Listener {
 
-    private record ChargedShot(UUID caster, String abilityId,
-                               double phys, double magic, int fireTicks, long expiresAt) {
-    }
+    private record ChargedShot(
+            UUID caster, String abilityId, double phys, double magic, int fireTicks, long expiresAt) {}
 
-    private record AuraTask(BukkitTask task, long expiresAt) {
-    }
+    private record AuraTask(BukkitTask task, long expiresAt) {}
 
-    private record AmbientTask(BukkitTask task, long expiresAt) {
-    }
+    private record AmbientTask(BukkitTask task, long expiresAt) {}
 
     private final RaskolClasses plugin;
     private final Set<String> warnedSounds = ConcurrentHashMap.newKeySet();
     private final Set<String> warnedParticles = ConcurrentHashMap.newKeySet();
     /** 1.15.6 (2.6-102): ключ = "uuid:procId" (per-player кулдаун). */
     private final Map<String, Long> procVisualCd = new ConcurrentHashMap<>();
+
     private final Map<UUID, ChargedShot> chargedShots = new ConcurrentHashMap<>();
     private final Map<UUID, BukkitTask> trailTasks = new ConcurrentHashMap<>();
     private final Map<UUID, AuraTask> auras = new ConcurrentHashMap<>();
@@ -89,17 +89,19 @@ public final class FxService implements Listener {
         if (name == null || name.isEmpty()) {
             return null;
         }
-        String mapped = switch (name.toUpperCase(Locale.ROOT)) {
-            case "ENTITY_WOLF_HOWL" -> "ENTITY_WOLF_AMBIENT";
-            case "BLOCK_SNOW_BLOCK_BREAK" -> "BLOCK_SNOW_BREAK";
-            default -> name;
-        };
+        String mapped =
+                switch (name.toUpperCase(Locale.ROOT)) {
+                    case "ENTITY_WOLF_HOWL" -> "ENTITY_WOLF_AMBIENT";
+                    case "BLOCK_SNOW_BLOCK_BREAK" -> "BLOCK_SNOW_BREAK";
+                    default -> name;
+                };
         try {
             return Sound.valueOf(mapped.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             if (warnedSounds.add(name)) {
-                plugin.getLogger().warning("vfx: неизвестный звук '" + name + "'"
-                        + (mapped.equals(name) ? "" : " (mapped: " + mapped + ")"));
+                plugin.getLogger()
+                        .warning("vfx: неизвестный звук '" + name + "'"
+                                + (mapped.equals(name) ? "" : " (mapped: " + mapped + ")"));
                 staleCount.incrementAndGet();
             }
             return null;
@@ -178,23 +180,30 @@ public final class FxService implements Listener {
 
     /* --------------------------- заряженные снаряды --------------------------- */
 
-    public void chargeProjectile(UUID projectileId, UUID caster, String abilityId,
-                                 double phys, double magic, int fireTicks) {
-        chargedShots.put(projectileId, new ChargedShot(caster, abilityId, phys, magic, fireTicks,
-                System.currentTimeMillis() + 6000L));
+    public void chargeProjectile(
+            UUID projectileId, UUID caster, String abilityId, double phys, double magic, int fireTicks) {
+        chargedShots.put(
+                projectileId,
+                new ChargedShot(caster, abilityId, phys, magic, fireTicks, System.currentTimeMillis() + 6000L));
         final BukkitTask[] holder = new BukkitTask[1];
-        holder[0] = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            Entity e = plugin.getServer().getEntity(projectileId);
-            if (e == null || e.isDead() || !chargedShots.containsKey(projectileId)) {
-                trailTasks.remove(projectileId);
-                if (holder[0] != null) {
-                    holder[0].cancel();
-                }
-                return;
-            }
-            e.getWorld().spawnParticle(Particle.FLAME, e.getLocation(), 3, 0.05, 0.05, 0.05, 0.01);
-            e.getWorld().spawnParticle(Particle.SMOKE, e.getLocation(), 1, 0.02, 0.02, 0.02, 0.005);
-        }, 0L, 2L);
+        holder[0] = plugin.getServer()
+                .getScheduler()
+                .runTaskTimer(
+                        plugin,
+                        () -> {
+                            Entity e = plugin.getServer().getEntity(projectileId);
+                            if (e == null || e.isDead() || !chargedShots.containsKey(projectileId)) {
+                                trailTasks.remove(projectileId);
+                                if (holder[0] != null) {
+                                    holder[0].cancel();
+                                }
+                                return;
+                            }
+                            e.getWorld().spawnParticle(Particle.FLAME, e.getLocation(), 3, 0.05, 0.05, 0.05, 0.01);
+                            e.getWorld().spawnParticle(Particle.SMOKE, e.getLocation(), 1, 0.02, 0.02, 0.02, 0.005);
+                        },
+                        0L,
+                        2L);
         trailTasks.put(projectileId, holder[0]);
     }
 
@@ -217,8 +226,7 @@ public final class FxService implements Listener {
             hitLoc.getWorld().spawnParticle(impact, hitLoc, 24, 0.4, 0.3, 0.4, 0.05);
             hitLoc.getWorld().spawnParticle(Particle.SMOKE, hitLoc, 10, 0.3, 0.2, 0.3, 0.03);
         }
-        Sound impactSound = resolveSound(plugin.getConfig().getString(base + "impact-sound",
-                "ENTITY_BLAZE_SHOOT"));
+        Sound impactSound = resolveSound(plugin.getConfig().getString(base + "impact-sound", "ENTITY_BLAZE_SHOOT"));
         if (impactSound != null) {
             playSound(hitLoc, impactSound, 0.5f, 0.9f);
         }
@@ -231,8 +239,7 @@ public final class FxService implements Listener {
         if (caster == null) {
             return;
         }
-        plugin.getCombat().dealDamage(target, caster,
-                DamageProfile.hybrid(shot.phys(), shot.magic()));
+        plugin.getCombat().dealDamage(target, caster, DamageProfile.hybrid(shot.phys(), shot.magic()));
         if (shot.fireTicks() > 0 && plugin.getCombat().canHit(caster, target)) {
             target.setFireTicks(shot.fireTicks());
         }
@@ -248,44 +255,57 @@ public final class FxService implements Listener {
      * Раньше auras.remove(playerUuid) убирал ТЕКУЩУЮ запись, то есть новую ауру,
      * и cancel() прерывал её — новая аура умирала раньше срока.
      */
-    public void startAura(UUID playerUuid, Particle particle, int ticks, int perTick,
-                          String expireSoundKey) {
+    public void startAura(UUID playerUuid, Particle particle, int ticks, int perTick, String expireSoundKey) {
         stopAura(playerUuid);
         long expiresAt = System.currentTimeMillis() + ticks * 50L;
-        BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            Player player = plugin.getServer().getPlayer(playerUuid);
-            if (player == null || System.currentTimeMillis() > expiresAt) {
-                stopAura(playerUuid);
-                return;
-            }
-            Location center = player.getLocation().add(0.0, 0.2, 0.0);
-            ThreadLocalRandom rnd = ThreadLocalRandom.current();
-            for (int i = 0; i < perTick; i++) {
-                double angle = rnd.nextDouble() * Math.PI * 2;
-                double radius = 0.7 + rnd.nextDouble() * 0.3;
-                Location p = center.clone().add(
-                        Math.cos(angle) * radius, rnd.nextDouble() * 1.6, Math.sin(angle) * radius);
-                player.getWorld().spawnParticle(particle, p, 1, 0.0, 0.0, 0.0, 0.0);
-            }
-        }, 0L, 10L);
+        BukkitTask task = plugin.getServer()
+                .getScheduler()
+                .runTaskTimer(
+                        plugin,
+                        () -> {
+                            Player player = plugin.getServer().getPlayer(playerUuid);
+                            if (player == null || System.currentTimeMillis() > expiresAt) {
+                                stopAura(playerUuid);
+                                return;
+                            }
+                            Location center = player.getLocation().add(0.0, 0.2, 0.0);
+                            ThreadLocalRandom rnd = ThreadLocalRandom.current();
+                            for (int i = 0; i < perTick; i++) {
+                                double angle = rnd.nextDouble() * Math.PI * 2;
+                                double radius = 0.7 + rnd.nextDouble() * 0.3;
+                                Location p = center.clone()
+                                        .add(
+                                                Math.cos(angle) * radius,
+                                                rnd.nextDouble() * 1.6,
+                                                Math.sin(angle) * radius);
+                                player.getWorld().spawnParticle(particle, p, 1, 0.0, 0.0, 0.0, 0.0);
+                            }
+                        },
+                        0L,
+                        10L);
         final AuraTask scheduledTask = new AuraTask(task, expiresAt);
         auras.put(playerUuid, scheduledTask);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            AuraTask current = auras.get(playerUuid);
-            if (current != scheduledTask) {
-                // Новая аура перезатёрла старую — не трогаем текущую
-                return;
-            }
-            auras.remove(playerUuid);
-            scheduledTask.task().cancel();
-            Player player = plugin.getServer().getPlayer(playerUuid);
-            if (player != null && expireSoundKey != null) {
-                Sound s = resolveSound(expireSoundKey);
-                if (s != null) {
-                    playSound(player, s, 0.5f, 1.2f);
-                }
-            }
-        }, ticks + 1L);
+        plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            AuraTask current = auras.get(playerUuid);
+                            if (current != scheduledTask) {
+                                // Новая аура перезатёрла старую — не трогаем текущую
+                                return;
+                            }
+                            auras.remove(playerUuid);
+                            scheduledTask.task().cancel();
+                            Player player = plugin.getServer().getPlayer(playerUuid);
+                            if (player != null && expireSoundKey != null) {
+                                Sound s = resolveSound(expireSoundKey);
+                                if (s != null) {
+                                    playSound(player, s, 0.5f, 1.2f);
+                                }
+                            }
+                        },
+                        ticks + 1L);
     }
 
     public void stopAura(UUID playerUuid) {
@@ -303,8 +323,7 @@ public final class FxService implements Listener {
         }
     }
 
-    public void impactBurst(Location loc, Particle main, int count,
-                            Sound sound, float volume, float pitch) {
+    public void impactBurst(Location loc, Particle main, int count, Sound sound, float volume, float pitch) {
         if (loc.getWorld() == null) {
             return;
         }
@@ -316,27 +335,35 @@ public final class FxService implements Listener {
 
     /* ------------------------------ эмбиент-лупы ------------------------------ */
 
-    public UUID startAmbient(Location loc, String soundKey, float volume, float pitch,
-                             String particleKey, int ticks, int periodTicks) {
+    public UUID startAmbient(
+            Location loc, String soundKey, float volume, float pitch, String particleKey, int ticks, int periodTicks) {
         UUID id = UUID.randomUUID();
         long expiresAt = System.currentTimeMillis() + ticks * 50L;
         Sound sound = resolveSound(soundKey);
         Particle particle = resolveParticle(particleKey);
-        BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-            if (System.currentTimeMillis() > expiresAt || loc.getWorld() == null) {
-                AmbientTask at = ambients.remove(id);
-                if (at != null) {
-                    at.task().cancel();
-                }
-                return;
-            }
-            if (sound != null) {
-                playSound(loc, sound, volume, pitch);
-            }
-            if (particle != null) {
-                loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 0.3, 0.0), 6, 0.6, 0.2, 0.6, 0.02);
-            }
-        }, 0L, Math.max(1, periodTicks));
+        BukkitTask task = plugin.getServer()
+                .getScheduler()
+                .runTaskTimer(
+                        plugin,
+                        () -> {
+                            if (System.currentTimeMillis() > expiresAt || loc.getWorld() == null) {
+                                AmbientTask at = ambients.remove(id);
+                                if (at != null) {
+                                    at.task().cancel();
+                                }
+                                return;
+                            }
+                            if (sound != null) {
+                                playSound(loc, sound, volume, pitch);
+                            }
+                            if (particle != null) {
+                                loc.getWorld()
+                                        .spawnParticle(
+                                                particle, loc.clone().add(0.0, 0.3, 0.0), 6, 0.6, 0.2, 0.6, 0.02);
+                            }
+                        },
+                        0L,
+                        Math.max(1, periodTicks));
         ambients.put(id, new AmbientTask(task, expiresAt));
         return id;
     }
@@ -354,10 +381,11 @@ public final class FxService implements Listener {
     /* ------------------------------ диагностика ------------------------------ */
 
     public void appendDebug(CommandSender sender, List<String> abilityIds) {
-        sender.sendMessage(Component.text("FxService: битых звуков " + warnedSounds.size()
-                + ", битых партиклов " + warnedParticles.size()
-                + ", снарядов " + chargedShots.size()
-                + ", аур " + auras.size() + ", эмбиентов " + ambients.size(),
+        sender.sendMessage(Component.text(
+                "FxService: битых звуков " + warnedSounds.size()
+                        + ", битых партиклов " + warnedParticles.size()
+                        + ", снарядов " + chargedShots.size()
+                        + ", аур " + auras.size() + ", эмбиентов " + ambients.size(),
                 NamedTextColor.GRAY));
         for (String id : abilityIds) {
             String soundKey = plugin.getConfig().getString("vfx." + id + ".cast-sound", "");
@@ -365,9 +393,10 @@ public final class FxService implements Listener {
             boolean okSound = soundKey.isEmpty() || resolveSound(soundKey) != null;
             boolean okParticle = particleKey.isEmpty() || resolveParticle(particleKey) != null;
             if (!okSound || !okParticle) {
-                sender.sendMessage(Component.text("  • " + id + ": "
-                        + (okSound ? "" : "звук '" + soundKey + "' битый ")
-                        + (okParticle ? "" : "партикл '" + particleKey + "' битый"),
+                sender.sendMessage(Component.text(
+                        "  • " + id + ": "
+                                + (okSound ? "" : "звук '" + soundKey + "' битый ")
+                                + (okParticle ? "" : "партикл '" + particleKey + "' битый"),
                         NamedTextColor.RED));
             }
         }

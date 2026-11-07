@@ -41,8 +41,7 @@ public record JarArchiveIntegrityVerificationResult(
         List<String> failedFiles,
         String expectedSha256,
         String actualSha256,
-        long archiveSizeBytes
-) {
+        long archiveSizeBytes) {
 
     /** Компактный конструктор с валидацией (по аналогии с базовым record). */
     public JarArchiveIntegrityVerificationResult {
@@ -94,30 +93,26 @@ public record JarArchiveIntegrityVerificationResult(
             List<String> failedFiles,
             String expectedSha256,
             String actualSha256,
-            long archiveSizeBytes
-    ) {
+            long archiveSizeBytes) {
         if (status == ArchiveIntegrityStatus.VERIFIED) {
-            throw new IllegalArgumentException(
-                    "failed() cannot be used with VERIFIED status; use ok() instead"
-            );
+            throw new IllegalArgumentException("failed() cannot be used with VERIFIED status; use ok() instead");
         }
         return new JarArchiveIntegrityVerificationResult(
-                status, message, archiveEntries, checkedFiles,
+                status,
+                message,
+                archiveEntries,
+                checkedFiles,
                 failedFiles == null ? List.of() : failedFiles,
-                expectedSha256, actualSha256, archiveSizeBytes
-        );
+                expectedSha256,
+                actualSha256,
+                archiveSizeBytes);
     }
 
     /* ------------------------------ успех ------------------------------ */
 
     /** Фабрика успешного результата верификации. */
     public static JarArchiveIntegrityVerificationResult ok(
-            int archiveEntries,
-            int checkedFiles,
-            String expectedSha256,
-            String actualSha256,
-            long archiveSizeBytes
-    ) {
+            int archiveEntries, int checkedFiles, String expectedSha256, String actualSha256, long archiveSizeBytes) {
         return new JarArchiveIntegrityVerificationResult(
                 ArchiveIntegrityStatus.VERIFIED,
                 "JAR archive integrity verified",
@@ -126,8 +121,7 @@ public record JarArchiveIntegrityVerificationResult(
                 List.of(),
                 expectedSha256,
                 actualSha256,
-                archiveSizeBytes
-        );
+                archiveSizeBytes);
     }
 
     /* ------------------------------ ошибки чтения архива ------------------------------ */
@@ -138,146 +132,162 @@ public record JarArchiveIntegrityVerificationResult(
      */
     public static JarArchiveIntegrityVerificationResult archiveReadError(String message) {
         return new JarArchiveIntegrityVerificationResult(
-                ArchiveIntegrityStatus.ARCHIVE_READ_ERROR,
-                message, 0, 0, List.of(), "", "", 0L
-        );
+                ArchiveIntegrityStatus.ARCHIVE_READ_ERROR, message, 0, 0, List.of(), "", "", 0L);
     }
 
     /**
      * Фабрика: конкретная запись архива не читается (битый поток/недопустимая кодировка).
      * ArtifactBoundIntegrityVerifier маппит этот статус в IntegrityStatus.ARTIFACT_UNAVAILABLE.
      */
-    public static JarArchiveIntegrityVerificationResult entryReadError(
-            String message, List<String> failedFiles
-    ) {
+    public static JarArchiveIntegrityVerificationResult entryReadError(String message, List<String> failedFiles) {
         return new JarArchiveIntegrityVerificationResult(
                 ArchiveIntegrityStatus.ENTRY_READ_ERROR,
-                message, 0, 0,
+                message,
+                0,
+                0,
                 failedFiles == null ? List.of() : failedFiles,
-                "", "", 0L
-        );
+                "",
+                "",
+                0L);
     }
 
     /* ------------------------------ лимиты архива ------------------------------ */
 
     /** Фабрика: превышен лимит числа записей в архиве (защита от zip-bomb). */
-    public static JarArchiveIntegrityVerificationResult entryCountLimitExceeded(
-            String message, int archiveEntries
-    ) {
+    public static JarArchiveIntegrityVerificationResult entryCountLimitExceeded(String message, int archiveEntries) {
         return failed(
                 ArchiveIntegrityStatus.ARCHIVE_ENTRY_COUNT_LIMIT_EXCEEDED,
-                message, archiveEntries, 0, List.of(), "", "", 0L
-        );
+                message,
+                archiveEntries,
+                0,
+                List.of(),
+                "",
+                "",
+                0L);
     }
 
     /** Фабрика: превышен общий размер архива (защита от zip-bomb). */
-    public static JarArchiveIntegrityVerificationResult totalSizeLimitExceeded(
-            String message, long archiveSizeBytes
-    ) {
+    public static JarArchiveIntegrityVerificationResult totalSizeLimitExceeded(String message, long archiveSizeBytes) {
         return failed(
                 ArchiveIntegrityStatus.ARCHIVE_TOTAL_SIZE_LIMIT_EXCEEDED,
-                message, 0, 0, List.of(), "", "", archiveSizeBytes
-        );
+                message,
+                0,
+                0,
+                List.of(),
+                "",
+                "",
+                archiveSizeBytes);
     }
 
     /** Фабрика: отдельная запись превышает лимит размера. */
-    public static JarArchiveIntegrityVerificationResult entryTooLarge(
-            String message, List<String> failedFiles
-    ) {
+    public static JarArchiveIntegrityVerificationResult entryTooLarge(String message, List<String> failedFiles) {
         return failed(
                 ArchiveIntegrityStatus.ENTRY_TOO_LARGE,
-                message, 0, 0,
+                message,
+                0,
+                0,
                 failedFiles == null ? List.of() : failedFiles,
-                "", "", 0L
-        );
+                "",
+                "",
+                0L);
     }
 
     /* ------------------------------ структура архива ------------------------------ */
 
     /** Фабрика: дубликат записей архива (один путь встречается дважды). */
-    public static JarArchiveIntegrityVerificationResult duplicateEntry(
-            String message, List<String> failedFiles
-    ) {
+    public static JarArchiveIntegrityVerificationResult duplicateEntry(String message, List<String> failedFiles) {
         return failed(
                 ArchiveIntegrityStatus.DUPLICATE_ARCHIVE_ENTRY,
-                message, 0, 0,
+                message,
+                0,
+                0,
                 failedFiles == null ? List.of() : failedFiles,
-                "", "", 0L
-        );
+                "",
+                "",
+                0L);
     }
 
     /** Фабрика: конфликт путей в архиве (например, одновременно файл и каталог). */
-    public static JarArchiveIntegrityVerificationResult pathCollision(
-            String message, List<String> failedFiles
-    ) {
+    public static JarArchiveIntegrityVerificationResult pathCollision(String message, List<String> failedFiles) {
         return failed(
                 ArchiveIntegrityStatus.ARCHIVE_PATH_COLLISION,
-                message, 0, 0,
+                message,
+                0,
+                0,
                 failedFiles == null ? List.of() : failedFiles,
-                "", "", 0L
-        );
+                "",
+                "",
+                0L);
     }
 
     /** Фабрика: путь записи невалидный (абсолютный, содержит ../, пустой и т.п.). */
-    public static JarArchiveIntegrityVerificationResult invalidEntryPath(
-            String message, List<String> failedFiles
-    ) {
+    public static JarArchiveIntegrityVerificationResult invalidEntryPath(String message, List<String> failedFiles) {
         return failed(
                 ArchiveIntegrityStatus.INVALID_ARCHIVE_ENTRY_PATH,
-                message, 0, 0,
+                message,
+                0,
+                0,
                 failedFiles == null ? List.of() : failedFiles,
-                "", "", 0L
-        );
+                "",
+                "",
+                0L);
     }
 
     /** Фабрика: неожиданная запись архива (не указана в манифесте, не является META-INF/служебной). */
     public static JarArchiveIntegrityVerificationResult unexpectedEntry(
-            String message, List<String> failedFiles, int archiveEntries, int checkedFiles
-    ) {
+            String message, List<String> failedFiles, int archiveEntries, int checkedFiles) {
         return failed(
                 ArchiveIntegrityStatus.UNEXPECTED_ARCHIVE_ENTRY,
-                message, archiveEntries, checkedFiles,
+                message,
+                archiveEntries,
+                checkedFiles,
                 failedFiles == null ? List.of() : failedFiles,
-                "", "", 0L
-        );
+                "",
+                "",
+                0L);
     }
 
     /** Фабрика: неожиданный каталог в архиве (не разрешён манифестом). */
-    public static JarArchiveIntegrityVerificationResult unexpectedDirectory(
-            String message, List<String> failedFiles
-    ) {
+    public static JarArchiveIntegrityVerificationResult unexpectedDirectory(String message, List<String> failedFiles) {
         return failed(
                 ArchiveIntegrityStatus.UNEXPECTED_ARCHIVE_DIRECTORY,
-                message, 0, 0,
+                message,
+                0,
+                0,
                 failedFiles == null ? List.of() : failedFiles,
-                "", "", 0L
-        );
+                "",
+                "",
+                0L);
     }
 
     /* ------------------------------ расхождения с манифестом ------------------------------ */
 
     /** Фабрика: запись манифеста не найдена в архиве (файл исчез). */
     public static JarArchiveIntegrityVerificationResult manifestEntryMissing(
-            String message, List<String> failedFiles, int checkedFiles
-    ) {
+            String message, List<String> failedFiles, int checkedFiles) {
         return failed(
                 ArchiveIntegrityStatus.MANIFEST_ENTRY_MISSING,
-                message, 0, checkedFiles,
+                message,
+                0,
+                checkedFiles,
                 failedFiles == null ? List.of() : failedFiles,
-                "", "", 0L
-        );
+                "",
+                "",
+                0L);
     }
 
     /** Фабрика: размер записи в архиве не совпадает с манифестом. */
     public static JarArchiveIntegrityVerificationResult sizeMismatch(
-            String message, List<String> failedFiles, int archiveEntries, int checkedFiles
-    ) {
+            String message, List<String> failedFiles, int archiveEntries, int checkedFiles) {
         return failed(
                 ArchiveIntegrityStatus.ENTRY_SIZE_MISMATCH,
-                message, archiveEntries, checkedFiles,
+                message,
+                archiveEntries,
+                checkedFiles,
                 failedFiles == null ? List.of() : failedFiles,
-                "", "", 0L
-        );
+                "",
+                "",
+                0L);
     }
 
     /** Фабрика: SHA-256 запись архива не совпадает с ожидаемым дайджестом из манифеста. */
@@ -288,31 +298,27 @@ public record JarArchiveIntegrityVerificationResult(
             int checkedFiles,
             String expectedSha256,
             String actualSha256,
-            long archiveSizeBytes
-    ) {
+            long archiveSizeBytes) {
         return failed(
                 ArchiveIntegrityStatus.ENTRY_HASH_MISMATCH,
-                message, archiveEntries, checkedFiles,
+                message,
+                archiveEntries,
+                checkedFiles,
                 failedFiles == null ? List.of() : failedFiles,
-                expectedSha256, actualSha256, archiveSizeBytes
-        );
+                expectedSha256,
+                actualSha256,
+                archiveSizeBytes);
     }
 
     /* ------------------------------ манифест архива ------------------------------ */
 
     /** Фабрика: манифест внутри архива пустой. */
     public static JarArchiveIntegrityVerificationResult manifestEmpty(String message) {
-        return failed(
-                ArchiveIntegrityStatus.MANIFEST_EMPTY,
-                message, 0, 0, List.of(), "", "", 0L
-        );
+        return failed(ArchiveIntegrityStatus.MANIFEST_EMPTY, message, 0, 0, List.of(), "", "", 0L);
     }
 
     /** Фабрика: манифест внутри архива невалидный (некорректный формат). */
     public static JarArchiveIntegrityVerificationResult invalidManifest(String message) {
-        return failed(
-                ArchiveIntegrityStatus.INVALID_MANIFEST,
-                message, 0, 0, List.of(), "", "", 0L
-        );
+        return failed(ArchiveIntegrityStatus.INVALID_MANIFEST, message, 0, 0, List.of(), "", "", 0L);
     }
 }

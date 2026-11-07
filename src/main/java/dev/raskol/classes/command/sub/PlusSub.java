@@ -2,20 +2,22 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.command.sub;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.gui.PlusGui;
-import dev.raskol.classes.spec.build.PlusSubscription;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.gui.PlusGui;
+import dev.raskol.classes.spec.build.PlusSubscription;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.14.15 (raskolspec+): роутер подкоманд /rc plus.
@@ -77,8 +79,8 @@ public final class PlusSub implements CommandSub {
             case "grant" -> cmdGrant(sender, args);
             case "revoke" -> cmdRevoke(sender, args);
             case "export" -> cmdExport(sender);
-            default -> sender.sendPlainMessage("Неизвестная подкоманда: " + sub
-                    + ". Доступны: buy, status, gift, grant, revoke, export.");
+            default -> sender.sendPlainMessage(
+                    "Неизвестная подкоманда: " + sub + ". Доступны: buy, status, gift, grant, revoke, export.");
         }
         return true;
     }
@@ -88,10 +90,11 @@ public final class PlusSub implements CommandSub {
         if (args.length == 1) {
             return List.of("buy", "status", "gift", "grant", "revoke", "export");
         }
-        if (args.length == 2 && (args[0].equalsIgnoreCase("gift")
-                || args[0].equalsIgnoreCase("grant")
-                || args[0].equalsIgnoreCase("revoke")
-                || args[0].equalsIgnoreCase("status"))) {
+        if (args.length == 2
+                && (args[0].equalsIgnoreCase("gift")
+                        || args[0].equalsIgnoreCase("grant")
+                        || args[0].equalsIgnoreCase("revoke")
+                        || args[0].equalsIgnoreCase("status"))) {
             return null; // таб-комплит ников — стандартный механизм Bukkit
         }
         if (args.length == 3 && args[0].equalsIgnoreCase("gift")) {
@@ -113,8 +116,9 @@ public final class PlusSub implements CommandSub {
         PlusSubscription subscription = plugin.getPlusSubscription();
         int periods = 1;
         if (args.length >= 2) {
-            try { periods = Integer.parseInt(args[1]); }
-            catch (NumberFormatException ex) {
+            try {
+                periods = Integer.parseInt(args[1]);
+            } catch (NumberFormatException ex) {
                 player.sendMessage(err("Число периодов должно быть целым"));
                 return;
             }
@@ -131,13 +135,16 @@ public final class PlusSub implements CommandSub {
                         + (periods * subscription.pricePerPeriod()) + " империалов."));
                 if (gui != null) gui.openCatalog(player);
             }
-            case DISABLED -> player.sendMessage(err("Платная подписка сейчас отключена; шаблоны открыты в тестовом режиме."));
+            case DISABLED -> player.sendMessage(
+                    err("Платная подписка сейчас отключена; шаблоны открыты в тестовом режиме."));
             case WALLET_UNAVAILABLE -> player.sendMessage(err("Кошелёк империалов недоступен — покупка отключена."));
             case INVALID_PERIODS -> player.sendMessage(err("Не удалось рассчитать срок или стоимость подписки."));
             case INSUFFICIENT -> player.sendMessage(err("Недостаточно империалов: нужно "
                     + (periods * subscription.pricePerPeriod()) + ", у вас "
                     + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
-            case STORAGE_FAILED -> player.sendMessage(err("Подписка не сохранена. Списание отменено; проверь баланс и обратись к администрации, если средства не вернулись."));
+            case STORAGE_FAILED -> player.sendMessage(
+                    err(
+                            "Подписка не сохранена. Списание отменено; проверь баланс и обратись к администрации, если средства не вернулись."));
         }
     }
 
@@ -146,8 +153,7 @@ public final class PlusSub implements CommandSub {
         Player target;
         if (args.length >= 2) {
             if (!sender.hasPermission("raskolclasses.admin.plus")) {
-                sender.sendMessage(err(plugin.getRaskolConfig()
-                        .message("no-permission", "Недостаточно прав")));
+                sender.sendMessage(err(plugin.getRaskolConfig().message("no-permission", "Недостаточно прав")));
                 return;
             }
             target = Bukkit.getPlayer(args[1]);
@@ -164,13 +170,11 @@ public final class PlusSub implements CommandSub {
         boolean active = sub.active(target.getUniqueId());
         if (active) {
             sender.sendMessage(ok(plugin.getRaskolConfig()
-                    .message("plus.status-active",
-                            "⚜ raskolspec+ активна · осталось {days} дн.")
-                    .replace("{days}", String.valueOf(sub.remainingDays(target.getUniqueId())))
+                            .message("plus.status-active", "⚜ raskolspec+ активна · осталось {days} дн.")
+                            .replace("{days}", String.valueOf(sub.remainingDays(target.getUniqueId())))
                     + " (" + target.getName() + ")"));
         } else {
-            sender.sendMessage(err(plugin.getRaskolConfig()
-                    .message("plus.status-inactive", "⚜ raskolspec+ не активна")
+            sender.sendMessage(err(plugin.getRaskolConfig().message("plus.status-inactive", "⚜ raskolspec+ не активна")
                     + " (" + target.getName() + ")"));
         }
     }
@@ -188,15 +192,13 @@ public final class PlusSub implements CommandSub {
         }
 
         // Rate-limit
-        long cooldown = plugin.getRaskolConfig()
-                .getLongOr("plus.cooldown-gift-ms", 5000L);
+        long cooldown = plugin.getRaskolConfig().getLongOr("plus.cooldown-gift-ms", 5000L);
         long now = System.currentTimeMillis();
         Long last = lastGiftMs.get(from.getUniqueId());
         if (last != null && now - last < cooldown) {
             long sec = (cooldown - (now - last) + 999) / 1000;
             from.sendMessage(err(plugin.getRaskolConfig()
-                    .message("plus.gift-cooldown",
-                            "Слишком часто: повтор через {sec} с")
+                    .message("plus.gift-cooldown", "Слишком часто: повтор через {sec} с")
                     .replace("{sec}", String.valueOf(sec))));
             return;
         }
@@ -221,28 +223,26 @@ public final class PlusSub implements CommandSub {
         }
 
         if (from.getUniqueId().equals(to.getUniqueId())) {
-            from.sendMessage(err(plugin.getRaskolConfig()
-                    .message("plus.gift-self", "Нельзя подарить подписку самому себе")));
+            from.sendMessage(
+                    err(plugin.getRaskolConfig().message("plus.gift-self", "Нельзя подарить подписку самому себе")));
             return;
         }
 
         PlusSubscription subscription = plugin.getPlusSubscription();
         String offlineNote = plugin.getRaskolConfig()
-                .message("plus.gift-offline-note",
-                        "{sender} подарил вам raskolspec+ на {days} дн.")
+                .message("plus.gift-offline-note", "{sender} подарил вам raskolspec+ на {days} дн.")
                 .replace("{sender}", from.getName())
                 .replace("{days}", String.valueOf(periods * subscription.periodDays()));
 
-        PlusSubscription.GiftResult result = subscription.gift(
-                from.getUniqueId(), to.getUniqueId(), periods, offlineNote);
+        PlusSubscription.GiftResult result =
+                subscription.gift(from.getUniqueId(), to.getUniqueId(), periods, offlineNote);
 
         switch (result) {
             case OK -> {
                 lastGiftMs.put(from.getUniqueId(), now);
                 int days = periods * subscription.periodDays();
                 from.sendMessage(ok(plugin.getRaskolConfig()
-                        .message("plus.gift-sent",
-                                "⚜ Подписка raskolspec+ подарена {target} на {days} дн.")
+                        .message("plus.gift-sent", "⚜ Подписка raskolspec+ подарена {target} на {days} дн.")
                         .replace("{target}", to.getName())
                         .replace("{days}", String.valueOf(days))));
             }
@@ -250,17 +250,14 @@ public final class PlusSub implements CommandSub {
                 int cost = periods * subscription.pricePerPeriod();
                 int balance = plugin.getImperialWallet().balance(from.getUniqueId());
                 from.sendMessage(err(plugin.getRaskolConfig()
-                        .message("plus.gift-poor",
-                                "Не хватает империалов: нужно {cost}, у вас {balance}")
+                        .message("plus.gift-poor", "Не хватает империалов: нужно {cost}, у вас {balance}")
                         .replace("{cost}", String.valueOf(cost))
                         .replace("{balance}", String.valueOf(balance))));
             }
-            case SELF_GIFT -> from.sendMessage(err(plugin.getRaskolConfig()
-                    .message("plus.gift-self",
-                            "Нельзя подарить подписку самому себе")));
-            case WALLET_UNAVAILABLE -> from.sendMessage(err(plugin.getRaskolConfig()
-                    .message("plus.gift-wallet-off",
-                            "Кошелёк империалов недоступен")));
+            case SELF_GIFT -> from.sendMessage(
+                    err(plugin.getRaskolConfig().message("plus.gift-self", "Нельзя подарить подписку самому себе")));
+            case WALLET_UNAVAILABLE -> from.sendMessage(
+                    err(plugin.getRaskolConfig().message("plus.gift-wallet-off", "Кошелёк империалов недоступен")));
             case DISABLED -> from.sendMessage(err("Платная подписка отключена; подарки сейчас недоступны."));
             case INVALID_PERIODS -> from.sendMessage(err("Некорректное число периодов."));
             case STORAGE_FAILED -> from.sendMessage(err("Подарок не сохранён. Списание отменено; проверь баланс."));
@@ -271,8 +268,7 @@ public final class PlusSub implements CommandSub {
 
     private void cmdGrant(CommandSender sender, String[] args) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
-            sender.sendMessage(err(plugin.getRaskolConfig()
-                    .message("no-permission", "Недостаточно прав")));
+            sender.sendMessage(err(plugin.getRaskolConfig().message("no-permission", "Недостаточно прав")));
             return;
         }
         if (args.length < 3) {
@@ -302,16 +298,15 @@ public final class PlusSub implements CommandSub {
             return;
         }
         int days = periods * sub.periodDays();
-        sender.sendMessage(ok("⚜ " + target.getName()
-                + ": подписка активна, + " + days + " дн. (expires=" + expires + ")"));
+        sender.sendMessage(
+                ok("⚜ " + target.getName() + ": подписка активна, + " + days + " дн. (expires=" + expires + ")"));
     }
 
     /* ------------------------------ revoke (admin) ------------------------------ */
 
     private void cmdRevoke(CommandSender sender, String[] args) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
-            sender.sendMessage(err(plugin.getRaskolConfig()
-                    .message("no-permission", "Недостаточно прав")));
+            sender.sendMessage(err(plugin.getRaskolConfig().message("no-permission", "Недостаточно прав")));
             return;
         }
         if (args.length < 2) {
@@ -339,8 +334,7 @@ public final class PlusSub implements CommandSub {
      */
     private void cmdExport(CommandSender sender) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
-            sender.sendMessage(err(plugin.getRaskolConfig()
-                    .message("no-permission", "Недостаточно прав")));
+            sender.sendMessage(err(plugin.getRaskolConfig().message("no-permission", "Недостаточно прав")));
             return;
         }
         boolean ok = plugin.getBuildTemplates().exportNormalized();

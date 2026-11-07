@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat.school;
 
-import dev.raskol.classes.RaskolClasses;
-
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.12.2 (Блок 1): стихийный слой резистов поверх резиста канала (ТЗ п.2–3).
@@ -39,8 +39,7 @@ public final class ElementalResistService {
 
     public ElementalResistService(RaskolClasses plugin, SchoolConfig schoolConfig) {
         this.schoolConfig = schoolConfig;
-        plugin.getServer().getScheduler().runTaskTimer(plugin,
-                this::purgeExpired, PURGE_TICKS, PURGE_TICKS);
+        plugin.getServer().getScheduler().runTaskTimer(plugin, this::purgeExpired, PURGE_TICKS, PURGE_TICKS);
     }
 
     /** Рубильник слоя (schools.elemental.enabled). */
@@ -51,8 +50,7 @@ public final class ElementalResistService {
     public void addTimed(UUID uuid, String source, School school, double pct, long millis) {
         removeBySource(uuid, source);
         mods.computeIfAbsent(uuid, k -> new CopyOnWriteArrayList<>())
-                .add(new ElemMod(source, school, sanitize(pct),
-                        System.currentTimeMillis() + millis));
+                .add(new ElemMod(source, school, sanitize(pct), System.currentTimeMillis() + millis));
     }
 
     public void addPermanent(UUID uuid, String source, School school, double pct) {

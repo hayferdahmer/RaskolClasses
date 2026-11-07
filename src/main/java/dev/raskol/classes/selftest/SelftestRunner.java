@@ -2,6 +2,28 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.selftest;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.permissions.Permission;
+import org.bukkit.potion.PotionEffectType;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
@@ -58,29 +80,9 @@ import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.model.Spec2Tree;
 import dev.raskol.classes.spec.registry.Spec2Registry;
 import dev.raskol.classes.spec.service.Spec2Service;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.Material;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.EntityType;
-import org.bukkit.entity.Player;
-import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.permissions.Permission;
-import org.bukkit.potion.PotionEffectType;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Headless-самотестирование формул плагина (/rc selftest), 167 чеков.
@@ -160,8 +162,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class SelftestRunner {
 
-    private SelftestRunner() {
-    }
+    private SelftestRunner() {}
 
     /**
      * 1.15.6 (Волна 6, 2.6-108): kill-switch живых мутаций.
@@ -192,8 +193,13 @@ public final class SelftestRunner {
         boolean check(String num, String desc, boolean ok, String culprit, Object got) {
             String status = ok ? "✓" : "✗";
             String detail = ok ? "" : " (получено: " + fmt(got) + ", виновник: " + culprit + ")";
-            sb.append(status).append(" чек ").append(num).append(": ").append(desc)
-                    .append(detail).append('\n');
+            sb.append(status)
+                    .append(" чек ")
+                    .append(num)
+                    .append(": ")
+                    .append(desc)
+                    .append(detail)
+                    .append('\n');
             if (ok) {
                 passed++;
             } else {
@@ -218,8 +224,7 @@ public final class SelftestRunner {
 
     /* ------------------------------ фикстура ------------------------------ */
 
-    private record KindHit(String treeId, Spec2Node node) {
-    }
+    private record KindHit(String treeId, Spec2Node node) {}
 
     private static KindHit findKind(RaskolClasses plugin, Player probe, String kind) {
         for (String tid : plugin.getSpec2Service().classTreeIds(probe.getUniqueId())) {
@@ -243,7 +248,8 @@ public final class SelftestRunner {
                 continue;
             }
             for (Spec2Node n : t.nodes()) {
-                if (n.effect() != null && n.effect().kind() != null
+                if (n.effect() != null
+                        && n.effect().kind() != null
                         && n.effect().kind().startsWith(prefix)) {
                     return new KindHit(tid, n);
                 }
@@ -252,10 +258,10 @@ public final class SelftestRunner {
         return null;
     }
 
-    private static Map<String, Integer> applyRank(RaskolClasses plugin, UUID uuid,
-                                                  String treeId, String nodeId, int rank) {
-        Map<String, Integer> backup = new HashMap<>(
-                plugin.getSpec2Service().storage().getRanks(uuid, treeId));
+    private static Map<String, Integer> applyRank(
+            RaskolClasses plugin, UUID uuid, String treeId, String nodeId, int rank) {
+        Map<String, Integer> backup =
+                new HashMap<>(plugin.getSpec2Service().storage().getRanks(uuid, treeId));
         Map<String, Integer> next = new HashMap<>(backup);
         next.put(nodeId, rank);
         plugin.getSpec2Service().storage().setRanks(uuid, treeId, next);
@@ -263,8 +269,7 @@ public final class SelftestRunner {
         return backup;
     }
 
-    private static void restore(RaskolClasses plugin, UUID uuid,
-                                String treeId, Map<String, Integer> backup) {
+    private static void restore(RaskolClasses plugin, UUID uuid, String treeId, Map<String, Integer> backup) {
         plugin.getSpec2Service().storage().setRanks(uuid, treeId, backup);
         plugin.getSpec2Service().reconcile(uuid);
     }
@@ -365,17 +370,27 @@ public final class SelftestRunner {
     private static void items115(RaskolClasses plugin, Report r) {
         boolean loaded = plugin.getItems() != null && plugin.getItems().registry() != null;
         int count = loaded ? plugin.getItems().registry().size() : 0;
-        r.check("128", "1.15.0: реестр экипировки загружен (270 стартовых определений)",
-                loaded && count >= 270, "ItemSystem.registry", loaded ? "loaded=" + count : "missing");
-        boolean valid = loaded && plugin.getItems().registry().all().stream().allMatch(item ->
-                item.id().matches("[a-z0-9_]{3,48}") && item.itemLevel() >= 1 && item.itemLevel() <= 60
-                        && item.affixCount() <= item.affixPool().size());
-        r.check("129", "1.15.0: определения предметов проходят базовые инварианты",
-                valid, "ItemDefinition", "OK");
+        r.check(
+                "128",
+                "1.15.0: реестр экипировки загружен (270 стартовых определений)",
+                loaded && count >= 270,
+                "ItemSystem.registry",
+                loaded ? "loaded=" + count : "missing");
+        boolean valid = loaded
+                && plugin.getItems().registry().all().stream()
+                        .allMatch(item -> item.id().matches("[a-z0-9_]{3,48}")
+                                && item.itemLevel() >= 1
+                                && item.itemLevel() <= 60
+                                && item.affixCount() <= item.affixPool().size());
+        r.check("129", "1.15.0: определения предметов проходят базовые инварианты", valid, "ItemDefinition", "OK");
         boolean gearRemoved = plugin.getServer().getPluginManager().getPlugin("RaskolGear") == null
                 && !plugin.getDescription().getSoftDepend().contains("RaskolGear");
-        r.check("130", "1.15.0: обратная зависимость от RaskolGear удалена",
-                gearRemoved, "plugin.yml/PluginManager", gearRemoved ? "OK" : "RaskolGear still referenced");
+        r.check(
+                "130",
+                "1.15.0: обратная зависимость от RaskolGear удалена",
+                gearRemoved,
+                "plugin.yml/PluginManager",
+                gearRemoved ? "OK" : "RaskolGear still referenced");
     }
 
     /* ------------------------------ 131–133: WeaponMastery (1.15.2) ------------------------------ */
@@ -394,8 +409,12 @@ public final class SelftestRunner {
             }
             if (!ok131) break;
         }
-        r.check("131", "WeaponMastery: матрица 8×6 заполнена (значения ∈ {1.0, 0.75, 0.5})",
-                ok131, "WeaponMastery.masteryMultiplier", ok131 ? "OK(48 cells)" : got131);
+        r.check(
+                "131",
+                "WeaponMastery: матрица 8×6 заполнена (значения ∈ {1.0, 0.75, 0.5})",
+                ok131,
+                "WeaponMastery.masteryMultiplier",
+                ok131 ? "OK(48 cells)" : got131);
 
         double wSword = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.SWORD);
         double wDagger = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, WeaponType.DAGGER);
@@ -403,28 +422,34 @@ public final class SelftestRunner {
         double hBow = WeaponMastery.masteryMultiplier(PlayerClass.HUNTER, WeaponType.BOW);
         double hAxe = WeaponMastery.masteryMultiplier(PlayerClass.HUNTER, WeaponType.AXE);
         double hSword = WeaponMastery.masteryMultiplier(PlayerClass.HUNTER, WeaponType.SWORD);
-        boolean ok132 = wSword == 1.0 && wDagger == 0.75 && wBow == 0.5
-                && hBow == 1.0 && hAxe == 0.75 && hSword == 0.5;
-        r.check("132", "WeaponMastery: WARRIOR(SWORD=1.0/DAGGER=0.75/BOW=0.5), HUNTER(BOW=1.0/AXE=0.75/SWORD=0.5)",
-                ok132, "WeaponMastery.masteryMultiplier",
-                String.format(Locale.ROOT, "%.2f/%.2f/%.2f vs %.2f/%.2f/%.2f",
-                        wSword, wDagger, wBow, hBow, hAxe, hSword));
+        boolean ok132 = wSword == 1.0 && wDagger == 0.75 && wBow == 0.5 && hBow == 1.0 && hAxe == 0.75 && hSword == 0.5;
+        r.check(
+                "132",
+                "WeaponMastery: WARRIOR(SWORD=1.0/DAGGER=0.75/BOW=0.5), HUNTER(BOW=1.0/AXE=0.75/SWORD=0.5)",
+                ok132,
+                "WeaponMastery.masteryMultiplier",
+                String.format(
+                        Locale.ROOT, "%.2f/%.2f/%.2f vs %.2f/%.2f/%.2f", wSword, wDagger, wBow, hBow, hAxe, hSword));
 
         double nullPc = WeaponMastery.masteryMultiplier(null, WeaponType.SWORD);
         double nullWt = WeaponMastery.masteryMultiplier(PlayerClass.WARRIOR, null);
         double nullBoth = WeaponMastery.masteryMultiplier(null, null);
         String level133 = WeaponMastery.masteryLevel(PlayerClass.WARRIOR, WeaponType.SWORD);
         boolean ok133 = nullPc == 0.5 && nullWt == 0.5 && nullBoth == 0.5 && "NATIVE".equals(level133);
-        r.check("133", "WeaponMastery: null-защита (→0.5), masteryLevel(NATIVE/FAMILIAR/FOREIGN)",
-                ok133, "WeaponMastery.masteryMultiplier/masteryLevel",
+        r.check(
+                "133",
+                "WeaponMastery: null-защита (→0.5), masteryLevel(NATIVE/FAMILIAR/FOREIGN)",
+                ok133,
+                "WeaponMastery.masteryMultiplier/masteryLevel",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.2f level=%s", nullPc, nullWt, nullBoth, level133));
     }
 
     /* ------------------------------ 134: messages.item.* (1.15.3) ------------------------------ */
 
     private static void itemMessages(RaskolClasses plugin, Report r) {
-        String[] keys = {"item.equip-class", "item.equip-spec", "item.equip-level",
-                "item.unbreakable-lore", "item.mastery-line"};
+        String[] keys = {
+            "item.equip-class", "item.equip-spec", "item.equip-level", "item.unbreakable-lore", "item.mastery-line"
+        };
         boolean ok = true;
         StringBuilder missing = new StringBuilder();
         for (String k : keys) {
@@ -439,38 +464,73 @@ public final class SelftestRunner {
                 missing.append(k).append("(empty) ");
             }
         }
-        r.check("134", "1.15.3: messages.item.* в конфиге, 5 ключей непустые",
-                ok, "config messages.item", ok ? "OK(5)" : "missing: " + missing);
+        r.check(
+                "134",
+                "1.15.3: messages.item.* в конфиге, 5 ключей непустые",
+                ok,
+                "config messages.item",
+                ok ? "OK(5)" : "missing: " + missing);
     }
 
     /* ------------------------------ 135–137: 1.15.4 крафт и фрагменты ------------------------------ */
 
     private static void crafting1154(RaskolClasses plugin, Report r) {
-        boolean registryOk = plugin.getItems() != null && plugin.getItems().fragments() != null
+        boolean registryOk = plugin.getItems() != null
+                && plugin.getItems().fragments() != null
                 && plugin.getItems().fragments().all().size() == 13;
-        r.check("135", "1.15.4: FragmentRegistry = 13 фрагментов (6 осколков + 6 эссенций + 1 реликвия)",
-                registryOk, "FragmentRegistry.all().size()",
+        r.check(
+                "135",
+                "1.15.4: FragmentRegistry = 13 фрагментов (6 осколков + 6 эссенций + 1 реликвия)",
+                registryOk,
+                "FragmentRegistry.all().size()",
                 plugin.getItems() != null && plugin.getItems().fragments() != null
-                        ? String.valueOf(plugin.getItems().fragments().all().size()) : "null");
+                        ? String.valueOf(plugin.getItems().fragments().all().size())
+                        : "null");
 
         Map<Fragment, Integer> frags = Map.of();
         if (registryOk) {
-            ItemDefinition testDef = new ItemDefinition("selftest_sword_40_rare", "Selftest Sword",
-                    "IRON_SWORD", ItemSlot.MAIN_HAND, WeaponType.SWORD, ItemRarity.RARE, 40,
-                    PlayerClass.WARRIOR, null, 1, Map.of(), List.of(), 0, null,
-                    List.of(), false, null);
+            ItemDefinition testDef = new ItemDefinition(
+                    "selftest_sword_40_rare",
+                    "Selftest Sword",
+                    "IRON_SWORD",
+                    ItemSlot.MAIN_HAND,
+                    WeaponType.SWORD,
+                    ItemRarity.RARE,
+                    40,
+                    PlayerClass.WARRIOR,
+                    null,
+                    1,
+                    Map.of(),
+                    List.of(),
+                    0,
+                    null,
+                    List.of(),
+                    false,
+                    null);
             frags = SalvageService.fragmentsFor(plugin.getItems().fragments(), testDef);
         }
-        boolean mathOk = registryOk && frags.size() == 2
-                && Integer.valueOf(2).equals(frags.get(plugin.getItems().fragments().byId("frag_weapon_rare")))
-                && Integer.valueOf(1).equals(frags.get(plugin.getItems().fragments().byId("frag_essence_warrior")));
-        r.check("136", "1.15.4: fragmentsFor(RARE оружие 40 ур. WARRIOR) = {weapon_rare:2, essence_warrior:1}",
-                mathOk, "SalvageService.fragmentsFor", frags.toString());
+        boolean mathOk = registryOk
+                && frags.size() == 2
+                && Integer.valueOf(2)
+                        .equals(frags.get(plugin.getItems().fragments().byId("frag_weapon_rare")))
+                && Integer.valueOf(1)
+                        .equals(frags.get(plugin.getItems().fragments().byId("frag_essence_warrior")));
+        r.check(
+                "136",
+                "1.15.4: fragmentsFor(RARE оружие 40 ур. WARRIOR) = {weapon_rare:2, essence_warrior:1}",
+                mathOk,
+                "SalvageService.fragmentsFor",
+                frags.toString());
 
         int recipes = plugin.getItems() != null && plugin.getItems().crafting() != null
-                ? plugin.getItems().crafting().recipes().size() : 0;
-        r.check("137", "1.15.4: CraftingService загрузил ≥1 рецепт из crafting.yml",
-                recipes >= 1, "CraftingService.recipes()", String.valueOf(recipes));
+                ? plugin.getItems().crafting().recipes().size()
+                : 0;
+        r.check(
+                "137",
+                "1.15.4: CraftingService загрузил ≥1 рецепт из crafting.yml",
+                recipes >= 1,
+                "CraftingService.recipes()",
+                String.valueOf(recipes));
     }
 
     /* ------------------------------ 138–142: 1.15.5 волна аудита ------------------------------ */
@@ -481,15 +541,15 @@ public final class SelftestRunner {
             permNames.add(p.getName());
         }
         String[] required = {
-                "raskolclasses.item",
-                "raskolclasses.item.stats",
-                "raskolclasses.item.salvage",
-                "raskolclasses.item.craft",
-                "raskolclasses.item.admin",
-                "raskolclasses.item.give",
-                "raskolclasses.item.reload",
-                "raskolclasses.item.debug",
-                "raskolclasses.item.browser"
+            "raskolclasses.item",
+            "raskolclasses.item.stats",
+            "raskolclasses.item.salvage",
+            "raskolclasses.item.craft",
+            "raskolclasses.item.admin",
+            "raskolclasses.item.give",
+            "raskolclasses.item.reload",
+            "raskolclasses.item.debug",
+            "raskolclasses.item.browser"
         };
         boolean perms138 = true;
         StringBuilder missing138 = new StringBuilder();
@@ -499,18 +559,30 @@ public final class SelftestRunner {
                 missing138.append(p).append(' ');
             }
         }
-        r.check("138", "1.15.5: plugin.yml содержит 9 узлов прав item.* (игровые + админ)",
-                perms138, "plugin.yml permissions",
+        r.check(
+                "138",
+                "1.15.5: plugin.yml содержит 9 узлов прав item.* (игровые + админ)",
+                perms138,
+                "plugin.yml permissions",
                 perms138 ? "OK(9)" : "missing: " + missing138);
 
         boolean authmeFailOpen = plugin.getConfig().getBoolean("compat.authme-fail-open", false);
-        r.check("139", "1.15.5: AuthGate fail-closed — compat.authme-fail-open по умолчанию false",
-                !authmeFailOpen, "config compat.authme-fail-open", String.valueOf(authmeFailOpen));
+        r.check(
+                "139",
+                "1.15.5: AuthGate fail-closed — compat.authme-fail-open по умолчанию false",
+                !authmeFailOpen,
+                "config compat.authme-fail-open",
+                String.valueOf(authmeFailOpen));
 
         int recipeCount = plugin.getItems() != null && plugin.getItems().crafting() != null
-                ? plugin.getItems().crafting().recipes().size() : 0;
-        r.check("140", "1.15.5: crafting.yml — 6 рецептов активны (цели существуют в реестре)",
-                recipeCount >= 6, "CraftingService.recipes()", String.valueOf(recipeCount));
+                ? plugin.getItems().crafting().recipes().size()
+                : 0;
+        r.check(
+                "140",
+                "1.15.5: crafting.yml — 6 рецептов активны (цели существуют в реестре)",
+                recipeCount >= 6,
+                "CraftingService.recipes()",
+                String.valueOf(recipeCount));
 
         boolean lpGuard141 = false;
         String got141 = "";
@@ -527,7 +599,8 @@ public final class SelftestRunner {
                 lpGuard141 = true;
                 got141 = "lastClass:" + field.getType().getSimpleName();
             } else {
-                got141 = field == null ? "no-field:lastClass"
+                got141 = field == null
+                        ? "no-field:lastClass"
                         : "not-map:" + field.getType().getSimpleName();
             }
         } catch (ClassNotFoundException ex) {
@@ -535,8 +608,12 @@ public final class SelftestRunner {
         } catch (RuntimeException ex) {
             got141 = "exception:" + ex.getClass().getSimpleName();
         }
-        r.check("141", "1.15.5: LuckPermsBackend.lastClass — Map-гард сброса ресурса (2.6-78)",
-                lpGuard141, "LuckPermsBackend.lastClass", got141);
+        r.check(
+                "141",
+                "1.15.5: LuckPermsBackend.lastClass — Map-гард сброса ресурса (2.6-78)",
+                lpGuard141,
+                "LuckPermsBackend.lastClass",
+                got141);
 
         java.util.Collection<? extends Player> online = plugin.getServer().getOnlinePlayers();
         if (online.isEmpty()) {
@@ -554,8 +631,8 @@ public final class SelftestRunner {
             return;
         }
         String t0 = trees.get(0);
-        Map<String, Integer> backup = new HashMap<>(
-                plugin.getSpec2Service().storage().getRanks(pu, t0));
+        Map<String, Integer> backup =
+                new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu, t0));
         boolean ok142;
         String got142;
         try {
@@ -572,20 +649,26 @@ public final class SelftestRunner {
             plugin.getSpec2Service().storage().saveIfDirty();
             plugin.getSpec2Service().reconcile(pu);
         }
-        r.check("142", "1.15.5: Spec2Storage.saveIfDirty — dirty→true→сброс, повтор→false (2.6-91)",
-                ok142, "Spec2Storage.saveIfDirty", got142);
+        r.check(
+                "142",
+                "1.15.5: Spec2Storage.saveIfDirty — dirty→true→сброс, повтор→false (2.6-91)",
+                ok142,
+                "Spec2Storage.saveIfDirty",
+                got142);
     }
 
     /* ------------------------------ 143–146: 1.15.5-b экономика/данные ------------------------------ */
 
     private static void economyData1155(RaskolClasses plugin, Report r) {
-        java.io.File tmpDir = new java.io.File(plugin.getDataFolder(),
-                "selftest_143_" + System.nanoTime());
+        java.io.File tmpDir = new java.io.File(plugin.getDataFolder(), "selftest_143_" + System.nanoTime());
         // 1.15.8 (Волна 8): результат mkdirs() проверяется (RV_RETURN_VALUE_IGNORED):
         // без временной директории чек 143 не имеет смысла — падаем с явной причиной.
         if (!tmpDir.mkdirs() && !tmpDir.isDirectory()) {
-            r.check("143", "1.15.5: SafeStorage round-trip — .bak после 2-й записи, без leftover .tmp",
-                    false, "SelftestRunner.economyData1155/mkdirs",
+            r.check(
+                    "143",
+                    "1.15.5: SafeStorage round-trip — .bak после 2-й записи, без leftover .tmp",
+                    false,
+                    "SelftestRunner.economyData1155/mkdirs",
                     "не удалось создать временную директорию " + tmpDir);
             r.skip("144", "Foliant.saveLocksIfDirty (блок 143 прерван)");
             r.skip("145", "craft UNKNOWN (блок 143 прерван)");
@@ -593,24 +676,25 @@ public final class SelftestRunner {
             return;
         }
         java.io.File tmpFile = new java.io.File(tmpDir, "test.yml");
-        org.bukkit.configuration.file.YamlConfiguration cfg =
-                new org.bukkit.configuration.file.YamlConfiguration();
+        org.bukkit.configuration.file.YamlConfiguration cfg = new org.bukkit.configuration.file.YamlConfiguration();
         cfg.set("key", "value");
-        boolean firstSaved = dev.raskol.classes.storage.SafeStorage.saveAtomic(
-                cfg, tmpFile, plugin.getLogger());
+        boolean firstSaved = dev.raskol.classes.storage.SafeStorage.saveAtomic(cfg, tmpFile, plugin.getLogger());
         boolean fileExists = tmpFile.exists();
         boolean bakAbsentAfterFirst = !new java.io.File(tmpDir, "test.yml.bak").exists();
         cfg.set("key2", "value2");
-        boolean secondSaved = dev.raskol.classes.storage.SafeStorage.saveAtomic(
-                cfg, tmpFile, plugin.getLogger());
+        boolean secondSaved = dev.raskol.classes.storage.SafeStorage.saveAtomic(cfg, tmpFile, plugin.getLogger());
         boolean bakPresentAfterSecond = new java.io.File(tmpDir, "test.yml.bak").exists();
         org.bukkit.configuration.file.YamlConfiguration loaded =
                 dev.raskol.classes.storage.SafeStorage.loadWithFallback(tmpFile, plugin.getLogger());
         boolean loadedOk = "value2".equals(loaded.getString("key2"));
         boolean tmpCleanAfter = !new java.io.File(tmpDir, "test.yml.tmp").exists();
-        boolean ok143 = firstSaved && secondSaved && fileExists
-                && bakAbsentAfterFirst && bakPresentAfterSecond
-                && loadedOk && tmpCleanAfter;
+        boolean ok143 = firstSaved
+                && secondSaved
+                && fileExists
+                && bakAbsentAfterFirst
+                && bakPresentAfterSecond
+                && loadedOk
+                && tmpCleanAfter;
         java.io.File[] leftovers = tmpDir.listFiles();
         if (leftovers != null) {
             for (java.io.File f : leftovers) {
@@ -626,10 +710,13 @@ public final class SelftestRunner {
             r.note("⚠ 143: не удалось удалить временную директорию " + tmpDir.getName()
                     + " (подберёт cleanupTmpFiles на старте)");
         }
-        r.check("143", "1.15.5: SafeStorage round-trip — .bak после 2-й записи, без leftover .tmp",
-                ok143, "SafeStorage.saveAtomic/loadWithFallback",
-                "1st=" + firstSaved + " 2nd=" + secondSaved + " bak=" + bakPresentAfterSecond
-                        + " loaded=" + loadedOk + " tmp_clean=" + tmpCleanAfter);
+        r.check(
+                "143",
+                "1.15.5: SafeStorage round-trip — .bak после 2-й записи, без leftover .tmp",
+                ok143,
+                "SafeStorage.saveAtomic/loadWithFallback",
+                "1st=" + firstSaved + " 2nd=" + secondSaved + " bak=" + bakPresentAfterSecond + " loaded=" + loadedOk
+                        + " tmp_clean=" + tmpCleanAfter);
 
         boolean ok144 = false;
         String got144 = "no-service";
@@ -639,14 +726,19 @@ public final class SelftestRunner {
             ok144 = !first && !second;
             got144 = "first=" + first + " second=" + second;
         }
-        r.check("144", "1.15.5: Foliant.saveLocksIfDirty идемпотентен без изменений (false/false)",
-                ok144, "FoliantService.saveLocksIfDirty", got144);
+        r.check(
+                "144",
+                "1.15.5: Foliant.saveLocksIfDirty идемпотентен без изменений (false/false)",
+                ok144,
+                "FoliantService.saveLocksIfDirty",
+                got144);
 
         boolean ok145 = true;
         String got145 = "no-probe";
         java.util.Collection<? extends Player> online145 = plugin.getServer().getOnlinePlayers();
         boolean live145 = liveGuard(r, "145", "146");
-        if (live145 && !online145.isEmpty()
+        if (live145
+                && !online145.isEmpty()
                 && plugin.getItems() != null
                 && plugin.getItems().crafting() != null) {
             Player p = online145.iterator().next();
@@ -669,17 +761,19 @@ public final class SelftestRunner {
             boolean handIntact = (handBefore == null && handAfter == null)
                     || (handBefore != null && handAfter != null && handBefore.isSimilar(handAfter));
             boolean sizeIntact = sizeBefore == sizeAfter;
-            boolean resultIsUnknown = result
-                    == dev.raskol.classes.item.craft.CraftingService.CraftResult.UNKNOWN;
+            boolean resultIsUnknown = result == dev.raskol.classes.item.craft.CraftingService.CraftResult.UNKNOWN;
             ok145 = handIntact && sizeIntact && resultIsUnknown;
-            got145 = "hand=" + handIntact + " size=" + sizeBefore + "→" + sizeAfter
-                    + " result=" + result;
+            got145 = "hand=" + handIntact + " size=" + sizeBefore + "→" + sizeAfter + " result=" + result;
         } else if (live145) {
             got145 = "no-probe";
         }
         if (live145) {
-            r.check("145", "1.15.5: craft UNKNOWN не трогает инвентарь (рука + размер)",
-                    ok145, "CraftingService.craft", got145);
+            r.check(
+                    "145",
+                    "1.15.5: craft UNKNOWN не трогает инвентарь (рука + размер)",
+                    ok145,
+                    "CraftingService.craft",
+                    got145);
         }
 
         int savedLimit = plugin.getConfig().getInt("item.salvage.daily-limit", 20);
@@ -697,8 +791,7 @@ public final class SelftestRunner {
                     try {
                         dev.raskol.classes.item.craft.SalvageService.SalvageResult result =
                                 plugin.getItems().salvage().salvage(p);
-                        ok146 = result
-                                == dev.raskol.classes.item.craft.SalvageService.SalvageResult.EMPTY_HAND;
+                        ok146 = result == dev.raskol.classes.item.craft.SalvageService.SalvageResult.EMPTY_HAND;
                         got146 = "result=" + result + " (limit=0→дефолт ≥1)";
                     } finally {
                         p.getInventory().setItemInMainHand(savedHand);
@@ -707,8 +800,12 @@ public final class SelftestRunner {
             } finally {
                 plugin.getConfig().set("item.salvage.daily-limit", savedLimit);
             }
-            r.check("146", "1.15.5: daily-limit гард ≥1 (limit=0 → дефолт, salvage не крашится)",
-                    ok146, "SalvageService.dailyLimit/salvage", got146);
+            r.check(
+                    "146",
+                    "1.15.5: daily-limit гард ≥1 (limit=0 → дефолт, salvage не крашится)",
+                    ok146,
+                    "SalvageService.dailyLimit/salvage",
+                    got146);
         }
     }
 
@@ -745,8 +842,12 @@ public final class SelftestRunner {
         } catch (RuntimeException ex) {
             got147 = "exception:" + ex.getClass().getSimpleName();
         }
-        r.check("147", "1.15.6: DotService.computeTicks — чистая функция (принимает List, возвращает List)",
-                ok147, "DotService.computeTicks", got147);
+        r.check(
+                "147",
+                "1.15.6: DotService.computeTicks — чистая функция (принимает List, возвращает List)",
+                ok147,
+                "DotService.computeTicks",
+                got147);
 
         boolean ok148 = false;
         String got148 = "";
@@ -770,20 +871,30 @@ public final class SelftestRunner {
         } catch (RuntimeException ex) {
             got148 = "exception:" + ex.getClass().getSimpleName();
         }
-        r.check("148", "1.15.6: CombatService.dealDamage — 5-параметрическая сигнатура (health-guard 2.6-31)",
-                ok148, "CombatService.dealDamage", got148);
+        r.check(
+                "148",
+                "1.15.6: CombatService.dealDamage — 5-параметрическая сигнатура (health-guard 2.6-31)",
+                ok148,
+                "CombatService.dealDamage",
+                got148);
 
         CombatService.setCurrentCastSchool(School.FIRE);
         School castSchool = CombatService.currentCastSchool();
         CombatService.clearCastSchool();
         boolean ok149 = castSchool == School.FIRE;
-        r.check("149", "1.15.6: VanillaDamageListener school из currentCastSchool (FIRE, не ARCANE)",
-                ok149, "CombatService.currentCastSchool", String.valueOf(castSchool));
+        r.check(
+                "149",
+                "1.15.6: VanillaDamageListener school из currentCastSchool (FIRE, не ARCANE)",
+                ok149,
+                "CombatService.currentCastSchool",
+                String.valueOf(castSchool));
 
         boolean ok150 = false;
         String got150 = "";
         java.util.Collection<? extends Player> online150 = plugin.getServer().getOnlinePlayers();
-        if (!online150.isEmpty() && plugin.getCombat() != null && plugin.getCombat().dots() != null) {
+        if (!online150.isEmpty()
+                && plugin.getCombat() != null
+                && plugin.getCombat().dots() != null) {
             Player p = online150.iterator().next();
             List<DotInstance> snapshot = plugin.getCombat().dots().activeDotsOf(p.getUniqueId());
             try {
@@ -797,56 +908,65 @@ public final class SelftestRunner {
         } else {
             got150 = "no-online-player or no-DotService";
         }
-        r.check("150", "1.15.6: HudService.renderDots — mutable ArrayList перед sort (не падает на immutable)",
-                ok150, "HudService.renderDots", got150);
+        r.check(
+                "150",
+                "1.15.6: HudService.renderDots — mutable ArrayList перед sort (не падает на immutable)",
+                ok150,
+                "HudService.renderDots",
+                got150);
     }
 
     /* ------------------------------ 151–154: 1.15.6 волна 4 ------------------------------ */
 
     private static void wave4Audit(RaskolClasses plugin, Report r) {
         boolean found151 = false;
-        for (org.bukkit.plugin.RegisteredListener rl
-                : EntityDamageEvent.getHandlerList().getRegisteredListeners()) {
+        for (org.bukkit.plugin.RegisteredListener rl :
+                EntityDamageEvent.getHandlerList().getRegisteredListeners()) {
             if (rl.getListener() instanceof dev.raskol.classes.combat.VanillaDamageListener) {
                 found151 = true;
                 break;
             }
         }
-        r.check("151", "1.15.6: VanillaDamageListener зарегистрирован на EntityDamageEvent (путь A жив, 2.6-1)",
-                found151, "RaskolClasses.onEnable registerEvents",
+        r.check(
+                "151",
+                "1.15.6: VanillaDamageListener зарегистрирован на EntityDamageEvent (путь A жив, 2.6-1)",
+                found151,
+                "RaskolClasses.onEnable registerEvents",
                 found151 ? "OK(registered)" : "NOT REGISTERED — путь A мёртв");
 
         boolean ok152 = false;
         String got152 = "";
         try {
             Class<?> capsClass = Class.forName("dev.raskol.classes.combat.DamageCaps");
-            java.lang.reflect.Method undo = capsClass.getDeclaredMethod(
-                    "undoLastBurst", Player.class, double.class);
+            java.lang.reflect.Method undo = capsClass.getDeclaredMethod("undoLastBurst", Player.class, double.class);
             Class<?> vdlClass = Class.forName("dev.raskol.classes.combat.VanillaDamageListener");
-            java.lang.reflect.Method monitor = vdlClass.getDeclaredMethod(
-                    "onDamageMonitor", EntityDamageEvent.class);
-            org.bukkit.event.EventHandler ann =
-                    monitor.getAnnotation(org.bukkit.event.EventHandler.class);
-            ok152 = undo != null && ann != null
-                    && ann.priority() == org.bukkit.event.EventPriority.MONITOR;
+            java.lang.reflect.Method monitor = vdlClass.getDeclaredMethod("onDamageMonitor", EntityDamageEvent.class);
+            org.bukkit.event.EventHandler ann = monitor.getAnnotation(org.bukkit.event.EventHandler.class);
+            ok152 = undo != null && ann != null && ann.priority() == org.bukkit.event.EventPriority.MONITOR;
             got152 = "undo=ok monitor-priority=" + (ann != null ? ann.priority() : "none");
         } catch (ReflectiveOperationException ex) {
             got152 = "reflection: " + ex.getClass().getSimpleName();
         } catch (RuntimeException ex) {
             got152 = "exception:" + ex.getClass().getSimpleName();
         }
-        r.check("152", "1.15.6: burst-окно — undoLastBurst + MONITOR-хэндлер отката (2.6-40)",
-                ok152, "DamageCaps.undoLastBurst/VanillaDamageListener.onDamageMonitor", got152);
+        r.check(
+                "152",
+                "1.15.6: burst-окно — undoLastBurst + MONITOR-хэндлер отката (2.6-40)",
+                ok152,
+                "DamageCaps.undoLastBurst/VanillaDamageListener.onDamageMonitor",
+                got152);
 
         boolean hasOverride = Spec2Points.snapshot().treeGates().containsKey("beastmaster");
         boolean beast27 = Spec2Points.rowUnlocked(6, 27, "beastmaster");
         boolean beast26 = Spec2Points.rowUnlocked(6, 26, "beastmaster");
         boolean arms27 = Spec2Points.rowUnlocked(6, 27, "arms");
         boolean ok153 = hasOverride && beast27 && !beast26 && !arms27;
-        r.check("153", "1.15.6: row-gates-by-tree — beastmaster ряд 6 с 27 очков, глобальные с 30 (2.6-89)",
-                ok153, "Spec2Points.rowUnlocked/snapshot.treeGates",
-                "override=" + hasOverride + " beast27=" + beast27
-                        + " beast26=" + beast26 + " arms27=" + arms27);
+        r.check(
+                "153",
+                "1.15.6: row-gates-by-tree — beastmaster ряд 6 с 27 очков, глобальные с 30 (2.6-89)",
+                ok153,
+                "Spec2Points.rowUnlocked/snapshot.treeGates",
+                "override=" + hasOverride + " beast27=" + beast27 + " beast26=" + beast26 + " arms27=" + arms27);
 
         boolean ok154 = false;
         String got154 = "";
@@ -868,22 +988,24 @@ public final class SelftestRunner {
                 }
             }
             ok154 = withdrawBoolean && refund != null;
-            got154 = "withdraw-boolean=" + withdrawBoolean
-                    + " refundCoins=" + (refund != null);
+            got154 = "withdraw-boolean=" + withdrawBoolean + " refundCoins=" + (refund != null);
         } catch (ClassNotFoundException ex) {
             got154 = "class-not-found";
         } catch (RuntimeException ex) {
             got154 = "exception:" + ex.getClass().getSimpleName();
         }
-        r.check("154", "1.15.6: оплата — EconomyHook.withdraw возвращает boolean, Spec2Service.refundCoins есть (2.6-90)",
-                ok154, "EconomyHook.withdraw/Spec2Service.refundCoins", got154);
+        r.check(
+                "154",
+                "1.15.6: оплата — EconomyHook.withdraw возвращает boolean, Spec2Service.refundCoins есть (2.6-90)",
+                ok154,
+                "EconomyHook.withdraw/Spec2Service.refundCoins",
+                got154);
     }
 
     /* ------------------------------ 155–158: 1.15.6 волна 5b ------------------------------ */
 
     private static void wave5bAudit(RaskolClasses plugin, Report r, Player probe) {
-        dev.raskol.classes.attribute.AttributeModifiers mods =
-                new dev.raskol.classes.attribute.AttributeModifiers();
+        dev.raskol.classes.attribute.AttributeModifiers mods = new dev.raskol.classes.attribute.AttributeModifiers();
         UUID probeId155 = UUID.randomUUID();
         int threads = 8;
         int iterations = 200;
@@ -892,29 +1014,31 @@ public final class SelftestRunner {
         AtomicReference<Throwable> failure155 = new AtomicReference<>();
         for (int t = 0; t < threads; t++) {
             final int threadId = t;
-            Thread th = new Thread(() -> {
-                try {
-                    start155.await();
-                    for (int i = 0; i < iterations; i++) {
-                        String src = "src-" + threadId + "-" + i;
-                        int mod = i % 4;
-                        if (mod == 0) {
-                            mods.addPermanentModifier(probeId155, src, 1, 1, 1);
-                        } else if (mod == 1) {
-                            mods.addTimedModifier(probeId155, src, 1, 1, 1, 60_000L);
-                        } else if (mod == 2) {
-                            mods.removeModifiersBySource(probeId155, src);
-                        } else {
-                            mods.activeModifiers(probeId155);
-                            mods.hasModifier(probeId155, src);
+            Thread th = new Thread(
+                    () -> {
+                        try {
+                            start155.await();
+                            for (int i = 0; i < iterations; i++) {
+                                String src = "src-" + threadId + "-" + i;
+                                int mod = i % 4;
+                                if (mod == 0) {
+                                    mods.addPermanentModifier(probeId155, src, 1, 1, 1);
+                                } else if (mod == 1) {
+                                    mods.addTimedModifier(probeId155, src, 1, 1, 1, 60_000L);
+                                } else if (mod == 2) {
+                                    mods.removeModifiersBySource(probeId155, src);
+                                } else {
+                                    mods.activeModifiers(probeId155);
+                                    mods.hasModifier(probeId155, src);
+                                }
+                            }
+                        } catch (Throwable e) {
+                            failure155.compareAndSet(null, e);
+                        } finally {
+                            done155.countDown();
                         }
-                    }
-                } catch (Throwable e) {
-                    failure155.compareAndSet(null, e);
-                } finally {
-                    done155.countDown();
-                }
-            }, "selftest-155-" + t);
+                    },
+                    "selftest-155-" + t);
             th.setDaemon(true);
             th.start();
         }
@@ -928,12 +1052,18 @@ public final class SelftestRunner {
         }
         Throwable err155 = failure155.get();
         boolean ok155 = finished155 && err155 == null;
-        String got155 = !finished155 ? "timeout"
-                : err155 != null ? err155.getClass().getSimpleName()
-                                 + (err155.getMessage() != null ? ":" + err155.getMessage() : "")
-                : "OK(threads=" + threads + "×" + iterations + ")";
-        r.check("155", "AttributeModifiers: 8 потоков × 200 итераций add/remove/has без падений (2.6-86)",
-                ok155, "AttributeModifiers", got155);
+        String got155 = !finished155
+                ? "timeout"
+                : err155 != null
+                        ? err155.getClass().getSimpleName()
+                                + (err155.getMessage() != null ? ":" + err155.getMessage() : "")
+                        : "OK(threads=" + threads + "×" + iterations + ")";
+        r.check(
+                "155",
+                "AttributeModifiers: 8 потоков × 200 итераций add/remove/has без падений (2.6-86)",
+                ok155,
+                "AttributeModifiers",
+                got155);
 
         if (probe == null) {
             r.skip("156", "Spec2Storage purgeForeignTrees (нет probe)");
@@ -943,9 +1073,26 @@ public final class SelftestRunner {
             UUID pu = probe.getUniqueId();
             List<String> current = plugin.getSpec2Service().classTreeIds(pu);
             String foreign = null;
-            String[] allTrees = {"arms", "fury", "guard", "marksmanship", "survival", "beastmaster",
-                    "discipline", "holy", "shadow", "arcane", "fire", "frost",
-                    "assassination", "outlaw", "subtlety", "affliction", "destruction", "demonology"};
+            String[] allTrees = {
+                "arms",
+                "fury",
+                "guard",
+                "marksmanship",
+                "survival",
+                "beastmaster",
+                "discipline",
+                "holy",
+                "shadow",
+                "arcane",
+                "fire",
+                "frost",
+                "assassination",
+                "outlaw",
+                "subtlety",
+                "affliction",
+                "destruction",
+                "demonology"
+            };
             for (String c : allTrees) {
                 if (!current.contains(c)) {
                     foreign = c;
@@ -961,14 +1108,16 @@ public final class SelftestRunner {
                     r.skip("156", "Spec2Storage purgeForeignTrees (нет узла ряда 1)");
                 } else {
                     try {
-                        plugin.getSpec2Service().storage().setRanks(pu, foreign,
-                                Map.of(foreignNode.id(), 1));
+                        plugin.getSpec2Service().storage().setRanks(pu, foreign, Map.of(foreignNode.id(), 1));
                         plugin.getSpec2Service().reconcile(pu);
-                        Map<String, Integer> after = plugin.getSpec2Service().storage()
-                                .getRanks(pu, foreign);
+                        Map<String, Integer> after =
+                                plugin.getSpec2Service().storage().getRanks(pu, foreign);
                         boolean ok156 = after.isEmpty();
-                        r.check("156", "Spec2Storage purgeForeignTrees: ранги чужого дерева удалены после reconcile (2.6-96)",
-                                ok156, "Spec2Storage.storedTreeIds/Spec2Service.reconcile",
+                        r.check(
+                                "156",
+                                "Spec2Storage purgeForeignTrees: ранги чужого дерева удалены после reconcile (2.6-96)",
+                                ok156,
+                                "Spec2Storage.storedTreeIds/Spec2Service.reconcile",
                                 "foreign=" + foreign + " empty=" + after.isEmpty());
                     } finally {
                         plugin.getSpec2Service().storage().setRanks(pu, foreign, new HashMap<>());
@@ -1003,8 +1152,12 @@ public final class SelftestRunner {
             } catch (RuntimeException ex) {
                 got157 = "exception:" + ex.getClass().getSimpleName();
             }
-            r.check("157", "FxService.procByKey: ключ uuid:procId, глобального procId нет (2.6-102)",
-                    ok157, "FxService.procByKey/procVisualCd", got157);
+            r.check(
+                    "157",
+                    "FxService.procByKey: ключ uuid:procId, глобального procId нет (2.6-102)",
+                    ok157,
+                    "FxService.procByKey/procVisualCd",
+                    got157);
         }
 
         if (probe == null) {
@@ -1041,8 +1194,12 @@ public final class SelftestRunner {
             } finally {
                 fx.stopAura(pu);
             }
-            r.check("158", "FxService.startAura: новая аура перезатёрла старую; отложенная задача старой НЕ сняла новую (2.6-103)",
-                    ok158, "FxService.startAura/auras", got158);
+            r.check(
+                    "158",
+                    "FxService.startAura: новая аура перезатёрла старую; отложенная задача старой НЕ сняла новую (2.6-103)",
+                    ok158,
+                    "FxService.startAura/auras",
+                    got158);
         }
     }
 
@@ -1052,8 +1209,11 @@ public final class SelftestRunner {
         Spec2Tree survival = Spec2Registry.treeOf("survival");
         Spec2Node readiness = survival != null ? survival.find("sv_readiness") : null;
         boolean ok159 = readiness != null && "unlock_ability".equals(readiness.type());
-        r.check("159", "HunterTrees.sv_readiness: type=unlock_ability (эффект unlock_ability, 2.6-93)",
-                ok159, "HunterTrees.survival/sv_readiness",
+        r.check(
+                "159",
+                "HunterTrees.sv_readiness: type=unlock_ability (эффект unlock_ability, 2.6-93)",
+                ok159,
+                "HunterTrees.survival/sv_readiness",
                 readiness != null ? readiness.type() : "null-node");
 
         r.skip("160", "BuildTemplates stale rawRanks (требует синтетический builds.yml с disabled-узлом)");
@@ -1064,33 +1224,46 @@ public final class SelftestRunner {
         String f1 = hook.factionOf(stranger1);
         String f2 = hook.factionOf(stranger2);
         boolean ok161 = f1 != null && f2 != null && "".equals(f1) && "".equals(f2);
-        r.check("161", "FactionHook: retry при позднем Core (attempted не фиксируется на ошибке, 2.6-104)",
-                ok161, "FactionHook.factionOf", "f1=" + f1 + " f2=" + f2);
+        r.check(
+                "161",
+                "FactionHook: retry при позднем Core (attempted не фиксируется на ошибке, 2.6-104)",
+                ok161,
+                "FactionHook.factionOf",
+                "f1=" + f1 + " f2=" + f2);
 
         r.skip("162", "StartupChecks effective capacity (требует синтетический disabled-список)");
 
-        List<Affix> pool = List.of(
-                new Affix(ItemStat.STR, 1.0, 10.0, 1.0));
-        Map<ItemStat, Double> rolled =
-                dev.raskol.classes.item.factory.AffixRoller.roll(pool, 1, 30, 42L);
+        List<Affix> pool = List.of(new Affix(ItemStat.STR, 1.0, 10.0, 1.0));
+        Map<ItemStat, Double> rolled = dev.raskol.classes.item.factory.AffixRoller.roll(pool, 1, 30, 42L);
         double val = rolled.getOrDefault(ItemStat.STR, 0.0);
         boolean ok163 = val >= 1.0 && val <= 10.0 && val == Math.round(val * 10.0) / 10.0;
-        r.check("163", "AffixRoller: clamp→round (значение в [min,max] и округлено до десятых, 2.6-28)",
-                ok163, "AffixRoller.roll", "value=" + fmt(val));
+        r.check(
+                "163",
+                "AffixRoller: clamp→round (значение в [min,max] и округлено до десятых, 2.6-28)",
+                ok163,
+                "AffixRoller.roll",
+                "value=" + fmt(val));
 
-        dev.raskol.classes.item.factory.ItemPdc pdc =
-                new dev.raskol.classes.item.factory.ItemPdc(plugin);
+        dev.raskol.classes.item.factory.ItemPdc pdc = new dev.raskol.classes.item.factory.ItemPdc(plugin);
         boolean nullOk = !pdc.hasValidUid(null);
         boolean airOk = !pdc.hasValidUid(new org.bukkit.inventory.ItemStack(Material.AIR));
         boolean ok164 = nullOk && airOk;
-        r.check("164", "ItemPdc.hasValidUid: null/air → false без NPE (явный null-check, 2.6-29)",
-                ok164, "ItemPdc.hasValidUid", "null=" + nullOk + " air=" + airOk);
+        r.check(
+                "164",
+                "ItemPdc.hasValidUid: null/air → false без NPE (явный null-check, 2.6-29)",
+                ok164,
+                "ItemPdc.hasValidUid",
+                "null=" + nullOk + " air=" + airOk);
 
         double meleeCap = plugin.getConfig().getDouble("attributes.crit.melee-cap", 40.0);
         double spellCap = plugin.getConfig().getDouble("attributes.crit.spell-cap", 35.0);
         boolean ok165 = meleeCap == 40.0 && spellCap == 35.0;
-        r.check("165", "AttributeService: critMelee/critSpell cap читаются из конфига (40/35, 2.6-87)",
-                ok165, "config attributes.crit.*-cap", "melee=" + meleeCap + " spell=" + spellCap);
+        r.check(
+                "165",
+                "AttributeService: critMelee/critSpell cap читаются из конфига (40/35, 2.6-87)",
+                ok165,
+                "config attributes.crit.*-cap",
+                "melee=" + meleeCap + " spell=" + spellCap);
 
         r.skip("166", "Spec2Tree.isReachable cycle-guard (требует синтетическое дерево с циклом)");
 
@@ -1101,26 +1274,25 @@ public final class SelftestRunner {
         sender.sendMessage(Component.text("────────── Selftest Report ──────────", NamedTextColor.GOLD));
         for (String line : r.text().split("\n")) {
             if (!line.isEmpty()) {
-                NamedTextColor lineColor = line.startsWith("✓") ? NamedTextColor.GREEN
-                        : line.startsWith("↷") ? NamedTextColor.YELLOW
-                        : NamedTextColor.RED;
+                NamedTextColor lineColor = line.startsWith("✓")
+                        ? NamedTextColor.GREEN
+                        : line.startsWith("↷") ? NamedTextColor.YELLOW : NamedTextColor.RED;
                 sender.sendMessage(Component.text(line, lineColor));
             }
         }
         int total = r.passed + r.failed;
         NamedTextColor color = r.failed == 0 ? NamedTextColor.GREEN : NamedTextColor.RED;
         sender.sendMessage(Component.text("───────────────────────────────────", NamedTextColor.GOLD));
-        sender.sendMessage(Component.text("Итог: " + r.passed + "/" + total + " PASS"
-                + (r.skipped > 0 ? " · skipped: " + r.skipped : ""), color));
+        sender.sendMessage(Component.text(
+                "Итог: " + r.passed + "/" + total + " PASS" + (r.skipped > 0 ? " · skipped: " + r.skipped : ""),
+                color));
         if (r.failed > 0) {
-            sender.sendMessage(Component.text(
-                    "Есть проблемы — смотри виновника в каждой строке.",
-                    NamedTextColor.RED));
+            sender.sendMessage(Component.text("Есть проблемы — смотри виновника в каждой строке.", NamedTextColor.RED));
         }
         if (r.skipped > 0) {
             sender.sendMessage(Component.text(
                     "Пропущенные чеки — probe-зависимые, live-probe выключен или требуют синтетический сценарий: "
-                    + "запусти /rc selftest от игрока нужного класса.",
+                            + "запусти /rc selftest от игрока нужного класса.",
                     NamedTextColor.YELLOW));
         }
         plugin.getLogger().info("Selftest: " + r.passed + "/" + total + " PASS, skipped=" + r.skipped);
@@ -1152,11 +1324,19 @@ public final class SelftestRunner {
 
         double[] sp1 = AttributeMath.splitEff(50.0, 50.0, 50.0);
         boolean sp1ok = sp1 != null && sp1.length == 2 && sp1[0] == 25.0 && sp1[1] == 25.0;
-        r.check("10", "splitEff(50,50,50)=[25,25]", sp1ok, "splitEff",
+        r.check(
+                "10",
+                "splitEff(50,50,50)=[25,25]",
+                sp1ok,
+                "splitEff",
                 sp1 != null && sp1.length == 2 ? sp1[0] + "," + sp1[1] : "null");
         double[] sp2 = AttributeMath.splitEff(0.0, 100.0, 50.0);
         boolean sp2ok = sp2 != null && sp2.length == 2 && sp2[0] == 0.0 && sp2[1] == 50.0;
-        r.check("11", "splitEff(0,100,50)=[0,50]", sp2ok, "splitEff",
+        r.check(
+                "11",
+                "splitEff(0,100,50)=[0,50]",
+                sp2ok,
+                "splitEff",
                 sp2 != null && sp2.length == 2 ? sp2[0] + "," + sp2[1] : "null");
 
         boolean f1 = AttributeMath.isFront(0.0, 90.0);
@@ -1169,12 +1349,9 @@ public final class SelftestRunner {
         double wpWarrior = PowerService.weaponPowerFormula(30.0, 60.0, 30.0, 1.5, 0.5);
         double spMage = PowerService.spellPowerFormula(30.0, 60.0, 1.5);
         double hpowPriest = PowerService.healPowerFormula(25.0, 60.0, 1.4);
-        r.check("15a", "WP(воин 40 ур.)=135", Math.abs(wpWarrior - 135.0) < 1e-6,
-                "weaponPowerFormula", wpWarrior);
-        r.check("15b", "SP(маг 40 ур.)=120", Math.abs(spMage - 120.0) < 1e-6,
-                "spellPowerFormula", spMage);
-        r.check("15c", "HPow(жрец 40 ур.)=109", Math.abs(hpowPriest - 109.0) < 1e-6,
-                "healPowerFormula", hpowPriest);
+        r.check("15a", "WP(воин 40 ур.)=135", Math.abs(wpWarrior - 135.0) < 1e-6, "weaponPowerFormula", wpWarrior);
+        r.check("15b", "SP(маг 40 ур.)=120", Math.abs(spMage - 120.0) < 1e-6, "spellPowerFormula", spMage);
+        r.check("15c", "HPow(жрец 40 ур.)=109", Math.abs(hpowPriest - 109.0) < 1e-6, "healPowerFormula", hpowPriest);
 
         double c1 = CombatService.cappedDamage(9999.0, 1300.0, 35.0);
         double c2 = CombatService.cappedDamage(100.0, 1300.0, 35.0);
@@ -1187,20 +1364,19 @@ public final class SelftestRunner {
     /* ------------------------------ 17–20: TTK и уровни ------------------------------ */
 
     private static void ttkLevels(RaskolClasses plugin, Report r) {
-        BalanceSimulator.DuelResult ww = BalanceSimulator.duel(
-                plugin, PlayerClass.WARRIOR, PlayerClass.WARRIOR, 40, 42L);
+        BalanceSimulator.DuelResult ww =
+                BalanceSimulator.duel(plugin, PlayerClass.WARRIOR, PlayerClass.WARRIOR, 40, 42L);
         boolean ok17 = !ww.timeout() && ww.ttkSeconds() >= 10.0 && ww.ttkSeconds() <= 60.0;
         r.check("17", "TTK воин↔воин ∈ [10,60] с (якорь 20с)", ok17, "BalanceSimulator", ww.ttkSeconds());
 
-        BalanceSimulator.DuelResult pp = BalanceSimulator.duel(
-                plugin, PlayerClass.PRIEST, PlayerClass.PRIEST, 40, 42L);
+        BalanceSimulator.DuelResult pp = BalanceSimulator.duel(plugin, PlayerClass.PRIEST, PlayerClass.PRIEST, 40, 42L);
         boolean ok18 = pp.timeout() || pp.ttkSeconds() >= 30.0;
         r.check("18", "жрец↔жрец ≥30 с или timeout", ok18, "BalanceSimulator", pp.ttkSeconds());
 
-        int cl1 = CharacterLevelService.topNAverage(new int[]{99, 70, 40, 20, 10, 5, 0}, 5);
+        int cl1 = CharacterLevelService.topNAverage(new int[] {99, 70, 40, 20, 10, 5, 0}, 5);
         r.check("19", "topNAverage([99..0],5)=47", cl1 == 47, "topNAverage", cl1);
 
-        int cl2 = CharacterLevelService.topNAverage(new int[]{15, 0, 0, 0, 0}, 5);
+        int cl2 = CharacterLevelService.topNAverage(new int[] {15, 0, 0, 0, 0}, 5);
         r.check("20", "topNAverage([15,0,0,0,0],5)=3", cl2 == 3, "topNAverage", cl2);
     }
 
@@ -1225,14 +1401,16 @@ public final class SelftestRunner {
         int e60 = Spec2Points.earnedPoints(60);
         int e99 = Spec2Points.earnedPoints(99);
         boolean ok22 = e14 == 0 && e15 == 1 && e40 == 26 && e60 == 46 && e99 == 46;
-        r.check("22", "очки spec2: 14→0, 15→1, 40→26, 60→46, 99→46",
-                ok22, "Spec2Points.earnedPoints",
+        r.check(
+                "22",
+                "очки spec2: 14→0, 15→1, 40→26, 60→46, 99→46",
+                ok22,
+                "Spec2Points.earnedPoints",
                 e14 + "/" + e15 + "/" + e40 + "/" + e60 + "/" + e99);
 
         Spec2Tree arms23 = Spec2Registry.treeOf("arms");
         int cost = arms23 != null ? arms23.capacity() : -1;
-        r.check("23", "ёмкость дерева arms = 51 (>46 — закрыть нельзя)", cost == 51,
-                "Spec2Tree.capacity", cost);
+        r.check("23", "ёмкость дерева arms = 51 (>46 — закрыть нельзя)", cost == 51, "Spec2Tree.capacity", cost);
 
         if (probe == null) {
             r.skip("24", "reconcile-цикл spec2");
@@ -1250,16 +1428,22 @@ public final class SelftestRunner {
             Spec2Tree tree24 = Spec2Registry.treeOf(t0);
             Spec2Node n24 = firstRow1(tree24);
             if (tree24 != null && n24 != null) {
-                Map<String, Integer> before = new HashMap<>(
-                        plugin.getSpec2Service().storage().getRanks(pu24, t0));
+                Map<String, Integer> before =
+                        new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu24, t0));
                 try {
                     plugin.getSpec2Service().storage().setRanks(pu24, t0, Map.of(n24.id(), 1));
                     plugin.getSpec2Service().reconcile(pu24);
-                    boolean bought = plugin.getSpec2Service().storage().getRanks(pu24, t0)
-                            .getOrDefault(n24.id(), 0) == 1;
+                    boolean bought = plugin.getSpec2Service()
+                                    .storage()
+                                    .getRanks(pu24, t0)
+                                    .getOrDefault(n24.id(), 0)
+                            == 1;
                     plugin.getSpec2Service().storage().setRanks(pu24, t0, before);
                     plugin.getSpec2Service().reconcile(pu24);
-                    boolean restored = plugin.getSpec2Service().storage().getRanks(pu24, t0).equals(before);
+                    boolean restored = plugin.getSpec2Service()
+                            .storage()
+                            .getRanks(pu24, t0)
+                            .equals(before);
                     ok24 = bought && restored;
                     got24 = bought + "/" + restored;
                 } finally {
@@ -1269,8 +1453,7 @@ public final class SelftestRunner {
                 got24 = "no-tree-or-node:" + t0;
             }
         }
-        r.check("24", "reconcile-цикл spec2: ранг→reconcile→откат",
-                ok24, "Spec2Service.reconcile", got24);
+        r.check("24", "reconcile-цикл spec2: ранг→reconcile→откат", ok24, "Spec2Service.reconcile", got24);
     }
 
     /* ------------------------------ 29–30: ресурс-окно и consume ------------------------------ */
@@ -1289,7 +1472,9 @@ public final class SelftestRunner {
         boolean exactOk = rsConsume.consume(10.0);
         boolean zeroed = rsConsume.getValue() == 0.0;
         boolean freeOk = rsConsume.consume(0.0);
-        r.check("30", "consume: сверх/точное/обнуление/0",
+        r.check(
+                "30",
+                "consume: сверх/точное/обнуление/0",
                 overDenied && overIntact && exactOk && zeroed && freeOk,
                 "ResourceState.consume",
                 overDenied + "/" + overIntact + "/" + exactOk + "/" + zeroed + "/" + freeOk);
@@ -1317,8 +1502,10 @@ public final class SelftestRunner {
             Spec2Node nA = firstRow1(Spec2Registry.treeOf(tA));
             Spec2Node nB = firstRow1(Spec2Registry.treeOf(tB));
             if (nA != null && nB != null) {
-                Map<String, Integer> bA = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu, tA));
-                Map<String, Integer> bB = new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu, tB));
+                Map<String, Integer> bA =
+                        new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu, tA));
+                Map<String, Integer> bB =
+                        new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu, tB));
                 try {
                     plugin.getSpec2Service().storage().setRanks(pu, tA, Map.of(nA.id(), 1));
                     plugin.getSpec2Service().storage().setRanks(pu, tB, Map.of(nB.id(), 1));
@@ -1334,8 +1521,7 @@ public final class SelftestRunner {
                 }
             }
         }
-        r.check("31", "глобальный бюджет spec2: 2 дерева = 2 очка из общего пула",
-                ok31, "spentGlobal", got31);
+        r.check("31", "глобальный бюджет spec2: 2 дерева = 2 очка из общего пула", ok31, "spentGlobal", got31);
 
         boolean ok32 = false;
         String got32 = "no-trees";
@@ -1353,15 +1539,16 @@ public final class SelftestRunner {
                 }
             }
             if (tree32 != null && withPrereq != null) {
-                Map<String, Integer> before = new HashMap<>(
-                        plugin.getSpec2Service().storage().getRanks(pu, t0));
+                Map<String, Integer> before =
+                        new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu, t0));
                 try {
                     Map<String, Integer> bad = new HashMap<>();
                     bad.put("nonexistent_node_xyz", 1);
                     bad.put(withPrereq.id(), 1);
                     plugin.getSpec2Service().storage().setRanks(pu, t0, bad);
                     plugin.getSpec2Service().reconcile(pu);
-                    Map<String, Integer> after = plugin.getSpec2Service().storage().getRanks(pu, t0);
+                    Map<String, Integer> after =
+                            plugin.getSpec2Service().storage().getRanks(pu, t0);
                     ok32 = after.isEmpty();
                     got32 = String.valueOf(after.size());
                 } finally {
@@ -1371,8 +1558,12 @@ public final class SelftestRunner {
                 got32 = "no-prereq-node";
             }
         }
-        r.check("32", "reconcile-прунинг spec2: неизвестный узел и узел без пререка удаляются",
-                ok32, "Spec2Service.validate", got32);
+        r.check(
+                "32",
+                "reconcile-прунинг spec2: неизвестный узел и узел без пререка удаляются",
+                ok32,
+                "Spec2Service.validate",
+                got32);
     }
 
     /* ------------------------------ 33–35: план B ------------------------------ */
@@ -1393,20 +1584,27 @@ public final class SelftestRunner {
         double carrier = attrs.carrierMaxHp(probe);
         double scale = attrs.scale(probe);
         boolean ok33 = Math.abs(scale - carrier / formula) < 1e-6;
-        r.check("33", "scale = carrier/formula", ok33, "scale",
-                String.format(Locale.ROOT, "%.4f", scale));
+        r.check("33", "scale = carrier/formula", ok33, "scale", String.format(Locale.ROOT, "%.4f", scale));
 
         double hpBefore = probe.getHealth();
         attrs.healFormula(probe, formula * 0.5);
         double hpAfter = probe.getHealth();
         boolean ok34 = hpAfter <= carrier + 0.01;
         probe.setHealth(hpBefore);
-        r.check("34", "healFormula не превышает carrier", ok34, "healFormula",
+        r.check(
+                "34",
+                "healFormula не превышает carrier",
+                ok34,
+                "healFormula",
                 String.format(Locale.ROOT, "%.1f→%.1f", hpBefore, hpAfter));
 
         double target = attrs.targetCarrier(pu);
         boolean ok35 = Math.abs(target - Math.min(formula, AttributeService.VANILLA_MAX_HEALTH_CAP)) < 1e-6;
-        r.check("35", "targetCarrier = min(formula, 1024)", ok35, "targetCarrier",
+        r.check(
+                "35",
+                "targetCarrier = min(formula, 1024)",
+                ok35,
+                "targetCarrier",
                 String.format(Locale.ROOT, "%.1f", target));
     }
 
@@ -1425,8 +1623,11 @@ public final class SelftestRunner {
         rsDecay.setValue(100.0);
         rsDecay.tickDelta(5.0);
         boolean clampedHigh = rsDecay.getValue() == 100.0;
-        r.check("36", "tickDelta: декэй/набор/клампы",
-                decayed && gained && clampedLow && clampedHigh, "ResourceState.tickDelta",
+        r.check(
+                "36",
+                "tickDelta: декэй/набор/клампы",
+                decayed && gained && clampedLow && clampedHigh,
+                "ResourceState.tickDelta",
                 decayed + "/" + gained + "/" + clampedLow + "/" + clampedHigh);
     }
 
@@ -1446,8 +1647,11 @@ public final class SelftestRunner {
             }
         }
         boolean ok37 = sealEmpty && antiEmpty && gatesMsgOk && gateCodes == 9;
-        r.check("37", "чернокнижник: реестры пусты; 9 кодов гейтов",
-                ok37, "WarlockAbilities/FoliantService",
+        r.check(
+                "37",
+                "чернокнижник: реестры пусты; 9 кодов гейтов",
+                ok37,
+                "WarlockAbilities/FoliantService",
                 sealEmpty + "/" + antiEmpty + "/" + gatesMsgOk + "/" + gateCodes);
 
         RaskolConfig cfg = plugin.getRaskolConfig();
@@ -1458,19 +1662,36 @@ public final class SelftestRunner {
         double nether = cfg.warlockNetherMult();
         double decay = cfg.warlockResourceDecay();
         double onKill = cfg.warlockResourceOnKill();
-        boolean ok38 = open > 0.0 && overflow > open
-                && recoil > 0.0 && recoil <= 100.0
-                && recoilCap > 0.0 && recoilCap <= 100.0
-                && nether >= 1.0 && decay < 0.0 && onKill > 0.0;
-        r.check("38", "конфиг WARLOCK sanity", ok38, "RaskolConfig.warlock*",
-                String.format(Locale.ROOT, "%.1f/%.1f/%.2f/%.1f/%.1f/%.1f/%.1f",
-                        open, overflow, recoil, recoilCap, nether, decay, onKill));
+        boolean ok38 = open > 0.0
+                && overflow > open
+                && recoil > 0.0
+                && recoil <= 100.0
+                && recoilCap > 0.0
+                && recoilCap <= 100.0
+                && nether >= 1.0
+                && decay < 0.0
+                && onKill > 0.0;
+        r.check(
+                "38",
+                "конфиг WARLOCK sanity",
+                ok38,
+                "RaskolConfig.warlock*",
+                String.format(
+                        Locale.ROOT,
+                        "%.1f/%.1f/%.2f/%.1f/%.1f/%.1f/%.1f",
+                        open,
+                        overflow,
+                        recoil,
+                        recoilCap,
+                        nether,
+                        decay,
+                        onKill));
 
         String got39;
         boolean ok39;
         try {
-            BalanceSimulator.DuelResult wl = BalanceSimulator.duel(
-                    plugin, PlayerClass.WARLOCK, PlayerClass.WARRIOR, 40, 42L);
+            BalanceSimulator.DuelResult wl =
+                    BalanceSimulator.duel(plugin, PlayerClass.WARLOCK, PlayerClass.WARRIOR, 40, 42L);
             ok39 = wl.timeout() || (wl.ttkSeconds() >= 5.0 && wl.ttkSeconds() <= 60.0);
             got39 = wl.timeout() ? "timeout" : fmt(wl.ttkSeconds()) + "s";
         } catch (RuntimeException ex) {
@@ -1494,19 +1715,23 @@ public final class SelftestRunner {
         double r1 = WarlockMath.recoilAmount(100.0, 6.66, 840.0, 30.0);
         double r2 = WarlockMath.recoilAmount(10000.0, 6.66, 840.0, 30.0);
         double rHp = WarlockMath.applyRecoil(5.0, 10.0, 1.0);
-        boolean ok41 = Math.abs(r1 - 6.66) < 1e-6
-                && Math.abs(r2 - 252.0) < 1e-6
-                && rHp == 1.0;
-        r.check("41", "recoil: 6.66/252/minHp1", ok41, "WarlockMath.recoil",
+        boolean ok41 = Math.abs(r1 - 6.66) < 1e-6 && Math.abs(r2 - 252.0) < 1e-6 && rHp == 1.0;
+        r.check(
+                "41",
+                "recoil: 6.66/252/minHp1",
+                ok41,
+                "WarlockMath.recoil",
                 String.format(Locale.ROOT, "%.2f/%.1f/%.1f", r1, r2, rHp));
 
         double dH1 = WarlockMath.drainHeal(100.0, 0.666, 0.85);
         double dH2 = WarlockMath.drainHeal(100.0, 1.0, 0.85);
         double dH3 = WarlockMath.drainHeal(0.0, 0.666, 0.85);
-        boolean ok42 = Math.abs(dH1 - 66.6) < 1e-6
-                && Math.abs(dH2 - 85.0) < 1e-6
-                && dH3 == 0.0;
-        r.check("42", "drain: 66.6/85/0", ok42, "WarlockMath.drainHeal",
+        boolean ok42 = Math.abs(dH1 - 66.6) < 1e-6 && Math.abs(dH2 - 85.0) < 1e-6 && dH3 == 0.0;
+        r.check(
+                "42",
+                "drain: 66.6/85/0",
+                ok42,
+                "WarlockMath.drainHeal",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f", dH1, dH2, dH3));
 
         double m1 = WarlockMath.damageMult(80.0, 75.0, 6.0, 1.1, false);
@@ -1515,11 +1740,12 @@ public final class SelftestRunner {
         boolean ig1 = WarlockMath.ignoreMagicResist(0.20, 1.0, 0.25);
         boolean ig2 = WarlockMath.ignoreMagicResist(1.0, 0.25, 0.25);
         boolean ig3 = !WarlockMath.ignoreMagicResist(1.0, 1.0, 0.25);
-        boolean ok43 = Math.abs(m1 - 1.32) < 1e-6
-                && Math.abs(m2 - 7.92) < 1e-6
-                && m3 == 1.0
-                && ig1 && ig2 && ig3;
-        r.check("43", "damageMult/ignore sanity", ok43, "WarlockMath.damageMult/ignore",
+        boolean ok43 = Math.abs(m1 - 1.32) < 1e-6 && Math.abs(m2 - 7.92) < 1e-6 && m3 == 1.0 && ig1 && ig2 && ig3;
+        r.check(
+                "43",
+                "damageMult/ignore sanity",
+                ok43,
+                "WarlockMath.damageMult/ignore",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f/%s%s%s", m1, m2, m3, ig1, ig2, ig3));
     }
 
@@ -1548,22 +1774,27 @@ public final class SelftestRunner {
                 && Spec2Points.rowUnlocked(2, 5)
                 && !Spec2Points.rowUnlocked(6, 29)
                 && Spec2Points.rowUnlocked(6, 30);
-        r.check("46", "гейты рядов spec2: 4→ряд2 закрыт, 5→открыт; 29→ульт закрыт, 30→открыт",
-                ok46, "Spec2Points.rowUnlocked",
+        r.check(
+                "46",
+                "гейты рядов spec2: 4→ряд2 закрыт, 5→открыт; 29→ульт закрыт, 30→открыт",
+                ok46,
+                "Spec2Points.rowUnlocked",
                 Spec2Points.rowUnlocked(2, 4) + "/" + Spec2Points.rowUnlocked(2, 5) + "/"
                         + Spec2Points.rowUnlocked(6, 29) + "/" + Spec2Points.rowUnlocked(6, 30));
 
         int rsBase = plugin.getConfig().getInt("spec2.respec-base-cost", 0);
         int rsPer = plugin.getConfig().getInt("spec2.respec-per-level", 0);
         boolean ok47 = rsBase == 250 && rsPer == 10;
-        r.check("47", "respec spec2: base=250, per-level=10", ok47,
-                "config spec2.respec-*", rsBase + "/" + rsPer);
+        r.check("47", "respec spec2: base=250, per-level=10", ok47, "config spec2.respec-*", rsBase + "/" + rsPer);
 
         int perClassCount = plugin.getRaskolConfig().kitLoader().loadedCount();
-        double recoilFromLoader = plugin.getRaskolConfig().classDouble(
-                PlayerClass.WARLOCK, "recoil.percent", 6.66);
+        double recoilFromLoader = plugin.getRaskolConfig().classDouble(PlayerClass.WARLOCK, "recoil.percent", 6.66);
         boolean ok48 = recoilFromLoader >= 0.0 && Double.isFinite(recoilFromLoader);
-        r.check("48", "per-class loader sanity", ok48, "KitConfigLoader/classDouble",
+        r.check(
+                "48",
+                "per-class loader sanity",
+                ok48,
+                "KitConfigLoader/classDouble",
                 perClassCount + "/" + recoilFromLoader);
     }
 
@@ -1578,7 +1809,11 @@ public final class SelftestRunner {
                 && School.SHADOW.channel() == DamageType.MAGIC
                 && School.HOLY.channel() == DamageType.MAGIC
                 && School.ARCANE.channel() == DamageType.MAGIC;
-        r.check("49", "School→channel", ok49, "School.channel",
+        r.check(
+                "49",
+                "School→channel",
+                ok49,
+                "School.channel",
                 School.PHYSICAL.channel() + "/" + School.FIRE.channel() + "/" + School.TRUE.channel());
 
         SchoolConfig sc = new SchoolConfig(plugin);
@@ -1589,7 +1824,11 @@ public final class SelftestRunner {
                 && sc.schoolOf(EntityDamageEvent.DamageCause.LIGHTNING) == School.ARCANE
                 && sc.schoolOf(EntityDamageEvent.DamageCause.ENTITY_ATTACK) == School.PHYSICAL
                 && sc.schoolOf(EntityDamageEvent.DamageCause.FALL) == School.TRUE;
-        r.check("50", "vanilla-school map", ok50, "SchoolConfig.schoolOf",
+        r.check(
+                "50",
+                "vanilla-school map",
+                ok50,
+                "SchoolConfig.schoolOf",
                 sc.schoolOf(EntityDamageEvent.DamageCause.FIRE) + "/"
                         + sc.schoolOf(EntityDamageEvent.DamageCause.POISON) + "/"
                         + sc.schoolOf(EntityDamageEvent.DamageCause.FALL));
@@ -1605,18 +1844,29 @@ public final class SelftestRunner {
                 && Math.abs(fireLegacy.magic() - 30.0) < 1e-9
                 && fireLegacy.physical() == 0.0
                 && fireLegacy.trueDamage() == 0.0;
-        r.check("51", "SchoolProfile legacy round-trip", ok51, "SchoolProfile.toLegacy",
-                String.format(Locale.ROOT, "%.1f/%.1f/%.1f dom=%s",
-                        back.physical(), back.magic(), back.trueDamage(), legacy.dominant()));
+        r.check(
+                "51",
+                "SchoolProfile legacy round-trip",
+                ok51,
+                "SchoolProfile.toLegacy",
+                String.format(
+                        Locale.ROOT,
+                        "%.1f/%.1f/%.1f dom=%s",
+                        back.physical(),
+                        back.magic(),
+                        back.trueDamage(),
+                        legacy.dominant()));
 
         Penetration pen52 = Penetration.of(20.0, 0.25);
         double mit1 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 0.0, false, 0.80);
         double mit2 = SchoolMitigation.mitigationFor(50.0, pen52, 0.40, 30.0, true, 0.80);
         double mit3 = SchoolMitigation.mitigationFor(95.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
-        boolean ok52 = Math.abs(mit1 - 0.225) < 1e-6
-                && Math.abs(mit2 - 0.4575) < 1e-6
-                && Math.abs(mit3 - 0.80) < 1e-6;
-        r.check("52", "mitigation с pen/elemental/cap", ok52, "SchoolMitigation",
+        boolean ok52 = Math.abs(mit1 - 0.225) < 1e-6 && Math.abs(mit2 - 0.4575) < 1e-6 && Math.abs(mit3 - 0.80) < 1e-6;
+        r.check(
+                "52",
+                "mitigation с pen/elemental/cap",
+                ok52,
+                "SchoolMitigation",
                 String.format(Locale.ROOT, "%.4f/%.4f/%.4f", mit1, mit2, mit3));
 
         SchoolImmunity imm = new SchoolImmunity(plugin);
@@ -1625,7 +1875,11 @@ public final class SelftestRunner {
                 && imm.multiplierFor(EntityType.BLAZE, School.HOLY) == 1.0
                 && imm.multiplierFor(EntityType.ZOMBIE, School.FIRE) == 1.0
                 && Math.abs(imm.multiplierFor(EntityType.WITHER_SKELETON, School.SHADOW) - 0.5) < 1e-9;
-        r.check("53", "immunity sanity", ok53, "SchoolImmunity",
+        r.check(
+                "53",
+                "immunity sanity",
+                ok53,
+                "SchoolImmunity",
                 imm.multiplierFor(EntityType.BLAZE, School.FIRE) + "/"
                         + imm.multiplierFor(EntityType.BLAZE, School.FROST) + "/"
                         + imm.multiplierFor(EntityType.WITHER_SKELETON, School.SHADOW));
@@ -1636,7 +1890,11 @@ public final class SelftestRunner {
                 && Math.abs(p54.pct() - 0.40) < 1e-9
                 && Penetration.NONE.pct() == 0.0
                 && Math.abs(taken54 - 112.5) < 1e-6;
-        r.check("54", "penetration clamp + taken", ok54, "Penetration/SchoolMitigation",
+        r.check(
+                "54",
+                "penetration clamp + taken",
+                ok54,
+                "Penetration/SchoolMitigation",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f", p54.flat(), p54.pct(), taken54));
 
         var elem = plugin.getCombat().elemental();
@@ -1648,47 +1906,58 @@ public final class SelftestRunner {
         double singleRes = elem.resistOf(eu, School.FIRE);
         elem.removeAll(eu);
         double zeroRes = elem.resistOf(eu, School.FIRE);
-        boolean ok55 = Math.abs(cappedRes - 60.0) < 1e-9
-                && Math.abs(singleRes - 40.0) < 1e-9
-                && zeroRes == 0.0;
-        r.check("55", "elemental: суммирование/кап/снятие", ok55, "ElementalResistService",
+        boolean ok55 = Math.abs(cappedRes - 60.0) < 1e-9 && Math.abs(singleRes - 40.0) < 1e-9 && zeroRes == 0.0;
+        r.check(
+                "55",
+                "elemental: суммирование/кап/снятие",
+                ok55,
+                "ElementalResistService",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f", cappedRes, singleRes, zeroRes));
 
         UUID eu2 = UUID.randomUUID();
         elem.addPermanent(eu2, "selftest_t3", School.FROST, 40.0);
         double elPct = elem.resistOf(eu2, School.FROST);
-        double mitCombined = SchoolMitigation.mitigationFor(
-                50.0, Penetration.NONE, 0.40, elPct, true, 0.80);
+        double mitCombined = SchoolMitigation.mitigationFor(50.0, Penetration.NONE, 0.40, elPct, true, 0.80);
         elem.removeAll(eu2);
-        boolean ok56 = Math.abs(elPct - 40.0) < 1e-9
-                && Math.abs(mitCombined - 0.70) < 1e-6;
-        r.check("56", "elemental→mitigation связка", ok56, "SchoolMitigation(elemental)",
+        boolean ok56 = Math.abs(elPct - 40.0) < 1e-9 && Math.abs(mitCombined - 0.70) < 1e-6;
+        r.check(
+                "56",
+                "elemental→mitigation связка",
+                ok56,
+                "SchoolMitigation(elemental)",
                 String.format(Locale.ROOT, "%.1f/%.4f", elPct, mitCombined));
 
         double g1 = PenTraitsService.clampSumPercent(60.0, 0.40);
         double g2 = PenTraitsService.clampSumPercent(10.0, 0.40);
         double g3 = PenTraitsService.clampSumPercent(-5.0, 0.40);
         double g4 = PenTraitsService.clampSumPercent(Double.NaN, 0.40);
-        boolean ok57 = Math.abs(g1 - 0.40) < 1e-9
-                && Math.abs(g2 - 0.10) < 1e-9
-                && g3 == 0.0
-                && g4 == 0.0;
-        r.check("57", "item-pen clamp", ok57, "PenTraitsService.clampSumPercent",
+        boolean ok57 = Math.abs(g1 - 0.40) < 1e-9 && Math.abs(g2 - 0.10) < 1e-9 && g3 == 0.0 && g4 == 0.0;
+        r.check(
+                "57",
+                "item-pen clamp",
+                ok57,
+                "PenTraitsService.clampSumPercent",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f/%.1f", g1, g2, g3, g4));
 
         Penetration itemPen = Penetration.of(0.0, PenTraitsService.clampSumPercent(25.0, 0.40));
         double mitItem = SchoolMitigation.mitigationFor(60.0, itemPen, 0.40, 0.0, false, 0.80);
         boolean ok58 = Math.abs(mitItem - 0.45) < 1e-6;
-        r.check("58", "item-pen→mitigation", ok58, "SchoolMitigation(itemPen)",
+        r.check(
+                "58",
+                "item-pen→mitigation",
+                ok58,
+                "SchoolMitigation(itemPen)",
                 String.format(Locale.ROOT, "%.4f", mitItem));
 
         double pc1 = PenTraitsService.clampSumPercent(45.0, 0.40);
         double pc2 = PenTraitsService.clampSumPercent(15.0, 0.40);
         double pc3 = PenTraitsService.clampSumPercent(-3.0, 0.40);
-        boolean ok59 = Math.abs(pc1 - 0.40) < 1e-9
-                && Math.abs(pc2 - 0.15) < 1e-9
-                && pc3 == 0.0;
-        r.check("59", "pen-сумма clamp", ok59, "PenTraitsService.clampSumPercent",
+        boolean ok59 = Math.abs(pc1 - 0.40) < 1e-9 && Math.abs(pc2 - 0.15) < 1e-9 && pc3 == 0.0;
+        r.check(
+                "59",
+                "pen-сумма clamp",
+                ok59,
+                "PenTraitsService.clampSumPercent",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.1f", pc1, pc2, pc3));
 
         PenTraitsService pts = new PenTraitsService(plugin);
@@ -1697,24 +1966,32 @@ public final class SelftestRunner {
         double g60 = pts.schoolPenFraction(pu60, School.FIRE, 0.40);
         double c60 = pts.channelPen(pu60, true, 0.40).pct();
         boolean ok60 = t60 == 0.0 && g60 == 0.0 && c60 == 0.0;
-        r.check("60", "pen-трейты без контента = 0 (spec2/gear/channel)", ok60,
+        r.check(
+                "60",
+                "pen-трейты без контента = 0 (spec2/gear/channel)",
+                ok60,
                 "PenTraitsService.*",
                 String.format(Locale.ROOT, "%.1f/%.1f/%.1f", t60, g60, c60));
 
         double l1 = SchoolMitigation.mitigationFor(0.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
         double l2 = SchoolMitigation.mitigationFor(35.0, Penetration.NONE, 0.40, 0.0, false, 0.80);
         double l3 = SchoolMitigation.mitigationFor(90.0, Penetration.NONE, 0.40, 0.0, false, 0.90);
-        boolean ok61 = l1 == 0.0
-                && Math.abs(l2 - 0.35) < 1e-9
-                && Math.abs(l3 - 0.90) < 1e-9;
-        r.check("61", "legacy проводка при pen=0", ok61, "SchoolMitigation(legacy)",
+        boolean ok61 = l1 == 0.0 && Math.abs(l2 - 0.35) < 1e-9 && Math.abs(l3 - 0.90) < 1e-9;
+        r.check(
+                "61",
+                "legacy проводка при pen=0",
+                ok61,
+                "SchoolMitigation(legacy)",
                 String.format(Locale.ROOT, "%.2f/%.2f/%.2f", l1, l2, l3));
 
         double el62 = CombatMath.effectiveResist(40.0, 0.0, 0.25, 0.40);
         double mit62 = SchoolMitigation.mitigationFor(45.0, Penetration.NONE, 0.40, el62, true, 0.90);
-        boolean ok62 = Math.abs(el62 - 30.0) < 1e-9
-                && Math.abs(mit62 - 0.615) < 1e-6;
-        r.check("62", "school-pen→elemental", ok62, "CombatMath/SchoolMitigation",
+        boolean ok62 = Math.abs(el62 - 30.0) < 1e-9 && Math.abs(mit62 - 0.615) < 1e-6;
+        r.check(
+                "62",
+                "school-pen→elemental",
+                ok62,
+                "CombatMath/SchoolMitigation",
                 String.format(Locale.ROOT, "%.1f/%.4f", el62, mit62));
 
         CombatService.setCurrentCastSchool(School.FIRE);
@@ -1725,23 +2002,50 @@ public final class SelftestRunner {
         School s63c = CombatService.currentCastSchool();
         CombatService.clearCastSchool();
         boolean ok63 = s63a == School.FIRE && s63b == null && s63c == School.PHYSICAL;
-        r.check("63", "cast-school ThreadLocal", ok63, "CombatService",
-                s63a + "/" + s63b + "/" + s63c);
+        r.check("63", "cast-school ThreadLocal", ok63, "CombatService", s63a + "/" + s63b + "/" + s63c);
 
         int covered = plugin.getAbilityRegistry().schoolCoverage();
         boolean ok64 = covered == 30;
         r.check("64", "schoolCoverage: 30/30", ok64, "AbilityRegistry", covered);
 
-        boolean fp65 = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "fire_prometheus").school() == School.FIRE;
-        boolean bb65 = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "boreas_breath").school() == School.FROST;
-        boolean zw65 = plugin.getAbilityRegistry().findById(PlayerClass.MAGE, "zeus_wrath").school() == School.ARCANE;
-        boolean bp65 = plugin.getAbilityRegistry().findById(PlayerClass.ROGUE, "borgia_poison").school() == School.NATURE;
-        boolean scCloak65 = plugin.getAbilityRegistry().findById(PlayerClass.ROGUE, "shadow_cloak").school() == School.SHADOW;
-        boolean wh65 = plugin.getAbilityRegistry().findById(PlayerClass.PRIEST, "wrath_heaven").school() == School.HOLY;
-        boolean rk65 = plugin.getAbilityRegistry().findById(PlayerClass.WARRIOR, "ragnarok").school() == School.PHYSICAL;
-        boolean bw65 = plugin.getAbilityRegistry().findById(PlayerClass.WARLOCK, "black_word").school() == School.SHADOW;
+        boolean fp65 = plugin.getAbilityRegistry()
+                        .findById(PlayerClass.MAGE, "fire_prometheus")
+                        .school()
+                == School.FIRE;
+        boolean bb65 = plugin.getAbilityRegistry()
+                        .findById(PlayerClass.MAGE, "boreas_breath")
+                        .school()
+                == School.FROST;
+        boolean zw65 = plugin.getAbilityRegistry()
+                        .findById(PlayerClass.MAGE, "zeus_wrath")
+                        .school()
+                == School.ARCANE;
+        boolean bp65 = plugin.getAbilityRegistry()
+                        .findById(PlayerClass.ROGUE, "borgia_poison")
+                        .school()
+                == School.NATURE;
+        boolean scCloak65 = plugin.getAbilityRegistry()
+                        .findById(PlayerClass.ROGUE, "shadow_cloak")
+                        .school()
+                == School.SHADOW;
+        boolean wh65 = plugin.getAbilityRegistry()
+                        .findById(PlayerClass.PRIEST, "wrath_heaven")
+                        .school()
+                == School.HOLY;
+        boolean rk65 = plugin.getAbilityRegistry()
+                        .findById(PlayerClass.WARRIOR, "ragnarok")
+                        .school()
+                == School.PHYSICAL;
+        boolean bw65 = plugin.getAbilityRegistry()
+                        .findById(PlayerClass.WARLOCK, "black_word")
+                        .school()
+                == School.SHADOW;
         boolean ok65 = fp65 && bb65 && zw65 && bp65 && scCloak65 && wh65 && rk65 && bw65;
-        r.check("65", "школы китов по карте", ok65, "AbilityRegistry.findById",
+        r.check(
+                "65",
+                "школы китов по карте",
+                ok65,
+                "AbilityRegistry.findById",
                 fp65 + "/" + bb65 + "/" + zw65 + "/" + bp65 + "/" + scCloak65 + "/" + wh65 + "/" + rk65 + "/" + bw65);
     }
 
@@ -1750,24 +2054,36 @@ public final class SelftestRunner {
     private static void dots(RaskolClasses plugin, Report r) {
         double[] raw66 = {40.0, 30.0};
         double f66 = DotMath.capFactor(raw66, 60.0);
-        double f66b = DotMath.capFactor(new double[]{10.0}, 60.0);
-        double f66c = DotMath.capFactor(new double[]{0.0}, 60.0);
+        double f66b = DotMath.capFactor(new double[] {10.0}, 60.0);
+        double f66c = DotMath.capFactor(new double[] {0.0}, 60.0);
         boolean ok66 = Math.abs(f66 - 60.0 / 70.0) < 1e-9 && f66b == 1.0 && f66c == 1.0;
-        r.check("66", "dot-cap: [40,30]→6/7; 10→1; 0→1", ok66, "DotMath.capFactor",
+        r.check(
+                "66",
+                "dot-cap: [40,30]→6/7; 10→1; 0→1",
+                ok66,
+                "DotMath.capFactor",
                 String.format(Locale.ROOT, "%.4f/%.1f/%.1f", f66, f66b, f66c));
 
         double w67 = DotMath.withMults(10.0, 1.5, 0.5, 0.26);
         double w67b = DotMath.withMults(10.0, 1.0, 0.0, 0.0);
         double w67c = DotMath.withMults(-5.0, 2.0, 1.0, 0.0);
         boolean ok67 = Math.abs(w67 - 9.45) < 1e-9 && w67b == 0.0 && w67c == 0.0;
-        r.check("67", "dot-mults: school×immunity×seal", ok67, "DotMath.withMults",
+        r.check(
+                "67",
+                "dot-mults: school×immunity×seal",
+                ok67,
+                "DotMath.withMults",
                 String.format(Locale.ROOT, "%.2f/%.1f/%.1f", w67, w67b, w67c));
 
         boolean svc68 = plugin.getCombat().dots() != null;
         double capCfg = plugin.getConfig().getDouble("combat.dot-dps-cap-pct", 0.0);
         double lim68 = DotMath.dpsLimit(1000.0, capCfg);
         boolean ok68 = svc68 && Math.abs(capCfg - 6.0) < 1e-9 && Math.abs(lim68 - 60.0) < 1e-9;
-        r.check("68", "DotService + cap=6%→60 DPS/1000HP", ok68, "CombatService/DotMath",
+        r.check(
+                "68",
+                "DotService + cap=6%→60 DPS/1000HP",
+                ok68,
+                "CombatService/DotMath",
                 svc68 + "/" + capCfg + "/" + lim68);
 
         boolean ex1 = DotService.shouldExtinguish(School.FIRE, Material.WATER);
@@ -1776,7 +2092,11 @@ public final class SelftestRunner {
         boolean ex4 = DotService.shouldExtinguish(School.FROST, Material.LAVA);
         boolean ex5 = DotService.shouldExtinguish(School.FROST, Material.WATER);
         boolean ok69 = ex1 && ex2 && !ex3 && ex4 && !ex5;
-        r.check("69", "средовые триггеры", ok69, "DotService.shouldExtinguish",
+        r.check(
+                "69",
+                "средовые триггеры",
+                ok69,
+                "DotService.shouldExtinguish",
                 ex1 + "/" + ex2 + "/" + ex3 + "/" + ex4 + "/" + ex5);
 
         var dots70 = plugin.getCombat().dots();
@@ -1791,7 +2111,10 @@ public final class SelftestRunner {
                 && dots70.defById("chilled").school() == School.FROST
                 && dots70.defById("wither") != null
                 && dots70.defById("wither").school() == School.SHADOW;
-        r.check("70", "dots-реестр: 5 школ (burning/poison/bleed/chilled/wither)", ok70,
+        r.check(
+                "70",
+                "dots-реестр: 5 школ (burning/poison/bleed/chilled/wither)",
+                ok70,
                 "DotService.defById",
                 (dots70.defById("burning") != null) + "/" + (dots70.defById("poison") != null)
                         + "/" + (dots70.defById("bleed") != null) + "/" + (dots70.defById("chilled") != null)
@@ -1799,8 +2122,7 @@ public final class SelftestRunner {
 
         UUID uuid71 = UUID.randomUUID();
         DotInstance inst71 = new DotInstance(
-                DotDef.of("selftest_dot", School.FIRE, 5.0, 3000L, 3, "selftest"),
-                uuid71, System.currentTimeMillis());
+                DotDef.of("selftest_dot", School.FIRE, 5.0, 3000L, 3, "selftest"), uuid71, System.currentTimeMillis());
         long t71 = System.currentTimeMillis();
         inst71.refresh(t71);
         inst71.refresh(t71);
@@ -1808,13 +2130,21 @@ public final class SelftestRunner {
         boolean stacksOk = inst71.stacks() == 3;
         boolean expiryOk = !inst71.expired(t71 + 2999L) && inst71.expired(t71 + 3001L);
         boolean ok71 = stacksOk && expiryOk;
-        r.check("71", "DotInstance: refresh/expiry", ok71, "DotInstance",
+        r.check(
+                "71",
+                "DotInstance: refresh/expiry",
+                ok71,
+                "DotInstance",
                 inst71.stacks() + "/" + stacksOk + "/" + expiryOk);
 
         UUID fresh72 = UUID.randomUUID();
         List<DotInstance> empty72 = plugin.getCombat().dots().activeDotsOf(fresh72);
         boolean ok72 = empty72 != null && empty72.isEmpty();
-        r.check("72", "DotService.activeDotsOf: пустой snapshot", ok72, "DotService.activeDotsOf",
+        r.check(
+                "72",
+                "DotService.activeDotsOf: пустой snapshot",
+                ok72,
+                "DotService.activeDotsOf",
                 empty72 == null ? "null" : String.valueOf(empty72.size()));
 
         DotDef ppDef = plugin.getCombat().dots().defById("poison_passive");
@@ -1826,16 +2156,22 @@ public final class SelftestRunner {
                 && poisonDef.durationMillis() == 5000L
                 && ppDef.maxStacks() == 1
                 && poisonDef.maxStacks() == 3;
-        r.check("73", "dots: poison_passive (2s/×1) vs poison (5s/×3)", ok73, "DotService.defById",
-                (ppDef != null ? ppDef.durationMillis() + "/×" + ppDef.maxStacks() : "null")
-                        + " vs " + (poisonDef != null ? poisonDef.durationMillis() + "/×" + poisonDef.maxStacks() : "null"));
+        r.check(
+                "73",
+                "dots: poison_passive (2s/×1) vs poison (5s/×3)",
+                ok73,
+                "DotService.defById",
+                (ppDef != null ? ppDef.durationMillis() + "/×" + ppDef.maxStacks() : "null") + " vs "
+                        + (poisonDef != null ? poisonDef.durationMillis() + "/×" + poisonDef.maxStacks() : "null"));
 
-        String poisonDotId = plugin.getConfig().getString(
-                "classes.ROGUE.passives.poisoned_blades.dot", "");
-        boolean ok74 = "poison_passive".equals(poisonDotId)
-                && ppDef != null && poisonDef != null;
-        r.check("74", "миграция poisoned_blades: dot=poison_passive",
-                ok74, "config classes.ROGUE.passives.poisoned_blades.dot", poisonDotId);
+        String poisonDotId = plugin.getConfig().getString("classes.ROGUE.passives.poisoned_blades.dot", "");
+        boolean ok74 = "poison_passive".equals(poisonDotId) && ppDef != null && poisonDef != null;
+        r.check(
+                "74",
+                "миграция poisoned_blades: dot=poison_passive",
+                ok74,
+                "config classes.ROGUE.passives.poisoned_blades.dot",
+                poisonDotId);
 
         String got75;
         boolean ok75;
@@ -1862,14 +2198,18 @@ public final class SelftestRunner {
             }
             double avg = cnt > 0 ? sum / cnt : 0.0;
             ok75 = clean && diagOk && cnt >= 4 && avg >= 15.0 && avg <= 30.0;
-            got75 = "clean=" + clean + " diag=" + diagOk + " n=" + cnt
-                    + " avg=" + String.format(Locale.ROOT, "%.1f", avg);
+            got75 = "clean=" + clean + " diag=" + diagOk + " n=" + cnt + " avg="
+                    + String.format(Locale.ROOT, "%.1f", avg);
         } catch (RuntimeException ex) {
             ok75 = false;
             got75 = "exception: " + ex.getClass().getSimpleName();
         }
-        r.check("75", "balance-sanity: матрица чистая, диагональ [10,60], avg-зеркалок [15,30]",
-                ok75, "BalanceSimulator.matrix", got75);
+        r.check(
+                "75",
+                "balance-sanity: матрица чистая, диагональ [10,60], avg-зеркалок [15,30]",
+                ok75,
+                "BalanceSimulator.matrix",
+                got75);
     }
 
     /* ------------------------------ 76–90: CC / DR ------------------------------ */
@@ -1881,7 +2221,11 @@ public final class SelftestRunner {
                 && CCService.drMultiplier(2, mults76) == 0.25
                 && CCService.drMultiplier(3, mults76) == 0.0
                 && CCService.drMultiplier(4, mults76) == 0.0;
-        r.check("76", "DR-множители: 1.0/0.5/0.25/0.0/0.0", ok76, "CCService.drMultiplier",
+        r.check(
+                "76",
+                "DR-множители: 1.0/0.5/0.25/0.0/0.0",
+                ok76,
+                "CCService.drMultiplier",
                 CCService.drMultiplier(0, mults76) + "/" + CCService.drMultiplier(3, mults76));
 
         long now77 = System.currentTimeMillis();
@@ -1891,7 +2235,11 @@ public final class SelftestRunner {
         r.check("77", "окно DR: 20с→0, 5с→3", ok77, "CCService.stackAfterWindow", reset77 + "/" + keep77);
 
         boolean ok78 = CCService.isDrImmune(4, mults76) && !CCService.isDrImmune(3, mults76);
-        r.check("78", "DR-иммунитет: стек4=иммун, стек3=нет", ok78, "CCService.isDrImmune",
+        r.check(
+                "78",
+                "DR-иммунитет: стек4=иммун, стек3=нет",
+                ok78,
+                "CCService.isDrImmune",
                 CCService.isDrImmune(4, mults76) + "/" + CCService.isDrImmune(3, mults76));
 
         boolean ok79 = CCType.STUN.category() == DRCategory.STUN
@@ -1903,13 +2251,19 @@ public final class SelftestRunner {
                 && CCType.ROOT.category() == DRCategory.ROOT
                 && CCType.SLOW.category() == DRCategory.SLOW
                 && CCType.BLIND.category() == DRCategory.BLIND;
-        r.check("79", "категории DR: STUN/KNOCKBACK, FEAR/CHARM, SILENCE/DISARM, ROOT, SLOW, BLIND",
-                ok79, "CCType.category",
+        r.check(
+                "79",
+                "категории DR: STUN/KNOCKBACK, FEAR/CHARM, SILENCE/DISARM, ROOT, SLOW, BLIND",
+                ok79,
+                "CCType.category",
                 CCType.KNOCKBACK.category() + "/" + CCType.CHARM.category() + "/" + CCType.DISARM.category());
 
         CCService cc = plugin.getCC();
         boolean ok80 = cc != null && cc.enabled();
-        r.check("80", "CCService инициализирован и cc.enabled=true", ok80,
+        r.check(
+                "80",
+                "CCService инициализирован и cc.enabled=true",
+                ok80,
                 "RaskolClasses.onEnable/cc.enabled",
                 (cc != null) + "/" + (cc != null && cc.enabled()));
 
@@ -1921,8 +2275,11 @@ public final class SelftestRunner {
                 && !CCType.SLOW.breaksOnDamage()
                 && !CCType.BLIND.breaksOnDamage()
                 && !CCType.CHARM.breaksOnDamage();
-        r.check("81", "CCType.breaksOnDamage: ROOT/FEAR=true, остальные=false",
-                ok81, "CCType.breaksOnDamage",
+        r.check(
+                "81",
+                "CCType.breaksOnDamage: ROOT/FEAR=true, остальные=false",
+                ok81,
+                "CCType.breaksOnDamage",
                 CCType.ROOT.breaksOnDamage() + "/" + CCType.STUN.breaksOnDamage());
 
         if (probe == null || cc == null) {
@@ -1938,19 +2295,23 @@ public final class SelftestRunner {
                 && VanillaCCWrapper.wrapTarget(PotionEffectType.BLINDNESS) == CCType.BLIND
                 && VanillaCCWrapper.wrapTarget(PotionEffectType.WEAKNESS) == CCType.SILENCE
                 && VanillaCCWrapper.wrapTarget(PotionEffectType.REGENERATION) == null;
-        r.check("85", "wrapVanilla: SLOWNESS→SLOW, BLINDNESS→BLIND, WEAKNESS→SILENCE, REGEN→null",
-                ok85, "VanillaCCWrapper.wrapTarget",
+        r.check(
+                "85",
+                "wrapVanilla: SLOWNESS→SLOW, BLINDNESS→BLIND, WEAKNESS→SILENCE, REGEN→null",
+                ok85,
+                "VanillaCCWrapper.wrapTarget",
                 VanillaCCWrapper.wrapTarget(PotionEffectType.SLOWNESS) + "/"
                         + VanillaCCWrapper.wrapTarget(PotionEffectType.BLINDNESS) + "/"
                         + VanillaCCWrapper.wrapTarget(PotionEffectType.WEAKNESS));
 
         String d86 = CCFeedback.describeApply(plugin, CCType.STUN, 60, 0.5);
-        boolean ok86 = d86 != null
-                && d86.contains(CCType.STUN.ruName())
-                && d86.contains("3.0")
-                && d86.contains("50");
-        r.check("86", "describeApply: «Оцепенение», 3.0с, DR 50% в строке сообщения",
-                ok86, "CCFeedback.describeApply", d86);
+        boolean ok86 = d86 != null && d86.contains(CCType.STUN.ruName()) && d86.contains("3.0") && d86.contains("50");
+        r.check(
+                "86",
+                "describeApply: «Оцепенение», 3.0с, DR 50% в строке сообщения",
+                ok86,
+                "CCFeedback.describeApply",
+                d86);
 
         AtomicBoolean cancelled87 = new AtomicBoolean(false);
         UUID ch87 = UUID.randomUUID();
@@ -1958,35 +2319,45 @@ public final class SelftestRunner {
         boolean first87 = CastChannels.interrupt(ch87);
         boolean second87 = CastChannels.interrupt(ch87);
         boolean ok87 = first87 && cancelled87.get() && !second87 && !CastChannels.isChanneling(ch87);
-        r.check("87", "CastChannels: interrupt→canceller выполнен, повторный interrupt=false",
-                ok87, "CastChannels.interrupt",
+        r.check(
+                "87",
+                "CastChannels: interrupt→canceller выполнен, повторный interrupt=false",
+                ok87,
+                "CastChannels.interrupt",
                 first87 + "/" + cancelled87.get() + "/" + second87);
 
         boolean listOk = false;
         boolean seqOk = true;
         try {
             CcSub ccSub = new CcSub(plugin);
-            listOk = ccSub.execute(Bukkit.getConsoleSender(), new String[]{"list"});
+            listOk = ccSub.execute(Bukkit.getConsoleSender(), new String[] {"list"});
             if (probe != null) {
-                seqOk = ccSub.execute(Bukkit.getConsoleSender(), new String[]{"test", probe.getName(), "STUN"})
-                        && ccSub.execute(Bukkit.getConsoleSender(), new String[]{"status", probe.getName()})
-                        && ccSub.execute(Bukkit.getConsoleSender(), new String[]{"clear", probe.getName()});
+                seqOk = ccSub.execute(Bukkit.getConsoleSender(), new String[] {"test", probe.getName(), "STUN"})
+                        && ccSub.execute(Bukkit.getConsoleSender(), new String[] {"status", probe.getName()})
+                        && ccSub.execute(Bukkit.getConsoleSender(), new String[] {"clear", probe.getName()});
             }
         } catch (RuntimeException ex) {
             listOk = false;
             seqOk = false;
         }
         boolean ok88 = listOk && seqOk;
-        r.check("88", "/rc cc list/status/test/clear исполняются без исключений",
-                ok88, "CcSub.execute", listOk + "/" + seqOk);
+        r.check(
+                "88",
+                "/rc cc list/status/test/clear исполняются без исключений",
+                ok88,
+                "CcSub.execute",
+                listOk + "/" + seqOk);
 
         List<String> ccProblems = CcSanity.validateCc(plugin);
         boolean ok89 = ccProblems.isEmpty()
                 && CcSanity.inRange(0.5, 0.0, 1.0)
                 && !CcSanity.inRange(2.0, 0.0, 1.0)
                 && !CcSanity.inRange(Double.NaN, 0.0, 1.0);
-        r.check("89", "CcSanity: конфиг cc.* без проблем; inRange(0.5)=true, (2.0)=false, (NaN)=false",
-                ok89, "CcSanity.validateCc",
+        r.check(
+                "89",
+                "CcSanity: конфиг cc.* без проблем; inRange(0.5)=true, (2.0)=false, (NaN)=false",
+                ok89,
+                "CcSanity.validateCc",
                 ccProblems.isEmpty() ? "OK" : ccProblems.size() + ": " + ccProblems.get(0));
 
         // 90: 1.15.6 (2.6-108) — НЕ трогаем probe с живым CC: skip вместо removeAll
@@ -2008,8 +2379,11 @@ public final class SelftestRunner {
             boolean cleared90 = cc.activeOf(u90).isEmpty()
                     && cc.drState(u90, DRCategory.STUN).stackCount() == 0;
             boolean ok90 = applied90 && activeVisible && drVisible && cleared90;
-            r.check("90", "debug-секция CC/DR: apply→activeOf+drState видны, cleanup пуст",
-                    ok90, "CCService.activeOf/drState",
+            r.check(
+                    "90",
+                    "debug-секция CC/DR: apply→activeOf+drState видны, cleanup пуст",
+                    ok90,
+                    "CCService.activeOf/drState",
                     applied90 + "/" + activeVisible + "/" + drVisible + "/" + cleared90);
         }
     }
@@ -2041,8 +2415,11 @@ public final class SelftestRunner {
         cc.removeAll(u82);
         cc.resetAllDr(u82);
         boolean ok82 = applied1 && hasBefore && !hasAfterHigh && applied2 && hasAfterLow;
-        r.check("82", "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
-                ok82, "CCService.breakOnDamage",
+        r.check(
+                "82",
+                "breakOnDamage: 6% HP снимает ROOT, 3% оставляет",
+                ok82,
+                "CCService.breakOnDamage",
                 applied1 + "/" + hasBefore + "/" + hasAfterHigh + "/" + applied2 + "/" + hasAfterLow);
 
         UUID u83 = probe.getUniqueId();
@@ -2055,8 +2432,11 @@ public final class SelftestRunner {
         cc.removeAll(u83);
         cc.resetAllDr(u83);
         boolean ok83 = applied && hasBeforeStun && hasAfter;
-        r.check("83", "STUN не снимается уроном ≥ порога",
-                ok83, "CCService.breakOnDamage",
+        r.check(
+                "83",
+                "STUN не снимается уроном ≥ порога",
+                ok83,
+                "CCService.breakOnDamage",
                 applied + "/" + hasBeforeStun + "/" + hasAfter);
     }
 
@@ -2084,8 +2464,11 @@ public final class SelftestRunner {
         cc.removeAll(u84);
         cc.resetAllDr(u84);
         boolean ok84 = canNormal && !canStun && !canSilenceNormal && canSilenceInstant;
-        r.check("84", "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
-                ok84, "CastGuard.canCast",
+        r.check(
+                "84",
+                "CastGuard: normal=OK, STUN=no, SILENCE+cast=no, SILENCE+instant=OK",
+                ok84,
+                "CastGuard.canCast",
                 canNormal + "/" + canStun + "/" + canSilenceNormal + "/" + canSilenceInstant);
     }
 
@@ -2102,8 +2485,11 @@ public final class SelftestRunner {
                 && SpecRoles.roleOf("guard") == SpecRole.TANK
                 && SpecRoles.roleOf("holy") == SpecRole.HEALER
                 && SpecRoles.roleOf("arms") == SpecRole.FIGHTER;
-        r.check("91", "Spec: 18 чистых констант, forClass=3, роли guard=TANK/holy=HEALER/arms=FIGHTER",
-                ok91, "Spec.values/forClass/SpecRoles",
+        r.check(
+                "91",
+                "Spec: 18 чистых констант, forClass=3, роли guard=TANK/holy=HEALER/arms=FIGHTER",
+                ok91,
+                "Spec.values/forClass/SpecRoles",
                 Spec.values().length + "/" + SpecRoles.roleOf("guard"));
 
         boolean ok92 = Spec.fromId("arms") == Spec.ARMS
@@ -2111,8 +2497,11 @@ public final class SelftestRunner {
                 && Spec.fromId("tracker") == null
                 && Spec.fromId("black_mage") == null
                 && Spec.fromId("no_such_spec") == null;
-        r.check("92", "fromId строгий: arms/affliction резолвятся; tracker/black_mage/null",
-                ok92, "Spec.fromId",
+        r.check(
+                "92",
+                "fromId строгий: arms/affliction резолвятся; tracker/black_mage/null",
+                ok92,
+                "Spec.fromId",
                 Spec.fromId("arms") + "/" + Spec.fromId("tracker"));
 
         int capMin = plugin.getConfig().getInt("spec2.tree-capacity-min", 50);
@@ -2126,13 +2515,16 @@ public final class SelftestRunner {
             int cap = t == null ? 0 : t.capacity();
             if (t == null || cap < capMin || cap > 58) {
                 ok93 = false;
-                got93 = s.id() + ":" + (t == null ? "null" : String.valueOf(cap))
-                        + " (ожидалось " + capMin + "–58)";
+                got93 = s.id() + ":" + (t == null ? "null" : String.valueOf(cap)) + " (ожидалось " + capMin + "–58)";
                 break;
             }
         }
-        r.check("93", "все 18 деревьев в реестре, ёмкость [" + capMin + ", 58] (>46)",
-                ok93, "Spec2Registry.treeOf/capacity", got93.isEmpty() ? "OK" : got93);
+        r.check(
+                "93",
+                "все 18 деревьев в реестре, ёмкость [" + capMin + ", 58] (>46)",
+                ok93,
+                "Spec2Registry.treeOf/capacity",
+                got93.isEmpty() ? "OK" : got93);
 
         boolean ok94 = true;
         String got94 = "";
@@ -2159,8 +2551,12 @@ public final class SelftestRunner {
                 break;
             }
         }
-        r.check("94", "в каждом дереве ровно 1 ульт и ≥1 unlock_ability",
-                ok94, "Spec2Tree nodes", got94.isEmpty() ? "OK" : got94);
+        r.check(
+                "94",
+                "в каждом дереве ровно 1 ульт и ≥1 unlock_ability",
+                ok94,
+                "Spec2Tree nodes",
+                got94.isEmpty() ? "OK" : got94);
 
         boolean ok95 = true;
         String got95 = "";
@@ -2175,7 +2571,8 @@ public final class SelftestRunner {
             }
             for (dev.raskol.classes.ability.TransferableAbilities.Entry e : entries) {
                 transferableTotal++;
-                dev.raskol.classes.ability.AbilityDef def = plugin.getAbilities().findById(pc, e.id());
+                dev.raskol.classes.ability.AbilityDef def =
+                        plugin.getAbilities().findById(pc, e.id());
                 if (def == null || def.slot() != e.legacySlot()) {
                     ok95 = false;
                     got95 = pc.name() + "." + e.id() + ": в DEFAULTS slot="
@@ -2192,8 +2589,11 @@ public final class SelftestRunner {
             ok95 = false;
             got95 = "всего переносимых=" + transferableTotal + " (ожидалось 12)";
         }
-        r.check("95", "реестр переносимых: 12 id = slots 4–5 × 6 классов, все в DEFAULTS",
-                ok95, "TransferableAbilities/AbilityRegistry.findById",
+        r.check(
+                "95",
+                "реестр переносимых: 12 id = slots 4–5 × 6 классов, все в DEFAULTS",
+                ok95,
+                "TransferableAbilities/AbilityRegistry.findById",
                 ok95 ? "OK(12)" : got95);
 
         boolean ok96 = true;
@@ -2221,13 +2621,27 @@ public final class SelftestRunner {
                 break;
             }
         }
-        r.check("96", "резолв переносимых: getBySlotOrTree == getBySlot (переходный инвариант)",
-                ok96, "AbilityRegistry.getBySlotOrTree", ok96 ? "OK" : got96);
+        r.check(
+                "96",
+                "резолв переносимых: getBySlotOrTree == getBySlot (переходный инвариант)",
+                ok96,
+                "AbilityRegistry.getBySlotOrTree",
+                ok96 ? "OK" : got96);
 
         boolean ok97 = true;
         String got97 = "";
-        String[] numKeys97 = {"base", "coeff", "threshold", "execute-mult", "radius",
-                "duration", "per-purged", "channel", "antiheal", "missing-hp-bonus"};
+        String[] numKeys97 = {
+            "base",
+            "coeff",
+            "threshold",
+            "execute-mult",
+            "radius",
+            "duration",
+            "per-purged",
+            "channel",
+            "antiheal",
+            "missing-hp-bonus"
+        };
         for (PlayerClass pc : PlayerClass.values()) {
             for (dev.raskol.classes.ability.TransferableAbilities.Entry e :
                     dev.raskol.classes.ability.TransferableAbilities.forClass(pc)) {
@@ -2253,8 +2667,8 @@ public final class SelftestRunner {
                             double tv = plugin.getConfig().getDouble(treePrefix + key, Double.NaN);
                             if (!Double.isFinite(tv) || Math.abs(kv - tv) > 1e-9) {
                                 ok97 = false;
-                                got97 = e.id() + "." + key + ": abilities=" + kv
-                                        + " treeAbilities=" + tv + " (рассогласование legacy/authoritative)";
+                                got97 = e.id() + "." + key + ": abilities=" + kv + " treeAbilities=" + tv
+                                        + " (рассогласование legacy/authoritative)";
                                 break;
                             }
                         }
@@ -2268,22 +2682,28 @@ public final class SelftestRunner {
                 break;
             }
         }
-        r.check("97", "переносимые: treeAbilities.<id> авторитетно (base>0); legacy abilities, если есть, совпадает",
-                ok97, "config treeAbilities/abilities", ok97 ? "OK(12)" : got97);
+        r.check(
+                "97",
+                "переносимые: treeAbilities.<id> авторитетно (base>0); legacy abilities, если есть, совпадает",
+                ok97,
+                "config treeAbilities/abilities",
+                ok97 ? "OK(12)" : got97);
 
         boolean ok98 = false;
         Spec2Tree arcaneTree = Spec2Registry.treeOf("arcane");
         if (arcaneTree != null) {
             for (Spec2Node node : arcaneTree.nodes()) {
-                if ("arc_athena_aegis".equals(node.id())
-                        && "unlock_ability".equals(node.type())) {
+                if ("arc_athena_aegis".equals(node.id()) && "unlock_ability".equals(node.type())) {
                     ok98 = true;
                     break;
                 }
             }
         }
-        r.check("98", "athena_aegis имеет unlock_ability-узел в arcane (пробел 11/12 закрыт)",
-                ok98, "MageTrees.arcane/Spec2Node",
+        r.check(
+                "98",
+                "athena_aegis имеет unlock_ability-узел в arcane (пробел 11/12 закрыт)",
+                ok98,
+                "MageTrees.arcane/Spec2Node",
                 ok98 ? "OK(arc_athena_aegis)" : "no-node");
 
         boolean ok99 = true;
@@ -2295,7 +2715,8 @@ public final class SelftestRunner {
                 continue;
             }
             for (Spec2Node n99 : t99.nodes()) {
-                if (n99.effect() == null || !"unlock_ability".equals(n99.effect().kind())) {
+                if (n99.effect() == null
+                        || !"unlock_ability".equals(n99.effect().kind())) {
                     continue;
                 }
                 String target = n99.effect().target();
@@ -2319,8 +2740,12 @@ public final class SelftestRunner {
                 }
             }
         }
-        r.check("99", "unlock_ability ↔ кастеры: двунаправленное покрытие без дыр",
-                ok99, "Spec2Registry/AbilityRegistry.hasCaster", ok99 ? "OK" : got99);
+        r.check(
+                "99",
+                "unlock_ability ↔ кастеры: двунаправленное покрытие без дыр",
+                ok99,
+                "Spec2Registry/AbilityRegistry.hasCaster",
+                ok99 ? "OK" : got99);
     }
 
     /* ------------------------------ 100–106: агрегаты на probe ------------------------------ */
@@ -2361,7 +2786,11 @@ public final class SelftestRunner {
                 double gotV = plugin.getSpec2Service().healOutPercent(pu100);
                 if (Math.abs(gotV - expect) > 1e-9) {
                     ok100 = false;
-                    got100.append("heal_out=").append(gotV).append('/').append(expect).append(' ');
+                    got100.append("heal_out=")
+                            .append(gotV)
+                            .append('/')
+                            .append(expect)
+                            .append(' ');
                 }
             } else {
                 got100.append("heal_out:n/a ");
@@ -2372,7 +2801,11 @@ public final class SelftestRunner {
                 double gotV = plugin.getSpec2Service().healReceivedPercent(pu100);
                 if (Math.abs(gotV - expect) > 1e-9) {
                     ok100 = false;
-                    got100.append("heal_recv=").append(gotV).append('/').append(expect).append(' ');
+                    got100.append("heal_recv=")
+                            .append(gotV)
+                            .append('/')
+                            .append(expect)
+                            .append(' ');
                 }
             } else {
                 got100.append("heal_recv:n/a ");
@@ -2385,8 +2818,12 @@ public final class SelftestRunner {
                 restore(plugin, pu100, hr.treeId(), bHr);
             }
         }
-        r.check("100", "heal-агрегат: heal_out_pct/heal_received_pct = 2×value узла класса probe",
-                ok100, "Spec2Service.healOutPercent/healReceivedPercent", got100.toString());
+        r.check(
+                "100",
+                "heal-агрегат: heal_out_pct/heal_received_pct = 2×value узла класса probe",
+                ok100,
+                "Spec2Service.healOutPercent/healReceivedPercent",
+                got100.toString());
     }
 
     private static void probePowers(RaskolClasses plugin, Report r, Player probe) {
@@ -2417,7 +2854,8 @@ public final class SelftestRunner {
                 double delta = 2 * wp.node().effect().value();
                 double w1 = plugin.getCombat().powers().weaponPower(pu101);
                 if (Math.abs(plugin.getSpec2Service().wpPercent(pu101) - delta) > 1e-9
-                        || w0 <= 0 || Math.abs(w1 - w0 * (100 + delta) / 100.0) > 1e-6) {
+                        || w0 <= 0
+                        || Math.abs(w1 - w0 * (100 + delta) / 100.0) > 1e-6) {
                     ok101 = false;
                     got101.append("wp=").append(w1 / Math.max(w0, 1e-9)).append(' ');
                 }
@@ -2428,7 +2866,8 @@ public final class SelftestRunner {
                 double delta = 2 * spN.node().effect().value();
                 double s1 = plugin.getCombat().powers().spellPower(pu101);
                 if (Math.abs(plugin.getSpec2Service().spPercent(pu101) - delta) > 1e-9
-                        || s0 <= 0 || Math.abs(s1 - s0 * (100 + delta) / 100.0) > 1e-6) {
+                        || s0 <= 0
+                        || Math.abs(s1 - s0 * (100 + delta) / 100.0) > 1e-6) {
                     ok101 = false;
                     got101.append("sp=").append(s1 / Math.max(s0, 1e-9)).append(' ');
                 }
@@ -2439,7 +2878,8 @@ public final class SelftestRunner {
                 double delta = 2 * hpow.node().effect().value();
                 double h1 = plugin.getCombat().powers().healPower(pu101);
                 if (Math.abs(plugin.getSpec2Service().hpowPercent(pu101) - delta) > 1e-9
-                        || h0 <= 0 || Math.abs(h1 - h0 * (100 + delta) / 100.0) > 1e-6) {
+                        || h0 <= 0
+                        || Math.abs(h1 - h0 * (100 + delta) / 100.0) > 1e-6) {
                     ok101 = false;
                     got101.append("hpow=").append(h1 / Math.max(h0, 1e-9)).append(' ');
                 }
@@ -2449,8 +2889,12 @@ public final class SelftestRunner {
             if (spN != null && bSp != null) restore(plugin, pu101, spN.treeId(), bSp);
             if (hpow != null && bHp != null) restore(plugin, pu101, hpow.treeId(), bHp);
         }
-        r.check("101", "павер-множители: wp/sp/hpow_pct = 2×value и пропорция PowerService",
-                ok101, "Spec2Service.*Percent/PowerService", got101.toString());
+        r.check(
+                "101",
+                "павер-множители: wp/sp/hpow_pct = 2×value и пропорция PowerService",
+                ok101,
+                "Spec2Service.*Percent/PowerService",
+                got101.toString());
     }
 
     private static void resourceCeiling(RaskolClasses plugin, Report r, Player probe) {
@@ -2502,8 +2946,12 @@ public final class SelftestRunner {
         } else if (probe != null) {
             got102 += " (live-probe off: probe-часть пропущена)";
         }
-        r.check("102", "ресурс: setCeiling расширяет/сжимает/мусор-guard; resource_max/regen_pct из узлов",
-                ok102, "ResourceState.setCeiling/Spec2Service.resourceMaxBonus", got102);
+        r.check(
+                "102",
+                "ресурс: setCeiling расширяет/сжимает/мусор-guard; resource_max/regen_pct из узлов",
+                ok102,
+                "ResourceState.setCeiling/Spec2Service.resourceMaxBonus",
+                got102);
     }
 
     private static void procContract(RaskolClasses plugin, Report r, Player probe) {
@@ -2539,8 +2987,12 @@ public final class SelftestRunner {
         } else if (probe != null) {
             got103 += " (live-probe off: probe-часть пропущена)";
         }
-        r.check("103", "проки: clampFraction/rollChance pure + префикс proc_ срезан в агрегате",
-                pureOk && stripOk, "ProcService/Spec2Service.accumulate", got103);
+        r.check(
+                "103",
+                "проки: clampFraction/rollChance pure + префикс proc_ срезан в агрегате",
+                pureOk && stripOk,
+                "ProcService/Spec2Service.accumulate",
+                got103);
     }
 
     private static void probeCombatPct(RaskolClasses plugin, Report r, Player probe) {
@@ -2552,8 +3004,8 @@ public final class SelftestRunner {
             return;
         }
         UUID pu104 = probe.getUniqueId();
-        String[] kinds104 = {"phys_dmg_pct", "magic_dmg_pct", "block_pct",
-                "crit_melee_pct", "hp_pct", "move_speed_pct"};
+        String[] kinds104 = {"phys_dmg_pct", "magic_dmg_pct", "block_pct", "crit_melee_pct", "hp_pct", "move_speed_pct"
+        };
         List<KindHit> hits = new ArrayList<>();
         for (String k : kinds104) {
             KindHit h = findKind(plugin, probe, k);
@@ -2571,30 +3023,36 @@ public final class SelftestRunner {
         double m0 = plugin.getAttributes().maxHp(pu104);
         try {
             for (KindHit h : hits) {
-                backups.computeIfAbsent(h.treeId(),
+                backups.computeIfAbsent(
+                        h.treeId(),
                         tid -> new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, tid)));
             }
             for (KindHit h : hits) {
-                Map<String, Integer> next = new HashMap<>(
-                        plugin.getSpec2Service().storage().getRanks(pu104, h.treeId()));
+                Map<String, Integer> next =
+                        new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu104, h.treeId()));
                 next.put(h.node().id(), 2);
                 plugin.getSpec2Service().storage().setRanks(pu104, h.treeId(), next);
             }
             plugin.getSpec2Service().reconcile(pu104);
             for (KindHit h : hits) {
                 double expect = 2 * h.node().effect().value();
-                double gotV = switch (h.node().effect().kind()) {
-                    case "phys_dmg_pct" -> plugin.getSpec2Service().physDmgPercent(pu104);
-                    case "magic_dmg_pct" -> plugin.getSpec2Service().magicDmgPercent(pu104);
-                    case "block_pct" -> plugin.getSpec2Service().blockPercent(pu104);
-                    case "crit_melee_pct" -> plugin.getSpec2Service().critMeleeBonus(pu104);
-                    case "hp_pct" -> plugin.getSpec2Service().hpPercent(pu104);
-                    default -> plugin.getSpec2Service().moveSpeedPercent(pu104);
-                };
+                double gotV =
+                        switch (h.node().effect().kind()) {
+                            case "phys_dmg_pct" -> plugin.getSpec2Service().physDmgPercent(pu104);
+                            case "magic_dmg_pct" -> plugin.getSpec2Service().magicDmgPercent(pu104);
+                            case "block_pct" -> plugin.getSpec2Service().blockPercent(pu104);
+                            case "crit_melee_pct" -> plugin.getSpec2Service().critMeleeBonus(pu104);
+                            case "hp_pct" -> plugin.getSpec2Service().hpPercent(pu104);
+                            default -> plugin.getSpec2Service().moveSpeedPercent(pu104);
+                        };
                 if (Math.abs(gotV - expect) > 1e-9) {
                     ok104 = false;
-                    got104.append(h.node().effect().kind()).append('=').append(gotV)
-                            .append('/').append(expect).append(' ');
+                    got104.append(h.node().effect().kind())
+                            .append('=')
+                            .append(gotV)
+                            .append('/')
+                            .append(expect)
+                            .append(' ');
                 }
             }
             KindHit hpHit = null;
@@ -2608,7 +3066,9 @@ public final class SelftestRunner {
                 double expectRatio = 1.0 + (2 * hpHit.node().effect().value()) / 100.0;
                 if (m0 <= 0 || Math.abs(maxHpAfter - m0 * expectRatio) > 1e-6) {
                     ok104 = false;
-                    got104.append("maxHp×=").append(maxHpAfter / Math.max(m0, 1e-9)).append(' ');
+                    got104.append("maxHp×=")
+                            .append(maxHpAfter / Math.max(m0, 1e-9))
+                            .append(' ');
                 }
             }
         } finally {
@@ -2616,8 +3076,11 @@ public final class SelftestRunner {
                 restore(plugin, pu104, e.getKey(), e.getValue());
             }
         }
-        r.check("104", "боевые pct-агрегаты = 2×value узлов probe + maxHp ×(1+hp/100)",
-                ok104, "Spec2Service.*Percent/AttributeService.maxHp",
+        r.check(
+                "104",
+                "боевые pct-агрегаты = 2×value узлов probe + maxHp ×(1+hp/100)",
+                ok104,
+                "Spec2Service.*Percent/AttributeService.maxHp",
                 ok104 ? "kinds=" + hits.size() : got104.toString());
     }
 
@@ -2638,7 +3101,8 @@ public final class SelftestRunner {
                 continue;
             }
             for (Spec2Node n : t.nodes()) {
-                if (n.effect() != null && "resist".equals(n.effect().kind())
+                if (n.effect() != null
+                        && "resist".equals(n.effect().kind())
                         && "nature".equals(n.effect().target())) {
                     foundTree = tid;
                     foundNode = n.id();
@@ -2653,13 +3117,12 @@ public final class SelftestRunner {
             r.skip("105", "resist-школа (у класса probe нет узла resist-nature)");
             return;
         }
-        Map<String, Integer> bTree = new HashMap<>(
-                plugin.getSpec2Service().storage().getRanks(pu105, foundTree));
+        Map<String, Integer> bTree =
+                new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu105, foundTree));
         boolean ok105;
         String got105;
         try {
-            plugin.getSpec2Service().storage().setRanks(pu105, foundTree,
-                    Map.of(foundNode, 1));
+            plugin.getSpec2Service().storage().setRanks(pu105, foundTree, Map.of(foundNode, 1));
             plugin.getSpec2Service().reconcile(pu105);
             double nres = plugin.getCombat().elemental().resistOf(pu105, School.NATURE);
             ok105 = nres >= 5.0;
@@ -2667,8 +3130,12 @@ public final class SelftestRunner {
         } finally {
             restore(plugin, pu105, foundTree, bTree);
         }
-        r.check("105", "resist-узел: resist-nature → ElementalResistService ≥5",
-                ok105, "Spec2Service.accumulate/ElementalResistService.resistOf", got105);
+        r.check(
+                "105",
+                "resist-узел: resist-nature → ElementalResistService ≥5",
+                ok105,
+                "Spec2Service.accumulate/ElementalResistService.resistOf",
+                got105);
     }
 
     private static void resetNodeCheck(RaskolClasses plugin, Report r, Player probe) {
@@ -2690,27 +3157,22 @@ public final class SelftestRunner {
         }
         String prevMain = plugin.getSpec2Service().storage().getMain(pu106);
         boolean tempMain = prevMain == null;
-        Map<String, Integer> b106 = new HashMap<>(
-                plugin.getSpec2Service().storage().getRanks(pu106, t0));
+        Map<String, Integer> b106 =
+                new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu106, t0));
         boolean ok106;
         String got106;
         try {
             if (tempMain) {
                 plugin.getSpec2Service().storage().setMain(pu106, t0);
             }
-            plugin.getSpec2Service().storage().setRanks(pu106, t0,
-                    Map.of(node106.id(), 2));
+            plugin.getSpec2Service().storage().setRanks(pu106, t0, Map.of(node106.id(), 2));
             plugin.getSpec2Service().reconcile(pu106);
             int before = plugin.getSpec2Service().spentGlobal(pu106);
-            Spec2Service.NodeResetResult r106 =
-                    plugin.getSpec2Service().resetNode(probe, t0, node106.id(), true);
+            Spec2Service.NodeResetResult r106 = plugin.getSpec2Service().resetNode(probe, t0, node106.id(), true);
             int after = plugin.getSpec2Service().spentGlobal(pu106);
-            int rank = plugin.getSpec2Service().storage().getRanks(pu106, t0)
-                    .getOrDefault(node106.id(), 0);
-            ok106 = r106 == Spec2Service.NodeResetResult.OK
-                    && after == before - 1 && rank == 1;
-            got106 = String.format(Locale.ROOT, "result=%s spent %d→%d rank=%d",
-                    r106, before, after, rank);
+            int rank = plugin.getSpec2Service().storage().getRanks(pu106, t0).getOrDefault(node106.id(), 0);
+            ok106 = r106 == Spec2Service.NodeResetResult.OK && after == before - 1 && rank == 1;
+            got106 = String.format(Locale.ROOT, "result=%s spent %d→%d rank=%d", r106, before, after, rank);
         } finally {
             plugin.getSpec2Service().storage().setRanks(pu106, t0, b106);
             if (tempMain) {
@@ -2718,8 +3180,12 @@ public final class SelftestRunner {
             }
             plugin.getSpec2Service().reconcile(pu106);
         }
-        r.check("106", "resetNode: ранг −1, spentGlobal −1, free-путь, временный main",
-                ok106, "Spec2Service.resetNode", got106);
+        r.check(
+                "106",
+                "resetNode: ранг −1, spentGlobal −1, free-путь, временный main",
+                ok106,
+                "Spec2Service.resetNode",
+                got106);
     }
 
     /* ------------------------------ 107: Spec2Points ↔ конфиг (1.14.13: snapshot) ------------------------------ */
@@ -2750,11 +3216,20 @@ public final class SelftestRunner {
             }
         }
         boolean ok107 = startMatch && maxMatch && gatesMatch;
-        String got107 = String.format(Locale.ROOT, "start=%d/%d max=%d/%d gates=%s",
-                cfgStart, snap.startLevel(), cfgMax, snap.maxPoints(),
+        String got107 = String.format(
+                Locale.ROOT,
+                "start=%d/%d max=%d/%d gates=%s",
+                cfgStart,
+                snap.startLevel(),
+                cfgMax,
+                snap.maxPoints(),
                 gatesMatch ? "match" : "mismatch");
-        r.check("107", "Spec2Points: start-level/max-points/row-gates из конфига (snapshot)",
-                ok107, "Spec2Points.configure/snapshot", got107);
+        r.check(
+                "107",
+                "Spec2Points: start-level/max-points/row-gates из конфига (snapshot)",
+                ok107,
+                "Spec2Points.configure/snapshot",
+                got107);
     }
 
     /* ------------------------------ 108–112: петы ------------------------------ */
@@ -2763,32 +3238,53 @@ public final class SelftestRunner {
         PetDef wolf108 = PetDef.byId("wolf");
         PetDef demon108 = PetDef.byId("demon");
         PetDef fiend108 = PetDef.byId("shadowfiend");
-        boolean ok108 = wolf108 != null && demon108 != null && fiend108 != null
-                && wolf108.baseHp() == 20.0 && wolf108.baseDmg() == 4.0 && !wolf108.temporary()
-                && demon108.baseHp() == 30.0 && demon108.baseDmg() == 8.0 && demon108.ttlSeconds() == 12
-                && fiend108.baseHp() == 12.0 && fiend108.baseDmg() == 5.0 && fiend108.ttlSeconds() == 8
+        boolean ok108 = wolf108 != null
+                && demon108 != null
+                && fiend108 != null
+                && wolf108.baseHp() == 20.0
+                && wolf108.baseDmg() == 4.0
+                && !wolf108.temporary()
+                && demon108.baseHp() == 30.0
+                && demon108.baseDmg() == 8.0
+                && demon108.ttlSeconds() == 12
+                && fiend108.baseHp() == 12.0
+                && fiend108.baseDmg() == 5.0
+                && fiend108.ttlSeconds() == 8
                 && PetDef.byId("elemental") == null;
-        r.check("108", "PetDef-реестр: wolf 20/4 perm, demon 30/8 ttl12, shadowfiend 12/5 ttl8",
-                ok108, "PetDef.byId", ok108 ? "OK" : "registry-gap");
+        r.check(
+                "108",
+                "PetDef-реестр: wolf 20/4 perm, demon 30/8 ttl12, shadowfiend 12/5 ttl8",
+                ok108,
+                "PetDef.byId",
+                ok108 ? "OK" : "registry-gap");
 
         boolean ok109 = Math.abs(PetMath.hp(20.0, 50.0, 0.0) - 120.0) < 1e-9
                 && Math.abs(PetMath.hp(20.0, 50.0, 10.0) - 132.0) < 1e-9
                 && Math.abs(PetMath.damage(4.0, 100.0, 0.0, 1.0) - 34.0) < 1e-9
                 && Math.abs(PetMath.damage(4.0, 100.0, 50.0, 2.0) - 102.0) < 1e-9
                 && PetMath.hp(20.0, Double.NaN, 0.0) == 20.0;
-        r.check("109", "PetMath: hp 20+50*2=120 (×1.1=132); dmg 4+100*0.3=34 (×1.5×2=102); NaN-guard",
-                ok109, "PetMath.hp/damage",
-                String.format(Locale.ROOT, "%.1f/%.1f/%.1f/%.1f",
-                        PetMath.hp(20.0, 50.0, 0.0), PetMath.hp(20.0, 50.0, 10.0),
+        r.check(
+                "109",
+                "PetMath: hp 20+50*2=120 (×1.1=132); dmg 4+100*0.3=34 (×1.5×2=102); NaN-guard",
+                ok109,
+                "PetMath.hp/damage",
+                String.format(
+                        Locale.ROOT,
+                        "%.1f/%.1f/%.1f/%.1f",
+                        PetMath.hp(20.0, 50.0, 0.0),
+                        PetMath.hp(20.0, 50.0, 10.0),
                         PetMath.damage(4.0, 100.0, 0.0, 1.0),
                         PetMath.damage(4.0, 100.0, 50.0, 2.0)));
 
         boolean ok110 = "Волк Steve".equals(PetDef.byId("wolf").displayName("Steve"))
                 && "Демон Steve".equals(PetDef.byId("demon").displayName("Steve"))
                 && "Тенескот Steve".equals(PetDef.byId("shadowfiend").displayName("Steve"));
-        r.check("110", "PetDef.displayName: «Волк/Демон/Тенескот <ник>»",
-                ok110, "PetDef.nameTemplate", ok110 ? "OK"
-                        : PetDef.byId("wolf").displayName("Steve"));
+        r.check(
+                "110",
+                "PetDef.displayName: «Волк/Демон/Тенескот <ник>»",
+                ok110,
+                "PetDef.nameTemplate",
+                ok110 ? "OK" : PetDef.byId("wolf").displayName("Steve"));
 
         long now111 = System.currentTimeMillis();
         boolean ok111 = !PetMath.expired(0L, now111)
@@ -2796,20 +3292,39 @@ public final class SelftestRunner {
                 && !PetMath.expired(now111 + 5_000L, now111)
                 && PetMath.needsTeleport(13.0 * 13.0, 12.0)
                 && !PetMath.needsTeleport(11.0 * 11.0, 12.0);
-        r.check("111", "PetMath.expired/needsTeleport: ttl=0 вечен, 13>12 телепорт, 11<12 нет",
-                ok111, "PetMath.expired/needsTeleport", ok111 ? "OK" : "fail");
+        r.check(
+                "111",
+                "PetMath.expired/needsTeleport: ttl=0 вечен, 13>12 телепорт, 11<12 нет",
+                ok111,
+                "PetMath.expired/needsTeleport",
+                ok111 ? "OK" : "fail");
 
         boolean ok112 = plugin.getPets().attributesReady();
-        r.check("112", "PetService.attributesReady: max_health/attack_damage/movement_speed из реестра",
-                ok112, "PetService.attributesReady", ok112 ? "OK" : "null-attribute");
+        r.check(
+                "112",
+                "PetService.attributesReady: max_health/attack_damage/movement_speed из реестра",
+                ok112,
+                "PetService.attributesReady",
+                ok112 ? "OK" : "null-attribute");
     }
 
     /* ------------------------------ 113: полнота spec2.procs ------------------------------ */
 
     private static void procsConfig(RaskolClasses plugin, Report r) {
-        String[] procIds = {"riposte", "counterattack", "revenge", "shield_slam",
-                "second_wind", "reflect_magic", "crit_bonus", "savage", "headshot",
-                "stealth_bonus", "stealth_extend", "armor_pen"};
+        String[] procIds = {
+            "riposte",
+            "counterattack",
+            "revenge",
+            "shield_slam",
+            "second_wind",
+            "reflect_magic",
+            "crit_bonus",
+            "savage",
+            "headshot",
+            "stealth_bonus",
+            "stealth_extend",
+            "armor_pen"
+        };
         boolean ok113 = plugin.getConfig().isSet("spec2.procs.expose.cap");
         StringBuilder missing = new StringBuilder();
         for (String id : procIds) {
@@ -2818,8 +3333,12 @@ public final class SelftestRunner {
                 missing.append(id).append(' ');
             }
         }
-        r.check("113", "spec2.procs.*.amp/.cap: все 12 amp + expose.cap присутствуют в конфиге",
-                ok113, "config spec2.procs", ok113 ? "OK(13)" : "missing: " + missing);
+        r.check(
+                "113",
+                "spec2.procs.*.amp/.cap: все 12 amp + expose.cap присутствуют в конфиге",
+                ok113,
+                "config spec2.procs",
+                ok113 ? "OK(13)" : "missing: " + missing);
     }
 
     /* ------------------------------ 114–116: Sprint 3 ------------------------------ */
@@ -2851,17 +3370,19 @@ public final class SelftestRunner {
                 double gotBonus = plugin.getSpec2Service().kitDurBonus(pu, ability114);
                 int baseDur = TreeAbilities.durationOrKit(plugin, pc, ability114, 7);
                 int withSpec = TreeAbilities.durationWithSpec(plugin, pc, ability114, 7, pu);
-                ok114 = Math.abs(gotBonus - expect) < 1e-9
-                        && withSpec == baseDur + (int) Math.round(expect);
-                got114 = String.format(Locale.ROOT, "bonus=%.1f/%.1f dur=%d/%d",
-                        gotBonus, expect, withSpec, baseDur);
+                ok114 = Math.abs(gotBonus - expect) < 1e-9 && withSpec == baseDur + (int) Math.round(expect);
+                got114 = String.format(Locale.ROOT, "bonus=%.1f/%.1f dur=%d/%d", gotBonus, expect, withSpec, baseDur);
             } finally {
                 if (b114 != null) {
                     restore(plugin, pu, kd.treeId(), b114);
                 }
             }
-            r.check("114", "kit_dur: agg = 2×value; durationWithSpec = base + bonus",
-                    ok114, "Spec2Service.kitDurBonus/TreeAbilities.durationWithSpec", got114);
+            r.check(
+                    "114",
+                    "kit_dur: agg = 2×value; durationWithSpec = base + bonus",
+                    ok114,
+                    "Spec2Service.kitDurBonus/TreeAbilities.durationWithSpec",
+                    got114);
         }
 
         KindHit as = findKind(plugin, probe, "attack_speed_pct");
@@ -2875,12 +3396,13 @@ public final class SelftestRunner {
                 b115 = applyRank(plugin, pu, as.treeId(), as.node().id(), 2);
                 double pct = plugin.getSpec2Service().attackSpeedPercent(pu);
                 boolean aggOk = Math.abs(pct - 2 * as.node().effect().value()) < 1e-9;
-                org.bukkit.attribute.AttributeInstance ai = probe.getAttribute(
-                        io.papermc.paper.registry.RegistryAccess.registryAccess()
+                org.bukkit.attribute.AttributeInstance ai =
+                        probe.getAttribute(io.papermc.paper.registry.RegistryAccess.registryAccess()
                                 .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
                                 .get(org.bukkit.NamespacedKey.minecraft("attack_speed")));
-                boolean modPresent = ai != null && ai.getModifiers().stream()
-                        .anyMatch(m -> m.getKey().toString().equals("raskolclasses:spec2_attack_speed"));
+                boolean modPresent = ai != null
+                        && ai.getModifiers().stream()
+                                .anyMatch(m -> m.getKey().toString().equals("raskolclasses:spec2_attack_speed"));
                 ok115 = aggOk && modPresent;
                 got115 = "pct=" + pct + " modifier=" + modPresent;
             } finally {
@@ -2888,8 +3410,12 @@ public final class SelftestRunner {
                     restore(plugin, pu, as.treeId(), b115);
                 }
             }
-            r.check("115", "attack_speed_pct: агрегат + modifier на игроке (A4 закрыт)",
-                    ok115, "Spec2Service.attackSpeedPercent/Spec2EffectsApplier", got115);
+            r.check(
+                    "115",
+                    "attack_speed_pct: агрегат + modifier на игроке (A4 закрыт)",
+                    ok115,
+                    "Spec2Service.attackSpeedPercent/Spec2EffectsApplier",
+                    got115);
         }
 
         KindHit pv = null;
@@ -2899,7 +3425,8 @@ public final class SelftestRunner {
                 continue;
             }
             for (Spec2Node n : t.nodes()) {
-                if (n.effect() != null && n.effect().kind() != null
+                if (n.effect() != null
+                        && n.effect().kind() != null
                         && n.effect().kind().startsWith("proc_")
                         && n.effect().value2() != 0.0) {
                     pv = new KindHit(tid, n);
@@ -2924,17 +3451,26 @@ public final class SelftestRunner {
                 double expectChance = 2 * pv.node().effect().value();
                 double gotAmp = plugin.getSpec2Service().procAmpBonus(pu, stripped);
                 double gotChance = plugin.getSpec2Service().procBonus(pu, stripped);
-                ok116 = Math.abs(gotAmp - expectAmp) < 1e-9
-                        && Math.abs(gotChance - expectChance) < 1e-9;
-                got116 = String.format(Locale.ROOT, "%s: amp=%.2f/%.2f chance=%.2f/%.2f",
-                        stripped, gotAmp, expectAmp, gotChance, expectChance);
+                ok116 = Math.abs(gotAmp - expectAmp) < 1e-9 && Math.abs(gotChance - expectChance) < 1e-9;
+                got116 = String.format(
+                        Locale.ROOT,
+                        "%s: amp=%.2f/%.2f chance=%.2f/%.2f",
+                        stripped,
+                        gotAmp,
+                        expectAmp,
+                        gotChance,
+                        expectChance);
             } finally {
                 if (b116 != null) {
                     restore(plugin, pu, pv.treeId(), b116);
                 }
             }
-            r.check("116", "контракт C: procAmp = rank×value2, proc = rank×value",
-                    ok116, "Spec2Service.procAmpBonus/procBonus", got116);
+            r.check(
+                    "116",
+                    "контракт C: procAmp = rank×value2, proc = rank×value",
+                    ok116,
+                    "Spec2Service.procAmpBonus/procBonus",
+                    got116);
         }
     }
 
@@ -2982,8 +3518,8 @@ public final class SelftestRunner {
         if (depB == null) {
             r.skip("117", "HAS_DEPENDENTS (нет пары пререквизит→зависимый у класса probe)");
         } else {
-            Map<String, Integer> b117 = new HashMap<>(
-                    plugin.getSpec2Service().storage().getRanks(pu117, depTree));
+            Map<String, Integer> b117 =
+                    new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu117, depTree));
             String prevMain = plugin.getSpec2Service().storage().getMain(pu117);
             boolean tempMain = prevMain == null;
             boolean ok117;
@@ -2997,9 +3533,10 @@ public final class SelftestRunner {
                 set.put(depB.id(), 1);
                 plugin.getSpec2Service().storage().setRanks(pu117, depTree, set);
                 pauseMs(200);
-                Spec2Service.NodeResetResult res =
-                        plugin.getSpec2Service().resetNode(probe, depTree, depA.id(), true);
-                int rankA = plugin.getSpec2Service().storage().getRanks(pu117, depTree)
+                Spec2Service.NodeResetResult res = plugin.getSpec2Service().resetNode(probe, depTree, depA.id(), true);
+                int rankA = plugin.getSpec2Service()
+                        .storage()
+                        .getRanks(pu117, depTree)
                         .getOrDefault(depA.id(), 0);
                 ok117 = res == Spec2Service.NodeResetResult.HAS_DEPENDENTS && rankA == 1;
                 got117 = "result=" + res + " rankA=" + rankA;
@@ -3010,8 +3547,12 @@ public final class SelftestRunner {
                 }
                 plugin.getSpec2Service().reconcile(pu117);
             }
-            r.check("117", "P1-5: resetNode пререквизита при живом зависимом → HAS_DEPENDENTS, ранг не меняется",
-                    ok117, "Spec2Service.resetNode/hasDependents", got117);
+            r.check(
+                    "117",
+                    "P1-5: resetNode пререквизита при живом зависимом → HAS_DEPENDENTS, ранг не меняется",
+                    ok117,
+                    "Spec2Service.resetNode/hasDependents",
+                    got117);
         }
 
         UUID pu118 = probe.getUniqueId();
@@ -3020,8 +3561,7 @@ public final class SelftestRunner {
         dev.raskol.classes.ability.AbilityDef gatedDef = null;
         for (String tid : plugin.getAbilities().treeCasterIds()) {
             if (!plugin.getSpec2Service().hasUnlocked(pu118, tid)) {
-                dev.raskol.classes.ability.AbilityDef d =
-                        plugin.getAbilities().findById(pc118, tid);
+                dev.raskol.classes.ability.AbilityDef d = plugin.getAbilities().findById(pc118, tid);
                 if (d != null) {
                     gatedId = tid;
                     gatedDef = d;
@@ -3037,8 +3577,12 @@ public final class SelftestRunner {
             boolean marked = plugin.getAbilities().hasAttemptMark(pu118, gatedId);
             boolean ok118 = !castResult && !marked;
             String got118 = "cast=" + castResult + " mark=" + marked + " id=" + gatedId;
-            r.check("118", "P1-6: гейтованный каст отклонён БЕЗ антиспам-метки",
-                    ok118, "AbilityRegistry.castOn", got118);
+            r.check(
+                    "118",
+                    "P1-6: гейтованный каст отклонён БЕЗ антиспам-метки",
+                    ok118,
+                    "AbilityRegistry.castOn",
+                    got118);
         }
     }
 
@@ -3051,8 +3595,11 @@ public final class SelftestRunner {
         double got119 = rs119.getValue();
         double max119 = rs119.getEffectiveMax();
         boolean ok119 = Math.abs(got119 - 150.0) < 1e-9 && Math.abs(max119 - 150.0) < 1e-9;
-        r.check("119", "P1-8: после setCeiling(150) ресурс растёт до 150 (не кламп на 100)",
-                ok119, "ResourceState.setCeiling/getValue",
+        r.check(
+                "119",
+                "P1-8: после setCeiling(150) ресурс растёт до 150 (не кламп на 100)",
+                ok119,
+                "ResourceState.setCeiling/getValue",
                 String.format(Locale.ROOT, "value=%.1f/%.1f max=%.1f", got119, 150.0, max119));
 
         if (probe == null) {
@@ -3064,8 +3611,8 @@ public final class SelftestRunner {
         String got120;
         try {
             hbs.saveAll();
-            java.io.File healthFile = plugin.getDataFolder().toPath()
-                    .resolve("health.yml").toFile();
+            java.io.File healthFile =
+                    plugin.getDataFolder().toPath().resolve("health.yml").toFile();
             long before = healthFile.exists() ? healthFile.lastModified() : 0L;
             Thread.sleep(50);
             hbs.saveAll();
@@ -3077,8 +3624,12 @@ public final class SelftestRunner {
             got120 = "exception: " + t.getClass().getSimpleName()
                     + (t.getMessage() != null ? ": " + t.getMessage() : "");
         }
-        r.check("120", "P1-7: saveAll + повторный saveAll без исключений (dirty-flush идемпотентен)",
-                ok120, "HpBarService.saveAll/flushDirty", got120);
+        r.check(
+                "120",
+                "P1-7: saveAll + повторный saveAll без исключений (dirty-flush идемпотентен)",
+                ok120,
+                "HpBarService.saveAll/flushDirty",
+                got120);
     }
 
     /* ------------------------------ 121: Sprint 5, P2-4 ------------------------------ */
@@ -3086,8 +3637,8 @@ public final class SelftestRunner {
     private static void stopListLive(RaskolClasses plugin, Report r) {
         boolean ok121 = true;
         String got121 = "";
-        Set<String> liveProcTargets = Set.of("free_heal", "enrage_dmg", "trance",
-                "rage_on_cast", "bleed_on_crit", "burning_extend");
+        Set<String> liveProcTargets =
+                Set.of("free_heal", "enrage_dmg", "trance", "rage_on_cast", "bleed_on_crit", "burning_extend");
         for (Spec s : Spec.values()) {
             Spec2Tree t = Spec2Registry.treeOf(s.id());
             if (t == null) {
@@ -3100,8 +3651,7 @@ public final class SelftestRunner {
                 String kind = n.effect().kind();
                 boolean live = "kit_dur".equals(kind)
                         || "attack_speed_pct".equals(kind)
-                        || (kind.startsWith("proc_")
-                            && liveProcTargets.contains(kind.substring("proc_".length())));
+                        || (kind.startsWith("proc_") && liveProcTargets.contains(kind.substring("proc_".length())));
                 if (live && plugin.getSpec2Service().nodeDisabled(n.id())) {
                     ok121 = false;
                     got121 = n.id() + " (" + kind + ")";
@@ -3112,8 +3662,11 @@ public final class SelftestRunner {
                 break;
             }
         }
-        r.check("121", "P2-4: в стоп-листе нет узлов с живыми потребителями (kit_dur/attack_speed/procs)",
-                ok121, "config spec2.disabled-nodes",
+        r.check(
+                "121",
+                "P2-4: в стоп-листе нет узлов с живыми потребителями (kit_dur/attack_speed/procs)",
+                ok121,
+                "config spec2.disabled-nodes",
                 ok121 ? "OK(20 disabled)" : "живой, но закрыт: " + got121);
     }
 
@@ -3141,10 +3694,12 @@ public final class SelftestRunner {
             }
         }
         boolean ok122 = unreachable == 0;
-        r.check("122", "P0-6B: каждый включённый узел достижим при текущем стоп-листе (цепочки пререквизитов целы)",
-                ok122, "Spec2Tree.isReachable/spec2.disabled-nodes",
-                ok122 ? "OK(" + disabled.size() + " disabled)"
-                        : unreachable + " недостижимых, первый: " + got122);
+        r.check(
+                "122",
+                "P0-6B: каждый включённый узел достижим при текущем стоп-листе (цепочки пререквизитов целы)",
+                ok122,
+                "Spec2Tree.isReachable/spec2.disabled-nodes",
+                ok122 ? "OK(" + disabled.size() + " disabled)" : unreachable + " недостижимых, первый: " + got122);
     }
 
     /* ------------------------------ 123–125: 1.14.15 (raskolspec+) ------------------------------ */
@@ -3153,8 +3708,11 @@ public final class SelftestRunner {
         int tplCount = plugin.getBuildTemplates().countLoaded();
         int tplProblems = plugin.getBuildTemplates().countProblems();
         boolean ok123 = tplCount == 36 && tplProblems == 0;
-        r.check("123", "raskolspec+: 36 шаблонов загружено без проблем (18 спек × 2 архетипа)",
-                ok123, "BuildTemplates.countLoaded/countProblems",
+        r.check(
+                "123",
+                "raskolspec+: 36 шаблонов загружено без проблем (18 спек × 2 архетипа)",
+                ok123,
+                "BuildTemplates.countLoaded/countProblems",
                 "loaded=" + tplCount + " problems=" + tplProblems);
 
         UUID probe = UUID.randomUUID();
@@ -3168,17 +3726,22 @@ public final class SelftestRunner {
             plugin.getPlusSubscription().revoke(probe);
             activeAfterRevoke = plugin.getPlusSubscription().active(probe);
         }
-        boolean ok124 = exp1 > System.currentTimeMillis()
-                && days >= 29 && days <= 31
-                && !activeAfterRevoke;
-        r.check("124", "raskolspec+: grant(1 период) → expires в будущем, remainingDays 29..31, revoke чист",
-                ok124, "PlusSubscription.grant/remainingDays/revoke",
+        boolean ok124 = exp1 > System.currentTimeMillis() && days >= 29 && days <= 31 && !activeAfterRevoke;
+        r.check(
+                "124",
+                "raskolspec+: grant(1 период) → expires в будущем, remainingDays 29..31, revoke чист",
+                ok124,
+                "PlusSubscription.grant/remainingDays/revoke",
                 "expires=" + exp1 + " days=" + days + " active_after_revoke=" + activeAfterRevoke);
 
         int stale = plugin.getBuildTemplates().countStale();
         boolean ok125 = stale >= 0;
-        r.check("125", "raskolspec+: stale-шаблонов = " + stale + " (disabled-nodes маркировка)",
-                ok125, "BuildTemplates.countStale", "stale=" + stale);
+        r.check(
+                "125",
+                "raskolspec+: stale-шаблонов = " + stale + " (disabled-nodes маркировка)",
+                ok125,
+                "BuildTemplates.countStale",
+                "stale=" + stale);
     }
 
     /* ------------------------------ 126–127: 1.14.16 (Волна 15C) apply raskolspec+ ------------------------------ */
@@ -3209,8 +3772,8 @@ public final class SelftestRunner {
         }
         String prevMain = plugin.getSpec2Service().storage().getMain(pu);
         boolean tempMain = prevMain == null;
-        Map<String, Integer> backup = new HashMap<>(
-                plugin.getSpec2Service().storage().getRanks(pu, t0));
+        Map<String, Integer> backup =
+                new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu, t0));
         boolean ok126 = false;
         String got126 = "n/a";
         try {
@@ -3219,10 +3782,8 @@ public final class SelftestRunner {
             }
             pauseMs(200);
             Map<String, Integer> tpl = Map.of(n0.id(), 1);
-            Spec2Service.BuildApplyOutcome out =
-                    plugin.getSpec2Service().applyBuild(probe, t0, tpl, true);
-            int rank = plugin.getSpec2Service().storage().getRanks(pu, t0)
-                    .getOrDefault(n0.id(), 0);
+            Spec2Service.BuildApplyOutcome out = plugin.getSpec2Service().applyBuild(probe, t0, tpl, true);
+            int rank = plugin.getSpec2Service().storage().getRanks(pu, t0).getOrDefault(n0.id(), 0);
             ok126 = out.result() == Spec2Service.BuildApplyResult.OK && rank == 1;
             got126 = "result=" + out.result() + " rank=" + rank;
         } finally {
@@ -3232,16 +3793,37 @@ public final class SelftestRunner {
             }
             plugin.getSpec2Service().reconcile(pu);
         }
-        r.check("126", "raskolspec+ applyBuild: free-применение узла ряда 1 = OK, rank=1, откат чист",
-                ok126, "Spec2Service.applyBuild", got126);
+        r.check(
+                "126",
+                "raskolspec+ applyBuild: free-применение узла ряда 1 = OK, rank=1, откат чист",
+                ok126,
+                "Spec2Service.applyBuild",
+                got126);
 
-        Map<String, Integer> before127 = new HashMap<>(
-                plugin.getSpec2Service().storage().getRanks(pu, t0));
+        Map<String, Integer> before127 =
+                new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu, t0));
 
         String foreign = null;
-        String[] candidates = {"arms", "fury", "guard", "marksmanship", "survival",
-                "beastmaster", "assassination", "outlaw", "subtlety", "arcane", "fire",
-                "frost", "discipline", "holy", "shadow", "affliction", "destruction", "demonology"};
+        String[] candidates = {
+            "arms",
+            "fury",
+            "guard",
+            "marksmanship",
+            "survival",
+            "beastmaster",
+            "assassination",
+            "outlaw",
+            "subtlety",
+            "arcane",
+            "fire",
+            "frost",
+            "discipline",
+            "holy",
+            "shadow",
+            "affliction",
+            "destruction",
+            "demonology"
+        };
         for (String c : candidates) {
             if (!trees.contains(c)) {
                 foreign = c;
@@ -3254,8 +3836,8 @@ public final class SelftestRunner {
             Spec2Node fNode = firstRow1(fTree);
             if (fNode != null) {
                 pauseMs(200);
-                Spec2Service.BuildApplyOutcome out = plugin.getSpec2Service()
-                        .applyBuild(probe, foreign, Map.of(fNode.id(), 1), true);
+                Spec2Service.BuildApplyOutcome out =
+                        plugin.getSpec2Service().applyBuild(probe, foreign, Map.of(fNode.id(), 1), true);
                 wrongRejected = out.result() == Spec2Service.BuildApplyResult.WRONG_CLASS_TREE;
             }
         }
@@ -3270,17 +3852,20 @@ public final class SelftestRunner {
         boolean gapRejected = true;
         if (gapNode != null) {
             pauseMs(200);
-            Spec2Service.BuildApplyOutcome gapOut = plugin.getSpec2Service()
-                    .applyBuild(probe, t0, Map.of(gapNode.id(), 1), true);
+            Spec2Service.BuildApplyOutcome gapOut =
+                    plugin.getSpec2Service().applyBuild(probe, t0, Map.of(gapNode.id(), 1), true);
             gapRejected = gapOut.result() == Spec2Service.BuildApplyResult.TEMPLATE_INVALID;
         }
 
-        Map<String, Integer> after127 = new HashMap<>(
-                plugin.getSpec2Service().storage().getRanks(pu, t0));
+        Map<String, Integer> after127 =
+                new HashMap<>(plugin.getSpec2Service().storage().getRanks(pu, t0));
         boolean stateIntact = after127.equals(before127);
         boolean ok127 = wrongRejected && gapRejected && stateIntact;
-        r.check("127", "raskolspec+ applyBuild-отказы: чужое дерево + prereq-дыра, состояние не изменено",
-                ok127, "Spec2Service.applyBuild",
+        r.check(
+                "127",
+                "raskolspec+ applyBuild-отказы: чужое дерево + prereq-дыра, состояние не изменено",
+                ok127,
+                "Spec2Service.applyBuild",
                 "wrong=" + wrongRejected + " gap=" + gapRejected + " intact=" + stateIntact);
     }
 }

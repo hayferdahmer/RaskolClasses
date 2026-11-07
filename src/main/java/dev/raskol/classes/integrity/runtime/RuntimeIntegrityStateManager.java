@@ -2,33 +2,24 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.runtime;
 
-import dev.raskol.classes.integrity.verification.IntegrityStatus;
-import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
-
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import dev.raskol.classes.integrity.verification.IntegrityStatus;
+import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
+
 public final class RuntimeIntegrityStateManager {
 
     private static final int DEFAULT_HISTORY_LIMIT = 100;
 
     private final int historyLimit;
-    private final ArrayDeque<RuntimeIntegrityTransition> history =
-            new ArrayDeque<>();
+    private final ArrayDeque<RuntimeIntegrityTransition> history = new ArrayDeque<>();
 
     private RuntimeIntegritySnapshot snapshot =
-            new RuntimeIntegritySnapshot(
-                    RuntimeIntegrityState.NOT_STARTED,
-                    null,
-                    null,
-                    0,
-                    0,
-                    0,
-                    null
-            );
+            new RuntimeIntegritySnapshot(RuntimeIntegrityState.NOT_STARTED, null, null, 0, 0, 0, null);
 
     public RuntimeIntegrityStateManager() {
         this(DEFAULT_HISTORY_LIMIT);
@@ -36,9 +27,7 @@ public final class RuntimeIntegrityStateManager {
 
     public RuntimeIntegrityStateManager(int historyLimit) {
         if (historyLimit <= 0) {
-            throw new IllegalArgumentException(
-                    "History limit must be positive"
-            );
+            throw new IllegalArgumentException("History limit must be positive");
         }
 
         this.historyLimit = historyLimit;
@@ -51,15 +40,11 @@ public final class RuntimeIntegrityStateManager {
      *         is already running or the manager has been stopped.
      */
     public synchronized boolean beginCheck() {
-        if (snapshot.state() == RuntimeIntegrityState.STOPPED
-                || snapshot.state() == RuntimeIntegrityState.RUNNING) {
+        if (snapshot.state() == RuntimeIntegrityState.STOPPED || snapshot.state() == RuntimeIntegrityState.RUNNING) {
             return false;
         }
 
-        transitionTo(
-                RuntimeIntegrityState.RUNNING,
-                "Integrity verification started"
-        );
+        transitionTo(RuntimeIntegrityState.RUNNING, "Integrity verification started");
 
         return true;
     }
@@ -68,9 +53,7 @@ public final class RuntimeIntegrityStateManager {
      * Records a completed integrity verification.
      */
     public synchronized RuntimeIntegritySnapshot completeCheck(
-            IntegrityVerificationResult result,
-            long durationMillis
-    ) {
+            IntegrityVerificationResult result, long durationMillis) {
         Objects.requireNonNull(result, "result");
         validateDuration(durationMillis);
 
@@ -83,30 +66,16 @@ public final class RuntimeIntegrityStateManager {
         RuntimeIntegrityState newState = mapState(result.status());
 
         boolean successful =
-                newState == RuntimeIntegrityState.VERIFIED
-                        || newState == RuntimeIntegrityState.DEVELOPMENT_BUILD;
+                newState == RuntimeIntegrityState.VERIFIED || newState == RuntimeIntegrityState.DEVELOPMENT_BUILD;
 
-        long consecutiveFailures = successful
-                ? 0
-                : snapshot.consecutiveFailures() + 1;
+        long consecutiveFailures = successful ? 0 : snapshot.consecutiveFailures() + 1;
 
         RuntimeIntegritySnapshot previous = snapshot;
 
         snapshot = new RuntimeIntegritySnapshot(
-                newState,
-                Instant.now(),
-                result,
-                previous.totalChecks() + 1,
-                consecutiveFailures,
-                durationMillis,
-                null
-        );
+                newState, Instant.now(), result, previous.totalChecks() + 1, consecutiveFailures, durationMillis, null);
 
-        recordTransition(
-                previous.state(),
-                newState,
-                result.message()
-        );
+        recordTransition(previous.state(), newState, result.message());
 
         return snapshot;
     }
@@ -114,10 +83,7 @@ public final class RuntimeIntegrityStateManager {
     /**
      * Records an unexpected runtime failure during verification.
      */
-    public synchronized RuntimeIntegritySnapshot failCheck(
-            RuntimeException exception,
-            long durationMillis
-    ) {
+    public synchronized RuntimeIntegritySnapshot failCheck(RuntimeException exception, long durationMillis) {
         Objects.requireNonNull(exception, "exception");
         validateDuration(durationMillis);
 
@@ -137,14 +103,9 @@ public final class RuntimeIntegrityStateManager {
                 previous.totalChecks() + 1,
                 previous.consecutiveFailures() + 1,
                 durationMillis,
-                error
-        );
+                error);
 
-        recordTransition(
-                previous.state(),
-                RuntimeIntegrityState.FAILED,
-                error
-        );
+        recordTransition(previous.state(), RuntimeIntegrityState.FAILED, error);
 
         return snapshot;
     }
@@ -158,10 +119,7 @@ public final class RuntimeIntegrityStateManager {
             return snapshot;
         }
 
-        transitionTo(
-                RuntimeIntegrityState.STOPPED,
-                "Runtime integrity monitoring stopped"
-        );
+        transitionTo(RuntimeIntegrityState.STOPPED, "Runtime integrity monitoring stopped");
 
         return snapshot;
     }
@@ -181,10 +139,7 @@ public final class RuntimeIntegrityStateManager {
         return historyLimit;
     }
 
-    private void transitionTo(
-            RuntimeIntegrityState newState,
-            String reason
-    ) {
+    private void transitionTo(RuntimeIntegrityState newState, String reason) {
         RuntimeIntegritySnapshot previous = snapshot;
 
         snapshot = new RuntimeIntegritySnapshot(
@@ -194,25 +149,14 @@ public final class RuntimeIntegrityStateManager {
                 previous.totalChecks(),
                 previous.consecutiveFailures(),
                 previous.lastDurationMillis(),
-                previous.lastError()
-        );
+                previous.lastError());
 
         recordTransition(previous.state(), newState, reason);
     }
 
-    private void recordTransition(
-            RuntimeIntegrityState previousState,
-            RuntimeIntegrityState newState,
-            String reason
-    ) {
+    private void recordTransition(RuntimeIntegrityState previousState, RuntimeIntegrityState newState, String reason) {
         history.addLast(
-                new RuntimeIntegrityTransition(
-                        Instant.now(),
-                        previousState,
-                        newState,
-                        reason == null ? "" : reason
-                )
-        );
+                new RuntimeIntegrityTransition(Instant.now(), previousState, newState, reason == null ? "" : reason));
 
         while (history.size() > historyLimit) {
             history.removeFirst();
@@ -229,17 +173,13 @@ public final class RuntimeIntegrityStateManager {
 
     private void requireRunning() {
         if (snapshot.state() != RuntimeIntegrityState.RUNNING) {
-            throw new IllegalStateException(
-                    "Integrity verification is not running"
-            );
+            throw new IllegalStateException("Integrity verification is not running");
         }
     }
 
     private void validateDuration(long durationMillis) {
         if (durationMillis < 0) {
-            throw new IllegalArgumentException(
-                    "Duration cannot be negative"
-            );
+            throw new IllegalArgumentException("Duration cannot be negative");
         }
     }
 
@@ -250,10 +190,7 @@ public final class RuntimeIntegrityStateManager {
             message = exception.getClass().getSimpleName();
         }
 
-        message = message
-                .replace('\r', ' ')
-                .replace('\n', ' ')
-                .replace('\t', ' ');
+        message = message.replace('\r', ' ').replace('\n', ' ').replace('\t', ' ');
 
         if (message.length() > 512) {
             message = message.substring(0, 512);

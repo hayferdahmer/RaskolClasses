@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+
+import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
 /**
  * Расширение PlaceholderAPI для королевских вкусов (1.4.0):
@@ -63,9 +65,7 @@ public final class FlavorPlaceholder extends PlaceholderExpansion {
                 return plugin.getFlavorService().crownDisplayName(player.getUniqueId());
             case "title": {
                 PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-                return pc == null
-                        ? ""
-                        : plugin.getFlavorService().titleOf(player.getUniqueId(), pc);
+                return pc == null ? "" : plugin.getFlavorService().titleOf(player.getUniqueId(), pc);
             }
             case "faction":
                 return plugin.getFactionHook().factionOf(player.getUniqueId());

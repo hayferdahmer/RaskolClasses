@@ -2,19 +2,20 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.config;
 
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
 import dev.raskol.classes.item.model.ItemSlot;
 import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.item.model.WeaponType;
-import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
-
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 
 /**
  * 1.15.1 (Итерация B): единая точка валидации items.yml, вынесенная из
@@ -34,8 +35,7 @@ import java.util.Map;
  */
 public final class ItemValidator {
 
-    private ItemValidator() {
-    }
+    private ItemValidator() {}
 
     /** schema-version и верхняя граница уровня предметов; возвращает max-item-level. */
     public static int validateSchema(YamlConfiguration yaml) {
@@ -87,8 +87,8 @@ public final class ItemValidator {
     public static void validateExpandedMaterial(ItemDefinition def) {
         Material material = Material.matchMaterial(def.material());
         if (material == null || !material.isItem()) {
-            throw new IllegalArgumentException("Template " + def.id()
-                    + " uses invalid item material " + def.material());
+            throw new IllegalArgumentException(
+                    "Template " + def.id() + " uses invalid item material " + def.material());
         }
     }
 
@@ -101,19 +101,23 @@ public final class ItemValidator {
         if (def.slot() != ItemSlot.MAIN_HAND) {
             return;
         }
-        ConfigurationSection type = yaml.getConfigurationSection("settings.weapon-types." + def.weaponType().name());
+        ConfigurationSection type = yaml.getConfigurationSection(
+                "settings.weapon-types." + def.weaponType().name());
         if (type == null) {
             throw new IllegalArgumentException("weapon type not configured: " + def.weaponType());
         }
         List<String> materials = type.getStringList("materials");
         boolean materialAllowed = materials.isEmpty()
-                || materials.stream().anyMatch(m -> m.equals(def.material())
-                || (m.startsWith("*") && def.material().endsWith(m.substring(1))));
+                || materials.stream()
+                        .anyMatch(m -> m.equals(def.material())
+                                || (m.startsWith("*") && def.material().endsWith(m.substring(1))));
         if (!materialAllowed) {
             throw new IllegalArgumentException("material not allowed for " + def.weaponType());
         }
         List<String> classes = type.getStringList("classes");
-        if (def.playerClass() != null && !classes.contains("ALL") && !classes.contains(def.playerClass().name())) {
+        if (def.playerClass() != null
+                && !classes.contains("ALL")
+                && !classes.contains(def.playerClass().name())) {
             throw new IllegalArgumentException("weapon type not allowed for class " + def.playerClass());
         }
     }
@@ -155,7 +159,9 @@ public final class ItemValidator {
         List<String> values = yaml.getStringList("settings.generated-rarities");
         List<ItemRarity> result = values.isEmpty()
                 ? List.of(ItemRarity.COMMON, ItemRarity.RARE, ItemRarity.EPIC)
-                : values.stream().map(v -> ItemRarity.valueOf(v.toUpperCase(Locale.ROOT))).toList();
+                : values.stream()
+                        .map(v -> ItemRarity.valueOf(v.toUpperCase(Locale.ROOT)))
+                        .toList();
         if (result.stream().distinct().count() != result.size()) {
             throw new IllegalArgumentException("Duplicate generated rarity");
         }

@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.DamageProfile;
-import dev.raskol.classes.combat.school.School;
-import dev.raskol.classes.pet.PetService;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -19,11 +18,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.pet.PetService;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.7.4: КИТ ЖРЕЦА. 1.9.3 (план B): maxOf() читает formulaMaxHp();
@@ -125,20 +127,18 @@ public final class PriestAbilities extends AbstractKit {
         if (e instanceof Player p) {
             return plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
         }
-        org.bukkit.attribute.AttributeInstance attr =
-                e.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+        org.bukkit.attribute.AttributeInstance attr = e.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
         return attr != null ? attr.getValue() : 20.0;
     }
 
     private void executeFx(LivingEntity target) {
-        Sound sound = plugin.getFx().resolveSound(
-                cfgS("vfx.wrath_heaven.execute-sound", "ENTITY_LIGHTNING_BOLT_IMPACT"));
+        Sound sound =
+                plugin.getFx().resolveSound(cfgS("vfx.wrath_heaven.execute-sound", "ENTITY_LIGHTNING_BOLT_IMPACT"));
         Location loc = target.getLocation().add(0.0, 1.0, 0.0);
         if (sound != null) {
             plugin.getFx().playSound(loc, sound, 0.9f, 0.7f);
         }
-        Particle particle = resolveParticle(
-                cfgS("vfx.wrath_heaven.execute-particle", "FLASH"));
+        Particle particle = resolveParticle(cfgS("vfx.wrath_heaven.execute-particle", "FLASH"));
         if (particle != null) {
             target.getWorld().spawnParticle(particle, loc, 3, 0.2, 0.3, 0.2, 0.0);
         }
@@ -156,11 +156,11 @@ public final class PriestAbilities extends AbstractKit {
      * 1.14.7 (Sprint 4, P1-2): markHealer удалён — атрибуция в CustomHealEvent.
      * 1.14.8 (P2-3): healAmount/thealAmount унаследованы из AbstractKit (те же сигнатуры).
      */
-    private boolean applyHealWith(Player caster, Player target, AbilityDef def,
-                                  double defBase, double defCoeff, boolean treePath) {
+    private boolean applyHealWith(
+            Player caster, Player target, AbilityDef def, double defBase, double defCoeff, boolean treePath) {
         if (!isAllyOrSelf(caster, target)) {
-            caster.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "ally.no-heal", "Цель не союзник"), NamedTextColor.GRAY));
+            caster.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("ally.no-heal", "Цель не союзник"), NamedTextColor.GRAY));
             return false;
         }
         double formula = plugin.getHpBarService().formulaMaxHp(target.getUniqueId());
@@ -168,13 +168,13 @@ public final class PriestAbilities extends AbstractKit {
         double hpFormula = scale > 0.0 ? target.getHealth() / scale : target.getHealth();
         double missing = formula - hpFormula;
         if (missing <= 0.0) {
-            caster.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "target-full-hp", "Цель здорова"), NamedTextColor.GRAY));
+            caster.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("target-full-hp", "Цель здорова"), NamedTextColor.GRAY));
             return false;
         }
-        double amount = Math.min(treePath
-                ? thealAmount(caster, def, defBase, defCoeff)
-                : healAmount(caster, def, defBase, defCoeff), missing);
+        double amount = Math.min(
+                treePath ? thealAmount(caster, def, defBase, defCoeff) : healAmount(caster, def, defBase, defCoeff),
+                missing);
         plugin.getHpBarService().heal(target, amount, caster);
         // 1.14.7 (P0-6A): ho_surge_of_light — бесплатный хил (refund стоимости)
         if (def.cost() > 0 && plugin.getCombat().procs().rollFreeHeal(caster)) {
@@ -188,20 +188,21 @@ public final class PriestAbilities extends AbstractKit {
         plugin.getCombat().dots().removeSchoolOn(targetUuid, School.SHADOW);
         int after = plugin.getCombat().dots().activeOn(targetUuid);
         if (after < before) {
-            target.getWorld().spawnParticle(Particle.ENCHANT,
-                    target.getLocation().add(0.0, 1.0, 0.0), 6, 0.3, 0.4, 0.3, 0.01);
+            target.getWorld()
+                    .spawnParticle(Particle.ENCHANT, target.getLocation().add(0.0, 1.0, 0.0), 6, 0.3, 0.4, 0.3, 0.01);
         }
 
         if (!target.getUniqueId().equals(caster.getUniqueId())) {
-            target.sendMessage(Component.text(plugin.getRaskolConfig()
-                    .message("healed-you", "{caster} исцелил тебя")
-                    .replace("{caster}", caster.getName()), NamedTextColor.GREEN));
+            target.sendMessage(Component.text(
+                    plugin.getRaskolConfig()
+                            .message("healed-you", "{caster} исцелил тебя")
+                            .replace("{caster}", caster.getName()),
+                    NamedTextColor.GREEN));
         }
         return true;
     }
 
-    private boolean applyHeal(Player caster, Player target, AbilityDef def,
-                              double defBase, double defCoeff) {
+    private boolean applyHeal(Player caster, Player target, AbilityDef def, double defBase, double defCoeff) {
         return applyHealWith(caster, target, def, defBase, defCoeff, false);
     }
 
@@ -221,8 +222,7 @@ public final class PriestAbilities extends AbstractKit {
                 continue;
             }
             plugin.getHpBarService().heal(t, Math.min(amount, missing), caster);
-            t.getWorld().spawnParticle(Particle.HEART,
-                    t.getLocation().add(0.0, 1.2, 0.0), 2, 0.2, 0.3, 0.2, 0.0);
+            t.getWorld().spawnParticle(Particle.HEART, t.getLocation().add(0.0, 1.2, 0.0), 2, 0.2, 0.3, 0.2, 0.0);
             healed++;
         }
         return healed;
@@ -248,8 +248,7 @@ public final class PriestAbilities extends AbstractKit {
                 continue;
             }
             plugin.getHpBarService().heal(t, Math.min(amount, missing), caster);
-            t.getWorld().spawnParticle(Particle.HEART,
-                    t.getLocation().add(0.0, 1.2, 0.0), 2, 0.2, 0.3, 0.2, 0.0);
+            t.getWorld().spawnParticle(Particle.HEART, t.getLocation().add(0.0, 1.2, 0.0), 2, 0.2, 0.3, 0.2, 0.0);
             healed++;
         }
         return healed;
@@ -269,8 +268,8 @@ public final class PriestAbilities extends AbstractKit {
 
     public boolean saintTear(Player caster, LivingEntity target, AbilityDef def) {
         if (!(target instanceof Player tp)) {
-            caster.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "ally.no-heal", "Цель не союзник"), NamedTextColor.GRAY));
+            caster.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("ally.no-heal", "Цель не союзник"), NamedTextColor.GRAY));
             return false;
         }
         boolean ok = applyHeal(caster, tp, def, 10.0, 0.35);
@@ -284,8 +283,8 @@ public final class PriestAbilities extends AbstractKit {
 
     public boolean wordOfLife(Player caster, LivingEntity target, AbilityDef def) {
         if (!(target instanceof Player tp)) {
-            caster.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "ally.no-heal", "Цель не союзник"), NamedTextColor.GRAY));
+            caster.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("ally.no-heal", "Цель не союзник"), NamedTextColor.GRAY));
             return false;
         }
         boolean ok = applyHeal(caster, tp, def, 20.0, 0.6);
@@ -308,10 +307,15 @@ public final class PriestAbilities extends AbstractKit {
         int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 5, uuid);
         plugin.getResists().addTimedModifier(uuid, def.id(), grant, grant, secs * 1000L);
         castFx(p, "aegis_faith", "ITEM_ARMOR_EQUIP_DIAMOND", "ENCHANTED_HIT", 0.6f, 1.0f, 20);
-        plugin.getFx().startAura(uuid, Particle.ENCHANTED_HIT, secs * 20, 3,
-                cfgS("vfx.aegis_faith.expire-sound", "BLOCK_AMETHYST_BLOCK_CHIME"));
-        p.sendMessage(Component.text("Эгида Веры: +" + (int) grant
-                + "% физ/маг резиста на " + secs + " с", NamedTextColor.YELLOW));
+        plugin.getFx()
+                .startAura(
+                        uuid,
+                        Particle.ENCHANTED_HIT,
+                        secs * 20,
+                        3,
+                        cfgS("vfx.aegis_faith.expire-sound", "BLOCK_AMETHYST_BLOCK_CHIME"));
+        p.sendMessage(Component.text(
+                "Эгида Веры: +" + (int) grant + "% физ/маг резиста на " + secs + " с", NamedTextColor.YELLOW));
         return true;
     }
 
@@ -360,8 +364,8 @@ public final class PriestAbilities extends AbstractKit {
             dmg *= TreeAbilities.numberOrKit(plugin, PC, def.id(), "execute-mult", 3.0);
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg), true);
             executeFx(t);
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "tag.execute-priest", "Кара Небес ×3!"), NamedTextColor.RED));
+            p.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("tag.execute-priest", "Кара Небес ×3!"), NamedTextColor.RED));
         } else {
             plugin.getCombat().dealDamage(t, p, DamageProfile.magic(dmg));
             impactFx(t, "wrath_heaven", "ENTITY_FIREWORK_ROCKET_BLAST", "FLASH", 0.6f, 0.9f, 10);
@@ -383,8 +387,8 @@ public final class PriestAbilities extends AbstractKit {
         plugin.getCombat().dots().removeAllOn(tid);
         castFx(p, "purge", "BLOCK_BELL_USE", "ENCHANTED_HIT", 0.7f, 1.1f, 16);
         impactFx(target, "purge", "BLOCK_BELL_USE", "ENCHANTED_HIT", 0.5f, 1.2f, 12);
-        p.sendMessage(Component.text("Очищение: контроль и проклятия сняты с "
-                + target.getName(), NamedTextColor.GREEN));
+        p.sendMessage(
+                Component.text("Очищение: контроль и проклятия сняты с " + target.getName(), NamedTextColor.GREEN));
         return true;
     }
 
@@ -398,8 +402,8 @@ public final class PriestAbilities extends AbstractKit {
         target.addPotionEffect(new PotionEffect(PotionEffectType.RESISTANCE, secs * 20, 1));
         castFx(p, "pain_suppression", "BLOCK_BEACON_ACTIVATE", "ENCHANTED_HIT", 0.7f, 0.9f, 16);
         impactFx(target, "pain_suppression", "BLOCK_BEACON_ACTIVATE", "ENCHANTED_HIT", 0.5f, 1.0f, 12);
-        p.sendMessage(Component.text("Подавление боли: " + target.getName()
-                + " получает −40% урона " + secs + " с", NamedTextColor.YELLOW));
+        p.sendMessage(Component.text(
+                "Подавление боли: " + target.getName() + " получает −40% урона " + secs + " с", NamedTextColor.YELLOW));
         return true;
     }
 
@@ -421,12 +425,13 @@ public final class PriestAbilities extends AbstractKit {
         }
         for (Player t : targets) {
             t.addPotionEffect(new PotionEffect(PotionEffectType.ABSORPTION, secs * 20, level));
-            t.getWorld().spawnParticle(Particle.ENCHANTED_HIT,
-                    t.getLocation().add(0.0, 1.2, 0.0), 8, 0.3, 0.4, 0.3, 0.02);
+            t.getWorld()
+                    .spawnParticle(Particle.ENCHANTED_HIT, t.getLocation().add(0.0, 1.2, 0.0), 8, 0.3, 0.4, 0.3, 0.02);
         }
         castFx(p, "spirit_shell", "BLOCK_BEACON_ACTIVATE", "ENCHANTED_HIT", 0.9f, 0.8f, 26);
-        p.sendMessage(Component.text("Оболочка духа: щит " + shieldCarrier + " HP на "
-                + targets.size() + " целей, " + secs + " с", NamedTextColor.YELLOW));
+        p.sendMessage(Component.text(
+                "Оболочка духа: щит " + shieldCarrier + " HP на " + targets.size() + " целей, " + secs + " с",
+                NamedTextColor.YELLOW));
         return true;
     }
 
@@ -459,19 +464,31 @@ public final class PriestAbilities extends AbstractKit {
         Location spot = p.getLocation().clone();
         castFx(p, "lightwell", "BLOCK_BEACON_ACTIVATE", "ENCHANTED_HIT", 0.7f, 1.0f, 20);
         for (int tick = 0; tick < 4; tick++) {
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                Player caster = plugin.getServer().getPlayer(pid);
-                if (caster == null || !caster.isOnline()) {
-                    return;
-                }
-                // партиклы и лечение — вокруг spot, а не вокруг кастера
-                spot.getWorld().spawnParticle(Particle.ENCHANTED_HIT,
-                        spot.clone().add(0.0, 1.0, 0.0), 10, radius * 0.5, 0.4, radius * 0.5, 0.02);
-                groupHealAt(caster, spot, radius, per);
-            }, tick * 40L);
+            plugin.getServer()
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                Player caster = plugin.getServer().getPlayer(pid);
+                                if (caster == null || !caster.isOnline()) {
+                                    return;
+                                }
+                                // партиклы и лечение — вокруг spot, а не вокруг кастера
+                                spot.getWorld()
+                                        .spawnParticle(
+                                                Particle.ENCHANTED_HIT,
+                                                spot.clone().add(0.0, 1.0, 0.0),
+                                                10,
+                                                radius * 0.5,
+                                                0.4,
+                                                radius * 0.5,
+                                                0.02);
+                                groupHealAt(caster, spot, radius, per);
+                            },
+                            tick * 40L);
         }
-        p.sendMessage(Component.text("Колодец Света: зона лечения " + radius
-                + " блоков на 8 с", NamedTextColor.YELLOW));
+        p.sendMessage(
+                Component.text("Колодец Света: зона лечения " + radius + " блоков на 8 с", NamedTextColor.YELLOW));
         return true;
     }
 
@@ -482,22 +499,35 @@ public final class PriestAbilities extends AbstractKit {
         UUID pid = p.getUniqueId();
         castFx(p, "divine_hymn", "BLOCK_BELL_USE", "ENCHANTED_HIT", 0.9f, 0.8f, 28);
         for (int tick = 0; tick < 3; tick++) {
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                Player caster = plugin.getServer().getPlayer(pid);
-                if (caster == null || !caster.isOnline() || caster.isDead()) {
-                    return;
-                }
-                caster.getWorld().spawnParticle(Particle.ENCHANTED_HIT,
-                        caster.getLocation().add(0.0, 1.2, 0.0), 16, radius * 0.5, 0.5, radius * 0.5, 0.03);
-                int healed = groupHeal(caster, radius, per);
-                for (Player t : alliesWithin(caster, radius)) {
-                    plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.NATURE);
-                    plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.SHADOW);
-                }
-                if (healed > 0) {
-                    caster.sendMessage(Component.text("Гимн: исцелено " + healed, NamedTextColor.YELLOW));
-                }
-            }, tick * 20L);
+            plugin.getServer()
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                Player caster = plugin.getServer().getPlayer(pid);
+                                if (caster == null || !caster.isOnline() || caster.isDead()) {
+                                    return;
+                                }
+                                caster.getWorld()
+                                        .spawnParticle(
+                                                Particle.ENCHANTED_HIT,
+                                                caster.getLocation().add(0.0, 1.2, 0.0),
+                                                16,
+                                                radius * 0.5,
+                                                0.5,
+                                                radius * 0.5,
+                                                0.03);
+                                int healed = groupHeal(caster, radius, per);
+                                for (Player t : alliesWithin(caster, radius)) {
+                                    plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.NATURE);
+                                    plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.SHADOW);
+                                }
+                                if (healed > 0) {
+                                    caster.sendMessage(
+                                            Component.text("Гимн: исцелено " + healed, NamedTextColor.YELLOW));
+                                }
+                            },
+                            tick * 20L);
         }
         return true;
     }
@@ -538,18 +568,23 @@ public final class PriestAbilities extends AbstractKit {
         plugin.getCC().tryApply(p, t, CCTypeSlowHolder.SLOW_TYPE, 80);
         castFx(p, "mind_flay", "ENTITY_ENDERMAN_STARE", "REVERSE_PORTAL", 0.7f, 0.9f, 14);
         for (int tick = 0; tick < 3; tick++) {
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                Player caster = plugin.getServer().getPlayer(pid);
-                Entity e = plugin.getServer().getEntity(tid);
-                if (caster == null || !(e instanceof LivingEntity living) || living.isDead()) {
-                    return;
-                }
-                if (!plugin.getCombat().canHit(caster, living)) {
-                    return;
-                }
-                plugin.getCombat().dealDamage(living, caster, DamageProfile.magic(per));
-                impactFx(living, "mind_flay", "ENTITY_ENDERMAN_HURT", "REVERSE_PORTAL", 0.35f, 1.0f, 6);
-            }, tick * 20L);
+            plugin.getServer()
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                Player caster = plugin.getServer().getPlayer(pid);
+                                Entity e = plugin.getServer().getEntity(tid);
+                                if (caster == null || !(e instanceof LivingEntity living) || living.isDead()) {
+                                    return;
+                                }
+                                if (!plugin.getCombat().canHit(caster, living)) {
+                                    return;
+                                }
+                                plugin.getCombat().dealDamage(living, caster, DamageProfile.magic(per));
+                                impactFx(living, "mind_flay", "ENTITY_ENDERMAN_HURT", "REVERSE_PORTAL", 0.35f, 1.0f, 6);
+                            },
+                            tick * 20L);
         }
         return true;
     }
@@ -577,16 +612,22 @@ public final class PriestAbilities extends AbstractKit {
         plugin.getResources().add(p.getUniqueId(), 10.0);
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 8);
         castFx(p, "shadowfiend", "ENTITY_VEX_CHARGE", "SCULK_SOUL", 0.7f, 0.9f, 16);
-        p.sendMessage(Component.text("Тенескот призван на " + secs + " с (+10 Света)",
-                NamedTextColor.LIGHT_PURPLE));
+        p.sendMessage(Component.text("Тенескот призван на " + secs + " с (+10 Света)", NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
     /** 1.14.0: ids древесных способностей для сверки с TreeAbilities. */
     public static List<String> treeAbilityIds() {
-        return List.of("purge", "pain_suppression", "spirit_shell",
-                "flash_heal", "lightwell", "divine_hymn",
-                "withering_touch", "mind_flay", "shadowfiend");
+        return List.of(
+                "purge",
+                "pain_suppression",
+                "spirit_shell",
+                "flash_heal",
+                "lightwell",
+                "divine_hymn",
+                "withering_touch",
+                "mind_flay",
+                "shadowfiend");
     }
 
     /** Внутренний держатель CCType.SLOW без прямого импорта в сигнатурах выше. */

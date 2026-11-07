@@ -13,37 +13,25 @@ import java.util.Objects;
  * The public key itself is retained because signature verification
  * requires the actual key material.</p>
  */
-public record TrustedPublicKeyEntry(
-        PublicKey publicKey,
-        TrustedKeyDescriptor descriptor
-) {
+public record TrustedPublicKeyEntry(PublicKey publicKey, TrustedKeyDescriptor descriptor) {
 
     public TrustedPublicKeyEntry {
         Objects.requireNonNull(publicKey, "publicKey");
         Objects.requireNonNull(descriptor, "descriptor");
 
-        Objects.requireNonNull(
-                publicKey.getEncoded(),
-                "Public key encoding must not be null"
-        );
+        Objects.requireNonNull(publicKey.getEncoded(), "Public key encoding must not be null");
 
         if (!"EdDSA".equalsIgnoreCase(publicKey.getAlgorithm())
                 && !"Ed25519".equalsIgnoreCase(publicKey.getAlgorithm())) {
-            throw new IllegalArgumentException(
-                    "Only Ed25519 public keys are supported"
-            );
+            throw new IllegalArgumentException("Only Ed25519 public keys are supported");
         }
 
-        String actualFingerprint =
-                TrustedPublicKeyRegistry.fingerprint(publicKey);
+        String actualFingerprint = TrustedPublicKeyRegistry.fingerprint(publicKey);
 
         if (!MessageDigest.isEqual(
                 actualFingerprint.getBytes(java.nio.charset.StandardCharsets.US_ASCII),
-                descriptor.fingerprint().getBytes(java.nio.charset.StandardCharsets.US_ASCII)
-        )) {
-            throw new IllegalArgumentException(
-                    "Trusted key descriptor fingerprint does not match public key"
-            );
+                descriptor.fingerprint().getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+            throw new IllegalArgumentException("Trusted key descriptor fingerprint does not match public key");
         }
     }
 

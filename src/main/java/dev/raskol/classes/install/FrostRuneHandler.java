@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.install;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeType;
-import dev.raskol.classes.combat.DamageProfile;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -15,11 +18,9 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.combat.DamageProfile;
 
 /**
  * 1.11.4 (P2): Ледяная руна — зона с нарастающим уроном/замедлением,
@@ -76,46 +77,63 @@ public final class FrostRuneHandler extends BaseInstallationHandler {
         for (RuneState s : states.values()) {
             if (s.owner.equals(p.getUniqueId())) {
                 p.sendMessage(net.kyori.adventure.text.Component.text(
-                        "У вас уже есть активная Ледяная руна.",
-                        net.kyori.adventure.text.format.NamedTextColor.RED));
+                        "У вас уже есть активная Ледяная руна.", net.kyori.adventure.text.format.NamedTextColor.RED));
                 return false;
             }
         }
         RuneState st = new RuneState(p.getUniqueId(), loc);
         int duration = durationSeconds();
-        st.ambientId = plugin.getFx().startAmbient(loc,
-                plugin.getConfig().getString("vfx.frost_rune.ambient-sound", "ENTITY_ENDERMAN_TELEPORT"),
-                (float) cfgD("vfx.frost_rune.ambient-volume", 0.35),
-                (float) cfgD("vfx.frost_rune.ambient-pitch", 0.5),
-                plugin.getConfig().getString("vfx.frost_rune.ambient-particle", "REVERSE_PORTAL"),
-                duration * 20, 40);
+        st.ambientId = plugin.getFx()
+                .startAmbient(
+                        loc,
+                        plugin.getConfig().getString("vfx.frost_rune.ambient-sound", "ENTITY_ENDERMAN_TELEPORT"),
+                        (float) cfgD("vfx.frost_rune.ambient-volume", 0.35),
+                        (float) cfgD("vfx.frost_rune.ambient-pitch", 0.5),
+                        plugin.getConfig().getString("vfx.frost_rune.ambient-particle", "REVERSE_PORTAL"),
+                        duration * 20,
+                        40);
         double radius = radius();
-        st.ringTask = plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
-            @Override
-            public void run() {
-                if (!states.containsKey(instId) || loc.getWorld() == null) {
-                    BukkitTask self = st.ringTask;
-                    if (self != null) {
-                        self.cancel();
-                    }
-                    return;
-                }
-                for (int i = 0; i < 32; i++) {
-                    double angle = (Math.PI * 2 * i) / 32;
-                    Location ringLoc = loc.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
-                    for (int y = 0; y < 4; y++) {
-                        loc.getWorld().spawnParticle(Particle.PORTAL,
-                                ringLoc.clone().add(0.0, y * 0.5, 0.0), 2, 0.0, 0.0, 0.0, 0.0);
-                    }
-                }
-            }
-        }, 0L, 20L);
+        st.ringTask = plugin.getServer()
+                .getScheduler()
+                .runTaskTimer(
+                        plugin,
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                if (!states.containsKey(instId) || loc.getWorld() == null) {
+                                    BukkitTask self = st.ringTask;
+                                    if (self != null) {
+                                        self.cancel();
+                                    }
+                                    return;
+                                }
+                                for (int i = 0; i < 32; i++) {
+                                    double angle = (Math.PI * 2 * i) / 32;
+                                    Location ringLoc =
+                                            loc.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
+                                    for (int y = 0; y < 4; y++) {
+                                        loc.getWorld()
+                                                .spawnParticle(
+                                                        Particle.PORTAL,
+                                                        ringLoc.clone().add(0.0, y * 0.5, 0.0),
+                                                        2,
+                                                        0.0,
+                                                        0.0,
+                                                        0.0,
+                                                        0.0);
+                                    }
+                                }
+                            }
+                        },
+                        0L,
+                        20L);
         states.put(instId, st);
 
         ringParticles(loc, radius, 48);
         plugin.getFx().impactBurst(loc, Particle.PORTAL, 24, Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 0.7f);
-        notifyOwner(p.getUniqueId(), "Ледяная руна начертана: действует " + duration
-                + " с, следующая через " + cooldownSeconds() + " с");
+        notifyOwner(
+                p.getUniqueId(),
+                "Ледяная руна начертана: действует " + duration + " с, следующая через " + cooldownSeconds() + " с");
         return true;
     }
 
@@ -171,8 +189,7 @@ public final class FrostRuneHandler extends BaseInstallationHandler {
                     rune.ownerIntBase = plugin.getAttributes().value(rune.owner, AttributeType.INT);
                 }
                 double add = rune.ownerIntBase * (intMult - 1.0);
-                plugin.getAttributes().addTimedModifier(rune.owner, RUNE_INT_MOD,
-                        0.0, 0.0, add, 2000L);
+                plugin.getAttributes().addTimedModifier(rune.owner, RUNE_INT_MOD, 0.0, 0.0, add, 2000L);
             }
         }
         return true;
@@ -189,8 +206,7 @@ public final class FrostRuneHandler extends BaseInstallationHandler {
             rune.ringTask.cancel();
         }
         plugin.getAttributes().removeModifiersBySource(rune.owner, RUNE_INT_MOD);
-        plugin.getFx().impactBurst(rune.loc, Particle.CLOUD, 16,
-                Sound.ENTITY_ENDERMAN_TELEPORT, 0.4f, 1.6f);
+        plugin.getFx().impactBurst(rune.loc, Particle.CLOUD, 16, Sound.ENTITY_ENDERMAN_TELEPORT, 0.4f, 1.6f);
         notifyOwner(rune.owner, "Ледяная руна растаяла.");
     }
 

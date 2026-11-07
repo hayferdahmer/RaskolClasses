@@ -2,20 +2,19 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.command.sub;
 
-import dev.raskol.classes.classsystem.PlayerClass;
-import org.bukkit.Bukkit;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+
+import dev.raskol.classes.classsystem.PlayerClass;
+
 /** 1.11.4 (P4d): общие форматтеры/парсеры подкоманд. */
 public final class SubUtil {
 
-    private SubUtil() {
-    }
+    private SubUtil() {}
 
     public static String fmt1(double v) {
         return String.format(Locale.ROOT, "%.1f", v);

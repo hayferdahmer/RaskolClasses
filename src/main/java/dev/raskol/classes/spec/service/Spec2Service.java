@@ -2,21 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.service;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.school.School;
-import dev.raskol.classes.hook.EconomyHook;
-import dev.raskol.classes.spec.SpecRole;
-import dev.raskol.classes.spec.SpecRoles;
-import dev.raskol.classes.spec.model.Spec2Node;
-import dev.raskol.classes.spec.model.Spec2Points;
-import dev.raskol.classes.spec.model.Spec2Tree;
-import dev.raskol.classes.spec.registry.Spec2Registry;
-import dev.raskol.classes.spec.storage.Spec2Storage;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.entity.Player;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -29,6 +14,22 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.hook.EconomyHook;
+import dev.raskol.classes.spec.SpecRole;
+import dev.raskol.classes.spec.SpecRoles;
+import dev.raskol.classes.spec.model.Spec2Node;
+import dev.raskol.classes.spec.model.Spec2Points;
+import dev.raskol.classes.spec.model.Spec2Tree;
+import dev.raskol.classes.spec.registry.Spec2Registry;
+import dev.raskol.classes.spec.storage.Spec2Storage;
 
 /**
  * 1.14.0 «Спек 2.0»: рантайм деревьев путей.
@@ -90,34 +91,63 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class Spec2Service {
 
     public enum PurchaseResult {
-        OK, DISABLED, RATE_LIMITED, NO_MAIN, WRONG_CLASS_TREE, TREE_NOT_FOUND,
-        NODE_NOT_FOUND, NODE_DISABLED, ROW_GATE, PREREQ, MAX_RANK, NOT_ENOUGH_POINTS
+        OK,
+        DISABLED,
+        RATE_LIMITED,
+        NO_MAIN,
+        WRONG_CLASS_TREE,
+        TREE_NOT_FOUND,
+        NODE_NOT_FOUND,
+        NODE_DISABLED,
+        ROW_GATE,
+        PREREQ,
+        MAX_RANK,
+        NOT_ENOUGH_POINTS
     }
 
     public enum ResetResult {
-        OK, RATE_LIMITED, NO_MAIN, TREE_NOT_FOUND, NO_RANKS, POOR, NO_ECONOMY
+        OK,
+        RATE_LIMITED,
+        NO_MAIN,
+        TREE_NOT_FOUND,
+        NO_RANKS,
+        POOR,
+        NO_ECONOMY
     }
 
     /** 1.14.4 (П7): результат респеца одного ранга узла. 1.14.7 (P1-5): +HAS_DEPENDENTS. */
     public enum NodeResetResult {
-        OK, RATE_LIMITED, NO_MAIN, TREE_NOT_FOUND, NODE_NOT_FOUND,
-        NO_RANKS, POOR, NO_ECONOMY, HAS_DEPENDENTS
+        OK,
+        RATE_LIMITED,
+        NO_MAIN,
+        TREE_NOT_FOUND,
+        NODE_NOT_FOUND,
+        NO_RANKS,
+        POOR,
+        NO_ECONOMY,
+        HAS_DEPENDENTS
     }
 
     /**
      * 1.14.16 (Волна 15C): результат применения шаблона raskolspec+.
      */
     public enum BuildApplyResult {
-        OK, RATE_LIMITED, NO_MAIN, WRONG_CLASS_TREE, TREE_NOT_FOUND,
-        TEMPLATE_INVALID, NOT_ENOUGH_POINTS, NO_ECONOMY, POOR, PRUNED
+        OK,
+        RATE_LIMITED,
+        NO_MAIN,
+        WRONG_CLASS_TREE,
+        TREE_NOT_FOUND,
+        TEMPLATE_INVALID,
+        NOT_ENOUGH_POINTS,
+        NO_ECONOMY,
+        POOR,
+        PRUNED
     }
 
     /**
      * 1.14.16 (Волна 15C): исход применения шаблона с данными для сообщений GUI.
      */
-    public record BuildApplyOutcome(BuildApplyResult result, int cost,
-                                    int needPoints, int poolPoints) {
-    }
+    public record BuildApplyOutcome(BuildApplyResult result, int cost, int needPoints, int poolPoints) {}
 
     /** Агрегат эффектов игрока (пересобирается только в reconcile). */
     public static final class Agg {
@@ -130,11 +160,13 @@ public final class Spec2Service {
         public final Map<String, Double> procAmp = new HashMap<>();
         /** 1.14.7 (P0-6A): бонус длительности способностей из kit_dur-узлов, ключ = abilityId. */
         public final Map<String, Double> kitDur = new HashMap<>();
+
         public final Map<String, Double> dotDur = new HashMap<>();
         public final Map<String, Double> dotStacks = new HashMap<>();
         public final Map<String, Double> dotMult = new HashMap<>();
         /** 1.14.4 (П8): стихийный резист из узлов resist-<school>. */
         public final EnumMap<School, Double> elResist = new EnumMap<>(School.class);
+
         public final Set<String> unlocked = new HashSet<>();
         public double attrStr, attrAgi, attrInt;
         public double resPhys, resMagic;
@@ -516,8 +548,7 @@ public final class Spec2Service {
      *  6) защитная сверка: PRUNED → rollback + severe-лог + ВОЗВРАТ МОНЕТ (1.15.6, 2.6-90).
      * 1.15.6 (2.6-89): контекст дерева вокруг parity/коммита/сверки.
      */
-    public BuildApplyOutcome applyBuild(Player player, String treeId,
-                                        Map<String, Integer> ranks, boolean free) {
+    public BuildApplyOutcome applyBuild(Player player, String treeId, Map<String, Integer> ranks, boolean free) {
         UUID uuid = player.getUniqueId();
         if (!actionAllowed(uuid)) {
             return new BuildApplyOutcome(BuildApplyResult.RATE_LIMITED, 0, 0, 0);
@@ -571,15 +602,19 @@ public final class Spec2Service {
             reconcile(uuid);
             // 6) защитная сверка + rollback + возврат монет
             if (!storage.getRanks(uuid, treeId).equals(ranks)) {
-                plugin.getLogger().severe("spec2: applyBuild PRUNED после пре-проверок — rollback: игрок "
-                        + uuid + ", дерево " + treeId + " (сообщи разработчику: simulateApply/validate рассинхрон)");
+                plugin.getLogger()
+                        .severe("spec2: applyBuild PRUNED после пре-проверок — rollback: игрок " + uuid + ", дерево "
+                                + treeId + " (сообщи разработчику: simulateApply/validate рассинхрон)");
                 storage.setRanks(uuid, treeId, current);
                 reconcile(uuid);
                 if (cost > 0) {
                     boolean refunded = refundCoins(player, cost);
-                    plugin.getLogger().warning("spec2: applyBuild PRUNED — монеты "
-                            + (refunded ? "возвращены через Vault" : "НЕ возвращены (нет провайдера) — компенсируй вручную")
-                            + ": игрок " + player.getName() + ", сумма " + cost);
+                    plugin.getLogger()
+                            .warning("spec2: applyBuild PRUNED — монеты "
+                                    + (refunded
+                                            ? "возвращены через Vault"
+                                            : "НЕ возвращены (нет провайдера) — компенсируй вручную")
+                                    + ": игрок " + player.getName() + ", сумма " + cost);
                 }
                 return new BuildApplyOutcome(BuildApplyResult.PRUNED, cost, need, pool);
             }
@@ -608,8 +643,10 @@ public final class Spec2Service {
             Method deposit = null;
             for (Method m : economyIface.getMethods()) {
                 Class<?>[] p = m.getParameterTypes();
-                if ("depositPlayer".equals(m.getName()) && p.length == 2
-                        && p[0] == OfflinePlayer.class && p[1] == double.class) {
+                if ("depositPlayer".equals(m.getName())
+                        && p.length == 2
+                        && p[0] == OfflinePlayer.class
+                        && p[1] == double.class) {
                     deposit = m;
                     break;
                 }
@@ -617,8 +654,7 @@ public final class Spec2Service {
             if (deposit == null) {
                 return false;
             }
-            Object response = deposit.invoke(provider,
-                    Bukkit.getOfflinePlayer(player.getUniqueId()), (double) coins);
+            Object response = deposit.invoke(provider, Bukkit.getOfflinePlayer(player.getUniqueId()), (double) coins);
             if (response == null) {
                 return true;
             }
@@ -659,8 +695,9 @@ public final class Spec2Service {
             }
             if (kept.size() != raw.size()) {
                 storage.setRanks(uuid, treeId, kept);
-                plugin.getLogger().warning("spec2: ранги дерева " + treeId + " игрока " + uuid
-                        + " прорежены до валидных (" + kept.size() + " из " + raw.size() + ")");
+                plugin.getLogger()
+                        .warning("spec2: ранги дерева " + treeId + " игрока " + uuid + " прорежены до валидных ("
+                                + kept.size() + " из " + raw.size() + ")");
             }
             for (Map.Entry<String, Integer> e : kept.entrySet()) {
                 Spec2Node node = tree.find(e.getKey());
@@ -751,7 +788,7 @@ public final class Spec2Service {
             case "kit_mult" -> agg.coeff.merge(e.target(), e.value(), Double::sum);
             case "cd" -> agg.cdPct.merge(e.target(), e.value(), Double::sum);
             case "kit_cd" -> agg.cdSec.merge(e.target(), e.value(), Double::sum);
-            // 1.14.7 (P0-6A): kit_dur — бонус длительности по ЦЕЛИ (abilityId)
+                // 1.14.7 (P0-6A): kit_dur — бонус длительности по ЦЕЛИ (abilityId)
             case "kit_dur" -> agg.kitDur.merge(e.target(), e.value(), Double::sum);
             case "regen" -> agg.regen += e.value();
             case "avoid" -> {
@@ -776,9 +813,9 @@ public final class Spec2Service {
             case "sp_pct" -> agg.spPct += e.value();
             case "hpow_pct" -> agg.hpowPct += e.value();
             case "unlock_ability" -> agg.unlocked.add(e.target());
-            // 1.14.6-fix (Sprint 1, P0-2): proc-узлы приходят как kind="proc_<id>",
-            // ключ агрегата — БЕЗ префикса.
-            // 1.14.7 (Sprint 3, контракт C): value → agg.proc (шанс), value2 → agg.procAmp (сила).
+                // 1.14.6-fix (Sprint 1, P0-2): proc-узлы приходят как kind="proc_<id>",
+                // ключ агрегата — БЕЗ префикса.
+                // 1.14.7 (Sprint 3, контракт C): value → agg.proc (шанс), value2 → agg.procAmp (сила).
             default -> {
                 String kind = e.kind();
                 String key = kind.startsWith("proc_") ? kind.substring(5) : kind;
@@ -821,8 +858,10 @@ public final class Spec2Service {
     }
 
     public double cooldownMult(UUID uuid, String abilityId) {
-        double itemReduction=plugin.getItems()==null?0.0:plugin.getItems().value(uuid,dev.raskol.classes.item.model.ItemStat.COOLDOWN_REDUCTION)/100.0;
-        return Math.max(0.1, (1.0 - agg(uuid).cdPct.getOrDefault(abilityId, 0.0))*(1.0-itemReduction));
+        double itemReduction = plugin.getItems() == null
+                ? 0.0
+                : plugin.getItems().value(uuid, dev.raskol.classes.item.model.ItemStat.COOLDOWN_REDUCTION) / 100.0;
+        return Math.max(0.1, (1.0 - agg(uuid).cdPct.getOrDefault(abilityId, 0.0)) * (1.0 - itemReduction));
     }
 
     public double cooldownSecBonus(UUID uuid, String abilityId) {
@@ -845,7 +884,7 @@ public final class Spec2Service {
 
     public double[] avoidBonus(UUID uuid) {
         Agg a = agg(uuid);
-        return new double[]{a.dodge, a.parry};
+        return new double[] {a.dodge, a.parry};
     }
 
     public double regenBonus(UUID uuid) {
@@ -907,9 +946,17 @@ public final class Spec2Service {
         return agg(uuid).critMelee;
     }
 
-    public double wpPercent(UUID uuid) { return agg(uuid).wpPct; }
-    public double spPercent(UUID uuid) { return agg(uuid).spPct; }
-    public double hpowPercent(UUID uuid) { return agg(uuid).hpowPct; }
+    public double wpPercent(UUID uuid) {
+        return agg(uuid).wpPct;
+    }
+
+    public double spPercent(UUID uuid) {
+        return agg(uuid).spPct;
+    }
+
+    public double hpowPercent(UUID uuid) {
+        return agg(uuid).hpowPct;
+    }
 
     /* ------------------------------ процентные геттеры видов из default-ветки ------------------------------ */
 

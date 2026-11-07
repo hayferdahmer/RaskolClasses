@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.gui;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * 1.15.5: hover-превью предметов в чате.
@@ -22,8 +23,7 @@ import java.util.List;
  */
 public final class ItemHover {
 
-    private ItemHover() {
-    }
+    private ItemHover() {}
 
     /** Текстовое превью предмета: имя + все строки lore (для HoverEvent.showText). */
     public static Component lorePreview(ItemStack stack) {

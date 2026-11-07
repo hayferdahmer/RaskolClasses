@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.storage;
 
-import org.bukkit.configuration.file.YamlConfiguration;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import org.bukkit.configuration.file.YamlConfiguration;
 
 /**
  * 1.6.10: надёжное хранение YAML-файлов плагина.
@@ -31,8 +31,7 @@ import java.util.logging.Logger;
  */
 public final class SafeStorage {
 
-    private SafeStorage() {
-    }
+    private SafeStorage() {}
 
     /** Загрузка с цепочкой восстановления: main → tmp → bak → пустая конфигурация. */
     public static YamlConfiguration loadWithFallback(File file, Logger logger) {
@@ -52,28 +51,26 @@ public final class SafeStorage {
                 }
                 return cfg;
             } catch (Exception e) {
-                logger.warning("SafeStorage: файл " + file.getName()
-                        + " повреждён (" + e.getMessage() + ") — пробую .tmp/.bak");
+                logger.warning("SafeStorage: файл " + file.getName() + " повреждён (" + e.getMessage()
+                        + ") — пробую .tmp/.bak");
             }
         } else {
-            logger.warning("SafeStorage: основной файл " + file.getName()
-                    + " отсутствует — пробую .tmp/.bak");
+            logger.warning("SafeStorage: основной файл " + file.getName() + " отсутствует — пробую .tmp/.bak");
         }
 
         YamlConfiguration fromTmp = tryLoad(tmp);
         if (fromTmp != null) {
-            logger.warning("SafeStorage: " + file.getName()
-                    + " восстановлен из .tmp (последняя завершённая запись)");
+            logger.warning("SafeStorage: " + file.getName() + " восстановлен из .tmp (последняя завершённая запись)");
             return fromTmp;
         }
         YamlConfiguration fromBak = tryLoad(bak);
         if (fromBak != null) {
-            logger.warning("SafeStorage: " + file.getName()
-                    + " восстановлен из .bak (потеряна только последняя запись)");
+            logger.warning(
+                    "SafeStorage: " + file.getName() + " восстановлен из .bak (потеряна только последняя запись)");
             return fromBak;
         }
-        logger.severe("SafeStorage: нет пригодных .tmp/.bak для " + file.getName()
-                + " — стартую с пустой конфигурацией");
+        logger.severe(
+                "SafeStorage: нет пригодных .tmp/.bak для " + file.getName() + " — стартую с пустой конфигурацией");
         return new YamlConfiguration();
     }
 
@@ -108,8 +105,11 @@ public final class SafeStorage {
                 Files.copy(file.toPath(), bak.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
             try {
-                Files.move(tmp.toPath(), file.toPath(),
-                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(
+                        tmp.toPath(),
+                        file.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException atomicUnsupported) {
                 Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }

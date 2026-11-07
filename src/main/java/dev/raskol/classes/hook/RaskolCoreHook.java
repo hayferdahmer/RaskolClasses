@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.config.RaskolConfig;
+import java.lang.reflect.Method;
+import java.util.UUID;
+
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 
-import java.lang.reflect.Method;
-import java.util.UUID;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.RaskolConfig;
 
 /**
  * 1.3.2: изолированный мост к RaskolCore. Работает через отражение по
@@ -60,8 +61,9 @@ public final class RaskolCoreHook {
             plugin.getLogger().info("RaskolCore-хук: подключён (класс читается из паспорта Core, LP — фолбэк)");
         } catch (Throwable t) {
             if (!warnedOnce) {
-                plugin.getLogger().warning("RaskolCore обнаружен, но API несовместим: " + t.getMessage()
-                        + " — переключаемся на LuckPerms-фолбэк");
+                plugin.getLogger()
+                        .warning("RaskolCore обнаружен, но API несовместим: " + t.getMessage()
+                                + " — переключаемся на LuckPerms-фолбэк");
                 warnedOnce = true;
             }
             this.wired = false;

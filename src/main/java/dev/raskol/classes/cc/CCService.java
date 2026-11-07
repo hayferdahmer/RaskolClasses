@@ -2,8 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.cc;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -22,16 +31,8 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ThreadLocalRandom;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.13.0: ядро системы контроля (CC) и убывающей отдачи (DR).
@@ -59,11 +60,18 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class CCService implements Listener {
 
     public enum CCResult {
-        SUCCESS, FAIL_DISABLED, FAIL_ALLY, FAIL_IMMUNE, FAIL_RESIST, FAIL_DR_IMMUNE
+        SUCCESS,
+        FAIL_DISABLED,
+        FAIL_ALLY,
+        FAIL_IMMUNE,
+        FAIL_RESIST,
+        FAIL_DR_IMMUNE
     }
 
     public record ApplyResult(CCResult result, int appliedTicks, double drMultiplier) {
-        public boolean ok() { return result == CCResult.SUCCESS && appliedTicks > 0; }
+        public boolean ok() {
+            return result == CCResult.SUCCESS && appliedTicks > 0;
+        }
     }
 
     private final RaskolClasses plugin;
@@ -113,7 +121,7 @@ public final class CCService implements Listener {
     private double[] multipliers() {
         List<Double> list = plugin.getConfig().getDoubleList("cc.dr-multipliers");
         if (list == null || list.isEmpty()) {
-            return new double[]{1.0, 0.5, 0.25, 0.0};
+            return new double[] {1.0, 0.5, 0.25, 0.0};
         }
         double[] out = new double[list.size()];
         for (int i = 0; i < list.size(); i++) {
@@ -167,7 +175,7 @@ public final class CCService implements Listener {
             }
             if (pc == PlayerClass.WARLOCK
                     && plugin.getResources().getValue(p.getUniqueId())
-                        >= plugin.getRaskolConfig().warlockThresholdOpen()) {
+                            >= plugin.getRaskolConfig().warlockThresholdOpen()) {
                 base += plugin.getConfig().getDouble("cc.corruption-resist-bonus", 0.10);
             }
         }
@@ -175,10 +183,12 @@ public final class CCService implements Listener {
         if (plugin.getSpec2Service() != null) {
             base += plugin.getSpec2Service().ccResistBonus(target.getUniqueId());
         }
-        if(target instanceof Player p&&plugin.getItems()!=null)base+=plugin.getItems().value(p.getUniqueId(),dev.raskol.classes.item.model.ItemStat.CC_RESIST)/100.0;
-        dev.raskol.classes.api.combat.CombatProfile profile=plugin.getCombatProfiles()==null?null:
-                plugin.getCombatProfiles().profileOf(target.getUniqueId());
-        if(profile!=null)base+=profile.ccResist()/100.0;
+        if (target instanceof Player p && plugin.getItems() != null)
+            base += plugin.getItems().value(p.getUniqueId(), dev.raskol.classes.item.model.ItemStat.CC_RESIST) / 100.0;
+        dev.raskol.classes.api.combat.CombatProfile profile = plugin.getCombatProfiles() == null
+                ? null
+                : plugin.getCombatProfiles().profileOf(target.getUniqueId());
+        if (profile != null) base += profile.ccResist() / 100.0;
         return Math.max(0.0, Math.min(base, resistCap()));
     }
 
@@ -196,14 +206,16 @@ public final class CCService implements Listener {
         if (caster != null
                 && plugin.getClassProvider().getClassOf(caster) == PlayerClass.WARLOCK
                 && plugin.getResources().getValue(caster.getUniqueId())
-                    >= plugin.getRaskolConfig().warlockThresholdOpen()) {
+                        >= plugin.getRaskolConfig().warlockThresholdOpen()) {
             base += plugin.getConfig().getDouble("cc.corruption-power-bonus", 0.20);
         }
         // 1.14.0 (Б2): spec2 — узлы cc_power
         if (caster != null && plugin.getSpec2Service() != null) {
             base += plugin.getSpec2Service().ccPowerBonus(caster.getUniqueId());
         }
-        if(caster!=null&&plugin.getItems()!=null)base+=plugin.getItems().value(caster.getUniqueId(),dev.raskol.classes.item.model.ItemStat.CC_POWER)/100.0;
+        if (caster != null && plugin.getItems() != null)
+            base += plugin.getItems().value(caster.getUniqueId(), dev.raskol.classes.item.model.ItemStat.CC_POWER)
+                    / 100.0;
         return Math.max(0.0, Math.min(base, powerCap()));
     }
 
@@ -225,10 +237,8 @@ public final class CCService implements Listener {
 
     /* ------------------------------ иммунитеты ------------------------------ */
 
-    private static final Set<String> BOSS_TYPES = Set.of(
-            "ENDER_DRAGON", "WITHER", "WARDEN", "ELDER_GUARDIAN");
-    private static final Set<String> ELITE_TYPES = Set.of(
-            "EVOKER", "VINDICATOR", "PIGLIN_BRUTE");
+    private static final Set<String> BOSS_TYPES = Set.of("ENDER_DRAGON", "WITHER", "WARDEN", "ELDER_GUARDIAN");
+    private static final Set<String> ELITE_TYPES = Set.of("EVOKER", "VINDICATOR", "PIGLIN_BRUTE");
 
     private String tagOf(LivingEntity entity) {
         String name = entity.getType().name();
@@ -242,11 +252,15 @@ public final class CCService implements Listener {
     }
 
     public boolean isImmune(LivingEntity target, CCType type) {
-        dev.raskol.classes.api.combat.CombatProfile profile=plugin.getCombatProfiles()==null?null:
-                plugin.getCombatProfiles().profileOf(target.getUniqueId());
-        if(profile!=null&&profile.ccImmunities().stream().anyMatch(id->id.equalsIgnoreCase(type.id())
-                ||id.equalsIgnoreCase(type.name())))return true;
-        if (type == CCType.CHARM && target instanceof Player
+        dev.raskol.classes.api.combat.CombatProfile profile = plugin.getCombatProfiles() == null
+                ? null
+                : plugin.getCombatProfiles().profileOf(target.getUniqueId());
+        if (profile != null
+                && profile.ccImmunities().stream()
+                        .anyMatch(id -> id.equalsIgnoreCase(type.id()) || id.equalsIgnoreCase(type.name())))
+            return true;
+        if (type == CCType.CHARM
+                && target instanceof Player
                 && !plugin.getConfig().getBoolean("cc.charm.allow-on-players", false)) {
             return true;
         }
@@ -322,8 +336,7 @@ public final class CCService implements Listener {
         long window = windowMillis();
         double[] mults = multipliers();
 
-        EnumMap<DRCategory, DRState> byCat =
-                drStates.computeIfAbsent(targetUuid, k -> new EnumMap<>(DRCategory.class));
+        EnumMap<DRCategory, DRState> byCat = drStates.computeIfAbsent(targetUuid, k -> new EnumMap<>(DRCategory.class));
         DRCategory cat = type.category();
         DRState state = byCat.getOrDefault(cat, DRState.EMPTY);
         int stack = stackAfterWindow(now, state.lastAppliedAt(), window, state.stackCount());
@@ -489,7 +502,7 @@ public final class CCService implements Listener {
                 }
             }
             case DISARM -> mob.setTarget(null);
-            default -> { }
+            default -> {}
         }
     }
 
@@ -500,8 +513,7 @@ public final class CCService implements Listener {
         if (p.hasPotionEffect(PotionEffectType.BLINDNESS)) {
             return;
         }
-        p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS,
-                Math.max(1, ticks), 0, false, false, true));
+        p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, Math.max(1, ticks), 0, false, false, true));
     }
 
     private void removeBlindFog(LivingEntity target) {
@@ -518,8 +530,11 @@ public final class CCService implements Listener {
             }
         }
         // 1.15.6 (2.6-36): восстановление поведения моба при снятии CC
-        if (type == CCType.STUN || type == CCType.ROOT || type == CCType.FEAR
-                || type == CCType.SILENCE || type == CCType.DISARM) {
+        if (type == CCType.STUN
+                || type == CCType.ROOT
+                || type == CCType.FEAR
+                || type == CCType.SILENCE
+                || type == CCType.DISARM) {
             Entity e = plugin.getServer().getEntity(targetUuid);
             if (e instanceof Mob mob) {
                 clearMobCc(mob, type);
@@ -579,8 +594,7 @@ public final class CCService implements Listener {
         } else {
             AttributeInstance ai = target.getAttribute(Attribute.MOVEMENT_SPEED);
             if (ai != null && slowAttrApplied.putIfAbsent(uuid, Boolean.TRUE) == null) {
-                ai.addModifier(new AttributeModifier(slowAttrKey, mult - 1.0,
-                        AttributeModifier.Operation.ADD_SCALAR));
+                ai.addModifier(new AttributeModifier(slowAttrKey, mult - 1.0, AttributeModifier.Operation.ADD_SCALAR));
             }
         }
     }
@@ -617,7 +631,7 @@ public final class CCService implements Listener {
                 switch (inst.type()) {
                     case STUN, ROOT -> stunOrRoot = true;
                     case FEAR -> fear = true;
-                    default -> { }
+                    default -> {}
                 }
             }
             if (list.isEmpty()) {
@@ -640,7 +654,8 @@ public final class CCService implements Listener {
                     double angle = ThreadLocalRandom.current().nextDouble() * Math.PI * 2.0;
                     Vector dir = new Vector(Math.cos(angle), 0.0, Math.sin(angle)).multiply(0.5);
                     target.setVelocity(dir.setY(0.0));
-                    nextFearTurn.put(uuid, now + 50L * (20 + ThreadLocalRandom.current().nextInt(21)));
+                    nextFearTurn.put(
+                            uuid, now + 50L * (20 + ThreadLocalRandom.current().nextInt(21)));
                     // 1.15.6 (2.6-36): мобы под FEAR — setTarget(null)
                     if (target instanceof Mob mob) {
                         mob.setTarget(null);

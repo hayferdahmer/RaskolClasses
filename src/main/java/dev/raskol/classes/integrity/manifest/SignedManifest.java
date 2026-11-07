@@ -16,49 +16,27 @@ public final class SignedManifest {
     private final byte[] signature;
 
     public SignedManifest(byte[] manifestBytes, byte[] signature) {
-        Objects.requireNonNull(
-                manifestBytes,
-                "manifestBytes cannot be null"
-        );
-        Objects.requireNonNull(
-                signature,
-                "signature cannot be null"
-        );
+        Objects.requireNonNull(manifestBytes, "manifestBytes cannot be null");
+        Objects.requireNonNull(signature, "signature cannot be null");
 
         if (manifestBytes.length == 0) {
-            throw new IllegalArgumentException(
-                    "Manifest cannot be empty"
-            );
+            throw new IllegalArgumentException("Manifest cannot be empty");
         }
 
         if (signature.length != 64) {
-            throw new IllegalArgumentException(
-                    "Ed25519 signature must contain exactly 64 bytes"
-            );
+            throw new IllegalArgumentException("Ed25519 signature must contain exactly 64 bytes");
         }
 
-        this.manifestBytes = Arrays.copyOf(
-                manifestBytes,
-                manifestBytes.length
-        );
+        this.manifestBytes = Arrays.copyOf(manifestBytes, manifestBytes.length);
 
-        this.signature = Arrays.copyOf(
-                signature,
-                signature.length
-        );
+        this.signature = Arrays.copyOf(signature, signature.length);
     }
 
     public byte[] manifestBytes() {
-        return Arrays.copyOf(
-                manifestBytes,
-                manifestBytes.length
-        );
+        return Arrays.copyOf(manifestBytes, manifestBytes.length);
     }
 
     public byte[] signature() {
-        return Arrays.copyOf(
-                signature,
-                signature.length
-        );
+        return Arrays.copyOf(signature, signature.length);
     }
 }

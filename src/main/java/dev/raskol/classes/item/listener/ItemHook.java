@@ -2,16 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.listener;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.item.model.ItemDefinition;
-import dev.raskol.classes.item.model.ItemRarity;
-import dev.raskol.classes.item.model.ItemSlot;
-import dev.raskol.classes.item.model.ItemStat;
-import dev.raskol.classes.item.model.ItemStatSnapshot;
-import dev.raskol.classes.item.model.WeaponType;
-import dev.raskol.classes.item.service.ItemStatAggregator;
-import dev.raskol.classes.item.service.ItemSystem;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -35,14 +34,16 @@ import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.ItemRarity;
+import dev.raskol.classes.item.model.ItemSlot;
+import dev.raskol.classes.item.model.ItemStat;
+import dev.raskol.classes.item.model.ItemStatSnapshot;
+import dev.raskol.classes.item.model.WeaponType;
+import dev.raskol.classes.item.service.ItemStatAggregator;
+import dev.raskol.classes.item.service.ItemSystem;
 
 /**
  * Equipment event bridge and precomputed immutable snapshots.
@@ -81,8 +82,13 @@ public final class ItemHook implements Listener {
     public void start() {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
         long period = Math.max(1, plugin.getConfig().getLong("item.reconcile-ticks", 20));
-        reconcileTask = plugin.getServer().getScheduler().runTaskTimer(plugin,
-                () -> plugin.getServer().getOnlinePlayers().forEach(this::reconcileIfChanged), period, period);
+        reconcileTask = plugin.getServer()
+                .getScheduler()
+                .runTaskTimer(
+                        plugin,
+                        () -> plugin.getServer().getOnlinePlayers().forEach(this::reconcileIfChanged),
+                        period,
+                        period);
     }
 
     public void stop() {
@@ -169,11 +175,15 @@ public final class ItemHook implements Listener {
         stats.replaceAll((s, v) -> Double.isFinite(v) ? v : 0.0);
 
         applySpeed(player, Attribute.ATTACK_SPEED, attackSpeedKey, stats.getOrDefault(ItemStat.ATTACK_SPEED, 0.0));
-        applySpeed(player, Attribute.MOVEMENT_SPEED, movementSpeedKey, stats.getOrDefault(ItemStat.MOVEMENT_SPEED, 0.0));
+        applySpeed(
+                player, Attribute.MOVEMENT_SPEED, movementSpeedKey, stats.getOrDefault(ItemStat.MOVEMENT_SPEED, 0.0));
 
         ItemDefinition weapon = items.definitionOf(main);
-        String type = weapon == null ? "PHYSICAL"
-                : (weapon.weaponType() == WeaponType.STAFF || weapon.weaponType() == WeaponType.WAND ? "MAGIC" : "PHYSICAL");
+        String type = weapon == null
+                ? "PHYSICAL"
+                : (weapon.weaponType() == WeaponType.STAFF || weapon.weaponType() == WeaponType.WAND
+                        ? "MAGIC"
+                        : "PHYSICAL");
         items.snapshot(uuid, new ItemStatSnapshot(stats, unmet, weapon == null ? null : weapon.id(), type, hash));
 
         // 1.15.6 (аудит 2.6-13): резисты/стихии строятся ИЗ ПЕРВОГО цикла (defs+rolled):
@@ -191,19 +201,23 @@ public final class ItemHook implements Listener {
             for (var school : dev.raskol.classes.combat.school.School.values()) {
                 ItemStat stat = ItemStat.fromId("resist-" + school.id());
                 double value = stat == null ? 0 : values.getOrDefault(stat, 0.0);
-                if (value > 0) plugin.getCombat().elemental().addPermanent(uuid, source + ":" + school.id(), school, value);
+                if (value > 0)
+                    plugin.getCombat().elemental().addPermanent(uuid, source + ":" + school.id(), school, value);
             }
         }
 
         String setSource = "item:set-bonus";
-        double setPhys = stats.getOrDefault(ItemStat.PHYS_RESIST, 0.0) - itemOnly.getOrDefault(ItemStat.PHYS_RESIST, 0.0);
-        double setMagic = stats.getOrDefault(ItemStat.MAGIC_RESIST, 0.0) - itemOnly.getOrDefault(ItemStat.MAGIC_RESIST, 0.0);
+        double setPhys =
+                stats.getOrDefault(ItemStat.PHYS_RESIST, 0.0) - itemOnly.getOrDefault(ItemStat.PHYS_RESIST, 0.0);
+        double setMagic =
+                stats.getOrDefault(ItemStat.MAGIC_RESIST, 0.0) - itemOnly.getOrDefault(ItemStat.MAGIC_RESIST, 0.0);
         if (setPhys > 0 || setMagic > 0) plugin.getResists().addPermanentModifier(uuid, setSource, setPhys, setMagic);
         for (var school : dev.raskol.classes.combat.school.School.values()) {
             ItemStat stat = ItemStat.fromId("resist-" + school.id());
             if (stat == null) continue;
             double extra = stats.getOrDefault(stat, 0.0) - itemOnly.getOrDefault(stat, 0.0);
-            if (extra > 0) plugin.getCombat().elemental().addPermanent(uuid, setSource + ":" + school.id(), school, extra);
+            if (extra > 0)
+                plugin.getCombat().elemental().addPermanent(uuid, setSource + ":" + school.id(), school, extra);
         }
 
         if (plugin.getAttributes() != null) plugin.getAttributes().invalidate(uuid);
@@ -219,10 +233,11 @@ public final class ItemHook implements Listener {
         String prefix = playerClass.name().toLowerCase(java.util.Locale.ROOT) + "_";
         for (ItemDefinition definition : items.registry().all()) {
             if (definition.id().startsWith(prefix)
-                    && definition.rarity() == ItemRarity.COMMON && definition.itemLevel() == 20) {
+                    && definition.rarity() == ItemRarity.COMMON
+                    && definition.itemLevel() == 20) {
                 ItemStack starter = items.create(definition.id(), 1);
-                player.getInventory().addItem(starter).values()
-                        .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
+                player.getInventory().addItem(starter).values().forEach(left -> player.getWorld()
+                        .dropItemNaturally(player.getLocation(), left));
             }
         }
         pdc.set(starterKitClassKey, org.bukkit.persistence.PersistentDataType.STRING, playerClass.name());
@@ -231,11 +246,13 @@ public final class ItemHook implements Listener {
     private static void applySpeed(Player player, Attribute attribute, NamespacedKey key, double percent) {
         AttributeInstance instance = player.getAttribute(attribute);
         if (instance == null) return;
-        instance.getModifiers().stream().filter(mod -> key.equals(mod.getKey())).toList()
+        instance.getModifiers().stream()
+                .filter(mod -> key.equals(mod.getKey()))
+                .toList()
                 .forEach(instance::removeModifier);
         if (Double.isFinite(percent) && percent > 0) {
-            instance.addModifier(new AttributeModifier(key, percent / 100.0,
-                    AttributeModifier.Operation.MULTIPLY_SCALAR_1, EquipmentSlotGroup.ANY));
+            instance.addModifier(new AttributeModifier(
+                    key, percent / 100.0, AttributeModifier.Operation.MULTIPLY_SCALAR_1, EquipmentSlotGroup.ANY));
         }
     }
 
@@ -291,14 +308,22 @@ public final class ItemHook implements Listener {
                 if (instance != null) {
                     instance.getModifiers().stream()
                             .filter(m -> attackSpeedKey.equals(m.getKey()) || movementSpeedKey.equals(m.getKey()))
-                            .toList().forEach(instance::removeModifier);
+                            .toList()
+                            .forEach(instance::removeModifier);
                 }
             }
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR) public void join(PlayerJoinEvent e) { schedule(e.getPlayer()); }
-    @EventHandler(priority = EventPriority.MONITOR) public void respawn(PlayerRespawnEvent e) { schedule(e.getPlayer()); }
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void join(PlayerJoinEvent e) {
+        schedule(e.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void respawn(PlayerRespawnEvent e) {
+        schedule(e.getPlayer());
+    }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void shoot(EntityShootBowEvent e) {
@@ -311,12 +336,35 @@ public final class ItemHook implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR) public void held(PlayerItemHeldEvent e) { schedule(e.getPlayer()); }
-    @EventHandler(priority = EventPriority.MONITOR) public void swap(PlayerSwapHandItemsEvent e) { schedule(e.getPlayer()); }
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true) public void click(InventoryClickEvent e) { if (e.getWhoClicked() instanceof Player p) schedule(p); }
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true) public void drag(InventoryDragEvent e) { if (e.getWhoClicked() instanceof Player p) schedule(p); }
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true) public void drop(PlayerDropItemEvent e) { schedule(e.getPlayer()); }
-    @EventHandler(priority = EventPriority.MONITOR) public void broken(PlayerItemBreakEvent e) { schedule(e.getPlayer()); }
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void held(PlayerItemHeldEvent e) {
+        schedule(e.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void swap(PlayerSwapHandItemsEvent e) {
+        schedule(e.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void click(InventoryClickEvent e) {
+        if (e.getWhoClicked() instanceof Player p) schedule(p);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void drag(InventoryDragEvent e) {
+        if (e.getWhoClicked() instanceof Player p) schedule(p);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void drop(PlayerDropItemEvent e) {
+        schedule(e.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void broken(PlayerItemBreakEvent e) {
+        schedule(e.getPlayer());
+    }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void quit(PlayerQuitEvent e) {

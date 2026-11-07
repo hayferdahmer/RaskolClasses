@@ -2,11 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.listen;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.config.ConfigReads;
-import dev.raskol.classes.event.CustomHealEvent;
-import dev.raskol.classes.spec.SpecRole;
-import dev.raskol.classes.spec.SpecRoles;
+import java.util.UUID;
+
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -18,7 +15,11 @@ import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.config.ConfigReads;
+import dev.raskol.classes.event.CustomHealEvent;
+import dev.raskol.classes.spec.SpecRole;
+import dev.raskol.classes.spec.SpecRoles;
 
 /**
  * 1.14.0 «Спек 2.0» (Б2): роли-пассивки основной спеки (дизайн-док, раздел 6):

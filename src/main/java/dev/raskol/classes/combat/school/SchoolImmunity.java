@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat.school;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.config.ConfigReads;
+import java.util.List;
+
 import org.bukkit.entity.EntityType;
 
-import java.util.List;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.config.ConfigReads;
 
 /**
  * 1.12.1: иммунитеты/устойчивости/уязвимости сущностей к школам (ТЗ п.8).

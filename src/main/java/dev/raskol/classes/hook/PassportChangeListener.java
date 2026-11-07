@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.spec.Spec;
+import java.lang.reflect.Method;
+import java.util.UUID;
+
 import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 
-import java.lang.reflect.Method;
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.spec.Spec;
 
 /**
  * Слушатель RaskolPassportChangeEvent из RaskolCore (1.9.2).
@@ -63,12 +64,12 @@ public final class PassportChangeListener implements Listener {
             }
             mUuid = raw.getMethod("getUuid");
             mReason = raw.getMethod("getReason");
-            Class<?> reasonEnum = Class.forName(
-                    "dev.raskol.core.event.RaskolPassportChangeEvent$Reason");
+            Class<?> reasonEnum = Class.forName("dev.raskol.core.event.RaskolPassportChangeEvent$Reason");
             mName = reasonEnum.getMethod("name");
         } catch (Throwable t) {
-            plugin.getLogger().info("PassportChangeListener: RaskolCore не найден — "
-                    + "мгновенный reconcile на смену паспорта отключён");
+            plugin.getLogger()
+                    .info("PassportChangeListener: RaskolCore не найден — "
+                            + "мгновенный reconcile на смену паспорта отключён");
         }
         this.active = clazz != null && mUuid != null && mReason != null && mName != null;
         this.eventClass = clazz;
@@ -105,8 +106,7 @@ public final class PassportChangeListener implements Listener {
             }
             reconcileImmediate(uuid, reason);
         } catch (Throwable t) {
-            plugin.getLogger().warning("PassportChangeListener: ошибка обработки события: "
-                    + t.getMessage());
+            plugin.getLogger().warning("PassportChangeListener: ошибка обработки события: " + t.getMessage());
         }
     }
 
@@ -146,19 +146,22 @@ public final class PassportChangeListener implements Listener {
                 if (current != null && spec.playerClass() != current) {
                     plugin.getSpec2Service().storage().setMain(uuid, null);
                     plugin.getSpec2Service().reconcile(uuid);
-                    plugin.getLogger().info("PassportChange CLASS: reconcile для " + player.getName()
-                            + " (спека " + spec.id() + " сброшена из-за mismatch класса)");
+                    plugin.getLogger()
+                            .info("PassportChange CLASS: reconcile для " + player.getName() + " (спека " + spec.id()
+                                    + " сброшена из-за mismatch класса)");
                 } else {
-                    plugin.getLogger().info("PassportChange CLASS: reconcile для " + player.getName()
-                            + " (спека " + spec.id() + " сохранена)");
+                    plugin.getLogger()
+                            .info("PassportChange CLASS: reconcile для " + player.getName() + " (спека " + spec.id()
+                                    + " сохранена)");
                 }
             } else {
-                plugin.getLogger().info("PassportChange CLASS: reconcile для " + player.getName()
-                        + " (спека не выбрана)");
+                plugin.getLogger()
+                        .info("PassportChange CLASS: reconcile для " + player.getName() + " (спека не выбрана)");
             }
         } else if (player != null) {
-            plugin.getLogger().info("PassportChange FACTION: reconcile для " + player.getName()
-                    + " (гейты/резисты обновлены через spec2)");
+            plugin.getLogger()
+                    .info("PassportChange FACTION: reconcile для " + player.getName()
+                            + " (гейты/резисты обновлены через spec2)");
         }
     }
 
@@ -170,19 +173,20 @@ public final class PassportChangeListener implements Listener {
         if (!active || eventClass == null) {
             return;
         }
-        plugin.getServer().getPluginManager().registerEvent(
-                eventClass,
-                this,
-                EventPriority.MONITOR,
-                (listener, event) -> {
-                    if (listener instanceof PassportChangeListener pcl) {
-                        pcl.onEvent(event);
-                    }
-                },
-                plugin
-        );
-        plugin.getLogger().info("PassportChangeListener: зарегистрирован — "
-                + "мгновенный reconcile на смену паспорта активен");
+        plugin.getServer()
+                .getPluginManager()
+                .registerEvent(
+                        eventClass,
+                        this,
+                        EventPriority.MONITOR,
+                        (listener, event) -> {
+                            if (listener instanceof PassportChangeListener pcl) {
+                                pcl.onEvent(event);
+                            }
+                        },
+                        plugin);
+        plugin.getLogger()
+                .info("PassportChangeListener: зарегистрирован — " + "мгновенный reconcile на смену паспорта активен");
     }
 
     public void unregister() {

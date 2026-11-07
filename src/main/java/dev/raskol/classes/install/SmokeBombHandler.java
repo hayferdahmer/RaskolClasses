@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.install;
 
-import dev.raskol.classes.RaskolClasses;
+import java.util.UUID;
+
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -12,7 +13,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
 
 /** 1.11.4 (P2): Дымовая шашка — мина: blind врагам, speed владельцу. */
 public final class SmokeBombHandler extends BaseInstallationHandler {
@@ -34,8 +35,7 @@ public final class SmokeBombHandler extends BaseInstallationHandler {
     @Override
     public boolean place(Player p, Location loc, UUID instId) {
         plugin.getFx().impactBurst(loc, Particle.CLOUD, 10, Sound.BLOCK_BEACON_ACTIVATE, 0.4f, 1.1f);
-        notifyOwner(p.getUniqueId(), type().displayName() + " установлена на "
-                + durationSeconds() + " с");
+        notifyOwner(p.getUniqueId(), type().displayName() + " установлена на " + durationSeconds() + " с");
         return true;
     }
 
@@ -60,8 +60,7 @@ public final class SmokeBombHandler extends BaseInstallationHandler {
         if (owner != null) {
             owner.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 3 * 20, 0));
         }
-        plugin.getFx().impactBurst(inst.location(), Particle.SMOKE, 40,
-                Sound.BLOCK_FIRE_EXTINGUISH, 0.6f, 0.8f);
+        plugin.getFx().impactBurst(inst.location(), Particle.SMOKE, 40, Sound.BLOCK_FIRE_EXTINGUISH, 0.6f, 0.8f);
         notifyOwner(inst.owner(), "Дымовая шашка сработала!");
         return false;
     }

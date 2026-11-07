@@ -27,13 +27,11 @@ public record BuildIdentity(
         String commitSha,
         Instant buildTimestamp,
         String sourceRepository,
-        BuildType buildType
-) {
+        BuildType buildType) {
 
     private static final String DEFAULT_PRODUCT_ID = "RaskolClasses";
 
-    private static final String DEFAULT_REPOSITORY =
-            "https://github.com/hayferdahmer/RaskolClasses";
+    private static final String DEFAULT_REPOSITORY = "https://github.com/hayferdahmer/RaskolClasses";
 
     public BuildIdentity {
         productId = requireText(productId, "productId");
@@ -41,27 +39,14 @@ public record BuildIdentity(
         buildId = requireText(buildId, "buildId");
         commitSha = requireText(commitSha, "commitSha");
 
-        buildTimestamp = Objects.requireNonNull(
-                buildTimestamp,
-                "buildTimestamp cannot be null"
-        );
+        buildTimestamp = Objects.requireNonNull(buildTimestamp, "buildTimestamp cannot be null");
 
-        sourceRepository = requireText(
-                sourceRepository,
-                "sourceRepository"
-        );
+        sourceRepository = requireText(sourceRepository, "sourceRepository");
 
-        buildType = Objects.requireNonNull(
-                buildType,
-                "buildType cannot be null"
-        );
+        buildType = Objects.requireNonNull(buildType, "buildType cannot be null");
 
         if (buildType == BuildType.OFFICIAL) {
-            validateOfficialIdentity(
-                    buildId,
-                    commitSha,
-                    buildTimestamp
-            );
+            validateOfficialIdentity(buildId, commitSha, buildTimestamp);
         }
     }
 
@@ -82,8 +67,7 @@ public record BuildIdentity(
                 "UNKNOWN",
                 Instant.EPOCH,
                 DEFAULT_REPOSITORY,
-                BuildType.DEVELOPMENT
-        );
+                BuildType.DEVELOPMENT);
     }
 
     /**
@@ -113,42 +97,27 @@ public record BuildIdentity(
      * @param commitSha идентификатор исходного коммита
      * @param buildTimestamp время создания сборки
      */
-    private static void validateOfficialIdentity(
-            String buildId,
-            String commitSha,
-            Instant buildTimestamp
-    ) {
+    private static void validateOfficialIdentity(String buildId, String commitSha, Instant buildTimestamp) {
         if ("UNKNOWN".equalsIgnoreCase(commitSha)) {
-            throw new IllegalArgumentException(
-                    "Official build must contain a valid commit SHA"
-            );
+            throw new IllegalArgumentException("Official build must contain a valid commit SHA");
         }
 
         if ("LOCAL-DEV".equalsIgnoreCase(buildId)) {
-            throw new IllegalArgumentException(
-                    "Official build cannot use a development Build ID"
-            );
+            throw new IllegalArgumentException("Official build cannot use a development Build ID");
         }
 
         if (Instant.EPOCH.equals(buildTimestamp)) {
-            throw new IllegalArgumentException(
-                    "Official build must contain a build timestamp"
-            );
+            throw new IllegalArgumentException("Official build must contain a build timestamp");
         }
     }
 
     private static String requireText(String value, String fieldName) {
-        Objects.requireNonNull(
-                value,
-                fieldName + " cannot be null"
-        );
+        Objects.requireNonNull(value, fieldName + " cannot be null");
 
         String normalized = value.trim();
 
         if (normalized.isEmpty()) {
-            throw new IllegalArgumentException(
-                    fieldName + " cannot be blank"
-            );
+            throw new IllegalArgumentException(fieldName + " cannot be blank");
         }
 
         return normalized;

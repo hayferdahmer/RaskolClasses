@@ -12,7 +12,6 @@ import java.util.Locale;
  *  - breaksOnDamage / interruptible — дефолты поведения (конфиг переопределяет).
  */
 public enum CCType {
-
     STUN(DRCategory.STUN, false, 60, false, true, "Оцепенение"),
     ROOT(DRCategory.ROOT, false, 80, true, false, "Оковы"),
     SILENCE(DRCategory.SILENCE, false, 100, false, true, "Печать Молчания"),
@@ -30,8 +29,13 @@ public enum CCType {
     private final boolean interruptible;
     private final String ruName;
 
-    CCType(DRCategory category, boolean instant, int defaultTicks,
-           boolean breaksOnDamage, boolean interruptible, String ruName) {
+    CCType(
+            DRCategory category,
+            boolean instant,
+            int defaultTicks,
+            boolean breaksOnDamage,
+            boolean interruptible,
+            String ruName) {
         this.category = category;
         this.instant = instant;
         this.defaultTicks = defaultTicks;
@@ -40,13 +44,33 @@ public enum CCType {
         this.ruName = ruName;
     }
 
-    public DRCategory category() { return category; }
-    public boolean instant() { return instant; }
-    public int defaultTicks() { return defaultTicks; }
-    public boolean breaksOnDamage() { return breaksOnDamage; }
-    public boolean interruptible() { return interruptible; }
-    public String ruName() { return ruName; }
-    public String id() { return name(); }
+    public DRCategory category() {
+        return category;
+    }
+
+    public boolean instant() {
+        return instant;
+    }
+
+    public int defaultTicks() {
+        return defaultTicks;
+    }
+
+    public boolean breaksOnDamage() {
+        return breaksOnDamage;
+    }
+
+    public boolean interruptible() {
+        return interruptible;
+    }
+
+    public String ruName() {
+        return ruName;
+    }
+
+    public String id() {
+        return name();
+    }
 
     public static CCType fromId(String id) {
         if (id == null || id.isEmpty()) {

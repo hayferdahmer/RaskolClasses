@@ -30,10 +30,7 @@ import java.util.Set;
  * (A требует B, B требует A) — StackOverflowError. Теперь каждый посещённый
  * узел добавляется в visited; повторный визит возвращает false (недостижимо).
  */
-public record Spec2Tree(
-        String id,
-        List<Spec2Node> nodes
-) {
+public record Spec2Tree(String id, List<Spec2Node> nodes) {
 
     /** Узел по id или null. */
     public Spec2Node find(String nodeId) {
@@ -81,8 +78,7 @@ public record Spec2Tree(
      *
      * @param disabledNodes узлы spec2.disabled-nodes; null/пусто → ничто не отключено
      */
-    public boolean prereqsMet(Spec2Node node, Map<String, Integer> ranks,
-                              Set<String> disabledNodes) {
+    public boolean prereqsMet(Spec2Node node, Map<String, Integer> ranks, Set<String> disabledNodes) {
         if (node == null) {
             return false;
         }
@@ -113,8 +109,7 @@ public record Spec2Tree(
      *
      * @param disabledNodes стоп-лист для учёта пререквизитов; null → ничто не отключено
      */
-    public boolean canBuy(Spec2Node node, Map<String, Integer> ranks,
-                          int availablePoints, Set<String> disabledNodes) {
+    public boolean canBuy(Spec2Node node, Map<String, Integer> ranks, int availablePoints, Set<String> disabledNodes) {
         if (node == null) {
             return false;
         }

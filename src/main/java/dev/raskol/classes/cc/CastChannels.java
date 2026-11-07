@@ -31,8 +31,7 @@ public final class CastChannels {
     /** 1.14.13 (Волна 13C): instance-поле вместо static — карта активных каналов. */
     private final Map<UUID, Runnable> channels = new ConcurrentHashMap<>();
 
-    private CastChannels() {
-    }
+    private CastChannels() {}
 
     /** 1.14.13 (Волна 13C): доступ к singleton-экземпляру. */
     public static CastChannels instance() {
@@ -92,8 +91,8 @@ public final class CastChannels {
         try {
             canceller.run();
         } catch (RuntimeException e) {
-            LOGGER.warning("CastChannels: canceller для " + casterUuid
-                    + " упал с " + e.getClass().getSimpleName() + ": " + e.getMessage());
+            LOGGER.warning("CastChannels: canceller для " + casterUuid + " упал с "
+                    + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
         return true;
     }

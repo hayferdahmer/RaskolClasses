@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability.passive;
 
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.event.CustomHealEvent;
+import java.util.UUID;
+
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityRegainHealthEvent;
 
-import java.util.UUID;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.event.CustomHealEvent;
 
 /**
  * 1.11.4 (P1): контракт пассивки класса. Один класс = один файл-реализация;
@@ -27,13 +28,10 @@ public interface ClassPassive {
     PlayerClass playerClass();
 
     /** Атакующий этого класса нанёс урон (событие не отменено). */
-    default void onDamageOut(EntityDamageByEntityEvent event, Player attacker,
-                             LivingEntity target, double damage) {
-    }
+    default void onDamageOut(EntityDamageByEntityEvent event, Player attacker, LivingEntity target, double damage) {}
 
     /** Игрок этого класса получил урон от сущности. */
-    default void onDamageIn(EntityDamageByEntityEvent event, Player victim, double damage) {
-    }
+    default void onDamageIn(EntityDamageByEntityEvent event, Player victim, double damage) {}
 
     /**
      * Пассивка этого класса как ЦЕЛИТЕЛЬ на пути лечения китов (CustomHealEvent).
@@ -41,8 +39,7 @@ public interface ClassPassive {
      * Реализация может модифицировать event.getAmount() — множитель применяется к базовому
      * heal-amount, далее Spec2RoleListener.onCustomHeal умножит на heal_out_pct × HEALER.
      */
-    default void onCustomHealOut(CustomHealEvent event, Player healer) {
-    }
+    default void onCustomHealOut(CustomHealEvent event, Player healer) {}
 
     /**
      * @deprecated С 1.14.7 (Sprint 4, P1-1) диспетчер для EntityRegainHealthEvent
@@ -53,8 +50,7 @@ public interface ClassPassive {
      *             с внешними реализациями интерфейса; удаление в 1.15.0.
      */
     @Deprecated
-    default void onHealOut(EntityRegainHealthEvent event, Player healer) {
-    }
+    default void onHealOut(EntityRegainHealthEvent event, Player healer) {}
 
     /** Сброс proc-счётчиков (выход игрока, фолиант). */
     void clear(UUID uuid);

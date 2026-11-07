@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat.school;
 
+import java.util.UUID;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.item.model.ItemStat;
-
-import java.util.UUID;
 
 /**
  * 1.12.2 (Блок 3) → 1.14.0 (Б8): агрегатор пробития из НЕ-гиревых источников.
@@ -43,7 +43,8 @@ public final class PenTraitsService {
         if (plugin.getItems() == null || uuid == null || key == null) {
             return 0.0;
         }
-        ItemStat stat = "phys".equals(key) ? ItemStat.PEN_PHYS_PCT
+        ItemStat stat = "phys".equals(key)
+                ? ItemStat.PEN_PHYS_PCT
                 : "magic".equals(key) ? ItemStat.PEN_MAGIC_PCT : ItemStat.fromId("pen-" + key + "-pct");
         return stat == null ? 0.0 : plugin.getItems().value(uuid, stat);
     }

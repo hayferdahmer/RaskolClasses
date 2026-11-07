@@ -2,21 +2,23 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hotbar;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.AbilityDef;
-import dev.raskol.classes.ability.TreeAbilities;
-import dev.raskol.classes.classsystem.PlayerClass;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.AbilityDef;
+import dev.raskol.classes.ability.TreeAbilities;
+import dev.raskol.classes.classsystem.PlayerClass;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Свиток способности в хотбаре (1.5.x → 1.9.0-fix3 → 1.14.4-fix).
@@ -51,52 +53,56 @@ public final class AbilityToken {
         meta.displayName(Component.text("«" + def.displayName() + "»", NamedTextColor.LIGHT_PURPLE));
 
         List<Component> lore = new ArrayList<>();
-        
+
         // 1.14.4-fix: фолбэк treeAbilities → abilities → def
         String desc = TreeAbilities.descriptionOf(plugin, pc, def.id());
         if (!desc.isEmpty()) {
             lore.add(Component.text(desc, NamedTextColor.WHITE));
         }
-        
+
         // школа способности
         if (def.school() != null) {
-            String schoolName = switch (def.school()) {
-                case PHYSICAL -> "физический";
-                case FIRE -> "огонь";
-                case FROST -> "лёд";
-                case NATURE -> "природа";
-                case SHADOW -> "тьма";
-                case HOLY -> "свет";
-                case ARCANE -> "тайная магия";
-                case TRUE -> "чистый";
-            };
+            String schoolName =
+                    switch (def.school()) {
+                        case PHYSICAL -> "физический";
+                        case FIRE -> "огонь";
+                        case FROST -> "лёд";
+                        case NATURE -> "природа";
+                        case SHADOW -> "тьма";
+                        case HOLY -> "свет";
+                        case ARCANE -> "тайная магия";
+                        case TRUE -> "чистый";
+                    };
             lore.add(Component.text("Школа: " + schoolName, NamedTextColor.GOLD));
         }
-        
+
         // формула урона/хила с числами (1.14.4-fix: через TreeAbilities.numberOrKit)
         String power = TreeAbilities.stringOrKit(plugin, pc, def.id(), "power", "");
         double base = TreeAbilities.numberOrKit(plugin, pc, def.id(), "base", 0.0);
         double coeff = TreeAbilities.numberOrKit(plugin, pc, def.id(), "coeff", 0.0);
-        
+
         if (coeff > 0.0) {
-            String powerName = switch (power) {
-                case "wp" -> "Силы оружия";
-                case "hpow" -> "Силы исцеления";
-                default -> "Силы заклинаний";
-            };
-            lore.add(Component.text(String.format(Locale.ROOT,
-                    "Эффект: %.0f + %.0f%% от %s", base, coeff * 100.0, powerName),
+            String powerName =
+                    switch (power) {
+                        case "wp" -> "Силы оружия";
+                        case "hpow" -> "Силы исцеления";
+                        default -> "Силы заклинаний";
+                    };
+            lore.add(Component.text(
+                    String.format(Locale.ROOT, "Эффект: %.0f + %.0f%% от %s", base, coeff * 100.0, powerName),
                     NamedTextColor.AQUA));
-            String powerFormula = switch (power) {
-                case "wp" -> "Сила оружия = base + СИЛА×1.5 + ЛОВК×0.5";
-                case "hpow" -> "Сила исцеления = base + ИНТ×1.4";
-                default -> "Сила заклинаний = base + ИНТ×1.5";
-            };
+            String powerFormula =
+                    switch (power) {
+                        case "wp" -> "Сила оружия = base + СИЛА×1.5 + ЛОВК×0.5";
+                        case "hpow" -> "Сила исцеления = base + ИНТ×1.4";
+                        default -> "Сила заклинаний = base + ИНТ×1.5";
+                    };
             lore.add(Component.text(powerFormula, NamedTextColor.DARK_AQUA));
         }
-        
-        lore.add(Component.text("Цена: " + def.cost() + " " + pc.getResourceName() 
-                + " · КД: " + (def.cooldownMillis() / 1000L) + " с · Слот: " + def.slot(),
+
+        lore.add(Component.text(
+                "Цена: " + def.cost() + " " + pc.getResourceName() + " · КД: " + (def.cooldownMillis() / 1000L)
+                        + " с · Слот: " + def.slot(),
                 NamedTextColor.GRAY));
         lore.add(Component.text("ПКМ — свиток в хотбар", NamedTextColor.YELLOW));
 

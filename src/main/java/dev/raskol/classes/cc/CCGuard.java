@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.cc;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.combat.CombatService;
+import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
@@ -21,8 +22,8 @@ import org.bukkit.event.player.PlayerItemConsumeEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.CombatService;
 
 /**
  * 1.13.0 (Б2): блокировка действий под CC.
@@ -77,8 +78,7 @@ public final class CCGuard implements Listener {
         if (from.getX() == to.getX() && from.getY() == to.getY() && from.getZ() == to.getZ()) {
             return;
         }
-        event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(),
-                to.getYaw(), to.getPitch()));
+        event.setTo(new Location(from.getWorld(), from.getX(), from.getY(), from.getZ(), to.getYaw(), to.getPitch()));
     }
 
     /**
@@ -104,8 +104,7 @@ public final class CCGuard implements Listener {
             event.setCancelled(true);
             return;
         }
-        if (cc.has(id, CCType.BLIND)
-                && ThreadLocalRandom.current().nextDouble() < cc.blindMissChance()) {
+        if (cc.has(id, CCType.BLIND) && ThreadLocalRandom.current().nextDouble() < cc.blindMissChance()) {
             event.setCancelled(true);
             return;
         }

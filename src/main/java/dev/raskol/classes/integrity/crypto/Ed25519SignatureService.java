@@ -73,8 +73,8 @@ public final class Ed25519SignatureService {
             byte[] signature = signer.sign();
 
             if (signature.length != SIGNATURE_LENGTH) {
-                LOGGER.warning("RIPS: unexpected signature length " + signature.length
-                        + " (expected " + SIGNATURE_LENGTH + ")");
+                LOGGER.warning("RIPS: unexpected signature length " + signature.length + " (expected "
+                        + SIGNATURE_LENGTH + ")");
             }
 
             return signature;
@@ -185,19 +185,13 @@ public final class Ed25519SignatureService {
     public static String signToBase64(byte[] data, PrivateKey privateKey) {
         byte[] signature = sign(data, privateKey);
 
-        return signature.length == 0
-                ? ""
-                : Base64.getEncoder().encodeToString(signature);
+        return signature.length == 0 ? "" : Base64.getEncoder().encodeToString(signature);
     }
 
     /**
      * Проверяет Base64-подпись.
      */
-    public static boolean verifyFromBase64(
-            byte[] data,
-            String signatureBase64,
-            PublicKey publicKey
-    ) {
+    public static boolean verifyFromBase64(byte[] data, String signatureBase64, PublicKey publicKey) {
         if (signatureBase64 == null || signatureBase64.isEmpty()) {
             return false;
         }

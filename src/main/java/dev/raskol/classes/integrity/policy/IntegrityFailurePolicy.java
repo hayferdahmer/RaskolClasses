@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.policy;
 
+import java.util.Objects;
+
 import dev.raskol.classes.integrity.verification.IntegrityStatus;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
-
-import java.util.Objects;
 
 /**
  * Defines whether RaskolClasses may continue startup after RIPS verification.
@@ -30,8 +30,7 @@ public final class IntegrityFailurePolicy {
         IntegrityStatus status = result.status();
 
         return switch (status) {
-            case VERIFIED, DEVELOPMENT_BUILD ->
-                    IntegrityFailureDecision.CONTINUE;
+            case VERIFIED, DEVELOPMENT_BUILD -> IntegrityFailureDecision.CONTINUE;
 
             default -> IntegrityFailureDecision.DISABLE_PLUGIN;
         };

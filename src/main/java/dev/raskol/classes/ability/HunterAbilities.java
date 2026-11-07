@@ -2,15 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.cc.CCType;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.DamageProfile;
-import dev.raskol.classes.combat.Targeting;
-import dev.raskol.classes.combat.dot.DotInstance;
-import dev.raskol.classes.pet.PetService;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -29,10 +25,16 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.cc.CCType;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.Targeting;
+import dev.raskol.classes.combat.dot.DotInstance;
+import dev.raskol.classes.pet.PetService;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.7.2: КИТ ОХОТНИКА. 1.7.6.3: стрелы веера неподбираемы. 1.8.1: canHit-гейты.
@@ -183,11 +185,16 @@ public final class HunterAbilities extends AbstractKit {
         impactFx(t, "wolf_mark", "ENTITY_WOLF_HOWL", "END_ROD", 0.5f, 1.0f, 8);
         t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 3 * 20, 0));
         t.setGlowing(true);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (t.isValid()) {
-                t.setGlowing(false);
-            }
-        }, 6 * 20L);
+        plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            if (t.isValid()) {
+                                t.setGlowing(false);
+                            }
+                        },
+                        6 * 20L);
         return true;
     }
 
@@ -240,16 +247,26 @@ public final class HunterAbilities extends AbstractKit {
         arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
         arrow.setLifetimeTicks(600);
         arrow.getPersistentDataContainer().set(fanArrowKey, PersistentDataType.DOUBLE, damage);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (arrow.isValid()) {
-                arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
-            }
-        }, 1L);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (arrow.isValid()) {
-                arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
-            }
-        }, 2L);
+        plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            if (arrow.isValid()) {
+                                arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
+                            }
+                        },
+                        1L);
+        plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            if (arrow.isValid()) {
+                                arrow.setPickupStatus(AbstractArrow.PickupStatus.DISALLOWED);
+                            }
+                        },
+                        2L);
     }
 
     public boolean arrowRain(Player p, AbilityDef def) {
@@ -293,11 +310,16 @@ public final class HunterAbilities extends AbstractKit {
         double dmg = tdmg(p, def, 16.0, 1.6);
         plugin.getCombat().dealDamage(t, p, DamageProfile.physical(dmg));
         t.setGlowing(true);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (t.isValid()) {
-                t.setGlowing(false);
-            }
-        }, 3 * 20L);
+        plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            if (t.isValid()) {
+                                t.setGlowing(false);
+                            }
+                        },
+                        3 * 20L);
         impactFx(t, "aimed_shot", "ENTITY_ARROW_HIT_PLAYER", "END_ROD", 0.5f, 0.9f, 10);
         return true;
     }
@@ -345,8 +367,8 @@ public final class HunterAbilities extends AbstractKit {
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 6);
         TRUE_SHOT_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
         castFx(p, "true_shot", "BLOCK_NOTE_BLOCK_PLING", "END_ROD", 0.6f, 1.2f, 16);
-        p.sendMessage(Component.text("Верный выстрел: +30% урона способностей на " + secs + " с",
-                NamedTextColor.GREEN));
+        p.sendMessage(
+                Component.text("Верный выстрел: +30% урона способностей на " + secs + " с", NamedTextColor.GREEN));
         return true;
     }
 
@@ -380,33 +402,39 @@ public final class HunterAbilities extends AbstractKit {
         p.getWorld().spawnParticle(Particle.SMOKE, spot.clone().add(0.0, 0.3, 0.0), 6, 0.2, 0.2, 0.2, 0.01);
         UUID pid = p.getUniqueId();
         double dmg = tdmg(p, def, 10.0, 0.8);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            Player caster = plugin.getServer().getPlayer(pid);
-            if (caster == null) {
-                return;
-            }
-            caster.getWorld().spawnParticle(Particle.EXPLOSION, spot.clone().add(0.0, 0.5, 0.0),
-                    2, 0.3, 0.3, 0.3, 0.0);
-            Sound boom = plugin.getFx().resolveSound(
-                    cfgS("vfx.explosive_trap.impact-sound", "ENTITY_GENERIC_EXPLODE"));
-            if (boom != null) {
-                plugin.getFx().playSound(spot, boom, 0.8f, 1.0f);
-            }
-            for (Entity e : caster.getWorld().getNearbyEntities(spot, radius, radius, radius)) {
-                if (!(e instanceof LivingEntity t) || t.equals(caster) || t.isDead()) {
-                    continue;
-                }
-                if (!plugin.getCombat().canHit(caster, t)) {
-                    continue;
-                }
-                if (t.getLocation().distanceSquared(spot) > radius * radius) {
-                    continue;
-                }
-                plugin.getCombat().dealDamage(t, caster, DamageProfile.physical(dmg));
-                plugin.getCC().tryApply(caster, t, CCType.ROOT, 40);
-                plugin.getCombat().dots().applyById(caster, t, "burning");
-            }
-        }, 20L);
+        plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            Player caster = plugin.getServer().getPlayer(pid);
+                            if (caster == null) {
+                                return;
+                            }
+                            caster.getWorld()
+                                    .spawnParticle(
+                                            Particle.EXPLOSION, spot.clone().add(0.0, 0.5, 0.0), 2, 0.3, 0.3, 0.3, 0.0);
+                            Sound boom = plugin.getFx()
+                                    .resolveSound(cfgS("vfx.explosive_trap.impact-sound", "ENTITY_GENERIC_EXPLODE"));
+                            if (boom != null) {
+                                plugin.getFx().playSound(spot, boom, 0.8f, 1.0f);
+                            }
+                            for (Entity e : caster.getWorld().getNearbyEntities(spot, radius, radius, radius)) {
+                                if (!(e instanceof LivingEntity t) || t.equals(caster) || t.isDead()) {
+                                    continue;
+                                }
+                                if (!plugin.getCombat().canHit(caster, t)) {
+                                    continue;
+                                }
+                                if (t.getLocation().distanceSquared(spot) > radius * radius) {
+                                    continue;
+                                }
+                                plugin.getCombat().dealDamage(t, caster, DamageProfile.physical(dmg));
+                                plugin.getCC().tryApply(caster, t, CCType.ROOT, 40);
+                                plugin.getCombat().dots().applyById(caster, t, "burning");
+                            }
+                        },
+                        20L);
         return true;
     }
 
@@ -461,8 +489,7 @@ public final class HunterAbilities extends AbstractKit {
         plugin.getCC().removeType(uuid, CCType.SLOW);
         plugin.getCC().removeType(uuid, CCType.ROOT);
         castFx(p, "readiness", "ENTITY_PLAYER_LEVELUP", "ENCHANTED_HIT", 0.6f, 1.2f, 16);
-        p.sendMessage(Component.text("Готовность: концентрация восполнена, оковы сняты",
-                NamedTextColor.GREEN));
+        p.sendMessage(Component.text("Готовность: концентрация восполнена, оковы сняты", NamedTextColor.GREEN));
         return true;
     }
 
@@ -523,8 +550,7 @@ public final class HunterAbilities extends AbstractKit {
             return false;
         }
         castFx(p, "pet_wolf", "ENTITY_WOLF_AMBIENT", "HEART", 0.7f, 1.0f, 14);
-        p.sendMessage(Component.text("Волк приручён и следует за тобой (до смерти или выхода).",
-                NamedTextColor.GREEN));
+        p.sendMessage(Component.text("Волк приручён и следует за тобой (до смерти или выхода).", NamedTextColor.GREEN));
         return true;
     }
 
@@ -545,8 +571,7 @@ public final class HunterAbilities extends AbstractKit {
             return false;
         }
         castFx(p, "beast_ferocity", "ENTITY_WOLF_GROWL", "CRIMSON_SPORE", 0.7f, 1.0f, 14);
-        pet.getWorld().spawnParticle(Particle.HEART, pet.getLocation().add(0.0, 1.0, 0.0),
-                6, 0.3, 0.3, 0.3, 0.0);
+        pet.getWorld().spawnParticle(Particle.HEART, pet.getLocation().add(0.0, 1.0, 0.0), 6, 0.3, 0.3, 0.3, 0.0);
         return true;
     }
 
@@ -566,8 +591,7 @@ public final class HunterAbilities extends AbstractKit {
             return false;
         }
         castFx(p, "bestial_wrath", "ENTITY_WOLF_HOWL", "CRIMSON_SPORE", 0.9f, 0.7f, 20);
-        p.sendMessage(Component.text("Звериная ярость: волк усилен на " + secs + " с",
-                NamedTextColor.GREEN));
+        p.sendMessage(Component.text("Звериная ярость: волк усилен на " + secs + " с", NamedTextColor.GREEN));
         return true;
     }
 
@@ -587,9 +611,20 @@ public final class HunterAbilities extends AbstractKit {
 
     /** 1.14.0: ids древесных способностей для сверки с TreeAbilities. */
     public static List<String> treeAbilityIds() {
-        return List.of("aimed_shot", "silencing_shot", "chimera_shot", "true_shot",
-                "poison_shot", "explosive_trap", "black_arrow", "wyvern_sting",
-                "readiness", "serpent_sting", "intimidation", "pet_wolf",
-                "beast_ferocity", "bestial_wrath");
+        return List.of(
+                "aimed_shot",
+                "silencing_shot",
+                "chimera_shot",
+                "true_shot",
+                "poison_shot",
+                "explosive_trap",
+                "black_arrow",
+                "wyvern_sting",
+                "readiness",
+                "serpent_sting",
+                "intimidation",
+                "pet_wolf",
+                "beast_ferocity",
+                "bestial_wrath");
     }
 }

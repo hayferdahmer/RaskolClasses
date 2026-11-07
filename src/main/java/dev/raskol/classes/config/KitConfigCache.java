@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.config;
 
-import dev.raskol.classes.classsystem.PlayerClass;
-import org.bukkit.configuration.ConfigurationSection;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.configuration.ConfigurationSection;
+
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.11.4 (P5): кэш значений, прочитанных через KitConfigLoader.

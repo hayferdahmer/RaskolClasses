@@ -2,18 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.build;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.Instant;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 class BuildIdentityTest {
 
     @Test
     void shouldCreateDevelopmentIdentity() {
-        BuildIdentity identity =
-                BuildIdentity.development("1.16.0-SNAPSHOT");
+        BuildIdentity identity = BuildIdentity.development("1.16.0-SNAPSHOT");
 
         assertEquals("RaskolClasses", identity.productId());
         assertEquals("1.16.0-SNAPSHOT", identity.pluginVersion());
@@ -35,16 +34,12 @@ class BuildIdentityTest {
                 "a1b2c3d4e5f6789012345678901234567890abcd",
                 Instant.parse("2026-11-07T12:00:00Z"),
                 "https://github.com/hayferdahmer/RaskolClasses",
-                BuildType.OFFICIAL
-        );
+                BuildType.OFFICIAL);
 
         assertTrue(identity.isOfficial());
         assertFalse(identity.isDevelopment());
 
-        assertEquals(
-                "RC-1.16.0-A1B2C3D4",
-                identity.buildId()
-        );
+        assertEquals("RC-1.16.0-A1B2C3D4", identity.buildId());
     }
 
     @Test
@@ -58,9 +53,7 @@ class BuildIdentityTest {
                         "a1b2c3d4",
                         Instant.now(),
                         "https://github.com/hayferdahmer/RaskolClasses",
-                        BuildType.DEVELOPMENT
-                )
-        );
+                        BuildType.DEVELOPMENT));
     }
 
     @Test
@@ -74,9 +67,7 @@ class BuildIdentityTest {
                         "UNKNOWN",
                         Instant.now(),
                         "https://github.com/hayferdahmer/RaskolClasses",
-                        BuildType.OFFICIAL
-                )
-        );
+                        BuildType.OFFICIAL));
     }
 
     @Test
@@ -90,9 +81,7 @@ class BuildIdentityTest {
                         "a1b2c3d4",
                         Instant.now(),
                         "https://github.com/hayferdahmer/RaskolClasses",
-                        BuildType.OFFICIAL
-                )
-        );
+                        BuildType.OFFICIAL));
     }
 
     @Test
@@ -106,9 +95,7 @@ class BuildIdentityTest {
                         "a1b2c3d4",
                         Instant.EPOCH,
                         "https://github.com/hayferdahmer/RaskolClasses",
-                        BuildType.OFFICIAL
-                )
-        );
+                        BuildType.OFFICIAL));
     }
 
     @Test
@@ -122,8 +109,6 @@ class BuildIdentityTest {
                         "a1b2c3d4",
                         Instant.now(),
                         "https://github.com/hayferdahmer/RaskolClasses",
-                        null
-                )
-        );
+                        null));
     }
 }

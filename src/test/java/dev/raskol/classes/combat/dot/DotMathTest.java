@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat.dot;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * 1.14.10 (Sprint 7, волна 7.1b, P0-11-01): полное покрытие DotMath.
@@ -28,19 +28,19 @@ class DotMathTest {
         @Test
         @DisplayName("[40,30] против limit=60 → 60/70 ≈ 0.857 (якорь чека 66)")
         void scalesDownWhenOverLimit() {
-            assertEquals(60.0 / 70.0, DotMath.capFactor(new double[]{40.0, 30.0}, 60.0), EPS);
+            assertEquals(60.0 / 70.0, DotMath.capFactor(new double[] {40.0, 30.0}, 60.0), EPS);
         }
 
         @Test
         @DisplayName("[10] против limit=60 → 1.0 (sum ≤ limit)")
         void noScalingUnderLimit() {
-            assertEquals(1.0, DotMath.capFactor(new double[]{10.0}, 60.0), EPS);
+            assertEquals(1.0, DotMath.capFactor(new double[] {10.0}, 60.0), EPS);
         }
 
         @Test
         @DisplayName("[0] против limit=60 → 1.0 (sum ≤ 0 = ничего не применяем)")
         void zeroSumReturnsOne() {
-            assertEquals(1.0, DotMath.capFactor(new double[]{0.0}, 60.0), EPS);
+            assertEquals(1.0, DotMath.capFactor(new double[] {0.0}, 60.0), EPS);
         }
 
         @Test
@@ -53,19 +53,18 @@ class DotMathTest {
         @Test
         @DisplayName("limit ≤ 0 → 1.0 (кап выключен)")
         void invalidLimit() {
-            assertEquals(1.0, DotMath.capFactor(new double[]{40.0, 30.0}, 0.0), EPS);
-            assertEquals(1.0, DotMath.capFactor(new double[]{40.0, 30.0}, -5.0), EPS);
-            assertEquals(1.0, DotMath.capFactor(new double[]{40.0, 30.0}, Double.NaN), EPS);
+            assertEquals(1.0, DotMath.capFactor(new double[] {40.0, 30.0}, 0.0), EPS);
+            assertEquals(1.0, DotMath.capFactor(new double[] {40.0, 30.0}, -5.0), EPS);
+            assertEquals(1.0, DotMath.capFactor(new double[] {40.0, 30.0}, Double.NaN), EPS);
         }
 
         @Test
         @DisplayName("NaN/отрицательные элементы dps → не учитываются в sum")
         void invalidDpsElementsIgnored() {
             // sum = 30 (40 неFinite, -5 отсечён), limit=60 → 1.0
-            assertEquals(1.0, DotMath.capFactor(new double[]{Double.NaN, -5.0, 30.0}, 60.0), EPS);
+            assertEquals(1.0, DotMath.capFactor(new double[] {Double.NaN, -5.0, 30.0}, 60.0), EPS);
             // sum = 70, limit=60 → 60/70
-            assertEquals(60.0 / 70.0,
-                    DotMath.capFactor(new double[]{Double.NaN, 40.0, 30.0}, 60.0), EPS);
+            assertEquals(60.0 / 70.0, DotMath.capFactor(new double[] {Double.NaN, 40.0, 30.0}, 60.0), EPS);
         }
     }
 

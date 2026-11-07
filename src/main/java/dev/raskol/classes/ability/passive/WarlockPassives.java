@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability.passive;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.CombatService;
-import dev.raskol.classes.combat.DamageProfile;
+import java.util.UUID;
+
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.DamageProfile;
 
 /**
  * 1.11.4 (P1): Чернокнижник — «Чёрная Месса» (black_mass).
@@ -35,8 +36,7 @@ public final class WarlockPassives extends BaseClassPassive {
     }
 
     @Override
-    public void onDamageOut(EntityDamageByEntityEvent event, Player attacker,
-                            LivingEntity target, double damage) {
+    public void onDamageOut(EntityDamageByEntityEvent event, Player attacker, LivingEntity target, double damage) {
         if (!enabled("black_mass") || CombatService.reflectSuppressed()) {
             return;
         }
@@ -73,16 +73,14 @@ public final class WarlockPassives extends BaseClassPassive {
         }
         CombatService.beginReflect();
         try {
-            for (Entity e : victim.getWorld().getNearbyEntities(
-                    victim.getLocation(), radius, radius, radius)) {
+            for (Entity e : victim.getWorld().getNearbyEntities(victim.getLocation(), radius, radius, radius)) {
                 if (!(e instanceof LivingEntity t) || t.equals(victim) || t.isDead()) {
                     continue;
                 }
                 if (!plugin.getCombat().canHit(victim, t)) {
                     continue;
                 }
-                plugin.getCombat().dealDamage(t, victim,
-                        new DamageProfile(0.0, 0.0, reflFormula));
+                plugin.getCombat().dealDamage(t, victim, new DamageProfile(0.0, 0.0, reflFormula));
             }
         } finally {
             CombatService.endReflect();

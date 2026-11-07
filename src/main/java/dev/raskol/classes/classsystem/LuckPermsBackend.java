@@ -2,19 +2,21 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.classsystem;
 
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.bukkit.entity.Player;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.resource.ResourceService;
+
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.event.EventSubscription;
 import net.luckperms.api.event.user.UserDataRecalculateEvent;
 import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
-import org.bukkit.entity.Player;
-
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * LP-бэкенд определения класса: группа LuckPerms вида class_<NAME> → PlayerClass.
@@ -44,8 +46,7 @@ public final class LuckPermsBackend {
         this.provider = provider;
         this.plugin = plugin;
         this.api = LuckPermsProvider.get(); // бросит, если LP не загружен
-        this.subscription = api.getEventBus().subscribe(
-                plugin, UserDataRecalculateEvent.class, this::onRecalculate);
+        this.subscription = api.getEventBus().subscribe(plugin, UserDataRecalculateEvent.class, this::onRecalculate);
     }
 
     /** Ресурс-сервис для сброса шкалы при смене класса. */

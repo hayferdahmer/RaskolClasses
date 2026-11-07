@@ -13,16 +13,8 @@ import dev.raskol.classes.combat.school.School;
  *         школ в пути B; deriveSchool-фолбэк — PHYSICAL/MAGIC-канал по профилю).
  */
 public record AbilityDef(
-        String id,
-        String displayName,
-        int slot,
-        int unlockLevel,
-        int cost,
-        long cooldownMillis,
-        School school
-) {
-    public AbilityDef(String id, String displayName, int slot,
-                      int unlockLevel, int cost, long cooldownMillis) {
+        String id, String displayName, int slot, int unlockLevel, int cost, long cooldownMillis, School school) {
+    public AbilityDef(String id, String displayName, int slot, int unlockLevel, int cost, long cooldownMillis) {
         this(id, displayName, slot, unlockLevel, cost, cooldownMillis, null);
     }
 }

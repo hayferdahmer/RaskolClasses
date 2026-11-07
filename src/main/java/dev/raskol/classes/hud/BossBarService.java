@@ -2,22 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hud;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.effect.EffectType;
-import dev.raskol.classes.util.TextFx;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import org.bukkit.Bukkit;
-import org.bukkit.boss.BarColor;
-import org.bukkit.boss.BarStyle;
-import org.bukkit.boss.BossBar;
-import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -26,14 +10,31 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.bukkit.Bukkit;
+import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarStyle;
+import org.bukkit.boss.BossBar;
+import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.effect.EffectType;
+import dev.raskol.classes.util.TextFx;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+
 /**
  * Пакет 5: босс-бар V2 для активных эффектов.
  * 1.10.0-fix: barColor покрывает WARLOCK (BarColor.PURPLE).
  */
 public final class BossBarService {
 
-    private static final LegacyComponentSerializer LEGACY =
-            LegacyComponentSerializer.legacySection();
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private final RaskolClasses plugin;
     private final Map<UUID, Map<EffectType, BossBar>> bars = new ConcurrentHashMap<>();
@@ -99,8 +100,7 @@ public final class BossBarService {
             }
             RaskolConfig.ClassTheme theme = cfg.themeOf(pc);
 
-            Map<EffectType, Long> active =
-                    plugin.getEffects().getActiveEffects(id);
+            Map<EffectType, Long> active = plugin.getEffects().getActiveEffects(id);
 
             List<Map.Entry<EffectType, Long>> candidates = new ArrayList<>();
             for (Map.Entry<EffectType, Long> e : active.entrySet()) {
@@ -115,11 +115,10 @@ public final class BossBarService {
             }
 
             candidates.sort(Comparator.<Map.Entry<EffectType, Long>, Long>comparing(
-                    e -> e.getValue() == Long.MAX_VALUE
-                            ? Long.MAX_VALUE : e.getValue() - now).reversed());
+                            e -> e.getValue() == Long.MAX_VALUE ? Long.MAX_VALUE : e.getValue() - now)
+                    .reversed());
 
-            Map<EffectType, BossBar> playerBars =
-                    bars.computeIfAbsent(id, k -> new EnumMap<>(EffectType.class));
+            Map<EffectType, BossBar> playerBars = bars.computeIfAbsent(id, k -> new EnumMap<>(EffectType.class));
             BarColor color = barColor(pc);
 
             List<EffectType> visible = new ArrayList<>();
@@ -141,18 +140,14 @@ public final class BossBarService {
                 }
 
                 if (expires == Long.MAX_VALUE) {
-                    bar.setTitle(LEGACY.serialize(
-                            buildTitle(theme, type, fmtInf, "")));
+                    bar.setTitle(LEGACY.serialize(buildTitle(theme, type, fmtInf, "")));
                     bar.setProgress(1.0);
                 } else {
                     long remaining = Math.max(0L, expires - now);
                     int sec = (int) Math.max(1L, (remaining + 999L) / 1000L);
-                    bar.setTitle(LEGACY.serialize(
-                            buildTitle(theme, type, fmt, String.valueOf(sec))));
+                    bar.setTitle(LEGACY.serialize(buildTitle(theme, type, fmt, String.valueOf(sec))));
                     double total = totalDurationMillis(pc, type);
-                    bar.setProgress(total > 0
-                            ? Math.max(0.0, Math.min(1.0, remaining / total))
-                            : 1.0);
+                    bar.setProgress(total > 0 ? Math.max(0.0, Math.min(1.0, remaining / total)) : 1.0);
                 }
                 visible.add(type);
                 kept++;
@@ -184,12 +179,10 @@ public final class BossBarService {
         }
     }
 
-    private Component buildTitle(RaskolConfig.ClassTheme theme, EffectType type,
-                                 String template, String secText) {
+    private Component buildTitle(RaskolConfig.ClassTheme theme, EffectType type, String template, String secText) {
         String suffix = template.replace("{name}", "").replace("{sec}", secText);
         return Component.text(theme.symbol() + " ", theme.primary())
-                .append(TextFx.gradient(type.displayName(),
-                        theme.primary(), theme.secondary()))
+                .append(TextFx.gradient(type.displayName(), theme.primary(), theme.secondary()))
                 .append(Component.text(suffix, NamedTextColor.DARK_GRAY));
     }
 
@@ -199,16 +192,13 @@ public final class BossBarService {
      */
     private double totalDurationMillis(PlayerClass pc, EffectType type) {
         return switch (type) {
-            case SHIELD_WALL -> plugin.getRaskolConfig()
-                    .durationSeconds(PlayerClass.WARRIOR, "steel_skin", 5) * 1000.0;
-            case BLOOD_FURY -> plugin.getRaskolConfig()
-                    .durationSeconds(PlayerClass.WARRIOR, "blood_fury", 4) * 1000.0;
-            case EVASION -> plugin.getRaskolConfig()
-                    .durationSeconds(PlayerClass.ROGUE, "evasion", 4) * 1000.0;
-            case STEALTH -> plugin.getRaskolConfig()
-                    .durationSeconds(PlayerClass.ROGUE, "stealth", 15) * 1000.0;
+            case SHIELD_WALL -> plugin.getRaskolConfig().durationSeconds(PlayerClass.WARRIOR, "steel_skin", 5) * 1000.0;
+            case BLOOD_FURY -> plugin.getRaskolConfig().durationSeconds(PlayerClass.WARRIOR, "blood_fury", 4) * 1000.0;
+            case EVASION -> plugin.getRaskolConfig().durationSeconds(PlayerClass.ROGUE, "evasion", 4) * 1000.0;
+            case STEALTH -> plugin.getRaskolConfig().durationSeconds(PlayerClass.ROGUE, "stealth", 15) * 1000.0;
             case NO_FALL_DAMAGE -> plugin.getRaskolConfig()
-                    .durationSeconds(PlayerClass.HUNTER, "cheetah_aspect", "no-fall", 10) * 1000.0;
+                            .durationSeconds(PlayerClass.HUNTER, "cheetah_aspect", "no-fall", 10)
+                    * 1000.0;
             case AIMED_SHOT, EXECUTE -> 0.0;
         };
     }

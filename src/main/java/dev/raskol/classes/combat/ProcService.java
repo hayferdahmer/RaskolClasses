@@ -2,18 +2,19 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.RogueAbilities;
-import dev.raskol.classes.spec.service.Spec2Service;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.RogueAbilities;
+import dev.raskol.classes.spec.service.Spec2Service;
 
 /**
  * 1.14.3 (3C1/3C2): фасад proc-узлов деревьев путей.
@@ -38,7 +39,11 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class ProcService {
 
     /** Результат ролла уклонения/парирования (AvoidanceService.tryAvoid). */
-    public enum AvoidResult { NONE, DODGE, PARRY }
+    public enum AvoidResult {
+        NONE,
+        DODGE,
+        PARRY
+    }
 
     private final RaskolClasses plugin;
 
@@ -51,6 +56,7 @@ public final class ProcService {
 
     /** 1.14.7 (P0-6A): счётчик ударов для battle_trance (сбрасывается через 2 с). */
     private final Map<UUID, Integer> meleeHitCounter = new ConcurrentHashMap<>();
+
     private final Map<UUID, Long> meleeHitCounterExpiry = new ConcurrentHashMap<>();
 
     public ProcService(RaskolClasses plugin) {
@@ -134,9 +140,7 @@ public final class ProcService {
         long now = System.currentTimeMillis();
         Long prev = nextHitExpiry.get(uuid);
         Double cur = nextHitMult.get(uuid);
-        double newMult = (cur != null && cur > 1.0 && prev != null && now <= prev)
-                ? cur * mult
-                : mult;
+        double newMult = (cur != null && cur > 1.0 && prev != null && now <= prev) ? cur * mult : mult;
         nextHitMult.put(uuid, newMult);
         nextHitExpiry.put(uuid, now + durationMs);
     }
@@ -175,9 +179,8 @@ public final class ProcService {
         long now = System.currentTimeMillis();
         Double cur = exposeMult.get(uuid);
         Long exp = exposeExpiry.get(uuid);
-        double newMult = (cur != null && cur > 1.0 && exp != null && now <= exp)
-                ? Math.min(cur + add, 1.0 + cap)
-                : 1.0 + add;
+        double newMult =
+                (cur != null && cur > 1.0 && exp != null && now <= exp) ? Math.min(cur + add, 1.0 + cap) : 1.0 + add;
         exposeMult.put(uuid, newMult);
         exposeExpiry.put(uuid, now + 6_000L);
     }

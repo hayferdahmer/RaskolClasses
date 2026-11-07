@@ -29,8 +29,7 @@ class JarFileIntegrityResourceProviderTest {
         byte[] expected = "RASKOL-RIPS-RESOURCE".getBytes(StandardCharsets.UTF_8);
         Path jarPath = createJar("META-INF/raskol/test.txt", expected);
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
         try (InputStream input = provider.openResource("/META-INF/raskol/test.txt")) {
             assertNotNull(input);
@@ -43,8 +42,7 @@ class JarFileIntegrityResourceProviderTest {
         byte[] expected = "resource-content".getBytes(StandardCharsets.UTF_8);
         Path jarPath = createJar("config.yml", expected);
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
         try (InputStream input = provider.openResource("config.yml")) {
             assertNotNull(input);
@@ -54,64 +52,47 @@ class JarFileIntegrityResourceProviderTest {
 
     @Test
     void shouldReturnNullWhenResourceDoesNotExist() throws IOException {
-        Path jarPath = createJar("existing.txt", new byte[]{1, 2, 3});
+        Path jarPath = createJar("existing.txt", new byte[] {1, 2, 3});
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
         assertNull(provider.openResource("missing.txt"));
     }
 
     @Test
     void shouldRejectPathTraversal() throws IOException {
-        Path jarPath = createJar("safe.txt", new byte[]{1});
+        Path jarPath = createJar("safe.txt", new byte[] {1});
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
-        assertThrows(
-                IOException.class,
-                () -> provider.openResource("../outside.txt")
-        );
+        assertThrows(IOException.class, () -> provider.openResource("../outside.txt"));
 
-        assertThrows(
-                IOException.class,
-                () -> provider.openResource("META-INF/../../outside.txt")
-        );
+        assertThrows(IOException.class, () -> provider.openResource("META-INF/../../outside.txt"));
     }
 
     @Test
     void shouldRejectBackslashes() throws IOException {
-        Path jarPath = createJar("safe.txt", new byte[]{1});
+        Path jarPath = createJar("safe.txt", new byte[] {1});
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
-        assertThrows(
-                IOException.class,
-                () -> provider.openResource("META-INF\\raskol\\test.txt")
-        );
+        assertThrows(IOException.class, () -> provider.openResource("META-INF\\raskol\\test.txt"));
     }
 
     @Test
     void shouldRejectDoubleLeadingSlash() throws IOException {
-        Path jarPath = createJar("safe.txt", new byte[]{1});
+        Path jarPath = createJar("safe.txt", new byte[] {1});
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
-        assertThrows(
-                IOException.class,
-                () -> provider.openResource("//safe.txt")
-        );
+        assertThrows(IOException.class, () -> provider.openResource("//safe.txt"));
     }
 
     @Test
     void shouldRejectBlankResourcePath() throws IOException {
-        Path jarPath = createJar("safe.txt", new byte[]{1});
+        Path jarPath = createJar("safe.txt", new byte[] {1});
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
         assertThrows(IOException.class, () -> provider.openResource(""));
         assertThrows(IOException.class, () -> provider.openResource("   "));
@@ -126,13 +107,9 @@ class JarFileIntegrityResourceProviderTest {
             output.closeEntry();
         }
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
-        assertThrows(
-                IOException.class,
-                () -> provider.openResource("META-INF")
-        );
+        assertThrows(IOException.class, () -> provider.openResource("META-INF"));
     }
 
     @Test
@@ -140,13 +117,9 @@ class JarFileIntegrityResourceProviderTest {
         byte[] content = "TOO-LARGE".getBytes(StandardCharsets.UTF_8);
         Path jarPath = createJar("large.txt", content);
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath, 4);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath, 4);
 
-        assertThrows(
-                IOException.class,
-                () -> provider.openResource("large.txt")
-        );
+        assertThrows(IOException.class, () -> provider.openResource("large.txt"));
     }
 
     @Test
@@ -154,13 +127,9 @@ class JarFileIntegrityResourceProviderTest {
         byte[] content = "123456789".getBytes(StandardCharsets.UTF_8);
         Path jarPath = createJar("resource.txt", content);
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath, 5);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath, 5);
 
-        assertThrows(
-                IOException.class,
-                () -> provider.openResource("resource.txt")
-        );
+        assertThrows(IOException.class, () -> provider.openResource("resource.txt"));
     }
 
     @Test
@@ -168,8 +137,7 @@ class JarFileIntegrityResourceProviderTest {
         byte[] content = "12345".getBytes(StandardCharsets.UTF_8);
         Path jarPath = createJar("resource.txt", content);
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath, 5);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath, 5);
 
         try (InputStream input = provider.openResource("resource.txt")) {
             assertNotNull(input);
@@ -179,13 +147,9 @@ class JarFileIntegrityResourceProviderTest {
 
     @Test
     void shouldCloseResourceStreamAndRejectFurtherReads() throws IOException {
-        Path jarPath = createJar(
-                "resource.txt",
-                "content".getBytes(StandardCharsets.UTF_8)
-        );
+        Path jarPath = createJar("resource.txt", "content".getBytes(StandardCharsets.UTF_8));
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
         InputStream input = provider.openResource("resource.txt");
 
@@ -198,10 +162,9 @@ class JarFileIntegrityResourceProviderTest {
 
     @Test
     void shouldAllowRepeatedClose() throws IOException {
-        Path jarPath = createJar("resource.txt", new byte[]{1, 2, 3});
+        Path jarPath = createJar("resource.txt", new byte[] {1, 2, 3});
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath);
 
         InputStream input = provider.openResource("resource.txt");
 
@@ -213,33 +176,23 @@ class JarFileIntegrityResourceProviderTest {
 
     @Test
     void shouldRejectDirectoryAsArtifact() {
-        assertThrows(
-                IOException.class,
-                () -> new JarFileIntegrityResourceProvider(tempDir)
-        );
+        assertThrows(IOException.class, () -> new JarFileIntegrityResourceProvider(tempDir));
     }
 
     @Test
     void shouldRejectNonPositiveResourceLimit() {
         Path jarPath = tempDir.resolve("unused.jar");
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new JarFileIntegrityResourceProvider(jarPath, 0)
-        );
+        assertThrows(IllegalArgumentException.class, () -> new JarFileIntegrityResourceProvider(jarPath, 0));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new JarFileIntegrityResourceProvider(jarPath, -1)
-        );
+        assertThrows(IllegalArgumentException.class, () -> new JarFileIntegrityResourceProvider(jarPath, -1));
     }
 
     @Test
     void shouldExposeCanonicalArtifactPathAndConfiguredLimit() throws IOException {
-        Path jarPath = createJar("resource.txt", new byte[]{1, 2, 3});
+        Path jarPath = createJar("resource.txt", new byte[] {1, 2, 3});
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(jarPath, 1024);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(jarPath, 1024);
 
         assertEquals(jarPath.toRealPath(), provider.getArtifactPath());
         assertEquals(1024, provider.getMaxResourceBytes());
@@ -249,13 +202,9 @@ class JarFileIntegrityResourceProviderTest {
     void shouldRejectInvalidJarArchiveWhenOpeningResource() throws IOException {
         Path invalidJar = Files.createFile(tempDir.resolve("invalid.jar"));
 
-        JarFileIntegrityResourceProvider provider =
-                new JarFileIntegrityResourceProvider(invalidJar);
+        JarFileIntegrityResourceProvider provider = new JarFileIntegrityResourceProvider(invalidJar);
 
-        assertThrows(
-                IOException.class,
-                () -> provider.openResource("resource.txt")
-        );
+        assertThrows(IOException.class, () -> provider.openResource("resource.txt"));
     }
 
     private Path createJar(String entryName, byte[] content) throws IOException {

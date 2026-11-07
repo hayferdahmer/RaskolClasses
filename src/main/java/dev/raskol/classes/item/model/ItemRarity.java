@@ -4,5 +4,10 @@ package dev.raskol.classes.item.model;
 
 /** Rarity tiers supported by the item format. */
 public enum ItemRarity {
-    COMMON, UNCOMMON, RARE, EPIC, LEGENDARY, MYTHIC
+    COMMON,
+    UNCOMMON,
+    RARE,
+    EPIC,
+    LEGENDARY,
+    MYTHIC
 }

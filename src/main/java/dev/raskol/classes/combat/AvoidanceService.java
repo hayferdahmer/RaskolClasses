@@ -2,15 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeMath;
-import dev.raskol.classes.attribute.AttributeService;
-import dev.raskol.classes.attribute.AttributeType;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.config.ConfigReads;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.title.Title;
+import java.time.Duration;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
+
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -33,11 +30,16 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.util.Vector;
 
-import java.time.Duration;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.AttributeMath;
+import dev.raskol.classes.attribute.AttributeService;
+import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.ConfigReads;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.title.Title;
 
 /**
  * 1.7.0 пакет 3: УКЛОНЕНИЕ и ПАРИРОВАНИЕ (avoidance).
@@ -186,8 +188,7 @@ public final class AvoidanceService implements Listener {
         double parryFull = AttributeMath.parryRaw(str, cfgD("avoidance.parry-k", 150.0));
         double micro = cfgD("avoidance.agi-main-parry-micro", 0.5);
         if (agiMain) {
-            dodge += Math.max(0.0, parryFull - micro)
-                    * cfgD("avoidance.agi-main-dodge-refund", 0.5);
+            dodge += Math.max(0.0, parryFull - micro) * cfgD("avoidance.agi-main-dodge-refund", 0.5);
         }
         // 1.7.6.1-fix: уклонение урезано вдвое (дефолт 0.5); такие цифры — только со шмотом
         dodge *= cfgD("avoidance.dodge-mult", 0.5);
@@ -205,7 +206,8 @@ public final class AvoidanceService implements Listener {
         if (total <= 0.0) {
             return ProcService.AvoidResult.NONE;
         }
-        double eff = AttributeMath.applyDR(total,
+        double eff = AttributeMath.applyDR(
+                total,
                 cfgD("avoidance.soft-cap", 60.0),
                 cfgD("avoidance.dr-factor", 0.5),
                 cfgD("avoidance.hard-cap", 75.0));
@@ -241,27 +243,23 @@ public final class AvoidanceService implements Listener {
     }
 
     private boolean isBossImmune(LivingEntity attacker) {
-        return plugin.getConfig()
-                .getStringList("attributes.boss-no-avoidance")
-                .contains(attacker.getName());
+        return plugin.getConfig().getStringList("attributes.boss-no-avoidance").contains(attacker.getName());
     }
 
     private double angleTo(Player defender, LivingEntity attacker) {
         Vector facing = defender.getLocation().getDirection();
-        Vector toAtt = attacker.getLocation().toVector()
+        Vector toAtt = attacker.getLocation()
+                .toVector()
                 .subtract(defender.getLocation().toVector());
-        return AttributeMath.angleToAttacker(facing.getX(), facing.getZ(),
-                toAtt.getX(), toAtt.getZ());
+        return AttributeMath.angleToAttacker(facing.getX(), facing.getZ(), toAtt.getX(), toAtt.getZ());
     }
 
     private boolean isFront(Player defender, LivingEntity attacker) {
-        return AttributeMath.isFront(angleTo(defender, attacker),
-                cfgD("avoidance.front-angle", 90.0));
+        return AttributeMath.isFront(angleTo(defender, attacker), cfgD("avoidance.front-angle", 90.0));
     }
 
     private boolean isBack(Player defender, LivingEntity attacker) {
-        return AttributeMath.isBack(angleTo(defender, attacker),
-                cfgD("avoidance.back-angle", 135.0));
+        return AttributeMath.isBack(angleTo(defender, attacker), cfgD("avoidance.back-angle", 135.0));
     }
 
     /** Мили-оружие или щит в любой руке (явный список материалов — ноль риска API). */
@@ -272,9 +270,21 @@ public final class AvoidanceService implements Listener {
 
     private static boolean isMelee(Material m) {
         return switch (m) {
-            case SHIELD, TRIDENT, MACE,
-                 WOODEN_SWORD, STONE_SWORD, IRON_SWORD, GOLDEN_SWORD, DIAMOND_SWORD, NETHERITE_SWORD,
-                 WOODEN_AXE, STONE_AXE, IRON_AXE, GOLDEN_AXE, DIAMOND_AXE, NETHERITE_AXE -> true;
+            case SHIELD,
+                    TRIDENT,
+                    MACE,
+                    WOODEN_SWORD,
+                    STONE_SWORD,
+                    IRON_SWORD,
+                    GOLDEN_SWORD,
+                    DIAMOND_SWORD,
+                    NETHERITE_SWORD,
+                    WOODEN_AXE,
+                    STONE_AXE,
+                    IRON_AXE,
+                    GOLDEN_AXE,
+                    DIAMOND_AXE,
+                    NETHERITE_AXE -> true;
             default -> false;
         };
     }
@@ -284,30 +294,33 @@ public final class AvoidanceService implements Listener {
     private void stagger(LivingEntity attacker, Player defender) {
         if (attacker instanceof Player ap) {
             double mult = cfgD("avoidance.parry-stagger-attack-speed", -0.4);
-            long ticks = Math.max(1L,
-                    (long) (cfgD("avoidance.parry-stagger-player-ms", 600.0) / 50.0));
+            long ticks = Math.max(1L, (long) (cfgD("avoidance.parry-stagger-player-ms", 600.0) / 50.0));
             AttributeInstance instance = ap.getAttribute(Attribute.ATTACK_SPEED);
             if (instance == null) {
                 return;
             }
             removeStagger(instance);
-            instance.addModifier(new AttributeModifier(staggerKey, mult,
-                    AttributeModifier.Operation.MULTIPLY_SCALAR_1, EquipmentSlotGroup.ANY));
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                if (ap.isOnline()) {
-                    AttributeInstance cur = ap.getAttribute(Attribute.ATTACK_SPEED);
-                    if (cur != null) {
-                        removeStagger(cur);
-                    }
-                }
-            }, ticks);
+            instance.addModifier(new AttributeModifier(
+                    staggerKey, mult, AttributeModifier.Operation.MULTIPLY_SCALAR_1, EquipmentSlotGroup.ANY));
+            plugin.getServer()
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                if (ap.isOnline()) {
+                                    AttributeInstance cur = ap.getAttribute(Attribute.ATTACK_SPEED);
+                                    if (cur != null) {
+                                        removeStagger(cur);
+                                    }
+                                }
+                            },
+                            ticks);
         } else if (attacker instanceof Mob mob) {
-            long ticks = Math.max(1L,
-                    (long) (cfgD("avoidance.parry-stagger-mob-ms", 500.0) / 50.0));
-            mob.addPotionEffect(new org.bukkit.potion.PotionEffect(
-                    org.bukkit.potion.PotionEffectType.SLOWNESS, (int) ticks, 0));
-            Vector push = mob.getLocation().toVector()
-                    .subtract(defender.getLocation().toVector());
+            long ticks = Math.max(1L, (long) (cfgD("avoidance.parry-stagger-mob-ms", 500.0) / 50.0));
+            mob.addPotionEffect(
+                    new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS, (int) ticks, 0));
+            Vector push =
+                    mob.getLocation().toVector().subtract(defender.getLocation().toVector());
             push.setY(0);
             if (push.lengthSquared() > 1e-9) {
                 push.normalize().multiply(0.35);
@@ -354,8 +367,7 @@ public final class AvoidanceService implements Listener {
         if (s != null) {
             plugin.getFx().playSound(defender.getLocation(), s, 0.5f, 1.3f);
         }
-        defender.spawnParticle(Particle.CLOUD,
-                defender.getLocation().add(0.0, 1.0, 0.0), 8, 0.3, 0.3, 0.3, 0.02);
+        defender.spawnParticle(Particle.CLOUD, defender.getLocation().add(0.0, 1.0, 0.0), 8, 0.3, 0.3, 0.3, 0.02);
         // showTitle — только если троттлинг разрешает
         if (canShowTag(defender.getUniqueId(), System.currentTimeMillis())) {
             tag(defender, cfgS("avoidance.dodge-tag", "💨 Уклонение!"), NamedTextColor.AQUA);
@@ -371,8 +383,7 @@ public final class AvoidanceService implements Listener {
         if (s != null) {
             plugin.getFx().playSound(defender.getLocation(), s, 0.6f, 1.1f);
         }
-        defender.spawnParticle(Particle.SWEEP_ATTACK,
-                defender.getLocation().add(0.0, 1.2, 0.0), 1, 0.0, 0.0, 0.0, 0.0);
+        defender.spawnParticle(Particle.SWEEP_ATTACK, defender.getLocation().add(0.0, 1.2, 0.0), 1, 0.0, 0.0, 0.0, 0.0);
         // showTitle — только если троттлинг разрешает
         if (canShowTag(defender.getUniqueId(), System.currentTimeMillis())) {
             tag(defender, cfgS("avoidance.parry-tag", "⚔ Парирование!"), NamedTextColor.GOLD);
@@ -383,7 +394,6 @@ public final class AvoidanceService implements Listener {
         player.showTitle(Title.title(
                 Component.empty(),
                 Component.text(text, color),
-                Title.Times.times(Duration.ofMillis(60),
-                        Duration.ofMillis(650), Duration.ofMillis(180))));
+                Title.Times.times(Duration.ofMillis(60), Duration.ofMillis(650), Duration.ofMillis(180))));
     }
 }

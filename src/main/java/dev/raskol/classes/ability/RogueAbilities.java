@@ -2,16 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeMath;
-import dev.raskol.classes.cc.CCType;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.DamageProfile;
-import dev.raskol.classes.combat.Targeting;
-import dev.raskol.classes.combat.dot.DotInstance;
-import dev.raskol.classes.combat.school.School;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.Location;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -20,10 +15,17 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.AttributeMath;
+import dev.raskol.classes.cc.CCType;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.Targeting;
+import dev.raskol.classes.combat.dot.DotInstance;
+import dev.raskol.classes.combat.school.School;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.7.3: КИТ РАЗБОЙНИКА (средневековый реализм). Урон = base + WP×coeff.
@@ -135,19 +137,19 @@ public final class RogueAbilities extends AbstractKit {
     private double deal(Player p, LivingEntity t, DamageProfile prof) {
         double mult = 1.0 + vendettaAmplifyOf(t.getUniqueId());
         if (mult != 1.0) {
-            return plugin.getCombat().dealDamage(t, p, new DamageProfile(
-                    prof.physical() * mult, prof.magic() * mult, prof.trueDamage()));
+            return plugin.getCombat()
+                    .dealDamage(
+                            t, p, new DamageProfile(prof.physical() * mult, prof.magic() * mult, prof.trueDamage()));
         }
         return plugin.getCombat().dealDamage(t, p, prof);
     }
 
     private boolean isBehind(LivingEntity target, Player attacker) {
         Vector facing = target.getLocation().getDirection();
-        Vector toAtt = attacker.getLocation().toVector().subtract(target.getLocation().toVector());
-        double angle = AttributeMath.angleToAttacker(
-                facing.getX(), facing.getZ(), toAtt.getX(), toAtt.getZ());
-        return AttributeMath.isBack(angle,
-                plugin.getConfig().getDouble("avoidance.back-angle", 135.0));
+        Vector toAtt =
+                attacker.getLocation().toVector().subtract(target.getLocation().toVector());
+        double angle = AttributeMath.angleToAttacker(facing.getX(), facing.getZ(), toAtt.getX(), toAtt.getZ());
+        return AttributeMath.isBack(angle, plugin.getConfig().getDouble("avoidance.back-angle", 135.0));
     }
 
     private int poisonStacks(LivingEntity t) {
@@ -223,8 +225,7 @@ public final class RogueAbilities extends AbstractKit {
         double dmg = dmg(p, def, 10.0, 0.9);
         deal(p, t, DamageProfile.physical(dmg));
         impactFx(t, "strangle", "ENTITY_PLAYER_HURT", "SMOKE", 0.4f, 0.8f, 10);
-        int slowSecs = 2 + (int) Math.round(
-                plugin.getSpec2Service().kitDurBonus(p.getUniqueId(), "strangle"));
+        int slowSecs = 2 + (int) Math.round(plugin.getSpec2Service().kitDurBonus(p.getUniqueId(), "strangle"));
         t.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 2 * 20, 0));
         t.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, slowSecs * 20, 1));
         plugin.getCombat().dots().applyById(p, t, "bleed");
@@ -253,8 +254,7 @@ public final class RogueAbilities extends AbstractKit {
         double agiBonus = base(def, 30.0);
         int secs = duration(def, 4);
         castFx(p, "shadow_dance", "ENTITY_ENDERMAN_TELEPORT", "CLOUD", 0.6f, 1.1f, 20);
-        plugin.getAttributes().addTimedModifier(
-                p.getUniqueId(), def.id(), 0.0, agiBonus, 0.0, secs * 1000L);
+        plugin.getAttributes().addTimedModifier(p.getUniqueId(), def.id(), 0.0, agiBonus, 0.0, secs * 1000L);
         impactFx(p, "shadow_dance", "ENTITY_ENDERMAN_TELEPORT", "CLOUD", 0.4f, 1.3f, 16);
         return true;
     }
@@ -292,8 +292,7 @@ public final class RogueAbilities extends AbstractKit {
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 5);
         COLD_BLOOD_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
         castFx(p, "cold_blood", "BLOCK_NOTE_BLOCK_PLING", "ENCHANTED_HIT", 0.6f, 1.2f, 14);
-        p.sendMessage(Component.text("Хладнокровие: +50% урона способностей на " + secs + " с",
-                NamedTextColor.AQUA));
+        p.sendMessage(Component.text("Хладнокровие: +50% урона способностей на " + secs + " с", NamedTextColor.AQUA));
         return true;
     }
 
@@ -311,14 +310,18 @@ public final class RogueAbilities extends AbstractKit {
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
         VENDETTA_EXPIRY.put(t.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
         t.setGlowing(true);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (t.isValid()) {
-                t.setGlowing(false);
-            }
-        }, secs * 20L);
+        plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            if (t.isValid()) {
+                                t.setGlowing(false);
+                            }
+                        },
+                        secs * 20L);
         castFx(p, "vendetta", "ENTITY_ENDERMAN_STARE", "SCULK_SOUL", 0.7f, 0.8f, 14);
-        p.sendMessage(Component.text("Вендетта: цель отмечена на " + secs + " с (+30% урона)",
-                NamedTextColor.RED));
+        p.sendMessage(Component.text("Вендетта: цель отмечена на " + secs + " с (+30% урона)", NamedTextColor.RED));
         return true;
     }
 
@@ -363,8 +366,8 @@ public final class RogueAbilities extends AbstractKit {
         if (stacks >= 3) {
             deal(p, t, DamageProfile.physical(dmg * 3.0));
             plugin.getCombat().dots().removeSchoolOn(t.getUniqueId(), School.NATURE);
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "tag.execute", "Казнь ×3!"), NamedTextColor.RED));
+            p.sendMessage(
+                    Component.text(plugin.getRaskolConfig().message("tag.execute", "Казнь ×3!"), NamedTextColor.RED));
         } else {
             deal(p, t, DamageProfile.physical(dmg));
             plugin.getCombat().dots().applyById(p, t, "poison");
@@ -427,8 +430,7 @@ public final class RogueAbilities extends AbstractKit {
         plugin.getResources().refund(p.getUniqueId(), 50.0);
         p.addPotionEffect(new PotionEffect(PotionEffectType.HASTE, secs * 20, 1));
         castFx(p, "adrenaline_rush", "ENTITY_PLAYER_LEVELUP", "CRIMSON_SPORE", 0.7f, 1.2f, 16);
-        p.sendMessage(Component.text("Прилив адреналина: +50 энергии, темп на " + secs + " с",
-                NamedTextColor.GREEN));
+        p.sendMessage(Component.text("Прилив адреналина: +50 энергии, темп на " + secs + " с", NamedTextColor.GREEN));
         return true;
     }
 
@@ -476,8 +478,7 @@ public final class RogueAbilities extends AbstractKit {
         plugin.getCC().tryApply(p, t, CCType.STUN, bleeding ? 60 : 30);
         impactFx(t, "between_the_eyes", "ENTITY_PLAYER_HURT", "DAMAGE_INDICATOR", 0.6f, 0.8f, 12);
         if (bleeding) {
-            p.sendMessage(Component.text("Между глаз: цель истекает кровью — оцепенение 3 с",
-                    NamedTextColor.RED));
+            p.sendMessage(Component.text("Между глаз: цель истекает кровью — оцепенение 3 с", NamedTextColor.RED));
         }
         return true;
     }
@@ -520,8 +521,9 @@ public final class RogueAbilities extends AbstractKit {
         dest.setYaw(p.getLocation().getYaw());
         dest.setPitch(p.getLocation().getPitch());
         if (!dest.getBlock().isPassable()) {
-            p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "blink-unsafe", "Скачок невозможен: нет безопасной точки"), NamedTextColor.GRAY));
+            p.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("blink-unsafe", "Скачок невозможен: нет безопасной точки"),
+                    NamedTextColor.GRAY));
             return false;
         }
         castFx(p, "shadowstep", "ENTITY_ENDERMAN_TELEPORT", "REVERSE_PORTAL", 0.6f, 1.2f, 14);
@@ -542,8 +544,7 @@ public final class RogueAbilities extends AbstractKit {
         plugin.getCC().removeType(uuid, CCType.SLOW);
         plugin.getCC().removeType(uuid, CCType.ROOT);
         castFx(p, "preparation", "ENTITY_PLAYER_LEVELUP", "ENCHANTED_HIT", 0.6f, 1.2f, 16);
-        p.sendMessage(Component.text("Подготовка: энергия восполнена, оковы сняты",
-                NamedTextColor.GREEN));
+        p.sendMessage(Component.text("Подготовка: энергия восполнена, оковы сняты", NamedTextColor.GREEN));
         return true;
     }
 
@@ -555,8 +556,7 @@ public final class RogueAbilities extends AbstractKit {
         plugin.getCombat().dots().removeSchoolOn(uuid, School.SHADOW);
         p.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, 3 * 20, 0));
         castFx(p, "cloak_of_shadows", "ENTITY_PHANTOM_FLAP", "REVERSE_PORTAL", 0.7f, 1.0f, 20);
-        p.sendMessage(Component.text("Плащ теней: оковы и проклятия сняты, ты в тени",
-                NamedTextColor.LIGHT_PURPLE));
+        p.sendMessage(Component.text("Плащ теней: оковы и проклятия сняты, ты в тени", NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
@@ -584,16 +584,29 @@ public final class RogueAbilities extends AbstractKit {
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 6);
         SHADOW_BLADES_UNTIL.put(p.getUniqueId(), System.currentTimeMillis() + secs * 1000L);
         castFx(p, "shadow_blades", "ENTITY_ENDERMAN_TELEPORT", "SCULK_SOUL", 0.9f, 0.8f, 22);
-        p.sendMessage(Component.text("Теневые клинки: +50% урона способностей на " + secs + " с",
-                NamedTextColor.LIGHT_PURPLE));
+        p.sendMessage(Component.text(
+                "Теневые клинки: +50% урона способностей на " + secs + " с", NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
     /** 1.14.0: ids древесных способностей для сверки с TreeAbilities. */
     public static List<String> treeAbilityIds() {
-        return List.of("poison_burst", "cold_blood", "vendetta", "envenom", "deathmark",
-                "pistol_shot", "blade_flurry", "adrenaline_rush", "killing_spree",
-                "between_the_eyes", "backstab", "shadowstep", "preparation",
-                "cloak_of_shadows", "hemorrhage", "shadow_blades");
+        return List.of(
+                "poison_burst",
+                "cold_blood",
+                "vendetta",
+                "envenom",
+                "deathmark",
+                "pistol_shot",
+                "blade_flurry",
+                "adrenaline_rush",
+                "killing_spree",
+                "between_the_eyes",
+                "backstab",
+                "shadowstep",
+                "preparation",
+                "cloak_of_shadows",
+                "hemorrhage",
+                "shadow_blades");
     }
 }

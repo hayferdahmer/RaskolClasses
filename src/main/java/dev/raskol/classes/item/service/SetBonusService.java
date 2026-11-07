@@ -2,10 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.service;
 
-import dev.raskol.classes.item.model.ItemDefinition;
-import dev.raskol.classes.item.model.ItemStat;
-import dev.raskol.classes.item.model.SetDefinition;
-
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -13,6 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import dev.raskol.classes.item.model.ItemDefinition;
+import dev.raskol.classes.item.model.ItemStat;
+import dev.raskol.classes.item.model.SetDefinition;
 
 /**
  * Builds set contributions and publishes immutable active-set snapshots.
@@ -48,8 +48,7 @@ public final class SetBonusService {
      * itemStats + бонусы всех достигнутых порогов (2..6). Вход не изменяется.
      * Публикует снапшот активных сетов для GUI/дамп-команд.
      */
-    public Map<ItemStat, Double> apply(UUID player, List<ItemDefinition> items,
-                                       Map<ItemStat, Double> itemStats) {
+    public Map<ItemStat, Double> apply(UUID player, List<ItemDefinition> items, Map<ItemStat, Double> itemStats) {
         Map<ItemStat, Double> result = new EnumMap<>(ItemStat.class);
         result.putAll(itemStats);
 
@@ -67,15 +66,14 @@ public final class SetBonusService {
                 return;
             }
             List<Integer> thresholds = new ArrayList<>();
-            set.bonuses().entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .forEach(entry -> {
-                        if (pieces >= entry.getKey()) {
-                            thresholds.add(entry.getKey());
-                            entry.getValue().stats().forEach((stat, value) ->
-                                    result.merge(stat, stat.clamp(value), Double::sum));
-                        }
-                    });
+            set.bonuses().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
+                if (pieces >= entry.getKey()) {
+                    thresholds.add(entry.getKey());
+                    entry.getValue()
+                            .stats()
+                            .forEach((stat, value) -> result.merge(stat, stat.clamp(value), Double::sum));
+                }
+            });
             resultSets.add(new ActiveSet(id, set.displayName(), pieces, thresholds));
         });
         active.put(player, List.copyOf(resultSets));

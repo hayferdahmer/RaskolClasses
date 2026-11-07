@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability.passive;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.AttributeMath;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Entity;
@@ -12,9 +14,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
 import org.bukkit.util.Vector;
 
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.AttributeMath;
 
 /** 1.11.4 (P1): общая база пассивок: конфиг-хелперы, proc-КД, утилиты. */
 public abstract class BaseClassPassive implements ClassPassive {
@@ -66,11 +67,10 @@ public abstract class BaseClassPassive implements ClassPassive {
 
     protected boolean isBehind(LivingEntity target, Player attacker) {
         Vector facing = target.getLocation().getDirection();
-        Vector toAtt = attacker.getLocation().toVector().subtract(target.getLocation().toVector());
-        double angle = AttributeMath.angleToAttacker(
-                facing.getX(), facing.getZ(), toAtt.getX(), toAtt.getZ());
-        return AttributeMath.isBack(angle,
-                plugin.getConfig().getDouble("avoidance.back-angle", 135.0));
+        Vector toAtt =
+                attacker.getLocation().toVector().subtract(target.getLocation().toVector());
+        double angle = AttributeMath.angleToAttacker(facing.getX(), facing.getZ(), toAtt.getX(), toAtt.getZ());
+        return AttributeMath.isBack(angle, plugin.getConfig().getDouble("avoidance.back-angle", 135.0));
     }
 
     public static Player resolvePlayer(Entity damager) {

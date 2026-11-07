@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
-import dev.raskol.classes.RaskolClasses;
-
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * Читает фракцию (rassvet/valradis/"") из паспорта RaskolCore (1.4.0, Пакет 4).
@@ -24,7 +24,7 @@ public final class FactionHook {
 
     private static final long CACHE_TTL_MILLIS = 5_000L;
 
-    private record CacheEntry(String faction, long expiresAt) { }
+    private record CacheEntry(String faction, long expiresAt) {}
 
     private final RaskolClasses plugin;
     private final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
@@ -80,8 +80,9 @@ public final class FactionHook {
             factionGetter = null;
             if (!warnedMissing) {
                 warnedMissing = true;
-                plugin.getLogger().warning("FactionHook: RaskolCore недоступен — "
-                        + "фракция будет резолвиться при каждом cache miss (5 с)");
+                plugin.getLogger()
+                        .warning("FactionHook: RaskolCore недоступен — "
+                                + "фракция будет резолвиться при каждом cache miss (5 с)");
             }
             return "";
         }

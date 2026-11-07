@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability.passive;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * 1.11.4 (P1): Воин — «Казнь» (execute_passive).
@@ -24,8 +25,7 @@ public final class WarriorPassives extends BaseClassPassive {
     }
 
     @Override
-    public void onDamageOut(EntityDamageByEntityEvent event, Player attacker,
-                            LivingEntity target, double damage) {
+    public void onDamageOut(EntityDamageByEntityEvent event, Player attacker, LivingEntity target, double damage) {
         if (!enabled("execute_passive")) {
             return;
         }

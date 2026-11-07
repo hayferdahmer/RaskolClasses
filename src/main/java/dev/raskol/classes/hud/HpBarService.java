@@ -2,20 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hud;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.WarlockAbilities;
-import dev.raskol.classes.attribute.AttributeMath;
-import dev.raskol.classes.attribute.AttributeService;
-import dev.raskol.classes.attribute.AttributeType;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.config.RaskolConfig;
-import dev.raskol.classes.event.CustomHealEvent;
-import dev.raskol.classes.resource.ResourceState;
-import dev.raskol.classes.storage.SafeStorage;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.TextColor;
+import java.io.File;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
+
 import org.bukkit.GameMode;
-import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -29,14 +25,19 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.io.File;
-import java.util.HashSet;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Logger;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.attribute.AttributeMath;
+import dev.raskol.classes.attribute.AttributeService;
+import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.event.CustomHealEvent;
+import dev.raskol.classes.resource.ResourceState;
+import dev.raskol.classes.storage.SafeStorage;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextColor;
 
 /**
  * 1.9.3-r: математика единиц HP живёт в AttributeService; здесь HUD, реген, персист.
@@ -79,11 +80,9 @@ public final class HpBarService implements Listener {
     private static final int REAPPLY_MAX = 3;
     private static final int DEFAULT_FLUSH_SECONDS = 60;
 
-    private record State(double lastHp, double lastRes) {
-    }
+    private record State(double lastHp, double lastRes) {}
 
-    private record Pending(double ratio, long joinedAt, long lastApplyAt, int applies) {
-    }
+    private record Pending(double ratio, long joinedAt, long lastApplyAt, int applies) {}
 
     private final RaskolClasses plugin;
     private final NamespacedKeyHolder maxHpKey;
@@ -102,8 +101,7 @@ public final class HpBarService implements Listener {
     private long tickCounter = 0L;
     private long lastFlushAt = System.currentTimeMillis();
 
-    private record NamespacedKeyHolder(org.bukkit.NamespacedKey key) {
-    }
+    private record NamespacedKeyHolder(org.bukkit.NamespacedKey key) {}
 
     public HpBarService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -150,8 +148,7 @@ public final class HpBarService implements Listener {
     }
 
     private String mode() {
-        return plugin.getConfig().getString("hp-display.mode", "actionbar")
-                .toLowerCase(Locale.ROOT);
+        return plugin.getConfig().getString("hp-display.mode", "actionbar").toLowerCase(Locale.ROOT);
     }
 
     private double heartsScale() {
@@ -205,8 +202,8 @@ public final class HpBarService implements Listener {
                     return parsed;
                 }
             } catch (IllegalArgumentException e) {
-                LOGGER.warning("HpBarService: битое значение цвета в ключе '" + path
-                        + "' = '" + hex + "' — используется fallback '" + fallback + "'");
+                LOGGER.warning("HpBarService: битое значение цвета в ключе '" + path + "' = '" + hex
+                        + "' — используется fallback '" + fallback + "'");
             }
         }
         return TextColor.fromHexString(fallback);
@@ -294,9 +291,10 @@ public final class HpBarService implements Listener {
             }
             return;
         }
-        if (p.applies() > 0 && (Math.abs(target - current) <= 1.0
-                || p.applies() >= REAPPLY_MAX
-                || now - p.lastApplyAt() > REAPPLY_WINDOW_MS)) {
+        if (p.applies() > 0
+                && (Math.abs(target - current) <= 1.0
+                        || p.applies() >= REAPPLY_MAX
+                        || now - p.lastApplyAt() > REAPPLY_WINDOW_MS)) {
             pendingRestore.remove(uuid);
         }
     }
@@ -331,8 +329,7 @@ public final class HpBarService implements Listener {
             }
             if (Math.abs(delta) > 0.01) {
                 instance.addModifier(new AttributeModifier(
-                        maxHpKey.key(), delta, AttributeModifier.Operation.ADD_NUMBER,
-                        EquipmentSlotGroup.ANY));
+                        maxHpKey.key(), delta, AttributeModifier.Operation.ADD_NUMBER, EquipmentSlotGroup.ANY));
             }
             lastAppliedDelta.put(player.getUniqueId(), delta);
         }
@@ -405,13 +402,10 @@ public final class HpBarService implements Listener {
         double capPct = plugin.getConfig().getDouble("attributes.hp.regen-cap-pct", 1.5);
 
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-        long windowMs = (pc != null
-                ? plugin.getRaskolConfig().combatWindowSeconds(pc)
-                : 5) * 1000L;
+        long windowMs = (pc != null ? plugin.getRaskolConfig().combatWindowSeconds(pc) : 5) * 1000L;
         boolean inCombat = plugin.getResources().stateOf(uuid).isInCombat(windowMs);
 
-        double perSec = AttributeMath.strRegenPerSecond(
-                str, perStr, formula, inCombat, combatFactor, capPct);
+        double perSec = AttributeMath.strRegenPerSecond(str, perStr, formula, inCombat, combatFactor, capPct);
         if (perSec <= 0.0) {
             return;
         }
@@ -441,8 +435,8 @@ public final class HpBarService implements Listener {
                 player.setHealthScaled(true);
                 player.setHealthScale(scale);
             } catch (IllegalArgumentException e) {
-                LOGGER.warning("HpBarService: битое значение hp-display.hearts-scale = "
-                        + scale + " — health scaling отключен для " + player.getName());
+                LOGGER.warning("HpBarService: битое значение hp-display.hearts-scale = " + scale
+                        + " — health scaling отключен для " + player.getName());
                 player.setHealthScaled(false);
             }
         }
@@ -486,9 +480,7 @@ public final class HpBarService implements Listener {
         TextColor resEnd = theme != null && theme.secondary() != null
                 ? theme.secondary()
                 : color("hp-display.gradient.res-end", "#D6A642");
-        TextColor resSymbol = theme != null && theme.secondary() != null
-                ? theme.secondary()
-                : numbers;
+        TextColor resSymbol = theme != null && theme.secondary() != null ? theme.secondary() : numbers;
         String symbol = symbolOf(pc);
 
         State prev = lastTick.get(uuid);
@@ -497,20 +489,22 @@ public final class HpBarService implements Listener {
         boolean resRegen = sparkActive && res > prev.lastRes() + 0.5;
         lastTick.put(uuid, new State(hpFormula, res));
 
-        Component line = Component.text("❬ ", frame)
-                .append(Component.text("❤ ", hpEnd));
+        Component line = Component.text("❬ ", frame).append(Component.text("❤ ", hpEnd));
         if (gauge) {
-            line = line.append(gradientBar(hpFraction, len,
-                            gradientEnabled() ? hpStart : hpEnd, hpEnd, empty,
-                            hpRegen ? spark : null))
+            line = line.append(gradientBar(
+                            hpFraction, len, gradientEnabled() ? hpStart : hpEnd, hpEnd, empty, hpRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
         line = line.append(Component.text((int) hpFormula + "/" + (int) formula, numbers))
                 .append(Component.text(" ❭ ❬ ", frame))
                 .append(Component.text(symbol + " ", resSymbol));
         if (gauge) {
-            line = line.append(gradientBar(resFraction, len,
-                            gradientEnabled() ? resStart : resEnd, resEnd, empty,
+            line = line.append(gradientBar(
+                            resFraction,
+                            len,
+                            gradientEnabled() ? resStart : resEnd,
+                            resEnd,
+                            empty,
                             resRegen ? spark : null))
                     .append(Component.text(" ", frame));
         }
@@ -519,9 +513,8 @@ public final class HpBarService implements Listener {
         player.sendActionBar(line);
     }
 
-    private static Component gradientBar(double fraction, int len,
-                                         TextColor start, TextColor end,
-                                         TextColor empty, TextColor sparkColor) {
+    private static Component gradientBar(
+            double fraction, int len, TextColor start, TextColor end, TextColor empty, TextColor sparkColor) {
         double clamped = Math.max(0.0, Math.min(1.0, fraction));
         int filled = (int) Math.round(clamped * len);
         Component c = Component.empty();
@@ -564,8 +557,7 @@ public final class HpBarService implements Listener {
         if (pc == null) {
             return "✦";
         }
-        String s = plugin.getConfig().getString(
-                "classes." + pc.name() + ".theme.symbol", "");
+        String s = plugin.getConfig().getString("classes." + pc.name() + ".theme.symbol", "");
         if (s != null && !s.isEmpty()) {
             return s;
         }

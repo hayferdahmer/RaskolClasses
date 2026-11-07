@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.install;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.combat.DamageProfile;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -13,9 +15,8 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.combat.DamageProfile;
 
 /**
  * 1.11.4 (P2): Пентаграмма (экс-Круг Хулы) — видимая гео-пентаграмма
@@ -55,23 +56,28 @@ public final class PentagramHandler extends BaseInstallationHandler {
         plugin.getFx().playSound(loc, Sound.ENTITY_WARDEN_EMERGE, 1.0f, 0.8f);
         double radius = radius();
         drawPentagram(loc, radius);
-        BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, new Runnable() {
-            @Override
-            public void run() {
-                BukkitTask self = redrawTasks.get(instId);
-                if (self == null || loc.getWorld() == null) {
-                    if (self != null) {
-                        self.cancel();
-                    }
-                    redrawTasks.remove(instId);
-                    return;
-                }
-                drawPentagram(loc, radius);
-            }
-        }, 10L, 10L);
+        BukkitTask task = plugin.getServer()
+                .getScheduler()
+                .runTaskTimer(
+                        plugin,
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                BukkitTask self = redrawTasks.get(instId);
+                                if (self == null || loc.getWorld() == null) {
+                                    if (self != null) {
+                                        self.cancel();
+                                    }
+                                    redrawTasks.remove(instId);
+                                    return;
+                                }
+                                drawPentagram(loc, radius);
+                            }
+                        },
+                        10L,
+                        10L);
         redrawTasks.put(instId, task);
-        notifyOwner(p.getUniqueId(), "Пентаграмма начертана: действует "
-                + durationSeconds() + " с");
+        notifyOwner(p.getUniqueId(), "Пентаграмма начертана: действует " + durationSeconds() + " с");
         return true;
     }
 
@@ -88,8 +94,7 @@ public final class PentagramHandler extends BaseInstallationHandler {
             }
             if (e instanceof LivingEntity t && isEnemyOf(inst.owner(), t)) {
                 double dmg = tick;
-                if (owner != null && owner.getWorld().getEnvironment()
-                        == World.Environment.NETHER) {
+                if (owner != null && owner.getWorld().getEnvironment() == World.Environment.NETHER) {
                     dmg *= plugin.getRaskolConfig().warlockNetherMult();
                 }
                 if (owner != null) {
@@ -112,8 +117,7 @@ public final class PentagramHandler extends BaseInstallationHandler {
         if (task != null) {
             task.cancel();
         }
-        plugin.getFx().impactBurst(inst.location(), Particle.SMOKE, 14,
-                Sound.ENTITY_BLAZE_DEATH, 0.3f, 0.8f);
+        plugin.getFx().impactBurst(inst.location(), Particle.SMOKE, 14, Sound.ENTITY_BLAZE_DEATH, 0.3f, 0.8f);
     }
 
     private void riseSoul(Location loc) {
@@ -121,8 +125,7 @@ public final class PentagramHandler extends BaseInstallationHandler {
             return;
         }
         try {
-            loc.getWorld().spawnParticle(Particle.SOUL, loc.clone().add(0.0, 0.4, 0.0),
-                    3, 0.25, 0.6, 0.25, 0.05);
+            loc.getWorld().spawnParticle(Particle.SOUL, loc.clone().add(0.0, 0.4, 0.0), 3, 0.25, 0.6, 0.25, 0.05);
         } catch (IllegalArgumentException ignored) {
         }
     }
@@ -140,9 +143,16 @@ public final class PentagramHandler extends BaseInstallationHandler {
             int ring = Math.max(24, (int) (Math.PI * 2 * radius / 0.5));
             for (int i = 0; i < ring; i++) {
                 double angle = (Math.PI * 2 * i) / ring;
-                w.spawnParticle(Particle.SOUL_FIRE_FLAME,
-                        cx + Math.cos(angle) * radius, y, cz + Math.sin(angle) * radius,
-                        1, 0, 0, 0, 0.0);
+                w.spawnParticle(
+                        Particle.SOUL_FIRE_FLAME,
+                        cx + Math.cos(angle) * radius,
+                        y,
+                        cz + Math.sin(angle) * radius,
+                        1,
+                        0,
+                        0,
+                        0,
+                        0.0);
             }
             double[] vx = new double[5];
             double[] vz = new double[5];
@@ -160,9 +170,8 @@ public final class PentagramHandler extends BaseInstallationHandler {
                 int steps = Math.max(8, (int) (len / 0.5));
                 for (int s = 0; s <= steps; s++) {
                     double t = (double) s / steps;
-                    w.spawnParticle(Particle.SOUL_FIRE_FLAME,
-                            cx + vx[k] + dx * t, y, cz + vz[k] + dz * t,
-                            1, 0, 0, 0, 0.0);
+                    w.spawnParticle(
+                            Particle.SOUL_FIRE_FLAME, cx + vx[k] + dx * t, y, cz + vz[k] + dz * t, 1, 0, 0, 0, 0.0);
                 }
             }
         } catch (IllegalArgumentException ignored) {

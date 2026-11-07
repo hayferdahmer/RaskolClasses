@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.cc;
 
-import dev.raskol.classes.RaskolClasses;
 import org.bukkit.entity.Player;
+
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.13.0 (Батч 2): проверка возможности каста способности под CC.

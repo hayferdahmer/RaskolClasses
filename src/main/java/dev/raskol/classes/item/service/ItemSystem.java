@@ -2,6 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.service;
 
+import java.io.File;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
+
+import org.bukkit.entity.Player;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.item.api.ItemStatsProvider;
 import dev.raskol.classes.item.craft.CraftingGui;
@@ -17,13 +25,6 @@ import dev.raskol.classes.item.listener.UnbreakableGuard;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.item.model.ItemStatSnapshot;
-import org.bukkit.entity.Player;
-
-import java.io.File;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Runtime owner of the validated item registry, factory and equipment snapshots.
@@ -95,7 +96,8 @@ public final class ItemSystem implements ItemStatsProvider {
         File file = new File(plugin.getDataFolder(), "items.yml");
         if (!file.exists()) plugin.saveResource("items.yml", false);
         try {
-            ItemRegistry loaded = dev.raskol.classes.item.config.ItemConfigLoader.load(file, plugin.getLogger()::warning);
+            ItemRegistry loaded =
+                    dev.raskol.classes.item.config.ItemConfigLoader.load(file, plugin.getLogger()::warning);
             registry = loaded;
             setBonuses.definitions(loaded.sets());
             plugin.getLogger().info("Загружено определений предметов: " + loaded.size());
@@ -107,22 +109,52 @@ public final class ItemSystem implements ItemStatsProvider {
         try {
             craftingService.reload();
         } catch (Exception ex) {
-            plugin.getLogger().warning("crafting.yml отклонён; крафт не обновлён, реестр предметов обновлён: " + ex.getMessage());
+            plugin.getLogger()
+                    .warning("crafting.yml отклонён; крафт не обновлён, реестр предметов обновлён: " + ex.getMessage());
             return false;
         }
         return true;
     }
 
-    public ItemRegistry registry() { return registry; }
-    public ItemFactory factory() { return factory; }
-    public ItemPdc pdc() { return factory.pdc(); }
-    public ItemHook hook() { return hook; }
-    public SetBonusService setBonuses() { return setBonuses; }
-    public FragmentRegistry fragments() { return fragmentRegistry; }
-    public SalvageService salvage() { return salvageService; }
-    public CraftingService crafting() { return craftingService; }
-    public CraftingGui craftingGui() { return craftingGui; }
-    public ItemBrowserMenu browser() { return browser; }
+    public ItemRegistry registry() {
+        return registry;
+    }
+
+    public ItemFactory factory() {
+        return factory;
+    }
+
+    public ItemPdc pdc() {
+        return factory.pdc();
+    }
+
+    public ItemHook hook() {
+        return hook;
+    }
+
+    public SetBonusService setBonuses() {
+        return setBonuses;
+    }
+
+    public FragmentRegistry fragments() {
+        return fragmentRegistry;
+    }
+
+    public SalvageService salvage() {
+        return salvageService;
+    }
+
+    public CraftingService crafting() {
+        return craftingService;
+    }
+
+    public CraftingGui craftingGui() {
+        return craftingGui;
+    }
+
+    public ItemBrowserMenu browser() {
+        return browser;
+    }
 
     public void start() {
         plugin.getServer().getPluginManager().registerEvents(unbreakableGuard, plugin);
@@ -148,18 +180,36 @@ public final class ItemSystem implements ItemStatsProvider {
             }
             return null;
         }
-        if (level == null || level < 1 || level > 60
-                || !def.rarity().name().equals(pdc().rarity(item)) || !pdc().hasValidUid(item)) {
+        if (level == null
+                || level < 1
+                || level > 60
+                || !def.rarity().name().equals(pdc().rarity(item))
+                || !pdc().hasValidUid(item)) {
             return null;
         }
         if (level == def.itemLevel()) return def;
         double scale = (double) level / def.itemLevel();
         Map<ItemStat, Double> stats = new java.util.EnumMap<>(ItemStat.class);
         def.baseStats().forEach((stat, value) -> stats.put(stat, stat.clamp(value * scale)));
-        return new ItemDefinition(def.id(), def.displayName(), def.material(), def.slot(), def.weaponType(),
-                def.rarity(), level, def.playerClass(), def.spec(), def.levelRequirement(), stats,
-                def.affixPool(), def.affixCount(), def.setId(), def.lore(), def.glow(),
-                def.customModelData(), def.template());
+        return new ItemDefinition(
+                def.id(),
+                def.displayName(),
+                def.material(),
+                def.slot(),
+                def.weaponType(),
+                def.rarity(),
+                level,
+                def.playerClass(),
+                def.spec(),
+                def.levelRequirement(),
+                stats,
+                def.affixPool(),
+                def.affixCount(),
+                def.setId(),
+                def.lore(),
+                def.glow(),
+                def.customModelData(),
+                def.template());
     }
 
     public org.bukkit.inventory.ItemStack create(String id, int level, long seed) {
@@ -173,10 +223,25 @@ public final class ItemSystem implements ItemStatsProvider {
         Map<ItemStat, Double> stats = new java.util.EnumMap<>(ItemStat.class);
         double scale = (double) level / def.itemLevel();
         def.baseStats().forEach((stat, value) -> stats.put(stat, stat.clamp(value * scale)));
-        ItemDefinition adjusted = new ItemDefinition(def.id(), def.displayName(), def.material(), def.slot(),
-                def.weaponType(), def.rarity(), level, def.playerClass(), def.spec(), def.levelRequirement(),
-                stats, def.affixPool(), def.affixCount(), def.setId(), def.lore(), def.glow(),
-                def.customModelData(), def.template());
+        ItemDefinition adjusted = new ItemDefinition(
+                def.id(),
+                def.displayName(),
+                def.material(),
+                def.slot(),
+                def.weaponType(),
+                def.rarity(),
+                level,
+                def.playerClass(),
+                def.spec(),
+                def.levelRequirement(),
+                stats,
+                def.affixPool(),
+                def.affixCount(),
+                def.setId(),
+                def.lore(),
+                def.glow(),
+                def.customModelData(),
+                def.template());
         org.bukkit.inventory.ItemStack created = factory.create(adjusted, seed);
         plugin.getServer().getPluginManager().callEvent(new dev.raskol.classes.api.items.ItemCreatedEvent(created));
         return created;
@@ -186,12 +251,20 @@ public final class ItemSystem implements ItemStatsProvider {
         return create(id, level, ThreadLocalRandom.current().nextLong());
     }
 
-    public void snapshot(UUID id, ItemStatSnapshot snapshot) { snapshots.put(id, snapshot); }
+    public void snapshot(UUID id, ItemStatSnapshot snapshot) {
+        snapshots.put(id, snapshot);
+    }
 
     @Override
-    public ItemStatSnapshot snapshot(UUID id) { return snapshots.getOrDefault(id, ItemStatSnapshot.EMPTY); }
+    public ItemStatSnapshot snapshot(UUID id) {
+        return snapshots.getOrDefault(id, ItemStatSnapshot.EMPTY);
+    }
 
-    public void clear(UUID id) { snapshots.remove(id); }
+    public void clear(UUID id) {
+        snapshots.remove(id);
+    }
 
-    public void reconcile(Player player) { hook.reconcile(player); }
+    public void reconcile(Player player) {
+        hook.reconcile(player);
+    }
 }

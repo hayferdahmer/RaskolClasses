@@ -12,30 +12,21 @@ import java.util.regex.Pattern;
  * @param size file size in bytes
  * @param sha256 lowercase hexadecimal SHA-256 digest
  */
-public record ManifestFileEntry(
-        String path,
-        long size,
-        String sha256
-) {
+public record ManifestFileEntry(String path, long size, String sha256) {
 
-    private static final Pattern SHA256_PATTERN =
-            Pattern.compile("[a-f0-9]{64}");
+    private static final Pattern SHA256_PATTERN = Pattern.compile("[a-f0-9]{64}");
 
     public ManifestFileEntry {
         path = validatePath(path);
 
         if (size < 0) {
-            throw new IllegalArgumentException(
-                    "File size cannot be negative"
-            );
+            throw new IllegalArgumentException("File size cannot be negative");
         }
 
         Objects.requireNonNull(sha256, "sha256 cannot be null");
 
         if (!SHA256_PATTERN.matcher(sha256).matches()) {
-            throw new IllegalArgumentException(
-                    "SHA-256 must contain exactly 64 lowercase hexadecimal characters"
-            );
+            throw new IllegalArgumentException("SHA-256 must contain exactly 64 lowercase hexadecimal characters");
         }
     }
 
@@ -43,51 +34,34 @@ public record ManifestFileEntry(
         Objects.requireNonNull(value, "path cannot be null");
 
         if (value.isBlank()) {
-            throw new IllegalArgumentException(
-                    "File path cannot be blank"
-            );
+            throw new IllegalArgumentException("File path cannot be blank");
         }
 
         if (!value.equals(value.trim())) {
-            throw new IllegalArgumentException(
-                    "File path cannot contain surrounding whitespace"
-            );
+            throw new IllegalArgumentException("File path cannot contain surrounding whitespace");
         }
 
         if (value.startsWith("/") || value.startsWith("\\")) {
-            throw new IllegalArgumentException(
-                    "Absolute file paths are not allowed"
-            );
+            throw new IllegalArgumentException("Absolute file paths are not allowed");
         }
 
         if (value.contains("\\")) {
-            throw new IllegalArgumentException(
-                    "File paths must use forward slashes"
-            );
+            throw new IllegalArgumentException("File paths must use forward slashes");
         }
 
         if (value.matches("^[A-Za-z]:.*")) {
-            throw new IllegalArgumentException(
-                    "Drive-qualified paths are not allowed"
-            );
+            throw new IllegalArgumentException("Drive-qualified paths are not allowed");
         }
 
-        if (value.contains("\t") || value.contains("\n")
-                || value.contains("\r")) {
-            throw new IllegalArgumentException(
-                    "File path contains forbidden control characters"
-            );
+        if (value.contains("\t") || value.contains("\n") || value.contains("\r")) {
+            throw new IllegalArgumentException("File path contains forbidden control characters");
         }
 
         String[] segments = value.split("/", -1);
 
         for (String segment : segments) {
-            if (segment.isEmpty()
-                    || ".".equals(segment)
-                    || "..".equals(segment)) {
-                throw new IllegalArgumentException(
-                        "File path contains an invalid segment"
-                );
+            if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) {
+                throw new IllegalArgumentException("File path contains an invalid segment");
             }
         }
 

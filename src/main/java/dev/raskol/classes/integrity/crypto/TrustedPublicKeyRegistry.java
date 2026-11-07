@@ -43,31 +43,21 @@ public final class TrustedPublicKeyRegistry {
      *
      * Никогда не добавлять приватные ключи в этот реестр.
      */
-    private static final List<PinnedKeyConfiguration> PINNED_KEYS =
-        List.of(
-                new PinnedKeyConfiguration(
-                        "MCowBQYDK2VwAyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q=",
-                        TrustedKeyStatus.ACTIVE
-                ),
-                new PinnedKeyConfiguration(
-                        "MCowBQYDK2VwAyEAhUN83jyPkPFpZw6deKdnAAVOm94H6TRHg6ASZwv8GD4=",
-                        TrustedKeyStatus.VERIFY_ONLY
-                )
-        );
+    private static final List<PinnedKeyConfiguration> PINNED_KEYS = List.of(
+            new PinnedKeyConfiguration(
+                    "MCowBQYDK2VwAyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q=", TrustedKeyStatus.ACTIVE),
+            new PinnedKeyConfiguration(
+                    "MCowBQYDK2VwAyEAhUN83jyPkPFpZw6deKdnAAVOm94H6TRHg6ASZwv8GD4=", TrustedKeyStatus.VERIFY_ONLY));
 
-    private static final List<TrustedPublicKeyEntry> ALL_ENTRIES =
-            loadPinnedEntries();
+    private static final List<TrustedPublicKeyEntry> ALL_ENTRIES = loadPinnedEntries();
 
     /**
      * Содержит только ключи, разрешённые для проверки подписей.
      */
-    private static final List<PublicKey> TRUSTED_KEYS =
-            verificationKeys(ALL_ENTRIES);
+    private static final List<PublicKey> TRUSTED_KEYS = verificationKeys(ALL_ENTRIES);
 
     private TrustedPublicKeyRegistry() {
-        throw new UnsupportedOperationException(
-                "TrustedPublicKeyRegistry is a utility class"
-        );
+        throw new UnsupportedOperationException("TrustedPublicKeyRegistry is a utility class");
     }
 
     /**
@@ -79,9 +69,7 @@ public final class TrustedPublicKeyRegistry {
      * @return неизменяемый снимок доверенных публичных ключей
      */
     public static List<PublicKey> trustedKeys() {
-        return Collections.unmodifiableList(
-                new ArrayList<>(TRUSTED_KEYS)
-        );
+        return Collections.unmodifiableList(new ArrayList<>(TRUSTED_KEYS));
     }
 
     /**
@@ -110,9 +98,7 @@ public final class TrustedPublicKeyRegistry {
      * @return неизменяемый снимок публичных ключей
      */
     public static List<PublicKey> verifiablePublicKeys() {
-        return Collections.unmodifiableList(
-                new ArrayList<>(TRUSTED_KEYS)
-        );
+        return Collections.unmodifiableList(new ArrayList<>(TRUSTED_KEYS));
     }
 
     /**
@@ -124,9 +110,7 @@ public final class TrustedPublicKeyRegistry {
      * @return неизменяемый снимок всех записей
      */
     public static List<TrustedPublicKeyEntry> allEntries() {
-        return Collections.unmodifiableList(
-                new ArrayList<>(ALL_ENTRIES)
-        );
+        return Collections.unmodifiableList(new ArrayList<>(ALL_ENTRIES));
     }
 
     /**
@@ -135,9 +119,7 @@ public final class TrustedPublicKeyRegistry {
      * @param entries записи доверенных ключей
      * @return неизменяемый список ключей для проверки
      */
-    public static List<PublicKey> verificationKeys(
-            List<TrustedPublicKeyEntry> entries
-    ) {
+    public static List<PublicKey> verificationKeys(List<TrustedPublicKeyEntry> entries) {
         Objects.requireNonNull(entries, "entries");
 
         List<PublicKey> keys = new ArrayList<>(entries.size());
@@ -183,8 +165,7 @@ public final class TrustedPublicKeyRegistry {
      * @return неизменяемый список отпечатков в нижнем регистре
      */
     public static List<String> fingerprints() {
-        List<String> fingerprints =
-                new ArrayList<>(TRUSTED_KEYS.size());
+        List<String> fingerprints = new ArrayList<>(TRUSTED_KEYS.size());
 
         for (PublicKey key : TRUSTED_KEYS) {
             fingerprints.add(fingerprint(key));
@@ -202,21 +183,14 @@ public final class TrustedPublicKeyRegistry {
     public static String fingerprint(PublicKey publicKey) {
         Objects.requireNonNull(publicKey, "publicKey");
 
-        byte[] encoded = Objects.requireNonNull(
-                publicKey.getEncoded(),
-                "Public key encoding must not be null"
-        );
+        byte[] encoded = Objects.requireNonNull(publicKey.getEncoded(), "Public key encoding must not be null");
 
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(encoded);
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(encoded);
 
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(
-                    "SHA-256 is not available in this Java runtime",
-                    exception
-            );
+            throw new IllegalStateException("SHA-256 is not available in this Java runtime", exception);
         }
     }
 
@@ -227,26 +201,19 @@ public final class TrustedPublicKeyRegistry {
      * @return неизменяемый список декодированных ключей
      * @throws GeneralSecurityException если список или ключ некорректен
      */
-    static List<PublicKey> decodePinnedKeys(
-            List<String> encodedKeys
-    ) throws GeneralSecurityException {
+    static List<PublicKey> decodePinnedKeys(List<String> encodedKeys) throws GeneralSecurityException {
 
         Objects.requireNonNull(encodedKeys, "encodedKeys");
 
         if (encodedKeys.isEmpty()) {
-            throw new GeneralSecurityException(
-                    "RIPS trusted public key registry is empty"
-            );
+            throw new GeneralSecurityException("RIPS trusted public key registry is empty");
         }
 
-        List<PublicKey> keys =
-                new ArrayList<>(encodedKeys.size());
+        List<PublicKey> keys = new ArrayList<>(encodedKeys.size());
 
         for (String encodedKey : encodedKeys) {
             if (encodedKey == null || encodedKey.isBlank()) {
-                throw new GeneralSecurityException(
-                        "Trusted public key cannot be null or blank"
-                );
+                throw new GeneralSecurityException("Trusted public key cannot be null or blank");
             }
 
             final byte[] decoded;
@@ -254,37 +221,22 @@ public final class TrustedPublicKeyRegistry {
             try {
                 decoded = Base64.getDecoder().decode(encodedKey);
             } catch (IllegalArgumentException exception) {
-                throw new GeneralSecurityException(
-                        "Invalid Base64 trusted public key",
-                        exception
-                );
+                throw new GeneralSecurityException("Invalid Base64 trusted public key", exception);
             }
 
-            if (!Base64.getEncoder()
-                    .encodeToString(decoded)
-                    .equals(encodedKey)) {
-                throw new GeneralSecurityException(
-                        "Non-canonical Base64 public key"
-                );
+            if (!Base64.getEncoder().encodeToString(decoded).equals(encodedKey)) {
+                throw new GeneralSecurityException("Non-canonical Base64 public key");
             }
 
-            PublicKey publicKey =
-                    Ed25519SignatureService.decodePublicKey(encodedKey);
+            PublicKey publicKey = Ed25519SignatureService.decodePublicKey(encodedKey);
 
             if (publicKey.getEncoded() == null) {
-                throw new GeneralSecurityException(
-                        "Decoded public key has no encoded representation"
-                );
+                throw new GeneralSecurityException("Decoded public key has no encoded representation");
             }
 
             for (PublicKey existing : keys) {
-                if (MessageDigest.isEqual(
-                        existing.getEncoded(),
-                        publicKey.getEncoded()
-                )) {
-                    throw new GeneralSecurityException(
-                            "Duplicate trusted public key"
-                    );
+                if (MessageDigest.isEqual(existing.getEncoded(), publicKey.getEncoded())) {
+                    throw new GeneralSecurityException("Duplicate trusted public key");
                 }
             }
 
@@ -301,33 +253,24 @@ public final class TrustedPublicKeyRegistry {
      * @return неизменяемый список записей, включая REVOKED
      * @throws GeneralSecurityException если конфигурация некорректна
      */
-    static List<TrustedPublicKeyEntry> decodePinnedEntries(
-            List<PinnedKeyConfiguration> configurations
-    ) throws GeneralSecurityException {
+    static List<TrustedPublicKeyEntry> decodePinnedEntries(List<PinnedKeyConfiguration> configurations)
+            throws GeneralSecurityException {
 
         Objects.requireNonNull(configurations, "configurations");
 
         if (configurations.isEmpty()) {
-            throw new GeneralSecurityException(
-                    "RIPS trusted public key registry is empty"
-            );
+            throw new GeneralSecurityException("RIPS trusted public key registry is empty");
         }
 
-        List<String> encodedKeys = new ArrayList<>(
-                configurations.size()
-        );
+        List<String> encodedKeys = new ArrayList<>(configurations.size());
 
         for (PinnedKeyConfiguration configuration : configurations) {
             if (configuration == null) {
-                throw new GeneralSecurityException(
-                        "Pinned key configuration cannot be null"
-                );
+                throw new GeneralSecurityException("Pinned key configuration cannot be null");
             }
 
             if (configuration.status() == null) {
-                throw new GeneralSecurityException(
-                        "Pinned key status cannot be null"
-                );
+                throw new GeneralSecurityException("Pinned key status cannot be null");
             }
 
             encodedKeys.add(configuration.encodedPublicKey());
@@ -335,24 +278,15 @@ public final class TrustedPublicKeyRegistry {
 
         List<PublicKey> decodedKeys = decodePinnedKeys(encodedKeys);
 
-        List<TrustedPublicKeyEntry> entries =
-                new ArrayList<>(decodedKeys.size());
+        List<TrustedPublicKeyEntry> entries = new ArrayList<>(decodedKeys.size());
 
         for (int i = 0; i < decodedKeys.size(); i++) {
             PublicKey publicKey = decodedKeys.get(i);
 
-            TrustedKeyDescriptor descriptor =
-                    new TrustedKeyDescriptor(
-                            fingerprint(publicKey),
-                            configurations.get(i).status()
-                    );
+            TrustedKeyDescriptor descriptor = new TrustedKeyDescriptor(
+                    fingerprint(publicKey), configurations.get(i).status());
 
-            entries.add(
-                    new TrustedPublicKeyEntry(
-                            publicKey,
-                            descriptor
-                    )
-            );
+            entries.add(new TrustedPublicKeyEntry(publicKey, descriptor));
         }
 
         return List.copyOf(entries);
@@ -361,8 +295,7 @@ public final class TrustedPublicKeyRegistry {
     private static List<TrustedPublicKeyEntry> loadPinnedEntries() {
         try {
             return decodePinnedEntries(PINNED_KEYS);
-        } catch (GeneralSecurityException
-                 | IllegalArgumentException exception) {
+        } catch (GeneralSecurityException | IllegalArgumentException exception) {
             throw new ExceptionInInitializerError(exception);
         }
     }
@@ -373,9 +306,5 @@ public final class TrustedPublicKeyRegistry {
      * @param encodedPublicKey публичный ключ в Base64
      * @param status статус жизненного цикла
      */
-    record PinnedKeyConfiguration(
-            String encodedPublicKey,
-            TrustedKeyStatus status
-    ) {
-    }
+    record PinnedKeyConfiguration(String encodedPublicKey, TrustedKeyStatus status) {}
 }

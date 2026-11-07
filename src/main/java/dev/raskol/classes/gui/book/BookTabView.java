@@ -15,6 +15,5 @@ public interface BookTabView {
 
     void render(RenderCtx ctx);
 
-    default void onClick(RenderCtx ctx, int slot, boolean left, boolean right) {
-    }
+    default void onClick(RenderCtx ctx, int slot, boolean left, boolean right) {}
 }

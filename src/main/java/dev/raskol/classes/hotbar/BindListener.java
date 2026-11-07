@@ -2,11 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hotbar;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.AbilityDef;
-import dev.raskol.classes.classsystem.PlayerClass;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -17,6 +12,13 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
+
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.AbilityDef;
+import dev.raskol.classes.classsystem.PlayerClass;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * Слушатель свитков в хотбаре (1.5.x → 1.9.0-fix6).
@@ -61,8 +63,9 @@ public final class BindListener implements Listener {
         Player player = event.getPlayer();
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
-            player.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                    "no-class-cast", "Класс не выбран — способности недоступны"), NamedTextColor.GRAY));
+            player.sendMessage(Component.text(
+                    plugin.getRaskolConfig().message("no-class-cast", "Класс не выбран — способности недоступны"),
+                    NamedTextColor.GRAY));
             return;
         }
         AbilityDef def = plugin.getAbilities().findById(pc, abilityId);

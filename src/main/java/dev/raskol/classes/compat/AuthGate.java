@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.compat;
 
-import dev.raskol.classes.RaskolClasses;
+import java.lang.reflect.Method;
+
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 
-import java.lang.reflect.Method;
+import dev.raskol.classes.RaskolClasses;
 
 /**
  * 1.5.8: единый гейт совместимости.
@@ -29,8 +30,7 @@ public final class AuthGate {
     private static Method authenticatedMethod;
     private static boolean reflectionFailed;
 
-    private AuthGate() {
-    }
+    private AuthGate() {}
 
     /** true если игроку разрешено пользоваться классовым UI/свитками. */
     public static boolean allowed(RaskolClasses plugin, Player player) {
@@ -53,8 +53,9 @@ public final class AuthGate {
             return result instanceof Boolean b && b;
         } catch (Throwable t) {
             reflectionFailed = true;
-            plugin.getLogger().severe("AuthGate: рефлексия AuthMe недоступна — гейт ЗАКРЫТ (fail-closed, "
-                    + t.getClass().getSimpleName() + "). Аварийный люк: compat.authme-fail-open=true");
+            plugin.getLogger()
+                    .severe("AuthGate: рефлексия AuthMe недоступна — гейт ЗАКРЫТ (fail-closed, "
+                            + t.getClass().getSimpleName() + "). Аварийный люк: compat.authme-fail-open=true");
             return plugin.getConfig().getBoolean("compat.authme-fail-open", false);
         }
     }

@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.artifact;
 
-import dev.raskol.classes.integrity.verification.IntegrityResourceProvider;
-
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,6 +11,8 @@ import java.util.Objects;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.zip.ZipFile;
+
+import dev.raskol.classes.integrity.verification.IntegrityResourceProvider;
 
 /**
  * Reads integrity resources directly from a physical JAR archive.
@@ -47,10 +47,7 @@ public final class JarFileIntegrityResourceProvider implements IntegrityResource
      * @param maxResourceBytes maximum number of decompressed bytes per resource
      * @throws IOException if the artifact path is invalid
      */
-    public JarFileIntegrityResourceProvider(
-            Path artifactPath,
-            long maxResourceBytes
-    ) throws IOException {
+    public JarFileIntegrityResourceProvider(Path artifactPath, long maxResourceBytes) throws IOException {
         Objects.requireNonNull(artifactPath, "artifactPath");
 
         if (maxResourceBytes <= 0) {
@@ -82,12 +79,7 @@ public final class JarFileIntegrityResourceProvider implements IntegrityResource
     public InputStream openResource(String resourcePath) throws IOException {
         String entryName = normalizeResourcePath(resourcePath);
 
-        JarFile jarFile = new JarFile(
-                artifactPath.toFile(),
-                false,
-                ZipFile.OPEN_READ,
-                JarFile.baseVersion()
-        );
+        JarFile jarFile = new JarFile(artifactPath.toFile(), false, ZipFile.OPEN_READ, JarFile.baseVersion());
 
         boolean ownershipTransferred = false;
 
@@ -110,11 +102,8 @@ public final class JarFileIntegrityResourceProvider implements IntegrityResource
 
             InputStream inputStream = jarFile.getInputStream(entry);
 
-            LimitedResourceInputStream limitedStream = new LimitedResourceInputStream(
-                    inputStream,
-                    jarFile,
-                    maxResourceBytes
-            );
+            LimitedResourceInputStream limitedStream =
+                    new LimitedResourceInputStream(inputStream, jarFile, maxResourceBytes);
 
             ownershipTransferred = true;
             return limitedStream;
@@ -188,11 +177,7 @@ public final class JarFileIntegrityResourceProvider implements IntegrityResource
         private long bytesRead;
         private boolean closed;
 
-        private LimitedResourceInputStream(
-                InputStream inputStream,
-                JarFile jarFile,
-                long maxBytes
-        ) {
+        private LimitedResourceInputStream(InputStream inputStream, JarFile jarFile, long maxBytes) {
             super(inputStream);
             this.jarFile = jarFile;
             this.maxBytes = maxBytes;

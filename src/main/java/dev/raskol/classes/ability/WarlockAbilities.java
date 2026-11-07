@@ -2,18 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.Hp;
-import dev.raskol.classes.cc.CastChannels;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.combat.DamageProfile;
-import dev.raskol.classes.combat.dot.DotInstance;
-import dev.raskol.classes.combat.school.School;
-import dev.raskol.classes.fx.WarlockFx;
-import dev.raskol.classes.pet.PetService;
-import dev.raskol.classes.spec.Spec;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -29,11 +23,19 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.attribute.Hp;
+import dev.raskol.classes.cc.CastChannels;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.dot.DotInstance;
+import dev.raskol.classes.combat.school.School;
+import dev.raskol.classes.fx.WarlockFx;
+import dev.raskol.classes.pet.PetService;
+import dev.raskol.classes.spec.Spec;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.10.0: КИТ ЧЕРНОКНИЖНИКА (5 способностей, power = SP).
@@ -101,6 +103,7 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
 
     /** 1.14.13 (Волна 13C): instance-поля вместо static. */
     private final Map<UUID, Long> sealExpiry = new ConcurrentHashMap<>();
+
     private final Map<UUID, Double> sealAmp = new ConcurrentHashMap<>();
     private final Map<UUID, Long> antihealExpiry = new ConcurrentHashMap<>();
     /** 1.11.2 (T2): задачи канала Раскола Души, indexed by caster UUID. */
@@ -294,33 +297,23 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
     }
 
     private double specDamageMult(Player p) {
-        return isDestruction(p)
-                ? 1.0 + cfgD("classes.WARLOCK.specs.destruction.damage-mult", 0.10)
-                : 1.0;
+        return isDestruction(p) ? 1.0 + cfgD("classes.WARLOCK.specs.destruction.damage-mult", 0.10) : 1.0;
     }
 
     private double specRiftRadiusBonus(Player p) {
-        return isAffliction(p)
-                ? cfgD("classes.WARLOCK.specs.affliction.soul-rift-radius-bonus", 2.0)
-                : 0.0;
+        return isAffliction(p) ? cfgD("classes.WARLOCK.specs.affliction.soul-rift-radius-bonus", 2.0) : 0.0;
     }
 
     private int specUnwritingStrips(Player p) {
-        return isAffliction(p)
-                ? cfgI("classes.WARLOCK.specs.affliction.unwriting-strips-resist", 1)
-                : 0;
+        return isAffliction(p) ? cfgI("classes.WARLOCK.specs.affliction.unwriting-strips-resist", 1) : 0;
     }
 
     private double specSealDuration(Player p, double baseDuration) {
-        return isDemonology(p)
-                ? cfgD("classes.WARLOCK.specs.demonology.seal-duration", 86.6)
-                : baseDuration;
+        return isDemonology(p) ? cfgD("classes.WARLOCK.specs.demonology.seal-duration", 86.6) : baseDuration;
     }
 
     private double specAntihealBonus(Player p) {
-        return isDemonology(p)
-                ? cfgD("classes.WARLOCK.specs.demonology.antiheal-bonus", 3.0)
-                : 0.0;
+        return isDemonology(p) ? cfgD("classes.WARLOCK.specs.demonology.antiheal-bonus", 3.0) : 0.0;
     }
 
     /* ------------------------------ урон/множители (WarlockMath) ------------------------------ */
@@ -364,8 +357,7 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         if (!(target instanceof Player tp)) {
             return;
         }
-        if (!plugin.getConfig().getBoolean(
-                "classes.WARLOCK.antiheal-strip-absorption", false)) {
+        if (!plugin.getConfig().getBoolean("classes.WARLOCK.antiheal-strip-absorption", false)) {
             return;
         }
         PotionEffect abs = tp.getPotionEffect(PotionEffectType.ABSORPTION);
@@ -406,8 +398,8 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
             return false;
         }
         paySelfCost(caster, cfgD("classes.WARLOCK.abilities." + def.id() + ".self-cost-pct", 10.0));
-        plugin.getResources().add(caster.getUniqueId(),
-                cfgD("classes.WARLOCK.abilities." + def.id() + ".corruption-gain", 25.0));
+        plugin.getResources()
+                .add(caster.getUniqueId(), cfgD("classes.WARLOCK.abilities." + def.id() + ".corruption-gain", 25.0));
 
         double dmg = spellDamage(caster, def, 18.0, 1.5);
         plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
@@ -432,8 +424,8 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         UUID id = t.getUniqueId();
         sealExpiry.put(id, System.currentTimeMillis() + (long) (durationSec * 1000.0));
         sealAmp.put(id, amplify);
-        t.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING,
-                (int) (durationSec * 20.0), 0, false, false, false));
+        t.addPotionEffect(
+                new PotionEffect(PotionEffectType.GLOWING, (int) (durationSec * 20.0), 0, false, false, false));
         WarlockFx.ringFx(t.getLocation(), 1.2, Particle.SOUL_FIRE_FLAME, 3);
         WarlockFx.riseFx(t.getLocation(), Particle.CRIMSON_SPORE, 12);
         plugin.getFx().playSound(t.getLocation(), Sound.ENTITY_EVOKER_PREPARE_ATTACK, 0.7f, 0.9f);
@@ -466,12 +458,12 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         if (totalDealt <= 0.0) {
             return false;
         }
-        double heal = WarlockMath.drainHeal(totalDealt, drain(def, 0.666),
-                plugin.getRaskolConfig().warlockLifestealCap());
+        double heal = WarlockMath.drainHeal(
+                totalDealt, drain(def, 0.666), plugin.getRaskolConfig().warlockLifestealCap());
         // 1.14.1 (Волна 1): атрибуция целителя для роли HEALER
         plugin.getHpBarService().heal(caster, heal, caster);
-        plugin.getResources().add(caster.getUniqueId(),
-                cfgD("classes.WARLOCK.abilities." + def.id() + ".corruption-gain", 12.0));
+        plugin.getResources()
+                .add(caster.getUniqueId(), cfgD("classes.WARLOCK.abilities." + def.id() + ".corruption-gain", 12.0));
         plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_ROAR, 0.8f, 1.2f);
         return true;
     }
@@ -488,10 +480,14 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         int purged = 0;
         for (PotionEffect effect : List.copyOf(t.getActivePotionEffects())) {
             PotionEffectType type = effect.getType();
-            if (type == PotionEffectType.SPEED || type == PotionEffectType.STRENGTH
-                    || type == PotionEffectType.REGENERATION || type == PotionEffectType.INVISIBILITY
-                    || type == PotionEffectType.RESISTANCE || type == PotionEffectType.ABSORPTION
-                    || type == PotionEffectType.FIRE_RESISTANCE || type == PotionEffectType.HASTE) {
+            if (type == PotionEffectType.SPEED
+                    || type == PotionEffectType.STRENGTH
+                    || type == PotionEffectType.REGENERATION
+                    || type == PotionEffectType.INVISIBILITY
+                    || type == PotionEffectType.RESISTANCE
+                    || type == PotionEffectType.ABSORPTION
+                    || type == PotionEffectType.FIRE_RESISTANCE
+                    || type == PotionEffectType.HASTE) {
                 t.removePotionEffect(type);
                 purged++;
             }
@@ -508,8 +504,8 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         // 1.14.0 (Б11.1.2-A): per-purged через фолбэк-хелпер (переносимая slot 4)
         double perPurged = TreeAbilities.numberOrKit(plugin, PC, def.id(), "per-purged", 16.0);
         double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
-        double dmg = (kitBase(caster, def, 16.0) + sp * kitCoeff(caster, def, 0.8)
-                + perPurged * purged) * damageMult(caster);
+        double dmg = (kitBase(caster, def, 16.0) + sp * kitCoeff(caster, def, 0.8) + perPurged * purged)
+                * damageMult(caster);
         WarlockFx.safeFx(t.getLocation(), Particle.SOUL, 14, 0.5);
         WarlockFx.safeFx(t.getLocation(), Particle.LARGE_SMOKE, 10, 0.4);
         double dealt = plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg));
@@ -529,8 +525,8 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         // 1.14.0 (Б11.1.2-A): channel/antiheal/missing-hp-bonus через фолбэк-хелпер
         // (переносимая slot 5)
         double channelSec = TreeAbilities.numberOrKit(plugin, PC, def.id(), "channel", 2.5);
-        double antihealSec = TreeAbilities.numberOrKit(plugin, PC, def.id(), "antiheal", 6.0)
-                + specAntihealBonus(caster);
+        double antihealSec =
+                TreeAbilities.numberOrKit(plugin, PC, def.id(), "antiheal", 6.0) + specAntihealBonus(caster);
         double missingBonus = TreeAbilities.numberOrKit(plugin, PC, def.id(), "missing-hp-bonus", 0.666);
         int ticks = Math.max(1, (int) (channelSec * 20.0));
 
@@ -538,72 +534,89 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         WarlockFx.ringFx(caster.getLocation(), radius, Particle.CRIMSON_SPORE, 2);
 
         List<BukkitTask> tasks = new ArrayList<>();
-        CastChannels.register(caster.getUniqueId(),
-                () -> cancelChannelTasksInstance(caster.getUniqueId()));
+        CastChannels.register(caster.getUniqueId(), () -> cancelChannelTasksInstance(caster.getUniqueId()));
 
         for (int i = 1; i <= ticks; i += 5) {
-            BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                if (!caster.isOnline() || caster.isDead()) {
-                    return;
-                }
-                Location center = caster.getLocation();
-                // 1.15.7 (2.6-63): тик-урон из конфига (дефолт 6.0)
-                double tickDmg = cfgD("classes.WARLOCK.abilities.soul_rift.tick-damage", 6.0)
-                        * damageMult(caster);
-                WarlockFx.ringFx(center, radius, Particle.SCULK_SOUL, 1);
-                for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
-                    if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
-                        continue;
-                    }
-                    if (!plugin.getCombat().canHit(caster, t)) {
-                        continue;
-                    }
-                    plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(tickDmg));
-                    WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 3);
-                    antihealExpiry.put(t.getUniqueId(),
-                            System.currentTimeMillis() + (long) (antihealSec * 1000.0));
-                    maybeStripAbsorption(t);
-                }
-            }, i);
+            BukkitTask task = plugin.getServer()
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                if (!caster.isOnline() || caster.isDead()) {
+                                    return;
+                                }
+                                Location center = caster.getLocation();
+                                // 1.15.7 (2.6-63): тик-урон из конфига (дефолт 6.0)
+                                double tickDmg = cfgD("classes.WARLOCK.abilities.soul_rift.tick-damage", 6.0)
+                                        * damageMult(caster);
+                                WarlockFx.ringFx(center, radius, Particle.SCULK_SOUL, 1);
+                                for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+                                    if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
+                                        continue;
+                                    }
+                                    if (!plugin.getCombat().canHit(caster, t)) {
+                                        continue;
+                                    }
+                                    plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(tickDmg));
+                                    WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 3);
+                                    antihealExpiry.put(
+                                            t.getUniqueId(),
+                                            System.currentTimeMillis() + (long) (antihealSec * 1000.0));
+                                    maybeStripAbsorption(t);
+                                }
+                            },
+                            i);
             tasks.add(task);
         }
 
-        BukkitTask finalTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (!caster.isOnline() || caster.isDead()) {
-                return;
-            }
-            Location center = caster.getLocation();
-            // 1.15.7 (2.6-63): финальный взрыв из конфига (дефолт 30.0 base / 2.4 coeff)
-            double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
-            double baseDmg = (kitBase(caster, def,
-                    cfgD("classes.WARLOCK.abilities.soul_rift.final-damage", 30.0))
-                    + sp * kitCoeff(caster, def,
-                    cfgD("classes.WARLOCK.abilities.soul_rift.final-coeff", 2.4)))
-                    * damageMult(caster);
-            WarlockFx.ringFx(center, radius, Particle.SONIC_BOOM, 1);
-            WarlockFx.ringFx(center, radius * 0.6, Particle.ASH, 3);
-            for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
-                if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
-                    continue;
-                }
-                if (!plugin.getCombat().canHit(caster, t)) {
-                    continue;
-                }
-                double bonus = WarlockMath.missingHpBonus(
-                        currentFormulaHp(t), formulaMax(t), missingBonus);
-                double dmg = baseDmg + bonus;
-                plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg), true);
-                WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 20, 0.6);
-                WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 8);
-                antihealExpiry.put(t.getUniqueId(),
-                        System.currentTimeMillis() + (long) (antihealSec * 1000.0));
-                maybeStripAbsorption(t);
-            }
-            plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
-            purgeStaleDebuffsInstance();
-            CastChannels.unregister(caster.getUniqueId());
-            channelTasks.remove(caster.getUniqueId());
-        }, ticks + 1L);
+        BukkitTask finalTask = plugin.getServer()
+                .getScheduler()
+                .runTaskLater(
+                        plugin,
+                        () -> {
+                            if (!caster.isOnline() || caster.isDead()) {
+                                return;
+                            }
+                            Location center = caster.getLocation();
+                            // 1.15.7 (2.6-63): финальный взрыв из конфига (дефолт 30.0 base / 2.4 coeff)
+                            double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
+                            double baseDmg = (kitBase(
+                                                    caster,
+                                                    def,
+                                                    cfgD("classes.WARLOCK.abilities.soul_rift.final-damage", 30.0))
+                                            + sp
+                                                    * kitCoeff(
+                                                            caster,
+                                                            def,
+                                                            cfgD(
+                                                                    "classes.WARLOCK.abilities.soul_rift.final-coeff",
+                                                                    2.4)))
+                                    * damageMult(caster);
+                            WarlockFx.ringFx(center, radius, Particle.SONIC_BOOM, 1);
+                            WarlockFx.ringFx(center, radius * 0.6, Particle.ASH, 3);
+                            for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+                                if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
+                                    continue;
+                                }
+                                if (!plugin.getCombat().canHit(caster, t)) {
+                                    continue;
+                                }
+                                double bonus =
+                                        WarlockMath.missingHpBonus(currentFormulaHp(t), formulaMax(t), missingBonus);
+                                double dmg = baseDmg + bonus;
+                                plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg), true);
+                                WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 20, 0.6);
+                                WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 8);
+                                antihealExpiry.put(
+                                        t.getUniqueId(), System.currentTimeMillis() + (long) (antihealSec * 1000.0));
+                                maybeStripAbsorption(t);
+                            }
+                            plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
+                            purgeStaleDebuffsInstance();
+                            CastChannels.unregister(caster.getUniqueId());
+                            channelTasks.remove(caster.getUniqueId());
+                        },
+                        ticks + 1L);
         tasks.add(finalTask);
 
         channelTasks.put(caster.getUniqueId(), tasks);
@@ -801,25 +814,23 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         WarlockFx.safeFx(caster.getLocation(), Particle.SCULK_SOUL, 20, 0.5);
         WarlockFx.ringFx(caster.getLocation(), 1.5, Particle.SOUL_FIRE_FLAME, 2);
         plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_VEX_CHARGE, 0.8f, 0.7f);
-        caster.sendMessage(Component.text("Демон призван на " + secs + " с (+10 Скверны)",
-                NamedTextColor.LIGHT_PURPLE));
+        caster.sendMessage(
+                Component.text("Демон призван на " + secs + " с (+10 Скверны)", NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
     /** demonology T5: пакт: +10% INT себе на 10 с; +8 Скверны. */
     public boolean demonicPact(Player caster, AbilityDef def) {
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
-        double intNow = plugin.getAttributes().value(caster.getUniqueId(),
-                dev.raskol.classes.attribute.AttributeType.INT);
+        double intNow =
+                plugin.getAttributes().value(caster.getUniqueId(), dev.raskol.classes.attribute.AttributeType.INT);
         double bonus = intNow * 0.10;
-        plugin.getAttributes().addTimedModifier(caster.getUniqueId(), "demonic_pact",
-                0.0, 0.0, bonus, secs * 1000L);
+        plugin.getAttributes().addTimedModifier(caster.getUniqueId(), "demonic_pact", 0.0, 0.0, bonus, secs * 1000L);
         plugin.getResources().add(caster.getUniqueId(), 8.0);
         WarlockFx.safeFx(caster.getLocation(), Particle.SOUL_FIRE_FLAME, 18, 0.5);
-        plugin.getFx().startAura(caster.getUniqueId(), Particle.SCULK_SOUL, secs * 20, 2,
-                "ENTITY_WARDEN_HEARTBEAT");
-        caster.sendMessage(Component.text("Демонический пакт: +" + (int) bonus + " ИНТ на " + secs + " с",
-                NamedTextColor.LIGHT_PURPLE));
+        plugin.getFx().startAura(caster.getUniqueId(), Particle.SCULK_SOUL, secs * 20, 2, "ENTITY_WARDEN_HEARTBEAT");
+        caster.sendMessage(Component.text(
+                "Демонический пакт: +" + (int) bonus + " ИНТ на " + secs + " с", NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
@@ -831,14 +842,12 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         UUID cid = caster.getUniqueId();
         LivingEntity demon = plugin.getPets().petOf(caster);
         if (demon == null) {
-            caster.sendMessage(Component.text("Душа демона: сначала призови демона.",
-                    NamedTextColor.GRAY));
+            caster.sendMessage(Component.text("Душа демона: сначала призови демона.", NamedTextColor.GRAY));
             return false;
         }
         boolean consumed = plugin.getPets().consume(caster, "demon");
         if (!consumed) {
-            caster.sendMessage(Component.text("Душа демона: питомец недоступен для поглощения.",
-                    NamedTextColor.GRAY));
+            caster.sendMessage(Component.text("Душа демона: питомец недоступен для поглощения.", NamedTextColor.GRAY));
             return false;
         }
         int secs = TreeAbilities.durationOf(plugin, PC, def.id(), 10);
@@ -848,8 +857,8 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         WarlockFx.safeFx(caster.getLocation(), Particle.SONIC_BOOM, 2, 0.1);
         WarlockFx.ringFx(caster.getLocation(), 2.0, Particle.SOUL_FIRE_FLAME, 3);
         plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_WARDEN_ROAR, 0.9f, 0.6f);
-        caster.sendMessage(Component.text("Душа демона: слияние на " + secs + " с (+30 Скверны)",
-                NamedTextColor.LIGHT_PURPLE));
+        caster.sendMessage(
+                Component.text("Душа демона: слияние на " + secs + " с (+30 Скверны)", NamedTextColor.LIGHT_PURPLE));
         return true;
     }
 
@@ -884,8 +893,16 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
 
     /** 1.14.0: ids древесных способностей для сверки с TreeAbilities. */
     public static List<String> treeAbilityIds() {
-        return List.of("withering", "soul_siphon", "soul_harvest",
-                "immolate", "chaos_bolt", "conflagrate",
-                "dreadfire", "summon_demon", "demonic_pact", "demon_soul");
+        return List.of(
+                "withering",
+                "soul_siphon",
+                "soul_harvest",
+                "immolate",
+                "chaos_bolt",
+                "conflagrate",
+                "dreadfire",
+                "summon_demon",
+                "demonic_pact",
+                "demon_soul");
     }
 }

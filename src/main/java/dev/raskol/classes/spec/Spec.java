@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec;
 
-import dev.raskol.classes.classsystem.PlayerClass;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import dev.raskol.classes.classsystem.PlayerClass;
 
 /**
  * Специализации классов (1.4.0 → 1.14.0 «Спек 2.0»).
@@ -52,13 +52,26 @@ public enum Spec {
         this.role = role;
     }
 
-    public PlayerClass playerClass() { return playerClass; }
-    public String displayName() { return displayName; }
-    public String symbol() { return symbol; }
-    public String role() { return role; }
+    public PlayerClass playerClass() {
+        return playerClass;
+    }
+
+    public String displayName() {
+        return displayName;
+    }
+
+    public String symbol() {
+        return symbol;
+    }
+
+    public String role() {
+        return role;
+    }
 
     /** ID для хранения и LP-нод; совпадает с id дерева в Spec2Registry. */
-    public String id() { return name().toLowerCase(); }
+    public String id() {
+        return name().toLowerCase();
+    }
 
     /** Строгий резолв: неизвестный/legacy id → null (миграций больше нет). */
     public static Spec fromId(String id) {

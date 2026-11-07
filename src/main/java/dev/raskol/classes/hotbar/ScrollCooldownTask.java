@@ -2,19 +2,20 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hotbar;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.ability.AbilityDef;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.install.InstallationType;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.AbilityDef;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.install.InstallationType;
 
 /**
  * Индикатор кулдауна на свитке = ПОЛОСА ПРОЧНОСТИ (1.5.6 → 1.9.0-fix12, v12).
@@ -98,7 +99,7 @@ public final class ScrollCooldownTask {
                     continue;
                 }
 
-                long seconds = (remaining + 999L) / 1000L;              // ceil
+                long seconds = (remaining + 999L) / 1000L; // ceil
                 long totalSec = Math.max(1L, (total + 999L) / 1000L);
                 Long last = slots.get(slot);
                 long lastVal = last == null ? -1L : last;
@@ -107,8 +108,7 @@ public final class ScrollCooldownTask {
                 }
                 slots.put(slot, seconds);
 
-                boolean packet =
-                        (lastVal <= 0L && seconds > 0L)   // старт каста
+                boolean packet = (lastVal <= 0L && seconds > 0L) // старт каста
                         || (slot == held && heldChanged); // переключились на этот свиток
                 writeBar(item, seconds, totalSec, packet, inv, slot);
             }
@@ -138,8 +138,7 @@ public final class ScrollCooldownTask {
         }
         InstallationType type = plugin.getInstallToken().readType(item);
         if (type != null) {
-            return Math.max(1L,
-                    (plugin.getInstallations().placeCooldownTotalMillis(type) + 999L) / 1000L);
+            return Math.max(1L, (plugin.getInstallations().placeCooldownTotalMillis(type) + 999L) / 1000L);
         }
         return 1L;
     }
@@ -147,12 +146,17 @@ public final class ScrollCooldownTask {
     /**
      * Пишет бар. packet=true → inv.setItem (обновление клиента);
      * packet=false → мутация на месте без пакета (без дёргания).
-     * 
+     *
      * 1.9.2-fix: Paper 1.21.4 требует maxDamage > 0. При сбросе (seconds <= 0)
      * устанавливаем setDamage(0) без изменения maxDamage — бар становится полным.
      */
-    private void writeBar(ItemStack item, long seconds, long totalSec, boolean packet,
-                          org.bukkit.inventory.PlayerInventory inv, int slot) {
+    private void writeBar(
+            ItemStack item,
+            long seconds,
+            long totalSec,
+            boolean packet,
+            org.bukkit.inventory.PlayerInventory inv,
+            int slot) {
         ItemMeta meta = item.getItemMeta();
         if (!(meta instanceof Damageable dmg)) {
             return;

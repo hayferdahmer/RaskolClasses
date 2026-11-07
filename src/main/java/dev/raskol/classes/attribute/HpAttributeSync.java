@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.attribute;
 
-import dev.raskol.classes.RaskolClasses;
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
+import java.util.UUID;
+
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
@@ -17,7 +16,10 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 
 /**
  * 1.9.3 (план B — виртуальный пул HP):
@@ -100,8 +102,7 @@ public final class HpAttributeSync implements Listener {
         if (sweepTask != null) {
             sweepTask.cancel();
         }
-        sweepTask = Bukkit.getScheduler().runTaskTimer(plugin, this::syncAll,
-                periodTicks, periodTicks);
+        sweepTask = Bukkit.getScheduler().runTaskTimer(plugin, this::syncAll, periodTicks, periodTicks);
     }
 
     public void stopSweep() {

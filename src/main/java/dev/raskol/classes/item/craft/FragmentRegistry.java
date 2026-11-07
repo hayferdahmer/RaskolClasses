@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.craft;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.item.model.ItemRarity;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -14,10 +14,12 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.item.model.ItemRarity;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.15.4: реестр 13 фрагментов (6 осколков × тир + 6 эссенций + реликвия)
@@ -38,20 +40,43 @@ public final class FragmentRegistry {
 
     private static Map<String, Fragment> build() {
         Map<String, Fragment> map = new LinkedHashMap<>();
-        for (ItemRarity tier : new ItemRarity[]{ItemRarity.COMMON, ItemRarity.RARE, ItemRarity.EPIC}) {
+        for (ItemRarity tier : new ItemRarity[] {ItemRarity.COMMON, ItemRarity.RARE, ItemRarity.EPIC}) {
             String t = tier.name().toLowerCase(Locale.ROOT);
-            map.put("frag_weapon_" + t, new Fragment("frag_weapon_" + t, Fragment.Kind.WEAPON, tier, null,
-                    Material.IRON_NUGGET, "Осколок оружия (" + rarityRu(tier) + ")"));
-            map.put("frag_armor_" + t, new Fragment("frag_armor_" + t, Fragment.Kind.ARMOR, tier, null,
-                    Material.IRON_INGOT, "Осколок брони (" + rarityRu(tier) + ")"));
+            map.put(
+                    "frag_weapon_" + t,
+                    new Fragment(
+                            "frag_weapon_" + t,
+                            Fragment.Kind.WEAPON,
+                            tier,
+                            null,
+                            Material.IRON_NUGGET,
+                            "Осколок оружия (" + rarityRu(tier) + ")"));
+            map.put(
+                    "frag_armor_" + t,
+                    new Fragment(
+                            "frag_armor_" + t,
+                            Fragment.Kind.ARMOR,
+                            tier,
+                            null,
+                            Material.IRON_INGOT,
+                            "Осколок брони (" + rarityRu(tier) + ")"));
         }
         for (PlayerClass pc : PlayerClass.values()) {
             String c = pc.name().toLowerCase(Locale.ROOT);
-            map.put("frag_essence_" + c, new Fragment("frag_essence_" + c, Fragment.Kind.ESSENCE, null, pc,
-                    Material.GHAST_TEAR, "Эссенция пути: " + pc.getDisplayName()));
+            map.put(
+                    "frag_essence_" + c,
+                    new Fragment(
+                            "frag_essence_" + c,
+                            Fragment.Kind.ESSENCE,
+                            null,
+                            pc,
+                            Material.GHAST_TEAR,
+                            "Эссенция пути: " + pc.getDisplayName()));
         }
-        map.put("frag_relic", new Fragment("frag_relic", Fragment.Kind.RELIC, null, null,
-                Material.NETHERITE_SCRAP, "Реликвия Раскола"));
+        map.put(
+                "frag_relic",
+                new Fragment(
+                        "frag_relic", Fragment.Kind.RELIC, null, null, Material.NETHERITE_SCRAP, "Реликвия Раскола"));
         return Map.copyOf(map);
     }
 
@@ -106,8 +131,8 @@ public final class FragmentRegistry {
             if (count <= 0) {
                 return;
             }
-            player.getInventory().addItem(createStack(fragment, count)).values()
-                    .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
+            player.getInventory().addItem(createStack(fragment, count)).values().forEach(left -> player.getWorld()
+                    .dropItemNaturally(player.getLocation(), left));
         });
     }
 

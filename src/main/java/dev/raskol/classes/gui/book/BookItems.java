@@ -2,20 +2,22 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.gui.book;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.util.TextFx;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.util.TextFx;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.11.4 (P4b): общие предмет-билдеры Книги: рамка, навигация, эмблема,
@@ -23,8 +25,7 @@ import java.util.Locale;
  */
 public final class BookItems {
 
-    private BookItems() {
-    }
+    private BookItems() {}
 
     public static String msg(RaskolClasses plugin, String key, String def) {
         return plugin.getRaskolConfig().message(key, def);
@@ -36,18 +37,16 @@ public final class BookItems {
         return item;
     }
 
-    public static ItemStack tabIcon(RaskolClasses plugin, Material material,
-                                    String key, String def, boolean active) {
+    public static ItemStack tabIcon(RaskolClasses plugin, Material material, String key, String def, boolean active) {
         ItemStack item = new ItemStack(material);
         item.editMeta(meta -> {
-            meta.displayName(Component.text(msg(plugin, key, def),
-                    active ? NamedTextColor.GOLD : NamedTextColor.GRAY));
+            meta.displayName(Component.text(msg(plugin, key, def), active ? NamedTextColor.GOLD : NamedTextColor.GRAY));
             if (active) {
                 meta.addEnchant(Enchantment.LURE, 1, true);
                 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             }
-            meta.lore(List.of(Component.text(msg(plugin, "book.tab.hint", "Клик — открыть вкладку"),
-                    NamedTextColor.DARK_GRAY)));
+            meta.lore(List.of(
+                    Component.text(msg(plugin, "book.tab.hint", "Клик — открыть вкладку"), NamedTextColor.DARK_GRAY)));
         });
         return item;
     }
@@ -110,20 +109,22 @@ public final class BookItems {
     public static ItemStack emblem(RaskolClasses plugin, Player player, PlayerClass pc) {
         ItemStack item = new ItemStack(emblemMaterial(pc));
         item.editMeta(meta -> {
-            meta.displayName(TextFx.gradient(pc.getDisplayName(),
+            meta.displayName(TextFx.gradient(
+                    pc.getDisplayName(),
                     plugin.getRaskolConfig().themeOf(pc).primary(),
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
-            lore.add(Component.text(msg(plugin,
-                    "book.resource." + pc.name().toLowerCase(Locale.ROOT), resourceRulesDef(pc)),
+            lore.add(Component.text(
+                    msg(plugin, "book.resource." + pc.name().toLowerCase(Locale.ROOT), resourceRulesDef(pc)),
                     NamedTextColor.GRAY));
-            lore.add(Component.text(msg(plugin, "book.emblem.resource", "Ресурс сейчас: {value}/100")
-                    .replace("{value}", String.valueOf(
-                            (int) plugin.getResources().getValue(player.getUniqueId()))),
+            lore.add(Component.text(
+                    msg(plugin, "book.emblem.resource", "Ресурс сейчас: {value}/100")
+                            .replace("{value}", String.valueOf((int)
+                                    plugin.getResources().getValue(player.getUniqueId()))),
                     NamedTextColor.WHITE));
-            lore.add(Component.text(msg(plugin, "book.emblem.crown", "Корона: {name}")
-                    .replace("{name}", plugin.getFlavorService()
-                            .crownDisplayName(player.getUniqueId())),
+            lore.add(Component.text(
+                    msg(plugin, "book.emblem.crown", "Корона: {name}")
+                            .replace("{name}", plugin.getFlavorService().crownDisplayName(player.getUniqueId())),
                     NamedTextColor.GOLD));
             meta.lore(lore);
             meta.addEnchant(Enchantment.LURE, 1, true);

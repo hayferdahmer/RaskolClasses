@@ -2,21 +2,23 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.command.sub;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.cc.CCInstance;
 import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.CCType;
 import dev.raskol.classes.cc.DRCategory;
 import dev.raskol.classes.cc.DRState;
+
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.Bukkit;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
 
 /**
  * 1.13.0 (Б4): подкоманда /rc cc — админ-поверхность CC/DR.
@@ -73,8 +75,8 @@ public final class CcSub implements CommandSub {
             return SubUtil.filter(List.of("status", "clear", "test", "reset", "list"), fullArgs[1]);
         }
         String sub = fullArgs.length > 1 ? fullArgs[1].toLowerCase(Locale.ROOT) : "";
-        if (fullArgs.length == 3 && (sub.equals("status") || sub.equals("clear")
-                || sub.equals("test") || sub.equals("reset"))) {
+        if (fullArgs.length == 3
+                && (sub.equals("status") || sub.equals("clear") || sub.equals("test") || sub.equals("reset"))) {
             return SubUtil.filter(SubUtil.onlinePlayerNames(), fullArgs[2]);
         }
         if (fullArgs.length == 4 && sub.equals("test")) {
@@ -101,7 +103,8 @@ public final class CcSub implements CommandSub {
         sender.sendMessage(Component.text(" status <player> — активные CC и DR-стеки", NamedTextColor.GRAY));
         sender.sendMessage(Component.text(" clear <player> — снять все CC и сбросить DR", NamedTextColor.GRAY));
         sender.sendMessage(Component.text(" test <player> <type> — наложить тестовый CC", NamedTextColor.GRAY));
-        sender.sendMessage(Component.text(" reset <player> <category> — сброс DR-стека категории", NamedTextColor.GRAY));
+        sender.sendMessage(
+                Component.text(" reset <player> <category> — сброс DR-стека категории", NamedTextColor.GRAY));
         sender.sendMessage(Component.text(" list — список CCType и категорий DR", NamedTextColor.GRAY));
     }
 
@@ -123,9 +126,10 @@ public final class CcSub implements CommandSub {
             sender.sendMessage(Component.text(" Активных CC: —", NamedTextColor.GRAY));
         } else {
             for (CCInstance inst : active) {
-                sender.sendMessage(Component.text(" " + inst.type().ruName() + " (" + inst.type().id()
-                        + "): " + (inst.remainingTicks(now) / 20L) + "с, DR "
-                        + (int) Math.round(inst.drMultiplier() * 100.0) + "%",
+                sender.sendMessage(Component.text(
+                        " " + inst.type().ruName() + " (" + inst.type().id()
+                                + "): " + (inst.remainingTicks(now) / 20L) + "с, DR "
+                                + (int) Math.round(inst.drMultiplier() * 100.0) + "%",
                         NamedTextColor.RED));
             }
         }
@@ -136,8 +140,10 @@ public final class CcSub implements CommandSub {
                 continue;
             }
             long left = Math.max(0L, windowMs - (now - st.lastAppliedAt()));
-            sender.sendMessage(Component.text(" DR " + cat.ruName() + ": стек " + st.stackCount()
-                    + ", окно сбросится через " + (left / 1000L) + "с", NamedTextColor.DARK_AQUA));
+            sender.sendMessage(Component.text(
+                    " DR " + cat.ruName() + ": стек " + st.stackCount() + ", окно сбросится через " + (left / 1000L)
+                            + "с",
+                    NamedTextColor.DARK_AQUA));
         }
     }
 
@@ -174,15 +180,17 @@ public final class CcSub implements CommandSub {
         Player caster = sender instanceof Player p ? p : null;
         CCService.ApplyResult res = plugin.getCC().tryApply(caster, target, type);
         switch (res.result()) {
-            case SUCCESS -> sender.sendMessage(Component.text(type.ruName() + " → " + target.getName()
-                    + ": " + (res.appliedTicks() / 20.0) + "с (DR "
-                    + (int) Math.round(res.drMultiplier() * 100.0) + "%)", NamedTextColor.GREEN));
-            case FAIL_IMMUNE -> sender.sendMessage(Component.text(target.getName()
-                    + " невосприимчив к: " + type.ruName(), NamedTextColor.RED));
-            case FAIL_RESIST -> sender.sendMessage(Component.text(target.getName()
-                    + " сопротивляется: " + type.ruName(), NamedTextColor.YELLOW));
-            case FAIL_DR_IMMUNE -> sender.sendMessage(Component.text(target.getName()
-                    + " нечувствителен (DR-иммунитет): " + type.ruName(), NamedTextColor.RED));
+            case SUCCESS -> sender.sendMessage(Component.text(
+                    type.ruName() + " → " + target.getName()
+                            + ": " + (res.appliedTicks() / 20.0) + "с (DR "
+                            + (int) Math.round(res.drMultiplier() * 100.0) + "%)",
+                    NamedTextColor.GREEN));
+            case FAIL_IMMUNE -> sender.sendMessage(
+                    Component.text(target.getName() + " невосприимчив к: " + type.ruName(), NamedTextColor.RED));
+            case FAIL_RESIST -> sender.sendMessage(
+                    Component.text(target.getName() + " сопротивляется: " + type.ruName(), NamedTextColor.YELLOW));
+            case FAIL_DR_IMMUNE -> sender.sendMessage(Component.text(
+                    target.getName() + " нечувствителен (DR-иммунитет): " + type.ruName(), NamedTextColor.RED));
             default -> sender.sendMessage(Component.text("Отказ: " + res.result(), NamedTextColor.RED));
         }
     }
@@ -209,15 +217,16 @@ public final class CcSub implements CommandSub {
             return;
         }
         plugin.getCC().resetDr(target.getUniqueId(), cat);
-        sender.sendMessage(Component.text("DR-стек категории " + cat.ruName()
-                + " сброшен у " + target.getName(), NamedTextColor.GREEN));
+        sender.sendMessage(Component.text(
+                "DR-стек категории " + cat.ruName() + " сброшен у " + target.getName(), NamedTextColor.GREEN));
     }
 
     private void listCmd(CommandSender sender) {
         sender.sendMessage(Component.text("=== CCType → категория DR ===", NamedTextColor.GOLD));
         for (CCType t : CCType.values()) {
-            sender.sendMessage(Component.text(" " + t.id() + " (" + t.ruName() + ") → "
-                    + t.category().id() + (t.instant() ? " [мгновенный]" : ""),
+            sender.sendMessage(Component.text(
+                    " " + t.id() + " (" + t.ruName() + ") → " + t.category().id()
+                            + (t.instant() ? " [мгновенный]" : ""),
                     NamedTextColor.WHITE));
         }
     }

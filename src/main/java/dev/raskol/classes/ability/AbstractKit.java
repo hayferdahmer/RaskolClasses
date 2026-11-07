@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.config.ConfigReads;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import java.util.Locale;
+import java.util.UUID;
+
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -14,8 +12,12 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 
-import java.util.Locale;
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.config.ConfigReads;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.14.8 (Sprint 5, P2-3): ОБЩИЙ ФУНДАМЕНТ шести китов способностей.
@@ -101,8 +103,8 @@ public abstract class AbstractKit {
     }
 
     protected String tpower(AbilityDef def) {
-        return plugin.getConfig().getString(
-                "classes." + pc.name() + ".treeAbilities." + def.id() + ".power", defaultPower);
+        return plugin.getConfig()
+                .getString("classes." + pc.name() + ".treeAbilities." + def.id() + ".power", defaultPower);
     }
 
     /* ------------------------------ урон / лечение ------------------------------ */
@@ -156,19 +158,20 @@ public abstract class AbstractKit {
     }
 
     protected void noTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "cheap-shot-no-target", "Нет цели в радиусе действия"), NamedTextColor.GRAY));
+        p.sendMessage(Component.text(
+                plugin.getRaskolConfig().message("cheap-shot-no-target", "Нет цели в радиусе действия"),
+                NamedTextColor.GRAY));
     }
 
     protected void allyTarget(Player p) {
-        p.sendMessage(Component.text(plugin.getRaskolConfig().message(
-                "ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
+        p.sendMessage(Component.text(
+                plugin.getRaskolConfig().message("ally.no-hit", "Союзника бить нельзя"), NamedTextColor.RED));
     }
 
     /* ------------------------------ VFX ------------------------------ */
 
-    protected void castFx(Player p, String id, String soundDef, String particleDef,
-                          float volume, float pitch, int count) {
+    protected void castFx(
+            Player p, String id, String soundDef, String particleDef, float volume, float pitch, int count) {
         Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".cast-sound", soundDef));
         Location loc = p.getLocation().add(0.0, 1.0, 0.0);
         if (sound != null) {
@@ -180,9 +183,8 @@ public abstract class AbstractKit {
         }
     }
 
-    protected void impactFx(LivingEntity target, String id,
-                            String soundDef, String particleDef,
-                            float volume, float pitch, int count) {
+    protected void impactFx(
+            LivingEntity target, String id, String soundDef, String particleDef, float volume, float pitch, int count) {
         Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
         Location loc = target.getLocation().add(0.0, 1.0, 0.0);
         if (sound != null) {
@@ -194,16 +196,15 @@ public abstract class AbstractKit {
         }
     }
 
-    protected void pointFx(Location loc, String id, String soundDef, String particleDef,
-                           float volume, float pitch, int count) {
+    protected void pointFx(
+            Location loc, String id, String soundDef, String particleDef, float volume, float pitch, int count) {
         Sound sound = plugin.getFx().resolveSound(cfgS("vfx." + id + ".impact-sound", soundDef));
         if (sound != null) {
             plugin.getFx().playSound(loc, sound, volume, pitch);
         }
         Particle particle = resolveParticle(cfgS("vfx." + id + ".impact-particle", particleDef));
         if (particle != null) {
-            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 0.5, 0.0),
-                    count, 0.4, 0.3, 0.4, 0.02);
+            loc.getWorld().spawnParticle(particle, loc.clone().add(0.0, 0.5, 0.0), count, 0.4, 0.3, 0.4, 0.02);
         }
     }
 

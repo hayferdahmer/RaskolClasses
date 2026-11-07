@@ -2,15 +2,17 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hotbar;
 
-import dev.raskol.classes.RaskolClasses;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
+
+import dev.raskol.classes.RaskolClasses;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
  * 1.6.11: санитизация свитков с мёртвыми/неизвестными id на входе игрока.
@@ -44,8 +46,7 @@ public final class ScrollSanitizer implements Listener {
         Player player = event.getPlayer();
         int removed = sanitize(player);
         if (removed > 0) {
-            player.sendMessage(Component.text("Удалены устаревшие классовые свитки: " + removed,
-                    NamedTextColor.GRAY));
+            player.sendMessage(Component.text("Удалены устаревшие классовые свитки: " + removed, NamedTextColor.GRAY));
         }
     }
 

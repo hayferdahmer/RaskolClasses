@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.bootstrap;
 
-import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.gui.book.TalentsTab;
+import java.util.UUID;
+
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-import java.util.UUID;
+import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.gui.book.TalentsTab;
 
 /**
  * 1.14.10 (Sprint 7, Волна 7.2, P0-4-01): сессионные слушатели входа/выхода,
