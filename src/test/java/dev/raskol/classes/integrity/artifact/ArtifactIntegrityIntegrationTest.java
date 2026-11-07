@@ -165,7 +165,7 @@ class ArtifactIntegrityIntegrationTest {
         Map<String, byte[]> modifiedFiles = new LinkedHashMap<>(originalFiles);
         modifiedFiles.put(
                 CONFIG_PATH,
-                bytes("debug: true\nlanguage: ru\n")
+                bytes("debug: true \nlanguage: ru\n")
         );
 
         assertEquals(
