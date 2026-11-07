@@ -111,8 +111,10 @@ import java.util.concurrent.atomic.AtomicReference;
  *         FactionHook retry, effective capacity, AffixRoller clamp→round,
  *         ItemPdc NPE-guard, AttributeService crit cap из конфига,
  *         Spec2Tree cycle-guard, AvoidanceService showTitle-троттлинг).
- * 1.15.6 (Волна 6 part 2 hotfix): опечатка resetAllDR → resetAllDr в 9 точках
- *         CC-чеков 82/83/84/90.
+ * 1.15.8 (Волна 8): economyData1155 — результаты mkdirs()/delete() ПРОВЕРЯЮТСЯ
+ *         (SpotBugs RV_RETURN_VALUE_IGNORED_BAD_PRACTICE ×2 закрыты); при неудаче
+ *         создания временной директории чек 143 падает с явной причиной,
+ *         при неудаче удаления — note в отчёте (тест не маскирует проблему ФС).
  *
  * Карта подсистем (номера чеков):
  *   mathBasics      1–16    атрибуты/бой (pure-формулы)
@@ -579,7 +581,17 @@ public final class SelftestRunner {
     private static void economyData1155(RaskolClasses plugin, Report r) {
         java.io.File tmpDir = new java.io.File(plugin.getDataFolder(),
                 "selftest_143_" + System.nanoTime());
-        tmpDir.mkdirs();
+        // 1.15.8 (Волна 8): результат mkdirs() проверяется (RV_RETURN_VALUE_IGNORED):
+        // без временной директории чек 143 не имеет смысла — падаем с явной причиной.
+        if (!tmpDir.mkdirs() && !tmpDir.isDirectory()) {
+            r.check("143", "1.15.5: SafeStorage round-trip — .bak после 2-й записи, без leftover .tmp",
+                    false, "SelftestRunner.economyData1155/mkdirs",
+                    "не удалось создать временную директорию " + tmpDir);
+            r.skip("144", "Foliant.saveLocksIfDirty (блок 143 прерван)");
+            r.skip("145", "craft UNKNOWN (блок 143 прерван)");
+            r.skip("146", "daily-limit гард (блок 143 прерван)");
+            return;
+        }
         java.io.File tmpFile = new java.io.File(tmpDir, "test.yml");
         org.bukkit.configuration.file.YamlConfiguration cfg =
                 new org.bukkit.configuration.file.YamlConfiguration();
@@ -602,10 +614,18 @@ public final class SelftestRunner {
         java.io.File[] leftovers = tmpDir.listFiles();
         if (leftovers != null) {
             for (java.io.File f : leftovers) {
-                f.delete();
+                // 1.15.8 (Волна 8): результат delete() проверяется; неудача не роняет
+                // чек (файлы уберёт StartupChecks.cleanupTmpFiles), но видна в отчёте.
+                if (!f.delete()) {
+                    r.note("⚠ 143: не удалось удалить временный файл " + f.getName()
+                            + " (подберёт cleanupTmpFiles на старте)");
+                }
             }
         }
-        tmpDir.delete();
+        if (!tmpDir.delete()) {
+            r.note("⚠ 143: не удалось удалить временную директорию " + tmpDir.getName()
+                    + " (подберёт cleanupTmpFiles на старте)");
+        }
         r.check("143", "1.15.5: SafeStorage round-trip — .bak после 2-й записи, без leftover .tmp",
                 ok143, "SafeStorage.saveAtomic/loadWithFallback",
                 "1st=" + firstSaved + " 2nd=" + secondSaved + " bak=" + bakPresentAfterSecond
