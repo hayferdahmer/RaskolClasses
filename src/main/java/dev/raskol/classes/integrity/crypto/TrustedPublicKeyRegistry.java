@@ -8,6 +8,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -70,15 +71,17 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Возвращает неизменяемый список ключей, разрешённых для проверки подписей.
+     * Возвращает неизменяемый снимок ключей, разрешённых для проверки подписей.
      *
      * <p>В список входят ACTIVE и VERIFY_ONLY.
      * REVOKED исключаются.</p>
      *
-     * @return неизменяемый список доверенных публичных ключей
+     * @return неизменяемый снимок доверенных публичных ключей
      */
     public static List<PublicKey> trustedKeys() {
-        return TRUSTED_KEYS;
+        return Collections.unmodifiableList(
+                new ArrayList<>(TRUSTED_KEYS)
+        );
     }
 
     /**
@@ -104,22 +107,26 @@ public final class TrustedPublicKeyRegistry {
      * <p>Метод является псевдонимом trustedKeys() для совместимости
      * с контрактом Ed25519SignatureService.</p>
      *
-     * @return неизменяемый список публичных ключей
+     * @return неизменяемый снимок публичных ключей
      */
     public static List<PublicKey> verifiablePublicKeys() {
-        return TRUSTED_KEYS;
+        return Collections.unmodifiableList(
+                new ArrayList<>(TRUSTED_KEYS)
+        );
     }
 
     /**
-     * Возвращает все записи закреплённых ключей, включая отозванные.
+     * Возвращает снимок всех записей закреплённых ключей, включая отозванные.
      *
      * <p>Предназначен для анализа жизненного цикла и диагностики безопасности.
      * Код проверки подписей должен использовать trustedKeys().</p>
      *
-     * @return неизменяемый список всех записей
+     * @return неизменяемый снимок всех записей
      */
     public static List<TrustedPublicKeyEntry> allEntries() {
-        return ALL_ENTRIES;
+        return Collections.unmodifiableList(
+                new ArrayList<>(ALL_ENTRIES)
+        );
     }
 
     /**
