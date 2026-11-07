@@ -20,6 +20,7 @@ import dev.raskol.classes.cc.VanillaCCWrapper;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
+import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.command.RaskolCommand;
