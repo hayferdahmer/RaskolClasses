@@ -18,8 +18,9 @@ import java.util.Objects;
  * <p>Trusted keys are pinned directly in the plugin source code.
  * External resources must never be used as a trust anchor.</p>
  *
- * <p>Multiple keys are supported to allow safe key rotation.
- * Old and new keys may coexist during a migration period.</p>
+ * <p>Each pinned key has an explicit lifecycle status. Only ACTIVE
+ * and VERIFY_ONLY keys are returned for signature verification.
+ * REVOKED keys remain recorded for auditability but are never trusted.</p>
  *
  * <p>Only public keys may be stored here. Private keys must remain
  * outside the repository and be available only to the trusted
@@ -28,22 +29,36 @@ import java.util.Objects;
 public final class TrustedPublicKeyRegistry {
 
     /*
-     * Key rotation:
+     * Key rotation policy:
      *
-     * 1. Add the new public key to this list.
-     * 2. Keep the old public key during the migration period.
-     * 3. Sign new releases with the new private key.
-     * 4. Remove the old public key only after old releases
-     *    are no longer required to be supported.
+     * 1. Add the new public key with status ACTIVE.
+     * 2. Change the previous ACTIVE key to VERIFY_ONLY.
+     * 3. Sign new releases with the new private key in the external
+     *    trusted release pipeline.
+     * 4. Keep VERIFY_ONLY keys while old releases must remain valid.
+     * 5. Change a compromised key to REVOKED immediately.
      *
-     * Never add private keys to this list.
+     * Never add private keys to this registry.
      */
-    private static final List<String> PINNED_PUBLIC_KEYS = List.of(
-            "MCowBQYDK2VwAyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q="
-    );
+    private static final List<PinnedKeyConfiguration> PINNED_KEYS =
+            List.of(
+                    new PinnedKeyConfiguration(
+                            "MCowBQYDK2VwAyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q=",
+                            TrustedKeyStatus.ACTIVE
+                    )
+            );
 
+    private static final List<TrustedPublicKeyEntry> ALL_ENTRIES =
+            loadPinnedEntries();
+
+    /**
+     * Contains only keys authorized for signature verification.
+     */
     private static final List<PublicKey> TRUSTED_KEYS =
-            loadPinnedKeys();
+            ALL_ENTRIES.stream()
+                    .filter(TrustedPublicKeyEntry::canVerify)
+                    .map(TrustedPublicKeyEntry::publicKey)
+                    .toList();
 
     private TrustedPublicKeyRegistry() {
         throw new UnsupportedOperationException(
@@ -52,20 +67,35 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Returns an immutable list of trusted public keys.
+     * Returns an immutable list of keys authorized for verification.
      *
-     * @return trusted public keys
+     * <p>ACTIVE and VERIFY_ONLY keys are included.
+     * REVOKED keys are excluded.</p>
+     *
+     * @return immutable list of trusted public keys
      */
     public static List<PublicKey> trustedKeys() {
         return TRUSTED_KEYS;
     }
 
     /**
-     * Checks whether the supplied public key is present in the
-     * pinned trust registry.
+     * Returns every pinned key entry, including revoked entries.
+     *
+     * <p>This method is intended for lifecycle inspection and
+     * security diagnostics. Verification code must use trustedKeys().</p>
+     *
+     * @return immutable list of all configured key entries
+     */
+    public static List<TrustedPublicKeyEntry> allEntries() {
+        return ALL_ENTRIES;
+    }
+
+    /**
+     * Checks whether the supplied public key is currently trusted
+     * for signature verification.
      *
      * @param candidate public key to check
-     * @return true if the key is trusted
+     * @return true if the key is ACTIVE or VERIFY_ONLY
      */
     public static boolean isTrusted(PublicKey candidate) {
         if (candidate == null || candidate.getEncoded() == null) {
@@ -86,7 +116,8 @@ public final class TrustedPublicKeyRegistry {
     }
 
     /**
-     * Returns SHA-256 fingerprints of all pinned public keys.
+     * Returns SHA-256 fingerprints of keys currently trusted
+     * for signature verification.
      *
      * @return immutable list of lowercase hexadecimal fingerprints
      */
@@ -132,8 +163,8 @@ public final class TrustedPublicKeyRegistry {
     /**
      * Decodes and validates a list of pinned Ed25519 public keys.
      *
-     * <p>This method is package-private to allow isolated registry
-     * tests without changing the production trust configuration.</p>
+     * <p>This method is retained for compatibility with existing tests
+     * and integrations.</p>
      *
      * @param encodedKeys Base64-encoded X.509 public keys
      * @return immutable list of decoded public keys
@@ -206,11 +237,90 @@ public final class TrustedPublicKeyRegistry {
         return List.copyOf(keys);
     }
 
-    private static List<PublicKey> loadPinnedKeys() {
+    /**
+     * Decodes key configurations and attaches their lifecycle statuses.
+     *
+     * <p>Package-private to allow isolated lifecycle tests without
+     * changing the production trust configuration.</p>
+     *
+     * @param configurations pinned key configurations
+     * @return immutable list of entries, including revoked entries
+     * @throws GeneralSecurityException if configuration is invalid
+     */
+    static List<TrustedPublicKeyEntry> decodePinnedEntries(
+            List<PinnedKeyConfiguration> configurations
+    ) throws GeneralSecurityException {
+
+        Objects.requireNonNull(configurations, "configurations");
+
+        if (configurations.isEmpty()) {
+            throw new GeneralSecurityException(
+                    "RIPS trusted public key registry is empty"
+            );
+        }
+
+        List<String> encodedKeys = new ArrayList<>(
+                configurations.size()
+        );
+
+        for (PinnedKeyConfiguration configuration : configurations) {
+            if (configuration == null) {
+                throw new GeneralSecurityException(
+                        "Pinned key configuration cannot be null"
+                );
+            }
+
+            if (configuration.status() == null) {
+                throw new GeneralSecurityException(
+                        "Pinned key status cannot be null"
+                );
+            }
+
+            encodedKeys.add(configuration.encodedPublicKey());
+        }
+
+        List<PublicKey> decodedKeys = decodePinnedKeys(encodedKeys);
+
+        List<TrustedPublicKeyEntry> entries =
+                new ArrayList<>(decodedKeys.size());
+
+        for (int i = 0; i < decodedKeys.size(); i++) {
+            PublicKey publicKey = decodedKeys.get(i);
+
+            TrustedKeyDescriptor descriptor =
+                    new TrustedKeyDescriptor(
+                            fingerprint(publicKey),
+                            configurations.get(i).status()
+                    );
+
+            entries.add(
+                    new TrustedPublicKeyEntry(
+                            publicKey,
+                            descriptor
+                    )
+            );
+        }
+
+        return List.copyOf(entries);
+    }
+
+    private static List<TrustedPublicKeyEntry> loadPinnedEntries() {
         try {
-            return decodePinnedKeys(PINNED_PUBLIC_KEYS);
-        } catch (GeneralSecurityException exception) {
+            return decodePinnedEntries(PINNED_KEYS);
+        } catch (GeneralSecurityException
+                 | IllegalArgumentException exception) {
             throw new ExceptionInInitializerError(exception);
         }
+    }
+
+    /**
+     * Source-level configuration for one pinned public key.
+     *
+     * <p>Package-private for isolated tests.</p>
+     */
+    record PinnedKeyConfiguration(
+            String encodedPublicKey,
+            TrustedKeyStatus status
+    ) {
     }
 }
