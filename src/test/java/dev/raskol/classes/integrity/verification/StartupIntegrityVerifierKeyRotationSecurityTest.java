@@ -174,11 +174,14 @@ class StartupIntegrityVerifierKeyRotationSecurityTest {
         byte[] oldManifestSignature =
                 resources.get(SIGNATURE_RESOURCE).clone();
 
-        installManifest(newKeyPair);
+        byte[] changedContent = PROTECTED_CONTENT.clone();
+        changedContent[0] ^= 1;
+
+        installManifest(newKeyPair, changedContent);
 
         /*
-         * The manifest is now signed by the new key,
-         * but the detached signature belongs to the old manifest.
+         * Второй манифест содержит другой хэш защищённого файла.
+         * Вместо его подписи подставляется подпись первого манифеста.
          */
         resources.put(
                 SIGNATURE_RESOURCE,
@@ -303,11 +306,18 @@ class StartupIntegrityVerifierKeyRotationSecurityTest {
 
     private void installManifest(KeyPair signingKey)
             throws GeneralSecurityException {
+        installManifest(signingKey, PROTECTED_CONTENT);
+    }
+
+    private void installManifest(
+            KeyPair signingKey,
+            byte[] protectedContent
+    ) throws GeneralSecurityException {
 
         ManifestFileEntry entry = new ManifestFileEntry(
                 PROTECTED_PATH,
-                PROTECTED_CONTENT.length,
-                Sha256HashService.hash(PROTECTED_CONTENT)
+                protectedContent.length,
+                Sha256HashService.hash(protectedContent)
         );
 
         IntegrityManifest manifest = new IntegrityManifest(
@@ -337,7 +347,7 @@ class StartupIntegrityVerifierKeyRotationSecurityTest {
 
         resources.put(
                 "/" + PROTECTED_PATH,
-                PROTECTED_CONTENT.clone()
+                protectedContent.clone()
         );
     }
 }
