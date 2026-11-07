@@ -6,6 +6,9 @@ package dev.raskol.classes.combat;
  * 1.11.4 (P3): pure-математика боя без Bukkit-зависимостей.
  * Всё тестируется headless (selftest-чеки 16, 41+).
  * Задел 1.12.0: effectiveResist/mitigation — порядок пробития (flat → pct).
+ *
+ * 1.15.8 (Волна 8d, аудит 2.2-10): удалён неиспользуемый private метод clamp
+ * (нигде не вызывался в файле; остаток мёртвого кода после рефакторинга effectiveResist).
  */
 public final class CombatMath {
 
@@ -58,9 +61,5 @@ public final class CombatMath {
         double safe = Double.isFinite(resistPct) ? resistPct : 0.0;
         double cap = Double.isFinite(capPct) ? capPct : 90.0;
         return Math.max(0.0, Math.min(safe, cap)) / 100.0;
-    }
-
-    private static double clamp(double v, double min, double max) {
-        return Math.max(min, Math.min(max, v));
     }
 }
