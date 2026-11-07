@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+# © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+# SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+
+import base64
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+from pathlib import Path
+
+from verify_release_signing_policy import (
+    parse_pinned_keys,
+    verify_release_signing_policy,
+)
+
+
+ED25519_SPKI_PREFIX = bytes.fromhex(
+    "302a300506032b6570032100"
+)
+
+
+def encode_public_key(public_key: bytes) -> str:
+    return base64.b64encode(public_key).decode("ascii")
+
+
+def build_registry(entries: list[tuple[str, str]]) -> str:
+    configured_entries = []
+
+    for encoded_key, status in entries:
+        configured_entries.append(
+            "new PinnedKeyConfiguration("
+            f'"{encoded_key}", TrustedKeyStatus.{status}'
+            ")"
+        )
+
+    body = ",\n".join(configured_entries)
+
+    return f"""
+    private static final List<PinnedKeyConfiguration> PINNED_KEYS =
+            List.of(
+                {body}
+            );
+    """
+
+
+class TrustedPublicKeyRegistryPolicyTest(unittest.TestCase):
+
+    def setUp(self) -> None:
+        self.public_key_a = encode_public_key(
+            ED25519_SPKI_PREFIX + bytes([1] * 32)
+        )
+
+        self.public_key_b = encode_public_key(
+            ED25519_SPKI_PREFIX + bytes([2] * 32)
+        )
+
+    def test_accepts_one_active_and_other_lifecycle_states(self):
+        source = build_registry([
+            (self.public_key_a, "ACTIVE"),
+            (self.public_key_b, "VERIFY_ONLY"),
+        ])
+
+        entries = parse_pinned_keys(source)
+
+        self.assertEqual(
+            ["ACTIVE", "VERIFY_ONLY"],
+            [entry.status for entry in entries]
+        )
+
+    def test_rejects_registry_without_active_key(self):
+        source = build_registry([
+            (self.public_key_a, "VERIFY_ONLY"),
+            (self.public_key_b, "REVOKED"),
+        ])
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "exactly one ACTIVE"
+        ):
+            parse_pinned_keys(source)
+
+    def test_rejects_multiple_active_keys(self):
+        source = build_registry([
+            (self.public_key_a, "ACTIVE"),
+            (self.public_key_b, "ACTIVE"),
+        ])
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "exactly one ACTIVE"
+        ):
+            parse_pinned_keys(source)
+
+    def test_rejects_duplicate_public_keys(self):
+        source = build_registry([
+            (self.public_key_a, "ACTIVE"),
+            (self.public_key_a, "VERIFY_ONLY"),
+        ])
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "Duplicate trusted public key"
+        ):
+            parse_pinned_keys(source)
+
+    def test_rejects_invalid_base64(self):
+        source = build_registry([
+            ("not-valid-base64!", "ACTIVE"),
+        ])
+
+        with self.assertRaises(ValueError):
+            parse_pinned_keys(source)
+
+    def test_rejects_invalid_ed25519_encoding(self):
+        invalid_key = encode_public_key(b"invalid-key")
+
+        source = build_registry([
+            (invalid_key, "ACTIVE"),
+        ])
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "not a valid Ed25519"
+        ):
+            parse_pinned_keys(source)
+
+    def test_rejects_unknown_registry_expression(self):
+        source = """
+        private static final List<PinnedKeyConfiguration> PINNED_KEYS =
+                List.of(
+                    new PinnedKeyConfiguration(
+                        "MCowBQYDK2VwAyEA",
+                        TrustedKeyStatus.ACTIVE
+                    ),
+                    UNKNOWN_KEY_CONFIGURATION
+                );
+        """
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "Unsupported expression"
+        ):
+            parse_pinned_keys(source)
+
+
+@unittest.skipUnless(
+    shutil.which("openssl"),
+    "OpenSSL is required for this integration test",
+)
+class ReleaseSigningKeyMatchTest(unittest.TestCase):
+
+    def test_private_key_matches_active_public_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+
+            private_path = folder / "private.pk8"
+            public_path = folder / "public.der"
+
+            subprocess.run(
+                [
+                    shutil.which("openssl"),
+                    "genpkey",
+                    "-algorithm",
+                    "ED25519",
+                    "-outform",
+                    "DER",
+                    "-out",
+                    str(private_path),
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=20,
+            )
+
+            subprocess.run(
+                [
+                    shutil.which("openssl"),
+                    "pkey",
+                    "-inform",
+                    "DER",
+                    "-in",
+                    str(private_path),
+                    "-pubout",
+                    "-outform",
+                    "DER",
+                    "-out",
+                    str(public_path),
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=20,
+            )
+
+            private_key_b64 = base64.b64encode(
+                private_path.read_bytes()
+            ).decode("ascii")
+
+            public_key_b64 = base64.b64encode(
+                public_path.read_bytes()
+            ).decode("ascii")
+
+            registry_source = build_registry([
+                (public_key_b64, "ACTIVE"),
+            ])
+
+            fingerprint = verify_release_signing_policy(
+                registry_source,
+                private_key_b64,
+            )
+
+            self.assertEqual(64, len(fingerprint))
+
+
+if __name__ == "__main__":
+    unittest.main()
