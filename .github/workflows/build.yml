@@ -137,11 +137,11 @@ jobs:
           RIPS_SIGNING_PRIVATE_KEY_B64: ${{ secrets.RIPS_SIGNING_PRIVATE_KEY_B64 }}
         run: |
           JAR="release-artifacts/raskol-classes-${GITHUB_REF_NAME#v}.jar"
-          python3 tools/rips/create-official-artifact.py \\
-            --jar "$JAR" \\
-            --version "${GITHUB_REF_NAME#v}" \\
-            --build-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \\
-            --commit "$GITHUB_SHA" \\
+          python3 tools/rips/create-official-artifact.py \
+            --jar "$JAR" \
+            --version "${GITHUB_REF_NAME#v}" \
+            --build-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --commit "$GITHUB_SHA" \
             --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Extract changelog section
