@@ -32,13 +32,16 @@ class JarArchiveIntegrityVerifierTest {
     private static final String SIGNATURE_PATH =
             "META-INF/raskol/integrity/manifest.sig";
 
+    private static final String PUBLIC_KEY_PATH =
+            "META-INF/raskol/integrity/public-key.txt";
+
     @TempDir
     Path temporaryDirectory;
 
     @Test
     void shouldVerifyCompleteArchive() throws Exception {
-        byte[] classContent = "protected-class-content".getBytes(StandardCharsets.UTF_8);
-        byte[] configContent = "protected-config-content".getBytes(StandardCharsets.UTF_8);
+        byte[] classContent = bytes("protected-class-content");
+        byte[] configContent = bytes("protected-config-content");
 
         Path archive = createArchive(
                 "plugin.jar",
@@ -53,7 +56,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", configContent)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.VERIFIED, result.status());
@@ -61,6 +64,58 @@ class JarArchiveIntegrityVerifierTest {
         assertEquals(4, result.archiveEntries());
         assertEquals(2, result.checkedFiles());
         assertTrue(result.failedFiles().isEmpty());
+    }
+
+    @Test
+    void shouldAllowPublicKeyAsIntegrityMetadata() throws Exception {
+        byte[] classContent = bytes("protected-class-content");
+        byte[] publicKey = bytes("trusted-public-key");
+
+        Path archive = createArchive(
+                "with-public-key.jar",
+                new ArchiveEntry("dev/raskol/Test.class", classContent),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2}),
+                new ArchiveEntry(PUBLIC_KEY_PATH, publicKey)
+        );
+
+        IntegrityManifest manifest = manifest(
+                fileEntry("dev/raskol/Test.class", classContent)
+        );
+
+        ArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
+
+        assertEquals(ArchiveIntegrityStatus.VERIFIED, result.status());
+        assertTrue(result.isVerified());
+        assertEquals(4, result.archiveEntries());
+        assertEquals(1, result.checkedFiles());
+        assertTrue(result.failedFiles().isEmpty());
+    }
+
+    @Test
+    void shouldRejectPublicKeyInsideManifest() throws Exception {
+        byte[] publicKey = bytes("trusted-public-key");
+
+        Path archive = createArchive(
+                "public-key-in-manifest.jar",
+                new ArchiveEntry(PUBLIC_KEY_PATH, publicKey),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2})
+        );
+
+        IntegrityManifest manifest = manifest(
+                fileEntry(PUBLIC_KEY_PATH, publicKey)
+        );
+
+        ArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
+
+        assertEquals(
+                ArchiveIntegrityStatus.INVALID_MANIFEST,
+                result.status()
+        );
+        assertFalse(result.isVerified());
     }
 
     @Test
@@ -80,7 +135,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", expectedContent)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -105,7 +160,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", expectedContent)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -131,7 +186,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", expectedContent)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -157,7 +212,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", expectedContent)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -180,7 +235,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", bytes("expected"))
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -199,7 +254,7 @@ class JarArchiveIntegrityVerifierTest {
 
         IntegrityManifest manifest = manifest();
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.MANIFEST_EMPTY, result.status());
@@ -219,7 +274,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry(MANIFEST_PATH, metadata)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.INVALID_MANIFEST, result.status());
@@ -240,7 +295,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", content)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(
                         archive,
                         5,
@@ -269,7 +324,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("second.txt", second)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(
                         archive,
                         100,
@@ -298,7 +353,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("second.txt", bytes("second"))
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(
                         archive,
                         100,
@@ -321,7 +376,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", bytes("expected"))
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(ArchiveIntegrityStatus.ARCHIVE_READ_ERROR, result.status());
@@ -344,7 +399,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("Config.yml", first)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -369,7 +424,7 @@ class JarArchiveIntegrityVerifierTest {
                 fileEntry("config.yml", content)
         );
 
-        JarArchiveIntegrityVerificationResult result =
+        ArchiveIntegrityVerificationResult result =
                 new JarArchiveIntegrityVerifier(archive).verify(manifest);
 
         assertEquals(
@@ -377,6 +432,41 @@ class JarArchiveIntegrityVerifierTest {
                 result.status()
         );
         assertTrue(result.failedFiles().contains("unexpected/"));
+    }
+
+    @Test
+    void shouldAllowIntegrityMetadataDirectory() throws Exception {
+        byte[] content = bytes("protected-content");
+
+        Path archive = createArchive(
+                "integrity-directory.jar",
+                new ArchiveEntry("dev/raskol/Test.class", content),
+                new ArchiveEntry(
+                        "META-INF/",
+                        new byte[0]
+                ),
+                new ArchiveEntry(
+                        "META-INF/raskol/",
+                        new byte[0]
+                ),
+                new ArchiveEntry(
+                        "META-INF/raskol/integrity/",
+                        new byte[0]
+                ),
+                new ArchiveEntry(MANIFEST_PATH, new byte[]{1}),
+                new ArchiveEntry(SIGNATURE_PATH, new byte[]{2}),
+                new ArchiveEntry(PUBLIC_KEY_PATH, bytes("public-key"))
+        );
+
+        IntegrityManifest manifest = manifest(
+                fileEntry("dev/raskol/Test.class", content)
+        );
+
+        ArchiveIntegrityVerificationResult result =
+                new JarArchiveIntegrityVerifier(archive).verify(manifest);
+
+        assertEquals(ArchiveIntegrityStatus.VERIFIED, result.status());
+        assertTrue(result.isVerified());
     }
 
     @Test
@@ -461,7 +551,7 @@ class JarArchiveIntegrityVerifierTest {
         );
     }
 
-    private byte[] bytes(String value) {
+    private static byte[] bytes(String value) {
         return value.getBytes(StandardCharsets.UTF_8);
     }
 
