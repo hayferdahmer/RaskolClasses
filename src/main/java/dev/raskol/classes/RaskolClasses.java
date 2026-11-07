@@ -1,3 +1,4 @@
+
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes;
@@ -40,6 +41,7 @@ import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.item.service.ItemSystem;
 import dev.raskol.classes.integrity.artifact.ArtifactBoundIntegrityVerifier;
 import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
+import dev.raskol.classes.integrity.policy.RuntimeIntegrityEnforcementPolicy;
 import dev.raskol.classes.integrity.reporting.SecurityReporter;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityMonitor;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegritySnapshot;
@@ -188,6 +190,10 @@ public final class RaskolClasses extends JavaPlugin {
 
     /** RIPS runtime integrity monitor; started only after successful plugin initialization. */
     private RuntimeIntegrityMonitor runtimeIntegrityMonitor;
+
+    /** Runtime policy for classifying integrity failures. */
+    private final RuntimeIntegrityEnforcementPolicy runtimeIntegrityEnforcementPolicy =
+            new RuntimeIntegrityEnforcementPolicy();
 
     /**
      * Prevents multiple runtime integrity failures from scheduling
@@ -454,10 +460,12 @@ public final class RaskolClasses extends JavaPlugin {
     /**
      * Handles a runtime integrity failure.
      *
+     * <p>Confirmed integrity violations trigger immediate shutdown.
+     * Temporary verification failures are tolerated up to the configured
+     * consecutive failure threshold.</p>
+     *
      * <p>This method is invoked by the background monitoring thread.
-     * It only schedules plugin shutdown on the Paper main thread.
-     * Bukkit plugin lifecycle operations are never performed directly
-     * by the monitoring thread.</p>
+     * Plugin lifecycle operations are dispatched to the Paper main thread.</p>
      *
      * @param snapshot failed runtime integrity snapshot
      */
@@ -466,6 +474,24 @@ public final class RaskolClasses extends JavaPlugin {
     ) {
         if (snapshot == null
                 || snapshot.state() != RuntimeIntegrityState.FAILED) {
+            return;
+        }
+
+        if (!runtimeIntegrityEnforcementPolicy.shouldDisable(snapshot)) {
+            String status = snapshot.lastResult() == null
+                    ? "VERIFICATION_EXECUTION_ERROR"
+                    : snapshot.lastResult().status().name();
+
+            getLogger().warning(
+                    "[RIPS] Runtime verification failure tolerated. "
+                            + "Status: " + status
+                            + ", consecutiveFailures="
+                            + snapshot.consecutiveFailures()
+                            + "/"
+                            + runtimeIntegrityEnforcementPolicy
+                                    .getTransientFailureThreshold()
+            );
+
             return;
         }
 
@@ -486,19 +512,23 @@ public final class RaskolClasses extends JavaPlugin {
                 getLogger().severe(
                         "[RIPS] Runtime integrity enforcement triggered. "
                                 + "Status: " + status
+                                + ", consecutiveFailures="
+                                + snapshot.consecutiveFailures()
                 );
 
                 getLogger().severe(
-                        "[RIPS] Disabling RaskolClasses because artifact integrity "
-                                + "could not be verified."
+                        "[RIPS] Disabling RaskolClasses because runtime "
+                                + "integrity verification failed."
                 );
 
                 getServer().getPluginManager().disablePlugin(this);
             });
         } catch (RuntimeException exception) {
+            runtimeIntegrityFailureScheduled.set(false);
+
             getLogger().severe(
-                    "[RIPS] Unable to schedule plugin shutdown on the Paper main thread: "
-                            + exception.getMessage()
+                    "[RIPS] Unable to schedule plugin shutdown on the Paper "
+                            + "main thread: " + exception.getMessage()
             );
         }
     }
