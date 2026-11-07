@@ -4,9 +4,11 @@
 SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
 1.15.8: Волна 8 — spotless (форматирование), JaCoCo (покрытие кода),
-        пин paper-api на релиз 1.21.4-R0.1, убран дубль compiler-plugin,
+        paper-api остаётся на SNAPSHOT (релизных артефактов Paper до выхода
+        Minecraft 1.21.5 не публикует; пин на 1.21.4-R0.1 ломал resolve),
+        убран дубль compiler-plugin через pluginManagement,
         SpotBugs переведён в failOnError=true после починки находок.
-1.15.7: Волны аудита 3–7: боевой конвейер, spec2-контракты, конкурентность,
+1.15.7: волны аудита 3–7: боевой конвейер, spec2-контракты, конкурентность,
         хранилище, FX, pet-слой, лицензия v2.0, CI-гейты.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
@@ -25,7 +27,9 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <!-- 1.15.8: пин на релиз paper-api (SNAPSHOT нестабилен, ломает CI) -->
+    <!-- 1.15.8-fix: Paper публикует paper-api ТОЛЬКО как SNAPSHOT до релиза
+         следующей версии Minecraft; пин на 1.21.4-R0.1 давал
+         "Could not find artifact" во всех репозиториях. -->
     <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
     <luckperms.version>5.4</luckperms.version>
     <placeholderapi.version>2.11.6</placeholderapi.version>
@@ -82,7 +86,8 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
     <finalName>raskol-classes-${project.version}</finalName>
     <pluginManagement>
       <plugins>
-        <!-- 1.15.8: все версии плагинов в pluginManagement, без дублей в профилях -->
+        <!-- 1.15.8: все версии плагинов объявлены один раз здесь;
+             профиль dev переопределяет только конфигурацию, не версию. -->
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
@@ -147,7 +152,8 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
       <id>dev</id>
       <build>
         <plugins>
-          <!-- 1.15.8: убран дубль compiler-plugin, только override конфигурации -->
+          <!-- 1.15.8: версия и базовая конфигурация наследуются из pluginManagement;
+               здесь только lint-флаги (аудит 2.14-2: дубль объявления убран). -->
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-compiler-plugin</artifactId>
@@ -167,7 +173,9 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
               <threshold>Medium</threshold>
               <xmlOutput>true</xmlOutput>
               <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
-              <!-- 1.15.8: failOnError=true после починки находок -->
+              <!-- 1.15.8: блокирующий гейт после починки находок Волны 8.
+                   Если analyze станет красным из-за DLS_DEAD_LOCAL_STORE —
+                   не применён фикс PlusGui.onClick (удаление переменной active). -->
               <failOnError>true</failOnError>
             </configuration>
             <executions>
@@ -179,7 +187,6 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
               </execution>
             </executions>
           </plugin>
-          <!-- 1.15.8: spotless — автоформатирование кода -->
           <plugin>
             <groupId>com.diffplug.spotless</groupId>
             <artifactId>spotless-maven-plugin</artifactId>
@@ -201,7 +208,6 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
               </execution>
             </executions>
           </plugin>
-          <!-- 1.15.8: JaCoCo — покрытие кода -->
           <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
