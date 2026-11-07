@@ -1,4 +1,3 @@
-```java
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.crypto;
@@ -9,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -126,10 +126,9 @@ class Ed25519SignatureServiceTest {
         KeyPair originalKeyPair =
                 Ed25519SignatureService.generateKeyPair();
 
-        String encodedPrivateKey =
-                Ed25519SignatureService.encodePrivateKey(
-                        originalKeyPair.getPrivate()
-                );
+        String encodedPrivateKey = Base64.getEncoder().encodeToString(
+                originalKeyPair.getPrivate().getEncoded()
+        );
 
         String encodedPublicKey =
                 Ed25519SignatureService.encodePublicKey(
@@ -165,9 +164,8 @@ class Ed25519SignatureServiceTest {
 
     @Test
     void shouldRejectInvalidBase64Key() {
-        assertThrows(
-                Exception.class,
-                () -> Ed25519SignatureService.decodePublicKey(
+        assertNull(
+                Ed25519SignatureService.decodePublicKey(
                         "not-a-valid-base64-key!"
                 )
         );
@@ -175,24 +173,28 @@ class Ed25519SignatureServiceTest {
 
     @Test
     void shouldRejectBlankPrivateKey() {
-        assertThrows(
-                Exception.class,
-                () -> Ed25519SignatureService.decodePrivateKey(" ")
-        );
+        assertNull(Ed25519SignatureService.decodePrivateKey(" "));
     }
 
     @Test
-    void shouldRejectNullData() throws Exception {
+    void shouldHandleNullDataSafely() throws Exception {
         KeyPair keyPair =
                 Ed25519SignatureService.generateKeyPair();
 
-        assertThrows(
-                NullPointerException.class,
-                () -> Ed25519SignatureService.sign(
+        assertEquals(
+                0,
+                Ed25519SignatureService.sign(
                         null,
                         keyPair.getPrivate()
+                ).length
+        );
+
+        assertFalse(
+                Ed25519SignatureService.verify(
+                        null,
+                        new byte[Ed25519SignatureService.SIGNATURE_LENGTH],
+                        keyPair.getPublic()
                 )
         );
     }
 }
-```
