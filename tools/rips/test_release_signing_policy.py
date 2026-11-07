@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 
 import base64
+import importlib.util
 import shutil
 import subprocess
 import tempfile
@@ -10,10 +11,20 @@ import unittest
 
 from pathlib import Path
 
-from verify_release_signing_policy import (
-    parse_pinned_keys,
-    verify_release_signing_policy,
+# 1.15.8-fix: файл политики называется verify-release-signing-policy.py (дефисы —
+# CLI-соглашение), поэтому обычный `import verify_release_signing_policy` невозможен
+# (ModuleNotFoundError в CI). Загружаем модуль явно по пути через importlib —
+# это также снимает зависимость от того, как unittest discover наполняет sys.path.
+_MODULE_PATH = Path(__file__).resolve().parent / "verify-release-signing-policy.py"
+_spec = importlib.util.spec_from_file_location(
+    "verify_release_signing_policy",
+    _MODULE_PATH,
 )
+_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_module)
+
+parse_pinned_keys = _module.parse_pinned_keys
+verify_release_signing_policy = _module.verify_release_signing_policy
 
 
 ED25519_SPKI_PREFIX = bytes.fromhex(
@@ -127,11 +138,14 @@ class TrustedPublicKeyRegistryPolicyTest(unittest.TestCase):
             parse_pinned_keys(source)
 
     def test_rejects_unknown_registry_expression(self):
-        source = """
+        # 1.15.8-fix: первый ключ должен быть ВАЛИДНЫМ Ed25519 (44 байта),
+        # иначе парсер падает на проверке ключа раньше, чем доходит до
+        # разбора неизвестного выражения UNKNOWN_KEY_CONFIGURATION.
+        source = f"""
         private static final List<PinnedKeyConfiguration> PINNED_KEYS =
                 List.of(
                     new PinnedKeyConfiguration(
-                        "MCowBQYDK2VwAyEA",
+                        "{self.public_key_a}",
                         TrustedKeyStatus.ACTIVE
                     ),
                     UNKNOWN_KEY_CONFIGURATION
