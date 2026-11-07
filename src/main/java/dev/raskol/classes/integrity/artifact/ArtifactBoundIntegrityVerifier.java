@@ -5,7 +5,7 @@ package dev.raskol.classes.integrity.artifact;
 import dev.raskol.classes.integrity.build.BuildIdentity;
 import dev.raskol.classes.integrity.build.BuildIdentityLoader;
 import dev.raskol.classes.integrity.build.DevelopmentMode;
-import dev.raskol.classes.integrity.crypto.TrustedPublicKeyLoader;
+import dev.raskol.classes.integrity.crypto.TrustedPublicKeyRegistry;
 import dev.raskol.classes.integrity.manifest.IntegrityManifest;
 import dev.raskol.classes.integrity.manifest.IntegrityManifestParser;
 import dev.raskol.classes.integrity.verification.IntegrityStatus;
@@ -15,7 +15,6 @@ import dev.raskol.classes.integrity.verification.StartupIntegrityVerifier;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.security.PublicKey;
 import java.util.List;
 import java.util.Objects;
@@ -32,7 +31,7 @@ import java.util.Objects;
  *     <li>Load build identity.</li>
  *     <li>Check explicit development-mode authorization.</li>
  *     <li>Locate the physical plugin artifact.</li>
- *     <li>Load the trusted Ed25519 public key.</li>
+ *     <li>Load the source-pinned trusted Ed25519 public keys.</li>
  *     <li>Verify the signed manifest and protected files.</li>
  *     <li>Parse the verified manifest.</li>
  *     <li>Verify the complete JAR archive.</li>
@@ -111,14 +110,21 @@ public final class ArtifactBoundIntegrityVerifier {
             );
         }
 
-        final PublicKey trustedPublicKey;
+        final List<PublicKey> trustedPublicKeys;
 
         try {
-            trustedPublicKey = TrustedPublicKeyLoader.load(anchor);
-        } catch (IOException | GeneralSecurityException | SecurityException exception) {
+            trustedPublicKeys = TrustedPublicKeyRegistry.trustedKeys();
+
+            if (trustedPublicKeys.isEmpty()) {
+                return failure(
+                        IntegrityStatus.TRUSTED_KEY_UNAVAILABLE,
+                        "RIPS trusted public key registry is empty."
+                );
+            }
+        } catch (ExceptionInInitializerError exception) {
             return failure(
                     IntegrityStatus.TRUSTED_KEY_UNAVAILABLE,
-                    "Trusted public key is missing or invalid."
+                    "RIPS trusted public key registry is invalid."
             );
         }
 
@@ -126,7 +132,8 @@ public final class ArtifactBoundIntegrityVerifier {
                 new StartupIntegrityVerifier(
                         resourceProvider,
                         buildIdentity,
-                        trustedPublicKey
+                        null,
+                        trustedPublicKeys
                 );
 
         IntegrityVerificationResult startupResult =
