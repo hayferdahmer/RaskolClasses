@@ -1,4 +1,3 @@
-
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.crypto;
@@ -44,16 +43,16 @@ public final class TrustedPublicKeyRegistry {
      * Никогда не добавлять приватные ключи в этот реестр.
      */
     private static final List<PinnedKeyConfiguration> PINNED_KEYS =
-            List.of(
-                    new PinnedKeyConfiguration(
-                            "MCowBQYDK2V2AyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q=",
-                            TrustedKeyStatus.ACTIVE
-                    ),
-                    new PinnedKeyConfiguration(
-                            "MCowBQYDK2VwAyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q=",
-                            TrustedKeyStatus.VERIFY_ONLY
-                    )
-            );
+        List.of(
+                new PinnedKeyConfiguration(
+                        "MCowBQYDK2VwAyEAESiWqMfemhrSC9x1q+sRz7Lo3cd1KIQSvWGBA/4In6Q=",
+                        TrustedKeyStatus.ACTIVE
+                ),
+                new PinnedKeyConfiguration(
+                        "MCowBQYDK2VwAyEAhUN83jyPkPFpZw6deKdnAAVOm94H6TRHg6ASZwv8GD4=",
+                        TrustedKeyStatus.VERIFY_ONLY
+                )
+        );
 
     private static final List<TrustedPublicKeyEntry> ALL_ENTRIES =
             loadPinnedEntries();
