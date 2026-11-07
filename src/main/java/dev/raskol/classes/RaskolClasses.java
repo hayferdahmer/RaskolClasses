@@ -38,13 +38,13 @@ import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.item.service.ItemSystem;
+import dev.raskol.classes.integrity.artifact.ArtifactBoundIntegrityVerifier;
 import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
 import dev.raskol.classes.integrity.reporting.SecurityReporter;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityMonitor;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityStateManager;
 import dev.raskol.classes.integrity.runtime.RuntimeSecurityReporter;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
-import dev.raskol.classes.integrity.verification.StartupIntegrityVerifier;
 import dev.raskol.classes.api.items.ItemsApi;
 import dev.raskol.classes.api.combat.CombatProfileRegistry;
 import dev.raskol.classes.api.combat.CombatProfileLifecycleListener;
@@ -78,9 +78,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.File;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.time.Duration;
 import java.util.concurrent.Executors;
 
 /**
@@ -177,6 +177,9 @@ public final class RaskolClasses extends JavaPlugin {
 
     private final List<BukkitTask> activeTasks = new ArrayList<>();
 
+    /** RIPS verifier shared by startup and runtime checks. */
+    private ArtifactBoundIntegrityVerifier artifactBoundIntegrityVerifier;
+
     /** Result of the RIPS startup integrity verification. */
     private IntegrityVerificationResult integrityVerificationResult;
 
@@ -184,18 +187,16 @@ public final class RaskolClasses extends JavaPlugin {
     private RuntimeIntegrityMonitor runtimeIntegrityMonitor;
 
     /**
-     * Runs RIPS integrity verification before gameplay initialization.
-     *
-     * This method only verifies and reports the result.
-     * Startup failure policy is handled separately.
+     * Runs artifact-bound RIPS verification before gameplay initialization.
      *
      * @return the startup integrity verification result
      */
     private IntegrityVerificationResult verifyStartupIntegrity() {
-        StartupIntegrityVerifier verifier =
-                new StartupIntegrityVerifier(RaskolClasses.class);
+        this.artifactBoundIntegrityVerifier =
+                new ArtifactBoundIntegrityVerifier(RaskolClasses.class);
 
-        IntegrityVerificationResult result = verifier.verify();
+        IntegrityVerificationResult result =
+                artifactBoundIntegrityVerifier.verify();
 
         SecurityReporter reporter = new SecurityReporter(getLogger());
         reporter.report(result);
@@ -400,17 +401,26 @@ public final class RaskolClasses extends JavaPlugin {
     }
 
     /**
-     * Starts periodic RIPS verification after the plugin has completed startup.
-     * Runtime checks run on a dedicated daemon thread, never on the Paper main thread.
+     * Starts periodic artifact-bound RIPS verification after plugin startup.
+     *
+     * <p>Runtime checks run on a dedicated daemon thread and do not call
+     * Bukkit or Paper APIs.</p>
      */
     private void startRuntimeIntegrityMonitoring() {
+        if (artifactBoundIntegrityVerifier == null) {
+            getLogger().severe(
+                    "[RIPS] Runtime monitoring was not started: verifier is unavailable."
+            );
+            return;
+        }
+
         RuntimeSecurityReporter runtimeReporter = new RuntimeSecurityReporter(
                 new SecurityReporter(getLogger()),
                 getLogger()
         );
 
         this.runtimeIntegrityMonitor = new RuntimeIntegrityMonitor(
-                () -> new StartupIntegrityVerifier(RaskolClasses.class).verify(),
+                () -> artifactBoundIntegrityVerifier.verify(),
                 Duration.ofMinutes(30),
                 Executors.newSingleThreadScheduledExecutor(runnable -> {
                     Thread thread = new Thread(
@@ -425,7 +435,9 @@ public final class RaskolClasses extends JavaPlugin {
         );
 
         runtimeIntegrityMonitor.start();
-        getLogger().info("[RIPS] Runtime integrity monitoring started (interval: 30 minutes)");
+        getLogger().info(
+                "[RIPS] Artifact-bound runtime integrity monitoring started (interval: 30 minutes)"
+        );
     }
 
     public void markPurgeNow() {
