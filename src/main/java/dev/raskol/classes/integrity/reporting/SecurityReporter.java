@@ -65,12 +65,12 @@ public final class SecurityReporter {
                     SecuritySeverity.INFO;
 
             case TRUSTED_KEY_UNAVAILABLE,
+                 ARTIFACT_UNAVAILABLE,
                  PROTECTED_FILE_READ_ERROR,
                  RESOURCE_READ_ERROR ->
                     SecuritySeverity.WARNING;
 
-            case ARTIFACT_UNAVAILABLE,
-                 ARCHIVE_INTEGRITY_FAILURE,
+            case ARCHIVE_INTEGRITY_FAILURE,
                  MANIFEST_MISSING,
                  MANIFEST_TOO_LARGE,
                  SIGNATURE_MISSING,
