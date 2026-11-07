@@ -1,3 +1,4 @@
+
 // © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.crypto;
@@ -17,22 +18,29 @@ import org.junit.jupiter.api.Test;
 
 class TrustedPublicKeyRegistryTest {
 
-    private static final String EXPECTED_FINGERPRINT =
+    private static final String EXPECTED_OLD_FINGERPRINT =
             "274ed8b8a8c6dd094a1a42f44a32fe734203d85f101b39e68dd8ddb0cc485cfd";
+
+    private static final String EXPECTED_NEW_FINGERPRINT =
+            "cce3bff34027dcddead8db189299ca357899054820d7b80f5b548dd95f7531b6";
 
     @Test
     void shouldContainPinnedPublicKey() {
         List<PublicKey> keys =
                 TrustedPublicKeyRegistry.trustedKeys();
 
-        assertFalse(keys.isEmpty());
+        assertEquals(2, keys.size());
         assertNotNull(keys.get(0));
+        assertNotNull(keys.get(1));
     }
 
     @Test
-    void shouldExposeExpectedFingerprint() {
+    void shouldExposeExpectedFingerprints() {
         assertEquals(
-                List.of(EXPECTED_FINGERPRINT),
+                List.of(
+                        EXPECTED_OLD_FINGERPRINT,
+                        EXPECTED_NEW_FINGERPRINT
+                ),
                 TrustedPublicKeyRegistry.fingerprints()
         );
     }
@@ -44,6 +52,26 @@ class TrustedPublicKeyRegistryTest {
 
         assertTrue(
                 TrustedPublicKeyRegistry.isTrusted(pinnedKey)
+        );
+    }
+
+    @Test
+    void shouldRecognizeVerifyOnlyKeyAsTrustedForVerification() {
+        PublicKey verifyOnlyKey =
+                TrustedPublicKeyRegistry.trustedKeys().get(1);
+
+        assertTrue(
+                TrustedPublicKeyRegistry.isTrusted(verifyOnlyKey)
+        );
+    }
+
+    @Test
+    void shouldExposeOldKeyAsActive() {
+        assertEquals(
+                EXPECTED_OLD_FINGERPRINT,
+                TrustedPublicKeyRegistry.fingerprint(
+                        TrustedPublicKeyRegistry.activePublicKey()
+                )
         );
     }
 
