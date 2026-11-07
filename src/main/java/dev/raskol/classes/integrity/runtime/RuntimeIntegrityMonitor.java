@@ -1,12 +1,8 @@
-// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
-// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.integrity.runtime;
 
-import dev.raskol.classes.integrity.verification.IntegrityStatus;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -16,7 +12,6 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 public final class RuntimeIntegrityMonitor implements AutoCloseable {
@@ -24,6 +19,7 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
     private final Supplier<IntegrityVerificationResult> verificationTask;
     private final ScheduledExecutorService executor;
     private final long intervalMillis;
+    private final RuntimeIntegrityStateManager stateManager;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicBoolean checking = new AtomicBoolean(false);
@@ -31,19 +27,6 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
     private final Set<CompletableFuture<RuntimeIntegritySnapshot>> pendingChecks =
             ConcurrentHashMap.newKeySet();
-
-    private final AtomicReference<RuntimeIntegritySnapshot> snapshot =
-            new AtomicReference<>(
-                    new RuntimeIntegritySnapshot(
-                            RuntimeIntegrityState.NOT_STARTED,
-                            null,
-                            null,
-                            0,
-                            0,
-                            0,
-                            null
-                    )
-            );
 
     public RuntimeIntegrityMonitor(
             Supplier<IntegrityVerificationResult> verificationTask,
@@ -59,18 +42,29 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                     );
                     thread.setDaemon(true);
                     return thread;
-                })
+                }),
+                new RuntimeIntegrityStateManager()
         );
     }
 
-    /**
-     * The monitor takes ownership of the supplied executor
-     * and shuts it down when close() is called.
-     */
     public RuntimeIntegrityMonitor(
             Supplier<IntegrityVerificationResult> verificationTask,
             Duration interval,
             ScheduledExecutorService executor
+    ) {
+        this(
+                verificationTask,
+                interval,
+                executor,
+                new RuntimeIntegrityStateManager()
+        );
+    }
+
+    public RuntimeIntegrityMonitor(
+            Supplier<IntegrityVerificationResult> verificationTask,
+            Duration interval,
+            ScheduledExecutorService executor,
+            RuntimeIntegrityStateManager stateManager
     ) {
         this.verificationTask = Objects.requireNonNull(
                 verificationTask,
@@ -86,11 +80,22 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
         }
 
         this.executor = Objects.requireNonNull(executor, "executor");
+        this.stateManager = Objects.requireNonNull(
+                stateManager,
+                "stateManager"
+        );
+
         this.intervalMillis = interval.toMillis();
 
         if (intervalMillis <= 0) {
             throw new IllegalArgumentException(
                     "Monitoring interval must be at least 1 millisecond"
+            );
+        }
+
+        if (stateManager.getSnapshot().state() == RuntimeIntegrityState.STOPPED) {
+            throw new IllegalArgumentException(
+                    "Cannot use a stopped state manager"
             );
         }
     }
@@ -129,9 +134,6 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
     /**
      * Requests an asynchronous integrity verification.
-     *
-     * If another verification is already running, this request
-     * is executed later by the executor, unless the monitor is closed.
      */
     public CompletableFuture<RuntimeIntegritySnapshot> checkNow() {
         if (closed.get()) {
@@ -147,8 +149,6 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
         pendingChecks.add(future);
 
-        // close() may have been called between the initial check
-        // and registration of this future.
         if (closed.get()) {
             pendingChecks.remove(future);
             future.completeExceptionally(
@@ -180,7 +180,11 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
     }
 
     public RuntimeIntegritySnapshot getSnapshot() {
-        return snapshot.get();
+        return stateManager.getSnapshot();
+    }
+
+    public RuntimeIntegrityStateManager getStateManager() {
+        return stateManager;
     }
 
     public long getIntervalMillis() {
@@ -201,33 +205,20 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
 
     private RuntimeIntegritySnapshot performCheck() {
         if (closed.get()) {
-            return snapshot.get();
+            return stateManager.getSnapshot();
         }
 
         if (!checking.compareAndSet(false, true)) {
-            return snapshot.get();
+            return stateManager.getSnapshot();
         }
 
         try {
-            RuntimeIntegritySnapshot runningSnapshot =
-                    snapshot.updateAndGet(current -> {
-                        if (current.state() == RuntimeIntegrityState.STOPPED) {
-                            return current;
-                        }
+            if (closed.get()) {
+                return stateManager.getSnapshot();
+            }
 
-                        return new RuntimeIntegritySnapshot(
-                                RuntimeIntegrityState.RUNNING,
-                                current.lastCheckAt(),
-                                current.lastResult(),
-                                current.totalChecks(),
-                                current.consecutiveFailures(),
-                                current.lastDurationMillis(),
-                                current.lastError()
-                        );
-                    });
-
-            if (runningSnapshot.state() == RuntimeIntegrityState.STOPPED) {
-                return runningSnapshot;
+            if (!stateManager.beginCheck()) {
+                return stateManager.getSnapshot();
             }
 
             long startNanos = System.nanoTime();
@@ -242,80 +233,25 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
                         System.nanoTime() - startNanos
                 );
 
-                RuntimeIntegrityState resultState = mapState(result.status());
-
-                return snapshot.updateAndGet(current -> {
-                    if (current.state() == RuntimeIntegrityState.STOPPED) {
-                        return current;
-                    }
-
-                    boolean successful =
-                            resultState == RuntimeIntegrityState.VERIFIED
-                                    || resultState == RuntimeIntegrityState.DEVELOPMENT_BUILD;
-
-                    long consecutiveFailures = successful
-                            ? 0
-                            : current.consecutiveFailures() + 1;
-
-                    return new RuntimeIntegritySnapshot(
-                            resultState,
-                            Instant.now(),
-                            result,
-                            current.totalChecks() + 1,
-                            consecutiveFailures,
-                            durationMillis,
-                            null
-                    );
-                });
+                return stateManager.completeCheck(
+                        result,
+                        durationMillis
+                );
 
             } catch (RuntimeException exception) {
                 long durationMillis = TimeUnit.NANOSECONDS.toMillis(
                         System.nanoTime() - startNanos
                 );
 
-                String error = sanitizeError(exception);
-
-                return snapshot.updateAndGet(current -> {
-                    if (current.state() == RuntimeIntegrityState.STOPPED) {
-                        return current;
-                    }
-
-                    return new RuntimeIntegritySnapshot(
-                            RuntimeIntegrityState.FAILED,
-                            Instant.now(),
-                            null,
-                            current.totalChecks() + 1,
-                            current.consecutiveFailures() + 1,
-                            durationMillis,
-                            error
-                    );
-                });
+                return stateManager.failCheck(
+                        exception,
+                        durationMillis
+                );
             }
 
         } finally {
             checking.set(false);
         }
-    }
-
-    private RuntimeIntegrityState mapState(IntegrityStatus status) {
-        return switch (status) {
-            case VERIFIED -> RuntimeIntegrityState.VERIFIED;
-            case DEVELOPMENT_BUILD -> RuntimeIntegrityState.DEVELOPMENT_BUILD;
-            default -> RuntimeIntegrityState.FAILED;
-        };
-    }
-
-    private String sanitizeError(RuntimeException exception) {
-        String message = exception.getMessage();
-
-        if (message == null || message.isBlank()) {
-            message = exception.getClass().getSimpleName();
-        }
-
-        return message
-                .replace('\r', ' ')
-                .replace('\n', ' ')
-                .replace('\t', ' ');
     }
 
     private void ensureNotClosed() {
@@ -338,17 +274,7 @@ public final class RuntimeIntegrityMonitor implements AutoCloseable {
             return;
         }
 
-        snapshot.updateAndGet(current ->
-                new RuntimeIntegritySnapshot(
-                        RuntimeIntegrityState.STOPPED,
-                        current.lastCheckAt(),
-                        current.lastResult(),
-                        current.totalChecks(),
-                        current.consecutiveFailures(),
-                        current.lastDurationMillis(),
-                        current.lastError()
-                )
-        );
+        stateManager.stop();
 
         IllegalStateException stoppedException = new IllegalStateException(
                 "Runtime integrity monitor has been stopped"
