@@ -204,6 +204,9 @@ def create_release_artifact(jar_path: Path, version: str, build_id: str,
         signature = signature_file.read_bytes()
         if len(signature) != 64:
             raise RuntimeError("OpenSSL returned an invalid Ed25519 signature")
+        run_openssl(["pkeyutl", "-verify", "-pubin", "-inkey", str(public_file),
+                     "-keyform", "DER", "-rawin", "-in", str(manifest_file),
+                     "-sigfile", str(signature_file)])
 
         additions = [
             (BUILD_IDENTITY, identity),
@@ -223,6 +226,19 @@ def create_release_artifact(jar_path: Path, version: str, build_id: str,
                     raise RuntimeError("Generated JAR contains duplicate entries")
                 if check.testzip() is not None:
                     raise RuntimeError("Generated JAR failed ZIP integrity validation")
+                for entry_name, expected_data in manifest_entries:
+                    try:
+                        actual_data = check.read(entry_name)
+                    except KeyError as exc:
+                        raise RuntimeError(f"Generated JAR is missing signed entry: {entry_name}") from exc
+                    if actual_data != expected_data:
+                        raise RuntimeError(f"Generated JAR differs from signed content: {entry_name}")
+                if check.read(MANIFEST) != manifest_bytes:
+                    raise RuntimeError("Generated JAR manifest differs from signed manifest")
+                if check.read(SIGNATURE) != base64.b64encode(signature) + b"\\n":
+                    raise RuntimeError("Generated JAR signature differs from verified signature")
+                if check.read(PUBLIC_KEY) != base64.b64encode(public_der) + b"\\n":
+                    raise RuntimeError("Generated JAR public key differs from signing key")
             temporary_jar.replace(jar_path)
         finally:
             if temporary_jar.exists():
