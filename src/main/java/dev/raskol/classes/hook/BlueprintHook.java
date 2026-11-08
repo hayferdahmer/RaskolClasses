@@ -26,6 +26,14 @@ public final class BlueprintHook {
         return enchantPlugin != null && enchantPlugin.isEnabled();
     }
 
+    /**
+     * Сейчас рецепты не регистрируются, поэтому при выключении удалять нечего.
+     * Метод сохраняет контракт жизненного цикла, используемый главным плагином.
+     */
+    public void unregisterBlueprints() {
+        // Регистрация рецептов будет добавлена вместе с загрузчиком чертежей.
+    }
+
     public void registerBlueprints() {
         if (!isAvailable()) {
             plugin.getLogger().info("RaskolEnchant: не найден — интеграция с чертежами отключена");
