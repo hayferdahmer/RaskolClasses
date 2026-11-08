@@ -47,7 +47,9 @@ class Spec2StorageMigrationTest {
     @DisplayName("при отказе записи новой копии legacy-файл остаётся")
     void keepsLegacyWhenTargetCannotBeWritten() throws IOException {
         File legacy = write("spec2.yml", "players:\n  preserved:\n    main: frost\n");
-        Files.createDirectory(tempDir.resolve("spec2-storage.yml"));
+        Path blockedTarget = tempDir.resolve("spec2-storage.yml");
+        Files.createDirectory(blockedTarget);
+        Files.writeString(blockedTarget.resolve("keep-me"), "directory must not be replaced");
         YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
         assertEquals("frost", loaded.getString("players.preserved.main"));
         assertTrue(legacy.exists());
