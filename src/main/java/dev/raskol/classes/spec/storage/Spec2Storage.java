@@ -14,6 +14,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import dev.raskol.classes.storage.DirtyStorageState;
 import dev.raskol.classes.storage.SafeStorage;
 
 /**
@@ -23,9 +24,8 @@ import dev.raskol.classes.storage.SafeStorage;
  *   players.<uuid>.ranks.<treeId>.<nodeId>: <rank>
  *
  * 1.14.4 (Волна 4, П10): файл переименован spec2.yml → spec2-storage.yml.
- * Одноразовая миграция в конструкторе: если старый файл существует, а нового
- * ещё нет — renameTo. Содержимое не меняется, схема остаётся v2. Если renameTo
- * не удался — логируем warning и заводим новый пустой файл через SafeStorage.
+ * Миграция вынесена в Spec2StorageMigration: legacy-копия удаляется только
+ * после успешной атомарной записи нового файла; при ошибке оригинал сохраняется.
  * 1.15.5 (Волна 2, аудит 2.6-91): dirty-flag. setMain/setRanks помечают store
  *         грязным; saveIfDirty() пишет файл ТОЛЬКО при наличии изменений —
  *         вызывается SessionListener.onQuit (окно потери данных закрывается
@@ -38,13 +38,12 @@ import dev.raskol.classes.storage.SafeStorage;
 public final class Spec2Storage {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
-    private static final String OLD_FILE_NAME = "spec2.yml";
     private static final String NEW_FILE_NAME = "spec2-storage.yml";
 
     private final JavaPlugin plugin;
     private final File file;
     private final YamlConfiguration store;
-    private volatile boolean dirty = false;
+    private final DirtyStorageState dirty = new DirtyStorageState();
 
     public Spec2Storage(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -62,7 +61,7 @@ public final class Spec2Storage {
 
     public void setMain(UUID uuid, String specId) {
         store.set("players." + uuid + ".main", specId);
-        dirty = true;
+        dirty.markDirty();
     }
 
     public Map<String, Integer> getRanks(UUID uuid, String treeId) {
@@ -88,7 +87,7 @@ public final class Spec2Storage {
                 }
             }
         }
-        dirty = true;
+        dirty.markDirty();
     }
 
     /**
@@ -109,19 +108,12 @@ public final class Spec2Storage {
      */
     public void removeTree(UUID uuid, String treeId) {
         store.set("players." + uuid + ".ranks." + treeId, null);
-        dirty = true;
+        dirty.markDirty();
     }
 
     /** Принудительная запись (onDisable, autosave). Сбрасывает dirty. */
     public boolean save() {
-        boolean saved = SafeStorage.saveAtomic(store, file, LOGGER);
-        if (saved) {
-            dirty = false;
-        } else {
-            // Keep pending changes so autosave/onDisable can retry.
-            dirty = true;
-        }
-        return saved;
+        return dirty.flush(() -> SafeStorage.saveAtomic(store, file, LOGGER));
     }
 
     /**
@@ -130,7 +122,7 @@ public final class Spec2Storage {
      * @return true если файл был записан
      */
     public boolean saveIfDirty() {
-        if (!dirty) {
+        if (!dirty.isDirty()) {
             return false;
         }
         return save();
@@ -138,6 +130,6 @@ public final class Spec2Storage {
 
     /** Диагностика: есть ли несохранённые изменения (для /rc health). */
     public boolean isDirty() {
-        return dirty;
+        return dirty.isDirty();
     }
 }
