@@ -64,7 +64,7 @@ class RuntimeArtifactTamperingIntegrationTest {
                 BuildType.OFFICIAL);
 
         byte[] original = bytes("name: RaskolClasses\n");
-        byte[] tampered = bytes("name: RaskolEvilxx\n");
+        byte[] tampered = bytes("name: RaskolEvilxxx\n");
         assertEquals(original.length, tampered.length);
 
         IntegrityManifest manifest = new IntegrityManifest(
