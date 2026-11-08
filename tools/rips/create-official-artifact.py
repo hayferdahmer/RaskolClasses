@@ -235,9 +235,9 @@ def create_release_artifact(jar_path: Path, version: str, build_id: str,
                         raise RuntimeError(f"Generated JAR differs from signed content: {entry_name}")
                 if check.read(MANIFEST) != manifest_bytes:
                     raise RuntimeError("Generated JAR manifest differs from signed manifest")
-                if check.read(SIGNATURE) != base64.b64encode(signature) + b"\n":
+                if base64.b64decode(check.read(SIGNATURE).strip(), validate=True) != signature:
                     raise RuntimeError("Generated JAR signature differs from verified signature")
-                if check.read(PUBLIC_KEY) != base64.b64encode(public_der) + b"\n":
+                if base64.b64decode(check.read(PUBLIC_KEY).strip(), validate=True) != public_der:
                     raise RuntimeError("Generated JAR public key differs from signing key")
             temporary_jar.replace(jar_path)
         finally:
