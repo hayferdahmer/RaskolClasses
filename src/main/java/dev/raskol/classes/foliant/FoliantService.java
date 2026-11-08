@@ -43,6 +43,7 @@ import org.bukkit.scheduler.BukkitTask;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.compat.AuthGate;
+import dev.raskol.classes.storage.DirtyStorageState;
 import dev.raskol.classes.storage.SafeStorage;
 
 import net.kyori.adventure.text.Component;
@@ -104,7 +105,7 @@ public final class FoliantService implements Listener {
     private final Map<UUID, RelockState> locks = new ConcurrentHashMap<>();
     private final File lockFile;
     private final YamlConfiguration lockStore;
-    private volatile boolean lockDirty = false;
+    private final DirtyStorageState lockDirty = new DirtyStorageState();
 
     /**
      * Конструктор без побочных эффектов (1.14.13, Волна 13B): загрузка lock-хранилища
@@ -129,7 +130,7 @@ public final class FoliantService implements Listener {
                 .runTaskTimer(
                         plugin,
                         () -> {
-                            if (lockDirty) {
+                            if (lockDirty.isDirty()) {
                                 saveLocks();
                             }
                         },
@@ -176,14 +177,7 @@ public final class FoliantService implements Listener {
             lockStore.set(k + ".deaths", e.getValue().deaths);
             lockStore.set(k + ".no-kills", e.getValue().noKills);
         }
-        boolean saved = SafeStorage.saveAtomic(lockStore, lockFile, LOGGER);
-        if (saved) {
-            lockDirty = false;
-        } else {
-            // Keep the dirty flag so the periodic flush/onDisable path can retry.
-            lockDirty = true;
-        }
-        return saved;
+        return lockDirty.flush(() -> SafeStorage.saveAtomic(lockStore, lockFile, LOGGER));
     }
 
     private RelockState lockState(UUID uuid) {
