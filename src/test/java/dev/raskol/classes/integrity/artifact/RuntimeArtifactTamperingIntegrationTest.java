@@ -151,12 +151,13 @@ class RuntimeArtifactTamperingIntegrationTest {
         }
     }
 
-    private static void writeJar(Path jar, byte[] protectedFile, SignedManifest signedManifest)
-            throws Exception {
+    private static void writeJar(Path jar, byte[] protectedFile, SignedManifest signedManifest) throws Exception {
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
             put(output, PROTECTED_PATH, protectedFile);
             put(output, MANIFEST_PATH, signedManifest.manifestBytes());
-            put(output, SIGNATURE_PATH,
+            put(
+                    output,
+                    SIGNATURE_PATH,
                     ManifestSignatureService.encodeSignature(signedManifest.signature())
                             .getBytes(StandardCharsets.US_ASCII));
         }
