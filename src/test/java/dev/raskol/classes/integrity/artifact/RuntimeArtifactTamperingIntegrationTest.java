@@ -138,10 +138,7 @@ class RuntimeArtifactTamperingIntegrationTest {
             }
 
             return new IntegrityVerificationResult(
-                    IntegrityStatus.VERIFIED,
-                    "Runtime test artifact verified.",
-                    archive.checkedFiles(),
-                    List.of());
+                    IntegrityStatus.VERIFIED, "Runtime test artifact verified.", archive.checkedFiles(), List.of());
         } catch (Exception exception) {
             return new IntegrityVerificationResult(
                     IntegrityStatus.ARTIFACT_UNAVAILABLE,
