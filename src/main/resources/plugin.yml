@@ -20,6 +20,7 @@ softdepend:
   - packetevents
   - PlayerPoints
   - MythicMobs
+  - RaskolEnchant
 
 commands:
   rc:
