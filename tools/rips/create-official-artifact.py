@@ -63,7 +63,7 @@ def validate_archive_entry(name: str, is_directory: bool) -> str:
         raise ValueError("Archive entry path has an invalid length")
     if unicodedata.normalize("NFC", name) != name:
         raise ValueError(f"Archive entry path is not Unicode NFC-normalized: {name!r}")
-    if name.startswith(("/", "\\\\")) or "\\\\" in name or "\\0" in name:
+    if name.startswith(("/", "\\")) or "\\" in name or "\0" in name:
         raise ValueError(f"Archive entry path is absolute or contains forbidden separators: {name!r}")
 
     path = name
@@ -183,7 +183,7 @@ def create_release_artifact(jar_path: Path, version: str, build_id: str,
             for info in infos:
                 name = info.filename
                 validated_name = validate_archive_entry(name, info.is_dir())
-                comparison_key = validated_name.casefold()
+                comparison_key = validated_name.lower()
                 if comparison_key in comparison_keys:
                     raise ValueError(f"JAR contains a case-insensitive path collision: {name}")
                 comparison_keys.add(comparison_key)
