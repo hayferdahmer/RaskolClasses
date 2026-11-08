@@ -7,7 +7,7 @@ on:
   # Одноразовый запуск при изменении самого workflow в целевой ветке.
   # Коммит форматирования меняет только Java-файлы и повторно workflow не запускает.
   push:
-    branches: [ platform/paper-26.2-java-25 ]
+    branches: [ fix/a-06-003-spotless ]
     paths:
       - .github/workflows/formatting-bot.yml
   workflow_dispatch:
