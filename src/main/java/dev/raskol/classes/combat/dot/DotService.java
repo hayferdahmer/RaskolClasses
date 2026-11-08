@@ -203,7 +203,8 @@ public final class DotService implements Listener {
         def = specTuned(owner, def);
         UUID targetUuid = target.getUniqueId();
         long now = System.currentTimeMillis();
-        CopyOnWriteArrayList<DotInstance> list = dots.computeIfAbsent(targetUuid, k -> new CopyOnWriteArrayList<>());
+        CopyOnWriteArrayList<DotInstance> list =
+                dots.computeIfAbsent(targetUuid, k -> new CopyOnWriteArrayList<>());
         for (DotInstance inst : list) {
             if (inst.ownerUuid().equals(owner.getUniqueId()) && inst.def().id().equals(def.id())) {
                 inst.refresh(now);
@@ -379,11 +380,17 @@ public final class DotService implements Listener {
         if (school.channel() != DamageType.TRUE) {
             boolean physical = school.channel() == DamageType.PHYSICAL;
             channelPenPct = combat.penTraits()
-                            .channelPen(owner.getUniqueId(), physical, combat.schoolConfig().penPctCap())
+                            .channelPen(
+                                    owner.getUniqueId(),
+                                    physical,
+                                    combat.schoolConfig().penPctCap())
                             .pct()
                     * 100.0;
             schoolPenPct = combat.penTraits()
-                            .schoolPenFraction(owner.getUniqueId(), school, combat.schoolConfig().penPctCap())
+                            .schoolPenFraction(
+                                    owner.getUniqueId(),
+                                    school,
+                                    combat.schoolConfig().penPctCap())
                     * 100.0;
         }
 
