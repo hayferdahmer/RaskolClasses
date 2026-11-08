@@ -314,8 +314,7 @@ public final class VanillaDamageListener implements Listener {
         if (rollback == null || !event.isCancelled()) {
             return;
         }
-        if (event.getEntity() instanceof Player target
-                && target.getUniqueId().equals(rollback.playerId())) {
+        if (event.getEntity() instanceof Player target && target.getUniqueId().equals(rollback.playerId())) {
             caps.undoLastBurst(target, rollback.amount());
         }
     }
