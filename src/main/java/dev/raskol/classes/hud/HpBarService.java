@@ -364,7 +364,11 @@ public final class HpBarService implements Listener {
         if (!storeDirty) {
             return;
         }
-        SafeStorage.saveAtomic(healthStore, healthFile, LOGGER);
+        boolean saved = SafeStorage.saveAtomic(healthStore, healthFile, LOGGER);
+        if (!saved) {
+            // Retain dirty state and player IDs for the next scheduled retry.
+            return;
+        }
         dirtySinceLastFlush.clear();
         storeDirty = false;
         lastFlushAt = System.currentTimeMillis();
