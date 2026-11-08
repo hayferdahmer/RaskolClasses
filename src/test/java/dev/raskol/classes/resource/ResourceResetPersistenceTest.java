@@ -27,12 +27,11 @@ class ResourceResetPersistenceTest {
         store.set(ResourceResetPersistence.PENDING_RESETS_PATH + "." + playerId, true);
         Set<UUID> pending = new java.util.HashSet<>(Set.of(playerId));
 
-        Set<UUID> resolved = ResourceResetPersistence.prepareSave(
-                store, Map.of(playerId, state), pending, Set.of(playerId));
+        Set<UUID> resolved =
+                ResourceResetPersistence.prepareSave(store, Map.of(playerId, state), pending, Set.of(playerId));
 
         assertEquals(35.0, store.getDouble(playerId.toString()), 0.0001);
-        assertFalse(
-                store.getBoolean(ResourceResetPersistence.PENDING_RESETS_PATH + "." + playerId));
+        assertFalse(store.getBoolean(ResourceResetPersistence.PENDING_RESETS_PATH + "." + playerId));
         assertTrue(resolved.contains(playerId));
         assertTrue(pending.contains(playerId), "in-memory marker is retained until disk save succeeds");
 
@@ -51,11 +50,10 @@ class ResourceResetPersistenceTest {
         store.set(ResourceResetPersistence.PENDING_RESETS_PATH + "." + offlineId, true);
         Set<UUID> pending = new java.util.HashSet<>(Set.of(offlineId));
 
-        Set<UUID> resolved = ResourceResetPersistence.prepareSave(
-                store, Map.of(onlineId, onlineState), pending, Set.of(onlineId));
+        Set<UUID> resolved =
+                ResourceResetPersistence.prepareSave(store, Map.of(onlineId, onlineState), pending, Set.of(onlineId));
 
-        assertTrue(
-                store.getBoolean(ResourceResetPersistence.PENDING_RESETS_PATH + "." + offlineId));
+        assertTrue(store.getBoolean(ResourceResetPersistence.PENDING_RESETS_PATH + "." + offlineId));
         assertTrue(pending.contains(offlineId));
         assertTrue(resolved.isEmpty());
     }
@@ -75,8 +73,7 @@ class ResourceResetPersistenceTest {
         ResourceResetPersistence.restoreAfterFailedSave(store, resolved, pending);
 
         assertTrue(pending.contains(playerId));
-        assertTrue(
-                store.getBoolean(ResourceResetPersistence.PENDING_RESETS_PATH + "." + playerId));
+        assertTrue(store.getBoolean(ResourceResetPersistence.PENDING_RESETS_PATH + "." + playerId));
         assertEquals(35.0, store.getDouble(playerId.toString()), 0.0001);
     }
 }
