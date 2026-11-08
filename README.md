@@ -71,12 +71,18 @@
 
 ### 🔥 У очага: быстрый старт
 
+**Для боевого сервера:** установите официальный JAR из [GitHub Releases](https://github.com/hayferdahmer/RaskolClasses/releases), затем перезапустите Paper и проверьте в журнале `[RIPS] INFO | VERIFIED`.
+
+**Для локальной разработки:** соберите DEVELOPMENT-артефакт и запускайте его только в изолированной тестовой среде:
+
 ```bash
-mvn -B clean verify                     # выковать jar
-cp target/raskol-classes-*.jar plugins/ # положить в мастерскую сервера
-# перезапустить сервер, затем в игре:
-/rc selftest                            # ждём ровное пламя: 167/167 PASS
+mvn -B clean verify
+# DEVELOPMENT JAR: target/raskol-classes-1.15.8.jar
+# для локального тестирования требуется JVM-флаг:
+# -Draskol.rips.development=true
 ```
+
+После запуска выполните `/rc selftest`: ожидается **167/167 PASS**. Не устанавливайте обычный Maven JAR на production-сервер.
 
 <p align="center"><img src="docs/assets/divider.svg" width="640" alt="⚜"/></p>
 
@@ -561,7 +567,7 @@ mvn -B clean verify
 Профиль `-Pdev` включает дополнительные проверки компиляции и SpotBugs: `mvn -Pdev -B verify`. В GitHub Actions job `analyze` сейчас помечен как `continue-on-error`, поэтому его результат является дополнительным анализом, а не блокирующим release gate.
 
 > [!NOTE]
-При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется). В логе появится строка `spec2: migrated …`.
+> При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется). В логе появится строка `spec2: migrated …`.
 
 **Softdepend (все опциональны):** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints` · `MythicMobs`. Интеграция AuraSkills всё ещё присутствует в 1.15.8; её удаление относится к плану 1.16.0, а не к этому релизу.
 
