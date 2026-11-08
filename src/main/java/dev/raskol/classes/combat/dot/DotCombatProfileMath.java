@@ -17,8 +17,7 @@ final class DotCombatProfileMath {
      * Возвращает итоговый множитель защиты профиля для одной школы DoT.
      * Значения пробития передаются в процентных пунктах.
      */
-    static double multiplier(
-            CombatProfile profile, School school, double channelPenPct, double schoolPenPct) {
+    static double multiplier(CombatProfile profile, School school, double channelPenPct, double schoolPenPct) {
         if (profile == null || school == null) {
             return 1.0;
         }
@@ -27,8 +26,7 @@ final class DotCombatProfileMath {
             return 0.0;
         }
 
-        double vulnerability =
-                1.0 + Math.max(-100.0, profile.vulnerabilities().getOrDefault(school, 0.0)) / 100.0;
+        double vulnerability = 1.0 + Math.max(-100.0, profile.vulnerabilities().getOrDefault(school, 0.0)) / 100.0;
 
         if (school.channel() == DamageType.TRUE) {
             return vulnerability;
@@ -41,8 +39,7 @@ final class DotCombatProfileMath {
         double safeChannelPen = safePenetration(channelPenPct);
         double safeSchoolPen = safePenetration(schoolPenPct);
 
-        double resist = Math.max(0.0, Math.min(90.0, channelResist - safeChannelPen + schoolResist
-                - safeSchoolPen));
+        double resist = Math.max(0.0, Math.min(90.0, channelResist - safeChannelPen + schoolResist - safeSchoolPen));
 
         return (1.0 - resist / 100.0) * vulnerability;
     }
