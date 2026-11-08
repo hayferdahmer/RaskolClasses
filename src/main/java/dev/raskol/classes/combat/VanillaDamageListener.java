@@ -54,11 +54,8 @@ public final class VanillaDamageListener implements Listener {
     private final SchoolConfig schoolConfig;
     private final SchoolImmunity immunity;
 
-    /** 1.15.6 (2.6-40): armed-состояние отката burst-лога (main-thread only). */
-    private boolean undoArmed = false;
-
-    private UUID undoUuid = null;
-    private double undoAmount = 0.0;
+    /** Состояние отката burst-лога хранится отдельно для каждого события урона. */
+    private final BurstRollbackTracker burstRollbacks = new BurstRollbackTracker();
 
     public VanillaDamageListener(
             RaskolClasses plugin,
@@ -85,7 +82,6 @@ public final class VanillaDamageListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
-        undoArmed = false;
         boolean suppressed = CombatService.consumeSuppress();
         CombatProfile targetProfile = event.getEntity() instanceof LivingEntity living
                 ? plugin.getCombatProfiles().profileOf(living.getUniqueId())
@@ -286,9 +282,7 @@ public final class VanillaDamageListener implements Listener {
             event.setCancelled(true);
             return;
         }
-        undoUuid = uuid;
-        undoAmount = effective;
-        undoArmed = true;
+        burstRollbacks.arm(event, uuid, effective);
         event.setDamage(effective * scale);
 
         if (event.getCause() != EntityDamageEvent.DamageCause.CUSTOM
@@ -316,18 +310,13 @@ public final class VanillaDamageListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDamageMonitor(EntityDamageEvent event) {
-        if (!undoArmed) {
+        BurstRollbackTracker.Entry rollback = burstRollbacks.take(event);
+        if (rollback == null || !event.isCancelled()) {
             return;
         }
-        boolean armed = undoArmed;
-        UUID armedUuid = undoUuid;
-        double armedAmount = undoAmount;
-        undoArmed = false;
-        if (armed
-                && event.isCancelled()
-                && event.getEntity() instanceof Player tp
-                && tp.getUniqueId().equals(armedUuid)) {
-            caps.undoLastBurst(tp, armedAmount);
+        if (event.getEntity() instanceof Player target
+                && target.getUniqueId().equals(rollback.playerId())) {
+            caps.undoLastBurst(target, rollback.amount());
         }
     }
 
