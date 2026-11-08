@@ -53,7 +53,7 @@ class ItemsApiTest {
         ItemRegistry registry = registry(List.of(ItemRarity.COMMON, ItemRarity.RARE, ItemRarity.EPIC));
 
         ItemDefinition definition =
-                ItemsApi.resolveTemplate(registry, "warrior_main_hand", 35, ItemRarity.RARE);
+                ItemsApi.resolveTemplate(registry, "warrior_main_hand", 36, ItemRarity.RARE);
 
         assertEquals(40, definition.itemLevel());
     }
