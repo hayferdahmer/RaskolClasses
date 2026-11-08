@@ -52,8 +52,8 @@ public final class SalvageService {
     public SalvageService(RaskolClasses plugin, FragmentRegistry fragments) {
         this.plugin = plugin;
         this.fragments = fragments;
-        this.dailyLimits = new SalvageDailyLimitStore(
-                new File(plugin.getDataFolder(), "salvage-daily.yml"), plugin.getLogger());
+        this.dailyLimits =
+                new SalvageDailyLimitStore(new File(plugin.getDataFolder(), "salvage-daily.yml"), plugin.getLogger());
     }
 
     /** Pure: карта фрагментов за разбор определения (без состояния). */
