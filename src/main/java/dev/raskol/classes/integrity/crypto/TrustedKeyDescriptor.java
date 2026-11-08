@@ -69,12 +69,11 @@ public record TrustedKeyDescriptor(String fingerprint, TrustedKeyStatus status) 
     public TrustedKeyDescriptor transitionTo(TrustedKeyStatus newStatus) {
         Objects.requireNonNull(newStatus, "newStatus");
 
-        boolean allowed =
-                switch (status) {
-                    case ACTIVE -> newStatus == TrustedKeyStatus.VERIFY_ONLY || newStatus == TrustedKeyStatus.REVOKED;
-                    case VERIFY_ONLY -> newStatus == TrustedKeyStatus.REVOKED;
-                    case REVOKED -> false;
-                };
+        boolean allowed = switch (status) {
+            case ACTIVE -> newStatus == TrustedKeyStatus.VERIFY_ONLY || newStatus == TrustedKeyStatus.REVOKED;
+            case VERIFY_ONLY -> newStatus == TrustedKeyStatus.REVOKED;
+            case REVOKED -> false;
+        };
 
         if (!allowed) {
             throw new IllegalStateException("Invalid trusted key lifecycle transition: " + status + " -> " + newStatus);

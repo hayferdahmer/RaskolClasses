@@ -506,17 +506,19 @@ public final class TalentsTab implements BookTabView {
             int newRank = svc.storage().getRanks(uuid, currentSpec).getOrDefault(node.id(), 0);
             player.sendMessage(Component.text(
                     switch (result) {
-                        case OK -> "«" + node.name() + "» — ранг " + newRank + "/" + node.maxRank()
-                                + ". Очко возвращено в пул.";
+                        case OK ->
+                            "«" + node.name() + "» — ранг " + newRank + "/" + node.maxRank()
+                                    + ". Очко возвращено в пул.";
                         case NO_MAIN -> "Основная спека не выбрана.";
                         case TREE_NOT_FOUND, NODE_NOT_FOUND -> "Узел не найден.";
                         case NO_RANKS -> "Узел уже 0/× — снимать нечего.";
                         case POOR -> "Не хватает монет на респец.";
                         case NO_ECONOMY -> "Экономика недоступна.";
                         case RATE_LIMITED -> "Слишком часто.";
-                            // 1.14.7 (Sprint 4, P1-5): узел нужен другим купленным узлам/гейтам рядов
-                        case HAS_DEPENDENTS -> "«" + node.name() + "» нельзя снять: от него зависят"
-                                + " купленные узлы или открытые ряды. Сначала сними зависимые.";
+                        // 1.14.7 (Sprint 4, P1-5): узел нужен другим купленным узлам/гейтам рядов
+                        case HAS_DEPENDENTS ->
+                            "«" + node.name() + "» нельзя снять: от него зависят"
+                                    + " купленные узлы или открытые ряды. Сначала сними зависимые.";
                     },
                     result == Spec2Service.NodeResetResult.OK ? NamedTextColor.GREEN : NamedTextColor.RED));
             ctx.refresh();
@@ -539,7 +541,7 @@ public final class TalentsTab implements BookTabView {
                     case NO_MAIN -> "Основная спека не выбрана.";
                     case WRONG_CLASS_TREE, TREE_NOT_FOUND -> "Дерево не найдено.";
                     case NODE_NOT_FOUND -> "Узел не найден.";
-                        // 1.14.7 (P0-6B): узел в стоп-листе — очки не потрачены
+                    // 1.14.7 (P0-6B): узел в стоп-листе — очки не потрачены
                     case NODE_DISABLED -> "«" + node.name() + "» в разработке: очки не потрачены.";
                     case ROW_GATE -> "Ряд закрыт: нужно больше очков в дереве.";
                     case PREREQ -> "Нужны пререквизиты (требуемые ранги).";
@@ -676,13 +678,15 @@ public final class TalentsTab implements BookTabView {
         }
         var e = node.effect();
         return switch (e.kind()) {
-            case "attr" -> "+" + (int) e.value() + " "
-                    + switch (e.target()) {
-                        case "str" -> "СИЛЫ";
-                        case "agi" -> "ЛОВКОСТИ";
-                        case "int" -> "ИНТЕЛЛЕКТА";
-                        default -> e.target();
-                    } + " за ранг";
+            case "attr" ->
+                "+" + (int) e.value() + " "
+                        + switch (e.target()) {
+                            case "str" -> "СИЛЫ";
+                            case "agi" -> "ЛОВКОСТИ";
+                            case "int" -> "ИНТЕЛЛЕКТА";
+                            default -> e.target();
+                        }
+                        + " за ранг";
             case "resist" -> {
                 dev.raskol.classes.combat.school.School school =
                         dev.raskol.classes.combat.school.School.fromId(e.target());
@@ -700,13 +704,14 @@ public final class TalentsTab implements BookTabView {
             case "kit_cd" -> "−" + (int) e.value() + " с кулдауна «" + e.target() + "» за ранг";
             case "kit_dur" -> "+" + (int) e.value() + " с длительности «" + e.target() + "» за ранг";
             case "regen" -> "+" + (int) e.value() + " ресурс/с за ранг";
-            case "avoid" -> "+" + (int) e.value() + "% " + ("dodge".equals(e.target()) ? "уклонения" : "парирования")
-                    + " за ранг";
+            case "avoid" ->
+                "+" + (int) e.value() + "% " + ("dodge".equals(e.target()) ? "уклонения" : "парирования") + " за ранг";
             case "pen_phys_pct", "pen_magic_pct" -> "+" + (int) e.value() + "% пробития " + e.kind() + " за ранг";
             case "proc" -> "+" + e.value() + " к проце «" + e.target() + "» за ранг";
-            case "unlock_ability" -> node.isUltimate()
-                    ? "УЛЬТ: открывает «" + e.target() + "»"
-                    : "открывает способность «" + e.target() + "»";
+            case "unlock_ability" ->
+                node.isUltimate()
+                        ? "УЛЬТ: открывает «" + e.target() + "»"
+                        : "открывает способность «" + e.target() + "»";
             default -> e.kind() + " " + e.target();
         };
     }

@@ -207,9 +207,10 @@ public final class ItemSub implements CommandSub {
                         ok ? "Реестр предметов перезагружен." : "Ошибка загрузки — смотри логи.",
                         ok ? NamedTextColor.GREEN : NamedTextColor.RED));
             }
-            default -> sender.sendMessage(Component.text(
-                    "Неизвестная операция. /rc item list|info|give|roll|stats|browse|salvage|craft",
-                    NamedTextColor.RED));
+            default ->
+                sender.sendMessage(Component.text(
+                        "Неизвестная операция. /rc item list|info|give|roll|stats|browse|salvage|craft",
+                        NamedTextColor.RED));
         }
         return true;
     }

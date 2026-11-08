@@ -190,8 +190,10 @@ public final class CraftingService {
                             def.itemLevel(),
                             ThreadLocalRandom.current().nextLong());
             plugin.getItems().pdc().markCraftedBy(created, player.getUniqueId());
-            player.getInventory().addItem(created).values().forEach(left -> player.getWorld()
-                    .dropItemNaturally(player.getLocation(), left));
+            player.getInventory()
+                    .addItem(created)
+                    .values()
+                    .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
             player.sendMessage(Component.text(
                     plugin.getRaskolConfig()
                             .message("item.craft-ok", "⚒ Создано: {item}")

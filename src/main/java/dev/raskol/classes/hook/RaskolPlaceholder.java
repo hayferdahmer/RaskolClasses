@@ -137,9 +137,9 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
             case "talents":
                 return plugin.getSpec2Service().spentGlobal(uuid) + "/"
                         + plugin.getSpec2Service().earnedPoints(uuid);
-                // 1.14.15 (raskolspec+): число оставшихся дней подписки или "expired".
-                // TTL-кэш в onPlaceholderRequest автоматически защищает от частых запросов
-                // (1 с), поэтому прямые вызовы PlusSubscription.active/remainingDays безопасны.
+            // 1.14.15 (raskolspec+): число оставшихся дней подписки или "expired".
+            // TTL-кэш в onPlaceholderRequest автоматически защищает от частых запросов
+            // (1 с), поэтому прямые вызовы PlusSubscription.active/remainingDays безопасны.
             case "plus": {
                 if (!plugin.getPlusSubscription().active(uuid)) {
                     return "expired";

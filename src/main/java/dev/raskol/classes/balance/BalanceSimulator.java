@@ -461,7 +461,7 @@ public final class BalanceSimulator {
                     cast = true;
                 }
             }
-                // 1.10.0: WARLOCK
+            // 1.10.0: WARLOCK
             case "black_word" -> {
                 double dmg = a.base + f.sp * a.coeff;
                 double dealt = hit(plugin, f, foe, 0.0, dmg, false, t, rnd, pctCap);
