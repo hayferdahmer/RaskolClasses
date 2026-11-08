@@ -25,12 +25,10 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
   <description>Классы, ресурсы, способности, деревья путей (Spec 2.0), CC/DR, школы урона, DoT, проки, пет-система, предметы, крафт</description>
 
   <properties>
-    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.release>25</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <!-- 1.15.8-fix: Paper публикует paper-api ТОЛЬКО как SNAPSHOT до релиза
-         следующей версии Minecraft; пин на 1.21.4-R0.1 давал
-         "Could not find artifact" во всех репозиториях. -->
-    <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
+    <!-- Paper 26.2 stable API; pinned for reproducible builds. -->
+    <paper.version>26.2.build.135-stable</paper.version>
     <luckperms.version>5.4</luckperms.version>
     <placeholderapi.version>2.11.6</placeholderapi.version>
     <junit.version>5.10.2</junit.version>
@@ -93,7 +91,7 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
           <artifactId>maven-compiler-plugin</artifactId>
           <version>3.15.0</version>
           <configuration>
-            <release>21</release>
+            <release>25</release>
             <encoding>UTF-8</encoding>
           </configuration>
         </plugin>
