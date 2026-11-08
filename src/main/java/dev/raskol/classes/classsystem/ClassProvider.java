@@ -83,7 +83,7 @@ public final class ClassProvider {
     }
 
     public void invalidate(UUID playerId) {
-        cache.remove(playerId);
+        cache.invalidate(playerId);
     }
 
     public void setResourceService(ResourceService resourceService) {
