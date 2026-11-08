@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.classsystem;
 
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
@@ -21,11 +19,7 @@ import dev.raskol.classes.resource.ResourceService;
  */
 public final class ClassProvider {
 
-    private static final long CACHE_TTL_MILLIS = 5_000L;
-
-    private record CacheEntry(PlayerClass playerClass, long expiresAt) {}
-
-    private final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
+    private final ClassCache cache = new ClassCache();
     private final LuckPermsBackend backend;
     private final RaskolCoreHook coreHook;
 
@@ -61,8 +55,8 @@ public final class ClassProvider {
 
     public PlayerClass getClassOf(Player player) {
         UUID id = player.getUniqueId();
-        CacheEntry entry = cache.get(id);
-        if (entry != null && entry.expiresAt() > System.currentTimeMillis()) {
+        ClassCache.Entry entry = cache.get(id);
+        if (entry != null) {
             return entry.playerClass();
         }
 
@@ -70,7 +64,7 @@ public final class ClassProvider {
         if (coreHook.isAvailable()) {
             PlayerClass fromCore = coreHook.resolveClass(id);
             if (fromCore != null) {
-                cache.put(id, new CacheEntry(fromCore, System.currentTimeMillis() + CACHE_TTL_MILLIS));
+                cache.put(id, fromCore);
                 return fromCore;
             }
         }
@@ -79,20 +73,17 @@ public final class ClassProvider {
             return null;
         }
         PlayerClass resolved = backend.resolve(player);
-        cache.put(id, new CacheEntry(resolved, System.currentTimeMillis() + CACHE_TTL_MILLIS));
+        cache.put(id, resolved);
         return resolved;
     }
 
     public PlayerClass getCachedClass(UUID playerId) {
-        CacheEntry entry = cache.get(playerId);
-        if (entry == null || entry.expiresAt() <= System.currentTimeMillis()) {
-            return null;
-        }
-        return entry.playerClass();
+        ClassCache.Entry entry = cache.get(playerId);
+        return entry == null ? null : entry.playerClass();
     }
 
     public void invalidate(UUID playerId) {
-        cache.remove(playerId);
+        cache.invalidate(playerId);
     }
 
     public void setResourceService(ResourceService resourceService) {
