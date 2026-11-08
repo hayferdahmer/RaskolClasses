@@ -68,7 +68,8 @@ class ResourceResetPersistenceTest {
         store.set(ResourceResetPersistence.PENDING_RESETS_PATH + "." + playerId, true);
         Set<UUID> pending = new java.util.HashSet<>(Set.of(playerId));
 
-        Set<UUID> resolved = ResourceResetPersistence.prepareSave(store, Map.of(playerId, state), pending, Set.of(playerId));
+        Set<UUID> resolved =
+                ResourceResetPersistence.prepareSave(store, Map.of(playerId, state), pending, Set.of(playerId));
         ResourceResetPersistence.restoreAfterFailedSave(store, resolved, pending);
 
         assertTrue(pending.contains(playerId));
