@@ -34,7 +34,7 @@ RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ �
     <junit.version>5.10.2</junit.version>
     <surefire.version>3.2.5</surefire.version>
     <spotbugs.version>4.10.5.0</spotbugs.version>
-    <spotless.version>2.43.0</spotless.version>
+    <spotless.version>3.10.4</spotless.version>
     <jacoco.version>0.8.16</jacoco.version>
   </properties>
 
