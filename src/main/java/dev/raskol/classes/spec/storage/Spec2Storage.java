@@ -52,18 +52,53 @@ public final class Spec2Storage {
         File oldFile = new File(dir, OLD_FILE_NAME);
         File newFile = new File(dir, NEW_FILE_NAME);
 
-        if (oldFile.exists() && !newFile.exists()) {
-            boolean renamed = oldFile.renameTo(newFile);
-            if (renamed) {
-                LOGGER.info("spec2: migrated " + OLD_FILE_NAME + " → " + NEW_FILE_NAME);
-            } else {
-                LOGGER.warning("spec2: не удалось переименовать " + OLD_FILE_NAME + " → " + NEW_FILE_NAME
-                        + ", будет создан новый пустой файл");
+        YamlConfiguration loaded;
+        if (oldFile.exists()) {
+            YamlConfiguration legacy = new YamlConfiguration();
+            boolean legacyReadable;
+            try {
+                legacy.load(oldFile);
+                legacyReadable = true;
+            } catch (Exception ex) {
+                legacyReadable = false;
+                LOGGER.severe("spec2: legacy-файл " + OLD_FILE_NAME
+                        + " не удалось прочитать; оригинал оставлен без изменений: " + ex.getMessage());
             }
+
+            YamlConfiguration current = newFile.exists()
+                    ? SafeStorage.loadWithFallback(newFile, LOGGER)
+                    : new YamlConfiguration();
+
+            // Восстанавливаем старое хранилище, если новая цель пуста (например,
+            // после прежней неудачной rename-миграции и последующего autosave).
+            if (legacyReadable && current.getKeys(true).isEmpty() && !legacy.getKeys(true).isEmpty()) {
+                loaded = legacy;
+                if (SafeStorage.saveAtomic(legacy, newFile, LOGGER)) {
+                    if (oldFile.delete()) {
+                        LOGGER.info("spec2: восстановлено и мигрировано " + OLD_FILE_NAME + " → " + NEW_FILE_NAME);
+                    } else {
+                        LOGGER.warning("spec2: новая копия записана, но legacy-файл оставлен: " + OLD_FILE_NAME);
+                    }
+                } else {
+                    LOGGER.warning("spec2: не удалось записать новую копию; legacy-файл сохранён, данные остаются в памяти");
+                }
+            } else {
+                loaded = current;
+                if (legacyReadable && !legacy.getKeys(true).isEmpty() && !current.getKeys(true).isEmpty()) {
+                    LOGGER.warning("spec2: обнаружены оба файла с данными; используем "
+                            + NEW_FILE_NAME + ", legacy " + OLD_FILE_NAME + " не удаляем автоматически");
+                } else if (legacyReadable && current.getKeys(true).isEmpty() && legacy.getKeys(true).isEmpty()) {
+                    if (!oldFile.delete()) {
+                        LOGGER.warning("spec2: не удалось удалить пустой legacy-файл " + OLD_FILE_NAME);
+                    }
+                }
+            }
+        } else {
+            loaded = SafeStorage.loadWithFallback(newFile, LOGGER);
         }
 
         this.file = newFile;
-        this.store = SafeStorage.loadWithFallback(file, LOGGER);
+        this.store = loaded;
     }
 
     public String getMain(UUID uuid) {
