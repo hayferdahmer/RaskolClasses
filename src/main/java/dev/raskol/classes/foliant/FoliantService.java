@@ -148,8 +148,7 @@ public final class FoliantService implements Listener {
         if (!lockDirty) {
             return false;
         }
-        saveLocks();
-        return true;
+        return saveLocks();
     }
 
     private void loadLocks() {
@@ -169,7 +168,7 @@ public final class FoliantService implements Listener {
         }
     }
 
-    private synchronized void saveLocks() {
+    private synchronized boolean saveLocks() {
         for (Map.Entry<UUID, RelockState> e : locks.entrySet()) {
             String k = e.getKey().toString();
             lockStore.set(k + ".locked", e.getValue().locked);
@@ -177,8 +176,14 @@ public final class FoliantService implements Listener {
             lockStore.set(k + ".deaths", e.getValue().deaths);
             lockStore.set(k + ".no-kills", e.getValue().noKills);
         }
-        SafeStorage.saveAtomic(lockStore, lockFile, LOGGER);
-        lockDirty = false;
+        boolean saved = SafeStorage.saveAtomic(lockStore, lockFile, LOGGER);
+        if (saved) {
+            lockDirty = false;
+        } else {
+            // Keep the dirty flag so the periodic flush/onDisable path can retry.
+            lockDirty = true;
+        }
+        return saved;
     }
 
     private RelockState lockState(UUID uuid) {
@@ -198,6 +203,7 @@ public final class FoliantService implements Listener {
             st.outKills = 0;
             st.deaths = 0;
             st.noKills = 0;
+            lockDirty = true;
             saveLocks();
             LOGGER.info("Foliant: релок-цикл завершён игроком " + p.getName() + " (шанс дропа восстановлен)");
         }
@@ -271,8 +277,8 @@ public final class FoliantService implements Listener {
                 } else if (eligibleMob) {
                     st.noKills++;
                 }
-                checkUnlock(killer, st);
                 lockDirty = true;
+                checkUnlock(killer, st);
             }
             return;
         }
@@ -305,6 +311,7 @@ public final class FoliantService implements Listener {
             fresh.outKills = 0;
             fresh.deaths = 0;
             fresh.noKills = 0;
+            lockDirty = true;
             saveLocks();
         }
         plugin.getFx().playSound(killer.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 0.5f, 0.8f);
@@ -322,8 +329,8 @@ public final class FoliantService implements Listener {
         RelockState st = locks.get(uuid);
         if (st != null && st.locked && relockEnabled()) {
             st.deaths++;
-            checkUnlock(event.getEntity(), st);
             lockDirty = true;
+            checkUnlock(event.getEntity(), st);
         }
         if (plugin.getConfig().getBoolean("foliant.soulbound.keep-on-death", true)) {
             event.getDrops().removeIf(this::isFoliant);
