@@ -27,6 +27,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
+import dev.raskol.classes.api.combat.CombatProfile;
 import dev.raskol.classes.combat.CombatMath;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageType;
@@ -49,6 +50,8 @@ import dev.raskol.classes.spec.service.Spec2Service;
  *         магические DoT (burning/poison/wither/chilled) могли уклоняться/парироваться,
  *         парирование накладывало stagger на владельца DoT. Теперь MAGIC/TRUE-школы
  *         идут через magic-DamageSource (cause MAGIC), PHYSICAL — по-прежнему melee.
+ * 1.15.8 (A-06-003): DoT учитывает CombatProfile внешних мобов: иммунитеты,
+ *         сопротивления канала/школы, пробитие владельца и уязвимости профиля.
  */
 public final class DotService implements Listener {
 
@@ -339,13 +342,52 @@ public final class DotService implements Listener {
                 outcomes.add(new TickOutcome(inst, 0.0));
                 continue;
             }
+
+            double profileMultiplier = profileMultiplierFor(target, owner, school);
+            if (profileMultiplier <= 0.0) {
+                outcomes.add(new TickOutcome(inst, 0.0));
+                continue;
+            }
+
             double baseDps = inst.def().dps() * inst.stacks();
             double seal = WarlockAbilities.sealAmplifyOf(target.getUniqueId());
             double dps = DotMath.withMults(baseDps, combat.schoolConfig().multiplier(school), immunity, seal);
+            dps *= profileMultiplier;
             dps *= 1.0 - mitigationFor(target, owner, school);
             outcomes.add(new TickOutcome(inst, dps));
         }
         return outcomes;
+    }
+
+    /**
+     * Рассчитывает защиту внешнего моба по его CombatProfile.
+     * Игроки продолжают использовать существующий расчёт mitigationFor().
+     */
+    private double profileMultiplierFor(LivingEntity target, Player owner, School school) {
+        if (target instanceof Player) {
+            return 1.0;
+        }
+
+        CombatProfile profile = plugin.getCombatProfiles().profileOf(target.getUniqueId());
+        if (profile == null) {
+            return 1.0;
+        }
+
+        double channelPenPct = 0.0;
+        double schoolPenPct = 0.0;
+
+        if (school.channel() != DamageType.TRUE) {
+            boolean physical = school.channel() == DamageType.PHYSICAL;
+            channelPenPct = combat.penTraits()
+                            .channelPen(owner.getUniqueId(), physical, combat.schoolConfig().penPctCap())
+                            .pct()
+                    * 100.0;
+            schoolPenPct = combat.penTraits()
+                            .schoolPenFraction(owner.getUniqueId(), school, combat.schoolConfig().penPctCap())
+                    * 100.0;
+        }
+
+        return DotCombatProfileMath.multiplier(profile, school, channelPenPct, schoolPenPct);
     }
 
     private void tick() {
