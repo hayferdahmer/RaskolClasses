@@ -164,7 +164,8 @@ class RuntimeArtifactTamperingIntegrationTest {
     }
 
     private static void put(JarOutputStream output, String name, byte[] content) throws Exception {
-        output.putNextEntry(new JarEntry(name));
+        String archivePath = name.startsWith("/") ? name.substring(1) : name;
+        output.putNextEntry(new JarEntry(archivePath));
         output.write(content);
         output.closeEntry();
     }
