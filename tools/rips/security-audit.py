@@ -106,8 +106,8 @@ def main() -> int:
     record("STARTUP-SIGNATURE-CHECK", "PASS" if startup is not None and ("signature" in startup.lower() and "manifest" in startup.lower()) else "FAIL",
            "Startup verifier references signed-manifest verification." if startup is not None and ("signature" in startup.lower() and "manifest" in startup.lower()) else "Could not confirm signed-manifest verification in startup verifier.")
 
-    record("RUNTIME-MONITOR", "PASS" if monitor is not None and "verify" in monitor.lower() else "FAIL",
-           "Runtime integrity monitor exposes verification logic." if monitor is not None and "verify" in monitor.lower() else "Runtime verification marker was not found.")
+    record("RUNTIME-MONITOR", "PASS" if monitor is not None and all(x in monitor for x in ("verificationTask.get()", "performCheck()", "stateManager.completeCheck")) else "FAIL",
+           "Runtime monitor executes its verification supplier and records check results." if monitor is not None and all(x in monitor for x in ("verificationTask.get()", "performCheck()", "stateManager.completeCheck")) else "Runtime verification execution path was not confirmed.")
     record("RUNTIME-ENFORCEMENT", "PASS" if policy is not None and ("disable" in policy.lower() or "shutdown" in policy.lower() or "fatal" in policy.lower()) else "WARN",
            "Runtime policy contains an enforcement decision." if policy is not None and ("disable" in policy.lower() or "shutdown" in policy.lower() or "fatal" in policy.lower()) else "Could not identify a fatal enforcement decision.")
     tamper_markers = tamper_test is not None and all(x in tamper_test for x in ("PROTECTED_FILE_HASH_MISMATCH", "RuntimeIntegrityMonitor", "AtomicBoolean"))
