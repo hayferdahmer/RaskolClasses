@@ -21,8 +21,7 @@ class ItemsApiTest {
     void resolvesCommonRarityDeclaredByItemsConfiguration() {
         ItemRegistry registry = registry(List.of(ItemRarity.COMMON, ItemRarity.RARE, ItemRarity.EPIC));
 
-        ItemDefinition definition =
-                ItemsApi.resolveTemplate(registry, "warrior_main_hand", 20, ItemRarity.COMMON);
+        ItemDefinition definition = ItemsApi.resolveTemplate(registry, "warrior_main_hand", 20, ItemRarity.COMMON);
 
         assertEquals("warrior_main_hand_20_common", definition.id());
         assertEquals(ItemRarity.COMMON, definition.rarity());
@@ -43,8 +42,7 @@ class ItemsApiTest {
     void supportsRaritiesConfiguredWithoutApiCodeChanges() {
         ItemRegistry registry = registry(List.of(ItemRarity.UNCOMMON, ItemRarity.MYTHIC));
 
-        ItemDefinition definition =
-                ItemsApi.resolveTemplate(registry, "warrior_main_hand", 20, ItemRarity.MYTHIC);
+        ItemDefinition definition = ItemsApi.resolveTemplate(registry, "warrior_main_hand", 20, ItemRarity.MYTHIC);
 
         assertEquals(ItemRarity.MYTHIC, definition.rarity());
         assertEquals("warrior_main_hand_20_mythic", definition.id());
@@ -54,8 +52,7 @@ class ItemsApiTest {
     void selectsNearestLevelFromLoadedRegistry() {
         ItemRegistry registry = registry(List.of(ItemRarity.COMMON, ItemRarity.RARE, ItemRarity.EPIC));
 
-        ItemDefinition definition =
-                ItemsApi.resolveTemplate(registry, "warrior_main_hand", 36, ItemRarity.RARE);
+        ItemDefinition definition = ItemsApi.resolveTemplate(registry, "warrior_main_hand", 36, ItemRarity.RARE);
 
         assertEquals(40, definition.itemLevel());
     }
@@ -65,8 +62,8 @@ class ItemsApiTest {
                 .filter(candidate -> candidate.id().equals("warrior_main_hand"))
                 .findFirst()
                 .orElseThrow();
-        List<ItemDefinition> definitions = ItemTemplateExpander.expand(
-                List.of(template), Map.of(), List.of(20, 40, 60), rarities);
+        List<ItemDefinition> definitions =
+                ItemTemplateExpander.expand(List.of(template), Map.of(), List.of(20, 40, 60), rarities);
         return new ItemRegistry(definitions);
     }
 }
