@@ -181,8 +181,18 @@ public final class ResourceService implements Listener {
     }
 
     public void saveAll() {
-        states.forEach((uuid, st) -> store.set(uuid.toString(), st.getValue()));
-        SafeStorage.saveAtomic(store, file, LOGGER);
+        java.util.Set<UUID> onlinePlayers = new java.util.HashSet<>();
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            onlinePlayers.add(player.getUniqueId());
+        }
+        java.util.Set<UUID> resolvedMarkers = ResourceResetPersistence.prepareSave(
+                store, states, resetOnJoin, onlinePlayers);
+        if (SafeStorage.saveAtomic(store, file, LOGGER)) {
+            ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin);
+        } else {
+            ResourceResetPersistence.restoreAfterFailedSave(store, resolvedMarkers, resetOnJoin);
+            LOGGER.severe("Не удалось сохранить ресурсы при выключении; маркеры сброса сохранены для повторной попытки");
+        }
     }
 
     @EventHandler
