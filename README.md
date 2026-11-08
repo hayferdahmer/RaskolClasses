@@ -529,25 +529,41 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 
 <br/>
 
-**Требования:** Paper 1.21.4+, Java 21, Maven.
+### Официальная установка (боевой сервер)
+
+1. Скачайте `raskol-classes-1.15.8.jar` только из [GitHub Releases](https://github.com/hayferdahmer/RaskolClasses/releases).
+2. Поместите JAR в каталог `plugins/` сервера Paper.
+3. Запустите сервер и проверьте лог RIPS: для официальной сборки ожидается `[RIPS] INFO | VERIFIED`.
+4. Убедитесь, что после стартовой проверки запущен Runtime Integrity Monitor (повторная проверка каждые 30 минут).
+5. Выполните `/rc selftest` с правом `raskolclasses.debug`; ожидается **167/167 PASS**.
+
+**Не устанавливайте в production JAR, собранный обычной командой Maven.** Такой JAR является DEVELOPMENT-сборкой и не содержит официальной подписи RIPS. Для официального артефакта требуется релизный процесс GitHub Actions.
+
+### Сборка для локальной разработки
+
+**Базовые параметры текущей ветки:** Java 21, Maven, Paper API `1.21.4-R0.1-SNAPSHOT`, `api-version: '1.21'`.
 
 ```bash
 mvn -B clean verify
-cp target/raskol-classes-*.jar plugins/
-# перезапуск сервера
-/rc selftest   # ожидается 167/167 PASS
+# результат: target/raskol-classes-1.15.8.jar (DEVELOPMENT)
 ```
+
+Для локального тестирования DEVELOPMENT-сборки оператор должен явно включить JVM-свойство:
 
 ```text
-пламя:  ████████████████████████████████  167 / 167
+-Draskol.rips.development=true
 ```
 
-Профиль `-Pdev` добавляет `-Xlint:all` и SpotBugs: `mvn -Pdev -B verify`.
+Не добавляйте это свойство в параметры запуска production-сервера. Без явного разрешения RIPS отклоняет DEVELOPMENT-сборку.
+
+**Paper 26.2 — статус совместимости.** На сервере оператора подтверждены загрузка RaskolClasses 1.15.8 и успешная стартовая проверка RIPS. При этом CI этой версии компилирует плагин против Paper API 1.21.4 и Java 21, а не против Paper API 26.2. Полный набор функциональных тестов на API 26.2 не является частью текущего релизного CI. Поэтому этот результат подтверждает запуск и проверку артефакта, но не заменяет отдельную сертификацию совместимости с API 26.2. Сам Paper 26.2 требует Java 25 на стороне сервера.
+
+Профиль `-Pdev` включает дополнительные проверки компиляции и SpotBugs: `mvn -Pdev -B verify`. В GitHub Actions job `analyze` сейчас помечен как `continue-on-error`, поэтому его результат является дополнительным анализом, а не блокирующим release gate.
 
 > [!NOTE]
-> При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется). В логе появится строка `spec2: migrated …`.
+При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется). В логе появится строка `spec2: migrated …`.
 
-**Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints`. Каждый опционален, деградация graceful.
+**Softdepend (все опциональны):** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints` · `MythicMobs`. Интеграция AuraSkills всё ещё присутствует в 1.15.8; её удаление относится к плану 1.16.0, а не к этому релизу.
 
 <details>
 <summary>🧪 <b>Регресс-матрица selftest</b> · 167 чеков</summary>
@@ -595,7 +611,9 @@ cp target/raskol-classes-*.jar plugins/
 
 | Файл | Содержание |
 | --- | --- |
-| 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Аварии и гейты, тюнинг без пересборки, контроль и DR, проки, респеки, миграции, troubleshooting |
+| 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Операционные процедуры, конфиги, миграции и troubleshooting |
+| 🛡️ [`docs/RIPS-OPERATIONS.md`](docs/RIPS-OPERATIONS.md) | Официальные артефакты, RIPS-проверки и действия при ошибках целостности |
+| 🔐 [`SECURITY.md`](SECURITY.md) | Политика безопасности и ответственного раскрытия уязвимостей |
 | 📖 [`CHANGELOG.md`](CHANGELOG.md) | История версий (не переписывается задним числом) |
 | ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v2.0 |
 
