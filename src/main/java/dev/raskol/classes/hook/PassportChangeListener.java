@@ -121,6 +121,13 @@ public final class PassportChangeListener implements Listener {
      * чтобы формулы HP/криты пересчитались немедленно (не ждали 5 с TTL).
      */
     private void reconcileImmediate(UUID uuid, String reason) {
+        // A-12-002: при смене класса сначала сбрасываем кэш источника класса.
+        // Иначе reconcile и проверка совместимости спеки могут прочитать старый класс
+        // из пятсекундного TTL ClassProvider.
+        if ("CLASS".equals(reason) && plugin.getClassProvider() != null) {
+            plugin.getClassProvider().invalidate(uuid);
+        }
+
         // 1.15.7 (2.6-92): инвалидация кэша атрибутов ДО reconcile,
         // чтобы spec2-агрегаты применялись к свежим формулам
         if (plugin.getAttributes() != null) {
