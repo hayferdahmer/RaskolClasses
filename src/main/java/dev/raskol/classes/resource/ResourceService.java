@@ -92,7 +92,12 @@ public final class ResourceService implements Listener {
         if (uuid == null) {
             return;
         }
-        runOnMainThread(() -> persistResetMarker(uuid));
+        resetOnJoin.add(uuid);
+        runOnMainThread(() -> {
+            if (resetOnJoin.contains(uuid)) {
+                persistResetMarker(uuid);
+            }
+        });
     }
 
     /**
@@ -143,9 +148,12 @@ public final class ResourceService implements Listener {
         if (uuid == null) {
             return;
         }
+        resetOnJoin.add(uuid);
+        clearRuntimeState(uuid);
         runOnMainThread(() -> {
-            clearRuntimeState(uuid);
-            persistResetMarker(uuid);
+            if (resetOnJoin.contains(uuid)) {
+                persistResetMarker(uuid);
+            }
         });
     }
 
