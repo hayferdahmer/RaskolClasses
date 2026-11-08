@@ -23,17 +23,13 @@ final class ResourceResetPersistence {
     private ResourceResetPersistence() {}
 
     static Set<UUID> prepareSave(
-            YamlConfiguration store,
-            Map<UUID, ResourceState> states,
-            Set<UUID> resetOnJoin,
-            Set<UUID> onlinePlayers) {
+            YamlConfiguration store, Map<UUID, ResourceState> states, Set<UUID> resetOnJoin, Set<UUID> onlinePlayers) {
         Set<UUID> resolvedMarkers = new HashSet<>();
         for (Map.Entry<UUID, ResourceState> entry : states.entrySet()) {
             UUID uuid = entry.getKey();
             store.set(uuid.toString(), entry.getValue().getValue());
             if (onlinePlayers.contains(uuid)
-                    && (resetOnJoin.contains(uuid)
-                            || store.getBoolean(PENDING_RESETS_PATH + "." + uuid, false))) {
+                    && (resetOnJoin.contains(uuid) || store.getBoolean(PENDING_RESETS_PATH + "." + uuid, false))) {
                 store.set(PENDING_RESETS_PATH + "." + uuid, null);
                 resolvedMarkers.add(uuid);
             }
@@ -45,8 +41,7 @@ final class ResourceResetPersistence {
         resetOnJoin.removeAll(resolvedMarkers);
     }
 
-    static void restoreAfterFailedSave(
-            YamlConfiguration store, Set<UUID> resolvedMarkers, Set<UUID> resetOnJoin) {
+    static void restoreAfterFailedSave(YamlConfiguration store, Set<UUID> resolvedMarkers, Set<UUID> resetOnJoin) {
         for (UUID uuid : resolvedMarkers) {
             resetOnJoin.add(uuid);
             store.set(PENDING_RESETS_PATH + "." + uuid, true);
