@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.craft;
 
-import java.time.LocalDate;
+import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -29,14 +28,9 @@ import net.kyori.adventure.text.format.NamedTextColor;
  *  - эссенция класса: 0 (COMMON-тир) / 1 (RARE) / 2 (EPIC+), только для классовых;
  *  - реликвия: +1 для LEGENDARY/MYTHIC.
  *
- * Экономика: разбор убыточен (~30% ценности) — монетный сток; дневной лимит
- * item.salvage.daily-limit (дефолт 20, гард: <1 → 20) — анти-ферма фрагментов.
- *
- * 1.15.5 (Волна 2, аудит 2.6-27): ленивая чистка daily-карты. Раньше записи
- * игроков, разбиравших предметы «вчера», жили в памяти до рестарта. Теперь при
- * первом salvage в новый день карта purge'ится целиком (purgeStaleIfNeeded),
- * а счётчик конкретного игрока сбрасывается через compute — утечки нет без
- * планировщика и без правки ItemSystem.
+ * Экономика: разбор убыточен (~30% ценности) — монетный сток. Дневной лимит
+ * item.salvage.daily-limit (дефолт 20) защищает экономику от фермы фрагментов.
+ * Счётчик хранится в salvage-daily.yml и сохраняется до изменения инвентаря.
  */
 public final class SalvageService {
 
@@ -45,19 +39,21 @@ public final class SalvageService {
         DISABLED,
         EMPTY_HAND,
         NOT_OURS,
-        DAILY_LIMIT
+        DAILY_LIMIT,
+        STORAGE_ERROR
     }
 
     private static final int DEFAULT_DAILY_LIMIT = 20;
 
     private final RaskolClasses plugin;
     private final FragmentRegistry fragments;
-    private final Map<UUID, long[]> daily = new ConcurrentHashMap<>();
-    private volatile long lastPurgeDay = LocalDate.now().toEpochDay();
+    private final SalvageDailyLimitStore dailyLimits;
 
     public SalvageService(RaskolClasses plugin, FragmentRegistry fragments) {
         this.plugin = plugin;
         this.fragments = fragments;
+        this.dailyLimits =
+                new SalvageDailyLimitStore(new File(plugin.getDataFolder(), "salvage-daily.yml"), plugin.getLogger());
     }
 
     /** Pure: карта фрагментов за разбор определения (без состояния). */
@@ -100,7 +96,6 @@ public final class SalvageService {
         if (!plugin.getConfig().getBoolean("item.salvage.enabled", true)) {
             return SalvageResult.DISABLED;
         }
-        purgeStaleIfNeeded();
         ItemStack hand = player.getInventory().getItemInMainHand();
         if (hand == null || hand.getType().isAir()) {
             return SalvageResult.EMPTY_HAND;
@@ -109,14 +104,17 @@ public final class SalvageService {
         if (def == null) {
             return SalvageResult.NOT_OURS;
         }
+
         UUID uuid = player.getUniqueId();
-        long today = LocalDate.now().toEpochDay();
-        long[] counter = daily.compute(uuid, (k, v) -> (v == null || v[0] != today) ? new long[] {today, 0} : v);
         int limit = dailyLimit();
-        if (counter[1] >= limit) {
+        SalvageDailyLimitStore.ConsumeResult consumeResult =
+                dailyLimits.tryConsume(uuid, java.time.LocalDate.now().toEpochDay(), limit);
+        if (consumeResult == SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED) {
             return SalvageResult.DAILY_LIMIT;
         }
-        counter[1]++;
+        if (consumeResult == SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR) {
+            return SalvageResult.STORAGE_ERROR;
+        }
 
         Map<Fragment, Integer> gained = fragmentsFor(fragments, def);
         hand.setAmount(hand.getAmount() - 1);
@@ -138,20 +136,7 @@ public final class SalvageService {
         return SalvageResult.OK;
     }
 
-    /**
-     * 1.15.5 (Волна 2, аудит 2.6-27): при смене суток выкидываем ВСЕ записи
-     * прошлых дней — карта не растёт бесконечно без планировщика.
-     */
-    private void purgeStaleIfNeeded() {
-        long today = LocalDate.now().toEpochDay();
-        if (lastPurgeDay == today) {
-            return;
-        }
-        lastPurgeDay = today;
-        daily.entrySet().removeIf(e -> e.getValue()[0] != today);
-    }
-
-    /** Дневной лимит с гардом: конфиг <1 или мусор → дефолт 20 (анти-блокировка). */
+    /** Дневной лимит с гардом: конфиг <1 или мусор → дефолт 20. */
     private int dailyLimit() {
         int limit = plugin.getConfig().getInt("item.salvage.daily-limit", DEFAULT_DAILY_LIMIT);
         return limit >= 1 ? limit : DEFAULT_DAILY_LIMIT;
@@ -177,6 +162,10 @@ public final class SalvageService {
             case DAILY_LIMIT -> {
                 key = "item.salvage-limit";
                 fallback = "♻ Дневной лимит разбора исчерпан ({limit})";
+            }
+            case STORAGE_ERROR -> {
+                key = "item.salvage-storage-error";
+                fallback = "♻ Разбор временно недоступен: не удалось сохранить дневной лимит";
             }
             default -> {
                 return;
