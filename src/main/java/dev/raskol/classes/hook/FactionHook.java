@@ -3,9 +3,7 @@
 package dev.raskol.classes.hook;
 
 import java.lang.reflect.Method;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 import dev.raskol.classes.RaskolClasses;
 
@@ -22,12 +20,8 @@ import dev.raskol.classes.RaskolClasses;
  */
 public final class FactionHook {
 
-    private static final long CACHE_TTL_MILLIS = 5_000L;
-
-    private record CacheEntry(String faction, long expiresAt) {}
-
     private final RaskolClasses plugin;
-    private final Map<UUID, CacheEntry> cache = new ConcurrentHashMap<>();
+    private final FactionCache cache = new FactionCache();
     private boolean attempted;
     private Method passportOf;
     private Method factionGetter;
@@ -42,14 +36,18 @@ public final class FactionHook {
         if (uuid == null) {
             return "";
         }
-        long now = System.currentTimeMillis();
-        CacheEntry entry = cache.get(uuid);
-        if (entry != null && entry.expiresAt() > now) {
-            return entry.faction();
+        String cached = cache.get(uuid);
+        if (cached != null) {
+            return cached;
         }
         String faction = resolve(uuid);
-        cache.put(uuid, new CacheEntry(faction, now + CACHE_TTL_MILLIS));
+        cache.put(uuid, faction);
         return faction;
+    }
+
+    /** Немедленно удаляет закэшированную фракцию игрока после изменения паспорта. */
+    public void invalidate(UUID uuid) {
+        cache.invalidate(uuid);
     }
 
     private String resolve(UUID uuid) {

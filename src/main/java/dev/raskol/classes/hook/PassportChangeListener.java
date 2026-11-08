@@ -128,6 +128,11 @@ public final class PassportChangeListener implements Listener {
             plugin.getClassProvider().invalidate(uuid);
         }
 
+        // A-12-003: при смене фракции сбрасываем её кэш до любых боевых проверок.
+        if ("FACTION".equals(reason) && plugin.getFactionHook() != null) {
+            plugin.getFactionHook().invalidate(uuid);
+        }
+
         // 1.15.7 (2.6-92): инвалидация кэша атрибутов ДО reconcile,
         // чтобы spec2-агрегаты применялись к свежим формулам
         if (plugin.getAttributes() != null) {
