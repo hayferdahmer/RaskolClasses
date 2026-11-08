@@ -129,12 +129,11 @@ public final class ArtifactBoundIntegrityVerifier {
                 new JarArchiveIntegrityVerifier(artifactPath).verify(manifest);
 
         if (!archiveResult.isVerified()) {
-            IntegrityStatus failureStatus =
-                    switch (archiveResult.status()) {
-                        case ARCHIVE_READ_ERROR, ENTRY_READ_ERROR -> IntegrityStatus.ARTIFACT_UNAVAILABLE;
+            IntegrityStatus failureStatus = switch (archiveResult.status()) {
+                case ARCHIVE_READ_ERROR, ENTRY_READ_ERROR -> IntegrityStatus.ARTIFACT_UNAVAILABLE;
 
-                        default -> IntegrityStatus.ARCHIVE_INTEGRITY_FAILURE;
-                    };
+                default -> IntegrityStatus.ARCHIVE_INTEGRITY_FAILURE;
+            };
 
             return new IntegrityVerificationResult(
                     failureStatus,

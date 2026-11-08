@@ -180,17 +180,21 @@ public final class CcSub implements CommandSub {
         Player caster = sender instanceof Player p ? p : null;
         CCService.ApplyResult res = plugin.getCC().tryApply(caster, target, type);
         switch (res.result()) {
-            case SUCCESS -> sender.sendMessage(Component.text(
-                    type.ruName() + " → " + target.getName()
-                            + ": " + (res.appliedTicks() / 20.0) + "с (DR "
-                            + (int) Math.round(res.drMultiplier() * 100.0) + "%)",
-                    NamedTextColor.GREEN));
-            case FAIL_IMMUNE -> sender.sendMessage(
-                    Component.text(target.getName() + " невосприимчив к: " + type.ruName(), NamedTextColor.RED));
-            case FAIL_RESIST -> sender.sendMessage(
-                    Component.text(target.getName() + " сопротивляется: " + type.ruName(), NamedTextColor.YELLOW));
-            case FAIL_DR_IMMUNE -> sender.sendMessage(Component.text(
-                    target.getName() + " нечувствителен (DR-иммунитет): " + type.ruName(), NamedTextColor.RED));
+            case SUCCESS ->
+                sender.sendMessage(Component.text(
+                        type.ruName() + " → " + target.getName()
+                                + ": " + (res.appliedTicks() / 20.0) + "с (DR "
+                                + (int) Math.round(res.drMultiplier() * 100.0) + "%)",
+                        NamedTextColor.GREEN));
+            case FAIL_IMMUNE ->
+                sender.sendMessage(
+                        Component.text(target.getName() + " невосприимчив к: " + type.ruName(), NamedTextColor.RED));
+            case FAIL_RESIST ->
+                sender.sendMessage(
+                        Component.text(target.getName() + " сопротивляется: " + type.ruName(), NamedTextColor.YELLOW));
+            case FAIL_DR_IMMUNE ->
+                sender.sendMessage(Component.text(
+                        target.getName() + " нечувствителен (DR-иммунитет): " + type.ruName(), NamedTextColor.RED));
             default -> sender.sendMessage(Component.text("Отказ: " + res.result(), NamedTextColor.RED));
         }
     }

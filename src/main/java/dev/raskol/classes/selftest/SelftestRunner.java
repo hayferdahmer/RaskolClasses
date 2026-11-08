@@ -3036,15 +3036,14 @@ public final class SelftestRunner {
             plugin.getSpec2Service().reconcile(pu104);
             for (KindHit h : hits) {
                 double expect = 2 * h.node().effect().value();
-                double gotV =
-                        switch (h.node().effect().kind()) {
-                            case "phys_dmg_pct" -> plugin.getSpec2Service().physDmgPercent(pu104);
-                            case "magic_dmg_pct" -> plugin.getSpec2Service().magicDmgPercent(pu104);
-                            case "block_pct" -> plugin.getSpec2Service().blockPercent(pu104);
-                            case "crit_melee_pct" -> plugin.getSpec2Service().critMeleeBonus(pu104);
-                            case "hp_pct" -> plugin.getSpec2Service().hpPercent(pu104);
-                            default -> plugin.getSpec2Service().moveSpeedPercent(pu104);
-                        };
+                double gotV = switch (h.node().effect().kind()) {
+                    case "phys_dmg_pct" -> plugin.getSpec2Service().physDmgPercent(pu104);
+                    case "magic_dmg_pct" -> plugin.getSpec2Service().magicDmgPercent(pu104);
+                    case "block_pct" -> plugin.getSpec2Service().blockPercent(pu104);
+                    case "crit_melee_pct" -> plugin.getSpec2Service().critMeleeBonus(pu104);
+                    case "hp_pct" -> plugin.getSpec2Service().hpPercent(pu104);
+                    default -> plugin.getSpec2Service().moveSpeedPercent(pu104);
+                };
                 if (Math.abs(gotV - expect) > 1e-9) {
                     ok104 = false;
                     got104.append(h.node().effect().kind())

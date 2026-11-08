@@ -96,12 +96,11 @@ public final class ItemTemplateExpander {
                             case MAGE, WARLOCK -> WeaponType.STAFF;
                         }
                         : null;
-                ItemStat primary =
-                        switch (pc) {
-                            case WARRIOR -> ItemStat.STR;
-                            case HUNTER, ROGUE -> ItemStat.AGI;
-                            case PRIEST, MAGE, WARLOCK -> ItemStat.INT;
-                        };
+                ItemStat primary = switch (pc) {
+                    case WARRIOR -> ItemStat.STR;
+                    case HUNTER, ROGUE -> ItemStat.AGI;
+                    case PRIEST, MAGE, WARLOCK -> ItemStat.INT;
+                };
                 Map<ItemStat, Double> distribution = new EnumMap<>(ItemStat.class);
                 if (slot == ItemSlot.MAIN_HAND) {
                     distribution.put(ItemStat.ATTACK_DAMAGE, 30.0);
@@ -170,14 +169,13 @@ public final class ItemTemplateExpander {
                         pool.add(
                                 new Affix(stat, Math.max(stat.min(), center), Math.min(stat.max(), center * 2.0), 1.0));
                     }
-                    int count =
-                            switch (rarity) {
-                                case COMMON -> 0;
-                                case UNCOMMON -> 1;
-                                case RARE -> 2;
-                                case EPIC, LEGENDARY -> 3;
-                                case MYTHIC -> 4;
-                            };
+                    int count = switch (rarity) {
+                        case COMMON -> 0;
+                        case UNCOMMON -> 1;
+                        case RARE -> 2;
+                        case EPIC, LEGENDARY -> 3;
+                        case MYTHIC -> 4;
+                    };
                     result.add(new ItemDefinition(
                             id,
                             name,
@@ -257,42 +255,48 @@ public final class ItemTemplateExpander {
                 case WARLOCK -> "Посох девятого угля";
             };
         return switch (playerClass) {
-            case WARRIOR -> switch (slot) {
-                case HEAD -> "Шлем Кровавого дозора";
-                case CHEST -> "Кираса Железной клятвы";
-                case LEGS -> "Поножи бастиона";
-                default -> "Сапоги штурмовика";
-            };
-            case HUNTER -> switch (slot) {
-                case HEAD -> "Капюшон дальнего следа";
-                case CHEST -> "Куртка следопыта";
-                case LEGS -> "Поножи тихой тропы";
-                default -> "Сапоги без следа";
-            };
-            case ROGUE -> switch (slot) {
-                case HEAD -> "Маска серого плаща";
-                case CHEST -> "Дублет невидимой руки";
-                case LEGS -> "Штаны ночного дозора";
-                default -> "Сапоги бесшумного шага";
-            };
-            case PRIEST -> switch (slot) {
-                case HEAD -> "Митра Белого Пламени";
-                case CHEST -> "Облачение милосердия";
-                case LEGS -> "Поножи хранителя";
-                default -> "Сандалии последней молитвы";
-            };
-            case MAGE -> switch (slot) {
-                case HEAD -> "Диадема расколотой звезды";
-                case CHEST -> "Мантия небесного осколка";
-                case LEGS -> "Поножи астролога";
-                default -> "Сапоги между мирами";
-            };
-            case WARLOCK -> switch (slot) {
-                case HEAD -> "Капюшон девятого угля";
-                case CHEST -> "Кираса чёрной печати";
-                case LEGS -> "Поножи связанного духа";
-                default -> "Сапоги пепельного пути";
-            };
+            case WARRIOR ->
+                switch (slot) {
+                    case HEAD -> "Шлем Кровавого дозора";
+                    case CHEST -> "Кираса Железной клятвы";
+                    case LEGS -> "Поножи бастиона";
+                    default -> "Сапоги штурмовика";
+                };
+            case HUNTER ->
+                switch (slot) {
+                    case HEAD -> "Капюшон дальнего следа";
+                    case CHEST -> "Куртка следопыта";
+                    case LEGS -> "Поножи тихой тропы";
+                    default -> "Сапоги без следа";
+                };
+            case ROGUE ->
+                switch (slot) {
+                    case HEAD -> "Маска серого плаща";
+                    case CHEST -> "Дублет невидимой руки";
+                    case LEGS -> "Штаны ночного дозора";
+                    default -> "Сапоги бесшумного шага";
+                };
+            case PRIEST ->
+                switch (slot) {
+                    case HEAD -> "Митра Белого Пламени";
+                    case CHEST -> "Облачение милосердия";
+                    case LEGS -> "Поножи хранителя";
+                    default -> "Сандалии последней молитвы";
+                };
+            case MAGE ->
+                switch (slot) {
+                    case HEAD -> "Диадема расколотой звезды";
+                    case CHEST -> "Мантия небесного осколка";
+                    case LEGS -> "Поножи астролога";
+                    default -> "Сапоги между мирами";
+                };
+            case WARLOCK ->
+                switch (slot) {
+                    case HEAD -> "Капюшон девятого угля";
+                    case CHEST -> "Кираса чёрной печати";
+                    case LEGS -> "Поножи связанного духа";
+                    default -> "Сапоги пепельного пути";
+                };
         };
     }
 }

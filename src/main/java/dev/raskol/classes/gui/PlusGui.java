@@ -256,8 +256,9 @@ public final class PlusGui implements Listener {
             case DISABLED -> player.sendMessage(msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
             case WALLET_UNAVAILABLE -> player.sendMessage(msg("Кошелёк империалов недоступен — покупка отключена."));
             case INVALID_PERIODS -> player.sendMessage(msg("Не удалось рассчитать срок или стоимость подписки."));
-            case INSUFFICIENT -> player.sendMessage(msg("Недостаточно империалов: нужно " + sub.pricePerPeriod()
-                    + ", у вас " + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
+            case INSUFFICIENT ->
+                player.sendMessage(msg("Недостаточно империалов: нужно " + sub.pricePerPeriod() + ", у вас "
+                        + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
             case STORAGE_FAILED -> player.sendMessage(msg("Подписка не сохранена. Списание отменено; проверь баланс."));
         }
     }
@@ -366,20 +367,24 @@ public final class PlusGui implements Listener {
                         .replace("{cost}", free ? "0 (админ-путь)" : String.valueOf(out.cost()))));
                 player.closeInventory();
             }
-            case POOR -> player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.apply-poor", "Не хватает монет на респец: нужно {cost}")
-                    .replace("{cost}", String.valueOf(out.cost()))));
-            case NO_ECONOMY -> player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.apply-no-econ", "Экономика недоступна — применение отключено")));
-            case NO_MAIN -> player.sendMessage(msg(plugin.getRaskolConfig()
-                    .message("plus.apply-no-spec", "Сначала выбери основную спеку в «Специализации»")));
-            case NOT_ENOUGH_POINTS -> player.sendMessage(msg("Не хватает очков путей: нужно " + out.needPoints()
-                    + ", доступно " + out.poolPoints() + " (после сброса дерева)"));
+            case POOR ->
+                player.sendMessage(msg(plugin.getRaskolConfig()
+                        .message("plus.apply-poor", "Не хватает монет на респец: нужно {cost}")
+                        .replace("{cost}", String.valueOf(out.cost()))));
+            case NO_ECONOMY ->
+                player.sendMessage(msg(plugin.getRaskolConfig()
+                        .message("plus.apply-no-econ", "Экономика недоступна — применение отключено")));
+            case NO_MAIN ->
+                player.sendMessage(msg(plugin.getRaskolConfig()
+                        .message("plus.apply-no-spec", "Сначала выбери основную спеку в «Специализации»")));
+            case NOT_ENOUGH_POINTS ->
+                player.sendMessage(msg("Не хватает очков путей: нужно " + out.needPoints() + ", доступно "
+                        + out.poolPoints() + " (после сброса дерева)"));
             case WRONG_CLASS_TREE, TREE_NOT_FOUND -> player.sendMessage(msg("⚜ Шаблон недоступен для текущей спеки"));
             case TEMPLATE_INVALID -> player.sendMessage(msg("⚜ Шаблон несовместим с правилами дерева (сообщи админу)"));
             case RATE_LIMITED -> player.sendMessage(msg("Слишком часто: повтори через секунду"));
-            case PRUNED -> player.sendMessage(
-                    msg("⚜ Применение отклонено сервером: изменения откачены. Сообщи админу."));
+            case PRUNED ->
+                player.sendMessage(msg("⚜ Применение отклонено сервером: изменения откачены. Сообщи админу."));
         }
     }
 

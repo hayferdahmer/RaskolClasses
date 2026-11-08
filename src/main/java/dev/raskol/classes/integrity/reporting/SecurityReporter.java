@@ -58,10 +58,8 @@ public final class SecurityReporter {
         return switch (status) {
             case VERIFIED, DEVELOPMENT_BUILD -> SecuritySeverity.INFO;
 
-            case TRUSTED_KEY_UNAVAILABLE,
-                    ARTIFACT_UNAVAILABLE,
-                    PROTECTED_FILE_READ_ERROR,
-                    RESOURCE_READ_ERROR -> SecuritySeverity.WARNING;
+            case TRUSTED_KEY_UNAVAILABLE, ARTIFACT_UNAVAILABLE, PROTECTED_FILE_READ_ERROR, RESOURCE_READ_ERROR ->
+                SecuritySeverity.WARNING;
 
             case DEVELOPMENT_MODE_REQUIRED,
                     ARCHIVE_INTEGRITY_FAILURE,

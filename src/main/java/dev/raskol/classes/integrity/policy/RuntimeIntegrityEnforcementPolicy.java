@@ -43,10 +43,8 @@ public final class RuntimeIntegrityEnforcementPolicy {
         IntegrityStatus status = snapshot.lastResult().status();
 
         return switch (status) {
-            case ARTIFACT_UNAVAILABLE,
-                    TRUSTED_KEY_UNAVAILABLE,
-                    PROTECTED_FILE_READ_ERROR,
-                    RESOURCE_READ_ERROR -> snapshot.consecutiveFailures() >= transientFailureThreshold;
+            case ARTIFACT_UNAVAILABLE, TRUSTED_KEY_UNAVAILABLE, PROTECTED_FILE_READ_ERROR, RESOURCE_READ_ERROR ->
+                snapshot.consecutiveFailures() >= transientFailureThreshold;
 
             case VERIFIED, DEVELOPMENT_BUILD -> false;
 

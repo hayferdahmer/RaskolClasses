@@ -71,12 +71,18 @@
 
 ### 🔥 У очага: быстрый старт
 
+**Для боевого сервера:** установите официальный JAR из [GitHub Releases](https://github.com/hayferdahmer/RaskolClasses/releases), затем перезапустите Paper и проверьте в журнале `[RIPS] INFO | VERIFIED`.
+
+**Для локальной разработки:** соберите DEVELOPMENT-артефакт и запускайте его только в изолированной тестовой среде:
+
 ```bash
-mvn -B clean verify                     # выковать jar
-cp target/raskol-classes-*.jar plugins/ # положить в мастерскую сервера
-# перезапустить сервер, затем в игре:
-/rc selftest                            # ждём ровное пламя: 167/167 PASS
+mvn -B clean verify
+# DEVELOPMENT JAR: target/raskol-classes-1.15.8.jar
+# для локального тестирования требуется JVM-флаг:
+# -Draskol.rips.development=true
 ```
+
+После запуска выполните `/rc selftest`: ожидается **167/167 PASS**. Не устанавливайте обычный Maven JAR на production-сервер.
 
 <p align="center"><img src="docs/assets/divider.svg" width="640" alt="⚜"/></p>
 
@@ -529,25 +535,41 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 
 <br/>
 
-**Требования:** Paper 1.21.4+, Java 21, Maven.
+### Официальная установка (боевой сервер)
+
+1. Скачайте `raskol-classes-1.15.8.jar` только из [GitHub Releases](https://github.com/hayferdahmer/RaskolClasses/releases).
+2. Поместите JAR в каталог `plugins/` сервера Paper.
+3. Запустите сервер и проверьте лог RIPS: для официальной сборки ожидается `[RIPS] INFO | VERIFIED`.
+4. Убедитесь, что после стартовой проверки запущен Runtime Integrity Monitor (повторная проверка каждые 30 минут).
+5. Выполните `/rc selftest` с правом `raskolclasses.debug`; ожидается **167/167 PASS**.
+
+**Не устанавливайте в production JAR, собранный обычной командой Maven.** Такой JAR является DEVELOPMENT-сборкой и не содержит официальной подписи RIPS. Для официального артефакта требуется релизный процесс GitHub Actions.
+
+### Сборка для локальной разработки
+
+**Целевая сборочная конфигурация релиза:** JDK 25, Java release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. Сборка и тесты выполняются на JDK 25.
 
 ```bash
 mvn -B clean verify
-cp target/raskol-classes-*.jar plugins/
-# перезапуск сервера
-/rc selftest   # ожидается 167/167 PASS
+# результат: target/raskol-classes-1.15.8.jar (DEVELOPMENT)
 ```
+
+Для локального тестирования DEVELOPMENT-сборки оператор должен явно включить JVM-свойство:
 
 ```text
-пламя:  ████████████████████████████████  167 / 167
+-Draskol.rips.development=true
 ```
 
-Профиль `-Pdev` добавляет `-Xlint:all` и SpotBugs: `mvn -Pdev -B verify`.
+Не добавляйте это свойство в параметры запуска production-сервера. Без явного разрешения RIPS отклоняет DEVELOPMENT-сборку.
+
+**Целевая и проверенная CI сборочная конфигурация релиза:** JDK 25, Java release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. На PR #11 для этой конфигурации успешно прошли Build, Analyze, Spotless и RIPS Security Audit; 378 основных тестов и 158 security-тестов завершились без ошибок. Это подтверждает сборку и автоматические проверки на целевой платформе, но не заменяет runtime-регрессию игровых функций на Paper 26.2. На боевом сервере оператор ранее запускал RaskolClasses 1.15.8 и получил `[RIPS] INFO | VERIFIED` (`checkedFiles=392`); это подтверждает стартовую проверку конкретного артефакта, а не полный функциональный тест.
+
+Профиль `-Pdev` включает дополнительные проверки компиляции и SpotBugs: `mvn -Pdev -B verify`. В GitHub Actions job `analyze` сейчас помечен как `continue-on-error`, поэтому его результат является дополнительным анализом, а не блокирующим release gate.
 
 > [!NOTE]
 > При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется). В логе появится строка `spec2: migrated …`.
 
-**Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints`. Каждый опционален, деградация graceful.
+**Softdepend (все опциональны):** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints` · `MythicMobs`. Интеграция AuraSkills всё ещё присутствует в 1.15.8; её удаление относится к плану 1.16.0, а не к этому релизу.
 
 <details>
 <summary>🧪 <b>Регресс-матрица selftest</b> · 167 чеков</summary>
@@ -595,7 +617,9 @@ cp target/raskol-classes-*.jar plugins/
 
 | Файл | Содержание |
 | --- | --- |
-| 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Аварии и гейты, тюнинг без пересборки, контроль и DR, проки, респеки, миграции, troubleshooting |
+| 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Операционные процедуры, конфиги, миграции и troubleshooting |
+| 🛡️ [`docs/RIPS-OPERATIONS.md`](docs/RIPS-OPERATIONS.md) | Официальные артефакты, RIPS-проверки и действия при ошибках целостности |
+| 🔐 [`SECURITY.md`](SECURITY.md) | Политика безопасности и ответственного раскрытия уязвимостей |
 | 📖 [`CHANGELOG.md`](CHANGELOG.md) | История версий (не переписывается задним числом) |
 | ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v2.0 |
 

@@ -131,8 +131,10 @@ public final class FragmentRegistry {
             if (count <= 0) {
                 return;
             }
-            player.getInventory().addItem(createStack(fragment, count)).values().forEach(left -> player.getWorld()
-                    .dropItemNaturally(player.getLocation(), left));
+            player.getInventory()
+                    .addItem(createStack(fragment, count))
+                    .values()
+                    .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
         });
     }
 
@@ -175,11 +177,12 @@ public final class FragmentRegistry {
         return switch (fragment.kind()) {
             case RELIC -> NamedTextColor.LIGHT_PURPLE;
             case ESSENCE -> NamedTextColor.AQUA;
-            case WEAPON, ARMOR -> switch (fragment.tier()) {
-                case EPIC -> NamedTextColor.DARK_PURPLE;
-                case RARE -> NamedTextColor.BLUE;
-                default -> NamedTextColor.WHITE;
-            };
+            case WEAPON, ARMOR ->
+                switch (fragment.tier()) {
+                    case EPIC -> NamedTextColor.DARK_PURPLE;
+                    case RARE -> NamedTextColor.BLUE;
+                    default -> NamedTextColor.WHITE;
+                };
         };
     }
 }

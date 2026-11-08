@@ -788,7 +788,7 @@ public final class Spec2Service {
             case "kit_mult" -> agg.coeff.merge(e.target(), e.value(), Double::sum);
             case "cd" -> agg.cdPct.merge(e.target(), e.value(), Double::sum);
             case "kit_cd" -> agg.cdSec.merge(e.target(), e.value(), Double::sum);
-                // 1.14.7 (P0-6A): kit_dur — бонус длительности по ЦЕЛИ (abilityId)
+            // 1.14.7 (P0-6A): kit_dur — бонус длительности по ЦЕЛИ (abilityId)
             case "kit_dur" -> agg.kitDur.merge(e.target(), e.value(), Double::sum);
             case "regen" -> agg.regen += e.value();
             case "avoid" -> {
@@ -813,9 +813,9 @@ public final class Spec2Service {
             case "sp_pct" -> agg.spPct += e.value();
             case "hpow_pct" -> agg.hpowPct += e.value();
             case "unlock_ability" -> agg.unlocked.add(e.target());
-                // 1.14.6-fix (Sprint 1, P0-2): proc-узлы приходят как kind="proc_<id>",
-                // ключ агрегата — БЕЗ префикса.
-                // 1.14.7 (Sprint 3, контракт C): value → agg.proc (шанс), value2 → agg.procAmp (сила).
+            // 1.14.6-fix (Sprint 1, P0-2): proc-узлы приходят как kind="proc_<id>",
+            // ключ агрегата — БЕЗ префикса.
+            // 1.14.7 (Sprint 3, контракт C): value → agg.proc (шанс), value2 → agg.procAmp (сила).
             default -> {
                 String kind = e.kind();
                 String key = kind.startsWith("proc_") ? kind.substring(5) : kind;
