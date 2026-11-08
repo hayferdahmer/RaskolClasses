@@ -34,6 +34,7 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.event.CustomHealEvent;
 import dev.raskol.classes.resource.ResourceState;
+import dev.raskol.classes.storage.DirtyStorageState;
 import dev.raskol.classes.storage.SafeStorage;
 
 import net.kyori.adventure.text.Component;
@@ -94,9 +95,7 @@ public final class HpBarService implements Listener {
     private final Map<UUID, Pending> pendingRestore = new ConcurrentHashMap<>();
 
     /** 1.14.7 (P1-7): игроки, чьи HP-записи обновлены в памяти, но не записаны на диск. */
-    private final Set<UUID> dirtySinceLastFlush = new HashSet<>();
-    /** 1.14.7 (P1-7): есть хотя бы один dirty — нужно вызвать SafeStorage.saveAtomic. */
-    private volatile boolean storeDirty = false;
+    private final DirtyStorageState storageDirty = new DirtyStorageState();
 
     private long tickCounter = 0L;
     private long lastFlushAt = System.currentTimeMillis();
@@ -247,11 +246,11 @@ public final class HpBarService implements Listener {
         lastTick.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
         lastAppliedDelta.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
         pendingRestore.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
-        dirtySinceLastFlush.removeIf(id -> plugin.getServer().getPlayer(id) == null);
+        storageDirty.removePlayersIf(id -> plugin.getServer().getPlayer(id) == null);
 
         // 1.14.7 (P1-7): периодический flush dirty-игроков на диск.
         long now = System.currentTimeMillis();
-        if (storeDirty && now - lastFlushAt >= flushIntervalMillis()) {
+        if (storageDirty.isDirty() && now - lastFlushAt >= flushIntervalMillis()) {
             flushDirty();
         }
     }
@@ -351,8 +350,7 @@ public final class HpBarService implements Listener {
         }
         double ratio = Math.max(0.0, Math.min(1.0, attrs().currentFormulaHp(player) / formula));
         healthStore.set(player.getUniqueId().toString(), ratio);
-        dirtySinceLastFlush.add(player.getUniqueId());
-        storeDirty = true;
+        storageDirty.markDirty(player.getUniqueId());
     }
 
     /**
@@ -361,16 +359,9 @@ public final class HpBarService implements Listener {
      * saveAll (onDisable) и onQuit (одиночный игрок с применённым restore).
      */
     private void flushDirty() {
-        if (!storeDirty) {
+        if (!storageDirty.flush(() -> SafeStorage.saveAtomic(healthStore, healthFile, LOGGER))) {
             return;
         }
-        boolean saved = SafeStorage.saveAtomic(healthStore, healthFile, LOGGER);
-        if (!saved) {
-            // Retain dirty state and player IDs for the next scheduled retry.
-            return;
-        }
-        dirtySinceLastFlush.clear();
-        storeDirty = false;
         lastFlushAt = System.currentTimeMillis();
     }
 
