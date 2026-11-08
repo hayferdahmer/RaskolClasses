@@ -31,17 +31,11 @@ class SalvageDailyLimitStoreTest {
         File file = tempDir.resolve("salvage-daily.yml").toFile();
 
         SalvageDailyLimitStore first = new SalvageDailyLimitStore(file, LOGGER);
-        assertEquals(
-                SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                first.tryConsume(playerId, 20_000L, 2));
+        assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, first.tryConsume(playerId, 20_000L, 2));
 
         SalvageDailyLimitStore restarted = new SalvageDailyLimitStore(file, LOGGER);
-        assertEquals(
-                SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                restarted.tryConsume(playerId, 20_000L, 2));
-        assertEquals(
-                SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED,
-                restarted.tryConsume(playerId, 20_000L, 2));
+        assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, restarted.tryConsume(playerId, 20_000L, 2));
+        assertEquals(SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED, restarted.tryConsume(playerId, 20_000L, 2));
     }
 
     @Test
@@ -51,12 +45,8 @@ class SalvageDailyLimitStoreTest {
         File file = tempDir.resolve("salvage-new-day.yml").toFile();
 
         SalvageDailyLimitStore store = new SalvageDailyLimitStore(file, LOGGER);
-        assertEquals(
-                SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                store.tryConsume(playerId, 20_000L, 1));
-        assertEquals(
-                SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                store.tryConsume(playerId, 20_001L, 1));
+        assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, store.tryConsume(playerId, 20_000L, 1));
+        assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, store.tryConsume(playerId, 20_001L, 1));
     }
 
     @Test
@@ -105,8 +95,6 @@ class SalvageDailyLimitStoreTest {
         File target = parentFile.resolve("salvage-daily.yml").toFile();
 
         SalvageDailyLimitStore store = new SalvageDailyLimitStore(target, LOGGER);
-        assertEquals(
-                SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR,
-                store.tryConsume(playerId, 20_000L, 2));
+        assertEquals(SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR, store.tryConsume(playerId, 20_000L, 2));
     }
 }
