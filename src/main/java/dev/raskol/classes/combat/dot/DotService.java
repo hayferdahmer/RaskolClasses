@@ -326,8 +326,7 @@ public final class DotService implements Listener {
                 outcomes.add(new TickOutcome(inst, 0.0));
                 continue;
             }
-            if (shouldExtinguish(
-                    inst.def().school(), target.getLocation().getBlock().getType())) {
+            if (shouldExtinguish(inst.def().school(), target.getLocation().getBlock().getType())) {
                 puff(target, inst.def().school());
                 outcomes.add(new TickOutcome(inst, 0.0));
                 continue;
@@ -380,17 +379,11 @@ public final class DotService implements Listener {
         if (school.channel() != DamageType.TRUE) {
             boolean physical = school.channel() == DamageType.PHYSICAL;
             channelPenPct = combat.penTraits()
-                            .channelPen(
-                                    owner.getUniqueId(),
-                                    physical,
-                                    combat.schoolConfig().penPctCap())
+                            .channelPen(owner.getUniqueId(), physical, combat.schoolConfig().penPctCap())
                             .pct()
                     * 100.0;
             schoolPenPct = combat.penTraits()
-                            .schoolPenFraction(
-                                    owner.getUniqueId(),
-                                    school,
-                                    combat.schoolConfig().penPctCap())
+                            .schoolPenFraction(owner.getUniqueId(), school, combat.schoolConfig().penPctCap())
                     * 100.0;
         }
 
@@ -490,7 +483,8 @@ public final class DotService implements Listener {
 
     private void tickVfx(LivingEntity target, School school) {
         Particle p = resolveParticle(
-                plugin.getConfig().getString("vfx.dot." + school.id() + ".particle", null), defaultDotParticle(school));
+                plugin.getConfig().getString("vfx.dot." + school.id() + ".particle", null),
+                defaultDotParticle(school));
         if (p != null) {
             target.getWorld().spawnParticle(p, target.getLocation().add(0.0, 1.0, 0.0), 2, 0.2, 0.3, 0.2, 0.01);
         }
@@ -543,8 +537,8 @@ public final class DotService implements Listener {
             factor = 1.0;
         }
         double channelResistPct = (1.0 - factor) * 100.0;
-        Penetration pen =
-                combat.penTraits().channelPen(owner.getUniqueId(), channel == DamageType.PHYSICAL, sc.penPctCap());
+        Penetration pen = combat.penTraits().channelPen(
+                owner.getUniqueId(), channel == DamageType.PHYSICAL, sc.penPctCap());
         double effChannel = pen.effectiveResist(channelResistPct, sc.penPctCap());
         double elResist = combat.elemental().resistOf(targetUuid, school);
         double schoolPen = combat.penTraits().schoolPenFraction(owner.getUniqueId(), school, sc.penPctCap());
