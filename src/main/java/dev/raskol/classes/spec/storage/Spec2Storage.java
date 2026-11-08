@@ -123,9 +123,15 @@ public final class Spec2Storage {
     }
 
     /** Принудительная запись (onDisable, autosave). Сбрасывает dirty. */
-    public void save() {
-        SafeStorage.saveAtomic(store, file, LOGGER);
-        dirty = false;
+    public boolean save() {
+        boolean saved = SafeStorage.saveAtomic(store, file, LOGGER);
+        if (saved) {
+            dirty = false;
+        } else {
+            // Keep pending changes so autosave/onDisable can retry.
+            dirty = true;
+        }
+        return saved;
     }
 
     /**
@@ -137,8 +143,7 @@ public final class Spec2Storage {
         if (!dirty) {
             return false;
         }
-        save();
-        return true;
+        return save();
     }
 
     /** Диагностика: есть ли несохранённые изменения (для /rc health). */
