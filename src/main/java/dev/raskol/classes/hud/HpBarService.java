@@ -3,10 +3,8 @@
 package dev.raskol.classes.hud;
 
 import java.io.File;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
