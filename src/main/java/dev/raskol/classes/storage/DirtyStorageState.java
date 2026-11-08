@@ -10,20 +10,36 @@ import java.util.function.Predicate;
 
 /** Состояние несохранённых изменений общего YAML-хранилища. */
 public final class DirtyStorageState {
+
     private boolean dirty;
     private final Set<UUID> dirtyPlayers = new HashSet<>();
 
-    public void markDirty() { dirty = true; }
-
-    public void markDirty(UUID playerId) {
-        if (playerId != null) dirtyPlayers.add(playerId);
+    public void markDirty() {
         dirty = true;
     }
 
-    public boolean isDirty() { return dirty; }
-    public boolean containsPlayer(UUID playerId) { return dirtyPlayers.contains(playerId); }
-    public int dirtyPlayerCount() { return dirtyPlayers.size(); }
-    public void removePlayersIf(Predicate<UUID> predicate) { dirtyPlayers.removeIf(predicate); }
+    public void markDirty(UUID playerId) {
+        if (playerId != null) {
+            dirtyPlayers.add(playerId);
+        }
+        dirty = true;
+    }
+
+    public boolean isDirty() {
+        return dirty;
+    }
+
+    public boolean containsPlayer(UUID playerId) {
+        return dirtyPlayers.contains(playerId);
+    }
+
+    public int dirtyPlayerCount() {
+        return dirtyPlayers.size();
+    }
+
+    public void removePlayersIf(Predicate<UUID> predicate) {
+        dirtyPlayers.removeIf(predicate);
+    }
 
     public void clear() {
         dirtyPlayers.clear();
@@ -32,7 +48,9 @@ public final class DirtyStorageState {
 
     /** Очищает dirty-маркеры только после подтверждённой успешной записи. */
     public boolean flush(BooleanSupplier writer) {
-        if (!dirty || !writer.getAsBoolean()) return false;
+        if (!dirty || !writer.getAsBoolean()) {
+            return false;
+        }
         clear();
         return true;
     }
