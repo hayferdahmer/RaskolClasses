@@ -2,14 +2,18 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.api.items;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.bukkit.inventory.ItemStack;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
+import dev.raskol.classes.item.service.ItemRegistry;
 
 /**
  * Стабильный публичный API для RaskolMobs и других плагинов для создания
@@ -21,22 +25,6 @@ public final class ItemsApi {
 
     private final RaskolClasses plugin;
 
-    /**
-     * 1.15.7 (2.6-20): допустимые уровни для createFromTemplate.
-     * В реестре items.yml есть только предметы уровней 20/40/60 (шаблоны
-     * warrior_sword_20_rare, warrior_sword_40_rare, warrior_sword_60_rare).
-     * Если RaskolMobs запросит level=45, округляем до ближайшего (40).
-     */
-    private static final int[] VALID_LEVELS = {20, 40, 60};
-
-    /**
-     * 1.15.7 (2.6-20): допустимые редкости для createFromTemplate.
-     * В реестре items.yml есть только RARE/EPIC/LEGENDARY (COMMON/UNCOMMON/MYTHIC
-     * не имеют шаблонов). Если RaskolMobs запросит MYTHIC, fallback на LEGENDARY.
-     */
-    private static final Set<ItemRarity> VALID_RARITIES =
-            Set.of(ItemRarity.RARE, ItemRarity.EPIC, ItemRarity.LEGENDARY);
-
     public ItemsApi(RaskolClasses plugin) {
         this.plugin = plugin;
     }
@@ -46,41 +34,54 @@ public final class ItemsApi {
     }
 
     /**
-     * 1.15.7 (2.6-20): валидация level и rarity перед поиском в реестре.
-     * - level округляется до ближайшего из {20, 40, 60};
-     * - rarity fallback: если не в {RARE, EPIC, LEGENDARY}, используется LEGENDARY;
-     * - если точный prefix не найден, бросается IllegalArgumentException с подсказкой.
+     * Создаёт вариант шаблона с ближайшим доступным уровнем.
+     * Допустимые уровни и редкости берутся из фактически загруженного реестра,
+     * поэтому API не расходится с settings.generated-levels и
+     * settings.generated-rarities в items.yml.
      */
     public ItemStack createFromTemplate(String templateId, int level, ItemRarity rarity, long seed) {
-        int validLevel = nearestLevel(level);
-        ItemRarity validRarity = VALID_RARITIES.contains(rarity) ? rarity : ItemRarity.LEGENDARY;
-        String prefix = templateId.toLowerCase(java.util.Locale.ROOT) + "_" + validLevel + "_"
-                + validRarity.name().toLowerCase(java.util.Locale.ROOT);
-        ItemDefinition d = plugin.getItems().registry().get(prefix);
-        if (d == null) {
-            throw new IllegalArgumentException("Unknown item template/variant: " + prefix
-                    + " (requested level=" + level + " rarity=" + rarity + ")"
-                    + ". Valid levels: " + java.util.Arrays.toString(VALID_LEVELS)
-                    + ", valid rarities: " + VALID_RARITIES);
-        }
-        return plugin.getItems().create(d.id(), validLevel, seed);
+        ItemDefinition definition = resolveTemplate(plugin.getItems().registry(), templateId, level, rarity);
+        return plugin.getItems().create(definition.id(), level, seed);
     }
 
-    /**
-     * 1.15.7 (2.6-20): округление level до ближайшего из VALID_LEVELS.
-     * Примеры: 15 → 20, 35 → 40, 55 → 60, 70 → 60.
-     */
-    private static int nearestLevel(int level) {
-        int best = VALID_LEVELS[0];
-        int bestDiff = Math.abs(level - best);
-        for (int i = 1; i < VALID_LEVELS.length; i++) {
-            int diff = Math.abs(level - VALID_LEVELS[i]);
-            if (diff < bestDiff) {
-                best = VALID_LEVELS[i];
-                bestDiff = diff;
-            }
+    static ItemDefinition resolveTemplate(ItemRegistry registry, String templateId, int level, ItemRarity rarity) {
+        Objects.requireNonNull(registry, "Item registry must not be null");
+        if (templateId == null || templateId.isBlank()) {
+            throw new IllegalArgumentException("Template id must not be blank");
         }
-        return best;
+        Objects.requireNonNull(rarity, "Item rarity must not be null");
+
+        List<ItemDefinition> templateVariants = registry.all().stream()
+                .filter(definition -> templateId.equalsIgnoreCase(definition.template()))
+                .toList();
+        if (templateVariants.isEmpty()) {
+            throw new IllegalArgumentException("Unknown item template: " + templateId);
+        }
+
+        int selectedLevel = templateVariants.stream()
+                .map(ItemDefinition::itemLevel)
+                .distinct()
+                .min(Comparator.comparingLong((Integer candidate) -> Math.abs((long) level - candidate))
+                        .thenComparingInt(Integer::intValue))
+                .orElseThrow();
+
+        List<ItemDefinition> levelVariants = templateVariants.stream()
+                .filter(definition -> definition.itemLevel() == selectedLevel)
+                .toList();
+        return levelVariants.stream()
+                .filter(definition -> definition.rarity() == rarity)
+                .findFirst()
+                .orElseThrow(() -> {
+                    String availableRarities = levelVariants.stream()
+                            .map(ItemDefinition::rarity)
+                            .distinct()
+                            .sorted()
+                            .map(Enum::name)
+                            .collect(Collectors.joining(", "));
+                    return new IllegalArgumentException("Unsupported rarity " + rarity + " for template "
+                            + templateId + " at level " + selectedLevel + ". Available rarities: "
+                            + availableRarities);
+                });
     }
 
     public ItemRarity rollRarity(Map<ItemRarity, Double> weights, long seed) {
