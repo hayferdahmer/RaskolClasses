@@ -115,7 +115,7 @@ def main() -> int:
            "Runtime tampering integration test checks hash mismatch and enforcement callback." if tamper_markers else "Runtime tampering integration test is missing expected assertions.")
 
     private_key_pattern = re.compile(
-        rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|-----BEGIN PRIVATE KEY-----"
+        b"-----BEGIN " + b"(?:RSA |EC |OPENSSH )?PRIVATE KEY-----|" + b"-----BEGIN " + b"PRIVATE KEY-----"
     )
     scanned = 0
     leaked_paths: list[str] = []
