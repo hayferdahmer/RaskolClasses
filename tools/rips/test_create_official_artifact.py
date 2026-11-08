@@ -47,7 +47,7 @@ class OfficialArtifactSigningTests(unittest.TestCase):
             "CON.txt",
             "trailing-dot.",
             "trailing-space ",
-            "non-normalized-e\\u0301.class",
+            "non-normalized-e" + chr(0x301) + ".class",
         ]
         for path in invalid_files:
             with self.subTest(path=path):
