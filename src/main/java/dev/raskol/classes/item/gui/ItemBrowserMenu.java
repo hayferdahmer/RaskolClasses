@@ -223,8 +223,10 @@ public final class ItemBrowserMenu implements Listener {
         }
         if (player.hasPermission("raskolclasses.item.give")) {
             ItemStack created = items.create(itemId, def.itemLevel());
-            player.getInventory().addItem(created).values().forEach(left -> player.getWorld()
-                    .dropItemNaturally(player.getLocation(), left));
+            player.getInventory()
+                    .addItem(created)
+                    .values()
+                    .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
             player.sendMessage(ItemHover.withPreview(
                     Component.text("Получен предмет: " + def.displayName(), NamedTextColor.GREEN), created));
         } else {

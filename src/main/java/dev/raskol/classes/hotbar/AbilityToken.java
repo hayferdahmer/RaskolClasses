@@ -62,17 +62,16 @@ public final class AbilityToken {
 
         // школа способности
         if (def.school() != null) {
-            String schoolName =
-                    switch (def.school()) {
-                        case PHYSICAL -> "физический";
-                        case FIRE -> "огонь";
-                        case FROST -> "лёд";
-                        case NATURE -> "природа";
-                        case SHADOW -> "тьма";
-                        case HOLY -> "свет";
-                        case ARCANE -> "тайная магия";
-                        case TRUE -> "чистый";
-                    };
+            String schoolName = switch (def.school()) {
+                case PHYSICAL -> "физический";
+                case FIRE -> "огонь";
+                case FROST -> "лёд";
+                case NATURE -> "природа";
+                case SHADOW -> "тьма";
+                case HOLY -> "свет";
+                case ARCANE -> "тайная магия";
+                case TRUE -> "чистый";
+            };
             lore.add(Component.text("Школа: " + schoolName, NamedTextColor.GOLD));
         }
 
@@ -82,21 +81,19 @@ public final class AbilityToken {
         double coeff = TreeAbilities.numberOrKit(plugin, pc, def.id(), "coeff", 0.0);
 
         if (coeff > 0.0) {
-            String powerName =
-                    switch (power) {
-                        case "wp" -> "Силы оружия";
-                        case "hpow" -> "Силы исцеления";
-                        default -> "Силы заклинаний";
-                    };
+            String powerName = switch (power) {
+                case "wp" -> "Силы оружия";
+                case "hpow" -> "Силы исцеления";
+                default -> "Силы заклинаний";
+            };
             lore.add(Component.text(
                     String.format(Locale.ROOT, "Эффект: %.0f + %.0f%% от %s", base, coeff * 100.0, powerName),
                     NamedTextColor.AQUA));
-            String powerFormula =
-                    switch (power) {
-                        case "wp" -> "Сила оружия = base + СИЛА×1.5 + ЛОВК×0.5";
-                        case "hpow" -> "Сила исцеления = base + ИНТ×1.4";
-                        default -> "Сила заклинаний = base + ИНТ×1.5";
-                    };
+            String powerFormula = switch (power) {
+                case "wp" -> "Сила оружия = base + СИЛА×1.5 + ЛОВК×0.5";
+                case "hpow" -> "Сила исцеления = base + ИНТ×1.4";
+                default -> "Сила заклинаний = base + ИНТ×1.5";
+            };
             lore.add(Component.text(powerFormula, NamedTextColor.DARK_AQUA));
         }
 

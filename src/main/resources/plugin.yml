@@ -3,7 +3,7 @@
 name: RaskolClasses
 version: ${project.version}
 main: dev.raskol.classes.RaskolClasses
-api-version: '1.21'
+api-version: '26.2'
 author: hayferdahmer
 description: "Шесть классов, деревья путей и боевая система сервера «РАСКОЛ | ДВЕ КОРОНЫ»"
 website: https://github.com/hayferdahmer/RaskolClasses

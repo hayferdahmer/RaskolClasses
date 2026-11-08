@@ -74,9 +74,7 @@ public final class VanillaCCWrapper implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEffectAdd(EntityPotionEffectEvent event) {
-        if (!(event.getEntity() instanceof LivingEntity le)) {
-            return;
-        }
+        LivingEntity le = event.getEntity();
         // 1.13.0-fix: event.getModifiedType() вместо event.getType()
         PotionEffectType modifiedType = event.getModifiedType();
         // наш туман слепоты не оборачиваем и не даём ему уйти в DR повторно

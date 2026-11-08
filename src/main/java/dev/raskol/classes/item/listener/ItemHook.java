@@ -236,8 +236,10 @@ public final class ItemHook implements Listener {
                     && definition.rarity() == ItemRarity.COMMON
                     && definition.itemLevel() == 20) {
                 ItemStack starter = items.create(definition.id(), 1);
-                player.getInventory().addItem(starter).values().forEach(left -> player.getWorld()
-                        .dropItemNaturally(player.getLocation(), left));
+                player.getInventory()
+                        .addItem(starter)
+                        .values()
+                        .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
             }
         }
         pdc.set(starterKitClassKey, org.bukkit.persistence.PersistentDataType.STRING, playerClass.name());

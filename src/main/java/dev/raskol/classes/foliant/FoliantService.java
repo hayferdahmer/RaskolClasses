@@ -717,20 +717,27 @@ public final class FoliantService implements Listener {
                 case OK -> "Переход завершён.";
                 case LP_FAILED -> "Том не открылся: ошибка миграции (см. лог).";
                 case NO_CLASS -> plugin.getRaskolConfig().message("no-class", "Класс не выбран — посетите герольда");
-                case ALREADY_WARLOCK -> plugin.getRaskolConfig()
-                        .message("foliant.already-warlock", "Том уже прочитан тобой.");
-                case NOT_MAGE_OR_PRIEST -> plugin.getRaskolConfig()
-                        .message(
-                                "foliant.not-mage-priest",
-                                "Страницы не отвечают тебе. Том ждёт знающих письмена света и веры.");
-                case TOO_LOW_LEVEL -> plugin.getRaskolConfig()
-                        .message("foliant.too-low-level", "Том тяжёл для твоего разума: нужен уровень персонажа 40.");
-                case SPEC_CHOSEN -> plugin.getRaskolConfig()
-                        .message("foliant.spec-chosen", "Том не откроется, пока ты держишься старого пути.");
-                case TALENTS_SPENT -> plugin.getRaskolConfig()
-                        .message("foliant.talents-spent", "Том не откроется, пока в тебе живы старые знания.");
-                case AUTH_GATE -> plugin.getRaskolConfig()
-                        .message("gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
+                case ALREADY_WARLOCK ->
+                    plugin.getRaskolConfig().message("foliant.already-warlock", "Том уже прочитан тобой.");
+                case NOT_MAGE_OR_PRIEST ->
+                    plugin.getRaskolConfig()
+                            .message(
+                                    "foliant.not-mage-priest",
+                                    "Страницы не отвечают тебе. Том ждёт знающих письмена света и веры.");
+                case TOO_LOW_LEVEL ->
+                    plugin.getRaskolConfig()
+                            .message(
+                                    "foliant.too-low-level",
+                                    "Том тяжёл для твоего разума: нужен уровень персонажа 40.");
+                case SPEC_CHOSEN ->
+                    plugin.getRaskolConfig()
+                            .message("foliant.spec-chosen", "Том не откроется, пока ты держишься старого пути.");
+                case TALENTS_SPENT ->
+                    plugin.getRaskolConfig()
+                            .message("foliant.talents-spent", "Том не откроется, пока в тебе живы старые знания.");
+                case AUTH_GATE ->
+                    plugin.getRaskolConfig()
+                            .message("gate.blocked", "Способности недоступны в этом режиме или до входа в аккаунт.");
             };
         }
     }

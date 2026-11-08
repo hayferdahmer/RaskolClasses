@@ -50,81 +50,87 @@ public final class TreeAbilities {
     /** Id древесных способностей класса (порядок = порядок слотов витрины). */
     public static List<String> idsFor(PlayerClass pc) {
         return switch (pc) {
-            case WARRIOR -> List.of(
-                    "whirlwind_slash",
-                    "mortal_strike",
-                    "bloodthirst",
-                    "rampage",
-                    "concussive_blow",
-                    "shield_bash",
-                    "taunt",
-                    "bladestorm",
-                    "last_stand");
-            case HUNTER -> List.of(
-                    "aimed_shot",
-                    "silencing_shot",
-                    "chimera_shot",
-                    "true_shot",
-                    "poison_shot",
-                    "explosive_trap",
-                    "black_arrow",
-                    "wyvern_sting",
-                    "readiness",
-                    "serpent_sting",
-                    "intimidation",
-                    "pet_wolf",
-                    "beast_ferocity",
-                    "bestial_wrath");
-            case ROGUE -> List.of(
-                    "poison_burst",
-                    "cold_blood",
-                    "vendetta",
-                    "envenom",
-                    "deathmark",
-                    "pistol_shot",
-                    "blade_flurry",
-                    "adrenaline_rush",
-                    "killing_spree",
-                    "between_the_eyes",
-                    "backstab",
-                    "shadowstep",
-                    "preparation",
-                    "cloak_of_shadows",
-                    "hemorrhage",
-                    "shadow_blades");
-            case MAGE -> List.of(
-                    "arcane_missiles",
-                    "counterspell",
-                    "presence_of_mind",
-                    "scorch",
-                    "flamestrike",
-                    "combustion",
-                    "pyroblast",
-                    "frostbolt",
-                    "blizzard",
-                    "ice_barrier",
-                    "ice_lance_shatter");
-            case PRIEST -> List.of(
-                    "purge",
-                    "pain_suppression",
-                    "spirit_shell",
-                    "flash_heal",
-                    "lightwell",
-                    "divine_hymn",
-                    "withering_touch",
-                    "mind_flay",
-                    "shadowfiend");
-            case WARLOCK -> List.of(
-                    "withering",
-                    "soul_siphon",
-                    "soul_harvest",
-                    "immolate",
-                    "chaos_bolt",
-                    "conflagrate",
-                    "dreadfire",
-                    "summon_demon",
-                    "demonic_pact",
-                    "demon_soul");
+            case WARRIOR ->
+                List.of(
+                        "whirlwind_slash",
+                        "mortal_strike",
+                        "bloodthirst",
+                        "rampage",
+                        "concussive_blow",
+                        "shield_bash",
+                        "taunt",
+                        "bladestorm",
+                        "last_stand");
+            case HUNTER ->
+                List.of(
+                        "aimed_shot",
+                        "silencing_shot",
+                        "chimera_shot",
+                        "true_shot",
+                        "poison_shot",
+                        "explosive_trap",
+                        "black_arrow",
+                        "wyvern_sting",
+                        "readiness",
+                        "serpent_sting",
+                        "intimidation",
+                        "pet_wolf",
+                        "beast_ferocity",
+                        "bestial_wrath");
+            case ROGUE ->
+                List.of(
+                        "poison_burst",
+                        "cold_blood",
+                        "vendetta",
+                        "envenom",
+                        "deathmark",
+                        "pistol_shot",
+                        "blade_flurry",
+                        "adrenaline_rush",
+                        "killing_spree",
+                        "between_the_eyes",
+                        "backstab",
+                        "shadowstep",
+                        "preparation",
+                        "cloak_of_shadows",
+                        "hemorrhage",
+                        "shadow_blades");
+            case MAGE ->
+                List.of(
+                        "arcane_missiles",
+                        "counterspell",
+                        "presence_of_mind",
+                        "scorch",
+                        "flamestrike",
+                        "combustion",
+                        "pyroblast",
+                        "frostbolt",
+                        "blizzard",
+                        "ice_barrier",
+                        "ice_lance_shatter");
+            case PRIEST ->
+                List.of(
+                        "purge",
+                        "pain_suppression",
+                        "spirit_shell",
+                        "flash_heal",
+                        "lightwell",
+                        "divine_hymn",
+                        "withering_touch",
+                        "mind_flay",
+                        "shadowfiend");
+            case WARLOCK ->
+                List.of(
+                        "withering",
+                        "soul_siphon",
+                        "soul_harvest",
+                        "immolate",
+                        "chaos_bolt",
+                        "conflagrate",
+                        "dreadfire",
+                        "summon_demon",
+                        "demonic_pact",
+                        "demon_soul");
         };
     }
 

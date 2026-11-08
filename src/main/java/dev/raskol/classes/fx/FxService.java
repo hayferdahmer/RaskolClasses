@@ -89,12 +89,11 @@ public final class FxService implements Listener {
         if (name == null || name.isEmpty()) {
             return null;
         }
-        String mapped =
-                switch (name.toUpperCase(Locale.ROOT)) {
-                    case "ENTITY_WOLF_HOWL" -> "ENTITY_WOLF_AMBIENT";
-                    case "BLOCK_SNOW_BLOCK_BREAK" -> "BLOCK_SNOW_BREAK";
-                    default -> name;
-                };
+        String mapped = switch (name.toUpperCase(Locale.ROOT)) {
+            case "ENTITY_WOLF_HOWL" -> "ENTITY_WOLF_AMBIENT";
+            case "BLOCK_SNOW_BLOCK_BREAK" -> "BLOCK_SNOW_BREAK";
+            default -> name;
+        };
         try {
             return Sound.valueOf(mapped.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
