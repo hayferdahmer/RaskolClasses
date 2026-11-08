@@ -12,7 +12,6 @@ import java.security.KeyPair;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.JarEntry;
@@ -69,8 +68,7 @@ class RuntimeArtifactTamperingIntegrationTest {
 
         IntegrityManifest manifest = new IntegrityManifest(
                 identity,
-                List.of(new ManifestFileEntry(
-                        PROTECTED_PATH, original.length, Sha256HashService.hash(original))));
+                List.of(new ManifestFileEntry(PROTECTED_PATH, original.length, Sha256HashService.hash(original))));
         SignedManifest signedManifest = ManifestSignatureService.sign(manifest, keyPair.getPrivate());
 
         Path jar = temporaryDirectory.resolve("runtime-test.jar");
@@ -107,18 +105,19 @@ class RuntimeArtifactTamperingIntegrationTest {
 
             RuntimeIntegritySnapshot attacked = monitor.checkNow().get(3, TimeUnit.SECONDS);
             assertEquals(RuntimeIntegrityState.FAILED, attacked.state());
-            assertEquals(IntegrityStatus.PROTECTED_FILE_HASH_MISMATCH, attacked.lastResult().status());
+            assertEquals(
+                    IntegrityStatus.PROTECTED_FILE_HASH_MISMATCH,
+                    attacked.lastResult().status());
             assertTrue(policy.shouldDisable(attacked), "Confirmed hash mismatch must be fatal immediately.");
             assertTrue(shutdownRequested.get(), "Runtime failure callback must request enforcement.");
         }
     }
 
-    private static IntegrityVerificationResult verifyArtifact(
-            Path jar, BuildIdentity identity, KeyPair keyPair) {
+    private static IntegrityVerificationResult verifyArtifact(Path jar, BuildIdentity identity, KeyPair keyPair) {
         try {
             JarFileIntegrityResourceProvider resources = new JarFileIntegrityResourceProvider(jar);
-            IntegrityVerificationResult startup = new StartupIntegrityVerifier(
-                    resources, identity, keyPair.getPublic()).verify();
+            IntegrityVerificationResult startup =
+                    new StartupIntegrityVerifier(resources, identity, keyPair.getPublic()).verify();
             if (!startup.isVerified()) {
                 return startup;
             }
