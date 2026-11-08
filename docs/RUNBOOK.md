@@ -8,7 +8,7 @@
 
 **Конфигурация сервера, проверенная оператором:** Paper 26.2 + Java 25. На ней запускался RaskolClasses 1.15.8, стартовая проверка завершилась `VERIFIED` (`checkedFiles=392`). Это подтверждает запуск конкретного артефакта и стартовую проверку RIPS на данном сервере, но не является исчерпывающим тестированием каждой функции на API Paper 26.2.
 
-**Сборочная конфигурация исходников:** Java release 21, Paper API `1.21.4-R0.1-SNAPSHOT`, `api-version: '1.21'`. Java 25 совместима с байткодом Java 21. Версия compile-time API отличается от runtime ядра; полный тестовый профиль API 26.2 в CI пока отсутствует.
+**Целевая сборочная конфигурация:** JDK 25, Java release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. Сборка и тесты переводятся на эту платформу; до прохождения CI и runtime-регрессии переход не считается завершённым.
 
 - Для production устанавливается только официальный JAR из GitHub Releases. JAR из обычного `mvn verify` является DEVELOPMENT-сборкой.
 - Официальный JAR должен содержать `META-INF/raskol/build.properties`, `META-INF/raskol/integrity/manifest.rips`, `manifest.sig` и `public-key.txt`. Доверие строится не на одном лишь ключе внутри JAR: runtime verifier использует закреплённый в исходниках trusted-key registry.
