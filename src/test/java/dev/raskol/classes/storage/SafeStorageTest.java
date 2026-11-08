@@ -30,7 +30,8 @@ class SafeStorageTest {
     @DisplayName("отсутствие файла и sidecar-файлов означает новое хранилище")
     void missingStorageStartsEmpty() {
         assertTrue(SafeStorage.loadWithFallback(tempDir.resolve("fresh.yml").toFile(), LOGGER)
-                .getKeys(true).isEmpty());
+                .getKeys(true)
+                .isEmpty());
     }
 
     @Test
