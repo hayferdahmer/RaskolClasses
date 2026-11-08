@@ -41,7 +41,7 @@ public final class ItemsApi {
      */
     public ItemStack createFromTemplate(String templateId, int level, ItemRarity rarity, long seed) {
         ItemDefinition definition = resolveTemplate(plugin.getItems().registry(), templateId, level, rarity);
-        return plugin.getItems().create(definition.id(), level, seed);
+        return plugin.getItems().create(definition.id(), definition.itemLevel(), seed);
     }
 
     static ItemDefinition resolveTemplate(ItemRegistry registry, String templateId, int level, ItemRarity rarity) {
