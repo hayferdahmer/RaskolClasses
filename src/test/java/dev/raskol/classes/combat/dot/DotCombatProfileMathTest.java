@@ -128,7 +128,8 @@ class DotCombatProfileMathTest {
 
         assertEquals(
                 0.7,
-                DotCombatProfileMath.multiplier(profile, School.PHYSICAL, Double.NaN, Double.POSITIVE_INFINITY),
+                DotCombatProfileMath.multiplier(
+                        profile, School.PHYSICAL, Double.NaN, Double.POSITIVE_INFINITY),
                 EPS);
     }
 
