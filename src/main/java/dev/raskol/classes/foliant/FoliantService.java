@@ -43,6 +43,7 @@ import org.bukkit.scheduler.BukkitTask;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.compat.AuthGate;
+import dev.raskol.classes.storage.DirtyStorageState;
 import dev.raskol.classes.storage.SafeStorage;
 
 import net.kyori.adventure.text.Component;
@@ -104,7 +105,7 @@ public final class FoliantService implements Listener {
     private final Map<UUID, RelockState> locks = new ConcurrentHashMap<>();
     private final File lockFile;
     private final YamlConfiguration lockStore;
-    private volatile boolean lockDirty = false;
+    private final DirtyStorageState lockDirty = new DirtyStorageState();
 
     /**
      * Конструктор без побочных эффектов (1.14.13, Волна 13B): загрузка lock-хранилища
@@ -129,7 +130,7 @@ public final class FoliantService implements Listener {
                 .runTaskTimer(
                         plugin,
                         () -> {
-                            if (lockDirty) {
+                            if (lockDirty.isDirty()) {
                                 saveLocks();
                             }
                         },
@@ -145,11 +146,10 @@ public final class FoliantService implements Listener {
      * @return true если файл был записан
      */
     public boolean saveLocksIfDirty() {
-        if (!lockDirty) {
+        if (!lockDirty.isDirty()) {
             return false;
         }
-        saveLocks();
-        return true;
+        return saveLocks();
     }
 
     private void loadLocks() {
@@ -169,7 +169,7 @@ public final class FoliantService implements Listener {
         }
     }
 
-    private synchronized void saveLocks() {
+    private synchronized boolean saveLocks() {
         for (Map.Entry<UUID, RelockState> e : locks.entrySet()) {
             String k = e.getKey().toString();
             lockStore.set(k + ".locked", e.getValue().locked);
@@ -177,8 +177,7 @@ public final class FoliantService implements Listener {
             lockStore.set(k + ".deaths", e.getValue().deaths);
             lockStore.set(k + ".no-kills", e.getValue().noKills);
         }
-        SafeStorage.saveAtomic(lockStore, lockFile, LOGGER);
-        lockDirty = false;
+        return lockDirty.flush(() -> SafeStorage.saveAtomic(lockStore, lockFile, LOGGER));
     }
 
     private RelockState lockState(UUID uuid) {
@@ -198,6 +197,7 @@ public final class FoliantService implements Listener {
             st.outKills = 0;
             st.deaths = 0;
             st.noKills = 0;
+            lockDirty.markDirty();
             saveLocks();
             LOGGER.info("Foliant: релок-цикл завершён игроком " + p.getName() + " (шанс дропа восстановлен)");
         }
@@ -271,8 +271,8 @@ public final class FoliantService implements Listener {
                 } else if (eligibleMob) {
                     st.noKills++;
                 }
+                lockDirty.markDirty();
                 checkUnlock(killer, st);
-                lockDirty = true;
             }
             return;
         }
@@ -305,6 +305,7 @@ public final class FoliantService implements Listener {
             fresh.outKills = 0;
             fresh.deaths = 0;
             fresh.noKills = 0;
+            lockDirty.markDirty();
             saveLocks();
         }
         plugin.getFx().playSound(killer.getLocation(), Sound.ENTITY_WARDEN_HEARTBEAT, 0.5f, 0.8f);
@@ -322,8 +323,8 @@ public final class FoliantService implements Listener {
         RelockState st = locks.get(uuid);
         if (st != null && st.locked && relockEnabled()) {
             st.deaths++;
+            lockDirty.markDirty();
             checkUnlock(event.getEntity(), st);
-            lockDirty = true;
         }
         if (plugin.getConfig().getBoolean("foliant.soulbound.keep-on-death", true)) {
             event.getDrops().removeIf(this::isFoliant);

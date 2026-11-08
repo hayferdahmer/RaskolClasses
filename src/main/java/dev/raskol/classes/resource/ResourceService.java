@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -49,6 +50,7 @@ public final class ResourceService implements Listener {
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
     private static final double MAX_VALUE = 100.0;
     private static final long DEBUFF_PURGE_TICKS = 600L;
+    private static final String PENDING_RESETS_PATH = "pending-resets";
 
     private final RaskolClasses plugin;
     private final RaskolConfig config;
@@ -67,6 +69,19 @@ public final class ResourceService implements Listener {
         this.classProvider = classProvider;
         this.file = new File(plugin.getDataFolder(), "resources.yml");
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
+        ConfigurationSection pendingResets = store.getConfigurationSection(PENDING_RESETS_PATH);
+        if (pendingResets != null) {
+            for (String key : pendingResets.getKeys(false)) {
+                try {
+                    UUID uuid = UUID.fromString(key);
+                    if (pendingResets.getBoolean(key, false)) {
+                        resetOnJoin.add(uuid);
+                    }
+                } catch (IllegalArgumentException ex) {
+                    LOGGER.warning("resources.yml: некорректный UUID в pending-resets: " + key);
+                }
+            }
+        }
     }
 
     /**
@@ -74,7 +89,15 @@ public final class ResourceService implements Listener {
      * (класс сменился оффлайн — старое значение ресурса не восстанавливаем).
      */
     public void markResetOnJoin(UUID uuid) {
+        if (uuid == null) {
+            return;
+        }
         resetOnJoin.add(uuid);
+        runOnMainThread(() -> {
+            if (resetOnJoin.contains(uuid)) {
+                persistResetMarker(uuid);
+            }
+        });
     }
 
     /**
@@ -117,14 +140,60 @@ public final class ResourceService implements Listener {
         stateOf(uuid).add(amount);
     }
 
+    /**
+     * Сброс ресурса после фактической смены класса. Маркер записывается до
+     * следующего входа/выхода, чтобы рестарт сервера не восстановил старую шкалу.
+     */
     public void clear(UUID uuid) {
+        if (uuid == null) {
+            return;
+        }
+        resetOnJoin.add(uuid);
+        clearRuntimeState(uuid);
+        runOnMainThread(() -> {
+            if (resetOnJoin.contains(uuid)) {
+                persistResetMarker(uuid);
+            }
+        });
+    }
+
+    private void clearRuntimeState(UUID uuid) {
         states.remove(uuid);
         lastGainMs.remove(uuid);
     }
 
+    private void persistResetMarker(UUID uuid) {
+        resetOnJoin.add(uuid);
+        store.set(uuid.toString(), null);
+        store.set(PENDING_RESETS_PATH + "." + uuid, true);
+        if (!SafeStorage.saveAtomic(store, file, LOGGER)) {
+            LOGGER.severe("Не удалось сохранить маркер сброса ресурса для " + uuid
+                    + "; маркер оставлен в памяти для повторной попытки");
+        }
+    }
+
+    private void runOnMainThread(Runnable action) {
+        if (Bukkit.isPrimaryThread()) {
+            action.run();
+        } else {
+            plugin.getServer().getScheduler().runTask(plugin, action);
+        }
+    }
+
     public void saveAll() {
-        states.forEach((uuid, st) -> store.set(uuid.toString(), st.getValue()));
-        SafeStorage.saveAtomic(store, file, LOGGER);
+        java.util.Set<UUID> onlinePlayers = new java.util.HashSet<>();
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            onlinePlayers.add(player.getUniqueId());
+        }
+        java.util.Set<UUID> resolvedMarkers =
+                ResourceResetPersistence.prepareSave(store, states, resetOnJoin, onlinePlayers);
+        if (SafeStorage.saveAtomic(store, file, LOGGER)) {
+            ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin);
+        } else {
+            ResourceResetPersistence.restoreAfterFailedSave(store, resolvedMarkers, resetOnJoin);
+            LOGGER.severe(
+                    "Не удалось сохранить ресурсы при выключении; маркеры сброса сохранены для повторной попытки");
+        }
     }
 
     @EventHandler
@@ -132,9 +201,18 @@ public final class ResourceService implements Listener {
         UUID uuid = event.getPlayer().getUniqueId();
         String key = uuid.toString();
         // 1.15.5 (аудит 2.6-78): класс сменился оффлайн — шкала стартует с нуля
-        if (resetOnJoin.remove(uuid)) {
-            clear(uuid);
+        if (resetOnJoin.contains(uuid) || store.getBoolean(PENDING_RESETS_PATH + "." + uuid, false)) {
+            clearRuntimeState(uuid);
             store.set(key, null);
+            store.set(PENDING_RESETS_PATH + "." + uuid, null);
+            if (SafeStorage.saveAtomic(store, file, LOGGER)) {
+                resetOnJoin.remove(uuid);
+            } else {
+                resetOnJoin.add(uuid);
+                store.set(PENDING_RESETS_PATH + "." + uuid, true);
+                LOGGER.severe("Не удалось завершить сброс ресурса при входе " + uuid
+                        + "; маркер сохранён для следующей попытки");
+            }
             return;
         }
         ResourceState st = stateOf(uuid);
@@ -151,7 +229,15 @@ public final class ResourceService implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         store.set(uuid.toString(), stateOf(uuid).getValue());
-        clear(uuid);
+        boolean pendingReset = resetOnJoin.remove(uuid);
+        if (pendingReset) {
+            store.set(PENDING_RESETS_PATH + "." + uuid, null);
+        }
+        if (!SafeStorage.saveAtomic(store, file, LOGGER) && pendingReset) {
+            resetOnJoin.add(uuid);
+            store.set(PENDING_RESETS_PATH + "." + uuid, true);
+        }
+        clearRuntimeState(uuid);
     }
 
     public BukkitTask startTickTask(RaskolClasses plugin) {
