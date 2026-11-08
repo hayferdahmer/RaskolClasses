@@ -40,7 +40,8 @@ public final class BlueprintHook {
             return;
         }
 
-        plugin.getLogger().warning(
-                "RaskolEnchant обнаружен, но загрузка чертежей и регистрация рецептов ещё не реализованы; интеграция не активна");
+        plugin.getLogger()
+                .warning(
+                        "RaskolEnchant обнаружен, но загрузка чертежей и регистрация рецептов ещё не реализованы; интеграция не активна");
     }
 }
