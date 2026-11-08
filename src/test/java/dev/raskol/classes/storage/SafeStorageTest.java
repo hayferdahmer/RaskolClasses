@@ -11,15 +11,20 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.logging.Logger;
+
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+/** Проверки восстановления YAML и атомарной записи. */
 @DisplayName("SafeStorage: восстановление и атомарная запись")
 class SafeStorageTest {
+
     private static final Logger LOGGER = Logger.getLogger("SafeStorageTest");
-    @TempDir Path tempDir;
+
+    @TempDir
+    Path tempDir;
 
     @Test
     @DisplayName("отсутствие файла и sidecar-файлов означает новое хранилище")
@@ -34,7 +39,9 @@ class SafeStorageTest {
         File file = write("main.yml", "value: main\n");
         File tmp = new File(file.getParentFile(), file.getName() + ".tmp");
         Files.writeString(tmp.toPath(), "value: tmp\n");
+
         YamlConfiguration loaded = SafeStorage.loadWithFallback(file, LOGGER);
+
         assertEquals("main", loaded.getString("value"));
         assertFalse(tmp.exists());
     }
@@ -44,6 +51,7 @@ class SafeStorageTest {
     void missingMainRestoresTmp() throws IOException {
         File file = tempDir.resolve("tmp-recovery.yml").toFile();
         Files.writeString(new File(file.getParentFile(), file.getName() + ".tmp").toPath(), "value: latest\n");
+
         assertEquals("latest", SafeStorage.loadWithFallback(file, LOGGER).getString("value"));
     }
 
@@ -52,6 +60,7 @@ class SafeStorageTest {
     void corruptMainRestoresBackup() throws IOException {
         File file = write("backup-recovery.yml", "value: [unterminated\n");
         Files.writeString(new File(file.getParentFile(), file.getName() + ".bak").toPath(), "value: backup\n");
+
         assertEquals("backup", SafeStorage.loadWithFallback(file, LOGGER).getString("value"));
     }
 
@@ -61,6 +70,7 @@ class SafeStorageTest {
         File file = write("broken.yml", "value: [broken\n");
         Files.writeString(new File(file.getParentFile(), file.getName() + ".tmp").toPath(), "value: [broken\n");
         Files.writeString(new File(file.getParentFile(), file.getName() + ".bak").toPath(), "value: [broken\n");
+
         assertTrue(SafeStorage.loadWithFallback(file, LOGGER).getKeys(true).isEmpty());
     }
 
@@ -71,12 +81,14 @@ class SafeStorageTest {
         YamlConfiguration first = new YamlConfiguration();
         first.set("value", "first");
         assertTrue(SafeStorage.saveAtomic(first, file, LOGGER));
+
         YamlConfiguration second = new YamlConfiguration();
         second.set("value", "second");
         assertTrue(SafeStorage.saveAtomic(second, file, LOGGER));
+
         assertEquals("second", YamlConfiguration.loadConfiguration(file).getString("value"));
-        assertEquals("first", YamlConfiguration.loadConfiguration(
-                new File(file.getParentFile(), file.getName() + ".bak")).getString("value"));
+        File backup = new File(file.getParentFile(), file.getName() + ".bak");
+        assertEquals("first", YamlConfiguration.loadConfiguration(backup).getString("value"));
         assertFalse(new File(file.getParentFile(), file.getName() + ".tmp").exists());
     }
 
@@ -88,6 +100,7 @@ class SafeStorageTest {
         File target = parentFile.resolve("nested.yml").toFile();
         YamlConfiguration configuration = new YamlConfiguration();
         configuration.set("value", "must-not-be-lost");
+
         assertFalse(SafeStorage.saveAtomic(configuration, target, LOGGER));
     }
 
