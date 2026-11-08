@@ -1,0 +1,68 @@
+# © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+# SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+name: RIPS Security Auditor
+
+on:
+  pull_request:
+    branches: [ release/1.15.8 ]
+    paths:
+      - 'src/main/java/dev/raskol/classes/integrity/**'
+      - 'src/test/java/dev/raskol/classes/integrity/**'
+      - 'tools/rips/**'
+      - 'pom.xml'
+      - '.github/workflows/rips-security-auditor.yml'
+  push:
+    branches: [ release/1.15.8 ]
+    paths:
+      - 'src/main/java/dev/raskol/classes/integrity/**'
+      - 'src/test/java/dev/raskol/classes/integrity/**'
+      - 'tools/rips/**'
+      - 'pom.xml'
+      - '.github/workflows/rips-security-auditor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: rips-security-auditor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Read-only RIPS security audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Run deterministic RIPS source audit
+        run: python3 tools/rips/security-audit.py
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run RIPS Java tests
+        run: mvn -B -Dtest='*Rips*Test,*Integrity*Test,*Tampering*Test,*KeyRotation*Test' test
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: rips-security-audit-report
+          path: target/rips-security-audit.json
+          if-no-files-found: ignore
+          retention-days: 30
