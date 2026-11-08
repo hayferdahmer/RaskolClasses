@@ -54,6 +54,11 @@ public final class SafeStorage {
                 logger.warning("SafeStorage: файл " + file.getName() + " повреждён (" + e.getMessage()
                         + ") — пробую .tmp/.bak");
             }
+        } else if (!tmp.exists() && !bak.exists()) {
+            // Отсутствие всех файлов — штатное состояние нового хранилища.
+            // Не выдаём нормальный первый запуск за критическую потерю данных.
+            logger.info("SafeStorage: хранилище " + file.getName() + " ещё не создано — использую пустое");
+            return new YamlConfiguration();
         } else {
             logger.warning("SafeStorage: основной файл " + file.getName() + " отсутствует — пробую .tmp/.bak");
         }
