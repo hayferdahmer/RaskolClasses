@@ -92,7 +92,13 @@ class RuntimeArtifactTamperingIntegrationTest {
                 })) {
 
             RuntimeIntegritySnapshot initial = monitor.checkNow().get(3, TimeUnit.SECONDS);
-            assertEquals(RuntimeIntegrityState.VERIFIED, initial.state());
+            assertEquals(
+                    RuntimeIntegrityState.VERIFIED,
+                    initial.state(),
+                    "Initial verification failed: status="
+                            + initial.lastResult().status()
+                            + ", message="
+                            + initial.lastResult().message());
             assertEquals(0, initial.consecutiveFailures());
             assertTrue(!shutdownRequested.get());
 
