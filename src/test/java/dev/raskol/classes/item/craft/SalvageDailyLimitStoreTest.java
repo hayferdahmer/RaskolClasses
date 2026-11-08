@@ -53,8 +53,8 @@ class SalvageDailyLimitStoreTest {
     @DisplayName("параллельные запросы не превышают дневной лимит")
     void concurrentRequestsCannotExceedLimit() throws InterruptedException {
         UUID playerId = UUID.randomUUID();
-        SalvageDailyLimitStore store =
-                new SalvageDailyLimitStore(tempDir.resolve("salvage-concurrent.yml").toFile(), LOGGER);
+        SalvageDailyLimitStore store = new SalvageDailyLimitStore(
+                tempDir.resolve("salvage-concurrent.yml").toFile(), LOGGER);
         java.util.concurrent.atomic.AtomicInteger consumed = new java.util.concurrent.atomic.AtomicInteger();
         java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(12);
         java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
@@ -65,8 +65,7 @@ class SalvageDailyLimitStoreTest {
                 ready.countDown();
                 try {
                     start.await();
-                    if (store.tryConsume(playerId, 20_000L, 3)
-                            == SalvageDailyLimitStore.ConsumeResult.CONSUMED) {
+                    if (store.tryConsume(playerId, 20_000L, 3) == SalvageDailyLimitStore.ConsumeResult.CONSUMED) {
                         consumed.incrementAndGet();
                     }
                 } catch (InterruptedException exception) {
