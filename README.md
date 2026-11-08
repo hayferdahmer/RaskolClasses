@@ -547,7 +547,7 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 
 ### Сборка для локальной разработки
 
-**Базовые параметры текущей ветки:** Java 21, Maven, Paper API `1.21.4-R0.1-SNAPSHOT`, `api-version: '1.21'`.
+**Целевая сборочная конфигурация релиза:** JDK 25, Java release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. Сборка и тесты выполняются на JDK 25.
 
 ```bash
 mvn -B clean verify
