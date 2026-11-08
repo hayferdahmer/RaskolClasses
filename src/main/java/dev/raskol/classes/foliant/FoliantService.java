@@ -146,7 +146,7 @@ public final class FoliantService implements Listener {
      * @return true если файл был записан
      */
     public boolean saveLocksIfDirty() {
-        if (!lockDirty) {
+        if (!lockDirty.isDirty()) {
             return false;
         }
         return saveLocks();
@@ -197,7 +197,7 @@ public final class FoliantService implements Listener {
             st.outKills = 0;
             st.deaths = 0;
             st.noKills = 0;
-            lockDirty = true;
+            lockDirty.markDirty();
             saveLocks();
             LOGGER.info("Foliant: релок-цикл завершён игроком " + p.getName() + " (шанс дропа восстановлен)");
         }
