@@ -28,12 +28,7 @@ class DotCombatProfileMathTest {
     @Test
     @DisplayName("Иммунитет профиля полностью блокирует соответствующую школу")
     void immunityBlocksSchool() {
-        CombatProfile profile = profile(
-                0.0,
-                0.0,
-                Map.of(),
-                Set.of(School.FIRE),
-                Map.of());
+        CombatProfile profile = profile(0.0, 0.0, Map.of(), Set.of(School.FIRE), Map.of());
 
         assertEquals(0.0, DotCombatProfileMath.multiplier(profile, School.FIRE, 0.0, 0.0), EPS);
     }
@@ -41,64 +36,35 @@ class DotCombatProfileMathTest {
     @Test
     @DisplayName("Физическое сопротивление учитывает сопротивление школы и оба вида пробития")
     void physicalResistanceUsesChannelAndSchoolPenetration() {
-        CombatProfile profile = profile(
-                50.0,
-                0.0,
-                Map.of(School.PHYSICAL, 10.0),
-                Set.of(),
-                Map.of());
+        CombatProfile profile = profile(50.0, 0.0, Map.of(School.PHYSICAL, 10.0), Set.of(), Map.of());
 
         // 50 физ. резиста + 10 резиста школы - 20 канального пробития
         // - 5 пробития школы = 35% итогового сопротивления.
-        assertEquals(
-                0.65,
-                DotCombatProfileMath.multiplier(profile, School.PHYSICAL, 20.0, 5.0),
-                EPS);
+        assertEquals(0.65, DotCombatProfileMath.multiplier(profile, School.PHYSICAL, 20.0, 5.0), EPS);
     }
 
     @Test
     @DisplayName("Магическое сопротивление и уязвимость применяются в правильном порядке")
     void magicResistanceAndVulnerabilityAreCombined() {
-        CombatProfile profile = profile(
-                0.0,
-                40.0,
-                Map.of(School.FIRE, 10.0),
-                Set.of(),
-                Map.of(School.FIRE, 50.0));
+        CombatProfile profile = profile(0.0, 40.0, Map.of(School.FIRE, 10.0), Set.of(), Map.of(School.FIRE, 50.0));
 
         // (40 + 10)% сопротивления → 0.5 урона;
         // затем уязвимость +50% → итоговый множитель 0.75.
-        assertEquals(
-                0.75,
-                DotCombatProfileMath.multiplier(profile, School.FIRE, 0.0, 0.0),
-                EPS);
+        assertEquals(0.75, DotCombatProfileMath.multiplier(profile, School.FIRE, 0.0, 0.0), EPS);
     }
 
     @Test
     @DisplayName("TRUE-школа игнорирует сопротивления, но учитывает уязвимость")
     void trueSchoolIgnoresResistanceButUsesVulnerability() {
-        CombatProfile profile = profile(
-                60.0,
-                60.0,
-                Map.of(School.TRUE, 60.0),
-                Set.of(),
-                Map.of(School.TRUE, 50.0));
+        CombatProfile profile = profile(60.0, 60.0, Map.of(School.TRUE, 60.0), Set.of(), Map.of(School.TRUE, 50.0));
 
-        assertEquals(
-                1.5,
-                DotCombatProfileMath.multiplier(profile, School.TRUE, 40.0, 40.0),
-                EPS);
+        assertEquals(1.5, DotCombatProfileMath.multiplier(profile, School.TRUE, 40.0, 40.0), EPS);
     }
 
     @Test
     @DisplayName("Уязвимость минус 100 процентов полностью обнуляет урон")
     void fullResistanceVulnerabilityBlocksDamage() {
-        CombatProfile profile = profile(
-                0.0,
-                0.0,
-                Map.of(),
-                Set.of(),
-                Map.of(School.FROST, -100.0));
+        CombatProfile profile = profile(0.0, 0.0, Map.of(), Set.of(), Map.of(School.FROST, -100.0));
 
         assertEquals(0.0, DotCombatProfileMath.multiplier(profile, School.FROST, 0.0, 0.0), EPS);
     }
@@ -106,12 +72,7 @@ class DotCombatProfileMathTest {
     @Test
     @DisplayName("Итоговое сопротивление ограничивается сверху 90 процентами")
     void resistanceIsCappedAtNinetyPercent() {
-        CombatProfile profile = profile(
-                60.0,
-                0.0,
-                Map.of(School.PHYSICAL, 60.0),
-                Set.of(),
-                Map.of());
+        CombatProfile profile = profile(60.0, 0.0, Map.of(School.PHYSICAL, 60.0), Set.of(), Map.of());
 
         assertEquals(0.1, DotCombatProfileMath.multiplier(profile, School.PHYSICAL, 0.0, 0.0), EPS);
     }
@@ -119,12 +80,7 @@ class DotCombatProfileMathTest {
     @Test
     @DisplayName("Некорректное пробитие не создаёт дополнительный урон")
     void invalidPenetrationIsIgnored() {
-        CombatProfile profile = profile(
-                30.0,
-                0.0,
-                Map.of(),
-                Set.of(),
-                Map.of());
+        CombatProfile profile = profile(30.0, 0.0, Map.of(), Set.of(), Map.of());
 
         assertEquals(
                 0.7,
