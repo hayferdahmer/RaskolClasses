@@ -99,6 +99,95 @@ jobs:
           fi
 
   # -----------------------------------------------------------
+  # Manual OFFICIAL signing verification.
+  #
+  # This job is intentionally limited to workflow_dispatch on
+  # release/1.15.8. It creates a signed JAR artifact for server
+  # validation, but NEVER creates a tag or publishes a GitHub Release.
+  # -----------------------------------------------------------
+  signing-verification:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release/1.15.8'
+    runs-on: ubuntu-24.04
+    environment:
+      name: rips-release
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v5
+
+      - name: Enforce RIPS release signing policy
+        env:
+          RIPS_SIGNING_PRIVATE_KEY_B64: ${{ secrets.RIPS_SIGNING_PRIVATE_KEY_B64 }}
+        run: python3 tools/rips/verify-release-signing-policy.py
+
+      - name: Download verified build artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: raskol-classes
+          path: release-artifacts
+
+      - name: Create OFFICIAL RIPS artifact (no publication)
+        env:
+          RIPS_SIGNING_PRIVATE_KEY_B64: ${{ secrets.RIPS_SIGNING_PRIVATE_KEY_B64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR="release-artifacts/raskol-classes-1.15.8.jar"
+          test -f "$JAR"
+          python3 tools/rips/create-official-artifact.py \
+            --jar "$JAR" \
+            --version "1.15.8" \
+            --build-id "manual-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --commit "$GITHUB_SHA" \
+            --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          python3 - "$JAR" <<'PY'
+          import base64
+          import hashlib
+          import sys
+          import zipfile
+
+          jar = sys.argv[1]
+          with zipfile.ZipFile(jar) as archive:
+              identity = archive.read("META-INF/raskol/build.properties").decode("utf-8")
+              required = (
+                  "product.id=RaskolClasses",
+                  "plugin.version=1.15.8",
+                  "build.type=OFFICIAL",
+              )
+              if not all(item in identity.splitlines() for item in required):
+                  raise SystemExit("OFFICIAL build identity validation failed")
+              signature = base64.b64decode(
+                  archive.read("META-INF/raskol/integrity/manifest.sig").strip(),
+                  validate=True,
+              )
+              if len(signature) != 64:
+                  raise SystemExit("Invalid Ed25519 signature length")
+              if archive.testzip() is not None:
+                  raise SystemExit("JAR ZIP integrity validation failed")
+          with open(jar, "rb") as stream:
+              print("OFFICIAL artifact SHA-256:", hashlib.sha256(stream.read()).hexdigest())
+          print("OFFICIAL build identity and archive checks: PASS")
+          PY
+
+      - name: Upload signed verification artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: raskol-classes-1.15.8-official-verification
+          path: release-artifacts/raskol-classes-1.15.8.jar
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Verification summary
+        if: success()
+        run: |
+          echo "### RIPS OFFICIAL signing verification: PASS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: release/1.15.8" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: 1.15.8" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Signed artifact uploaded separately; no GitHub Release was published." >> "$GITHUB_STEP_SUMMARY"
+
+  # -----------------------------------------------------------
   # Release job.
   #
   # RIPS 3.0.6.7.2.4.4:
