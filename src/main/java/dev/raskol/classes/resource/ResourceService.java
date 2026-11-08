@@ -185,13 +185,14 @@ public final class ResourceService implements Listener {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             onlinePlayers.add(player.getUniqueId());
         }
-        java.util.Set<UUID> resolvedMarkers = ResourceResetPersistence.prepareSave(
-                store, states, resetOnJoin, onlinePlayers);
+        java.util.Set<UUID> resolvedMarkers =
+                ResourceResetPersistence.prepareSave(store, states, resetOnJoin, onlinePlayers);
         if (SafeStorage.saveAtomic(store, file, LOGGER)) {
             ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin);
         } else {
             ResourceResetPersistence.restoreAfterFailedSave(store, resolvedMarkers, resetOnJoin);
-            LOGGER.severe("Не удалось сохранить ресурсы при выключении; маркеры сброса сохранены для повторной попытки");
+            LOGGER.severe(
+                    "Не удалось сохранить ресурсы при выключении; маркеры сброса сохранены для повторной попытки");
         }
     }
 
