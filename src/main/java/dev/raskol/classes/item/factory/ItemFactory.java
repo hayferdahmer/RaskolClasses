@@ -90,7 +90,9 @@ public final class ItemFactory {
         if (def.customModelData() != null) {
             meta.setCustomModelData(def.customModelData());
         }
-        item.setItemMeta(meta);
+        if (!item.setItemMeta(meta)) {
+            throw new IllegalStateException("Не удалось применить метаданные предмета");
+        }
         pdc.write(item, def, seed, affixValues);
         return item;
     }
