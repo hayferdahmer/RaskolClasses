@@ -39,394 +39,719 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
       Любые новые классы остаются под контролем SpotBugs.
     -->
     <!--
-      EI_EXPOSE_REP: точечные исключения для живых сервисов, Bukkit Event/InventoryHolder
-      и контекстных объектов. Возвращаемые ссылки — часть их штатного контракта;
-      изменяемые value-модели здесь не исключаются: для них добавлены защитные копии.
+      EI_EXPOSE_REP: исключены только конкретные accessors, которые по контракту
+      возвращают живые сервисы, Bukkit Event payload, InventoryHolder inventory
+      или RenderCtx references. Остальные методы этих классов проверяются.
     -->
     <Match>
         <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getAbilities"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getAbilityRegistry"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getAttributes"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getBuildTemplates"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getCC"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getClassProvider"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getCooldowns"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getEffects"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getFx"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getInstallations"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getItems"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getPassives"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getPets"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getResists"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getResources"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getSpec2Applier"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getSpec2Service"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getSpec2Storage"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getWarlockAbilities"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.attribute.AttributeService"/>
+        <Method name="modifiers"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.CombatService"/>
+        <Method name="avoidance"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.combat.CombatService"/>
+        <Method name="dots"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.combat.CombatService"/>
+        <Method name="elemental"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.combat.CombatService"/>
+        <Method name="procs"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.combat.CombatService"/>
+        <Method name="resists"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.event.CustomHealEvent"/>
+        <Method name="getHealer"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.event.CustomHealEvent"/>
+        <Method name="getTarget"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.foliant.FoliantService$FoliantHolder"/>
+        <Method name="getInventory"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.gui.ClassBook"/>
+        <Method name="getInventory"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.gui.PlusGui$PlusHolder"/>
+        <Method name="getInventory"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.gui.book.RenderCtx"/>
+        <Method name="inv"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.gui.book.RenderCtx"/>
+        <Method name="player"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.gui.book.RenderCtx"/>
+        <Method name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.craft.CraftingGui$Holder"/>
+        <Method name="getInventory"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.factory.ItemFactory"/>
+        <Method name="pdc"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.gui.ItemBrowserMenu$Holder"/>
+        <Method name="getInventory"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.service.ItemSystem"/>
+        <Method name="fragments"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.service.ItemSystem"/>
+        <Method name="hook"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.service.ItemSystem"/>
+        <Method name="registry"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.service.ItemSystem"/>
+        <Method name="setBonuses"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.spec.service.Spec2Service"/>
+        <Method name="storage"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
 
     <!--
-      EI_EXPOSE_REP2: точечные исключения для dependency injection в пределах одного
-      жизненного цикла плагина (RaskolClasses/сервисы/адаптеры/обработчики событий).
-      Это не blanket-исключение: новые классы и новые типы утечек остаются видимыми.
+      EI_EXPOSE_REP2: исключены только конкретные поля, куда конструкторы передают
+      lifecycle-managed зависимости/сервисы либо ссылки, обязательные для event/context.
+      Новые поля в тех же классах остаются видимыми для SpotBugs.
     -->
     <Match>
         <Class name="dev.raskol.classes.ability.AbilityRegistry"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.ability.CooldownManager"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.ability.HunterAbilities$FanArrowHit"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.ability.passive.PassiveListener"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.api.items.ItemsApi"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.attribute.AttributeService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.attribute.HpAttributeSync"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.attribute.HpPool"/>
+        <Field name="formulas"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.attribute.HpPool"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.attribute.PowerService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.bootstrap.SessionListener"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.cc.CCGuard"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.cc.CCService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.cc.CastGuard"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.cc.VanillaCCWrapper"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.classsystem.CharacterLevelService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.classsystem.LuckPermsBackend"/>
+        <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.classsystem.LuckPermsBackend"/>
+        <Field name="provider"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.classsystem.LuckPermsBackend"/>
+        <Field name="resourceService"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.classsystem.SkillLevelProvider"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.AvoidanceService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.CombatService"/>
+        <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.combat.CombatService"/>
+        <Field name="resists"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.DamageCaps"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.ManaSoakedService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.ProcService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.ResistService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.VanillaDamageListener"/>
+        <Field name="avoidance"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.combat.VanillaDamageListener"/>
+        <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.combat.VanillaDamageListener"/>
+        <Field name="resists"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.dot.DotService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.school.PenTraitsService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.school.SchoolConfig"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.combat.school.SchoolImmunity"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.command.RaskolCommand"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.command.sub.CcSub"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.command.sub.DebugSub"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.command.sub.FoliantSub"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.command.sub.HealthSub"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.command.sub.ItemSub"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.command.sub.PlusSub"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.command.sub.SetSub"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.config.ConfigValidator"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.config.KitConfigLoader"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.config.RaskolConfig"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.effect.ActiveEffectManager"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.event.CustomHealEvent"/>
+        <Field name="healer"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.event.CustomHealEvent"/>
+        <Field name="target"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.flavor.CrownFlavorService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.foliant.FoliantService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.fx.FxService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.fx.TrailListener"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.gui.ClassBook$ClickHandler"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.gui.PlusGui"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.gui.book.RenderCtx"/>
+        <Field name="inv"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.gui.book.RenderCtx"/>
+        <Field name="player"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.gui.book.RenderCtx"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hook.BlueprintHook"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hook.EconomyHook"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hook.FactionHook"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hook.FlavorPlaceholder"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hook.PassportChangeListener"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hook.RaskolCoreHook"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hook.RaskolPlaceholder"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hotbar.AbilityToken"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hotbar.BindListener"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hotbar.ScrollCooldownTask"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hotbar.ScrollSanitizer"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hud.BossBarService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hud.HpBarService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.hud.HudService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.install.InstallBindListener"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.install.InstallToken"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.install.InstallationService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.craft.CraftingGui"/>
+        <Field name="fragments"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.craft.CraftingGui"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.craft.CraftingService"/>
+        <Field name="fragments"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.craft.CraftingService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.craft.SalvageService"/>
+        <Field name="fragments"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.craft.SalvageService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.factory.ItemFactory"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.gui.ItemBrowserMenu"/>
+        <Field name="items"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.gui.ItemBrowserMenu"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.listener.EquipGuard"/>
+        <Field name="items"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.listener.EquipGuard"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.listener.ItemHook"/>
+        <Field name="items"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.listener.ItemHook"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.listener.UnbreakableGuard"/>
+        <Field name="pdc"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.item.service.ItemSystem"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.pet.PetService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.resource.ResourceService"/>
+        <Field name="classProvider"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.resource.ResourceService"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.spec.build.BuildTemplates"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.spec.build.PlusSubscription"/>
+        <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.spec.build.PlusSubscription"/>
+        <Field name="storage"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.spec.listen.Spec2RoleListener"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.spec.service.Spec2EffectsApplier"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.spec.service.Spec2Service"/>
+        <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.spec.service.Spec2Service"/>
+        <Field name="storage"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
         <Class name="dev.raskol.classes.spec.storage.Spec2Storage"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
 
