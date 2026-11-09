@@ -451,7 +451,7 @@ public final class FxService implements Listener {
         int broken = 0;
         for (String key : section.getKeys(true)) {
             if (key.endsWith("cast-sound") || key.endsWith("impact-sound") || key.endsWith("tag-sound")) {
-                String name = section.getString(key, "");
+                String name = java.util.Objects.requireNonNullElse(section.getString(key), "");
                 if (!name.isEmpty() && resolveSound(name) == null) {
                     broken++;
                 }
