@@ -627,7 +627,7 @@ public final class RaskolClasses extends JavaPlugin {
             stage = "предметы и крафт";
             if (items != null) {
                 dev.raskol.classes.bootstrap.PluginReloadResult itemReload =
-                        dev.raskol.classes.bootstrap.PluginReloadResult.itemsReload(items.reload());
+                        dev.raskol.classes.bootstrap.PluginReloadResult.itemsReload(items::reload);
                 if (!itemReload.successful()) {
                     getLogger().severe("Перезагрузка завершена с ошибкой: " + itemReload.message());
                     return itemReload;
