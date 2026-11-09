@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.junit.jupiter.api.Test;
 
 class PluginReloadResultTest {
@@ -19,15 +21,29 @@ class PluginReloadResultTest {
     }
 
     @Test
-    void successfulItemReloadIsReportedAsSuccess() {
-        assertTrue(PluginReloadResult.itemsReload(true).successful());
+    void successfulItemReloadExecutesOperationAndReportsSuccess() {
+        AtomicInteger calls = new AtomicInteger();
+
+        PluginReloadResult result = PluginReloadResult.itemsReload(() -> {
+            calls.incrementAndGet();
+            return true;
+        });
+
+        assertTrue(result.successful());
+        assertEquals(1, calls.get());
     }
 
     @Test
-    void failedItemReloadIsReportedAsFailure() {
-        PluginReloadResult result = PluginReloadResult.itemsReload(false);
+    void failedItemReloadExecutesOperationAndReportsFailure() {
+        AtomicInteger calls = new AtomicInteger();
+
+        PluginReloadResult result = PluginReloadResult.itemsReload(() -> {
+            calls.incrementAndGet();
+            return false;
+        });
 
         assertFalse(result.successful());
+        assertEquals(1, calls.get());
         assertTrue(result.message().contains("предметы и крафт"));
         assertTrue(result.message().contains("crafting.yml"));
         assertTrue(result.message().contains("автоматического отката нет"));
