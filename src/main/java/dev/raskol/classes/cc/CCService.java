@@ -465,6 +465,21 @@ public final class CCService implements Listener {
         drStates.remove(targetUuid);
     }
 
+    /**
+     * Удаляет категории DR, окно которых уже истекло, и пустые записи сущностей.
+     * Вызывается раз в секунду, даже если активных эффектов контроля нет.
+     */
+    static void pruneExpiredDrStates(
+            Map<UUID, EnumMap<DRCategory, DRState>> states, long now, long windowMillis) {
+        if (states == null || states.isEmpty() || windowMillis < 0L) {
+            return;
+        }
+        for (EnumMap<DRCategory, DRState> byCategory : states.values()) {
+            byCategory.entrySet().removeIf(entry -> now - entry.getValue().lastAppliedAt() > windowMillis);
+        }
+        states.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+    }
+
     /* ------------------------------ поведения и туман BLIND ------------------------------ */
 
     private void onApplyBehavior(LivingEntity target, CCType type, int appliedTicks) {
@@ -603,11 +618,14 @@ public final class CCService implements Listener {
 
     private void tick() {
         tickCounter++;
+        long now = System.currentTimeMillis();
+        if (tickCounter % 20L == 0L) {
+            pruneExpiredDrStates(drStates, now, windowMillis());
+        }
         boolean particleFrame = tickCounter % 10L == 0L;
         if (active.isEmpty()) {
             return;
         }
-        long now = System.currentTimeMillis();
         for (Map.Entry<UUID, CopyOnWriteArrayList<CCInstance>> entry : active.entrySet()) {
             UUID uuid = entry.getKey();
             CopyOnWriteArrayList<CCInstance> list = entry.getValue();
