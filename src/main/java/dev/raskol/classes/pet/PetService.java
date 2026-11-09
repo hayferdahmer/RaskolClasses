@@ -197,9 +197,6 @@ public final class PetService implements Listener {
         if (def == null) {
             return SummonResult.UNKNOWN;
         }
-        if (owner.getWorld() == null) {
-            return SummonResult.NO_WORLD;
-        }
         UUID ouuid = owner.getUniqueId();
         PetState existing = pets.get(ouuid);
         if (existing != null) {
