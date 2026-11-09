@@ -238,8 +238,9 @@ public final class CCFeedback {
             return;
         }
         // Снимаем passenger перед удалением
-        if (display.getVehicle() != null) {
-            display.getVehicle().removePassenger(display);
+        org.bukkit.entity.Entity vehicle = display.getVehicle();
+        if (vehicle != null) {
+            vehicle.removePassenger(display);
         }
         try {
             display.remove();
