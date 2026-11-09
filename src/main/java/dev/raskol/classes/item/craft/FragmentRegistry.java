@@ -169,9 +169,12 @@ public final class FragmentRegistry {
         }
         int left = count;
         ItemStack[] contents = player.getInventory().getStorageContents();
+        if (contents == null) {
+            return false;
+        }
         for (int i = 0; i < contents.length && left > 0; i++) {
             ItemStack stack = contents[i];
-            if (fragmentOf(stack) != fragment) {
+            if (stack == null || fragmentOf(stack) != fragment) {
                 continue;
             }
             int take = Math.min(left, stack.getAmount());
