@@ -637,9 +637,6 @@ public final class Spec2Service {
                 return false;
             }
             Object provider = registration.getProvider();
-            if (provider == null) {
-                return false;
-            }
             Method deposit = null;
             for (Method m : economyIface.getMethods()) {
                 Class<?>[] p = m.getParameterTypes();
