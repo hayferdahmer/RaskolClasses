@@ -625,10 +625,13 @@ public final class RaskolClasses extends JavaPlugin {
             configValidator.validate();
 
             stage = "предметы и крафт";
-            if (items != null && !items.reload()) {
-                getLogger().severe("Перезагрузка завершена с ошибкой: items.yml или crafting.yml не загружен.");
-                return dev.raskol.classes.bootstrap.PluginReloadResult.failure(
-                        stage, "items.yml или crafting.yml не удалось загрузить");
+            if (items != null) {
+                dev.raskol.classes.bootstrap.PluginReloadResult itemReload =
+                        dev.raskol.classes.bootstrap.PluginReloadResult.itemsReload(items.reload());
+                if (!itemReload.successful()) {
+                    getLogger().severe("Перезагрузка завершена с ошибкой: " + itemReload.message());
+                    return itemReload;
+                }
             }
 
             stage = "синхронизация игроков";
