@@ -21,6 +21,14 @@ public record Spec2Node(
         String name,
         String lore,
         Spec2Effect effect) {
+    public Spec2Node {
+        prereqs = Map.copyOf(prereqs);
+    }
+
+    @Override
+    public Map<String, Integer> prereqs() {
+        return Map.copyOf(prereqs);
+    }
 
     public boolean isUltimate() {
         return "ultimate".equals(type);
