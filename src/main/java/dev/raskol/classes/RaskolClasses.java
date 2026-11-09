@@ -648,10 +648,11 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().info("Конфигурация перезагружена");
             return dev.raskol.classes.bootstrap.PluginReloadResult.success();
         } catch (RuntimeException ex) {
-            getLogger().log(
-                    java.util.logging.Level.SEVERE,
-                    "Перезагрузка остановлена на этапе «" + stage + "». Часть настроек могла примениться.",
-                    ex);
+            getLogger()
+                    .log(
+                            java.util.logging.Level.SEVERE,
+                            "Перезагрузка остановлена на этапе «" + stage + "». Часть настроек могла примениться.",
+                            ex);
             return dev.raskol.classes.bootstrap.PluginReloadResult.failure(
                     stage, ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
         }
