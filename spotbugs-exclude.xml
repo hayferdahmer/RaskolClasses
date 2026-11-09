@@ -755,6 +755,48 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
 
+    <!--
+      RCN_REDUNDANT_NULLCHECK: сохраняем защитные проверки снимков Bukkit Inventory
+      на границе с платформой; Paper API помечает массивы как non-null, поэтому
+      SpotBugs считает эти конкретные guards избыточными. Исключены только методы
+      с такой проверкой, не весь паттерн проекта.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.foliant.FoliantService"/>
+        <Method name="consumeFoliant"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.gui.book.AbilitiesTab"/>
+        <Method name="countAbilityScrolls"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.gui.book.AbilitiesTab"/>
+        <Method name="countInstallScrolls"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hotbar.ScrollSanitizer"/>
+        <Method name="sanitize"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.craft.FragmentRegistry"/>
+        <Method name="countInInventory"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.item.craft.FragmentRegistry"/>
+        <Method name="consume"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.selftest.SelftestRunner"/>
+        <Method name="economyData1155"/>
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
+    </Match>
+
 <!-- ================================================================ -->
     <!-- 1.14.14 (фаза 1): правила для test-only                          -->
     <!-- ================================================================ -->
