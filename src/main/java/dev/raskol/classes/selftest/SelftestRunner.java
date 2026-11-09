@@ -1268,7 +1268,7 @@ public final class SelftestRunner {
         Spec2Tree synthetic = new Spec2Tree(
                 "synthetic",
                 List.of(
-                                new Spec2Node(
+                        new Spec2Node(
                                 "root",
                                 "synthetic",
                                 1,
