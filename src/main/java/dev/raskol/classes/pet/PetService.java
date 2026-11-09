@@ -607,8 +607,11 @@ public final class PetService implements Listener {
         if (pet == null || !plugin.getCombat().canHit(owner, target)) {
             return;
         }
-        if (pet instanceof Mob m && (m.getTarget() == null || m.getTarget().isDead())) {
-            m.setTarget(target);
+        if (pet instanceof Mob m) {
+            Entity currentTarget = m.getTarget();
+            if (currentTarget == null || currentTarget.isDead()) {
+                m.setTarget(target);
+            }
         }
     }
 
