@@ -51,8 +51,12 @@ public final class ScrollSanitizer implements Listener {
     }
 
     private int sanitize(Player player) {
+        ItemStack[] contents = player.getInventory().getContents();
+        if (contents == null) {
+            return 0;
+        }
         int removed = 0;
-        for (ItemStack item : player.getInventory().getContents()) {
+        for (ItemStack item : contents) {
             if (item == null) {
                 continue;
             }
