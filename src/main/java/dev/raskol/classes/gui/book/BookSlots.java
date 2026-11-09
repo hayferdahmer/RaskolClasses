@@ -32,12 +32,12 @@ public final class BookSlots {
     public static final int SLOT_INSTALL = 22;
 
     /** 1.14.0: древесные способности (slot 6+), row3. */
-    public static final int[] TREE_ABILITY_SLOTS = {28, 29, 30, 31, 32, 33, 34};
+    static final int[] TREE_ABILITY_SLOTS = {28, 29, 30, 31, 32, 33, 34};
 
-    public static final int[] SPEC_SLOTS = {20, 22, 24};
+    static final int[] SPEC_SLOTS = {20, 22, 24};
     public static final int SLOT_RESPEC = 40;
 
-    public static final int[] PASSIVE_SLOTS = {29, 30, 31, 32};
+    static final int[] PASSIVE_SLOTS = {29, 30, 31, 32};
     public static final int SLOT_ATTRIBUTES = 20;
     public static final int SLOT_RESIST = 22;
     public static final int SLOT_CROWN = 24;
@@ -45,7 +45,7 @@ public final class BookSlots {
     /** @deprecated 1.14.0-fix: заменён пагинацией рядов (ROW_LINE_SLOTS). Не удалён
      *  ради совместимости компиляции; TalentsTab его больше не использует. */
     @Deprecated
-    public static final int[] TALENT_NODE_SLOTS = {11, 15, 19, 21, 23, 25, 29, 33, 40};
+    static final int[] TALENT_NODE_SLOTS = {11, 15, 19, 21, 23, 25, 29, 33, 40};
 
     public static final int SLOT_TALENT_INFO = 22;
     public static final int SLOT_TALENT_RESET = 44;
@@ -57,12 +57,12 @@ public final class BookSlots {
     public static final int SLOT_ROW_NEXT = 26;
     /** 1.14.0-fix (ряды): горизонтальная линия узлов ТЕКУЩЕГО ряда (row3, 5 слотов).
      * 1.14.1 (Волна 1): расширено до 9 слотов для покрытия всех узлов ряда. */
-    public static final int[] ROW_LINE_SLOTS = {27, 28, 29, 30, 31, 32, 33, 34, 35};
+    static final int[] ROW_LINE_SLOTS = {27, 28, 29, 30, 31, 32, 33, 34, 35};
 
     public static final int SLOT_GEAR_WEAPON = 10;
     public static final int SLOT_GEAR_STATS = 13;
-    public static final int[] GEAR_ARMOR_SLOTS = {19, 20, 21, 22};
-    public static final int[] GEAR_SET_SLOTS = {28, 29, 30, 31};
+    static final int[] GEAR_ARMOR_SLOTS = {19, 20, 21, 22};
+    static final int[] GEAR_SET_SLOTS = {28, 29, 30, 31};
 
     /** Индекс слота в массиве или -1. */
     public static int indexOf(int[] slots, int slot) {
