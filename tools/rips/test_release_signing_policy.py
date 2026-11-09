@@ -78,7 +78,7 @@ class ReleaseWorkflowGatePolicyTest(unittest.TestCase):
             workflow,
         )
         self.assertIn(
-            "signing-verification:\\n    needs: [build, analyze]",
+            "signing-verification:\n    needs: [build, analyze]",
             workflow,
         )
         self.assertIn(
@@ -88,12 +88,13 @@ class ReleaseWorkflowGatePolicyTest(unittest.TestCase):
         self.assertIn('ET.parse("pom.xml")', workflow)
         self.assertIn('f"plugin.version={expected_version}"', workflow)
         self.assertIn(
-            "release:\\n    needs: [build, analyze]",
+            "release:\n    needs: [build, analyze]",
             workflow,
         )
         self.assertIn("if: startsWith(github.ref, 'refs/tags/v')", workflow)
         self.assertNotIn("refs/heads/release/1.15.8", workflow)
         self.assertNotIn("raskol-classes-1.15.8.jar", workflow)
+
 
 class TrustedPublicKeyRegistryPolicyTest(unittest.TestCase):
 
