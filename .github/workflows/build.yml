@@ -57,11 +57,12 @@ jobs:
 
   # -----------------------------------------------------------
   # Расширенный анализ: -Xlint:all + SpotBugs.
-  # Не блокирует build; отчёт публикуется как артефакт.
+  # На обычных ветках и PR остаётся диагностическим.
+  # Для tag-релизов и ручной OFFICIAL signing verification — обязательный gate.
   # -----------------------------------------------------------
   analyze:
     runs-on: ubuntu-24.04
-    continue-on-error: true
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') && !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release/1.15.8') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -106,7 +107,7 @@ jobs:
   # validation, but NEVER creates a tag or publishes a GitHub Release.
   # -----------------------------------------------------------
   signing-verification:
-    needs: build
+    needs: [build, analyze]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release/1.15.8'
     runs-on: ubuntu-24.04
     environment:
@@ -199,7 +200,7 @@ jobs:
   #     4. соответствие CI private key активному public key.
   # -----------------------------------------------------------
   release:
-    needs: build
+    needs: [build, analyze]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     environment:
