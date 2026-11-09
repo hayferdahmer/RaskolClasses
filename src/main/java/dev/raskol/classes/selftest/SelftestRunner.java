@@ -1385,7 +1385,7 @@ public final class SelftestRunner {
                 "splitEff(0,100,50)=[0,50]",
                 sp2ok,
                 "splitEff",
-                sp2 != null && sp2.length == 2 ? sp2[0] + "," + sp2[1] : "null");
+                sp2.length == 2 ? sp2[0] + "," + sp2[1] : "invalid");
 
         boolean f1 = AttributeMath.isFront(0.0, 90.0);
         boolean f2 = AttributeMath.isFront(180.0, 90.0);
