@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.bootstrap;
 
+import java.util.function.BooleanSupplier;
+
 /**
  * Результат перезагрузки плагина.
  *
@@ -17,7 +19,11 @@ public record PluginReloadResult(boolean successful, String message) {
         return new PluginReloadResult(true, "");
     }
 
-    public static PluginReloadResult itemsReload(boolean successful) {
+    public static PluginReloadResult itemsReload(BooleanSupplier reload) {
+        return itemsReload(reload.getAsBoolean());
+    }
+
+    private static PluginReloadResult itemsReload(boolean successful) {
         return successful ? success() : failure("предметы и крафт", "items.yml или crafting.yml не удалось загрузить");
     }
 
