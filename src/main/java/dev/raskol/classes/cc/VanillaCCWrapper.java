@@ -94,7 +94,9 @@ public final class VanillaCCWrapper implements Listener {
             return;
         }
         var newEffect = event.getNewEffect();
-        int durationTicks = newEffect != null ? newEffect.getDuration() : plugin.getCC().durationTicks(cc);
+        int durationTicks = newEffect != null
+                ? newEffect.getDuration()
+                : plugin.getCC().durationTicks(cc);
         if (durationTicks <= 0) {
             durationTicks = plugin.getCC().durationTicks(cc);
         }
