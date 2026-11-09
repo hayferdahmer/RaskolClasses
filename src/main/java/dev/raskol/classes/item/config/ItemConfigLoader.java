@@ -124,7 +124,8 @@ public final class ItemConfigLoader {
                 material,
                 slot,
                 s.contains("weapon-type")
-                        ? WeaponType.valueOf(stringOrDefault(s, "weapon-type", "").toUpperCase(Locale.ROOT))
+                        ? WeaponType.valueOf(
+                                stringOrDefault(s, "weapon-type", "").toUpperCase(Locale.ROOT))
                         : null,
                 ItemRarity.valueOf(stringOrDefault(s, "rarity", "").toUpperCase(Locale.ROOT)),
                 s.getInt("item-level", 1),
@@ -158,7 +159,8 @@ public final class ItemConfigLoader {
                         PlayerClass.valueOf(stringOrDefault(s, "class", "").toUpperCase(Locale.ROOT));
                 ItemSlot slot = ItemSlot.valueOf(stringOrDefault(s, "slot", "").toUpperCase(Locale.ROOT));
                 WeaponType wt = s.contains("weapon-type")
-                        ? WeaponType.valueOf(stringOrDefault(s, "weapon-type", "").toUpperCase(Locale.ROOT))
+                        ? WeaponType.valueOf(
+                                stringOrDefault(s, "weapon-type", "").toUpperCase(Locale.ROOT))
                         : null;
                 ItemValidator.validateTemplateSlotWeaponType(slot, wt, id);
                 Map<ItemStat, Double> distribution =
