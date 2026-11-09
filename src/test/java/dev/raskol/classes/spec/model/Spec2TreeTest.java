@@ -119,6 +119,19 @@ class Spec2TreeTest {
     }
 
     @Test
+    @DisplayName("nodes: входной список и accessor не раскрывают внутреннее состояние")
+    void nodesAreDefensivelyCopied() {
+        List<Spec2Node> source = new java.util.ArrayList<>();
+        source.add(syntheticNode("first", Map.of()));
+        Spec2Tree tree = new Spec2Tree("synthetic", source);
+
+        source.add(syntheticNode("second", Map.of()));
+        assertTrue(tree.nodes().size() == 1);
+        org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class, () -> tree.nodes().add(syntheticNode("third", Map.of())));
+    }
+
+    @Test
     @DisplayName("isReachable: общий пререквизит в разных ветвях DAG не является циклом")
     void isReachableSupportsSharedPrerequisites() {
         Spec2Tree tree = new Spec2Tree(
