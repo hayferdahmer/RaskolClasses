@@ -175,8 +175,8 @@ public final class ScrollCooldownTask {
             dmg.setMaxDamage(max);
             dmg.setDamage(cur);
             if (!item.setItemMeta(meta)) {
-                    return;
-                }
+                return;
+            }
         }
         if (packet) {
             inv.setItem(slot, item);
