@@ -19,12 +19,9 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
   Каждое правило — осознанное решение, а не «заглушить шум»; причины зафиксированы
   в комментариях и в CHANGELOG.
 
-  Бэклог Волны 8 (аудит 2.15-1, НЕ закрыто):
-   - сузить глобальные exclude (EI_EXPOSE_REP/2, NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE,
-     RCN_REDUNDANT_NULLCHECK, MS_PKGPROTECT, RV_RETURN_VALUE_IGNORED) до классов
-     по свежему spotbugsXml.xml из analyze-job;
-   - перевести analyze-job с continue-on-error на блокирующий гейт после двух
-     подряд релизов с нулём находок сверх исключений.
+  A-13-002: прежние глобальные исключения сняты. EI_EXPOSE_REP/2 оставлены только
+  для перечисленных классов с проверенными DI/API-контрактами. Остальные паттерны
+  должны исправляться в коде либо оставаться видимыми в Analyze.
 
   Лицензия: RASKOL Proprietary License v2.0.
 -->
@@ -36,39 +33,10 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     </Match>
 
     <!--
-      EI_EXPOSE_REP / EI_EXPOSE_REP2 (CWE-374, rank 18):
-      Bukkit-плагин — доверенная однопоточная по записи среда без untrusted-вызывающих.
-      (а) конструкторы хранят ссылку на RaskolClasses/сервисы — канонический DI-паттерн
-          платформы, синглтон жизненного цикла сервера;
-      (б) геттеры-локаторы RaskolClasses/CombatService/AttributeService отдают живые
-          сервисы осознанно (сервис-локатор, аудит 4-02; замена на инъекции — план 1.15.x);
-      (в) Bukkit-события (CustomHealEvent) обязаны отдавать живые Player/LivingEntity;
-      (г) коллекции моделей Spec2Node/Spec2Tree/GearStats построены из иммутабельных
-          литералов (Map.of/List.of) при старте реестра и не мутируют после; защитные
-          копии в hot-петлях рендера книги дали бы аллокации на каждый клик.
-      Волна 8: сузить до классов-владелцев живых сервисов по отчёту.
-    -->
-<!--
-      RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE: оборонительные null-проверки оставлены
-      намеренно (SelftestRunner.mathBasics, VanillaDamageListener.hasGearWeaponTag):
-      ноль стоимости в рантайме, страховка от смены контрактов API в будущих версиях Paper.
-    -->
-<!--
-      NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE: во всех разобранных экземплярах
-      null-guard стоит явно; остаточные пути — ложные срабатывания на контрактах
-      Bukkit-геттеров (priority 2, rank 13–18 = низкая достоверность детектора).
-      Волна 8: сузить до классов с вызовами getPlayer/getEntity по отчёту.
-    -->
-<!--
-      MS_PKGPROTECT: BookSlots.GEAR_SET_SLOTS и подобные public static final int[] —
-      константы раскладки GUI; final защищает от перезаписи ссылки, содержимое
-      массива не мутирует после старта. Реальный риск = 0.
-    -->
-<!--
-      RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT: косметика стиля в hotbar-слое.
-      1.15.7: ревизия выполнена — игнорируемые возвраты ограничены декоративными
-      вызовами (setItemMeta-цепочки hotbar); семантики не несут. Исключение сохранено
-      до Волны 8, где hotbar-слой получит явные проверки в рамках гигиены.
+      Бывшие глобальные EI_EXPOSE_REP/2 теперь исключены только для конкретных
+      классов с проверенным контрактом: живые сервисные зависимости, event payload
+      и Bukkit InventoryHolder/контекст рендера. Value-модели защищены копированием.
+      Любые новые классы остаются под контролем SpotBugs.
     -->
     <!--
       EI_EXPOSE_REP: точечные исключения для живых сервисов, Bukkit Event/InventoryHolder
