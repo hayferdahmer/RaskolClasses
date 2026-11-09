@@ -1377,7 +1377,7 @@ public final class SelftestRunner {
                 "splitEff(50,50,50)=[25,25]",
                 sp1ok,
                 "splitEff",
-                sp1 != null && sp1.length == 2 ? sp1[0] + "," + sp1[1] : "null");
+                sp1.length == 2 ? sp1[0] + "," + sp1[1] : "invalid");
         double[] sp2 = AttributeMath.splitEff(0.0, 100.0, 50.0);
         boolean sp2ok = sp2 != null && sp2.length == 2 && sp2[0] == 0.0 && sp2[1] == 50.0;
         r.check(
