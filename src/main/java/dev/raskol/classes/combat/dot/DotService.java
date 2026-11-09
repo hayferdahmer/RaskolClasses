@@ -290,9 +290,6 @@ public final class DotService implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onProjectileHit(ProjectileHitEvent event) {
         Projectile proj = event.getEntity();
-        if (proj == null) {
-            return;
-        }
         if (!proj.getPersistentDataContainer().has(dotKey, PersistentDataType.STRING)) {
             return;
         }

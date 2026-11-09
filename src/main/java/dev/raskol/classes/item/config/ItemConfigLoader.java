@@ -54,6 +54,11 @@ public final class ItemConfigLoader {
         return new ItemRegistry(filtered, sets);
     }
 
+    private static String stringOrDefault(ConfigurationSection section, String path, String defaultValue) {
+        String value = section.getString(path, defaultValue);
+        return value == null ? defaultValue : value;
+    }
+
     /* ------------------------------ шаг 1: явные предметы ------------------------------ */
 
     private static List<ItemDefinition> parseExplicitItems(
@@ -83,8 +88,8 @@ public final class ItemConfigLoader {
     }
 
     private static ItemDefinition parseDefinition(String id, ConfigurationSection s) {
-        ItemSlot slot = ItemSlot.valueOf(s.getString("slot", "").toUpperCase(Locale.ROOT));
-        String material = s.getString("material", "");
+        ItemSlot slot = ItemSlot.valueOf(stringOrDefault(s, "slot", "").toUpperCase(Locale.ROOT));
+        String material = stringOrDefault(s, "material", "");
         ItemValidator.validateMaterial(material);
         ItemValidator.validateMaterialSlot(slot, material);
 
@@ -119,9 +124,10 @@ public final class ItemConfigLoader {
                 material,
                 slot,
                 s.contains("weapon-type")
-                        ? WeaponType.valueOf(s.getString("weapon-type").toUpperCase(Locale.ROOT))
+                        ? WeaponType.valueOf(
+                                stringOrDefault(s, "weapon-type", "").toUpperCase(Locale.ROOT))
                         : null,
-                ItemRarity.valueOf(s.getString("rarity", "").toUpperCase(Locale.ROOT)),
+                ItemRarity.valueOf(stringOrDefault(s, "rarity", "").toUpperCase(Locale.ROOT)),
                 s.getInt("item-level", 1),
                 pc,
                 spec,
@@ -149,10 +155,12 @@ public final class ItemConfigLoader {
                 if (s == null) {
                     continue;
                 }
-                PlayerClass pc = PlayerClass.valueOf(s.getString("class", "").toUpperCase(Locale.ROOT));
-                ItemSlot slot = ItemSlot.valueOf(s.getString("slot", "").toUpperCase(Locale.ROOT));
+                PlayerClass pc =
+                        PlayerClass.valueOf(stringOrDefault(s, "class", "").toUpperCase(Locale.ROOT));
+                ItemSlot slot = ItemSlot.valueOf(stringOrDefault(s, "slot", "").toUpperCase(Locale.ROOT));
                 WeaponType wt = s.contains("weapon-type")
-                        ? WeaponType.valueOf(s.getString("weapon-type").toUpperCase(Locale.ROOT))
+                        ? WeaponType.valueOf(
+                                stringOrDefault(s, "weapon-type", "").toUpperCase(Locale.ROOT))
                         : null;
                 ItemValidator.validateTemplateSlotWeaponType(slot, wt, id);
                 Map<ItemStat, Double> distribution =

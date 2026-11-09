@@ -55,6 +55,19 @@ class Spec2NodeTest {
     }
 
     @Test
+    @DisplayName("prereqs: входная карта и accessor не раскрывают внутреннее состояние")
+    void prereqsAreDefensivelyCopied() {
+        Map<String, Integer> source = new java.util.HashMap<>();
+        source.put("first", 1);
+        Spec2Node node = new Spec2Node("x", "arms", 1, 1, 1, source, "passive_stat", null, null, null);
+
+        source.put("second", 2);
+        assertEquals(Map.of("first", 1), node.prereqs());
+        org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class, () -> node.prereqs().put("third", 3));
+    }
+
+    @Test
     @DisplayName("isUltimate: только тип 'ultimate' возвращает true")
     void isUltimate() {
         assertTrue(ult().isUltimate());

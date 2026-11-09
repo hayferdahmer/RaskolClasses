@@ -743,23 +743,28 @@ public final class SelftestRunner {
                 && plugin.getItems().crafting() != null) {
             Player p = online145.iterator().next();
             int sizeBefore = 0;
-            for (org.bukkit.inventory.ItemStack stack : p.getInventory().getContents()) {
-                if (stack != null && !stack.getType().isAir()) {
-                    sizeBefore++;
+            org.bukkit.inventory.ItemStack[] beforeContents = p.getInventory().getContents();
+            if (beforeContents != null) {
+                for (org.bukkit.inventory.ItemStack stack : beforeContents) {
+                    if (stack != null && !stack.getType().isAir()) {
+                        sizeBefore++;
+                    }
                 }
             }
             org.bukkit.inventory.ItemStack handBefore = p.getInventory().getItemInMainHand();
             dev.raskol.classes.item.craft.CraftingService.CraftResult result =
                     plugin.getItems().crafting().craft(p, "definitely_nonexistent_recipe_xyz");
             int sizeAfter = 0;
-            for (org.bukkit.inventory.ItemStack stack : p.getInventory().getContents()) {
-                if (stack != null && !stack.getType().isAir()) {
-                    sizeAfter++;
+            org.bukkit.inventory.ItemStack[] afterContents = p.getInventory().getContents();
+            if (afterContents != null) {
+                for (org.bukkit.inventory.ItemStack stack : afterContents) {
+                    if (stack != null && !stack.getType().isAir()) {
+                        sizeAfter++;
+                    }
                 }
             }
             org.bukkit.inventory.ItemStack handAfter = p.getInventory().getItemInMainHand();
-            boolean handIntact = (handBefore == null && handAfter == null)
-                    || (handBefore != null && handAfter != null && handBefore.isSimilar(handAfter));
+            boolean handIntact = handBefore.isSimilar(handAfter);
             boolean sizeIntact = sizeBefore == sizeAfter;
             boolean resultIsUnknown = result == dev.raskol.classes.item.craft.CraftingService.CraftResult.UNKNOWN;
             ok145 = handIntact && sizeIntact && resultIsUnknown;
@@ -1378,7 +1383,7 @@ public final class SelftestRunner {
                 "splitEff(50,50,50)=[25,25]",
                 sp1ok,
                 "splitEff",
-                sp1 != null && sp1.length == 2 ? sp1[0] + "," + sp1[1] : "null");
+                sp1.length == 2 ? sp1[0] + "," + sp1[1] : "invalid");
         double[] sp2 = AttributeMath.splitEff(0.0, 100.0, 50.0);
         boolean sp2ok = sp2 != null && sp2.length == 2 && sp2[0] == 0.0 && sp2[1] == 50.0;
         r.check(
@@ -1386,7 +1391,7 @@ public final class SelftestRunner {
                 "splitEff(0,100,50)=[0,50]",
                 sp2ok,
                 "splitEff",
-                sp2 != null && sp2.length == 2 ? sp2[0] + "," + sp2[1] : "null");
+                sp2.length == 2 ? sp2[0] + "," + sp2[1] : "invalid");
 
         boolean f1 = AttributeMath.isFront(0.0, 90.0);
         boolean f2 = AttributeMath.isFront(180.0, 90.0);
@@ -3444,10 +3449,12 @@ public final class SelftestRunner {
                 b115 = applyRank(plugin, pu, as.treeId(), as.node().id(), 2);
                 double pct = plugin.getSpec2Service().attackSpeedPercent(pu);
                 boolean aggOk = Math.abs(pct - 2 * as.node().effect().value()) < 1e-9;
-                org.bukkit.attribute.AttributeInstance ai =
-                        probe.getAttribute(io.papermc.paper.registry.RegistryAccess.registryAccess()
+                org.bukkit.attribute.Attribute attackSpeedAttribute =
+                        io.papermc.paper.registry.RegistryAccess.registryAccess()
                                 .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
-                                .get(org.bukkit.NamespacedKey.minecraft("attack_speed")));
+                                .get(org.bukkit.NamespacedKey.minecraft("attack_speed"));
+                org.bukkit.attribute.AttributeInstance ai =
+                        attackSpeedAttribute == null ? null : probe.getAttribute(attackSpeedAttribute);
                 boolean modPresent = ai != null
                         && ai.getModifiers().stream()
                                 .anyMatch(m -> m.getKey().toString().equals("raskolclasses:spec2_attack_speed"));

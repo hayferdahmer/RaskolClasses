@@ -108,7 +108,9 @@ public final class FragmentRegistry {
                     Component.text("Не продаётся · только разбор/крафт", NamedTextColor.DARK_GRAY)));
             meta.getPersistentDataContainer().set(fragVersion, PersistentDataType.INTEGER, 1);
             meta.getPersistentDataContainer().set(fragId, PersistentDataType.STRING, fragment.id());
-            stack.setItemMeta(meta);
+            if (!stack.setItemMeta(meta)) {
+                throw new IllegalStateException("Не удалось применить метаданные фрагмента " + fragment.id());
+            }
         }
         return stack;
     }
@@ -140,8 +142,18 @@ public final class FragmentRegistry {
 
     /** Сколько фрагментов этого типа в инвентаре. */
     public int countInInventory(Player player, Fragment fragment) {
+        if (fragment == null) {
+            return 0;
+        }
+        ItemStack[] contents = player.getInventory().getStorageContents();
+        if (contents == null) {
+            return 0;
+        }
         int total = 0;
-        for (ItemStack stack : player.getInventory().getStorageContents()) {
+        for (ItemStack stack : contents) {
+            if (stack == null) {
+                continue;
+            }
             Fragment f = fragmentOf(stack);
             if (f == fragment) {
                 total += stack.getAmount();
@@ -152,14 +164,17 @@ public final class FragmentRegistry {
 
     /** Списать фрагменты; false если не хватает (инвентарь не трогается). */
     public boolean consume(Player player, Fragment fragment, int count) {
-        if (countInInventory(player, fragment) < count) {
+        if (fragment == null || count <= 0 || countInInventory(player, fragment) < count) {
             return false;
         }
         int left = count;
         ItemStack[] contents = player.getInventory().getStorageContents();
+        if (contents == null) {
+            return false;
+        }
         for (int i = 0; i < contents.length && left > 0; i++) {
             ItemStack stack = contents[i];
-            if (fragmentOf(stack) != fragment) {
+            if (stack == null || fragmentOf(stack) != fragment) {
                 continue;
             }
             int take = Math.min(left, stack.getAmount());

@@ -387,8 +387,10 @@ public final class FxService implements Listener {
                         + ", аур " + auras.size() + ", эмбиентов " + ambients.size(),
                 NamedTextColor.GRAY));
         for (String id : abilityIds) {
-            String soundKey = plugin.getConfig().getString("vfx." + id + ".cast-sound", "");
-            String particleKey = plugin.getConfig().getString("vfx." + id + ".cast-particle", "");
+            String soundKey =
+                    java.util.Objects.requireNonNullElse(plugin.getConfig().getString("vfx." + id + ".cast-sound"), "");
+            String particleKey = java.util.Objects.requireNonNullElse(
+                    plugin.getConfig().getString("vfx." + id + ".cast-particle"), "");
             boolean okSound = soundKey.isEmpty() || resolveSound(soundKey) != null;
             boolean okParticle = particleKey.isEmpty() || resolveParticle(particleKey) != null;
             if (!okSound || !okParticle) {
@@ -449,13 +451,13 @@ public final class FxService implements Listener {
         int broken = 0;
         for (String key : section.getKeys(true)) {
             if (key.endsWith("cast-sound") || key.endsWith("impact-sound") || key.endsWith("tag-sound")) {
-                String name = section.getString(key, "");
+                String name = java.util.Objects.requireNonNullElse(section.getString(key), "");
                 if (!name.isEmpty() && resolveSound(name) == null) {
                     broken++;
                 }
             }
             if (key.endsWith("cast-particle") || key.endsWith("impact-particle")) {
-                String name = section.getString(key, "");
+                String name = java.util.Objects.requireNonNullElse(section.getString(key), "");
                 if (!name.isEmpty() && resolveParticle(name) == null) {
                     broken++;
                 }

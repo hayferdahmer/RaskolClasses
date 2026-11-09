@@ -64,7 +64,16 @@ public final class CraftingService {
         PAY_FAILED
     }
 
-    public record Recipe(String id, String target, int coins, Map<String, Integer> fragments) {}
+    public record Recipe(String id, String target, int coins, Map<String, Integer> fragments) {
+        public Recipe {
+            fragments = Map.copyOf(fragments);
+        }
+
+        @Override
+        public Map<String, Integer> fragments() {
+            return Map.copyOf(fragments);
+        }
+    }
 
     private final RaskolClasses plugin;
     private final FragmentRegistry fragments;
@@ -241,9 +250,6 @@ public final class CraftingService {
                 return false;
             }
             Object provider = registration.getProvider();
-            if (provider == null) {
-                return false;
-            }
             Method deposit = null;
             for (Method m : economyIface.getMethods()) {
                 Class<?>[] p = m.getParameterTypes();

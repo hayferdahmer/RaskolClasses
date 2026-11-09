@@ -83,6 +83,18 @@ class BuildTemplatesTest {
     }
 
     @Test
+    void directRecordConstructionCopiesRankMaps() {
+        Map<String, Integer> source = new java.util.HashMap<>();
+        source.put("arms_training", 3);
+        BuildTemplate template = new BuildTemplate("arms", Archetype.PVP, "T", "t", source, source, "1");
+
+        source.put("arms_training", 5);
+        assertEquals(3, template.ranks().get("arms_training"));
+        assertEquals(3, template.rawRanks().get("arms_training"));
+        assertThrows(UnsupportedOperationException.class, () -> template.ranks().put("arms_training", 4));
+    }
+
+    @Test
     void archetypeFromConfig() {
         assertEquals(Archetype.PVP, Archetype.fromConfig("pvp"));
         assertEquals(Archetype.PVE, Archetype.fromConfig("PvE"));

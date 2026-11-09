@@ -564,7 +564,9 @@ public final class PlusGui implements Listener {
             meta.displayName(name);
             meta.lore(lore);
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS);
-            stack.setItemMeta(meta);
+            if (!stack.setItemMeta(meta)) {
+                throw new IllegalStateException("Не удалось применить метаданные предмета");
+            }
         }
         return stack;
     }

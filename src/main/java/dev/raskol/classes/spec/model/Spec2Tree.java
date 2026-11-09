@@ -32,6 +32,14 @@ import java.util.Set;
  * узел добавляется в visited; повторный визит возвращает false (недостижимо).
  */
 public record Spec2Tree(String id, List<Spec2Node> nodes) {
+    public Spec2Tree {
+        nodes = List.copyOf(nodes);
+    }
+
+    @Override
+    public List<Spec2Node> nodes() {
+        return List.copyOf(nodes);
+    }
 
     /** Узел по id или null. */
     public Spec2Node find(String nodeId) {

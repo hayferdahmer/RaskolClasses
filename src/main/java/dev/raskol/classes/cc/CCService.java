@@ -273,9 +273,6 @@ public final class CCService implements Listener {
 
     private boolean inImmunityList(String key, CCType type) {
         List<String> list = plugin.getConfig().getStringList("cc.entity-immunity." + key);
-        if (list == null) {
-            return false;
-        }
         for (String s : list) {
             if (type.id().equalsIgnoreCase(s == null ? "" : s.trim().toUpperCase(Locale.ROOT))) {
                 return true;

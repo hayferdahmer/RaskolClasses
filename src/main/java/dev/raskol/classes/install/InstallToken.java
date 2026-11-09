@@ -46,7 +46,9 @@ public final class InstallToken {
         lore.add(Component.text("Лимит: 2 активных инсталляции на игрока", NamedTextColor.GRAY));
         meta.lore(lore);
         meta.getPersistentDataContainer().set(typeKey, PersistentDataType.STRING, type.name());
-        item.setItemMeta(meta);
+        if (!item.setItemMeta(meta)) {
+            throw new IllegalStateException("Не удалось применить метаданные предмета");
+        }
         return item;
     }
 

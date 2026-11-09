@@ -197,9 +197,6 @@ public final class PetService implements Listener {
         if (def == null) {
             return SummonResult.UNKNOWN;
         }
-        if (owner.getWorld() == null) {
-            return SummonResult.NO_WORLD;
-        }
         UUID ouuid = owner.getUniqueId();
         PetState existing = pets.get(ouuid);
         if (existing != null) {
@@ -607,8 +604,11 @@ public final class PetService implements Listener {
         if (pet == null || !plugin.getCombat().canHit(owner, target)) {
             return;
         }
-        if (pet instanceof Mob m && (m.getTarget() == null || m.getTarget().isDead())) {
-            m.setTarget(target);
+        if (pet instanceof Mob m) {
+            Entity currentTarget = m.getTarget();
+            if (currentTarget == null || currentTarget.isDead()) {
+                m.setTarget(target);
+            }
         }
     }
 

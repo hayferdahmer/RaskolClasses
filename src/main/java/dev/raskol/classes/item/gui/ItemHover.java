@@ -34,8 +34,9 @@ public final class ItemHover {
         List<Component> lines = new ArrayList<>();
         Component name = meta.displayName();
         lines.add(name != null ? name : Component.text(stack.getType().name(), NamedTextColor.WHITE));
-        if (meta.lore() != null) {
-            lines.addAll(meta.lore());
+        List<Component> lore = meta.lore();
+        if (lore != null) {
+            lines.addAll(lore);
         }
         return Component.join(JoinConfiguration.newlines(), lines);
     }

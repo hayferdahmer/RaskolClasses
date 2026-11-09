@@ -100,7 +100,9 @@ public final class ItemPdc {
             builder.append(stat.id()).append(':').append(value);
         });
         p.set(affixes, PersistentDataType.STRING, builder.toString());
-        item.setItemMeta(meta);
+        if (!item.setItemMeta(meta)) {
+            throw new IllegalStateException("Не удалось применить PDC-метаданные предмета");
+        }
     }
 
     /** Предмет имеет валидный PDC-формат плагина (версия совпадает)? */
@@ -184,7 +186,9 @@ public final class ItemPdc {
             return;
         }
         meta.getPersistentDataContainer().set(craftedBy, PersistentDataType.STRING, creator.toString());
-        item.setItemMeta(meta);
+        if (!item.setItemMeta(meta)) {
+            throw new IllegalStateException("Не удалось применить PDC-метаданные предмета");
+        }
     }
 
     /**

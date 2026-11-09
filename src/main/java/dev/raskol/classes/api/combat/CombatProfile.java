@@ -42,14 +42,33 @@ public record CombatProfile(
                 || !finiteRange(critChance, 0, 100)
                 || !finiteRange(critMult, 0, 5)
                 || !finiteRange(ccResist, 0, 50)
-                || !finiteRange(reflect, 0, 25)
-                || damageWeights == null) throw new IllegalArgumentException("Invalid combat profile");
+                || !finiteRange(reflect, 0, 25)) throw new IllegalArgumentException("Invalid combat profile");
         penSchoolPct = validated(penSchoolPct, 0, 40, "school penetration");
         schoolResists = validated(schoolResists, 0, 60, "school resistance");
         vulnerabilities = validated(vulnerabilities, -100, 300, "vulnerability");
         armorStats = validated(armorStats, 0, 1000, "armor stat");
         immunities = Set.copyOf(immunities);
         ccImmunities = Set.copyOf(ccImmunities);
+    }
+
+    @Override
+    public Map<School, Double> penSchoolPct() {
+        return Map.copyOf(penSchoolPct);
+    }
+
+    @Override
+    public Map<School, Double> schoolResists() {
+        return Map.copyOf(schoolResists);
+    }
+
+    @Override
+    public Map<School, Double> vulnerabilities() {
+        return Map.copyOf(vulnerabilities);
+    }
+
+    @Override
+    public Map<String, Double> armorStats() {
+        return Map.copyOf(armorStats);
     }
 
     private static boolean finiteNonNegative(double n) {

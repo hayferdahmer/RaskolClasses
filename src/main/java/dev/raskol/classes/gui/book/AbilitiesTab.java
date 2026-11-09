@@ -278,8 +278,15 @@ public final class AbilitiesTab implements BookTabView {
     }
 
     private static int countAbilityScrolls(RaskolClasses plugin, Player player, String id) {
+        if (id == null) {
+            return 0;
+        }
+        ItemStack[] contents = player.getInventory().getContents();
+        if (contents == null) {
+            return 0;
+        }
         int count = 0;
-        for (ItemStack item : player.getInventory().getContents()) {
+        for (ItemStack item : contents) {
             if (item != null && id.equals(plugin.getTokens().readId(item))) {
                 count++;
             }
@@ -288,8 +295,15 @@ public final class AbilitiesTab implements BookTabView {
     }
 
     private static int countInstallScrolls(RaskolClasses plugin, Player player, InstallationType type) {
+        if (type == null) {
+            return 0;
+        }
+        ItemStack[] contents = player.getInventory().getContents();
+        if (contents == null) {
+            return 0;
+        }
         int count = 0;
-        for (ItemStack item : player.getInventory().getContents()) {
+        for (ItemStack item : contents) {
             if (item != null && plugin.getInstallToken().readType(item) == type) {
                 count++;
             }

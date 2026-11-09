@@ -56,10 +56,13 @@ public final class WarriorAbilities extends AbstractKit {
         if (target instanceof Player p) {
             return plugin.getHpBarService().formulaMaxHp(p.getUniqueId());
         }
-        org.bukkit.attribute.AttributeInstance ai =
-                target.getAttribute(io.papermc.paper.registry.RegistryAccess.registryAccess()
-                        .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
-                        .get(org.bukkit.NamespacedKey.minecraft("max_health")));
+        org.bukkit.attribute.Attribute attribute = io.papermc.paper.registry.RegistryAccess.registryAccess()
+                .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
+                .get(org.bukkit.NamespacedKey.minecraft("max_health"));
+        if (attribute == null) {
+            return 20.0;
+        }
+        org.bukkit.attribute.AttributeInstance ai = target.getAttribute(attribute);
         return ai != null ? ai.getValue() : 20.0;
     }
 

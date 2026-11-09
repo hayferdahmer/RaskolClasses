@@ -73,7 +73,8 @@ public final class BookItems {
     public static ItemStack gearItem(ItemStack source, String cls, String rarity, String slotName) {
         ItemStack item = source.clone();
         item.editMeta(meta -> {
-            List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
+            List<Component> currentLore = meta.lore();
+            List<Component> lore = currentLore == null ? new ArrayList<>() : new ArrayList<>(currentLore);
             lore.add(Component.empty());
             lore.add(Component.text("Слот: " + slotName, NamedTextColor.GRAY));
             lore.add(Component.text("Класс: " + cls + " · Редкость: " + rarity, NamedTextColor.GRAY));

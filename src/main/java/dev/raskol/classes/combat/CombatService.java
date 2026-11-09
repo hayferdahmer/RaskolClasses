@@ -744,8 +744,7 @@ public final class CombatService implements Listener {
         }
         event.setCancelled(true);
         if (plugin.getConfig().getBoolean("combat.debug-damage", false)) {
-            String reason =
-                    event.getRegainReason() != null ? event.getRegainReason().name() : "UNKNOWN";
+            String reason = event.getRegainReason().name();
             Component msg = Component.text(
                     "[antiheal] " + le.getName() + " блокировано лечение (" + reason + ", amount=" + event.getAmount()
                             + ")",

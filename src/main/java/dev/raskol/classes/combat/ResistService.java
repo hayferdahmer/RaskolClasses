@@ -32,7 +32,16 @@ public final class ResistService {
     }
 
     public record Breakdown(
-            double basePhysical, double baseMagic, List<Modifier> active, double physicalTotal, double magicTotal) {}
+            double basePhysical, double baseMagic, List<Modifier> active, double physicalTotal, double magicTotal) {
+        public Breakdown {
+            active = List.copyOf(active);
+        }
+
+        @Override
+        public List<Modifier> active() {
+            return List.copyOf(active);
+        }
+    }
 
     private static final class FactorCache {
         long tick = -1;

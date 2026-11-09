@@ -66,9 +66,6 @@ public final class CCGuard implements Listener {
     public void onMove(PlayerMoveEvent event) {
         Player player = event.getPlayer();
         Location to = event.getTo();
-        if (to == null) {
-            return;
-        }
         UUID id = player.getUniqueId();
         CCService cc = plugin.getCC();
         if (!cc.has(id, CCType.STUN) && !cc.has(id, CCType.ROOT)) {
