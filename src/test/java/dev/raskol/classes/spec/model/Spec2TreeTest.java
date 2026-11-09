@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -115,6 +116,38 @@ class Spec2TreeTest {
 
         // несуществующий узел
         assertFalse(beast.isReachable("no_such_node", Set.of()), "несуществующий узел недостижим");
+    }
+
+    @Test
+    @DisplayName("isReachable: общий пререквизит в разных ветвях DAG не является циклом")
+    void isReachableSupportsSharedPrerequisites() {
+        Spec2Tree tree = new Spec2Tree(
+                "synthetic",
+                List.of(
+                        syntheticNode("root", Map.of("left", 1, "right", 1)),
+                        syntheticNode("left", Map.of("shared", 1)),
+                        syntheticNode("right", Map.of("shared", 1)),
+                        syntheticNode("shared", Map.of())));
+
+        assertTrue(
+                tree.isReachable("root", Set.of()),
+                "общий предок, достижимый из двух ветвей, не должен считаться циклом");
+    }
+
+    @Test
+    @DisplayName("isReachable: циклическая цепочка пререквизитов недостижима")
+    void isReachableRejectsCycles() {
+        Spec2Tree tree = new Spec2Tree(
+                "synthetic",
+                List.of(
+                        syntheticNode("cycle_a", Map.of("cycle_b", 1)),
+                        syntheticNode("cycle_b", Map.of("cycle_a", 1))));
+
+        assertFalse(tree.isReachable("cycle_a", Set.of()), "цикл в prereq-графе должен отклоняться");
+    }
+
+    private static Spec2Node syntheticNode(String id, Map<String, Integer> prereqs) {
+        return new Spec2Node(id, "synthetic", 1, 1, 1, prereqs, "passive_stat", id, "", null);
     }
 
     private static Set<String> collectPrereqChain(Spec2Tree tree, String nodeId) {
