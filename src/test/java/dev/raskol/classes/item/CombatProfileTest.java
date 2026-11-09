@@ -64,7 +64,9 @@ class CombatProfileTest {
 
         penetration.put(School.FIRE, 40.0);
         assertEquals(5.0, profile.penSchoolPct().get(School.FIRE));
-        assertThrows(UnsupportedOperationException.class, () -> profile.penSchoolPct().put(School.FROST, 1.0));
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> profile.penSchoolPct().put(School.FROST, 1.0));
     }
 
     @Test
