@@ -3449,9 +3449,8 @@ public final class SelftestRunner {
                         io.papermc.paper.registry.RegistryAccess.registryAccess()
                                 .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
                                 .get(org.bukkit.NamespacedKey.minecraft("attack_speed"));
-                org.bukkit.attribute.AttributeInstance ai = attackSpeedAttribute == null
-                        ? null
-                        : probe.getAttribute(attackSpeedAttribute);
+                org.bukkit.attribute.AttributeInstance ai =
+                        attackSpeedAttribute == null ? null : probe.getAttribute(attackSpeedAttribute);
                 boolean modPresent = ai != null
                         && ai.getModifiers().stream()
                                 .anyMatch(m -> m.getKey().toString().equals("raskolclasses:spec2_attack_speed"));
