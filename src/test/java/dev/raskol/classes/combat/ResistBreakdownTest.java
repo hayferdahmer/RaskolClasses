@@ -19,6 +19,7 @@ class ResistBreakdownTest {
 
         source.clear();
         assertEquals(1, breakdown.active().size());
-        assertThrows(UnsupportedOperationException.class, () -> breakdown.active().clear());
+        assertThrows(
+                UnsupportedOperationException.class, () -> breakdown.active().clear());
     }
 }
