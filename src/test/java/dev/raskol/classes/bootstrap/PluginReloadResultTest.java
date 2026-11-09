@@ -19,12 +19,17 @@ class PluginReloadResultTest {
     }
 
     @Test
-    void failedReloadIncludesStageAndPartialApplicationWarning() {
-        PluginReloadResult result = PluginReloadResult.failure("предметы и крафт", "crafting.yml не загружен");
+    void successfulItemReloadIsReportedAsSuccess() {
+        assertTrue(PluginReloadResult.itemsReload(true).successful());
+    }
+
+    @Test
+    void failedItemReloadIsReportedAsFailure() {
+        PluginReloadResult result = PluginReloadResult.itemsReload(false);
 
         assertFalse(result.successful());
         assertTrue(result.message().contains("предметы и крафт"));
-        assertTrue(result.message().contains("crafting.yml не загружен"));
+        assertTrue(result.message().contains("crafting.yml"));
         assertTrue(result.message().contains("автоматического отката нет"));
     }
 
