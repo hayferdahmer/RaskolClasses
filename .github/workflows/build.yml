@@ -8,7 +8,7 @@
 #   - Python policy tests;
 #   - проверка соответствия CI private key единственному ACTIVE public key
 #     непосредственно перед публикацией релиза;
-#   - private key доступен только release job через Environment Secret.
+#   - private key доступен только signing-verification/release jobs через Environment Secret.
 name: RaskolClasses Build
 
 on:
@@ -58,11 +58,11 @@ jobs:
   # -----------------------------------------------------------
   # Расширенный анализ: -Xlint:all + SpotBugs.
   # На обычных ветках и PR остаётся диагностическим.
-  # Для tag-релизов и ручной OFFICIAL signing verification — обязательный gate.
+  # Для tag-релизов и ручной OFFICIAL signing verification из main — обязательный gate.
   # -----------------------------------------------------------
   analyze:
     runs-on: ubuntu-24.04
-    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') && !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release/1.15.8') }}
+    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') && !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -102,20 +102,20 @@ jobs:
   # -----------------------------------------------------------
   # Manual OFFICIAL signing verification.
   #
-  # This job is intentionally limited to workflow_dispatch on
-  # release/1.15.8. It creates a signed JAR artifact for server
-  # validation, but NEVER creates a tag or publishes a GitHub Release.
+  # This job is intentionally limited to workflow_dispatch on main.
+  # The version is read from pom.xml. It creates a signed JAR artifact
+  # for server validation, but NEVER creates a tag or publishes a Release.
   # -----------------------------------------------------------
   signing-verification:
     needs: [build, analyze]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release/1.15.8'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment:
       name: rips-release
     permissions:
       contents: read
     steps:
-      - name: Checkout release source
+      - name: Checkout main source
         uses: actions/checkout@v5
 
       - name: Enforce RIPS release signing policy
@@ -129,32 +129,54 @@ jobs:
           name: raskol-classes
           path: release-artifacts
 
-      - name: Create OFFICIAL RIPS artifact (no publication)
-        env:
-          RIPS_SIGNING_PRIVATE_KEY_B64: ${{ secrets.RIPS_SIGNING_PRIVATE_KEY_B64 }}
+      - name: Read project version
+        id: release_metadata
         shell: bash
         run: |
           set -euo pipefail
-          JAR="release-artifacts/raskol-classes-1.15.8.jar"
+          VERSION="$(python3 - <<'PY'
+          import re
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse("pom.xml").getroot()
+          namespace = {"m": "http://maven.apache.org/POM/4.0.0"}
+          version = root.findtext("m:version", namespaces=namespace)
+          if version is None or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+              raise SystemExit("pom.xml must declare a stable SemVer release version")
+          print(version)
+          PY
+          )"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create OFFICIAL RIPS artifact (no publication)
+        env:
+          RIPS_SIGNING_PRIVATE_KEY_B64: ${{ secrets.RIPS_SIGNING_PRIVATE_KEY_B64 }}
+          VERSION: ${{ steps.release_metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR="release-artifacts/raskol-classes-${VERSION}.jar"
           test -f "$JAR"
           python3 tools/rips/create-official-artifact.py \
             --jar "$JAR" \
-            --version "1.15.8" \
+            --version "$VERSION" \
             --build-id "manual-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --commit "$GITHUB_SHA" \
             --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          python3 - "$JAR" <<'PY'
+          EXPECTED_VERSION="$VERSION" python3 - "$JAR" <<'PY'
           import base64
           import hashlib
+          import os
           import sys
           import zipfile
 
           jar = sys.argv[1]
+          expected_version = os.environ["EXPECTED_VERSION"]
           with zipfile.ZipFile(jar) as archive:
               identity = archive.read("META-INF/raskol/build.properties").decode("utf-8")
               required = (
                   "product.id=RaskolClasses",
-                  "plugin.version=1.15.8",
+                  f"plugin.version={expected_version}",
                   "build.type=OFFICIAL",
               )
               if not all(item in identity.splitlines() for item in required):
@@ -175,17 +197,19 @@ jobs:
       - name: Upload signed verification artifact
         uses: actions/upload-artifact@v5
         with:
-          name: raskol-classes-1.15.8-official-verification
-          path: release-artifacts/raskol-classes-1.15.8.jar
+          name: raskol-classes-${{ steps.release_metadata.outputs.version }}-official-verification
+          path: release-artifacts/raskol-classes-${{ steps.release_metadata.outputs.version }}.jar
           if-no-files-found: error
           retention-days: 7
 
       - name: Verification summary
         if: success()
+        env:
+          VERSION: ${{ steps.release_metadata.outputs.version }}
         run: |
           echo "### RIPS OFFICIAL signing verification: PASS" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Branch: release/1.15.8" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Version: 1.15.8" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: main" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: $VERSION" >> "$GITHUB_STEP_SUMMARY"
           echo "- Signed artifact uploaded separately; no GitHub Release was published." >> "$GITHUB_STEP_SUMMARY"
 
   # -----------------------------------------------------------
