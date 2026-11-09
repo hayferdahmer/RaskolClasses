@@ -744,11 +744,9 @@ public final class SelftestRunner {
             Player p = online145.iterator().next();
             int sizeBefore = 0;
             org.bukkit.inventory.ItemStack[] beforeContents = p.getInventory().getContents();
-            if (beforeContents != null) {
-                for (org.bukkit.inventory.ItemStack stack : beforeContents) {
-                    if (stack != null && !stack.getType().isAir()) {
-                        sizeBefore++;
-                    }
+            for (org.bukkit.inventory.ItemStack stack : beforeContents) {
+                if (stack != null && !stack.getType().isAir()) {
+                    sizeBefore++;
                 }
             }
             org.bukkit.inventory.ItemStack handBefore = p.getInventory().getItemInMainHand();
@@ -756,11 +754,9 @@ public final class SelftestRunner {
                     plugin.getItems().crafting().craft(p, "definitely_nonexistent_recipe_xyz");
             int sizeAfter = 0;
             org.bukkit.inventory.ItemStack[] afterContents = p.getInventory().getContents();
-            if (afterContents != null) {
-                for (org.bukkit.inventory.ItemStack stack : afterContents) {
-                    if (stack != null && !stack.getType().isAir()) {
-                        sizeAfter++;
-                    }
+            for (org.bukkit.inventory.ItemStack stack : afterContents) {
+                if (stack != null && !stack.getType().isAir()) {
+                    sizeAfter++;
                 }
             }
             org.bukkit.inventory.ItemStack handAfter = p.getInventory().getItemInMainHand();
