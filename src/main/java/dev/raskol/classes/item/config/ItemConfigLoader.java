@@ -155,7 +155,8 @@ public final class ItemConfigLoader {
                 if (s == null) {
                     continue;
                 }
-                PlayerClass pc = PlayerClass.valueOf(stringOrDefault(s, "class", "").toUpperCase(Locale.ROOT));
+                PlayerClass pc =
+                        PlayerClass.valueOf(stringOrDefault(s, "class", "").toUpperCase(Locale.ROOT));
                 ItemSlot slot = ItemSlot.valueOf(stringOrDefault(s, "slot", "").toUpperCase(Locale.ROOT));
                 WeaponType wt = s.contains("weapon-type")
                         ? WeaponType.valueOf(stringOrDefault(s, "weapon-type", "").toUpperCase(Locale.ROOT))
