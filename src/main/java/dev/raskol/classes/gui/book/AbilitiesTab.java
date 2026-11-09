@@ -291,6 +291,9 @@ public final class AbilitiesTab implements BookTabView {
     }
 
     private static int countInstallScrolls(RaskolClasses plugin, Player player, InstallationType type) {
+        if (type == null) {
+            return 0;
+        }
         int count = 0;
         for (ItemStack item : player.getInventory().getContents()) {
             if (item != null && plugin.getInstallToken().readType(item) == type) {
