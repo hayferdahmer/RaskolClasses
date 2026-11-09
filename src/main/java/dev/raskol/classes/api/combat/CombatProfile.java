@@ -52,6 +52,26 @@ public record CombatProfile(
         ccImmunities = Set.copyOf(ccImmunities);
     }
 
+    @Override
+    public Map<School, Double> penSchoolPct() {
+        return Map.copyOf(penSchoolPct);
+    }
+
+    @Override
+    public Map<School, Double> schoolResists() {
+        return Map.copyOf(schoolResists);
+    }
+
+    @Override
+    public Map<School, Double> vulnerabilities() {
+        return Map.copyOf(vulnerabilities);
+    }
+
+    @Override
+    public Map<String, Double> armorStats() {
+        return Map.copyOf(armorStats);
+    }
+
     private static boolean finiteNonNegative(double n) {
         return Double.isFinite(n) && n >= 0;
     }
