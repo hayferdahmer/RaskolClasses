@@ -22,7 +22,7 @@ body:
     attributes:
       label: Версия Paper и Java
       description: "Вывод `/version` и `java -version`."
-      placeholder: "Paper 1.21.4 build 232 · Java 21"
+      placeholder: "Paper 26.2 · Java 25"
     validations:
       required: true
   - type: dropdown

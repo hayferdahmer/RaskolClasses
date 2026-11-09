@@ -141,7 +141,7 @@ public final class StartupChecks {
             "&7     RASKOL &8· &7CLASSES    &8|    &5пять путей &8· &4одна война",
             "&8     ⚔ &4Воин &8· &2➳ Охотник &8· &f✚ Жрец &8· &9✦ Маг &8· &5☠ Разбойник",
             "&8  ────────────────────────────────────────────────────",
-            "&8     by &fhayferdahmer &8· &7v" + v + " &8· &7Paper 1.21+ &8· &7Java 21",
+            "&8     by &fhayferdahmer &8· &7v" + v + " &8· &7Paper 26.2 &8· &7Java 25",
             "&8  ────────────────────────────────────────────────────"
         };
         var console = plugin.getServer().getConsoleSender();
