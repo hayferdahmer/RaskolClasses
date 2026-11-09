@@ -40,6 +40,19 @@ class CombatProfileTest {
     }
 
     @Test
+    void profileDefensivelyCopiesMapComponents() {
+        Map<School, Double> penetration = new java.util.HashMap<>();
+        penetration.put(School.FIRE, 5.0);
+        var profile = new CombatProfile(
+                30, 24, new DamageProfile(70, 30, 0), 20, 10, penetration, 25, 15,
+                Map.of(), Set.of(), Map.of(), 15, 1.5, 10, Set.of(), 25, Map.of());
+
+        penetration.put(School.FIRE, 40.0);
+        assertEquals(5.0, profile.penSchoolPct().get(School.FIRE));
+        assertThrows(UnsupportedOperationException.class, () -> profile.penSchoolPct().put(School.FROST, 1.0));
+    }
+
+    @Test
     void profileRejectsOutOfRangeAndNonFiniteValues() {
         assertThrows(
                 IllegalArgumentException.class,
