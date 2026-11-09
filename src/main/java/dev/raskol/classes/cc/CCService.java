@@ -469,8 +469,8 @@ public final class CCService implements Listener {
      * Удаляет категории DR, окно которых уже истекло, и пустые записи сущностей.
      * Вызывается раз в секунду, даже если активных эффектов контроля нет.
      */
-    static void pruneExpiredDrStates(
-            Map<UUID, EnumMap<DRCategory, DRState>> states, long now, long windowMillis) {
+    static void pruneExpiredDrStates(Map<UUID, EnumMap<DRCategory, DRState>> states, long now,
+            long windowMillis) {
         if (states == null || states.isEmpty() || windowMillis < 0L) {
             return;
         }
