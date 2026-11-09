@@ -42,8 +42,7 @@ public record CombatProfile(
                 || !finiteRange(critChance, 0, 100)
                 || !finiteRange(critMult, 0, 5)
                 || !finiteRange(ccResist, 0, 50)
-                || !finiteRange(reflect, 0, 25)
-                || damageWeights == null) throw new IllegalArgumentException("Invalid combat profile");
+                || !finiteRange(reflect, 0, 25)) throw new IllegalArgumentException("Invalid combat profile");
         penSchoolPct = validated(penSchoolPct, 0, 40, "school penetration");
         schoolResists = validated(schoolResists, 0, 60, "school resistance");
         vulnerabilities = validated(vulnerabilities, -100, 300, "vulnerability");
