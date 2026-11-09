@@ -8,7 +8,7 @@
 #   - Python policy tests;
 #   - проверка соответствия CI private key единственному ACTIVE public key
 #     непосредственно перед публикацией релиза;
-#   - private key доступен только release job через Environment Secret.
+#   - private key доступен только signing-verification/release jobs через Environment Secret.
 name: RaskolClasses Build
 
 on:
@@ -141,7 +141,7 @@ jobs:
           root = ET.parse("pom.xml").getroot()
           namespace = {"m": "http://maven.apache.org/POM/4.0.0"}
           version = root.findtext("m:version", namespaces=namespace)
-          if version is None or not re.fullmatch(r"\\d+\\.\\d+\\.\\d+", version):
+          if version is None or not re.fullmatch(r"\d+\.\d+\.\d+", version):
               raise SystemExit("pom.xml must declare a stable SemVer release version")
           print(version)
           PY
