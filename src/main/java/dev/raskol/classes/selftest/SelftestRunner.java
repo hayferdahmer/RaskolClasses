@@ -1265,7 +1265,24 @@ public final class SelftestRunner {
                 "config attributes.crit.*-cap",
                 "melee=" + meleeCap + " spell=" + spellCap);
 
-        r.skip("166", "Spec2Tree.isReachable cycle-guard (требует синтетическое дерево с циклом)");
+        Spec2Tree synthetic = new Spec2Tree(
+                "synthetic",
+                List.of(
+                        new Spec2Node("root", "synthetic", 1, 1, 1, Map.of("left", 1, "right", 1), "passive_stat", "root", "", null),
+                        new Spec2Node("left", "synthetic", 1, 1, 1, Map.of("shared", 1), "passive_stat", "left", "", null),
+                        new Spec2Node("right", "synthetic", 1, 1, 1, Map.of("shared", 1), "passive_stat", "right", "", null),
+                        new Spec2Node("shared", "synthetic", 1, 1, 1, Map.of(), "passive_stat", "shared", "", null),
+                        new Spec2Node("cycle_a", "synthetic", 1, 1, 1, Map.of("cycle_b", 1), "passive_stat", "cycle_a", "", null),
+                        new Spec2Node("cycle_b", "synthetic", 1, 1, 1, Map.of("cycle_a", 1), "passive_stat", "cycle_b", "", null)));
+        boolean dagReachable = synthetic.isReachable("root", Set.of());
+        boolean cycleRejected = !synthetic.isReachable("cycle_a", Set.of());
+        boolean ok166 = dagReachable && cycleRejected;
+        r.check(
+                "166",
+                "Spec2Tree.isReachable: общие prereq в DAG разрешены, циклы отклоняются",
+                ok166,
+                "Spec2Tree.isReachable",
+                "dag=" + dagReachable + " cycleRejected=" + cycleRejected);
 
         r.skip("167", "AvoidanceService showTitle-троттлинг (требует синтетический tryAvoid с частыми вызовами)");
     }
