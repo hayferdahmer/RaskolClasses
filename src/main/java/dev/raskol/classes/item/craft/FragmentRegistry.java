@@ -146,9 +146,6 @@ public final class FragmentRegistry {
             return 0;
         }
         ItemStack[] contents = player.getInventory().getStorageContents();
-        if (contents == null) {
-            return 0;
-        }
         int total = 0;
         for (ItemStack stack : contents) {
             if (stack == null) {
@@ -169,9 +166,6 @@ public final class FragmentRegistry {
         }
         int left = count;
         ItemStack[] contents = player.getInventory().getStorageContents();
-        if (contents == null) {
-            return false;
-        }
         for (int i = 0; i < contents.length && left > 0; i++) {
             ItemStack stack = contents[i];
             if (stack == null || fragmentOf(stack) != fragment) {
