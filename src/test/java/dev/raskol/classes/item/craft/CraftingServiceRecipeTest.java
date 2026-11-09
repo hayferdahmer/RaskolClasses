@@ -19,6 +19,7 @@ class CraftingServiceRecipeTest {
 
         source.put("frag_weapon_rare", 9);
         assertEquals(3, recipe.fragments().get("frag_weapon_rare"));
-        assertThrows(UnsupportedOperationException.class, () -> recipe.fragments().put("other", 1));
+        assertThrows(
+                UnsupportedOperationException.class, () -> recipe.fragments().put("other", 1));
     }
 }
