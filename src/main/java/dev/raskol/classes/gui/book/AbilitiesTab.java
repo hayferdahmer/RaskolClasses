@@ -298,8 +298,12 @@ public final class AbilitiesTab implements BookTabView {
         if (type == null) {
             return 0;
         }
+        ItemStack[] contents = player.getInventory().getContents();
+        if (contents == null) {
+            return 0;
+        }
         int count = 0;
-        for (ItemStack item : player.getInventory().getContents()) {
+        for (ItemStack item : contents) {
             if (item != null && plugin.getInstallToken().readType(item) == type) {
                 count++;
             }
