@@ -11,13 +11,8 @@ class ActiveInstallationTest {
     @Test
     void locationIsCopiedOnInputAndOutput() {
         Location source = new Location(null, 10.0, 20.0, 30.0);
-        ActiveInstallation installation =
-                new ActiveInstallation(
-                        java.util.UUID.randomUUID(),
-                        InstallationType.WAR_BANNER,
-                        java.util.UUID.randomUUID(),
-                        source,
-                        100L);
+        ActiveInstallation installation = new ActiveInstallation(
+                java.util.UUID.randomUUID(), InstallationType.WAR_BANNER, java.util.UUID.randomUUID(), source, 100L);
 
         source.setX(99.0);
         assertEquals(10.0, installation.location().getX());
