@@ -28,7 +28,7 @@ public final class BookSlots {
     public static final int SLOT_CLOSE = 49;
     public static final int SLOT_TAB_GEAR = 50;
 
-    public static final int[] ABILITY_SLOTS = {11, 12, 13, 14, 15};
+    static final int[] ABILITY_SLOTS = {11, 12, 13, 14, 15};
     public static final int SLOT_INSTALL = 22;
 
     /** 1.14.0: древесные способности (slot 6+), row3. */
