@@ -758,8 +758,7 @@ public final class SelftestRunner {
                 }
             }
             org.bukkit.inventory.ItemStack handAfter = p.getInventory().getItemInMainHand();
-            boolean handIntact = (handBefore == null && handAfter == null)
-                    || (handBefore != null && handAfter != null && handBefore.isSimilar(handAfter));
+            boolean handIntact = handBefore.isSimilar(handAfter);
             boolean sizeIntact = sizeBefore == sizeAfter;
             boolean resultIsUnknown = result == dev.raskol.classes.item.craft.CraftingService.CraftResult.UNKNOWN;
             ok145 = handIntact && sizeIntact && resultIsUnknown;
