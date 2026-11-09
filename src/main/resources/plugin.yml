@@ -26,7 +26,6 @@ commands:
   rc:
     description: "Главная команда RaskolClasses"
     usage: |
-      /rc version — версия плагина и статус RIPS
       /rc menu — открыть Книгу класса
       /rc reload — перезагрузка конфигов (admin)
       /rc debug [player] — диагностика (admin)

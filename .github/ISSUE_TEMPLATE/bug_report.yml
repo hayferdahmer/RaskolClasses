@@ -13,7 +13,7 @@ body:
     id: version
     attributes:
       label: Версия плагина
-      description: "Из pom.xml, `/rc` или имени jar."
+      description: "Через `/plugins` или из plugin.yml / имени JAR."
       placeholder: "1.15.6"
     validations:
       required: true
