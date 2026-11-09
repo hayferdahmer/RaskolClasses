@@ -256,10 +256,10 @@ public final class HudService {
         if (sec <= 0L) {
             sec = 1L;
         }
-        String stacksTpl = java.util.Objects.requireNonNullElse(
-                plugin.getConfig().getString("messages.hud.dot-stacks-x"), "×{n}");
-        String stacksEmpty = java.util.Objects.requireNonNullElse(
-                plugin.getConfig().getString("messages.hud.dot-stacks-empty"), "");
+        String stacksTpl =
+                java.util.Objects.requireNonNullElse(plugin.getConfig().getString("messages.hud.dot-stacks-x"), "×{n}");
+        String stacksEmpty =
+                java.util.Objects.requireNonNullElse(plugin.getConfig().getString("messages.hud.dot-stacks-empty"), "");
         String stacksPart = inst.stacks() > 1 ? stacksTpl.replace("{n}", String.valueOf(inst.stacks())) : stacksEmpty;
         String tpl = java.util.Objects.requireNonNullElse(
                 plugin.getConfig().getString("messages.hud.dot-format"), "{icon}{stacks}·{sec}с");
