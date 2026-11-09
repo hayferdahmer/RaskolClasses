@@ -43,7 +43,9 @@ public final class AbilityToken {
 
     public ItemStack create(AbilityDef def, PlayerClass pc) {
         ItemStack item = new ItemStack(Material.AMETHYST_SHARD);
-        item.setItemMeta(buildMeta(def, pc));
+        if (!item.setItemMeta(buildMeta(def, pc))) {
+            throw new IllegalStateException("Не удалось применить метаданные свитка способности");
+        }
         return item;
     }
 
