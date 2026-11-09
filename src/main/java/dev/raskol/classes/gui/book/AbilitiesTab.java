@@ -278,6 +278,9 @@ public final class AbilitiesTab implements BookTabView {
     }
 
     private static int countAbilityScrolls(RaskolClasses plugin, Player player, String id) {
+        if (id == null) {
+            return 0;
+        }
         int count = 0;
         for (ItemStack item : player.getInventory().getContents()) {
             if (item != null && id.equals(plugin.getTokens().readId(item))) {
