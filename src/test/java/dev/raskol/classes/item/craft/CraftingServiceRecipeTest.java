@@ -15,7 +15,8 @@ class CraftingServiceRecipeTest {
     void fragmentsAreCopiedOnInputAndOutput() {
         Map<String, Integer> source = new HashMap<>();
         source.put("frag_weapon_rare", 3);
-        CraftingService.Recipe recipe = new CraftingService.Recipe("test", "target", 10, source);
+        CraftingService.Recipe recipe =
+                new CraftingService.Recipe("test", "target", 10, source);
 
         source.put("frag_weapon_rare", 9);
         assertEquals(3, recipe.fragments().get("frag_weapon_rare"));
