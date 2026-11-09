@@ -44,6 +44,20 @@ public record BuildTemplate(
         Map<String, Integer> rawRanks,
         Map<String, Integer> ranks,
         String updated) {
+    public BuildTemplate {
+        rawRanks = Map.copyOf(rawRanks);
+        ranks = Map.copyOf(ranks);
+    }
+
+    @Override
+    public Map<String, Integer> rawRanks() {
+        return Map.copyOf(rawRanks);
+    }
+
+    @Override
+    public Map<String, Integer> ranks() {
+        return Map.copyOf(ranks);
+    }
 
     /**
      * Основная фабрика с rawRanks (1.15.6, 2.6-94).
