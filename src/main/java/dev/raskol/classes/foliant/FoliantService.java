@@ -654,9 +654,6 @@ public final class FoliantService implements Listener {
 
     private void consumeFoliant(Player player) {
         ItemStack[] contents = player.getInventory().getContents();
-        if (contents == null) {
-            return;
-        }
         for (ItemStack item : contents) {
             if (item != null && isFoliant(item)) {
                 player.getInventory().remove(item);
