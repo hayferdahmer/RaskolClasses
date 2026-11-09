@@ -166,8 +166,8 @@ public final class ScrollCooldownTask {
             if (dmg.hasDamage()) {
                 dmg.setDamage(0);
                 if (!item.setItemMeta(meta)) {
-                    return;
-                }
+                return;
+            }
             }
         } else {
             int max = (int) Math.max(1L, totalSec);
