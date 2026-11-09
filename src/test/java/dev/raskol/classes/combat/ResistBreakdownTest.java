@@ -15,8 +15,7 @@ class ResistBreakdownTest {
     void activeModifiersAreCopiedOnInputAndOutput() {
         List<ResistService.Modifier> source = new ArrayList<>();
         source.add(new ResistService.Modifier("test", 5.0, 2.0, Long.MAX_VALUE));
-        ResistService.Breakdown breakdown =
-                new ResistService.Breakdown(10.0, 20.0, source, 15.0, 22.0);
+        ResistService.Breakdown breakdown = new ResistService.Breakdown(10.0, 20.0, source, 15.0, 22.0);
 
         source.clear();
         assertEquals(1, breakdown.active().size());
