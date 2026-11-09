@@ -222,7 +222,9 @@ public final class FoliantService implements Listener {
         meta.addEnchant(Enchantment.LURE, 1, true);
         meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
         meta.getPersistentDataContainer().set(foliantKey, PersistentDataType.BYTE, (byte) 1);
-        item.setItemMeta(meta);
+        if (!item.setItemMeta(meta)) {
+            throw new IllegalStateException("Не удалось применить метаданные предмета");
+        }
         return item;
     }
 
