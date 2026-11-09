@@ -744,9 +744,11 @@ public final class SelftestRunner {
             Player p = online145.iterator().next();
             int sizeBefore = 0;
             org.bukkit.inventory.ItemStack[] beforeContents = p.getInventory().getContents();
-            for (org.bukkit.inventory.ItemStack stack : beforeContents) {
-                if (stack != null && !stack.getType().isAir()) {
-                    sizeBefore++;
+            if (beforeContents != null) {
+                for (org.bukkit.inventory.ItemStack stack : beforeContents) {
+                    if (stack != null && !stack.getType().isAir()) {
+                        sizeBefore++;
+                    }
                 }
             }
             org.bukkit.inventory.ItemStack handBefore = p.getInventory().getItemInMainHand();
