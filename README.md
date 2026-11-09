@@ -564,7 +564,7 @@ mvn -B clean verify
 
 **Целевая и проверенная CI сборочная конфигурация релиза:** JDK 25, Java release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. На PR #11 для этой конфигурации успешно прошли Build, Analyze, Spotless и RIPS Security Audit; 378 основных тестов и 158 security-тестов завершились без ошибок. Это подтверждает сборку и автоматические проверки на целевой платформе, но не заменяет runtime-регрессию игровых функций на Paper 26.2. На боевом сервере оператор ранее запускал RaskolClasses 1.15.8 и получил `[RIPS] INFO | VERIFIED` (`checkedFiles=392`); это подтверждает стартовую проверку конкретного артефакта, а не полный функциональный тест.
 
-Профиль `-Pdev` включает дополнительные проверки компиляции и SpotBugs: `mvn -Pdev -B verify`. В GitHub Actions job `analyze` сейчас помечен как `continue-on-error`, поэтому его результат является дополнительным анализом, а не блокирующим release gate.
+Профиль `-Pdev` включает дополнительные проверки компиляции и SpotBugs: `mvn -Pdev -B verify`. В GitHub Actions job `analyze` остаётся диагностическим на обычных ветках и pull request, но становится обязательным блокирующим gate для tag-релизов `v*` и ручной OFFICIAL signing verification. Публикация GitHub Release и создание временного OFFICIAL-артефакта невозможны, если `analyze` завершился ошибкой.
 
 > [!NOTE]
 > При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется). В логе появится строка `spec2: migrated …`.
