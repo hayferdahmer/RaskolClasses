@@ -3444,10 +3444,13 @@ public final class SelftestRunner {
                 b115 = applyRank(plugin, pu, as.treeId(), as.node().id(), 2);
                 double pct = plugin.getSpec2Service().attackSpeedPercent(pu);
                 boolean aggOk = Math.abs(pct - 2 * as.node().effect().value()) < 1e-9;
-                org.bukkit.attribute.AttributeInstance ai =
-                        probe.getAttribute(io.papermc.paper.registry.RegistryAccess.registryAccess()
+                org.bukkit.attribute.Attribute attackSpeedAttribute =
+                        io.papermc.paper.registry.RegistryAccess.registryAccess()
                                 .getRegistry(io.papermc.paper.registry.RegistryKey.ATTRIBUTE)
-                                .get(org.bukkit.NamespacedKey.minecraft("attack_speed")));
+                                .get(org.bukkit.NamespacedKey.minecraft("attack_speed"));
+                org.bukkit.attribute.AttributeInstance ai = attackSpeedAttribute == null
+                        ? null
+                        : probe.getAttribute(attackSpeedAttribute);
                 boolean modPresent = ai != null
                         && ai.getModifiers().stream()
                                 .anyMatch(m -> m.getKey().toString().equals("raskolclasses:spec2_attack_speed"));
