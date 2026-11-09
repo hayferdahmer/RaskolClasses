@@ -48,49 +48,29 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
           копии в hot-петлях рендера книги дали бы аллокации на каждый клик.
       Волна 8: сузить до классов-владелцев живых сервисов по отчёту.
     -->
-    <Match>
-        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
-    </Match>
-
-    <!--
+<!--
       RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE: оборонительные null-проверки оставлены
       намеренно (SelftestRunner.mathBasics, VanillaDamageListener.hasGearWeaponTag):
       ноль стоимости в рантайме, страховка от смены контрактов API в будущих версиях Paper.
     -->
-    <Match>
-        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
-    </Match>
-
-    <!--
+<!--
       NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE: во всех разобранных экземплярах
       null-guard стоит явно; остаточные пути — ложные срабатывания на контрактах
       Bukkit-геттеров (priority 2, rank 13–18 = низкая достоверность детектора).
       Волна 8: сузить до классов с вызовами getPlayer/getEntity по отчёту.
     -->
-    <Match>
-        <Bug pattern="NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE"/>
-    </Match>
-
-    <!--
+<!--
       MS_PKGPROTECT: BookSlots.GEAR_SET_SLOTS и подобные public static final int[] —
       константы раскладки GUI; final защищает от перезаписи ссылки, содержимое
       массива не мутирует после старта. Реальный риск = 0.
     -->
-    <Match>
-        <Bug pattern="MS_PKGPROTECT"/>
-    </Match>
-
-    <!--
+<!--
       RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT: косметика стиля в hotbar-слое.
       1.15.7: ревизия выполнена — игнорируемые возвраты ограничены декоративными
       вызовами (setItemMeta-цепочки hotbar); семантики не несут. Исключение сохранено
       до Волны 8, где hotbar-слой получит явные проверки в рамках гигиены.
     -->
-    <Match>
-        <Bug pattern="RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT"/>
-    </Match>
-
-    <!-- ================================================================ -->
+<!-- ================================================================ -->
     <!-- 1.14.14 (фаза 1): правила для test-only                          -->
     <!-- ================================================================ -->
 
