@@ -756,9 +756,11 @@ public final class SelftestRunner {
                     plugin.getItems().crafting().craft(p, "definitely_nonexistent_recipe_xyz");
             int sizeAfter = 0;
             org.bukkit.inventory.ItemStack[] afterContents = p.getInventory().getContents();
-            for (org.bukkit.inventory.ItemStack stack : afterContents) {
-                if (stack != null && !stack.getType().isAir()) {
-                    sizeAfter++;
+            if (afterContents != null) {
+                for (org.bukkit.inventory.ItemStack stack : afterContents) {
+                    if (stack != null && !stack.getType().isAir()) {
+                        sizeAfter++;
+                    }
                 }
             }
             org.bukkit.inventory.ItemStack handAfter = p.getInventory().getItemInMainHand();
