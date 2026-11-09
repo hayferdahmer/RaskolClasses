@@ -165,14 +165,14 @@ public final class ScrollCooldownTask {
             // Сброс бара: damage = 0 (полная прочность), maxDamage не трогаем
             if (dmg.hasDamage()) {
                 dmg.setDamage(0);
-                item.setItemMeta(meta);
+                if (!item.setItemMeta(meta)) {\n                    return;\n                }
             }
         } else {
             int max = (int) Math.max(1L, totalSec);
             int cur = (int) Math.max(1L, Math.min(max, seconds));
             dmg.setMaxDamage(max);
             dmg.setDamage(cur);
-            item.setItemMeta(meta);
+            if (!item.setItemMeta(meta)) {\n                    return;\n                }
         }
         if (packet) {
             inv.setItem(slot, item);
