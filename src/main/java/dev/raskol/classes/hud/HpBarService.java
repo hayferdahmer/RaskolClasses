@@ -145,7 +145,8 @@ public final class HpBarService implements Listener {
     }
 
     private String mode() {
-        return plugin.getConfig().getString("hp-display.mode", "actionbar").toLowerCase(Locale.ROOT);
+        String configured = plugin.getConfig().getString("hp-display.mode");
+        return java.util.Objects.requireNonNullElse(configured, "actionbar").toLowerCase(Locale.ROOT);
     }
 
     private double heartsScale() {
