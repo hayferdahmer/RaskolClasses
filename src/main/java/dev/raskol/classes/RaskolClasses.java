@@ -586,38 +586,76 @@ public final class RaskolClasses extends JavaPlugin {
         command.setTabCompleter(executor);
     }
 
-    public void reloadPlugin() {
-        raskolConfig.reload();
-        Spec2Points.configure(this);
-        if (spec2Service != null) {
-            spec2Service.refreshDisabledCache();
+    public dev.raskol.classes.bootstrap.PluginReloadResult reloadPlugin() {
+        String stage = "config.yml";
+        try {
+            raskolConfig.reload();
+
+            stage = "настройки специализаций";
+            Spec2Points.configure(this);
+            if (spec2Service != null) {
+                spec2Service.refreshDisabledCache();
+            }
+
+            stage = "шаблоны raskolspec+";
+            if (buildTemplates != null) {
+                buildTemplates.reload();
+            }
+
+            stage = "настройки комплектов";
+            raskolConfig.reloadKits();
+
+            stage = "способности";
+            abilities.loadFromConfig(raskolConfig);
+
+            stage = "HUD";
+            hud.applyConfig();
+            cooldowns.attachScheduler(
+                    this,
+                    raskolConfig.isReadyNotifyEnabled(),
+                    raskolConfig.readyNotifyMinCooldownSeconds(),
+                    raskolConfig.readyNotifySoundKey(),
+                    raskolConfig.readyNotifyMessage());
+            if (bossBars != null) {
+                bossBars.applyConfig();
+            }
+
+            stage = "визуальные эффекты и проверка конфигурации";
+            fx.validateConfig();
+            configValidator.validate();
+
+            stage = "предметы и крафт";
+            if (items != null) {
+                dev.raskol.classes.bootstrap.PluginReloadResult itemReload =
+                        dev.raskol.classes.bootstrap.PluginReloadResult.itemsReload(items::reload);
+                if (!itemReload.successful()) {
+                    getLogger().severe("Перезагрузка завершена с ошибкой: " + itemReload.message());
+                    return itemReload;
+                }
+            }
+
+            stage = "синхронизация игроков";
+            for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
+                spec2Service.reconcile(online.getUniqueId());
+                if (items != null) {
+                    items.reconcile(online);
+                }
+            }
+            if (hpSync != null) {
+                hpSync.syncAll();
+            }
+
+            getLogger().info("Конфигурация перезагружена");
+            return dev.raskol.classes.bootstrap.PluginReloadResult.success();
+        } catch (RuntimeException ex) {
+            getLogger()
+                    .log(
+                            java.util.logging.Level.SEVERE,
+                            "Перезагрузка остановлена на этапе «" + stage + "». Часть настроек могла примениться.",
+                            ex);
+            return dev.raskol.classes.bootstrap.PluginReloadResult.failure(
+                    stage, ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
         }
-        if (buildTemplates != null) {
-            buildTemplates.reload();
-        }
-        raskolConfig.reloadKits();
-        abilities.loadFromConfig(raskolConfig);
-        hud.applyConfig();
-        cooldowns.attachScheduler(
-                this,
-                raskolConfig.isReadyNotifyEnabled(),
-                raskolConfig.readyNotifyMinCooldownSeconds(),
-                raskolConfig.readyNotifySoundKey(),
-                raskolConfig.readyNotifyMessage());
-        if (bossBars != null) {
-            bossBars.applyConfig();
-        }
-        fx.validateConfig();
-        configValidator.validate();
-        if (items != null) items.reload();
-        for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
-            spec2Service.reconcile(online.getUniqueId());
-            if (items != null) items.reconcile(online);
-        }
-        if (hpSync != null) {
-            hpSync.syncAll();
-        }
-        getLogger().info("Конфигурация перезагружена");
     }
 
     public long getLastPurgeMillis() {

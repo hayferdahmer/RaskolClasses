@@ -146,8 +146,15 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                             "Команда /rc reload доступна не чаще раза в 10 секунд.", NamedTextColor.GRAY));
                     return true;
                 }
-                plugin.reloadPlugin();
-                sender.sendMessage(Component.text("RaskolClasses: конфигурация перезагружена.", NamedTextColor.GREEN));
+                dev.raskol.classes.bootstrap.PluginReloadResult result = plugin.reloadPlugin();
+                if (result.successful()) {
+                    sender.sendMessage(
+                            Component.text("RaskolClasses: конфигурация перезагружена.", NamedTextColor.GREEN));
+                } else {
+                    sender.sendMessage(Component.text(
+                            "RaskolClasses: перезагрузка завершилась с ошибкой. " + result.message(),
+                            NamedTextColor.RED));
+                }
                 return true;
             }
             case "selftest" -> {
