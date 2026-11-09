@@ -18,9 +18,7 @@ public record PluginReloadResult(boolean successful, String message) {
     }
 
     public static PluginReloadResult itemsReload(boolean successful) {
-        return successful
-                ? success()
-                : failure("предметы и крафт", "items.yml или crafting.yml не удалось загрузить");
+        return successful ? success() : failure("предметы и крафт", "items.yml или crafting.yml не удалось загрузить");
     }
 
     public static PluginReloadResult failure(String stage, String detail) {
