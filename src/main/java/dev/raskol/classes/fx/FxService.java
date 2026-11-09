@@ -457,7 +457,7 @@ public final class FxService implements Listener {
                 }
             }
             if (key.endsWith("cast-particle") || key.endsWith("impact-particle")) {
-                String name = section.getString(key, "");
+                String name = java.util.Objects.requireNonNullElse(section.getString(key), "");
                 if (!name.isEmpty() && resolveParticle(name) == null) {
                     broken++;
                 }
