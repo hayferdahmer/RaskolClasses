@@ -387,8 +387,10 @@ public final class FxService implements Listener {
                         + ", аур " + auras.size() + ", эмбиентов " + ambients.size(),
                 NamedTextColor.GRAY));
         for (String id : abilityIds) {
-            String soundKey = plugin.getConfig().getString("vfx." + id + ".cast-sound", "");
-            String particleKey = plugin.getConfig().getString("vfx." + id + ".cast-particle", "");
+            String soundKey = java.util.Objects.requireNonNullElse(
+                    plugin.getConfig().getString("vfx." + id + ".cast-sound"), "");
+            String particleKey = java.util.Objects.requireNonNullElse(
+                    plugin.getConfig().getString("vfx." + id + ".cast-particle"), "");
             boolean okSound = soundKey.isEmpty() || resolveSound(soundKey) != null;
             boolean okParticle = particleKey.isEmpty() || resolveParticle(particleKey) != null;
             if (!okSound || !okParticle) {
