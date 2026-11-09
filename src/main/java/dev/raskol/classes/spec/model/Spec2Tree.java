@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.model;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -135,39 +136,54 @@ public record Spec2Tree(String id, List<Spec2Node> nodes) {
 
     /**
      * 1.14.8-fix (P0-6B): достижим ли включённый узел при текущем стоп-листе.
-     * 1.15.6 (2.6-95): публичная точка входа с инициализацией visited-множества.
+     * 1.15.6 (2.6-95): защита от циклов в графе пререквизитов.
+     * Повторное использование общего предка в разных ветвях DAG не считается циклом.
      */
     public boolean isReachable(String nodeId, Set<String> disabledNodes) {
-        return isReachable(nodeId, disabledNodes, new HashSet<>());
+        return isReachable(nodeId, disabledNodes, new HashSet<>(), new HashMap<>());
     }
 
     /**
-     * Рекурсивная проверка достижимости с visited-множеством (защита от циклов).
+     * Проверяет достижимость с отдельным набором текущего пути и мемоизацией результатов.
      *
      * @param nodeId        id узла для проверки
      * @param disabledNodes стоп-лист; null → ничто не отключено
-     * @param visited       множество уже посещённых узлов (защита от StackOverflow)
+     * @param visiting      узлы текущего рекурсивного пути (обнаружение циклов)
+     * @param memo          уже вычисленные результаты для повторных ветвей DAG
      */
-    private boolean isReachable(String nodeId, Set<String> disabledNodes, Set<String> visited) {
-        // 1.15.6 (2.6-95): защита от циклов — повторный визит возвращает false
-        if (!visited.add(nodeId)) {
+    private boolean isReachable(
+            String nodeId, Set<String> disabledNodes, Set<String> visiting, Map<String, Boolean> memo) {
+        if (nodeId == null || (disabledNodes != null && disabledNodes.contains(nodeId))) {
             return false;
         }
-        if (disabledNodes != null && disabledNodes.contains(nodeId)) {
+        Boolean cached = memo.get(nodeId);
+        if (cached != null) {
+            return cached;
+        }
+        if (!visiting.add(nodeId)) {
             return false;
         }
-        Spec2Node node = find(nodeId);
-        if (node == null) {
-            return false;
-        }
-        for (String prereqId : node.prereqs().keySet()) {
-            if (disabledNodes != null && disabledNodes.contains(prereqId)) {
-                continue; // отключённый пререквизит = выполнен
+
+        boolean reachable = false;
+        try {
+            Spec2Node node = find(nodeId);
+            if (node != null) {
+                reachable = true;
+                for (String prereqId : node.prereqs().keySet()) {
+                    if (disabledNodes != null && disabledNodes.contains(prereqId)) {
+                        continue; // отключённый пререквизит = выполнен
+                    }
+                    if (!isReachable(prereqId, disabledNodes, visiting, memo)) {
+                        reachable = false;
+                        break;
+                    }
+                }
             }
-            if (!isReachable(prereqId, disabledNodes, visited)) {
-                return false;
-            }
+        } finally {
+            visiting.remove(nodeId);
         }
-        return true;
+
+        memo.put(nodeId, reachable);
+        return reachable;
     }
 }
