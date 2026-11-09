@@ -60,6 +60,33 @@ def build_registry(entries: list[tuple[str, str]]) -> str:
     """
 
 
+class ReleaseWorkflowGatePolicyTest(unittest.TestCase):
+
+    def test_analyze_is_required_for_official_release_jobs(self):
+        workflow_path = (
+            Path(__file__).resolve().parents[2]
+            / ".github"
+            / "workflows"
+            / "build.yml"
+        )
+        workflow = workflow_path.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') "
+            "&& !(github.event_name == 'workflow_dispatch' "
+            "&& github.ref == 'refs/heads/release/1.15.8') }}",
+            workflow,
+        )
+        self.assertIn(
+            "signing-verification:\n    needs: [build, analyze]",
+            workflow,
+        )
+        self.assertIn(
+            "release:\n    needs: [build, analyze]",
+            workflow,
+        )
+
+
 class TrustedPublicKeyRegistryPolicyTest(unittest.TestCase):
 
     def setUp(self) -> None:
