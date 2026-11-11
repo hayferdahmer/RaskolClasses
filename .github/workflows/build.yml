@@ -55,6 +55,15 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload JaCoCo coverage report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: jacoco-coverage-report
+          path: target/site/jacoco/
+          if-no-files-found: error
+          retention-days: 30
+
   # -----------------------------------------------------------
   # Расширенный анализ: -Xlint:all + SpotBugs.
   # На обычных ветках и PR остаётся диагностическим.
