@@ -1,3 +1,7 @@
+<!--
+© 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Рассвет" xmlns:c2pa="http://c2pa.org/manifest"><title>Рассвет</title><defs><style>.d-br{transform-box:fill-box;transform-origin:center;animation:d-br 7s ease-in-out infinite alternate}@keyframes d-br{from{transform:translateY(1.5px) scale(.996)}to{transform:translateY(-2px) scale(1.012)}}.d-rim{transform-box:fill-box;transform-origin:center;animation:d-rim 8s linear infinite}@keyframes d-rim{to{transform:rotate(360deg)}}.d-gem{animation:d-gem 3s ease-in-out infinite}@keyframes d-gem{0%,100%{opacity:.7}50%{opacity:1}}.d-ra{animation:d-ra 4s ease-in-out infinite alternate}.d-rb{animation:d-ra 4s ease-in-out infinite alternate-reverse}@keyframes d-ra{from{opacity:.25}to{opacity:1}}
 .d-sun{transform-box:fill-box;transform-origin:center;animation:d-sun 5s ease-in-out infinite alternate}@keyframes d-sun{from{transform:scale(.97)}to{transform:scale(1.04)}}
 .d-pulse{animation:d-pulse 5s ease-in-out infinite alternate}@keyframes d-pulse{from{opacity:.5}to{opacity:1}}
