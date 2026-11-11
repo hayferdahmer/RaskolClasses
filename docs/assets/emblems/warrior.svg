@@ -1,3 +1,7 @@
+<!--
+© 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Воин" xmlns:c2pa="http://c2pa.org/manifest"><title>Воин</title><defs><style>.w-br{transform-box:fill-box;transform-origin:center;animation:w-br 7s ease-in-out infinite alternate}@keyframes w-br{from{transform:translateY(1.5px) scale(.996)}to{transform:translateY(-2px) scale(1.012)}}.w-rim{transform-box:fill-box;transform-origin:center;animation:w-rim 8s linear infinite}@keyframes w-rim{to{transform:rotate(360deg)}}.w-gem{animation:w-gem 3s ease-in-out infinite}@keyframes w-gem{0%,100%{opacity:.7}50%{opacity:1}}.w-eye{animation:w-eye 3.2s ease-in-out infinite}@keyframes w-eye{0%,100%{opacity:.7}50%{opacity:1}}
 .w-pulse{animation:w-pulse 4s ease-in-out infinite alternate}@keyframes w-pulse{from{opacity:.6}to{opacity:1}}
 .w-gl{opacity:0;transform-box:fill-box;transform-origin:center;animation:w-gl 3.6s ease-in-out infinite}@keyframes w-gl{0%,62%,100%{opacity:0;transform:scale(.3) rotate(0)}78%{opacity:1;transform:scale(1.25) rotate(45deg)}}
