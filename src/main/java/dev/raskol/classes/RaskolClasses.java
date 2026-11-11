@@ -136,6 +136,9 @@ public final class RaskolClasses extends JavaPlugin {
     /** 1.14.0: spec2-слой (деревья путей). */
     private Spec2Storage spec2Storage;
 
+    /** Общая последовательная очередь дисковых снимков хранилищ. */
+    private AsyncStorageWriter storageWriter;
+
     private Spec2Service spec2Service;
     private Spec2EffectsApplier spec2Applier;
 
@@ -320,7 +323,8 @@ public final class RaskolClasses extends JavaPlugin {
 
         Spec2Points.configure(this);
 
-        this.spec2Storage = new Spec2Storage(this, new AsyncStorageWriter(getLogger()));
+        this.storageWriter = new AsyncStorageWriter(getLogger());
+        this.spec2Storage = new Spec2Storage(this, storageWriter);
         this.spec2Applier = new Spec2EffectsApplier(this);
         this.spec2Service = new Spec2Service(this, spec2Storage);
         this.spec2Service.refreshDisabledCache();
@@ -563,8 +567,8 @@ public final class RaskolClasses extends JavaPlugin {
         if (hpBarService != null) {
             hpBarService.saveAll();
         }
-        if (spec2Storage != null && !spec2Storage.close()) {
-            getLogger().severe("Spec2Storage: не удалось подтвердить сохранение всех изменений при выключении");
+        if (spec2Storage != null) {
+            spec2Storage.save();
         }
         if (installations != null) {
             installations.shutdown();
@@ -582,6 +586,9 @@ public final class RaskolClasses extends JavaPlugin {
         }
         if (effects != null) {
             effects.clear();
+        }
+        if (storageWriter != null && !storageWriter.closeAndAwait(Duration.ofSeconds(10))) {
+            getLogger().severe("StorageWriter: очередь не была полностью сброшена при выключении");
         }
     }
 
