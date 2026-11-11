@@ -2,37 +2,29 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hook;
 
+import java.util.Locale;
+
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
 
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
 /**
- * Расширение PlaceholderAPI для королевских вкусов (1.4.0):
- *   %raskolcrown_crown%   — имя короны (Рассвет / Вальрадис);
- *   %raskolcrown_title%   — титул класса по короне (пусто, если класса нет);
- *   %raskolcrown_faction% — фракция игрока (хук корон/Towny, пусто если нет).
- * Регистрируется только при установленном PlaceholderAPI (проверка в onEnable);
- * persist() — переживает /papi reload.
+ * Расширение PlaceholderAPI для королевских вкусов.
  *
- * 1.14.14 (фаза 2, HE-фикс → откат): переопределение equals()/hashCode() НЕВОЗМОЖНО —
- * в PlaceholderAPI 2.11.6 equals(Object) объявлен final в PlaceholderExpansion
- * (compile error "overridden method is final"). Находка
- * HE_INHERITS_EQUALS_USE_HASHCODE — ограничение апстрим-библиотеки (final equals
- * без hashCode), а не дефект плагина: реестр расширений PAPI ведётся по строковому
- * identifier, объект-ключом нигде не используется. Закрыта точечным exclude в
- * spotbugs-exclude.xml с этим обоснованием.
+ * <p>Асинхронный callback читает только неизменяемый снимок игрока.</p>
  */
 public final class FlavorPlaceholder extends PlaceholderExpansion {
 
     private final RaskolClasses plugin;
+    private final PlaceholderSnapshotService snapshots;
 
-    public FlavorPlaceholder(RaskolClasses plugin) {
+    public FlavorPlaceholder(RaskolClasses plugin, PlaceholderSnapshotService snapshots) {
         this.plugin = plugin;
+        this.snapshots = snapshots;
     }
 
     @Override
@@ -60,17 +52,16 @@ public final class FlavorPlaceholder extends PlaceholderExpansion {
         if (player == null) {
             return "";
         }
-        switch (params) {
-            case "crown":
-                return plugin.getFlavorService().crownDisplayName(player.getUniqueId());
-            case "title": {
-                PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-                return pc == null ? "" : plugin.getFlavorService().titleOf(player.getUniqueId(), pc);
-            }
-            case "faction":
-                return plugin.getFactionHook().factionOf(player.getUniqueId());
-            default:
-                return null; // неизвестный плейсхолдер — PAPI оставит как есть
+
+        String normalized = params.toLowerCase(Locale.ROOT);
+        String value = snapshots.crownValue(player.getUniqueId(), normalized);
+        if (value != null) {
+            return value;
         }
+
+        return switch (normalized) {
+            case "crown", "title", "faction" -> "";
+            default -> null;
+        };
     }
 }
