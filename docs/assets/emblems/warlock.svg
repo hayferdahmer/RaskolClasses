@@ -1,3 +1,7 @@
+<!--
+© 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Чернокнижник" xmlns:c2pa="http://c2pa.org/manifest"><title>Чернокнижник</title><defs><style>.k-br{transform-box:fill-box;transform-origin:center;animation:k-br 7s ease-in-out infinite alternate}@keyframes k-br{from{transform:translateY(1.5px) scale(.996)}to{transform:translateY(-2px) scale(1.012)}}.k-rim{transform-box:fill-box;transform-origin:center;animation:k-rim 8s linear infinite}@keyframes k-rim{to{transform:rotate(360deg)}}.k-gem{animation:k-gem 3s ease-in-out infinite}@keyframes k-gem{0%,100%{opacity:.7}50%{opacity:1}}.k-eye{animation:k-eye 2.4s ease-in-out infinite alternate}@keyframes k-eye{from{opacity:.55}to{opacity:1}}
 .k-fl{transform-box:fill-box;transform-origin:50% 100%;animation:k-fl 1.3s ease-in-out infinite alternate}.k-fl2{animation-delay:-.6s}@keyframes k-fl{from{transform:scale(1,.85) skewX(-5deg)}to{transform:scale(.9,1.15) skewX(5deg)}}
 .k-mist{animation:k-mist 6s ease-in-out infinite alternate}@keyframes k-mist{from{transform:translateX(-10px);opacity:.6}to{transform:translateX(10px);opacity:1}}
