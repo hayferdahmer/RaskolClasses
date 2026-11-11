@@ -59,9 +59,8 @@ public final class RaskolPlaceholder extends PlaceholderExpansion {
         }
 
         return switch (normalized) {
-            case "class", "level", "hp", "hp_max", "resource", "phys_resist", "magic_resist",
-                    "dodge", "parry", "crit_melee", "crit_spell", "spec", "talent_points",
-                    "talents", "plus" -> "";
+            case "class", "level", "hp", "hp_max", "resource", "phys_resist", "magic_resist", "dodge",
+                    "parry", "crit_melee", "crit_spell", "spec", "talent_points", "talents", "plus" -> "";
             default -> null;
         };
     }
