@@ -53,6 +53,7 @@ import dev.raskol.classes.gui.PlusGui;
 import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
+import dev.raskol.classes.hook.PlaceholderSnapshotService;
 import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
@@ -139,6 +140,7 @@ public final class RaskolClasses extends JavaPlugin {
 
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
+    private PlaceholderSnapshotService placeholderSnapshots;
 
     private ItemSystem items;
     private ItemsApi itemsApi;
@@ -384,8 +386,11 @@ public final class RaskolClasses extends JavaPlugin {
         sessions.resyncOnline();
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
-            new dev.raskol.classes.hook.RaskolPlaceholder(this).register();
-            new FlavorPlaceholder(this).register();
+            this.placeholderSnapshots = new PlaceholderSnapshotService(this);
+            pluginManager.registerEvents(placeholderSnapshots, this);
+            placeholderSnapshots.start();
+            new dev.raskol.classes.hook.RaskolPlaceholder(this, placeholderSnapshots).register();
+            new FlavorPlaceholder(this, placeholderSnapshots).register();
             getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% " + "и %raskolcrown_*% зарегистрированы");
         } else {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
@@ -519,6 +524,11 @@ public final class RaskolClasses extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (placeholderSnapshots != null) {
+            placeholderSnapshots.close();
+            placeholderSnapshots = null;
+        }
+
         if (runtimeIntegrityMonitor != null) {
             runtimeIntegrityMonitor.close();
             runtimeIntegrityMonitor = null;
