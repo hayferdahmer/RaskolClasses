@@ -3,6 +3,7 @@
 package dev.raskol.classes.hook;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -10,10 +11,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
@@ -26,26 +23,21 @@ import dev.raskol.classes.classsystem.PlayerClass;
  * чтение состояния Player и вызовы внешних интеграций остаются в этом сервисе
  * и выполняются только на основном потоке.</p>
  */
-public final class PlaceholderSnapshotService implements Listener, AutoCloseable {
+public final class PlaceholderSnapshotService implements AutoCloseable {
 
     private static final long REFRESH_PERIOD_TICKS = 5L;
 
-    private final RaskolClasses plugin;
     private final Map<UUID, PlaceholderSnapshot> snapshots = new ConcurrentHashMap<>();
     private final Set<UUID> warnedFailures = ConcurrentHashMap.newKeySet();
     private BukkitTask refreshTask;
 
-    public PlaceholderSnapshotService(RaskolClasses plugin) {
-        this.plugin = plugin;
-    }
-
     /**
      * Запускает обновление снимков на основном потоке.
      */
-    public void start() {
-        refreshOnlinePlayers();
+    public void start(RaskolClasses plugin) {
+        refreshOnlinePlayers(plugin);
         refreshTask = plugin.getServer().getScheduler()
-                .runTaskTimer(plugin, this::refreshOnlinePlayers, REFRESH_PERIOD_TICKS, REFRESH_PERIOD_TICKS);
+                .runTaskTimer(plugin, () -> refreshOnlinePlayers(plugin), REFRESH_PERIOD_TICKS, REFRESH_PERIOD_TICKS);
     }
 
     /**
@@ -64,26 +56,19 @@ public final class PlaceholderSnapshotService implements Listener, AutoCloseable
         return snapshot == null ? null : snapshot.crownValue(parameter);
     }
 
-    @EventHandler
-    public void onJoin(PlayerJoinEvent event) {
-        refresh(event.getPlayer());
-    }
-
-    @EventHandler
-    public void onQuit(PlayerQuitEvent event) {
-        UUID playerId = event.getPlayer().getUniqueId();
-        snapshots.remove(playerId);
-        warnedFailures.remove(playerId);
-    }
-
-    private void refreshOnlinePlayers() {
+    private void refreshOnlinePlayers(RaskolClasses plugin) {
+        Set<UUID> onlineIds = new HashSet<>();
         for (Player player : plugin.getServer().getOnlinePlayers()) {
-            refresh(player);
+            UUID playerId = player.getUniqueId();
+            onlineIds.add(playerId);
+            refresh(plugin, player, playerId);
         }
+
+        snapshots.keySet().removeIf(playerId -> !onlineIds.contains(playerId));
+        warnedFailures.retainAll(onlineIds);
     }
 
-    private void refresh(Player player) {
-        UUID playerId = player.getUniqueId();
+    private void refresh(RaskolClasses plugin, Player player, UUID playerId) {
         try {
             PlayerClass playerClass = plugin.getClassProvider().getClassOf(player);
             Map<String, String> raskol = new HashMap<>();
