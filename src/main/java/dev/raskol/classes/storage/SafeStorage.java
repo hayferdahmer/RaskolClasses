@@ -102,9 +102,25 @@ public final class SafeStorage {
         if (cfg == null || file == null) {
             return false;
         }
+        return saveAtomic(cfg.saveToString(), file, logger);
+    }
+
+    /**
+     * Записывает заранее сериализованный снимок. Сериализацию нужно выполнять
+     * на основном потоке, а этот метод можно безопасно вызывать из потока записи.
+     */
+    public static boolean saveAtomic(String snapshot, File file, Logger logger) {
+        if (snapshot == null || file == null) {
+            return false;
+        }
+        File parent = file.getParentFile();
+        if (parent != null && !parent.exists() && !parent.mkdirs() && !parent.isDirectory()) {
+            logger.severe("SafeStorage: не удалось создать каталог " + parent.getAbsolutePath());
+            return false;
+        }
         File tmp = new File(file.getParentFile(), file.getName() + ".tmp");
         try {
-            cfg.save(tmp);
+            Files.writeString(tmp.toPath(), snapshot);
             if (file.exists()) {
                 File bak = new File(file.getParentFile(), file.getName() + ".bak");
                 Files.copy(file.toPath(), bak.toPath(), StandardCopyOption.REPLACE_EXISTING);
