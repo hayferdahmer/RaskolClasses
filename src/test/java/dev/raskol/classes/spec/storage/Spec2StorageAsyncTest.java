@@ -80,7 +80,7 @@ class Spec2StorageAsyncTest {
         storage.setMain(playerId, "second");
         assertTrue(storage.isDirty());
         assertTrue(storage.save());
-        assertTrue(storage.close());
+        assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
 
         YamlConfiguration saved = YamlConfiguration.loadConfiguration(file);
         assertEquals("second", saved.getString("players." + playerId + ".main"));
