@@ -35,24 +35,25 @@ class PlaceholderSnapshotTest {
     @Test
     @DisplayName("опубликованные карты нельзя изменить через снимок")
     void snapshotMapsAreUnmodifiable() {
-        PlaceholderSnapshot snapshot = new PlaceholderSnapshot(
-                Map.of("level", "10"),
-                Map.of("crown", "Рассвет"));
+        Map<String, String> raskol = Map.of("level", "10");
+        Map<String, String> crown = Map.of("crown", "Рассвет");
+        PlaceholderSnapshot snapshot = new PlaceholderSnapshot(raskol, crown);
 
-        assertThrows(UnsupportedOperationException.class,
-                () -> snapshot.raskolValues().put("level", "99"));
-        assertThrows(UnsupportedOperationException.class,
-                () -> snapshot.crownValues().clear());
+        assertUnmodifiable(snapshot.raskolValues());
+        assertUnmodifiable(snapshot.crownValues());
     }
 
     @Test
     @DisplayName("неизвестный параметр не подменяется значением")
     void unknownParameterReturnsNull() {
         PlaceholderSnapshot snapshot = new PlaceholderSnapshot(
-                Map.of("level", "10"),
-                Map.of("crown", "Рассвет"));
+                Map.of("level", "10"), Map.of("crown", "Рассвет"));
 
         assertNull(snapshot.raskolValue("unknown"));
         assertNull(snapshot.crownValue("unknown"));
+    }
+
+    private static void assertUnmodifiable(Map<String, String> values) {
+        assertThrows(UnsupportedOperationException.class, values::clear);
     }
 }
