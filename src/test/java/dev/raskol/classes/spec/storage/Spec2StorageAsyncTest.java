@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -40,7 +41,7 @@ class Spec2StorageAsyncTest {
         storage.setMain(playerId, "restoration");
         assertTrue(storage.isDirty());
         assertTrue(storage.save());
-        assertTrue(storage.close());
+        assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
 
         YamlConfiguration saved = YamlConfiguration.loadConfiguration(file);
         assertEquals("restoration", saved.getString("players." + playerId + ".main"));
@@ -62,7 +63,7 @@ class Spec2StorageAsyncTest {
 
         storage.setRanks(UUID.randomUUID(), "restoration", Map.of("healing_touch", 1));
 
-        assertFalse(storage.close());
+        assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
         assertTrue(storage.isDirty());
     }
 
