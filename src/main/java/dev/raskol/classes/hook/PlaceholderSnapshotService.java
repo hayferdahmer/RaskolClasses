@@ -36,7 +36,8 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
      */
     public void start(RaskolClasses plugin) {
         refreshOnlinePlayers(plugin);
-        refreshTask = plugin.getServer().getScheduler()
+        refreshTask = plugin.getServer()
+                .getScheduler()
                 .runTaskTimer(plugin, () -> refreshOnlinePlayers(plugin), REFRESH_PERIOD_TICKS, REFRESH_PERIOD_TICKS);
     }
 
@@ -80,7 +81,8 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
             raskol.put("hp_max", Integer.toString((int) plugin.getHpBarService().formulaMaxHp(playerId)));
             raskol.put("resource", Integer.toString((int) plugin.getResources().getValue(playerId)));
             raskol.put("phys_resist", Integer.toString((int) plugin.getResists().physicalResist(playerId)));
-            raskol.put("magic_resist", Integer.toString((int) plugin.getResists().magicResist(playerId)));
+            raskol.put(
+                    "magic_resist", Integer.toString((int) plugin.getResists().magicResist(playerId)));
 
             double[] avoidance = plugin.getAttributes().effectiveAvoidance(playerId);
             raskol.put("dodge", fmt1(avoidance[0]));
@@ -91,9 +93,12 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
             String mainSpec = plugin.getSpec2Service().mainSpec(playerId);
             dev.raskol.classes.spec.Spec spec = dev.raskol.classes.spec.Spec.fromId(mainSpec);
             raskol.put("spec", spec == null ? "" : spec.displayName());
-            raskol.put("talent_points", Integer.toString(plugin.getSpec2Service().availablePoints(playerId)));
-            raskol.put("talents", plugin.getSpec2Service().spentGlobal(playerId)
-                    + "/" + plugin.getSpec2Service().earnedPoints(playerId));
+            raskol.put(
+                    "talent_points", Integer.toString(plugin.getSpec2Service().availablePoints(playerId)));
+            raskol.put(
+                    "talents",
+                    plugin.getSpec2Service().spentGlobal(playerId) + "/"
+                            + plugin.getSpec2Service().earnedPoints(playerId));
 
             if (!plugin.getPlusSubscription().active(playerId)) {
                 raskol.put("plus", "expired");
