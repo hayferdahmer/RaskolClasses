@@ -46,8 +46,9 @@ class PlaceholderSnapshotTest {
     @Test
     @DisplayName("неизвестный параметр не подменяется значением")
     void unknownParameterReturnsNull() {
-        PlaceholderSnapshot snapshot = new PlaceholderSnapshot(
-                Map.of("level", "10"), Map.of("crown", "Рассвет"));
+        Map<String, String> raskol = Map.of("level", "10");
+        Map<String, String> crown = Map.of("crown", "Рассвет");
+        PlaceholderSnapshot snapshot = new PlaceholderSnapshot(raskol, crown);
 
         assertNull(snapshot.raskolValue("unknown"));
         assertNull(snapshot.crownValue("unknown"));
