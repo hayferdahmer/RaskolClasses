@@ -270,7 +270,8 @@ public final class RaskolClasses extends JavaPlugin {
 
         classProvider.setResourceService(resources);
 
-        this.cooldowns = new CooldownManager(new File(getDataFolder(), "cooldowns.yml"));
+        this.storageWriter = new AsyncStorageWriter(getLogger());
+        this.cooldowns = new CooldownManager(new File(getDataFolder(), "cooldowns.yml"), storageWriter);
         this.cooldowns.attachScheduler(
                 this,
                 raskolConfig.isReadyNotifyEnabled(),
@@ -323,7 +324,6 @@ public final class RaskolClasses extends JavaPlugin {
 
         Spec2Points.configure(this);
 
-        this.storageWriter = new AsyncStorageWriter(getLogger());
         this.spec2Storage = new Spec2Storage(this, storageWriter);
         this.spec2Applier = new Spec2EffectsApplier(this);
         this.spec2Service = new Spec2Service(this, spec2Storage);

@@ -23,6 +23,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import dev.raskol.classes.storage.AsyncStorageWriter;
 import dev.raskol.classes.storage.SafeStorage;
 
 import net.kyori.adventure.text.Component;
@@ -47,17 +48,19 @@ public final class CooldownManager implements Listener {
     private final Map<UUID, Map<String, Long>> readyAt = new ConcurrentHashMap<>();
     private final File file;
     private final YamlConfiguration store;
+    private final AsyncStorageWriter storageWriter;
 
     private final Map<UUID, Map<String, BukkitTask>> tasks = new ConcurrentHashMap<>();
     private Plugin plugin;
 
     private boolean notifyEnabled = false;
     private long notifyMinMillis = 30_000L;
-    private Sound notifySound = Sound.ENTITY_PLAYER_LEVELUP;
+    private Sound notifySound;
     private String notifyMessage = "{ability} — готова";
 
-    public CooldownManager(File file) {
+    public CooldownManager(File file, AsyncStorageWriter storageWriter) {
         this.file = file;
+        this.storageWriter = storageWriter;
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
 
@@ -209,7 +212,14 @@ public final class CooldownManager implements Listener {
         for (UUID playerId : readyAt.keySet()) {
             writeSection(playerId);
         }
-        persist();
+        String snapshot = store.saveToString();
+        storageWriter.submit(file, snapshot).whenComplete((successful, failure) -> {
+            if (failure != null) {
+                LOGGER.log(java.util.logging.Level.SEVERE, "Не удалось сохранить снимок кулдаунов", failure);
+            } else if (!Boolean.TRUE.equals(successful)) {
+                LOGGER.severe("Не удалось сохранить снимок кулдаунов; следующая autosave-попытка повторит запись");
+            }
+        });
     }
 
     public void cancelAllTasks() {
