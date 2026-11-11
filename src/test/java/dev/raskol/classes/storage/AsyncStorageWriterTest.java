@@ -9,10 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import java.nio.file.Files;
 
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.DisplayName;
@@ -60,7 +59,13 @@ class AsyncStorageWriterTest {
     @Test
     @DisplayName("ошибка записи не останавливает последующие операции")
     void continuesAfterFailedWrite() throws Exception {
-        File invalidTarget = tempDir.toFile();
+        File blockedParent = tempDir.resolve("not-a-directory").toFile();
+        try {
+            Files.writeString(blockedParent.toPath(), "blocker");
+        } catch (java.io.IOException exception) {
+            throw new AssertionError(exception);
+        }
+        File invalidTarget = new File(blockedParent, "invalid.yml");
         File validTarget = tempDir.resolve("valid.yml").toFile();
         AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER);
         try {
