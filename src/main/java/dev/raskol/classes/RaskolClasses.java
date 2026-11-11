@@ -562,8 +562,8 @@ public final class RaskolClasses extends JavaPlugin {
         if (hpBarService != null) {
             hpBarService.saveAll();
         }
-        if (spec2Storage != null) {
-            spec2Storage.save();
+        if (spec2Storage != null && !spec2Storage.close()) {
+            getLogger().severe("Spec2Storage: не удалось подтвердить сохранение всех изменений при выключении");
         }
         if (installations != null) {
             installations.shutdown();
