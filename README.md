@@ -54,12 +54,12 @@
 
 <table align="center">
   <tr>
-    <td align="center" width="120"><b>6</b><br/><sub>классов</sub></td>
-    <td align="center" width="120"><b>18</b><br/><sub>специализаций</sub></td>
-    <td align="center" width="120"><b>8</b><br/><sub>школ урона</sub></td>
-    <td align="center" width="120"><b>9</b><br/><sub>типов контроля</sub></td>
-    <td align="center" width="120"><b>5</b><br/><sub>видов DoT</sub></td>
-    <td align="center" width="120"><b>167</b><br/><sub>headless-чеков</sub></td>
+    <td align="center"><b>6</b><br/><sub>классов</sub></td>
+    <td align="center"><b>18</b><br/><sub>специализаций</sub></td>
+    <td align="center"><b>8</b><br/><sub>школ урона</sub></td>
+    <td align="center"><b>9</b><br/><sub>типов контроля</sub></td>
+    <td align="center"><b>5</b><br/><sub>видов DoT</sub></td>
+    <td align="center"><b>139</b><br/><sub>headless-чека</sub></td>
   </tr>
 </table>
 
@@ -71,30 +71,21 @@
 
 ### 🔥 У очага: быстрый старт
 
-**Для боевого сервера:** установите официальный JAR из [GitHub Releases](https://github.com/hayferdahmer/RaskolClasses/releases), затем перезапустите Paper и проверьте в журнале `[RIPS] INFO | VERIFIED`.
-
-**Для локальной разработки:** соберите DEVELOPMENT-артефакт и запускайте его только в изолированной тестовой среде:
-
 ```bash
-mvn -B clean verify
-# DEVELOPMENT JAR: target/raskol-classes-1.15.8.jar
-# для локального тестирования требуется JVM-флаг:
-# -Draskol.rips.development=true
+mvn -B clean verify                     # выковать jar
+cp target/raskol-classes-*.jar plugins/ # положить в мастерскую сервера
+# перезапустить сервер, затем в игре:
+/rc selftest                            # ждём ровное пламя: 139/139 PASS
 ```
-
-После запуска выполните `/rc selftest`: ожидается **167/167 PASS**. Не устанавливайте обычный Maven JAR на production-сервер.
 
 <p align="center"><img src="docs/assets/divider.svg" width="640" alt="⚜"/></p>
 
-<br/>
-
 <a id="crowns"></a>
 
-## ⚜ Глава I · Две короны
+<details>
+<summary><h2>⚜ Глава I · Две короны</h2></summary>
 
 <sub><i>Золото и порядок против багрянца и пепла. Короны задают тон серверу.</i></sub>
-
-<br/>
 
 <table align="center">
   <tr>
@@ -103,37 +94,41 @@ mvn -B clean verify
   </tr>
 </table>
 
-<br/>
+```text
+╔══════════════════════╗  ╱╲  ╔══════════════════════╗
+║       РАССВЕТ        ║ ╱  ╲ ║       ВАЛРАДИС       ║
+║    золото · свет     ║ ╲  ╱ ║   багрянец · пепел   ║
+║   END_ROD · клятва   ║  ╲╱  ║   SOUL_FIRE · долг   ║
+╚══════════════════════╝      ╚══════════════════════╝
+                        РАСКОЛ
+```
 
 | Корона | Цвет | Аура | Природа |
 | --- | --- | :-: | --- |
 | ☀️ **Рассвет** | золото | `END_ROD` | Свет, порядок, клятва |
 | 🐉 **Вальрадис** | багрянец | `SOUL_FIRE_FLAME` | Дракон, пепел, долг |
 
-<br/>
+</details>
 
 <a id="paths"></a>
 
-## ⚜ Глава II · Шесть путей
+<details>
+<summary><h2>⚜ Глава II · Шесть путей</h2></summary>
 
 <sub><i>У каждого пути — своя традиция, свой ресурс и свой главный атрибут.</i></sub>
 
-<br/>
-
 <table align="center">
   <tr>
-    <td align="center" width="200"><img src="docs/assets/emblems/warrior.svg" width="120" alt="Воин"/><br/><b>Воин</b><br/><sub>Нордика</sub></td>
-    <td align="center" width="200"><img src="docs/assets/emblems/hunter.svg" width="120" alt="Охотник"/><br/><b>Охотник</b><br/><sub>Путь ведьмака</sub></td>
-    <td align="center" width="200"><img src="docs/assets/emblems/priest.svg" width="120" alt="Жрец"/><br/><b>Жрец</b><br/><sub>Католика</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/warrior.svg" width="120" alt="Воин"/><br/><b>Воин</b><br/><sub>Нордика</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/hunter.svg" width="120" alt="Охотник"/><br/><b>Охотник</b><br/><sub>Путь ведьмака</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/priest.svg" width="120" alt="Жрец"/><br/><b>Жрец</b><br/><sub>Католика</sub></td>
   </tr>
   <tr>
-    <td align="center" width="200"><img src="docs/assets/emblems/mage.svg" width="120" alt="Маг"/><br/><b>Маг</b><br/><sub>Эллада</sub></td>
-    <td align="center" width="200"><img src="docs/assets/emblems/rogue.svg" width="120" alt="Разбойник"/><br/><b>Разбойник</b><br/><sub>Ночные гильдии</sub></td>
-    <td align="center" width="200"><img src="docs/assets/emblems/warlock.svg" width="120" alt="Чернокнижник"/><br/><b>Чернокнижник</b><br/><sub>Фолиант Душ · скрытый</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/mage.svg" width="120" alt="Маг"/><br/><b>Маг</b><br/><sub>Эллада</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/rogue.svg" width="120" alt="Разбойник"/><br/><b>Разбойник</b><br/><sub>Ночные гильдии</sub></td>
+    <td align="center" width="150"><img src="docs/assets/emblems/warlock.svg" width="120" alt="Чернокнижник"/><br/><b>Чернокнижник</b><br/><sub>Фолиант Душ · скрытый</sub></td>
   </tr>
 </table>
-
-<br/>
 
 | Класс | Традиция | Ресурс | Атрибут | Роль |
 | --- | --- | --- | :-: | --- |
@@ -144,15 +139,14 @@ mvn -B clean verify
 | 🗡️ **Разбойник** | Ночные гильдии | Энергия · +10/с | `AGI` | Скрытность, яды, спина |
 | 📕 **Чернокнижник** | Фолиант Душ · скрытый | Скверна · событийная | `INT` | Дрейн, диспел, анти-хил, DoT |
 
-<br/>
+</details>
 
 <a id="trees"></a>
 
-## ⚜ Глава III · Деревья путей
+<details>
+<summary><h2>⚜ Глава III · Деревья путей</h2></summary>
 
 <sub><i>С 15 уровня каждая дорога расходится на три тропы. Выбирай внимательно: все сразу не пройти.</i></sub>
-
-<br/>
 
 С 15 уровня каждый класс открывает **три специализации** с деревом прогрессии (Спек 2.0): 20–21 узел, шесть рядов. Бюджет очков за карьеру — **46** (15 → 60, +1 за уровень). Старт, бюджет и гейты читаются из `spec2.start-level`, `spec2.max-points` и `spec2.row-gates`.
 
@@ -203,7 +197,8 @@ mvn -B clean verify
 
 **Типы узлов:** `passive_stat` · `passive_proc` · `unlock_ability` · `enhance_ability` · `ultimate` (ряд 6, 1/1). Ранги 1–5, стоимость ранга — 1 очко в любом из трёх деревьев класса, пререквизиты ранговые. Узлы `resist` принимают таргет-школу (`nature`, `fire`, …) и дают стихийный резист.
 
-### 🧭 Как ходить по тропам
+<details>
+<summary><h3>🧭 Как ходить по тропам</h3></summary>
 
 1. `/rc menu` → **Специализации**: выбор основной спеки — один раз, бесплатно, с 15 уровня.
 2. **Деревья путей**: ЛКМ по узлу даёт +1 ранг.
@@ -212,15 +207,16 @@ mvn -B clean verify
 
 Вкладка листает ряды ◀ ▶ и переключает спеки класса: основная и две вторичные.
 
-<br/>
+</details>
+
+</details>
 
 <a id="combat"></a>
 
-## ⚜ Глава IV · Боевые системы
+<details>
+<summary><h2>⚜ Глава IV · Боевые системы</h2></summary>
 
 <sub><i>Подсистемы ниже складываются в один язык боя. Открывай свитки по одному.</i></sub>
-
-<br/>
 
 <details>
 <summary>🫀 <b>Здоровье</b></summary>
@@ -386,15 +382,14 @@ Amplifier следующего удара ставится на защищавш
 
 </details>
 
-<br/>
+</details>
 
 <a id="plus"></a>
 
-## ⚜ Глава V · Свиток мастера — raskolspec+
+<details>
+<summary><h2>⚜ Глава V · Свиток мастера — raskolspec+</h2></summary>
 
 <sub><i>Курируемые билды по подписке: совет бывалых, запечатанный в один клик.</i></sub>
-
-<br/>
 
 Мета-слой: команда куратора держит по два эталонных билда на каждую спеку (PvP и PvE), обновляет их в каждый баланс-патч, а игрок применяет билд в один клик.
 
@@ -413,15 +408,14 @@ Amplifier следующего удара ставится на защищавш
 > [!NOTE]
 > Применение шаблона сбрасывает выбранное дерево, списывает внутриигровую цену респека и применяет ранги шаблона. Перед применением сервер повторно проверяет доступ: окончание или отзыв подписки во время открытого окна подтверждения не даёт обойти ограничение. Для бесплатного публичного режима установи `plus.enabled: false`.
 
-<br/>
+</details>
 
 <a id="architecture"></a>
 
-## ⚜ Глава VI · Устройство замка
+<details>
+<summary><h2>⚜ Глава VI · Устройство замка</h2></summary>
 
 <sub><i>Карта залов: какой пакет за что отвечает. Линия 1.15.</i></sub>
-
-<br/>
 
 | Слой | Структура |
 | --- | --- |
@@ -449,19 +443,18 @@ Amplifier следующего удара ставится на защищавш
 | Книга | `ClassBook` (фасад) + `gui/book/*Tab` (5 вкладок, включая «Снаряжение») |
 | Команды | `RaskolCommand` (роутер) + `command/sub/*Sub` (debug, item, set, gear alias, foliant, health, cc) |
 | Конфиг | `config.yml` (avoidance и hp-display в корне с 1.14.6-fix) + per-class `kits/<class>.yml` |
-| Тесты | `/rc selftest` — **167 headless-чеков** |
+| Тесты | `/rc selftest` — **139 headless-чека** |
 
 Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — на них и держатся headless-чеки.
 
-<br/>
+</details>
 
 <a id="commands"></a>
 
-## ⚜ Глава VII · Заклинания оператора
+<details>
+<summary><h2>⚜ Глава VII · Заклинания оператора</h2></summary>
 
 <sub><i>Всё колдовство идёт через один роутер — `/rc`. Права перечислены в `plugin.yml`.</i></sub>
-
-<br/>
 
 | Команда | Права | Описание |
 | --- | --- | --- |
@@ -474,7 +467,7 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 | `/rc debug profile` | `raskolclasses.debug` | Боевой профиль моба в прицеле |
 | `/rc debug simulate …` | `raskolclasses.debug` | Дуэль и матрица TTK 6×6 |
 | `/rc health` | `raskolclasses.debug` | MSPT/TPS, purge, аптайм, per-class конфиги |
-| `/rc selftest` | `raskolclasses.debug` | 167 headless-чеков |
+| `/rc selftest` | `raskolclasses.debug` | 139 headless-чека |
 | `/rc cc list \| status \| clear \| test \| reset` | `raskolclasses.admin.cc` | Админка контроля с DR |
 | `/rc foliant give <ник>` | `raskolclasses.admin` | Выдать Фолиант Душ |
 | `/rc reload` | `raskolclasses.admin` | Перезагрузка `config.yml` + `kits/*.yml` |
@@ -485,15 +478,14 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 | `/rc plus grant <ник> <n>` | `raskolclasses.admin.plus` | Выдать подписку онлайн- или известному оффлайн-игроку |
 | `/rc plus revoke <ник>` | `raskolclasses.admin.plus` | Отозвать подписку |
 
-<br/>
+</details>
 
 <a id="placeholders"></a>
 
-## ⚜ Глава VIII · Руны-подстановки
+<details>
+<summary><h2>⚜ Глава VIII · Руны-подстановки</h2></summary>
 
 <sub><i>Выбей руну на табличке, табло или в чате — PlaceholderAPI подставит значение.</i></sub>
-
-<br/>
 
 ```text
 %raskolclasses_class%          %raskolclasses_level%       %raskolclasses_hp%
@@ -505,19 +497,16 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 
 `spec`, `talent_points` и `talents` читают spec2-слой: основная спека, доступные очки, потрачено и заработано.
 
-<br/>
+</details>
 
 <a id="items"></a>
 
-## ⚜ Глава IX · Кузница
+<details>
+<summary><h2>⚜ Глава IX · Кузница</h2></summary>
 
 <sub><i>Здесь куют мечи, посохи и сетовые доспехи. Горн не остывает.</i></sub>
 
-<br/>
-
 **⚒️ Каталог.** `items.yml` содержит настройки генерации, шаблоны, определения и сеты; при первом старте файл копируется из JAR. Штатный каталог — 342 предмета: 38 именных шаблонов оружия и брони × уровни 20/40/60 × редкости COMMON/RARE/EPIC. Доступны мечи, топоры, булавы, кинжалы, луки, арбалеты, копья, посохи и жезлы; каждому классу назначен тематический пятичастный комплект с бонусами за 2/4/5 надетых частей.
-
-**🎨 Ресурс-пак.** Для оружия и иконок брони рядом с JAR публикуется `RaskolClasses-1.15.0-resource-pack.zip` (Minecraft Java 1.21.4). Он использует `custom-model-data`, который предметы получают из шаблонов `items.yml`. В первой редакции текстуры брони меняют иконку в инвентаре; надетая броня пока отображается ванильной.
 
 **📜 Команды.** `/rc item list`, `/rc item info <id>`, `/rc item give <ник> <id> [кол-во]`, `/rc item roll <ник> <id> [seed]`, `/rc item browse [запрос]`, `/rc item stats [ник]`, `/rc item sets [ник]`, `/rc item salvage`, `/rc item craft [id]`; браузер принимает поисковый запрос и фильтры класс/редкость, `stats` показывает hover-превью экипировки и прогресс сетов, `sets` выводит активные и потенциальные бонусы, `salvage` разбирает предмет в руке на фрагменты, `craft` создаёт предмет из фрагментов и монет. Сеты: `/rc set list|info <id>|active <ник>`. `/rc gear [ник]` остаётся алиасом для `/rc item stats`.
 
@@ -525,103 +514,104 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 
 **🔌 API.** Для RaskolMobs: `dev.raskol.classes.api.items.ItemsApi`, `dev.raskol.classes.api.combat.CombatProfileRegistry`, `CombatProfile`, `EntityLevelProvider`. RaskolClasses не создаёт мобов и не управляет их дропом.
 
-<br/>
+</details>
 
 <a id="install"></a>
 
-## ⚜ Глава X · Очаг
+<details>
+<summary><h2>⚜ Глава X · Очаг</h2></summary>
 
 <sub><i>Как собрать плагин, развести огонь и убедиться, что пламя горит ровно.</i></sub>
 
-<br/>
-
-### Официальная установка (боевой сервер)
-
-1. Скачайте `raskol-classes-1.15.8.jar` только из [GitHub Releases](https://github.com/hayferdahmer/RaskolClasses/releases).
-2. Поместите JAR в каталог `plugins/` сервера Paper.
-3. Запустите сервер и проверьте лог RIPS: для официальной сборки ожидается `[RIPS] INFO | VERIFIED`.
-4. Убедитесь, что после стартовой проверки запущен Runtime Integrity Monitor (повторная проверка каждые 30 минут).
-5. Выполните `/rc selftest` с правом `raskolclasses.debug`; ожидается **167/167 PASS**.
-
-**Не устанавливайте в production JAR, собранный обычной командой Maven.** Такой JAR является DEVELOPMENT-сборкой и не содержит официальной подписи RIPS. Для официального артефакта требуется релизный процесс GitHub Actions.
-
-### Сборка для локальной разработки
-
-**Целевая сборочная конфигурация релиза:** JDK 25, Java release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. Сборка и тесты выполняются на JDK 25.
+**Требования:** Paper 1.21.4+, Java 21, Maven.
 
 ```bash
 mvn -B clean verify
-# результат: target/raskol-classes-1.15.8.jar (DEVELOPMENT)
+cp target/raskol-classes-*.jar plugins/
+# перезапуск сервера
+/rc selftest   # ожидается 139/139 PASS
 ```
-
-Для локального тестирования DEVELOPMENT-сборки оператор должен явно включить JVM-свойство:
 
 ```text
--Draskol.rips.development=true
+пламя:  ████████████████████████████████  139 / 139
 ```
 
-Не добавляйте это свойство в параметры запуска production-сервера. Без явного разрешения RIPS отклоняет DEVELOPMENT-сборку.
-
-**Целевая и проверенная CI сборочная конфигурация релиза:** JDK 25, Java release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. На PR #11 для этой конфигурации успешно прошли Build, Analyze, Spotless и RIPS Security Audit; 378 основных тестов и 158 security-тестов завершились без ошибок. Это подтверждает сборку и автоматические проверки на целевой платформе, но не заменяет runtime-регрессию игровых функций на Paper 26.2. На боевом сервере оператор ранее запускал RaskolClasses 1.15.8 и получил `[RIPS] INFO | VERIFIED` (`checkedFiles=392`); это подтверждает стартовую проверку конкретного артефакта, а не полный функциональный тест.
-
-Профиль `-Pdev` включает дополнительные проверки компиляции и SpotBugs: `mvn -Pdev -B verify`. В GitHub Actions job `analyze` остаётся диагностическим на обычных ветках и pull request, но становится обязательным блокирующим gate для tag-релизов `v*` и ручной OFFICIAL signing verification. Публикация GitHub Release и создание временного OFFICIAL-артефакта невозможны, если `analyze` завершился ошибкой.
+Профиль `-Pdev` добавляет `-Xlint:all` и SpotBugs: `mvn -Pdev -B verify`.
 
 > [!NOTE]
 > При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется). В логе появится строка `spec2: migrated …`.
 
-**Softdepend (все опциональны):** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints` · `MythicMobs`. Интеграция AuraSkills всё ещё присутствует в 1.15.8; её удаление относится к плану 1.16.0, а не к этому релизу.
+**Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints`. Каждый опционален, деградация graceful.
 
 <details>
-<summary>🧪 <b>Регресс-матрица selftest</b> · 167 чеков</summary>
+<summary>🧪 <b>Регресс-матрица selftest</b> · 139 чека</summary>
 
 <br/>
 
 | Область | Чеки |
 | --- | :-: |
-| Атрибуты, TTK, canHit | 1–21 |
-| spec2: очки, бюджет, прунинг | 22–24 · 31–32 |
-| Ресурсы, план B | 29–30 · 33–36 |
+| Атрибуты и бой | 1–21 |
+| spec2-экономика | 22–24 |
+| Ресурсы, план B | 29–36 |
 | Чернокнижник, `WarlockMath`, sanity | 37–48 |
 | Школы | 49–65 |
 | DoT, баланс | 66–75 |
 | CC / DR | 76–90 |
-| spec2-модель, unlock-покрытие | 91–99 |
-| heal, паверы, ресурс, проки, боевые pct | 100–106 |
-| Конфиг-точки spec2, пет-ядро, `spec2.procs` | 107–113 |
-| kit_dur, attack_speed, гейты, dirty-flush | 114–120 |
+| spec2-модель | 91–94 |
+| Переносимые slots 4–5 | 95–98 |
+| unlock-покрытие | 99 |
+| heal, паверы, ресурс, проки, боевые pct | 100–104 |
+| resist-школа, `resetNode`, конфиг-точки | 105–107 |
+| Пет-ядро | 108–112 |
+| spec2.procs (полная) | 113 |
+| kit_dur, attack_speed, контракт C | 114–116 |
+| HAS_DEPENDENTS, антиспам-метка | 117–118 |
 | Стоп-лист и достижимость spec2 | 121–122 |
-| raskolspec+: шаблоны, подписка, применение | 123–127 |
+| raskolspec+: шаблоны/подписка/stale | 123–125 |
 | Предметы 1.15.0: реестр, инварианты, удаление Gear | 128–130 |
 | Владение оружием: матрица, пары, null | 131–133 |
 | Локализация сообщений предметного слоя | 134 |
-| Крафт и фрагменты 1.15.4 | 135–137 |
-| Аудит 1.15.5: права, AuthGate, LP-гард, хранилище | 138–146 |
-| Боевой конвейер 1.15.6: DoT, `dealDamage`, школа каста | 147–150 |
-| Путь A, burst-undo, per-tree gates, платёжный контракт | 151–154 |
-| Конкурентность, purge, proc-кулдаун, aura-CAS | 155–158 |
-| Spec2-типы, FactionHook, ёмкость, crit cap, cycle-guard | 159–167 |
+| Крафт и фрагменты 1.15.4: реестр, pure-математика, рецепты | 135–137 |
+| UI/UX 1.15.5: hover-превью, pure-фильтр браузера | 138–139 |
 
 Полный прогон — перед любым хотфиксом и релизом. Skip-чеки считаются отдельно и не входят в PASS-счётчик.
 
 </details>
 
-<br/>
+</details>
 
 <a id="docs"></a>
 
-## ⚜ Глава XI · Библиотека
+<details>
+<summary><h2>⚜ Глава XI · Библиотека</h2></summary>
 
 <sub><i>Свитки для тех, кто хочет знать больше.</i></sub>
 
-<br/>
-
 | Файл | Содержание |
 | --- | --- |
-| 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Операционные процедуры, конфиги, миграции и troubleshooting |
-| 🛡️ [`docs/RIPS-OPERATIONS.md`](docs/RIPS-OPERATIONS.md) | Официальные артефакты, RIPS-проверки и действия при ошибках целостности |
-| 🔐 [`SECURITY.md`](SECURITY.md) | Политика безопасности и ответственного раскрытия уязвимостей |
+| 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Аварии и гейты, тюнинг без пересборки, контроль и DR, проки, респеки, миграции, troubleshooting |
 | 📖 [`CHANGELOG.md`](CHANGELOG.md) | История версий (не переписывается задним числом) |
-| ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v2.0 |
+| ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v1.0 |
+
+<details>
+<summary>🎨 <b>Как устроено оформление</b></summary>
+
+<br/>
+
+| Что | Где | Как обновляется |
+| --- | --- | --- |
+| Баннер, тёмная и светлая тема | `banner-dark.svg` · `banner-light.svg` (запасной — `banner.svg`) | `<picture>` в начале README выбирает вариант по теме GitHub |
+| Эмблемы шести путей и двух корон | `docs/assets/emblems/*.svg` | Рисуются генератором `tools/art/` |
+| Шапки страниц | `docs/assets/headers/*.svg` | Подключены в `CHANGELOG.md`, `SECURITY.md`, `docs/RUNBOOK.md` |
+| Разделитель | `docs/assets/divider.svg` | — |
+| Social preview 1280×640 | `docs/assets/social/social-preview.jpg` | Загрузить в **Settings → Social preview**; GitHub принимает PNG/JPG/GIF до 1 МБ |
+| Живые бейджи | `.github/badges/*.json`, воркфлоу `.github/workflows/badges.yml` | Версия, Paper, Java, число selftest-чеков и unit-тестов считаются из исходников при каждом push в `main` |
+
+**Перерисовать всё:** `python3 tools/art/build_all.py .` (нужен `playwright` только для JPG).
+
+</details>
+
+</details>
 
 <br/>
 
@@ -629,5 +619,5 @@ mvn -B clean verify
 
 <p align="center">
   <i>Пусть огонь не гаснет, а короны не сходятся.</i><br/><br/>
-  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v2.0<br/>использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
+  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v1.0<br/>использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
 </p>
