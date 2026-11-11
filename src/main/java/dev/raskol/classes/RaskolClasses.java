@@ -386,9 +386,8 @@ public final class RaskolClasses extends JavaPlugin {
         sessions.resyncOnline();
 
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
-            this.placeholderSnapshots = new PlaceholderSnapshotService(this);
-            pluginManager.registerEvents(placeholderSnapshots, this);
-            placeholderSnapshots.start();
+            this.placeholderSnapshots = new PlaceholderSnapshotService();
+            placeholderSnapshots.start(this);
             new dev.raskol.classes.hook.RaskolPlaceholder(this, placeholderSnapshots).register();
             new FlavorPlaceholder(this, placeholderSnapshots).register();
             getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% " + "и %raskolcrown_*% зарегистрированы");
