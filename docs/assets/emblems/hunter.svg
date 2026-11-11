@@ -1,3 +1,7 @@
+<!--
+© 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Охотник" xmlns:c2pa="http://c2pa.org/manifest"><title>Охотник</title><defs><style>.h-br{transform-box:fill-box;transform-origin:center;animation:h-br 7s ease-in-out infinite alternate}@keyframes h-br{from{transform:translateY(1.5px) scale(.996)}to{transform:translateY(-2px) scale(1.012)}}.h-rim{transform-box:fill-box;transform-origin:center;animation:h-rim 8s linear infinite}@keyframes h-rim{to{transform:rotate(360deg)}}.h-gem{animation:h-gem 3s ease-in-out infinite}@keyframes h-gem{0%,100%{opacity:.7}50%{opacity:1}}.h-eye{animation:h-eye 4s ease-in-out infinite}@keyframes h-eye{0%,90%,100%{opacity:1}94%{opacity:.15}}
 .h-pulse{animation:h-pulse 4.5s ease-in-out infinite alternate}@keyframes h-pulse{from{opacity:.6}to{opacity:1}}
 .h-lf{transform-box:fill-box;transform-origin:50% 100%;animation:h-lf 4s ease-in-out infinite alternate}@keyframes h-lf{from{transform:rotate(-7deg)}to{transform:rotate(7deg)}}
