@@ -55,7 +55,7 @@ public final class CooldownManager implements Listener {
 
     private boolean notifyEnabled = false;
     private long notifyMinMillis = 30_000L;
-    private Sound notifySound = Sound.ENTITY_PLAYER_LEVELUP;
+    private Sound notifySound;
     private String notifyMessage = "{ability} — готова";
 
     public CooldownManager(File file, AsyncStorageWriter storageWriter) {
