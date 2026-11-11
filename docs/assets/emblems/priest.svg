@@ -1,3 +1,7 @@
+<!--
+© 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Жрец" xmlns:c2pa="http://c2pa.org/manifest"><title>Жрец</title><defs><style>.p-br{transform-box:fill-box;transform-origin:center;animation:p-br 7s ease-in-out infinite alternate}@keyframes p-br{from{transform:translateY(1.5px) scale(.996)}to{transform:translateY(-2px) scale(1.012)}}.p-rim{transform-box:fill-box;transform-origin:center;animation:p-rim 8s linear infinite}@keyframes p-rim{to{transform:rotate(360deg)}}.p-gem{animation:p-gem 3s ease-in-out infinite}@keyframes p-gem{0%,100%{opacity:.7}50%{opacity:1}}.p-fl{transform-box:fill-box;transform-origin:50% 100%;animation:p-fl 1.6s ease-in-out infinite alternate}@keyframes p-fl{from{transform:scale(1,.9) rotate(-3deg)}to{transform:scale(.92,1.08) rotate(3deg)}}
 .p-sp{opacity:0;animation:p-sp 4.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}@keyframes p-sp{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:1;transform:scale(1.2)}}
 .p-halo{transform-box:fill-box;transform-origin:center;animation:p-halo 24s linear infinite}@keyframes p-halo{to{transform:rotate(360deg)}}
