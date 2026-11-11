@@ -1,3 +1,7 @@
+<!--
+© 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Маг" xmlns:c2pa="http://c2pa.org/manifest"><title>Маг</title><defs><style>.m-br{transform-box:fill-box;transform-origin:center;animation:m-br 7s ease-in-out infinite alternate}@keyframes m-br{from{transform:translateY(1.5px) scale(.996)}to{transform:translateY(-2px) scale(1.012)}}.m-rim{transform-box:fill-box;transform-origin:center;animation:m-rim 8s linear infinite}@keyframes m-rim{to{transform:rotate(360deg)}}.m-gem{animation:m-gem 3s ease-in-out infinite}@keyframes m-gem{0%,100%{opacity:.7}50%{opacity:1}}.m-st{animation:m-st 3.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}@keyframes m-st{0%,100%{opacity:.3;transform:scale(.7)}50%{opacity:1;transform:scale(1.15)}}
 .m-lf{transform-box:fill-box;transform-origin:50% 100%;animation:m-lf 4s ease-in-out infinite alternate}@keyframes m-lf{from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
 .m-flow{animation:m-flow 2.4s linear infinite}@keyframes m-flow{to{stroke-dashoffset:-16}}
