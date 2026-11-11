@@ -34,7 +34,7 @@ public final class Spec2Storage {
     private final AsyncStorageWriter writer;
     private final Logger logger;
     private final AtomicLong persistedVersion = new AtomicLong();
-    private long mutationVersion;
+    private final AtomicLong mutationVersion = new AtomicLong();
 
     public Spec2Storage(JavaPlugin plugin, AsyncStorageWriter writer) {
         File dir = plugin.getDataFolder();
@@ -102,7 +102,7 @@ public final class Spec2Storage {
     }
 
     private void markDirty() {
-        mutationVersion++;
+        mutationVersion.incrementAndGet();
     }
 
     /**
@@ -115,7 +115,7 @@ public final class Spec2Storage {
             return false;
         }
 
-        long snapshotVersion = mutationVersion;
+        long snapshotVersion = mutationVersion.get();
         String snapshot = store.saveToString();
         var future = writer.submit(file, snapshot);
         future.thenAccept(successful -> {
@@ -135,7 +135,7 @@ public final class Spec2Storage {
 
     /** Есть ли изменения новее последнего успешно записанного снимка. */
     public boolean isDirty() {
-        return mutationVersion > persistedVersion.get();
+        return mutationVersion.get() > persistedVersion.get();
     }
 
 }
