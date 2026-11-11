@@ -137,5 +137,4 @@ public final class Spec2Storage {
     public boolean isDirty() {
         return mutationVersion.get() > persistedVersion.get();
     }
-
 }
