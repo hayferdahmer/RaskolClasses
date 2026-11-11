@@ -8,51 +8,47 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import dev.raskol.classes.storage.DirtyStorageState;
-import dev.raskol.classes.storage.SafeStorage;
+import dev.raskol.classes.storage.AsyncStorageWriter;
 
 /**
- * 1.14.0 «Спек 2.0»: персист spec2-storage.yml (атомарно, .bak, фолбэк).
- * Схема v2:
- *   players.<uuid>.main: <specId>
- *   players.<uuid>.ranks.<treeId>.<nodeId>: <rank>
+ * Хранилище специализаций с асинхронной записью неизменяемых YAML-снимков.
  *
- * 1.14.4 (Волна 4, П10): файл переименован spec2.yml → spec2-storage.yml.
- * Миграция вынесена в Spec2StorageMigration: legacy-копия удаляется только
- * после успешной атомарной записи нового файла; при ошибке оригинал сохраняется.
- * 1.15.5 (Волна 2, аудит 2.6-91): dirty-flag. setMain/setRanks помечают store
- *         грязным; saveIfDirty() пишет файл ТОЛЬКО при наличии изменений —
- *         вызывается SessionListener.onQuit (окно потери данных закрывается
- *         выходом игрока) и autosave-задачей (без лишней перезаписи чистого файла).
- * 1.15.6 (Волна 5, аудит 2.6-96): storedTreeIds/removeTree — очистка хранилища
- *         от рангов деревьев ЧУЖИХ классов: при смене класса (LP-группы) старые
- *         ранги раньше оставались в файле навсегда и файл рос без границы.
- *         Вызывает Spec2Service.reconcile для онлайн-игроков.
+ * Все изменения и сериализация выполняются на основном потоке. Фоновый
+ * исполнитель получает только готовую строку и File. Dirty-состояние
+ * снимается только после успешной записи соответствующего поколения.
  */
 public final class Spec2Storage {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
     private static final String NEW_FILE_NAME = "spec2-storage.yml";
 
-    private final JavaPlugin plugin;
     private final File file;
     private final YamlConfiguration store;
-    private final DirtyStorageState dirty = new DirtyStorageState();
+    private final AsyncStorageWriter writer;
+    private final Logger logger;
+    private final AtomicLong persistedVersion = new AtomicLong();
+    private final AtomicLong mutationVersion = new AtomicLong();
 
-    public Spec2Storage(JavaPlugin plugin) {
-        this.plugin = plugin;
+    public Spec2Storage(JavaPlugin plugin, AsyncStorageWriter writer) {
         File dir = plugin.getDataFolder();
-        File newFile = new File(dir, NEW_FILE_NAME);
-        YamlConfiguration loaded = Spec2StorageMigration.load(dir, LOGGER);
+        this.file = new File(dir, NEW_FILE_NAME);
+        this.store = Spec2StorageMigration.load(dir, LOGGER);
+        this.writer = writer;
+        this.logger = LOGGER;
+    }
 
-        this.file = newFile;
-        this.store = loaded;
+    Spec2Storage(File file, YamlConfiguration store, AsyncStorageWriter writer, Logger logger) {
+        this.file = file;
+        this.store = store;
+        this.writer = writer;
+        this.logger = logger;
     }
 
     public String getMain(UUID uuid) {
@@ -61,7 +57,7 @@ public final class Spec2Storage {
 
     public void setMain(UUID uuid, String specId) {
         store.set("players." + uuid + ".main", specId);
-        dirty.markDirty();
+        markDirty();
     }
 
     public Map<String, Integer> getRanks(UUID uuid, String treeId) {
@@ -81,19 +77,16 @@ public final class Spec2Storage {
         String base = "players." + uuid + ".ranks." + treeId;
         store.set(base, null);
         if (ranks != null) {
-            for (Map.Entry<String, Integer> e : ranks.entrySet()) {
-                if (e.getValue() != null && e.getValue() > 0) {
-                    store.set(base + "." + e.getKey(), e.getValue());
+            for (Map.Entry<String, Integer> entry : ranks.entrySet()) {
+                if (entry.getValue() != null && entry.getValue() > 0) {
+                    store.set(base + "." + entry.getKey(), entry.getValue());
                 }
             }
         }
-        dirty.markDirty();
+        markDirty();
     }
 
-    /**
-     * 1.15.6 (Волна 5, аудит 2.6-96): id деревьев, по которым у игрока есть
-     * сохранённые ранги (секция players.<uuid>.ranks.*). Пустой список = записей нет.
-     */
+    /** Возвращает id деревьев, по которым у игрока сохранены ранги. */
     public List<String> storedTreeIds(UUID uuid) {
         ConfigurationSection sec = store.getConfigurationSection("players." + uuid + ".ranks");
         if (sec == null) {
@@ -102,34 +95,46 @@ public final class Spec2Storage {
         return new ArrayList<>(sec.getKeys(false));
     }
 
-    /**
-     * 1.15.6 (Волна 5, аудит 2.6-96): удалить ранги ЦЕЛИКОМ одного дерева
-     * (дерево чужого класса после смены класса). Помечает store dirty.
-     */
+    /** Удаляет сохранённые ранги одного дерева и помечает снимок устаревшим. */
     public void removeTree(UUID uuid, String treeId) {
         store.set("players." + uuid + ".ranks." + treeId, null);
-        dirty.markDirty();
+        markDirty();
     }
 
-    /** Принудительная запись (onDisable, autosave). Сбрасывает dirty. */
-    public boolean save() {
-        return dirty.flush(() -> SafeStorage.saveAtomic(store, file, LOGGER));
+    private void markDirty() {
+        mutationVersion.incrementAndGet();
     }
 
     /**
-     * 1.15.5 (аудит 2.6-91): запись только при наличии изменений.
-     * Вызов: SessionListener.onQuit (закрыть окно потери при краше до autosave).
-     * @return true если файл был записан
+     * Сериализует актуальное состояние на вызывающем потоке и ставит снимок
+     * в последовательную очередь. true означает, что запись принята очередью;
+     * подтверждение дисковой записи отражается в isDirty().
      */
-    public boolean saveIfDirty() {
-        if (!dirty.isDirty()) {
+    public boolean save() {
+        if (!isDirty()) {
             return false;
         }
-        return save();
+
+        long snapshotVersion = mutationVersion.get();
+        String snapshot = store.saveToString();
+        var future = writer.submit(file, snapshot);
+        future.thenAccept(successful -> {
+            if (successful) {
+                persistedVersion.accumulateAndGet(snapshotVersion, Math::max);
+            } else {
+                logger.severe("Spec2Storage: не удалось сохранить снимок поколения " + snapshotVersion);
+            }
+        });
+        return !future.isDone() || future.getNow(false);
     }
 
-    /** Диагностика: есть ли несохранённые изменения (для /rc health). */
+    /** Ставит запись в очередь только при наличии несохранённых изменений. */
+    public boolean saveIfDirty() {
+        return isDirty() && save();
+    }
+
+    /** Есть ли изменения новее последнего успешно записанного снимка. */
     public boolean isDirty() {
-        return dirty.isDirty();
+        return mutationVersion.get() > persistedVersion.get();
     }
 }

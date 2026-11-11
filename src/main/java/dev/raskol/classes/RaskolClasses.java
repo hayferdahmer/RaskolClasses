@@ -89,6 +89,7 @@ import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.service.Spec2EffectsApplier;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.spec.storage.Spec2Storage;
+import dev.raskol.classes.storage.AsyncStorageWriter;
 
 /**
  * RaskolClasses — «РАСКОЛ | ДВЕ КОРОНЫ». Точка сборки сервиса: конструирование
@@ -134,6 +135,9 @@ public final class RaskolClasses extends JavaPlugin {
 
     /** 1.14.0: spec2-слой (деревья путей). */
     private Spec2Storage spec2Storage;
+
+    /** Общая последовательная очередь дисковых снимков хранилищ. */
+    private AsyncStorageWriter storageWriter;
 
     private Spec2Service spec2Service;
     private Spec2EffectsApplier spec2Applier;
@@ -319,7 +323,8 @@ public final class RaskolClasses extends JavaPlugin {
 
         Spec2Points.configure(this);
 
-        this.spec2Storage = new Spec2Storage(this);
+        this.storageWriter = new AsyncStorageWriter(getLogger());
+        this.spec2Storage = new Spec2Storage(this, storageWriter);
         this.spec2Applier = new Spec2EffectsApplier(this);
         this.spec2Service = new Spec2Service(this, spec2Storage);
         this.spec2Service.refreshDisabledCache();
@@ -581,6 +586,9 @@ public final class RaskolClasses extends JavaPlugin {
         }
         if (effects != null) {
             effects.clear();
+        }
+        if (storageWriter != null && !storageWriter.closeAndAwait(Duration.ofSeconds(10))) {
+            getLogger().severe("StorageWriter: очередь не была полностью сброшена при выключении");
         }
     }
 
