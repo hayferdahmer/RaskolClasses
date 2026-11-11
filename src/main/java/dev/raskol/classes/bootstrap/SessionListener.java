@@ -20,10 +20,9 @@ import dev.raskol.classes.gui.book.TalentsTab;
  *  - onJoin: reconcile spec2 и синхронизация HP-атрибута;
  *  - resyncOnline(): разовый прогон по онлайну при старте.
  *
- * 1.15.5 (аудит 2.6-91): onQuit вызывает spec2Storage.saveIfDirty() — покупки/сбросы
- * игрока фиксируются в файле в момент выхода, окно потери данных сжимается
- * с «до autosave (5 мин)» до нуля для выходящего игрока. Запись атомарная
- * (SafeStorage), выполняется один раз только при грязном store.
+ * Изменения Spec2 при выходе ставятся в очередь асинхронной записи.
+ * YAML-снимок формируется на основном потоке, дисковая операция выполняется
+ * выделенным последовательным writer без блокировки PlayerQuitEvent.
  */
 public final class SessionListener implements Listener {
 
