@@ -22,8 +22,9 @@ import dev.raskol.classes.classsystem.PlayerClass;
 /**
  * Формирует снимки PlaceholderAPI на основном потоке сервера.
  *
- * <p>Асинхронные callback PlaceholderAPI читают только готовые неизменяемые
- * снимки и не обращаются к Bukkit Player или внешним интеграциям.</p>
+ * <p>Асинхронные callback PlaceholderAPI используют UUID как ключ снимка;
+ * чтение состояния Player и вызовы внешних интеграций остаются в этом сервисе
+ * и выполняются только на основном потоке.</p>
  */
 public final class PlaceholderSnapshotService implements Listener, AutoCloseable {
 
