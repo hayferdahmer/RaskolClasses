@@ -1,3 +1,7 @@
+<!--
+© 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400" role="img" aria-label="Вальрадис" xmlns:c2pa="http://c2pa.org/manifest"><title>Вальрадис</title><defs><style>.v-br{transform-box:fill-box;transform-origin:center;animation:v-br 7s ease-in-out infinite alternate}@keyframes v-br{from{transform:translateY(1.5px) scale(.996)}to{transform:translateY(-2px) scale(1.012)}}.v-rim{transform-box:fill-box;transform-origin:center;animation:v-rim 8s linear infinite}@keyframes v-rim{to{transform:rotate(360deg)}}.v-gem{animation:v-gem 3s ease-in-out infinite}@keyframes v-gem{0%,100%{opacity:.7}50%{opacity:1}}.v-flame{transform-box:fill-box;transform-origin:50% 100%;animation:v-fl 1.5s ease-in-out infinite alternate}@keyframes v-fl{from{transform:translate(200px,98px) scale(1,.9)}to{transform:translate(200px,98px) scale(.9,1.1)}}
 .v-wing{transform-box:fill-box;transform-origin:100% 55%;animation:v-wing 3.8s ease-in-out infinite alternate}@keyframes v-wing{from{transform:rotate(-3deg)}to{transform:rotate(4deg)}}
 .v-pulse{animation:v-pulse 3s ease-in-out infinite alternate}@keyframes v-pulse{from{opacity:.55}to{opacity:1}}
