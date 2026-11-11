@@ -8,8 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Map;
+import java.nio.file.Files;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -50,10 +50,15 @@ class Spec2StorageAsyncTest {
     @Test
     @DisplayName("неудачная запись не очищает dirty-состояние")
     void failedWriteKeepsDirtyState() {
-        File directory = tempDir.resolve("target-directory").toFile();
-        assertTrue(directory.mkdir());
+        File blockedParent = tempDir.resolve("not-a-directory").toFile();
+        try {
+            Files.writeString(blockedParent.toPath(), "blocker");
+        } catch (java.io.IOException exception) {
+            throw new AssertionError(exception);
+        }
+        File target = new File(blockedParent, "spec2-storage.yml");
         AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER);
-        Spec2Storage storage = new Spec2Storage(directory, new YamlConfiguration(), writer, LOGGER);
+        Spec2Storage storage = new Spec2Storage(target, new YamlConfiguration(), writer, LOGGER);
 
         storage.setRanks(UUID.randomUUID(), "restoration", Map.of("healing_touch", 1));
 
