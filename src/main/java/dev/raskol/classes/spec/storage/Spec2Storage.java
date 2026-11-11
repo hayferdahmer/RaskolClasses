@@ -3,7 +3,6 @@
 package dev.raskol.classes.spec.storage;
 
 import java.io.File;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -139,13 +138,4 @@ public final class Spec2Storage {
         return mutationVersion > persistedVersion.get();
     }
 
-    /**
-     * Финальный сброс при выключении: ставит последний снимок и дожидается
-     * завершения всех операций writer. Вызывается из onDisable на главном потоке.
-     */
-    public boolean close() {
-        saveIfDirty();
-        boolean drained = writer.closeAndAwait(Duration.ofSeconds(10));
-        return drained && !isDirty();
-    }
 }
