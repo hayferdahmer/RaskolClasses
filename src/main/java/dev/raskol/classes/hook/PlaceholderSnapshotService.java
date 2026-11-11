@@ -107,9 +107,9 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
             }
 
             crown.put("crown", safe(plugin.getFlavorService().crownDisplayName(playerId)));
-            crown.put("title", playerClass == null
-                    ? ""
-                    : safe(plugin.getFlavorService().titleOf(playerId, playerClass)));
+            crown.put(
+                    "title",
+                    playerClass == null ? "" : safe(plugin.getFlavorService().titleOf(playerId, playerClass)));
             crown.put("faction", safe(plugin.getFactionHook().factionOf(playerId)));
 
             snapshots.put(playerId, new PlaceholderSnapshot(raskol, crown));
@@ -117,8 +117,9 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
         } catch (RuntimeException exception) {
             snapshots.remove(playerId);
             if (warnedFailures.add(playerId)) {
-                plugin.getLogger().warning("Не удалось обновить PlaceholderAPI-снимок игрока "
-                        + playerId + ": " + exception.getMessage());
+                plugin.getLogger()
+                        .warning("Не удалось обновить PlaceholderAPI-снимок игрока " + playerId + ": "
+                                + exception.getMessage());
             }
         }
     }
