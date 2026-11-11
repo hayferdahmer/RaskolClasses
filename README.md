@@ -69,21 +69,12 @@
 >
 > Ниже — правила боя, конфигурация и операторские команды; сборка и проверка — в главе X «Очаг».
 
-### 🔥 У очага: быстрый старт
-
-```bash
-mvn -B clean verify                     # выковать jar
-cp target/raskol-classes-*.jar plugins/ # положить в мастерскую сервера
-# перезапустить сервер, затем в игре:
-/rc selftest                            # ждём ровное пламя: 139/139 PASS
-```
-
 <p align="center"><img src="docs/assets/divider.svg" width="640" alt="⚜"/></p>
 
 <a id="crowns"></a>
 
 <details>
-<summary><h2>⚜ Глава I · Две короны</h2></summary>
+<summary><b>⚜ Глава I · Две короны</b></summary>
 
 <sub><i>Золото и порядок против багрянца и пепла. Короны задают тон серверу.</i></sub>
 
@@ -93,15 +84,6 @@ cp target/raskol-classes-*.jar plugins/ # положить в мастерску
     <td align="center" width="260"><img src="docs/assets/emblems/valradis.svg" width="190" alt="Вальрадис"/><br/><b>Вальрадис</b><br/><sub>багрянец · пепел · долг</sub></td>
   </tr>
 </table>
-
-```text
-╔══════════════════════╗  ╱╲  ╔══════════════════════╗
-║       РАССВЕТ        ║ ╱  ╲ ║       ВАЛРАДИС       ║
-║    золото · свет     ║ ╲  ╱ ║   багрянец · пепел   ║
-║   END_ROD · клятва   ║  ╲╱  ║   SOUL_FIRE · долг   ║
-╚══════════════════════╝      ╚══════════════════════╝
-                        РАСКОЛ
-```
 
 | Корона | Цвет | Аура | Природа |
 | --- | --- | :-: | --- |
@@ -113,7 +95,7 @@ cp target/raskol-classes-*.jar plugins/ # положить в мастерску
 <a id="paths"></a>
 
 <details>
-<summary><h2>⚜ Глава II · Шесть путей</h2></summary>
+<summary><b>⚜ Глава II · Шесть путей</b></summary>
 
 <sub><i>У каждого пути — своя традиция, свой ресурс и свой главный атрибут.</i></sub>
 
@@ -144,7 +126,7 @@ cp target/raskol-classes-*.jar plugins/ # положить в мастерску
 <a id="trees"></a>
 
 <details>
-<summary><h2>⚜ Глава III · Деревья путей</h2></summary>
+<summary><b>⚜ Глава III · Деревья путей</b></summary>
 
 <sub><i>С 15 уровня каждая дорога расходится на три тропы. Выбирай внимательно: все сразу не пройти.</i></sub>
 
@@ -198,7 +180,7 @@ cp target/raskol-classes-*.jar plugins/ # положить в мастерску
 **Типы узлов:** `passive_stat` · `passive_proc` · `unlock_ability` · `enhance_ability` · `ultimate` (ряд 6, 1/1). Ранги 1–5, стоимость ранга — 1 очко в любом из трёх деревьев класса, пререквизиты ранговые. Узлы `resist` принимают таргет-школу (`nature`, `fire`, …) и дают стихийный резист.
 
 <details>
-<summary><h3>🧭 Как ходить по тропам</h3></summary>
+<summary><b>🧭 Как ходить по тропам</b></summary>
 
 1. `/rc menu` → **Специализации**: выбор основной спеки — один раз, бесплатно, с 15 уровня.
 2. **Деревья путей**: ЛКМ по узлу даёт +1 ранг.
@@ -214,7 +196,7 @@ cp target/raskol-classes-*.jar plugins/ # положить в мастерску
 <a id="combat"></a>
 
 <details>
-<summary><h2>⚜ Глава IV · Боевые системы</h2></summary>
+<summary><b>⚜ Глава IV · Боевые системы</b></summary>
 
 <sub><i>Подсистемы ниже складываются в один язык боя. Открывай свитки по одному.</i></sub>
 
@@ -387,7 +369,7 @@ Amplifier следующего удара ставится на защищавш
 <a id="plus"></a>
 
 <details>
-<summary><h2>⚜ Глава V · Свиток мастера — raskolspec+</h2></summary>
+<summary><b>⚜ Глава V · Свиток мастера — raskolspec+</b></summary>
 
 <sub><i>Курируемые билды по подписке: совет бывалых, запечатанный в один клик.</i></sub>
 
@@ -413,7 +395,7 @@ Amplifier следующего удара ставится на защищавш
 <a id="architecture"></a>
 
 <details>
-<summary><h2>⚜ Глава VI · Устройство замка</h2></summary>
+<summary><b>⚜ Глава VI · Устройство замка</b></summary>
 
 <sub><i>Карта залов: какой пакет за что отвечает. Линия 1.15.</i></sub>
 
@@ -452,7 +434,7 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 <a id="commands"></a>
 
 <details>
-<summary><h2>⚜ Глава VII · Заклинания оператора</h2></summary>
+<summary><b>⚜ Глава VII · Заклинания оператора</b></summary>
 
 <sub><i>Всё колдовство идёт через один роутер — `/rc`. Права перечислены в `plugin.yml`.</i></sub>
 
@@ -483,7 +465,7 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 <a id="placeholders"></a>
 
 <details>
-<summary><h2>⚜ Глава VIII · Руны-подстановки</h2></summary>
+<summary><b>⚜ Глава VIII · Руны-подстановки</b></summary>
 
 <sub><i>Выбей руну на табличке, табло или в чате — PlaceholderAPI подставит значение.</i></sub>
 
@@ -502,7 +484,7 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 <a id="items"></a>
 
 <details>
-<summary><h2>⚜ Глава IX · Кузница</h2></summary>
+<summary><b>⚜ Глава IX · Кузница</b></summary>
 
 <sub><i>Здесь куют мечи, посохи и сетовые доспехи. Горн не остывает.</i></sub>
 
@@ -519,7 +501,7 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 <a id="install"></a>
 
 <details>
-<summary><h2>⚜ Глава X · Очаг</h2></summary>
+<summary><b>⚜ Глава X · Очаг</b></summary>
 
 <sub><i>Как собрать плагин, развести огонь и убедиться, что пламя горит ровно.</i></sub>
 
@@ -583,7 +565,7 @@ cp target/raskol-classes-*.jar plugins/
 <a id="docs"></a>
 
 <details>
-<summary><h2>⚜ Глава XI · Библиотека</h2></summary>
+<summary><b>⚜ Глава XI · Библиотека</b></summary>
 
 <sub><i>Свитки для тех, кто хочет знать больше.</i></sub>
 
@@ -591,25 +573,7 @@ cp target/raskol-classes-*.jar plugins/
 | --- | --- |
 | 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Аварии и гейты, тюнинг без пересборки, контроль и DR, проки, респеки, миграции, troubleshooting |
 | 📖 [`CHANGELOG.md`](CHANGELOG.md) | История версий (не переписывается задним числом) |
-| ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v2.0 |
-
-<details>
-<summary>🎨 <b>Как устроено оформление</b></summary>
-
-<br/>
-
-| Что | Где | Как обновляется |
-| --- | --- | --- |
-| Баннер, тёмная и светлая тема | `banner-dark.svg` · `banner-light.svg` (запасной — `banner.svg`) | `<picture>` в начале README выбирает вариант по теме GitHub |
-| Эмблемы шести путей и двух корон | `docs/assets/emblems/*.svg` | Рисуются генератором `tools/art/` |
-| Шапки страниц | `docs/assets/headers/*.svg` | Подключены в `CHANGELOG.md`, `SECURITY.md`, `docs/RUNBOOK.md` |
-| Разделитель | `docs/assets/divider.svg` | — |
-| Social preview 1280×640 | `docs/assets/social/social-preview.jpg` | Загрузить в **Settings → Social preview**; GitHub принимает PNG/JPG/GIF до 1 МБ |
-| Живые бейджи | `.github/badges/*.json`, воркфлоу `.github/workflows/badges.yml` | Версия, Paper, Java, число selftest-чеков и unit-тестов считаются из исходников при каждом push в `main` |
-
-**Перерисовать всё:** `python3 tools/art/build_all.py .` (нужен `playwright` только для JPG).
-
-</details>
+| ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v1.0 |
 
 </details>
 
@@ -619,5 +583,5 @@ cp target/raskol-classes-*.jar plugins/
 
 <p align="center">
   <i>Пусть огонь не гаснет, а короны не сходятся.</i><br/><br/>
-  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v2.0<br/>использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
+  <sub>© 2026 hayferdahmer · RASKOL Proprietary License v1.0<br/>использование только на сервере «РАСКОЛ | ДВЕ КОРОНЫ»</sub>
 </p>
