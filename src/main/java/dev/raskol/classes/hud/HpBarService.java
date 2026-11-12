@@ -353,15 +353,38 @@ public final class HpBarService implements Listener {
     }
 
     /**
-     * 1.14.7 (P1-7): одна атомарная запись файла на диск, если есть dirty-игроки.
-     * Сбрасывает флаг и множество. Вызывается из tick (периодически),
-     * saveAll (onDisable) и onQuit (одиночный игрок с применённым restore).
+     * Ставит атомарный снимок health.yml в общий writer.
+     * Dirty-маркеры очищаются только после успешной записи и только если
+     * после создания снимка не появилось новых изменений.
      */
     private void flushDirty() {
-        if (!storageDirty.flush(() -> SafeStorage.saveAtomic(healthStore, healthFile, LOGGER))) {
+        if (!storageDirty.isDirty()) {
             return;
         }
+
+        long snapshotGeneration = storageDirty.generation();
+        String snapshot = healthStore.saveToString();
         lastFlushAt = System.currentTimeMillis();
+
+        plugin.storageWriter().submit(healthFile, snapshot).whenComplete((saved, error) -> {
+            boolean successful = error == null && Boolean.TRUE.equals(saved);
+            if (!successful) {
+                LOGGER.severe("HpBarService: не удалось асинхронно сохранить health.yml; dirty-маркеры сохранены");
+                return;
+            }
+
+            try {
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    if (!storageDirty.clearIfUnchanged(snapshotGeneration) && storageDirty.isDirty()) {
+                        // Пока снимок записывался, появились новые значения HP — сохраняем актуальный снимок.
+                        flushDirty();
+                    }
+                });
+            } catch (RuntimeException exception) {
+                LOGGER.warning("HpBarService: не удалось подтвердить сохранение health.yml: "
+                        + exception.getMessage());
+            }
+        });
     }
 
     private double readRatio(UUID uuid) {
