@@ -6,11 +6,14 @@ import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.storage.AsyncStorageWriter;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
 import dev.raskol.classes.item.model.ItemSlot;
@@ -19,18 +22,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
 /**
- * 1.15.4: разбор (salvage) предметов RaskolClasses на фрагменты.
- *
- * Математика (pure, selftest 136):
- *  - вид осколка: MAIN_HAND/OFF_HAND → WEAPON, иначе ARMOR;
- *  - тир: COMMON/UNCOMMON → COMMON, RARE → RARE, EPIC/LEGENDARY/MYTHIC → EPIC;
- *  - количество осколков: itemLevel / 20 (20→1, 40→2, 60→3);
- *  - эссенция класса: 0 (COMMON-тир) / 1 (RARE) / 2 (EPIC+), только для классовых;
- *  - реликвия: +1 для LEGENDARY/MYTHIC.
- *
- * Экономика: разбор убыточен (~30% ценности) — монетный сток. Дневной лимит
- * item.salvage.daily-limit (дефолт 20) защищает экономику от фермы фрагментов.
- * Счётчик хранится в salvage-daily.yml и сохраняется до изменения инвентаря.
+ * Разбор предметов RaskolClasses на фрагменты с предварительным сохранением дневного лимита.
  */
 public final class SalvageService {
 
@@ -40,7 +32,9 @@ public final class SalvageService {
         EMPTY_HAND,
         NOT_OURS,
         DAILY_LIMIT,
-        STORAGE_ERROR
+        STORAGE_ERROR,
+        BUSY,
+        ITEM_CHANGED
     }
 
     private static final int DEFAULT_DAILY_LIMIT = 20;
@@ -49,14 +43,14 @@ public final class SalvageService {
     private final FragmentRegistry fragments;
     private final SalvageDailyLimitStore dailyLimits;
 
-    public SalvageService(RaskolClasses plugin, FragmentRegistry fragments) {
+    public SalvageService(RaskolClasses plugin, FragmentRegistry fragments, AsyncStorageWriter writer) {
         this.plugin = plugin;
         this.fragments = fragments;
         this.dailyLimits =
-                new SalvageDailyLimitStore(new File(plugin.getDataFolder(), "salvage-daily.yml"), plugin.getLogger());
+                new SalvageDailyLimitStore(new File(plugin.getDataFolder(), "salvage-daily.yml"), plugin.getLogger(), writer);
     }
 
-    /** Pure: карта фрагментов за разбор определения (без состояния). */
+    /** Рассчитывает содержимое разбора без изменения состояния игрока. */
     public static Map<Fragment, Integer> fragmentsFor(FragmentRegistry registry, ItemDefinition def) {
         Map<Fragment, Integer> out = new LinkedHashMap<>();
         boolean weapon = def.slot() == ItemSlot.MAIN_HAND || def.slot() == ItemSlot.OFF_HAND;
@@ -67,8 +61,8 @@ public final class SalvageService {
             out.merge(shard, Math.max(1, def.itemLevel() / 20), Integer::sum);
         }
         if (def.playerClass() != null) {
-            Fragment essence =
-                    registry.byId("frag_essence_" + def.playerClass().name().toLowerCase(java.util.Locale.ROOT));
+            Fragment essence = registry.byId(
+                    "frag_essence_" + def.playerClass().name().toLowerCase(java.util.Locale.ROOT));
             int essenceCount = tier == ItemRarity.COMMON ? 0 : tier == ItemRarity.RARE ? 1 : 2;
             if (essence != null && essenceCount > 0) {
                 out.merge(essence, essenceCount, Integer::sum);
@@ -91,38 +85,74 @@ public final class SalvageService {
         };
     }
 
-    /** Разобрать предмет в основной руке. */
-    public SalvageResult salvage(Player player) {
+    /**
+     * Сохраняет резервирование лимита асинхронно. Изменение инвентаря и выдача
+     * фрагментов выполняются только на основном потоке после успешной записи.
+     */
+    public void salvage(Player player, Consumer<SalvageResult> completion) {
         if (!plugin.getConfig().getBoolean("item.salvage.enabled", true)) {
-            return SalvageResult.DISABLED;
+            completion.accept(SalvageResult.DISABLED);
+            return;
         }
         ItemStack hand = player.getInventory().getItemInMainHand();
         if (hand == null || hand.getType().isAir()) {
-            return SalvageResult.EMPTY_HAND;
+            completion.accept(SalvageResult.EMPTY_HAND);
+            return;
         }
         ItemDefinition def = plugin.getItems().definitionOf(hand);
         if (def == null) {
-            return SalvageResult.NOT_OURS;
+            completion.accept(SalvageResult.NOT_OURS);
+            return;
         }
 
+        ItemStack expected = hand.clone();
         UUID uuid = player.getUniqueId();
         int limit = dailyLimit();
-        SalvageDailyLimitStore.ConsumeResult consumeResult =
-                dailyLimits.tryConsume(uuid, java.time.LocalDate.now().toEpochDay(), limit);
-        if (consumeResult == SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED) {
-            return SalvageResult.DAILY_LIMIT;
-        }
-        if (consumeResult == SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR) {
-            return SalvageResult.STORAGE_ERROR;
-        }
+        dailyLimits.tryConsume(uuid, java.time.LocalDate.now().toEpochDay(), limit)
+                .whenComplete((consumeResult, error) -> {
+                    try {
+                        Bukkit.getScheduler().runTask(plugin, () -> {
+                            if (!player.isOnline()) {
+                                return;
+                            }
+                            if (error != null || consumeResult == null
+                                    || consumeResult == SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR) {
+                                completion.accept(SalvageResult.STORAGE_ERROR);
+                                return;
+                            }
+                            if (consumeResult == SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED) {
+                                completion.accept(SalvageResult.DAILY_LIMIT);
+                                return;
+                            }
+                            if (consumeResult == SalvageDailyLimitStore.ConsumeResult.BUSY) {
+                                completion.accept(SalvageResult.BUSY);
+                                return;
+                            }
 
-        Map<Fragment, Integer> gained = fragmentsFor(fragments, def);
-        hand.setAmount(hand.getAmount() - 1);
-        if (hand.getAmount() <= 0) {
-            player.getInventory().setItemInMainHand(null);
-        }
-        fragments.addFragments(player, gained);
+                            ItemStack current = player.getInventory().getItemInMainHand();
+                            if (current == null || current.getAmount() != expected.getAmount()
+                                    || !current.isSimilar(expected)) {
+                                completion.accept(SalvageResult.ITEM_CHANGED);
+                                return;
+                            }
 
+                            Map<Fragment, Integer> gained = fragmentsFor(fragments, def);
+                            current.setAmount(current.getAmount() - 1);
+                            if (current.getAmount() <= 0) {
+                                player.getInventory().setItemInMainHand(null);
+                            }
+                            fragments.addFragments(player, gained);
+                            sendSuccess(player, def, gained);
+                            completion.accept(SalvageResult.OK);
+                        });
+                    } catch (RuntimeException exception) {
+                        plugin.getLogger().severe("Salvage: не удалось вернуть результат на основной поток: "
+                                + exception.getMessage());
+                    }
+                });
+    }
+
+    private void sendSuccess(Player player, ItemDefinition def, Map<Fragment, Integer> gained) {
         StringBuilder list = new StringBuilder();
         gained.forEach((fragment, count) ->
                 list.append(fragment.displayName()).append(" ×").append(count).append(", "));
@@ -133,16 +163,13 @@ public final class SalvageService {
                         .replace("{item}", def.displayName())
                         .replace("{fragments}", pretty),
                 NamedTextColor.GREEN));
-        return SalvageResult.OK;
     }
 
-    /** Дневной лимит с гардом: конфиг <1 или мусор → дефолт 20. */
     private int dailyLimit() {
         int limit = plugin.getConfig().getInt("item.salvage.daily-limit", DEFAULT_DAILY_LIMIT);
         return limit >= 1 ? limit : DEFAULT_DAILY_LIMIT;
     }
 
-    /** Сообщение об отказе для UI/команды. */
     public void notifyFailure(Player player, SalvageResult result) {
         String key;
         String fallback;
@@ -166,6 +193,14 @@ public final class SalvageService {
             case STORAGE_ERROR -> {
                 key = "item.salvage-storage-error";
                 fallback = "♻ Разбор временно недоступен: не удалось сохранить дневной лимит";
+            }
+            case BUSY -> {
+                key = "item.salvage-storage-busy";
+                fallback = "♻ Предыдущая операция разбора ещё сохраняется. Повторите позже";
+            }
+            case ITEM_CHANGED -> {
+                key = "item.salvage-item-changed";
+                fallback = "♻ Предмет в руке изменился во время сохранения лимита. Попытка сохранена";
             }
             default -> {
                 return;
