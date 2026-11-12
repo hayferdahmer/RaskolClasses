@@ -23,7 +23,8 @@ public final class PlusSubscription implements Listener {
     private final PlusStorage storage;
     private final int periodDays;
 
-    public PlusSubscription(RaskolClasses plugin, ImperialWallet wallet, PlusStorage storage, int periodDays) {
+    public PlusSubscription(
+            RaskolClasses plugin, ImperialWallet wallet, PlusStorage storage, int periodDays) {
         this.plugin = plugin;
         this.wallet = wallet;
         this.storage = storage;
@@ -83,10 +84,11 @@ public final class PlusSubscription implements Listener {
         return storage.extendAsync(player, duration, null).thenApply(saved -> {
             if (!saved) {
                 if (!wallet.give(player, cost)) {
-                    LOG.severe(
-                            "raskolspec+: не удалось вернуть списание после ошибки сохранения для " + player);
+                    LOG.severe("raskolspec+: не удалось вернуть списание после ошибки сохранения для " + player);
                 }
-                return storage.writeInFlight() ? PurchaseResult.STORAGE_BUSY : PurchaseResult.STORAGE_FAILED;
+                return storage.writeInFlight()
+                        ? PurchaseResult.STORAGE_BUSY
+                        : PurchaseResult.STORAGE_FAILED;
             }
             LOG.info("raskolspec+: purchase " + player + " periods=" + periods);
             return PurchaseResult.OK;
@@ -161,8 +163,7 @@ public final class PlusSubscription implements Listener {
         return storage.extendAsync(to, duration, note).thenApply(saved -> {
             if (!saved) {
                 if (!wallet.give(from, cost)) {
-                    LOG.severe(
-                            "raskolspec+: не удалось вернуть списание за подарок после ошибки сохранения для " + from);
+                    LOG.severe("raskolspec+: не удалось вернуть списание за подарок после ошибки сохранения для " + from);
                 }
                 return storage.writeInFlight() ? GiftResult.STORAGE_BUSY : GiftResult.STORAGE_FAILED;
             }

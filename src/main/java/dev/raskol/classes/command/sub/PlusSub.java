@@ -143,8 +143,8 @@ public final class PlusSub implements CommandSub {
                             if (gui != null) gui.openCatalog(player);
                         }
                         case DISABLED ->
-                            player.sendMessage(err(
-                                    "Платная подписка сейчас отключена; шаблоны открыты в тестовом режиме."));
+                            player.sendMessage(
+                                    err("Платная подписка сейчас отключена; шаблоны открыты в тестовом режиме."));
                         case WALLET_UNAVAILABLE ->
                             player.sendMessage(err("Кошелёк империалов недоступен — покупка отключена."));
                         case INVALID_PERIODS ->
@@ -236,8 +236,8 @@ public final class PlusSub implements CommandSub {
                 .whenComplete((result, failure) -> runOnMain(() -> {
                     if (!from.isOnline()) return;
                     if (failure != null) {
-                        from.sendMessage(err(
-                                "Не удалось завершить подарок. Проверь баланс и обратись к администрации."));
+                        from.sendMessage(
+                                err("Не удалось завершить подарок. Проверь баланс и обратись к администрации."));
                         return;
                     }
                     switch (result) {
@@ -263,7 +263,8 @@ public final class PlusSub implements CommandSub {
                         }
                         case SELF_GIFT -> from.sendMessage(err("Нельзя подарить подписку самому себе"));
                         case WALLET_UNAVAILABLE -> from.sendMessage(err("Кошелёк империалов недоступен"));
-                        case DISABLED -> from.sendMessage(err("Платная подписка отключена; подарки сейчас недоступны."));
+                        case DISABLED ->
+                            from.sendMessage(err("Платная подписка отключена; подарки сейчас недоступны."));
                         case INVALID_PERIODS -> from.sendMessage(err("Некорректное число периодов."));
                         case STORAGE_BUSY ->
                             from.sendMessage(err("Хранилище подписок занято другой операцией. Повтори позже."));
