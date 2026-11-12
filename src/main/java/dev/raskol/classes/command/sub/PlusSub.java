@@ -354,14 +354,17 @@ public final class PlusSub implements CommandSub {
             sender.sendMessage(err(plugin.getRaskolConfig().message("no-permission", "Недостаточно прав")));
             return;
         }
-        boolean ok = plugin.getBuildTemplates().exportNormalized();
-        if (ok) {
-            sender.sendMessage(ok("⚜ builds.yml перезаписан нормализованными шаблонами. "
-                    + "Память уже согласована; после следующего /rc reload или рестарта "
-                    + "логи нормализации исчезнут."));
-        } else {
-            sender.sendMessage(err("Не удалось записать builds.yml — смотри лог сервера."));
-        }
+        plugin.getBuildTemplates()
+                .exportNormalizedAsync()
+                .whenComplete((saved, failure) -> runOnMain(() -> {
+                    if (failure != null || !Boolean.TRUE.equals(saved)) {
+                        sender.sendMessage(err("Не удалось записать builds.yml — смотри лог сервера."));
+                        return;
+                    }
+                    sender.sendMessage(ok("⚜ builds.yml сохранён нормализованными шаблонами. "
+                            + "Память уже согласована; после следующего /rc reload или рестарта "
+                            + "логи нормализации исчезнут."));
+                }));
     }
 
     private void runOnMain(Runnable action) {
