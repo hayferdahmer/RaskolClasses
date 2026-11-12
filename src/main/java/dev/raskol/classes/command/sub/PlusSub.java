@@ -367,14 +367,6 @@ public final class PlusSub implements CommandSub {
                 }));
     }
 
-    private void runOnMain(Runnable action) {
-        try {
-            plugin.getServer().getScheduler().runTask(plugin, action);
-        } catch (IllegalStateException exception) {
-            plugin.getLogger().warning("raskolspec+: результат операции не обработан — плагин выключается");
-        }
-    }
-
     private static Component ok(String raw) {
         return Component.text(raw, NamedTextColor.GREEN);
     }
