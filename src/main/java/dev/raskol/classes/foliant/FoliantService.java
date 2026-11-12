@@ -179,7 +179,8 @@ public final class FoliantService implements Listener {
 
         long snapshotGeneration = lockDirty.generation();
         String snapshot = lockStore.saveToString();
-        plugin.storageWriter().submit(lockFile, snapshot).whenComplete((saved, error) -> {
+        java.util.concurrent.CompletableFuture<Boolean> write = plugin.storageWriter().submit(lockFile, snapshot);
+        write.whenComplete((saved, error) -> {
             boolean successful = error == null && Boolean.TRUE.equals(saved);
             if (!successful) {
                 LOGGER.severe("Foliant: не удалось асинхронно сохранить foliant-lock.yml; изменения оставлены dirty");
@@ -197,7 +198,7 @@ public final class FoliantService implements Listener {
                         "Foliant: не удалось подтвердить сохранение foliant-lock.yml: " + exception.getMessage());
             }
         });
-        return true;
+        return !write.isDone() || Boolean.TRUE.equals(write.getNow(false));
     }
 
     private RelockState lockState(UUID uuid) {
