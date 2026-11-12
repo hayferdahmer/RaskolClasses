@@ -41,6 +41,7 @@ class CooldownManagerAsyncStorageTest {
         assertTrue(persisted.getLong(playerId + ".fireball", 0L) > System.currentTimeMillis());
         assertEquals(0, manager.totalEntries());
     }
+
     @Test
     void savePlayerPersistsSnapshotThroughSharedWriter() {
         File file = tempDir.resolve("single-player-cooldowns.yml").toFile();
@@ -57,5 +58,4 @@ class CooldownManagerAsyncStorageTest {
         YamlConfiguration persisted = YamlConfiguration.loadConfiguration(file);
         assertTrue(persisted.getLong(playerId + ".frostbolt", 0L) > System.currentTimeMillis());
     }
-
 }
