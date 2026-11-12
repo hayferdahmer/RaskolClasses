@@ -794,10 +794,12 @@ public final class SelftestRunner {
                     org.bukkit.inventory.ItemStack savedHand = p.getInventory().getItemInMainHand();
                     p.getInventory().setItemInMainHand(null);
                     try {
-                        dev.raskol.classes.item.craft.SalvageService.SalvageResult result =
-                                plugin.getItems().salvage().salvage(p);
-                        ok146 = result == dev.raskol.classes.item.craft.SalvageService.SalvageResult.EMPTY_HAND;
-                        got146 = "result=" + result + " (limit=0→дефолт ≥1)";
+                        AtomicReference<dev.raskol.classes.item.craft.SalvageService.SalvageResult> result =
+                                new AtomicReference<>();
+                        plugin.getItems().salvage().salvage(p, result::set);
+                        ok146 = result.get()
+                                == dev.raskol.classes.item.craft.SalvageService.SalvageResult.EMPTY_HAND;
+                        got146 = "result=" + result.get() + " (limit=0→дефолт ≥1)";
                     } finally {
                         p.getInventory().setItemInMainHand(savedHand);
                     }
