@@ -125,6 +125,7 @@ public final class PlusSubscription implements Listener {
     public int maxGiftPeriods() { return Math.max(1, plugin.getRaskolConfig().getIntOr("plus.max-gift-periods", 12)); }
     public boolean isEnabled() { return plugin.getRaskolConfig().getBoolOr("plus.enabled", true); }
     public boolean walletAvailable() { return wallet.isAvailable(); }
+    public boolean storageReady() { return !storage.writeInFlight(); }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
