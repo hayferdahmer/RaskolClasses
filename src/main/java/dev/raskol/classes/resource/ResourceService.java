@@ -213,8 +213,7 @@ public final class ResourceService implements Listener {
                 ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin);
             } else {
                 ResourceResetPersistence.restoreAfterFailedSave(store, resolvedMarkers, resetOnJoin);
-                LOGGER.severe(
-                        "Маркеры сброса ресурсов восстановлены в памяти для следующей попытки сохранения");
+                LOGGER.severe("Маркеры сброса ресурсов восстановлены в памяти для следующей попытки сохранения");
             }
         });
     }
@@ -234,8 +233,7 @@ public final class ResourceService implements Listener {
                 } else {
                     resetOnJoin.add(uuid);
                     store.set(PENDING_RESETS_PATH + "." + uuid, true);
-                    LOGGER.severe("Маркер сброса ресурса при входе " + uuid
-                            + " восстановлен для следующей попытки");
+                    LOGGER.severe("Маркер сброса ресурса при входе " + uuid + " восстановлен для следующей попытки");
                 }
             });
             return;
