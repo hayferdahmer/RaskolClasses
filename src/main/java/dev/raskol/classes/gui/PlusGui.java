@@ -246,21 +246,33 @@ public final class PlusGui implements Listener {
     }
 
     private void handlePurchase(Player player, PlusSubscription sub) {
-        int periods = 1;
-        switch (sub.buy(player.getUniqueId(), periods)) {
-            case OK -> {
-                player.sendMessage(msg("⚜ raskolspec+ продлена на " + sub.periodDays() + " дн. За покупку списано "
-                        + sub.pricePerPeriod() + " империалов."));
-                openCatalog(player);
+        sub.buyAsync(player.getUniqueId(), 1).whenComplete((result, failure) -> {
+            try {
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    if (failure != null) {
+                        player.sendMessage(msg("Не удалось завершить покупку. Проверь баланс и обратись к администрации."));
+                        return;
+                    }
+                    switch (result) {
+                        case OK -> {
+                            player.sendMessage(msg("⚜ raskolspec+ продлена на " + sub.periodDays() + " дн. За покупку списано "
+                                    + sub.pricePerPeriod() + " империалов."));
+                            openCatalog(player);
+                        }
+                        case DISABLED -> player.sendMessage(msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
+                        case WALLET_UNAVAILABLE -> player.sendMessage(msg("Кошелёк империалов недоступен — покупка отключена."));
+                        case INVALID_PERIODS -> player.sendMessage(msg("Не удалось рассчитать срок или стоимость подписки."));
+                        case INSUFFICIENT -> player.sendMessage(msg("Недостаточно империалов: нужно " + sub.pricePerPeriod() + ", у вас "
+                                + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
+                        case STORAGE_BUSY -> player.sendMessage(msg("Хранилище подписок занято другой операцией. Повтори позже."));
+                        case STORAGE_FAILED -> player.sendMessage(msg("Подписка не сохранена. Списание отменено; проверь баланс."));
+                    }
+                });
+            } catch (IllegalStateException ignored) {
+                plugin.getLogger().warning("raskolspec+: результат покупки не обработан — плагин выключается");
             }
-            case DISABLED -> player.sendMessage(msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
-            case WALLET_UNAVAILABLE -> player.sendMessage(msg("Кошелёк империалов недоступен — покупка отключена."));
-            case INVALID_PERIODS -> player.sendMessage(msg("Не удалось рассчитать срок или стоимость подписки."));
-            case INSUFFICIENT ->
-                player.sendMessage(msg("Недостаточно империалов: нужно " + sub.pricePerPeriod() + ", у вас "
-                        + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
-            case STORAGE_FAILED -> player.sendMessage(msg("Подписка не сохранена. Списание отменено; проверь баланс."));
-        }
+        });
     }
 
     private void openConfirmScreen(Player player, BuildTemplate t) {
