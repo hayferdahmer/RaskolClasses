@@ -12,9 +12,11 @@ import java.util.function.Predicate;
 public final class DirtyStorageState {
 
     private boolean dirty;
+    private long generation;
     private final Set<UUID> dirtyPlayers = new HashSet<>();
 
     public void markDirty() {
+        generation++;
         dirty = true;
     }
 
@@ -22,11 +24,28 @@ public final class DirtyStorageState {
         if (playerId != null) {
             dirtyPlayers.add(playerId);
         }
+        generation++;
         dirty = true;
     }
 
     public boolean isDirty() {
         return dirty;
+    }
+
+    /** Номер последнего изменения для подтверждения конкретного снимка. */
+    public long generation() {
+        return generation;
+    }
+
+    /**
+     * Снимает dirty-флаги только если после создания снимка не было новых изменений.
+     */
+    public boolean clearIfUnchanged(long expectedGeneration) {
+        if (!dirty || generation != expectedGeneration) {
+            return false;
+        }
+        clear();
+        return true;
     }
 
     public boolean containsPlayer(UUID playerId) {
@@ -42,6 +61,7 @@ public final class DirtyStorageState {
     }
 
     public void clear() {
+        generation++;
         dirtyPlayers.clear();
         dirty = false;
     }

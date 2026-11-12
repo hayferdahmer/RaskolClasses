@@ -78,10 +78,11 @@ public final class ItemSub implements CommandSub {
                 sender.sendMessage(Component.text("Команда доступна игроку.", NamedTextColor.RED));
                 return true;
             }
-            var result = plugin.getItems().salvage().salvage(p);
-            if (result != dev.raskol.classes.item.craft.SalvageService.SalvageResult.OK) {
-                plugin.getItems().salvage().notifyFailure(p, result);
-            }
+            plugin.getItems().salvage().salvage(p, result -> {
+                if (result != dev.raskol.classes.item.craft.SalvageService.SalvageResult.OK) {
+                    plugin.getItems().salvage().notifyFailure(p, result);
+                }
+            });
             return true;
         }
 

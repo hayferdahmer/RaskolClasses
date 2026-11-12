@@ -54,6 +54,21 @@ class DirtyStorageStateTest {
     }
 
     @Test
+    @DisplayName("старый снимок не очищает изменения, появившиеся во время записи")
+    void staleSnapshotDoesNotClearNewerChanges() {
+        DirtyStorageState state = new DirtyStorageState();
+        state.markDirty();
+        long snapshotGeneration = state.generation();
+
+        state.markDirty(UUID.randomUUID());
+
+        assertFalse(state.clearIfUnchanged(snapshotGeneration));
+        assertTrue(state.isDirty());
+        assertTrue(state.clearIfUnchanged(state.generation()));
+        assertFalse(state.isDirty());
+    }
+
+    @Test
     @DisplayName("чистое хранилище не вызывает writer")
     void cleanStateDoesNotWrite() {
         DirtyStorageState state = new DirtyStorageState();
