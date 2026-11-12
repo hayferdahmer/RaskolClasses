@@ -45,6 +45,7 @@ public final class PlusSubscription implements Listener {
             return CompletableFuture.completedFuture(PurchaseResult.INVALID_PERIODS);
         }
         if (cost < 0 || duration <= 0) return CompletableFuture.completedFuture(PurchaseResult.INVALID_PERIODS);
+        if (storage.writeInFlight()) return CompletableFuture.completedFuture(PurchaseResult.STORAGE_BUSY);
         if (!wallet.take(player, cost)) return CompletableFuture.completedFuture(PurchaseResult.INSUFFICIENT);
         return storage.extendAsync(player, duration, null).thenApply(saved -> {
             if (!saved) {
@@ -95,6 +96,7 @@ public final class PlusSubscription implements Listener {
             return CompletableFuture.completedFuture(GiftResult.INVALID_PERIODS);
         }
         if (cost < 0 || duration <= 0) return CompletableFuture.completedFuture(GiftResult.INVALID_PERIODS);
+        if (storage.writeInFlight()) return CompletableFuture.completedFuture(GiftResult.STORAGE_BUSY);
         if (!wallet.take(from, cost)) return CompletableFuture.completedFuture(GiftResult.INSUFFICIENT);
         return storage.extendAsync(to, duration, offlineNote).thenApply(saved -> {
             if (!saved) {

@@ -119,7 +119,26 @@ public final class PlusStorage {
     }
 
     private CompletableFuture<Boolean> persistCandidate(YamlConfiguration candidate) {
+        // Все обращения к YAML и построение Java-снимка выполняются до передачи строки worker-потоку.
         final String snapshot = candidate.saveToString();
+        Map<UUID, Long> nextExpires = new HashMap<>();
+        Map<UUID, String> nextNotes = new HashMap<>();
+        var players = candidate.getConfigurationSection("players");
+        if (players != null) {
+            for (String key : players.getKeys(false)) {
+                try {
+                    UUID uuid = UUID.fromString(key);
+                    var section = players.getConfigurationSection(key);
+                    if (section == null) continue;
+                    long expiry = section.getLong("expires", 0L);
+                    if (expiry > 0L) nextExpires.put(uuid, expiry);
+                    String note = section.getString("gift-note", null);
+                    if (note != null && !note.isBlank()) nextNotes.put(uuid, note);
+                } catch (IllegalArgumentException ignored) {
+                    // Некорректные UUID пропускаются без потери остальных записей.
+                }
+            }
+        }
         writeInFlight = true;
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         writer.submit(file, snapshot).whenComplete((saved, failure) -> {
@@ -127,7 +146,10 @@ public final class PlusStorage {
             synchronized (PlusStorage.this) {
                 if (successful) {
                     store = candidate;
-                    loadFromStore();
+                    expires.clear();
+                    expires.putAll(nextExpires);
+                    pendingGiftNotes.clear();
+                    pendingGiftNotes.putAll(nextNotes);
                 } else if (failure != null) {
                     LOG.log(Level.SEVERE, "PlusStorage: асинхронная запись завершилась ошибкой", failure);
                 }
