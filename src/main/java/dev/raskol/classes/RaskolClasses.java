@@ -256,6 +256,7 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("LuckPerms не найден — определение классов отключено");
         }
 
+        this.storageWriter = new AsyncStorageWriter(getLogger());
         this.items = new ItemSystem(this);
         this.itemsApi = new ItemsApi(this);
         this.combatProfiles = new CombatProfileRegistry();
@@ -270,7 +271,6 @@ public final class RaskolClasses extends JavaPlugin {
 
         classProvider.setResourceService(resources);
 
-        this.storageWriter = new AsyncStorageWriter(getLogger());
         this.cooldowns = new CooldownManager(new File(getDataFolder(), "cooldowns.yml"), storageWriter);
         this.cooldowns.attachScheduler(
                 this,
@@ -520,6 +520,11 @@ public final class RaskolClasses extends JavaPlugin {
                     .severe("[RIPS] Unable to schedule plugin shutdown on the Paper " + "main thread: "
                             + exception.getMessage());
         }
+    }
+
+    /** Общий последовательный исполнитель дисковых снимков. */
+    public AsyncStorageWriter storageWriter() {
+        return storageWriter;
     }
 
     public void markPurgeNow() {
