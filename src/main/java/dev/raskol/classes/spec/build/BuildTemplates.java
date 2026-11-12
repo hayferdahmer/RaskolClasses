@@ -270,7 +270,8 @@ public final class BuildTemplates {
             String specId = entry.getKey();
             Spec2Tree tree = Spec2Registry.treeOf(specId);
             sb.append("  ").append(specId).append(":\n");
-            for (Map.Entry<Archetype, BuildTemplate> archetypeEntry : entry.getValue().entrySet()) {
+            for (Map.Entry<Archetype, BuildTemplate> archetypeEntry :
+                    entry.getValue().entrySet()) {
                 BuildTemplate template = archetypeEntry.getValue();
                 sb.append("    ").append(archetypeEntry.getKey().yamlKey()).append(":\n");
                 sb.append("      name: ").append(yq(template.name())).append('\n');
@@ -306,8 +307,8 @@ public final class BuildTemplates {
         int exportedNodes = totalNodes;
         return plugin.storageWriter().submit(file, snapshot).thenApply(saved -> {
             if (saved) {
-                LOG.info("raskolspec+: builds.yml сохранён (" + countLoaded()
-                        + " шаблонов, " + exportedNodes + " узлов)");
+                LOG.info("raskolspec+: builds.yml сохранён (" + countLoaded() + " шаблонов, " + exportedNodes
+                        + " узлов)");
             } else {
                 LOG.warning("raskolspec+: не удалось сохранить builds.yml через общий writer");
             }
