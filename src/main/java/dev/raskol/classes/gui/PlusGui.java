@@ -268,8 +268,8 @@ public final class PlusGui implements Listener {
                         case INVALID_PERIODS ->
                             player.sendMessage(msg("Не удалось рассчитать срок или стоимость подписки."));
                         case INSUFFICIENT ->
-                            player.sendMessage(msg("Недостаточно империалов: нужно " + sub.pricePerPeriod()
-                                    + ", у вас " + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
+                            player.sendMessage(msg("Недостаточно империалов: нужно " + sub.pricePerPeriod() + ", у вас "
+                                    + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
                         case STORAGE_BUSY ->
                             player.sendMessage(msg("Хранилище подписок занято другой операцией. Повтори позже."));
                         case STORAGE_FAILED ->
