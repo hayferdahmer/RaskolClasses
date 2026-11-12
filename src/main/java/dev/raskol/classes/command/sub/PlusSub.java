@@ -303,16 +303,15 @@ public final class PlusSub implements CommandSub {
         }
         PlusSubscription sub = plugin.getPlusSubscription();
         int requestedPeriods = periods;
-        sub
-                .grantAsync(target.getUniqueId(), requestedPeriods)
+        sub.grantAsync(target.getUniqueId(), requestedPeriods)
                 .whenComplete((expires, failure) -> runOnMain(() -> {
                     if (failure != null || expires == null || expires < 0L) {
                         sender.sendMessage(err("Не удалось сохранить подписку; игроку срок не выдан."));
                         return;
                     }
                     int days = requestedPeriods * sub.periodDays();
-                    sender.sendMessage(ok("⚜ " + target.getName() + ": подписка активна, + " + days
-                            + " дн. (expires=" + expires + ")"));
+                    sender.sendMessage(ok("⚜ " + target.getName() + ": подписка активна, + " + days + " дн. (expires="
+                            + expires + ")"));
                 }));
     }
 

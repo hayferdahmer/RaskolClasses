@@ -23,8 +23,7 @@ public final class PlusSubscription implements Listener {
     private final PlusStorage storage;
     private final int periodDays;
 
-    public PlusSubscription(
-            RaskolClasses plugin, ImperialWallet wallet, PlusStorage storage, int periodDays) {
+    public PlusSubscription(RaskolClasses plugin, ImperialWallet wallet, PlusStorage storage, int periodDays) {
         this.plugin = plugin;
         this.wallet = wallet;
         this.storage = storage;
