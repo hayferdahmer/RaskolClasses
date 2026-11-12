@@ -5,10 +5,8 @@ package dev.raskol.classes.item.craft;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -78,7 +76,7 @@ class SalvageDailyLimitStoreTest {
 
     @Test
     @DisplayName("ошибка сохранения блокирует разбор и не меняет лимит в памяти")
-    void storageFailureFailsClosed() throws IOException, Exception {
+    void storageFailureFailsClosed() throws Exception {
         UUID playerId = UUID.randomUUID();
         Path parentFile = tempDir.resolve("not-a-directory");
         Files.writeString(parentFile, "file");
