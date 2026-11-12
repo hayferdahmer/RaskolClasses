@@ -17,13 +17,13 @@ import dev.raskol.classes.RaskolClasses;
 
 public final class PlusSubscription implements Listener {
     private static final Logger LOG = Logger.getLogger("RaskolClasses");
+
     private final RaskolClasses plugin;
     private final ImperialWallet wallet;
     private final PlusStorage storage;
     private final int periodDays;
 
-    public PlusSubscription(
-            RaskolClasses plugin, ImperialWallet wallet, PlusStorage storage, int periodDays) {
+    public PlusSubscription(RaskolClasses plugin, ImperialWallet wallet, PlusStorage storage, int periodDays) {
         this.plugin = plugin;
         this.wallet = wallet;
         this.storage = storage;
@@ -31,20 +31,37 @@ public final class PlusSubscription implements Listener {
     }
 
     public enum PurchaseResult {
-        OK, DISABLED, WALLET_UNAVAILABLE, INVALID_PERIODS, INSUFFICIENT, STORAGE_BUSY, STORAGE_FAILED
+        OK,
+        DISABLED,
+        WALLET_UNAVAILABLE,
+        INVALID_PERIODS,
+        INSUFFICIENT,
+        STORAGE_BUSY,
+        STORAGE_FAILED
     }
 
     public enum GiftResult {
-        OK, DISABLED, INSUFFICIENT, SELF_GIFT, WALLET_UNAVAILABLE, INVALID_PERIODS, STORAGE_BUSY, STORAGE_FAILED
+        OK,
+        DISABLED,
+        INSUFFICIENT,
+        SELF_GIFT,
+        WALLET_UNAVAILABLE,
+        INVALID_PERIODS,
+        STORAGE_BUSY,
+        STORAGE_FAILED
     }
 
     public CompletableFuture<PurchaseResult> buyAsync(UUID player, int periods) {
-        if (player == null || periods < 1 || periods > maxGiftPeriods())
+        if (player == null || periods < 1 || periods > maxGiftPeriods()) {
             return CompletableFuture.completedFuture(PurchaseResult.INVALID_PERIODS);
-        if (!isEnabled()) return CompletableFuture.completedFuture(PurchaseResult.DISABLED);
+        }
+        if (!isEnabled()) {
+            return CompletableFuture.completedFuture(PurchaseResult.DISABLED);
+        }
         if (!wallet.isAvailable()) {
             return CompletableFuture.completedFuture(PurchaseResult.WALLET_UNAVAILABLE);
         }
+
         int cost;
         long duration;
         try {
@@ -62,11 +79,13 @@ public final class PlusSubscription implements Listener {
         if (!wallet.take(player, cost)) {
             return CompletableFuture.completedFuture(PurchaseResult.INSUFFICIENT);
         }
+
         return storage.extendAsync(player, duration, null).thenApply(saved -> {
             if (!saved) {
-                if (!wallet.give(player, cost))
+                if (!wallet.give(player, cost)) {
                     LOG.severe(
                             "raskolspec+: не удалось вернуть списание после ошибки сохранения для " + player);
+                }
                 return storage.writeInFlight() ? PurchaseResult.STORAGE_BUSY : PurchaseResult.STORAGE_FAILED;
             }
             LOG.info("raskolspec+: purchase " + player + " periods=" + periods);
@@ -75,11 +94,15 @@ public final class PlusSubscription implements Listener {
     }
 
     public CompletableFuture<Long> grantAsync(UUID uuid, int periods) {
-        if (uuid == null || periods <= 0) return CompletableFuture.completedFuture(-1L);
+        if (uuid == null || periods <= 0) {
+            return CompletableFuture.completedFuture(-1L);
+        }
         try {
             long duration = TimeUnit.DAYS.toMillis(Math.multiplyExact((long) periods, periodDays));
             return storage.extendAsync(uuid, duration, null).thenApply(saved -> {
-                if (!saved) return -1L;
+                if (!saved) {
+                    return -1L;
+                }
                 long expiry = storage.expiresAt(uuid);
                 LOG.info("raskolspec+: grant " + uuid + " +" + (periods * periodDays) + "d");
                 return expiry;
@@ -90,22 +113,31 @@ public final class PlusSubscription implements Listener {
     }
 
     public CompletableFuture<Boolean> revokeAsync(UUID uuid) {
-        if (uuid == null) return CompletableFuture.completedFuture(false);
+        if (uuid == null) {
+            return CompletableFuture.completedFuture(false);
+        }
         return storage.setExpiresAsync(uuid, 0L).thenApply(saved -> {
-            if (saved) LOG.info("raskolspec+: revoke " + uuid);
+            if (saved) {
+                LOG.info("raskolspec+: revoke " + uuid);
+            }
             return saved;
         });
     }
 
-    public CompletableFuture<GiftResult> giftAsync(
-            UUID from, UUID to, int periods, String offlineNote) {
-        if (from == null || to == null || periods < 1 || periods > maxGiftPeriods())
+    public CompletableFuture<GiftResult> giftAsync(UUID from, UUID to, int periods, String offlineNote) {
+        if (from == null || to == null || periods < 1 || periods > maxGiftPeriods()) {
             return CompletableFuture.completedFuture(GiftResult.INVALID_PERIODS);
-        if (from.equals(to)) return CompletableFuture.completedFuture(GiftResult.SELF_GIFT);
-        if (!isEnabled()) return CompletableFuture.completedFuture(GiftResult.DISABLED);
+        }
+        if (from.equals(to)) {
+            return CompletableFuture.completedFuture(GiftResult.SELF_GIFT);
+        }
+        if (!isEnabled()) {
+            return CompletableFuture.completedFuture(GiftResult.DISABLED);
+        }
         if (!wallet.isAvailable()) {
             return CompletableFuture.completedFuture(GiftResult.WALLET_UNAVAILABLE);
         }
+
         int cost;
         long duration;
         try {
@@ -123,13 +155,15 @@ public final class PlusSubscription implements Listener {
         if (!wallet.take(from, cost)) {
             return CompletableFuture.completedFuture(GiftResult.INSUFFICIENT);
         }
+
         Player target = plugin.getServer().getPlayer(to);
         String note = target != null && target.isOnline() ? null : offlineNote;
         return storage.extendAsync(to, duration, note).thenApply(saved -> {
             if (!saved) {
-                if (!wallet.give(from, cost))
+                if (!wallet.give(from, cost)) {
                     LOG.severe(
                             "raskolspec+: не удалось вернуть списание за подарок после ошибки сохранения для " + from);
+                }
                 return storage.writeInFlight() ? GiftResult.STORAGE_BUSY : GiftResult.STORAGE_FAILED;
             }
             return GiftResult.OK;
@@ -151,19 +185,33 @@ public final class PlusSubscription implements Listener {
         return Math.max(0, plugin.getRaskolConfig().getIntOr("plus.price-per-period", 100));
     }
 
-    public int periodDays() { return periodDays; }
+    public int periodDays() {
+        return periodDays;
+    }
+
     public int maxGiftPeriods() {
         return Math.max(1, plugin.getRaskolConfig().getIntOr("plus.max-gift-periods", 12));
     }
-    public boolean isEnabled() { return plugin.getRaskolConfig().getBoolOr("plus.enabled", true); }
-    public boolean walletAvailable() { return wallet.isAvailable(); }
-    public boolean storageReady() { return !storage.writeInFlight(); }
+
+    public boolean isEnabled() {
+        return plugin.getRaskolConfig().getBoolOr("plus.enabled", true);
+    }
+
+    public boolean walletAvailable() {
+        return wallet.isAvailable();
+    }
+
+    public boolean storageReady() {
+        return !storage.writeInFlight();
+    }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
-        var player = event.getPlayer();
+        Player player = event.getPlayer();
         storage.consumeGiftNoteAsync(player.getUniqueId()).thenAccept(note -> {
-            if (note == null) return;
+            if (note == null) {
+                return;
+            }
             try {
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     if (player.isOnline()) {

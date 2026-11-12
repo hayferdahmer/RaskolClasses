@@ -125,38 +125,40 @@ public final class PlusSub implements CommandSub {
             }
         }
         int requestedPeriods = periods;
-        subscription.buyAsync(player.getUniqueId(), requestedPeriods)
+        subscription
+                .buyAsync(player.getUniqueId(), requestedPeriods)
                 .whenComplete((result, failure) -> runOnMain(() -> {
-            if (!player.isOnline()) return;
-            if (failure != null) {
-                player.sendMessage(err(
-                        "Не удалось завершить операцию подписки. Проверь баланс и обратись к администрации."));
-                return;
-            }
-            switch (result) {
-                case OK -> {
-                    int days = requestedPeriods * subscription.periodDays();
-                    player.sendMessage(ok("⚜ raskolspec+ продлена на " + days
-                            + " дн. За покупку списано " + (requestedPeriods * subscription.pricePerPeriod())
-                            + " империалов."));
-                    if (gui != null) gui.openCatalog(player);
-                }
-                case DISABLED ->
-                        player.sendMessage(err("Платная подписка сейчас отключена; шаблоны открыты в тестовом режиме."));
-                case WALLET_UNAVAILABLE ->
-                        player.sendMessage(err("Кошелёк империалов недоступен — покупка отключена."));
-                case INVALID_PERIODS ->
-                        player.sendMessage(err("Не удалось рассчитать срок или стоимость подписки."));
-                case INSUFFICIENT ->
-                        player.sendMessage(err("Недостаточно империалов: нужно "
-                                + (requestedPeriods * subscription.pricePerPeriod()) + ", у вас "
-                                + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
-                case STORAGE_BUSY ->
-                        player.sendMessage(err("Хранилище подписок занято другой операцией. Повтори позже."));
-                case STORAGE_FAILED ->
-                        player.sendMessage(err("Подписка не сохранена. Списание отменено; проверь баланс."));
-            }
-        }));
+                    if (!player.isOnline()) return;
+                    if (failure != null) {
+                        player.sendMessage(err(
+                                "Не удалось завершить операцию подписки. Проверь баланс и обратись к администрации."));
+                        return;
+                    }
+                    switch (result) {
+                        case OK -> {
+                            int days = requestedPeriods * subscription.periodDays();
+                            player.sendMessage(ok("⚜ raskolspec+ продлена на " + days
+                                    + " дн. За покупку списано "
+                                    + (requestedPeriods * subscription.pricePerPeriod()) + " империалов."));
+                            if (gui != null) gui.openCatalog(player);
+                        }
+                        case DISABLED ->
+                            player.sendMessage(err(
+                                    "Платная подписка сейчас отключена; шаблоны открыты в тестовом режиме."));
+                        case WALLET_UNAVAILABLE ->
+                            player.sendMessage(err("Кошелёк империалов недоступен — покупка отключена."));
+                        case INVALID_PERIODS ->
+                            player.sendMessage(err("Не удалось рассчитать срок или стоимость подписки."));
+                        case INSUFFICIENT ->
+                            player.sendMessage(err("Недостаточно империалов: нужно "
+                                    + (requestedPeriods * subscription.pricePerPeriod()) + ", у вас "
+                                    + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
+                        case STORAGE_BUSY ->
+                            player.sendMessage(err("Хранилище подписок занято другой операцией. Повтори позже."));
+                        case STORAGE_FAILED ->
+                            player.sendMessage(err("Подписка не сохранена. Списание отменено; проверь баланс."));
+                    }
+                }));
     }
 
     private void cmdStatus(CommandSender sender, String[] args) {
@@ -206,7 +208,8 @@ public final class PlusSub implements CommandSub {
         Long last = lastGiftMs.get(from.getUniqueId());
         if (last != null && now - last < cooldown) {
             long sec = (cooldown - (now - last) + 999) / 1000;
-            from.sendMessage(err(plugin.getRaskolConfig().message("plus.gift-cooldown", "Слишком часто: повтор через {sec} с")
+            from.sendMessage(err(plugin.getRaskolConfig()
+                    .message("plus.gift-cooldown", "Слишком часто: повтор через {sec} с")
                     .replace("{sec}", String.valueOf(sec))));
             return;
         }
@@ -228,7 +231,8 @@ public final class PlusSub implements CommandSub {
                 .replace("{sender}", from.getName())
                 .replace("{days}", String.valueOf(periods * subscription.periodDays()));
         int requestedPeriods = periods;
-        subscription.giftAsync(from.getUniqueId(), to.getUniqueId(), requestedPeriods, offlineNote)
+        subscription
+                .giftAsync(from.getUniqueId(), to.getUniqueId(), requestedPeriods, offlineNote)
                 .whenComplete((result, failure) -> runOnMain(() -> {
                     if (!from.isOnline()) return;
                     if (failure != null) {
@@ -257,18 +261,14 @@ public final class PlusSub implements CommandSub {
                                     .replace("{cost}", String.valueOf(cost))
                                     .replace("{balance}", String.valueOf(balance))));
                         }
-                        case SELF_GIFT ->
-                                from.sendMessage(err("Нельзя подарить подписку самому себе"));
-                        case WALLET_UNAVAILABLE ->
-                                from.sendMessage(err("Кошелёк империалов недоступен"));
-                        case DISABLED ->
-                                from.sendMessage(err("Платная подписка отключена; подарки сейчас недоступны."));
-                        case INVALID_PERIODS ->
-                                from.sendMessage(err("Некорректное число периодов."));
+                        case SELF_GIFT -> from.sendMessage(err("Нельзя подарить подписку самому себе"));
+                        case WALLET_UNAVAILABLE -> from.sendMessage(err("Кошелёк империалов недоступен"));
+                        case DISABLED -> from.sendMessage(err("Платная подписка отключена; подарки сейчас недоступны."));
+                        case INVALID_PERIODS -> from.sendMessage(err("Некорректное число периодов."));
                         case STORAGE_BUSY ->
-                                from.sendMessage(err("Хранилище подписок занято другой операцией. Повтори позже."));
+                            from.sendMessage(err("Хранилище подписок занято другой операцией. Повтори позже."));
                         case STORAGE_FAILED ->
-                                from.sendMessage(err("Подарок не сохранён. Списание отменено; проверь баланс."));
+                            from.sendMessage(err("Подарок не сохранён. Списание отменено; проверь баланс."));
                     }
                 }));
     }
@@ -302,16 +302,17 @@ public final class PlusSub implements CommandSub {
         }
         PlusSubscription sub = plugin.getPlusSubscription();
         int requestedPeriods = periods;
-        sub.grantAsync(target.getUniqueId(), requestedPeriods)
+        sub
+                .grantAsync(target.getUniqueId(), requestedPeriods)
                 .whenComplete((expires, failure) -> runOnMain(() -> {
-            if (failure != null || expires == null || expires < 0L) {
-                sender.sendMessage(err("Не удалось сохранить подписку; игроку срок не выдан."));
-                return;
-            }
-            int days = requestedPeriods * sub.periodDays();
-            sender.sendMessage(ok("⚜ " + target.getName() + ": подписка активна, + " + days
-                    + " дн. (expires=" + expires + ")"));
-        }));
+                    if (failure != null || expires == null || expires < 0L) {
+                        sender.sendMessage(err("Не удалось сохранить подписку; игроку срок не выдан."));
+                        return;
+                    }
+                    int days = requestedPeriods * sub.periodDays();
+                    sender.sendMessage(ok("⚜ " + target.getName() + ": подписка активна, + " + days
+                            + " дн. (expires=" + expires + ")"));
+                }));
     }
 
     /* ------------------------------ revoke (admin) ------------------------------ */
@@ -330,14 +331,15 @@ public final class PlusSub implements CommandSub {
             sender.sendMessage(err("Игрок не найден: " + args[1]));
             return;
         }
-        plugin.getPlusSubscription().revokeAsync(target.getUniqueId())
+        plugin.getPlusSubscription()
+                .revokeAsync(target.getUniqueId())
                 .whenComplete((saved, failure) -> runOnMain(() -> {
-            if (failure != null || !Boolean.TRUE.equals(saved)) {
-                sender.sendMessage(err("Не удалось сохранить отзыв подписки."));
-                return;
-            }
-            sender.sendMessage(ok("⚜ " + target.getName() + ": подписка отозвана"));
-        }));
+                    if (failure != null || !Boolean.TRUE.equals(saved)) {
+                        sender.sendMessage(err("Не удалось сохранить отзыв подписки."));
+                        return;
+                    }
+                    sender.sendMessage(ok("⚜ " + target.getName() + ": подписка отозвана"));
+                }));
     }
 
     /* ------------------------------ export (admin, 1.14.16-fix2) ------------------------------ */

@@ -35,9 +35,11 @@ class PlusStorageAsyncTest {
             assertTrue(storage.extendAsync(player, TimeUnit.DAYS.toMillis(30), "Подарок")
                     .get(5, TimeUnit.SECONDS));
             assertTrue(storage.expiresAt(player) > System.currentTimeMillis());
-            assertEquals("Подарок", YamlConfiguration.loadConfiguration(
-                    tempDir.resolve("plus-subscription.yml").toFile())
-                    .getString("players." + player + ".gift-note"));
+            assertEquals(
+                    "Подарок",
+                    YamlConfiguration.loadConfiguration(
+                                    tempDir.resolve("plus-subscription.yml").toFile())
+                            .getString("players." + player + ".gift-note"));
         } finally {
             assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
         }
@@ -60,5 +62,4 @@ class PlusStorageAsyncTest {
             assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
         }
     }
-
 }
