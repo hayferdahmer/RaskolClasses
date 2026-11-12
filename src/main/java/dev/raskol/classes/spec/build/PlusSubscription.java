@@ -7,6 +7,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -98,7 +99,9 @@ public final class PlusSubscription implements Listener {
         if (cost < 0 || duration <= 0) return CompletableFuture.completedFuture(GiftResult.INVALID_PERIODS);
         if (storage.writeInFlight()) return CompletableFuture.completedFuture(GiftResult.STORAGE_BUSY);
         if (!wallet.take(from, cost)) return CompletableFuture.completedFuture(GiftResult.INSUFFICIENT);
-        return storage.extendAsync(to, duration, offlineNote).thenApply(saved -> {
+        Player target = plugin.getServer().getPlayer(to);
+        String note = target != null && target.isOnline() ? null : offlineNote;
+        return storage.extendAsync(to, duration, note).thenApply(saved -> {
             if (!saved) {
                 if (!wallet.give(from, cost))
                     LOG.severe("raskolspec+: не удалось вернуть списание за подарок после ошибки сохранения для " + from);
