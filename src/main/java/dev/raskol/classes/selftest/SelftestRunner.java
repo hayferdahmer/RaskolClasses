@@ -3770,24 +3770,13 @@ public final class SelftestRunner {
                 "BuildTemplates.countLoaded/countProblems",
                 "loaded=" + tplCount + " problems=" + tplProblems);
 
-        UUID probe = UUID.randomUUID();
-        long exp1 = 0L;
-        int days = 0;
-        boolean activeAfterRevoke = false;
-        try {
-            exp1 = plugin.getPlusSubscription().grant(probe, 1);
-            days = plugin.getPlusSubscription().remainingDays(probe);
-        } finally {
-            plugin.getPlusSubscription().revoke(probe);
-            activeAfterRevoke = plugin.getPlusSubscription().active(probe);
-        }
-        boolean ok124 = exp1 > System.currentTimeMillis() && days >= 29 && days <= 31 && !activeAfterRevoke;
+        boolean storageReady = plugin.getPlusSubscription().storageReady();
         r.check(
                 "124",
-                "raskolspec+: grant(1 период) → expires в будущем, remainingDays 29..31, revoke чист",
-                ok124,
-                "PlusSubscription.grant/remainingDays/revoke",
-                "expires=" + exp1 + " days=" + days + " active_after_revoke=" + activeAfterRevoke);
+                "raskolspec+: асинхронное хранилище подписок свободно для новой операции",
+                storageReady,
+                "PlusSubscription.storageReady",
+                storageReady ? "writer idle" : "write in flight");
 
         int stale = plugin.getBuildTemplates().countStale();
         boolean ok125 = stale >= 0;

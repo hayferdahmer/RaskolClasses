@@ -3,6 +3,7 @@
 package dev.raskol.classes.spec.build;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -14,12 +15,9 @@ import org.bukkit.event.player.PlayerJoinEvent;
 
 import dev.raskol.classes.RaskolClasses;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-
-/** Subscription service: durable grants, self-purchase, gifts and expiry checks. */
 public final class PlusSubscription implements Listener {
     private static final Logger LOG = Logger.getLogger("RaskolClasses");
+
     private final RaskolClasses plugin;
     private final ImperialWallet wallet;
     private final PlusStorage storage;
@@ -38,6 +36,7 @@ public final class PlusSubscription implements Listener {
         WALLET_UNAVAILABLE,
         INVALID_PERIODS,
         INSUFFICIENT,
+        STORAGE_BUSY,
         STORAGE_FAILED
     }
 
@@ -48,81 +47,126 @@ public final class PlusSubscription implements Listener {
         SELF_GIFT,
         WALLET_UNAVAILABLE,
         INVALID_PERIODS,
+        STORAGE_BUSY,
         STORAGE_FAILED
     }
 
-    /** Buy/renew for the caller. Wallet debit is compensated if durable storage rejects the extension. */
-    public PurchaseResult buy(UUID player, int periods) {
-        if (player == null || periods < 1 || periods > maxGiftPeriods()) return PurchaseResult.INVALID_PERIODS;
-        if (!isEnabled()) return PurchaseResult.DISABLED;
-        if (!wallet.isAvailable()) return PurchaseResult.WALLET_UNAVAILABLE;
+    public CompletableFuture<PurchaseResult> buyAsync(UUID player, int periods) {
+        if (player == null || periods < 1 || periods > maxGiftPeriods()) {
+            return CompletableFuture.completedFuture(PurchaseResult.INVALID_PERIODS);
+        }
+        if (!isEnabled()) {
+            return CompletableFuture.completedFuture(PurchaseResult.DISABLED);
+        }
+        if (!wallet.isAvailable()) {
+            return CompletableFuture.completedFuture(PurchaseResult.WALLET_UNAVAILABLE);
+        }
+
         int cost;
         long duration;
         try {
             cost = Math.multiplyExact(periods, pricePerPeriod());
             duration = TimeUnit.DAYS.toMillis(Math.multiplyExact((long) periods, periodDays));
         } catch (ArithmeticException overflow) {
-            return PurchaseResult.INVALID_PERIODS;
+            return CompletableFuture.completedFuture(PurchaseResult.INVALID_PERIODS);
         }
-        if (cost < 0 || duration <= 0) return PurchaseResult.INVALID_PERIODS;
-        if (!wallet.take(player, cost)) return PurchaseResult.INSUFFICIENT;
-        if (!storage.extend(player, duration, null)) {
-            if (!wallet.give(player, cost))
-                LOG.severe("raskolspec+: не удалось вернуть списание после ошибки сохранения для " + player);
-            return PurchaseResult.STORAGE_FAILED;
+        if (cost < 0 || duration <= 0) {
+            return CompletableFuture.completedFuture(PurchaseResult.INVALID_PERIODS);
         }
-        LOG.info("raskolspec+: purchase " + player + " periods=" + periods);
-        return PurchaseResult.OK;
+        if (storage.writeInFlight()) {
+            return CompletableFuture.completedFuture(PurchaseResult.STORAGE_BUSY);
+        }
+        if (!wallet.take(player, cost)) {
+            return CompletableFuture.completedFuture(PurchaseResult.INSUFFICIENT);
+        }
+
+        return storage.extendAsync(player, duration, null).thenApply(saved -> {
+            if (!saved) {
+                if (!wallet.give(player, cost)) {
+                    LOG.severe("raskolspec+: не удалось вернуть списание после ошибки сохранения для " + player);
+                }
+                return storage.writeInFlight() ? PurchaseResult.STORAGE_BUSY : PurchaseResult.STORAGE_FAILED;
+            }
+            LOG.info("raskolspec+: purchase " + player + " periods=" + periods);
+            return PurchaseResult.OK;
+        });
     }
 
-    /** Admin grant. Returns -1 if validation or durable persistence fails. */
-    public long grant(UUID uuid, int periods) {
-        if (uuid == null || periods <= 0) return -1L;
+    public CompletableFuture<Long> grantAsync(UUID uuid, int periods) {
+        if (uuid == null || periods <= 0) {
+            return CompletableFuture.completedFuture(-1L);
+        }
         try {
             long duration = TimeUnit.DAYS.toMillis(Math.multiplyExact((long) periods, periodDays));
-            if (!storage.extend(uuid, duration, null)) return -1L;
-            long expiry = storage.expiresAt(uuid);
-            LOG.info("raskolspec+: grant " + uuid + " +" + (periods * periodDays) + "d");
-            return expiry;
+            return storage.extendAsync(uuid, duration, null).thenApply(saved -> {
+                if (!saved) {
+                    return -1L;
+                }
+                long expiry = storage.expiresAt(uuid);
+                LOG.info("raskolspec+: grant " + uuid + " +" + (periods * periodDays) + "d");
+                return expiry;
+            });
         } catch (ArithmeticException overflow) {
-            return -1L;
+            return CompletableFuture.completedFuture(-1L);
         }
     }
 
-    public boolean revoke(UUID uuid) {
-        if (uuid == null) return false;
-        boolean saved = storage.setExpires(uuid, 0L);
-        if (saved) LOG.info("raskolspec+: revoke " + uuid);
-        return saved;
+    public CompletableFuture<Boolean> revokeAsync(UUID uuid) {
+        if (uuid == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        return storage.setExpiresAsync(uuid, 0L).thenApply(saved -> {
+            if (saved) {
+                LOG.info("raskolspec+: revoke " + uuid);
+            }
+            return saved;
+        });
     }
 
-    /** Debits first, persists the recipient's extension and offline note atomically, then notifies. */
-    public GiftResult gift(UUID from, UUID to, int periods, String offlineNote) {
-        if (from == null || to == null || periods < 1 || periods > maxGiftPeriods()) return GiftResult.INVALID_PERIODS;
-        if (from.equals(to)) return GiftResult.SELF_GIFT;
-        if (!isEnabled()) return GiftResult.DISABLED;
-        if (!wallet.isAvailable()) return GiftResult.WALLET_UNAVAILABLE;
+    public CompletableFuture<GiftResult> giftAsync(UUID from, UUID to, int periods, String offlineNote) {
+        if (from == null || to == null || periods < 1 || periods > maxGiftPeriods()) {
+            return CompletableFuture.completedFuture(GiftResult.INVALID_PERIODS);
+        }
+        if (from.equals(to)) {
+            return CompletableFuture.completedFuture(GiftResult.SELF_GIFT);
+        }
+        if (!isEnabled()) {
+            return CompletableFuture.completedFuture(GiftResult.DISABLED);
+        }
+        if (!wallet.isAvailable()) {
+            return CompletableFuture.completedFuture(GiftResult.WALLET_UNAVAILABLE);
+        }
+
         int cost;
         long duration;
         try {
             cost = Math.multiplyExact(periods, pricePerPeriod());
             duration = TimeUnit.DAYS.toMillis(Math.multiplyExact((long) periods, periodDays));
         } catch (ArithmeticException overflow) {
-            return GiftResult.INVALID_PERIODS;
+            return CompletableFuture.completedFuture(GiftResult.INVALID_PERIODS);
         }
-        if (cost < 0 || duration <= 0) return GiftResult.INVALID_PERIODS;
-        if (!wallet.take(from, cost)) return GiftResult.INSUFFICIENT;
+        if (cost < 0 || duration <= 0) {
+            return CompletableFuture.completedFuture(GiftResult.INVALID_PERIODS);
+        }
+        if (storage.writeInFlight()) {
+            return CompletableFuture.completedFuture(GiftResult.STORAGE_BUSY);
+        }
+        if (!wallet.take(from, cost)) {
+            return CompletableFuture.completedFuture(GiftResult.INSUFFICIENT);
+        }
+
         Player target = plugin.getServer().getPlayer(to);
         String note = target != null && target.isOnline() ? null : offlineNote;
-        if (!storage.extend(to, duration, note)) {
-            if (!wallet.give(from, cost))
-                LOG.severe("raskolspec+: не удалось вернуть списание за подарок после ошибки сохранения для " + from);
-            return GiftResult.STORAGE_FAILED;
-        }
-        if (target != null && target.isOnline())
-            target.sendMessage(Component.text(
-                    "⚜ Вам подарили raskolspec+ на " + (periods * periodDays) + " дней!", NamedTextColor.GOLD));
-        return GiftResult.OK;
+        return storage.extendAsync(to, duration, note).thenApply(saved -> {
+            if (!saved) {
+                if (!wallet.give(from, cost)) {
+                    LOG.severe(
+                            "raskolspec+: не удалось вернуть списание за подарок после ошибки сохранения для " + from);
+                }
+                return storage.writeInFlight() ? GiftResult.STORAGE_BUSY : GiftResult.STORAGE_FAILED;
+            }
+            return GiftResult.OK;
+        });
     }
 
     public boolean active(UUID uuid) {
@@ -154,10 +198,27 @@ public final class PlusSubscription implements Listener {
         return wallet.isAvailable();
     }
 
+    public boolean storageReady() {
+        return !storage.writeInFlight();
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        String note = storage.consumeGiftNote(player.getUniqueId());
-        if (note != null) player.sendMessage(Component.text("⚜ " + note, NamedTextColor.GOLD));
+        storage.consumeGiftNoteAsync(player.getUniqueId()).thenAccept(note -> {
+            if (note == null) {
+                return;
+            }
+            try {
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    if (player.isOnline()) {
+                        player.sendMessage(net.kyori.adventure.text.Component.text(
+                                "⚜ " + note, net.kyori.adventure.text.format.NamedTextColor.GOLD));
+                    }
+                });
+            } catch (IllegalStateException ignored) {
+                LOG.warning("raskolspec+: уведомление не отправлено — плагин уже выключается");
+            }
+        });
     }
 }
