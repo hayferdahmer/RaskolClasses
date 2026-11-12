@@ -339,7 +339,7 @@ public final class RaskolClasses extends JavaPlugin {
         this.buildTemplates = new BuildTemplates(this);
         buildTemplates.extractIfMissing();
         buildTemplates.load();
-        PlusStorage plusStorage = new PlusStorage(getDataFolder());
+        PlusStorage plusStorage = new PlusStorage(getDataFolder(), storageWriter);
         int periodDays = getConfig().getInt("plus.period-days", 30);
         this.plusSubscription = new PlusSubscription(this, imperialWallet, plusStorage, periodDays);
         pluginManager.registerEvents(plusSubscription, this);
