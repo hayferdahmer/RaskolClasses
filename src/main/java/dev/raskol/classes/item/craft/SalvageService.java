@@ -46,8 +46,8 @@ public final class SalvageService {
     public SalvageService(RaskolClasses plugin, FragmentRegistry fragments, AsyncStorageWriter writer) {
         this.plugin = plugin;
         this.fragments = fragments;
-        this.dailyLimits =
-                new SalvageDailyLimitStore(new File(plugin.getDataFolder(), "salvage-daily.yml"), plugin.getLogger(), writer);
+        this.dailyLimits = new SalvageDailyLimitStore(
+                new File(plugin.getDataFolder(), "salvage-daily.yml"), plugin.getLogger(), writer);
     }
 
     /** Рассчитывает содержимое разбора без изменения состояния игрока. */
@@ -61,8 +61,8 @@ public final class SalvageService {
             out.merge(shard, Math.max(1, def.itemLevel() / 20), Integer::sum);
         }
         if (def.playerClass() != null) {
-            Fragment essence = registry.byId(
-                    "frag_essence_" + def.playerClass().name().toLowerCase(java.util.Locale.ROOT));
+            Fragment essence =
+                    registry.byId("frag_essence_" + def.playerClass().name().toLowerCase(java.util.Locale.ROOT));
             int essenceCount = tier == ItemRarity.COMMON ? 0 : tier == ItemRarity.RARE ? 1 : 2;
             if (essence != null && essenceCount > 0) {
                 out.merge(essence, essenceCount, Integer::sum);
