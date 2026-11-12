@@ -36,7 +36,7 @@ public final class PlusStorage {
         loadFromStore();
     }
 
-    private void loadFromStore() {
+    private synchronized void loadFromStore() {
         expires.clear();
         pendingGiftNotes.clear();
         var players = store.getConfigurationSection("players");
