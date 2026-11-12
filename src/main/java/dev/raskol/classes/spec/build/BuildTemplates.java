@@ -5,11 +5,7 @@ package dev.raskol.classes.spec.build;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -20,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
 import org.bukkit.configuration.ConfigurationSection;
@@ -56,9 +53,8 @@ import dev.raskol.classes.spec.service.Spec2Service;
  *  INFO-строку со списком вырезанных узлов (прозрачность), игрок — всегда применимый
  *  шаблон. Если после auto-heal не осталось ни одного узла — шаблон отключается.
  *
- * 1.14.16-fix2 (EXPORT): exportNormalized() (/rc plus export) перезаписывает
- *  builds.yml фактическим нормализованным содержимым — ручная синхронизация
- *  «YAML ↔ reconcile» больше не нужна. Запись атомарная (tmp + move).
+ * 1.14.16-fix2 (EXPORT): exportNormalizedAsync() (/rc plus export) перезаписывает
+ *  builds.yml фактическим нормализованным содержимым через общий асинхронный writer.
  *
  * 1.14.15-fix: поиск узла в дереве — Spec2Tree.find(id) (каноническое имя метода).
  *
@@ -232,27 +228,13 @@ public final class BuildTemplates {
     /* ------------------------------ 1.14.16-fix2: экспорт нормализованного файла ------------------------------ */
 
     /**
-     * Перезаписать builds.yml фактическим нормализованным содержимым
-     * (ранги = множество, пережившее reconcile). Устраняет расхождение «YAML ↔ боевые
-     * правила» без ручной правки 36 шаблонов. Вызывается командой /rc plus export
-     * (право raskolclasses.admin.plus).
-     *
-     * Семантика:
-     *  - порядок спек = порядок загрузки файла; порядок узлов = порядок дерева
-     *    (читается куратором как «ряды сверху вниз»);
-     *  - subscription-блок и current-patch берутся из живого config.yml (plus.*),
-     *    чтобы экспорт не расходился с runtime-значениями;
-     *  - запись атомарная: builds.yml.tmp → move (REPLACE_EXISTING, ATOMIC_MOVE
-     *    с фолбэком), сервер не может прочитать полуп файл;
-     *  - in-memory состояние не меняется (оно уже нормализовано), reload не нужен;
-     *    следующий reload/рестарт просто не даст INFO-строк нормализации.
-     *
-     * @return true если файл успешно перезаписан
+     * Формирует нормализованный YAML-снимок на основном потоке и ставит его
+     * в общую очередь файловых операций.
      */
-    public boolean exportNormalized() {
+    public CompletableFuture<Boolean> exportNormalizedAsync() {
         if (bySpec.isEmpty()) {
             LOG.warning("raskolspec+: export отклонён — нет загруженных шаблонов");
-            return false;
+            return CompletableFuture.completedFuture(false);
         }
         StringBuilder sb = new StringBuilder(8192);
         sb.append("# ============================================================\n");
@@ -284,32 +266,32 @@ public final class BuildTemplates {
         sb.append("templates:\n");
 
         int totalNodes = 0;
-        for (Map.Entry<String, Map<Archetype, BuildTemplate>> e : bySpec.entrySet()) {
-            String specId = e.getKey();
+        for (Map.Entry<String, Map<Archetype, BuildTemplate>> entry : bySpec.entrySet()) {
+            String specId = entry.getKey();
             Spec2Tree tree = Spec2Registry.treeOf(specId);
             sb.append("  ").append(specId).append(":\n");
-            for (Map.Entry<Archetype, BuildTemplate> ae : e.getValue().entrySet()) {
-                BuildTemplate t = ae.getValue();
-                sb.append("    ").append(ae.getKey().yamlKey()).append(":\n");
-                sb.append("      name: ").append(yq(t.name())).append('\n');
-                sb.append("      tagline: ").append(yq(t.tagline())).append('\n');
-                sb.append("      updated: ").append(yq(t.updated())).append('\n');
+            for (Map.Entry<Archetype, BuildTemplate> archetypeEntry : entry.getValue().entrySet()) {
+                BuildTemplate template = archetypeEntry.getValue();
+                sb.append("    ").append(archetypeEntry.getKey().yamlKey()).append(":\n");
+                sb.append("      name: ").append(yq(template.name())).append('\n');
+                sb.append("      tagline: ").append(yq(template.tagline())).append('\n');
+                sb.append("      updated: ").append(yq(template.updated())).append('\n');
                 sb.append("      nodes:\n");
                 if (tree == null) {
-                    for (Map.Entry<String, Integer> r : t.ranks().entrySet()) {
+                    for (Map.Entry<String, Integer> rank : template.ranks().entrySet()) {
                         sb.append("        ")
-                                .append(r.getKey())
+                                .append(rank.getKey())
                                 .append(": ")
-                                .append(r.getValue())
+                                .append(rank.getValue())
                                 .append('\n');
                         totalNodes++;
                     }
                 } else {
-                    for (Spec2Node n : tree.nodes()) {
-                        Integer rank = t.ranks().get(n.id());
+                    for (Spec2Node node : tree.nodes()) {
+                        Integer rank = template.ranks().get(node.id());
                         if (rank != null && rank > 0) {
                             sb.append("        ")
-                                    .append(n.id())
+                                    .append(node.id())
                                     .append(": ")
                                     .append(rank)
                                     .append('\n');
@@ -320,35 +302,22 @@ public final class BuildTemplates {
             }
         }
 
-        if (!writeAtomic(sb.toString())) {
-            return false;
-        }
-        LOG.info("raskolspec+: builds.yml перезаписан нормализованными шаблонами (" + countLoaded() + " шаблонов, "
-                + totalNodes + " узлов)");
-        return true;
+        String snapshot = sb.toString();
+        int exportedNodes = totalNodes;
+        return plugin.storageWriter().submit(file, snapshot).thenApply(saved -> {
+            if (saved) {
+                LOG.info("raskolspec+: builds.yml сохранён (" + countLoaded()
+                        + " шаблонов, " + exportedNodes + " узлов)");
+            } else {
+                LOG.warning("raskolspec+: не удалось сохранить builds.yml через общий writer");
+            }
+            return saved;
+        });
     }
 
     /** Двойные кавычки с экранированием для YAML-скаляров name/tagline/updated. */
     private static String yq(String s) {
         return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
-    }
-
-    /** Атомарная запись: tmp-файл в той же директории → move с REPLACE_EXISTING. */
-    private boolean writeAtomic(String content) {
-        Path target = file.toPath();
-        Path tmp = file.getAbsoluteFile().getParentFile().toPath().resolve("builds.yml.tmp");
-        try {
-            Files.writeString(tmp, content, StandardCharsets.UTF_8);
-            try {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException ex) {
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-            return true;
-        } catch (IOException ex) {
-            LOG.warning("raskolspec+: не удалось записать builds.yml: " + ex.getMessage());
-            return false;
-        }
     }
 
     /* ------------------------------ парсинг ------------------------------ */
