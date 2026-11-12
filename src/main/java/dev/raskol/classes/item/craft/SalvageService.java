@@ -108,14 +108,16 @@ public final class SalvageService {
         ItemStack expected = hand.clone();
         UUID uuid = player.getUniqueId();
         int limit = dailyLimit();
-        dailyLimits.tryConsume(uuid, java.time.LocalDate.now().toEpochDay(), limit)
+        dailyLimits
+                .tryConsume(uuid, java.time.LocalDate.now().toEpochDay(), limit)
                 .whenComplete((consumeResult, error) -> {
                     try {
                         Bukkit.getScheduler().runTask(plugin, () -> {
                             if (!player.isOnline()) {
                                 return;
                             }
-                            if (error != null || consumeResult == null
+                            if (error != null
+                                    || consumeResult == null
                                     || consumeResult == SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR) {
                                 completion.accept(SalvageResult.STORAGE_ERROR);
                                 return;
@@ -130,7 +132,8 @@ public final class SalvageService {
                             }
 
                             ItemStack current = player.getInventory().getItemInMainHand();
-                            if (current == null || current.getAmount() != expected.getAmount()
+                            if (current == null
+                                    || current.getAmount() != expected.getAmount()
                                     || !current.isSimilar(expected)) {
                                 completion.accept(SalvageResult.ITEM_CHANGED);
                                 return;
@@ -146,8 +149,9 @@ public final class SalvageService {
                             completion.accept(SalvageResult.OK);
                         });
                     } catch (RuntimeException exception) {
-                        plugin.getLogger().severe("Salvage: не удалось вернуть результат на основной поток: "
-                                + exception.getMessage());
+                        plugin.getLogger()
+                                .severe("Salvage: не удалось вернуть результат на основной поток: "
+                                        + exception.getMessage());
                     }
                 });
     }

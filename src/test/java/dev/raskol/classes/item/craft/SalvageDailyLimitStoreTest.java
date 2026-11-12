@@ -33,13 +33,16 @@ class SalvageDailyLimitStoreTest {
         File file = tempDir.resolve("salvage-daily.yml").toFile();
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             SalvageDailyLimitStore first = new SalvageDailyLimitStore(file, LOGGER, writer);
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
                     first.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
 
             SalvageDailyLimitStore restarted = new SalvageDailyLimitStore(file, LOGGER, writer);
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
                     restarted.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED,
                     restarted.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
         }
     }
@@ -51,9 +54,11 @@ class SalvageDailyLimitStoreTest {
         File file = tempDir.resolve("salvage-new-day.yml").toFile();
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             SalvageDailyLimitStore store = new SalvageDailyLimitStore(file, LOGGER, writer);
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
                     store.tryConsume(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS));
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
                     store.tryConsume(playerId, 20_001L, 1).get(5, TimeUnit.SECONDS));
         }
     }
@@ -65,13 +70,17 @@ class SalvageDailyLimitStoreTest {
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             SalvageDailyLimitStore store = new SalvageDailyLimitStore(
                     tempDir.resolve("salvage-concurrent.yml").toFile(), LOGGER, writer);
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
                     store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
                     store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
                     store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED,
                     store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
         }
     }
@@ -86,9 +95,11 @@ class SalvageDailyLimitStoreTest {
 
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             SalvageDailyLimitStore store = new SalvageDailyLimitStore(target, LOGGER, writer);
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR,
                     store.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR,
+            assertEquals(
+                    SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR,
                     store.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
         }
     }
