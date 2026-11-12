@@ -191,7 +191,8 @@ public final class FoliantService implements Listener {
             try {
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
                     if (!lockDirty.clearIfUnchanged(snapshotGeneration) && lockDirty.isDirty()) {
-                        LOGGER.fine("Foliant: после снимка появились новые изменения; они будут сохранены следующим flush");
+                        LOGGER.fine(
+                                "Foliant: после снимка появились новые изменения; они будут сохранены следующим flush");
                     }
                 });
             } catch (RuntimeException exception) {
