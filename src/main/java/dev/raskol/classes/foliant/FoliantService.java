@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
@@ -179,7 +180,7 @@ public final class FoliantService implements Listener {
 
         long snapshotGeneration = lockDirty.generation();
         String snapshot = lockStore.saveToString();
-        java.util.concurrent.CompletableFuture<Boolean> write = plugin.storageWriter().submit(lockFile, snapshot);
+        CompletableFuture<Boolean> write = plugin.storageWriter().submit(lockFile, snapshot);
         write.whenComplete((saved, error) -> {
             boolean successful = error == null && Boolean.TRUE.equals(saved);
             if (!successful) {
