@@ -199,19 +199,23 @@ public final class CooldownManager implements Listener {
     }
 
     /**
-     * Синхронная запись секции игрока в файл. Оставлен публичным для внешних
-     * сценариев (админ-команды, хотфиксы); внутренний путь выхода с 1.14.8
-     * использует writeSection + периодический persist.
+     * Сохраняет секцию игрока в памяти и ставит общий снимок хранилища в очередь.
+     * Вызывать на основном потоке: YAML-снимок формируется до передачи writer.
      */
     public void savePlayer(UUID playerId) {
         writeSection(playerId);
-        persist();
+        persistAsync();
     }
 
     public void saveAll() {
         for (UUID playerId : readyAt.keySet()) {
             writeSection(playerId);
         }
+        persistAsync();
+    }
+
+    /** Сериализует YAML на вызывающем потоке и выполняет файловую запись асинхронно. */
+    private void persistAsync() {
         String snapshot = store.saveToString();
         storageWriter.submit(file, snapshot).whenComplete((successful, failure) -> {
             if (failure != null) {
@@ -240,10 +244,6 @@ public final class CooldownManager implements Listener {
                 store.set(key + "." + abilityId, ready);
             }
         });
-    }
-
-    private void persist() {
-        SafeStorage.saveAtomic(store, file, LOGGER);
     }
 
     private void cancelPlayerTasks(UUID playerId) {

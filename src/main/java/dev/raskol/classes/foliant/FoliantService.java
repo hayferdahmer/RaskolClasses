@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
@@ -139,11 +140,10 @@ public final class FoliantService implements Listener {
     }
 
     /**
-     * 1.15.5 (Волна 2, аудит 2.6-6): flush для onDisable владельца.
-     * Пишет foliant-lock.yml только при наличии несохранённых изменений
-     * (инкременты счётчиков релока между тиками flush-задачи).
+     * 1.15.5 (Волна 2, аудит 2.6-6): финальный снимок для onDisable владельца.
+     * Запись ставится в общий writer до его закрытия; shutdown ожидает завершения очереди.
      *
-     * @return true если файл был записан
+     * @return true если снимок поставлен в очередь
      */
     public boolean saveLocksIfDirty() {
         if (!lockDirty.isDirty()) {
@@ -177,7 +177,30 @@ public final class FoliantService implements Listener {
             lockStore.set(k + ".deaths", e.getValue().deaths);
             lockStore.set(k + ".no-kills", e.getValue().noKills);
         }
-        return lockDirty.flush(() -> SafeStorage.saveAtomic(lockStore, lockFile, LOGGER));
+
+        long snapshotGeneration = lockDirty.generation();
+        String snapshot = lockStore.saveToString();
+        CompletableFuture<Boolean> write = plugin.storageWriter().submit(lockFile, snapshot);
+        write.whenComplete((saved, error) -> {
+            boolean successful = error == null && Boolean.TRUE.equals(saved);
+            if (!successful) {
+                LOGGER.severe("Foliant: не удалось асинхронно сохранить foliant-lock.yml; изменения оставлены dirty");
+                return;
+            }
+
+            try {
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    if (!lockDirty.clearIfUnchanged(snapshotGeneration) && lockDirty.isDirty()) {
+                        LOGGER.fine(
+                                "Foliant: после снимка появились новые изменения; они будут сохранены следующим flush");
+                    }
+                });
+            } catch (RuntimeException exception) {
+                LOGGER.warning(
+                        "Foliant: не удалось подтвердить сохранение foliant-lock.yml: " + exception.getMessage());
+            }
+        });
+        return !write.isDone() || Boolean.TRUE.equals(write.getNow(false));
     }
 
     private RelockState lockState(UUID uuid) {
