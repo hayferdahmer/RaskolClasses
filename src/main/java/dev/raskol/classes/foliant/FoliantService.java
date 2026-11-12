@@ -193,8 +193,8 @@ public final class FoliantService implements Listener {
                     }
                 });
             } catch (RuntimeException exception) {
-                LOGGER.warning("Foliant: не удалось подтвердить сохранение foliant-lock.yml: "
-                        + exception.getMessage());
+                LOGGER.warning(
+                        "Foliant: не удалось подтвердить сохранение foliant-lock.yml: " + exception.getMessage());
             }
         });
         return true;
