@@ -8,14 +8,18 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Проверки сохранения дневного лимита разбора между перезапусками. */
+import dev.raskol.classes.storage.AsyncStorageWriter;
+
+/** Проверки асинхронного сохранения дневного лимита разбора. */
 @DisplayName("Salvage: персистентность дневного лимита")
 class SalvageDailyLimitStoreTest {
 
@@ -25,75 +29,67 @@ class SalvageDailyLimitStoreTest {
     Path tempDir;
 
     @Test
-    @DisplayName("использованный лимит сохраняется после создания нового сервиса")
-    void usageSurvivesStoreRecreation() {
+    @DisplayName("использованный лимит сохраняется после создания нового хранилища")
+    void usageSurvivesStoreRecreation() throws Exception {
         UUID playerId = UUID.randomUUID();
         File file = tempDir.resolve("salvage-daily.yml").toFile();
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            SalvageDailyLimitStore first = new SalvageDailyLimitStore(file, LOGGER, writer);
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+                    first.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
 
-        SalvageDailyLimitStore first = new SalvageDailyLimitStore(file, LOGGER);
-        assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, first.tryConsume(playerId, 20_000L, 2));
-
-        SalvageDailyLimitStore restarted = new SalvageDailyLimitStore(file, LOGGER);
-        assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, restarted.tryConsume(playerId, 20_000L, 2));
-        assertEquals(SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED, restarted.tryConsume(playerId, 20_000L, 2));
+            SalvageDailyLimitStore restarted = new SalvageDailyLimitStore(file, LOGGER, writer);
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+                    restarted.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED,
+                    restarted.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
+        }
     }
 
     @Test
     @DisplayName("новые сутки начинают отдельный дневной счётчик")
-    void newDayResetsUsage() {
+    void newDayResetsUsage() throws Exception {
         UUID playerId = UUID.randomUUID();
         File file = tempDir.resolve("salvage-new-day.yml").toFile();
-
-        SalvageDailyLimitStore store = new SalvageDailyLimitStore(file, LOGGER);
-        assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, store.tryConsume(playerId, 20_000L, 1));
-        assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, store.tryConsume(playerId, 20_001L, 1));
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            SalvageDailyLimitStore store = new SalvageDailyLimitStore(file, LOGGER, writer);
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+                    store.tryConsume(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+                    store.tryConsume(playerId, 20_001L, 1).get(5, TimeUnit.SECONDS));
+        }
     }
 
     @Test
-    @DisplayName("параллельные запросы не превышают дневной лимит")
-    void concurrentRequestsCannotExceedLimit() throws InterruptedException {
+    @DisplayName("параллельные запросы не создают несколько одновременных снимков")
+    void concurrentRequestsAreRejectedWhileWriteIsInFlight() throws Exception {
         UUID playerId = UUID.randomUUID();
-        SalvageDailyLimitStore store = new SalvageDailyLimitStore(
-                tempDir.resolve("salvage-concurrent.yml").toFile(), LOGGER);
-        java.util.concurrent.atomic.AtomicInteger consumed = new java.util.concurrent.atomic.AtomicInteger();
-        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(12);
-        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
-        java.util.List<Thread> threads = new java.util.ArrayList<>();
-
-        for (int i = 0; i < 12; i++) {
-            Thread thread = new Thread(() -> {
-                ready.countDown();
-                try {
-                    start.await();
-                    if (store.tryConsume(playerId, 20_000L, 3) == SalvageDailyLimitStore.ConsumeResult.CONSUMED) {
-                        consumed.incrementAndGet();
-                    }
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                }
-            });
-            threads.add(thread);
-            thread.start();
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            SalvageDailyLimitStore store = new SalvageDailyLimitStore(
+                    tempDir.resolve("salvage-concurrent.yml").toFile(), LOGGER, writer);
+            var first = store.tryConsume(playerId, 20_000L, 3);
+            var second = store.tryConsume(playerId, 20_000L, 3);
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.BUSY, second.get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, first.get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+                    store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
         }
-
-        ready.await();
-        start.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
-
-        assertEquals(3, consumed.get());
     }
 
     @Test
-    @DisplayName("ошибка сохранения блокирует разбор")
-    void storageFailureFailsClosed() throws IOException {
+    @DisplayName("ошибка сохранения блокирует разбор и не меняет лимит в памяти")
+    void storageFailureFailsClosed() throws IOException, Exception {
         UUID playerId = UUID.randomUUID();
         Path parentFile = tempDir.resolve("not-a-directory");
         Files.writeString(parentFile, "file");
         File target = parentFile.resolve("salvage-daily.yml").toFile();
 
-        SalvageDailyLimitStore store = new SalvageDailyLimitStore(target, LOGGER);
-        assertEquals(SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR, store.tryConsume(playerId, 20_000L, 2));
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            SalvageDailyLimitStore store = new SalvageDailyLimitStore(target, LOGGER, writer);
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR,
+                    store.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR,
+                    store.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
+        }
     }
 }
