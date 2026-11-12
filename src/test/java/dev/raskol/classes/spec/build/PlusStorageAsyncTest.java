@@ -32,7 +32,8 @@ class PlusStorageAsyncTest {
             PlusStorage storage = new PlusStorage(tempDir.toFile(), writer);
             UUID player = UUID.randomUUID();
 
-            assertTrue(storage.extendAsync(player, TimeUnit.DAYS.toMillis(30), "Подарок").get(5, TimeUnit.SECONDS));
+            assertTrue(storage.extendAsync(player, TimeUnit.DAYS.toMillis(30), "Подарок")
+                    .get(5, TimeUnit.SECONDS));
             assertTrue(storage.expiresAt(player) > System.currentTimeMillis());
             assertEquals("Подарок", YamlConfiguration.loadConfiguration(
                     tempDir.resolve("plus-subscription.yml").toFile())
@@ -51,7 +52,8 @@ class PlusStorageAsyncTest {
             PlusStorage storage = new PlusStorage(blocker.toFile(), writer);
             UUID player = UUID.randomUUID();
 
-            assertFalse(storage.extendAsync(player, TimeUnit.DAYS.toMillis(30), "Подарок").get(5, TimeUnit.SECONDS));
+            assertFalse(storage.extendAsync(player, TimeUnit.DAYS.toMillis(30), "Подарок")
+                    .get(5, TimeUnit.SECONDS));
             assertEquals(0L, storage.expiresAt(player));
             assertEquals(0, storage.activeCount(System.currentTimeMillis()));
         } finally {
