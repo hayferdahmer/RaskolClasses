@@ -162,7 +162,8 @@ public final class PlusSubscription implements Listener {
         return storage.extendAsync(to, duration, note).thenApply(saved -> {
             if (!saved) {
                 if (!wallet.give(from, cost)) {
-                    LOG.severe("raskolspec+: не удалось вернуть списание за подарок после ошибки сохранения для " + from);
+                    LOG.severe(
+                            "raskolspec+: не удалось вернуть списание за подарок после ошибки сохранения для " + from);
                 }
                 return storage.writeInFlight() ? GiftResult.STORAGE_BUSY : GiftResult.STORAGE_FAILED;
             }
