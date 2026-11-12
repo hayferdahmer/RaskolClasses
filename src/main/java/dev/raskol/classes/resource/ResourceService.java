@@ -6,6 +6,7 @@ import java.io.File;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 import org.bukkit.Bukkit;
@@ -166,10 +167,7 @@ public final class ResourceService implements Listener {
         resetOnJoin.add(uuid);
         store.set(uuid.toString(), null);
         store.set(PENDING_RESETS_PATH + "." + uuid, true);
-        if (!SafeStorage.saveAtomic(store, file, LOGGER)) {
-            LOGGER.severe("Не удалось сохранить маркер сброса ресурса для " + uuid
-                    + "; маркер оставлен в памяти для повторной попытки");
-        }
+        persistAsync("маркер сброса ресурса для " + uuid, null);
     }
 
     private void runOnMainThread(Runnable action) {
@@ -180,6 +178,29 @@ public final class ResourceService implements Listener {
         }
     }
 
+    /**
+     * Формирует YAML-снимок на основном потоке и передаёт в общий последовательный writer.
+     * Фоновый поток получает только неизменяемую строку и файл.
+     */
+    private void persistAsync(String operation, Consumer<Boolean> completion) {
+        String snapshot = store.saveToString();
+        plugin.storageWriter().submit(file, snapshot).whenComplete((saved, error) -> {
+            boolean successful = error == null && Boolean.TRUE.equals(saved);
+            if (!successful) {
+                LOGGER.severe("Не удалось асинхронно сохранить resources.yml (" + operation
+                        + "); состояние останется доступным для следующего сохранения");
+            }
+            if (completion != null) {
+                try {
+                    runOnMainThread(() -> completion.accept(successful));
+                } catch (RuntimeException exception) {
+                    LOGGER.severe("Не удалось обработать результат сохранения resources.yml: "
+                            + exception.getMessage());
+                }
+            }
+        });
+    }
+
     public void saveAll() {
         java.util.Set<UUID> onlinePlayers = new java.util.HashSet<>();
         for (Player player : plugin.getServer().getOnlinePlayers()) {
@@ -187,13 +208,15 @@ public final class ResourceService implements Listener {
         }
         java.util.Set<UUID> resolvedMarkers =
                 ResourceResetPersistence.prepareSave(store, states, resetOnJoin, onlinePlayers);
-        if (SafeStorage.saveAtomic(store, file, LOGGER)) {
-            ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin);
-        } else {
-            ResourceResetPersistence.restoreAfterFailedSave(store, resolvedMarkers, resetOnJoin);
-            LOGGER.severe(
-                    "Не удалось сохранить ресурсы при выключении; маркеры сброса сохранены для повторной попытки");
-        }
+        persistAsync("пакетное сохранение ресурсов", successful -> {
+            if (successful) {
+                ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin);
+            } else {
+                ResourceResetPersistence.restoreAfterFailedSave(store, resolvedMarkers, resetOnJoin);
+                LOGGER.severe(
+                        "Маркеры сброса ресурсов восстановлены в памяти для следующей попытки сохранения");
+            }
+        });
     }
 
     @EventHandler
@@ -205,14 +228,16 @@ public final class ResourceService implements Listener {
             clearRuntimeState(uuid);
             store.set(key, null);
             store.set(PENDING_RESETS_PATH + "." + uuid, null);
-            if (SafeStorage.saveAtomic(store, file, LOGGER)) {
-                resetOnJoin.remove(uuid);
-            } else {
-                resetOnJoin.add(uuid);
-                store.set(PENDING_RESETS_PATH + "." + uuid, true);
-                LOGGER.severe("Не удалось завершить сброс ресурса при входе " + uuid
-                        + "; маркер сохранён для следующей попытки");
-            }
+            persistAsync("завершение сброса ресурса при входе " + uuid, successful -> {
+                if (successful) {
+                    resetOnJoin.remove(uuid);
+                } else {
+                    resetOnJoin.add(uuid);
+                    store.set(PENDING_RESETS_PATH + "." + uuid, true);
+                    LOGGER.severe("Маркер сброса ресурса при входе " + uuid
+                            + " восстановлен для следующей попытки");
+                }
+            });
             return;
         }
         ResourceState st = stateOf(uuid);
@@ -229,14 +254,20 @@ public final class ResourceService implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         store.set(uuid.toString(), stateOf(uuid).getValue());
-        boolean pendingReset = resetOnJoin.remove(uuid);
+        boolean pendingReset = resetOnJoin.contains(uuid);
         if (pendingReset) {
             store.set(PENDING_RESETS_PATH + "." + uuid, null);
         }
-        if (!SafeStorage.saveAtomic(store, file, LOGGER) && pendingReset) {
-            resetOnJoin.add(uuid);
-            store.set(PENDING_RESETS_PATH + "." + uuid, true);
-        }
+        persistAsync("выход игрока " + uuid, successful -> {
+            if (pendingReset) {
+                if (successful) {
+                    resetOnJoin.remove(uuid);
+                } else {
+                    resetOnJoin.add(uuid);
+                    store.set(PENDING_RESETS_PATH + "." + uuid, true);
+                }
+            }
+        });
         clearRuntimeState(uuid);
     }
 
