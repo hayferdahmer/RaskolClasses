@@ -85,9 +85,7 @@ public final class PlusSubscription implements Listener {
                 if (!wallet.give(player, cost)) {
                     LOG.severe("raskolspec+: не удалось вернуть списание после ошибки сохранения для " + player);
                 }
-                return storage.writeInFlight()
-                        ? PurchaseResult.STORAGE_BUSY
-                        : PurchaseResult.STORAGE_FAILED;
+                return storage.writeInFlight() ? PurchaseResult.STORAGE_BUSY : PurchaseResult.STORAGE_FAILED;
             }
             LOG.info("raskolspec+: purchase " + player + " periods=" + periods);
             return PurchaseResult.OK;
@@ -177,9 +175,7 @@ public final class PlusSubscription implements Listener {
 
     public int remainingDays(UUID uuid) {
         long diff = storage.expiresAt(uuid) - System.currentTimeMillis();
-        return diff <= 0L
-                ? 0
-                : (int) Math.min(Integer.MAX_VALUE, (diff - 1L) / TimeUnit.DAYS.toMillis(1) + 1L);
+        return diff <= 0L ? 0 : (int) Math.min(Integer.MAX_VALUE, (diff - 1L) / TimeUnit.DAYS.toMillis(1) + 1L);
     }
 
     public int pricePerPeriod() {

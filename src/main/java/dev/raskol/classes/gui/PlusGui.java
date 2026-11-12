@@ -262,8 +262,7 @@ public final class PlusGui implements Listener {
                             openCatalog(player);
                         }
                         case DISABLED ->
-                            player.sendMessage(
-                                    msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
+                            player.sendMessage(msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
                         case WALLET_UNAVAILABLE ->
                             player.sendMessage(msg("Кошелёк империалов недоступен — покупка отключена."));
                         case INVALID_PERIODS ->
