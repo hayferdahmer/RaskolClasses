@@ -65,8 +65,7 @@ final class SalvageDailyLimitStore {
      * Сначала сохраняет неизменяемый снимок лимита, затем подтверждает резервирование.
      * Одновременно допускается только одна незавершённая запись.
      */
-    synchronized CompletableFuture<ConsumeResult> tryConsume(
-            UUID playerId, long today, int limit) {
+    synchronized CompletableFuture<ConsumeResult> tryConsume(UUID playerId, long today, int limit) {
         if (playerId == null || limit < 1) {
             throw new IllegalArgumentException("playerId and positive limit are required");
         }
