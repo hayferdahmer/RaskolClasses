@@ -381,8 +381,7 @@ public final class HpBarService implements Listener {
                     }
                 });
             } catch (RuntimeException exception) {
-                LOGGER.warning("HpBarService: не удалось подтвердить сохранение health.yml: "
-                        + exception.getMessage());
+                LOGGER.warning("HpBarService: не удалось подтвердить сохранение health.yml: " + exception.getMessage());
             }
         });
     }
