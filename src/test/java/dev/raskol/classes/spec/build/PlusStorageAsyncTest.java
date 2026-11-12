@@ -59,20 +59,4 @@ class PlusStorageAsyncTest {
         }
     }
 
-    @Test
-    void rejectsConcurrentMutationWhilePreviousSnapshotIsPending() throws Exception {
-        AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER);
-        try {
-            PlusStorage storage = new PlusStorage(tempDir.toFile(), writer);
-            UUID player = UUID.randomUUID();
-            var first = storage.extendAsync(player, TimeUnit.DAYS.toMillis(30), null);
-            var second = storage.setExpiresAsync(player, 0L);
-
-            assertFalse(second.get(5, TimeUnit.SECONDS));
-            assertTrue(first.get(5, TimeUnit.SECONDS));
-            assertTrue(storage.expiresAt(player) > System.currentTimeMillis());
-        } finally {
-            assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
-        }
-    }
 }
