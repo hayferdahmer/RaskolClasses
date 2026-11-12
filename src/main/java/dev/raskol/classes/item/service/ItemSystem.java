@@ -74,7 +74,7 @@ public final class ItemSystem implements ItemStatsProvider {
         unbreakableGuard = new UnbreakableGuard(factory.pdc());
         equipGuard = new EquipGuard(plugin, this);
         fragmentRegistry = new FragmentRegistry(plugin);
-        salvageService = new SalvageService(plugin, fragmentRegistry);
+        salvageService = new SalvageService(plugin, fragmentRegistry, plugin.storageWriter());
         craftingService = new CraftingService(plugin, fragmentRegistry);
         craftingGui = new CraftingGui(plugin, craftingService, fragmentRegistry);
         browser = new ItemBrowserMenu(plugin, this);
