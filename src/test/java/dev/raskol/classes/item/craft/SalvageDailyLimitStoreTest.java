@@ -59,17 +59,19 @@ class SalvageDailyLimitStoreTest {
     }
 
     @Test
-    @DisplayName("параллельные запросы не создают несколько одновременных снимков")
-    void concurrentRequestsAreRejectedWhileWriteIsInFlight() throws Exception {
+    @DisplayName("последовательные резервирования соблюдают дневной лимит")
+    void sequentialRequestsRespectDailyLimit() throws Exception {
         UUID playerId = UUID.randomUUID();
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             SalvageDailyLimitStore store = new SalvageDailyLimitStore(
                     tempDir.resolve("salvage-concurrent.yml").toFile(), LOGGER, writer);
-            var first = store.tryConsume(playerId, 20_000L, 3);
-            var second = store.tryConsume(playerId, 20_000L, 3);
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.BUSY, second.get(5, TimeUnit.SECONDS));
-            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED, first.get(5, TimeUnit.SECONDS));
             assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+                    store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+                    store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.CONSUMED,
+                    store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED,
                     store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
         }
     }
