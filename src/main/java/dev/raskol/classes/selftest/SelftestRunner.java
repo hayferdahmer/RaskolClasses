@@ -797,8 +797,7 @@ public final class SelftestRunner {
                         AtomicReference<dev.raskol.classes.item.craft.SalvageService.SalvageResult> result =
                                 new AtomicReference<>();
                         plugin.getItems().salvage().salvage(p, result::set);
-                        ok146 = result.get()
-                                == dev.raskol.classes.item.craft.SalvageService.SalvageResult.EMPTY_HAND;
+                        ok146 = result.get() == dev.raskol.classes.item.craft.SalvageService.SalvageResult.EMPTY_HAND;
                         got146 = "result=" + result.get() + " (limit=0→дефолт ≥1)";
                     } finally {
                         p.getInventory().setItemInMainHand(savedHand);
