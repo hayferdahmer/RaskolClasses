@@ -17,7 +17,7 @@
 | Runtime RIPS | `RuntimeIntegrityRuntimeOwner` | Отдельный daemon executor, monitor, reporter/state; запускается после успешного startup и закрывается в начале shutdown | Bukkit disable callback остаётся инъекцией из root |
 | Pet runtime | `PetRuntimeOwner` | Listener + два периодических задания; despawn → cancel → unregister; rollback и retry | Реализация и тесты есть; CI #3081 success |
 | HUD runtime | `HudRuntimeOwner` и Paper adapters существуют | Контракт owner, task scheduler/session-event adapters, тесты | Не подключён к production wiring; старые HudService/BossBarService/HpBarService остаются root-owned |
-| HP attribute sync | `HpAttributeSyncRuntimeOwner` | Listener registration + 100-tick sweep; rollback, retryable cancellation/unregistration | Delayed respawn sync остаётся одноразовой задачей без отдельного handle |
+| HP attribute sync | `HpAttributeSyncRuntimeOwner` | Listener registration + 100-tick sweep; rollback, retryable cancellation/unregistration | Delayed respawn sync остаётся одноразовой задачей без отдельного handle |\n| PlaceholderAPI | `PlaceholderRuntimeOwner` | Пятитиковый snapshot producer + регистрация двух expansions; rollback и retryable cleanup | Snapshot data остаётся в `PlaceholderSnapshotService`; Paper adapter владеет expansion instances |
 
 Важно: наличие owner-класса не означает, что production lifecycle уже переведён на него.
 
@@ -81,7 +81,7 @@ Bukkit обычно очищает зарегистрированные listener
 
 Текущая root последовательность в `shutdownRuntime()`:
 
-1. Close Placeholder snapshots.
+1. Close Placeholder runtime (cancel refresh producer → unregister expansions → clear snapshots).
 2. Close RuntimeIntegrityRuntimeOwner.
 3. Close `HpAttributeSyncRuntimeOwner` (cancel sweep → unregister listener).
 4. Unregister blueprint hook (сейчас no-op).
@@ -139,7 +139,7 @@ These callbacks cross multiple domains. Keep root-owned until individual domain 
 
 ## 7. Recommended next slice
 
-The next bounded extraction is **PlaceholderAPI integration lifecycle**. Inspect the snapshot refresh producer and the two PlaceholderAPI expansion registrations separately. The snapshot owner must stop before the source services and shared writer are finalized; expansion registration must be explicitly reversible where the PlaceholderAPI contract supports it. Keep optional integration failure isolated.
+The next bounded extraction is **the next remaining runtime owner from the inventory**. PlaceholderAPI lifecycle has been transferred to `PlaceholderRuntimeOwner`; next choose a source-backed task/listener boundary after inspecting its exact startup and shutdown dependencies.
 
 Do not activate `BootstrapCoordinator` in this slice.
 
@@ -154,7 +154,7 @@ Do not activate `BootstrapCoordinator` in this slice.
 - [x] HpAttributeSync listener and recurring sweep transferred to a dedicated runtime owner.
 - [x] CooldownManager listener and delayed notification task shutdown coordinated by a dedicated runtime owner.
 - [x] FoliantService listener and periodic lock-flush producer transferred to a dedicated runtime owner.
-- [ ] Every row validated against the owning class implementation before module graph construction.
+- [ ] Every row validated against the owning class implementation before module graph construction.\n- [x] PlaceholderAPI snapshot producer and both expansion registrations transferred to `PlaceholderRuntimeOwner`.
 
 The unchecked items are deliberate gates: this inventory is sufficient to choose the next bounded extraction, but not yet sufficient to activate the coordinator.
 
@@ -221,3 +221,37 @@ Owner независимо пытается снять listener даже при 
 Добавлен `FoliantRuntimeOwnerTest`: idempotent start, cancel-before-unregister, repeated close, rollback при ошибке планирования/регистрации, retry после cancellation/unregistration failure, close-before-start и валидация периода.
 
 Игровая логика дропа, soulbound, релок-счётчиков, GUI, LuckPerms-перехода и формат `foliant-lock.yml` не менялись намеренно.
+
+
+## 11. A-03-003.14 — PlaceholderAPI integration lifecycle
+
+Реализация выполнена в ветке `refactor/a03-foundation-lifecycle`.
+
+### Границы ответственности
+
+- `PlaceholderSnapshotService` формирует и публикует immutable snapshots; больше не создаёт и не отменяет BukkitTask.
+- `PlaceholderRuntimeOwner` владеет initial refresh, периодическим producer, registration lifecycle и очисткой snapshots.
+- `PaperPlaceholderRuntimeScheduler` создаёт Paper task с исходным интервалом 5 ticks и возвращает `TaskHandle`.
+- `PaperPlaceholderRuntimeRegistration` создаёт и регистрирует обе expansions: `%raskolclasses_*%` и `%raskolcrown_*%`; при частичном отказе пытается снять уже затронутые registrations.
+- Expansions явно unregister при shutdown, несмотря на `persist() == true`.
+
+### Порядок запуска и остановки
+
+Запуск:
+1. Немедленно формируется первый snapshot, как и в исходном `PlaceholderSnapshotService.start()`.
+2. Планируется refresh task с initial delay и period 5 ticks.
+3. Регистрируются обе expansions.
+4. При ошибке выполняется rollback: отмена task → unregister expansions (если registration была начата) → очистка snapshots.
+
+Остановка:
+1. Отмена refresh task.
+2. Снятие crown expansion, затем raskolclasses expansion.
+3. Очистка snapshots и диагностического набора предупреждений.
+
+PlaceholderAPI остаётся необязательной интеграцией. Если plugin отсутствует, либо регистрация/планирование завершается ошибкой, основной RaskolClasses продолжает запуск; ошибка логируется. Ошибки shutdown cleanup логируются независимо от остальных root cleanup.
+
+### Проверки
+
+Добавлен `PlaceholderRuntimeOwnerTest`: initial snapshot ordering, idempotent start, producer cancellation before unregister, schedule/refresh/registration rollback, retry после cancellation/unregistration failure и close-before-start.
+
+Не менялись placeholder identifiers, параметры, возвращаемые значения, форматирование, источник значений, thread model и период обновления. Асинхронные PlaceholderAPI callbacks по-прежнему читают только immutable snapshot по UUID.
