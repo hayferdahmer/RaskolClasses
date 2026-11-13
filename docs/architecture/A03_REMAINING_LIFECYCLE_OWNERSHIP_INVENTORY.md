@@ -39,7 +39,7 @@
 | ManaSoaked | `manaSoaked.start()` | `activeTasks` | Периодическая механика combat |
 | Global purge | `PluginTasks.startPurgeTask(this)` | `activeTasks` | Один callback вызывает purge многих доменов и статических ability-классов; широкий cross-domain orchestration |
 | Global autosave | `PluginTasks.startAutosaveTask(this)` | `activeTasks` | Плановый snapshot cooldowns/resources/spec2; обязан завершиться до закрытия общего writer |
-| Foliant lock flush | `foliantService.startLockFlushTask()` в `initializeCoreServices` | `activeTasks` | Task создаётся раньше общей фазы start; FoliantService также Listener и владелец dirty lock persistence |
+| Foliant lock flush | `FoliantRuntimeOwner.start()` в `initializeCoreServices` | `FoliantRuntimeOwner` / `TaskScope` | Owner управляет listener и периодическим flush producer; FoliantService сохраняет dirty lock state и persistence |
 | Pet tick + orphan scan | `PetRuntimeOwner.start()` | `PetRuntimeOwner` / `TaskScope` | Уже выведены из root списка |
 
 `HpAttributeSync` больше не хранит sweep handle: его периодическая задача создаётся через `PaperHpAttributeSyncScheduler` и принадлежит `HpAttributeSyncRuntimeOwner`. Отложенная задача respawn (2 ticks) остаётся внутренней одноразовой задачей Bukkit scheduler без отдельного cancellation handle; это явно оставлено за пределами текущего среза.
@@ -86,7 +86,7 @@ Bukkit обычно очищает зарегистрированные listener
 3. Close `HpAttributeSyncRuntimeOwner` (cancel sweep → unregister listener).
 4. Unregister blueprint hook (сейчас no-op).
 5. Cancel Warlock channel tasks.
-6. `foliantService.saveLocksIfDirty()`.
+6. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
 7. `petRuntimeOwner.close()` (despawn → cancel → unregister).
 8. Cancel/clear root `activeTasks`.
 9. `items.stop()`; unregister PassportChangeListener.
@@ -119,9 +119,11 @@ The existing shutdown sequence is not failure-isolated end-to-end: most cleanup 
 
 Reason: combines Listener, per-player delayed tasks, mutable cooldown state and persistence. Extraction must preserve public compatibility and ensure listener + delayed-task cleanup + save order. Do not move persistence to a generic task owner.
 
-### P1 — FoliantService runtime/persistence ownership
+### P1 — FoliantService runtime/persistence ownership (implemented)
 
-Reason: Listener + periodic lock flush + dirty persistence. Root currently starts its task in initialize, registers listener in a later phase and invokes final save before writer close. Owner must preserve that order and must not close shared writer.
+`FoliantRuntimeOwner` now owns listener registration and the 1200-tick lock-flush producer through narrow Paper adapters and `TaskScope`. `FoliantService` retains the dirty state, YAML snapshot generation and shared-writer submission. Shutdown stops the producer and unregisters the listener before `saveLocksIfDirty()`; the owner never closes the shared writer.
+
+The asynchronous writer completion callback still schedules a one-shot main-thread acknowledgement with Bukkit. This callback is part of the persistence protocol, not the periodic producer; its cancellation/drain semantics remain an explicit follow-up and must be covered by the storage lifecycle contract.
 
 ### P1 — PlaceholderAPI integration lifecycle
 
@@ -137,16 +139,9 @@ These callbacks cross multiple domains. Keep root-owned until individual domain 
 
 ## 7. Recommended next slice
 
-The next bounded extraction is **FoliantService runtime and persistence ownership**. Preserve dirty-lock snapshot semantics and the shared writer boundary.
+The next bounded extraction is **PlaceholderAPI integration lifecycle**. Inspect the snapshot refresh producer and the two PlaceholderAPI expansion registrations separately. The snapshot owner must stop before the source services and shared writer are finalized; expansion registration must be explicitly reversible where the PlaceholderAPI contract supports it. Keep optional integration failure isolated.
 
-Before implementation:
-- inspect listener registration, lock flush task creation, delayed/deferred operations and all root call sites;
-- keep `saveLocksIfDirty()` before shared writer close;
-- distinguish stopping the periodic flush producer from final persistence;
-- do not let a Foliant owner close the shared `AsyncStorageWriter`;
-- characterize partial startup, task cancellation and final-save ordering before wiring a new owner.
-
-Do not activate `BootstrapCoordinator` in this slice. Keep PlaceholderAPI registration lifecycle separate.
+Do not activate `BootstrapCoordinator` in this slice.
 
 ## 8. Acceptance criteria for this inventory
 
@@ -158,6 +153,7 @@ Do not activate `BootstrapCoordinator` in this slice. Keep PlaceholderAPI regist
 - [ ] Full repository-wide scheduled-task and registration scan completed.
 - [x] HpAttributeSync listener and recurring sweep transferred to a dedicated runtime owner.
 - [x] CooldownManager listener and delayed notification task shutdown coordinated by a dedicated runtime owner.
+- [x] FoliantService listener and periodic lock-flush producer transferred to a dedicated runtime owner.
 - [ ] Every row validated against the owning class implementation before module graph construction.
 
 The unchecked items are deliberate gates: this inventory is sufficient to choose the next bounded extraction, but not yet sufficient to activate the coordinator.
@@ -192,3 +188,36 @@ Owner независимо пытается снять listener даже при 
 Добавлен `CooldownRuntimeOwnerTest`: идемпотентный start, порядок cancel → unregister, повторный close, retry после ошибки отмены, retry unregister, rollback частичной регистрации и close-before-start.
 
 Игровая семантика кулдаунов, расчёт времени, уведомления, форматы YAML и порядок autosave не менялись намеренно.
+
+
+## 10. A-03-003.13 — FoliantService runtime ownership
+
+Реализация выполнена в ветке `refactor/a03-foundation-lifecycle`.
+
+### Границы ответственности
+
+- `FoliantRuntimeOwner` управляет listener registration и периодической задачей lock flush.
+- `PaperFoliantRuntimeRegistration` регистрирует/снимает только listener Фолианта.
+- `PaperFoliantRuntimeScheduler` создаёт отменяемую Paper-задачу и возвращает `TaskHandle`.
+- `FoliantService` сохраняет владение lock map, `DirtyStorageState`, YAML snapshot, генерацией snapshot и submission в общий `AsyncStorageWriter`.
+- Общий writer не закрывается Foliant owner и остаётся root-owned.
+
+### Порядок запуска и остановки
+
+Запуск owner выполняется в `initializeCoreServices`: сначала регистрируется listener, затем создаётся flush producer с прежним интервалом 1200 ticks. При ошибке регистрации/планирования выполняется rollback.
+
+При shutdown:
+1. `FoliantRuntimeOwner.close()` отменяет периодическую задачу.
+2. Owner снимает listener даже при ошибке отмены задачи.
+3. Root вызывает `saveLocksIfDirty()`, чтобы финальный snapshot был отправлен в writer после остановки producer.
+4. Общий writer закрывается позднее, в прежней root-owned точке.
+
+### Асинхронное подтверждение сохранения
+
+`FoliantService.saveLocks()` после завершения записи ставит one-shot Bukkit callback для `clearIfUnchanged(snapshotGeneration)`. Этот callback оставлен в persistence-контракте: он не является периодическим flush producer и не переносился в runtime owner. Его cancellation/drain semantics должны быть рассмотрены вместе с A-04 Storage & Data Integrity.
+
+### Проверки
+
+Добавлен `FoliantRuntimeOwnerTest`: idempotent start, cancel-before-unregister, repeated close, rollback при ошибке планирования/регистрации, retry после cancellation/unregistration failure, close-before-start и валидация периода.
+
+Игровая логика дропа, soulbound, релок-счётчиков, GUI, LuckPerms-перехода и формат `foliant-lock.yml` не менялись намеренно.
