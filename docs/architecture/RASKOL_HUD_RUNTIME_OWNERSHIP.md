@@ -303,3 +303,10 @@ This remains a design milestone: no targeting store, application service, Paper 
 The first Bukkit-independent targeting value types are implemented under `dev.raskol.classes.targeting.domain`: `TargetIdentity`, `TargetSelection`, `TargetSelectionSource`, `TargetCategory`, `TargetView`, `TargetReadResult` and `TargetUnavailableReason`. The immutable read model copies status tags, models optional level/health explicitly and distinguishes NONE from UNAVAILABLE.
 
 Focused JUnit coverage is added in `TargetDomainContractsTest`. This is not a runtime targeting implementation: no selection store, policy composition, Paper interaction listener or bootstrap wiring exists yet. Build and static-analysis verification remains pending.
+
+
+## 20. HUD-C.1.7 — In-memory target selection store
+
+Added the application port `TargetSelectionStore` and a thread-safe `InMemoryTargetSelectionStore` adapter backed by `ConcurrentHashMap`. The store supports owner-scoped lookup, replacement, removal and full transient-state clear. Tests cover owner isolation, replacement, removal, clear and null arguments.
+
+The store is transient and does not persist target selections or retain Bukkit references. Policy evaluation and idempotent re-selection semantics remain application-service responsibilities. No Paper listener or production bootstrap wiring is added in this slice.
