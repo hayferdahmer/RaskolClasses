@@ -68,6 +68,10 @@ public final class RuntimeIntegrityRuntimeOwner implements AutoCloseable {
                 + " minutes)");
     }
 
+    long intervalMillis() {
+        return monitor.getIntervalMillis();
+    }
+
     /** Останавливает монитор и освобождает принадлежащий ему executor. */
     @Override
     public void close() {
