@@ -48,8 +48,7 @@ class HudRuntimeOwnerTest {
     @Test
     void startRequiresSuccessfulRegistration() {
         FakeScheduler scheduler = new FakeScheduler();
-        HudRuntimeOwner owner = owner(
-                scheduler, new FakeSessionEvents(), new RecordingCleanup(), () -> {});
+        HudRuntimeOwner owner = owner(scheduler, new FakeSessionEvents(), new RecordingCleanup(), () -> {});
 
         assertThrows(IllegalStateException.class, owner::start);
         assertTrue(scheduler.scheduled.isEmpty());
@@ -60,8 +59,7 @@ class HudRuntimeOwnerTest {
         FakeScheduler scheduler = new FakeScheduler();
         scheduler.failNext = true;
         RecordingCleanup cleanup = new RecordingCleanup();
-        HudRuntimeOwner owner = owner(
-                scheduler, new FakeSessionEvents(), cleanup, () -> {});
+        HudRuntimeOwner owner = owner(scheduler, new FakeSessionEvents(), cleanup, () -> {});
         owner.register();
 
         assertThrows(IllegalStateException.class, owner::start);
@@ -193,8 +191,7 @@ class HudRuntimeOwnerTest {
                 IllegalArgumentException.class,
                 () -> new HudRuntimeOwner(scheduler, events, cleanup, () -> {}, -1, 20));
         assertThrows(
-                IllegalArgumentException.class,
-                () -> new HudRuntimeOwner(scheduler, events, cleanup, () -> {}, 0, 0));
+                IllegalArgumentException.class, () -> new HudRuntimeOwner(scheduler, events, cleanup, () -> {}, 0, 0));
     }
 
     private static HudRuntimeOwner owner(
@@ -211,7 +208,8 @@ class HudRuntimeOwnerTest {
         private boolean failNext;
 
         @Override
-        public TaskHandle scheduleRepeating(Runnable action, long initialDelayTicks, long periodTicks) {
+        public TaskHandle scheduleRepeating(
+                Runnable action, long initialDelayTicks, long periodTicks) {
             if (failNext) {
                 failNext = false;
                 throw new IllegalStateException("Ошибка тестового планировщика");

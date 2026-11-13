@@ -28,9 +28,10 @@ public final class PaperHudTaskScheduler implements HudTaskScheduler {
             throw new IllegalArgumentException("periodTicks должен быть положительным");
         }
 
-        BukkitTask task = plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(plugin, action, initialDelayTicks, periodTicks);
+        BukkitTask task =
+                plugin.getServer()
+                        .getScheduler()
+                        .runTaskTimer(plugin, action, initialDelayTicks, periodTicks);
         return new PaperTaskHandle(task);
     }
 

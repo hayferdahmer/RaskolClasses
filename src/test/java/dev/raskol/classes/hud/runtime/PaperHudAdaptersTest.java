@@ -35,7 +35,8 @@ class PaperHudAdaptersTest {
         AtomicBoolean cancelled = new AtomicBoolean();
         AtomicInteger cancelCalls = new AtomicInteger();
 
-        BukkitTask task = proxy(BukkitTask.class, (instance, method, args) -> switch (method.getName()) {
+        BukkitTask task =
+                proxy(BukkitTask.class, (instance, method, args) -> switch (method.getName()) {
             case "cancel" -> {
                 cancelCalls.incrementAndGet();
                 cancelled.set(true);
@@ -58,8 +59,7 @@ class PaperHudAdaptersTest {
 
         Plugin plugin = pluginWith(scheduler, null);
         AtomicInteger executions = new AtomicInteger();
-        TaskHandle handle = new PaperHudTaskScheduler(plugin).scheduleRepeating(
-                executions::incrementAndGet, 4, 20);
+        TaskHandle handle = new PaperHudTaskScheduler(plugin).scheduleRepeating(executions::incrementAndGet, 4, 20);
 
         assertSame(plugin, scheduledPlugin.get());
         assertEquals(4, initialDelay.get());
@@ -85,8 +85,10 @@ class PaperHudAdaptersTest {
         });
         PaperHudTaskScheduler adapter = new PaperHudTaskScheduler(pluginWith(scheduler, null));
 
-        assertThrows(IllegalArgumentException.class, () -> adapter.scheduleRepeating(() -> {}, -1, 20));
-        assertThrows(IllegalArgumentException.class, () -> adapter.scheduleRepeating(() -> {}, 0, 0));
+        assertThrows(
+                IllegalArgumentException.class, () -> adapter.scheduleRepeating(() -> {}, -1, 20));
+        assertThrows(
+                IllegalArgumentException.class, () -> adapter.scheduleRepeating(() -> {}, 0, 0));
         assertEquals(0, scheduleCalls.get());
     }
 

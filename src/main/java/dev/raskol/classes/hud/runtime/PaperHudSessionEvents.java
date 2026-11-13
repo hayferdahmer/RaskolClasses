@@ -4,9 +4,9 @@ package dev.raskol.classes.hud.runtime;
 
 import java.util.Objects;
 import java.util.UUID;
-import java.util.logging.Level;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -51,7 +51,6 @@ public final class PaperHudSessionEvents implements HudSessionEvents {
             }
         }
     }
-
 
     private static final class PaperHudRegistration implements HudRegistration {
 
