@@ -4,6 +4,7 @@ package dev.raskol.classes.hud.runtime;
 
 import java.util.Objects;
 import java.util.UUID;
+import java.util.logging.Level;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -41,8 +42,16 @@ public final class PaperHudSessionEvents implements HudSessionEvents {
 
         @EventHandler(priority = EventPriority.MONITOR)
         public void onPlayerQuit(PlayerQuitEvent event) {
-            handler.accept(event.getPlayer().getUniqueId());
+            try {
+                handler.accept(event.getPlayer().getUniqueId());
+            } catch (RuntimeException failure) {
+                pluginLogger().log(Level.WARNING, "Не удалось очистить HUD-сессию игрока", failure);
+            }
         }
+    }
+
+    private java.util.logging.Logger pluginLogger() {
+        return plugin.getLogger();
     }
 
     private static final class PaperHudRegistration implements HudRegistration {
