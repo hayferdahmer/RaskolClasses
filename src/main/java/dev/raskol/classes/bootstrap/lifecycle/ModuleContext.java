@@ -12,6 +12,11 @@ import java.util.logging.Logger;
  * <p>Контекст намеренно не предоставляет глобальный доступ к игровым сервисам.
  * Межмодульные зависимости передаются через конструкторы и узкие контракты.</p>
  */
+/**
+ * Ссылки на Logger и TaskScope намеренно разделяются с владельцем модуля:
+ * это сервисные handles, а не изменяемые данные контекста.
+ */
+@SuppressWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public record ModuleContext(
         String pluginId,
         Logger logger,
