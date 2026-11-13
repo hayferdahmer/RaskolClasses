@@ -26,6 +26,7 @@ public final class HudRuntimeOwner implements AutoCloseable {
     private HudRegistration sessionRegistration;
     private boolean registered;
     private boolean started;
+    private boolean closing;
     private boolean closed;
 
     public HudRuntimeOwner(
@@ -129,7 +130,7 @@ public final class HudRuntimeOwner implements AutoCloseable {
         if (closed) {
             return;
         }
-        closed = true;
+        closing = true;
 
         RuntimeException failure = null;
         try {
@@ -143,7 +144,8 @@ public final class HudRuntimeOwner implements AutoCloseable {
                 sessionRegistration.close();
             } catch (RuntimeException exception) {
                 failure = merge(failure, exception);
-            } finally {
+            }
+            if (failure == null) {
                 sessionRegistration = null;
                 registered = false;
             }
@@ -159,10 +161,12 @@ public final class HudRuntimeOwner implements AutoCloseable {
         if (failure != null) {
             throw failure;
         }
+        closed = true;
+        closing = false;
     }
 
     private void ensureOpen() {
-        if (closed) {
+        if (closed || closing) {
             throw new IllegalStateException("RaskolHUD runtime уже закрыт");
         }
     }
