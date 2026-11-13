@@ -7,13 +7,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import dev.raskol.classes.bootstrap.lifecycle.TaskHandle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
 import org.junit.jupiter.api.Test;
+
+import dev.raskol.classes.bootstrap.lifecycle.TaskHandle;
 
 class HudRuntimeOwnerTest {
 
