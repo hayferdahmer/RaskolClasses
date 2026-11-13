@@ -2,7 +2,7 @@
 
 ## Статус
 
-**Проектирование контрактов завершено; runtime targeting-код не добавлен.**
+**Контракты домена реализованы; application service, store и Paper adapter ещё не реализованы.**
 
 - Repository: `hayferdahmer/RaskolClasses`
 - Branch: `refactor/a03-foundation-lifecycle`
@@ -255,6 +255,20 @@ Use the HUD-C.1.4 matrix: main hand, non-cancelled event, MONITOR, no event muta
 
 Do not combine all steps in one commit. Keep the targeting domain independent from the HUD renderer and preserve the existing H-05/H-06 decisions.
 
-## 12. Decision
+## 12. HUD-C.1.5 — Domain value contracts implemented
 
-HUD-C.1.5 establishes the target-selection ownership boundary, minimal application operations, immutable read contract, failure semantics and integration seams. Runtime implementation is the next slice. No command syntax, cycling UX, global glowing outline, persistence or client-mod requirement is approved by this document.
+Добавлены Bukkit-независимые типы в `dev.raskol.classes.targeting.domain`:
+- `TargetIdentity` — UUID-идентичность цели;
+- `TargetSelection` и `TargetSelectionSource` — эфемерный факт выбора;
+- `TargetCategory` — категория сущности для read-модели;
+- `TargetView` — immutable snapshot с optional level/health, immutable status tags и безопасным normalized health;
+- `TargetReadResult` — отдельные `None`, `Available` и `Unavailable` варианты;
+- `TargetUnavailableReason` — безопасные диагностические категории.
+
+`TargetDomainContractsTest` покрывает null/invalid input, копирование коллекций, нормализацию здоровья, optional values и различие NONE/UNAVAILABLE. Типы не импортируют Bukkit/Paper API.
+
+Это только доменная основа: TargetSelectionStore, policy ports, TargetingApplicationService, Paper listener и production wiring не добавлены. Maven/Spotless/SpotBugs CI для этих изменений ещё не подтверждён.
+
+## 13. Decision
+
+HUD-C.1.5 фиксирует границы Targeting Domain и реализует только immutable value contracts. Следующий независимый срез — in-memory TargetSelectionStore с детерминированными тестами. No command syntax, cycling UX, global glowing outline, persistence or client-mod requirement is approved by this document.
