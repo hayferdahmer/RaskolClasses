@@ -387,9 +387,7 @@ Paper / Adventure API
 
 ## 12. HUD-B.1/B.2/B.3 — статус и открытые решения
 
-Проектная структура snapshot и widget contract описана, но до реализации остаются продуктовые решения:
-- target frame: crosshair target или last explicitly selected/locked target;
-- resource pack: обязательный для полного RASKOL-дизайна или optional с функциональным fallback;
+Проектная структура snapshot и widget contract описана. Продуктовые решения по Resource Pack и семантике Target Frame приняты; до реализации остаются:
 - политика Scoreboard/BossBar конфликтов с внешними плагинами;
 - конкретный набор class/spec-specific widgets для каждой из шести текущих классов и будущих специализаций.
 
@@ -460,3 +458,8 @@ HUD-C реализует единый lifecycle owner, не смешивая е�
 ## 16. HUD-C.1 — Runtime seams (design)
 
 Первый implementation slice ограничивается нейтральными портами для scheduling, session events и output cleanup плюс deterministic test doubles. Он не подключает новые task/listener producers к `RaskolClasses`, не меняет `activeTasks` и не переключает legacy renderers. Контракты должны оставаться независимыми от Bukkit API; Bukkit adapters появятся отдельным шагом после тестирования.
+
+
+## 17. HUD-C.1 — Initial runtime seams
+
+В `dev.raskol.classes.hud.runtime` добавлены Bukkit-independent ports: `HudTaskScheduler`, `HudSessionEvents`, `HudRegistration` и `HudOutputCleanup`. Они фиксируют минимальные границы scheduling, quit subscriptions и очистки принадлежащего HUD вывода. Реальные Bukkit adapters, coordinator и тестовые doubles будут добавляться в следующих C.1 подэтапах вместе с потребителями, чтобы тесты проверяли рабочую оркестрацию.
