@@ -46,12 +46,6 @@ public final class TargetingApplicationService {
             return new TargetSelectionOutcome.Rejected(TargetSelectionRejectionReason.UNSUPPORTED_SOURCE);
         }
 
-        Optional<TargetSelection> current = selectionStore.findByOwner(input.actorId());
-        TargetIdentity candidate = new TargetIdentity(input.candidateId());
-        if (current.isPresent() && current.get().target().equals(candidate)) {
-            return new TargetSelectionOutcome.AlreadySelected(current.get());
-        }
-
         TargetSelectionPolicyResult policyResult =
                 Objects.requireNonNull(selectionPolicy.evaluate(input), "selectionPolicy result");
         if (policyResult instanceof TargetSelectionPolicyResult.Rejected rejected) {
@@ -59,6 +53,12 @@ public final class TargetingApplicationService {
         }
         if (policyResult instanceof TargetSelectionPolicyResult.Unavailable unavailable) {
             return new TargetSelectionOutcome.Unavailable(unavailable.reason());
+        }
+
+        Optional<TargetSelection> current = selectionStore.findByOwner(input.actorId());
+        TargetIdentity candidate = new TargetIdentity(input.candidateId());
+        if (current.isPresent() && current.get().target().equals(candidate)) {
+            return new TargetSelectionOutcome.AlreadySelected(current.get());
         }
 
         long selectedAtMillis = clock.getAsLong();
