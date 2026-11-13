@@ -219,7 +219,7 @@ The initial production-code seam extraction adds four Bukkit-independent contrac
 - `HudRegistration` — idempotent registration handle contract;
 - `HudOutputCleanup` — clears only RaskolHUD-owned per-player or global presentation output.
 
-These interfaces do not register Bukkit listeners, schedule real tasks, change `RaskolClasses.activeTasks`, start renderers or alter legacy output. Concrete Paper adapters and deterministic fakes are intentionally deferred until the coordinator consumes these ports, so tests exercise actual owner behavior rather than test-only implementations. HUD-C.1 remains in progress; next is the coordinator-facing contract and fake scheduler/session/output implementations with focused tests.
+These interfaces do not register Bukkit listeners, schedule real Paper tasks, change `RaskolClasses.activeTasks`, start renderers or alter legacy output. The coordinator-facing lifecycle consumer and deterministic test doubles are now documented in HUD-C.1.2 below. Concrete Paper adapters and root integration remain deferred.
 
 
 ## 15. HUD-C.1.2 — Runtime owner and deterministic tests
