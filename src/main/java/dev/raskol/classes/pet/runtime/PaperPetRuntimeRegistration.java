@@ -26,9 +26,9 @@ public final class PaperPetRuntimeRegistration implements PetRuntimeRegistration
         if (registered) {
             return;
         }
+        registered = true;
         PluginManager pluginManager = plugin.getServer().getPluginManager();
         pluginManager.registerEvents(listener, plugin);
-        registered = true;
     }
 
     @Override
