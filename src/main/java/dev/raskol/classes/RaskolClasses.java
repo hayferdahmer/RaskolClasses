@@ -374,7 +374,6 @@ public final class RaskolClasses extends JavaPlugin {
         pets.registerListeners();
         activeTasks.add(pets.startTickTask());
         activeTasks.add(pets.scheduleOrphanScan());
-
     }
 
     /** Регистрирует игровые listeners и синхронизирует уже подключённых игроков. */
@@ -405,7 +404,6 @@ public final class RaskolClasses extends JavaPlugin {
         SessionListener sessions = new SessionListener(this);
         pluginManager.registerEvents(sessions, this);
         sessions.resyncOnline();
-
     }
 
     /** Подключает необязательные внешние интеграции. */
@@ -419,7 +417,6 @@ public final class RaskolClasses extends JavaPlugin {
         } else {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
-
     }
 
     /** Запускает периодические задачи после регистрации listeners и интеграций. */
@@ -438,7 +435,6 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(manaSoaked.start());
         activeTasks.add(PluginTasks.startPurgeTask(this));
         activeTasks.add(PluginTasks.startAutosaveTask(this));
-
     }
 
     /** Выполняет финальную регистрацию команды, startup-отчёт и RIPS runtime monitor. */
@@ -465,9 +461,7 @@ public final class RaskolClasses extends JavaPlugin {
         }
 
         runtimeIntegrityRuntimeOwner = new RuntimeIntegrityRuntimeOwner(
-                () -> artifactBoundIntegrityVerifier.verify(),
-                getLogger(),
-                this::handleRuntimeIntegrityFailure);
+                () -> artifactBoundIntegrityVerifier.verify(), getLogger(), this::handleRuntimeIntegrityFailure);
         runtimeIntegrityRuntimeOwner.start();
     }
 

@@ -37,8 +37,7 @@ public final class ServiceRegistry implements AutoCloseable {
         }
         if (!serviceType.isInstance(service)) {
             throw new IllegalArgumentException(
-                    "Экземпляр " + service.getClass().getName()
-                            + " не реализует контракт " + serviceType.getName());
+                    "Экземпляр " + service.getClass().getName() + " не реализует контракт " + serviceType.getName());
         }
         if (services.containsKey(serviceType)) {
             throw new IllegalStateException("Сервис уже зарегистрирован: " + serviceType.getName());

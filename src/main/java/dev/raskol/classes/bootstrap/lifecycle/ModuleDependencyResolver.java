@@ -43,8 +43,7 @@ public final class ModuleDependencyResolver {
                 throw new IllegalArgumentException("Повторяющийся идентификатор модуля: " + id);
             }
 
-            Set<String> dependencies = Objects.requireNonNull(
-                    module.dependencies(), "dependencies модуля " + id);
+            Set<String> dependencies = Objects.requireNonNull(module.dependencies(), "dependencies модуля " + id);
             Set<String> normalized = new TreeSet<>();
             for (String dependency : dependencies) {
                 normalized.add(requireId(dependency));

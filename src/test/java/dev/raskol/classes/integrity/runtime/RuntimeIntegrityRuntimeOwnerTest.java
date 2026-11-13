@@ -65,11 +65,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
     void shouldKeepTheConfiguredMonitoringInterval() {
         CountingExecutor executor = new CountingExecutor();
         RuntimeIntegrityRuntimeOwner owner = new RuntimeIntegrityRuntimeOwner(
-                RuntimeIntegrityRuntimeOwnerTest::result,
-                LOGGER,
-                snapshot -> {},
-                Duration.ofMinutes(30),
-                executor);
+                RuntimeIntegrityRuntimeOwnerTest::result, LOGGER, snapshot -> {}, Duration.ofMinutes(30), executor);
 
         try {
             owner.start();
@@ -130,11 +126,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
     private static RuntimeIntegrityRuntimeOwner owner(ScheduledThreadPoolExecutor executor) {
         return new RuntimeIntegrityRuntimeOwner(
-                RuntimeIntegrityRuntimeOwnerTest::result,
-                LOGGER,
-                snapshot -> {},
-                Duration.ofMinutes(30),
-                executor);
+                RuntimeIntegrityRuntimeOwnerTest::result, LOGGER, snapshot -> {}, Duration.ofMinutes(30), executor);
     }
 
     private static IntegrityVerificationResult result() {
@@ -151,10 +143,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
         @Override
         public ScheduledFuture<?> scheduleWithFixedDelay(
-                Runnable command,
-                long initialDelay,
-                long delay,
-                TimeUnit unit) {
+                Runnable command, long initialDelay, long delay, TimeUnit unit) {
             scheduleCount.incrementAndGet();
             return super.scheduleWithFixedDelay(command, initialDelay, delay, unit);
         }
@@ -164,10 +153,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
         @Override
         public ScheduledFuture<?> scheduleWithFixedDelay(
-                Runnable command,
-                long initialDelay,
-                long delay,
-                TimeUnit unit) {
+                Runnable command, long initialDelay, long delay, TimeUnit unit) {
             throw new RejectedExecutionException("Test rejection");
         }
     }

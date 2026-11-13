@@ -50,8 +50,7 @@ public final class RuntimeIntegrityRuntimeOwner implements AutoCloseable {
         this.logger = Objects.requireNonNull(logger, "logger");
         Objects.requireNonNull(executor, "executor");
 
-        RuntimeSecurityReporter runtimeReporter =
-                new RuntimeSecurityReporter(new SecurityReporter(logger), logger);
+        RuntimeSecurityReporter runtimeReporter = new RuntimeSecurityReporter(new SecurityReporter(logger), logger);
 
         this.monitor = new RuntimeIntegrityMonitor(
                 Objects.requireNonNull(verificationTask, "verificationTask"),

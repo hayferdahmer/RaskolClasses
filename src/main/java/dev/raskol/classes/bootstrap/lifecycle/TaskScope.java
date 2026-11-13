@@ -59,8 +59,7 @@ public final class TaskScope implements AutoCloseable {
                         completed.add(task);
                     } else {
                         failure = appendFailure(
-                                failure,
-                                new IllegalStateException("Задача осталась активной после отмены"));
+                                failure, new IllegalStateException("Задача осталась активной после отмены"));
                     }
                 } catch (RuntimeException exception) {
                     failure = appendFailure(failure, exception);

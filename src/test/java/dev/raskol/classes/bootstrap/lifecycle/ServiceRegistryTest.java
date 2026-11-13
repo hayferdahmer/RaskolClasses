@@ -37,8 +37,7 @@ class ServiceRegistryTest {
         registry.register(ExampleService.class, new ExampleServiceImpl());
 
         assertThrows(
-                IllegalStateException.class,
-                () -> registry.register(ExampleService.class, new ExampleServiceImpl()));
+                IllegalStateException.class, () -> registry.register(ExampleService.class, new ExampleServiceImpl()));
     }
 
     @Test
@@ -47,8 +46,7 @@ class ServiceRegistryTest {
         registry.seal();
 
         assertThrows(
-                IllegalStateException.class,
-                () -> registry.register(ExampleService.class, new ExampleServiceImpl()));
+                IllegalStateException.class, () -> registry.register(ExampleService.class, new ExampleServiceImpl()));
     }
 
     @Test
@@ -86,7 +84,8 @@ class ServiceRegistryTest {
         assertEquals(0, registry.size());
         assertThrows(IllegalStateException.class, () -> registry.require(ExampleService.class));
         assertThrows(IllegalStateException.class, () -> registry.find(ExampleService.class));
-        assertThrows(IllegalStateException.class, () -> registry.register(ExampleService.class, new ExampleServiceImpl()));
+        assertThrows(
+                IllegalStateException.class, () -> registry.register(ExampleService.class, new ExampleServiceImpl()));
         assertThrows(IllegalStateException.class, registry::seal);
     }
 

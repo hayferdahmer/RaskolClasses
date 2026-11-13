@@ -31,22 +31,17 @@ class ModuleDependencyResolverTest {
                 IllegalArgumentException.class,
                 () -> ModuleDependencyResolver.resolve(List.of(module("combat", Set.of("character")))));
 
-        assertEquals(
-                "Модуль combat зависит от отсутствующего модуля character",
-                failure.getMessage());
+        assertEquals("Модуль combat зависит от отсутствующего модуля character", failure.getMessage());
     }
 
     @Test
     void rejectsDependencyCycle() {
         IllegalArgumentException failure = assertThrows(
                 IllegalArgumentException.class,
-                () -> ModuleDependencyResolver.resolve(List.of(
-                        module("combat", Set.of("effects")),
-                        module("effects", Set.of("combat")))));
+                () -> ModuleDependencyResolver.resolve(
+                        List.of(module("combat", Set.of("effects")), module("effects", Set.of("combat")))));
 
-        assertEquals(
-                "Обнаружен цикл зависимостей модулей: [combat, effects]",
-                failure.getMessage());
+        assertEquals("Обнаружен цикл зависимостей модулей: [combat, effects]", failure.getMessage());
     }
 
     @Test
@@ -58,9 +53,7 @@ class ModuleDependencyResolverTest {
                         module("effects", Set.of("combat")),
                         module("presentation", Set.of("combat")))));
 
-        assertEquals(
-                "Обнаружен цикл зависимостей модулей: [combat, effects]",
-                failure.getMessage());
+        assertEquals("Обнаружен цикл зависимостей модулей: [combat, effects]", failure.getMessage());
     }
 
     @Test
@@ -74,16 +67,14 @@ class ModuleDependencyResolverTest {
     void rejectsDuplicateModuleIds() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> ModuleDependencyResolver.resolve(List.of(
-                        module("combat", Set.of()),
-                        module("combat", Set.of()))));
+                () -> ModuleDependencyResolver.resolve(
+                        List.of(module("combat", Set.of()), module("combat", Set.of()))));
     }
 
     @Test
     void rejectsBlankModuleId() {
         assertThrows(
-                IllegalArgumentException.class,
-                () -> ModuleDependencyResolver.resolve(List.of(module(" ", Set.of()))));
+                IllegalArgumentException.class, () -> ModuleDependencyResolver.resolve(List.of(module(" ", Set.of()))));
     }
 
     private static PluginModule module(String id, Set<String> dependencies) {

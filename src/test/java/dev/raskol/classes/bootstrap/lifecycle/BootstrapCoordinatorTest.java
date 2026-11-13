@@ -25,9 +25,8 @@ class BootstrapCoordinatorTest {
         ServiceRegistry registry = new ServiceRegistry();
         BootstrapCoordinator coordinator = coordinator(registry);
 
-        coordinator.start(List.of(
-                module("presentation", Set.of("domain"), events),
-                module("domain", Set.of(), events)));
+        coordinator.start(
+                List.of(module("presentation", Set.of("domain"), events), module("domain", Set.of(), events)));
 
         assertEquals(List.of("domain", "presentation"), coordinator.moduleOrder());
         assertEquals(
@@ -94,8 +93,7 @@ class BootstrapCoordinatorTest {
         };
 
         BootstrapCoordinator.BootstrapException failure = assertThrows(
-                BootstrapCoordinator.BootstrapException.class,
-                () -> coordinator.start(List.of(second, first)));
+                BootstrapCoordinator.BootstrapException.class, () -> coordinator.start(List.of(second, first)));
 
         assertEquals("start failure", failure.getCause().getMessage());
         assertEquals(
@@ -128,9 +126,7 @@ class BootstrapCoordinatorTest {
             }
         };
 
-        assertThrows(
-                BootstrapCoordinator.BootstrapException.class,
-                () -> coordinator.start(List.of(broken)));
+        assertThrows(BootstrapCoordinator.BootstrapException.class, () -> coordinator.start(List.of(broken)));
 
         assertEquals(List.of("initialize:broken", "close:broken"), events);
         assertTrue(registry.isClosed());
@@ -182,9 +178,7 @@ class BootstrapCoordinatorTest {
 
         coordinator.start(List.of(module("only", Set.of(), events)));
 
-        assertThrows(
-                IllegalStateException.class,
-                () -> coordinator.start(List.of(module("other", Set.of(), events))));
+        assertThrows(IllegalStateException.class, () -> coordinator.start(List.of(module("other", Set.of(), events))));
 
         coordinator.close();
         coordinator.close();

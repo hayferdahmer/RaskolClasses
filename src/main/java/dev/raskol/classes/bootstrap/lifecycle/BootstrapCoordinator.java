@@ -31,8 +31,7 @@ public final class BootstrapCoordinator implements AutoCloseable {
     private boolean closed;
     private ManagedModule failingModule;
 
-    public BootstrapCoordinator(
-            String pluginId, Logger logger, Path dataDirectory, ServiceRegistry serviceRegistry) {
+    public BootstrapCoordinator(String pluginId, Logger logger, Path dataDirectory, ServiceRegistry serviceRegistry) {
         this.pluginId = requireText(pluginId, "pluginId");
         this.logger = Objects.requireNonNull(logger, "logger");
         this.dataDirectory = Objects.requireNonNull(dataDirectory, "dataDirectory");
@@ -203,8 +202,7 @@ public final class BootstrapCoordinator implements AutoCloseable {
         if (managed == null) {
             return;
         }
-        if (managed.lifecycle.state() != ModuleState.CLOSED
-                && managed.lifecycle.state() != ModuleState.FAILED) {
+        if (managed.lifecycle.state() != ModuleState.CLOSED && managed.lifecycle.state() != ModuleState.FAILED) {
             managed.lifecycle.failed(failure);
         }
     }

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 class ModuleLifecycleTest {
@@ -47,7 +48,8 @@ class ModuleLifecycleTest {
         assertEquals(IllegalStateException.class.getName(), snapshot.type());
         assertEquals("ошибка запуска", snapshot.message());
         assertNotSame(cause, snapshot);
-        assertThrows(UnsupportedOperationException.class, () -> snapshot.stackTrace().add("изменение"));
+        assertThrows(
+                UnsupportedOperationException.class, () -> snapshot.stackTrace().add("изменение"));
     }
 
     @Test
@@ -64,8 +66,7 @@ class ModuleLifecycleTest {
     @Test
     void failureSnapshotCopiesStackTraceInput() {
         List<String> frames = new java.util.ArrayList<>(List.of("frame"));
-        ModuleLifecycle.FailureSnapshot snapshot =
-                new ModuleLifecycle.FailureSnapshot("Example", "message", frames);
+        ModuleLifecycle.FailureSnapshot snapshot = new ModuleLifecycle.FailureSnapshot("Example", "message", frames);
         frames.add("mutated");
 
         assertEquals(List.of("frame"), snapshot.stackTrace());

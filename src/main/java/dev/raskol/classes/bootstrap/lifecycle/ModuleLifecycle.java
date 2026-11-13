@@ -40,9 +40,7 @@ public final class ModuleLifecycle {
      * Повторный вызов при STOPPING/STOPPED/CLOSED не изменяет состояние.
      */
     public synchronized void beginStopping() {
-        if (state == ModuleState.STOPPING
-                || state == ModuleState.STOPPED
-                || state == ModuleState.CLOSED) {
+        if (state == ModuleState.STOPPING || state == ModuleState.STOPPED || state == ModuleState.CLOSED) {
             return;
         }
         state = ModuleState.STOPPING;
@@ -69,9 +67,7 @@ public final class ModuleLifecycle {
      * NEW разрешён для модулей, которые не успели начать инициализацию.
      */
     public synchronized void closed() {
-        if (state != ModuleState.NEW
-                && state != ModuleState.STOPPED
-                && state != ModuleState.FAILED) {
+        if (state != ModuleState.NEW && state != ModuleState.STOPPED && state != ModuleState.FAILED) {
             throw new IllegalStateException("Нельзя закрыть модуль из состояния " + state);
         }
         state = ModuleState.CLOSED;
