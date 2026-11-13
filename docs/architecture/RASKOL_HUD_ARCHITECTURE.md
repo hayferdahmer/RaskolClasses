@@ -354,5 +354,5 @@ Target Frame показывает последнюю явно выбранную
 - Target selection принадлежит отдельному targeting/application owner. HUD только читает immutable TargetView.
 - Если действие ПКМ конфликтует с предметами/блоками или другим плагином, приоритет и исключения должны быть определены тестами и конфигурацией, а не решаться внутри renderer.
 
-Перед runtime-реализацией требуется отдельный source/API spike: выбрать корректный Paper event path, описать порядок приоритетов и покрыть тестами vanilla living entities, NPC adapters, cancelled interactions, off-hand/dual-hand behavior, spectator/dead players и PvP/PvE restrictions.
+Результат HUD-C.1.4 зафиксирован в [RASKOL_HUD_TARGET_INTERACTION_SPIKE.md](RASKOL_HUD_TARGET_INTERACTION_SPIKE.md): выбран `PlayerInteractAtEntityEvent`, `MONITOR`, `ignoreCancelled = true`, только main hand, без отмены/изменения события. Runtime-реализация и controlled Paper 26.2 test остаются следующими отдельными воротами.
 
