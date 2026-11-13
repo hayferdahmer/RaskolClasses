@@ -57,7 +57,7 @@ public final class BootstrapCoordinator implements AutoCloseable {
         for (PluginModule module : ordered) {
             managed.add(new ManagedModule(
                     module,
-                    new ModuleContext(pluginId, logger, dataDirectory, new TaskScope()),
+                    new ModuleContext(pluginId, logger.getName(), dataDirectory, new TaskScope()),
                     new ModuleLifecycle()));
         }
 
