@@ -88,6 +88,11 @@ public final class PetRuntimeOwner implements AutoCloseable {
         if (closed) {
             return;
         }
+        if (!startAttempted) {
+            taskScope.close();
+            closed = true;
+            return;
+        }
 
         RuntimeException failure = null;
 
