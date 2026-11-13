@@ -148,7 +148,16 @@ class HudRuntimeOwnerTest {
 
         assertTrue(scheduler.scheduled.getFirst().cancelled);
         assertEquals(1, events.closeCalls);
+        assertFalse(owner.isClosed());
+        assertTrue(owner.isRegistered());
+
+        cleanup.failClearAll = false;
+        owner.close();
+
         assertTrue(owner.isClosed());
+        assertFalse(owner.isRegistered());
+        assertEquals(1, events.closeCalls);
+        assertEquals(2, cleanup.clearAllCalls);
     }
 
     @Test
@@ -171,7 +180,7 @@ class HudRuntimeOwnerTest {
 
         assertTrue(owner.isClosed());
         assertFalse(owner.isRegistered());
-        assertEquals(2, events.closeCalls);
+        assertEquals(1, events.closeCalls);
     }
 
     @Test
