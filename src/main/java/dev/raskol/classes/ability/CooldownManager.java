@@ -136,9 +136,8 @@ public final class CooldownManager implements Listener {
     }
 
     public void clear() {
+        cancelAllTasks();
         readyAt.clear();
-        tasks.values().forEach(m -> m.values().forEach(BukkitTask::cancel));
-        tasks.clear();
     }
 
     /** 1.6.12: число игроков с записями кулдаунов (для /rc health). */
@@ -227,8 +226,54 @@ public final class CooldownManager implements Listener {
     }
 
     public void cancelAllTasks() {
-        tasks.values().forEach(m -> m.values().forEach(BukkitTask::cancel));
-        tasks.clear();
+        RuntimeException failure = null;
+
+        for (Map.Entry<UUID, Map<String, BukkitTask>> playerEntry : tasks.entrySet()) {
+            UUID playerId = playerEntry.getKey();
+            Map<String, BukkitTask> byAbility = playerEntry.getValue();
+
+            for (Map.Entry<String, BukkitTask> taskEntry : byAbility.entrySet()) {
+                String abilityId = taskEntry.getKey();
+                BukkitTask task = taskEntry.getValue();
+                boolean cancelled = false;
+
+                try {
+                    task.cancel();
+                    cancelled = task.isCancelled();
+                    if (!cancelled) {
+                        failure = appendCancellationFailure(
+                                failure, new IllegalStateException("Задача уведомления кулдауна осталась активной"));
+                    }
+                } catch (RuntimeException exception) {
+                    failure = appendCancellationFailure(failure, exception);
+                    try {
+                        cancelled = task.isCancelled();
+                    } catch (RuntimeException statusException) {
+                        failure = appendCancellationFailure(failure, statusException);
+                    }
+                }
+
+                if (cancelled) {
+                    byAbility.remove(abilityId, task);
+                }
+            }
+
+            if (byAbility.isEmpty()) {
+                tasks.remove(playerId, byAbility);
+            }
+        }
+
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    private static RuntimeException appendCancellationFailure(RuntimeException current, RuntimeException next) {
+        if (current == null) {
+            current = new IllegalStateException("Не удалось отменить все задачи уведомлений кулдаунов");
+        }
+        current.addSuppressed(next);
+        return current;
     }
 
     private void writeSection(UUID playerId) {
