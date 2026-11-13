@@ -633,7 +633,7 @@ public final class RaskolClasses extends JavaPlugin {
         }
         if (storageWriter != null && !storageWriter.closeAndAwait(Duration.ofSeconds(10))) {
             getLogger().severe("StorageWriter: очередь не была полностью сброшена при выключении");
-        
+        }
     }
 
     private void registerCommand() {
