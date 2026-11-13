@@ -2,7 +2,7 @@
 
 ## Статус
 
-**Контракты домена реализованы; application service, store и Paper adapter ещё не реализованы.**
+**Domain contracts и in-memory selection store реализованы; application service, policy ports и Paper adapter ещё не реализованы.**
 
 - Repository: `hayferdahmer/RaskolClasses`
 - Branch: `refactor/a03-foundation-lifecycle`
@@ -267,8 +267,16 @@ Do not combine all steps in one commit. Keep the targeting domain independent fr
 
 `TargetDomainContractsTest` покрывает null/invalid input, копирование коллекций, нормализацию здоровья, optional values и различие NONE/UNAVAILABLE. Типы не импортируют Bukkit/Paper API.
 
-Это только доменная основа: TargetSelectionStore, policy ports, TargetingApplicationService, Paper listener и production wiring не добавлены. Maven/Spotless/SpotBugs CI для этих изменений ещё не подтверждён.
+Добавлен `TargetSelectionStore` application port и потокобезопасный `InMemoryTargetSelectionStore` infrastructure adapter на `ConcurrentHashMap`. Хранилище поддерживает поиск по owner UUID, замену selection, удаление одной сессии и очистку всего transient state. `InMemoryTargetSelectionStoreTest` покрывает изоляцию владельцев, replace/remove/clear и null input.
 
-## 13. Decision
+Пока отсутствуют policy ports, TargetingApplicationService, Paper listener и production wiring. Maven/Spotless/SpotBugs CI для этих изменений ещё не подтверждён.
 
-HUD-C.1.5 фиксирует границы Targeting Domain и реализует только immutable value contracts. Следующий независимый срез — in-memory TargetSelectionStore с детерминированными тестами. No command syntax, cycling UX, global glowing outline, persistence or client-mod requirement is approved by this document.
+## 13. HUD-C.1.6 — Selection store implemented
+
+Реализован `TargetSelectionStore` и in-memory adapter. Store индексирует selection по UUID владельца, не сохраняет Bukkit references и не вводит persistent storage. `clear(ownerId)` через `remove` позволяет завершать одну сессию, а `clear()` предназначен только для полного завершения владельца store.
+
+Это независимый инфраструктурный срез. Идемпотентность повторного выбора, policy evaluation и события пока остаются ответственностью будущего application service.
+
+## 14. Decision
+
+HUD-C.1.5/.6 устанавливают immutable domain contracts и эфемерное in-memory хранилище. Следующий срез — TargetingApplicationService и минимальные policy ports с unit-тестами. No command syntax, cycling UX, global glowing outline, persistence or client-mod requirement is approved by this document.
