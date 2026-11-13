@@ -25,9 +25,7 @@ public final class PaperFoliantRuntimeScheduler implements FoliantRuntimeSchedul
         if (periodTicks <= 0) {
             throw new IllegalArgumentException("periodTicks должен быть положительным");
         }
-        BukkitTask task = plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(plugin, flushAction, periodTicks, periodTicks);
+        BukkitTask task = plugin.getServer().getScheduler().runTaskTimer(plugin, flushAction, periodTicks, periodTicks);
         return new PaperTaskHandle(task);
     }
 

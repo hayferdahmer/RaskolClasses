@@ -94,5 +94,4 @@ public final class HpAttributeSync implements Listener {
     public void onRespawn(PlayerRespawnEvent event) {
         Bukkit.getScheduler().runTaskLater(plugin, () -> sync(event.getPlayer()), 2L);
     }
-
 }

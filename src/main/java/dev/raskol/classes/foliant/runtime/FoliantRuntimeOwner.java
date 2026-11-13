@@ -26,9 +26,7 @@ public final class FoliantRuntimeOwner implements AutoCloseable {
     private boolean closed;
 
     public FoliantRuntimeOwner(
-            FoliantRuntimeRegistration registration,
-            FoliantRuntimeScheduler scheduler,
-            long periodTicks) {
+            FoliantRuntimeRegistration registration, FoliantRuntimeScheduler scheduler, long periodTicks) {
         this.registration = Objects.requireNonNull(registration, "registration");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         if (periodTicks <= 0) {

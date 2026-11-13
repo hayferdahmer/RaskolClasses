@@ -59,10 +59,13 @@ class FoliantRuntimeOwnerTest {
     @Test
     void schedulingFailureRollsBackListenerRegistration() {
         List<String> calls = new ArrayList<>();
-        FoliantRuntimeOwner owner = new FoliantRuntimeOwner(registration(calls), period -> {
-            calls.add("schedule");
-            throw new IllegalStateException("schedule failed");
-        }, 1200L);
+        FoliantRuntimeOwner owner = new FoliantRuntimeOwner(
+                registration(calls),
+                period -> {
+                    calls.add("schedule");
+                    throw new IllegalStateException("schedule failed");
+                },
+                1200L);
 
         assertThrows(IllegalStateException.class, owner::start);
 
@@ -110,10 +113,13 @@ class FoliantRuntimeOwnerTest {
                 }
             }
         };
-        FoliantRuntimeOwner owner = new FoliantRuntimeOwner(registration, period -> {
-            calls.add("schedule");
-            return new FakeTask(calls);
-        }, 1200L);
+        FoliantRuntimeOwner owner = new FoliantRuntimeOwner(
+                registration,
+                period -> {
+                    calls.add("schedule");
+                    return new FakeTask(calls);
+                },
+                1200L);
 
         owner.start();
         assertThrows(IllegalStateException.class, owner::close);
@@ -139,10 +145,13 @@ class FoliantRuntimeOwnerTest {
                 calls.add("unregister");
             }
         };
-        FoliantRuntimeOwner owner = new FoliantRuntimeOwner(registration, period -> {
-            calls.add("schedule");
-            return new FakeTask(calls);
-        }, 1200L);
+        FoliantRuntimeOwner owner = new FoliantRuntimeOwner(
+                registration,
+                period -> {
+                    calls.add("schedule");
+                    return new FakeTask(calls);
+                },
+                1200L);
 
         assertThrows(IllegalStateException.class, owner::start);
         assertEquals(List.of("register", "unregister"), calls);
@@ -168,10 +177,13 @@ class FoliantRuntimeOwnerTest {
     }
 
     private static FoliantRuntimeOwner owner(List<String> calls, FakeTask task) {
-        return new FoliantRuntimeOwner(registration(calls), period -> {
-            calls.add("schedule");
-            return task;
-        }, 1200L);
+        return new FoliantRuntimeOwner(
+                registration(calls),
+                period -> {
+                    calls.add("schedule");
+                    return task;
+                },
+                1200L);
     }
 
     private static FoliantRuntimeRegistration registration(List<String> calls) {

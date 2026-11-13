@@ -21,9 +21,7 @@ public final class HpAttributeSyncRuntimeOwner implements AutoCloseable {
     private boolean closed;
 
     public HpAttributeSyncRuntimeOwner(
-            HpAttributeSyncRegistration registration,
-            HpAttributeSyncScheduler scheduler,
-            long periodTicks) {
+            HpAttributeSyncRegistration registration, HpAttributeSyncScheduler scheduler, long periodTicks) {
         this.registration = Objects.requireNonNull(registration, "registration");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         if (periodTicks <= 0) {

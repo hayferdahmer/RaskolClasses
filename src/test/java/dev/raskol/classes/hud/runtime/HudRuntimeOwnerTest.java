@@ -78,8 +78,7 @@ class HudRuntimeOwnerTest {
         FakeScheduler scheduler = new FakeScheduler();
         RecordingCleanup cleanup = new RecordingCleanup();
         cleanup.beforeClearAll = () -> assertTrue(scheduler.scheduled.getFirst().cancelled);
-        HudRuntimeOwner owner = owner(
-                scheduler, new FakeSessionEvents(), cleanup, () -> {});
+        HudRuntimeOwner owner = owner(scheduler, new FakeSessionEvents(), cleanup, () -> {});
         owner.register();
         owner.start();
 
@@ -93,8 +92,7 @@ class HudRuntimeOwnerTest {
     @Test
     void cancellationFailureRetainsOwnershipAndPreventsDuplicateStart() {
         FakeScheduler scheduler = new FakeScheduler();
-        HudRuntimeOwner owner = owner(
-                scheduler, new FakeSessionEvents(), new RecordingCleanup(), () -> {});
+        HudRuntimeOwner owner = owner(scheduler, new FakeSessionEvents(), new RecordingCleanup(), () -> {});
         owner.register();
         owner.start();
         scheduler.scheduled.getFirst().failCancelOnce = true;
@@ -195,10 +193,7 @@ class HudRuntimeOwnerTest {
     }
 
     private static HudRuntimeOwner owner(
-            FakeScheduler scheduler,
-            FakeSessionEvents events,
-            RecordingCleanup cleanup,
-            Runnable refreshAction) {
+            FakeScheduler scheduler, FakeSessionEvents events, RecordingCleanup cleanup, Runnable refreshAction) {
         return new HudRuntimeOwner(scheduler, events, cleanup, refreshAction, 0, 20);
     }
 
@@ -208,8 +203,7 @@ class HudRuntimeOwnerTest {
         private boolean failNext;
 
         @Override
-        public TaskHandle scheduleRepeating(
-                Runnable action, long initialDelayTicks, long periodTicks) {
+        public TaskHandle scheduleRepeating(Runnable action, long initialDelayTicks, long periodTicks) {
             if (failNext) {
                 failNext = false;
                 throw new IllegalStateException("Ошибка тестового планировщика");

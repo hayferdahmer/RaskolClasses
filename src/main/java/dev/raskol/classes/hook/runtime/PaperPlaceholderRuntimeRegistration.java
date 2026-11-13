@@ -8,6 +8,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.PlaceholderSnapshotService;
 import dev.raskol.classes.hook.RaskolPlaceholder;
+
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 
 /** Paper/PlaceholderAPI-адаптер двух публичных expansions RASKOL. */

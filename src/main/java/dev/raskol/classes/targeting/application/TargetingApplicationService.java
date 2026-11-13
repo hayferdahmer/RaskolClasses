@@ -66,8 +66,7 @@ public final class TargetingApplicationService {
             throw new IllegalStateException("Clock вернул отрицательное время");
         }
 
-        TargetSelection selection =
-                new TargetSelection(input.actorId(), candidate, selectedAtMillis, input.source());
+        TargetSelection selection = new TargetSelection(input.actorId(), candidate, selectedAtMillis, input.source());
         selectionStore.save(selection);
         return new TargetSelectionOutcome.Selected(selection);
     }

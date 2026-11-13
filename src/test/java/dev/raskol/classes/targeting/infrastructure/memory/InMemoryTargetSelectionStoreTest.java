@@ -86,9 +86,6 @@ class InMemoryTargetSelectionStoreTest {
 
     private static TargetSelection selection(UUID ownerId, UUID targetId, long selectedAtMillis) {
         return new TargetSelection(
-                ownerId,
-                new TargetIdentity(targetId),
-                selectedAtMillis,
-                TargetSelectionSource.ENTITY_RIGHT_CLICK);
+                ownerId, new TargetIdentity(targetId), selectedAtMillis, TargetSelectionSource.ENTITY_RIGHT_CLICK);
     }
 }

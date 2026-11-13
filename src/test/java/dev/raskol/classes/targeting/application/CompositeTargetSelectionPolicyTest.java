@@ -56,7 +56,8 @@ class CompositeTargetSelectionPolicyTest {
 
         assertEquals(
                 TargetSelectionRejectionReason.POLICY_REJECTED,
-                assertInstanceOf(TargetSelectionPolicyResult.Rejected.class, result).reason());
+                assertInstanceOf(TargetSelectionPolicyResult.Rejected.class, result)
+                        .reason());
         assertEquals(0, evaluations.get());
     }
 
@@ -85,7 +86,8 @@ class CompositeTargetSelectionPolicyTest {
 
         assertEquals(
                 TargetSelectionUnavailableReason.POLICY_PROVIDER_UNAVAILABLE,
-                assertInstanceOf(TargetSelectionPolicyResult.Unavailable.class, result).reason());
+                assertInstanceOf(TargetSelectionPolicyResult.Unavailable.class, result)
+                        .reason());
     }
 
     @Test
@@ -112,9 +114,12 @@ class CompositeTargetSelectionPolicyTest {
     void rejectsNullConfigurationAndInput() {
         assertThrows(NullPointerException.class, () -> new CompositeTargetSelectionPolicy(null));
         assertThrows(IllegalArgumentException.class, () -> new CompositeTargetSelectionPolicy(List.of()));
-        assertThrows(NullPointerException.class, () -> new CompositeTargetSelectionPolicy(java.util.Arrays.asList(
-                (TargetSelectionCheck) null)));
-        assertThrows(NullPointerException.class, () -> new CompositeTargetSelectionPolicy(List.of(
-                candidate -> TargetSelectionPolicyResult.accepted())).evaluate(null));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CompositeTargetSelectionPolicy(java.util.Arrays.asList((TargetSelectionCheck) null)));
+        assertThrows(
+                NullPointerException.class,
+                () -> new CompositeTargetSelectionPolicy(List.of(candidate -> TargetSelectionPolicyResult.accepted()))
+                        .evaluate(null));
     }
 }

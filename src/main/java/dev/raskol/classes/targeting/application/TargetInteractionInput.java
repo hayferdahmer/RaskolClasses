@@ -10,10 +10,7 @@ import dev.raskol.classes.targeting.domain.TargetSelectionSource;
 
 /** Bukkit-независимый вход явного взаимодействия для выбора цели. */
 public record TargetInteractionInput(
-        UUID actorId,
-        UUID candidateId,
-        TargetSelectionSource source,
-        TargetInteractionHand hand) {
+        UUID actorId, UUID candidateId, TargetSelectionSource source, TargetInteractionHand hand) {
 
     public TargetInteractionInput {
         Objects.requireNonNull(actorId, "actorId");

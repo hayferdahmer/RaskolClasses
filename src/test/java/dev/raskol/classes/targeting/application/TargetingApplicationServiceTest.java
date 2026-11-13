@@ -47,7 +47,8 @@ class TargetingApplicationServiceTest {
 
         TargetSelectionOutcome outcome = service.select(input(targetId));
 
-        TargetSelection selection = assertInstanceOf(TargetSelectionOutcome.Selected.class, outcome).selection();
+        TargetSelection selection =
+                assertInstanceOf(TargetSelectionOutcome.Selected.class, outcome).selection();
         assertEquals(actorId, selection.ownerId());
         assertEquals(new TargetIdentity(targetId), selection.target());
         assertEquals(1_000L, selection.selectedAtMillis());
@@ -57,15 +58,14 @@ class TargetingApplicationServiceTest {
     @Test
     void repeatedSelectionIsIdempotentAndPreservesTimestamp() {
         UUID targetId = UUID.randomUUID();
-        TargetSelection first = assertInstanceOf(
-                        TargetSelectionOutcome.Selected.class, service.select(input(targetId)))
+        TargetSelection first = assertInstanceOf(TargetSelectionOutcome.Selected.class, service.select(input(targetId)))
                 .selection();
         clock.set(2_000L);
 
         TargetSelectionOutcome repeated = service.select(input(targetId));
 
-        TargetSelection existing =
-                assertInstanceOf(TargetSelectionOutcome.AlreadySelected.class, repeated).selection();
+        TargetSelection existing = assertInstanceOf(TargetSelectionOutcome.AlreadySelected.class, repeated)
+                .selection();
         assertSame(first, existing);
         assertEquals(1_000L, existing.selectedAtMillis());
         assertTrue(store.findByOwner(actorId).isPresent());
@@ -103,7 +103,9 @@ class TargetingApplicationServiceTest {
         TargetSelectionOutcome outcome = rejectingService.select(input(UUID.randomUUID()));
 
         assertInstanceOf(TargetSelectionOutcome.Rejected.class, outcome);
-        assertEquals(new TargetIdentity(currentTarget), service.selectedTargetOf(actorId).orElseThrow().target());
+        assertEquals(
+                new TargetIdentity(currentTarget),
+                service.selectedTargetOf(actorId).orElseThrow().target());
     }
 
     @Test
@@ -119,7 +121,9 @@ class TargetingApplicationServiceTest {
         TargetSelectionOutcome outcome = unavailableService.select(input(UUID.randomUUID()));
 
         assertInstanceOf(TargetSelectionOutcome.Unavailable.class, outcome);
-        assertEquals(new TargetIdentity(currentTarget), service.selectedTargetOf(actorId).orElseThrow().target());
+        assertEquals(
+                new TargetIdentity(currentTarget),
+                service.selectedTargetOf(actorId).orElseThrow().target());
     }
 
     @Test
@@ -149,18 +153,15 @@ class TargetingApplicationServiceTest {
         TargetSelectionOutcome offHandResult = service.select(offHand);
         assertEquals(
                 TargetSelectionRejectionReason.OFF_HAND_NOT_SUPPORTED,
-                assertInstanceOf(TargetSelectionOutcome.Rejected.class, offHandResult).reason());
-
+                assertInstanceOf(TargetSelectionOutcome.Rejected.class, offHandResult)
+                        .reason());
     }
 
     @Test
     void clearAndEndSessionOnlyAffectRequestedOwner() {
         UUID otherOwner = UUID.randomUUID();
         TargetSelection other = new TargetSelection(
-                otherOwner,
-                new TargetIdentity(UUID.randomUUID()),
-                1_000L,
-                TargetSelectionSource.ENTITY_RIGHT_CLICK);
+                otherOwner, new TargetIdentity(UUID.randomUUID()), 1_000L, TargetSelectionSource.ENTITY_RIGHT_CLICK);
         store.save(other);
         service.select(input(UUID.randomUUID()));
 
@@ -174,8 +175,7 @@ class TargetingApplicationServiceTest {
 
     @Test
     void rejectsNegativeClockValueWithoutSavingSelection() {
-        TargetingApplicationService invalidClockService =
-                new TargetingApplicationService(store, policy, () -> -1L);
+        TargetingApplicationService invalidClockService = new TargetingApplicationService(store, policy, () -> -1L);
 
         assertThrows(IllegalStateException.class, () -> invalidClockService.select(input(UUID.randomUUID())));
         assertTrue(service.selectedTargetOf(actorId).isEmpty());
@@ -183,15 +183,9 @@ class TargetingApplicationServiceTest {
 
     @Test
     void rejectsNullServiceDependenciesAndCommands() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new TargetingApplicationService(null, policy, clock::get));
-        assertThrows(
-                NullPointerException.class,
-                () -> new TargetingApplicationService(store, null, clock::get));
-        assertThrows(
-                NullPointerException.class,
-                () -> new TargetingApplicationService(store, policy, null));
+        assertThrows(NullPointerException.class, () -> new TargetingApplicationService(null, policy, clock::get));
+        assertThrows(NullPointerException.class, () -> new TargetingApplicationService(store, null, clock::get));
+        assertThrows(NullPointerException.class, () -> new TargetingApplicationService(store, policy, null));
         assertThrows(NullPointerException.class, () -> service.select(null));
         assertThrows(NullPointerException.class, () -> service.clear(null));
         assertThrows(NullPointerException.class, () -> service.selectedTargetOf(null));

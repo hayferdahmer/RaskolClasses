@@ -58,8 +58,7 @@ public final class HudRuntimeOwner implements AutoCloseable {
         }
 
         HudRegistration registration =
-                Objects.requireNonNull(
-                        sessionEvents.onQuit(outputCleanup::clearPlayer), "session registration");
+                Objects.requireNonNull(sessionEvents.onQuit(outputCleanup::clearPlayer), "session registration");
         sessionRegistration = registration;
         registered = true;
     }
@@ -78,10 +77,8 @@ public final class HudRuntimeOwner implements AutoCloseable {
         }
 
         try {
-            TaskHandle task =
-                    Objects.requireNonNull(
-                            scheduler.scheduleRepeating(refreshAction, initialDelayTicks, periodTicks),
-                            "scheduled HUD task");
+            TaskHandle task = Objects.requireNonNull(
+                    scheduler.scheduleRepeating(refreshAction, initialDelayTicks, periodTicks), "scheduled HUD task");
             tasks.register(task);
             started = true;
         } catch (RuntimeException failure) {

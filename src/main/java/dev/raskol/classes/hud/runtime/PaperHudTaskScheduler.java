@@ -29,9 +29,7 @@ public final class PaperHudTaskScheduler implements HudTaskScheduler {
         }
 
         BukkitTask task =
-                plugin.getServer()
-                        .getScheduler()
-                        .runTaskTimer(plugin, action, initialDelayTicks, periodTicks);
+                plugin.getServer().getScheduler().runTaskTimer(plugin, action, initialDelayTicks, periodTicks);
         return new PaperTaskHandle(task);
     }
 

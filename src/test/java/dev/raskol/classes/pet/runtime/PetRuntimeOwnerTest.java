@@ -53,15 +53,7 @@ class PetRuntimeOwnerTest {
         owner.stop();
 
         assertEquals(
-                List.of(
-                        "register",
-                        "tick",
-                        "orphan",
-                        "despawn",
-                        "cancel-tick",
-                        "cancel-orphan",
-                        "unregister"),
-                calls);
+                List.of("register", "tick", "orphan", "despawn", "cancel-tick", "cancel-orphan", "unregister"), calls);
         assertTrue(owner.isClosed());
         assertEquals(0, owner.ownedTaskCount());
     }
@@ -106,13 +98,10 @@ class PetRuntimeOwnerTest {
     @Test
     void failedDespawnDoesNotPreventTaskCancellationOrListenerUnregistration() {
         List<String> calls = new ArrayList<>();
-        PetRuntimeOwner owner = new PetRuntimeOwner(
-                registration(calls),
-                new FakeTaskScheduler(calls),
-                () -> {
-                    calls.add("despawn");
-                    throw new IllegalStateException("despawn failed");
-                });
+        PetRuntimeOwner owner = new PetRuntimeOwner(registration(calls), new FakeTaskScheduler(calls), () -> {
+            calls.add("despawn");
+            throw new IllegalStateException("despawn failed");
+        });
 
         owner.start();
 
@@ -151,8 +140,8 @@ class PetRuntimeOwnerTest {
                 calls.add("unregister");
             }
         };
-        PetRuntimeOwner owner = new PetRuntimeOwner(
-                registration, new FakeTaskScheduler(calls), () -> calls.add("despawn"));
+        PetRuntimeOwner owner =
+                new PetRuntimeOwner(registration, new FakeTaskScheduler(calls), () -> calls.add("despawn"));
 
         assertThrows(IllegalStateException.class, owner::start);
 

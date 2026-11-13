@@ -38,9 +38,7 @@ class PlaceholderRuntimeOwnerTest {
         owner.start();
         owner.stop();
 
-        assertEquals(
-                List.of("refresh", "schedule", "register", "cancel", "unregister", "clear"),
-                calls);
+        assertEquals(List.of("refresh", "schedule", "register", "cancel", "unregister", "clear"), calls);
         assertTrue(owner.isClosed());
         assertEquals(0, owner.ownedTaskCount());
     }
@@ -157,10 +155,7 @@ class PlaceholderRuntimeOwnerTest {
 
     private static PlaceholderRuntimeOwner owner(List<String> calls, FakeScheduler scheduler) {
         return new PlaceholderRuntimeOwner(
-                () -> calls.add("refresh"),
-                () -> calls.add("clear"),
-                new FakeRegistration(calls),
-                scheduler);
+                () -> calls.add("refresh"), () -> calls.add("clear"), new FakeRegistration(calls), scheduler);
     }
 
     private static int count(List<String> values, String expected) {

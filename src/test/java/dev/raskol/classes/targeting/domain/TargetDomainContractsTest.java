@@ -35,9 +35,7 @@ class TargetDomainContractsTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new TargetSelection(ownerId, target, -1L, TargetSelectionSource.ENTITY_RIGHT_CLICK));
-        assertThrows(
-                NullPointerException.class,
-                () -> new TargetSelection(ownerId, target, 100L, null));
+        assertThrows(NullPointerException.class, () -> new TargetSelection(ownerId, target, 100L, null));
     }
 
     @Test
@@ -49,8 +47,7 @@ class TargetDomainContractsTest {
         assertEquals(Set.of("elite"), view.statusTags());
         assertEquals(1.0d, view.normalizedHealth().orElseThrow());
         assertThrows(
-                UnsupportedOperationException.class,
-                () -> view.statusTags().add("external"));
+                UnsupportedOperationException.class, () -> view.statusTags().add("external"));
     }
 
     @Test
@@ -70,8 +67,7 @@ class TargetDomainContractsTest {
     @Test
     void targetViewRejectsIncompleteOrInvalidHealth() {
         assertThrows(
-                IllegalArgumentException.class,
-                () -> view(OptionalDouble.of(10.0d), OptionalDouble.empty(), Set.of()));
+                IllegalArgumentException.class, () -> view(OptionalDouble.of(10.0d), OptionalDouble.empty(), Set.of()));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> view(OptionalDouble.of(10.0d), OptionalDouble.of(0.0d), Set.of()));
@@ -111,8 +107,7 @@ class TargetDomainContractsTest {
     @Test
     void readResultDistinguishesNoneAndUnavailable() {
         TargetReadResult none = TargetReadResult.none();
-        TargetReadResult unavailable =
-                TargetReadResult.unavailable(TargetUnavailableReason.TARGET_RESOLUTION_FAILED);
+        TargetReadResult unavailable = TargetReadResult.unavailable(TargetUnavailableReason.TARGET_RESOLUTION_FAILED);
 
         assertTrue(none instanceof TargetReadResult.None);
         assertTrue(unavailable instanceof TargetReadResult.Unavailable);
@@ -127,8 +122,7 @@ class TargetDomainContractsTest {
         assertThrows(NullPointerException.class, () -> TargetReadResult.available(null));
     }
 
-    private static TargetView view(
-            OptionalDouble currentHealth, OptionalDouble maxHealth, Set<String> tags) {
+    private static TargetView view(OptionalDouble currentHealth, OptionalDouble maxHealth, Set<String> tags) {
         return new TargetView(
                 new TargetIdentity(UUID.randomUUID()),
                 TargetCategory.LIVING,

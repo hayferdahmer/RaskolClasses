@@ -15,12 +15,12 @@ import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
-import dev.raskol.classes.ability.runtime.CooldownRuntimeOwner;
-import dev.raskol.classes.ability.runtime.PaperCooldownRuntimeRegistration;
 import dev.raskol.classes.ability.HunterAbilities;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.ability.passive.PassiveListener;
+import dev.raskol.classes.ability.runtime.CooldownRuntimeOwner;
+import dev.raskol.classes.ability.runtime.PaperCooldownRuntimeRegistration;
 import dev.raskol.classes.api.combat.CombatProfileLifecycleListener;
 import dev.raskol.classes.api.combat.CombatProfileRegistry;
 import dev.raskol.classes.api.combat.EntityLevelProvider;
@@ -310,8 +310,8 @@ public final class RaskolClasses extends JavaPlugin {
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
                 raskolConfig.readyNotifyMessage());
-        this.cooldownRuntimeOwner =
-                new CooldownRuntimeOwner(new PaperCooldownRuntimeRegistration(this, cooldowns), cooldowns::cancelAllTasks);
+        this.cooldownRuntimeOwner = new CooldownRuntimeOwner(
+                new PaperCooldownRuntimeRegistration(this, cooldowns), cooldowns::cancelAllTasks);
         this.effects = new ActiveEffectManager(this);
 
         this.abilities = new AbilityRegistry(this);
@@ -401,9 +401,7 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.pets = new PetService(this);
         this.petRuntimeOwner = new PetRuntimeOwner(
-                new PaperPetRuntimeRegistration(this, pets),
-                new PaperPetTaskScheduler(pets),
-                pets::despawnAll);
+                new PaperPetRuntimeRegistration(this, pets), new PaperPetTaskScheduler(pets), pets::despawnAll);
         petRuntimeOwner.start();
     }
 
@@ -448,17 +446,16 @@ public final class RaskolClasses extends JavaPlugin {
                 () -> placeholderSnapshots.refreshOnlinePlayers(this),
                 placeholderSnapshots::clear,
                 new PaperPlaceholderRuntimeRegistration(this, placeholderSnapshots),
-                new PaperPlaceholderRuntimeScheduler(
-                        this, () -> placeholderSnapshots.refreshOnlinePlayers(this)));
+                new PaperPlaceholderRuntimeScheduler(this, () -> placeholderSnapshots.refreshOnlinePlayers(this)));
         try {
             placeholderRuntimeOwner.start();
-            getLogger().info(
-                    "PlaceholderAPI: плейсхолдеры %raskolclasses_*% и %raskolcrown_*% зарегистрированы");
+            getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% и %raskolcrown_*% зарегистрированы");
         } catch (RuntimeException exception) {
-            getLogger().log(
-                    java.util.logging.Level.WARNING,
-                    "PlaceholderAPI runtime не запущен; интеграция отключена",
-                    exception);
+            getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "PlaceholderAPI runtime не запущен; интеграция отключена",
+                            exception);
         }
     }
 
@@ -599,10 +596,11 @@ public final class RaskolClasses extends JavaPlugin {
                 placeholderRuntimeOwner.close();
                 placeholderRuntimeOwner = null;
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось полностью остановить PlaceholderAPI runtime",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить PlaceholderAPI runtime",
+                                exception);
             }
         }
         placeholderSnapshots = null;
@@ -616,10 +614,11 @@ public final class RaskolClasses extends JavaPlugin {
             try {
                 hpSyncRuntimeOwner.close();
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось полностью остановить HP attribute runtime",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить HP attribute runtime",
+                                exception);
             }
         }
         if (blueprintHook != null) {
@@ -631,20 +630,22 @@ public final class RaskolClasses extends JavaPlugin {
             try {
                 foliantRuntimeOwner.close();
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось полностью остановить Foliant runtime",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить Foliant runtime",
+                                exception);
             }
         }
         if (foliantService != null) {
             try {
                 foliantService.saveLocksIfDirty();
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось поставить финальный снимок Foliant в очередь",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось поставить финальный снимок Foliant в очередь",
+                                exception);
             }
         }
 
@@ -653,7 +654,11 @@ public final class RaskolClasses extends JavaPlugin {
             try {
                 petRuntimeOwner.close();
             } catch (RuntimeException exception) {
-                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить runtime петов", exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить runtime петов",
+                                exception);
             }
         }
 
@@ -682,28 +687,28 @@ public final class RaskolClasses extends JavaPlugin {
             try {
                 cooldownRuntimeOwner.close();
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось полностью остановить cooldown runtime",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить cooldown runtime",
+                                exception);
             }
         }
         if (cooldowns != null) {
             try {
                 cooldowns.saveAll();
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось сохранить кулдауны при выключении",
-                        exception);
+                getLogger()
+                        .log(java.util.logging.Level.SEVERE, "Не удалось сохранить кулдауны при выключении", exception);
             }
             try {
                 cooldowns.clear();
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось полностью очистить runtime кулдаунов",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью очистить runtime кулдаунов",
+                                exception);
             }
         }
         if (classProvider != null) {

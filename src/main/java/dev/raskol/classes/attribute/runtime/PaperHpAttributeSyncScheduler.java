@@ -26,9 +26,8 @@ public final class PaperHpAttributeSyncScheduler implements HpAttributeSyncSched
         if (periodTicks <= 0) {
             throw new IllegalArgumentException("periodTicks должен быть положительным");
         }
-        BukkitTask task = plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(plugin, sync::syncAll, periodTicks, periodTicks);
+        BukkitTask task =
+                plugin.getServer().getScheduler().runTaskTimer(plugin, sync::syncAll, periodTicks, periodTicks);
         return new PaperTaskHandle(task);
     }
 

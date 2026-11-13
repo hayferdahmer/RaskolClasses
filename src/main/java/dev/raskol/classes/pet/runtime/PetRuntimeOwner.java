@@ -25,10 +25,7 @@ public final class PetRuntimeOwner implements AutoCloseable {
     private boolean despawnCompleted;
     private boolean closed;
 
-    public PetRuntimeOwner(
-            PetRuntimeRegistration registration,
-            PetTaskScheduler scheduler,
-            Runnable despawnAll) {
+    public PetRuntimeOwner(PetRuntimeRegistration registration, PetTaskScheduler scheduler, Runnable despawnAll) {
         this.registration = Objects.requireNonNull(registration, "registration");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.despawnAll = Objects.requireNonNull(despawnAll, "despawnAll");

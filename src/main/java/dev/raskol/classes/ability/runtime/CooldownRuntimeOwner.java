@@ -22,12 +22,9 @@ public final class CooldownRuntimeOwner implements AutoCloseable {
     private boolean running;
     private boolean closed;
 
-    public CooldownRuntimeOwner(
-            CooldownRuntimeRegistration registration,
-            Runnable cancelNotificationTasks) {
+    public CooldownRuntimeOwner(CooldownRuntimeRegistration registration, Runnable cancelNotificationTasks) {
         this.registration = Objects.requireNonNull(registration, "registration");
-        this.cancelNotificationTasks =
-                Objects.requireNonNull(cancelNotificationTasks, "cancelNotificationTasks");
+        this.cancelNotificationTasks = Objects.requireNonNull(cancelNotificationTasks, "cancelNotificationTasks");
     }
 
     /** Регистрирует listener ровно один раз. */
