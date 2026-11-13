@@ -122,7 +122,7 @@ HudChannelCoordinator is the only writer for HUD-owned ActionBar/BossBar/Scorebo
 - Resource Pack: optional enhancement only. Without a compatible accepted pack, renderers use semantic text/icon fallback.
 - Legacy BossBarService must not retain a second scheduling loop after migration to channel owner.
 - Existing HudService and HpBarService ActionBar producers require explicit mode arbitration before enabling a new renderer.
-- Target frame consumes a resolved TargetView; channel arbitration does not decide crosshair versus locked target semantics.
+- Target frame consumes a resolved Locked TargetView; channel arbitration does not own target selection. Crosshair movement cannot silently retarget.
 
 ## 7. Failure isolation and diagnostics
 
@@ -196,7 +196,7 @@ Do not combine all slices in one commit. Each slice must be independently review
 
 ## 11. Open decisions and dependencies
 
-1. Target Frame semantics: crosshair target or last explicitly selected/locked target. Resolve before implementing target source.
+1. Target Frame semantics is approved as Locked Target: show the last explicitly selected target; camera/crosshair movement does not retarget. The explicit selection UX is still open and must be owned outside HUD.
 2. External channel conflict policy: coexistence with other plugins' BossBars and whether/when to claim Scoreboard. Until agreed, Scoreboard remains disabled.
 3. Resource Pack delivery details: optional is approved; exact hash/version/URL/prompt/update details are deferred to HUD-D/config.
 4. Legacy source characterization: re-read current feature-branch source and enumerate producers/callers before migration; default-branch code search may be stale.
@@ -204,3 +204,7 @@ Do not combine all slices in one commit. Each slice must be independently review
 ## 12. Decision
 
 HUD-C architecture design is complete enough to begin bounded implementation slice HUD-C.1. This is a design milestone only; no runtime code has been changed by this document.
+
+## 13. H-05 — Locked Target decision
+
+The approved target model is the last explicitly selected/locked entity. HUD does not retarget from crosshair movement. Selection belongs to a separate targeting/application owner and is exposed to HUD through a read-only immutable TargetHudReadPort. The interaction used to select/clear a target remains a separate UX decision; do not invent a client-side keybind or require a client mod.
