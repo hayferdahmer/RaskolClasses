@@ -4,30 +4,42 @@ package dev.raskol.classes.bootstrap.lifecycle;
 
 import java.nio.file.Path;
 import java.util.Objects;
-import java.util.logging.Logger;
 
 /**
  * Неизменяемый технический контекст одного модуля.
  *
  * <p>Контекст намеренно не предоставляет глобальный доступ к игровым сервисам.
- * Межмодульные зависимости передаются через конструкторы и узкие контракты.</p>
+ * Межмодульные зависимости передаются через конструкторы и узкие контракты.
+ * Для логирования используется узкий фасад, не раскрывающий JUL Logger.</p>
  */
-/**
- * Ссылки на Logger и TaskScope намеренно разделяются с владельцем модуля:
- * это сервисные handles, а не изменяемые данные контекста.
- */
-@SuppressWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
-public record ModuleContext(
-        String pluginId,
-        Logger logger,
-        Path dataDirectory,
-        TaskScope taskScope) {
+public final class ModuleContext {
 
-    public ModuleContext {
-        pluginId = requireText(pluginId, "pluginId");
-        Objects.requireNonNull(logger, "logger");
-        Objects.requireNonNull(dataDirectory, "dataDirectory");
-        Objects.requireNonNull(taskScope, "taskScope");
+    private final String pluginId;
+    private final ModuleLogger logger;
+    private final Path dataDirectory;
+    private final TaskScope taskScope;
+
+    public ModuleContext(String pluginId, String loggerName, Path dataDirectory, TaskScope taskScope) {
+        this.pluginId = requireText(pluginId, "pluginId");
+        this.logger = new ModuleLogger(requireText(loggerName, "loggerName"));
+        this.dataDirectory = Objects.requireNonNull(dataDirectory, "dataDirectory");
+        this.taskScope = Objects.requireNonNull(taskScope, "taskScope");
+    }
+
+    public String pluginId() {
+        return pluginId;
+    }
+
+    public ModuleLogger logger() {
+        return logger;
+    }
+
+    public Path dataDirectory() {
+        return dataDirectory;
+    }
+
+    public TaskScope taskScope() {
+        return taskScope;
     }
 
     private static String requireText(String value, String name) {
