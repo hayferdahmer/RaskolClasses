@@ -64,8 +64,14 @@ public final class PaperHudSessionEvents implements HudSessionEvents {
 
         @Override
         public void close() {
-            if (closed.compareAndSet(false, true)) {
+            if (!closed.compareAndSet(false, true)) {
+                return;
+            }
+            try {
                 HandlerList.unregisterAll(listener);
+            } catch (RuntimeException failure) {
+                closed.set(false);
+                throw failure;
             }
         }
     }
