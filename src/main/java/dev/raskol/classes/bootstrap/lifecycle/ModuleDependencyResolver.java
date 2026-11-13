@@ -96,14 +96,52 @@ public final class ModuleDependencyResolver {
         }
 
         if (ordered.size() != byId.size()) {
-            Set<String> cyclic = new TreeSet<>(byId.keySet());
-            for (PluginModule module : ordered) {
-                cyclic.remove(module.id());
-            }
+            Set<String> cyclic = findCycleMembers(dependenciesById);
             throw new IllegalArgumentException("Обнаружен цикл зависимостей модулей: " + cyclic);
         }
 
         return List.copyOf(ordered);
+    }
+
+    private static Set<String> findCycleMembers(Map<String, Set<String>> dependenciesById) {
+        Set<String> visited = new HashSet<>();
+        Set<String> active = new HashSet<>();
+        Set<String> cycleMembers = new TreeSet<>();
+        List<String> path = new ArrayList<>();
+
+        for (String id : new TreeSet<>(dependenciesById.keySet())) {
+            findCycles(id, dependenciesById, visited, active, path, cycleMembers);
+        }
+
+        return cycleMembers;
+    }
+
+    private static void findCycles(
+            String id,
+            Map<String, Set<String>> dependenciesById,
+            Set<String> visited,
+            Set<String> active,
+            List<String> path,
+            Set<String> cycleMembers) {
+        if (visited.contains(id)) {
+            return;
+        }
+
+        visited.add(id);
+        active.add(id);
+        path.add(id);
+
+        for (String dependency : new TreeSet<>(dependenciesById.get(id))) {
+            if (active.contains(dependency)) {
+                int cycleStart = path.indexOf(dependency);
+                cycleMembers.addAll(path.subList(cycleStart, path.size()));
+            } else if (!visited.contains(dependency)) {
+                findCycles(dependency, dependenciesById, visited, active, path, cycleMembers);
+            }
+        }
+
+        path.remove(path.size() - 1);
+        active.remove(id);
     }
 
     private static String requireId(String id) {
