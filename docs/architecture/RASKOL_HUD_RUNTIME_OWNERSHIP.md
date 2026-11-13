@@ -208,3 +208,15 @@ HUD-C architecture design is complete enough to begin bounded implementation sli
 ## 13. H-05 — Locked Target decision
 
 The approved target model is the last explicitly selected/locked entity. HUD does not retarget from crosshair movement. Selection belongs to a separate targeting/application owner and is exposed to HUD through a read-only immutable TargetHudReadPort. The interaction used to select/clear a target remains a separate UX decision; do not invent a client-side keybind or require a client mod.
+
+
+## 14. HUD-C.1 — First runtime seams committed
+
+The initial production-code seam extraction adds four Bukkit-independent contracts under `dev.raskol.classes.hud.runtime`:
+
+- `HudTaskScheduler` — schedules repeating work and returns the existing lifecycle `TaskHandle` abstraction;
+- `HudSessionEvents` — exposes player quit by UUID and returns a closeable `HudRegistration`;
+- `HudRegistration` — idempotent registration handle contract;
+- `HudOutputCleanup` — clears only RaskolHUD-owned per-player or global presentation output.
+
+These interfaces do not register Bukkit listeners, schedule real tasks, change `RaskolClasses.activeTasks`, start renderers or alter legacy output. Concrete Paper adapters and deterministic fakes are intentionally deferred until the coordinator consumes these ports, so tests exercise actual owner behavior rather than test-only implementations. HUD-C.1 remains in progress; next is the coordinator-facing contract and fake scheduler/session/output implementations with focused tests.
