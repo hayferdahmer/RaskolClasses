@@ -296,3 +296,10 @@ The targeting application owner stores only the selected target UUID and minimal
 The HUD consumes an immutable TargetView through a read-only port. Read results distinguish NONE (successful query with no selection) from UNAVAILABLE (provider cannot establish current state). Temporary resolver/integration failure must not silently clear a stored selection; confirmed invalidation does. Optional level/health fields may be unavailable without suppressing an otherwise valid target frame.
 
 This remains a design milestone: no targeting store, application service, Paper interaction listener, target command or production bootstrap wiring was added in HUD-C.1.5.
+
+
+## 19. HUD-C.1.6 — Targeting domain value contracts
+
+The first Bukkit-independent targeting value types are implemented under `dev.raskol.classes.targeting.domain`: `TargetIdentity`, `TargetSelection`, `TargetSelectionSource`, `TargetCategory`, `TargetView`, `TargetReadResult` and `TargetUnavailableReason`. The immutable read model copies status tags, models optional level/health explicitly and distinguishes NONE from UNAVAILABLE.
+
+Focused JUnit coverage is added in `TargetDomainContractsTest`. This is not a runtime targeting implementation: no selection store, policy composition, Paper interaction listener or bootstrap wiring exists yet. Build and static-analysis verification remains pending.
