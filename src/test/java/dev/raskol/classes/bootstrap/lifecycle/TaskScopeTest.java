@@ -33,8 +33,16 @@ class TaskScopeTest {
         TaskScope scope = new TaskScope();
         AtomicInteger cancellations = new AtomicInteger();
 
-        scope.register(() -> {
-            throw new IllegalStateException("ошибка отмены");
+        scope.register(new TaskHandle() {
+            @Override
+            public void cancel() {
+                throw new IllegalStateException("ошибка отмены");
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return false;
+            }
         });
         scope.register(handle(cancellations));
 
