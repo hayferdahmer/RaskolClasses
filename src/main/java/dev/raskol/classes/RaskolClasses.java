@@ -598,6 +598,7 @@ public final class RaskolClasses extends JavaPlugin {
         if (placeholderRuntimeOwner != null) {
             try {
                 placeholderRuntimeOwner.close();
+                placeholderRuntimeOwner = null;
             } catch (RuntimeException exception) {
                 getLogger().log(
                         java.util.logging.Level.SEVERE,
@@ -605,7 +606,6 @@ public final class RaskolClasses extends JavaPlugin {
                         exception);
             }
         }
-        placeholderRuntimeOwner = null;
         placeholderSnapshots = null;
 
         if (runtimeIntegrityRuntimeOwner != null) {
