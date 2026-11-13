@@ -297,3 +297,10 @@ HUD-A/B можно начинать после определения необх
 HUD-B.1 уточнил read contracts и правила snapshot. Отдельно зафиксировано, что текущий CharacterLevelService AuraSkills-backed не может быть источником уровня в 1.16.0, а выбранная target entity не имеет единого владельца в текущем коде. Контракты и поля описаны в [RASKOL_HUD_DATA_CONTRACTS.md](RASKOL_HUD_DATA_CONTRACTS.md).
 
 **Следующий этап:** HUD-B.2 — Snapshot Schema и HUD-B.3 — Widget Contracts. Runtime implementation пока не начиналась.
+
+
+## 14. HUD-B.2/B.3 — Snapshot и widget contracts
+
+Предложена единая immutable схема PlayerHudSnapshot с явными DataStatus, typed views для Character/Health/Resource/Attributes/Target/Effects/DoT/Combat/Profile и отдельным каналом одноразовых уведомлений. Виджеты возвращают presentation intents, а единый HudChannelCoordinator управляет конкуренцией ActionBar, BossBar и Scoreboard. Подробная схема, правила неизвестных значений, expiry и канального ownership находятся в [RASKOL_HUD_DATA_CONTRACTS.md](RASKOL_HUD_DATA_CONTRACTS.md).
+
+До окончательного закрытия HUD-B остаются два продуктовых решения с прямым влиянием на виджеты/рендеринг: семантика Target Frame и политика Resource Pack. Также требуется согласовать конфликты Scoreboard/BossBar с внешними плагинами.
