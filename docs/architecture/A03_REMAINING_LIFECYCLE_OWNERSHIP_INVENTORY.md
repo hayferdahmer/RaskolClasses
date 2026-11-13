@@ -17,7 +17,9 @@
 | Runtime RIPS | `RuntimeIntegrityRuntimeOwner` | Отдельный daemon executor, monitor, reporter/state; запускается после успешного startup и закрывается в начале shutdown | Bukkit disable callback остаётся инъекцией из root |
 | Pet runtime | `PetRuntimeOwner` | Listener + два периодических задания; despawn → cancel → unregister; rollback и retry | Реализация и тесты есть; CI #3081 success |
 | HUD runtime | `HudRuntimeOwner` и Paper adapters существуют | Контракт owner, task scheduler/session-event adapters, тесты | Не подключён к production wiring; старые HudService/BossBarService/HpBarService остаются root-owned |
-| HP attribute sync | `HpAttributeSyncRuntimeOwner` | Listener registration + 100-tick sweep; rollback, retryable cancellation/unregistration | Delayed respawn sync остаётся одноразовой задачей без отдельного handle |\n| PlaceholderAPI | `PlaceholderRuntimeOwner` | Пятитиковый snapshot producer + регистрация двух expansions; rollback и retryable cleanup | Snapshot data остаётся в `PlaceholderSnapshotService`; Paper adapter владеет expansion instances |
+| HP attribute sync | `HpAttributeSyncRuntimeOwner` | Listener registration + 100-tick sweep; rollback, retryable cancellation/unregistration | Delayed respawn sync остаётся одноразовой задачей без отдельного handle |
+| PlaceholderAPI | `PlaceholderRuntimeOwner` | Пятитиковый snapshot producer + регистрация двух expansions; rollback и retryable cleanup | Snapshot data остаётся в `PlaceholderSnapshotService`; Paper adapter владеет expansion instances |
+| Crown flavor | `FlavorRuntimeOwner` | Listener registration + 40-tick aura producer; rollback и retryable cancellation/unregistration | `CrownFlavorService` сохраняет faction/title lookup и aura tick logic |
 
 Важно: наличие owner-класса не означает, что production lifecycle уже переведён на него.
 
@@ -33,7 +35,7 @@
 | HP bar tick | `hpBarService.start()` | `activeTasks` | HP runtime/UI и часть HP domain; сам сервис также Listener и владелец health persistence |
 | Resource tick | `resources.startTickTask(this)` | `activeTasks` | Resource runtime; сервис также Listener и хранит изменяемое состояние |
 | BossBar tick | `bossBars.start()` | `activeTasks` + внутренняя ссылка `task` в сервисе | BossBar rendering; `applyConfig()` выполняет shutdown/start |
-| Flavor aura | `flavorService.startAuraTask()` | `activeTasks` | Периодический визуальный эффект; listener зарегистрирован отдельно |
+| Flavor aura | `FlavorRuntimeOwner.start()` | `FlavorRuntimeOwner` / `TaskScope` | Сохраняет исходный 40-tick период; listener регистрируется тем же owner до запуска producer |
 | Installation sweep | `installations.startSweepTask()` | `activeTasks` | Очистка/обслуживание runtime установок; сервис отдельно участвует в gameplay |
 | Scroll cooldown | `new ScrollCooldownTask(this).start()` | `activeTasks` | Отдельный task object теряется после возврата handle; владелец — root |
 | ManaSoaked | `manaSoaked.start()` | `activeTasks` | Периодическая механика combat |
@@ -62,7 +64,7 @@
 - `HpAttributeSync` — поле root; listener регистрируется через `HpAttributeSyncRuntimeOwner`.
 - `Spec2RoleListener` — создаётся inline, явного unregister нет.
 - `PlusSubscription`, `PlusGui` — поля root, Bukkit listeners.
-- `resources`, `effects`, `cooldowns`, `PassiveListener`, `ClassBook.ClickHandler`, `BindListener`, `CrownFlavorService`, `TrailListener`, `InstallBindListener`, `combat`, `combat.vanillaListener()`, `combat.avoidance()`, `HunterAbilities.FanArrowHit`, `ScrollSanitizer`, `HpBarService`, `FxService`, `WarlockAbilities` — зарегистрированы через PluginManager. `FoliantService` listener регистрируется и снимается через `FoliantRuntimeOwner`.
+- `resources`, `effects`, `cooldowns`, `PassiveListener`, `ClassBook.ClickHandler`, `BindListener`, `TrailListener`, `InstallBindListener`, `combat`, `combat.vanillaListener()`, `combat.avoidance()`, `HunterAbilities.FanArrowHit`, `ScrollSanitizer`, `HpBarService`, `FxService`, `WarlockAbilities` — зарегистрированы через PluginManager. `CrownFlavorService` listener регистрируется/снимается через `FlavorRuntimeOwner`; `FoliantService` — через `FoliantRuntimeOwner`.
 - `PassportChangeListener` — собственный reflective registration; root вызывает `unregister()`.
 - `SessionListener` — создаётся локально и регистрируется; отдельного close/unregister нет.
 - Pet listener — теперь зарегистрирован/отменяется через PetRuntimeOwner.
@@ -75,26 +77,27 @@ Bukkit обычно очищает зарегистрированные listener
 - RaskolCore passport event: reflective `registerEvent`; явный `HandlerList.unregisterAll(this)` существует.
 - RaskolEnchant BlueprintHook: текущий код только обнаруживает plugin и логирует; рецепты не регистрирует, `unregisterBlueprints()` пока no-op.
 - PlayerPoints: создаётся wallet adapter или NullWallet; отдельная registration lifecycle в root не видна.
-- Placeholder snapshot service — отдельный task owner внутри сервиса, закрывается root до источников, которые он читает.
+- `PlaceholderSnapshotService` владеет только snapshot data; периодический producer и expansion registrations принадлежат `PlaceholderRuntimeOwner`.
 
 ## 5. Persistence и shutdown ordering
 
 Текущая root последовательность в `shutdownRuntime()`:
 
 1. Close Placeholder runtime (cancel refresh producer → unregister expansions → clear snapshots).
-2. Close RuntimeIntegrityRuntimeOwner.
-3. Close `HpAttributeSyncRuntimeOwner` (cancel sweep → unregister listener).
-4. Unregister blueprint hook (сейчас no-op).
-5. Cancel Warlock channel tasks.
-6. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
-7. `petRuntimeOwner.close()` (despawn → cancel → unregister).
-8. Cancel/clear root `activeTasks`.
-9. `items.stop()`; unregister PassportChangeListener.
-10. `resources.saveAll()`, `hpBarService.saveAll()`, `spec2Storage.save()`.
-11. `installations.shutdown()`, `bossBars.shutdown()`.
-12. Cooldowns: `CooldownRuntimeOwner.close()` (cancel delayed tasks → unregister listener) → `CooldownManager.saveAll()` → `CooldownManager.clear()`.
-13. ClassProvider shutdown; effects clear.
-14. `storageWriter.closeAndAwait(Duration.ofSeconds(10))` — последний infrastructure action.
+2. Close `FlavorRuntimeOwner` (cancel aura producer → unregister CrownFlavorService listener).
+3. Close RuntimeIntegrityRuntimeOwner.
+4. Close `HpAttributeSyncRuntimeOwner` (cancel sweep → unregister listener).
+5. Unregister blueprint hook (сейчас no-op).
+6. Cancel Warlock channel tasks.
+7. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
+8. `petRuntimeOwner.close()` (despawn → cancel → unregister).
+9. Cancel/clear root `activeTasks`.
+10. `items.stop()`; unregister PassportChangeListener.
+11. `resources.saveAll()`, `hpBarService.saveAll()`, `spec2Storage.save()`.
+12. `installations.shutdown()`, `bossBars.shutdown()`.
+13. Cooldowns: `CooldownRuntimeOwner.close()` (cancel delayed tasks → unregister listener) → `CooldownManager.saveAll()` → `CooldownManager.clear()`.
+14. ClassProvider shutdown; effects clear.
+15. `storageWriter.closeAndAwait(Duration.ofSeconds(10))` — последний infrastructure action.
 
 Persistence responsibilities that must remain distinct:
 
@@ -125,9 +128,13 @@ Reason: combines Listener, per-player delayed tasks, mutable cooldown state and 
 
 The asynchronous writer completion callback still schedules a one-shot main-thread acknowledgement with Bukkit. This callback is part of the persistence protocol, not the periodic producer; its cancellation/drain semantics remain an explicit follow-up and must be covered by the storage lifecycle contract.
 
-### P1 — PlaceholderAPI integration lifecycle
+### P1 — PlaceholderAPI integration lifecycle (implemented)
 
-Reason: optional external registration and snapshot refresh task. Explicitly distinguish expansion registration/unregistration from snapshot cache lifecycle. Keep optional failure isolated.
+`PlaceholderRuntimeOwner` coordinates the 5-tick snapshot producer and both optional expansions. `PlaceholderSnapshotService` retains only snapshot data and refresh logic. The owner rolls back partial startup and retries failed task cancellation or expansion unregistration.
+
+### P1 — Crown flavor runtime ownership (implemented)
+
+`FlavorRuntimeOwner` coordinates the `CrownFlavorService` listener and 40-tick aura producer. The service retains faction/title lookup and the actual aura tick logic. Listener registration and producer startup remain separate to preserve root phase ordering; shutdown cancels the producer before unregistering the listener.
 
 ### P2 — Presentation and combat tasks
 
@@ -139,7 +146,7 @@ These callbacks cross multiple domains. Keep root-owned until individual domain 
 
 ## 7. Recommended next slice
 
-The next bounded extraction is **the next remaining runtime owner from the inventory**. PlaceholderAPI lifecycle has been transferred to `PlaceholderRuntimeOwner`; next choose a source-backed task/listener boundary after inspecting its exact startup and shutdown dependencies.
+The next bounded extraction is **a domain-specific presentation/combat runtime owner**. Crown flavor has been transferred to `FlavorRuntimeOwner`; remaining candidates include BossBar, HUD, HP bar, DoT, CC, resources and installations. Avoid combining unrelated state owners.
 
 Do not activate `BootstrapCoordinator` in this slice.
 
@@ -155,6 +162,7 @@ Do not activate `BootstrapCoordinator` in this slice.
 - [x] CooldownManager listener and delayed notification task shutdown coordinated by a dedicated runtime owner.
 - [x] FoliantService listener and periodic lock-flush producer transferred to a dedicated runtime owner.
 - [ ] Every row validated against the owning class implementation before module graph construction.\n- [x] PlaceholderAPI snapshot producer and both expansion registrations transferred to `PlaceholderRuntimeOwner`.
+- [x] Crown flavor listener and 40-tick aura producer transferred to `FlavorRuntimeOwner`.
 
 The unchecked items are deliberate gates: this inventory is sufficient to choose the next bounded extraction, but not yet sufficient to activate the coordinator.
 
@@ -260,3 +268,19 @@ PlaceholderAPI остаётся необязательной интеграци�
 ### SpotBugs note for A-03-003.14
 
 The two expansions intentionally retain the shared PlaceholderSnapshotService dependency to read the published UUID-keyed snapshots. The service is not copied or exposed through a public accessor; it is a lifecycle-managed runtime collaborator. The EI_EXPOSE_REP2 exceptions are therefore limited to the exact `snapshots` fields of `RaskolPlaceholder` and `FlavorPlaceholder`, alongside their existing exact `plugin` field exceptions. No package-wide or pattern-wide SpotBugs suppression was introduced.
+
+
+## 12. A-03-003.15 — CrownFlavorService runtime ownership
+
+Реализация выполнена в ветке `refactor/a03-foundation-lifecycle`.
+
+- `FlavorRuntimeOwner` владеет регистрацией listener `CrownFlavorService` и периодической aura task.
+- `PaperFlavorRuntimeRegistration` регистрирует и снимает только listener королевских вкусов.
+- `PaperFlavorTaskScheduler` создаёт sync Paper task с исходным initial delay и period 40 ticks; handle принадлежит `TaskScope`.
+- `CrownFlavorService` сохраняет faction/title lookup, join-message и particle selection/spawn; метод `tickAura()` выполняет один цикл и не планирует задачи.
+- Root регистрирует listener на прежней фазе `registerGameplayListeners`, а producer запускает на прежней фазе `startRuntimeTasks`.
+- Root больше не помещает aura handle в `activeTasks`; shutdown закрывает owner до остановки остальных игровых сервисов.
+- Startup failure при регистрации или планировании выполняет rollback; shutdown независимо пытается отменить задачу и снять listener, сохраняя retry path при ошибке.
+- Добавлен `FlavorRuntimeOwnerTest` с 8 сценариями: идемпотентность, обязательность регистрации, порядок shutdown, rollback, cancellation retry, unregister retry и close-before-start.
+
+Не менялись фракционные идентификаторы, конфигурационные ключи, particle fallback, координаты/количество частиц, титулы и сообщение при входе. Интервал ауры остаётся 40 ticks.
