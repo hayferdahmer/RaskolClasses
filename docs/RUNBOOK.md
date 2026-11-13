@@ -4,40 +4,57 @@
 
 # Runbook
 
-## 1.15.8. Поддерживаемая конфигурация и проверка целостности
+## 1.15.8. Поддерживаемая конфигурация, выпуск и проверка RIPS
 
-**Конфигурация сервера, проверенная оператором:** Paper 26.2 + Java 25. На ней запускался RaskolClasses 1.15.8, стартовая проверка завершилась `VERIFIED` (`checkedFiles=392`). Это подтверждает запуск конкретного артефакта и стартовую проверку RIPS на данном сервере, но не является исчерпывающим тестированием каждой функции на API Paper 26.2.
+**Подтверждённая production-конфигурация:** Paper 26.2 (серверная сборка `26.2-112-c9e894d`) + Java 25. RaskolClasses 1.15.8 успешно включился на сервере. Стартовая проверка RIPS завершилась `VERIFIED`, проверено `checkedFiles=408`.
 
-**Целевая сборочная конфигурация:** JDK 25, Java release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. CI на этой конфигурации прошёл (Build, Analyze, Spotless и RIPS Security Audit); runtime-регрессия игровых функций на Paper 26.2 остаётся отдельным обязательным этапом до production rollout.
+**Проверка runtime integrity:** через 30 минут после запуска монитор перешёл `NOT_STARTED -> RUNNING -> VERIFIED`. Это подтверждает успешное выполнение повторной проверки целостности на работающем сервере. Это не заменяет отдельное функциональное тестирование каждой игровой механики.
 
-- Для production устанавливается только официальный JAR из GitHub Releases. JAR из обычного `mvn verify` является DEVELOPMENT-сборкой.
-- Официальный JAR должен содержать `META-INF/raskol/build.properties`, `META-INF/raskol/integrity/manifest.rips`, `manifest.sig` и `public-key.txt`. Доверие строится не на одном лишь ключе внутри JAR: runtime verifier использует закреплённый в исходниках trusted-key registry.
-- При успешной стартовой проверке в логе появляется `[RIPS] INFO | VERIFIED`. При отсутствии подписи, ошибке подписи, несовпадении identity или хеша защищённого файла сборка не должна использоваться.
-- Runtime Integrity Monitor выполняет повторную проверку каждые 30 минут. Подтверждённое нарушение целостности приводит к отключению плагина. Временные ошибки обрабатываются политикой последовательных отказов.
+**Целевая сборочная конфигурация:** JDK 25, Java release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. Для проверенного commit CI завершил Build, Analyze и signing-verification успешно; тестовый прогон: 453 теста, 0 failures, 0 errors, 0 skipped. В ручном verification run job публикации Release был пропущен ожидаемо: публикация запускается отдельно по тегу.
+
+### Production installation
+
+- Для production устанавливается только официальный OFFICIAL JAR, сформированный release pipeline. JAR из обычного `mvn verify` является DEVELOPMENT-сборкой и не должен устанавливаться на production.
 - Не включайте `-Draskol.rips.development=true` на production-сервере. Это свойство предназначено только для локального тестирования DEVELOPMENT-сборки.
+- После замены JAR выполните полный перезапуск сервера. Не используйте `/reload` или PlugMan для проверки целостности.
+- Не изменяйте содержимое JAR и встроенные RIPS-ресурсы после подписания.
 
-**При RIPS-ошибке:**
+### Expected RIPS startup and runtime signals
+
+Успешная стартовая проверка:
+
+```text
+[RIPS] INFO | VERIFIED | Artifact signature, build identity, protected files and complete JAR archive were verified successfully. | checkedFiles=408
+```
+
+Монитор сообщает о запуске с интервалом 30 минут, затем о переходе состояния:
+
+```text
+[RIPS] Runtime integrity state changed: NOT_STARTED -> RUNNING
+[RIPS] Runtime integrity state changed: RUNNING -> VERIFIED
+```
+
+Значение `checkedFiles` зависит от состава конкретного официального JAR; сверяйте его с логом соответствующей сборки, не считайте фиксированной константой.
+
+### Release workflow
+
+1. Убедитесь, что проверяется актуальный commit `main` и CI завершился успешно.
+2. При необходимости запустите ручной `signing-verification`, чтобы получить временный OFFICIAL JAR для production smoke test. Этот workflow сам по себе не создаёт тег и не публикует GitHub Release.
+3. Установите временный OFFICIAL JAR на тестовый/production сервер и проверьте стартовый `VERIFIED`, затем дождитесь runtime-перехода в `VERIFIED`.
+4. После подтверждения готовности создайте тег `vX.Y.Z` на проверенном commit. Tag-triggered workflow должен повторно собрать и подписать официальный JAR, выполнить release signing policy и опубликовать GitHub Release.
+5. После завершения workflow проверьте опубликованный JAR, подпись и release assets. Не подменяйте опубликованный файл временным артефактом из ручного workflow.
+
+### При RIPS-ошибке
+
 1. Не пытайтесь обходить проверку и не подменяйте manifest, подпись или trusted public key.
 2. Остановите сервер штатно и сохраните полный фрагмент журнала от начала загрузки RaskolClasses до ошибки.
-3. Сверьте версию и источник JAR. Для production скачивайте артефакт только со страницы [GitHub Releases](https://github.com/hayferdahmer/RaskolClasses/releases).
-4. Повторно скачайте официальный JAR и сравните SHA-256 с опубликованным для соответствующего релиза, если checksum опубликован.
+3. Сверьте версию и источник JAR. Для production используйте только официальный артефакт из GitHub Releases.
+4. Повторно скачайте официальный JAR и сравните SHA-256 с опубликованным checksum, если он доступен.
 5. Если ошибка повторяется, отправьте приватное сообщение через GitHub Security Advisories по инструкции в [SECURITY.md](../SECURITY.md). Не прикладывайте приватные ключи, токены и другие секреты.
 
-**Интерпретация типовых статусов:**
+**Интерпретация:** `VERIFIED` означает успешную проверку подписи, build identity и целостности; `DEVELOPMENT_MODE_REQUIRED` означает, что обнаружена DEVELOPMENT-сборка; отсутствие manifest/signature, недействительная подпись, несовпадение identity или хеша, а также ошибка архива означают, что артефакт нельзя считать доверенным. При неожиданном статусе сохраняйте полный лог и обращайтесь к RIPS Operations.
 
-| Статус | Значение / действие |
-| --- | --- |
-| `VERIFIED` | Подпись, build identity и целостность артефакта прошли проверку. |
-| `DEVELOPMENT_MODE_REQUIRED` | Найдена DEVELOPMENT-сборка без явного разрешения; для production замените её официальным JAR. |
-| `TRUSTED_KEY_UNAVAILABLE` | Реестр доверенных ключей отсутствует или некорректен; не отключайте защиту, передайте лог разработчику. |
-| `MANIFEST_MISSING` / `SIGNATURE_MISSING` | В артефакте отсутствует обязательная метаинформация официальной сборки. |
-| `INVALID_SIGNATURE` / `INVALID_MANIFEST` | Подпись или формат manifest не прошли проверку; считайте артефакт недоверенным. |
-| `BUILD_IDENTITY_MISMATCH` | Версия/идентичность сборки не совпала с подписанными данными. |
-| `PROTECTED_FILE_HASH_MISMATCH` | Содержимое защищённого файла изменилось; проверьте происхождение JAR и целостность файловой системы. |
-| `ARCHIVE_INTEGRITY_FAILURE` | Архив JAR не прошёл проверку структуры или содержимого. |
-
-Ручной workflow signing-verification на ветке `release/1.15.8` создаёт временный OFFICIAL-артефакт для проверки и **не** публикует GitHub Release. Публикация выполняется отдельным tag-triggered workflow после создания тега `vX.Y.Z`.
-
+**Связанные документы:** [RIPS Operations](RIPS-OPERATIONS.md), [Security Policy](../SECURITY.md), [Changelog](../CHANGELOG.md).
 ---
 
 ## 7. Конфиг-карта 1.14.10 (Sprint 7: тестируемость + декомпозиция)
