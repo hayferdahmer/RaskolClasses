@@ -49,6 +49,9 @@ import dev.raskol.classes.config.ConfigValidator;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.flavor.CrownFlavorService;
+import dev.raskol.classes.flavor.runtime.FlavorRuntimeOwner;
+import dev.raskol.classes.flavor.runtime.PaperFlavorRuntimeRegistration;
+import dev.raskol.classes.flavor.runtime.PaperFlavorTaskScheduler;
 import dev.raskol.classes.foliant.FoliantService;
 import dev.raskol.classes.foliant.runtime.FoliantRuntimeOwner;
 import dev.raskol.classes.foliant.runtime.PaperFoliantRuntimeRegistration;
@@ -156,6 +159,7 @@ public final class RaskolClasses extends JavaPlugin {
 
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
+    private FlavorRuntimeOwner flavorRuntimeOwner;
     private PlaceholderSnapshotService placeholderSnapshots;
     private PlaceholderRuntimeOwner placeholderRuntimeOwner;
 
@@ -386,6 +390,9 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
+        this.flavorRuntimeOwner = new FlavorRuntimeOwner(
+                new PaperFlavorRuntimeRegistration(pluginManager, this, flavorService),
+                new PaperFlavorTaskScheduler(this, flavorService::tickAura));
 
         this.installations = new InstallationService(this);
         this.installToken = new InstallToken(this);
@@ -414,7 +421,7 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(passiveListener, this);
         pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
-        pluginManager.registerEvents(flavorService, this);
+        flavorRuntimeOwner.register();
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
@@ -469,7 +476,7 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(hpBarService.start());
         activeTasks.add(resources.startTickTask(this));
         activeTasks.add(bossBars.start());
-        activeTasks.add(flavorService.startAuraTask());
+        flavorRuntimeOwner.start();
         activeTasks.add(installations.startSweepTask());
         activeTasks.add(new ScrollCooldownTask(this).start());
         activeTasks.add(manaSoaked.start());
@@ -604,6 +611,19 @@ public final class RaskolClasses extends JavaPlugin {
             }
         }
         placeholderSnapshots = null;
+
+        if (flavorRuntimeOwner != null) {
+            try {
+                flavorRuntimeOwner.close();
+                flavorRuntimeOwner = null;
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить CrownFlavor runtime",
+                                exception);
+            }
+        }
 
         if (runtimeIntegrityRuntimeOwner != null) {
             runtimeIntegrityRuntimeOwner.close();
