@@ -141,17 +141,23 @@ Introduce one temporary `LegacyRuntimeModule` only if it reduces risk and has a 
 
 If the adapter merely wraps the entire God Object without improving ownership or testability, skip it and proceed to coarse real modules.
 
-### A-03-003.7 — First real module extraction
+### A-03-003.7 — Runtime integrity owner extraction
 
-Extract the lowest-risk, clearly bounded lifecycle owner first (candidate: integrity runtime monitoring or a small presentation/task owner). Preserve all existing service APIs. Introduce a Bukkit `TaskHandle` adapter so module-owned tasks are tracked by `TaskScope`; do not convert every existing `BukkitTask` in one pass.
+Implemented in bounded slices. `RuntimeIntegrityRuntimeOwner` now owns the runtime monitor, dedicated daemon executor, 30-minute interval, state manager and reporter. The Paper-specific failure callback remains injected from `RaskolClasses`.
 
-### A-03-003.8 — Controlled coordinator activation
+The RIPS startup verification and startup-denial gate remain the first operation in `onEnable()`. Runtime monitoring starts only from `finishStartup()`, after gameplay initialization, and closes near the beginning of `shutdownRuntime()`.
 
-Only after characterization tests cover startup, failure rollback and shutdown ordering:
-- create the module graph;
-- activate `BootstrapCoordinator` from `onEnable()`;
+Focused tests cover owner close, close-before-start, repeated close, interval preservation, concurrent starts and cleanup after rejected scheduling. The tests are committed; Maven execution and CI confirmation remain pending. See [A03_RUNTIME_INTEGRITY_OWNER.md](A03_RUNTIME_INTEGRITY_OWNER.md).
+
+### A-03-003.8 — Next: first gameplay module ownership seam
+
+Do not activate the full `BootstrapCoordinator` yet. Select the next bounded gameplay owner only after mapping its service references, task handles, listener registrations, partial-initialization cleanup and shutdown ordering. The next extraction must transfer actual ownership rather than wrap the God Object.
+
+Coordinator activation remains gated on characterization tests for startup, rollback and shutdown ordering:
+- create and validate the real module graph;
+- activate `BootstrapCoordinator` only after module ownership is proven;
 - ensure startup failure triggers deterministic rollback and plugin disable;
-- delegate `onDisable()` to the same coordinator;
+- delegate `onDisable()` only when all critical cleanup paths are represented;
 - retain the RIPS preflight gate outside the gameplay graph;
 - preserve the 10-second storage drain as the final infrastructure shutdown action.
 
