@@ -137,7 +137,7 @@ class PaperHudAdaptersTest {
             return false;
         }
         if (type == char.class) {
-            return '\\0';
+            return '\0';
         }
         if (type == byte.class) {
             return (byte) 0;
