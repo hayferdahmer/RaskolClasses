@@ -9,8 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
@@ -25,7 +28,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
     @Test
     void shouldOwnAndStopItsExecutor() {
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+        CountingExecutor executor = new CountingExecutor();
         RuntimeIntegrityRuntimeOwner owner = owner(executor);
 
         owner.start();
@@ -39,7 +42,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
     @Test
     void closeShouldBeIdempotent() {
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+        CountingExecutor executor = new CountingExecutor();
         RuntimeIntegrityRuntimeOwner owner = owner(executor);
 
         owner.close();
@@ -50,7 +53,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
     @Test
     void shouldRejectStartAfterClose() {
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+        CountingExecutor executor = new CountingExecutor();
         RuntimeIntegrityRuntimeOwner owner = owner(executor);
 
         owner.close();
@@ -60,9 +63,9 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
     @Test
     void shouldKeepTheConfiguredMonitoringInterval() {
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+        CountingExecutor executor = new CountingExecutor();
         RuntimeIntegrityRuntimeOwner owner = new RuntimeIntegrityRuntimeOwner(
-                () -> result(),
+                RuntimeIntegrityRuntimeOwnerTest::result,
                 LOGGER,
                 snapshot -> {},
                 Duration.ofMinutes(30),
@@ -77,31 +80,55 @@ class RuntimeIntegrityRuntimeOwnerTest {
     }
 
     @Test
-    void repeatedStartShouldNotCreateAdditionalExecutors() {
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-        AtomicInteger invocations = new AtomicInteger();
-        RuntimeIntegrityRuntimeOwner owner = new RuntimeIntegrityRuntimeOwner(
-                () -> {
-                    invocations.incrementAndGet();
-                    return result();
-                },
-                LOGGER,
-                snapshot -> {},
-                Duration.ofMinutes(30),
-                executor);
+    void concurrentStartsShouldScheduleOnlyOnePeriodicTask() throws InterruptedException {
+        CountingExecutor executor = new CountingExecutor();
+        RuntimeIntegrityRuntimeOwner owner = owner(executor);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        Runnable startAction = () -> {
+            ready.countDown();
+            try {
+                start.await();
+                owner.start();
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(exception);
+            }
+        };
+
+        Thread first = new Thread(startAction, "rips-owner-start-test-1");
+        Thread second = new Thread(startAction, "rips-owner-start-test-2");
 
         try {
-            owner.start();
-            owner.start();
+            first.start();
+            second.start();
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+            first.join(5000);
+            second.join(5000);
 
-            assertFalse(executor.isShutdown());
-            assertEquals(0, invocations.get());
+            assertFalse(first.isAlive());
+            assertFalse(second.isAlive());
+            assertEquals(1, executor.scheduleCount.get());
         } finally {
+            start.countDown();
             owner.close();
         }
     }
 
-    private static RuntimeIntegrityRuntimeOwner owner(ScheduledExecutorService executor) {
+    @Test
+    void failedStartShouldCloseOwnedExecutor() {
+        RejectingExecutor executor = new RejectingExecutor();
+        RuntimeIntegrityRuntimeOwner owner = owner(executor);
+
+        assertThrows(RejectedExecutionException.class, owner::start);
+
+        assertTrue(executor.isShutdown());
+        assertThrows(IllegalStateException.class, owner::start);
+    }
+
+    private static RuntimeIntegrityRuntimeOwner owner(ScheduledThreadPoolExecutor executor) {
         return new RuntimeIntegrityRuntimeOwner(
                 RuntimeIntegrityRuntimeOwnerTest::result,
                 LOGGER,
@@ -112,5 +139,36 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
     private static IntegrityVerificationResult result() {
         return new IntegrityVerificationResult(IntegrityStatus.VERIFIED, "Runtime owner test", 1, List.of());
+    }
+
+    private static class CountingExecutor extends ScheduledThreadPoolExecutor {
+
+        private final AtomicInteger scheduleCount = new AtomicInteger();
+
+        private CountingExecutor() {
+            super(1);
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleWithFixedDelay(
+                Runnable command,
+                long initialDelay,
+                long delay,
+                TimeUnit unit) {
+            scheduleCount.incrementAndGet();
+            return super.scheduleWithFixedDelay(command, initialDelay, delay, unit);
+        }
+    }
+
+    private static final class RejectingExecutor extends CountingExecutor {
+
+        @Override
+        public ScheduledFuture<?> scheduleWithFixedDelay(
+                Runnable command,
+                long initialDelay,
+                long delay,
+                TimeUnit unit) {
+            throw new RejectedExecutionException("Test rejection");
+        }
     }
 }
