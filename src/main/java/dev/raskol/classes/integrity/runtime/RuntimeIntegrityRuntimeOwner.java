@@ -38,7 +38,7 @@ public final class RuntimeIntegrityRuntimeOwner implements AutoCloseable {
                 logger,
                 failureHandler,
                 DEFAULT_INTERVAL,
-                createExecutor());
+                createExecutorAfterValidation(verificationTask, logger, failureHandler));
     }
 
     RuntimeIntegrityRuntimeOwner(
@@ -73,6 +73,11 @@ public final class RuntimeIntegrityRuntimeOwner implements AutoCloseable {
             monitor.start();
         } catch (RuntimeException exception) {
             startLogged.set(false);
+            try {
+                monitor.close();
+            } catch (RuntimeException cleanupException) {
+                exception.addSuppressed(cleanupException);
+            }
             throw exception;
         }
 
@@ -89,6 +94,16 @@ public final class RuntimeIntegrityRuntimeOwner implements AutoCloseable {
     @Override
     public void close() {
         monitor.close();
+    }
+
+    private static ScheduledExecutorService createExecutorAfterValidation(
+            Supplier<IntegrityVerificationResult> verificationTask,
+            Logger logger,
+            Consumer<RuntimeIntegritySnapshot> failureHandler) {
+        Objects.requireNonNull(verificationTask, "verificationTask");
+        Objects.requireNonNull(logger, "logger");
+        Objects.requireNonNull(failureHandler, "failureHandler");
+        return createExecutor();
     }
 
     private static ScheduledExecutorService createExecutor() {
