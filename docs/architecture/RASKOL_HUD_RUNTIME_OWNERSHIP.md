@@ -10,6 +10,7 @@ Living design and implementation record for HUD-C. The runtime seams and Paper a
 - Parent: [RASKOL_HUD_ARCHITECTURE.md](RASKOL_HUD_ARCHITECTURE.md)
 - Data contracts: [RASKOL_HUD_DATA_CONTRACTS.md](RASKOL_HUD_DATA_CONTRACTS.md)
 - Source inventory: [RASKOL_HUD_SOURCE_INVENTORY.md](RASKOL_HUD_SOURCE_INVENTORY.md)
+- Target interaction spike: [RASKOL_HUD_TARGET_INTERACTION_SPIKE.md](RASKOL_HUD_TARGET_INTERACTION_SPIKE.md)
 
 ## 1. Goals and non-goals
 
@@ -207,7 +208,7 @@ HUD-C architecture design is complete enough to begin bounded implementation sli
 
 ## 13. H-05 — Locked Target decision
 
-The approved target model is the last explicitly selected/locked entity. HUD does not retarget from crosshair movement. Selection belongs to a separate targeting/application owner and is exposed to HUD through a read-only immutable TargetHudReadPort. The interaction used to select/clear a target remains a separate UX decision; do not invent a client-side keybind or require a client mod.
+The approved target model is the last explicitly selected/locked entity. HUD does not retarget from crosshair movement. Selection belongs to a separate targeting/application owner and is exposed to HUD through a read-only immutable TargetHudReadPort. H-06 defines right-click on an eligible entity as the primary selection UX; clearing and cycling remain separate explicit actions. Do not invent a client-side keybind or require a client mod.
 
 
 ## 14. HUD-C.1 — First runtime seams committed
@@ -282,5 +283,5 @@ Verification status:
 
 ## 17. Target interaction decision — H-06
 
-Пользователь выбрал ПКМ по существу как основной UX фиксации цели. Реализация будет отдельным targeting/application компонентом и не входит в HudRuntimeOwner. До реализации нужно проверить Paper event semantics, отменённые события, off-hand, NPC compatibility и PvP/PvE restrictions. HUD получает только read-only TargetView; наведение камеры не меняет locked target.
+Пользователь выбрал ПКМ по допустимому существу как основной UX фиксации цели. HUD-C.1.4 проверил Paper API и выбрал `PlayerInteractAtEntityEvent` с `MONITOR`, `ignoreCancelled = true`, только main hand и без отмены события; подробности и ограничения зафиксированы в [RASKOL_HUD_TARGET_INTERACTION_SPIKE.md](RASKOL_HUD_TARGET_INTERACTION_SPIKE.md). Реальный listener и targeting/application owner ещё не реализованы и не входят в HudRuntimeOwner. HUD получает только read-only TargetView; наведение камеры не меняет locked target. Controlled Paper 26.2 runtime test с NPC-интеграциями остаётся обязательным до активации.
 
