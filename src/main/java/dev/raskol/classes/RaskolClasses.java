@@ -6,7 +6,6 @@ import java.io.File;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.bukkit.command.PluginCommand;
@@ -68,12 +67,9 @@ import dev.raskol.classes.install.InstallationService;
 import dev.raskol.classes.integrity.artifact.ArtifactBoundIntegrityVerifier;
 import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
 import dev.raskol.classes.integrity.policy.RuntimeIntegrityEnforcementPolicy;
-import dev.raskol.classes.integrity.reporting.SecurityReporter;
-import dev.raskol.classes.integrity.runtime.RuntimeIntegrityMonitor;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegrityRuntimeOwner;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegritySnapshot;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityState;
-import dev.raskol.classes.integrity.runtime.RuntimeIntegrityStateManager;
-import dev.raskol.classes.integrity.runtime.RuntimeSecurityReporter;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 import dev.raskol.classes.item.service.ItemSystem;
 import dev.raskol.classes.pet.PetService;
@@ -198,7 +194,7 @@ public final class RaskolClasses extends JavaPlugin {
     private IntegrityVerificationResult integrityVerificationResult;
 
     /** RIPS runtime integrity monitor; started only after successful plugin initialization. */
-    private RuntimeIntegrityMonitor runtimeIntegrityMonitor;
+    private RuntimeIntegrityRuntimeOwner runtimeIntegrityRuntimeOwner;
 
     /** Runtime policy for classifying integrity failures. */
     private final RuntimeIntegrityEnforcementPolicy runtimeIntegrityEnforcementPolicy =
@@ -467,23 +463,11 @@ public final class RaskolClasses extends JavaPlugin {
             return;
         }
 
-        RuntimeSecurityReporter runtimeReporter =
-                new RuntimeSecurityReporter(new SecurityReporter(getLogger()), getLogger());
-
-        this.runtimeIntegrityMonitor = new RuntimeIntegrityMonitor(
+        runtimeIntegrityRuntimeOwner = new RuntimeIntegrityRuntimeOwner(
                 () -> artifactBoundIntegrityVerifier.verify(),
-                Duration.ofMinutes(30),
-                Executors.newSingleThreadScheduledExecutor(runnable -> {
-                    Thread thread = new Thread(runnable, "RaskolClasses-RIPS-Monitor");
-                    thread.setDaemon(true);
-                    return thread;
-                }),
-                new RuntimeIntegrityStateManager(),
-                runtimeReporter,
+                getLogger(),
                 this::handleRuntimeIntegrityFailure);
-
-        runtimeIntegrityMonitor.start();
-        getLogger().info("[RIPS] Artifact-bound runtime integrity monitoring started (interval: 30 minutes)");
+        runtimeIntegrityRuntimeOwner.start();
     }
 
     /**
@@ -577,9 +561,9 @@ public final class RaskolClasses extends JavaPlugin {
             placeholderSnapshots = null;
         }
 
-        if (runtimeIntegrityMonitor != null) {
-            runtimeIntegrityMonitor.close();
-            runtimeIntegrityMonitor = null;
+        if (runtimeIntegrityRuntimeOwner != null) {
+            runtimeIntegrityRuntimeOwner.close();
+            runtimeIntegrityRuntimeOwner = null;
         }
 
         if (hpSync != null) {
