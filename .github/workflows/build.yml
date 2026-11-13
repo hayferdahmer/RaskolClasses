@@ -11,6 +11,9 @@
 #   - private key доступен только signing-verification/release jobs через Environment Secret.
 name: RaskolClasses Build
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [ '**' ]
@@ -82,6 +85,19 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
+
+      # Однократное выравнивание форматирования только для ветки A-03.
+      - name: Apply Spotless formatting (A-03 branch only)
+        if: github.ref == 'refs/heads/refactor/a03-foundation-lifecycle'
+        run: |
+          mvn -Pdev -B spotless:apply
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -- '*.java'
+            git commit -m "style: apply Spotless formatting [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
 
       - name: Build with -Pdev (lint + SpotBugs)
         run: mvn -Pdev -B verify
