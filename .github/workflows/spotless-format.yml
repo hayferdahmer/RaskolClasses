@@ -1,0 +1,60 @@
+# © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+# SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+name: RaskolClasses Spotless Format
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: spotless-format-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: github.ref == 'refs/heads/refactor/a03-foundation-lifecycle'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Guard target branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" != "refs/heads/refactor/a03-foundation-lifecycle" ]]; then
+            echo "This workflow is restricted to refactor/a03-foundation-lifecycle."
+            exit 1
+          fi
+
+      - name: Checkout target branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Apply Spotless formatting
+        run: mvn -Pdev -B spotless:apply
+
+      - name: Commit formatting changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          if git diff --cached --quiet; then
+            echo "No formatting changes were necessary."
+          else
+            git commit -m "style: apply Spotless formatting"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Verify formatted code
+        run: mvn -Pdev -B verify
