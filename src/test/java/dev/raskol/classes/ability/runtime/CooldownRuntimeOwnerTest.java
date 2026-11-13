@@ -29,7 +29,7 @@ class CooldownRuntimeOwnerTest {
     @Test
     void closeCancelsNotificationsBeforeUnregisteringListener() {
         List<String> calls = new ArrayList<>();
-        CooldownRuntimeOwner owner = owner(calls, false);
+        CooldownRuntimeOwner owner = owner(calls);
 
         owner.start();
         owner.close();
@@ -42,7 +42,7 @@ class CooldownRuntimeOwnerTest {
     @Test
     void repeatedCloseDoesNotRepeatSuccessfulCleanup() {
         List<String> calls = new ArrayList<>();
-        CooldownRuntimeOwner owner = owner(calls, false);
+        CooldownRuntimeOwner owner = owner(calls);
 
         owner.start();
         owner.close();
@@ -133,7 +133,7 @@ class CooldownRuntimeOwnerTest {
     @Test
     void closeBeforeStartIsSafeAndPreventsLaterStart() {
         List<String> calls = new ArrayList<>();
-        CooldownRuntimeOwner owner = owner(calls, false);
+        CooldownRuntimeOwner owner = owner(calls);
 
         owner.close();
 
