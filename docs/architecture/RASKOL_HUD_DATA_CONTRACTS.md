@@ -463,3 +463,12 @@ HUD-C реализует единый lifecycle owner, не смешивая е�
 ## 17. HUD-C.1 — Initial runtime seams
 
 В `dev.raskol.classes.hud.runtime` добавлены Bukkit-independent ports: `HudTaskScheduler`, `HudSessionEvents`, `HudRegistration` и `HudOutputCleanup`. Они фиксируют минимальные границы scheduling, quit subscriptions и очистки принадлежащего HUD вывода. Реальные Bukkit adapters, coordinator и тестовые doubles будут добавляться в следующих C.1 подэтапах вместе с потребителями, чтобы тесты проверяли рабочую оркестрацию.
+
+## 18. H-06 — Explicit target selection UX
+
+**Пользователь утвердил основной способ выбора цели: ПКМ по существу.**
+
+Interaction adapter переводит подтверждённое сервером действие в команду выбора для отдельного targeting/application owner. Сам HUD не подписывается на события выбора и не изменяет selection state. Проверки допустимости цели, мира, дистанции, состояния игрока, PvP/PvE правил и совместимости с NPC-плагинами находятся на стороне targeting domain/application.
+
+Не считать любой PlayerInteractEntityEvent безусловным подтверждением выбора: учитывать отмену события, руку, тип сущности и конфликты взаимодействий. Набор событий/адаптеров уточняется в отдельном Paper API spike. TargetView остаётся read-only и immutable.
+
