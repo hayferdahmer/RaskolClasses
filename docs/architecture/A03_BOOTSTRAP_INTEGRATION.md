@@ -39,7 +39,7 @@ The inspected `onEnable()` currently performs these operations in this order:
 14. Construct faction/flavor, installations, foliant and warlock abilities.
 15. Construct pet service, register its listeners, start pet tick and orphan scan tasks.
 16. Register remaining gameplay listeners, passport listener and session listener; reconcile online players.
-17. Register optional PlaceholderAPI snapshots and expansions.
+17. Start PlaceholderRuntimeOwner when PlaceholderAPI is present: initial snapshot, 5-tick refresh producer, then both expansions.
 18. Start HUD/HP/resources/bossbar/flavor/install/scroll/mana/purge/autosave tasks according to configuration.
 19. Register `/rc`, print startup banner and capacity warnings.
 20. Start runtime RIPS monitoring and log successful startup.
@@ -48,7 +48,7 @@ The inspected `onEnable()` currently performs these operations in this order:
 
 The inspected `onDisable()` currently performs these operations:
 
-1. Close and clear Placeholder snapshot service.
+1. Close PlaceholderRuntimeOwner (cancel refresh producer → unregister expansions → clear snapshots).
 2. Stop runtime RIPS monitor.
 3. Stop HP sweep and unregister blueprints.
 4. Cancel Warlock channel tasks.
@@ -123,7 +123,7 @@ The coordinator's shared phases are useful only if the module boundaries respect
 2. All final YAML/PDC-backed snapshots must be captured/submitted before `AsyncStorageWriter.closeAndAwait(Duration.ofSeconds(10))`.
 3. Runtime integrity monitoring must stop before plugin-owned infrastructure is released.
 4. Bukkit tasks must be cancelled before their scheduler/plugin-owned references are released.
-5. Placeholder snapshot service closes before the services it reads.
+5. Placeholder runtime stops before the services it reads; its owner cancels the refresh producer and unregisters both expansions before clearing snapshots.
 6. Blueprint hooks, passport listeners and other external registrations must be unregistered exactly once.
 7. Item system, installations, boss bars, cooldowns, class provider and effects retain their current shutdown semantics until their ownership-specific tests exist.
 8. Shutdown must continue after an individual cleanup failure and report aggregated failures without skipping later cleanup.
@@ -209,3 +209,19 @@ Coordinator activation remains gated on characterization tests for startup, roll
 ## 10. Decision summary
 
 A-03-003.4 establishes the integration contract and migration order. It does not activate `BootstrapCoordinator`. The next implementation unit is A-03-003.5: extract lifecycle seams while preserving the current sequence byte-for-byte in behavior.
+
+
+### A-03-003.14 — PlaceholderAPI runtime ownership (implemented)
+
+PlaceholderRuntimeOwner now coordinates the optional PlaceholderAPI lifecycle. PlaceholderSnapshotService owns only snapshot data and main-thread refresh logic; it no longer owns a BukkitTask. PaperPlaceholderRuntimeScheduler owns the Paper scheduling boundary, while PaperPlaceholderRuntimeRegistration owns both expansion instances and their reversible registration.
+
+The original behavior is preserved:
+- initial snapshot is built immediately;
+- refresh runs every 5 ticks on the server thread;
+- async PlaceholderAPI callbacks read only immutable snapshots by UUID;
+- identifiers, parameters and returned values are unchanged;
+- missing or failed PlaceholderAPI integration does not prevent the core plugin from starting.
+
+Startup rollback cancels a created task, attempts to unregister any expansion registration that may have started, and clears snapshots. Shutdown uses cancel → unregister → clear. Cleanup failures are logged without skipping the remaining root shutdown sequence; the owner reference is retained when cleanup is incomplete so its retry path is not discarded.
+
+Focused tests are added in PlaceholderRuntimeOwnerTest. CI verification is tracked separately and must not be considered complete until the branch workflow finishes successfully.
