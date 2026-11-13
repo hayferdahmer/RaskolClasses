@@ -48,7 +48,7 @@
 
 | Компонент | Источник | Владение и остановка | Замечание |
 |---|---|---|---|
-| Cooldown ready notifications | `CooldownManager.start(...)` | Map задач внутри CooldownManager; cancel при замене, отмене, quit и `cancelAllTasks()` | CooldownManager одновременно Listener, runtime state owner и persistence owner; root регистрирует listener и вызывает cancel/save/clear |
+| Cooldown ready notifications | `CooldownManager.start(...)` | Map задач остаётся внутри CooldownManager; runtime owner вызывает `cancelAllTasks()` при остановке | Listener registration и lifecycle координирует `CooldownRuntimeOwner`; состояние и persistence остаются в CooldownManager |
 | HP async completion callbacks | `HpBarService.saveHealth()` | Writer completion + Bukkit main-thread callback | Это callbacks, не периодический producer; должны завершаться до/в рамках storage drain contract |
 | Foliant async completion / deferred operations | `FoliantService` | Внутри сервиса и общий writer; dirty locks сохраняются root-вызовом | Нужна отдельная проверка каждого deferred callback перед переносом |
 | Warlock channel tasks | `WarlockAbilities` | Статический `cancelAllChannelTasks()` вызывается root | Глобальное/static владение усложняет модульную границу; необходимо инвентаризировать task creation/cancel paths |
@@ -92,7 +92,7 @@ Bukkit обычно очищает зарегистрированные listener
 9. `items.stop()`; unregister PassportChangeListener.
 10. `resources.saveAll()`, `hpBarService.saveAll()`, `spec2Storage.save()`.
 11. `installations.shutdown()`, `bossBars.shutdown()`.
-12. Cooldowns: cancel delayed tasks → saveAll → clear.
+12. Cooldowns: `CooldownRuntimeOwner.close()` (cancel delayed tasks → unregister listener) → `CooldownManager.saveAll()` → `CooldownManager.clear()`.
 13. ClassProvider shutdown; effects clear.
 14. `storageWriter.closeAndAwait(Duration.ofSeconds(10))` — последний infrastructure action.
 
@@ -162,3 +162,34 @@ Do not activate `BootstrapCoordinator` in this slice. Do not combine HpAttribute
 - [ ] Every row validated against the owning class implementation before module graph construction.
 
 The unchecked items are deliberate gates: this inventory is sufficient to choose the next bounded extraction, but not yet sufficient to activate the coordinator.
+
+
+## 9. A-03-003.12 — CooldownManager runtime ownership
+
+Реализация выполнена в ветке `refactor/a03-foundation-lifecycle`.
+
+### Новая граница
+
+- `CooldownRuntimeOwner` координирует регистрацию listener и остановку notification tasks.
+- `PaperCooldownRuntimeRegistration` регистрирует listener через PluginManager и снимает только этот listener через `HandlerList.unregisterAll(listener)`.
+- `CooldownManager` сохраняет владение mutable cooldown state, картой BukkitTask, обработчиками join/quit, YAML snapshot и persistence.
+- Плановый autosave `PluginTasks.startAutosaveTask` не перемещён и по-прежнему вызывает `saveAll()`.
+- Общий `AsyncStorageWriter` остаётся root-owned и закрывается последним.
+
+### Поведение остановки
+
+1. Owner вызывает `CooldownManager.cancelAllTasks()`.
+2. После успешной отмены снимает listener.
+3. Root сохраняет cooldown snapshot.
+4. Root очищает runtime state.
+5. Общий writer закрывается в прежнем месте.
+
+Ошибки отмены задач теперь агрегируются: отмена одной задачи не препятствует попыткам отменить остальные; задачи, отмену которых не удалось подтвердить, остаются в map для повторной попытки. `clear()` сначала требует успешной отмены задач и только затем очищает cooldown state.
+
+Owner независимо пытается снять listener даже при ошибке отмены задач. Неуспешная операция повторяется при следующем `close()`. Root изолирует ошибки cooldown cleanup, чтобы они не пропускали финализацию других сервисов и общего writer.
+
+### Проверки
+
+Добавлен `CooldownRuntimeOwnerTest`: идемпотентный start, порядок cancel → unregister, повторный close, retry после ошибки отмены, retry unregister, rollback частичной регистрации и close-before-start.
+
+Игровая семантика кулдаунов, расчёт времени, уведомления, форматы YAML и порядок autosave не менялись намеренно.
