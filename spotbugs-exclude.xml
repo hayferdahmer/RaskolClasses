@@ -560,6 +560,11 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
+        <Class name="dev.raskol.classes.hook.FlavorPlaceholder"/>
+        <Field name="snapshots"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
         <Class name="dev.raskol.classes.hook.PassportChangeListener"/>
         <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
@@ -572,6 +577,11 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     <Match>
         <Class name="dev.raskol.classes.hook.RaskolPlaceholder"/>
         <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hook.RaskolPlaceholder"/>
+        <Field name="snapshots"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
