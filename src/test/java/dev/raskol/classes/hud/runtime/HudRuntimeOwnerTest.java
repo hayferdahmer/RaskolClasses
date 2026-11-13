@@ -152,6 +152,29 @@ class HudRuntimeOwnerTest {
     }
 
     @Test
+    void closeCanRetryListenerUnregistrationAfterFailure() {
+        FakeScheduler scheduler = new FakeScheduler();
+        FakeSessionEvents events = new FakeSessionEvents();
+        events.failCloseOnce = true;
+        RecordingCleanup cleanup = new RecordingCleanup();
+        HudRuntimeOwner owner = owner(scheduler, events, cleanup, () -> {});
+        owner.register();
+        owner.start();
+
+        assertThrows(IllegalStateException.class, owner::close);
+
+        assertFalse(owner.isClosed());
+        assertTrue(owner.isRegistered());
+        assertThrows(IllegalStateException.class, owner::start);
+
+        owner.close();
+
+        assertTrue(owner.isClosed());
+        assertFalse(owner.isRegistered());
+        assertEquals(2, events.closeCalls);
+    }
+
+    @Test
     void rejectsInvalidScheduleIntervals() {
         FakeScheduler scheduler = new FakeScheduler();
         FakeSessionEvents events = new FakeSessionEvents();
@@ -228,6 +251,7 @@ class HudRuntimeOwnerTest {
         private java.util.function.Consumer<UUID> quitHandler;
         private int registrations;
         private int closeCalls;
+        private boolean failCloseOnce;
 
         @Override
         public HudRegistration onQuit(java.util.function.Consumer<UUID> handler) {
@@ -235,6 +259,10 @@ class HudRuntimeOwnerTest {
             quitHandler = handler;
             AtomicReference<Boolean> registrationClosed = new AtomicReference<>(false);
             return () -> {
+                if (failCloseOnce) {
+                    failCloseOnce = false;
+                    throw new IllegalStateException("Временная ошибка снятия listener");
+                }
                 if (!registrationClosed.getAndSet(true)) {
                     closeCalls++;
                     quitHandler = null;
