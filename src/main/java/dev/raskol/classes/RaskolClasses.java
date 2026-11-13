@@ -59,7 +59,6 @@ import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.gui.PlusGui;
 import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
-import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.hook.PlaceholderSnapshotService;
 import dev.raskol.classes.hook.runtime.PaperPlaceholderRuntimeRegistration;
