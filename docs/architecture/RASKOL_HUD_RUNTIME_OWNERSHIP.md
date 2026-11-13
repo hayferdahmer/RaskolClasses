@@ -220,3 +220,37 @@ The initial production-code seam extraction adds four Bukkit-independent contrac
 - `HudOutputCleanup` — clears only RaskolHUD-owned per-player or global presentation output.
 
 These interfaces do not register Bukkit listeners, schedule real tasks, change `RaskolClasses.activeTasks`, start renderers or alter legacy output. Concrete Paper adapters and deterministic fakes are intentionally deferred until the coordinator consumes these ports, so tests exercise actual owner behavior rather than test-only implementations. HUD-C.1 remains in progress; next is the coordinator-facing contract and fake scheduler/session/output implementations with focused tests.
+
+
+## 15. HUD-C.1.2 — Runtime owner and deterministic tests
+
+The first consumer of the HUD runtime ports is implemented as `HudRuntimeOwner`.
+
+Responsibilities:
+- registers exactly one quit subscription and clears only the departing player's HUD-owned output;
+- requires successful registration before starting scheduled work;
+- owns one repeating refresh task through `TaskScope`;
+- treats repeated register/start/close calls idempotently;
+- cancels the refresh producer before clearing all HUD-owned output;
+- rolls back task ownership and clears partial output when scheduling fails;
+- continues unregistration and task-scope closure when output cleanup reports an error;
+- validates non-negative initial delay and strictly positive period;
+- does not depend on Bukkit, mutate gameplay state, or own shared storage.
+
+Deterministic tests use local fake implementations of `HudTaskScheduler`, `HudSessionEvents`, and `HudOutputCleanup`. They exercise the actual owner rather than testing the fakes in isolation.
+
+Coverage added:
+- idempotent registration and start;
+- quit event delegates per-player cleanup;
+- start-before-register rejection;
+- scheduling failure rollback and retry;
+- producer cancellation precedes global output cleanup;
+- idempotent close and listener unregistration;
+- cleanup failure does not skip listener unregistration;
+- invalid scheduling interval rejection.
+
+Implementation files:
+- `src/main/java/dev/raskol/classes/hud/runtime/HudRuntimeOwner.java`
+- `src/test/java/dev/raskol/classes/hud/runtime/HudRuntimeOwnerTest.java`
+
+This slice does not wire a Paper listener or scheduler adapter into `RaskolClasses`, does not move legacy HudService/BossBarService tasks out of `activeTasks`, and does not change ActionBar/BossBar output. Maven/Spotless/SpotBugs verification is pending; the presence of tests is not evidence that they have passed.
