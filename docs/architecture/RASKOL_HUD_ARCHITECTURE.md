@@ -307,7 +307,7 @@ HUD-B.1 уточнил read contracts и правила snapshot. Отдельн
 
 Решение H-04 по Resource Pack принято: `optional`. Оно добавлено в таблицу решений и раздел 5. Политика fallback обязательна: все важные данные остаются читаемыми через стандартные серверные каналы без клиентского пакета.
 
-Открытыми остаются семантика Target Frame и политика конфликтов Scoreboard/BossBar с внешними плагинами. Они не блокируют проектирование общего runtime owner.
+Открытой остаётся политика конфликтов Scoreboard/BossBar с внешними плагинами. Target Frame semantics утверждена как Locked Target. Они не блокируют проектирование общего runtime owner.
 
 
 ## 15. H-04 — Resource Pack policy
@@ -324,4 +324,14 @@ HUD-B.1 уточнил read contracts и правила snapshot. Отдельн
 
 HUD-B.1–B.3: read contracts, immutable snapshot, widget intents и channel ownership описаны. H-04 принят. HUD-C runtime ownership design вынесен в [RASKOL_HUD_RUNTIME_OWNERSHIP.md](RASKOL_HUD_RUNTIME_OWNERSHIP.md).
 
-До реализации остаются: Target Frame semantics, внешняя Scoreboard/BossBar compatibility policy и source-level characterization текущих задач/listeners. Runtime-код на этом этапе не менялся.
+До реализации остаются: UX-механизм явного выбора цели, внешняя Scoreboard/BossBar compatibility policy и source-level characterization текущих задач/listeners. Runtime-код на этом этапе не менялся.
+
+
+## 17. H-05 — Target Frame semantics
+
+**Принято пользователем: вариант 2 — Locked Target.**
+
+Target Frame показывает последнюю явно выбранную/зафиксированную игроком цель, а не сущность под прицелом в текущий момент. Наведение камеры на другую сущность само по себе не переключает цель. Цель сохраняется до явного переключения/снятия выбора либо до автоматической инвалидизации (сущность больше не существует/не доступна по правилам мира, игрок вышел или сессия завершена). Точный способ выбора цели (команда, GUI, keybind через поддерживаемый клиентский механизм или иной серверный UX) пока не утверждён. Не предполагать наличие client-side keybind без клиентского мода.
+
+Целевой selection state должен иметь отдельного владельца в targeting/application domain; RaskolHUD только читает TargetHudReadPort и не реализует выбор/блокировку цели внутри renderer. Crosshair/raycast target может использоваться как вспомогательный preview в будущем, но не заменяет locked target и не меняет его автоматически.
+
