@@ -17,6 +17,7 @@
 | Runtime RIPS | `RuntimeIntegrityRuntimeOwner` | Отдельный daemon executor, monitor, reporter/state; запускается после успешного startup и закрывается в начале shutdown | Bukkit disable callback остаётся инъекцией из root |
 | Pet runtime | `PetRuntimeOwner` | Listener + два периодических задания; despawn → cancel → unregister; rollback и retry | Реализация и тесты есть; CI #3081 success |
 | HUD runtime | `HudRuntimeOwner` и Paper adapters существуют | Контракт owner, task scheduler/session-event adapters, тесты | Не подключён к production wiring; старые HudService/BossBarService/HpBarService остаются root-owned |
+| HP attribute sync | `HpAttributeSyncRuntimeOwner` | Listener registration + 100-tick sweep; rollback, retryable cancellation/unregistration | Delayed respawn sync остаётся одноразовой задачей без отдельного handle |
 
 Важно: наличие owner-класса не означает, что production lifecycle уже переведён на него.
 
@@ -41,7 +42,7 @@
 | Foliant lock flush | `foliantService.startLockFlushTask()` в `initializeCoreServices` | `activeTasks` | Task создаётся раньше общей фазы start; FoliantService также Listener и владелец dirty lock persistence |
 | Pet tick + orphan scan | `PetRuntimeOwner.start()` | `PetRuntimeOwner` / `TaskScope` | Уже выведены из root списка |
 
-Отдельный task, не находящийся в `activeTasks`: `HpAttributeSync.startSweep(100L)`; его handle хранит сам `HpAttributeSync`, а root напрямую вызывает `stopSweep()`.
+`HpAttributeSync` больше не хранит sweep handle: его периодическая задача создаётся через `PaperHpAttributeSyncScheduler` и принадлежит `HpAttributeSyncRuntimeOwner`. Отложенная задача respawn (2 ticks) остаётся внутренней одноразовой задачей Bukkit scheduler без отдельного cancellation handle; это явно оставлено за пределами текущего среза.
 
 ## 3. Внутренние / одноразовые задачи
 
@@ -58,7 +59,7 @@
 ### Прямые регистрации в initialize / registerGameplayListeners
 
 - `CombatProfileLifecycleListener` — создаётся inline, ссылка не сохраняется; явного unregister в root нет.
-- `HpAttributeSync` — поле root, listener + sweep task.
+- `HpAttributeSync` — поле root; listener регистрируется через `HpAttributeSyncRuntimeOwner`.
 - `Spec2RoleListener` — создаётся inline, явного unregister нет.
 - `PlusSubscription`, `PlusGui` — поля root, Bukkit listeners.
 - `resources`, `effects`, `cooldowns`, `PassiveListener`, `ClassBook.ClickHandler`, `BindListener`, `CrownFlavorService`, `TrailListener`, `InstallBindListener`, `combat`, `combat.vanillaListener()`, `combat.avoidance()`, `HunterAbilities.FanArrowHit`, `ScrollSanitizer`, `HpBarService`, `FxService`, `FoliantService`, `WarlockAbilities` — зарегистрированы через PluginManager.
@@ -82,7 +83,7 @@ Bukkit обычно очищает зарегистрированные listener
 
 1. Close Placeholder snapshots.
 2. Close RuntimeIntegrityRuntimeOwner.
-3. Stop HP sweep.
+3. Close `HpAttributeSyncRuntimeOwner` (cancel sweep → unregister listener).
 4. Unregister blueprint hook (сейчас no-op).
 5. Cancel Warlock channel tasks.
 6. `foliantService.saveLocksIfDirty()`.
@@ -110,9 +111,9 @@ The existing shutdown sequence is not failure-isolated end-to-end: most cleanup 
 
 ## 6. Priority assessment
 
-### P0 — HpAttributeSync lifecycle boundary
+### P0 — HpAttributeSync lifecycle boundary (implemented; verification pending)
 
-Reason: one object currently combines Bukkit listener, periodic sweep, delayed join task and root-managed stop. It is small (115 lines) and has a narrow contract. First candidate for a bounded owner extraction after tests characterize: listener registration, 100-tick sweep, idempotent start/stop, join delayed sync behavior, cleanup on partial startup.
+`HpAttributeSyncRuntimeOwner` now owns listener registration and the 100-tick sweep through narrow registration/scheduler ports and Paper adapters. `HpAttributeSync` retains sync logic and join/respawn behavior. The owner supports startup rollback, idempotent close and retry after cancellation/unregistration failures. The delayed respawn one-shot (2 ticks) remains unowned and is a follow-up. Focused tests are authored; CI verification is pending.
 
 ### P1 — CooldownManager runtime ownership
 
@@ -136,7 +137,7 @@ These callbacks cross multiple domains. Keep root-owned until individual domain 
 
 ## 7. Recommended next slice
 
-Select **HpAttributeSync lifecycle owner** as the next bounded extraction.
+The next bounded extraction is **CooldownManager runtime ownership**. Preserve its Listener, per-player delayed notification tasks and persistence semantics; do not merge its storage responsibilities into a generic runtime owner.
 
 Proposed scope:
 - introduce narrow registration and task-scheduler ports plus Paper adapters;
@@ -157,6 +158,7 @@ Do not activate `BootstrapCoordinator` in this slice. Do not combine HpAttribute
 - [x] Listener and external registration call sites mapped.
 - [x] Shared writer finalization and final-save dependencies documented.
 - [ ] Full repository-wide scheduled-task and registration scan completed.
+- [x] HpAttributeSync listener and recurring sweep transferred to a dedicated runtime owner.
 - [ ] Every row validated against the owning class implementation before module graph construction.
 
 The unchecked items are deliberate gates: this inventory is sufficient to choose the next bounded extraction, but not yet sufficient to activate the coordinator.
