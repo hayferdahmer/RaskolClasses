@@ -233,6 +233,7 @@ Responsibilities:
 - treats repeated register/start/close calls idempotently;
 - cancels the refresh producer before clearing all HUD-owned output;
 - rolls back task ownership and clears partial output when scheduling fails;
+- retains the started/owned state when cancellation cannot be confirmed, preventing a second producer from being scheduled before retry;
 - continues unregistration and task-scope closure when output cleanup reports an error;
 - validates non-negative initial delay and strictly positive period;
 - does not depend on Bukkit, mutate gameplay state, or own shared storage.
@@ -247,6 +248,7 @@ Coverage added:
 - producer cancellation precedes global output cleanup;
 - idempotent close and listener unregistration;
 - cleanup failure does not skip listener unregistration;
+- cancellation failure retains task ownership, prevents duplicate restart, and allows retry;
 - invalid scheduling interval rejection.
 
 Implementation files:
