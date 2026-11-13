@@ -39,7 +39,6 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -122,21 +121,13 @@ public final class FoliantService implements Listener {
     }
 
     /**
-     * 1.14.13 (Волна 13B, 10-04): dirty-flush задача foliant-lock.yml (каждые 60 с);
-     * вызов из RaskolClasses.onEnable, ручка — в activeTasks владельца.
+     * Выполняет один проход периодического dirty-flush.
+     * Планировщик и отменяемая задача принадлежат FoliantRuntimeOwner.
      */
-    public BukkitTask startLockFlushTask() {
-        return plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(
-                        plugin,
-                        () -> {
-                            if (lockDirty.isDirty()) {
-                                saveLocks();
-                            }
-                        },
-                        1200L,
-                        1200L);
+    public void flushLocksIfDirty() {
+        if (lockDirty.isDirty()) {
+            saveLocks();
+        }
     }
 
     /**
