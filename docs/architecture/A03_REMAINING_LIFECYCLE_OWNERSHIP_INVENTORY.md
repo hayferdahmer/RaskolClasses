@@ -255,3 +255,8 @@ PlaceholderAPI остаётся необязательной интеграци�
 Добавлен `PlaceholderRuntimeOwnerTest`: initial snapshot ordering, idempotent start, producer cancellation before unregister, schedule/refresh/registration rollback, retry после cancellation/unregistration failure и close-before-start.
 
 Не менялись placeholder identifiers, параметры, возвращаемые значения, форматирование, источник значений, thread model и период обновления. Асинхронные PlaceholderAPI callbacks по-прежнему читают только immutable snapshot по UUID.
+
+
+### SpotBugs note for A-03-003.14
+
+The two expansions intentionally retain the shared PlaceholderSnapshotService dependency to read the published UUID-keyed snapshots. The service is not copied or exposed through a public accessor; it is a lifecycle-managed runtime collaborator. The EI_EXPOSE_REP2 exceptions are therefore limited to the exact `snapshots` fields of `RaskolPlaceholder` and `FlavorPlaceholder`, alongside their existing exact `plugin` field exceptions. No package-wide or pattern-wide SpotBugs suppression was introduced.
