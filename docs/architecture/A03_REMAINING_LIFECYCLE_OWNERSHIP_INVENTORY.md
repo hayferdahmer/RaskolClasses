@@ -137,18 +137,16 @@ These callbacks cross multiple domains. Keep root-owned until individual domain 
 
 ## 7. Recommended next slice
 
-The next bounded extraction is **CooldownManager runtime ownership**. Preserve its Listener, per-player delayed notification tasks and persistence semantics; do not merge its storage responsibilities into a generic runtime owner.
+The next bounded extraction is **FoliantService runtime and persistence ownership**. Preserve dirty-lock snapshot semantics and the shared writer boundary.
 
-Proposed scope:
-- introduce narrow registration and task-scheduler ports plus Paper adapters;
-- owner controls listener registration, sweep handle and close;
-- preserve existing `HpAttributeSync` sync logic and 100-tick cadence;
-- keep delayed join sync behavior unchanged in this slice, but record it as a follow-up if it cannot be cancelled through current API;
-- root becomes composition wiring only for this component;
-- characterization tests cover start/close order, repeated close, partial registration/scheduling failure and cancellation;
-- no change to HP calculations, attribute modifiers, health storage or player-visible behavior.
+Before implementation:
+- inspect listener registration, lock flush task creation, delayed/deferred operations and all root call sites;
+- keep `saveLocksIfDirty()` before shared writer close;
+- distinguish stopping the periodic flush producer from final persistence;
+- do not let a Foliant owner close the shared `AsyncStorageWriter`;
+- characterize partial startup, task cancellation and final-save ordering before wiring a new owner.
 
-Do not activate `BootstrapCoordinator` in this slice. Do not combine HpAttributeSync with HpBarService.
+Do not activate `BootstrapCoordinator` in this slice. Keep PlaceholderAPI registration lifecycle separate.
 
 ## 8. Acceptance criteria for this inventory
 
@@ -159,6 +157,7 @@ Do not activate `BootstrapCoordinator` in this slice. Do not combine HpAttribute
 - [x] Shared writer finalization and final-save dependencies documented.
 - [ ] Full repository-wide scheduled-task and registration scan completed.
 - [x] HpAttributeSync listener and recurring sweep transferred to a dedicated runtime owner.
+- [x] CooldownManager listener and delayed notification task shutdown coordinated by a dedicated runtime owner.
 - [ ] Every row validated against the owning class implementation before module graph construction.
 
 The unchecked items are deliberate gates: this inventory is sufficient to choose the next bounded extraction, but not yet sufficient to activate the coordinator.
