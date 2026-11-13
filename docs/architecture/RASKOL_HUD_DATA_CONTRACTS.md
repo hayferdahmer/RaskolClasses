@@ -394,3 +394,33 @@ Paper / Adventure API
 - конкретный набор class/spec-specific widgets для каждой из шести текущих классов и будущих специализаций.
 
 Эти вопросы не блокируют завершение source inventory и базовых read contracts, но влияют на окончательный renderer/widget scope.
+
+
+## 13. H-04 — Resource Pack optional contract
+
+Пользователь утвердил политику `optional`.
+
+### 13.1. Capability tiers
+
+- **Baseline (без Resource Pack):** все критичные данные и уведомления доступны через стандартные Paper/Adventure presentation channels; используются текстовые/символьные fallback-представления без custom font glyph assumptions.
+- **Enhanced (совместимый Resource Pack принят):** разрешены фирменные glyphs, иконки, декоративные рамки и дополнительные визуальные акценты.
+- **Degraded (пакет отсутствует, отклонён, не загрузился или имеет неподдерживаемую версию):** Enhanced capabilities отключаются, Baseline продолжает работать. Ошибка пакета не отключает snapshot provider, widgets или весь HUD.
+
+### 13.2. Data and rendering invariants
+
+- Семантика виджета не зависит от наличия Resource Pack: меняется только presentation mapping.
+- Нельзя кодировать единственное значение HP/resource/XP/target/effect только custom glyphs.
+- Если иконка недоступна, renderer использует текстовую метку/числовое значение.
+- Resource Pack status — presentation capability, а не доменное состояние персонажа.
+- Принятие/отказ игрока не меняет игровой профиль, прогресс или права.
+- Ошибка/отказ доставки не должна запускать бесконечный цикл prompt; частота повторного предложения требует отдельного UX решения.
+
+### 13.3. Contracts still to define
+
+До HUD-D определить отдельный ResourcePackCapabilityView или эквивалентный presentation capability contract со статусами NOT_OFFERED, PENDING, ACCEPTED, DECLINED, FAILED, OUTDATED. Не включать этот статус в CharacterView и не считать его gameplay data.
+
+Точные hash/version negotiation, pack URL, server prompt policy и обновление пакета описываются в delivery/config contract. Значение optional означает, что отказ никогда не блокирует вход и не лишает игрока критически важных данных.
+
+## 14. HUD-C — Runtime ownership design handoff
+
+HUD-C реализует единый lifecycle owner, не смешивая его с HP persistence owner и не закрывая shared AsyncStorageWriter. Детальный lifecycle, ownership matrix, failure semantics, staged migration и тестовые критерии находятся в [RASKOL_HUD_RUNTIME_OWNERSHIP.md](RASKOL_HUD_RUNTIME_OWNERSHIP.md).
