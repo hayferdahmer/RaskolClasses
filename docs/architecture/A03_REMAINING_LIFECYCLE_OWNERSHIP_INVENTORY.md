@@ -62,7 +62,7 @@
 - `HpAttributeSync` — поле root; listener регистрируется через `HpAttributeSyncRuntimeOwner`.
 - `Spec2RoleListener` — создаётся inline, явного unregister нет.
 - `PlusSubscription`, `PlusGui` — поля root, Bukkit listeners.
-- `resources`, `effects`, `cooldowns`, `PassiveListener`, `ClassBook.ClickHandler`, `BindListener`, `CrownFlavorService`, `TrailListener`, `InstallBindListener`, `combat`, `combat.vanillaListener()`, `combat.avoidance()`, `HunterAbilities.FanArrowHit`, `ScrollSanitizer`, `HpBarService`, `FxService`, `FoliantService`, `WarlockAbilities` — зарегистрированы через PluginManager.
+- `resources`, `effects`, `cooldowns`, `PassiveListener`, `ClassBook.ClickHandler`, `BindListener`, `CrownFlavorService`, `TrailListener`, `InstallBindListener`, `combat`, `combat.vanillaListener()`, `combat.avoidance()`, `HunterAbilities.FanArrowHit`, `ScrollSanitizer`, `HpBarService`, `FxService`, `WarlockAbilities` — зарегистрированы через PluginManager. `FoliantService` listener регистрируется и снимается через `FoliantRuntimeOwner`.
 - `PassportChangeListener` — собственный reflective registration; root вызывает `unregister()`.
 - `SessionListener` — создаётся локально и регистрируется; отдельного close/unregister нет.
 - Pet listener — теперь зарегистрирован/отменяется через PetRuntimeOwner.
