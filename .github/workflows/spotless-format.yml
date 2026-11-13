@@ -7,6 +7,7 @@ on:
     branches: [ refactor/a03-foundation-lifecycle ]
     paths:
       - .github/workflows/spotless-format.yml
+      - docs/architecture/A03_REMAINING_LIFECYCLE_OWNERSHIP_INVENTORY.md
   workflow_dispatch:
 
 permissions:
