@@ -17,7 +17,7 @@ class CooldownRuntimeOwnerTest {
     @Test
     void startRegistersListenerOnce() {
         List<String> calls = new ArrayList<>();
-        CooldownRuntimeOwner owner = owner(calls, false);
+        CooldownRuntimeOwner owner = owner(calls);
 
         owner.start();
         owner.start();
@@ -142,7 +142,7 @@ class CooldownRuntimeOwnerTest {
         assertEquals(List.of(), calls);
     }
 
-    private static CooldownRuntimeOwner owner(List<String> calls, boolean failUnregister) {
+    private static CooldownRuntimeOwner owner(List<String> calls) {
         return new CooldownRuntimeOwner(registration(calls), () -> calls.add("cancel-tasks"));
     }
 
