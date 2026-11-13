@@ -14,7 +14,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 
@@ -41,7 +40,6 @@ public final class HpAttributeSync implements Listener {
             .get(NamespacedKey.minecraft("max_health"));
 
     private final RaskolClasses plugin;
-    private BukkitTask sweepTask;
 
     public HpAttributeSync(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -97,18 +95,4 @@ public final class HpAttributeSync implements Listener {
         Bukkit.getScheduler().runTaskLater(plugin, () -> sync(event.getPlayer()), 2L);
     }
 
-    /** Запустить периодический sweep (страховка от рассинхрона кэша). */
-    public void startSweep(long periodTicks) {
-        if (sweepTask != null) {
-            sweepTask.cancel();
-        }
-        sweepTask = Bukkit.getScheduler().runTaskTimer(plugin, this::syncAll, periodTicks, periodTicks);
-    }
-
-    public void stopSweep() {
-        if (sweepTask != null) {
-            sweepTask.cancel();
-            sweepTask = null;
-        }
-    }
 }
