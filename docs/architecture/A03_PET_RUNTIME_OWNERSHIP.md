@@ -2,12 +2,13 @@
 
 ## Статус
 
-Source-level ownership assessment completed. This document selects the Pet runtime as the first gameplay ownership seam. It does not yet transfer runtime ownership or change plugin behavior.
+**Implemented on the working branch.** `PetRuntimeOwner` now owns PetService listener registration, both scheduled tasks, despawn-before-cancel shutdown and partial-start rollback. CI/runtime verification remains pending.
 
 - Repository: `hayferdahmer/RaskolClasses`
 - Working branch: `refactor/a03-foundation-lifecycle`
 - Target platform: Paper 26.2 / Java 25
 - Baseline: `1acce195f8c23d572361f9659581f1a3806ac153`
+- Implementation: `PetRuntimeOwner`, `PaperPetRuntimeRegistration`, `PaperPetTaskScheduler`
 
 ## 1. Decision
 
@@ -111,7 +112,26 @@ The tests must not require a live Paper server. Any Bukkit-specific adapter shou
 - No activation of the full module bootstrap.
 - No unrelated changes to `RaskolClasses` shutdown ordering.
 
-## 8. Acceptance criteria
+## 8. Implementation record — A-03-003.9
+
+Added `PetRuntimeOwner` as a Bukkit-independent lifecycle coordinator. It composes `PetRuntimeRegistration`, `PetTaskScheduler`, `TaskScope` and a `despawnAll` callback. The owner is terminal after a successful stop; repeated start while running is idempotent, and start after a previous attempt is rejected.
+
+Paper adapters:
+- `PaperPetRuntimeRegistration` registers the PetService listener and unregisters only that listener through `HandlerList.unregisterAll`;
+- `PaperPetTaskScheduler` delegates to the existing `PetService.startTickTask()` and `scheduleOrphanScan()` methods and wraps returned `BukkitTask` handles as `TaskHandle`.
+
+`RaskolClasses.initializeCoreServices()` now creates and starts the owner at the same point where PetService was previously registered and scheduled. The two pet tasks are no longer added to root `activeTasks`. Shutdown delegates to the owner before cancelling the remaining root-owned tasks. A pet-owner shutdown failure is logged and does not prevent cancellation of unrelated root tasks or later shutdown steps.
+
+Failure behavior:
+- listener registration is marked attempted before invoking Paper, so partial registration failures trigger unregister rollback;
+- if orphan-scan scheduling fails, the already-created tick task is cancelled and listener registration is rolled back;
+- stop always attempts despawn, task cancellation and listener unregistration even if an earlier operation fails;
+- failed cancellation or listener unregistration remains retryable on a later `close()` call;
+- close-before-start is side-effect free.
+
+`PetRuntimeOwnerTest` contains eight focused scenarios covering start/idempotence, partial-start rollback, despawn ordering, repeated close, cancellation retry, cleanup continuation after despawn failure, close-before-start and registration rollback. Tests have been authored but not yet executed in Maven/CI.
+
+## 9. Acceptance criteria
 
 - Pet tasks are no longer stored in root `activeTasks`.
 - Pet runtime listener/task ownership is represented by one explicit owner.
