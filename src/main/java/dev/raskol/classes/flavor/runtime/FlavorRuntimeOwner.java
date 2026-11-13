@@ -94,6 +94,7 @@ public final class FlavorRuntimeOwner implements AutoCloseable {
     }
 
     /** Останавливает aura producer и снимает listener с независимыми попытками cleanup. */
+    @Override
     public synchronized void close() {
         if (closed) {
             return;
@@ -122,7 +123,6 @@ public final class FlavorRuntimeOwner implements AutoCloseable {
         }
         closed = true;
     }
-
 
     public synchronized boolean isRegistered() {
         return registered;
