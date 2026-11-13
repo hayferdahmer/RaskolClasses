@@ -2,24 +2,24 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.bootstrap.lifecycle;
 
+import java.util.List;
 import java.util.Objects;
 
 /** Потокобезопасная проверка допустимых переходов lifecycle одного модуля. */
-/**
- * Причина отказа сохраняется и возвращается как исходный Throwable для
- * диагностики; вызывающий код не получает право менять lifecycle-состояние.
- */
-@SuppressWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public final class ModuleLifecycle {
 
     private ModuleState state = ModuleState.NEW;
-    private Throwable failure;
+    private FailureSnapshot failure;
 
     public synchronized ModuleState state() {
         return state;
     }
 
-    public synchronized Throwable failure() {
+    /**
+     * Возвращает неизменяемый диагностический снимок первой причины отказа.
+     * Исходный Throwable не сохраняется и не раскрывается вызывающему коду.
+     */
+    public synchronized FailureSnapshot failure() {
         return failure;
     }
 
@@ -52,14 +52,14 @@ public final class ModuleLifecycle {
         transition(ModuleState.STOPPING, ModuleState.STOPPED);
     }
 
-    /** Фиксирует первую причину отказа модуля. */
+    /** Фиксирует неизменяемый снимок первой причины отказа модуля. */
     public synchronized void failed(Throwable cause) {
         Objects.requireNonNull(cause, "cause");
         if (state == ModuleState.CLOSED) {
             throw new IllegalStateException("Закрытый модуль не может перейти в FAILED");
         }
         if (failure == null) {
-            failure = cause;
+            failure = FailureSnapshot.from(cause);
         }
         state = ModuleState.FAILED;
     }
@@ -83,5 +83,23 @@ public final class ModuleLifecycle {
                     "Недопустимый переход lifecycle: " + state + " -> " + target + ", ожидалось " + expected);
         }
         state = target;
+    }
+
+    /** Неизменяемые диагностические данные без ссылки на исходное исключение. */
+    public record FailureSnapshot(String type, String message, List<String> stackTrace) {
+
+        public FailureSnapshot {
+            Objects.requireNonNull(type, "type");
+            Objects.requireNonNull(message, "message");
+            stackTrace = List.copyOf(Objects.requireNonNull(stackTrace, "stackTrace"));
+        }
+
+        private static FailureSnapshot from(Throwable cause) {
+            List<String> frames = java.util.Arrays.stream(cause.getStackTrace())
+                    .map(StackTraceElement::toString)
+                    .toList();
+            String message = cause.getMessage() == null ? "" : cause.getMessage();
+            return new FailureSnapshot(cause.getClass().getName(), message, frames);
+        }
     }
 }
