@@ -149,9 +149,15 @@ The RIPS startup verification and startup-denial gate remain the first operation
 
 Focused tests cover owner close, close-before-start, repeated close, interval preservation, concurrent starts and cleanup after rejected scheduling. The tests are committed; Maven execution and CI confirmation remain pending. See [A03_RUNTIME_INTEGRITY_OWNER.md](A03_RUNTIME_INTEGRITY_OWNER.md).
 
-### A-03-003.8 — Next: first gameplay module ownership seam
+### A-03-003.8 — Pet runtime ownership seam (assessment completed)
 
-Do not activate the full `BootstrapCoordinator` yet. Select the next bounded gameplay owner only after mapping its service references, task handles, listener registrations, partial-initialization cleanup and shutdown ordering. The next extraction must transfer actual ownership rather than wrap the God Object.
+`PetService` is selected as the first gameplay runtime ownership boundary. The source-level assessment is recorded in [A03_PET_RUNTIME_OWNERSHIP.md](A03_PET_RUNTIME_OWNERSHIP.md).
+
+The assessment confirms that `PetService` has one listener, two explicit scheduled tasks, a constructor without listener/scheduler side effects, and a mandatory `despawnAll()` operation that must run before task cancellation. At present, `RaskolClasses` owns both BukkitTask handles in its general `activeTasks` list and directly registers the listener. No pet task should remain in that root list after the ownership transfer.
+
+### A-03-003.9 — Next implementation slice: PetRuntimeOwner
+
+Implement the narrow owner and its focused tests. The owner must own listener registration, both task handles, partial-start rollback, pre-cancellation despawn, task cancellation and listener unregistration. Preserve the current 20-tick pet task cadence and 100-tick orphan-scan delay. Keep `getPets()` and all existing callers compatible. Do not activate `BootstrapCoordinator` in this slice.
 
 Coordinator activation remains gated on characterization tests for startup, rollback and shutdown ordering:
 - create and validate the real module graph;
