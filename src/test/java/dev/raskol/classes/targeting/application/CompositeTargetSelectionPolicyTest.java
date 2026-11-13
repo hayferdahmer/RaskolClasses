@@ -5,7 +5,6 @@ package dev.raskol.classes.targeting.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -112,10 +111,10 @@ class CompositeTargetSelectionPolicyTest {
     @Test
     void rejectsNullConfigurationAndInput() {
         assertThrows(NullPointerException.class, () -> new CompositeTargetSelectionPolicy(null));
+        assertThrows(IllegalArgumentException.class, () -> new CompositeTargetSelectionPolicy(List.of()));
         assertThrows(NullPointerException.class, () -> new CompositeTargetSelectionPolicy(java.util.Arrays.asList(
                 (TargetSelectionCheck) null)));
-        assertThrows(NullPointerException.class, () -> new CompositeTargetSelectionPolicy(List.of()).evaluate(null));
-        assertTrue(new CompositeTargetSelectionPolicy(List.of()).evaluate(input)
-                instanceof TargetSelectionPolicyResult.Accepted);
+        assertThrows(NullPointerException.class, () -> new CompositeTargetSelectionPolicy(List.of(
+                candidate -> TargetSelectionPolicyResult.accepted())).evaluate(null));
     }
 }
