@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hud.runtime;
 
+import java.util.Objects;
+
 import dev.raskol.classes.bootstrap.lifecycle.TaskHandle;
 import dev.raskol.classes.bootstrap.lifecycle.TaskScope;
-import java.util.Objects;
 
 /**
  * Владелец регистрации событий и периодической работы RaskolHUD.
