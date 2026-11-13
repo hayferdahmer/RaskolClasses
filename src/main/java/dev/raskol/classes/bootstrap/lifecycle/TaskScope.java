@@ -15,6 +15,7 @@ import java.util.Objects;
 public final class TaskScope implements AutoCloseable {
 
     private final Object lock = new Object();
+    private final Object cancellationLock = new Object();
     private final List<TaskHandle> tasks = new ArrayList<>();
     private boolean closed;
 
@@ -38,12 +39,52 @@ public final class TaskScope implements AutoCloseable {
     /**
      * Отменяет все зарегистрированные задачи, не закрывая область.
      * Ошибка одной задачи не препятствует отмене остальных.
+     * Задачи, отмену которых не удалось подтвердить, остаются в области
+     * для повторной попытки.
      */
     public void cancelAll() {
-        cancelSnapshot(snapshotAndClear(false));
+        synchronized (cancellationLock) {
+            List<TaskHandle> snapshot;
+            synchronized (lock) {
+                snapshot = List.copyOf(tasks);
+            }
+
+            List<TaskHandle> completed = new ArrayList<>();
+            RuntimeException failure = null;
+
+            for (TaskHandle task : snapshot) {
+                try {
+                    task.cancel();
+                    if (task.isCancelled()) {
+                        completed.add(task);
+                    } else {
+                        failure = appendFailure(
+                                failure,
+                                new IllegalStateException("Задача осталась активной после отмены"));
+                    }
+                } catch (RuntimeException exception) {
+                    failure = appendFailure(failure, exception);
+                    try {
+                        if (task.isCancelled()) {
+                            completed.add(task);
+                        }
+                    } catch (RuntimeException statusException) {
+                        failure = appendFailure(failure, statusException);
+                    }
+                }
+            }
+
+            synchronized (lock) {
+                tasks.removeIf(task -> containsIdentity(completed, task));
+            }
+
+            if (failure != null) {
+                throw failure;
+            }
+        }
     }
 
-    /** Возвращает количество задач, которыми область владеет в данный момент. */
+    /** Возвращает количество задач, которыми область ещё владеет. */
     public int size() {
         synchronized (lock) {
             return tasks.size();
@@ -58,40 +99,31 @@ public final class TaskScope implements AutoCloseable {
 
     /**
      * Закрывает область и отменяет все её задачи.
-     * Повторный вызов безопасен.
+     * Если отмена части задач завершилась ошибкой, повторный close()
+     * повторит попытку для оставшихся задач.
      */
     @Override
     public void close() {
-        cancelSnapshot(snapshotAndClear(true));
-    }
-
-    private List<TaskHandle> snapshotAndClear(boolean close) {
         synchronized (lock) {
-            if (close) {
-                closed = true;
-            }
-            List<TaskHandle> snapshot = List.copyOf(tasks);
-            tasks.clear();
-            return snapshot;
+            closed = true;
         }
+        cancelAll();
     }
 
-    private static void cancelSnapshot(List<TaskHandle> snapshot) {
-        RuntimeException failure = null;
+    private static RuntimeException appendFailure(RuntimeException current, RuntimeException next) {
+        if (current == null) {
+            current = new IllegalStateException("Не удалось отменить одну или несколько задач");
+        }
+        current.addSuppressed(next);
+        return current;
+    }
 
-        for (TaskHandle task : snapshot) {
-            try {
-                task.cancel();
-            } catch (RuntimeException exception) {
-                if (failure == null) {
-                    failure = new IllegalStateException("Не удалось отменить одну или несколько задач");
-                }
-                failure.addSuppressed(exception);
+    private static boolean containsIdentity(List<TaskHandle> handles, TaskHandle candidate) {
+        for (TaskHandle handle : handles) {
+            if (handle == candidate) {
+                return true;
             }
         }
-
-        if (failure != null) {
-            throw failure;
-        }
+        return false;
     }
 }
