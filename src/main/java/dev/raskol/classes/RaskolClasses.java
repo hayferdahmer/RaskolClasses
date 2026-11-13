@@ -25,6 +25,9 @@ import dev.raskol.classes.api.combat.EntityLevelProvider;
 import dev.raskol.classes.api.items.ItemsApi;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.HpAttributeSync;
+import dev.raskol.classes.attribute.runtime.HpAttributeSyncRuntimeOwner;
+import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncRegistration;
+import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncScheduler;
 import dev.raskol.classes.bootstrap.PluginTasks;
 import dev.raskol.classes.bootstrap.SessionListener;
 import dev.raskol.classes.bootstrap.StartupChecks;
@@ -131,6 +134,7 @@ public final class RaskolClasses extends JavaPlugin {
     private HudService hud;
     private BossBarService bossBars;
     private HpBarService hpBarService;
+    private HpAttributeSyncRuntimeOwner hpSyncRuntimeOwner;
     private AbilityToken tokens;
 
     /** 1.14.0: spec2-слой (деревья путей). */
@@ -336,8 +340,11 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.attributes = new AttributeService(this);
         this.hpSync = new HpAttributeSync(this);
-        pluginManager.registerEvents(hpSync, this);
-        hpSync.startSweep(100L);
+        hpSyncRuntimeOwner = new HpAttributeSyncRuntimeOwner(
+                new PaperHpAttributeSyncRegistration(pluginManager, this, hpSync),
+                new PaperHpAttributeSyncScheduler(this, hpSync),
+                100L);
+        hpSyncRuntimeOwner.start();
         this.hpBarService = new HpBarService(this);
 
         Spec2Points.configure(this);
@@ -569,8 +576,15 @@ public final class RaskolClasses extends JavaPlugin {
             runtimeIntegrityRuntimeOwner = null;
         }
 
-        if (hpSync != null) {
-            hpSync.stopSweep();
+        if (hpSyncRuntimeOwner != null) {
+            try {
+                hpSyncRuntimeOwner.close();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось полностью остановить HP attribute runtime",
+                        exception);
+            }
         }
         if (blueprintHook != null) {
             blueprintHook.unregisterBlueprints();
