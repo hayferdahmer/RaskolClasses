@@ -158,6 +158,7 @@ class BootstrapCoordinatorTest {
 
             @Override
             public void close() {
+                assertTrue(scopes.get(1).isClosed());
                 events.add("close:b");
                 throw new IllegalStateException("close failure");
             }
