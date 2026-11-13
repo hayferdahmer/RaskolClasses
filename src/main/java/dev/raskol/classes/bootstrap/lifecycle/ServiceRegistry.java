@@ -16,20 +16,22 @@ import java.util.Optional;
  * <p>Реестр не является глобальным Service Locator: его следует использовать
  * в координаторе сборки и передавать модулям только необходимые контракты.</p>
  */
-public final class ServiceRegistry {
+public final class ServiceRegistry implements AutoCloseable {
 
     private final Map<Class<?>, Object> services = new HashMap<>();
     private boolean sealed;
+    private boolean closed;
 
     /**
      * Регистрирует экземпляр под его явным контрактным типом.
      *
-     * @throws IllegalStateException если реестр уже запечатан или тип уже зарегистрирован
+     * @throws IllegalStateException если реестр запечатан/закрыт или тип уже зарегистрирован
      */
     public synchronized <T> void register(Class<T> serviceType, T service) {
         Objects.requireNonNull(serviceType, "serviceType");
         Objects.requireNonNull(service, "service");
 
+        ensureOpen();
         if (sealed) {
             throw new IllegalStateException("Реестр сервисов уже запечатан");
         }
@@ -45,10 +47,9 @@ public final class ServiceRegistry {
         services.put(serviceType, service);
     }
 
-    /**
-     * Завершает регистрацию. Повторный вызов безопасен.
-     */
+    /** Завершает регистрацию. Повторный вызов безопасен, пока реестр открыт. */
     public synchronized void seal() {
+        ensureOpen();
         sealed = true;
     }
 
@@ -56,10 +57,14 @@ public final class ServiceRegistry {
         return sealed;
     }
 
+    public synchronized boolean isClosed() {
+        return closed;
+    }
+
     /**
      * Разрешает обязательную зависимость после завершения регистрации.
      *
-     * @throws IllegalStateException если реестр ещё не запечатан или сервис отсутствует
+     * @throws IllegalStateException если реестр не запечатан, закрыт или сервис отсутствует
      */
     public synchronized <T> T require(Class<T> serviceType) {
         ensureSealed();
@@ -72,9 +77,7 @@ public final class ServiceRegistry {
         return serviceType.cast(service);
     }
 
-    /**
-     * Разрешает необязательную зависимость после завершения регистрации.
-     */
+    /** Разрешает необязательную зависимость после завершения регистрации. */
     public synchronized <T> Optional<T> find(Class<T> serviceType) {
         ensureSealed();
         Objects.requireNonNull(serviceType, "serviceType");
@@ -87,7 +90,24 @@ public final class ServiceRegistry {
         return services.size();
     }
 
+    /** Закрывает реестр и освобождает ссылки на зарегистрированные сервисы. */
+    @Override
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        services.clear();
+    }
+
+    private void ensureOpen() {
+        if (closed) {
+            throw new IllegalStateException("Реестр сервисов закрыт");
+        }
+    }
+
     private void ensureSealed() {
+        ensureOpen();
         if (!sealed) {
             throw new IllegalStateException("Нельзя разрешать сервисы до завершения регистрации");
         }
