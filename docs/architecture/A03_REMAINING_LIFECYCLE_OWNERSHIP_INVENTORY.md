@@ -214,7 +214,7 @@ Owner независимо пытается снять listener даже при 
 
 ### Асинхронное подтверждение сохранения
 
-`FoliantService.saveLocks()` после завершения записи ставит one-shot Bukkit callback для `clearIfUnchanged(snapshotGeneration)`. Этот callback оставлен в persistence-контракте: он не является периодическим flush producer и не переносился в runtime owner. Его cancellation/drain semantics должны быть рассмотрены вместе с A-04 Storage & Data Integrity.
+`FoliantService.saveLocks()` после завершения записи ставит one-shot Bukkit callback для `clearIfUnchanged(snapshotGeneration)`. `executeTransition()` также ставит one-shot callback для проверки LuckPerms-класса после миграции. Оба callback остаются за пределами periodic runtime owner: первый относится к persistence acknowledgement и должен рассматриваться вместе с A-04 Storage & Data Integrity; второй — к отложенной игровой проверке и требует отдельного lifecycle review. Их cancellation/drain semantics не объявляются решёнными этим этапом.
 
 ### Проверки
 
