@@ -82,6 +82,7 @@ public final class HudRuntimeOwner implements AutoCloseable {
             started = true;
         } catch (RuntimeException failure) {
             appendFailure(failure, tasks::cancelAll);
+            started = tasks.size() > 0;
             appendFailure(failure, outputCleanup::clearAll);
             throw failure;
         }
@@ -98,7 +99,7 @@ public final class HudRuntimeOwner implements AutoCloseable {
         } catch (RuntimeException exception) {
             failure = exception;
         }
-        started = false;
+        started = tasks.size() > 0;
         try {
             outputCleanup.clearAll();
         } catch (RuntimeException exception) {
