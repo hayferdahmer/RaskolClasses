@@ -3,6 +3,7 @@
 package dev.raskol.classes.integrity.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -29,7 +30,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
         owner.start();
 
-        assertTrue(!executor.isShutdown());
+        assertFalse(executor.isShutdown());
 
         owner.close();
 
@@ -69,7 +70,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
 
         try {
             owner.start();
-            assertEquals(30, Duration.ofMillis(30 * 60 * 1000L).toMinutes());
+            assertEquals(Duration.ofMinutes(30).toMillis(), owner.intervalMillis());
         } finally {
             owner.close();
         }
