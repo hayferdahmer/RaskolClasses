@@ -36,8 +36,7 @@ class FlavorRuntimeOwnerTest {
     @Test
     void startRequiresListenerRegistration() {
         List<String> calls = new ArrayList<>();
-        FlavorRuntimeOwner owner = new FlavorRuntimeOwner(
-                new FakeRegistration(calls), new FakeScheduler(calls));
+        FlavorRuntimeOwner owner = new FlavorRuntimeOwner(new FakeRegistration(calls), new FakeScheduler(calls));
 
         assertThrows(IllegalStateException.class, owner::start);
         assertTrue(calls.isEmpty());
@@ -46,8 +45,7 @@ class FlavorRuntimeOwnerTest {
     @Test
     void closeCancelsAuraBeforeUnregisteringListener() {
         List<String> calls = new ArrayList<>();
-        FlavorRuntimeOwner owner = new FlavorRuntimeOwner(
-                new FakeRegistration(calls), new FakeScheduler(calls));
+        FlavorRuntimeOwner owner = new FlavorRuntimeOwner(new FakeRegistration(calls), new FakeScheduler(calls));
 
         owner.register();
         owner.start();
@@ -133,8 +131,7 @@ class FlavorRuntimeOwnerTest {
     @Test
     void closeBeforeStartIsSafeAndPreventsLaterRegistration() {
         List<String> calls = new ArrayList<>();
-        FlavorRuntimeOwner owner = new FlavorRuntimeOwner(
-                new FakeRegistration(calls), new FakeScheduler(calls));
+        FlavorRuntimeOwner owner = new FlavorRuntimeOwner(new FakeRegistration(calls), new FakeScheduler(calls));
 
         owner.close();
 

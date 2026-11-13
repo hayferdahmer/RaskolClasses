@@ -66,13 +66,12 @@ public final class CrownFlavorService implements Listener {
                 continue;
             }
             String fallback = "rassvet".equals(faction) ? "END_ROD" : "SOUL_FIRE_FLAME";
-            Particle particle = parseParticle(
-                    plugin.getConfig().getString("flavors." + faction + ".particle", fallback));
+            Particle particle =
+                    parseParticle(plugin.getConfig().getString("flavors." + faction + ".particle", fallback));
             if (particle == null) {
                 continue;
             }
-            online.spawnParticle(
-                    particle, online.getLocation().add(0.0, 0.3, 0.0), 2, 0.25, 0.2, 0.25, 0.0);
+            online.spawnParticle(particle, online.getLocation().add(0.0, 0.3, 0.0), 2, 0.25, 0.2, 0.25, 0.0);
         }
     }
 
