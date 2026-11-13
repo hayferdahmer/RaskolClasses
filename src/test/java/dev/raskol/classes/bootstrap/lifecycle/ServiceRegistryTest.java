@@ -73,6 +73,23 @@ class ServiceRegistryTest {
         assertFalse(registry.find(ExampleService.class).isPresent());
     }
 
+    @Test
+    void closeClearsServicesAndRejectsFurtherAccess() {
+        ServiceRegistry registry = new ServiceRegistry();
+        registry.register(ExampleService.class, new ExampleServiceImpl());
+        registry.seal();
+
+        registry.close();
+        registry.close();
+
+        assertTrue(registry.isClosed());
+        assertEquals(0, registry.size());
+        assertThrows(IllegalStateException.class, () -> registry.require(ExampleService.class));
+        assertThrows(IllegalStateException.class, () -> registry.find(ExampleService.class));
+        assertThrows(IllegalStateException.class, () -> registry.register(ExampleService.class, new ExampleServiceImpl()));
+        assertThrows(IllegalStateException.class, registry::seal);
+    }
+
     private interface ExampleService {}
 
     private static final class ExampleServiceImpl implements ExampleService {}
