@@ -2,7 +2,7 @@
 
 ## Статус
 
-**Domain contracts и in-memory selection store реализованы; application service, policy ports и Paper adapter ещё не реализованы.**
+**Domain contracts, in-memory selection store и TargetingApplicationService реализованы; concrete policies и Paper adapter ещё не реализованы.**
 
 - Repository: `hayferdahmer/RaskolClasses`
 - Branch: `refactor/a03-foundation-lifecycle`
@@ -269,7 +269,18 @@ Do not combine all steps in one commit. Keep the targeting domain independent fr
 
 Добавлен `TargetSelectionStore` application port и потокобезопасный `InMemoryTargetSelectionStore` infrastructure adapter на `ConcurrentHashMap`. Хранилище поддерживает поиск по owner UUID, замену selection, удаление одной сессии и очистку всего transient state. `InMemoryTargetSelectionStoreTest` покрывает изоляцию владельцев, replace/remove/clear и null input.
 
-Пока отсутствуют policy ports, TargetingApplicationService, Paper listener и production wiring. Maven/Spotless/SpotBugs CI для этих изменений ещё не подтверждён.
+Добавлены application contracts:
+- `TargetInteractionInput` — UUID-based вход без Bukkit types;
+- `TargetSelectionPolicy` — порт композиции проверок actor/candidate/range/permission/PvP/territory/NPC;
+- `TargetSelectionPolicyResult` — ACCEPTED / REJECTED / UNAVAILABLE;
+- `TargetSelectionOutcome` — SELECTED / ALREADY_SELECTED / REJECTED / UNAVAILABLE;
+- `TargetingApplicationService` — select, clear, selectedTargetOf и endSession.
+
+Сервис отклоняет self-target и off-hand до вызова policy, выполняет policy до изменения store, не заменяет предыдущую цель при REJECTED/UNAVAILABLE, а повторный выбор той же цели после успешной проверки идемпотентен и сохраняет исходный timestamp. Clock передаётся как зависимость. Методы синхронизированы для защиты от конкурирующих вызовов одного экземпляра; Paper adapter всё равно обязан соблюдать main-thread discipline.
+
+`TargetingApplicationServiceTest` покрывает принятие, повторный выбор, повторную проверку, отказ/недоступность без замены, self-target, off-hand, очистку сессии, некорректные часы и null dependencies.
+
+Пока отсутствуют concrete policy composition, Paper listener и production wiring. Maven/Spotless/SpotBugs CI для этих изменений ещё не подтверждён.
 
 ## 13. HUD-C.1.6 — Selection store implemented
 
@@ -277,6 +288,10 @@ Do not combine all steps in one commit. Keep the targeting domain independent fr
 
 Это независимый инфраструктурный срез. Идемпотентность повторного выбора, policy evaluation и события пока остаются ответственностью будущего application service.
 
-## 14. Decision
+## 14. HUD-C.1.8 — Application selection service implemented
 
-HUD-C.1.5/.6 устанавливают immutable domain contracts и эфемерное in-memory хранилище. Следующий срез — TargetingApplicationService и минимальные policy ports с unit-тестами. No command syntax, cycling UX, global glowing outline, persistence or client-mod requirement is approved by this document.
+Application service оркестрирует выбор, снятие и очистку цели. Все решения допуска делегируются policy port; сам сервис не пытается разрешать Bukkit entities или интеграции. При отклонении или недоступности policy текущая цель сохраняется. Повторный выбор проходит повторную policy-проверку, после чего возвращает AlreadySelected без изменения timestamp.
+
+## 15. Decision
+
+HUD-C.1.5–.8 реализуют immutable domain contracts, transient in-memory store и Bukkit-independent application orchestration. Следующий срез — конкретная policy composition и её изолированные тесты; Paper listener будет отдельным этапом после этого. No command syntax, cycling UX, global glowing outline, persistence or client-mod requirement is approved by this document.
