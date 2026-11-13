@@ -239,6 +239,18 @@ public final class RaskolClasses extends JavaPlugin {
             return;
         }
 
+        PluginManager pluginManager = initializeConfiguration();
+        initializeCoreServices(pluginManager);
+        registerGameplayListeners(pluginManager);
+        registerOptionalIntegrations(pluginManager);
+        startRuntimeTasks();
+        finishStartup();
+    }
+
+    /**
+     * Загружает конфигурацию и выполняет ранние проверки до создания игровых сервисов.
+     */
+    private PluginManager initializeConfiguration() {
         this.raskolConfig = new RaskolConfig(this);
         ConfigMigrator.migrate148(this);
 
@@ -249,8 +261,11 @@ public final class RaskolClasses extends JavaPlugin {
         StartupChecks.logCoreVersion(this);
         StartupChecks.cleanupTmpFiles(this);
 
-        PluginManager pluginManager = getServer().getPluginManager();
+        return getServer().getPluginManager();
+    }
 
+    /** Создаёт игровые сервисы и принадлежащие им ранние задачи в исходном порядке. */
+    private void initializeCoreServices(PluginManager pluginManager) {
         this.classProvider = new ClassProvider(this, raskolConfig);
         if (!classProvider.isAvailable()) {
             getLogger().warning("LuckPerms не найден — определение классов отключено");
@@ -363,6 +378,10 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(pets.startTickTask());
         activeTasks.add(pets.scheduleOrphanScan());
 
+    }
+
+    /** Регистрирует игровые listeners и синхронизирует уже подключённых игроков. */
+    private void registerGameplayListeners(PluginManager pluginManager) {
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
         pluginManager.registerEvents(cooldowns, this);
@@ -390,6 +409,10 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(sessions, this);
         sessions.resyncOnline();
 
+    }
+
+    /** Подключает необязательные внешние интеграции. */
+    private void registerOptionalIntegrations(PluginManager pluginManager) {
         if (pluginManager.getPlugin("PlaceholderAPI") != null) {
             this.placeholderSnapshots = new PlaceholderSnapshotService();
             placeholderSnapshots.start(this);
@@ -400,6 +423,10 @@ public final class RaskolClasses extends JavaPlugin {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
         }
 
+    }
+
+    /** Запускает периодические задачи после регистрации listeners и интеграций. */
+    private void startRuntimeTasks() {
         boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
         boolean hpVanilla = "vanilla".equalsIgnoreCase(getConfig().getString("hp-display.mode", "actionbar"));
         if (hudEnabled && hpVanilla) {
@@ -415,6 +442,10 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(PluginTasks.startPurgeTask(this));
         activeTasks.add(PluginTasks.startAutosaveTask(this));
 
+    }
+
+    /** Выполняет финальную регистрацию команды, startup-отчёт и RIPS runtime monitor. */
+    private void finishStartup() {
         registerCommand();
         StartupChecks.printBanner(this);
         StartupChecks.warnLowCapacityTrees(this);
@@ -533,6 +564,14 @@ public final class RaskolClasses extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        shutdownRuntime();
+    }
+
+    /**
+     * Останавливает runtime в прежнем порядке: сначала producers и задачи,
+     * затем сохраняемые сервисы, а общий StorageWriter закрывает последним.
+     */
+    private void shutdownRuntime() {
         if (placeholderSnapshots != null) {
             placeholderSnapshots.close();
             placeholderSnapshots = null;
@@ -594,9 +633,7 @@ public final class RaskolClasses extends JavaPlugin {
         }
         if (storageWriter != null && !storageWriter.closeAndAwait(Duration.ofSeconds(10))) {
             getLogger().severe("StorageWriter: очередь не была полностью сброшена при выключении");
-        }
-    }
-
+        }    }
     private void registerCommand() {
         PluginCommand command = getCommand("rc");
         if (command == null) {
