@@ -33,7 +33,7 @@ The inspected `onEnable()` currently performs these operations in this order:
 8. Construct HUD, boss-bar, token and FX services; validate FX config.
 9. Construct resist/combat services; conditionally start items; register DoT listeners and start DoT task; create ManaSoaked.
 10. Construct/register CC service and task, CC guard, cast guard and vanilla CC wrapper.
-11. Validate configuration and construct attributes/HP synchronization; register HP listener and start sweep; construct HP bar service.
+11. Validate configuration and construct attributes/HP synchronization; transfer listener and 100-tick sweep to `HpAttributeSyncRuntimeOwner`; construct HP bar service.
 12. Configure Spec2 static bridge; construct storage, applier and service; refresh cache and register role listener.
 13. Resolve optional PlayerPoints wallet; construct and load build templates; create plus storage/subscription and register listener/GUI.
 14. Construct faction/flavor, installations, foliant and warlock abilities.
@@ -159,9 +159,17 @@ The assessment confirms that `PetService` has one listener, two explicit schedul
 
 Implemented the narrow owner and its Paper adapters. The owner now controls listener registration, both task handles, partial-start rollback, pre-cancellation despawn, task cancellation and listener unregistration. The existing 20-tick pet task cadence and 100-tick orphan-scan delay remain delegated to the unchanged PetService methods. `getPets()` and existing callers remain compatible. The two pet tasks were removed from root `activeTasks`. Focused tests were added; Maven/CI verification is pending. See [A03_PET_RUNTIME_OWNERSHIP.md](A03_PET_RUNTIME_OWNERSHIP.md).
 
-### A-03-003.10 — Remaining lifecycle ownership inventory (documented; full scan pending)
+### A-03-003.10 — Remaining lifecycle ownership inventory (first pass documented; full scan pending)
 
 A source-backed first-pass inventory is recorded in [A03_REMAINING_LIFECYCLE_OWNERSHIP_INVENTORY.md](A03_REMAINING_LIFECYCLE_OWNERSHIP_INVENTORY.md). It maps root periodic tasks, internal task-bearing services, listener/external registrations and persistence/shutdown ordering. The inventory identifies `HpAttributeSync` as the next bounded owner extraction because its listener + sweep task + delayed join sync form a narrow boundary. The full repository-wide task/registration scan remains an explicit gate; do not activate `BootstrapCoordinator` until that scan and deterministic rollback/storage-drain tests are complete.
+
+
+
+### A-03-003.11 — HpAttributeSyncRuntimeOwner (implemented; verification pending)
+
+`HpAttributeSyncRuntimeOwner` now owns the Paper listener registration and 100-tick periodic sweep. The domain-facing `HpAttributeSync` retains sync operations and event handlers; its old internal sweep handle/start/stop methods were removed. `PaperHpAttributeSyncRegistration` and `PaperHpAttributeSyncScheduler` isolate Bukkit registration/scheduling. `RaskolClasses` is composition wiring and closes the owner during shutdown before storage cleanup. Focused tests cover idempotent start/close, registration and scheduling rollback, cancellation failure retry, and invalid interval. The 2-tick delayed respawn callback remains an explicitly documented one-shot lifecycle follow-up. No HP formula, modifier, persistence or player-visible behavior was intentionally changed.
+
+Next bounded candidate: `CooldownManager` listener + per-player delayed-task ownership, with persistence kept as a separate responsibility. Do not activate `BootstrapCoordinator` yet; full task/registration scan remains a gate.
 
 Coordinator activation remains gated on characterization tests for startup, rollback and shutdown ordering:
 - create and validate the real module graph;
