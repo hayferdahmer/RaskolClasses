@@ -292,6 +292,19 @@ Do not combine all steps in one commit. Keep the targeting domain independent fr
 
 Application service оркестрирует выбор, снятие и очистку цели. Все решения допуска делегируются policy port; сам сервис не пытается разрешать Bukkit entities или интеграции. При отклонении или недоступности policy текущая цель сохраняется. Повторный выбор проходит повторную policy-проверку, после чего возвращает AlreadySelected без изменения timestamp.
 
-## 15. Decision
+## 15. HUD-C.1.9 — Composite policy implemented
 
-HUD-C.1.5–.8 реализуют immutable domain contracts, transient in-memory store и Bukkit-independent application orchestration. Следующий срез — конкретная policy composition и её изолированные тесты; Paper listener будет отдельным этапом после этого. No command syntax, cycling UX, global glowing outline, persistence or client-mod requirement is approved by this document.
+Добавлены `TargetSelectionCheck` и `CompositeTargetSelectionPolicy`. Composite policy:
+- выполняет проверки в явно заданном порядке;
+- прекращает цепочку на первом REJECTED или UNAVAILABLE;
+- считает runtime exception провайдера как UNAVAILABLE, не раскрывая внутреннее сообщение;
+- требует непустую цепочку проверок, чтобы пустая конфигурация не разрешала выбор по умолчанию;
+- защищает конфигурацию от последующей мутации исходного списка.
+
+Это механизм композиции, а не готовые игровые правила. Конкретные actor/session, candidate, range, NPC, permission, PvP и territory checks ещё предстоит реализовать и подключить в утверждённом порядке.
+
+`CompositeTargetSelectionPolicyTest` покрывает успешную цепочку, short-circuit, unavailable, исключение провайдера, сохранение порядка, защитную копию и запрет пустой конфигурации. Выполнение тестов и CI пока не подтверждено.
+
+## 16. Decision
+
+HUD-C.1.5–.9 реализуют immutable domain contracts, transient in-memory store и Bukkit-independent application orchestration с fail-closed policy composition. Следующий срез — конкретные проверочные адаптеры и правила по слоям; Paper listener будет отдельным этапом после этого. No command syntax, cycling UX, global glowing outline, persistence or client-mod requirement is approved by this document.
