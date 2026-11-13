@@ -50,6 +50,42 @@ class TaskScopeTest {
 
         assertEquals(1, failure.getSuppressed().length);
         assertEquals(1, cancellations.get());
+        assertEquals(1, scope.size());
+    }
+
+    @Test
+    void closeCanRetryTasksWhoseCancellationPreviouslyFailed() {
+        TaskScope scope = new TaskScope();
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicInteger cancellations = new AtomicInteger();
+
+        scope.register(new TaskHandle() {
+            private boolean cancelled;
+
+            @Override
+            public void cancel() {
+                if (attempts.getAndIncrement() == 0) {
+                    throw new IllegalStateException("временная ошибка отмены");
+                }
+                cancelled = true;
+                cancellations.incrementAndGet();
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return cancelled;
+            }
+        });
+
+        assertThrows(IllegalStateException.class, scope::close);
+
+        assertTrue(scope.isClosed());
+        assertEquals(1, scope.size());
+
+        scope.close();
+
+        assertEquals(2, attempts.get());
+        assertEquals(1, cancellations.get());
         assertEquals(0, scope.size());
     }
 
