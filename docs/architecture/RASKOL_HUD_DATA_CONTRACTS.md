@@ -470,5 +470,5 @@ HUD-C реализует единый lifecycle owner, не смешивая е�
 
 Interaction adapter переводит подтверждённое сервером действие в команду выбора для отдельного targeting/application owner. Сам HUD не подписывается на события выбора и не изменяет selection state. Проверки допустимости цели, мира, дистанции, состояния игрока, PvP/PvE правил и совместимости с NPC-плагинами находятся на стороне targeting domain/application.
 
-Не считать любой PlayerInteractEntityEvent безусловным подтверждением выбора: учитывать отмену события, руку, тип сущности и конфликты взаимодействий. Набор событий/адаптеров уточняется в отдельном Paper API spike. TargetView остаётся read-only и immutable.
+Не считать любое событие взаимодействия безусловным подтверждением выбора: учитывать отмену, руку, тип сущности и конфликты взаимодействий. Выбранный Paper event path и границы адаптера описаны в [RASKOL_HUD_TARGET_INTERACTION_SPIKE.md](RASKOL_HUD_TARGET_INTERACTION_SPIKE.md). TargetView остаётся read-only и immutable.
 
