@@ -27,7 +27,7 @@ public final class PaperHudSessionEvents implements HudSessionEvents {
     @Override
     public HudRegistration onQuit(Consumer<UUID> handler) {
         Objects.requireNonNull(handler, "handler");
-        QuitListener listener = new QuitListener(handler);
+        QuitListener listener = new QuitListener(handler, plugin.getLogger());
         plugin.getServer().getPluginManager().registerEvents(listener, plugin);
         return new PaperHudRegistration(listener);
     }
@@ -35,9 +35,11 @@ public final class PaperHudSessionEvents implements HudSessionEvents {
     private static final class QuitListener implements Listener {
 
         private final Consumer<UUID> handler;
+        private final java.util.logging.Logger logger;
 
-        private QuitListener(Consumer<UUID> handler) {
+        private QuitListener(Consumer<UUID> handler, java.util.logging.Logger logger) {
             this.handler = handler;
+            this.logger = logger;
         }
 
         @EventHandler(priority = EventPriority.MONITOR)
@@ -45,14 +47,11 @@ public final class PaperHudSessionEvents implements HudSessionEvents {
             try {
                 handler.accept(event.getPlayer().getUniqueId());
             } catch (RuntimeException failure) {
-                pluginLogger().log(Level.WARNING, "Не удалось очистить HUD-сессию игрока", failure);
+                logger.log(Level.WARNING, "Не удалось очистить HUD-сессию игрока", failure);
             }
         }
     }
 
-    private java.util.logging.Logger pluginLogger() {
-        return plugin.getLogger();
-    }
 
     private static final class PaperHudRegistration implements HudRegistration {
 
