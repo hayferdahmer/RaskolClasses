@@ -2,7 +2,7 @@
 
 ## Статус решения
 
-Зафиксировано в рамках проектирования RaskolClasses 1.16.0.
+Зафиксировано в рамках проектирования RaskolClasses 1.16.0. HUD-A Source Inventory завершён; результаты и исходные SHA зафиксированы в [RASKOL_HUD_SOURCE_INVENTORY.md](RASKOL_HUD_SOURCE_INVENTORY.md).
 
 - Плагин: `RaskolClasses`
 - Подсистема: `RaskolHUD`
@@ -288,3 +288,10 @@ HUD-A/B можно начинать после определения необх
 - конкретные event/query contracts каждого виджета.
 
 Эти вопросы не меняют уже принятые H-01, H-02 и H-03.
+
+
+## 13. Результат HUD-A Source Inventory
+
+Аудит существующих исходников завершён без изменений runtime-кода. Установлено, что текущие обязанности распределены между тремя разными по смыслу реализациями: HudService (ресурсный ActionBar), BossBarService (BossBar активных эффектов) и HpBarService (HP runtime, healing, persistence и частично presentation). HpBarService не является чистым HUD-модулем и должен сохранять совместимую HP facade. Обнаружены source-level проблемы reload/task ownership и per-player cleanup. Подробности, call-site примеры, конфигурационные ключи, риски и SHA файлов приведены в [RASKOL_HUD_SOURCE_INVENTORY.md](RASKOL_HUD_SOURCE_INVENTORY.md).
+
+**Следующий этап:** HUD-B.1 — определить Health/Resource/Character read contracts и минимальный состав согласованного snapshot. Runtime implementation пока не начиналась.
