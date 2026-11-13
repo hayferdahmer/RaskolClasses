@@ -5,6 +5,11 @@ package dev.raskol.classes.bootstrap.lifecycle;
 import java.util.Objects;
 
 /** Потокобезопасная проверка допустимых переходов lifecycle одного модуля. */
+/**
+ * Причина отказа сохраняется и возвращается как исходный Throwable для
+ * диагностики; вызывающий код не получает право менять lifecycle-состояние.
+ */
+@SuppressWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public final class ModuleLifecycle {
 
     private ModuleState state = ModuleState.NEW;
