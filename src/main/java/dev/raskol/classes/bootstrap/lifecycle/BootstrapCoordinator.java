@@ -29,6 +29,7 @@ public final class BootstrapCoordinator implements AutoCloseable {
     private List<ManagedModule> modules = List.of();
     private boolean startAttempted;
     private boolean closed;
+    private ManagedModule failingModule;
 
     public BootstrapCoordinator(
             String pluginId, Logger logger, Path dataDirectory, ServiceRegistry serviceRegistry) {
@@ -72,10 +73,10 @@ public final class BootstrapCoordinator implements AutoCloseable {
             markFailure(failingModule, failure);
             rollback(failure);
             throw new BootstrapException("Не удалось запустить модули плагина " + pluginId, failure);
+        } finally {
+            failingModule = null;
         }
     }
-
-    private ManagedModule failingModule;
 
     private void initializeAll() throws Exception {
         for (ManagedModule managed : modules) {
@@ -102,7 +103,6 @@ public final class BootstrapCoordinator implements AutoCloseable {
             managed.startAttempted = true;
             managed.module.start();
             managed.lifecycle.started();
-            managed.running = true;
         }
         failingModule = null;
     }
@@ -123,26 +123,8 @@ public final class BootstrapCoordinator implements AutoCloseable {
             if (!managed.initializeAttempted) {
                 continue;
             }
-
-            try {
-                managed.lifecycle.beginStopping();
-                if (managed.startAttempted) {
-                    managed.module.stop();
-                }
-                managed.running = false;
-                managed.lifecycle.stopped();
-            } catch (Throwable stopFailure) {
-                managed.lifecycle.failed(stopFailure);
-                failure = appendFailure(failure, stopFailure);
-            }
-
-            try {
-                managed.module.close();
-                managed.context.taskScope().close();
-                managed.lifecycle.closed();
-            } catch (Throwable closeFailure) {
-                managed.lifecycle.failed(closeFailure);
-                failure = appendFailure(failure, closeFailure);
+            for (Throwable cleanupFailure : cleanup(managed)) {
+                failure = appendFailure(failure, cleanupFailure);
             }
         }
 
@@ -163,26 +145,8 @@ public final class BootstrapCoordinator implements AutoCloseable {
             if (!managed.initializeAttempted) {
                 continue;
             }
-
-            try {
-                managed.lifecycle.beginStopping();
-                if (managed.startAttempted) {
-                    managed.module.stop();
-                }
-                managed.running = false;
-                managed.lifecycle.stopped();
-            } catch (Throwable stopFailure) {
-                managed.lifecycle.failed(stopFailure);
-                primaryFailure.addSuppressed(stopFailure);
-            }
-
-            try {
-                managed.module.close();
-                managed.context.taskScope().close();
-                managed.lifecycle.closed();
-            } catch (Throwable closeFailure) {
-                managed.lifecycle.failed(closeFailure);
-                primaryFailure.addSuppressed(closeFailure);
+            for (Throwable cleanupFailure : cleanup(managed)) {
+                primaryFailure.addSuppressed(cleanupFailure);
             }
         }
 
@@ -192,6 +156,46 @@ public final class BootstrapCoordinator implements AutoCloseable {
             primaryFailure.addSuppressed(registryFailure);
         }
         closed = true;
+    }
+
+    /**
+     * Очищает один модуль, продолжая освобождение ресурсов после каждой ошибки.
+     */
+    private static List<Throwable> cleanup(ManagedModule managed) {
+        List<Throwable> failures = new ArrayList<>();
+        try {
+            managed.lifecycle.beginStopping();
+            if (managed.startAttempted) {
+                managed.module.stop();
+            }
+        } catch (Throwable stopFailure) {
+            managed.lifecycle.failed(stopFailure);
+            failures.add(stopFailure);
+        }
+
+        if (managed.lifecycle.state() == ModuleState.STOPPING) {
+            managed.lifecycle.stopped();
+        }
+
+        try {
+            managed.module.close();
+        } catch (Throwable closeFailure) {
+            managed.lifecycle.failed(closeFailure);
+            failures.add(closeFailure);
+        }
+
+        try {
+            managed.context.taskScope().close();
+        } catch (Throwable taskFailure) {
+            managed.lifecycle.failed(taskFailure);
+            failures.add(taskFailure);
+        }
+
+        ModuleState state = managed.lifecycle.state();
+        if (state == ModuleState.STOPPED || state == ModuleState.FAILED || state == ModuleState.NEW) {
+            managed.lifecycle.closed();
+        }
+        return failures;
     }
 
     private void markFailure(ManagedModule managed, Throwable failure) {
@@ -216,6 +220,7 @@ public final class BootstrapCoordinator implements AutoCloseable {
         return closed;
     }
 
+    /** Возвращает фактический детерминированный порядок модулей. */
     public synchronized List<String> moduleOrder() {
         return modules.stream().map(managed -> managed.module.id()).toList();
     }
@@ -239,7 +244,6 @@ public final class BootstrapCoordinator implements AutoCloseable {
         private final ModuleLifecycle lifecycle;
         private boolean initializeAttempted;
         private boolean startAttempted;
-        private boolean running;
 
         private ManagedModule(PluginModule module, ModuleContext context, ModuleLifecycle lifecycle) {
             this.module = module;
