@@ -244,3 +244,153 @@ HUD не должен заранее зависеть от внутренней 
 3. **HUD-C — Runtime Ownership:** после согласования snapshot и widget contracts спроектировать HudCoordinator и его TaskScope.
 4. Перед implementation — повторно собрать полный call-site inventory на feature branch и зафиксировать compatibility tests.
 
+
+
+## 10. HUD-B.2 — Snapshot Schema
+
+### 10.1. Общие правила
+
+Предлагается один корневой `PlayerHudSnapshot` с отдельными value records для независимых групп данных. Состав не должен зависеть от конкретного способа рендеринга.
+
+Корневые поля:
+- `playerId`;
+- `revision` — монотонный номер snapshot конкретного игрока;
+- `capturedAtMillis`;
+- `character`;
+- `health`;
+- `resource`;
+- `attributes`;
+- `target`;
+- `effects`;
+- `dots`;
+- `combat`;
+- `profile`.
+
+Вложенные типы:
+- `CharacterView`;
+- `HealthView`;
+- `ResourceView`;
+- `AttributeView`;
+- `TargetView`;
+- `EffectView`;
+- `DotView`;
+- `CombatView`;
+- `HudProfileView`.
+
+### 10.2. Неизвестное значение не равно нулю
+
+Вводится общий enum `DataStatus`:
+- `AVAILABLE` — источник успешно предоставил данные;
+- `NOT_APPLICABLE` — показатель неприменим к данному классу/состоянию;
+- `UNAVAILABLE` — источник временно не смог предоставить данные.
+
+Для target используется более точная семантика:
+- `NONE` — цель успешно проверена, цели нет;
+- `AVAILABLE` — цель есть;
+- `UNAVAILABLE` — target source недоступен/не смог разрешить цель.
+
+Не кодировать неизвестные значения нулём, пустой строкой или отрицательными числами. Значение доступно только при статусе AVAILABLE. Для необязательных чисел использовать явное отсутствие значения; не использовать NaN как протокол.
+
+### 10.3. Коллекции и время
+
+- Все коллекции в snapshot создаются defensive copy и публикуются как immutable.
+- `EffectView` и `DotView` хранят primitive/value fields, а не ссылки на mutable EffectType maps или DotInstance.
+- Внутреннее время срока действия хранится как absolute expiry timestamp; remaining duration вычисляется относительно `capturedAtMillis`, чтобы все виджеты кадра использовали один момент времени.
+- Для бесконечного/one-shot эффекта используется явный флаг, а не искусственный большой remaining duration.
+- UUID игрока/цели допустимы; Bukkit Entity/Player — нет.
+
+### 10.4. Уведомления не являются частью постоянного snapshot
+
+Level-up, смена специализации, получение важной награды и другие одноразовые уведомления должны идти через отдельный `HudNotificationService`/event queue с идентификатором, сроком жизни и адресатом.
+
+Причина: если хранить уведомление как обычное поле snapshot, каждый refresh может повторно показать одно и то же событие. Notification delivery должна быть idempotent и иметь политику удаления/истечения.
+
+## 11. HUD-B.3 — Widget Contracts и каналы
+
+### 11.1. Widget contract
+
+Виджет:
+- имеет стабильный `HudWidgetId`;
+- объявляет, какие поля snapshot ему нужны;
+- получает immutable `PlayerHudSnapshot` и эффективный `HudProfileView`;
+- возвращает presentation intent, а не вызывает Bukkit API;
+- не читает игровые сервисы самостоятельно;
+- не меняет игровые данные;
+- может вернуть отсутствие вывода, если поле unavailable/not applicable или виджет скрыт.
+
+Предварительная логическая форма:
+
+```java
+interface HudWidget {
+    HudWidgetId id();
+    WidgetFrame render(PlayerHudSnapshot snapshot, HudProfileView profile);
+}
+```
+
+`WidgetFrame` содержит:
+- widget id;
+- channel;
+- priority;
+- immutable payload;
+- optional expiry/animation metadata;
+- visibility state.
+
+Не создавать отдельный interface для каждого вида текста/иконки до появления реальной вариативности. Виджеты должны оставаться небольшими и cohesive.
+
+### 11.2. Channel ownership
+
+Вводится один владелец состояния вывода на игрока — `HudChannelCoordinator` (рабочее имя).
+
+Его задачи:
+- разрешать конкуренцию нескольких виджетов за ActionBar;
+- управлять набором принадлежащих RaskolClasses BossBars;
+- публиковать Scoreboard только через отдельную стратегию совместимости;
+- очищать output и per-player handles при quit/disable;
+- не допускать, чтобы два виджета независимо отправляли один и тот же канал без приоритета.
+
+BossBar может иметь несколько одновременно видимых элементов, но каждый такой handle должен иметь стабильный widget/source id и управляться общим owner. Существующий BossBarService пока остаётся legacy owner до отдельного переноса.
+
+Scoreboard не должен перезаписывать sidebar/teams другого плагина без согласованной политики. Если нельзя безопасно владеть sidebar, соответствующий widget должен быть отключён или использовать альтернативный channel.
+
+### 11.3. Presentation pipeline
+
+```text
+PlayerHudSnapshot
+       |
+       v
+HudWidgetRegistry
+       |
+       v
+WidgetFrame[]
+       |
+       v
+HudChannelCoordinator
+       |
+       +--> ActionBarRenderer
+       +--> BossBarRenderer
+       +--> ScoreboardRenderer
+       +--> ResourcePack / Font Glyph adapter
+       |
+       v
+Paper / Adventure API
+```
+
+Виджеты не должны сериализовать legacy strings или создавать Bukkit BossBar напрямую. Renderer adapter отвечает за конвертацию presentation payload в Paper API.
+
+### 11.4. Независимость каналов
+
+- ActionBar — единая строка/область, конкуренция решается приоритетом и коротким TTL.
+- BossBar — несколько принадлежащих HUD полос, но единая регистрация/очистка.
+- Scoreboard — условный канал с ограничениями совместимости.
+- Resource pack/custom font — визуальные assets, а не самостоятельный произвольный экранный canvas. Его использование требует отдельной стратегии доставки, hash/version и fallback.
+- Inventory GUI — только настройки/редактор профиля, не постоянный боевой вывод.
+
+## 12. HUD-B.1/B.2/B.3 — статус и открытые решения
+
+Проектная структура snapshot и widget contract описана, но до реализации остаются продуктовые решения:
+- target frame: crosshair target или last explicitly selected/locked target;
+- resource pack: обязательный для полного RASKOL-дизайна или optional с функциональным fallback;
+- политика Scoreboard/BossBar конфликтов с внешними плагинами;
+- конкретный набор class/spec-specific widgets для каждой из шести текущих классов и будущих специализаций.
+
+Эти вопросы не блокируют завершение source inventory и базовых read contracts, но влияют на окончательный renderer/widget scope.
