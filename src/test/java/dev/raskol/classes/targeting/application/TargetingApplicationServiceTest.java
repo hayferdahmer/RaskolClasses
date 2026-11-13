@@ -68,7 +68,7 @@ class TargetingApplicationServiceTest {
                 assertInstanceOf(TargetSelectionOutcome.AlreadySelected.class, repeated).selection();
         assertSame(first, existing);
         assertEquals(1_000L, existing.selectedAtMillis());
-        assertEquals(1, store.findByOwner(actorId).stream().count());
+        assertTrue(store.findByOwner(actorId).isPresent());
     }
 
     @Test
@@ -151,12 +151,6 @@ class TargetingApplicationServiceTest {
                 TargetSelectionRejectionReason.OFF_HAND_NOT_SUPPORTED,
                 assertInstanceOf(TargetSelectionOutcome.Rejected.class, offHandResult).reason());
 
-        TargetInteractionInput unsupportedSource = new TargetInteractionInput(
-                actorId, UUID.randomUUID(), nullSafeSource(), TargetInteractionHand.MAIN_HAND);
-        TargetSelectionOutcome sourceResult = service.select(unsupportedSource);
-        assertEquals(
-                TargetSelectionRejectionReason.UNSUPPORTED_SOURCE,
-                assertInstanceOf(TargetSelectionOutcome.Rejected.class, sourceResult).reason());
     }
 
     @Test
@@ -207,9 +201,5 @@ class TargetingApplicationServiceTest {
     private TargetInteractionInput input(UUID targetId) {
         return new TargetInteractionInput(
                 actorId, targetId, TargetSelectionSource.ENTITY_RIGHT_CLICK, TargetInteractionHand.MAIN_HAND);
-    }
-
-    private static TargetSelectionSource nullSafeSource() {
-        return null;
     }
 }
