@@ -19,6 +19,9 @@ public final class CompositeTargetSelectionPolicy implements TargetSelectionPoli
     public CompositeTargetSelectionPolicy(List<TargetSelectionCheck> checks) {
         Objects.requireNonNull(checks, "checks");
         this.checks = List.copyOf(checks);
+        if (this.checks.isEmpty()) {
+            throw new IllegalArgumentException("Для composite policy требуется хотя бы одна проверка");
+        }
         if (this.checks.stream().anyMatch(Objects::isNull)) {
             throw new IllegalArgumentException("checks не может содержать null");
         }
