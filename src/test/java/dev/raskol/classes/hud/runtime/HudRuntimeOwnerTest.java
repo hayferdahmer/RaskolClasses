@@ -91,6 +91,27 @@ class HudRuntimeOwnerTest {
     }
 
     @Test
+    void cancellationFailureRetainsOwnershipAndPreventsDuplicateStart() {
+        FakeScheduler scheduler = new FakeScheduler();
+        HudRuntimeOwner owner = owner(
+                scheduler, new FakeSessionEvents(), new RecordingCleanup(), () -> {});
+        owner.register();
+        owner.start();
+        scheduler.scheduled.getFirst().failCancelOnce = true;
+
+        assertThrows(IllegalStateException.class, owner::stop);
+
+        assertTrue(owner.isStarted());
+        owner.start();
+        assertEquals(1, scheduler.scheduled.size());
+
+        owner.stop();
+
+        assertFalse(owner.isStarted());
+        assertTrue(scheduler.scheduled.getFirst().cancelled);
+    }
+
+    @Test
     void closeUnregistersAndRemainsIdempotent() {
         FakeScheduler scheduler = new FakeScheduler();
         FakeSessionEvents events = new FakeSessionEvents();
@@ -171,6 +192,7 @@ class HudRuntimeOwnerTest {
 
         private final Runnable action;
         private boolean cancelled;
+        private boolean failCancelOnce;
         private int cancelCalls;
 
         private FakeTask(Runnable action) {
@@ -186,6 +208,10 @@ class HudRuntimeOwnerTest {
         @Override
         public void cancel() {
             cancelCalls++;
+            if (failCancelOnce) {
+                failCancelOnce = false;
+                throw new IllegalStateException("Временная ошибка отмены задачи");
+            }
             cancelled = true;
         }
 
