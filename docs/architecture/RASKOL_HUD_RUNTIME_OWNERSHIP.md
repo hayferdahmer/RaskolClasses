@@ -2,7 +2,7 @@
 
 ## Status
 
-Design handoff for HUD-C. This document defines ownership and lifecycle boundaries; it does not change runtime code or activate the generic BootstrapCoordinator.
+Living design and implementation record for HUD-C. The runtime seams and Paper adapters are implemented incrementally; the generic BootstrapCoordinator is not activated.
 
 - Repository: hayferdahmer/RaskolClasses
 - Branch: refactor/a03-foundation-lifecycle
@@ -256,3 +256,26 @@ Implementation files:
 - `src/test/java/dev/raskol/classes/hud/runtime/HudRuntimeOwnerTest.java`
 
 This slice does not wire a Paper listener or scheduler adapter into `RaskolClasses`, does not move legacy HudService/BossBarService tasks out of `activeTasks`, and does not change ActionBar/BossBar output. Maven/Spotless/SpotBugs verification is pending; the presence of tests is not evidence that they have passed.
+
+
+## 16. HUD-C.1.3 — Paper adapters
+
+Implemented Paper-facing adapters for the runtime ports:
+
+- `PaperHudTaskScheduler` delegates repeating work to Paper's synchronous `runTaskTimer`; the returned `BukkitTask` is wrapped by the lifecycle `TaskHandle` contract.
+- `PaperHudSessionEvents` registers a dedicated listener for `PlayerQuitEvent`, forwards only the player's UUID, and returns a registration handle that unregisters only that listener.
+- Quit cleanup exceptions are logged and isolated from the server event dispatch; they do not escape into unrelated quit listeners.
+- Listener unregistration is idempotent and restores its open state if the underlying unregister operation throws, allowing a later close retry.
+- `HudRuntimeOwner.close()` now retains failed registration cleanup and supports retry after a close failure. While closing is incomplete, new registration/start operations are rejected.
+
+Tests added in `PaperHudAdaptersTest` use JDK dynamic proxies around Paper interfaces; they verify synchronous scheduler delegation, action forwarding, interval validation, task cancellation, listener registration and repeated registration close. Existing `HudRuntimeOwnerTest` also covers retry after listener-unregistration failure.
+
+Scope boundary:
+- These adapters are production code, but they are not yet wired into `RaskolClasses`.
+- Legacy `HudService` and `BossBarService` task ownership remains unchanged.
+- No new ActionBar/BossBar renderer or target-selection UX is activated.
+- No Resource Pack files or delivery configuration are introduced in this slice.
+
+Verification status:
+- Source files and tests are committed to the feature branch.
+- Maven/Spotless/SpotBugs and a controlled Paper 26.2 runtime test must still pass before this slice is considered verified.
