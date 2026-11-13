@@ -23,7 +23,7 @@
 - Подготовлен A-03-003.4 Bootstrap Integration Design: зафиксированы текущие startup/shutdown-последовательности, границы владения, обязательные инварианты и безопасная стратегия включения координатора.
 - Выполнен A-03-003.5 Lifecycle Seam Extraction: операции onEnable/onDisable выделены в приватные фазы без активации нового координатора и без изменения порядка вызовов.
 - Завершён A-03-003.6 Legacy Runtime Adapter Assessment: принято решение не создавать pass-through LegacyRuntimeModule; зафиксированы несовпадение lifecycle-фаз, текущее владение задачами и storage, а также граница следующего реального извлечения — runtime integrity monitoring.
-- Выполнен первый реальный lifecycle owner в A-03-003.7: runtime RIPS monitor и выделенный executor переданы `RuntimeIntegrityRuntimeOwner`; startup gate и Paper-specific enforcement callback оставлены в composition root.
+- Выполнен A-03-003.7: runtime RIPS monitor и выделенный executor переданы `RuntimeIntegrityRuntimeOwner`; startup gate и Paper-specific enforcement callback оставлены в composition root. Добавлены тесты на конкурентный start, terminal close и освобождение executor при ошибке планирования; результаты Maven/CI ещё не подтверждены. Архитектурные границы и acceptance status записаны в `docs/architecture/A03_RUNTIME_INTEGRITY_OWNER.md`.
 - Добавлены unit-тесты для lifecycle, управления задачами, реестра сервисов и графа модулей. Интеграция Foundation с существующими сервисами будет выполняться отдельными проверяемыми этапами.
 
 ## [1.15.8] — «Подписанный рубеж» · 2026-11-13
