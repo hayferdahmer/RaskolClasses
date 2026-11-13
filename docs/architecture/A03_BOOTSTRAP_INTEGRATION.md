@@ -225,3 +225,17 @@ The original behavior is preserved:
 Startup rollback cancels a created task, attempts to unregister any expansion registration that may have started, and clears snapshots. Shutdown uses cancel → unregister → clear. Cleanup failures are logged without skipping the remaining root shutdown sequence; the owner reference is retained when cleanup is incomplete so its retry path is not discarded.
 
 Focused tests are added in PlaceholderRuntimeOwnerTest. CI verification is tracked separately and must not be considered complete until the branch workflow finishes successfully.
+
+
+### A-03-003.15 — CrownFlavorService runtime ownership
+
+`FlavorRuntimeOwner` now owns the CrownFlavorService listener registration and 40-tick aura producer through narrow ports and Paper adapters.
+
+The root preserves the original startup phases:
+- listener registration occurs in `registerGameplayListeners`;
+- aura scheduling occurs in `startRuntimeTasks`;
+- aura task handles are no longer stored in root `activeTasks`.
+
+`CrownFlavorService` retains faction lookup, title lookup, join messaging and particle behavior. Its `tickAura()` method performs one cycle only; scheduling belongs to `PaperFlavorTaskScheduler`.
+
+Shutdown cancels the aura producer before unregistering the listener. Startup rollback and shutdown cleanup independently attempt task cancellation and listener unregistration; failed cleanup remains retryable. The original 40-tick initial delay and period are preserved.
