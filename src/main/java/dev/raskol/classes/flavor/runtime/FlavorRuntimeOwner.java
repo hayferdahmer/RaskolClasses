@@ -123,10 +123,6 @@ public final class FlavorRuntimeOwner implements AutoCloseable {
         closed = true;
     }
 
-    @Override
-    public void closeQuietly() {
-        close();
-    }
 
     public synchronized boolean isRegistered() {
         return registered;
