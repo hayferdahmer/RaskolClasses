@@ -177,18 +177,19 @@ public final class BootstrapCoordinator implements AutoCloseable {
             managed.lifecycle.stopped();
         }
 
-        try {
-            managed.module.close();
-        } catch (Throwable closeFailure) {
-            managed.lifecycle.failed(closeFailure);
-            failures.add(closeFailure);
-        }
-
+        // Сначала отменяем задачи, чтобы они не обращались к уже закрываемым ресурсам модуля.
         try {
             managed.context.taskScope().close();
         } catch (Throwable taskFailure) {
             managed.lifecycle.failed(taskFailure);
             failures.add(taskFailure);
+        }
+
+        try {
+            managed.module.close();
+        } catch (Throwable closeFailure) {
+            managed.lifecycle.failed(closeFailure);
+            failures.add(closeFailure);
         }
 
         ModuleState state = managed.lifecycle.state();
