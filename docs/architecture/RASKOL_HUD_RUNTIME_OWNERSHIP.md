@@ -279,3 +279,8 @@ Scope boundary:
 Verification status:
 - Source files and tests are committed to the feature branch.
 - Maven/Spotless/SpotBugs and a controlled Paper 26.2 runtime test must still pass before this slice is considered verified.
+
+## 17. Target interaction decision — H-06
+
+Пользователь выбрал ПКМ по существу как основной UX фиксации цели. Реализация будет отдельным targeting/application компонентом и не входит в HudRuntimeOwner. До реализации нужно проверить Paper event semantics, отменённые события, off-hand, NPC compatibility и PvP/PvE restrictions. HUD получает только read-only TargetView; наведение камеры не меняет locked target.
+
