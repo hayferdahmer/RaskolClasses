@@ -50,6 +50,20 @@ class ModuleDependencyResolverTest {
     }
 
     @Test
+    void cycleReportDoesNotIncludeModulesMerelyBlockedByThatCycle() {
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> ModuleDependencyResolver.resolve(List.of(
+                        module("combat", Set.of("effects")),
+                        module("effects", Set.of("combat")),
+                        module("presentation", Set.of("combat")))));
+
+        assertEquals(
+                "Обнаружен цикл зависимостей модулей: [combat, effects]",
+                failure.getMessage());
+    }
+
+    @Test
     void rejectsSelfDependency() {
         assertThrows(
                 IllegalArgumentException.class,
