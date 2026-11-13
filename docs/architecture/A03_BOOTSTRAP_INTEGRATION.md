@@ -159,9 +159,9 @@ The assessment confirms that `PetService` has one listener, two explicit schedul
 
 Implemented the narrow owner and its Paper adapters. The owner now controls listener registration, both task handles, partial-start rollback, pre-cancellation despawn, task cancellation and listener unregistration. The existing 20-tick pet task cadence and 100-tick orphan-scan delay remain delegated to the unchanged PetService methods. `getPets()` and existing callers remain compatible. The two pet tasks were removed from root `activeTasks`. Focused tests were added; Maven/CI verification is pending. See [A03_PET_RUNTIME_OWNERSHIP.md](A03_PET_RUNTIME_OWNERSHIP.md).
 
-### A-03-003.10 — Remaining lifecycle ownership inventory
+### A-03-003.10 — Remaining lifecycle ownership inventory (documented; full scan pending)
 
-Before activating `BootstrapCoordinator`, continue with a source-backed ownership inventory of the remaining listeners, scheduled tasks, external registrations and final-save responsibilities. Prioritize components that combine state, listeners and recurring tasks, then extract one owner at a time with characterization tests. Do not activate the coordinator until the complete graph, rollback order and final storage-writer shutdown have deterministic tests.
+A source-backed first-pass inventory is recorded in [A03_REMAINING_LIFECYCLE_OWNERSHIP_INVENTORY.md](A03_REMAINING_LIFECYCLE_OWNERSHIP_INVENTORY.md). It maps root periodic tasks, internal task-bearing services, listener/external registrations and persistence/shutdown ordering. The inventory identifies `HpAttributeSync` as the next bounded owner extraction because its listener + sweep task + delayed join sync form a narrow boundary. The full repository-wide task/registration scan remains an explicit gate; do not activate `BootstrapCoordinator` until that scan and deterministic rollback/storage-drain tests are complete.
 
 Coordinator activation remains gated on characterization tests for startup, rollback and shutdown ordering:
 - create and validate the real module graph;
