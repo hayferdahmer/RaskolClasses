@@ -73,7 +73,7 @@ Bukkit обычно очищает зарегистрированные listener
 
 ### Optional / external registrations
 
-- PlaceholderAPI: `PlaceholderSnapshotService.start(this)`, затем две expansion registration calls; root закрывает snapshot service. Отдельного unregister expansion в текущем root sequence не видно — проверить контракт PlaceholderAPI и ownership expansions до extraction.
+- PlaceholderAPI: `PlaceholderRuntimeOwner` управляет 5-tick snapshot producer и обеими expansions; явный unregister выполняется при shutdown.
 - RaskolCore passport event: reflective `registerEvent`; явный `HandlerList.unregisterAll(this)` существует.
 - RaskolEnchant BlueprintHook: текущий код только обнаруживает plugin и логирует; рецепты не регистрирует, `unregisterBlueprints()` пока no-op.
 - PlayerPoints: создаётся wallet adapter или NullWallet; отдельная registration lifecycle в root не видна.
@@ -161,7 +161,9 @@ Do not activate `BootstrapCoordinator` in this slice.
 - [x] HpAttributeSync listener and recurring sweep transferred to a dedicated runtime owner.
 - [x] CooldownManager listener and delayed notification task shutdown coordinated by a dedicated runtime owner.
 - [x] FoliantService listener and periodic lock-flush producer transferred to a dedicated runtime owner.
-- [ ] Every row validated against the owning class implementation before module graph construction.\n- [x] PlaceholderAPI snapshot producer and both expansion registrations transferred to `PlaceholderRuntimeOwner`.
+- [ ] Every row validated against the owning class implementation before module graph construction.
+- [x] PlaceholderAPI snapshot producer and both expansion registrations transferred to `PlaceholderRuntimeOwner`.
+- [x] Crown flavor listener and 40-tick aura producer transferred to `FlavorRuntimeOwner`.
 - [x] Crown flavor listener and 40-tick aura producer transferred to `FlavorRuntimeOwner`.
 
 The unchecked items are deliberate gates: this inventory is sufficient to choose the next bounded extraction, but not yet sufficient to activate the coordinator.
