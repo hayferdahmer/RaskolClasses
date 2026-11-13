@@ -74,6 +74,9 @@ import dev.raskol.classes.integrity.runtime.RuntimeIntegrityState;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 import dev.raskol.classes.item.service.ItemSystem;
 import dev.raskol.classes.pet.PetService;
+import dev.raskol.classes.pet.runtime.PaperPetRuntimeRegistration;
+import dev.raskol.classes.pet.runtime.PaperPetTaskScheduler;
+import dev.raskol.classes.pet.runtime.PetRuntimeOwner;
 import dev.raskol.classes.resource.ResourceService;
 import dev.raskol.classes.spec.build.BuildTemplates;
 import dev.raskol.classes.spec.build.ImperialWallet;
@@ -170,6 +173,9 @@ public final class RaskolClasses extends JavaPlugin {
 
     /** 1.14.6: пет-слой. */
     private PetService pets;
+
+    /** Единственный владелец listener и задач runtime петов. */
+    private PetRuntimeOwner petRuntimeOwner;
 
     private CCService ccService;
     private CCGuard ccGuard;
@@ -371,9 +377,11 @@ public final class RaskolClasses extends JavaPlugin {
         this.warlockAbilities = WarlockAbilities.install(this);
 
         this.pets = new PetService(this);
-        pets.registerListeners();
-        activeTasks.add(pets.startTickTask());
-        activeTasks.add(pets.scheduleOrphanScan());
+        this.petRuntimeOwner = new PetRuntimeOwner(
+                new PaperPetRuntimeRegistration(this, pets),
+                new PaperPetTaskScheduler(pets),
+                pets::despawnAll);
+        petRuntimeOwner.start();
     }
 
     /** Регистрирует игровые listeners и синхронизирует уже подключённых игроков. */
@@ -573,9 +581,13 @@ public final class RaskolClasses extends JavaPlugin {
             foliantService.saveLocksIfDirty();
         }
 
-        // 1.15.7 (Волна 7d): петы дезспавнятся до отмены задач
-        if (pets != null) {
-            pets.despawnAll();
+        // Runtime-владелец сохраняет обязательный порядок: despawn -> cancel -> unregister.
+        if (petRuntimeOwner != null) {
+            try {
+                petRuntimeOwner.close();
+            } catch (RuntimeException exception) {
+                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить runtime петов", exception);
+            }
         }
 
         activeTasks.forEach(BukkitTask::cancel);
