@@ -10,7 +10,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -59,30 +58,22 @@ public final class CrownFlavorService implements Listener {
         return plugin.getConfig().getString("flavors." + faction + ".titles." + pc.name(), "");
     }
 
-    /** Аура: раз в 40 тиков партикл короны вокруг игрока. */
-    public BukkitTask startAuraTask() {
-        return plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(
-                        plugin,
-                        () -> {
-                            for (Player online : plugin.getServer().getOnlinePlayers()) {
-                                String faction = factionHook.factionOf(online.getUniqueId());
-                                if (faction.isEmpty()) {
-                                    continue;
-                                }
-                                String fallback = "rassvet".equals(faction) ? "END_ROD" : "SOUL_FIRE_FLAME";
-                                Particle particle = parseParticle(
-                                        plugin.getConfig().getString("flavors." + faction + ".particle", fallback));
-                                if (particle == null) {
-                                    continue;
-                                }
-                                online.spawnParticle(
-                                        particle, online.getLocation().add(0.0, 0.3, 0.0), 2, 0.25, 0.2, 0.25, 0.0);
-                            }
-                        },
-                        40L,
-                        40L);
+    /** Выполняет один цикл ауры; периодичность принадлежит FlavorRuntimeOwner. */
+    public void tickAura() {
+        for (Player online : plugin.getServer().getOnlinePlayers()) {
+            String faction = factionHook.factionOf(online.getUniqueId());
+            if (faction.isEmpty()) {
+                continue;
+            }
+            String fallback = "rassvet".equals(faction) ? "END_ROD" : "SOUL_FIRE_FLAME";
+            Particle particle = parseParticle(
+                    plugin.getConfig().getString("flavors." + faction + ".particle", fallback));
+            if (particle == null) {
+                continue;
+            }
+            online.spawnParticle(
+                    particle, online.getLocation().add(0.0, 0.3, 0.0), 2, 0.25, 0.2, 0.25, 0.0);
+        }
     }
 
     /** При входе — напомнить титул (если есть). */
