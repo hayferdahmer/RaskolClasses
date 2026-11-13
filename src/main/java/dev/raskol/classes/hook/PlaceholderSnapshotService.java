@@ -22,20 +22,10 @@ import dev.raskol.classes.classsystem.PlayerClass;
  * чтение состояния Player и вызовы внешних интеграций остаются в этом сервисе
  * и выполняются только на основном потоке.</p>
  */
-public final class PlaceholderSnapshotService implements AutoCloseable {
+public final class PlaceholderSnapshotService {
 
     private final Map<UUID, PlaceholderSnapshot> snapshots = new ConcurrentHashMap<>();
     private final Set<UUID> warnedFailures = ConcurrentHashMap.newKeySet();
-    /**
-     * Запускает обновление снимков на основном потоке.
-     */
-    public void start(RaskolClasses plugin) {
-        refreshOnlinePlayers(plugin);
-        refreshTask = plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(plugin, () -> refreshOnlinePlayers(plugin), REFRESH_PERIOD_TICKS, REFRESH_PERIOD_TICKS);
-    }
-
     /**
      * Возвращает значение из последнего опубликованного снимка.
      */
@@ -52,6 +42,7 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
         return snapshot == null ? null : snapshot.crownValue(parameter);
     }
 
+    /** Обновляет снимки всех игроков; вызывается runtime owner на основном потоке. */
     public void refreshOnlinePlayers(RaskolClasses plugin) {
         Set<UUID> onlineIds = new HashSet<>();
         for (Player player : plugin.getServer().getOnlinePlayers()) {
