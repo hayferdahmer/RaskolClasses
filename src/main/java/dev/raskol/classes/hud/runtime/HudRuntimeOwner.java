@@ -153,6 +153,7 @@ public final class HudRuntimeOwner implements AutoCloseable {
         } catch (RuntimeException exception) {
             failure = merge(failure, exception);
         }
+        started = tasks.size() > 0;
 
         if (failure != null) {
             throw failure;
