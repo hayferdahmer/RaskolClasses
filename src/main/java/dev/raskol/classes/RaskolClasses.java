@@ -50,6 +50,9 @@ import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.flavor.CrownFlavorService;
 import dev.raskol.classes.foliant.FoliantService;
+import dev.raskol.classes.foliant.runtime.FoliantRuntimeOwner;
+import dev.raskol.classes.foliant.runtime.PaperFoliantRuntimeRegistration;
+import dev.raskol.classes.foliant.runtime.PaperFoliantRuntimeScheduler;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
@@ -159,6 +162,7 @@ public final class RaskolClasses extends JavaPlugin {
     private EntityLevelProvider entityLevelProvider;
     private BlueprintHook blueprintHook;
     private FoliantService foliantService;
+    private FoliantRuntimeOwner foliantRuntimeOwner;
 
     private FxService fx;
 
@@ -384,7 +388,11 @@ public final class RaskolClasses extends JavaPlugin {
         this.installToken = new InstallToken(this);
 
         this.foliantService = new FoliantService(this);
-        activeTasks.add(foliantService.startLockFlushTask());
+        this.foliantRuntimeOwner = new FoliantRuntimeOwner(
+                new PaperFoliantRuntimeRegistration(pluginManager, this, foliantService),
+                new PaperFoliantRuntimeScheduler(this, foliantService::flushLocksIfDirty),
+                1200L);
+        foliantRuntimeOwner.start();
 
         this.warlockAbilities = WarlockAbilities.install(this);
 
@@ -415,7 +423,6 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
         pluginManager.registerEvents(hpBarService, this);
         pluginManager.registerEvents(fx, this);
-        pluginManager.registerEvents(foliantService, this);
         pluginManager.registerEvents(warlockAbilities, this);
 
         this.passportListener = new PassportChangeListener(this);
@@ -596,8 +603,25 @@ public final class RaskolClasses extends JavaPlugin {
         }
         WarlockAbilities.cancelAllChannelTasks();
 
+        if (foliantRuntimeOwner != null) {
+            try {
+                foliantRuntimeOwner.close();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось полностью остановить Foliant runtime",
+                        exception);
+            }
+        }
         if (foliantService != null) {
-            foliantService.saveLocksIfDirty();
+            try {
+                foliantService.saveLocksIfDirty();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось поставить финальный снимок Foliant в очередь",
+                        exception);
+            }
         }
 
         // Runtime-владелец сохраняет обязательный порядок: despawn -> cancel -> unregister.
