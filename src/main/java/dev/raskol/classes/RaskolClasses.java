@@ -62,6 +62,9 @@ import dev.raskol.classes.hook.FactionHook;
 import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.hook.PlaceholderSnapshotService;
+import dev.raskol.classes.hook.runtime.PaperPlaceholderRuntimeRegistration;
+import dev.raskol.classes.hook.runtime.PaperPlaceholderRuntimeScheduler;
+import dev.raskol.classes.hook.runtime.PlaceholderRuntimeOwner;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
@@ -155,6 +158,7 @@ public final class RaskolClasses extends JavaPlugin {
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
     private PlaceholderSnapshotService placeholderSnapshots;
+    private PlaceholderRuntimeOwner placeholderRuntimeOwner;
 
     private ItemSystem items;
     private ItemsApi itemsApi;
@@ -435,14 +439,27 @@ public final class RaskolClasses extends JavaPlugin {
 
     /** Подключает необязательные внешние интеграции. */
     private void registerOptionalIntegrations(PluginManager pluginManager) {
-        if (pluginManager.getPlugin("PlaceholderAPI") != null) {
-            this.placeholderSnapshots = new PlaceholderSnapshotService();
-            placeholderSnapshots.start(this);
-            new dev.raskol.classes.hook.RaskolPlaceholder(this, placeholderSnapshots).register();
-            new FlavorPlaceholder(this, placeholderSnapshots).register();
-            getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% " + "и %raskolcrown_*% зарегистрированы");
-        } else {
+        if (pluginManager.getPlugin("PlaceholderAPI") == null) {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
+            return;
+        }
+
+        this.placeholderSnapshots = new PlaceholderSnapshotService();
+        this.placeholderRuntimeOwner = new PlaceholderRuntimeOwner(
+                () -> placeholderSnapshots.refreshOnlinePlayers(this),
+                placeholderSnapshots::clear,
+                new PaperPlaceholderRuntimeRegistration(this, placeholderSnapshots),
+                new PaperPlaceholderRuntimeScheduler(
+                        this, () -> placeholderSnapshots.refreshOnlinePlayers(this)));
+        try {
+            placeholderRuntimeOwner.start();
+            getLogger().info(
+                    "PlaceholderAPI: плейсхолдеры %raskolclasses_*% и %raskolcrown_*% зарегистрированы");
+        } catch (RuntimeException exception) {
+            getLogger().log(
+                    java.util.logging.Level.WARNING,
+                    "PlaceholderAPI runtime не запущен; интеграция отключена",
+                    exception);
         }
     }
 
@@ -578,10 +595,18 @@ public final class RaskolClasses extends JavaPlugin {
      * затем сохраняемые сервисы, а общий StorageWriter закрывает последним.
      */
     private void shutdownRuntime() {
-        if (placeholderSnapshots != null) {
-            placeholderSnapshots.close();
-            placeholderSnapshots = null;
+        if (placeholderRuntimeOwner != null) {
+            try {
+                placeholderRuntimeOwner.close();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось полностью остановить PlaceholderAPI runtime",
+                        exception);
+            }
         }
+        placeholderRuntimeOwner = null;
+        placeholderSnapshots = null;
 
         if (runtimeIntegrityRuntimeOwner != null) {
             runtimeIntegrityRuntimeOwner.close();
