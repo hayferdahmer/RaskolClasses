@@ -3,6 +3,10 @@
 name: RaskolClasses Spotless Format
 
 on:
+  push:
+    branches: [ refactor/a03-foundation-lifecycle ]
+    paths:
+      - .github/workflows/spotless-format.yml
   workflow_dispatch:
 
 permissions:
