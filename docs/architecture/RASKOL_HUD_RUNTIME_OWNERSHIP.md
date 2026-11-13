@@ -310,3 +310,16 @@ Focused JUnit coverage is added in `TargetDomainContractsTest`. This is not a ru
 Added the application port `TargetSelectionStore` and a thread-safe `InMemoryTargetSelectionStore` adapter backed by `ConcurrentHashMap`. The store supports owner-scoped lookup, replacement, removal and full transient-state clear. Tests cover owner isolation, replacement, removal, clear and null arguments.
 
 The store is transient and does not persist target selections or retain Bukkit references. Policy evaluation and idempotent re-selection semantics remain application-service responsibilities. No Paper listener or production bootstrap wiring is added in this slice.
+
+
+## 21. HUD-C.1.8 — Targeting application service
+
+Added Bukkit-independent application contracts and `TargetingApplicationService`:
+- UUID-only `TargetInteractionInput` with source and hand;
+- `TargetSelectionPolicy` port with typed ACCEPTED / REJECTED / UNAVAILABLE result;
+- typed command outcomes SELECTED / ALREADY_SELECTED / REJECTED / UNAVAILABLE;
+- synchronized owner-scoped select, clear, query and session-end operations.
+
+The service rejects self-target and off-hand input before policy evaluation. It evaluates policy before mutating the store; rejection or provider unavailability leaves the previous target unchanged. Re-selecting the same target re-runs policy and then returns ALREADY_SELECTED without changing the original selection timestamp. A clock supplier is injected for deterministic tests.
+
+The service does not resolve Bukkit entities, implement concrete NPC/PvP/territory rules, register a listener or wire into plugin bootstrap. Paper adapter main-thread requirements remain in force.
