@@ -143,7 +143,7 @@ class TargetingApplicationServiceTest {
     }
 
     @Test
-    void rejectsOffHandAndUnsupportedSource() {
+    void rejectsOffHandInput() {
         TargetInteractionInput offHand = new TargetInteractionInput(
                 actorId, UUID.randomUUID(), TargetSelectionSource.ENTITY_RIGHT_CLICK, TargetInteractionHand.OFF_HAND);
         TargetSelectionOutcome offHandResult = service.select(offHand);
