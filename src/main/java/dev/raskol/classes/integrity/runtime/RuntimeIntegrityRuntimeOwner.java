@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -26,6 +27,7 @@ public final class RuntimeIntegrityRuntimeOwner implements AutoCloseable {
 
     private final RuntimeIntegrityMonitor monitor;
     private final Logger logger;
+    private final AtomicBoolean startLogged = new AtomicBoolean(false);
 
     public RuntimeIntegrityRuntimeOwner(
             Supplier<IntegrityVerificationResult> verificationTask,
@@ -62,7 +64,18 @@ public final class RuntimeIntegrityRuntimeOwner implements AutoCloseable {
 
     /** Запускает периодические проверки; повторный вызов безопасен. */
     public void start() {
-        monitor.start();
+        if (!startLogged.compareAndSet(false, true)) {
+            monitor.start();
+            return;
+        }
+
+        try {
+            monitor.start();
+        } catch (RuntimeException exception) {
+            startLogged.set(false);
+            throw exception;
+        }
+
         logger.info("[RIPS] Artifact-bound runtime integrity monitoring started (interval: "
                 + Duration.ofMillis(monitor.getIntervalMillis()).toMinutes()
                 + " minutes)");
