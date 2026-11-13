@@ -11,7 +11,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -25,12 +24,8 @@ import dev.raskol.classes.classsystem.PlayerClass;
  */
 public final class PlaceholderSnapshotService implements AutoCloseable {
 
-    private static final long REFRESH_PERIOD_TICKS = 5L;
-
     private final Map<UUID, PlaceholderSnapshot> snapshots = new ConcurrentHashMap<>();
     private final Set<UUID> warnedFailures = ConcurrentHashMap.newKeySet();
-    private BukkitTask refreshTask;
-
     /**
      * Запускает обновление снимков на основном потоке.
      */
@@ -57,7 +52,7 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
         return snapshot == null ? null : snapshot.crownValue(parameter);
     }
 
-    private void refreshOnlinePlayers(RaskolClasses plugin) {
+    public void refreshOnlinePlayers(RaskolClasses plugin) {
         Set<UUID> onlineIds = new HashSet<>();
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID playerId = player.getUniqueId();
@@ -132,12 +127,8 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
         return String.format(Locale.ROOT, "%.1f", value);
     }
 
-    @Override
-    public void close() {
-        if (refreshTask != null) {
-            refreshTask.cancel();
-            refreshTask = null;
-        }
+    /** Очищает опубликованные значения после остановки runtime producer. */
+    public void clear() {
         snapshots.clear();
         warnedFailures.clear();
     }
