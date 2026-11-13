@@ -15,6 +15,8 @@ import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
+import dev.raskol.classes.ability.runtime.CooldownRuntimeOwner;
+import dev.raskol.classes.ability.runtime.PaperCooldownRuntimeRegistration;
 import dev.raskol.classes.ability.HunterAbilities;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
@@ -129,6 +131,7 @@ public final class RaskolClasses extends JavaPlugin {
     private CharacterLevelService characterLevels;
     private ResourceService resources;
     private CooldownManager cooldowns;
+    private CooldownRuntimeOwner cooldownRuntimeOwner;
     private AbilityRegistry abilities;
     private ActiveEffectManager effects;
     private HudService hud;
@@ -300,6 +303,8 @@ public final class RaskolClasses extends JavaPlugin {
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
                 raskolConfig.readyNotifyMessage());
+        this.cooldownRuntimeOwner =
+                new CooldownRuntimeOwner(new PaperCooldownRuntimeRegistration(this, cooldowns), cooldowns::cancelAllTasks);
         this.effects = new ActiveEffectManager(this);
 
         this.abilities = new AbilityRegistry(this);
@@ -395,7 +400,7 @@ public final class RaskolClasses extends JavaPlugin {
     private void registerGameplayListeners(PluginManager pluginManager) {
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
-        pluginManager.registerEvents(cooldowns, this);
+        cooldownRuntimeOwner.start();
         this.passiveListener = new PassiveListener(this);
         pluginManager.registerEvents(passiveListener, this);
         pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
@@ -625,10 +630,33 @@ public final class RaskolClasses extends JavaPlugin {
         if (bossBars != null) {
             bossBars.shutdown();
         }
+        if (cooldownRuntimeOwner != null) {
+            try {
+                cooldownRuntimeOwner.close();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось полностью остановить cooldown runtime",
+                        exception);
+            }
+        }
         if (cooldowns != null) {
-            cooldowns.cancelAllTasks();
-            cooldowns.saveAll();
-            cooldowns.clear();
+            try {
+                cooldowns.saveAll();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось сохранить кулдауны при выключении",
+                        exception);
+            }
+            try {
+                cooldowns.clear();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось полностью очистить runtime кулдаунов",
+                        exception);
+            }
         }
         if (classProvider != null) {
             classProvider.shutdown();
