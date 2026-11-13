@@ -424,3 +424,39 @@ Paper / Adventure API
 ## 14. HUD-C — Runtime ownership design handoff
 
 HUD-C реализует единый lifecycle owner, не смешивая его с HP persistence owner и не закрывая shared AsyncStorageWriter. Детальный lifecycle, ownership matrix, failure semantics, staged migration и тестовые критерии находятся в [RASKOL_HUD_RUNTIME_OWNERSHIP.md](RASKOL_HUD_RUNTIME_OWNERSHIP.md).
+
+
+## 15. H-05 — Locked Target contract
+
+Пользователь выбрал вариант 2: **last explicitly selected/locked target**.
+
+### 15.1. Semantics
+
+- `TargetView` отражает текущую явно зафиксированную цель игрока.
+- Наведение камеры/прицела на другую сущность не меняет locked target.
+- Цель меняется только явной командой/действием выбора либо явным снятием выбора.
+- Выбор автоматически очищается при инвалидизации цели по правилам targeting domain: сущность удалена/недоступна, игрок offline или его игровая сессия завершена.
+- Crosshair/raycast entity не подменяет locked target. В будущем она может быть отдельным preview-полем, не влияющим на selection state.
+
+### 15.2. Ownership and read contract
+
+- Selection state принадлежит отдельному targeting/application owner, не HUD и не renderer.
+- HUD получает read-only `TargetHudReadPort` projection.
+- Port должен различать `NONE` (успешно проверено, locked target отсутствует), `AVAILABLE` и `UNAVAILABLE`.
+- `AVAILABLE` содержит только immutable identity/display/combat fields, разрешённые правилами мира и приватности; не содержит Bukkit Entity/Player.
+- Target view привязана к snapshot `capturedAtMillis` и revision; устаревшая ссылка не должна отображаться после invalidation.
+- Конкретный UX выбора цели (команда, GUI, иной серверный механизм) не утверждён. Не предполагать клиентский keybind или client mod.
+
+### 15.3. Target contract test cases
+
+- прицеливание на другую сущность не меняет выбранную цель;
+- явный выбор переключает TargetView;
+- явное снятие выбора переводит состояние в NONE;
+- удаление/недоступность цели очищает selection;
+- offline/quit очищает session-bound target state;
+- provider failure возвращает UNAVAILABLE, а не NONE;
+- snapshot не содержит Bukkit Entity/Player и не хранит mutable domain object.
+
+## 16. HUD-C.1 — Runtime seams (design)
+
+Первый implementation slice ограничивается нейтральными портами для scheduling, session events и output cleanup плюс deterministic test doubles. Он не подключает новые task/listener producers к `RaskolClasses`, не меняет `activeTasks` и не переключает legacy renderers. Контракты должны оставаться независимыми от Bukkit API; Bukkit adapters появятся отдельным шагом после тестирования.
