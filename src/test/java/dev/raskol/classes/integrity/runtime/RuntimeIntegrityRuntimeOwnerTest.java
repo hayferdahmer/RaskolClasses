@@ -94,7 +94,7 @@ class RuntimeIntegrityRuntimeOwnerTest {
             owner.start();
             owner.start();
 
-            assertTrue(!executor.isShutdown());
+            assertFalse(executor.isShutdown());
             assertEquals(0, invocations.get());
         } finally {
             owner.close();
