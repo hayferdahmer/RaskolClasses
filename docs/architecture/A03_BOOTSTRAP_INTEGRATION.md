@@ -155,9 +155,13 @@ Focused tests cover owner close, close-before-start, repeated close, interval pr
 
 The assessment confirms that `PetService` has one listener, two explicit scheduled tasks, a constructor without listener/scheduler side effects, and a mandatory `despawnAll()` operation that must run before task cancellation. At present, `RaskolClasses` owns both BukkitTask handles in its general `activeTasks` list and directly registers the listener. No pet task should remain in that root list after the ownership transfer.
 
-### A-03-003.9 — Next implementation slice: PetRuntimeOwner
+### A-03-003.9 — PetRuntimeOwner (implemented; verification pending)
 
-Implement the narrow owner and its focused tests. The owner must own listener registration, both task handles, partial-start rollback, pre-cancellation despawn, task cancellation and listener unregistration. Preserve the current 20-tick pet task cadence and 100-tick orphan-scan delay. Keep `getPets()` and all existing callers compatible. Do not activate `BootstrapCoordinator` in this slice.
+Implemented the narrow owner and its Paper adapters. The owner now controls listener registration, both task handles, partial-start rollback, pre-cancellation despawn, task cancellation and listener unregistration. The existing 20-tick pet task cadence and 100-tick orphan-scan delay remain delegated to the unchanged PetService methods. `getPets()` and existing callers remain compatible. The two pet tasks were removed from root `activeTasks`. Focused tests were added; Maven/CI verification is pending. See [A03_PET_RUNTIME_OWNERSHIP.md](A03_PET_RUNTIME_OWNERSHIP.md).
+
+### A-03-003.10 — Remaining lifecycle ownership inventory
+
+Before activating `BootstrapCoordinator`, continue with a source-backed ownership inventory of the remaining listeners, scheduled tasks, external registrations and final-save responsibilities. Prioritize components that combine state, listeners and recurring tasks, then extract one owner at a time with characterization tests. Do not activate the coordinator until the complete graph, rollback order and final storage-writer shutdown have deterministic tests.
 
 Coordinator activation remains gated on characterization tests for startup, rollback and shutdown ordering:
 - create and validate the real module graph;
