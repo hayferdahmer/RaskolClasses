@@ -3,9 +3,10 @@
 package dev.raskol.classes.bootstrap.lifecycle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ModuleLifecycleTest {
@@ -33,16 +34,41 @@ class ModuleLifecycleTest {
     }
 
     @Test
-    void failureCanBeClosedAfterCleanup() {
+    void failureIsStoredAsImmutableDiagnosticSnapshot() {
         ModuleLifecycle lifecycle = new ModuleLifecycle();
         IllegalStateException cause = new IllegalStateException("ошибка запуска");
 
         lifecycle.initialized();
         lifecycle.failed(cause);
+        ModuleLifecycle.FailureSnapshot snapshot = lifecycle.failure();
         lifecycle.closed();
 
         assertEquals(ModuleState.CLOSED, lifecycle.state());
-        assertSame(cause, lifecycle.failure());
+        assertEquals(IllegalStateException.class.getName(), snapshot.type());
+        assertEquals("ошибка запуска", snapshot.message());
+        assertNotSame(cause, snapshot);
+        assertThrows(UnsupportedOperationException.class, () -> snapshot.stackTrace().add("изменение"));
+    }
+
+    @Test
+    void preservesTheFirstFailureSnapshot() {
+        ModuleLifecycle lifecycle = new ModuleLifecycle();
+        lifecycle.failed(new IllegalStateException("первая"));
+        ModuleLifecycle.FailureSnapshot first = lifecycle.failure();
+
+        lifecycle.failed(new IllegalArgumentException("вторая"));
+
+        assertEquals(first, lifecycle.failure());
+    }
+
+    @Test
+    void failureSnapshotCopiesStackTraceInput() {
+        List<String> frames = new java.util.ArrayList<>(List.of("frame"));
+        ModuleLifecycle.FailureSnapshot snapshot =
+                new ModuleLifecycle.FailureSnapshot("Example", "message", frames);
+        frames.add("mutated");
+
+        assertEquals(List.of("frame"), snapshot.stackTrace());
     }
 
     @Test
