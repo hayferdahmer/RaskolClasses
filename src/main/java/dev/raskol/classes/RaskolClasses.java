@@ -67,6 +67,7 @@ import dev.raskol.classes.install.InstallationService;
 import dev.raskol.classes.integrity.artifact.ArtifactBoundIntegrityVerifier;
 import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
 import dev.raskol.classes.integrity.policy.RuntimeIntegrityEnforcementPolicy;
+import dev.raskol.classes.integrity.reporting.SecurityReporter;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityRuntimeOwner;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegritySnapshot;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityState;
