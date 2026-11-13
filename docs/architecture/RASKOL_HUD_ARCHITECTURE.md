@@ -294,4 +294,6 @@ HUD-A/B можно начинать после определения необх
 
 Аудит существующих исходников завершён без изменений runtime-кода. Установлено, что текущие обязанности распределены между тремя разными по смыслу реализациями: HudService (ресурсный ActionBar), BossBarService (BossBar активных эффектов) и HpBarService (HP runtime, healing, persistence и частично presentation). HpBarService не является чистым HUD-модулем и должен сохранять совместимую HP facade. Обнаружены source-level проблемы reload/task ownership и per-player cleanup. Подробности, call-site примеры, конфигурационные ключи, риски и SHA файлов приведены в [RASKOL_HUD_SOURCE_INVENTORY.md](RASKOL_HUD_SOURCE_INVENTORY.md).
 
-**Следующий этап:** HUD-B.1 — определить Health/Resource/Character read contracts и минимальный состав согласованного snapshot. Runtime implementation пока не начиналась.
+HUD-B.1 уточнил read contracts и правила snapshot. Отдельно зафиксировано, что текущий CharacterLevelService AuraSkills-backed не может быть источником уровня в 1.16.0, а выбранная target entity не имеет единого владельца в текущем коде. Контракты и поля описаны в [RASKOL_HUD_DATA_CONTRACTS.md](RASKOL_HUD_DATA_CONTRACTS.md).
+
+**Следующий этап:** HUD-B.2 — Snapshot Schema и HUD-B.3 — Widget Contracts. Runtime implementation пока не начиналась.
