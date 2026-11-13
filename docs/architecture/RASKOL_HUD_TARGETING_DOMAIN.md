@@ -85,7 +85,7 @@ HudSnapshotProvider --> PlayerHudSnapshot
 - candidateId: UUID;
 - interactionSource: enum, первоначально ENTITY_RIGHT_CLICK;
 - hand: enum, первоначально MAIN_HAND;
-- observedAtMillis: long.
+- время фиксации выбора берётся из внедрённого application clock после успешной policy-проверки.
 
 Input не содержит Player, Entity, Location, World или Event. Значение hand повторно проверяется на границе application, даже если adapter уже фильтрует off-hand.
 
