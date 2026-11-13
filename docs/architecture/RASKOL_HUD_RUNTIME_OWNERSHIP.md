@@ -285,3 +285,14 @@ Verification status:
 
 Пользователь выбрал ПКМ по допустимому существу как основной UX фиксации цели. HUD-C.1.4 проверил Paper API и выбрал `PlayerInteractAtEntityEvent` с `MONITOR`, `ignoreCancelled = true`, только main hand и без отмены события; подробности и ограничения зафиксированы в [RASKOL_HUD_TARGET_INTERACTION_SPIKE.md](RASKOL_HUD_TARGET_INTERACTION_SPIKE.md). Реальный listener и targeting/application owner ещё не реализованы и не входят в HudRuntimeOwner. HUD получает только read-only TargetView; наведение камеры не меняет locked target. Controlled Paper 26.2 runtime test с NPC-интеграциями остаётся обязательным до активации.
 
+
+
+## 18. HUD-C.1.5 — Targeting Domain contracts
+
+Target selection is a separate game subsystem, not a responsibility of RaskolHUD. The design is specified in [RASKOL_HUD_TARGETING_DOMAIN.md](RASKOL_HUD_TARGETING_DOMAIN.md).
+
+The targeting application owner stores only the selected target UUID and minimal selection metadata. It does not retain Bukkit Player/Entity references and does not persist a transient target across sessions. The Paper adapter converts the approved main-hand right-click event into UUID-based input; policy ports validate actor state, candidate classification, world/range, NPC, PvP and territory constraints.
+
+The HUD consumes an immutable TargetView through a read-only port. Read results distinguish NONE (successful query with no selection) from UNAVAILABLE (provider cannot establish current state). Temporary resolver/integration failure must not silently clear a stored selection; confirmed invalidation does. Optional level/health fields may be unavailable without suppressing an otherwise valid target frame.
+
+This remains a design milestone: no targeting store, application service, Paper interaction listener, target command or production bootstrap wiring was added in HUD-C.1.5.
