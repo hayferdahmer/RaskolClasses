@@ -13,9 +13,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -40,9 +42,11 @@ public final class HpAttributeSync implements Listener {
             .get(NamespacedKey.minecraft("max_health"));
 
     private final RaskolClasses plugin;
+    private final PlayerCallbackRuntimeOwner respawnCallbacks;
 
-    public HpAttributeSync(RaskolClasses plugin) {
+    public HpAttributeSync(RaskolClasses plugin, PlayerCallbackRuntimeOwner respawnCallbacks) {
         this.plugin = plugin;
+        this.respawnCallbacks = respawnCallbacks;
     }
 
     /** Установить ванильный MAX_HEALTH = carrier = min(formula, 1024). */
@@ -91,7 +95,17 @@ public final class HpAttributeSync implements Listener {
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        respawnCallbacks.cancel(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onRespawn(PlayerRespawnEvent event) {
-        Bukkit.getScheduler().runTaskLater(plugin, () -> sync(event.getPlayer()), 2L);
+        Player player = event.getPlayer();
+        respawnCallbacks.schedule(player.getUniqueId(), 2L, () -> {
+            if (player.isOnline()) {
+                sync(player);
+            }
+        });
     }
 }
