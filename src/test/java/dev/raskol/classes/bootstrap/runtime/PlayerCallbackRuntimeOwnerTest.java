@@ -82,10 +82,8 @@ class PlayerCallbackRuntimeOwnerTest {
         FakeScheduler scheduler = new FakeScheduler();
         PlayerCallbackRuntimeOwner owner = new PlayerCallbackRuntimeOwner(scheduler);
         UUID playerId = UUID.randomUUID();
-        FakeHandle handle = (FakeHandle) scheduler.schedule(1L, () -> {});
-        handle.failCancellation = true;
         owner.schedule(playerId, 1L, () -> {});
-        FakeHandle tracked = scheduler.handles.get(1);
+        FakeHandle tracked = scheduler.handles.get(0);
         tracked.failCancellation = true;
 
         assertThrows(RuntimeException.class, () -> owner.cancel(playerId));
