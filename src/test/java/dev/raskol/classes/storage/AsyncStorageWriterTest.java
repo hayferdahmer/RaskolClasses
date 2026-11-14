@@ -64,6 +64,7 @@ class AsyncStorageWriterTest {
         File file = tempDir.resolve("worker-thread.yml").toFile();
         CountDownLatch writeStarted = new CountDownLatch(1);
         CountDownLatch releaseWrite = new CountDownLatch(1);
+        CountDownLatch completionInvoked = new CountDownLatch(1);
         AtomicReference<String> completionThread = new AtomicReference<>();
         AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER, (snapshot, target, logger) -> {
             writeStarted.countDown();
@@ -81,11 +82,14 @@ class AsyncStorageWriterTest {
         try {
             var result = writer.submit(file, "value: worker\n");
             assertTrue(writeStarted.await(5, TimeUnit.SECONDS));
-            result.whenComplete((saved, failure) ->
-                    completionThread.set(Thread.currentThread().getName()));
+            result.whenComplete((saved, failure) -> {
+                completionThread.set(Thread.currentThread().getName());
+                completionInvoked.countDown();
+            });
             releaseWrite.countDown();
 
             assertTrue(result.get(5, TimeUnit.SECONDS));
+            assertTrue(completionInvoked.await(5, TimeUnit.SECONDS));
             assertEquals("RaskolClasses-Storage", completionThread.get());
         } finally {
             releaseWrite.countDown();
