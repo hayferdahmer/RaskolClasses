@@ -319,6 +319,25 @@ The root preserves the original activation gate (`hud.enabled` and `hp-display.m
 `HpBarService` retains HP calculations, regeneration, pending restore, hearts/actionbar presentation, dirty tracking, health.yml snapshots, async writer callbacks, and `saveAll()`. Only its scheduler ownership was removed; `tick()` is a public one-cycle callback. No HP formula, config key, persistence format, or gameplay behavior was intentionally changed.
 
 
-## 13. A-03-003.18 — CI formatting follow-up
+## 13. A-03-003.18 — HP bar runtime ownership verification
 
-The first full verification after HP bar runtime ownership passed the build/test job and reported zero SpotBugs findings, but the analyze job detected Spotless formatting drift in four HP bar integration files. The branch formatting workflow is used to apply the repository's canonical formatter before the next full verification. This is a formatting-only correction; no runtime behavior or public contract is changed by this follow-up.
+The branch formatting workflow completed successfully. Its log reported that no additional formatting changes were necessary. The subsequent full verification on commit `7d07c18a038466e85ce83f24e14653d4192f8c24` passed: 596 tests, no failures/errors/skips, JaCoCo thresholds met, SpotBugs `BugInstance size is 0`, and Spotless `BUILD SUCCESS` with 437 Java files clean. A-03-003.18 is closed.
+
+
+## 14. A-03-003.19 — Separate DoT and Crowd Control runtime ownership
+
+The DoT and CC lifecycles are deliberately implemented as two independent runtime owners. Neither owner stores or mutates effect state.
+
+**DoT boundary**
+- `DotService` remains the owner of the target-to-`DotInstance` registry, stacking, refresh/expiry timestamps, attribution, DoT calculations, damage dispatch, VFX, and projectile-hit behavior.
+- `DotRuntimeOwner` owns only the `DotService` listener registration and its recurring producer. `PaperDotTaskScheduler` preserves the original synchronous cadence: initial delay 20 ticks, period 20 ticks.
+- The owner uses its own `TaskScope`; it is not shared with CC or another domain.
+
+**Crowd Control boundary**
+- `CCService` remains the owner of active `CCInstance` entries, DR category state, fear-turn deadlines, slow movement restoration data, expiration/break behavior, mob AI changes, and feedback coordination.
+- `CCRuntimeOwner` owns only the `CCService` listener registration and its recurring producer. `PaperCCTaskScheduler` preserves the original synchronous cadence: initial delay 1 tick, period 1 tick.
+- CCGuard, CastGuard, and VanillaCCWrapper remain distinct presentation/guard adapters and are not folded into the CC runtime owner.
+
+Both owners independently roll back partial startup, cancel their own producer before unregistering their own listener, and preserve retry paths for failed cleanup. `RaskolClasses` no longer stores either task in `activeTasks`. No effect-state map, DR rule, duration, tick cadence, damage formula, CC behavior, API call site, or configuration key is intentionally changed.
+
+Follow-up audit item: `CCFeedback` still owns static hologram bookkeeping and creates one-shot delayed cleanup tasks. Those are not periodic CC producers and were intentionally left outside this slice; they require a separate resource-lifecycle decision rather than being silently absorbed into `CCRuntimeOwner`.
