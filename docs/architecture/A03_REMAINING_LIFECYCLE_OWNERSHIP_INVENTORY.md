@@ -407,3 +407,11 @@ The next CI pass must include Spotless formatting and the complete `mvn -Pdev -B
 
 
 **CI formatting checkpoint:** Spotless Format workflow run #16 completed successfully. It applied the canonical formatting and its post-format `mvn -Pdev -B verify` passed on the workflow workspace: 623 tests, 0 failures/errors/skips; SpotBugs reported 0 BugInstances and 0 errors; Spotless reported 456 files clean. The formatting commit is present on this branch. A fresh Build run is required against the resulting commit because Build #3223 analyzed the pre-format SHA and its Analyze job raced ahead of the formatting push.
+
+### A-03-003.21 implementation update — InstallationService sweep ownership
+
+InstallationRuntimeOwner now owns the recurring installation sweep task through TaskScope. PaperInstallationTaskScheduler is the Paper boundary and preserves the original 20-tick initial delay and 20-tick period. InstallationService.sweep() performs one domain cycle and no longer creates or stores a BukkitTask; InstallationService.shutdown() only expires active installations and clears its domain state.
+
+RaskolClasses constructs and starts the runtime owner. During shutdown it closes the owner before calling InstallationService.shutdown(), so the producer is stopped before active installation resources are expired. The task is no longer added to root activeTasks, eliminating the previous duplicate cancellation path.
+
+Focused tests cover idempotent start, close-before-start, scheduling failure, cancellation failure with retry, and single cancellation. The original installation limits, TTL, cooldowns, placement gates, handler tick behavior, and expiry behavior are intentionally unchanged.
