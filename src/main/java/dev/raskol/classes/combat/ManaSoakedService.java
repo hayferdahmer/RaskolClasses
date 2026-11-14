@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import dev.raskol.classes.RaskolClasses;
@@ -73,13 +74,13 @@ public final class ManaSoakedService {
         }
     }
 
-    /** Полный проход по онлайну: добавить новых магов, снять модификаторы экс-магов. */
     /** Сбрасывает tracking-состояние после остановки периодического producer. */
     public void clearTracking() {
         mageIds.clear();
         lastScanTick = -1L;
     }
 
+    /** Полный проход по онлайну: добавить новых магов, снять модификаторы экс-магов. */
     private void scanForMages() {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
