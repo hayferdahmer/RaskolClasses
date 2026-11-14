@@ -62,7 +62,8 @@ final class InstallationCleanupCoordinator {
             return false;
         }
 
-        installations.remove(installation.id(), installation);
+        installations.computeIfPresent(
+                installation.id(), (id, current) -> current == installation ? null : current);
         return true;
     }
 }
