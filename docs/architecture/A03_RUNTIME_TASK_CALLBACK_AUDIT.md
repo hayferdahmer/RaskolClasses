@@ -83,17 +83,17 @@ ManaSoaked больше не входит в root `activeTasks`: `ManaSoakedRunt
 
 ### 3.3 Storage completion callbacks
 
-Подтверждены следующие схемы:
+Source-backed аудит четырёх сервисов и `AsyncStorageWriter` завершён в A-03-003.25: [A03_STORAGE_COMPLETION_CALLBACK_AUDIT.md](A03_STORAGE_COMPLETION_CALLBACK_AUDIT.md).
 
-- `HpBarService.flushDirty()`: writer completion → Bukkit main-thread callback → generation check / повторный flush.
-- `FoliantService.saveLocks()`: writer completion → Bukkit main-thread callback → dirty-generation acknowledgement.
-- `ResourceService.persistAsync()`: writer completion → main-thread completion при необходимости.
-- `CooldownManager.persistAsync()`: writer completion только логирует результат.
-- `FoliantService` также ставит отдельный one-shot main-thread callback после LuckPerms class transition для проверки результата смены группы.
+Ключевые выводы:
+- `CompletableFuture.whenComplete` исполняется без фиксированного executor: штатное завершение обычно приходит с storage worker, отказ submit может завершить future inline на вызывающем потоке.
+- HP Bar и Foliant явно переносят generation acknowledgement на Bukkit main thread; ResourceService переносит domain completion через `runOnMainThread`; CooldownManager только логирует.
+- Dirty/generation ownership остаётся у доменных сервисов. Универсальный StorageCallbackRuntimeOwner не вводится.
+- У HP Bar и Foliant подтверждена возможность лишних одинаковых snapshots при нескольких flush до completion; это P2 coalescing, а не доказанная потеря данных.
+- ResourceService требует deterministic race tests для reset marker при пересечении старого completion с новым reset.
+- Writer закрывается после producers и final snapshots. Timeout/drain semantics остаются A-04.
 
-Это не обычные gameplay timers. Они являются частью persistence/transition protocols. Ошибка постановки main-thread callback обрабатывается локально; при этом dirty/reset state в целом сохраняется консервативно. Общий StorageWriter должен продолжать закрываться последним.
-
-Рекомендация: не переносить эти callbacks в общий runtime owner механически. Для них нужен отдельный контракт storage drain / completion delivery в A-04. До A-04 сохранить текущий порядок и явно тестировать rejected scheduling, writer completion race и shutdown.
+Acceptance для A-03-003.25 ещё открыт: execution-context tests, Resource reset race tests, решение/coalescing и CI.
 
 ### 3.4 Cooldown ready notifications
 
