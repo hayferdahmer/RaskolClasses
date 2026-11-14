@@ -246,10 +246,10 @@ public final class ResourceService implements Listener {
         String key = uuid.toString();
         // 1.15.5 (аудит 2.6-78): класс сменился оффлайн — шкала стартует с нуля
         if (resetOnJoin.contains(uuid) || store.getBoolean(PENDING_RESETS_PATH + "." + uuid, false)) {
+            long resetGeneration = resetGeneration(uuid);
             clearRuntimeState(uuid);
             store.set(key, null);
             store.set(PENDING_RESETS_PATH + "." + uuid, null);
-            long resetGeneration = resetGeneration(uuid);
             persistAsync("завершение сброса ресурса при входе " + uuid, successful -> {
                 if (successful) {
                     completeResetIntent(uuid, resetGeneration);
