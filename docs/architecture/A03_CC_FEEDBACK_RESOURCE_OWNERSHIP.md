@@ -2,7 +2,7 @@
 
 ## Status
 
-Source assessment completed. Implementation is the active next step on `refactor/a03-foundation-lifecycle`.
+Implemented on `refactor/a03-foundation-lifecycle`; CI verification is pending.
 
 ## Scope
 
@@ -15,9 +15,10 @@ It does not cover CC domain state, diminishing returns, effect timing, or the re
 - A global `TextDisplay` is spawned above every affected target and hidden from a player target.
 - For player targets, a second display is spawned in front of the target, hidden by default, then shown only to that player.
 - Both displays are attached as passengers.
-- A static UUID-keyed map retains the display pair.
-- A one-shot Bukkit task is scheduled for `max(1, ticks)`, but its handle is discarded.
-- Normal CC clear/expiry paths call `clearHologram`; plugin shutdown has no dedicated hologram cleanup.
+- `CCFeedbackRuntimeOwner` retains each target's resource bundle and delayed-task handle.
+- `PaperCCFeedbackScheduler` owns the Paper one-shot scheduling boundary; delay remains `max(1, ticks)`.
+- Explicit clear cancels the task before removing displays.
+- The plugin composition root closes the feedback owner during shutdown.
 
 ## Confirmed defects
 
@@ -28,21 +29,25 @@ It does not cover CC domain state, diminishing returns, effect timing, or the re
 
 ## Target ownership
 
-A dedicated `CCFeedbackRuntimeOwner` will own display bundles and delayed task handles. It will be independent of `CCRuntimeOwner`, whose scope remains the CC listener and periodic producer.
+`CCFeedbackRuntimeOwner` owns display bundles and delayed task handles independently of `CCRuntimeOwner`, whose scope remains the CC listener and periodic producer.
 
-The resource owner must support exact-entry identity checks, transactional publication, cancellation before removal, independent cleanup attempts, and retryable failures. Bukkit entity and scheduler operations will be kept behind narrow Paper adapters so the owner can be tested without a running server.
+The owner uses exact-entry identity checks, cancellation before removal, independent cleanup attempts, and retryable resource cleanup. `CCFeedback` rolls back already-created displays when a later spawn/setup step fails. The scheduler boundary is a narrow Paper adapter; the owner itself is tested without a running server.
+
+`CCFeedback` is now instance-scoped and injected into `CCService`; the static UUID map has been removed.
 
 ## Compatibility constraints
 
 No changes to CC mechanics, DR state, duration, task deadline, hologram text, colors, visibility, passenger attachment, sounds, particles, messages, configuration keys, or CCService API semantics are intended.
 
-## Acceptance tests
+## Implemented checks
 
-- replacement retires only the old bundle;
+- replacement cancels the old task and removes the old resources before scheduling the replacement;
 - stale delayed callback cannot remove a replacement;
-- partial display creation rolls back every created display;
-- scheduling failure rolls back displays;
-- explicit clear cancels the one-shot task;
-- close cancels all tasks and removes all displays;
-- cleanup continues after individual failures and can be retried;
-- repeated close and close-before-use are safe.
+- scheduling failure rolls back resources;
+- explicit clear cancels the one-shot task before removing resources;
+- close attempts cleanup for every tracked target;
+- failed resource removal remains tracked for retry;
+- delay is clamped to at least one tick;
+- closed owner rejects new resources.
+
+The Paper display-spawn rollback is covered by guarded production code; a dedicated Paper integration test remains a verification follow-up because the owner tests intentionally avoid Bukkit runtime dependencies.
