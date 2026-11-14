@@ -547,3 +547,5 @@ Foliant post-transition class verification теперь принадлежит �
 
 
 Implementation checkpoint: cleanup failure reporting uses a dedicated three-argument functional contract; CI compiler feedback is being incorporated before the final verification gate.
+
+Implementation note: the cleanup failure reporter is a dedicated functional interface, and all call sites use its report contract. A fresh CI/format pass is being run on the corrected branch head.
