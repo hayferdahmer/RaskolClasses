@@ -81,7 +81,8 @@ class AsyncStorageWriterTest {
         try {
             var result = writer.submit(file, "value: worker\n");
             assertTrue(writeStarted.await(5, TimeUnit.SECONDS));
-            result.whenComplete((saved, failure) -> completionThread.set(Thread.currentThread().getName()));
+            result.whenComplete((saved, failure) ->
+                    completionThread.set(Thread.currentThread().getName()));
             releaseWrite.countDown();
 
             assertTrue(result.get(5, TimeUnit.SECONDS));
@@ -100,18 +101,21 @@ class AsyncStorageWriterTest {
         File rejected = tempDir.resolve("rejected.yml").toFile();
         CountDownLatch writeStarted = new CountDownLatch(1);
         CountDownLatch releaseWrite = new CountDownLatch(1);
-        AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER, (snapshot, target, logger) -> {
-            if (target.equals(first)) {
-                writeStarted.countDown();
-                try {
-                    releaseWrite.await(5, TimeUnit.SECONDS);
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                    return false;
-                }
-            }
-            return true;
-        }, 1);
+        AsyncStorageWriter writer = new AsyncStorageWriter(
+                LOGGER,
+                (snapshot, target, logger) -> {
+                    if (target.equals(first)) {
+                        writeStarted.countDown();
+                        try {
+                            releaseWrite.await(5, TimeUnit.SECONDS);
+                        } catch (InterruptedException exception) {
+                            Thread.currentThread().interrupt();
+                            return false;
+                        }
+                    }
+                    return true;
+                },
+                1);
 
         try {
             writer.submit(first, "value: first\n");
@@ -120,7 +124,8 @@ class AsyncStorageWriterTest {
 
             var rejectedResult = writer.submit(rejected, "value: rejected\n");
             AtomicReference<String> completionThread = new AtomicReference<>();
-            rejectedResult.whenComplete((saved, failure) -> completionThread.set(Thread.currentThread().getName()));
+            rejectedResult.whenComplete((saved, failure) ->
+                    completionThread.set(Thread.currentThread().getName()));
 
             assertFalse(rejectedResult.join());
             assertEquals(Thread.currentThread().getName(), completionThread.get());
