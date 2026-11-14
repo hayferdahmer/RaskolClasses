@@ -189,7 +189,8 @@ public final class CCFeedback {
                         .add(0.0, 1.8, 0.0);
                 local = target.getWorld().spawn(personalLoc, TextDisplay.class, td -> {
                     td.text(Component.text(
-                            iconOf(type) + " " + type.ruName() + " · " + String.format(Locale.ROOT, "%.1f", seconds) + "с",
+                            iconOf(type) + " " + type.ruName() + " · " + String.format(Locale.ROOT, "%.1f", seconds)
+                                    + "с",
                             NamedTextColor.GOLD));
                     td.setBillboard(Display.Billboard.CENTER);
                     td.setSeeThrough(true);

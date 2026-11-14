@@ -19,7 +19,8 @@ public final class PaperCCFeedbackScheduler implements CCFeedbackScheduler {
 
     @Override
     public TaskHandle schedule(Runnable cleanup, long delayTicks) {
-        BukkitTask task = plugin.getServer().getScheduler()
+        BukkitTask task = plugin.getServer()
+                .getScheduler()
                 .runTaskLater(plugin, Objects.requireNonNull(cleanup, "cleanup"), Math.max(1L, delayTicks));
         return new BukkitTaskHandle(task);
     }

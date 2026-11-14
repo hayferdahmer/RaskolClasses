@@ -44,8 +44,7 @@ public final class CCFeedbackRuntimeOwner implements AutoCloseable {
         entries.put(targetId, entry);
         try {
             TaskHandle task = Objects.requireNonNull(
-                    scheduler.schedule(() -> expire(targetId, entry), Math.max(1L, delayTicks)),
-                    "cleanupTask");
+                    scheduler.schedule(() -> expire(targetId, entry), Math.max(1L, delayTicks)), "cleanupTask");
             entry.tasks.register(task);
         } catch (RuntimeException failure) {
             if (entries.get(targetId) == entry) {
@@ -141,7 +140,9 @@ public final class CCFeedbackRuntimeOwner implements AutoCloseable {
     }
 
     public synchronized int trackedResourceCount() {
-        return entries.values().stream().mapToInt(entry -> entry.resources.size()).sum();
+        return entries.values().stream()
+                .mapToInt(entry -> entry.resources.size())
+                .sum();
     }
 
     public synchronized boolean isClosed() {

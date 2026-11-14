@@ -70,7 +70,8 @@ class CCFeedbackRuntimeOwnerTest {
         };
         CCFeedbackRuntimeOwner owner = new CCFeedbackRuntimeOwner(scheduler);
 
-        assertThrows(IllegalStateException.class,
+        assertThrows(
+                IllegalStateException.class,
                 () -> owner.replace(UUID.randomUUID(), List.of(resource(calls, "display")), 5L));
 
         assertEquals(List.of("schedule", "remove:display"), calls);
@@ -106,13 +107,16 @@ class CCFeedbackRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         boolean[] failOnce = {true};
         CCFeedbackRuntimeOwner owner = new CCFeedbackRuntimeOwner(new FakeScheduler(calls));
-        owner.replace(UUID.randomUUID(), List.of(() -> {
-            calls.add("first");
-            if (failOnce[0]) {
-                failOnce[0] = false;
-                throw new IllegalStateException("first failed");
-            }
-        }), 5L);
+        owner.replace(
+                UUID.randomUUID(),
+                List.of(() -> {
+                    calls.add("first");
+                    if (failOnce[0]) {
+                        failOnce[0] = false;
+                        throw new IllegalStateException("first failed");
+                    }
+                }),
+                5L);
         owner.replace(UUID.randomUUID(), List.of(resource(calls, "second")), 5L);
 
         assertThrows(IllegalStateException.class, owner::close);
@@ -135,7 +139,8 @@ class CCFeedbackRuntimeOwnerTest {
     void closedOwnerRejectsNewResources() {
         CCFeedbackRuntimeOwner owner = new CCFeedbackRuntimeOwner(new FakeScheduler(new ArrayList<>()));
         owner.close();
-        assertThrows(IllegalStateException.class,
+        assertThrows(
+                IllegalStateException.class,
                 () -> owner.replace(UUID.randomUUID(), List.of(resource(new ArrayList<>(), "display")), 1L));
     }
 
