@@ -13,14 +13,15 @@
 
 ## 1. Текущая картина
 
-После выделения специализированных runtime owners, InstallationRuntimeOwner, ResourceRuntimeOwner и ScrollCooldownRuntimeOwner в `RaskolClasses.activeTasks` остаются три периодические задачи:
+После выделения специализированных runtime owners, включая ManaSoakedRuntimeOwner, в `RaskolClasses.activeTasks` остаются две cross-domain периодические задачи:
 
 | Задача | Текущий владелец | Интервал / назначение | Вывод |
 |---|---|---|---|
 | Resource tick | `ResourceRuntimeOwner` | 20 ticks; обновление ресурсов | Реализовано; ResourceService остаётся Listener и владельцем resource state/persistence |
 | Installation sweep | одновременно root handle и `InstallationService.sweepTask` | 20 ticks; expiry/tick установок | Дублированное владение handle; выбрать один lifecycle owner |
 | Scroll cooldown display | `ScrollCooldownRuntimeOwner` | 10 ticks; отображение cooldown на предметах | Реализовано; owner отменяет producer и очищает кэши `ScrollCooldownTask` |
-| ManaSoaked | root `activeTasks` | 20 ticks; пассивный резист магов | Нужен domain-specific owner; mage state остаётся в ManaSoakedService |
+| Global purge | root `activeTasks` через `PluginTasks` | конфигурируемый интервал | Cross-domain maintenance; не переносить в owner одного домена |
+| Global autosave | root `activeTasks` через `PluginTasks` | конфигурируемые минуты | Cross-storage coordinator; должен остановиться до финальных snapshots и закрытия writer |
 | Global purge | root `activeTasks` через `PluginTasks` | конфигурируемый интервал | Cross-domain maintenance; не переносить в owner одного домена |
 | Global autosave | root `activeTasks` через `PluginTasks` | конфигурируемые минуты | Cross-storage coordinator; должен остановиться до финальных snapshots и закрытия writer |
 
@@ -49,11 +50,12 @@
 - Отдельного `close()`/owner lifecycle у сервиса нет.
 - Рекомендация: сохранить объект в composition root и передать producer в `ScrollCooldownRuntimeOwner`; при закрытии остановить producer и очистить внутренние caches. Поведение durability bar и packet cadence не менять.
 
-### 2.4 ManaSoakedService
+### 2.4 ManaSoakedService — реализовано
 
-- `start()` возвращает repeating BukkitTask в root.
-- `mageIds` и `lastScanTick` — внутреннее runtime состояние механики; при quit/offline UUID удаляются во время рабочего tick или очистки ResistService.
-- Рекомендация: owner управляет периодическим producer и close; сервис сохраняет расчёт модификаторов и mage tracking. Не объединять с ResourceRuntimeOwner только потому, что ManaSoaked читает ресурс.
+- `ManaSoakedRuntimeOwner` владеет единственным периодическим producer через собственный `TaskScope`; Paper-адаптер сохраняет initial delay и period 20 ticks.
+- `ManaSoakedService.tick()` выполняет один цикл механики; сервис остаётся владельцем `mageIds`, `lastScanTick`, проверки класса/маны и модификаторов резиста.
+- При shutdown owner сначала останавливает producer, затем вызывает `clearTracking()`; это очищает только tracking-кэш и не меняет правила `ResistService`.
+- ManaSoaked намеренно не объединён с `ResourceRuntimeOwner`, хотя читает значение маны.
 
 ### 2.5 PluginTasks: global purge и autosave
 
@@ -137,6 +139,7 @@
 - [x] Оставшиеся root-owned periodic tasks перечислены.
 - [x] InstallationService duplicate handle ownership подтверждено и устранено через InstallationRuntimeOwner.
 - [x] ResourceService periodic producer вынесен в ResourceRuntimeOwner; финальное сохранение следует после остановки producer.
+- [x] ManaSoaked periodic producer вынесен в ManaSoakedRuntimeOwner; tracking очищается после остановки producer.
 - [x] ScrollCooldownTask producer вынесен в ScrollCooldownRuntimeOwner; остановка producer предшествует очистке его внутренних кэшей.
 - [x] HP attribute respawn one-shot callback подтверждён.
 - [x] HP Bar, Foliant и Resource storage/main-thread callbacks классифицированы.
