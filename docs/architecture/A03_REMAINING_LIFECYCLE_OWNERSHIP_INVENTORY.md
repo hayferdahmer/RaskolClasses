@@ -16,7 +16,8 @@
 |---|---|---|---|
 | Runtime RIPS | `RuntimeIntegrityRuntimeOwner` | Отдельный daemon executor, monitor, reporter/state; запускается после успешного startup и закрывается в начале shutdown | Bukkit disable callback остаётся инъекцией из root |
 | Pet runtime | `PetRuntimeOwner` | Listener + два периодических задания; despawn → cancel → unregister; rollback и retry | Реализация и тесты есть; CI #3081 success |
-| HUD runtime | `HudRuntimeOwner` и Paper adapters существуют | Контракт owner, task scheduler/session-event adapters, тесты | Не подключён к production wiring; старые HudService/BossBarService/HpBarService остаются root-owned |
+| HUD runtime | `HudRuntimeOwner` и Paper adapters существуют | Контракт owner, task scheduler/session-event adapters, тесты | Не подключён к production wiring; HudService и HpBarService остаются root-owned |
+| BossBar runtime | `BossBarRuntimeOwner` | Периодический producer через TaskScope; restart очищает полосы и перечитывает период; close отменяет producer и удаляет полосы | `BossBarService` сохраняет только rendering/state; owner подключён к root |
 | HP attribute sync | `HpAttributeSyncRuntimeOwner` | Listener registration + 100-tick sweep; rollback, retryable cancellation/unregistration | Delayed respawn sync остаётся одноразовой задачей без отдельного handle |
 | PlaceholderAPI | `PlaceholderRuntimeOwner` | Пятитиковый snapshot producer + регистрация двух expansions; rollback и retryable cleanup | Snapshot data остаётся в `PlaceholderSnapshotService`; Paper adapter владеет expansion instances |
 | Crown flavor | `FlavorRuntimeOwner` | Listener registration + 40-tick aura producer; rollback и retryable cancellation/unregistration | `CrownFlavorService` сохраняет faction/title lookup и aura tick logic |
@@ -34,7 +35,7 @@
 | HUD ActionBar | `hud.start()`, только при `hud.enabled && hp-display.mode=vanilla` | `activeTasks` | Конфигурационно-условный producer; reload меняет config, но не пересоздаёт задачу |
 | HP bar tick | `hpBarService.start()` | `activeTasks` | HP runtime/UI и часть HP domain; сам сервис также Listener и владелец health persistence |
 | Resource tick | `resources.startTickTask(this)` | `activeTasks` | Resource runtime; сервис также Listener и хранит изменяемое состояние |
-| BossBar tick | `bossBars.start()` | `activeTasks` + внутренняя ссылка `task` в сервисе | BossBar rendering; `applyConfig()` выполняет shutdown/start |
+| BossBar tick | `BossBarRuntimeOwner` + `PaperBossBarTaskScheduler` | `BossBarRuntimeOwner` / `TaskScope` | `BossBarService` выполняет один render cycle и хранит полосы; период берётся из `bossBarTickPeriod()`; reload вызывает owner restart |
 | Flavor aura | `FlavorRuntimeOwner.start()` | `FlavorRuntimeOwner` / `TaskScope` | Сохраняет исходный 40-tick период; listener регистрируется тем же owner до запуска producer |
 | Installation sweep | `installations.startSweepTask()` | `activeTasks` | Очистка/обслуживание runtime установок; сервис отдельно участвует в gameplay |
 | Scroll cooldown | `new ScrollCooldownTask(this).start()` | `activeTasks` | Отдельный task object теряется после возврата handle; владелец — root |
@@ -286,3 +287,18 @@ The two expansions intentionally retain the shared PlaceholderSnapshotService de
 - Добавлен `FlavorRuntimeOwnerTest` с 8 сценариями: идемпотентность, обязательность регистрации, порядок shutdown, rollback, cancellation retry, unregister retry и close-before-start.
 
 Не менялись фракционные идентификаторы, конфигурационные ключи, particle fallback, координаты/количество частиц, титулы и сообщение при входе. Интервал ауры остаётся 40 ticks.
+
+
+### A-03-003.16 — BossBarService runtime ownership
+
+`BossBarRuntimeOwner` теперь владеет периодическим producer BossBar через `TaskScope` и `PaperBossBarTaskScheduler`. `BossBarService` больше не создаёт, не хранит и не отменяет `BukkitTask`: он сохраняет rendering logic, карту активных полос и операцию `clearBars()`.
+
+Сохранённые контракты:
+- период читается из `bossBarTickPeriod()` и ограничивается минимумом в один тик;
+- initial delay равен period, как и раньше;
+- выключенный `bossbar.enabled` очищает полосы в очередном цикле, не останавливая producer;
+- reload вызывает `BossBarRuntimeOwner.restart()`: cancel → clear → schedule с актуальным периодом;
+- shutdown отменяет producer и удаляет все полосы;
+- HUD visibility, class/effect lookup, форматирование заголовков, сортировка, цвета и прогресс не менялись намеренно.
+
+Owner не регистрирует listener: `BossBarService` им не является. BossBar task удалён из root `activeTasks`; shutdown cleanup изолирован от ошибок и не пропускает последующие действия root. Добавлены unit tests на идемпотентный запуск, restart, порядок cleanup, scheduling/cancellation failure, retry и нормализацию периода.
