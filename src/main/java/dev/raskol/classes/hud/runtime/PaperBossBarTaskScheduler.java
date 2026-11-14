@@ -25,9 +25,8 @@ public final class PaperBossBarTaskScheduler implements BossBarTaskScheduler {
         if (periodTicks < 1L) {
             throw new IllegalArgumentException("Период BossBar должен быть не меньше одного тика");
         }
-        BukkitTask task = plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(plugin, updateAction, periodTicks, periodTicks);
+        BukkitTask task =
+                plugin.getServer().getScheduler().runTaskTimer(plugin, updateAction, periodTicks, periodTicks);
         return new PaperTaskHandle(task);
     }
 

@@ -72,10 +72,10 @@ import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
 import dev.raskol.classes.hotbar.ScrollSanitizer;
 import dev.raskol.classes.hud.BossBarService;
-import dev.raskol.classes.hud.runtime.BossBarRuntimeOwner;
-import dev.raskol.classes.hud.runtime.PaperBossBarTaskScheduler;
 import dev.raskol.classes.hud.HpBarService;
 import dev.raskol.classes.hud.HudService;
+import dev.raskol.classes.hud.runtime.BossBarRuntimeOwner;
+import dev.raskol.classes.hud.runtime.PaperBossBarTaskScheduler;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
@@ -711,10 +711,11 @@ public final class RaskolClasses extends JavaPlugin {
             try {
                 bossBarRuntimeOwner.close();
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось полностью остановить BossBar runtime",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить BossBar runtime",
+                                exception);
             }
         }
         if (cooldownRuntimeOwner != null) {

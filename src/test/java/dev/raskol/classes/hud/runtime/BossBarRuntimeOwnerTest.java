@@ -66,8 +66,7 @@ class BossBarRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         FakeScheduler scheduler = new FakeScheduler(calls);
         scheduler.failSchedule = true;
-        BossBarRuntimeOwner owner =
-                new BossBarRuntimeOwner(scheduler, () -> 2L, () -> calls.add("clear"));
+        BossBarRuntimeOwner owner = new BossBarRuntimeOwner(scheduler, () -> 2L, () -> calls.add("clear"));
 
         assertThrows(IllegalStateException.class, owner::start);
 
@@ -79,8 +78,7 @@ class BossBarRuntimeOwnerTest {
     void closeAttemptsClearEvenWhenTaskCancellationFailsAndCanRetry() {
         List<String> calls = new ArrayList<>();
         FakeScheduler scheduler = new FakeScheduler(calls);
-        BossBarRuntimeOwner owner =
-                new BossBarRuntimeOwner(scheduler, () -> 2L, () -> calls.add("clear"));
+        BossBarRuntimeOwner owner = new BossBarRuntimeOwner(scheduler, () -> 2L, () -> calls.add("clear"));
 
         owner.start();
         scheduler.task.failCancelOnce = true;
@@ -101,16 +99,13 @@ class BossBarRuntimeOwnerTest {
     void closeCanRetryWhenBarCleanupFails() {
         List<String> calls = new ArrayList<>();
         boolean[] failOnce = {true};
-        BossBarRuntimeOwner owner = new BossBarRuntimeOwner(
-                new FakeScheduler(calls),
-                () -> 2L,
-                () -> {
-                    calls.add("clear");
-                    if (failOnce[0]) {
-                        failOnce[0] = false;
-                        throw new IllegalStateException("clear failed");
-                    }
-                });
+        BossBarRuntimeOwner owner = new BossBarRuntimeOwner(new FakeScheduler(calls), () -> 2L, () -> {
+            calls.add("clear");
+            if (failOnce[0]) {
+                failOnce[0] = false;
+                throw new IllegalStateException("clear failed");
+            }
+        });
 
         owner.start();
         assertThrows(IllegalStateException.class, owner::close);
