@@ -340,17 +340,12 @@ The DoT and CC lifecycles are deliberately implemented as two independent runtim
 
 Both owners independently roll back partial startup, cancel their own producer before unregistering their own listener, and preserve retry paths for failed cleanup. `RaskolClasses` no longer stores either task in `activeTasks`. No effect-state map, DR rule, duration, tick cadence, damage formula, CC behavior, API call site, or configuration key is intentionally changed.
 
-Follow-up audit item: `CCFeedback` still owns static hologram bookkeeping and creates one-shot delayed cleanup tasks. Those are not periodic CC producers and were intentionally left outside this slice; they require a separate resource-lifecycle decision rather than being silently absorbed into `CCRuntimeOwner`.
+The separate `CCFeedbackRuntimeOwner` extraction is tracked in section 15 below; it is deliberately independent of `CCRuntimeOwner`.
 ## 15. A-03-003.20 — CCFeedback resource lifecycle assessment
 
-### Фактическая текущая реализация
+### Реализованная структура
 
-`CCFeedback` owns two different kinds of work that are not part of the periodic CC producer:
-
-- a static `ConcurrentHashMap<UUID, HologramBundle>` retaining the global and optional player-local `TextDisplay` entities;
-- one `runTaskLater` callback per hologram application, scheduled for the CC duration.
-
-The delayed task handle is discarded. `CCService` clears holograms on normal CC expiry and break/removal paths through `CCFeedback.onExpire` / `clearHologram`, but there is no explicit resource cleanup owner in the plugin shutdown path.
+`CCFeedbackRuntimeOwner` теперь хранит target-keyed наборы ресурсов и handles отложенной очистки. `CCFeedback` — instance-компонент, передаваемый в `CCService`; статическая карта `ACTIVE` удалена. `PaperCCFeedbackScheduler` изолирует Bukkit scheduler. Composition root создаёт owner и закрывает его при shutdown после остановки периодического CC runtime.
 
 The global display is visible to everyone except a player target; the optional local display is hidden by default and shown to that target. Both displays are passengers of the target. This visibility and attachment behavior is a compatibility contract.
 
@@ -364,7 +359,7 @@ The global display is visible to everyone except a player target; the optional l
 
 ### Ownership decision
 
-Introduce a dedicated `CCFeedbackRuntimeOwner`, separate from `CCRuntimeOwner`.
+Implemented: dedicated `CCFeedbackRuntimeOwner`, separate from `CCRuntimeOwner`.
 
 - It owns target-UUID keyed hologram bundles and their one-shot cleanup task handles.
 - It owns only visual resources and their cleanup callbacks. It does not own `CCInstance`, DR state, fear deadlines, slow modifiers, CC calculations, or the periodic CC tick.
@@ -386,10 +381,12 @@ Introduce a dedicated `CCFeedbackRuntimeOwner`, separate from `CCRuntimeOwner`.
 
 ### Implementation acceptance criteria
 
-- [ ] One-shot task handles are retained and cancelled on replacement, explicit clear, and plugin disable.
-- [ ] An old callback cannot remove a replacement bundle.
-- [ ] Partial global/local display creation and scheduling failures remove every resource already created.
-- [ ] Cleanup attempts every task and every display even when one cleanup operation fails.
-- [ ] Failed cleanup remains retryable on a subsequent close.
-- [ ] Focused unit tests cover replacement identity, stale callback, partial creation rollback, cancellation/removal failures, close-before-start and repeated close.
-- [ ] `CCService` remains the owner of CC state; `CCRuntimeOwner` remains the owner of the periodic CC producer.
+- [x] One-shot task handles are retained and cancelled on replacement, explicit clear, and plugin disable.
+- [x] An old callback cannot remove a replacement bundle.
+- [x] Partial global/local display creation and scheduling failures remove every resource already created.
+- [x] Cleanup attempts every task and every display even when one cleanup operation fails.
+- [x] Failed cleanup remains retryable on a subsequent close.
+- [x] Focused unit tests cover replacement identity, stale callback, scheduling rollback, cancellation/removal failures, and repeated close.
+- [x] `CCService` remains the owner of CC state; `CCRuntimeOwner` remains the owner of the periodic CC producer.
+
+Paper-level integration verification of TextDisplay visibility/passenger behavior remains a follow-up; no live server test has been claimed.
