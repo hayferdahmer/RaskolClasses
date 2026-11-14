@@ -499,3 +499,16 @@ Aura expiration callback хранится и отменяется вместе �
 CooldownManager now releases a naturally completed notification BukkitTask in a finally boundary. Removal is identity-safe (Map.remove(key, expectedHandle)), and empty per-player maps are removed conditionally so a stale callback cannot delete a replacement map. The notification delay and player-facing behavior remain unchanged.
 
 Focused tests cover normal completion, early-return callback paths, callback exceptions, replacement races, and per-player map cleanup. This implementation slice does not change CooldownRuntimeOwner, persistence, gameplay state, main, or BootstrapCoordinator. Full CI and live Paper 26.2 verification remain separate gates.
+
+
+## 16. A-03-003.30 — Foliant and RIPS one-shot callback ownership audit
+
+Source-backed findings are recorded in [A03_FOLIANT_AND_RIPS_CALLBACK_OWNERSHIP_AUDIT.md](A03_FOLIANT_AND_RIPS_CALLBACK_OWNERSHIP_AUDIT.md).
+
+- `FoliantService.executeTransition()` schedules a next-tick post-transition class verification but does not retain/register its BukkitTask. The callback captures Player and has no explicit quit behavior. This is bounded (one tick), not an unbounded leak; the remaining gap is explicit ownership and disconnect semantics.
+- The next implementation candidate is a narrow Foliant-owned one-shot callback boundary with focused completion, quit-before-execution and shutdown tests. The exact seam remains an implementation design decision; no generic callback registry is authorized by this audit.
+- `RaskolClasses.handleRuntimeIntegrityFailure()` schedules a one-shot security enforcement callback with duplicate guard, scheduling-failure reset and enabled-state guard. Its lifecycle is intentionally plugin-scoped and delegated to Paper's plugin scheduler.
+- `RuntimeIntegrityRuntimeOwner` owns the monitor/executor, not the Paper enforcement callback. Do not add a shutdown cancellation path that could suppress an already accepted enforcement action without a separate security decision.
+- `FoliantService.saveLocks()` completion acknowledgement remains in A-04 and is excluded.
+- Production code and tests were not changed. `main` remains untouched; `BootstrapCoordinator` remains inactive.
+- The repository-wide lifecycle scan remains open.
