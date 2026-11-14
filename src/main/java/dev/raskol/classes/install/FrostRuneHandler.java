@@ -39,6 +39,11 @@ public final class FrostRuneHandler extends BaseInstallationHandler {
         BukkitTask ringTask;
         final Map<UUID, Integer> stay = new ConcurrentHashMap<>();
         double ownerIntBase = -1;
+        boolean ambientStopped;
+        boolean ringTaskCancelled;
+        boolean modifiersRemoved;
+        boolean expirationBurstPlayed;
+        boolean ownerNotified;
 
         RuneState(UUID owner, Location loc) {
             this.owner = owner;
@@ -197,17 +202,70 @@ public final class FrostRuneHandler extends BaseInstallationHandler {
 
     @Override
     public void expire(ActiveInstallation inst) {
-        RuneState rune = states.remove(inst.id());
+        RuneState rune = states.get(inst.id());
         if (rune == null) {
             return;
         }
-        plugin.getFx().stopAmbient(rune.ambientId);
-        if (rune.ringTask != null) {
-            rune.ringTask.cancel();
+
+        RuntimeException failure = null;
+        if (!rune.ambientStopped) {
+            try {
+                if (rune.ambientId != null) {
+                    plugin.getFx().stopAmbient(rune.ambientId);
+                }
+                rune.ambientStopped = true;
+            } catch (RuntimeException exception) {
+                failure = collectFailure(failure, exception);
+            }
         }
-        plugin.getAttributes().removeModifiersBySource(rune.owner, RUNE_INT_MOD);
-        plugin.getFx().impactBurst(rune.loc, Particle.CLOUD, 16, Sound.ENTITY_ENDERMAN_TELEPORT, 0.4f, 1.6f);
-        notifyOwner(rune.owner, "Ледяная руна растаяла.");
+        if (!rune.ringTaskCancelled) {
+            try {
+                if (rune.ringTask != null) {
+                    rune.ringTask.cancel();
+                }
+                rune.ringTaskCancelled = true;
+            } catch (RuntimeException exception) {
+                failure = collectFailure(failure, exception);
+            }
+        }
+        if (!rune.modifiersRemoved) {
+            try {
+                plugin.getAttributes().removeModifiersBySource(rune.owner, RUNE_INT_MOD);
+                rune.modifiersRemoved = true;
+            } catch (RuntimeException exception) {
+                failure = collectFailure(failure, exception);
+            }
+        }
+        if (!rune.expirationBurstPlayed) {
+            try {
+                plugin.getFx().impactBurst(
+                        rune.loc, Particle.CLOUD, 16, Sound.ENTITY_ENDERMAN_TELEPORT, 0.4f, 1.6f);
+                rune.expirationBurstPlayed = true;
+            } catch (RuntimeException exception) {
+                failure = collectFailure(failure, exception);
+            }
+        }
+        if (!rune.ownerNotified) {
+            try {
+                notifyOwner(rune.owner, "Ледяная руна растаяла.");
+                rune.ownerNotified = true;
+            } catch (RuntimeException exception) {
+                failure = collectFailure(failure, exception);
+            }
+        }
+
+        if (failure != null) {
+            throw failure;
+        }
+        states.remove(inst.id(), rune);
+    }
+
+    private RuntimeException collectFailure(RuntimeException current, RuntimeException next) {
+        if (current == null) {
+            return next;
+        }
+        current.addSuppressed(next);
+        return current;
     }
 
     private void ringParticles(Location center, double radius, int count) {
