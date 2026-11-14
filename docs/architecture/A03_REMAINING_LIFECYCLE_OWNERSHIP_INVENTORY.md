@@ -30,14 +30,14 @@
 
 | Задача | Создатель / сервис | Текущий владелец handle | Фактические обязанности и риск |
 |---|---|---|---|
-| DoT tick | `combat.dots().startTickTask()` | `activeTasks` | DoT runtime; listener регистрируется отдельно в `initializeCoreServices` |
-| CC tick | `ccService.startTickTask()` | `activeTasks` | CC runtime; listener регистрируется отдельно |
+| DoT tick | `DotRuntimeOwner` + `PaperDotTaskScheduler` | `DotRuntimeOwner` / `TaskScope` | DoT state остаётся в DotService; cadence 20 ticks |
+| CC tick | `CCRuntimeOwner` + `PaperCCTaskScheduler` | `CCRuntimeOwner` / `TaskScope` | CC state остаётся в CCService; cadence 1 tick |
 | HUD ActionBar | `HudRuntimeOwner.start()` при `hud.enabled && hp-display.mode=vanilla` | `HudRuntimeOwner` / `TaskScope` | Reload согласует start/stop; начальная задержка и период сохраняют `max(1, hudUpdatePeriodTicks())` |
 | HP bar runtime | `HpBarRuntimeOwner` + `PaperHpBarTaskScheduler` + `PaperHpBarRuntimeRegistration` | Owner owns join/quit/respawn listener and periodic tick; `HpBarService` retains HP state, gameplay logic and health persistence | Подключён к root; `saveAll()` остаётся в shutdown перед закрытием общего StorageWriter |
 | Resource tick | `resources.startTickTask(this)` | `activeTasks` | Resource runtime; сервис также Listener и хранит изменяемое состояние |
 | BossBar tick | `BossBarRuntimeOwner` + `PaperBossBarTaskScheduler` | `BossBarRuntimeOwner` / `TaskScope` | `BossBarService` выполняет один render cycle и хранит полосы; период берётся из `bossBarTickPeriod()`; reload вызывает owner restart |
 | Flavor aura | `FlavorRuntimeOwner.start()` | `FlavorRuntimeOwner` / `TaskScope` | Сохраняет исходный 40-tick период; listener регистрируется тем же owner до запуска producer |
-| Installation sweep | `installations.startSweepTask()` | `activeTasks` | Очистка/обслуживание runtime установок; сервис отдельно участвует в gameplay |
+| Installation sweep | `InstallationRuntimeOwner` + `PaperInstallationTaskScheduler` | `InstallationRuntimeOwner` / `TaskScope` | InstallationService.sweep() выполняет один цикл; cadence 20 ticks; owner закрывается до service cleanup |
 | Scroll cooldown | `new ScrollCooldownTask(this).start()` | `activeTasks` | Отдельный task object теряется после возврата handle; владелец — root |
 | ManaSoaked | `manaSoaked.start()` | `activeTasks` | Периодическая механика combat |
 | Global purge | `PluginTasks.startPurgeTask(this)` | `activeTasks` | Один callback вызывает purge многих доменов и статических ability-классов; широкий cross-domain orchestration |
@@ -54,7 +54,7 @@
 | Cooldown ready notifications | `CooldownManager.start(...)` | Map задач остаётся внутри CooldownManager; runtime owner вызывает `cancelAllTasks()` при остановке | Listener registration и lifecycle координирует `CooldownRuntimeOwner`; состояние и persistence остаются в CooldownManager |
 | HP async completion callbacks | `HpBarService.saveHealth()` | Writer completion + Bukkit main-thread callback | Это callbacks, не периодический producer; должны завершаться до/в рамках storage drain contract |
 | Foliant async completion / deferred operations | `FoliantService` | Внутри сервиса и общий writer; dirty locks сохраняются root-вызовом | Нужна отдельная проверка каждого deferred callback перед переносом |
-| Warlock channel tasks | `WarlockAbilities` | Статический `cancelAllChannelTasks()` вызывается root | Глобальное/static владение усложняет модульную границу; необходимо инвентаризировать task creation/cancel paths |
+| Warlock channel tasks | `WarlockChannelTaskOwner` | Per-caster task handles; root закрывает owner | Handles регистрируются сразу после schedule; partial rollback и retryable close покрыты focused tests |
 | HP delayed sync | `HpAttributeSync` join handler | Bukkit scheduler one-shot через static scheduler; явного handle в root нет | Нужен анализ безопасного закрытия/гонки с disable |
 
 ## 4. Listener и внешние регистрации
@@ -93,10 +93,10 @@ Bukkit обычно очищает зарегистрированные listener
 7. Cancel Warlock channel tasks.
 8. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
 9. `petRuntimeOwner.close()` (despawn → cancel → unregister).
-10. Cancel/clear root `activeTasks`.
+10. Cancel/clear оставшиеся root `activeTasks`, затем close `InstallationRuntimeOwner`.
 11. `items.stop()`; unregister PassportChangeListener.
 12. `resources.saveAll()`, `hpBarService.saveAll()`, `spec2Storage.save()`.
-13. `installations.shutdown()`, `bossBars.shutdown()`.
+13. `installations.shutdown()` (после остановки InstallationRuntimeOwner), `bossBars.shutdown()`.
 14. Cooldowns: `CooldownRuntimeOwner.close()` (cancel delayed tasks → unregister listener) → `CooldownManager.saveAll()` → `CooldownManager.clear()`.
 15. ClassProvider shutdown; effects clear.
 16. `storageWriter.closeAndAwait(Duration.ofSeconds(10))` — последний infrastructure action.
@@ -394,7 +394,7 @@ Paper-level integration verification of TextDisplay visibility/passenger behavio
 
 ## A-03-003.21 — Аудит оставшихся runtime-задач и callback
 
-Подтверждённые остатки после выделения owners, включая шесть root-owned periodic tasks, HP respawn callbacks, storage completion callbacks, Warlock channel tasks и duplicate sweep handle InstallationService, описаны в отдельном source-backed документе: [A03_RUNTIME_TASK_CALLBACK_AUDIT.md](A03_RUNTIME_TASK_CALLBACK_AUDIT.md).
+Подтверждённые остатки после выделения owners, включая оставшиеся пять root-owned periodic tasks, HP respawn callbacks, storage completion callbacks и Warlock channel tasks, описаны в отдельном source-backed документе: [A03_RUNTIME_TASK_CALLBACK_AUDIT.md](A03_RUNTIME_TASK_CALLBACK_AUDIT.md).
 
 Аудит выполняется поэтапно. Полный repository-wide scan и сверка всех task creation sites остаются незакрытыми acceptance criteria; runtime-код в этом срезе не менялся.
 
