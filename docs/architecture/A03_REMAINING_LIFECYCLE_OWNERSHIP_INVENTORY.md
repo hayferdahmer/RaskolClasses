@@ -553,3 +553,14 @@ Implementation note: the cleanup failure reporter is a dedicated functional inte
 Identity safety refinement: successful cleanup now uses `computeIfPresent` with reference comparison, because `Map.remove(key, value)` relies on `equals` and is not sufficient for identity-safe replacement protection.
 
 Formatting checkpoint: Spotless Format #42 completed successfully on the formatted code, including its post-format `mvn -Pdev -B verify`. A fresh Build/Analyze run is required on the final documentation HEAD to close the CI gate on one exact commit.
+
+
+### A-03-003.33 final verification
+
+- Final implementation HEAD before this documentation checkpoint: `ea58806265cdec504bf363bdfe03f5a1b87185a4`.
+- Build #3359: SUCCESS; 678 tests, 0 failures/errors/skipped; JaCoCo gates passed; RIPS signing policy tests passed.
+- Analyze: SUCCESS; SpotBugs 0 BugInstances.
+- Spotless Format #43: SUCCESS; 489 Java files clean; post-format `mvn -Pdev -B verify` passed.
+- CI links: [Build #3359](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43638746750), [Format #43](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43638746780).
+- `main` remained unchanged at `2e407cbe59276e6af88857bf3a0d93595c55c52c`.
+- Live Paper 26.2 runtime smoke test remains outstanding.
