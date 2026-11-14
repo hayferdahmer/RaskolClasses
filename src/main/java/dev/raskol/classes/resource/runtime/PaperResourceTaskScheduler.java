@@ -25,9 +25,8 @@ public final class PaperResourceTaskScheduler implements ResourceTaskScheduler {
 
     @Override
     public TaskHandle scheduleTick() {
-        BukkitTask task = plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(plugin, tick, INITIAL_DELAY_TICKS, PERIOD_TICKS);
+        BukkitTask task =
+                plugin.getServer().getScheduler().runTaskTimer(plugin, tick, INITIAL_DELAY_TICKS, PERIOD_TICKS);
         return new BukkitTaskHandle(task);
     }
 
