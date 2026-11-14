@@ -54,8 +54,8 @@ public final class CooldownManager implements Listener {
     private final Map<UUID, Map<String, BukkitTask>> tasks = new ConcurrentHashMap<>();
     private Plugin plugin;
 
-    private boolean notifyEnabled = false;
-    private long notifyMinMillis = 30_000L;
+    private volatile boolean notifyEnabled = false;
+    private volatile long notifyMinMillis = 30_000L;
     private Sound notifySound;
     private String notifyMessage = "{ability} — готова";
 
