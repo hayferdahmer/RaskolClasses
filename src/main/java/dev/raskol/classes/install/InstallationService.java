@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -43,7 +44,7 @@ public final class InstallationService {
     private final Map<InstallationType, InstallationHandler> handlers = new EnumMap<>(InstallationType.class);
     private final Map<UUID, ActiveInstallation> installations = new ConcurrentHashMap<>();
     private final Map<String, Long> placeCooldowns = new ConcurrentHashMap<>();
-    private final java.util.Set<UUID> cleanupPending = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> cleanupPending = ConcurrentHashMap.newKeySet();
     private final InstallationCleanupCoordinator cleanupCoordinator;
 
     public InstallationService(RaskolClasses plugin) {
