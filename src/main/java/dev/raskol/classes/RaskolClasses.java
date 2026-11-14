@@ -77,9 +77,9 @@ import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.hud.runtime.BossBarRuntimeOwner;
 import dev.raskol.classes.hud.runtime.HudRuntimeOwner;
 import dev.raskol.classes.hud.runtime.HudServiceOutputCleanup;
+import dev.raskol.classes.hud.runtime.PaperBossBarTaskScheduler;
 import dev.raskol.classes.hud.runtime.PaperHudSessionEvents;
 import dev.raskol.classes.hud.runtime.PaperHudTaskScheduler;
-import dev.raskol.classes.hud.runtime.PaperBossBarTaskScheduler;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
@@ -342,10 +342,11 @@ public final class RaskolClasses extends JavaPlugin {
         try {
             hudRuntimeOwner.register();
         } catch (RuntimeException exception) {
-            getLogger().log(
-                    java.util.logging.Level.WARNING,
-                    "Не удалось зарегистрировать HUD runtime; ActionBar HUD будет отключён",
-                    exception);
+            getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "Не удалось зарегистрировать HUD runtime; ActionBar HUD будет отключён",
+                            exception);
             hudRuntimeOwner = null;
         }
         this.bossBars = new BossBarService(this);
@@ -503,10 +504,11 @@ public final class RaskolClasses extends JavaPlugin {
             try {
                 hudRuntimeOwner.start();
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.WARNING,
-                        "Не удалось запустить ActionBar HUD; остальные игровые системы продолжат работу",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.WARNING,
+                                "Не удалось запустить ActionBar HUD; остальные игровые системы продолжат работу",
+                                exception);
             }
         }
         activeTasks.add(hpBarService.start());
@@ -639,10 +641,11 @@ public final class RaskolClasses extends JavaPlugin {
                 hudRuntimeOwner.close();
                 hudRuntimeOwner = null;
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось полностью остановить ActionBar HUD runtime",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить ActionBar HUD runtime",
+                                exception);
             }
         }
 
@@ -823,10 +826,11 @@ public final class RaskolClasses extends JavaPlugin {
                 hudRuntimeOwner.stop();
             }
         } catch (RuntimeException exception) {
-            getLogger().log(
-                    java.util.logging.Level.WARNING,
-                    "Не удалось согласовать ActionBar HUD runtime после reload",
-                    exception);
+            getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "Не удалось согласовать ActionBar HUD runtime после reload",
+                            exception);
         }
     }
 
