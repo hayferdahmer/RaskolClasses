@@ -595,10 +595,11 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
                 .runTaskLater(
                         plugin,
                         () -> {
-                            if (!caster.isOnline() || caster.isDead()) {
-                                return;
-                            }
-                            Location center = caster.getLocation();
+                            try {
+                                if (!caster.isOnline() || caster.isDead()) {
+                                    return;
+                                }
+                                Location center = caster.getLocation();
                             // 1.15.7 (2.6-63): финальный взрыв из конфига (дефолт 30.0 base / 2.4 coeff)
                             double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
                             double baseDmg = (kitBase(
@@ -634,8 +635,10 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
                             }
                             plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
                             purgeStaleDebuffsInstance();
-                            CastChannels.unregister(casterId);
-                            channelTaskOwner.complete(casterId);
+                            } finally {
+                                CastChannels.unregister(casterId);
+                                channelTaskOwner.complete(casterId);
+                            }
                         },
                         ticks + 1L);
             trackChannelTask(casterId, finalTask);
