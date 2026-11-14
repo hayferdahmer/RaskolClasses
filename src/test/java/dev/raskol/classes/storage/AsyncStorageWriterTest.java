@@ -69,9 +69,8 @@ class AsyncStorageWriterTest {
         AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER, (snapshot, target, logger) -> {
             writeStarted.countDown();
             try {
-                if (!releaseWrite.await(5, TimeUnit.SECONDS)) {
-                    return false;
-                }
+                // Завершение записи контролирует тест после регистрации completion callback.
+                releaseWrite.await();
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 return false;
