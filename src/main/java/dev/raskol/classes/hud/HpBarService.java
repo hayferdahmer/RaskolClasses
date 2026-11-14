@@ -608,7 +608,10 @@ public final class HpBarService implements Listener {
         try {
             respawnCallbacks.cancel(uuid);
         } catch (RuntimeException exception) {
-            LOGGER.warning("Не удалось отменить HP bar respawn callback для " + uuid + ": " + exception.getMessage());
+            LOGGER.log(
+                    java.util.logging.Level.WARNING,
+                    "Не удалось отменить HP bar respawn callback для " + uuid,
+                    exception);
         }
         Pending p = pendingRestore.remove(uuid);
         if (p != null && p.applies() == 0) {
