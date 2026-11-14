@@ -5,7 +5,6 @@ package dev.raskol.classes.install;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -13,12 +12,17 @@ final class InstallationCleanupCoordinator {
 
     private final Map<UUID, ActiveInstallation> installations;
     private final Function<InstallationType, InstallationHandler> handlers;
-    private final BiConsumer<String, ActiveInstallation, RuntimeException> failureReporter;
+    private final FailureReporter failureReporter;
+
+    @FunctionalInterface
+    interface FailureReporter {
+        void report(String operation, ActiveInstallation installation, RuntimeException exception);
+    }
 
     InstallationCleanupCoordinator(
             Map<UUID, ActiveInstallation> installations,
             Function<InstallationType, InstallationHandler> handlers,
-            BiConsumer<String, ActiveInstallation, RuntimeException> failureReporter) {
+            FailureReporter failureReporter) {
         this.installations = installations;
         this.handlers = handlers;
         this.failureReporter = failureReporter;
@@ -44,7 +48,7 @@ final class InstallationCleanupCoordinator {
 
         InstallationHandler handler = handlers.apply(installation.type());
         if (handler == null) {
-            failureReporter.accept(
+            failureReporter.report(
                     operation,
                     installation,
                     new IllegalStateException("No installation handler is registered for " + installation.type()));
