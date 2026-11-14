@@ -255,3 +255,10 @@ Focused tests cover idempotent start, restart ordering, close cleanup, schedulin
 `HudRuntimeOwner` is wired into `RaskolClasses`. `PaperHudSessionEvents` owns a quit listener, `PaperHudTaskScheduler` owns the repeating producer, and `HudServiceOutputCleanup` delegates per-player/global cache cleanup to `HudService`. The service exposes a single `tick()` callback and no longer owns a BukkitTask.
 
 The legacy activation condition is preserved at startup (`hud.enabled && hp-display.mode=vanilla`). Configuration reload reconciles the runtime with the current condition by starting or stopping the owner. Shutdown closes the owner before the remaining runtime cleanup. Cleanup removes only ActionBar HUD cache state and does not send an empty ActionBar, avoiding interference with HP display or other plugins. HP bar remains independent.
+
+
+### A-03-003.18 — HP bar runtime ownership
+
+`HpBarRuntimeOwner` coordinates the `HpBarService` lifecycle listener and periodic tick. `PaperHpBarRuntimeRegistration` registers/unregisters the service listener, and `PaperHpBarTaskScheduler` schedules the synchronous callback. Root startup phase ordering is preserved: registration occurs in `registerGameplayListeners()`, scheduling in `startRuntimeTasks()`. Shutdown closes the owner before `hpBarService.saveAll()` and before the shared `AsyncStorageWriter` is closed.
+
+The service retains all HP state, formulas, regeneration, restore logic, UI rendering, dirty tracking and persistence. Its former `start()` method and private scheduler callback are replaced by `tick()`. Period remains clamped to at least one tick and the original initial delay equals the period. No data format or player-facing behavior is intentionally changed.
