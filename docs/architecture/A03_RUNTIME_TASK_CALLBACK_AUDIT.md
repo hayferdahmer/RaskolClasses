@@ -13,11 +13,11 @@
 
 ## 1. Текущая картина
 
-После выделения специализированных runtime owners и InstallationRuntimeOwner в `RaskolClasses.activeTasks` остаются пять периодических задач:
+После выделения специализированных runtime owners и InstallationRuntimeOwner в `RaskolClasses.activeTasks` остаются четыре периодические задачи:
 
 | Задача | Текущий владелец | Интервал / назначение | Вывод |
 |---|---|---|---|
-| Resource tick | root `activeTasks` | 20 ticks; обновление ресурсов | Нужен отдельный runtime owner; состояние и persistence остаются в ResourceService |
+| Resource tick | `ResourceRuntimeOwner` | 20 ticks; обновление ресурсов | Реализовано; ResourceService остаётся Listener и владельцем resource state/persistence |
 | Installation sweep | одновременно root handle и `InstallationService.sweepTask` | 20 ticks; expiry/tick установок | Дублированное владение handle; выбрать один lifecycle owner |
 | Scroll cooldown display | root `activeTasks` | 10 ticks; отображение cooldown на предметах | Нужен owner для producer и закрытия сервиса/cache |
 | ManaSoaked | root `activeTasks` | 20 ticks; пассивный резист магов | Нужен domain-specific owner; mage state остаётся в ManaSoakedService |
@@ -123,13 +123,12 @@
 
 ## 5. Рекомендуемая последовательность следующих срезов
 
-1. Resource runtime ownership.
-2. Scroll cooldown runtime ownership.
-3. ManaSoaked runtime ownership.
-4. Отдельный maintenance lifecycle для global purge/autosave без переноса cross-domain логики в домены.
-5. HP respawn one-shot callback ownership.
-6. A-04 storage completion/drain contract для Foliant, HP Bar, Resources и Cooldowns.
-7. Завершить repository-wide scan и сверку callback/task ownership.
+1. Scroll cooldown runtime ownership.
+2. ManaSoaked runtime ownership.
+3. Отдельный maintenance lifecycle для global purge/autosave без переноса cross-domain логики в домены.
+4. HP respawn one-shot callback ownership.
+5. A-04 storage completion/drain contract для Foliant, HP Bar, Resources и Cooldowns.
+6. Завершить repository-wide scan и сверку callback/task ownership.
 
 Порядок может быть скорректирован после полного repository-wide scan и проверки всех remaining task creation sites.
 
@@ -138,6 +137,7 @@
 - [x] Root recurring task registrations повторно проверены.
 - [x] Оставшиеся root-owned periodic tasks перечислены.
 - [x] InstallationService duplicate handle ownership подтверждено и устранено через InstallationRuntimeOwner.
+- [x] ResourceService periodic producer вынесен в ResourceRuntimeOwner; финальное сохранение следует после остановки producer.
 - [x] HP attribute respawn one-shot callback подтверждён.
 - [x] HP Bar, Foliant и Resource storage/main-thread callbacks классифицированы.
 - [x] Warlock channel task creation/cancellation paths проверены.
