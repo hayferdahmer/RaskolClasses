@@ -84,15 +84,13 @@ class ManaSoakedRuntimeOwnerTest {
     void trackingCleanupFailureCanBeRetried() {
         List<String> calls = new ArrayList<>();
         boolean[] fail = {true};
-        ManaSoakedRuntimeOwner owner = new ManaSoakedRuntimeOwner(
-                new FakeScheduler(calls),
-                () -> {
-                    calls.add("clear");
-                    if (fail[0]) {
-                        fail[0] = false;
-                        throw new IllegalStateException("cleanup failed");
-                    }
-                });
+        ManaSoakedRuntimeOwner owner = new ManaSoakedRuntimeOwner(new FakeScheduler(calls), () -> {
+            calls.add("clear");
+            if (fail[0]) {
+                fail[0] = false;
+                throw new IllegalStateException("cleanup failed");
+            }
+        });
         owner.start();
 
         assertThrows(IllegalStateException.class, owner::close);
