@@ -42,7 +42,7 @@
 | Flavor aura | `FlavorRuntimeOwner.start()` | `FlavorRuntimeOwner` / `TaskScope` | Сохраняет исходный 40-tick период; listener регистрируется тем же owner до запуска producer |
 | Installation sweep | `InstallationRuntimeOwner` + `PaperInstallationTaskScheduler` | `InstallationRuntimeOwner` / `TaskScope` | InstallationService.sweep() выполняет один цикл; cadence 20 ticks; owner закрывается до service cleanup |
 | Scroll cooldown | `ScrollCooldownRuntimeOwner` + `PaperScrollCooldownTaskScheduler` | `ScrollCooldownRuntimeOwner` / `TaskScope` | Root хранит task object; owner останавливает producer до очистки `barState`/`lastHeld`; cadence 10 ticks |
-| ManaSoaked | `manaSoaked.start()` | `activeTasks` | Периодическая механика combat |
+| ManaSoaked | `ManaSoakedRuntimeOwner` + `PaperManaSoakedTaskScheduler` | `ManaSoakedRuntimeOwner` / `TaskScope` | `ManaSoakedService.tick()` выполняет один цикл; producer сохраняет initial delay и period 20 ticks; close останавливает producer до очистки mage tracking |
 | Global purge | `PluginTasks.startPurgeTask(this)` | `activeTasks` | Один callback вызывает purge многих доменов и статических ability-классов; широкий cross-domain orchestration |
 | Global autosave | `PluginTasks.startAutosaveTask(this)` | `activeTasks` | Плановый snapshot cooldowns/resources/spec2; обязан завершиться до закрытия общего writer |
 | Foliant lock flush | `FoliantRuntimeOwner.start()` в `initializeCoreServices` | `FoliantRuntimeOwner` / `TaskScope` | Owner управляет listener и периодическим flush producer; FoliantService сохраняет dirty lock state и persistence |
@@ -96,7 +96,7 @@ Bukkit обычно очищает зарегистрированные listener
 7. Cancel Warlock channel tasks.
 8. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
 9. `petRuntimeOwner.close()` (despawn → cancel → unregister).
-10. Close `ResourceRuntimeOwner`, `InstallationRuntimeOwner` и `ScrollCooldownRuntimeOwner`, затем cancel/clear оставшиеся root `activeTasks`.
+10. Close `ManaSoakedRuntimeOwner`, `ResourceRuntimeOwner`, `InstallationRuntimeOwner` и `ScrollCooldownRuntimeOwner`, затем cancel/clear оставшиеся root `activeTasks`.
 11. `items.stop()`; unregister PassportChangeListener.
 12. `resources.saveAll()` (после ResourceRuntimeOwner.close), `hpBarService.saveAll()`, `spec2Storage.save()`.
 13. `installations.shutdown()` (после остановки InstallationRuntimeOwner), `bossBars.shutdown()`.
