@@ -94,11 +94,12 @@ class InstallationRuntimeOwnerTest {
     private static final class FakeScheduler implements InstallationTaskScheduler {
 
         private final List<String> calls;
-        private final FakeTask task = new FakeTask();
+        private final FakeTask task;
         private boolean failScheduling;
 
         private FakeScheduler(List<String> calls) {
             this.calls = calls;
+            this.task = new FakeTask(calls);
         }
 
         @Override
@@ -113,11 +114,17 @@ class InstallationRuntimeOwnerTest {
 
     private static final class FakeTask implements TaskHandle {
 
+        private final List<String> calls;
         private boolean cancelled;
         private boolean failFirstCancellation;
 
+        private FakeTask(List<String> calls) {
+            this.calls = calls;
+        }
+
         @Override
         public void cancel() {
+            calls.add("cancel");
             if (failFirstCancellation) {
                 failFirstCancellation = false;
                 throw new IllegalStateException("cancellation failed");
