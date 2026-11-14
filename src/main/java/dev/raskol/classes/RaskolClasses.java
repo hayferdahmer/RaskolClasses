@@ -740,10 +740,11 @@ public final class RaskolClasses extends JavaPlugin {
             try {
                 warlockAbilities.close();
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось полностью остановить Warlock channel runtime",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить Warlock channel runtime",
+                                exception);
             }
         }
 

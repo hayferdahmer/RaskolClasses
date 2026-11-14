@@ -23,8 +23,9 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.attribute.Hp;
 import dev.raskol.classes.ability.runtime.WarlockChannelTaskOwner;
+import dev.raskol.classes.attribute.Hp;
+import dev.raskol.classes.bootstrap.lifecycle.TaskHandle;
 import dev.raskol.classes.cc.CastChannels;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
@@ -33,7 +34,6 @@ import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.fx.WarlockFx;
 import dev.raskol.classes.pet.PetService;
 import dev.raskol.classes.spec.Spec;
-import dev.raskol.classes.bootstrap.lifecycle.TaskHandle;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -559,89 +559,94 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
 
         try {
             for (int i = 1; i <= ticks; i += 5) {
-            BukkitTask task = plugin.getServer()
-                    .getScheduler()
-                    .runTaskLater(
-                            plugin,
-                            () -> {
-                                if (!caster.isOnline() || caster.isDead()) {
-                                    return;
-                                }
-                                Location center = caster.getLocation();
-                                // 1.15.7 (2.6-63): тик-урон из конфига (дефолт 6.0)
-                                double tickDmg = cfgD("classes.WARLOCK.abilities.soul_rift.tick-damage", 6.0)
-                                        * damageMult(caster);
-                                WarlockFx.ringFx(center, radius, Particle.SCULK_SOUL, 1);
-                                for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
-                                    if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
-                                        continue;
+                BukkitTask task = plugin.getServer()
+                        .getScheduler()
+                        .runTaskLater(
+                                plugin,
+                                () -> {
+                                    if (!caster.isOnline() || caster.isDead()) {
+                                        return;
                                     }
-                                    if (!plugin.getCombat().canHit(caster, t)) {
-                                        continue;
+                                    Location center = caster.getLocation();
+                                    // 1.15.7 (2.6-63): тик-урон из конфига (дефолт 6.0)
+                                    double tickDmg = cfgD("classes.WARLOCK.abilities.soul_rift.tick-damage", 6.0)
+                                            * damageMult(caster);
+                                    WarlockFx.ringFx(center, radius, Particle.SCULK_SOUL, 1);
+                                    for (Entity e :
+                                            caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+                                        if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
+                                            continue;
+                                        }
+                                        if (!plugin.getCombat().canHit(caster, t)) {
+                                            continue;
+                                        }
+                                        plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(tickDmg));
+                                        WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 3);
+                                        antihealExpiry.put(
+                                                t.getUniqueId(),
+                                                System.currentTimeMillis() + (long) (antihealSec * 1000.0));
+                                        maybeStripAbsorption(t);
                                     }
-                                    plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(tickDmg));
-                                    WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 3);
-                                    antihealExpiry.put(
-                                            t.getUniqueId(),
-                                            System.currentTimeMillis() + (long) (antihealSec * 1000.0));
-                                    maybeStripAbsorption(t);
-                                }
-                            },
-                            i);
+                                },
+                                i);
                 trackChannelTask(casterId, task);
             }
 
             BukkitTask finalTask = plugin.getServer()
-                .getScheduler()
-                .runTaskLater(
-                        plugin,
-                        () -> {
-                            try {
-                                if (!caster.isOnline() || caster.isDead()) {
-                                    return;
-                                }
-                                Location center = caster.getLocation();
-                            // 1.15.7 (2.6-63): финальный взрыв из конфига (дефолт 30.0 base / 2.4 coeff)
-                            double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
-                            double baseDmg = (kitBase(
-                                                    caster,
-                                                    def,
-                                                    cfgD("classes.WARLOCK.abilities.soul_rift.final-damage", 30.0))
-                                            + sp
-                                                    * kitCoeff(
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                try {
+                                    if (!caster.isOnline() || caster.isDead()) {
+                                        return;
+                                    }
+                                    Location center = caster.getLocation();
+                                    // 1.15.7 (2.6-63): финальный взрыв из конфига (дефолт 30.0 base / 2.4 coeff)
+                                    double sp = plugin.getCombat().powers().spellPower(caster.getUniqueId());
+                                    double baseDmg = (kitBase(
                                                             caster,
                                                             def,
                                                             cfgD(
-                                                                    "classes.WARLOCK.abilities.soul_rift.final-coeff",
-                                                                    2.4)))
-                                    * damageMult(caster);
-                            WarlockFx.ringFx(center, radius, Particle.SONIC_BOOM, 1);
-                            WarlockFx.ringFx(center, radius * 0.6, Particle.ASH, 3);
-                            for (Entity e : caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
-                                if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
-                                    continue;
+                                                                    "classes.WARLOCK.abilities.soul_rift.final-damage",
+                                                                    30.0))
+                                                    + sp
+                                                            * kitCoeff(
+                                                                    caster,
+                                                                    def,
+                                                                    cfgD(
+                                                                            "classes.WARLOCK.abilities.soul_rift.final-coeff",
+                                                                            2.4)))
+                                            * damageMult(caster);
+                                    WarlockFx.ringFx(center, radius, Particle.SONIC_BOOM, 1);
+                                    WarlockFx.ringFx(center, radius * 0.6, Particle.ASH, 3);
+                                    for (Entity e :
+                                            caster.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+                                        if (!(e instanceof LivingEntity t) || t.isDead() || t.equals(caster)) {
+                                            continue;
+                                        }
+                                        if (!plugin.getCombat().canHit(caster, t)) {
+                                            continue;
+                                        }
+                                        double bonus = WarlockMath.missingHpBonus(
+                                                currentFormulaHp(t), formulaMax(t), missingBonus);
+                                        double dmg = baseDmg + bonus;
+                                        plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg), true);
+                                        WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 20, 0.6);
+                                        WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 8);
+                                        antihealExpiry.put(
+                                                t.getUniqueId(),
+                                                System.currentTimeMillis() + (long) (antihealSec * 1000.0));
+                                        maybeStripAbsorption(t);
+                                    }
+                                    plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
+                                    purgeStaleDebuffsInstance();
+                                } finally {
+                                    CastChannels.unregister(casterId);
+                                    channelTaskOwner.complete(casterId);
                                 }
-                                if (!plugin.getCombat().canHit(caster, t)) {
-                                    continue;
-                                }
-                                double bonus =
-                                        WarlockMath.missingHpBonus(currentFormulaHp(t), formulaMax(t), missingBonus);
-                                double dmg = baseDmg + bonus;
-                                plugin.getCombat().dealDamage(t, caster, DamageProfile.magic(dmg), true);
-                                WarlockFx.safeFx(t.getLocation(), Particle.SCULK_SOUL, 20, 0.6);
-                                WarlockFx.riseFx(t.getLocation(), Particle.SOUL, 8);
-                                antihealExpiry.put(
-                                        t.getUniqueId(), System.currentTimeMillis() + (long) (antihealSec * 1000.0));
-                                maybeStripAbsorption(t);
-                            }
-                            plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
-                            purgeStaleDebuffsInstance();
-                            } finally {
-                                CastChannels.unregister(casterId);
-                                channelTaskOwner.complete(casterId);
-                            }
-                        },
-                        ticks + 1L);
+                            },
+                            ticks + 1L);
             trackChannelTask(casterId, finalTask);
         } catch (RuntimeException exception) {
             try {
