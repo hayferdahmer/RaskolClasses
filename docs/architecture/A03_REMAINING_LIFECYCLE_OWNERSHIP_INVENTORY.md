@@ -512,3 +512,10 @@ Source-backed findings are recorded in [A03_FOLIANT_AND_RIPS_CALLBACK_OWNERSHIP_
 - `FoliantService.saveLocks()` completion acknowledgement remains in A-04 and is excluded.
 - Production code and tests were not changed. `main` remains untouched; `BootstrapCoordinator` remains inactive.
 - The repository-wide lifecycle scan remains open.
+
+
+## 17. A-03-003.31 — Foliant transition callback ownership
+
+Foliant post-transition class verification теперь принадлежит отдельному `PlayerCallbackRuntimeOwner`. Callback сохраняет задержку в один tick, хранит только UUID, разрешает текущий online Player при выполнении и пропускается после disconnect. Quit инициирует отмену; root shutdown закрывает owner до unregister Foliant listener. Cancellation failure логируется, а callback дополнительно защищён online re-resolution.
+
+Переиспользованы focused owner tests на completion, quit cancellation, shutdown cancellation, stale callback rejection и retry. RIPS enforcement callback и Foliant storage completion acknowledgement не менялись. Полный repository-wide scan остаётся открытым.

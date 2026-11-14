@@ -97,3 +97,17 @@
 - [ ] Полный repository-wide task/registration scan завершён отдельными срезами.
 - [ ] CI на финальном implementation HEAD прошёл.
 - [ ] Live Paper 26.2 runtime smoke test выполнен.
+
+
+## 6. A-03-003.31 — Foliant transition callback ownership implementation
+
+Статус: implementation committed to `refactor/a03-foundation-lifecycle`.
+
+- `RaskolClasses` создаёт отдельный `PlayerCallbackRuntimeOwner` для Foliant; HP Attribute и HP Bar продолжают использовать независимые экземпляры.
+- `FoliantService.executeTransition()` планирует проверку через owner с задержкой 1 tick, сохраняя next-tick semantics.
+- Callback захватывает UUID, заново разрешает актуальный Player через сервер и пропускает проверку, если игрок уже отсутствует или offline.
+- `PlayerQuitEvent` отменяет callback игрока. Ошибка отмены логируется и не прерывает обработку остальных quit listeners; online re-resolution остаётся защитным fallback.
+- Root закрывает Foliant callback owner до закрытия `FoliantRuntimeOwner`, то есть до unregister listener.
+- RIPS enforcement callback не изменён. Storage completion acknowledgement остаётся в A-04.
+- Использованы существующие lifecycle tests `PlayerCallbackRuntimeOwnerTest`: completion/release, quit cancellation, close cancellation, stale callback rejection и retry after cancellation failure. Новая отдельная тестовая абстракция не добавлялась.
+- Проверка полного CI на implementation HEAD и live Paper 26.2 smoke test остаются отдельными gates.

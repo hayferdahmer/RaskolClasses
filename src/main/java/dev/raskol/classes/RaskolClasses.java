@@ -207,6 +207,7 @@ public final class RaskolClasses extends JavaPlugin {
     private BlueprintHook blueprintHook;
     private FoliantService foliantService;
     private FoliantRuntimeOwner foliantRuntimeOwner;
+    private PlayerCallbackRuntimeOwner foliantTransitionCallbacks;
 
     private FxService fx;
 
@@ -481,7 +482,8 @@ public final class RaskolClasses extends JavaPlugin {
                 new InstallationRuntimeOwner(new PaperInstallationTaskScheduler(this, installations::sweep));
         this.installToken = new InstallToken(this);
 
-        this.foliantService = new FoliantService(this);
+        this.foliantTransitionCallbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(this));
+        this.foliantService = new FoliantService(this, foliantTransitionCallbacks);
         this.foliantRuntimeOwner = new FoliantRuntimeOwner(
                 new PaperFoliantRuntimeRegistration(pluginManager, this, foliantService),
                 new PaperFoliantRuntimeScheduler(this, foliantService::flushLocksIfDirty),
@@ -840,6 +842,18 @@ public final class RaskolClasses extends JavaPlugin {
             }
         }
 
+        if (foliantTransitionCallbacks != null) {
+            try {
+                foliantTransitionCallbacks.close();
+                foliantTransitionCallbacks = null;
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить Foliant transition callbacks",
+                                exception);
+            }
+        }
         if (foliantRuntimeOwner != null) {
             try {
                 foliantRuntimeOwner.close();
