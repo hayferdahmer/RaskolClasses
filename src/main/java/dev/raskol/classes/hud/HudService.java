@@ -12,8 +12,6 @@ import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -78,17 +76,28 @@ public final class HudService {
         dotIconCache.clear();
     }
 
-    public BukkitTask start() {
-        long period = Math.max(1L, plugin.getRaskolConfig().hudUpdatePeriodTicks());
-        return new BukkitRunnable() {
-            @Override
-            public void run() {
-                frame++;
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    tickFor(player);
-                }
-            }
-        }.runTaskTimer(plugin, period, period);
+    /** Выполняет один цикл обновления HUD; планирование принадлежит HudRuntimeOwner. */
+    public void tick() {
+        frame++;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            tickFor(player);
+        }
+    }
+
+    /** Очищает только per-player состояние ActionBar HUD без отправки пустого ActionBar. */
+    public void clearPlayer(UUID playerId) {
+        overrides.remove(playerId);
+        lastFrameKey.remove(playerId);
+        sparkPosition.remove(playerId);
+        lastResourceInt.remove(playerId);
+    }
+
+    /** Очищает кэши кадров HUD, не затрагивая ActionBar других presentation-сервисов. */
+    public void clearAll() {
+        overrides.clear();
+        lastFrameKey.clear();
+        sparkPosition.clear();
+        lastResourceInt.clear();
     }
 
     public boolean toggle(Player player) {
