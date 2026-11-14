@@ -120,3 +120,12 @@
 - Runner не выполняет автоматический retry: повторные попытки принадлежат конкретным runtime owners и их retryable cleanup contracts.
 - Если один snapshot не удалось поставить в очередь, последующие snapshots и закрытие writer всё равно выполняются best-effort; это не гарантирует сохранность именно неудавшегося снимка.
 - Требуется CI на одном финальном HEAD и отдельный Paper 26.2 runtime shutdown smoke test с искусственным/контролируемым отказом одного cleanup step, если его можно безопасно воспроизвести в staging.
+
+
+### CI checkpoint
+
+- Formatted implementation HEAD: `0d6b97053b30768040e9ea9c3bf92b3f005cd4d4`.
+- Build on the pre-format implementation HEAD passed all 680 tests; Analyze correctly flagged only the two Spotless formatting differences.
+- Spotless Format #47 completed successfully, applied those formatting-only changes, then ran the full post-format `mvn -Pdev -B verify`.
+- Post-format verification on `0d6b9705`: 680 tests, 0 failures/errors/skipped; JaCoCo passed; SpotBugs 0 findings / 0 errors; Spotless 491 Java files clean; `BUILD SUCCESS`.
+- The remaining Paper 26.2 runtime smoke test for shutdown failure isolation is not yet performed.
