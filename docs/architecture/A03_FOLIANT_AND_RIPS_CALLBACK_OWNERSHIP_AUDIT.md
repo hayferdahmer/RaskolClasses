@@ -92,10 +92,10 @@
 - [x] Storage completion acknowledgement исключён и оставлен в A-04.
 - [x] Определён узкий Foliant implementation candidate без преждевременного generic abstraction.
 - [x] Зафиксировано, почему RIPS callback не требует cancellation owner в текущем дизайне.
-- [ ] Реализован Foliant callback ownership boundary в отдельном implementation slice.
-- [ ] Добавлены focused tests для Foliant callback lifecycle.
+- [x] Реализован Foliant callback ownership boundary в отдельном implementation slice A-03-003.31.
+- [x] Проверены focused lifecycle tests существующего PlayerCallbackRuntimeOwner: completion/release, quit cancellation, close cancellation, stale callback rejection и retry после ошибки отмены.
 - [ ] Полный repository-wide task/registration scan завершён отдельными срезами.
-- [ ] CI на финальном implementation HEAD прошёл.
+- [x] `mvn -Pdev -B verify` прошёл на отформатированном implementation HEAD `cee43eae`: 674 tests, 0 failures/errors/skipped, SpotBugs 0 BugInstances, Spotless 487 Java files clean, `BUILD SUCCESS`.
 - [ ] Live Paper 26.2 runtime smoke test выполнен.
 
 
@@ -111,3 +111,14 @@
 - RIPS enforcement callback не изменён. Storage completion acknowledgement остаётся в A-04.
 - Использованы существующие lifecycle tests `PlayerCallbackRuntimeOwnerTest`: completion/release, quit cancellation, close cancellation, stale callback rejection и retry after cancellation failure. Новая отдельная тестовая абстракция не добавлялась.
 - Проверка полного CI на implementation HEAD и live Paper 26.2 smoke test остаются отдельными gates.
+
+
+## 7. A-03-003.31 verification checkpoint
+
+- Implementation commit: `a957fc80f02abe8d941e90efc310197f7ad84f71`.
+- Spotless formatting commit: `cee43eae6042ca9f67d87cc0447697798c2db7cf` (только порядок импортов).
+- Build workflow #3334: основной build job прошёл, 674 tests, 0 failures/errors/skipped. Параллельный analyze job проверил ещё не отформатированный implementation commit и остановился только на порядке одного import в `FoliantService.java`; SpotBugs до этой проверки сообщил 0 BugInstances.
+- Spotless Format workflow #37 завершился SUCCESS и выполнил полный `mvn -Pdev -B verify` уже на отформатированном branch HEAD: 674 tests, 0 failures/errors/skipped, SpotBugs 0 BugInstances, Spotless 487 Java files clean, `BUILD SUCCESS`.
+- Финальный branch HEAD на момент checkpoint: `cee43eae6042ca9f67d87cc0447697798c2db7cf`.
+- `main` остался на `2e407cbe59276e6af88857bf3a0d93595c55c52c`.
+- Live Paper 26.2 runtime smoke test не выполнялся и не заявляется.
