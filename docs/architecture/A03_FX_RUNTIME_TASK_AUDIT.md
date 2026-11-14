@@ -127,3 +127,18 @@ Frost Rune и Pentagram имеют domain cleanup через `expire`; `Installa
 - [ ] Провести полный Build/Analyze/Spotless CI после implementation.
 
 Срез `A-03-003.26` закрывает только аудит FX/projectile lifecycle. Полный repository-wide scan остаётся отдельным незакрытым gate.
+
+
+## A-03-003.27 — Реализация FX shutdown boundary
+
+FxService получил явный shutdown() и внутренний FxTaskRegistry, который отслеживает charged projectile trails, repeating aura tasks, aura expiration callbacks и ambient loops по identity handles.
+
+- shutdown() закрывает только принадлежащие FX задачи; общий Bukkit scheduler и чужие listener/tasks не затрагиваются.
+- Повторный shutdown() безопасен. Если отмена отдельного handle завершается исключением, реестр сохраняет этот handle и повторяет отмену при следующем вызове.
+- Aura expiration callback теперь сохраняется как отдельный handle. Identity check по repeating task сохранён; callback старой ауры не может удалить заменившую её запись.
+- stopAura и stale purge отменяют и repeating task, и delayed expiration callback.
+- Root вызывает fx.shutdown() в начале runtime shutdown до закрытия остальных runtime компонентов. При ошибке root сохраняет ссылку на FxService, а ошибка логируется; Paper остаётся дополнительной платформенной страховкой.
+- TrailListener и installation-scoped Frost Rune/Pentagram tasks не включены в FX registry и не меняли поведение.
+- Добавлены пять unit tests для отмены всех handles, идемпотентности, retry после ошибки, независимой попытки отмены и освобождения завершившегося one-shot callback.
+
+Ограничение проверки: unit tests покрывают lifecycle-реестр, но не заменяют live Paper 26.2 smoke test для реального scheduler и particle/audio rendering.

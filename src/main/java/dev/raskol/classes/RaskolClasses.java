@@ -722,6 +722,19 @@ public final class RaskolClasses extends JavaPlugin {
                                 exception);
             }
         }
+        if (fx != null) {
+            try {
+                fx.shutdown();
+                fx = null;
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить FX runtime",
+                                exception);
+            }
+        }
+
         if (hpBarRespawnCallbacks != null) {
             try {
                 hpBarRespawnCallbacks.close();

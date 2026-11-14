@@ -473,3 +473,12 @@ Source-backed findings are recorded in [A03_FX_RUNTIME_TASK_AUDIT.md](A03_FX_RUN
 The next bounded implementation candidate is an explicit, idempotent `FxService` shutdown boundary or a narrow `FxRuntimeOwner`, with focused tests for charged trails, aura replacement/expiration, ambient cancellation and partial cleanup. `TrailListener` should remain a separate decision because its tasks are short-lived and self-cancelling.
 
 This focused audit does not close the full repository-wide scan or authorize `BootstrapCoordinator` activation.
+
+
+## 14. A-03-003.27 — FX shutdown boundary implementation
+
+FxService.shutdown() теперь закрывает все FX-owned Bukkit task handles через внутренний identity-based FxTaskRegistry. В реестр входят charged projectile trails, repeating aura tasks, delayed aura expiration callbacks и ambient loops. Неуспешные отмены остаются доступными для retry; повторный shutdown безопасен.
+
+Aura expiration callback хранится и отменяется вместе с repeating aura task. Identity guard по repeating handle сохранён, поэтому callback предыдущей ауры не может удалить её замену. Root вызывает FX shutdown до закрытия остальных runtime компонентов. Domain VFX state и диагностические карты очищаются; общий scheduler, TrailListener и installation-scoped handles не включаются в эту границу.
+
+Пять focused unit tests проверяют cancellation, idempotence, retry, независимую обработку ошибок и освобождение завершившегося one-shot callback. Paper 26.2 runtime smoke test остаётся отдельной проверкой.

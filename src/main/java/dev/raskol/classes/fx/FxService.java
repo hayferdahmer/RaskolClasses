@@ -58,7 +58,7 @@ public final class FxService implements Listener {
     private record ChargedShot(
             UUID caster, String abilityId, double phys, double magic, int fireTicks, long expiresAt) {}
 
-    private record AuraTask(BukkitTask task, long expiresAt) {}
+    private record AuraTask(BukkitTask task, BukkitTask expirationTask, long expiresAt) {}
 
     private record AmbientTask(BukkitTask task, long expiresAt) {}
 
@@ -73,6 +73,7 @@ public final class FxService implements Listener {
     private final Map<UUID, AuraTask> auras = new ConcurrentHashMap<>();
     private final Map<UUID, AmbientTask> ambients = new ConcurrentHashMap<>();
     private final AtomicInteger staleCount = new AtomicInteger();
+    private final FxTaskRegistry taskRegistry = new FxTaskRegistry();
 
     public FxService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -181,9 +182,7 @@ public final class FxService implements Listener {
 
     public void chargeProjectile(
             UUID projectileId, UUID caster, String abilityId, double phys, double magic, int fireTicks) {
-        chargedShots.put(
-                projectileId,
-                new ChargedShot(caster, abilityId, phys, magic, fireTicks, System.currentTimeMillis() + 6000L));
+        ensureTaskSchedulingAllowed();
         final BukkitTask[] holder = new BukkitTask[1];
         holder[0] = plugin.getServer()
                 .getScheduler()
@@ -192,9 +191,9 @@ public final class FxService implements Listener {
                         () -> {
                             Entity e = plugin.getServer().getEntity(projectileId);
                             if (e == null || e.isDead() || !chargedShots.containsKey(projectileId)) {
-                                trailTasks.remove(projectileId);
+                                trailTasks.remove(projectileId, holder[0]);
                                 if (holder[0] != null) {
-                                    holder[0].cancel();
+                                    taskRegistry.cancel(holder[0]);
                                 }
                                 return;
                             }
@@ -203,6 +202,10 @@ public final class FxService implements Listener {
                         },
                         0L,
                         2L);
+        taskRegistry.register(holder[0]);
+        chargedShots.put(
+                projectileId,
+                new ChargedShot(caster, abilityId, phys, magic, fireTicks, System.currentTimeMillis() + 6000L));
         trailTasks.put(projectileId, holder[0]);
     }
 
@@ -215,7 +218,7 @@ public final class FxService implements Listener {
         }
         BukkitTask trail = trailTasks.remove(projectile.getUniqueId());
         if (trail != null) {
-            trail.cancel();
+            taskRegistry.cancel(trail);
         }
         Location hitLoc = projectile.getLocation();
         String base = "vfx." + shot.abilityId() + ".";
@@ -255,6 +258,7 @@ public final class FxService implements Listener {
      * и cancel() прерывал её — новая аура умирала раньше срока.
      */
     public void startAura(UUID playerUuid, Particle particle, int ticks, int perTick, String expireSoundKey) {
+        ensureTaskSchedulingAllowed();
         stopAura(playerUuid);
         long expiresAt = System.currentTimeMillis() + ticks * 50L;
         BukkitTask task = plugin.getServer()
@@ -282,35 +286,68 @@ public final class FxService implements Listener {
                         },
                         0L,
                         10L);
-        final AuraTask scheduledTask = new AuraTask(task, expiresAt);
-        auras.put(playerUuid, scheduledTask);
-        plugin.getServer()
-                .getScheduler()
-                .runTaskLater(
-                        plugin,
-                        () -> {
-                            AuraTask current = auras.get(playerUuid);
-                            if (current != scheduledTask) {
-                                // Новая аура перезатёрла старую — не трогаем текущую
-                                return;
-                            }
-                            auras.remove(playerUuid);
-                            scheduledTask.task().cancel();
-                            Player player = plugin.getServer().getPlayer(playerUuid);
-                            if (player != null && expireSoundKey != null) {
-                                Sound s = resolveSound(expireSoundKey);
-                                if (s != null) {
-                                    playSound(player, s, 0.5f, 1.2f);
+        taskRegistry.register(task);
+
+        BukkitTask[] expirationHolder = new BukkitTask[1];
+        try {
+            expirationHolder[0] = plugin.getServer()
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                taskRegistry.release(expirationHolder[0]);
+                                AuraTask current = auras.get(playerUuid);
+                                if (current == null || current.task() != task) {
+                                    return;
                                 }
-                            }
-                        },
-                        ticks + 1L);
+                                auras.remove(playerUuid, current);
+                                taskRegistry.cancel(task);
+                                Player player = plugin.getServer().getPlayer(playerUuid);
+                                if (player != null && expireSoundKey != null) {
+                                    Sound s = resolveSound(expireSoundKey);
+                                    if (s != null) {
+                                        playSound(player, s, 0.5f, 1.2f);
+                                    }
+                                }
+                            },
+                            ticks + 1L);
+            taskRegistry.register(expirationHolder[0]);
+        } catch (RuntimeException failure) {
+            try {
+                taskRegistry.cancel(task);
+            } catch (RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+            throw failure;
+        }
+
+        auras.put(playerUuid, new AuraTask(task, expirationHolder[0], expiresAt));
     }
 
     public void stopAura(UUID playerUuid) {
-        AuraTask at = auras.remove(playerUuid);
-        if (at != null) {
-            at.task().cancel();
+        AuraTask at = auras.get(playerUuid);
+        if (at == null) {
+            return;
+        }
+        RuntimeException failure = null;
+        try {
+            taskRegistry.cancel(at.task());
+        } catch (RuntimeException exception) {
+            failure = exception;
+        }
+        try {
+            taskRegistry.cancel(at.expirationTask());
+        } catch (RuntimeException exception) {
+            if (failure == null) {
+                failure = new IllegalStateException("Не удалось полностью остановить ауру");
+            }
+            failure.addSuppressed(exception);
+        }
+        if (!taskRegistry.isTracked(at.task()) && !taskRegistry.isTracked(at.expirationTask())) {
+            auras.remove(playerUuid, at);
+        }
+        if (failure != null) {
+            throw failure;
         }
     }
 
@@ -336,6 +373,7 @@ public final class FxService implements Listener {
 
     public UUID startAmbient(
             Location loc, String soundKey, float volume, float pitch, String particleKey, int ticks, int periodTicks) {
+        ensureTaskSchedulingAllowed();
         UUID id = UUID.randomUUID();
         long expiresAt = System.currentTimeMillis() + ticks * 50L;
         Sound sound = resolveSound(soundKey);
@@ -348,7 +386,7 @@ public final class FxService implements Listener {
                             if (System.currentTimeMillis() > expiresAt || loc.getWorld() == null) {
                                 AmbientTask at = ambients.remove(id);
                                 if (at != null) {
-                                    at.task().cancel();
+                                    taskRegistry.cancel(at.task());
                                 }
                                 return;
                             }
@@ -363,6 +401,7 @@ public final class FxService implements Listener {
                         },
                         0L,
                         Math.max(1, periodTicks));
+        taskRegistry.register(task);
         ambients.put(id, new AmbientTask(task, expiresAt));
         return id;
     }
@@ -373,7 +412,7 @@ public final class FxService implements Listener {
         }
         AmbientTask at = ambients.remove(id);
         if (at != null) {
-            at.task().cancel();
+            taskRegistry.cancel(at.task());
         }
     }
 
@@ -406,29 +445,54 @@ public final class FxService implements Listener {
     public void purgeStale() {
         long now = System.currentTimeMillis();
         chargedShots.entrySet().removeIf(e -> e.getValue().expiresAt() < now);
-        trailTasks.entrySet().removeIf(e -> {
-            if (!chargedShots.containsKey(e.getKey())) {
-                e.getValue().cancel();
-                return true;
+        for (Map.Entry<UUID, BukkitTask> entry : List.copyOf(trailTasks.entrySet())) {
+            if (!chargedShots.containsKey(entry.getKey())) {
+                taskRegistry.cancel(entry.getValue());
+                trailTasks.remove(entry.getKey(), entry.getValue());
             }
-            return false;
-        });
-        auras.entrySet().removeIf(e -> {
-            boolean expired = e.getValue().expiresAt() < now;
-            if (expired) {
-                e.getValue().task().cancel();
+        }
+        for (Map.Entry<UUID, AuraTask> entry : List.copyOf(auras.entrySet())) {
+            if (entry.getValue().expiresAt() < now) {
+                stopAura(entry.getKey());
             }
-            return expired;
-        });
-        ambients.entrySet().removeIf(e -> {
-            boolean expired = e.getValue().expiresAt() < now;
-            if (expired) {
-                e.getValue().task().cancel();
+        }
+        for (Map.Entry<UUID, AmbientTask> entry : List.copyOf(ambients.entrySet())) {
+            if (entry.getValue().expiresAt() < now) {
+                stopAmbient(entry.getKey());
             }
-            return expired;
-        });
+        }
         // 1.15.6 (2.6-102): ключи "uuid:procId" чистятся теми же правилами
         procVisualCd.entrySet().removeIf(e -> now - e.getValue() > 30_000L);
+    }
+
+    /**
+     * Останавливает все задачи, принадлежащие FX-сервису.
+     * Неуспешно отменённые handles остаются в реестре для повторного shutdown().
+     */
+    public void shutdown() {
+        RuntimeException failure = null;
+        try {
+            taskRegistry.close();
+        } catch (RuntimeException exception) {
+            failure = exception;
+        } finally {
+            chargedShots.clear();
+            trailTasks.clear();
+            auras.clear();
+            ambients.clear();
+            procVisualCd.clear();
+            warnedSounds.clear();
+            warnedParticles.clear();
+        }
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    private void ensureTaskSchedulingAllowed() {
+        if (taskRegistry.isClosed()) {
+            throw new IllegalStateException("FxService уже остановлен");
+        }
     }
 
     public int staleCount() {
