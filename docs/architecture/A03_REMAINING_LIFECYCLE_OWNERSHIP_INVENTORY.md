@@ -427,3 +427,14 @@ Focused tests cover idempotent start, close-before-start, scheduling failure, ca
 - Build workflow run #3257 completed its build job successfully: 639 tests, 0 failures/errors/skips; JaCoCo thresholds met.
 - The Analyze job in run #3257 checked the pre-format commit and failed only because Spotless reported three formatting violations. Spotless Format #23 fixed those violations and its post-format `mvn -Pdev -B verify` completed successfully: 639 tests, SpotBugs 0 findings/0 errors, Spotless 468 Java files clean, `BUILD SUCCESS`.
 - A fresh Build run is required against the formatted branch head because the formatter's push uses `GITHUB_TOKEN` and does not trigger the Build workflow automatically.
+
+
+## 16. A-03-003.23 — Global maintenance runtime ownership
+
+Global purge и autosave больше не принадлежат неструктурированному `RaskolClasses.activeTasks`. В `bootstrap.runtime` добавлены независимые `PurgeRuntimeOwner` и `AutosaveRuntimeOwner`, каждый со своим `TaskScope`, scheduler port и Paper adapter. Owners обеспечивают идемпотентный запуск, запрет повторного старта после неудачного старта или закрытия и повторную попытку отмены при transient cleanup failure.
+
+`PluginTasks` сохранён как набор cross-domain callback-операций без Bukkit scheduler ownership. Purge по-прежнему последовательно очищает cooldowns, effects, ability attempts, FX, installations, resists, attributes, character levels, ability-facade stale markers и combat logs, после чего обновляет `lastPurgeMillis`. Autosave по-прежнему сохраняет cooldowns, resources и spec2 storage в прежнем порядке.
+
+`RaskolClasses.startRuntimeTasks()` создаёт и запускает оба owner с прежними интервалами: purge — `purgeIntervalTicks`; autosave — `max(1, storage.autosave-minutes) * 60 * 20` ticks. В начале shutdown оба producer закрываются до финальных `saveAll()`/`save()` и до последнего `AsyncStorageWriter.closeAndAwait()`.
+
+Добавлены `PurgeRuntimeOwnerTest` и `AutosaveRuntimeOwnerTest`, по пять сценариев каждый: idempotent start, idempotent close, scheduling failure, retryable cancellation и close-before-start. `main` не затрагивался; live Paper server verification не заявляется до CI и runtime smoke test.
