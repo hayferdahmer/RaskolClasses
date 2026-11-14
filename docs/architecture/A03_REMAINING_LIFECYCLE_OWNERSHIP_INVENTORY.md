@@ -317,3 +317,8 @@ The root preserves the original activation gate (`hud.enabled` and `hp-display.m
 `HpBarRuntimeOwner` now owns `HpBarService` lifecycle listener registration (join/quit/respawn) and its repeating synchronous tick. Paper integration is isolated in `PaperHpBarRuntimeRegistration` and `PaperHpBarTaskScheduler`. The root registers the listener in the existing gameplay-listener phase, starts the producer in the existing runtime-task phase, and closes the owner before `HpBarService.saveAll()` during shutdown. The configured period remains `max(1, hp-display.update-period-ticks)` with initial delay equal to period.
 
 `HpBarService` retains HP calculations, regeneration, pending restore, hearts/actionbar presentation, dirty tracking, health.yml snapshots, async writer callbacks, and `saveAll()`. Only its scheduler ownership was removed; `tick()` is a public one-cycle callback. No HP formula, config key, persistence format, or gameplay behavior was intentionally changed.
+
+
+## 13. A-03-003.18 — CI formatting follow-up
+
+The first full verification after HP bar runtime ownership passed the build/test job and reported zero SpotBugs findings, but the analyze job detected Spotless formatting drift in four HP bar integration files. The branch formatting workflow is used to apply the repository's canonical formatter before the next full verification. This is a formatting-only correction; no runtime behavior or public contract is changed by this follow-up.
