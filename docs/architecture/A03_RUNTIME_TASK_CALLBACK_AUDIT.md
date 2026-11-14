@@ -163,3 +163,6 @@ ManaSoaked больше не входит в root `activeTasks`: `ManaSoakedRunt
 - [x] Для Warlock и Installation runtime owners добавлены focused tests на partial scheduling и retryable cancellation.
 
 До закрытия двух scan-критериев этап остаётся **в работе**. Реализованные runtime-срезы меняют только владение задачами и lifecycle; игровые механики и пользовательское поведение намеренно сохранены.
+
+
+**CI verification checkpoint:** Spotless Format workflow run `43571814754` завершился успешно после форматирования актуального maintenance среза. Его post-format `mvn -Pdev -B verify` прошёл: 655 тестов, 0 failures/errors/skips, SpotBugs `BugInstance size is 0`, Spotless 480 Java files clean, `BUILD SUCCESS`. Build/Analyze workflow run `43571814792` проверял предшествующий pre-format SHA: Build job успешен (655 тестов), Analyze job ожидаемо остановился на Spotless diff; окончательный CI на последующем commit требуется.
