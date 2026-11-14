@@ -262,3 +262,16 @@ The legacy activation condition is preserved at startup (`hud.enabled && hp-disp
 `HpBarRuntimeOwner` coordinates the `HpBarService` lifecycle listener and periodic tick. `PaperHpBarRuntimeRegistration` registers/unregisters the service listener, and `PaperHpBarTaskScheduler` schedules the synchronous callback. Root startup phase ordering is preserved: registration occurs in `registerGameplayListeners()`, scheduling in `startRuntimeTasks()`. Shutdown closes the owner before `hpBarService.saveAll()` and before the shared `AsyncStorageWriter` is closed.
 
 The service retains all HP state, formulas, regeneration, restore logic, UI rendering, dirty tracking and persistence. Its former `start()` method and private scheduler callback are replaced by `tick()`. Period remains clamped to at least one tick and the original initial delay equals the period. No data format or player-facing behavior is intentionally changed.
+
+
+### A-03-003.19 — Separate DoT and Crowd Control runtime owners
+
+DoT and CC use separate lifecycle owners and separate `TaskScope` instances. The owners coordinate only their corresponding listener registration and periodic task; they do not hold effect instances or gameplay state.
+
+- `DotService` remains the state owner for active DoTs, stacks, expiration, attribution, calculations, damage, VFX and projectile-hit application. `DotRuntimeOwner` owns its listener and the 20-tick producer (initial delay 20 ticks).
+- `CCService` remains the state owner for active CC instances, DR state, fear timing, slow restoration state, expiration, break-on-damage and mob behavior. `CCRuntimeOwner` owns its listener and the 1-tick producer (initial delay 1 tick).
+- `CCGuard`, `CastGuard` and `VanillaCCWrapper` remain separate. No combined CC/DoT owner was introduced.
+
+Each owner independently rolls back startup, cancels its task before listener unregistration, and retries failed cleanup. Root no longer stores these two handles in `activeTasks`. Gameplay state and the original 20-tick/1-tick scheduling contracts remain unchanged.
+
+`CCFeedback` hologram maps and delayed one-shot cleanup tasks remain a separate follow-up; they are not merged into the periodic CC owner.
