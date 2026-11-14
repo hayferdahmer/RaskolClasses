@@ -79,6 +79,8 @@ import dev.raskol.classes.hook.runtime.PlaceholderRuntimeOwner;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
+import dev.raskol.classes.hotbar.runtime.PaperScrollCooldownTaskScheduler;
+import dev.raskol.classes.hotbar.runtime.ScrollCooldownRuntimeOwner;
 import dev.raskol.classes.hotbar.ScrollSanitizer;
 import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HpBarService;
@@ -161,6 +163,8 @@ public final class RaskolClasses extends JavaPlugin {
     private CharacterLevelService characterLevels;
     private ResourceService resources;
     private ResourceRuntimeOwner resourceRuntimeOwner;
+    private ScrollCooldownTask scrollCooldownTask;
+    private ScrollCooldownRuntimeOwner scrollCooldownRuntimeOwner;
     private CooldownManager cooldowns;
     private CooldownRuntimeOwner cooldownRuntimeOwner;
     private AbilityRegistry abilities;
@@ -553,7 +557,11 @@ public final class RaskolClasses extends JavaPlugin {
         bossBarRuntimeOwner.start();
         flavorRuntimeOwner.start();
         installationRuntimeOwner.start();
-        activeTasks.add(new ScrollCooldownTask(this).start());
+        scrollCooldownTask = new ScrollCooldownTask(this);
+        scrollCooldownRuntimeOwner = new ScrollCooldownRuntimeOwner(
+                new PaperScrollCooldownTaskScheduler(this, scrollCooldownTask::tick), scrollCooldownTask::clearCaches);
+        getLogger().info("ScrollCooldownTask v12 (durability-bar) active");
+        scrollCooldownRuntimeOwner.start();
         activeTasks.add(manaSoaked.start());
         activeTasks.add(PluginTasks.startPurgeTask(this));
         activeTasks.add(PluginTasks.startAutosaveTask(this));
@@ -844,6 +852,19 @@ public final class RaskolClasses extends JavaPlugin {
                         .log(
                                 java.util.logging.Level.SEVERE,
                                 "Не удалось полностью остановить Installation runtime",
+                                exception);
+            }
+        }
+        if (scrollCooldownRuntimeOwner != null) {
+            try {
+                scrollCooldownRuntimeOwner.close();
+                scrollCooldownRuntimeOwner = null;
+                scrollCooldownTask = null;
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить ScrollCooldown runtime",
                                 exception);
             }
         }
