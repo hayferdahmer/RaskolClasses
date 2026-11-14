@@ -248,3 +248,10 @@ Shutdown cancels the aura producer before unregistering the listener. Startup ro
 The Paper scheduler preserves the configured period and the original initial delay (both equal to `max(1, bossBarTickPeriod())`). Configuration reload delegates to owner restart, which cancels the previous producer, clears all bars and schedules a replacement with the current period. Shutdown cancels the producer and removes all bars. The BossBar task is no longer stored in root `activeTasks`.
 
 Focused tests cover idempotent start, restart ordering, close cleanup, scheduling/cancellation failures, retry behavior and period clamping. Gameplay rendering rules and configuration keys are intentionally unchanged.
+
+
+### A-03-003.17 — ActionBar HUD runtime production wiring
+
+`HudRuntimeOwner` is wired into `RaskolClasses`. `PaperHudSessionEvents` owns a quit listener, `PaperHudTaskScheduler` owns the repeating producer, and `HudServiceOutputCleanup` delegates per-player/global cache cleanup to `HudService`. The service exposes a single `tick()` callback and no longer owns a BukkitTask.
+
+The legacy activation condition is preserved at startup (`hud.enabled && hp-display.mode=vanilla`). Configuration reload reconciles the runtime with the current condition by starting or stopping the owner. Shutdown closes the owner before the remaining runtime cleanup. Cleanup removes only ActionBar HUD cache state and does not send an empty ActionBar, avoiding interference with HP display or other plugins. HP bar remains independent.
