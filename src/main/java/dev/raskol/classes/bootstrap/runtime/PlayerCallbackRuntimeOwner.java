@@ -47,7 +47,6 @@ public final class PlayerCallbackRuntimeOwner implements AutoCloseable {
                 return;
             }
             entries.remove(playerId);
-            entry.completed = true;
         }
         callback.run();
     }
@@ -115,6 +114,5 @@ public final class PlayerCallbackRuntimeOwner implements AutoCloseable {
 
     private static final class Entry {
         private TaskHandle handle;
-        private boolean completed;
     }
 }
