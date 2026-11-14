@@ -120,7 +120,7 @@ class CCFeedbackRuntimeOwnerTest {
         assertTrue(owner.trackedTargetCount() >= 1);
         owner.close();
         assertEquals(0, owner.trackedTargetCount());
-        assertTrue(calls.contains("second"));
+        assertTrue(calls.contains("remove:second"));
     }
 
     @Test
