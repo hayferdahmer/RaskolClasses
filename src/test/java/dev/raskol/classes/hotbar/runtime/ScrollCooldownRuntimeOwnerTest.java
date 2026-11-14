@@ -51,8 +51,7 @@ class ScrollCooldownRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         FakeScheduler scheduler = new FakeScheduler(calls);
         scheduler.failScheduling = true;
-        ScrollCooldownRuntimeOwner owner =
-                new ScrollCooldownRuntimeOwner(scheduler, () -> calls.add("clear"));
+        ScrollCooldownRuntimeOwner owner = new ScrollCooldownRuntimeOwner(scheduler, () -> calls.add("clear"));
 
         assertThrows(IllegalStateException.class, owner::start);
 
@@ -67,8 +66,7 @@ class ScrollCooldownRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         FakeScheduler scheduler = new FakeScheduler(calls);
         scheduler.task.failFirstCancellation = true;
-        ScrollCooldownRuntimeOwner owner =
-                new ScrollCooldownRuntimeOwner(scheduler, () -> calls.add("clear"));
+        ScrollCooldownRuntimeOwner owner = new ScrollCooldownRuntimeOwner(scheduler, () -> calls.add("clear"));
         owner.start();
 
         assertThrows(IllegalStateException.class, owner::close);
@@ -88,15 +86,13 @@ class ScrollCooldownRuntimeOwnerTest {
     void cacheCleanupFailureCanBeRetried() {
         List<String> calls = new ArrayList<>();
         boolean[] fail = {true};
-        ScrollCooldownRuntimeOwner owner = new ScrollCooldownRuntimeOwner(
-                new FakeScheduler(calls),
-                () -> {
-                    calls.add("clear");
-                    if (fail[0]) {
-                        fail[0] = false;
-                        throw new IllegalStateException("cache cleanup failed");
-                    }
-                });
+        ScrollCooldownRuntimeOwner owner = new ScrollCooldownRuntimeOwner(new FakeScheduler(calls), () -> {
+            calls.add("clear");
+            if (fail[0]) {
+                fail[0] = false;
+                throw new IllegalStateException("cache cleanup failed");
+            }
+        });
         owner.start();
 
         assertThrows(IllegalStateException.class, owner::close);
