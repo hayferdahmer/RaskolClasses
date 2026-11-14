@@ -174,5 +174,5 @@ ManaSoaked больше не входит в root `activeTasks`: `ManaSoakedRunt
 - HpAttributeSync сохраняет задержку 2 ticks. HpBarService сохраняет next-tick execution (delay 0). Оба callback проверяют актуальность игрока перед применением.
 - Повторный respawn заменяет предыдущий callback того же сервиса и UUID. Quit пытается отменить ожидающую задачу; ошибка отмены логируется и не прерывает HP persistence на quit.
 - Root закрывает оба callback owner до закрытия соответствующих HP listener/runtime owners и до финальных storage snapshots.
-- Focused tests проверяют завершение и освобождение handle, замену устаревшего callback, quit cancellation, shutdown cancellation/rejection и retry после ошибки отмены.
+- Six focused tests проверяют завершение и освобождение handle, замену устаревшего callback (включая доставку после отмены), quit cancellation, shutdown cancellation/rejection и retry после ошибки отмены.
 - Не переносились HP writer completion callbacks: они остаются частью A-04 storage completion/drain contract.
