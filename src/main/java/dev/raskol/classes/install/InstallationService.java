@@ -236,17 +236,24 @@ public final class InstallationService {
     public void purgeStale() {
         long now = System.currentTimeMillis();
         cleanupCoordinator.cleanup(installation -> installation.expiresAt() < now, "purge-stale");
+        clearCompletedCleanupMarkers();
         placeCooldowns.entrySet().removeIf(entry -> entry.getValue() < now);
     }
 
     public void shutdown() {
         cleanupCoordinator.cleanup(installation -> true, "shutdown");
+        clearCompletedCleanupMarkers();
         placeCooldowns.clear();
     }
 
     public void removeAllOf(UUID uuid) {
         cleanupCoordinator.cleanup(installation -> installation.owner().equals(uuid), "remove-player");
+        clearCompletedCleanupMarkers();
         placeCooldowns.keySet().removeIf(key -> key.startsWith(uuid + ":"));
+    }
+
+    private void clearCompletedCleanupMarkers() {
+        cleanupPending.removeIf(id -> !installations.containsKey(id));
     }
 
     /* ------------------------------ счётчики ------------------------------ */
