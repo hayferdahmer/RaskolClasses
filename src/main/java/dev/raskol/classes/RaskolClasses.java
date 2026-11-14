@@ -736,7 +736,16 @@ public final class RaskolClasses extends JavaPlugin {
         if (blueprintHook != null) {
             blueprintHook.unregisterBlueprints();
         }
-        WarlockAbilities.cancelAllChannelTasks();
+        if (warlockAbilities != null) {
+            try {
+                warlockAbilities.close();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось полностью остановить Warlock channel runtime",
+                        exception);
+            }
+        }
 
         if (foliantRuntimeOwner != null) {
             try {
