@@ -58,7 +58,7 @@ final class InstallationCleanupCoordinator {
         try {
             handler.expire(installation);
         } catch (RuntimeException exception) {
-            failureReporter.accept(operation, installation, exception);
+            failureReporter.report(operation, installation, exception);
             return false;
         }
 
