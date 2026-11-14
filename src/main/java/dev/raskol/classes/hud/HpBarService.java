@@ -25,6 +25,7 @@ import org.bukkit.inventory.EquipmentSlotGroup;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.AttributeMath;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -83,6 +84,7 @@ public final class HpBarService implements Listener {
     private record Pending(double ratio, long joinedAt, long lastApplyAt, int applies) {}
 
     private final RaskolClasses plugin;
+    private final PlayerCallbackRuntimeOwner respawnCallbacks;
     private final NamespacedKeyHolder maxHpKey;
     private final File healthFile;
     private final YamlConfiguration healthStore;
@@ -99,8 +101,9 @@ public final class HpBarService implements Listener {
 
     private record NamespacedKeyHolder(org.bukkit.NamespacedKey key) {}
 
-    public HpBarService(RaskolClasses plugin) {
+    public HpBarService(RaskolClasses plugin, PlayerCallbackRuntimeOwner respawnCallbacks) {
         this.plugin = plugin;
+        this.respawnCallbacks = respawnCallbacks;
         this.maxHpKey = new NamespacedKeyHolder(new org.bukkit.NamespacedKey(plugin, "max_hp"));
         this.healthFile = new File(plugin.getDataFolder(), "health.yml");
         this.healthStore = SafeStorage.loadWithFallback(healthFile, LOGGER);
@@ -602,6 +605,7 @@ public final class HpBarService implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
+        respawnCallbacks.cancel(uuid);
         Pending p = pendingRestore.remove(uuid);
         if (p != null && p.applies() == 0) {
             LOGGER.info("[hp-restore] " + player.getName()
@@ -621,7 +625,7 @@ public final class HpBarService implements Listener {
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
+        respawnCallbacks.schedule(player.getUniqueId(), 0L, () -> {
             if (player.isOnline() && player.getGameMode() != GameMode.SPECTATOR) {
                 pendingRestore.remove(player.getUniqueId());
                 applyMaxHealth(player);
