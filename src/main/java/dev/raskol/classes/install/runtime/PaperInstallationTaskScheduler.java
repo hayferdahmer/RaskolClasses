@@ -25,9 +25,8 @@ public final class PaperInstallationTaskScheduler implements InstallationTaskSch
 
     @Override
     public TaskHandle scheduleSweep() {
-        BukkitTask task = plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(plugin, sweep, INITIAL_DELAY_TICKS, PERIOD_TICKS);
+        BukkitTask task =
+                plugin.getServer().getScheduler().runTaskTimer(plugin, sweep, INITIAL_DELAY_TICKS, PERIOD_TICKS);
         return new BukkitTaskHandle(task);
     }
 
