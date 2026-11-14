@@ -97,3 +97,26 @@
 - `main` не изменялся.
 - `BootstrapCoordinator` не активировался.
 - Этот аудит не заменяет новый CI run и не меняет ранее подтверждённый smoke-test результат.
+
+
+## 6. A-03-003.37 — Root Shutdown Failure Isolation
+
+Реализация добавлена в source после аудита:
+
+- `ShutdownStepRunner` выполняет каждый независимый cleanup step отдельно.
+- Каждый `RuntimeException` логируется с диагностическим именем этапа; runner продолжает следующий этап.
+- В конце выводится сводка с количеством и именами этапов, завершившихся ошибкой.
+- `RaskolClasses.shutdownRuntime()` переведён на runner, включая ранее незащищённые вызовы runtime integrity owner, blueprint unregister, items, passport listener, финальные snapshots, installation cleanup, class provider и active effects.
+- Общий `AsyncStorageWriter` по-прежнему закрывается последним. Timeout/неполный drain регистрируется как ошибка отдельного этапа.
+- Сохранён dependency order: остановка producers → runtime owners → final snapshots → installation cleanup при доступном FxService → FxService shutdown → оставшиеся runtime cleanup → StorageWriter close.
+- Успешные owner close операции по-прежнему очищают соответствующие поля; при исключении ссылка сохраняется, если прежняя реализация также сохраняла её.
+- RIPS enforcement callback и A-04 storage completion contract не менялись.
+
+Тесты `ShutdownStepRunnerTest` проверяют, что после одного или нескольких RuntimeException последующие этапы выполняются в исходном порядке, а failure count отражает все неудачные этапы.
+
+### Ограничения реализации
+
+- Изолируются `RuntimeException`, но не JVM-fatal `Error`.
+- Runner не выполняет автоматический retry: повторные попытки принадлежат конкретным runtime owners и их retryable cleanup contracts.
+- Если один snapshot не удалось поставить в очередь, последующие snapshots и закрытие writer всё равно выполняются best-effort; это не гарантирует сохранность именно неудавшегося снимка.
+- Требуется CI на одном финальном HEAD и отдельный Paper 26.2 runtime shutdown smoke test с искусственным/контролируемым отказом одного cleanup step, если его можно безопасно воспроизвести в staging.
