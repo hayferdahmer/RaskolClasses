@@ -90,6 +90,11 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     </Match>
     <Match>
         <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getHud"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
         <Method name="getFx"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
