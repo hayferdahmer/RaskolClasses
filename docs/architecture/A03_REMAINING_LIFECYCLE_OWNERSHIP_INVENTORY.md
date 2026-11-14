@@ -41,7 +41,7 @@
 | BossBar tick | `BossBarRuntimeOwner` + `PaperBossBarTaskScheduler` | `BossBarRuntimeOwner` / `TaskScope` | `BossBarService` выполняет один render cycle и хранит полосы; период берётся из `bossBarTickPeriod()`; reload вызывает owner restart |
 | Flavor aura | `FlavorRuntimeOwner.start()` | `FlavorRuntimeOwner` / `TaskScope` | Сохраняет исходный 40-tick период; listener регистрируется тем же owner до запуска producer |
 | Installation sweep | `InstallationRuntimeOwner` + `PaperInstallationTaskScheduler` | `InstallationRuntimeOwner` / `TaskScope` | InstallationService.sweep() выполняет один цикл; cadence 20 ticks; owner закрывается до service cleanup |
-| Scroll cooldown | `new ScrollCooldownTask(this).start()` | `activeTasks` | Отдельный task object теряется после возврата handle; владелец — root |
+| Scroll cooldown | `ScrollCooldownRuntimeOwner` + `PaperScrollCooldownTaskScheduler` | `ScrollCooldownRuntimeOwner` / `TaskScope` | Root хранит task object; owner останавливает producer до очистки `barState`/`lastHeld`; cadence 10 ticks |
 | ManaSoaked | `manaSoaked.start()` | `activeTasks` | Периодическая механика combat |
 | Global purge | `PluginTasks.startPurgeTask(this)` | `activeTasks` | Один callback вызывает purge многих доменов и статических ability-классов; широкий cross-domain orchestration |
 | Global autosave | `PluginTasks.startAutosaveTask(this)` | `activeTasks` | Плановый snapshot cooldowns/resources/spec2; обязан завершиться до закрытия общего writer |
@@ -96,7 +96,7 @@ Bukkit обычно очищает зарегистрированные listener
 7. Cancel Warlock channel tasks.
 8. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
 9. `petRuntimeOwner.close()` (despawn → cancel → unregister).
-10. Close `ResourceRuntimeOwner` и `InstallationRuntimeOwner`, затем cancel/clear оставшиеся root `activeTasks`.
+10. Close `ResourceRuntimeOwner`, `InstallationRuntimeOwner` и `ScrollCooldownRuntimeOwner`, затем cancel/clear оставшиеся root `activeTasks`.
 11. `items.stop()`; unregister PassportChangeListener.
 12. `resources.saveAll()` (после ResourceRuntimeOwner.close), `hpBarService.saveAll()`, `spec2Storage.save()`.
 13. `installations.shutdown()` (после остановки InstallationRuntimeOwner), `bossBars.shutdown()`.
@@ -397,7 +397,7 @@ Paper-level integration verification of TextDisplay visibility/passenger behavio
 
 ## A-03-003.21 — Аудит оставшихся runtime-задач и callback
 
-Подтверждённые остатки после выделения owners, включая оставшиеся пять root-owned periodic tasks, HP respawn callbacks, storage completion callbacks и Warlock channel tasks, описаны в отдельном source-backed документе: [A03_RUNTIME_TASK_CALLBACK_AUDIT.md](A03_RUNTIME_TASK_CALLBACK_AUDIT.md).
+Подтверждённые остатки после выделения owners, включая оставшиеся три root-owned periodic tasks, HP respawn callbacks, storage completion callbacks и Warlock channel tasks, описаны в отдельном source-backed документе: [A03_RUNTIME_TASK_CALLBACK_AUDIT.md](A03_RUNTIME_TASK_CALLBACK_AUDIT.md).
 
 Аудит выполняется поэтапно. Полный repository-wide scan и сверка всех task creation sites остаются незакрытыми acceptance criteria; runtime-код в этом срезе не менялся.
 
