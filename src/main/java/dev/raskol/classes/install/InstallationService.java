@@ -13,7 +13,6 @@ import org.bukkit.FluidCollisionMode;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.RayTraceResult;
 
 import dev.raskol.classes.RaskolClasses;
@@ -44,7 +43,6 @@ public final class InstallationService {
     private final Map<InstallationType, InstallationHandler> handlers = new EnumMap<>(InstallationType.class);
     private final Map<UUID, ActiveInstallation> installations = new ConcurrentHashMap<>();
     private final Map<String, Long> placeCooldowns = new ConcurrentHashMap<>();
-    private BukkitTask sweepTask;
 
     public InstallationService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -189,33 +187,25 @@ public final class InstallationService {
 
     /* ------------------------------ sweep и жизненный цикл ------------------------------ */
 
-    public BukkitTask startSweepTask() {
-        sweepTask = plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(
-                        plugin,
-                        () -> {
-                            long now = System.currentTimeMillis();
-                            for (ActiveInstallation inst : List.copyOf(installations.values())) {
-                                InstallationHandler h = handlers.get(inst.type());
-                                if (h == null) {
-                                    installations.remove(inst.id());
-                                    continue;
-                                }
-                                if (now > inst.expiresAt()) {
-                                    installations.remove(inst.id());
-                                    h.expire(inst);
-                                    continue;
-                                }
-                                if (!h.tick(inst)) {
-                                    installations.remove(inst.id());
-                                    h.expire(inst);
-                                }
-                            }
-                        },
-                        20L,
-                        20L);
-        return sweepTask;
+    /** Выполняет один цикл проверки срока жизни активных инсталляций. */
+    public void sweep() {
+        long now = System.currentTimeMillis();
+        for (ActiveInstallation inst : List.copyOf(installations.values())) {
+            InstallationHandler h = handlers.get(inst.type());
+            if (h == null) {
+                installations.remove(inst.id());
+                continue;
+            }
+            if (now > inst.expiresAt()) {
+                installations.remove(inst.id());
+                h.expire(inst);
+                continue;
+            }
+            if (!h.tick(inst)) {
+                installations.remove(inst.id());
+                h.expire(inst);
+            }
+        }
     }
 
     public void purgeStale() {
@@ -234,9 +224,6 @@ public final class InstallationService {
     }
 
     public void shutdown() {
-        if (sweepTask != null) {
-            sweepTask.cancel();
-        }
         for (ActiveInstallation inst : List.copyOf(installations.values())) {
             InstallationHandler h = handlers.get(inst.type());
             if (h != null) {
