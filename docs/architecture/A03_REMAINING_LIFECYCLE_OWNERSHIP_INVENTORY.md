@@ -574,3 +574,15 @@ Formatting checkpoint: Spotless Format #42 completed successfully on the formatt
 - Реализация: commit `0b5603b6470b525472e974a65d253326ef4e2aaa`.
 - Архитектурная запись: `docs/architecture/A03_INSTALLATION_FX_SHUTDOWN_ORDER.md`.
 - Требуется полный CI на финальном HEAD и live Paper 26.2 shutdown smoke test.
+
+
+## 21. A-03-003.36 — Lifecycle ownership residual audit
+
+Source-backed findings are recorded in [A03_LIFECYCLE_RESIDUAL_AUDIT.md](A03_LIFECYCLE_RESIDUAL_AUDIT.md), audited against source HEAD `af25876da973a60ec5db31bdcad5f37866654b6c`.
+
+- P1: root `shutdownRuntime()` still has cleanup operations outside independent failure guards. A RuntimeException in one of these steps can skip later cleanup, potentially including final `AsyncStorageWriter.closeAndAwait()`. Recommended next slice: `A-03-003.37 Root Shutdown Failure Isolation`, preserving producer → dependent cleanup → final snapshots → writer close ordering.
+- P2: `TrailListener` creates short-lived, self-cancelling projectile trail tasks (period 4 ticks, bounded by 200 ticks) without retaining handles. Not an unbounded leak; Paper cancels plugin tasks on disable. Keep separate from FxService unless stronger ownership is justified.
+- P2: HP respawn callback registries are keyed by UUID, but the callbacks still capture the original Player object (0/2 tick delay). Consider UUID re-resolution in a future narrow API refinement.
+- RIPS enforcement callback remains intentionally plugin-scoped; A-04 storage completion callbacks remain out of scope.
+- User-confirmed Paper 26.2 shutdown smoke test passed for active Frost Rune and Pentagram; this does not establish failure isolation for every root cleanup step.
+- Full repository-wide scan remains open. Production source/tests, `main`, and `BootstrapCoordinator` were not changed.
