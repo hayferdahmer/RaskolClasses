@@ -42,8 +42,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
+import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.compat.AuthGate;
 import dev.raskol.classes.storage.DirtyStorageState;
 import dev.raskol.classes.storage.SafeStorage;
