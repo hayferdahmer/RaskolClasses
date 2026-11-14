@@ -28,7 +28,6 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 import dev.raskol.classes.RaskolClasses;
@@ -94,19 +93,11 @@ public final class CCService implements Listener {
     }
 
     /** 1.14.13 (Волна 13B-b): регистрация слушателей — вызов из RaskolClasses.onEnable. */
-    public void registerListeners() {
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
-    }
-
     /**
      * 1.14.13 (Волна 13B-b): тик-задача 1 тик (50 мс); ручка в activeTasks владельца.
      * Высокая частота (20 раз/сек) критична для velocity-обнуления под STUN/ROOT
      * и принудительного бега FEAR — явная отмена в onDisable обязательна.
      */
-    public BukkitTask startTickTask() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
-    }
-
     /* ------------------------------ конфиг-читалки ------------------------------ */
 
     public boolean enabled() {
@@ -612,7 +603,7 @@ public final class CCService implements Listener {
 
     /* ------------------------------ тик ------------------------------ */
 
-    private void tick() {
+    public void tick() {
         tickCounter++;
         long now = System.currentTimeMillis();
         if (tickCounter % 20L == 0L) {
