@@ -96,7 +96,7 @@ Bukkit обычно очищает зарегистрированные listener
 7. Cancel Warlock channel tasks.
 8. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
 9. `petRuntimeOwner.close()` (despawn → cancel → unregister).
-10. Cancel/clear оставшиеся root `activeTasks`, затем close `ResourceRuntimeOwner` и `InstallationRuntimeOwner`.
+10. Close `ResourceRuntimeOwner` и `InstallationRuntimeOwner`, затем cancel/clear оставшиеся root `activeTasks`.
 11. `items.stop()`; unregister PassportChangeListener.
 12. `resources.saveAll()` (после ResourceRuntimeOwner.close), `hpBarService.saveAll()`, `spec2Storage.save()`.
 13. `installations.shutdown()` (после остановки InstallationRuntimeOwner), `bossBars.shutdown()`.
