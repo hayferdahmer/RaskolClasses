@@ -34,7 +34,7 @@ class ResourceResetPersistenceTest {
 
         assertEquals(35.0, store.getDouble(playerId.toString()), 0.0001);
         assertFalse(store.getBoolean(ResourceResetPersistence.PENDING_RESETS_PATH + "." + playerId));
-        assertTrue(resolved.contains(playerId));
+        assertTrue(resolved.containsKey(playerId));
         assertTrue(pending.contains(playerId), "in-memory marker is retained until disk save succeeds");
 
         ResourceResetPersistence.completeSave(resolved, pending, generations);
