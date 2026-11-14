@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,7 +42,7 @@ class InstallationCleanupCoordinatorTest {
         int failures = coordinator.cleanup(installation -> true, "test");
 
         assertEquals(1, failures);
-        assertEquals(List.of(failed.id(), successful.id()), expired);
+        assertEquals(Set.of(failed.id(), successful.id()), Set.copyOf(expired));
         assertEquals(List.of(failed.id()), reported);
         assertTrue(installations.containsKey(failed.id()));
         assertFalse(installations.containsKey(successful.id()));
