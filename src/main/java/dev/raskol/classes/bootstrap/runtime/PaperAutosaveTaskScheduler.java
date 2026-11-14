@@ -27,8 +27,8 @@ public final class PaperAutosaveTaskScheduler implements AutosaveTaskScheduler {
 
     @Override
     public TaskHandle scheduleAutosave() {
-        return new BukkitTaskHandle(plugin.getServer().getScheduler()
-                .runTaskTimer(plugin, autosave, intervalTicks, intervalTicks));
+        return new BukkitTaskHandle(
+                plugin.getServer().getScheduler().runTaskTimer(plugin, autosave, intervalTicks, intervalTicks));
     }
 
     private static final class BukkitTaskHandle implements TaskHandle {

@@ -22,28 +22,28 @@ public final class PluginTasks {
      * раньше не вызывались нигде.
      */
     public static void purge(RaskolClasses plugin) {
-                            plugin.getCooldowns().purgeExpired();
-                            plugin.getEffects().purgeExpired();
-                            plugin.getAbilities().purgeStaleAttempts();
-                            plugin.getFx().purgeStale();
-                            plugin.getInstallations().purgeStale();
-                            plugin.getResists().purgeExpired();
-                            plugin.getAttributes().purgeExpired();
-                            plugin.getCharacterLevels().purgeStale();
-                            // 1.14.8-fix (Волна 6.3, P0-6-02): метки китов и боевые логи
-                            HunterAbilities.purgeStale();
-                            RogueAbilities.purgeStale();
-                            MageAbilities.purgeStale();
-                            PriestAbilities.purgeStale();
-                            plugin.getCombat().procs().purgeStale();
-                            plugin.getCombat().purgeBurstLog();
-                            plugin.markPurgeNow();
+        plugin.getCooldowns().purgeExpired();
+        plugin.getEffects().purgeExpired();
+        plugin.getAbilities().purgeStaleAttempts();
+        plugin.getFx().purgeStale();
+        plugin.getInstallations().purgeStale();
+        plugin.getResists().purgeExpired();
+        plugin.getAttributes().purgeExpired();
+        plugin.getCharacterLevels().purgeStale();
+        // 1.14.8-fix (Волна 6.3, P0-6-02): метки китов и боевые логи
+        HunterAbilities.purgeStale();
+        RogueAbilities.purgeStale();
+        MageAbilities.purgeStale();
+        PriestAbilities.purgeStale();
+        plugin.getCombat().procs().purgeStale();
+        plugin.getCombat().purgeBurstLog();
+        plugin.markPurgeNow();
     }
 
     /** Один пакетный autosave трёх хранилищ (P0-5-01). */
     public static void autosave(RaskolClasses plugin) {
-                            plugin.getCooldowns().saveAll();
-                            plugin.getResources().saveAll();
-                            plugin.getSpec2Storage().save();
+        plugin.getCooldowns().saveAll();
+        plugin.getResources().saveAll();
+        plugin.getSpec2Storage().save();
     }
 }

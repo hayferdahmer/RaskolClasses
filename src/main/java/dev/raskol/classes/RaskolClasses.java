@@ -28,12 +28,12 @@ import dev.raskol.classes.attribute.runtime.HpAttributeSyncRuntimeOwner;
 import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncRegistration;
 import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncScheduler;
 import dev.raskol.classes.bootstrap.PluginTasks;
+import dev.raskol.classes.bootstrap.SessionListener;
+import dev.raskol.classes.bootstrap.StartupChecks;
 import dev.raskol.classes.bootstrap.runtime.AutosaveRuntimeOwner;
 import dev.raskol.classes.bootstrap.runtime.PaperAutosaveTaskScheduler;
 import dev.raskol.classes.bootstrap.runtime.PaperPurgeTaskScheduler;
 import dev.raskol.classes.bootstrap.runtime.PurgeRuntimeOwner;
-import dev.raskol.classes.bootstrap.SessionListener;
-import dev.raskol.classes.bootstrap.StartupChecks;
 import dev.raskol.classes.cc.CCFeedback;
 import dev.raskol.classes.cc.CCGuard;
 import dev.raskol.classes.cc.CCService;
@@ -572,8 +572,8 @@ public final class RaskolClasses extends JavaPlugin {
         manaSoakedRuntimeOwner.start();
         long purgeInterval = getRaskolConfig().purgeIntervalTicks();
         long autosaveInterval = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
-        purgeRuntimeOwner = new PurgeRuntimeOwner(
-                new PaperPurgeTaskScheduler(this, () -> PluginTasks.purge(this), purgeInterval));
+        purgeRuntimeOwner =
+                new PurgeRuntimeOwner(new PaperPurgeTaskScheduler(this, () -> PluginTasks.purge(this), purgeInterval));
         autosaveRuntimeOwner = new AutosaveRuntimeOwner(
                 new PaperAutosaveTaskScheduler(this, () -> PluginTasks.autosave(this), autosaveInterval));
         purgeRuntimeOwner.start();
@@ -700,7 +700,8 @@ public final class RaskolClasses extends JavaPlugin {
                 purgeRuntimeOwner.close();
                 purgeRuntimeOwner = null;
             } catch (RuntimeException exception) {
-                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось остановить global purge runtime", exception);
+                getLogger()
+                        .log(java.util.logging.Level.SEVERE, "Не удалось остановить global purge runtime", exception);
             }
         }
         if (autosaveRuntimeOwner != null) {
@@ -708,7 +709,11 @@ public final class RaskolClasses extends JavaPlugin {
                 autosaveRuntimeOwner.close();
                 autosaveRuntimeOwner = null;
             } catch (RuntimeException exception) {
-                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось остановить global autosave runtime", exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось остановить global autosave runtime",
+                                exception);
             }
         }
         if (hpBarRuntimeOwner != null) {

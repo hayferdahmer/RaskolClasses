@@ -27,8 +27,8 @@ public final class PaperPurgeTaskScheduler implements PurgeTaskScheduler {
 
     @Override
     public TaskHandle schedulePurge() {
-        return new BukkitTaskHandle(plugin.getServer().getScheduler()
-                .runTaskTimer(plugin, purge, intervalTicks, intervalTicks));
+        return new BukkitTaskHandle(
+                plugin.getServer().getScheduler().runTaskTimer(plugin, purge, intervalTicks, intervalTicks));
     }
 
     private static final class BukkitTaskHandle implements TaskHandle {
