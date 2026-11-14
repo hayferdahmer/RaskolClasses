@@ -33,7 +33,7 @@
 | DoT tick | `combat.dots().startTickTask()` | `activeTasks` | DoT runtime; listener регистрируется отдельно в `initializeCoreServices` |
 | CC tick | `ccService.startTickTask()` | `activeTasks` | CC runtime; listener регистрируется отдельно |
 | HUD ActionBar | `HudRuntimeOwner.start()` при `hud.enabled && hp-display.mode=vanilla` | `HudRuntimeOwner` / `TaskScope` | Reload согласует start/stop; начальная задержка и период сохраняют `max(1, hudUpdatePeriodTicks())` |
-| HP bar tick | `hpBarService.start()` | `activeTasks` | HP runtime/UI и часть HP domain; сам сервис также Listener и владелец health persistence |
+| HP bar runtime | `HpBarRuntimeOwner` + `PaperHpBarTaskScheduler` + `PaperHpBarRuntimeRegistration` | Owner owns join/quit/respawn listener and periodic tick; `HpBarService` retains HP state, gameplay logic and health persistence | Подключён к root; `saveAll()` остаётся в shutdown перед закрытием общего StorageWriter |
 | Resource tick | `resources.startTickTask(this)` | `activeTasks` | Resource runtime; сервис также Listener и хранит изменяемое состояние |
 | BossBar tick | `BossBarRuntimeOwner` + `PaperBossBarTaskScheduler` | `BossBarRuntimeOwner` / `TaskScope` | `BossBarService` выполняет один render cycle и хранит полосы; период берётся из `bossBarTickPeriod()`; reload вызывает owner restart |
 | Flavor aura | `FlavorRuntimeOwner.start()` | `FlavorRuntimeOwner` / `TaskScope` | Сохраняет исходный 40-tick период; listener регистрируется тем же owner до запуска producer |
@@ -105,7 +105,7 @@ Persistence responsibilities that must remain distinct:
 
 - `AsyncStorageWriter`: shared serial disk writer, root-owned; closes last.
 - `ResourceService`: resource state snapshot/persistence.
-- `HpBarService`: health store snapshot/persistence and gameplay HP behavior.
+- `HpBarService`: health store snapshot/persistence and gameplay HP behavior. Periodic `tick()` is now a callback scheduled by `HpBarRuntimeOwner`; the owner closes before `saveAll()` so no producer races the final health snapshot.
 - `Spec2Storage`: specialization storage.
 - `CooldownManager`: cooldown persistence and per-player task cleanup.
 - `FoliantService`: dirty lock persistence.
@@ -310,3 +310,10 @@ Owner не регистрирует listener: `BossBarService` им не явл�
 `HudRuntimeOwner` is now connected to production wiring. It registers a dedicated quit listener through `PaperHudSessionEvents`, schedules `HudService.tick()` through `PaperHudTaskScheduler`, and owns both the recurring task and per-player cache cleanup. `HudService` no longer creates or stores `BukkitTask`.
 
 The root preserves the original activation gate (`hud.enabled` and `hp-display.mode=vanilla`). Reload now reconciles the owner: start when the gate is enabled, stop and clear HUD caches otherwise. The owner is closed before other root runtime cleanup. `HudServiceOutputCleanup` removes only HUD-owned internal caches; it deliberately does not send an empty ActionBar, because that could erase output from the independent HP presentation path or another plugin. HP bar mechanics and scheduling remain separate. The compatibility accessor `RaskolClasses.getHud()` remains available; its exact `EI_EXPOSE_REP` SpotBugs finding is handled by a method-scoped filter entry, not a class-wide suppression.
+
+
+## 12. A-03-003.18 — HP bar runtime ownership
+
+`HpBarRuntimeOwner` now owns `HpBarService` lifecycle listener registration (join/quit/respawn) and its repeating synchronous tick. Paper integration is isolated in `PaperHpBarRuntimeRegistration` and `PaperHpBarTaskScheduler`. The root registers the listener in the existing gameplay-listener phase, starts the producer in the existing runtime-task phase, and closes the owner before `HpBarService.saveAll()` during shutdown. The configured period remains `max(1, hp-display.update-period-ticks)` with initial delay equal to period.
+
+`HpBarService` retains HP calculations, regeneration, pending restore, hearts/actionbar presentation, dirty tracking, health.yml snapshots, async writer callbacks, and `saveAll()`. Only its scheduler ownership was removed; `tick()` is a public one-cycle callback. No HP formula, config key, persistence format, or gameplay behavior was intentionally changed.
