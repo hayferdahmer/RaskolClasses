@@ -268,87 +268,6 @@ public final class ResourceService implements Listener {
         clearRuntimeState(uuid);
     }
 
-    /** Выполняет один цикл регенерации и обслуживания ресурсов. */
-    public void tick() {
-        tickCounter++;
-        if (tickCounter % DEBUFF_PURGE_TICKS == 0) {
-            WarlockAbilities.purgeStaleDebuffs();
-        }
-        Spec2Service svc = plugin.getSpec2Service();
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            UUID uuid = player.getUniqueId();
-            PlayerClass pc = classProvider.getClassOf(player);
-            if (pc == null) {
-                continue;
-            }
-            ResourceState st = stateOf(uuid);
-            long windowMs = config.combatWindowSeconds(pc) * 1000L;
-            boolean inCombat = st.isInCombat(windowMs);
-            Spec spec = spec2Spec(uuid);
-
-            double rate;
-            switch (pc.regenModel()) {
-                case COMBAT_PAUSE -> rate = inCombat ? 0.0 : config.resourceRegen(pc);
-                case TIERED -> {
-                    double v = st.getValue();
-                    rate = v < 25
-                            ? config.mageRegenTier1()
-                            : v < 50
-                                    ? config.mageRegenTier2()
-                                    : v < 75 ? config.mageRegenTier3() : config.mageRegenTier4();
-                }
-                case FLOOR_DECAY -> {
-                    double v = st.getValue();
-                    double floor = config.warlockResourceFloor();
-                    if (floor > 0.0 && v < floor) {
-                        rate = config.warlockResourceFloorRegen();
-                    } else if (v > floor && !inCombat) {
-                        rate = (spec == Spec.DEMONOLOGY)
-                                ? plugin.getConfig().getDouble("classes.WARLOCK.specs.demonology.decay", -2.0)
-                                : config.warlockResourceDecay();
-                    } else {
-                        rate = 0.0;
-                    }
-                }
-                default -> rate = config.resourceRegen(pc);
-            }
-            if (rate > 0 && plugin.getItems() != null)
-                rate += plugin.getItems().value(uuid, dev.raskol.classes.item.model.ItemStat.RESOURCE_REGEN);
-            if (svc != null) {
-                rate += svc.regenBonus(uuid);
-            }
-            if (rate > 0.0 && svc != null) {
-                double regenPct = svc.resourceRegenPercent(uuid);
-                if (Double.isFinite(regenPct) && regenPct > 0.0) {
-                    rate *= (1.0 + regenPct / 100.0);
-                }
-            }
-
-            if (pc.regenModel() == PlayerClass.RegenModel.FLOOR_DECAY) {
-                double floor = config.warlockResourceFloor();
-                double v = st.getValue();
-                double next = v + rate;
-                if (rate < 0.0 && v >= floor && next < floor) {
-                    next = floor;
-                }
-                if (rate > 0.0 && v <= floor && next > floor) {
-                    next = floor;
-                }
-                st.setValue(next);
-            } else if (rate != 0.0) {
-                st.tickDelta(rate);
-            }
-
-            if (pc.regenModel() == PlayerClass.RegenModel.FLOOR_DECAY
-                    && st.getValue() >= config.warlockThresholdOverflow()) {
-                double carrier = Hp.max(player);
-                double tickDmg = carrier * 0.01;
-                double newHp = Math.max(1.0, player.getHealth() - tickDmg);
-                player.setHealth(newHp);
-            }
-        }
-    }
-
     private Spec spec2Spec(UUID uuid) {
         Spec2Service svc = plugin.getSpec2Service();
         if (svc == null) {
@@ -358,7 +277,8 @@ public final class ResourceService implements Listener {
         return main == null ? null : Spec.fromId(main);
     }
 
-    private void tick() {
+    /** Выполняет один цикл регенерации и обслуживания ресурсов. */
+    public void tick() {
         tickCounter++;
         if (tickCounter % DEBUFF_PURGE_TICKS == 0) {
             WarlockAbilities.purgeStaleDebuffs();
