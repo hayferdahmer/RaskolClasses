@@ -127,9 +127,9 @@
 2. Scroll cooldown runtime ownership.
 3. ManaSoaked runtime ownership.
 4. Отдельный maintenance lifecycle для global purge/autosave без переноса cross-domain логики в домены.
-5. Завершить repository-wide scan и сверку callback/task ownership.
-7. HP respawn one-shot callback ownership.
-8. A-04 storage completion/drain contract для Foliant, HP Bar, Resources и Cooldowns.
+5. HP respawn one-shot callback ownership.
+6. A-04 storage completion/drain contract для Foliant, HP Bar, Resources и Cooldowns.
+7. Завершить repository-wide scan и сверку callback/task ownership.
 
 Порядок может быть скорректирован после полного repository-wide scan и проверки всех remaining task creation sites.
 
@@ -137,7 +137,7 @@
 
 - [x] Root recurring task registrations повторно проверены.
 - [x] Оставшиеся root-owned periodic tasks перечислены.
-- [x] InstallationService duplicate handle ownership подтверждено.
+- [x] InstallationService duplicate handle ownership подтверждено и устранено через InstallationRuntimeOwner.
 - [x] HP attribute respawn one-shot callback подтверждён.
 - [x] HP Bar, Foliant и Resource storage/main-thread callbacks классифицированы.
 - [x] Warlock channel task creation/cancellation paths проверены.
@@ -146,4 +146,4 @@
 - [ ] Все найденные task creation sites сверены с владельцами и root shutdown.
 - [x] Для Warlock и Installation runtime owners добавлены focused tests на partial scheduling и retryable cancellation.
 
-До закрытия последних двух scan-критериев этап остаётся **в работе**. Код и игровые механики этим аудитом не менялись.
+До закрытия двух scan-критериев этап остаётся **в работе**. Реализованные runtime-срезы меняют только владение задачами и lifecycle; игровые механики и пользовательское поведение намеренно сохранены.
