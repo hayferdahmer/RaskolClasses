@@ -75,6 +75,10 @@ import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HpBarService;
 import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.hud.runtime.BossBarRuntimeOwner;
+import dev.raskol.classes.hud.runtime.HudRuntimeOwner;
+import dev.raskol.classes.hud.runtime.HudServiceOutputCleanup;
+import dev.raskol.classes.hud.runtime.PaperHudSessionEvents;
+import dev.raskol.classes.hud.runtime.PaperHudTaskScheduler;
 import dev.raskol.classes.hud.runtime.PaperBossBarTaskScheduler;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
@@ -145,6 +149,7 @@ public final class RaskolClasses extends JavaPlugin {
     private AbilityRegistry abilities;
     private ActiveEffectManager effects;
     private HudService hud;
+    private HudRuntimeOwner hudRuntimeOwner;
     private BossBarService bossBars;
     private BossBarRuntimeOwner bossBarRuntimeOwner;
     private HpBarService hpBarService;
@@ -326,6 +331,23 @@ public final class RaskolClasses extends JavaPlugin {
         TreeAbilities.registerCasters(this, abilities);
 
         this.hud = new HudService(this);
+        long hudPeriod = Math.max(1L, raskolConfig.hudUpdatePeriodTicks());
+        this.hudRuntimeOwner = new HudRuntimeOwner(
+                new PaperHudTaskScheduler(this),
+                new PaperHudSessionEvents(this),
+                new HudServiceOutputCleanup(hud),
+                hud::tick,
+                hudPeriod,
+                hudPeriod);
+        try {
+            hudRuntimeOwner.register();
+        } catch (RuntimeException exception) {
+            getLogger().log(
+                    java.util.logging.Level.WARNING,
+                    "Не удалось зарегистрировать HUD runtime; ActionBar HUD будет отключён",
+                    exception);
+            hudRuntimeOwner = null;
+        }
         this.bossBars = new BossBarService(this);
         this.bossBarRuntimeOwner = new BossBarRuntimeOwner(
                 new PaperBossBarTaskScheduler(this, bossBars::tick),
@@ -477,8 +499,15 @@ public final class RaskolClasses extends JavaPlugin {
     private void startRuntimeTasks() {
         boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
         boolean hpVanilla = "vanilla".equalsIgnoreCase(getConfig().getString("hp-display.mode", "actionbar"));
-        if (hudEnabled && hpVanilla) {
-            activeTasks.add(hud.start());
+        if (hudEnabled && hpVanilla && hudRuntimeOwner != null) {
+            try {
+                hudRuntimeOwner.start();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.WARNING,
+                        "Не удалось запустить ActionBar HUD; остальные игровые системы продолжат работу",
+                        exception);
+            }
         }
         activeTasks.add(hpBarService.start());
         activeTasks.add(resources.startTickTask(this));
@@ -605,6 +634,18 @@ public final class RaskolClasses extends JavaPlugin {
      * затем сохраняемые сервисы, а общий StorageWriter закрывает последним.
      */
     private void shutdownRuntime() {
+        if (hudRuntimeOwner != null) {
+            try {
+                hudRuntimeOwner.close();
+                hudRuntimeOwner = null;
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось полностью остановить ActionBar HUD runtime",
+                        exception);
+            }
+        }
+
         if (placeholderRuntimeOwner != null) {
             try {
                 placeholderRuntimeOwner.close();
@@ -768,6 +809,27 @@ public final class RaskolClasses extends JavaPlugin {
         command.setTabCompleter(executor);
     }
 
+    /** Согласует ActionBar HUD runtime с текущим режимом после reload. */
+    private void reconcileHudRuntime() {
+        if (hudRuntimeOwner == null) {
+            return;
+        }
+        boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
+        boolean hpVanilla = "vanilla".equalsIgnoreCase(getConfig().getString("hp-display.mode", "actionbar"));
+        try {
+            if (hudEnabled && hpVanilla) {
+                hudRuntimeOwner.start();
+            } else {
+                hudRuntimeOwner.stop();
+            }
+        } catch (RuntimeException exception) {
+            getLogger().log(
+                    java.util.logging.Level.WARNING,
+                    "Не удалось согласовать ActionBar HUD runtime после reload",
+                    exception);
+        }
+    }
+
     public dev.raskol.classes.bootstrap.PluginReloadResult reloadPlugin() {
         String stage = "config.yml";
         try {
@@ -792,6 +854,7 @@ public final class RaskolClasses extends JavaPlugin {
 
             stage = "HUD";
             hud.applyConfig();
+            reconcileHudRuntime();
             cooldowns.attachScheduler(
                     this,
                     raskolConfig.isReadyNotifyEnabled(),
