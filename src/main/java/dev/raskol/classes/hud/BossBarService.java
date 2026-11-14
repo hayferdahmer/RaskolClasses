@@ -15,8 +15,6 @@ import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -38,33 +36,13 @@ public final class BossBarService {
 
     private final RaskolClasses plugin;
     private final Map<UUID, Map<EffectType, BossBar>> bars = new ConcurrentHashMap<>();
-    private BukkitTask task;
 
     public BossBarService(RaskolClasses plugin) {
         this.plugin = plugin;
     }
 
-    public BukkitTask start() {
-        int period = Math.max(1, plugin.getRaskolConfig().bossBarTickPeriod());
-        this.task = new BukkitRunnable() {
-            @Override
-            public void run() {
-                tick();
-            }
-        }.runTaskTimer(plugin, period, period);
-        return this.task;
-    }
-
-    public void applyConfig() {
-        shutdown();
-        start();
-    }
-
-    public void shutdown() {
-        if (task != null) {
-            task.cancel();
-            task = null;
-        }
+    /** Удаляет все созданные полосы; периодический вызов принадлежит BossBarRuntimeOwner. */
+    public void clearBars() {
         for (Map<EffectType, BossBar> playerBars : bars.values()) {
             for (BossBar bar : playerBars.values()) {
                 bar.removeAll();
