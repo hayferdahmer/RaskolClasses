@@ -54,7 +54,7 @@
 
 | Компонент | Источник | Владение и остановка | Замечание |
 |---|---|---|---|
-| Cooldown ready notifications | `CooldownManager.start(...)` | Map задач остаётся внутри CooldownManager; runtime owner вызывает `cancelAllTasks()` при остановке | Listener registration и lifecycle координирует `CooldownRuntimeOwner`; состояние и persistence остаются в CooldownManager |
+| Cooldown ready notifications | `CooldownManager.start(...)` | Map задач остаётся внутри CooldownManager; runtime owner вызывает `cancelAllTasks()` при остановке | `CooldownRuntimeOwner` корректно владеет shutdown; A-03-003.28 подтвердил stale handles после естественного callback completion. Следующий slice — finally release с identity guard; см. `A03_COOLDOWN_NOTIFICATION_TASK_AUDIT.md` |
 | HP async completion callbacks | `HpBarService.saveHealth()` | Writer completion + Bukkit main-thread callback | Это callbacks, не периодический producer; должны завершаться до/в рамках storage drain contract |
 | Foliant async completion / deferred operations | `FoliantService` | Внутри сервиса и общий writer; dirty locks сохраняются root-вызовом | Нужна отдельная проверка каждого deferred callback перед переносом |
 | Warlock channel tasks | `WarlockChannelTaskOwner` | Per-caster task handles; root закрывает owner | Handles регистрируются сразу после schedule; partial rollback и retryable close покрыты focused tests |
@@ -482,3 +482,13 @@ FxService.shutdown() теперь закрывает все FX-owned Bukkit task
 Aura expiration callback хранится и отменяется вместе с repeating aura task. Identity guard по repeating handle сохранён, поэтому callback предыдущей ауры не может удалить её замену. Root вызывает FX shutdown до закрытия остальных runtime компонентов. Domain VFX state и диагностические карты очищаются; общий scheduler, TrailListener и installation-scoped handles не включаются в эту границу.
 
 Пять focused unit tests проверяют cancellation, idempotence, retry, независимую обработку ошибок и освобождение завершившегося one-shot callback. Paper 26.2 runtime smoke test остаётся отдельной проверкой.
+
+
+## A-03-003.28 — Cooldown notification completion ownership audit
+
+- Проверен branch HEAD d974d1307d6d4f698a9bcb1f227f6898a7e72ec2; audit-only commit добавил A03_COOLDOWN_NOTIFICATION_TASK_AUDIT.md.
+- Подтверждён stale-handle path в CooldownManager.start(): естественное завершение delayed notification не освобождает её BukkitTask из tasks map.
+- Следующий узкий implementation slice: finally-based completion release с identity guard, удаление пустой player map и focused tests на все callback exit paths + replacement race.
+- Отдельно отмечены, но не смешаны с этим срезом: FoliantService.executeTransition() next-tick callback и RaskolClasses.handleRuntimeIntegrityFailure() main-thread disable callback.
+- Полный repository-wide scan всех 390 Java source files всё ещё не закрыт; этот checkpoint не утверждает обратного.
+- Production-код, main и BootstrapCoordinator не менялись.
