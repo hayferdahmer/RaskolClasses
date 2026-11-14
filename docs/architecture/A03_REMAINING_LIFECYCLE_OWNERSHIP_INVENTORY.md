@@ -16,7 +16,7 @@
 |---|---|---|---|
 | Runtime RIPS | `RuntimeIntegrityRuntimeOwner` | Отдельный daemon executor, monitor, reporter/state; запускается после успешного startup и закрывается в начале shutdown | Bukkit disable callback остаётся инъекцией из root |
 | Pet runtime | `PetRuntimeOwner` | Listener + два периодических задания; despawn → cancel → unregister; rollback и retry | Реализация и тесты есть; CI #3081 success |
-| HUD runtime | `HudRuntimeOwner` и Paper adapters существуют | Контракт owner, task scheduler/session-event adapters, тесты | Не подключён к production wiring; HudService и HpBarService остаются root-owned |
+| HUD ActionBar runtime | `HudRuntimeOwner` + `PaperHudTaskScheduler` + `PaperHudSessionEvents` | Owner управляет quit cleanup и периодическим producer; `HudServiceOutputCleanup` очищает только внутренние кэши | Подключён к root; `HudService` сохраняет renderer и per-player cache; HP bar остаётся отдельным владельцем |
 | BossBar runtime | `BossBarRuntimeOwner` | Периодический producer через TaskScope; restart очищает полосы и перечитывает период; close отменяет producer и удаляет полосы | `BossBarService` сохраняет только rendering/state; owner подключён к root |
 | HP attribute sync | `HpAttributeSyncRuntimeOwner` | Listener registration + 100-tick sweep; rollback, retryable cancellation/unregistration | Delayed respawn sync остаётся одноразовой задачей без отдельного handle |
 | PlaceholderAPI | `PlaceholderRuntimeOwner` | Пятитиковый snapshot producer + регистрация двух expansions; rollback и retryable cleanup | Snapshot data остаётся в `PlaceholderSnapshotService`; Paper adapter владеет expansion instances |
@@ -32,7 +32,7 @@
 |---|---|---|---|
 | DoT tick | `combat.dots().startTickTask()` | `activeTasks` | DoT runtime; listener регистрируется отдельно в `initializeCoreServices` |
 | CC tick | `ccService.startTickTask()` | `activeTasks` | CC runtime; listener регистрируется отдельно |
-| HUD ActionBar | `hud.start()`, только при `hud.enabled && hp-display.mode=vanilla` | `activeTasks` | Конфигурационно-условный producer; reload меняет config, но не пересоздаёт задачу |
+| HUD ActionBar | `HudRuntimeOwner.start()` при `hud.enabled && hp-display.mode=vanilla` | `HudRuntimeOwner` / `TaskScope` | Reload согласует start/stop; начальная задержка и период сохраняют `max(1, hudUpdatePeriodTicks())` |
 | HP bar tick | `hpBarService.start()` | `activeTasks` | HP runtime/UI и часть HP domain; сам сервис также Listener и владелец health persistence |
 | Resource tick | `resources.startTickTask(this)` | `activeTasks` | Resource runtime; сервис также Listener и хранит изменяемое состояние |
 | BossBar tick | `BossBarRuntimeOwner` + `PaperBossBarTaskScheduler` | `BossBarRuntimeOwner` / `TaskScope` | `BossBarService` выполняет один render cycle и хранит полосы; период берётся из `bossBarTickPeriod()`; reload вызывает owner restart |
@@ -84,21 +84,21 @@ Bukkit обычно очищает зарегистрированные listener
 
 Текущая root последовательность в `shutdownRuntime()`:
 
-1. Close Placeholder runtime (cancel refresh producer → unregister expansions → clear snapshots).
-2. Close `FlavorRuntimeOwner` (cancel aura producer → unregister CrownFlavorService listener).
-3. Close RuntimeIntegrityRuntimeOwner.
-4. Close `HpAttributeSyncRuntimeOwner` (cancel sweep → unregister listener).
-5. Unregister blueprint hook (сейчас no-op).
-6. Cancel Warlock channel tasks.
-7. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
-8. `petRuntimeOwner.close()` (despawn → cancel → unregister).
-9. Cancel/clear root `activeTasks`.
-10. `items.stop()`; unregister PassportChangeListener.
-11. `resources.saveAll()`, `hpBarService.saveAll()`, `spec2Storage.save()`.
-12. `installations.shutdown()`, `bossBars.shutdown()`.
-13. Cooldowns: `CooldownRuntimeOwner.close()` (cancel delayed tasks → unregister listener) → `CooldownManager.saveAll()` → `CooldownManager.clear()`.
-14. ClassProvider shutdown; effects clear.
-15. `storageWriter.closeAndAwait(Duration.ofSeconds(10))` — последний infrastructure action.
+1. Close ActionBar `HudRuntimeOwner` (cancel producer → clear only HUD caches → unregister quit listener).\n2. Close Placeholder runtime (cancel refresh producer → unregister expansions → clear snapshots).
+3. Close `FlavorRuntimeOwner` (cancel aura producer → unregister CrownFlavorService listener).
+4. Close RuntimeIntegrityRuntimeOwner.
+5. Close `HpAttributeSyncRuntimeOwner` (cancel sweep → unregister listener).
+6. Unregister blueprint hook (сейчас no-op).
+7. Cancel Warlock channel tasks.
+8. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
+9. `petRuntimeOwner.close()` (despawn → cancel → unregister).
+10. Cancel/clear root `activeTasks`.
+11. `items.stop()`; unregister PassportChangeListener.
+12. `resources.saveAll()`, `hpBarService.saveAll()`, `spec2Storage.save()`.
+13. `installations.shutdown()`, `bossBars.shutdown()`.
+14. Cooldowns: `CooldownRuntimeOwner.close()` (cancel delayed tasks → unregister listener) → `CooldownManager.saveAll()` → `CooldownManager.clear()`.
+15. ClassProvider shutdown; effects clear.
+16. `storageWriter.closeAndAwait(Duration.ofSeconds(10))` — последний infrastructure action.
 
 Persistence responsibilities that must remain distinct:
 
@@ -302,3 +302,10 @@ The two expansions intentionally retain the shared PlaceholderSnapshotService de
 - HUD visibility, class/effect lookup, форматирование заголовков, сортировка, цвета и прогресс не менялись намеренно.
 
 Owner не регистрирует listener: `BossBarService` им не является. BossBar task удалён из root `activeTasks`; shutdown cleanup изолирован от ошибок и не пропускает последующие действия root. Добавлены unit tests на идемпотентный запуск, restart, порядок cleanup, scheduling/cancellation failure, retry и нормализацию периода. Совместимый getter `RaskolClasses.getBossBars()` сохранён; для него добавлено точечное исключение EI_EXPOSE_REP в SpotBugs filter, как и для других живых service accessors.
+
+
+## 11. A-03-003.17 — ActionBar HUD runtime production wiring
+
+`HudRuntimeOwner` is now connected to production wiring. It registers a dedicated quit listener through `PaperHudSessionEvents`, schedules `HudService.tick()` through `PaperHudTaskScheduler`, and owns both the recurring task and per-player cache cleanup. `HudService` no longer creates or stores `BukkitTask`.
+
+The root preserves the original activation gate (`hud.enabled` and `hp-display.mode=vanilla`). Reload now reconciles the owner: start when the gate is enabled, stop and clear HUD caches otherwise. The owner is closed before other root runtime cleanup. `HudServiceOutputCleanup` removes only HUD-owned internal caches; it deliberately does not send an empty ActionBar, because that could erase output from the independent HP presentation path or another plugin. HP bar mechanics and scheduling remain separate.
