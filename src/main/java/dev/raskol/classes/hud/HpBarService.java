@@ -605,7 +605,11 @@ public final class HpBarService implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
-        respawnCallbacks.cancel(uuid);
+        try {
+            respawnCallbacks.cancel(uuid);
+        } catch (RuntimeException exception) {
+            LOGGER.warning("Не удалось отменить HP bar respawn callback для " + uuid + ": " + exception.getMessage());
+        }
         Pending p = pendingRestore.remove(uuid);
         if (p != null && p.applies() == 0) {
             LOGGER.info("[hp-restore] " + player.getName()
