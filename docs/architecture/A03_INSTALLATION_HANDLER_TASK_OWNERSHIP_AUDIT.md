@@ -5,7 +5,7 @@
 - Репозиторий: `hayferdahmer/RaskolClasses`
 - Ветка: `refactor/a03-foundation-lifecycle`
 - Проверенный audit HEAD: `0e4fd5277ad56d60f7df102ceac334dc02413bc0`
-- Реализация: A-03-003.33 (в работе; CI ещё не подтверждён)
+- Реализация и финальная проверка: A-03-003.33 завершены на `ea58806265cdec504bf363bdfe03f5a1b87185a4`
 - Платформа: Paper 26.2 / Java 25
 - Область: внутренние repeating tasks, создаваемые installation handlers, и их shutdown path.
 
@@ -98,12 +98,21 @@ Root shutdown закрывает `InstallationRuntimeOwner` до вызова `I
 
 ### Проверка
 
-- [ ] Targeted JUnit tests
-- [ ] Полный `mvn -Pdev -B verify` на итоговом HEAD
-- [ ] Build и Analyze CI на одном итоговом HEAD
-- [ ] Spotless Format на итоговом HEAD
+- [x] Targeted JUnit tests; полный suite: 678 tests, 0 failures/errors/skipped
+- [x] Полный `mvn -Pdev -B verify`; JaCoCo coverage gates passed
+- [x] Build #3359 и Analyze jobs SUCCESS на одном HEAD `ea588062`
+- [x] Spotless Format #43 SUCCESS на том же HEAD; 489 Java files clean
 - [ ] Live Paper 26.2 runtime smoke test не выполнялся
 
 ### Ограничения
 
 Координатор изолирует `RuntimeException`, не `Error`. Retry cleanup в runtime выполняется на следующем installation sweep; при shutdown выполняется полный best-effort проход, после которого Paper самостоятельно отменяет plugin-owned tasks при disable. Изменения не затрагивают scheduling cadence, игровые эффекты tick, cooldown policy, `main` и `BootstrapCoordinator`.
+
+
+### Final verification checkpoint
+
+- Build run: [#3359](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43638746750) — SUCCESS.
+- Spotless Format run: [#43](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43638746780) — SUCCESS.
+- Exact verified HEAD: `ea58806265cdec504bf363bdfe03f5a1b87185a4`.
+- Tests: 678 passed; JaCoCo thresholds met; SpotBugs 0 BugInstances; Spotless 489 Java files clean.
+- `main` remains at `2e407cbe59276e6af88857bf3a0d93595c55c52c`.
