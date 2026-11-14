@@ -544,3 +544,6 @@ Foliant post-transition class verification теперь принадлежит �
 - Добавлен `InstallationCleanupCoordinatorTest` на failure isolation, retry, identity safety и owner selection.
 - Полный CI и Spotless Format на одном итоговом HEAD остаются обязательными gates; live Paper 26.2 runtime smoke test не заявляется.
 - `main` остаётся неизменным; `BootstrapCoordinator` не активирован.
+
+
+Implementation checkpoint: cleanup failure reporting uses a dedicated three-argument functional contract; CI compiler feedback is being incorporated before the final verification gate.
