@@ -58,6 +58,7 @@ public final class ResourceService implements Listener {
     private final Map<UUID, ResourceState> states = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastGainMs = new ConcurrentHashMap<>();
     private final java.util.Set<UUID> resetOnJoin = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> resetGenerations = new ConcurrentHashMap<>();
     private final File file;
     private final YamlConfiguration store;
 
@@ -76,6 +77,7 @@ public final class ResourceService implements Listener {
                     UUID uuid = UUID.fromString(key);
                     if (pendingResets.getBoolean(key, false)) {
                         resetOnJoin.add(uuid);
+                        resetGenerations.put(uuid, 1L);
                     }
                 } catch (IllegalArgumentException ex) {
                     LOGGER.warning("resources.yml: некорректный UUID в pending-resets: " + key);
@@ -92,7 +94,7 @@ public final class ResourceService implements Listener {
         if (uuid == null) {
             return;
         }
-        resetOnJoin.add(uuid);
+        markResetIntent(uuid);
         runOnMainThread(() -> {
             if (resetOnJoin.contains(uuid)) {
                 persistResetMarker(uuid);
@@ -148,7 +150,7 @@ public final class ResourceService implements Listener {
         if (uuid == null) {
             return;
         }
-        resetOnJoin.add(uuid);
+        markResetIntent(uuid);
         clearRuntimeState(uuid);
         runOnMainThread(() -> {
             if (resetOnJoin.contains(uuid)) {
@@ -162,8 +164,29 @@ public final class ResourceService implements Listener {
         lastGainMs.remove(uuid);
     }
 
+    private void markResetIntent(UUID uuid) {
+        resetOnJoin.add(uuid);
+        resetGenerations.merge(uuid, 1L, Long::sum);
+    }
+
+    private long resetGeneration(UUID uuid) {
+        return resetGenerations.computeIfAbsent(uuid, ignored -> 1L);
+    }
+
+    private void completeResetIntent(UUID uuid, long expectedGeneration) {
+        if (resetGenerations.getOrDefault(uuid, 0L) == expectedGeneration) {
+            resetOnJoin.remove(uuid);
+        }
+    }
+
+    private void restoreResetIntent(UUID uuid) {
+        resetOnJoin.add(uuid);
+        store.set(PENDING_RESETS_PATH + "." + uuid, true);
+    }
+
     private void persistResetMarker(UUID uuid) {
         resetOnJoin.add(uuid);
+        resetGenerations.putIfAbsent(uuid, 1L);
         store.set(uuid.toString(), null);
         store.set(PENDING_RESETS_PATH + "." + uuid, true);
         persistAsync("маркер сброса ресурса для " + uuid, null);
@@ -205,13 +228,13 @@ public final class ResourceService implements Listener {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             onlinePlayers.add(player.getUniqueId());
         }
-        java.util.Set<UUID> resolvedMarkers =
-                ResourceResetPersistence.prepareSave(store, states, resetOnJoin, onlinePlayers);
+        Map<UUID, Long> resolvedMarkers =
+                ResourceResetPersistence.prepareSave(store, states, resetOnJoin, onlinePlayers, resetGenerations);
         persistAsync("пакетное сохранение ресурсов", successful -> {
             if (successful) {
-                ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin);
+                ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin, resetGenerations);
             } else {
-                ResourceResetPersistence.restoreAfterFailedSave(store, resolvedMarkers, resetOnJoin);
+                ResourceResetPersistence.restoreAfterFailedSave(resolvedMarkers, store, resetOnJoin);
                 LOGGER.severe("Маркеры сброса ресурсов восстановлены в памяти для следующей попытки сохранения");
             }
         });
@@ -226,12 +249,12 @@ public final class ResourceService implements Listener {
             clearRuntimeState(uuid);
             store.set(key, null);
             store.set(PENDING_RESETS_PATH + "." + uuid, null);
+            long resetGeneration = resetGeneration(uuid);
             persistAsync("завершение сброса ресурса при входе " + uuid, successful -> {
                 if (successful) {
-                    resetOnJoin.remove(uuid);
+                    completeResetIntent(uuid, resetGeneration);
                 } else {
-                    resetOnJoin.add(uuid);
-                    store.set(PENDING_RESETS_PATH + "." + uuid, true);
+                    restoreResetIntent(uuid);
                     LOGGER.severe("Маркер сброса ресурса при входе " + uuid + " восстановлен для следующей попытки");
                 }
             });
@@ -252,16 +275,16 @@ public final class ResourceService implements Listener {
         UUID uuid = event.getPlayer().getUniqueId();
         store.set(uuid.toString(), stateOf(uuid).getValue());
         boolean pendingReset = resetOnJoin.contains(uuid);
+        long resetGeneration = pendingReset ? resetGeneration(uuid) : -1L;
         if (pendingReset) {
             store.set(PENDING_RESETS_PATH + "." + uuid, null);
         }
         persistAsync("выход игрока " + uuid, successful -> {
             if (pendingReset) {
                 if (successful) {
-                    resetOnJoin.remove(uuid);
+                    completeResetIntent(uuid, resetGeneration);
                 } else {
-                    resetOnJoin.add(uuid);
-                    store.set(PENDING_RESETS_PATH + "." + uuid, true);
+                    restoreResetIntent(uuid);
                 }
             }
         });
