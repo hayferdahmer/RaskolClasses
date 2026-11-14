@@ -28,6 +28,7 @@ import dev.raskol.classes.attribute.runtime.HpAttributeSyncRuntimeOwner;
 import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncRegistration;
 import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncScheduler;
 import dev.raskol.classes.bootstrap.PluginTasks;
+import dev.raskol.classes.bootstrap.lifecycle.ShutdownStepRunner;
 import dev.raskol.classes.bootstrap.SessionListener;
 import dev.raskol.classes.bootstrap.StartupChecks;
 import dev.raskol.classes.bootstrap.runtime.AutosaveRuntimeOwner;
@@ -702,338 +703,221 @@ public final class RaskolClasses extends JavaPlugin {
      * затем сохраняемые сервисы, а общий StorageWriter закрывает последним.
      */
     private void shutdownRuntime() {
-        // Сначала останавливаем cross-domain producers, затем сохраняем финальные снимки.
-        if (purgeRuntimeOwner != null) {
-            try {
+        ShutdownStepRunner shutdown = new ShutdownStepRunner(getLogger());
+
+        // Сначала останавливаем producers, затем сохраняем финальные снимки.
+        shutdown.run("global purge runtime", () -> {
+            if (purgeRuntimeOwner != null) {
                 purgeRuntimeOwner.close();
                 purgeRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(java.util.logging.Level.SEVERE, "Не удалось остановить global purge runtime", exception);
             }
-        }
-        if (autosaveRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("global autosave runtime", () -> {
+            if (autosaveRuntimeOwner != null) {
                 autosaveRuntimeOwner.close();
                 autosaveRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось остановить global autosave runtime",
-                                exception);
             }
-        }
-        if (hpBarRespawnCallbacks != null) {
-            try {
+        });
+        shutdown.run("HP bar respawn callbacks", () -> {
+            if (hpBarRespawnCallbacks != null) {
                 hpBarRespawnCallbacks.close();
                 hpBarRespawnCallbacks = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось отменить отложенные HP bar callbacks",
-                                exception);
             }
-        }
-        if (hpAttributeRespawnCallbacks != null) {
-            try {
+        });
+        shutdown.run("HP attribute respawn callbacks", () -> {
+            if (hpAttributeRespawnCallbacks != null) {
                 hpAttributeRespawnCallbacks.close();
                 hpAttributeRespawnCallbacks = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось отменить отложенные HP attribute callbacks",
-                                exception);
             }
-        }
-        if (hpBarRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("HP bar runtime", () -> {
+            if (hpBarRuntimeOwner != null) {
                 hpBarRuntimeOwner.close();
                 hpBarRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить HP bar runtime",
-                                exception);
             }
-        }
-
-        if (hudRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("ActionBar HUD runtime", () -> {
+            if (hudRuntimeOwner != null) {
                 hudRuntimeOwner.close();
                 hudRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить ActionBar HUD runtime",
-                                exception);
             }
-        }
-
-        if (placeholderRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("PlaceholderAPI runtime", () -> {
+            if (placeholderRuntimeOwner != null) {
                 placeholderRuntimeOwner.close();
                 placeholderRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить PlaceholderAPI runtime",
-                                exception);
             }
-        }
-        placeholderSnapshots = null;
-
-        if (flavorRuntimeOwner != null) {
-            try {
+            placeholderSnapshots = null;
+        });
+        shutdown.run("CrownFlavor runtime", () -> {
+            if (flavorRuntimeOwner != null) {
                 flavorRuntimeOwner.close();
                 flavorRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить CrownFlavor runtime",
-                                exception);
             }
-        }
-
-        if (runtimeIntegrityRuntimeOwner != null) {
-            runtimeIntegrityRuntimeOwner.close();
-            runtimeIntegrityRuntimeOwner = null;
-        }
-
-        if (hpSyncRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("runtime integrity runtime", () -> {
+            if (runtimeIntegrityRuntimeOwner != null) {
+                runtimeIntegrityRuntimeOwner.close();
+                runtimeIntegrityRuntimeOwner = null;
+            }
+        });
+        shutdown.run("HP attribute runtime", () -> {
+            if (hpSyncRuntimeOwner != null) {
                 hpSyncRuntimeOwner.close();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить HP attribute runtime",
-                                exception);
             }
-        }
-        if (blueprintHook != null) {
-            blueprintHook.unregisterBlueprints();
-        }
-        if (warlockAbilities != null) {
-            try {
+        });
+        shutdown.run("blueprint registrations", () -> {
+            if (blueprintHook != null) {
+                blueprintHook.unregisterBlueprints();
+            }
+        });
+        shutdown.run("Warlock channel runtime", () -> {
+            if (warlockAbilities != null) {
                 warlockAbilities.close();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить Warlock channel runtime",
-                                exception);
             }
-        }
-
-        if (foliantTransitionCallbacks != null) {
-            try {
+        });
+        shutdown.run("Foliant transition callbacks", () -> {
+            if (foliantTransitionCallbacks != null) {
                 foliantTransitionCallbacks.close();
                 foliantTransitionCallbacks = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить Foliant transition callbacks",
-                                exception);
             }
-        }
-        if (foliantRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("Foliant runtime", () -> {
+            if (foliantRuntimeOwner != null) {
                 foliantRuntimeOwner.close();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить Foliant runtime",
-                                exception);
             }
-        }
-        if (foliantService != null) {
-            try {
+        });
+        shutdown.run("Foliant final snapshot", () -> {
+            if (foliantService != null) {
                 foliantService.saveLocksIfDirty();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось поставить финальный снимок Foliant в очередь",
-                                exception);
             }
-        }
+        });
 
-        // Runtime-владелец сохраняет обязательный порядок: despawn -> cancel -> unregister.
-        if (petRuntimeOwner != null) {
-            try {
+        // Runtime-владелец петов сохраняет обязательный порядок: despawn -> cancel -> unregister.
+        shutdown.run("pet runtime", () -> {
+            if (petRuntimeOwner != null) {
                 petRuntimeOwner.close();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить runtime петов",
-                                exception);
             }
-        }
-
-        if (dotRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("DoT runtime", () -> {
+            if (dotRuntimeOwner != null) {
                 dotRuntimeOwner.close();
                 dotRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить DoT runtime", exception);
             }
-        }
-        if (ccRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("CC runtime", () -> {
+            if (ccRuntimeOwner != null) {
                 ccRuntimeOwner.close();
                 ccRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить CC runtime", exception);
             }
-        }
-
-        if (ccFeedbackRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("CC feedback resources", () -> {
+            if (ccFeedbackRuntimeOwner != null) {
                 ccFeedbackRuntimeOwner.close();
                 ccFeedbackRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью очистить CC feedback resources",
-                                exception);
             }
-        }
-
-        if (resourceRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("Resource runtime", () -> {
+            if (resourceRuntimeOwner != null) {
                 resourceRuntimeOwner.close();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить Resource runtime",
-                                exception);
             }
-        }
-        if (installationRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("Installation runtime", () -> {
+            if (installationRuntimeOwner != null) {
                 installationRuntimeOwner.close();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить Installation runtime",
-                                exception);
             }
-        }
-        if (scrollCooldownRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("ScrollCooldown runtime", () -> {
+            if (scrollCooldownRuntimeOwner != null) {
                 scrollCooldownRuntimeOwner.close();
                 scrollCooldownRuntimeOwner = null;
                 scrollCooldownTask = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить ScrollCooldown runtime",
-                                exception);
             }
-        }
-        if (manaSoakedRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("ManaSoaked runtime", () -> {
+            if (manaSoakedRuntimeOwner != null) {
                 manaSoakedRuntimeOwner.close();
                 manaSoakedRuntimeOwner = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить ManaSoaked runtime",
-                                exception);
             }
-        }
-        if (items != null) items.stop();
-        if (passportListener != null) {
-            passportListener.unregister();
-        }
-        if (resources != null) {
-            resources.saveAll();
-        }
-        if (hpBarService != null) {
-            hpBarService.saveAll();
-        }
-        if (spec2Storage != null) {
-            spec2Storage.save();
-        }
-        if (installations != null) {
-            installations.shutdown();
-        }
+        });
+        shutdown.run("items service", () -> {
+            if (items != null) {
+                items.stop();
+            }
+        });
+        shutdown.run("passport listener", () -> {
+            if (passportListener != null) {
+                passportListener.unregister();
+            }
+        });
+
+        // Финальные снимки создаются до остановки общего StorageWriter.
+        shutdown.run("resource snapshot", () -> {
+            if (resources != null) {
+                resources.saveAll();
+            }
+        });
+        shutdown.run("HP bar snapshot", () -> {
+            if (hpBarService != null) {
+                hpBarService.saveAll();
+            }
+        });
+        shutdown.run("specialization snapshot", () -> {
+            if (spec2Storage != null) {
+                spec2Storage.save();
+            }
+        });
 
         // Инсталляции очищают свои FX-ресурсы; FxService закрывается только после них.
-        if (fx != null) {
-            try {
+        shutdown.run("installation cleanup", () -> {
+            if (installations != null) {
+                installations.shutdown();
+            }
+        });
+        shutdown.run("FX runtime", () -> {
+            if (fx != null) {
                 fx.shutdown();
                 fx = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить FX runtime", exception);
             }
-        }
-        if (bossBarRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("BossBar runtime", () -> {
+            if (bossBarRuntimeOwner != null) {
                 bossBarRuntimeOwner.close();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить BossBar runtime",
-                                exception);
             }
-        }
-        if (cooldownRuntimeOwner != null) {
-            try {
+        });
+        shutdown.run("cooldown runtime", () -> {
+            if (cooldownRuntimeOwner != null) {
                 cooldownRuntimeOwner.close();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить cooldown runtime",
-                                exception);
             }
-        }
-        if (cooldowns != null) {
-            try {
+        });
+        shutdown.run("cooldown snapshot", () -> {
+            if (cooldowns != null) {
                 cooldowns.saveAll();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(java.util.logging.Level.SEVERE, "Не удалось сохранить кулдауны при выключении", exception);
             }
-            try {
+        });
+        shutdown.run("cooldown state cleanup", () -> {
+            if (cooldowns != null) {
                 cooldowns.clear();
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью очистить runtime кулдаунов",
-                                exception);
             }
-        }
-        if (classProvider != null) {
-            classProvider.shutdown();
-        }
-        if (effects != null) {
-            effects.clear();
-        }
-        if (storageWriter != null && !storageWriter.closeAndAwait(Duration.ofSeconds(10))) {
-            getLogger().severe("StorageWriter: очередь не была полностью сброшена при выключении");
-        }
+        });
+        shutdown.run("class provider", () -> {
+            if (classProvider != null) {
+                classProvider.shutdown();
+            }
+        });
+        shutdown.run("active effects", () -> {
+            if (effects != null) {
+                effects.clear();
+            }
+        });
+
+        // Общий writer закрывается последним, даже если предыдущие этапы завершились ошибкой.
+        shutdown.run("storage writer drain and close", () -> {
+            if (storageWriter != null && !storageWriter.closeAndAwait(Duration.ofSeconds(10))) {
+                throw new IllegalStateException("Очередь StorageWriter не была полностью сброшена");
+            }
+        });
+        shutdown.logSummary();
     }
 
     private void registerCommand() {
