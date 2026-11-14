@@ -77,6 +77,9 @@ import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.hud.runtime.BossBarRuntimeOwner;
 import dev.raskol.classes.hud.runtime.HudRuntimeOwner;
 import dev.raskol.classes.hud.runtime.HudServiceOutputCleanup;
+import dev.raskol.classes.hud.runtime.HpBarRuntimeOwner;
+import dev.raskol.classes.hud.runtime.PaperHpBarRuntimeRegistration;
+import dev.raskol.classes.hud.runtime.PaperHpBarTaskScheduler;
 import dev.raskol.classes.hud.runtime.PaperBossBarTaskScheduler;
 import dev.raskol.classes.hud.runtime.PaperHudSessionEvents;
 import dev.raskol.classes.hud.runtime.PaperHudTaskScheduler;
@@ -153,6 +156,7 @@ public final class RaskolClasses extends JavaPlugin {
     private BossBarService bossBars;
     private BossBarRuntimeOwner bossBarRuntimeOwner;
     private HpBarService hpBarService;
+    private HpBarRuntimeOwner hpBarRuntimeOwner;
     private HpAttributeSyncRuntimeOwner hpSyncRuntimeOwner;
     private AbilityToken tokens;
 
@@ -392,6 +396,11 @@ public final class RaskolClasses extends JavaPlugin {
                 100L);
         hpSyncRuntimeOwner.start();
         this.hpBarService = new HpBarService(this);
+        this.hpBarRuntimeOwner = new HpBarRuntimeOwner(
+                new PaperHpBarRuntimeRegistration(pluginManager, this, hpBarService),
+                new PaperHpBarTaskScheduler(this),
+                hpBarService::tick,
+                () -> Math.max(1L, getConfig().getInt("hp-display.update-period-ticks", 10)));
 
         Spec2Points.configure(this);
 
@@ -459,7 +468,7 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(combat.avoidance(), this);
         pluginManager.registerEvents(new HunterAbilities.FanArrowHit(this), this);
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
-        pluginManager.registerEvents(hpBarService, this);
+        hpBarRuntimeOwner.register();
         pluginManager.registerEvents(fx, this);
         pluginManager.registerEvents(warlockAbilities, this);
 
@@ -511,7 +520,7 @@ public final class RaskolClasses extends JavaPlugin {
                                 exception);
             }
         }
-        activeTasks.add(hpBarService.start());
+        hpBarRuntimeOwner.start();
         activeTasks.add(resources.startTickTask(this));
         bossBarRuntimeOwner.start();
         flavorRuntimeOwner.start();
@@ -636,6 +645,19 @@ public final class RaskolClasses extends JavaPlugin {
      * затем сохраняемые сервисы, а общий StorageWriter закрывает последним.
      */
     private void shutdownRuntime() {
+        if (hpBarRuntimeOwner != null) {
+            try {
+                hpBarRuntimeOwner.close();
+                hpBarRuntimeOwner = null;
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить HP bar runtime",
+                                exception);
+            }
+        }
+
         if (hudRuntimeOwner != null) {
             try {
                 hudRuntimeOwner.close();
