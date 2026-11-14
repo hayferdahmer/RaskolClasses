@@ -418,3 +418,12 @@ InstallationRuntimeOwner now owns the recurring installation sweep task through 
 RaskolClasses constructs and starts the runtime owner. During shutdown it closes the owner before calling InstallationService.shutdown(), so the producer is stopped before active installation resources are expired. The task is no longer added to root activeTasks, eliminating the previous duplicate cancellation path.
 
 Focused tests cover idempotent start, close-before-start, scheduling failure, cancellation failure with retry, and single cancellation. The original installation limits, TTL, cooldowns, placement gates, handler tick behavior, and expiry behavior are intentionally unchanged.
+
+### A-03-003.21 — ScrollCooldown runtime verification
+
+- `ScrollCooldownRuntimeOwner` owns the 10-tick recurring producer and cache cleanup; `ScrollCooldownTask` retains display logic and cache state.
+- Focused tests cover idempotent start, cancellation-before-cache-cleanup, partial startup failure, retryable cancellation, retryable cache cleanup and close-before-start.
+- Spotless Format workflow run #23 applied formatting and completed successfully on the formatted branch head.
+- Build workflow run #3257 completed its build job successfully: 639 tests, 0 failures/errors/skips; JaCoCo thresholds met.
+- The Analyze job in run #3257 checked the pre-format commit and failed only because Spotless reported three formatting violations. Spotless Format #23 fixed those violations and its post-format `mvn -Pdev -B verify` completed successfully: 639 tests, SpotBugs 0 findings/0 errors, Spotless 468 Java files clean, `BUILD SUCCESS`.
+- A fresh Build run is required against the formatted branch head because the formatter's push uses `GITHUB_TOKEN` and does not trigger the Build workflow automatically.
