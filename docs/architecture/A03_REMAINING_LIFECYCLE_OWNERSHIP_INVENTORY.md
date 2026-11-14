@@ -457,3 +457,19 @@ HpAttributeSync preserves the 2-tick respawn sync delay. HpBarService preserves 
 Source-backed audit is recorded in [A03_STORAGE_COMPLETION_CALLBACK_AUDIT.md](A03_STORAGE_COMPLETION_CALLBACK_AUDIT.md). The four service completion paths and AsyncStorageWriter were traced, including normal worker-thread completion, inline completion on rejected submission, and shutdown queue cancellation.
 
 No universal storage callback runtime owner is introduced. Dirty generations and resource reset semantics remain owned by their respective services. Deterministic worker-thread/rejected-submit tests and a ResourceService stale-reset acknowledgement regression test are now present. ResourceService uses per-player reset generations for bulk, join and quit completion acknowledgement. HP Bar/Foliant in-flight coalescing is explicitly deferred until queue/latency metrics justify it. Storage drain/timeout semantics remain in A-04. This slice remains open pending full CI on one formatted HEAD.
+
+
+
+## 13. A-03-003.26 — FX and projectile runtime task ownership
+
+Source-backed findings are recorded in [A03_FX_RUNTIME_TASK_AUDIT.md](A03_FX_RUNTIME_TASK_AUDIT.md).
+
+- `FxService` owns charged projectile trail, aura and ambient BukkitTask handles alongside VFX state, but has no explicit root-invoked shutdown cleanup boundary.
+- Aura expiry callbacks are not handle-tracked; the existing identity guard prevents a stale callback from removing a replacement aura.
+- `TrailListener` creates bounded projectile trail tasks (maximum 200 ticks) without retaining handles; tasks self-cancel on invalid/dead projectile and Paper cancels plugin tasks on disable.
+- Frost Rune and Pentagram handles remain installation-scoped. Their `expire` methods cancel them, and `InstallationService.shutdown()` invokes `expire` for active installations.
+- Do not merge installation task ownership into a generic FX owner.
+
+The next bounded implementation candidate is an explicit, idempotent `FxService` shutdown boundary or a narrow `FxRuntimeOwner`, with focused tests for charged trails, aura replacement/expiration, ambient cancellation and partial cleanup. `TrailListener` should remain a separate decision because its tasks are short-lived and self-cancelling.
+
+This focused audit does not close the full repository-wide scan or authorize `BootstrapCoordinator` activation.
