@@ -13,15 +13,15 @@
 
 ## 1. Текущая картина
 
-В таблице сведены периодические producers и их фактические владельцы; в `RaskolClasses.activeTasks` остаются две cross-domain периодические задачи:
+В таблице сведены периодические producers и их фактические владельцы. После A-03-003.23 все recurring producers имеют отдельного lifecycle owner; root `activeTasks` удалён:
 
 | Задача | Текущий владелец | Интервал / назначение | Вывод |
 |---|---|---|---|
 | Resource tick | `ResourceRuntimeOwner` | 20 ticks; обновление ресурсов | Реализовано; ResourceService остаётся Listener и владельцем resource state/persistence |
 | Installation sweep | `InstallationRuntimeOwner` | 20 ticks; expiry/tick установок | Реализовано; owner закрывается до `InstallationService.shutdown()` |
 | Scroll cooldown display | `ScrollCooldownRuntimeOwner` | 10 ticks; отображение cooldown на предметах | Реализовано; owner отменяет producer и очищает кэши `ScrollCooldownTask` |
-| Global purge | root `activeTasks` через `PluginTasks` | конфигурируемый интервал | Cross-domain maintenance; не переносить в owner одного домена |
-| Global autosave | root `activeTasks` через `PluginTasks` | конфигурируемые минуты | Cross-storage coordinator; должен остановиться до финальных snapshots и закрытия writer |
+| Global purge | `PurgeRuntimeOwner` | `performance.purge-interval-ticks` | Реализовано; отдельный cross-domain owner |
+| Global autosave | `AutosaveRuntimeOwner` | `storage.autosave-minutes` | Реализовано; producer закрывается до финальных snapshots и writer |
 
 Текущие владельцы Pet, HUD, BossBar, HP Bar, HP attribute sweep, PlaceholderAPI, Crown Flavor, DoT, CC, Cooldown, Foliant и CCFeedback в этом списке не дублируются: их recurring producer и/или listener registration уже перенесены в специализированные owners.
 
@@ -63,7 +63,7 @@ ManaSoaked больше не входит в root `activeTasks`: `ManaSoakedRunt
 - Purge вызывает несколько независимых доменов и ability facades.
 - Autosave координирует cooldown, resources и spec2 storage.
 - Это cross-domain orchestration, а не ответственность одного доменного сервиса.
-- Рекомендация: пока оставить в composition root как два явно названных maintenance producer, зарегистрированных в root TaskScope или отдельном узком maintenance owner. Не переносить в ResourceService/CooldownManager/Spec2Service.
+- Реализовано: `PurgeRuntimeOwner` и `AutosaveRuntimeOwner` независимо владеют repeating tasks через собственные `TaskScope`; Paper scheduling изолирован в `PaperPurgeTaskScheduler` и `PaperAutosaveTaskScheduler`.
 - Acceptance gate: purge остановлен до очистки доменных state; autosave остановлен до финальных snapshots; общий AsyncStorageWriter закрывается последним.
 
 ## 3. Отложенные и одноразовые callback
@@ -134,7 +134,19 @@ ManaSoaked больше не входит в root `activeTasks`: `ManaSoakedRunt
 
 Порядок может быть скорректирован после полного repository-wide scan и проверки всех remaining task creation sites.
 
-## 6. Acceptance criteria A-03-003.21
+## 6. A-03-003.23 — Global maintenance runtime ownership
+
+- `PluginTasks` больше не планирует Bukkit-задачи и не возвращает `BukkitTask`: он содержит только два callback-цикла `purge()` и `autosave()`.
+- `PurgeRuntimeOwner` и `AutosaveRuntimeOwner` — независимые owners с отдельными `TaskScope`, идемпотентным start, запретом restart после неудачного старта/close и retryable cancellation.
+- `PaperPurgeTaskScheduler` сохраняет initial delay = period = `RaskolConfig.purgeIntervalTicks()`.
+- `PaperAutosaveTaskScheduler` сохраняет initial delay = period = `max(1, storage.autosave-minutes) * 60 * 20` ticks.
+- Состав purge сохранён: cooldowns, effects, ability attempts, FX, installations, resists, attributes, character levels, четыре ability facade purge, combat procs и burst log, затем `markPurgeNow()`.
+- Состав autosave сохранён и выполняется в исходном порядке: `CooldownManager.saveAll()`, `ResourceService.saveAll()`, `Spec2Storage.save()`.
+- Root больше не содержит `activeTasks`; owners создаются и запускаются в `startRuntimeTasks()`.
+- Shutdown закрывает global purge и autosave в самом начале, до финальных сохранений сервисов и до `AsyncStorageWriter.closeAndAwait()`.
+- Добавлены отдельные focused tests для каждого owner: idempotent start, close, scheduling failure, retryable cancellation и close-before-start.
+
+## 7. Acceptance criteria A-03-003.21
 
 - [x] Root recurring task registrations повторно проверены.
 - [x] Оставшиеся root-owned periodic tasks перечислены.
