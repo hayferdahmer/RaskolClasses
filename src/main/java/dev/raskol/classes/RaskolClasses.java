@@ -95,6 +95,8 @@ import dev.raskol.classes.hud.runtime.PaperHudTaskScheduler;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
+import dev.raskol.classes.install.runtime.InstallationRuntimeOwner;
+import dev.raskol.classes.install.runtime.PaperInstallationTaskScheduler;
 import dev.raskol.classes.integrity.artifact.ArtifactBoundIntegrityVerifier;
 import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
 import dev.raskol.classes.integrity.policy.RuntimeIntegrityEnforcementPolicy;
@@ -195,6 +197,7 @@ public final class RaskolClasses extends JavaPlugin {
     private FxService fx;
 
     private InstallationService installations;
+    private InstallationRuntimeOwner installationRuntimeOwner;
     private InstallToken installToken;
 
     private ResistService resists;
@@ -453,6 +456,8 @@ public final class RaskolClasses extends JavaPlugin {
                 new PaperFlavorTaskScheduler(this, flavorService::tickAura));
 
         this.installations = new InstallationService(this);
+        this.installationRuntimeOwner =
+                new InstallationRuntimeOwner(new PaperInstallationTaskScheduler(this, installations::sweep));
         this.installToken = new InstallToken(this);
 
         this.foliantService = new FoliantService(this);
@@ -543,7 +548,7 @@ public final class RaskolClasses extends JavaPlugin {
         activeTasks.add(resources.startTickTask(this));
         bossBarRuntimeOwner.start();
         flavorRuntimeOwner.start();
-        activeTasks.add(installations.startSweepTask());
+        installationRuntimeOwner.start();
         activeTasks.add(new ScrollCooldownTask(this).start());
         activeTasks.add(manaSoaked.start());
         activeTasks.add(PluginTasks.startPurgeTask(this));
@@ -818,6 +823,17 @@ public final class RaskolClasses extends JavaPlugin {
 
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
+        if (installationRuntimeOwner != null) {
+            try {
+                installationRuntimeOwner.close();
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить Installation runtime",
+                                exception);
+            }
+        }
         if (items != null) items.stop();
         if (passportListener != null) {
             passportListener.unregister();
