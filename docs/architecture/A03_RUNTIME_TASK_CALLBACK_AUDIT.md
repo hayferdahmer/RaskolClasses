@@ -13,13 +13,13 @@
 
 ## 1. Текущая картина
 
-После выделения специализированных runtime owners и InstallationRuntimeOwner в `RaskolClasses.activeTasks` остаются четыре периодические задачи:
+После выделения специализированных runtime owners, InstallationRuntimeOwner, ResourceRuntimeOwner и ScrollCooldownRuntimeOwner в `RaskolClasses.activeTasks` остаются три периодические задачи:
 
 | Задача | Текущий владелец | Интервал / назначение | Вывод |
 |---|---|---|---|
 | Resource tick | `ResourceRuntimeOwner` | 20 ticks; обновление ресурсов | Реализовано; ResourceService остаётся Listener и владельцем resource state/persistence |
 | Installation sweep | одновременно root handle и `InstallationService.sweepTask` | 20 ticks; expiry/tick установок | Дублированное владение handle; выбрать один lifecycle owner |
-| Scroll cooldown display | root `activeTasks` | 10 ticks; отображение cooldown на предметах | Нужен owner для producer и закрытия сервиса/cache |
+| Scroll cooldown display | `ScrollCooldownRuntimeOwner` | 10 ticks; отображение cooldown на предметах | Реализовано; owner отменяет producer и очищает кэши `ScrollCooldownTask` |
 | ManaSoaked | root `activeTasks` | 20 ticks; пассивный резист магов | Нужен domain-specific owner; mage state остаётся в ManaSoakedService |
 | Global purge | root `activeTasks` через `PluginTasks` | конфигурируемый интервал | Cross-domain maintenance; не переносить в owner одного домена |
 | Global autosave | root `activeTasks` через `PluginTasks` | конфигурируемые минуты | Cross-storage coordinator; должен остановиться до финальных snapshots и закрытия writer |
@@ -123,12 +123,11 @@
 
 ## 5. Рекомендуемая последовательность следующих срезов
 
-1. Scroll cooldown runtime ownership.
-2. ManaSoaked runtime ownership.
-3. Отдельный maintenance lifecycle для global purge/autosave без переноса cross-domain логики в домены.
-4. HP respawn one-shot callback ownership.
-5. A-04 storage completion/drain contract для Foliant, HP Bar, Resources и Cooldowns.
-6. Завершить repository-wide scan и сверку callback/task ownership.
+1. ManaSoaked runtime ownership.
+2. Отдельный maintenance lifecycle для global purge/autosave без переноса cross-domain логики в домены.
+3. HP respawn one-shot callback ownership.
+4. A-04 storage completion/drain contract для Foliant, HP Bar, Resources и Cooldowns.
+5. Завершить repository-wide scan и сверку callback/task ownership.
 
 Порядок может быть скорректирован после полного repository-wide scan и проверки всех remaining task creation sites.
 
@@ -138,6 +137,7 @@
 - [x] Оставшиеся root-owned periodic tasks перечислены.
 - [x] InstallationService duplicate handle ownership подтверждено и устранено через InstallationRuntimeOwner.
 - [x] ResourceService periodic producer вынесен в ResourceRuntimeOwner; финальное сохранение следует после остановки producer.
+- [x] ScrollCooldownTask producer вынесен в ScrollCooldownRuntimeOwner; остановка producer предшествует очистке его внутренних кэшей.
 - [x] HP attribute respawn one-shot callback подтверждён.
 - [x] HP Bar, Foliant и Resource storage/main-thread callbacks классифицированы.
 - [x] Warlock channel task creation/cancellation paths проверены.
