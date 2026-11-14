@@ -564,3 +564,13 @@ Formatting checkpoint: Spotless Format #42 completed successfully on the formatt
 - CI links: [Build #3359](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43638746750), [Format #43](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43638746780).
 - `main` remained unchanged at `2e407cbe59276e6af88857bf3a0d93595c55c52c`.
 - Live Paper 26.2 runtime smoke test remains outstanding.
+
+
+### A-03-003.34 — Installation / FX shutdown dependency ordering
+
+- Обнаружен root shutdown order gap: `FxService.shutdown()` выполнялся до `InstallationRuntimeOwner.close()` и `InstallationService.shutdown()`.
+- `FrostRuneHandler.expire()` и `PentagramHandler.expire()` используют `plugin.getFx()`; следовательно, cleanup инсталляций должен выполняться до закрытия FX runtime.
+- Порядок исправлен: остановка installation sweep → cleanup всех инсталляций → закрытие FxService.
+- Реализация: commit `0b5603b6470b525472e974a65d253326ef4e2aaa`.
+- Архитектурная запись: `docs/architecture/A03_INSTALLATION_FX_SHUTDOWN_ORDER.md`.
+- Требуется полный CI на финальном HEAD и live Paper 26.2 shutdown smoke test.
