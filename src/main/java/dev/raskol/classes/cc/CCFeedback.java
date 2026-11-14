@@ -33,9 +33,8 @@ import net.kyori.adventure.text.format.NamedTextColor;
  *     (через Paper API: hideEntity/showEntity + setVisibleByDefault);
  *   - ПРИВЯЗКА: оба TextDisplay — passenger цели (Display.addPassenger),
  *     автоматически следуют за целью при движении/телепортах;
- *   - ОЧИСТКА: статический Map activeHologram; clearHologram вызывается из
- *     CCService.clearBehavior при снятии CC (включая breakOnDamage, expiry,
- *     removeAll). При повторном CC на цель старая голограмма перезаписывается.
+ *   - ОЧИСТКА: CCFeedbackRuntimeOwner владеет парой дисплеев и one-shot task;
+ *     CCService вызывает очистку при expiry, а повторное CC заменяет прежнюю пару.
  *
  * 1.15.7 (compile-fix #1952): addViewer/removeViewer НЕ СУЩЕСТВУЕТ в Paper 1.21.4.
  * Пер-плеер видимость через:
