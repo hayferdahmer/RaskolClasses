@@ -121,7 +121,7 @@ The existing shutdown sequence is not failure-isolated end-to-end: most cleanup 
 
 ### P0 — HpAttributeSync lifecycle boundary (implemented; verification pending)
 
-`HpAttributeSyncRuntimeOwner` now owns listener registration and the 100-tick sweep through narrow registration/scheduler ports and Paper adapters. `HpAttributeSync` retains sync logic and join/respawn behavior. The owner supports startup rollback, idempotent close and retry after cancellation/unregistration failures. The delayed respawn one-shot (2 ticks) remains unowned and is a follow-up. Focused tests are authored; CI verification is pending.
+`HpAttributeSyncRuntimeOwner` owns listener registration and the 100-tick sweep through narrow registration/scheduler ports and Paper adapters. `HpAttributeSync` retains sync logic and join/respawn behavior. Its delayed respawn one-shot (2 ticks) is separately owned by a dedicated `PlayerCallbackRuntimeOwner`, cancelled on quit and closed during root shutdown. The parallel HP bar respawn callback (0 ticks) is also owned by its own `PlayerCallbackRuntimeOwner`. Both callback owners are distinct from the recurring HP runtime owners.
 
 ### P1 — CooldownManager runtime ownership
 
@@ -519,3 +519,21 @@ Source-backed findings are recorded in [A03_FOLIANT_AND_RIPS_CALLBACK_OWNERSHIP_
 Foliant post-transition class verification теперь принадлежит отдельному `PlayerCallbackRuntimeOwner`. Callback сохраняет задержку в один tick, хранит только UUID, разрешает текущий online Player при выполнении и пропускается после disconnect. Quit инициирует отмену; root shutdown закрывает owner до unregister Foliant listener. Cancellation failure логируется, а callback дополнительно защищён online re-resolution.
 
 Переиспользованы focused owner tests на completion, quit cancellation, shutdown cancellation, stale callback rejection и retry. RIPS enforcement callback и Foliant storage completion acknowledgement не менялись. Полный repository-wide scan остаётся открытым.
+
+
+## 18. A-03-003.31.1 — AsyncStorageWriter test stability
+
+- Тест `successfulCompletionRunsOnStorageWorkerThread` стабилизирован: worker ожидает явный release после регистрации completion callback.
+- Production-код `AsyncStorageWriter` не менялся.
+- Build #3337 и Analyze #3337 завершились SUCCESS на одном финальном HEAD `724846ed35bdd68d68f43a521cc6619c8bbd292f`.
+- Детали и CI checkpoint: `A03_ASYNC_STORAGE_WRITER_TEST_STABILITY.md`.
+- `main` не менялся.
+
+## 19. A-03-003.32 — Installation handler task ownership audit
+
+- Проверены все Java handlers каталога `install/`: только `PentagramHandler` и `FrostRuneHandler` создают собственные BukkitTask; их handles хранятся и отменяются в handler `expire()`.
+- FrostRune ambient task принадлежит `FxService`; handler хранит UUID и делегирует остановку.
+- Общий sweep принадлежит `InstallationRuntimeOwner` и закрывается до `InstallationService.shutdown()`.
+- Найден следующий bounded gap: `InstallationService.shutdown()`, `removeAllOf()` и `purgeStale()` не изолируют ошибки отдельных handler `expire()`; один сбой может остановить batch cleanup.
+- Подробности и предлагаемые критерии реализации: `A03_INSTALLATION_HANDLER_TASK_OWNERSHIP_AUDIT.md`.
+- Production source и tests не менялись; `main` и `BootstrapCoordinator` не затронуты.
