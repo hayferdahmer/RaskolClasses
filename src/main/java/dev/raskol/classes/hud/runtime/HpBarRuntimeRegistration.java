@@ -5,5 +5,6 @@ package dev.raskol.classes.hud.runtime;
 /** Порт регистрации lifecycle-событий HpBarService. */
 public interface HpBarRuntimeRegistration {
     void register();
+
     void unregister();
 }

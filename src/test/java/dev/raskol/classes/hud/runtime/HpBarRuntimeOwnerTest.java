@@ -22,8 +22,8 @@ class HpBarRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         AtomicLong period = new AtomicLong(10L);
         FakeScheduler scheduler = new FakeScheduler(calls);
-        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(
-                new FakeRegistration(calls), scheduler, () -> calls.add("tick"), period::get);
+        HpBarRuntimeOwner owner =
+                new HpBarRuntimeOwner(new FakeRegistration(calls), scheduler, () -> calls.add("tick"), period::get);
 
         owner.register();
         owner.register();
@@ -39,8 +39,8 @@ class HpBarRuntimeOwnerTest {
     @Test
     void startRequiresListenerRegistration() {
         List<String> calls = new ArrayList<>();
-        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(
-                new FakeRegistration(calls), new FakeScheduler(calls), () -> {}, () -> 10L);
+        HpBarRuntimeOwner owner =
+                new HpBarRuntimeOwner(new FakeRegistration(calls), new FakeScheduler(calls), () -> {}, () -> 10L);
 
         assertThrows(IllegalStateException.class, owner::start);
         assertTrue(calls.isEmpty());
@@ -49,8 +49,8 @@ class HpBarRuntimeOwnerTest {
     @Test
     void closeCancelsTickBeforeUnregisteringListener() {
         List<String> calls = new ArrayList<>();
-        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(
-                new FakeRegistration(calls), new FakeScheduler(calls), () -> {}, () -> 10L);
+        HpBarRuntimeOwner owner =
+                new HpBarRuntimeOwner(new FakeRegistration(calls), new FakeScheduler(calls), () -> {}, () -> 10L);
 
         owner.register();
         owner.start();
@@ -66,8 +66,7 @@ class HpBarRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         FakeScheduler scheduler = new FakeScheduler(calls);
         scheduler.failSchedule = true;
-        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(
-                new FakeRegistration(calls), scheduler, () -> {}, () -> 10L);
+        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(new FakeRegistration(calls), scheduler, () -> {}, () -> 10L);
 
         owner.register();
         assertThrows(IllegalStateException.class, owner::start);
@@ -82,8 +81,7 @@ class HpBarRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         FakeRegistration registration = new FakeRegistration(calls);
         registration.failRegister = true;
-        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(
-                registration, new FakeScheduler(calls), () -> {}, () -> 10L);
+        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(registration, new FakeScheduler(calls), () -> {}, () -> 10L);
 
         assertThrows(IllegalStateException.class, owner::register);
 
@@ -95,8 +93,7 @@ class HpBarRuntimeOwnerTest {
     void cancellationFailureDoesNotSkipUnregisterAndCanBeRetried() {
         List<String> calls = new ArrayList<>();
         FakeScheduler scheduler = new FakeScheduler(calls);
-        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(
-                new FakeRegistration(calls), scheduler, () -> {}, () -> 10L);
+        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(new FakeRegistration(calls), scheduler, () -> {}, () -> 10L);
 
         owner.register();
         owner.start();
@@ -120,8 +117,7 @@ class HpBarRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         FakeRegistration registration = new FakeRegistration(calls);
         registration.failUnregisterOnce = true;
-        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(
-                registration, new FakeScheduler(calls), () -> {}, () -> 10L);
+        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(registration, new FakeScheduler(calls), () -> {}, () -> 10L);
 
         owner.register();
         owner.start();
@@ -140,8 +136,8 @@ class HpBarRuntimeOwnerTest {
     @Test
     void invalidPeriodIsClampedToOneTick() {
         List<String> calls = new ArrayList<>();
-        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(
-                new FakeRegistration(calls), new FakeScheduler(calls), () -> {}, () -> 0L);
+        HpBarRuntimeOwner owner =
+                new HpBarRuntimeOwner(new FakeRegistration(calls), new FakeScheduler(calls), () -> {}, () -> 0L);
 
         owner.register();
         owner.start();
@@ -152,8 +148,8 @@ class HpBarRuntimeOwnerTest {
     @Test
     void closeBeforeRegistrationIsSafeAndPreventsLaterRegistration() {
         List<String> calls = new ArrayList<>();
-        HpBarRuntimeOwner owner = new HpBarRuntimeOwner(
-                new FakeRegistration(calls), new FakeScheduler(calls), () -> {}, () -> 10L);
+        HpBarRuntimeOwner owner =
+                new HpBarRuntimeOwner(new FakeRegistration(calls), new FakeScheduler(calls), () -> {}, () -> 10L);
 
         owner.close();
 

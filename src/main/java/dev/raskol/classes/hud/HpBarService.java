@@ -249,7 +249,6 @@ public final class HpBarService implements Listener {
         flushDirty();
     }
 
-
     private void tickPendingRestore(Player player, UUID uuid) {
         Pending p = pendingRestore.get(uuid);
         if (p == null) {
