@@ -128,8 +128,7 @@ ManaSoaked больше не входит в root `activeTasks`: `ManaSoakedRunt
 
 1. ManaSoaked runtime ownership.
 2. Отдельный maintenance lifecycle для global purge/autosave без переноса cross-domain логики в домены.
-3. HP respawn one-shot callback ownership.
-4. A-04 storage completion/drain contract для Foliant, HP Bar, Resources и Cooldowns.
+3. A-04 storage completion/drain contract для Foliant, HP Bar, Resources и Cooldowns.
 5. Завершить repository-wide scan и сверку callback/task ownership.
 
 Порядок может быть скорректирован после полного repository-wide scan и проверки всех remaining task creation sites.
@@ -166,3 +165,14 @@ ManaSoaked больше не входит в root `activeTasks`: `ManaSoakedRunt
 
 
 **CI verification checkpoint:** Spotless Format workflow run `43571814754` завершился успешно после форматирования актуального maintenance среза. Его post-format `mvn -Pdev -B verify` прошёл: 655 тестов, 0 failures/errors/skips, SpotBugs `BugInstance size is 0`, Spotless 480 Java files clean, `BUILD SUCCESS`. Build/Analyze workflow run `43571814792` проверял предшествующий pre-format SHA: Build job успешен (655 тестов), Analyze job ожидаемо остановился на Spotless diff; окончательный CI на последующем commit требуется.
+
+
+## 8. A-03-003.24 — HP respawn one-shot callback ownership
+
+- Добавлен общий lifecycle-механизм PlayerCallbackRuntimeOwner, который владеет отменяемыми одноразовыми задачами по UUID игрока; два HP-сервиса используют независимые экземпляры, чтобы не объединять их состояния и shutdown.
+- PaperPlayerCallbackScheduler — единственная граница Bukkit scheduler; core owner и его tests не зависят от Paper API.
+- HpAttributeSync сохраняет задержку 2 ticks. HpBarService сохраняет next-tick execution (delay 0). Оба callback проверяют актуальность игрока перед применением.
+- Повторный respawn заменяет предыдущий callback того же сервиса и UUID. Quit пытается отменить ожидающую задачу; ошибка отмены логируется и не прерывает HP persistence на quit.
+- Root закрывает оба callback owner до закрытия соответствующих HP listener/runtime owners и до финальных storage snapshots.
+- Focused tests проверяют завершение и освобождение handle, замену устаревшего callback, quit cancellation, shutdown cancellation/rejection и retry после ошибки отмены.
+- Не переносились HP writer completion callbacks: они остаются частью A-04 storage completion/drain contract.
