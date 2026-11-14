@@ -41,8 +41,7 @@ final class ResourceResetPersistence {
         return resolvedMarkers;
     }
 
-    static void completeSave(
-            Map<UUID, Long> resolvedMarkers, Set<UUID> resetOnJoin, Map<UUID, Long> resetGenerations) {
+    static void completeSave(Map<UUID, Long> resolvedMarkers, Set<UUID> resetOnJoin, Map<UUID, Long> resetGenerations) {
         resolvedMarkers.forEach((uuid, snapshotGeneration) -> {
             if (resetGenerations.getOrDefault(uuid, 0L).equals(snapshotGeneration)) {
                 resetOnJoin.remove(uuid);
