@@ -5,7 +5,7 @@
 - Репозиторий: `hayferdahmer/RaskolClasses`
 - Ветка: `refactor/a03-foundation-lifecycle`
 - Платформа: Paper 26.2 / Java 25
-- Тип работы: source-backed inventory; без изменения runtime/gameplay.
+- Тип работы: source-backed inventory с поэтапной runtime-реализацией; игровые механики не меняются намеренно.
 - Основной источник композиции: `src/main/java/dev/raskol/classes/RaskolClasses.java`.
 
 Инвентаризация фиксирует наблюдаемые точки создания, запуска, регистрации и остановки. Это не утверждение, что перечислены абсолютно все внутренние Bukkit-задачи: для этого потребуется отдельный проход по каждому сервису и его зависимостям. В частности, отложенные одноразовые задачи и задачи, создаваемые во время игрового процесса, помечены отдельно от корневых периодических задач.
@@ -21,6 +21,8 @@
 | HP attribute sync | `HpAttributeSyncRuntimeOwner` | Listener registration + 100-tick sweep; rollback, retryable cancellation/unregistration | Delayed respawn sync остаётся одноразовой задачей без отдельного handle |
 | PlaceholderAPI | `PlaceholderRuntimeOwner` | Пятитиковый snapshot producer + регистрация двух expansions; rollback и retryable cleanup | Snapshot data остаётся в `PlaceholderSnapshotService`; Paper adapter владеет expansion instances |
 | Crown flavor | `FlavorRuntimeOwner` | Listener registration + 40-tick aura producer; rollback и retryable cancellation/unregistration | `CrownFlavorService` сохраняет faction/title lookup и aura tick logic |
+| Installation sweep | `InstallationRuntimeOwner` + `PaperInstallationTaskScheduler` | Отдельный TaskScope; 20-tick initial delay/period; root close перед service cleanup | `InstallationService` владеет active installations, expiry и cooldown state; BukkitTask больше не хранится в сервисе |
+| Warlock channel callbacks | `WarlockChannelTaskOwner` | Per-caster handles; немедленная регистрация, partial rollback, retryable close | `WarlockAbilities` сохраняет channel/damage behavior; root закрывает owner при shutdown |
 
 Важно: наличие owner-класса не означает, что production lifecycle уже переведён на него.
 
