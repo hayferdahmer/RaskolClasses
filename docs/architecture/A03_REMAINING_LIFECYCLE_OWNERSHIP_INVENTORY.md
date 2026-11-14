@@ -600,3 +600,8 @@ Implemented on the lifecycle branch and documented in [A03_LIFECYCLE_RESIDUAL_AU
 - `Error` is intentionally not swallowed. A failed snapshot remains a failed snapshot even though later best-effort shutdown steps continue.
 - CI and Paper 26.2 runtime smoke test for the implementation remain pending.
 - `main` and `BootstrapCoordinator` remain untouched.
+
+
+### CI checkpoint
+
+Post-format verification passed on implementation HEAD `0d6b97053b30768040e9ea9c3bf92b3f005cd4d4`: 680 tests, JaCoCo, SpotBugs (0 findings), and Spotless (491 Java files clean). The format workflow's post-format Maven verification reported `BUILD SUCCESS`. A Paper 26.2 runtime smoke test specifically exercising an injected shutdown-step failure remains outstanding.
