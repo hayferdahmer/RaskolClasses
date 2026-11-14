@@ -341,3 +341,55 @@ The DoT and CC lifecycles are deliberately implemented as two independent runtim
 Both owners independently roll back partial startup, cancel their own producer before unregistering their own listener, and preserve retry paths for failed cleanup. `RaskolClasses` no longer stores either task in `activeTasks`. No effect-state map, DR rule, duration, tick cadence, damage formula, CC behavior, API call site, or configuration key is intentionally changed.
 
 Follow-up audit item: `CCFeedback` still owns static hologram bookkeeping and creates one-shot delayed cleanup tasks. Those are not periodic CC producers and were intentionally left outside this slice; they require a separate resource-lifecycle decision rather than being silently absorbed into `CCRuntimeOwner`.
+## 15. A-03-003.20 — CCFeedback resource lifecycle assessment
+
+### Фактическая текущая реализация
+
+`CCFeedback` owns two different kinds of work that are not part of the periodic CC producer:
+
+- a static `ConcurrentHashMap<UUID, HologramBundle>` retaining the global and optional player-local `TextDisplay` entities;
+- one `runTaskLater` callback per hologram application, scheduled for the CC duration.
+
+The delayed task handle is discarded. `CCService` clears holograms on normal CC expiry and break/removal paths through `CCFeedback.onExpire` / `clearHologram`, but there is no explicit resource cleanup owner in the plugin shutdown path.
+
+The global display is visible to everyone except a player target; the optional local display is hidden by default and shown to that target. Both displays are passengers of the target. This visibility and attachment behavior is a compatibility contract.
+
+### Source-backed lifecycle gaps
+
+1. **Stale delayed callback can delete a replacement.** The callback removes both captured displays and then unconditionally executes `ACTIVE.remove(targetUuid)`. If a new CC application replaced the bundle before the old callback fires, the old callback can remove the new bundle's map entry. This can orphan the replacement displays from explicit cleanup.
+2. **Partial spawn can leak a display.** The global display is spawned before the local display and before the bundle is published in `ACTIVE`. If local display creation or later setup throws, the already spawned global display has no registered owner.
+3. **Delayed tasks are untracked.** Explicit clear removes the current displays but does not cancel the corresponding delayed callback. The callback can still run later against captured entities and UUID state.
+4. **No disable cleanup boundary.** `shutdownRuntime()` closes `CCRuntimeOwner`, but that owner intentionally owns only the CC listener and 1-tick producer. There is no independent close operation for holograms and their delayed tasks.
+5. **No explicit world/entity lifecycle hook.** `CCService` removes active CC on player quit, entity death, or when its tick discovers a missing/dead entity. These paths normally call feedback cleanup, but they do not replace a plugin-wide resource owner and do not cover partial creation.
+
+### Ownership decision
+
+Introduce a dedicated `CCFeedbackRuntimeOwner`, separate from `CCRuntimeOwner`.
+
+- It owns target-UUID keyed hologram bundles and their one-shot cleanup task handles.
+- It owns only visual resources and their cleanup callbacks. It does not own `CCInstance`, DR state, fear deadlines, slow modifiers, CC calculations, or the periodic CC tick.
+- Replacing a target bundle must retire the exact previous entry before publishing the new one.
+- A delayed callback may remove an entry only when it still owns the exact current entry (identity/generation check); it must never remove a newer replacement.
+- Creation must be transactional: every successfully spawned display is either published to the owner or removed if a later creation/attachment/scheduling step fails.
+- Explicit clear and owner close cancel the corresponding delayed task before removing displays. Cleanup attempts for task cancellation and display removal must be independent and retryable.
+- The Paper boundary remains responsible for Bukkit `TextDisplay` and scheduler operations; the owner core should be testable without a live server.
+- Close is idempotent and must leave failed-to-cancel task handles / failed-to-remove displays reachable for retry.
+
+### Preserved behavior / non-goals
+
+- Preserve the existing two-display visibility model, passenger attachment, text, color, billboard, see-through and shadow settings.
+- Preserve `cc.feedback-hologram`, duration calculation, and the one-shot cleanup deadline (`max(1, ticks)`).
+- Preserve all sounds, particles, player/caster messages, CC timing, DR rules, and service call semantics.
+- Do not merge this owner into `CCRuntimeOwner`.
+- Do not move CC domain state into the resource owner.
+- Do not add new gameplay listeners or change quit/death semantics as part of the extraction.
+
+### Implementation acceptance criteria
+
+- [ ] One-shot task handles are retained and cancelled on replacement, explicit clear, and plugin disable.
+- [ ] An old callback cannot remove a replacement bundle.
+- [ ] Partial global/local display creation and scheduling failures remove every resource already created.
+- [ ] Cleanup attempts every task and every display even when one cleanup operation fails.
+- [ ] Failed cleanup remains retryable on a subsequent close.
+- [ ] Focused unit tests cover replacement identity, stale callback, partial creation rollback, cancellation/removal failures, close-before-start and repeated close.
+- [ ] `CCService` remains the owner of CC state; `CCRuntimeOwner` remains the owner of the periodic CC producer.
