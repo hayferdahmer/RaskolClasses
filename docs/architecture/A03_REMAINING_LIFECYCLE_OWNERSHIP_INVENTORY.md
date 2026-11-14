@@ -443,3 +443,10 @@ Global purge и autosave больше не принадлежат неструк
 ### A-03-003.23 verification checkpoint
 
 Spotless Format run `43571814754` completed successfully and its post-format `mvn -Pdev -B verify` passed: 655 tests, 0 failures/errors/skips, SpotBugs 0 BugInstances, Spotless 480 Java files clean, `BUILD SUCCESS`. A fresh Build/Analyze run on the formatted branch head remains the final CI gate; no live Paper server test is claimed.
+
+
+## A-03-003.24 — HP respawn callback ownership
+
+PlayerCallbackRuntimeOwner is shared infrastructure, but HP Attribute and HP Bar each receive an independent instance. The owner tracks one callback per player UUID, replaces a prior callback by cancelling its handle, releases entries before invoking completed callbacks, and retains failed cancellations for retry. Paper scheduling is isolated in PaperPlayerCallbackScheduler.
+
+HpAttributeSync preserves the 2-tick respawn sync delay. HpBarService preserves next-tick execution for max-health/HP/hearts restoration. Quit cancels the pending callback without allowing a cancellation error to skip HP persistence. Both owners are closed before the HP listener/runtime owners and before final storage snapshots. Storage writer completion callbacks are explicitly excluded and remain in A-04.
