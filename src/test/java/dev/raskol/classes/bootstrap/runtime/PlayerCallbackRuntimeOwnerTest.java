@@ -48,6 +48,22 @@ class PlayerCallbackRuntimeOwnerTest {
     }
 
     @Test
+    void staleCallbackCannotRunAfterReplacementEvenIfSchedulerDeliversIt() {
+        FakeScheduler scheduler = new FakeScheduler();
+        PlayerCallbackRuntimeOwner owner = new PlayerCallbackRuntimeOwner(scheduler);
+        UUID playerId = UUID.randomUUID();
+        List<String> calls = new ArrayList<>();
+
+        owner.schedule(playerId, 2L, () -> calls.add("old"));
+        owner.schedule(playerId, 1L, () -> calls.add("new"));
+        scheduler.runEvenIfCancelled(0);
+        scheduler.run(1);
+
+        assertEquals(List.of("new"), calls);
+        assertEquals(0, owner.ownedTaskCount());
+    }
+
+    @Test
     void quitCancellationPreventsCallback() {
         FakeScheduler scheduler = new FakeScheduler();
         PlayerCallbackRuntimeOwner owner = new PlayerCallbackRuntimeOwner(scheduler);
@@ -108,6 +124,10 @@ class PlayerCallbackRuntimeOwnerTest {
             if (!handles.get(index).cancelled) {
                 callbacks.get(index).run();
             }
+        }
+
+        private void runEvenIfCancelled(int index) {
+            callbacks.get(index).run();
         }
     }
 
