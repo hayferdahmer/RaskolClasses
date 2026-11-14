@@ -358,7 +358,7 @@ public final class CCService implements Listener {
         if (type.interruptible() && CastChannels.interrupt(targetUuid)) {
             CCFeedback.onInterruptCast(plugin, target, type);
         }
-        CCFeedback.onApply(plugin, caster, target, type, applied, drMult);
+        feedback.onApply(plugin, caster, target, type, applied, drMult);
         return new ApplyResult(CCResult.SUCCESS, applied, drMult);
     }
 
@@ -629,7 +629,7 @@ public final class CCService implements Listener {
                 if (inst.expired(now)) {
                     list.remove(inst);
                     clearBehavior(uuid, inst.type());
-                    CCFeedback.onExpire(plugin, target, inst.type());
+                    feedback.onExpire(plugin, target, inst.type());
                     continue;
                 }
                 if (particleFrame) {
