@@ -30,10 +30,10 @@
 - [x] Повторно сверены refs до изменения: рабочая ветка была на `e88a0976a0da70394fd65f03e140db990c9b5db3`, `main` — на `2e407cbe59276e6af88857bf3a0d93595c55c52c`.
 - [x] Изменён только `AsyncStorageWriterTest.java` в production/test code.
 - [x] Production source не менялся.
-- [ ] Полный `mvn -Pdev -B verify` на итоговом HEAD.
-- [ ] Build workflow SUCCESS на итоговом HEAD.
-- [ ] Analyze workflow SUCCESS на итоговом HEAD.
-- [ ] Spotless и SpotBugs подтверждены на итоговом HEAD.
+- [x] Полный `mvn -Pdev -B verify` завершился успешно в Build workflow #3337 на итоговом HEAD `724846ed35bdd68d68f43a521cc6619c8bbd292f`.
+- [x] Build workflow #3337 SUCCESS на итоговом HEAD.
+- [x] Analyze workflow #3337 SUCCESS на итоговом HEAD.
+- [x] Spotless и SpotBugs подтверждены успешным Analyze job на итоговом HEAD.
 - [ ] Live Paper 26.2 runtime smoke test не выполнялся в рамках этого среза.
 
 `main` не изменялся. `BootstrapCoordinator` не активировался. A-03-003.32 не начинать до зелёных Build и Analyze на одном и том же финальном HEAD.
