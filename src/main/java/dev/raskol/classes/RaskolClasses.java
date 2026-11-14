@@ -825,8 +825,6 @@ public final class RaskolClasses extends JavaPlugin {
             }
         }
 
-        activeTasks.forEach(BukkitTask::cancel);
-        activeTasks.clear();
         if (resourceRuntimeOwner != null) {
             try {
                 resourceRuntimeOwner.close();
@@ -849,6 +847,8 @@ public final class RaskolClasses extends JavaPlugin {
                                 exception);
             }
         }
+        activeTasks.forEach(BukkitTask::cancel);
+        activeTasks.clear();
         if (items != null) items.stop();
         if (passportListener != null) {
             passportListener.unregister();
