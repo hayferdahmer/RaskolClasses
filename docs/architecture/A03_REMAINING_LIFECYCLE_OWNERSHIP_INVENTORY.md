@@ -22,6 +22,7 @@
 | PlaceholderAPI | `PlaceholderRuntimeOwner` | Пятитиковый snapshot producer + регистрация двух expansions; rollback и retryable cleanup | Snapshot data остаётся в `PlaceholderSnapshotService`; Paper adapter владеет expansion instances |
 | Crown flavor | `FlavorRuntimeOwner` | Listener registration + 40-tick aura producer; rollback и retryable cancellation/unregistration | `CrownFlavorService` сохраняет faction/title lookup и aura tick logic |
 | Installation sweep | `InstallationRuntimeOwner` + `PaperInstallationTaskScheduler` | Отдельный TaskScope; 20-tick initial delay/period; root close перед service cleanup | `InstallationService` владеет active installations, expiry и cooldown state; BukkitTask больше не хранится в сервисе |
+| Resource tick | `ResourceRuntimeOwner` + `PaperResourceTaskScheduler` | Отдельный TaskScope; 20-tick initial delay/period; owner закрывается перед `resources.saveAll()` | `ResourceService` сохраняет listener, resource state, регенерацию и persistence; `tick()` — callback без scheduler ownership |
 | Warlock channel callbacks | `WarlockChannelTaskOwner` | Per-caster handles; немедленная регистрация, partial rollback, retryable close | `WarlockAbilities` сохраняет channel/damage behavior; root закрывает owner при shutdown |
 
 Важно: наличие owner-класса не означает, что production lifecycle уже переведён на него.
@@ -36,7 +37,7 @@
 | CC tick | `CCRuntimeOwner` + `PaperCCTaskScheduler` | `CCRuntimeOwner` / `TaskScope` | CC state остаётся в CCService; cadence 1 tick |
 | HUD ActionBar | `HudRuntimeOwner.start()` при `hud.enabled && hp-display.mode=vanilla` | `HudRuntimeOwner` / `TaskScope` | Reload согласует start/stop; начальная задержка и период сохраняют `max(1, hudUpdatePeriodTicks())` |
 | HP bar runtime | `HpBarRuntimeOwner` + `PaperHpBarTaskScheduler` + `PaperHpBarRuntimeRegistration` | Owner owns join/quit/respawn listener and periodic tick; `HpBarService` retains HP state, gameplay logic and health persistence | Подключён к root; `saveAll()` остаётся в shutdown перед закрытием общего StorageWriter |
-| Resource tick | `resources.startTickTask(this)` | `activeTasks` | Resource runtime; сервис также Listener и хранит изменяемое состояние |
+| Resource tick | `ResourceRuntimeOwner` + `PaperResourceTaskScheduler` | `ResourceRuntimeOwner` / `TaskScope` | `ResourceService.tick()` выполняет один цикл; owner закрывается до финального `saveAll()` |
 | BossBar tick | `BossBarRuntimeOwner` + `PaperBossBarTaskScheduler` | `BossBarRuntimeOwner` / `TaskScope` | `BossBarService` выполняет один render cycle и хранит полосы; период берётся из `bossBarTickPeriod()`; reload вызывает owner restart |
 | Flavor aura | `FlavorRuntimeOwner.start()` | `FlavorRuntimeOwner` / `TaskScope` | Сохраняет исходный 40-tick период; listener регистрируется тем же owner до запуска producer |
 | Installation sweep | `InstallationRuntimeOwner` + `PaperInstallationTaskScheduler` | `InstallationRuntimeOwner` / `TaskScope` | InstallationService.sweep() выполняет один цикл; cadence 20 ticks; owner закрывается до service cleanup |
@@ -95,9 +96,9 @@ Bukkit обычно очищает зарегистрированные listener
 7. Cancel Warlock channel tasks.
 8. `FoliantRuntimeOwner.close()` (stop periodic flush → unregister listener), затем `foliantService.saveLocksIfDirty()`.
 9. `petRuntimeOwner.close()` (despawn → cancel → unregister).
-10. Cancel/clear оставшиеся root `activeTasks`, затем close `InstallationRuntimeOwner`.
+10. Cancel/clear оставшиеся root `activeTasks`, затем close `ResourceRuntimeOwner` и `InstallationRuntimeOwner`.
 11. `items.stop()`; unregister PassportChangeListener.
-12. `resources.saveAll()`, `hpBarService.saveAll()`, `spec2Storage.save()`.
+12. `resources.saveAll()` (после ResourceRuntimeOwner.close), `hpBarService.saveAll()`, `spec2Storage.save()`.
 13. `installations.shutdown()` (после остановки InstallationRuntimeOwner), `bossBars.shutdown()`.
 14. Cooldowns: `CooldownRuntimeOwner.close()` (cancel delayed tasks → unregister listener) → `CooldownManager.saveAll()` → `CooldownManager.clear()`.
 15. ClassProvider shutdown; effects clear.
