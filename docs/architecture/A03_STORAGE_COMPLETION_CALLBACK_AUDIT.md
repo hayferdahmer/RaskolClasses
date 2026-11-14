@@ -41,7 +41,7 @@ Completion callback `CompletableFuture` не имеет гарантирован
 - Dirty очищается только после успешной записи и только если generation не изменилось.
 - Новые изменения во время записи не теряются: acknowledgement старого generation не очищает более новое состояние; текущая реализация инициирует следующий flush.
 - При невозможности поставить Bukkit acknowledgement dirty-маркеры остаются.
-- Нет флага/handle in-flight write. Пока dirty остаётся true, очередные tick/flush могут ставить повторные snapshots одного поколения. Это лишняя нагрузка, не подтверждённая потеря данных.
+- Нет флага/handle in-flight write. Пока dirty остаётся true, очередные tick/flush могут ставить повторные snapshots одного поколения. Это лишняя нагрузка, не подтверждённая потеря данных. Coalescing отложен: cadence flush редкая, а усложнение ownership пока не оправдано измеренной нагрузкой.
 - Shutdown вызывает `saveAll()` до `AsyncStorageWriter.closeAndAwait()`. Writer завершает дисковые операции, но main-thread acknowledgement может остаться в очереди и не исполниться во время disable. Это не отменяет уже завершённую запись, но не очищает in-memory dirty state; после disable он больше не нужен.
 
 ### 3.2 FoliantService
@@ -49,7 +49,7 @@ Completion callback `CompletableFuture` не имеет гарантирован
 - `saveLocks()` сериализует создание снимка через synchronized method, фиксирует generation и очищает dirty только через main-thread acknowledgement после успешной записи.
 - Новые изменения после снимка не очищаются старым acknowledgement.
 - При scheduling failure acknowledgement не выполняется, dirty остаётся консервативно установленным.
-- Периодический flush может поставить несколько одинаковых snapshots до завершения первого; отдельного in-flight gate нет.
+- Периодический flush может поставить несколько одинаковых snapshots до завершения первого; отдельного in-flight gate нет. Coalescing отложен по той же причине: нет данных о значимой нагрузке/очереди.
 - Root закрывает `FoliantRuntimeOwner`, затем вызывает `saveLocksIfDirty()`, затем закрывает общий writer последним.
 - Возврат `saveLocks()` отражает только постановку/уже завершившийся результат submit, а не окончательное durable completion. Это различие нужно сохранить в API и документации.
 
@@ -84,6 +84,10 @@ Completion callback `CompletableFuture` не имеет гарантирован
 Отдельное ограничение `closeAndAwait`: при timeout он вызывает `shutdownNow()`, завершает futures для queued writes значением false и возвращает false; уже выполняющаяся файловая операция может продолжить работу. Улучшение drain/timeout semantics относится к A-04 и не должно незаметно решаться в callback ownership slice.
 
 ## 5. Риски и приоритеты
+
+### Исправление, внесённое в этом срезе
+
+Подтверждён race в ResourceService: completion старого bulk/join/quit snapshot мог снять UUID из resetOnJoin после регистрации более нового reset intent. Добавлен монотонный per-player reset generation. Снимок сохраняет generation для resolved UUID; success acknowledgement удаляет marker только при совпадении текущей generation со снимком. Join/quit acknowledgement также сверяет generation, а failure восстанавливает marker консервативно. Это не меняет YAML schema и gameplay reset semantics.
 
 ### P1 — закрепить контракт execution context
 Добавить тесты/документацию, подтверждающие:
@@ -127,9 +131,9 @@ Completion callback `CompletableFuture` не имеет гарантирован
 - [x] Source-backed inventory всех четырёх сервисов и writer.
 - [x] Проверен completion thread contract для штатного, rejected и shutdown пути.
 - [x] Проверен root shutdown ordering: producers → final snapshots → writer close.
-- [ ] Добавлены deterministic tests на execution context/rejected completion.
-- [ ] Добавлены ResourceService reset marker race tests.
-- [ ] Зафиксировано решение о coalescing HP Bar/Foliant.
+- [x] Добавлены deterministic tests на worker-thread completion и rejected inline completion.
+- [x] Добавлен regression test: stale success не очищает более новое reset intent; ResourceService использует per-player reset generation для bulk/join/quit acknowledgement.
+- [x] Решение о coalescing зафиксировано: отложить; текущая cadence flush (десятки секунд) и FIFO writer делают дублирующий snapshot редким, а подтверждённой потери данных нет. Вернуться при наличии метрик очереди/latency в A-04.
 - [ ] Полный Build/Analyze/Spotless CI на одном HEAD.
 - [ ] Inventory и roadmap синхронизированы.
 
