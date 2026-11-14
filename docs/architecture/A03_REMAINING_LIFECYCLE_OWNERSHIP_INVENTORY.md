@@ -438,3 +438,8 @@ Global purge и autosave больше не принадлежат неструк
 `RaskolClasses.startRuntimeTasks()` создаёт и запускает оба owner с прежними интервалами: purge — `purgeIntervalTicks`; autosave — `max(1, storage.autosave-minutes) * 60 * 20` ticks. В начале shutdown оба producer закрываются до финальных `saveAll()`/`save()` и до последнего `AsyncStorageWriter.closeAndAwait()`.
 
 Добавлены `PurgeRuntimeOwnerTest` и `AutosaveRuntimeOwnerTest`, по пять сценариев каждый: idempotent start, idempotent close, scheduling failure, retryable cancellation и close-before-start. `main` не затрагивался; live Paper server verification не заявляется до CI и runtime smoke test.
+
+
+### A-03-003.23 verification checkpoint
+
+Spotless Format run `43571814754` completed successfully and its post-format `mvn -Pdev -B verify` passed: 655 tests, 0 failures/errors/skips, SpotBugs 0 BugInstances, Spotless 480 Java files clean, `BUILD SUCCESS`. A fresh Build/Analyze run on the formatted branch head remains the final CI gate; no live Paper server test is claimed.
