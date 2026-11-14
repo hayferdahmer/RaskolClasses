@@ -34,6 +34,9 @@ import dev.raskol.classes.bootstrap.PluginTasks;
 import dev.raskol.classes.bootstrap.SessionListener;
 import dev.raskol.classes.bootstrap.StartupChecks;
 import dev.raskol.classes.cc.CCGuard;
+import dev.raskol.classes.cc.runtime.CCRuntimeOwner;
+import dev.raskol.classes.cc.runtime.PaperCCRuntimeRegistration;
+import dev.raskol.classes.cc.runtime.PaperCCTaskScheduler;
 import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.CastGuard;
 import dev.raskol.classes.cc.VanillaCCWrapper;
@@ -41,6 +44,9 @@ import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.dot.runtime.DotRuntimeOwner;
+import dev.raskol.classes.combat.dot.runtime.PaperDotRuntimeRegistration;
+import dev.raskol.classes.combat.dot.runtime.PaperDotTaskScheduler;
 import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.command.RaskolCommand;
@@ -207,7 +213,9 @@ public final class RaskolClasses extends JavaPlugin {
     /** Единственный владелец listener и задач runtime петов. */
     private PetRuntimeOwner petRuntimeOwner;
 
+    private DotRuntimeOwner dotRuntimeOwner;
     private CCService ccService;
+    private CCRuntimeOwner ccRuntimeOwner;
     private CCGuard ccGuard;
     private CastGuard castGuard;
     private VanillaCCWrapper vanillaCCWrapper;
@@ -368,13 +376,19 @@ public final class RaskolClasses extends JavaPlugin {
         if (getConfig().getBoolean("item.enabled", true)) {
             items.start();
         }
-        combat.dots().registerListeners();
-        activeTasks.add(combat.dots().startTickTask());
+        this.dotRuntimeOwner = new DotRuntimeOwner(
+                new PaperDotRuntimeRegistration(pluginManager, this, combat.dots()),
+                new PaperDotTaskScheduler(this),
+                combat.dots()::tick);
+        dotRuntimeOwner.start();
         this.manaSoaked = new ManaSoakedService(this);
 
         this.ccService = new CCService(this);
-        ccService.registerListeners();
-        activeTasks.add(ccService.startTickTask());
+        this.ccRuntimeOwner = new CCRuntimeOwner(
+                new PaperCCRuntimeRegistration(pluginManager, this, ccService),
+                new PaperCCTaskScheduler(this),
+                ccService::tick);
+        ccRuntimeOwner.start();
 
         this.ccGuard = new CCGuard(this);
         ccGuard.registerListeners();
@@ -752,6 +766,23 @@ public final class RaskolClasses extends JavaPlugin {
                                 java.util.logging.Level.SEVERE,
                                 "Не удалось полностью остановить runtime петов",
                                 exception);
+            }
+        }
+
+        if (dotRuntimeOwner != null) {
+            try {
+                dotRuntimeOwner.close();
+                dotRuntimeOwner = null;
+            } catch (RuntimeException exception) {
+                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить DoT runtime", exception);
+            }
+        }
+        if (ccRuntimeOwner != null) {
+            try {
+                ccRuntimeOwner.close();
+                ccRuntimeOwner = null;
+            } catch (RuntimeException exception) {
+                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить CC runtime", exception);
             }
         }
 
