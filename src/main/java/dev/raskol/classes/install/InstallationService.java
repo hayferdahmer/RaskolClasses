@@ -43,6 +43,7 @@ public final class InstallationService {
     private final Map<InstallationType, InstallationHandler> handlers = new EnumMap<>(InstallationType.class);
     private final Map<UUID, ActiveInstallation> installations = new ConcurrentHashMap<>();
     private final Map<String, Long> placeCooldowns = new ConcurrentHashMap<>();
+    private final InstallationCleanupCoordinator cleanupCoordinator;
 
     public InstallationService(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -55,6 +56,21 @@ public final class InstallationService {
                 new PentagramHandler(plugin))) {
             handlers.put(h.type(), h);
         }
+        this.cleanupCoordinator = new InstallationCleanupCoordinator(
+                installations,
+                handlers::get,
+                (operation, installation, exception) -> plugin.getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Installation cleanup failed; entry retained for retry. operation="
+                                        + operation
+                                        + ", id="
+                                        + installation.id()
+                                        + ", type="
+                                        + installation.type()
+                                        + ", owner="
+                                        + installation.owner(),
+                                exception));
     }
 
     /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteDouble (аудит 1-01). */
@@ -191,59 +207,34 @@ public final class InstallationService {
     public void sweep() {
         long now = System.currentTimeMillis();
         for (ActiveInstallation inst : List.copyOf(installations.values())) {
-            InstallationHandler h = handlers.get(inst.type());
-            if (h == null) {
-                installations.remove(inst.id());
+            InstallationHandler handler = handlers.get(inst.type());
+            if (handler == null) {
+                cleanupCoordinator.cleanup(candidate -> candidate.id().equals(inst.id()), "sweep-missing-handler");
                 continue;
             }
             if (now > inst.expiresAt()) {
-                installations.remove(inst.id());
-                h.expire(inst);
+                cleanupCoordinator.cleanup(candidate -> candidate.id().equals(inst.id()), "sweep-expired");
                 continue;
             }
-            if (!h.tick(inst)) {
-                installations.remove(inst.id());
-                h.expire(inst);
+            if (!handler.tick(inst)) {
+                cleanupCoordinator.cleanup(candidate -> candidate.id().equals(inst.id()), "sweep-triggered");
             }
         }
     }
 
     public void purgeStale() {
         long now = System.currentTimeMillis();
-        installations.entrySet().removeIf(e -> {
-            boolean expired = e.getValue().expiresAt() < now;
-            if (expired) {
-                InstallationHandler h = handlers.get(e.getValue().type());
-                if (h != null) {
-                    h.expire(e.getValue());
-                }
-            }
-            return expired;
-        });
-        placeCooldowns.entrySet().removeIf(e -> e.getValue() < now);
+        cleanupCoordinator.cleanup(installation -> installation.expiresAt() < now, "purge-stale");
+        placeCooldowns.entrySet().removeIf(entry -> entry.getValue() < now);
     }
 
     public void shutdown() {
-        for (ActiveInstallation inst : List.copyOf(installations.values())) {
-            InstallationHandler h = handlers.get(inst.type());
-            if (h != null) {
-                h.expire(inst);
-            }
-        }
-        installations.clear();
+        cleanupCoordinator.cleanup(installation -> true, "shutdown");
         placeCooldowns.clear();
     }
 
     public void removeAllOf(UUID uuid) {
-        for (ActiveInstallation inst : List.copyOf(installations.values())) {
-            if (inst.owner().equals(uuid)) {
-                installations.remove(inst.id());
-                InstallationHandler h = handlers.get(inst.type());
-                if (h != null) {
-                    h.expire(inst);
-                }
-            }
-        }
+        cleanupCoordinator.cleanup(installation -> installation.owner().equals(uuid), "remove-player");
         placeCooldowns.keySet().removeIf(key -> key.startsWith(uuid + ":"));
     }
 
