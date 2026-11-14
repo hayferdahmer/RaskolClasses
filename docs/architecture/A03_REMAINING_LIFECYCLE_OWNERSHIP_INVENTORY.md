@@ -397,3 +397,10 @@ Paper-level integration verification of TextDisplay visibility/passenger behavio
 Подтверждённые остатки после выделения owners, включая шесть root-owned periodic tasks, HP respawn callbacks, storage completion callbacks, Warlock channel tasks и duplicate sweep handle InstallationService, описаны в отдельном source-backed документе: [A03_RUNTIME_TASK_CALLBACK_AUDIT.md](A03_RUNTIME_TASK_CALLBACK_AUDIT.md).
 
 Аудит выполняется поэтапно. Полный repository-wide scan и сверка всех task creation sites остаются незакрытыми acceptance criteria; runtime-код в этом срезе не менялся.
+
+
+### A-03-003.21 implementation update — Warlock channel tasks
+
+`WarlockChannelTaskOwner` now owns the one-shot tasks created by `WarlockAbilities.soulRift()` on a per-caster basis. Each handle is registered immediately after scheduling; partial scheduling failure cancels already registered tasks; channel completion releases handles in a `finally` block; plugin shutdown closes the owner independently. Five focused unit tests cover caster isolation, retryable cancellation, close retry, normal completion, and rejection after close.
+
+The next CI pass must include Spotless formatting and the complete `mvn -Pdev -B verify` pipeline. This implementation slice remains open until both Build and Analyze jobs pass.
