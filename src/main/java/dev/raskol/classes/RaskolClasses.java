@@ -33,11 +33,14 @@ import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncScheduler;
 import dev.raskol.classes.bootstrap.PluginTasks;
 import dev.raskol.classes.bootstrap.SessionListener;
 import dev.raskol.classes.bootstrap.StartupChecks;
+import dev.raskol.classes.cc.CCFeedback;
 import dev.raskol.classes.cc.CCGuard;
 import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.CastGuard;
 import dev.raskol.classes.cc.VanillaCCWrapper;
+import dev.raskol.classes.cc.runtime.CCFeedbackRuntimeOwner;
 import dev.raskol.classes.cc.runtime.CCRuntimeOwner;
+import dev.raskol.classes.cc.runtime.PaperCCFeedbackScheduler;
 import dev.raskol.classes.cc.runtime.PaperCCRuntimeRegistration;
 import dev.raskol.classes.cc.runtime.PaperCCTaskScheduler;
 import dev.raskol.classes.classsystem.CharacterLevelService;
@@ -216,6 +219,7 @@ public final class RaskolClasses extends JavaPlugin {
     private DotRuntimeOwner dotRuntimeOwner;
     private CCService ccService;
     private CCRuntimeOwner ccRuntimeOwner;
+    private CCFeedbackRuntimeOwner ccFeedbackRuntimeOwner;
     private CCGuard ccGuard;
     private CastGuard castGuard;
     private VanillaCCWrapper vanillaCCWrapper;
@@ -383,7 +387,8 @@ public final class RaskolClasses extends JavaPlugin {
         dotRuntimeOwner.start();
         this.manaSoaked = new ManaSoakedService(this);
 
-        this.ccService = new CCService(this);
+        this.ccFeedbackRuntimeOwner = new CCFeedbackRuntimeOwner(new PaperCCFeedbackScheduler(this));
+        this.ccService = new CCService(this, new CCFeedback(ccFeedbackRuntimeOwner));
         this.ccRuntimeOwner = new CCRuntimeOwner(
                 new PaperCCRuntimeRegistration(pluginManager, this, ccService),
                 new PaperCCTaskScheduler(this),
@@ -785,6 +790,19 @@ public final class RaskolClasses extends JavaPlugin {
             } catch (RuntimeException exception) {
                 getLogger()
                         .log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить CC runtime", exception);
+            }
+        }
+
+        if (ccFeedbackRuntimeOwner != null) {
+            try {
+                ccFeedbackRuntimeOwner.close();
+                ccFeedbackRuntimeOwner = null;
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью очистить CC feedback resources",
+                                exception);
             }
         }
 
