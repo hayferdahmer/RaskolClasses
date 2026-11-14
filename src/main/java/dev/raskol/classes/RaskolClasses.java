@@ -32,8 +32,10 @@ import dev.raskol.classes.bootstrap.SessionListener;
 import dev.raskol.classes.bootstrap.StartupChecks;
 import dev.raskol.classes.bootstrap.runtime.AutosaveRuntimeOwner;
 import dev.raskol.classes.bootstrap.runtime.PaperAutosaveTaskScheduler;
+import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
 import dev.raskol.classes.bootstrap.runtime.PaperPurgeTaskScheduler;
 import dev.raskol.classes.bootstrap.runtime.PurgeRuntimeOwner;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.cc.CCFeedback;
 import dev.raskol.classes.cc.CCGuard;
 import dev.raskol.classes.cc.CCService;
@@ -179,6 +181,8 @@ public final class RaskolClasses extends JavaPlugin {
     private HpBarService hpBarService;
     private HpBarRuntimeOwner hpBarRuntimeOwner;
     private HpAttributeSyncRuntimeOwner hpSyncRuntimeOwner;
+    private PlayerCallbackRuntimeOwner hpAttributeRespawnCallbacks;
+    private PlayerCallbackRuntimeOwner hpBarRespawnCallbacks;
     private AbilityToken tokens;
 
     /** 1.14.0: spec2-слой (деревья путей). */
@@ -426,13 +430,15 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.logSummary();
 
         this.attributes = new AttributeService(this);
-        this.hpSync = new HpAttributeSync(this);
+        this.hpAttributeRespawnCallbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(this));
+        this.hpSync = new HpAttributeSync(this, hpAttributeRespawnCallbacks);
         hpSyncRuntimeOwner = new HpAttributeSyncRuntimeOwner(
                 new PaperHpAttributeSyncRegistration(pluginManager, this, hpSync),
                 new PaperHpAttributeSyncScheduler(this, hpSync),
                 100L);
         hpSyncRuntimeOwner.start();
-        this.hpBarService = new HpBarService(this);
+        this.hpBarRespawnCallbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(this));
+        this.hpBarService = new HpBarService(this, hpBarRespawnCallbacks);
         this.hpBarRuntimeOwner = new HpBarRuntimeOwner(
                 new PaperHpBarRuntimeRegistration(pluginManager, this, hpBarService),
                 new PaperHpBarTaskScheduler(this),
@@ -714,6 +720,28 @@ public final class RaskolClasses extends JavaPlugin {
                                 java.util.logging.Level.SEVERE,
                                 "Не удалось остановить global autosave runtime",
                                 exception);
+            }
+        }
+        if (hpBarRespawnCallbacks != null) {
+            try {
+                hpBarRespawnCallbacks.close();
+                hpBarRespawnCallbacks = null;
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось отменить отложенные HP bar callbacks",
+                        exception);
+            }
+        }
+        if (hpAttributeRespawnCallbacks != null) {
+            try {
+                hpAttributeRespawnCallbacks.close();
+                hpAttributeRespawnCallbacks = null;
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось отменить отложенные HP attribute callbacks",
+                        exception);
             }
         }
         if (hpBarRuntimeOwner != null) {
