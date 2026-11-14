@@ -238,8 +238,7 @@ public final class FrostRuneHandler extends BaseInstallationHandler {
         }
         if (!rune.expirationBurstPlayed) {
             try {
-                plugin.getFx().impactBurst(
-                        rune.loc, Particle.CLOUD, 16, Sound.ENTITY_ENDERMAN_TELEPORT, 0.4f, 1.6f);
+                plugin.getFx().impactBurst(rune.loc, Particle.CLOUD, 16, Sound.ENTITY_ENDERMAN_TELEPORT, 0.4f, 1.6f);
                 rune.expirationBurstPlayed = true;
             } catch (RuntimeException exception) {
                 failure = collectFailure(failure, exception);

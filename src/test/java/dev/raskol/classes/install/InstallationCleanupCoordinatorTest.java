@@ -73,8 +73,8 @@ class InstallationCleanupCoordinatorTest {
     void cleanupOnlyRemovesTheExactSnapshotEntry() {
         Map<UUID, ActiveInstallation> installations = new ConcurrentHashMap<>();
         ActiveInstallation original = installation();
-        ActiveInstallation replacement = new ActiveInstallation(
-                original.id(), original.type(), original.owner(), null, original.expiresAt());
+        ActiveInstallation replacement =
+                new ActiveInstallation(original.id(), original.type(), original.owner(), null, original.expiresAt());
         installations.put(original.id(), original);
         InstallationHandler handler = handler(candidate -> installations.put(candidate.id(), replacement));
         InstallationCleanupCoordinator coordinator = coordinator(installations, handler, new ArrayList<>());
@@ -103,9 +103,7 @@ class InstallationCleanupCoordinatorTest {
     }
 
     private static InstallationCleanupCoordinator coordinator(
-            Map<UUID, ActiveInstallation> installations,
-            InstallationHandler handler,
-            List<UUID> reported) {
+            Map<UUID, ActiveInstallation> installations, InstallationHandler handler, List<UUID> reported) {
         return new InstallationCleanupCoordinator(
                 installations,
                 type -> type == TYPE ? handler : null,

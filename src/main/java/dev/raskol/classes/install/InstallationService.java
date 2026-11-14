@@ -59,21 +59,20 @@ public final class InstallationService {
             handlers.put(h.type(), h);
         }
         this.cleanupCoordinator = new InstallationCleanupCoordinator(
-                installations,
-                handlers::get,
-                (operation, installation, exception) -> {
+                installations, handlers::get, (operation, installation, exception) -> {
                     cleanupPending.add(installation.id());
-                    plugin.getLogger().log(
-                                java.util.logging.Level.SEVERE,
-                                "Installation cleanup failed; entry retained for retry. operation="
-                                        + operation
-                                        + ", id="
-                                        + installation.id()
-                                        + ", type="
-                                        + installation.type()
-                                        + ", owner="
-                                        + installation.owner(),
-                                exception);
+                    plugin.getLogger()
+                            .log(
+                                    java.util.logging.Level.SEVERE,
+                                    "Installation cleanup failed; entry retained for retry. operation="
+                                            + operation
+                                            + ", id="
+                                            + installation.id()
+                                            + ", type="
+                                            + installation.type()
+                                            + ", owner="
+                                            + installation.owner(),
+                                    exception);
                 });
     }
 

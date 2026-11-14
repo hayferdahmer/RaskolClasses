@@ -130,8 +130,7 @@ public final class PentagramHandler extends BaseInstallationHandler {
         }
         if (!completedExpiryEffects.contains(installationId)) {
             try {
-                plugin.getFx().impactBurst(
-                        inst.location(), Particle.SMOKE, 14, Sound.ENTITY_BLAZE_DEATH, 0.3f, 0.8f);
+                plugin.getFx().impactBurst(inst.location(), Particle.SMOKE, 14, Sound.ENTITY_BLAZE_DEATH, 0.3f, 0.8f);
                 completedExpiryEffects.add(installationId);
             } catch (RuntimeException exception) {
                 if (failure == null) {
