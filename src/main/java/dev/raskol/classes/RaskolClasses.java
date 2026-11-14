@@ -724,16 +724,6 @@ public final class RaskolClasses extends JavaPlugin {
                                 exception);
             }
         }
-        if (fx != null) {
-            try {
-                fx.shutdown();
-                fx = null;
-            } catch (RuntimeException exception) {
-                getLogger()
-                        .log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить FX runtime", exception);
-            }
-        }
-
         if (hpBarRespawnCallbacks != null) {
             try {
                 hpBarRespawnCallbacks.close();
@@ -984,6 +974,17 @@ public final class RaskolClasses extends JavaPlugin {
         }
         if (installations != null) {
             installations.shutdown();
+        }
+
+        // Инсталляции очищают свои FX-ресурсы; FxService закрывается только после них.
+        if (fx != null) {
+            try {
+                fx.shutdown();
+                fx = null;
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить FX runtime", exception);
+            }
         }
         if (bossBarRuntimeOwner != null) {
             try {
