@@ -321,7 +321,7 @@ The root preserves the original activation gate (`hud.enabled` and `hp-display.m
 
 ## 13. A-03-003.18 — HP bar runtime ownership verification
 
-The branch formatting workflow completed successfully. Its log reported that no additional formatting changes were necessary. The subsequent full verification on commit `7d07c18a038466e85ce83f24e14653d4192f8c24` passed: 596 tests, no failures/errors/skips, JaCoCo thresholds met, SpotBugs `BugInstance size is 0`, and Spotless `BUILD SUCCESS` with 437 Java files clean. A-03-003.18 is closed.
+The branch formatting workflow completed successfully and committed the canonical formatting as `89104ef959e754e0b3ce3f5ffa987b586b5f6a39`. Its post-format `mvn -Pdev -B verify` passed on the formatted working tree: 610 tests, no failures/errors/skips, JaCoCo thresholds met, SpotBugs `BugInstance size is 0`, and Spotless `BUILD SUCCESS` with 449 Java files clean. A-03-003.18 is closed.
 
 
 ## 14. A-03-003.19 — Separate DoT and Crowd Control runtime ownership
