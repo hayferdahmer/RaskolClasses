@@ -4,9 +4,9 @@
 
 - Репозиторий: `hayferdahmer/RaskolClasses`
 - Ветка: `refactor/a03-foundation-lifecycle`
-- Проверенный implementation HEAD: `724846ed35bdd68d68f43a521cc6619c8bbd292f`
+- Проверенный audit HEAD: `0e4fd5277ad56d60f7df102ceac334dc02413bc0`
+- Реализация: A-03-003.33 (в работе; CI ещё не подтверждён)
 - Платформа: Paper 26.2 / Java 25
-- Тип работы: source-backed audit; production-код и тесты не менялись.
 - Область: внутренние repeating tasks, создаваемые installation handlers, и их shutdown path.
 
 ## 1. Обнаруженные task-bearing handlers
@@ -84,3 +84,26 @@ Root shutdown закрывает `InstallationRuntimeOwner` до вызова `I
 - [x] Проверен root ordering: InstallationRuntimeOwner закрывается до InstallationService.shutdown().
 - [x] Выделен конкретный failure-isolation gap без заявления о доказанном task leak.
 - [ ] Live Paper 26.2 runtime smoke test не выполнялся.
+
+
+## 7. A-03-003.33 — Installation cleanup failure isolation
+
+Реализация добавляет `InstallationCleanupCoordinator`, который обходит snapshot реестра, изолирует RuntimeException каждого handler и удаляет запись только после успешного `expire()` с identity-safe `Map.remove(id, expected)`. Ошибки логируются с operation, installation id, type и owner; неудачные записи остаются в реестре.
+
+- `shutdown()`, `removeAllOf()` и `purgeStale()` используют общий координатор; cooldown cleanup выполняется после обхода независимо от ошибок отдельных installations.
+- `sweep()` использует тот же путь для expiry/triggered cleanup. Записи с неудачной очисткой помечаются pending и при следующем sweep повторно очищаются до очередного gameplay tick, чтобы не повторять эффект установки.
+- `FrostRuneHandler.expire()` теперь выполняет независимые cleanup steps с per-step completion flags; состояние удаляется только после полного успеха.
+- `PentagramHandler.expire()` сохраняет redraw handle при неудачной отмене и отдельно запоминает завершение визуального эффекта, чтобы повтор не дублировал уже успешную часть cleanup.
+- Добавлен `InstallationCleanupCoordinatorTest`: изоляция нескольких установок, retry после transient failure, identity-safe removal и фильтрация по владельцу.
+
+### Проверка
+
+- [ ] Targeted JUnit tests
+- [ ] Полный `mvn -Pdev -B verify` на итоговом HEAD
+- [ ] Build и Analyze CI на одном итоговом HEAD
+- [ ] Spotless Format на итоговом HEAD
+- [ ] Live Paper 26.2 runtime smoke test не выполнялся
+
+### Ограничения
+
+Координатор изолирует `RuntimeException`, не `Error`. Retry cleanup в runtime выполняется на следующем installation sweep; при shutdown выполняется полный best-effort проход, после которого Paper самостоятельно отменяет plugin-owned tasks при disable. Изменения не затрагивают scheduling cadence, игровые эффекты tick, cooldown policy, `main` и `BootstrapCoordinator`.
