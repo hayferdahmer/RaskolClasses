@@ -531,9 +531,16 @@ Foliant post-transition class verification теперь принадлежит �
 
 ## 19. A-03-003.32 — Installation handler task ownership audit
 
-- Проверены все Java handlers каталога `install/`: только `PentagramHandler` и `FrostRuneHandler` создают собственные BukkitTask; их handles хранятся и отменяются в handler `expire()`.
-- FrostRune ambient task принадлежит `FxService`; handler хранит UUID и делегирует остановку.
+- Проверены все Java handlers каталога `install/`: только `PentagramHandler` и `FrostRuneHandler` создают собственные BukkitTask; FrostRune ambient task принадлежит `FxService`.
 - Общий sweep принадлежит `InstallationRuntimeOwner` и закрывается до `InstallationService.shutdown()`.
-- Найден следующий bounded gap: `InstallationService.shutdown()`, `removeAllOf()` и `purgeStale()` не изолируют ошибки отдельных handler `expire()`; один сбой может остановить batch cleanup.
-- Подробности и предлагаемые критерии реализации: `A03_INSTALLATION_HANDLER_TASK_OWNERSHIP_AUDIT.md`.
-- Production source и tests не менялись; `main` и `BootstrapCoordinator` не затронуты.
+- Audit выявил batch cleanup failure-isolation gap; исходные findings и lifecycle paths сохранены в `A03_INSTALLATION_HANDLER_TASK_OWNERSHIP_AUDIT.md`.
+
+## 20. A-03-003.33 — Installation cleanup failure isolation
+
+- `InstallationCleanupCoordinator` изолирует RuntimeException каждого `expire()`, сохраняет неудачные записи и удаляет успешные только через identity-safe removal.
+- `shutdown()`, `removeAllOf()`, `purgeStale()` и expiry paths в `sweep()` используют coordinator; cooldown cleanup не блокируется ошибкой отдельного handler.
+- Pending installations повторно очищаются на следующем sweep до вызова gameplay tick.
+- `FrostRuneHandler` и `PentagramHandler` сохраняют внутреннее cleanup-состояние до успешного завершения отдельных cleanup steps, чтобы повторная попытка могла завершить незаконченные действия без повторения уже успешных шагов.
+- Добавлен `InstallationCleanupCoordinatorTest` на failure isolation, retry, identity safety и owner selection.
+- Полный CI и Spotless Format на одном итоговом HEAD остаются обязательными gates; live Paper 26.2 runtime smoke test не заявляется.
+- `main` остаётся неизменным; `BootstrapCoordinator` не активирован.
