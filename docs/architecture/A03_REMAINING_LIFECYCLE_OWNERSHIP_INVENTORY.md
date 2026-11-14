@@ -551,3 +551,5 @@ Implementation checkpoint: cleanup failure reporting uses a dedicated three-argu
 Implementation note: the cleanup failure reporter is a dedicated functional interface, and all call sites use its report contract. A fresh CI/format pass is being run on the corrected branch head.
 
 Identity safety refinement: successful cleanup now uses `computeIfPresent` with reference comparison, because `Map.remove(key, value)` relies on `equals` and is not sufficient for identity-safe replacement protection.
+
+Formatting checkpoint: Spotless Format #42 completed successfully on the formatted code, including its post-format `mvn -Pdev -B verify`. A fresh Build/Analyze run is required on the final documentation HEAD to close the CI gate on one exact commit.
