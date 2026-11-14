@@ -96,7 +96,11 @@ public final class HpAttributeSync implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        respawnCallbacks.cancel(event.getPlayer().getUniqueId());
+        try {
+            respawnCallbacks.cancel(event.getPlayer().getUniqueId());
+        } catch (RuntimeException exception) {
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "Не удалось отменить HP attribute respawn callback", exception);
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
