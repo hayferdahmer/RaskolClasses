@@ -6,8 +6,8 @@ import java.io.File;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
 import org.bukkit.Bukkit;
@@ -113,30 +113,25 @@ public final class CooldownManager implements Listener {
         BukkitTask task = Bukkit.getScheduler()
                 .runTaskLater(
                         plugin,
-                        () -> executeNotificationCallback(
-                                playerId,
-                                abilityId,
-                                taskReference.get(),
-                                () -> {
-                                    Player player = Bukkit.getPlayer(playerId);
-                                    if (player == null || !player.isOnline()) {
-                                        return;
-                                    }
-                                    if (getRemainingMillis(playerId, abilityId) > 0L) {
-                                        return;
-                                    }
-                                    player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
-                                    String text = notifyMessage.replace("{ability}", displayName);
-                                    player.sendActionBar(Component.text(text, NamedTextColor.GREEN));
-                                }),
+                        () -> executeNotificationCallback(playerId, abilityId, taskReference.get(), () -> {
+                            Player player = Bukkit.getPlayer(playerId);
+                            if (player == null || !player.isOnline()) {
+                                return;
+                            }
+                            if (getRemainingMillis(playerId, abilityId) > 0L) {
+                                return;
+                            }
+                            player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
+                            String text = notifyMessage.replace("{ability}", displayName);
+                            player.sendActionBar(Component.text(text, NamedTextColor.GREEN));
+                        }),
                         delayTicks);
         taskReference.set(task);
         byAbility.put(abilityId, task);
     }
 
     /** Выполняет уведомление и освобождает только handle завершившегося callback. */
-    void executeNotificationCallback(
-            UUID playerId, String abilityId, BukkitTask completedTask, Runnable notification) {
+    void executeNotificationCallback(UUID playerId, String abilityId, BukkitTask completedTask, Runnable notification) {
         try {
             notification.run();
         } finally {

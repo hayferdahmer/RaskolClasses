@@ -110,7 +110,8 @@ class CooldownManagerNotificationTaskTest {
             field.setAccessible(true);
             @SuppressWarnings("unchecked")
             Map<UUID, Map<String, BukkitTask>> registry = (Map<UUID, Map<String, BukkitTask>>) field.get(manager);
-            registry.computeIfAbsent(playerId, ignored -> new ConcurrentHashMap<>()).put(abilityId, task);
+            registry.computeIfAbsent(playerId, ignored -> new ConcurrentHashMap<>())
+                    .put(abilityId, task);
         } catch (ReflectiveOperationException exception) {
             throw new AssertionError(exception);
         }
