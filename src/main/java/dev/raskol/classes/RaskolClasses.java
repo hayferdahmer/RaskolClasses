@@ -34,8 +34,8 @@ import dev.raskol.classes.bootstrap.runtime.AutosaveRuntimeOwner;
 import dev.raskol.classes.bootstrap.runtime.PaperAutosaveTaskScheduler;
 import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
 import dev.raskol.classes.bootstrap.runtime.PaperPurgeTaskScheduler;
-import dev.raskol.classes.bootstrap.runtime.PurgeRuntimeOwner;
 import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
+import dev.raskol.classes.bootstrap.runtime.PurgeRuntimeOwner;
 import dev.raskol.classes.cc.CCFeedback;
 import dev.raskol.classes.cc.CCGuard;
 import dev.raskol.classes.cc.CCService;
@@ -727,10 +727,11 @@ public final class RaskolClasses extends JavaPlugin {
                 hpBarRespawnCallbacks.close();
                 hpBarRespawnCallbacks = null;
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось отменить отложенные HP bar callbacks",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось отменить отложенные HP bar callbacks",
+                                exception);
             }
         }
         if (hpAttributeRespawnCallbacks != null) {
@@ -738,10 +739,11 @@ public final class RaskolClasses extends JavaPlugin {
                 hpAttributeRespawnCallbacks.close();
                 hpAttributeRespawnCallbacks = null;
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.SEVERE,
-                        "Не удалось отменить отложенные HP attribute callbacks",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось отменить отложенные HP attribute callbacks",
+                                exception);
             }
         }
         if (hpBarRuntimeOwner != null) {

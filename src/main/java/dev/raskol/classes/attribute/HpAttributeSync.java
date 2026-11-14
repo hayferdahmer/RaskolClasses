@@ -99,7 +99,11 @@ public final class HpAttributeSync implements Listener {
         try {
             respawnCallbacks.cancel(event.getPlayer().getUniqueId());
         } catch (RuntimeException exception) {
-            plugin.getLogger().log(java.util.logging.Level.WARNING, "Не удалось отменить HP attribute respawn callback", exception);
+            plugin.getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "Не удалось отменить HP attribute respawn callback",
+                            exception);
         }
     }
 
