@@ -492,3 +492,10 @@ Aura expiration callback хранится и отменяется вместе �
 - Отдельно отмечены, но не смешаны с этим срезом: FoliantService.executeTransition() next-tick callback и RaskolClasses.handleRuntimeIntegrityFailure() main-thread disable callback.
 - Полный repository-wide scan всех 390 Java source files всё ещё не закрыт; этот checkpoint не утверждает обратного.
 - Production-код, main и BootstrapCoordinator не менялись.
+
+
+## 15. A-03-003.29 — Cooldown notification completion release
+
+CooldownManager now releases a naturally completed notification BukkitTask in a finally boundary. Removal is identity-safe (Map.remove(key, expectedHandle)), and empty per-player maps are removed conditionally so a stale callback cannot delete a replacement map. The notification delay and player-facing behavior remain unchanged.
+
+Focused tests cover normal completion, early-return callback paths, callback exceptions, replacement races, and per-player map cleanup. This implementation slice does not change CooldownRuntimeOwner, persistence, gameplay state, main, or BootstrapCoordinator. Full CI and live Paper 26.2 verification remain separate gates.

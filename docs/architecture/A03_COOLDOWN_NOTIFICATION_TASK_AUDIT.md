@@ -72,3 +72,41 @@
 - [ ] Добавлены focused tests на все callback exit paths и replacement race.
 - [ ] Полный repository-wide task/registration scan завершён отдельными срезами.
 - [ ] CI на финальном implementation HEAD прошёл.
+
+
+## 7. A-03-003.29 — Реализация освобождения завершённых notification handles
+
+### Изменения
+
+- CooldownManager.start(...) теперь оборачивает тело delayed callback в executeNotificationCallback(...).
+- Освобождение выполняется в finally, поэтому оно происходит при offline early return, продлённом cooldown, успешном уведомлении и исключении из callback.
+- Callback получает собственный BukkitTask через AtomicReference, заполненный сразу после постановки задачи. Delayed task Paper запускается не раньше следующего scheduler tick; минимальная задержка остаётся 1 tick.
+- releaseCompletedTask(...) использует byAbility.remove(abilityId, completedTask): callback старой задачи не удаляет её замену.
+- Пустая player map удаляется через taskRegistry.remove(playerId, byAbility), только если registry всё ещё содержит именно эту map.
+- Задержка, проверка online, проверка remaining cooldown, звук и ActionBar не менялись.
+
+### Тестирование
+
+Добавлен CooldownManagerNotificationTaskTest:
+- освобождение после обычного завершения;
+- освобождение после callback без действия (модель offline / продлённого cooldown early return);
+- освобождение даже при исключении из callback;
+- старый callback не удаляет заменённый handle;
+- пустая player map удаляется, а новая map не удаляется устаревшим callback.
+
+Тесты проверяют ownership/release contract без поднятия Paper runtime. Live Paper 26.2 smoke test остаётся отдельной проверкой.
+
+### Границы
+
+- CooldownRuntimeOwner, shutdown retry semantics, cooldown persistence и gameplay timing не менялись.
+- main не менялся; BootstrapCoordinator не активировался.
+- Полный repository-wide lifecycle scan остаётся открытым.
+
+### Acceptance criteria
+
+- [x] Освобождение выполняется в finally на всех путях callback.
+- [x] Identity-safe удаление completed handle.
+- [x] Условная очистка пустой player map.
+- [x] Focused tests на completion, early return, exception, replacement race и map cleanup.
+- [ ] Spotless и полный mvn -Pdev -B verify на финальном implementation HEAD.
+- [ ] Live Paper 26.2 runtime smoke test.

@@ -6,6 +6,7 @@ import java.io.File;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
@@ -108,23 +109,60 @@ public final class CooldownManager implements Listener {
         }
 
         long delayTicks = Math.max(1L, durationMillis / 50L);
+        AtomicReference<BukkitTask> taskReference = new AtomicReference<>();
         BukkitTask task = Bukkit.getScheduler()
                 .runTaskLater(
                         plugin,
-                        () -> {
-                            Player player = Bukkit.getPlayer(playerId);
-                            if (player == null || !player.isOnline()) {
-                                return;
-                            }
-                            if (getRemainingMillis(playerId, abilityId) > 0L) {
-                                return;
-                            }
-                            player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
-                            String text = notifyMessage.replace("{ability}", displayName);
-                            player.sendActionBar(Component.text(text, NamedTextColor.GREEN));
-                        },
+                        () -> executeNotificationCallback(
+                                playerId,
+                                abilityId,
+                                taskReference.get(),
+                                () -> {
+                                    Player player = Bukkit.getPlayer(playerId);
+                                    if (player == null || !player.isOnline()) {
+                                        return;
+                                    }
+                                    if (getRemainingMillis(playerId, abilityId) > 0L) {
+                                        return;
+                                    }
+                                    player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
+                                    String text = notifyMessage.replace("{ability}", displayName);
+                                    player.sendActionBar(Component.text(text, NamedTextColor.GREEN));
+                                }),
                         delayTicks);
+        taskReference.set(task);
         byAbility.put(abilityId, task);
+    }
+
+    /** Выполняет уведомление и освобождает только handle завершившегося callback. */
+    void executeNotificationCallback(
+            UUID playerId, String abilityId, BukkitTask completedTask, Runnable notification) {
+        try {
+            notification.run();
+        } finally {
+            releaseCompletedTask(tasks, playerId, abilityId, completedTask);
+        }
+    }
+
+    /** Удаляет завершённую задачу только если карта всё ещё содержит её handle. */
+    static void releaseCompletedTask(
+            Map<UUID, Map<String, BukkitTask>> taskRegistry,
+            UUID playerId,
+            String abilityId,
+            BukkitTask completedTask) {
+        if (completedTask == null) {
+            return;
+        }
+
+        Map<String, BukkitTask> byAbility = taskRegistry.get(playerId);
+        if (byAbility == null) {
+            return;
+        }
+
+        byAbility.remove(abilityId, completedTask);
+        if (byAbility.isEmpty()) {
+            taskRegistry.remove(playerId, byAbility);
+        }
     }
 
     public void cancel(UUID playerId, String abilityId) {
