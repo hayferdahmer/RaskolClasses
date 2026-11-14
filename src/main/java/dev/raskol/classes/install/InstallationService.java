@@ -43,6 +43,7 @@ public final class InstallationService {
     private final Map<InstallationType, InstallationHandler> handlers = new EnumMap<>(InstallationType.class);
     private final Map<UUID, ActiveInstallation> installations = new ConcurrentHashMap<>();
     private final Map<String, Long> placeCooldowns = new ConcurrentHashMap<>();
+    private final java.util.Set<UUID> cleanupPending = ConcurrentHashMap.newKeySet();
     private final InstallationCleanupCoordinator cleanupCoordinator;
 
     public InstallationService(RaskolClasses plugin) {
@@ -59,8 +60,9 @@ public final class InstallationService {
         this.cleanupCoordinator = new InstallationCleanupCoordinator(
                 installations,
                 handlers::get,
-                (operation, installation, exception) -> plugin.getLogger()
-                        .log(
+                (operation, installation, exception) -> {
+                    cleanupPending.add(installation.id());
+                    plugin.getLogger().log(
                                 java.util.logging.Level.SEVERE,
                                 "Installation cleanup failed; entry retained for retry. operation="
                                         + operation
@@ -70,7 +72,8 @@ public final class InstallationService {
                                         + installation.type()
                                         + ", owner="
                                         + installation.owner(),
-                                exception));
+                                exception);
+                });
     }
 
     /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteDouble (аудит 1-01). */
@@ -207,6 +210,13 @@ public final class InstallationService {
     public void sweep() {
         long now = System.currentTimeMillis();
         for (ActiveInstallation inst : List.copyOf(installations.values())) {
+            if (cleanupPending.contains(inst.id())) {
+                cleanupCoordinator.cleanup(candidate -> candidate.id().equals(inst.id()), "sweep-retry");
+                if (!installations.containsKey(inst.id())) {
+                    cleanupPending.remove(inst.id());
+                }
+                continue;
+            }
             InstallationHandler handler = handlers.get(inst.type());
             if (handler == null) {
                 cleanupCoordinator.cleanup(candidate -> candidate.id().equals(inst.id()), "sweep-missing-handler");
