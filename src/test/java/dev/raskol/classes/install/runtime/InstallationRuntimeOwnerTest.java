@@ -46,7 +46,7 @@ class InstallationRuntimeOwnerTest {
     }
 
     @Test
-    void schedulingFailureLeavesOwnerClosedAndDoesNotLeakTask() {
+    void schedulingFailurePreventsRestartAndDoesNotLeakRegisteredTask() {
         List<String> calls = new ArrayList<>();
         FakeScheduler scheduler = new FakeScheduler(calls);
         scheduler.failScheduling = true;
