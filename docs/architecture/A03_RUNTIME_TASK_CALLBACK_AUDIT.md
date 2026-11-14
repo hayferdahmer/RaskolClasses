@@ -6,14 +6,14 @@
 - Ветка: `refactor/a03-foundation-lifecycle`
 - Проверенный HEAD на начало аудита: `af6bd3cd4663e0ef4fbc308cf736b68719edf2cd`
 - Платформа: Paper 26.2 / Java 25
-- Тип работы: source-backed аудит; игровые механики и runtime-код не изменялись.
+- Тип работы: source-backed аудит и поэтапная runtime-реализация; игровые механики не меняются намеренно.
 - Область: root lifecycle, оставшиеся root-owned periodic tasks, известные отложенные callback и task-bearing сервисы.
 
 Этот документ фиксирует подтверждённые остатки после A-03-003.20. Он не объявляет полный repository-wide scan завершённым: перед закрытием A-03-003.21 необходимо пройти оставшиеся source-файлы и сверить каждую регистрацию с актуальным владельцем.
 
 ## 1. Текущая картина
 
-После выделения специализированных runtime owners в `RaskolClasses.activeTasks` остаются шесть периодических задач:
+После выделения специализированных runtime owners и InstallationRuntimeOwner в `RaskolClasses.activeTasks` остаются пять периодических задач:
 
 | Задача | Текущий владелец | Интервал / назначение | Вывод |
 |---|---|---|---|
@@ -37,11 +37,10 @@
 
 ### 2.2 InstallationService
 
-- `startSweepTask()` сохраняет BukkitTask в поле `sweepTask` и одновременно возвращает тот же handle в root `activeTasks`.
-- Shutdown отменяет задачу через root, а затем вызывает `installations.shutdown()`, где она отменяется повторно.
-- `shutdown()` также завершает активные установки и очищает cooldown maps.
-- Риск: двойное владение cancellation handle и смешение runtime scheduling с domain cleanup.
-- Рекомендация: отдельный `InstallationRuntimeOwner` должен владеть sweep producer; InstallationService — активными установками и их expiry/cleanup. Зафиксировать один путь остановки.
+- Реализовано: `InstallationRuntimeOwner` владеет sweep task через собственный `TaskScope`; Paper scheduling изолирован в `PaperInstallationTaskScheduler`.
+- `InstallationService.sweep()` выполняет один цикл expiry/tick и не создаёт BukkitTask; `shutdown()` только завершает активные установки и очищает cooldown maps.
+- Root закрывает runtime owner до `installations.shutdown()`; sweep handle удалён из `activeTasks`.
+- Сохранены initial delay и period по 20 ticks. Добавлены unit tests на start/close, partial scheduling failure и retryable cancellation.
 
 ### 2.3 ScrollCooldownTask
 
@@ -102,11 +101,9 @@
 
 ### 3.5 Warlock channel tasks
 
-- `WarlockAbilities` хранит per-caster списки BukkitTask в instance map, но доступ к shutdown осуществляется через static singleton facade.
-- Несколько delayed callbacks и финальный callback создаются во время `soulRift()`.
-- Root вызывает `WarlockAbilities.cancelAllChannelTasks()` при shutdown.
-- Риск: если создание серии задач завершится исключением до публикации списка в `channelTasks`, уже созданные handles могут остаться вне map. Cancellation paths также завязаны на static facade.
-- Рекомендация: выделить per-caster channel task scope/owner; регистрировать каждый handle сразу после создания, обеспечить rollback частичного schedule и retryable close. Сохранить точные тики, damage cadence, CastChannels semantics и визуальные эффекты.
+- Реализовано: `WarlockChannelTaskOwner` владеет one-shot handles по caster UUID; каждый handle регистрируется сразу после schedule.
+- Частичный schedule откатывает уже созданные handles; завершение channel освобождает handles в `finally`; root закрывает owner при shutdown.
+- Добавлены focused tests на изоляцию caster, retryable cancellation, close retry и нормальное завершение. Сохранение точных тиков и damage cadence проверяется отдельно от ownership tests.
 
 ### 3.6 CCFeedback
 
@@ -117,8 +114,8 @@
 ## 4. Риски shutdown, подтверждённые на root уровне
 
 - Root отменяет оставшиеся `activeTasks` одним `forEach(BukkitTask::cancel)`; если один cancel бросит RuntimeException, последующие handles не будут обработаны этим циклом.
-- InstallationService повторно отменяет sweep handle после root cancellation.
-- Warlock cancellation вызывается через static facade и не изолирована отдельным owner.
+- InstallationService duplicate cancellation устранено: root закрывает InstallationRuntimeOwner, затем сервис очищает активные установки.
+- Warlock channel cancellation вынесена в WarlockChannelTaskOwner; полная изоляция shutdown остальных root-owned задач остаётся отдельной задачей.
 - Большая часть root cleanup уже имеет локальные try/catch, но последовательность всё ещё не является единым failure-isolated shutdown coordinator.
 - `storageWriter.closeAndAwait(...)` остаётся последним инфраструктурным действием — этот порядок сохранить.
 
@@ -126,12 +123,11 @@
 
 ## 5. Рекомендуемая последовательность следующих срезов
 
-1. Warlock channel task ownership: наиболее явный риск частично созданных и не опубликованных handles.
-2. Installation runtime ownership: устранить двойное владение sweep handle.
-3. Resource runtime ownership.
-4. Scroll cooldown runtime ownership.
-5. ManaSoaked runtime ownership.
-6. Отдельный maintenance lifecycle для global purge/autosave без переноса cross-domain логики в домены.
+1. Resource runtime ownership.
+2. Scroll cooldown runtime ownership.
+3. ManaSoaked runtime ownership.
+4. Отдельный maintenance lifecycle для global purge/autosave без переноса cross-domain логики в домены.
+5. Завершить repository-wide scan и сверку callback/task ownership.
 7. HP respawn one-shot callback ownership.
 8. A-04 storage completion/drain contract для Foliant, HP Bar, Resources и Cooldowns.
 
@@ -148,6 +144,6 @@
 - [x] CCFeedback one-shot cleanup подтверждён как уже owned.
 - [ ] Полный repository-wide scan всех Java source завершён.
 - [ ] Все найденные task creation sites сверены с владельцами и root shutdown.
-- [ ] Отдельные тестовые требования для callback races и partial scheduling зафиксированы перед implementation slices.
+- [x] Для Warlock и Installation runtime owners добавлены focused tests на partial scheduling и retryable cancellation.
 
 До закрытия последних двух scan-критериев этап остаётся **в работе**. Код и игровые механики этим аудитом не менялись.
