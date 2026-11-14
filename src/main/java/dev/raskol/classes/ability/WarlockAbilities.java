@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.ability;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +23,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.Hp;
+import dev.raskol.classes.ability.runtime.WarlockChannelTaskOwner;
 import dev.raskol.classes.cc.CastChannels;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
@@ -33,6 +32,7 @@ import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.fx.WarlockFx;
 import dev.raskol.classes.pet.PetService;
 import dev.raskol.classes.spec.Spec;
+import dev.raskol.classes.bootstrap.lifecycle.TaskHandle;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -106,8 +106,8 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
 
     private final Map<UUID, Double> sealAmp = new ConcurrentHashMap<>();
     private final Map<UUID, Long> antihealExpiry = new ConcurrentHashMap<>();
-    /** 1.11.2 (T2): задачи канала Раскола Души, indexed by caster UUID. */
-    private final Map<UUID, List<BukkitTask>> channelTasks = new ConcurrentHashMap<>();
+    /** Владелец одноразовых задач канала Раскола Души. */
+    private final WarlockChannelTaskOwner channelTaskOwner = new WarlockChannelTaskOwner();
 
     /**
      * 1.14.14 (фаза 1, ST_WRITE-фикс): фабрика singleton-экземпляра. Вызывается из
@@ -227,20 +227,40 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
 
     private void cancelChannelTasksInstance(UUID caster) {
         CastChannels.unregister(caster);
-        List<BukkitTask> tasks = channelTasks.remove(caster);
-        if (tasks == null) {
-            return;
-        }
-        for (BukkitTask t : tasks) {
-            if (t != null && !t.isCancelled()) {
-                t.cancel();
-            }
-        }
+        channelTaskOwner.cancel(caster);
     }
 
     private void cancelAllChannelTasksInstance() {
-        for (UUID uuid : new ArrayList<>(channelTasks.keySet())) {
-            cancelChannelTasksInstance(uuid);
+        for (UUID caster : channelTaskOwner.casterIds()) {
+            CastChannels.unregister(caster);
+        }
+        channelTaskOwner.close();
+    }
+
+    /** Закрывает все задачи канала при остановке плагина. */
+    public void close() {
+        cancelAllChannelTasksInstance();
+    }
+
+    private void trackChannelTask(UUID casterId, BukkitTask task) {
+        TaskHandle handle = new TaskHandle() {
+            @Override
+            public void cancel() {
+                task.cancel();
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return task.isCancelled();
+            }
+        };
+        try {
+            channelTaskOwner.register(casterId, handle);
+        } catch (RuntimeException exception) {
+            if (!task.isCancelled()) {
+                task.cancel();
+            }
+            throw exception;
         }
     }
 
@@ -517,7 +537,7 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
     }
 
     /**
-     * 1.11.2 (T2) + 1.11.4 + 1.13.0 (Б3): канал с задачами в channelTasks + CastChannels.
+     * 1.11.2 (T2) + 1.11.4 + 1.13.0 (Б3): канал с задачами в runtime owner + CastChannels.
      * 1.15.7 (2.6-63): тик-урон и финальный взрыв читаются из конфига.
      */
     public boolean soulRift(Player caster, AbilityDef def) {
@@ -533,10 +553,11 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
         plugin.getFx().playSound(caster.getLocation(), Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.9f, 0.7f);
         WarlockFx.ringFx(caster.getLocation(), radius, Particle.CRIMSON_SPORE, 2);
 
-        List<BukkitTask> tasks = new ArrayList<>();
-        CastChannels.register(caster.getUniqueId(), () -> cancelChannelTasksInstance(caster.getUniqueId()));
+        UUID casterId = caster.getUniqueId();
+        CastChannels.register(casterId, () -> cancelChannelTasksInstance(casterId));
 
-        for (int i = 1; i <= ticks; i += 5) {
+        try {
+            for (int i = 1; i <= ticks; i += 5) {
             BukkitTask task = plugin.getServer()
                     .getScheduler()
                     .runTaskLater(
@@ -566,10 +587,10 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
                                 }
                             },
                             i);
-            tasks.add(task);
-        }
+                trackChannelTask(casterId, task);
+            }
 
-        BukkitTask finalTask = plugin.getServer()
+            BukkitTask finalTask = plugin.getServer()
                 .getScheduler()
                 .runTaskLater(
                         plugin,
@@ -613,13 +634,19 @@ public final class WarlockAbilities extends AbstractKit implements Listener {
                             }
                             plugin.getFx().playSound(center, Sound.ENTITY_WARDEN_SONIC_BOOM, 1.0f, 0.8f);
                             purgeStaleDebuffsInstance();
-                            CastChannels.unregister(caster.getUniqueId());
-                            channelTasks.remove(caster.getUniqueId());
+                            CastChannels.unregister(casterId);
+                            channelTaskOwner.complete(casterId);
                         },
                         ticks + 1L);
-        tasks.add(finalTask);
-
-        channelTasks.put(caster.getUniqueId(), tasks);
+            trackChannelTask(casterId, finalTask);
+        } catch (RuntimeException exception) {
+            try {
+                cancelChannelTasksInstance(casterId);
+            } catch (RuntimeException cleanupFailure) {
+                exception.addSuppressed(cleanupFailure);
+            }
+            throw exception;
+        }
         return true;
     }
 
