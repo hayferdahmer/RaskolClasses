@@ -13,19 +13,19 @@
 
 ## 1. Текущая картина
 
-После выделения специализированных runtime owners, включая ManaSoakedRuntimeOwner, в `RaskolClasses.activeTasks` остаются две cross-domain периодические задачи:
+В таблице сведены периодические producers и их фактические владельцы; в `RaskolClasses.activeTasks` остаются две cross-domain периодические задачи:
 
 | Задача | Текущий владелец | Интервал / назначение | Вывод |
 |---|---|---|---|
 | Resource tick | `ResourceRuntimeOwner` | 20 ticks; обновление ресурсов | Реализовано; ResourceService остаётся Listener и владельцем resource state/persistence |
-| Installation sweep | одновременно root handle и `InstallationService.sweepTask` | 20 ticks; expiry/tick установок | Дублированное владение handle; выбрать один lifecycle owner |
+| Installation sweep | `InstallationRuntimeOwner` | 20 ticks; expiry/tick установок | Реализовано; owner закрывается до `InstallationService.shutdown()` |
 | Scroll cooldown display | `ScrollCooldownRuntimeOwner` | 10 ticks; отображение cooldown на предметах | Реализовано; owner отменяет producer и очищает кэши `ScrollCooldownTask` |
-| Global purge | root `activeTasks` через `PluginTasks` | конфигурируемый интервал | Cross-domain maintenance; не переносить в owner одного домена |
-| Global autosave | root `activeTasks` через `PluginTasks` | конфигурируемые минуты | Cross-storage coordinator; должен остановиться до финальных snapshots и закрытия writer |
 | Global purge | root `activeTasks` через `PluginTasks` | конфигурируемый интервал | Cross-domain maintenance; не переносить в owner одного домена |
 | Global autosave | root `activeTasks` через `PluginTasks` | конфигурируемые минуты | Cross-storage coordinator; должен остановиться до финальных snapshots и закрытия writer |
 
 Текущие владельцы Pet, HUD, BossBar, HP Bar, HP attribute sweep, PlaceholderAPI, Crown Flavor, DoT, CC, Cooldown, Foliant и CCFeedback в этом списке не дублируются: их recurring producer и/или listener registration уже перенесены в специализированные owners.
+
+ManaSoaked больше не входит в root `activeTasks`: `ManaSoakedRuntimeOwner` владеет 20-tick producer, а `ManaSoakedService` сохраняет mage tracking и бизнес-логику. Подробности реализации и тестов отражены в этом checkpoint ниже.
 
 ## 2. Подтверждённые runtime-задачи и риски
 
