@@ -586,3 +586,17 @@ Source-backed findings are recorded in [A03_LIFECYCLE_RESIDUAL_AUDIT.md](A03_LIF
 - RIPS enforcement callback remains intentionally plugin-scoped; A-04 storage completion callbacks remain out of scope.
 - User-confirmed Paper 26.2 shutdown smoke test passed for active Frost Rune and Pentagram; this does not establish failure isolation for every root cleanup step.
 - Full repository-wide scan remains open. Production source/tests, `main`, and `BootstrapCoordinator` were not changed.
+
+
+## 22. A-03-003.37 — Root Shutdown Failure Isolation
+
+Implemented on the lifecycle branch and documented in [A03_LIFECYCLE_RESIDUAL_AUDIT.md](A03_LIFECYCLE_RESIDUAL_AUDIT.md).
+
+- Added `ShutdownStepRunner`: independent cleanup steps catch/log `RuntimeException`, continue, and emit a final failure summary.
+- Migrated `RaskolClasses.shutdownRuntime()` cleanup actions to individually guarded steps, including previously unguarded operations.
+- Preserved producer shutdown, installation-before-FX dependency, final snapshot placement, and `AsyncStorageWriter` as the final step.
+- Added focused runner tests for continued execution, preserved order, and multiple failures.
+- No automatic retry was introduced; retry ownership remains with individual runtime owners.
+- `Error` is intentionally not swallowed. A failed snapshot remains a failed snapshot even though later best-effort shutdown steps continue.
+- CI and Paper 26.2 runtime smoke test for the implementation remain pending.
+- `main` and `BootstrapCoordinator` remain untouched.
