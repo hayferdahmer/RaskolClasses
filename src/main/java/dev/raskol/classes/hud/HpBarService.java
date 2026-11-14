@@ -21,7 +21,6 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlotGroup;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
@@ -207,22 +206,8 @@ public final class HpBarService implements Listener {
         return TextColor.fromHexString(fallback);
     }
 
-    public BukkitTask start() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, period(), period());
-    }
-
-    /**
-     * 1.14.7 (P1-7): обновляет in-memory healthStore для всех онлайн-игроков
-     * и выполняет один flush на диск. Вызывается из onDisable.
-     */
-    public void saveAll() {
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            saveHealth(player);
-        }
-        flushDirty();
-    }
-
-    private void tick() {
+    /** Выполняет один цикл HP runtime; планирование принадлежит HpBarRuntimeOwner. */
+    public void tick() {
         tickCounter++;
         if (tickCounter % 600L == 0L) {
             long now = System.currentTimeMillis();
@@ -247,12 +232,23 @@ public final class HpBarService implements Listener {
         pendingRestore.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
         storageDirty.removePlayersIf(id -> plugin.getServer().getPlayer(id) == null);
 
-        // 1.14.7 (P1-7): периодический flush dirty-игроков на диск.
         long now = System.currentTimeMillis();
         if (storageDirty.isDirty() && now - lastFlushAt >= flushIntervalMillis()) {
             flushDirty();
         }
     }
+
+    /**
+     * 1.14.7 (P1-7): обновляет in-memory healthStore для всех онлайн-игроков
+     * и выполняет один flush на диск. Вызывается из onDisable.
+     */
+    public void saveAll() {
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            saveHealth(player);
+        }
+        flushDirty();
+    }
+
 
     private void tickPendingRestore(Player player, UUID uuid) {
         Pending p = pendingRestore.get(uuid);
