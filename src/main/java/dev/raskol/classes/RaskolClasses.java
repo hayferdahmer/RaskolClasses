@@ -49,6 +49,8 @@ import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.combat.ResistService;
+import dev.raskol.classes.combat.runtime.ManaSoakedRuntimeOwner;
+import dev.raskol.classes.combat.runtime.PaperManaSoakedTaskScheduler;
 import dev.raskol.classes.combat.dot.runtime.DotRuntimeOwner;
 import dev.raskol.classes.combat.dot.runtime.PaperDotRuntimeRegistration;
 import dev.raskol.classes.combat.dot.runtime.PaperDotTaskScheduler;
@@ -210,6 +212,7 @@ public final class RaskolClasses extends JavaPlugin {
     private ResistService resists;
     private CombatService combat;
     private ManaSoakedService manaSoaked;
+    private ManaSoakedRuntimeOwner manaSoakedRuntimeOwner;
     private ConfigValidator configValidator;
     private AttributeService attributes;
 
@@ -397,6 +400,8 @@ public final class RaskolClasses extends JavaPlugin {
                 combat.dots()::tick);
         dotRuntimeOwner.start();
         this.manaSoaked = new ManaSoakedService(this);
+        this.manaSoakedRuntimeOwner = new ManaSoakedRuntimeOwner(
+                new PaperManaSoakedTaskScheduler(this, manaSoaked::tick), manaSoaked::clearTracking);
 
         this.ccFeedbackRuntimeOwner = new CCFeedbackRuntimeOwner(new PaperCCFeedbackScheduler(this));
         this.ccService = new CCService(this, new CCFeedback(ccFeedbackRuntimeOwner));
@@ -562,7 +567,7 @@ public final class RaskolClasses extends JavaPlugin {
                 new PaperScrollCooldownTaskScheduler(this, scrollCooldownTask::tick), scrollCooldownTask::clearCaches);
         getLogger().info("ScrollCooldownTask v12 (durability-bar) active");
         scrollCooldownRuntimeOwner.start();
-        activeTasks.add(manaSoaked.start());
+        manaSoakedRuntimeOwner.start();
         activeTasks.add(PluginTasks.startPurgeTask(this));
         activeTasks.add(PluginTasks.startAutosaveTask(this));
     }
@@ -865,6 +870,18 @@ public final class RaskolClasses extends JavaPlugin {
                         .log(
                                 java.util.logging.Level.SEVERE,
                                 "Не удалось полностью остановить ScrollCooldown runtime",
+                                exception);
+            }
+        }
+        if (manaSoakedRuntimeOwner != null) {
+            try {
+                manaSoakedRuntimeOwner.close();
+                manaSoakedRuntimeOwner = null;
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить ManaSoaked runtime",
                                 exception);
             }
         }
