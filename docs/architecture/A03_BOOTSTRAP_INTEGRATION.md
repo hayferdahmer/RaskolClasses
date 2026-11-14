@@ -239,3 +239,12 @@ The root preserves the original startup phases:
 `CrownFlavorService` retains faction lookup, title lookup, join messaging and particle behavior. Its `tickAura()` method performs one cycle only; scheduling belongs to `PaperFlavorTaskScheduler`.
 
 Shutdown cancels the aura producer before unregistering the listener. Startup rollback and shutdown cleanup independently attempt task cancellation and listener unregistration; failed cleanup remains retryable. The original 40-tick initial delay and period are preserved.
+
+
+### A-03-003.16 — BossBar runtime ownership
+
+`BossBarRuntimeOwner` owns the recurring BossBar producer and cleanup of all created bars. `BossBarService` retains rendering and per-player bar state but no longer stores or schedules a BukkitTask. No listener registration is involved because BossBarService is not a Listener.
+
+The Paper scheduler preserves the configured period and the original initial delay (both equal to `max(1, bossBarTickPeriod())`). Configuration reload delegates to owner restart, which cancels the previous producer, clears all bars and schedules a replacement with the current period. Shutdown cancels the producer and removes all bars. The BossBar task is no longer stored in root `activeTasks`.
+
+Focused tests cover idempotent start, restart ordering, close cleanup, scheduling/cancellation failures, retry behavior and period clamping. Gameplay rendering rules and configuration keys are intentionally unchanged.
