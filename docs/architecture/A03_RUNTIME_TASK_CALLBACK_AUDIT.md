@@ -56,6 +56,7 @@ ManaSoaked больше не входит в root `activeTasks`: `ManaSoakedRunt
 - `ManaSoakedService.tick()` выполняет один цикл механики; сервис остаётся владельцем `mageIds`, `lastScanTick`, проверки класса/маны и модификаторов резиста.
 - При shutdown owner сначала останавливает producer, затем вызывает `clearTracking()`; это очищает только tracking-кэш и не меняет правила `ResistService`.
 - ManaSoaked намеренно не объединён с `ResourceRuntimeOwner`, хотя читает значение маны.
+- Compatibility accessor `RaskolClasses.getManaSoaked()` сохраняет прежний публичный контракт; SpotBugs `EI_EXPOSE_REP` исключён только для этого метода, без глобального подавления правила.
 
 ### 2.5 PluginTasks: global purge и autosave
 
