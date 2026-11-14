@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.cc;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
