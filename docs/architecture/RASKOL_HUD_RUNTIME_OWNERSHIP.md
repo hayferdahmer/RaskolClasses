@@ -323,3 +323,10 @@ Added Bukkit-independent application contracts and `TargetingApplicationService`
 The service rejects self-target and off-hand input before policy evaluation. It evaluates policy before mutating the store; rejection or provider unavailability leaves the previous target unchanged. Re-selecting the same target re-runs policy and then returns ALREADY_SELECTED without changing the original selection timestamp. A clock supplier is injected for deterministic tests.
 
 The service does not resolve Bukkit entities, implement concrete NPC/PvP/territory rules, register a listener or wire into plugin bootstrap. Paper adapter main-thread requirements remain in force.
+
+
+## 16. HUD-C.4 / A-03-003.17 — Legacy ActionBar runtime transfer
+
+Production wiring now uses `HudRuntimeOwner` for the legacy ActionBar refresh producer and quit-session cleanup. The owner is registered during core service initialization, started only when the existing `hud.enabled && hp-display.mode=vanilla` gate is true, reconciled on configuration reload, and closed during plugin shutdown.
+
+`HudService` retains rendering, resource/DoT reads, animation and per-player frame caches. Its scheduler has been removed; `tick()` is a single-cycle callback. Quit and shutdown cleanup clear the HUD-owned caches only. No empty ActionBar is sent during cleanup because the ActionBar channel may also be used by the independent HP display path. No HUD visual format, resource formula, DoT rendering, config key or HP behavior was intentionally changed.
