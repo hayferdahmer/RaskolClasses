@@ -301,4 +301,4 @@ The two expansions intentionally retain the shared PlaceholderSnapshotService de
 - shutdown отменяет producer и удаляет все полосы;
 - HUD visibility, class/effect lookup, форматирование заголовков, сортировка, цвета и прогресс не менялись намеренно.
 
-Owner не регистрирует listener: `BossBarService` им не является. BossBar task удалён из root `activeTasks`; shutdown cleanup изолирован от ошибок и не пропускает последующие действия root. Добавлены unit tests на идемпотентный запуск, restart, порядок cleanup, scheduling/cancellation failure, retry и нормализацию периода.
+Owner не регистрирует listener: `BossBarService` им не является. BossBar task удалён из root `activeTasks`; shutdown cleanup изолирован от ошибок и не пропускает последующие действия root. Добавлены unit tests на идемпотентный запуск, restart, порядок cleanup, scheduling/cancellation failure, retry и нормализацию периода. Совместимый getter `RaskolClasses.getBossBars()` сохранён; для него добавлено точечное исключение EI_EXPOSE_REP в SpotBugs filter, как и для других живых service accessors.
