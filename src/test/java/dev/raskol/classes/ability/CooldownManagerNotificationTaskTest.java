@@ -95,7 +95,7 @@ class CooldownManagerNotificationTaskTest {
 
         assertSame(replacementMap, registry.get(playerId));
         assertSame(replacement, registry.get(playerId).get("frostbolt"));
-        assertTrue(oldMap.isEmpty());
+        assertSame(oldTask, oldMap.get("fireball"));
     }
 
     private CooldownManager manager() {
