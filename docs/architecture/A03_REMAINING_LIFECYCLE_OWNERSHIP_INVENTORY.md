@@ -390,3 +390,10 @@ Implemented: dedicated `CCFeedbackRuntimeOwner`, separate from `CCRuntimeOwner`.
 - [x] `CCService` remains the owner of CC state; `CCRuntimeOwner` remains the owner of the periodic CC producer.
 
 Paper-level integration verification of TextDisplay visibility/passenger behavior remains a follow-up; no live server test has been claimed.
+
+
+## A-03-003.21 — Аудит оставшихся runtime-задач и callback
+
+Подтверждённые остатки после выделения owners, включая шесть root-owned periodic tasks, HP respawn callbacks, storage completion callbacks, Warlock channel tasks и duplicate sweep handle InstallationService, описаны в отдельном source-backed документе: [A03_RUNTIME_TASK_CALLBACK_AUDIT.md](A03_RUNTIME_TASK_CALLBACK_AUDIT.md).
+
+Аудит выполняется поэтапно. Полный repository-wide scan и сверка всех task creation sites остаются незакрытыми acceptance criteria; runtime-код в этом срезе не менялся.
