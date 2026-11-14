@@ -51,7 +51,8 @@ public final class BossBarService {
         bars.clear();
     }
 
-    private void tick() {
+    /** Выполняет один цикл обновления полос; вызывается синхронным runtime scheduler. */
+    public void tick() {
         RaskolConfig cfg = plugin.getRaskolConfig();
         if (!cfg.isBossBarEnabled()) {
             cleanupAll();
