@@ -46,10 +46,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
  *         проков per-player: два игрока с одним proc_id (например, execute_passive)
  *         видят свой визуал независимо, а не один раз на двоих в течение 2 с.
  *         Глобального ключа "procId" в карте больше не появляется.
- * A-03-003.27: startAura сохраняет оба BukkitTask handle — repeating task
- *         и delayed expiration callback. Callback сравнивает текущую запись по
- *         identity repeating handle, поэтому callback старой ауры не может
- *         удалить или остановить новую ауру, заменившую её.
  */
 public final class FxService implements Listener {
 
@@ -248,12 +244,9 @@ public final class FxService implements Listener {
     /* --------------------------------- ауры --------------------------------- */
 
     /**
-     * 1.15.6 (2.6-103): Identity-check в отложенной задаче.
-     * scheduledTask сохраняется в локальную переменную и сравнивается по identity
-     * с текущей записью auras в runTaskLater. Если новая аура уже перезатёрла
-     * старую (current != scheduledTask) — отложенная задача ничего не делает.
-     * Раньше auras.remove(playerUuid) убирал ТЕКУЩУЮ запись, то есть новую ауру,
-     * и cancel() прерывал её — новая аура умирала раньше срока.
+     * Сохраняет handle repeating task и отдельный handle expiration callback.
+     * Callback снимает ауру только при совпадении UUID и identity repeating handle,
+     * поэтому callback предыдущей ауры не может удалить запись её замены.
      */
     public void startAura(UUID playerUuid, Particle particle, int ticks, int perTick, String expireSoundKey) {
         ensureTaskSchedulingAllowed();
