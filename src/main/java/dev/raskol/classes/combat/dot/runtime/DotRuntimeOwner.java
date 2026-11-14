@@ -88,9 +88,17 @@ public final class DotRuntimeOwner implements AutoCloseable {
         closed = true;
     }
 
-    public synchronized boolean isRunning() { return running; }
-    public synchronized boolean isClosed() { return closed; }
-    public int ownedTaskCount() { return tasks.size(); }
+    public synchronized boolean isRunning() {
+        return running;
+    }
+
+    public synchronized boolean isClosed() {
+        return closed;
+    }
+
+    public int ownedTaskCount() {
+        return tasks.size();
+    }
 
     private static RuntimeException merge(RuntimeException current, RuntimeException next) {
         if (current == null) return new IllegalStateException("Не удалось полностью остановить DoT runtime", next);

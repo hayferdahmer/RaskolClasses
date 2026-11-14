@@ -40,10 +40,13 @@ class CCRuntimeOwnerTest {
     @Test
     void schedulingFailureRollsBackListenerRegistration() {
         List<String> calls = new ArrayList<>();
-        CCRuntimeOwner owner = new CCRuntimeOwner(registration(calls), tick -> {
-            calls.add("schedule");
-            throw new IllegalStateException("schedule failed");
-        }, () -> calls.add("tick"));
+        CCRuntimeOwner owner = new CCRuntimeOwner(
+                registration(calls),
+                tick -> {
+                    calls.add("schedule");
+                    throw new IllegalStateException("schedule failed");
+                },
+                () -> calls.add("tick"));
         assertThrows(IllegalStateException.class, owner::start);
         assertEquals(List.of("register", "schedule", "unregister"), calls);
         assertFalse(owner.isRunning());
@@ -71,10 +74,18 @@ class CCRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         boolean[] failOnce = {true};
         CCRuntimeRegistration registration = new CCRuntimeRegistration() {
-            @Override public void register() { calls.add("register"); }
-            @Override public void unregister() {
+            @Override
+            public void register() {
+                calls.add("register");
+            }
+
+            @Override
+            public void unregister() {
                 calls.add("unregister");
-                if (failOnce[0]) { failOnce[0] = false; throw new IllegalStateException("unregister failed"); }
+                if (failOnce[0]) {
+                    failOnce[0] = false;
+                    throw new IllegalStateException("unregister failed");
+                }
             }
         };
         CCRuntimeOwner owner = new CCRuntimeOwner(registration, tick -> new FakeTask(calls), () -> {});
@@ -90,8 +101,16 @@ class CCRuntimeOwnerTest {
     void registrationFailureAttemptsUnregistration() {
         List<String> calls = new ArrayList<>();
         CCRuntimeRegistration registration = new CCRuntimeRegistration() {
-            @Override public void register() { calls.add("register"); throw new IllegalStateException("register failed"); }
-            @Override public void unregister() { calls.add("unregister"); }
+            @Override
+            public void register() {
+                calls.add("register");
+                throw new IllegalStateException("register failed");
+            }
+
+            @Override
+            public void unregister() {
+                calls.add("unregister");
+            }
         };
         CCRuntimeOwner owner = new CCRuntimeOwner(registration, tick -> new FakeTask(calls), () -> {});
         assertThrows(IllegalStateException.class, owner::start);
@@ -109,13 +128,26 @@ class CCRuntimeOwnerTest {
     }
 
     private static CCRuntimeOwner owner(List<String> calls, FakeTask task) {
-        return new CCRuntimeOwner(registration(calls), tick -> { calls.add("schedule"); return task; }, () -> {});
+        return new CCRuntimeOwner(
+                registration(calls),
+                tick -> {
+                    calls.add("schedule");
+                    return task;
+                },
+                () -> {});
     }
 
     private static CCRuntimeRegistration registration(List<String> calls) {
         return new CCRuntimeRegistration() {
-            @Override public void register() { calls.add("register"); }
-            @Override public void unregister() { calls.add("unregister"); }
+            @Override
+            public void register() {
+                calls.add("register");
+            }
+
+            @Override
+            public void unregister() {
+                calls.add("unregister");
+            }
         };
     }
 
@@ -127,12 +159,24 @@ class CCRuntimeOwnerTest {
         private final List<String> calls;
         private boolean cancelled;
         private boolean failOnce;
-        private FakeTask(List<String> calls) { this.calls = calls; }
-        @Override public void cancel() {
+
+        private FakeTask(List<String> calls) {
+            this.calls = calls;
+        }
+
+        @Override
+        public void cancel() {
             calls.add("cancel");
-            if (failOnce) { failOnce = false; throw new IllegalStateException("cancel failed"); }
+            if (failOnce) {
+                failOnce = false;
+                throw new IllegalStateException("cancel failed");
+            }
             cancelled = true;
         }
-        @Override public boolean isCancelled() { return cancelled; }
+
+        @Override
+        public boolean isCancelled() {
+            return cancelled;
+        }
     }
 }

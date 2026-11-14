@@ -40,10 +40,13 @@ class DotRuntimeOwnerTest {
     @Test
     void schedulingFailureRollsBackListenerRegistration() {
         List<String> calls = new ArrayList<>();
-        DotRuntimeOwner owner = new DotRuntimeOwner(registration(calls), tick -> {
-            calls.add("schedule");
-            throw new IllegalStateException("schedule failed");
-        }, () -> calls.add("tick"));
+        DotRuntimeOwner owner = new DotRuntimeOwner(
+                registration(calls),
+                tick -> {
+                    calls.add("schedule");
+                    throw new IllegalStateException("schedule failed");
+                },
+                () -> calls.add("tick"));
         assertThrows(IllegalStateException.class, owner::start);
         assertEquals(List.of("register", "schedule", "unregister"), calls);
         assertFalse(owner.isRunning());
@@ -71,10 +74,18 @@ class DotRuntimeOwnerTest {
         List<String> calls = new ArrayList<>();
         boolean[] failOnce = {true};
         DotRuntimeRegistration registration = new DotRuntimeRegistration() {
-            @Override public void register() { calls.add("register"); }
-            @Override public void unregister() {
+            @Override
+            public void register() {
+                calls.add("register");
+            }
+
+            @Override
+            public void unregister() {
                 calls.add("unregister");
-                if (failOnce[0]) { failOnce[0] = false; throw new IllegalStateException("unregister failed"); }
+                if (failOnce[0]) {
+                    failOnce[0] = false;
+                    throw new IllegalStateException("unregister failed");
+                }
             }
         };
         DotRuntimeOwner owner = new DotRuntimeOwner(registration, tick -> new FakeTask(calls), () -> {});
@@ -90,8 +101,16 @@ class DotRuntimeOwnerTest {
     void registrationFailureAttemptsUnregistration() {
         List<String> calls = new ArrayList<>();
         DotRuntimeRegistration registration = new DotRuntimeRegistration() {
-            @Override public void register() { calls.add("register"); throw new IllegalStateException("register failed"); }
-            @Override public void unregister() { calls.add("unregister"); }
+            @Override
+            public void register() {
+                calls.add("register");
+                throw new IllegalStateException("register failed");
+            }
+
+            @Override
+            public void unregister() {
+                calls.add("unregister");
+            }
         };
         DotRuntimeOwner owner = new DotRuntimeOwner(registration, tick -> new FakeTask(calls), () -> {});
         assertThrows(IllegalStateException.class, owner::start);
@@ -109,13 +128,26 @@ class DotRuntimeOwnerTest {
     }
 
     private static DotRuntimeOwner owner(List<String> calls, FakeTask task) {
-        return new DotRuntimeOwner(registration(calls), tick -> { calls.add("schedule"); return task; }, () -> {});
+        return new DotRuntimeOwner(
+                registration(calls),
+                tick -> {
+                    calls.add("schedule");
+                    return task;
+                },
+                () -> {});
     }
 
     private static DotRuntimeRegistration registration(List<String> calls) {
         return new DotRuntimeRegistration() {
-            @Override public void register() { calls.add("register"); }
-            @Override public void unregister() { calls.add("unregister"); }
+            @Override
+            public void register() {
+                calls.add("register");
+            }
+
+            @Override
+            public void unregister() {
+                calls.add("unregister");
+            }
         };
     }
 
@@ -127,12 +159,24 @@ class DotRuntimeOwnerTest {
         private final List<String> calls;
         private boolean cancelled;
         private boolean failOnce;
-        private FakeTask(List<String> calls) { this.calls = calls; }
-        @Override public void cancel() {
+
+        private FakeTask(List<String> calls) {
+            this.calls = calls;
+        }
+
+        @Override
+        public void cancel() {
             calls.add("cancel");
-            if (failOnce) { failOnce = false; throw new IllegalStateException("cancel failed"); }
+            if (failOnce) {
+                failOnce = false;
+                throw new IllegalStateException("cancel failed");
+            }
             cancelled = true;
         }
-        @Override public boolean isCancelled() { return cancelled; }
+
+        @Override
+        public boolean isCancelled() {
+            return cancelled;
+        }
     }
 }

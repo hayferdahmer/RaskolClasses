@@ -34,21 +34,21 @@ import dev.raskol.classes.bootstrap.PluginTasks;
 import dev.raskol.classes.bootstrap.SessionListener;
 import dev.raskol.classes.bootstrap.StartupChecks;
 import dev.raskol.classes.cc.CCGuard;
-import dev.raskol.classes.cc.runtime.CCRuntimeOwner;
-import dev.raskol.classes.cc.runtime.PaperCCRuntimeRegistration;
-import dev.raskol.classes.cc.runtime.PaperCCTaskScheduler;
 import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.CastGuard;
 import dev.raskol.classes.cc.VanillaCCWrapper;
+import dev.raskol.classes.cc.runtime.CCRuntimeOwner;
+import dev.raskol.classes.cc.runtime.PaperCCRuntimeRegistration;
+import dev.raskol.classes.cc.runtime.PaperCCTaskScheduler;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
+import dev.raskol.classes.combat.ManaSoakedService;
+import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.combat.dot.runtime.DotRuntimeOwner;
 import dev.raskol.classes.combat.dot.runtime.PaperDotRuntimeRegistration;
 import dev.raskol.classes.combat.dot.runtime.PaperDotTaskScheduler;
-import dev.raskol.classes.combat.ManaSoakedService;
-import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.ConfigMigrator;
 import dev.raskol.classes.config.ConfigValidator;
@@ -774,7 +774,8 @@ public final class RaskolClasses extends JavaPlugin {
                 dotRuntimeOwner.close();
                 dotRuntimeOwner = null;
             } catch (RuntimeException exception) {
-                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить DoT runtime", exception);
+                getLogger()
+                        .log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить DoT runtime", exception);
             }
         }
         if (ccRuntimeOwner != null) {
@@ -782,7 +783,8 @@ public final class RaskolClasses extends JavaPlugin {
                 ccRuntimeOwner.close();
                 ccRuntimeOwner = null;
             } catch (RuntimeException exception) {
-                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить CC runtime", exception);
+                getLogger()
+                        .log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить CC runtime", exception);
             }
         }
 

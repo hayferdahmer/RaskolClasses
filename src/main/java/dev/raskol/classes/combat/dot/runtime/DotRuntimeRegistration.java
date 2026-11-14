@@ -5,5 +5,6 @@ package dev.raskol.classes.combat.dot.runtime;
 /** Граница регистрации listener DoT в Paper runtime. */
 public interface DotRuntimeRegistration {
     void register();
+
     void unregister();
 }

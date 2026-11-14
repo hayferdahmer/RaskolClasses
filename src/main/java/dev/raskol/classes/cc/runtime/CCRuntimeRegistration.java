@@ -5,5 +5,6 @@ package dev.raskol.classes.cc.runtime;
 /** Граница регистрации listener CCService в Paper runtime. */
 public interface CCRuntimeRegistration {
     void register();
+
     void unregister();
 }

@@ -27,7 +27,15 @@ public final class PaperDotTaskScheduler implements DotTaskScheduler {
         private BukkitTaskHandle {
             Objects.requireNonNull(task, "task");
         }
-        @Override public void cancel() { task.cancel(); }
-        @Override public boolean isCancelled() { return task.isCancelled(); }
+
+        @Override
+        public void cancel() {
+            task.cancel();
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return task.isCancelled();
+        }
     }
 }
