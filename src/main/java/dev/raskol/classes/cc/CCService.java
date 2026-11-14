@@ -74,6 +74,7 @@ public final class CCService implements Listener {
     }
 
     private final RaskolClasses plugin;
+    private final CCFeedback feedback;
     private final Map<UUID, CopyOnWriteArrayList<CCInstance>> active = new ConcurrentHashMap<>();
     private final Map<UUID, EnumMap<DRCategory, DRState>> drStates = new ConcurrentHashMap<>();
     private final Map<UUID, Long> nextFearTurn = new ConcurrentHashMap<>();
@@ -87,8 +88,9 @@ public final class CCService implements Listener {
      * полей. Регистрацию слушателей и запуск тик-задачи (каждый тик) выполняет
      * владелец (RaskolClasses.onEnable).
      */
-    public CCService(RaskolClasses plugin) {
+    public CCService(RaskolClasses plugin, CCFeedback feedback) {
         this.plugin = plugin;
+        this.feedback = java.util.Objects.requireNonNull(feedback, "feedback");
         this.slowAttrKey = new NamespacedKey(plugin, "cc_slow");
     }
 
@@ -426,7 +428,7 @@ public final class CCService implements Listener {
             if (breaksOnDamage(inst.type())) {
                 list.remove(inst);
                 clearBehavior(uuid, inst.type());
-                CCFeedback.onExpire(plugin, target, inst.type());
+                feedback.onExpire(plugin, target, inst.type());
             }
         }
         if (list.isEmpty()) {
