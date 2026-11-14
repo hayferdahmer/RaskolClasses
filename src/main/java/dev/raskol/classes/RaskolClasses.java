@@ -728,10 +728,7 @@ public final class RaskolClasses extends JavaPlugin {
                 fx = null;
             } catch (RuntimeException exception) {
                 getLogger()
-                        .log(
-                                java.util.logging.Level.SEVERE,
-                                "Не удалось полностью остановить FX runtime",
-                                exception);
+                        .log(java.util.logging.Level.SEVERE, "Не удалось полностью остановить FX runtime", exception);
             }
         }
 
