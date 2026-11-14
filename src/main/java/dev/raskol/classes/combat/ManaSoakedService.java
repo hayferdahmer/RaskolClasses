@@ -6,9 +6,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -38,11 +36,8 @@ public final class ManaSoakedService {
         this.plugin = plugin;
     }
 
-    public BukkitTask start() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
-    }
-
-    private void tick() {
+    /** Выполняет один цикл проверки маны и резистов. */
+    public void tick() {
         if (!plugin.getConfig().getBoolean("resist.mana-soaked.enabled", true)) {
             return;
         }
@@ -79,6 +74,12 @@ public final class ManaSoakedService {
     }
 
     /** Полный проход по онлайну: добавить новых магов, снять модификаторы экс-магов. */
+    /** Сбрасывает tracking-состояние после остановки периодического producer. */
+    public void clearTracking() {
+        mageIds.clear();
+        lastScanTick = -1L;
+    }
+
     private void scanForMages() {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
