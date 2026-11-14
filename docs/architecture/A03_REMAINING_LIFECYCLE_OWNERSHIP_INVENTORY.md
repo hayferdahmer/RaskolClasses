@@ -404,3 +404,6 @@ Paper-level integration verification of TextDisplay visibility/passenger behavio
 `WarlockChannelTaskOwner` now owns the one-shot tasks created by `WarlockAbilities.soulRift()` on a per-caster basis. Each handle is registered immediately after scheduling; partial scheduling failure cancels already registered tasks; channel completion releases handles in a `finally` block; plugin shutdown closes the owner independently. Five focused unit tests cover caster isolation, retryable cancellation, close retry, normal completion, and rejection after close.
 
 The next CI pass must include Spotless formatting and the complete `mvn -Pdev -B verify` pipeline. This implementation slice remains open until both Build and Analyze jobs pass.
+
+
+**CI formatting checkpoint:** Spotless Format workflow run #16 completed successfully. It applied the canonical formatting and its post-format `mvn -Pdev -B verify` passed on the workflow workspace: 623 tests, 0 failures/errors/skips; SpotBugs reported 0 BugInstances and 0 errors; Spotless reported 456 files clean. The formatting commit is present on this branch. A fresh Build run is required against the resulting commit because Build #3223 analyzed the pre-format SHA and its Analyze job raced ahead of the formatting push.
