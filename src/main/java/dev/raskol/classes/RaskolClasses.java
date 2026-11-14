@@ -4,14 +4,11 @@ package dev.raskol.classes;
 
 import java.io.File;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
@@ -31,6 +28,10 @@ import dev.raskol.classes.attribute.runtime.HpAttributeSyncRuntimeOwner;
 import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncRegistration;
 import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncScheduler;
 import dev.raskol.classes.bootstrap.PluginTasks;
+import dev.raskol.classes.bootstrap.runtime.AutosaveRuntimeOwner;
+import dev.raskol.classes.bootstrap.runtime.PaperAutosaveTaskScheduler;
+import dev.raskol.classes.bootstrap.runtime.PaperPurgeTaskScheduler;
+import dev.raskol.classes.bootstrap.runtime.PurgeRuntimeOwner;
 import dev.raskol.classes.bootstrap.SessionListener;
 import dev.raskol.classes.bootstrap.StartupChecks;
 import dev.raskol.classes.cc.CCFeedback;
@@ -247,7 +248,8 @@ public final class RaskolClasses extends JavaPlugin {
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
 
-    private final List<BukkitTask> activeTasks = new ArrayList<>();
+    private PurgeRuntimeOwner purgeRuntimeOwner;
+    private AutosaveRuntimeOwner autosaveRuntimeOwner;
 
     /** RIPS verifier shared by startup and runtime checks. */
     private ArtifactBoundIntegrityVerifier artifactBoundIntegrityVerifier;
@@ -568,8 +570,14 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info("ScrollCooldownTask v12 (durability-bar) active");
         scrollCooldownRuntimeOwner.start();
         manaSoakedRuntimeOwner.start();
-        activeTasks.add(PluginTasks.startPurgeTask(this));
-        activeTasks.add(PluginTasks.startAutosaveTask(this));
+        long purgeInterval = getRaskolConfig().purgeIntervalTicks();
+        long autosaveInterval = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
+        purgeRuntimeOwner = new PurgeRuntimeOwner(
+                new PaperPurgeTaskScheduler(this, () -> PluginTasks.purge(this), purgeInterval));
+        autosaveRuntimeOwner = new AutosaveRuntimeOwner(
+                new PaperAutosaveTaskScheduler(this, () -> PluginTasks.autosave(this), autosaveInterval));
+        purgeRuntimeOwner.start();
+        autosaveRuntimeOwner.start();
     }
 
     /** Выполняет финальную регистрацию команды, startup-отчёт и RIPS runtime monitor. */
@@ -686,6 +694,23 @@ public final class RaskolClasses extends JavaPlugin {
      * затем сохраняемые сервисы, а общий StorageWriter закрывает последним.
      */
     private void shutdownRuntime() {
+        // Сначала останавливаем cross-domain producers, затем сохраняем финальные снимки.
+        if (purgeRuntimeOwner != null) {
+            try {
+                purgeRuntimeOwner.close();
+                purgeRuntimeOwner = null;
+            } catch (RuntimeException exception) {
+                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось остановить global purge runtime", exception);
+            }
+        }
+        if (autosaveRuntimeOwner != null) {
+            try {
+                autosaveRuntimeOwner.close();
+                autosaveRuntimeOwner = null;
+            } catch (RuntimeException exception) {
+                getLogger().log(java.util.logging.Level.SEVERE, "Не удалось остановить global autosave runtime", exception);
+            }
+        }
         if (hpBarRuntimeOwner != null) {
             try {
                 hpBarRuntimeOwner.close();
@@ -885,8 +910,6 @@ public final class RaskolClasses extends JavaPlugin {
                                 exception);
             }
         }
-        activeTasks.forEach(BukkitTask::cancel);
-        activeTasks.clear();
         if (items != null) items.stop();
         if (passportListener != null) {
             passportListener.unregister();
