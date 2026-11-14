@@ -3,6 +3,7 @@
 package dev.raskol.classes.install;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,8 +27,8 @@ import dev.raskol.classes.combat.DamageProfile;
 public final class PentagramHandler extends BaseInstallationHandler {
 
     private final Map<UUID, BukkitTask> redrawTasks = new ConcurrentHashMap<>();
-    private final java.util.Set<UUID> cancelledRedrawTasks = ConcurrentHashMap.newKeySet();
-    private final java.util.Set<UUID> completedExpiryEffects = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> cancelledRedrawTasks = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> completedExpiryEffects = ConcurrentHashMap.newKeySet();
 
     public PentagramHandler(RaskolClasses plugin) {
         super(plugin);
