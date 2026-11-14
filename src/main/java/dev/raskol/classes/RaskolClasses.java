@@ -72,6 +72,8 @@ import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
 import dev.raskol.classes.hotbar.ScrollSanitizer;
 import dev.raskol.classes.hud.BossBarService;
+import dev.raskol.classes.hud.runtime.BossBarRuntimeOwner;
+import dev.raskol.classes.hud.runtime.PaperBossBarTaskScheduler;
 import dev.raskol.classes.hud.HpBarService;
 import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.install.InstallBindListener;
@@ -144,6 +146,7 @@ public final class RaskolClasses extends JavaPlugin {
     private ActiveEffectManager effects;
     private HudService hud;
     private BossBarService bossBars;
+    private BossBarRuntimeOwner bossBarRuntimeOwner;
     private HpBarService hpBarService;
     private HpAttributeSyncRuntimeOwner hpSyncRuntimeOwner;
     private AbilityToken tokens;
@@ -324,6 +327,10 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.hud = new HudService(this);
         this.bossBars = new BossBarService(this);
+        this.bossBarRuntimeOwner = new BossBarRuntimeOwner(
+                new PaperBossBarTaskScheduler(this, bossBars::tick),
+                () -> getRaskolConfig().bossBarTickPeriod(),
+                bossBars::clearBars);
         this.tokens = new AbilityToken(this);
 
         this.fx = new FxService(this);
@@ -475,7 +482,7 @@ public final class RaskolClasses extends JavaPlugin {
         }
         activeTasks.add(hpBarService.start());
         activeTasks.add(resources.startTickTask(this));
-        activeTasks.add(bossBars.start());
+        bossBarRuntimeOwner.start();
         flavorRuntimeOwner.start();
         activeTasks.add(installations.startSweepTask());
         activeTasks.add(new ScrollCooldownTask(this).start());
@@ -700,8 +707,15 @@ public final class RaskolClasses extends JavaPlugin {
         if (installations != null) {
             installations.shutdown();
         }
-        if (bossBars != null) {
-            bossBars.shutdown();
+        if (bossBarRuntimeOwner != null) {
+            try {
+                bossBarRuntimeOwner.close();
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.SEVERE,
+                        "Не удалось полностью остановить BossBar runtime",
+                        exception);
+            }
         }
         if (cooldownRuntimeOwner != null) {
             try {
@@ -783,8 +797,8 @@ public final class RaskolClasses extends JavaPlugin {
                     raskolConfig.readyNotifyMinCooldownSeconds(),
                     raskolConfig.readyNotifySoundKey(),
                     raskolConfig.readyNotifyMessage());
-            if (bossBars != null) {
-                bossBars.applyConfig();
+            if (bossBarRuntimeOwner != null) {
+                bossBarRuntimeOwner.restart();
             }
 
             stage = "визуальные эффекты и проверка конфигурации";
