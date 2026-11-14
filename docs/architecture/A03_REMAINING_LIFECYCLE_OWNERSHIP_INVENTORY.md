@@ -450,3 +450,10 @@ Spotless Format run `43571814754` completed successfully and its post-format `mv
 PlayerCallbackRuntimeOwner is shared infrastructure, but HP Attribute and HP Bar each receive an independent instance. The owner tracks one callback per player UUID, replaces a prior callback by cancelling its handle, releases entries before invoking completed callbacks, and retains failed cancellations for retry. Paper scheduling is isolated in PaperPlayerCallbackScheduler.
 
 HpAttributeSync preserves the 2-tick respawn sync delay. HpBarService preserves next-tick execution for max-health/HP/hearts restoration. Quit cancels the pending callback without allowing a cancellation error to skip HP persistence. Both owners are closed before the HP listener/runtime owners and before final storage snapshots. Storage writer completion callbacks are explicitly excluded and remain in A-04.
+
+
+## A-03-003.25 — Storage completion callback audit
+
+Source-backed audit is recorded in [A03_STORAGE_COMPLETION_CALLBACK_AUDIT.md](A03_STORAGE_COMPLETION_CALLBACK_AUDIT.md). The four service completion paths and AsyncStorageWriter were traced, including normal worker-thread completion, inline completion on rejected submission, and shutdown queue cancellation.
+
+No universal storage callback runtime owner is introduced. Dirty generations and resource reset semantics remain owned by their respective services. The confirmed follow-ups are deterministic execution-context tests, ResourceService per-player reset race tests, optional in-flight snapshot coalescing for HP Bar/Foliant, and CI on one formatted HEAD. Storage drain/timeout semantics remain in A-04. This slice is open pending those tests and verification.
