@@ -111,6 +111,8 @@ import dev.raskol.classes.pet.runtime.PaperPetRuntimeRegistration;
 import dev.raskol.classes.pet.runtime.PaperPetTaskScheduler;
 import dev.raskol.classes.pet.runtime.PetRuntimeOwner;
 import dev.raskol.classes.resource.ResourceService;
+import dev.raskol.classes.resource.runtime.ResourceRuntimeOwner;
+import dev.raskol.classes.resource.runtime.PaperResourceTaskScheduler;
 import dev.raskol.classes.spec.build.BuildTemplates;
 import dev.raskol.classes.spec.build.ImperialWallet;
 import dev.raskol.classes.spec.build.NullWallet;
@@ -158,6 +160,7 @@ public final class RaskolClasses extends JavaPlugin {
     private SkillLevelProvider skillLevels;
     private CharacterLevelService characterLevels;
     private ResourceService resources;
+    private ResourceRuntimeOwner resourceRuntimeOwner;
     private CooldownManager cooldowns;
     private CooldownRuntimeOwner cooldownRuntimeOwner;
     private AbilityRegistry abilities;
@@ -331,6 +334,7 @@ public final class RaskolClasses extends JavaPlugin {
         this.skillLevels = new SkillLevelProvider(this);
         this.characterLevels = new CharacterLevelService(this);
         this.resources = new ResourceService(this, raskolConfig, classProvider);
+        this.resourceRuntimeOwner = new ResourceRuntimeOwner(new PaperResourceTaskScheduler(this, resources::tick));
 
         classProvider.setResourceService(resources);
 
@@ -545,7 +549,7 @@ public final class RaskolClasses extends JavaPlugin {
             }
         }
         hpBarRuntimeOwner.start();
-        activeTasks.add(resources.startTickTask(this));
+        resourceRuntimeOwner.start();
         bossBarRuntimeOwner.start();
         flavorRuntimeOwner.start();
         installationRuntimeOwner.start();
@@ -823,6 +827,17 @@ public final class RaskolClasses extends JavaPlugin {
 
         activeTasks.forEach(BukkitTask::cancel);
         activeTasks.clear();
+        if (resourceRuntimeOwner != null) {
+            try {
+                resourceRuntimeOwner.close();
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.SEVERE,
+                                "Не удалось полностью остановить Resource runtime",
+                                exception);
+            }
+        }
         if (installationRuntimeOwner != null) {
             try {
                 installationRuntimeOwner.close();
