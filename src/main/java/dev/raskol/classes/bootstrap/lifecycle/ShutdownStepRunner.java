@@ -48,10 +48,9 @@ public final class ShutdownStepRunner {
             return;
         }
 
-        logger.severe(
-                "Выключение плагина завершено с ошибками: "
-                        + failedSteps.size()
-                        + "; этапы: "
-                        + String.join(", ", failedSteps));
+        logger.severe("Выключение плагина завершено с ошибками: "
+                + failedSteps.size()
+                + "; этапы: "
+                + String.join(", ", failedSteps));
     }
 }
