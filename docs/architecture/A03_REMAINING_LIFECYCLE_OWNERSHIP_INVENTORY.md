@@ -84,7 +84,8 @@ Bukkit обычно очищает зарегистрированные listener
 
 Текущая root последовательность в `shutdownRuntime()`:
 
-1. Close ActionBar `HudRuntimeOwner` (cancel producer → clear only HUD caches → unregister quit listener).\n2. Close Placeholder runtime (cancel refresh producer → unregister expansions → clear snapshots).
+1. Close ActionBar `HudRuntimeOwner` (cancel producer → clear only HUD caches → unregister quit listener).
+2. Close Placeholder runtime (cancel refresh producer → unregister expansions → clear snapshots).
 3. Close `FlavorRuntimeOwner` (cancel aura producer → unregister CrownFlavorService listener).
 4. Close RuntimeIntegrityRuntimeOwner.
 5. Close `HpAttributeSyncRuntimeOwner` (cancel sweep → unregister listener).
