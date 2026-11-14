@@ -26,6 +26,8 @@ import dev.raskol.classes.combat.DamageProfile;
 public final class PentagramHandler extends BaseInstallationHandler {
 
     private final Map<UUID, BukkitTask> redrawTasks = new ConcurrentHashMap<>();
+    private final java.util.Set<UUID> cancelledRedrawTasks = ConcurrentHashMap.newKeySet();
+    private final java.util.Set<UUID> completedExpiryEffects = ConcurrentHashMap.newKeySet();
 
     public PentagramHandler(RaskolClasses plugin) {
         super(plugin);
@@ -113,11 +115,36 @@ public final class PentagramHandler extends BaseInstallationHandler {
 
     @Override
     public void expire(ActiveInstallation inst) {
-        BukkitTask task = redrawTasks.remove(inst.id());
-        if (task != null) {
-            task.cancel();
+        RuntimeException failure = null;
+        UUID installationId = inst.id();
+        BukkitTask task = redrawTasks.get(installationId);
+        if (task != null && !cancelledRedrawTasks.contains(installationId)) {
+            try {
+                task.cancel();
+                cancelledRedrawTasks.add(installationId);
+                redrawTasks.remove(installationId, task);
+            } catch (RuntimeException exception) {
+                failure = exception;
+            }
         }
-        plugin.getFx().impactBurst(inst.location(), Particle.SMOKE, 14, Sound.ENTITY_BLAZE_DEATH, 0.3f, 0.8f);
+        if (!completedExpiryEffects.contains(installationId)) {
+            try {
+                plugin.getFx().impactBurst(
+                        inst.location(), Particle.SMOKE, 14, Sound.ENTITY_BLAZE_DEATH, 0.3f, 0.8f);
+                completedExpiryEffects.add(installationId);
+            } catch (RuntimeException exception) {
+                if (failure == null) {
+                    failure = exception;
+                } else {
+                    failure.addSuppressed(exception);
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+        cancelledRedrawTasks.remove(installationId);
+        completedExpiryEffects.remove(installationId);
     }
 
     private void riseSoul(Location loc) {
