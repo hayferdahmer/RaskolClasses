@@ -6,6 +6,7 @@ import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import org.bukkit.Bukkit;
@@ -34,7 +35,8 @@ public final class SalvageService {
         DAILY_LIMIT,
         STORAGE_ERROR,
         BUSY,
-        ITEM_CHANGED
+        ITEM_CHANGED,
+        PARTIAL_FAILURE
     }
 
     private static final int DEFAULT_DAILY_LIMIT = 20;

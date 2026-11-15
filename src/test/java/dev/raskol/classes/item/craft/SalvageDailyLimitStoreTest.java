@@ -3,6 +3,7 @@
 package dev.raskol.classes.item.craft;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -17,8 +18,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import dev.raskol.classes.storage.AsyncStorageWriter;
 
-/** Проверки асинхронного сохранения дневного лимита разбора. */
-@DisplayName("Salvage: персистентность дневного лимита")
+/** Проверки двухфазного резервирования дневного лимита разбора. */
+@DisplayName("Salvage: двухфазный дневной лимит")
 class SalvageDailyLimitStoreTest {
 
     private static final Logger LOGGER = Logger.getLogger("SalvageDailyLimitStoreTest");
@@ -27,23 +28,69 @@ class SalvageDailyLimitStoreTest {
     Path tempDir;
 
     @Test
-    @DisplayName("использованный лимит сохраняется после создания нового хранилища")
-    void usageSurvivesStoreRecreation() throws Exception {
+    @DisplayName("подтверждённая попытка сохраняется после создания нового хранилища")
+    void committedUsageSurvivesStoreRecreation() throws Exception {
         UUID playerId = UUID.randomUUID();
         File file = tempDir.resolve("salvage-daily.yml").toFile();
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             SalvageDailyLimitStore first = new SalvageDailyLimitStore(file, LOGGER, writer);
+            var reservation = first.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS);
+            assertEquals(SalvageDailyLimitStore.OperationResult.SUCCESS, reservation.result());
+            assertNotNull(reservation.reservation());
             assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                    first.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
+                    SalvageDailyLimitStore.OperationResult.SUCCESS,
+                    first.commit(reservation.reservation()).get(5, TimeUnit.SECONDS));
+
+            SalvageDailyLimitStore restarted = new SalvageDailyLimitStore(file, LOGGER, writer);
+            var second = restarted.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS);
+            assertEquals(SalvageDailyLimitStore.OperationResult.SUCCESS, second.result());
+            assertEquals(
+                    SalvageDailyLimitStore.OperationResult.SUCCESS,
+                    restarted.commit(second.reservation()).get(5, TimeUnit.SECONDS));
+            assertEquals(
+                    SalvageDailyLimitStore.OperationResult.LIMIT_REACHED,
+                    restarted.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS).result());
+        }
+    }
+
+    @Test
+    @DisplayName("освобождённый резерв не расходует дневную попытку")
+    void releasedReservationDoesNotConsumeDailyLimit() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        File file = tempDir.resolve("salvage-release.yml").toFile();
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            SalvageDailyLimitStore store = new SalvageDailyLimitStore(file, LOGGER, writer);
+            var reservation = store.reserve(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS);
+            assertEquals(SalvageDailyLimitStore.OperationResult.SUCCESS, reservation.result());
+            assertEquals(
+                    SalvageDailyLimitStore.OperationResult.SUCCESS,
+                    store.release(reservation.reservation()).get(5, TimeUnit.SECONDS));
+
+            var retry = store.reserve(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS);
+            assertEquals(SalvageDailyLimitStore.OperationResult.SUCCESS, retry.result());
+            assertEquals(
+                    SalvageDailyLimitStore.OperationResult.SUCCESS,
+                    store.commit(retry.reservation()).get(5, TimeUnit.SECONDS));
+            assertEquals(
+                    SalvageDailyLimitStore.OperationResult.LIMIT_REACHED,
+                    store.reserve(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS).result());
+        }
+    }
+
+    @Test
+    @DisplayName("незавершённый резерв после перезапуска консервативно занимает попытку")
+    void pendingReservationSurvivesRestartAndCountsAgainstLimit() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        File file = tempDir.resolve("salvage-pending.yml").toFile();
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            SalvageDailyLimitStore first = new SalvageDailyLimitStore(file, LOGGER, writer);
+            var pending = first.reserve(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS);
+            assertEquals(SalvageDailyLimitStore.OperationResult.SUCCESS, pending.result());
 
             SalvageDailyLimitStore restarted = new SalvageDailyLimitStore(file, LOGGER, writer);
             assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                    restarted.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
-            assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED,
-                    restarted.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
+                    SalvageDailyLimitStore.OperationResult.LIMIT_REACHED,
+                    restarted.reserve(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS).result());
         }
     }
 
@@ -54,39 +101,17 @@ class SalvageDailyLimitStoreTest {
         File file = tempDir.resolve("salvage-new-day.yml").toFile();
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             SalvageDailyLimitStore store = new SalvageDailyLimitStore(file, LOGGER, writer);
+            var first = store.reserve(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS);
             assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                    store.tryConsume(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS));
-            assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                    store.tryConsume(playerId, 20_001L, 1).get(5, TimeUnit.SECONDS));
+                    SalvageDailyLimitStore.OperationResult.SUCCESS,
+                    store.commit(first.reservation()).get(5, TimeUnit.SECONDS));
+            var nextDay = store.reserve(playerId, 20_001L, 1).get(5, TimeUnit.SECONDS);
+            assertEquals(SalvageDailyLimitStore.OperationResult.SUCCESS, nextDay.result());
         }
     }
 
     @Test
-    @DisplayName("последовательные резервирования соблюдают дневной лимит")
-    void sequentialRequestsRespectDailyLimit() throws Exception {
-        UUID playerId = UUID.randomUUID();
-        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
-            SalvageDailyLimitStore store = new SalvageDailyLimitStore(
-                    tempDir.resolve("salvage-concurrent.yml").toFile(), LOGGER, writer);
-            assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                    store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
-            assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                    store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
-            assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.CONSUMED,
-                    store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
-            assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.LIMIT_REACHED,
-                    store.tryConsume(playerId, 20_000L, 3).get(5, TimeUnit.SECONDS));
-        }
-    }
-
-    @Test
-    @DisplayName("ошибка сохранения блокирует разбор и не меняет лимит в памяти")
+    @DisplayName("ошибка сохранения блокирует резервирование")
     void storageFailureFailsClosed() throws Exception {
         UUID playerId = UUID.randomUUID();
         Path parentFile = tempDir.resolve("not-a-directory");
@@ -96,11 +121,11 @@ class SalvageDailyLimitStoreTest {
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             SalvageDailyLimitStore store = new SalvageDailyLimitStore(target, LOGGER, writer);
             assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR,
-                    store.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
+                    SalvageDailyLimitStore.OperationResult.STORAGE_ERROR,
+                    store.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS).result());
             assertEquals(
-                    SalvageDailyLimitStore.ConsumeResult.STORAGE_ERROR,
-                    store.tryConsume(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS));
+                    SalvageDailyLimitStore.OperationResult.STORAGE_ERROR,
+                    store.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS).result());
         }
     }
 }
