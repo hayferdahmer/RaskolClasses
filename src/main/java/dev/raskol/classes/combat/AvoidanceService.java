@@ -31,11 +31,11 @@ import org.bukkit.inventory.EquipmentSlotGroup;
 import org.bukkit.util.Vector;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
-import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.ConfigReads;
 
@@ -140,8 +140,8 @@ public final class AvoidanceService implements Listener {
         try {
             staggerCallbacks.cancel(playerId);
         } catch (RuntimeException failure) {
-            plugin.getLogger().warning("Не удалось отменить stagger callback для " + playerId + ": "
-                    + failure.getMessage());
+            plugin.getLogger()
+                    .warning("Не удалось отменить stagger callback для " + playerId + ": " + failure.getMessage());
         }
     }
 

@@ -337,17 +337,22 @@ public final class WarriorAbilities extends AbstractKit {
         }
         if (taunted > 0) {
             UUID casterId = p.getUniqueId();
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                Player caster = plugin.getServer().getPlayer(casterId);
-                if (caster == null || !caster.isOnline()) {
-                    return;
-                }
-                for (Entity e : caster.getNearbyEntities(radius + 8, radius + 8, radius + 8)) {
-                    if (e instanceof Mob mob && mob.isGlowing()) {
-                        mob.setGlowing(false);
-                    }
-                }
-            }, secs * 20L);
+            plugin.getServer()
+                    .getScheduler()
+                    .runTaskLater(
+                            plugin,
+                            () -> {
+                                Player caster = plugin.getServer().getPlayer(casterId);
+                                if (caster == null || !caster.isOnline()) {
+                                    return;
+                                }
+                                for (Entity e : caster.getNearbyEntities(radius + 8, radius + 8, radius + 8)) {
+                                    if (e instanceof Mob mob && mob.isGlowing()) {
+                                        mob.setGlowing(false);
+                                    }
+                                }
+                            },
+                            secs * 20L);
         }
         p.sendMessage(Component.text("Вызов брошен: мобов — " + taunted, NamedTextColor.GREEN));
         return taunted > 0;
