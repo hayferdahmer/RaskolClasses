@@ -8,6 +8,8 @@ on:
     paths:
       - .github/workflows/spotless-format.yml
       - docs/architecture/A03_REMAINING_LIFECYCLE_OWNERSHIP_INVENTORY.md
+      - 'src/main/java/**/*.java'
+      - 'src/test/java/**/*.java'
   workflow_dispatch:
 
 permissions:
