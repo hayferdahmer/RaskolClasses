@@ -612,3 +612,15 @@ Post-format verification passed on implementation HEAD `0d6b97053b30768040e9ea9c
 The HP Attribute and HP Bar respawn callbacks now pass UUID through `PlayerCallbackRuntimeOwner` and resolve the current online Paper Player at execution time. They no longer retain the Player object received by `PlayerRespawnEvent`. The original 2-tick HP Attribute delay and next-tick HP Bar behavior are preserved. The owner retains its Runnable overload for existing non-player-object callbacks and adds a UUID-aware Consumer overload. A focused UUID delivery/release test was added.
 
 TrailListener remains a documented bounded exception: projectile trail tasks self-cancel on invalid projectile/world or after 200 ticks; explicit task registry ownership is deferred unless the wider FX/listener lifecycle audit finds a concrete shutdown or operational need. Full repository-wide task/listener scan and Paper runtime acceptance remain open.
+
+
+## A-03-003.39 — Remaining one-shot scheduler and async handoff audit
+
+Audit-only checkpoint. The named source-backed findings and recommended grouped implementation are recorded in `A03_REMAINING_ONE_SHOT_SCHEDULER_AUDIT.md`.
+
+- P2: `CraftingGui.scheduleOpen` and `ItemBrowserMenu.scheduleOpen` schedule next-tick callbacks that retain the caller's Player. They check online state but do not re-resolve a reconnecting session by UUID.
+- P2: `ItemHook.schedule` schedules a next-tick reconciliation callback retaining Player; its repeating reconciliation task is separately retained and stopped.
+- Bounded exception: `TrailListener` projectile tasks self-cancel and stop after at most 200 ticks; no generic registry is justified by this evidence alone.
+- A-04 boundary: `PlusGui`, `SalvageService` and `PlusSubscription` have asynchronous completion-to-main-thread handoffs retaining Player. Their session/reconnect/shutdown semantics need a separate completion contract audit; UUID substitution alone is not a safe decision.
+- A-03-003.38 HP respawn callbacks and the Foliant transition callback already use UUID-aware resolution.
+- The repository-wide scheduler/listener scan remains open. No production source/tests changed in this audit. `main` remains untouched and `BootstrapCoordinator` remains inactive.
