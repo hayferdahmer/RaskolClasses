@@ -97,14 +97,12 @@ final class SalvageDailyLimitStore {
             throw new IllegalArgumentException("playerId and positive limit are required");
         }
         if (writeInFlight) {
-            return CompletableFuture.completedFuture(
-                    new ReservationAttempt(OperationResult.BUSY, null));
+            return CompletableFuture.completedFuture(new ReservationAttempt(OperationResult.BUSY, null));
         }
 
         int used = countFor(playerId, today);
         if (used >= limit) {
-            return CompletableFuture.completedFuture(
-                    new ReservationAttempt(OperationResult.LIMIT_REACHED, null));
+            return CompletableFuture.completedFuture(new ReservationAttempt(OperationResult.LIMIT_REACHED, null));
         }
 
         Reservation reservation = new Reservation(UUID.randomUUID(), playerId, today);

@@ -49,7 +49,10 @@ class SalvageDailyLimitStoreTest {
                     restarted.commit(second.reservation()).get(5, TimeUnit.SECONDS));
             assertEquals(
                     SalvageDailyLimitStore.OperationResult.LIMIT_REACHED,
-                    restarted.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS).result());
+                    restarted
+                            .reserve(playerId, 20_000L, 2)
+                            .get(5, TimeUnit.SECONDS)
+                            .result());
         }
     }
 
@@ -90,7 +93,10 @@ class SalvageDailyLimitStoreTest {
             SalvageDailyLimitStore restarted = new SalvageDailyLimitStore(file, LOGGER, writer);
             assertEquals(
                     SalvageDailyLimitStore.OperationResult.LIMIT_REACHED,
-                    restarted.reserve(playerId, 20_000L, 1).get(5, TimeUnit.SECONDS).result());
+                    restarted
+                            .reserve(playerId, 20_000L, 1)
+                            .get(5, TimeUnit.SECONDS)
+                            .result());
         }
     }
 

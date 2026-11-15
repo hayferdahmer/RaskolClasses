@@ -81,7 +81,8 @@ public final class ItemSub implements CommandSub {
             java.util.UUID playerId = p.getUniqueId();
             plugin.getItems().salvage().salvage(p, result -> {
                 Player current = Bukkit.getPlayer(playerId);
-                if (current != null && current.isOnline()
+                if (current != null
+                        && current.isOnline()
                         && result != dev.raskol.classes.item.craft.SalvageService.SalvageResult.OK) {
                     plugin.getItems().salvage().notifyFailure(current, result);
                 }

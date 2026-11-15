@@ -116,10 +116,8 @@ public final class SalvageService {
             switch (attempt.result()) {
                 case LIMIT_REACHED -> completeOnMain(playerId, completion, SalvageResult.DAILY_LIMIT);
                 case BUSY -> completeOnMain(playerId, completion, SalvageResult.BUSY);
-                case STORAGE_ERROR, NOT_FOUND ->
-                    completeOnMain(playerId, completion, SalvageResult.STORAGE_ERROR);
-                case SUCCESS ->
-                    dispatchReservedSalvage(playerId, expected, def, attempt.reservation(), completion);
+                case STORAGE_ERROR, NOT_FOUND -> completeOnMain(playerId, completion, SalvageResult.STORAGE_ERROR);
+                case SUCCESS -> dispatchReservedSalvage(playerId, expected, def, attempt.reservation(), completion);
             }
         });
     }
@@ -131,12 +129,12 @@ public final class SalvageService {
             SalvageDailyLimitStore.Reservation reservation,
             Consumer<SalvageResult> completion) {
         try {
-            Bukkit.getScheduler().runTask(plugin, () -> processReservedSalvage(
-                    playerId, expected, def, reservation, completion));
+            Bukkit.getScheduler()
+                    .runTask(plugin, () -> processReservedSalvage(playerId, expected, def, reservation, completion));
         } catch (RuntimeException exception) {
             releaseReservation(reservation, "не удалось запланировать разбор");
-            plugin.getLogger().warning(
-                    "Salvage: main-thread dispatch отклонён для " + playerId + ": " + exception.getMessage());
+            plugin.getLogger()
+                    .warning("Salvage: main-thread dispatch отклонён для " + playerId + ": " + exception.getMessage());
         }
     }
 
@@ -154,14 +152,15 @@ public final class SalvageService {
 
         ItemStack current = player.getInventory().getItemInMainHand();
         if (current == null || current.getAmount() != expected.getAmount() || !current.isSimilar(expected)) {
-            releaseReservation(reservation, "предмет изменился до выполнения разбора").whenComplete((released, error) -> {
-                completeOnMain(
-                        playerId,
-                        completion,
-                        error == null && released == SalvageDailyLimitStore.OperationResult.SUCCESS
-                                ? SalvageResult.ITEM_CHANGED
-                                : SalvageResult.STORAGE_ERROR);
-            });
+            releaseReservation(reservation, "предмет изменился до выполнения разбора")
+                    .whenComplete((released, error) -> {
+                        completeOnMain(
+                                playerId,
+                                completion,
+                                error == null && released == SalvageDailyLimitStore.OperationResult.SUCCESS
+                                        ? SalvageResult.ITEM_CHANGED
+                                        : SalvageResult.STORAGE_ERROR);
+                    });
             return;
         }
 
@@ -175,19 +174,21 @@ public final class SalvageService {
         } catch (RuntimeException exception) {
             // После начала изменения инвентаря результат выдачи может быть частичным.
             // Не освобождаем pending автоматически: это исключает повторную выдачу.
-            plugin.getLogger().severe(
-                    "Salvage: ошибка во время изменения инвентаря игрока " + playerId + ": "
+            plugin.getLogger()
+                    .severe("Salvage: ошибка во время изменения инвентаря игрока " + playerId + ": "
                             + exception.getMessage());
-            dailyLimits.commit(reservation).whenComplete((commitResult, commitError) ->
-                    completeOnMain(playerId, completion, SalvageResult.PARTIAL_FAILURE));
+            dailyLimits
+                    .commit(reservation)
+                    .whenComplete((commitResult, commitError) ->
+                            completeOnMain(playerId, completion, SalvageResult.PARTIAL_FAILURE));
             return;
         }
 
         dailyLimits.commit(reservation).whenComplete((commitResult, error) -> {
             if (error != null || commitResult != SalvageDailyLimitStore.OperationResult.SUCCESS) {
-                plugin.getLogger().severe(
-                        "Salvage: разбор выполнен, но финализация резерва не подтверждена для "
-                                + playerId + "; pending-резерв продолжает занимать попытку.");
+                plugin.getLogger()
+                        .severe("Salvage: разбор выполнен, но финализация резерва не подтверждена для " + playerId
+                                + "; pending-резерв продолжает занимать попытку.");
             }
             completeOnMain(playerId, completion, SalvageResult.OK, def, gained);
         });
@@ -198,9 +199,9 @@ public final class SalvageService {
         CompletableFuture<SalvageDailyLimitStore.OperationResult> release = dailyLimits.release(reservation);
         release.whenComplete((result, error) -> {
             if (error != null || result != SalvageDailyLimitStore.OperationResult.SUCCESS) {
-                plugin.getLogger().warning(
-                        "Salvage: не удалось освободить резерв " + reservation.operationId()
-                                + " (" + reason + "); он останется зарезервированным до восстановления.");
+                plugin.getLogger()
+                        .warning("Salvage: не удалось освободить резерв " + reservation.operationId() + " (" + reason
+                                + "); он останется зарезервированным до восстановления.");
             }
         });
         return release;
@@ -228,8 +229,9 @@ public final class SalvageService {
                 completion.accept(result);
             });
         } catch (RuntimeException exception) {
-            plugin.getLogger().warning(
-                    "Salvage: не удалось доставить результат игроку " + playerId + ": " + exception.getMessage());
+            plugin.getLogger()
+                    .warning("Salvage: не удалось доставить результат игроку " + playerId + ": "
+                            + exception.getMessage());
         }
     }
 
