@@ -15,9 +15,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.event.player.PlayerQuitEvent;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
@@ -164,7 +164,12 @@ public final class ItemBrowserMenu implements Listener {
 
     @EventHandler
     public void quit(PlayerQuitEvent event) {
-        callbacks.cancel(event.getPlayer().getUniqueId());
+        try {
+            callbacks.cancel(event.getPlayer().getUniqueId());
+        } catch (RuntimeException exception) {
+            plugin.getLogger().log(
+                    java.util.logging.Level.WARNING, "Не удалось отменить отложенное открытие GUI при выходе игрока", exception);
+        }
     }
 
     public void close() {
