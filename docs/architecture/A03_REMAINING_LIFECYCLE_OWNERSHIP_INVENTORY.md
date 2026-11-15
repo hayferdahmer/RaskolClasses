@@ -629,3 +629,14 @@ Audit-only checkpoint. The named source-backed findings and recommended grouped 
 ## 23. A-03-003.40 — GUI and item reconciliation one-shot ownership
 
 `CraftingGui`, `ItemBrowserMenu` and `ItemHook` now each own an independent `PlayerCallbackRuntimeOwner` using the existing `PaperPlayerCallbackScheduler`. The one-tick delay and callback arguments are preserved. Scheduled callbacks retain UUID only and resolve the current online Player at execution. The two GUI listeners cancel their callbacks on quit and close their owners during `ItemSystem.stop()`; `ItemHook` cancels on quit and closes its owner alongside the repeating reconciliation task. `ItemSystem.stop()` runs each owner shutdown as a separate failure-isolated step so one cancellation failure does not prevent the other owners from closing. A focused test verifies independent owners do not replace callbacks for the same UUID. A-04 async completion callbacks and bounded `TrailListener` projectile tasks remain unchanged.
+
+ 
+## 24. A-03-003.41 — Residual periodic scheduler ownership
+
+The branch-wide scheduler scan identified one unowned repeating task: `ElementalResistService` scheduled `purgeExpired` from its constructor every 600 ticks and discarded the BukkitTask handle. A-03-003.41 removes that constructor side effect and registers the same 600-tick cadence through a dedicated `PurgeRuntimeOwner` at runtime startup; shutdown closes it independently. The existing `PurgeRuntimeOwner` abstraction and Paper scheduler adapter are reused, so no parallel lifecycle framework is introduced.
+
+The scan also classified the following paths:
+- Already owned: Pet tick/orphan scan, CC tick and feedback resources, DoT tick, Foliant lock flush/transition, HUD/BossBar, installation sweep/handler tasks, FX aura/ambient/charged-shot tasks, cooldown notifications, HP respawn callbacks, and Warlock channel tasks.
+- Bounded one-shot exceptions: class ability VFX/impact callbacks, projectile pickup/glow callbacks, Avoidance stagger cleanup, and TrailListener projectile trails. They have finite delays or self-cancel conditions; they remain candidates for focused UUID/session review where a Player object is retained, but do not represent unbounded repeating-task leaks.
+- Plugin-scoped by design: RIPS enforcement dispatch to the Paper main thread; the monitor executor remains owned by `RuntimeIntegrityRuntimeOwner`.
+- A-04 async completion boundary remains open: PlusGui/PlusSub/PlusSubscription, SalvageService, and storage completion-to-main-thread handoffs require explicit session, reconnect, rejected-dispatch and shutdown semantics before changing callback ownership.

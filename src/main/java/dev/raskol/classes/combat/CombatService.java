@@ -92,7 +92,7 @@ public final class CombatService implements Listener {
         this.vanillaListener = new VanillaDamageListener(plugin, this, resists, avoidance, powers, caps);
         this.schoolConfig = new SchoolConfig(plugin);
         this.schoolImmunity = new SchoolImmunity(plugin);
-        this.elemental = new ElementalResistService(plugin, schoolConfig);
+        this.elemental = new ElementalResistService(schoolConfig);
         this.penTraits = new PenTraitsService(plugin);
         this.dots = new DotService(plugin, this);
     }

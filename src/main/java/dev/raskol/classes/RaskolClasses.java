@@ -53,6 +53,7 @@ import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.combat.ResistService;
+import dev.raskol.classes.combat.school.ElementalResistService;
 import dev.raskol.classes.combat.dot.runtime.DotRuntimeOwner;
 import dev.raskol.classes.combat.dot.runtime.PaperDotRuntimeRegistration;
 import dev.raskol.classes.combat.dot.runtime.PaperDotTaskScheduler;
@@ -255,6 +256,7 @@ public final class RaskolClasses extends JavaPlugin {
     private final long enabledAtMillis = System.currentTimeMillis();
 
     private PurgeRuntimeOwner purgeRuntimeOwner;
+    private PurgeRuntimeOwner elementalResistPurgeRuntimeOwner;
     private AutosaveRuntimeOwner autosaveRuntimeOwner;
 
     /** RIPS verifier shared by startup and runtime checks. */
@@ -579,6 +581,9 @@ public final class RaskolClasses extends JavaPlugin {
         getLogger().info("ScrollCooldownTask v12 (durability-bar) active");
         scrollCooldownRuntimeOwner.start();
         manaSoakedRuntimeOwner.start();
+        elementalResistPurgeRuntimeOwner = new PurgeRuntimeOwner(new PaperPurgeTaskScheduler(
+                this, combat.elemental()::purgeExpired, ElementalResistService.PURGE_INTERVAL_TICKS));
+        elementalResistPurgeRuntimeOwner.start();
         long purgeInterval = getRaskolConfig().purgeIntervalTicks();
         long autosaveInterval = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
         purgeRuntimeOwner =
@@ -803,6 +808,12 @@ public final class RaskolClasses extends JavaPlugin {
             if (dotRuntimeOwner != null) {
                 dotRuntimeOwner.close();
                 dotRuntimeOwner = null;
+            }
+        });
+        shutdown.run("elemental resist purge runtime", () -> {
+            if (elementalResistPurgeRuntimeOwner != null) {
+                elementalResistPurgeRuntimeOwner.close();
+                elementalResistPurgeRuntimeOwner = null;
             }
         });
         shutdown.run("CC runtime", () -> {
