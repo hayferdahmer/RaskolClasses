@@ -13,8 +13,9 @@ on:
 permissions:
   contents: write
 
+# Общая группа с Formatting Bot исключает параллельную запись в одну ветку.
 concurrency:
-  group: spotless-format-${{ github.ref }}
+  group: spotless-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -47,8 +48,10 @@ jobs:
       - name: Apply Spotless formatting
         run: mvn -Pdev -B spotless:apply
 
-      - name: Commit formatting changes
+      - name: Commit and push formatting changes safely
         shell: bash
+        env:
+          TARGET_BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -56,10 +59,31 @@ jobs:
           git add -u
           if git diff --cached --quiet; then
             echo "No formatting changes were necessary."
-          else
-            git commit -m "style: apply Spotless formatting"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
+            exit 0
           fi
 
-      - name: Verify formatted code
+          git commit -m "style: apply Spotless formatting"
+
+          pushed=false
+          for attempt in 1 2 3; do
+            echo "Push attempt ${attempt}/3"
+            git fetch origin "${TARGET_BRANCH}"
+            if ! git rebase "origin/${TARGET_BRANCH}"; then
+              git rebase --abort || true
+              echo "::error::Formatting changes conflict with newer commits on ${TARGET_BRANCH}; no remote changes were made."
+              exit 1
+            fi
+            if git push origin "HEAD:refs/heads/${TARGET_BRANCH}"; then
+              pushed=true
+              break
+            fi
+            echo "Branch advanced during push; retrying against its latest head."
+          done
+
+          if [[ "${pushed}" != "true" ]]; then
+            echo "::error::Could not push formatting commit after 3 attempts."
+            exit 1
+          fi
+
+      - name: Verify final branch state
         run: mvn -Pdev -B verify

@@ -21,8 +21,9 @@ on:
 permissions:
   contents: write
 
+# Та же concurrency group, что и у Spotless Format: один writer на ветку.
 concurrency:
-  group: spotless-bot-${{ inputs.target_ref || github.ref_name }}
+  group: spotless-${{ inputs.target_ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -46,20 +47,20 @@ jobs:
       - name: Apply Spotless formatting
         run: mvn -Pdev -B spotless:apply
 
-      - name: Validate formatted project
-        run: mvn -Pdev -B verify
-
       - name: Check formatting diff
         run: git diff --check
 
-      - name: Commit formatting changes
+      - name: Commit and push formatting changes safely
         shell: bash
+        env:
+          TARGET_REF: ${{ inputs.target_ref || github.ref_name }}
         run: |
           set -euo pipefail
           if git diff --quiet; then
             echo "Spotless found no changes; nothing to commit."
             exit 0
           fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- 'src/main/java/**/*.java' 'src/test/java/**/*.java'
@@ -68,4 +69,27 @@ jobs:
             exit 0
           fi
           git commit -m "style: apply Spotless formatting for Java 25"
-          git push origin "HEAD:${{ inputs.target_ref || github.ref_name }}"
+
+          pushed=false
+          for attempt in 1 2 3; do
+            echo "Push attempt ${attempt}/3"
+            git fetch origin "${TARGET_REF}"
+            if ! git rebase "origin/${TARGET_REF}"; then
+              git rebase --abort || true
+              echo "::error::Formatting changes conflict with newer commits on ${TARGET_REF}; no remote changes were made."
+              exit 1
+            fi
+            if git push origin "HEAD:refs/heads/${TARGET_REF}"; then
+              pushed=true
+              break
+            fi
+            echo "Branch advanced during push; retrying against its latest head."
+          done
+
+          if [[ "${pushed}" != "true" ]]; then
+            echo "::error::Could not push formatting commit after 3 attempts."
+            exit 1
+          fi
+
+      - name: Verify final branch state
+        run: mvn -Pdev -B verify
