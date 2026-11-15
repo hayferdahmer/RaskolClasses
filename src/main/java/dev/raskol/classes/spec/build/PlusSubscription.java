@@ -252,7 +252,7 @@ public final class PlusSubscription implements Listener {
 
         synchronized (state) {
             if (!state.sent) {
-                current.sendMessage(Component.text(note.message(), NamedTextColor.GOLD));
+                current.sendMessage(Component.text(note.message()));
                 state.sent = true;
             }
             if (state.acknowledging) return;
