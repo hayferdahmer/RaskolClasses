@@ -254,3 +254,16 @@ WeakReference нужна только для сравнения identity; online
 - scheduler rejection не исполняет callback, очищает pending registry и вызывает undelivered handler;
 - штатный callback выполняется один раз и удаляется из pending registry;
 - live Paper 26.2 + Java 25 smoke test остаётся обязательным для проверки фактического disable/scheduler поведения.
+
+
+### Ручной smoke test на Paper 26.2 / Java 25 (staging)
+
+Проверять на копии сервера с резервной копией YAML и тестовыми аккаунтами. Эти сценарии не заменяются unit-тестами:
+
+1. **Обычное выключение без незавершённых уведомлений.** Выключить RaskolClasses штатной командой управления плагинами. Ожидается штатная сводка shutdown без ошибок dispatcher.
+2. **Подарочная note при join/disable.** Подготовить получателю сохранённую gift note, подключить его и сразу выключить плагин до следующего scheduler tick. Ожидается warning с operation label; note не должна исчезнуть. После повторного включения и нового join сообщение должно прийти и note должна быть подтверждена.
+3. **Результат команды при disable.** На staging выполнить административную операцию Plus и инициировать disable до доставки ответа. Durable состояние должно соответствовать результату операции; в логе должна быть запись о недоставленном уведомлении. Никакого повторного списания/выдачи при проверке статуса быть не должно.
+4. **Salvage reservation при disable.** Инициировать разбор и выключить плагин в окне между durable reserve и main-thread commit. Если undelivered handler успел записать release до закрытия StorageWriter, попытка должна вернуться в лимит. Если запись не завершилась из-за shutdown timeout/storage failure, pending остаётся fail-closed и должен быть виден в диагностике; повторная награда не допускается.
+5. **Drain общего StorageWriter.** Во время серии сохранений выключить плагин. При штатном drain ожидается завершение поставленных durable writes; при искусственном timeout — явная ошибка shutdown и отсутствие Bukkit-вызовов из worker callbacks.
+
+Для каждого сценария проверить server log на отсутствие IllegalPluginAccessException, Asynchronous entity/world/chunk access и иных Bukkit API вызовов из потока RaskolClasses-Storage. Зафиксировать фактический исход, время выключения и итоговые YAML-состояния. Не проводить эти проверки на production-экономике.
