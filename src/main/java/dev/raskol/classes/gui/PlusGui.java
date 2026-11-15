@@ -251,36 +251,36 @@ public final class PlusGui implements Listener {
         WeakReference<Player> originatingSession = new WeakReference<>(player);
         sub.buyAsync(playerId, 1).whenComplete((result, failure) -> {
             plugin.dispatchAsyncCompletion("raskolspec+ GUI purchase for " + playerId, () -> {
-                    Player original = originatingSession.get();
-                    Player current = Bukkit.getPlayer(playerId);
-                    // UUID недостаточно: после reconnect результат старой команды не показываем.
-                    if (original == null || current != original || !current.isOnline()) return;
-                    if (failure != null) {
-                        current.sendMessage(
-                                msg("Не удалось завершить покупку. Проверь баланс и обратись к администрации."));
-                        return;
+                Player original = originatingSession.get();
+                Player current = Bukkit.getPlayer(playerId);
+                // UUID недостаточно: после reconnect результат старой команды не показываем.
+                if (original == null || current != original || !current.isOnline()) return;
+                if (failure != null) {
+                    current.sendMessage(
+                            msg("Не удалось завершить покупку. Проверь баланс и обратись к администрации."));
+                    return;
+                }
+                switch (result) {
+                    case OK -> {
+                        current.sendMessage(msg("⚜ raskolspec+ продлена на " + sub.periodDays()
+                                + " дн. За покупку списано " + sub.pricePerPeriod() + " империалов."));
+                        openCatalog(current);
                     }
-                    switch (result) {
-                        case OK -> {
-                            current.sendMessage(msg("⚜ raskolspec+ продлена на " + sub.periodDays()
-                                    + " дн. За покупку списано " + sub.pricePerPeriod() + " империалов."));
-                            openCatalog(current);
-                        }
-                        case DISABLED ->
-                            current.sendMessage(msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
-                        case WALLET_UNAVAILABLE ->
-                            current.sendMessage(msg("Кошелёк империалов недоступен — покупка отключена."));
-                        case INVALID_PERIODS ->
-                            current.sendMessage(msg("Не удалось рассчитать срок или стоимость подписки."));
-                        case INSUFFICIENT ->
-                            current.sendMessage(msg("Недостаточно империалов: нужно "
-                                    + sub.pricePerPeriod() + ", у вас "
-                                    + plugin.getImperialWallet().balance(playerId) + "."));
-                        case STORAGE_BUSY ->
-                            current.sendMessage(msg("Хранилище подписок занято другой операцией. Повтори позже."));
-                        case STORAGE_FAILED ->
-                            current.sendMessage(msg("Подписка не сохранена. Списание отменено; проверь баланс."));
-                    }
+                    case DISABLED ->
+                        current.sendMessage(msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
+                    case WALLET_UNAVAILABLE ->
+                        current.sendMessage(msg("Кошелёк империалов недоступен — покупка отключена."));
+                    case INVALID_PERIODS ->
+                        current.sendMessage(msg("Не удалось рассчитать срок или стоимость подписки."));
+                    case INSUFFICIENT ->
+                        current.sendMessage(msg("Недостаточно империалов: нужно "
+                                + sub.pricePerPeriod() + ", у вас "
+                                + plugin.getImperialWallet().balance(playerId) + "."));
+                    case STORAGE_BUSY ->
+                        current.sendMessage(msg("Хранилище подписок занято другой операцией. Повтори позже."));
+                    case STORAGE_FAILED ->
+                        current.sendMessage(msg("Подписка не сохранена. Списание отменено; проверь баланс."));
+                }
             });
         });
     }

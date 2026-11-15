@@ -112,8 +112,8 @@ public final class ShutdownAwareCompletionDispatcher implements AutoCloseable {
             runUndelivered(entry);
         }
         if (!undelivered.isEmpty()) {
-            logger.warning("Async completion: при выключении подавлено недоставленных callbacks: "
-                    + undelivered.size());
+            logger.warning(
+                    "Async completion: при выключении подавлено недоставленных callbacks: " + undelivered.size());
         }
     }
 
@@ -130,9 +130,7 @@ public final class ShutdownAwareCompletionDispatcher implements AutoCloseable {
             entry.onUndelivered().run();
         } catch (RuntimeException exception) {
             logger.log(
-                    Level.SEVERE,
-                    "Ошибка обработки недоставленного async completion: " + entry.operation(),
-                    exception);
+                    Level.SEVERE, "Ошибка обработки недоставленного async completion: " + entry.operation(), exception);
         }
     }
 

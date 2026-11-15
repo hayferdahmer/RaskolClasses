@@ -131,7 +131,8 @@ public final class SalvageService {
         plugin.dispatchAsyncCompletion(
                 "salvage commit for " + playerId,
                 () -> processReservedSalvage(playerId, expected, def, reservation, completion),
-                () -> releaseReservation(reservation, "main-thread callback не доставлен из-за shutdown или scheduler failure"));
+                () -> releaseReservation(
+                        reservation, "main-thread callback не доставлен из-за shutdown или scheduler failure"));
     }
 
     private void processReservedSalvage(

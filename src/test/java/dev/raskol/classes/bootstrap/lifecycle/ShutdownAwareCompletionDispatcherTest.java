@@ -22,8 +22,7 @@ class ShutdownAwareCompletionDispatcherTest {
         List<Runnable> scheduled = new ArrayList<>();
         AtomicInteger delivered = new AtomicInteger();
         AtomicInteger undelivered = new AtomicInteger();
-        ShutdownAwareCompletionDispatcher dispatcher =
-                new ShutdownAwareCompletionDispatcher(LOGGER, scheduled::add);
+        ShutdownAwareCompletionDispatcher dispatcher = new ShutdownAwareCompletionDispatcher(LOGGER, scheduled::add);
 
         assertTrue(dispatcher.dispatch("purchase result", delivered::incrementAndGet, undelivered::incrementAndGet));
         assertEquals(1, dispatcher.pendingCount());
@@ -41,8 +40,7 @@ class ShutdownAwareCompletionDispatcherTest {
     void dispatchAfterCloseIsRejectedAndUndeliveredHandlerRuns() {
         AtomicInteger delivered = new AtomicInteger();
         AtomicInteger undelivered = new AtomicInteger();
-        ShutdownAwareCompletionDispatcher dispatcher =
-                new ShutdownAwareCompletionDispatcher(LOGGER, Runnable::run);
+        ShutdownAwareCompletionDispatcher dispatcher = new ShutdownAwareCompletionDispatcher(LOGGER, Runnable::run);
         dispatcher.close();
 
         assertFalse(dispatcher.dispatch("late result", delivered::incrementAndGet, undelivered::incrementAndGet));
@@ -55,11 +53,9 @@ class ShutdownAwareCompletionDispatcherTest {
     void schedulerRejectionIsLoggedAndRunsUndeliveredHandler() {
         AtomicInteger delivered = new AtomicInteger();
         AtomicInteger undelivered = new AtomicInteger();
-        ShutdownAwareCompletionDispatcher dispatcher = new ShutdownAwareCompletionDispatcher(
-                LOGGER,
-                task -> {
-                    throw new IllegalStateException("scheduler stopped");
-                });
+        ShutdownAwareCompletionDispatcher dispatcher = new ShutdownAwareCompletionDispatcher(LOGGER, task -> {
+            throw new IllegalStateException("scheduler stopped");
+        });
 
         assertFalse(dispatcher.dispatch("export result", delivered::incrementAndGet, undelivered::incrementAndGet));
 
@@ -73,8 +69,7 @@ class ShutdownAwareCompletionDispatcherTest {
         List<Runnable> scheduled = new ArrayList<>();
         AtomicInteger delivered = new AtomicInteger();
         AtomicInteger undelivered = new AtomicInteger();
-        ShutdownAwareCompletionDispatcher dispatcher =
-                new ShutdownAwareCompletionDispatcher(LOGGER, scheduled::add);
+        ShutdownAwareCompletionDispatcher dispatcher = new ShutdownAwareCompletionDispatcher(LOGGER, scheduled::add);
 
         assertTrue(dispatcher.dispatch("grant result", delivered::incrementAndGet, undelivered::incrementAndGet));
         scheduled.getFirst().run();
