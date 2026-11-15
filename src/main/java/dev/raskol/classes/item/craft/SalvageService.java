@@ -128,14 +128,10 @@ public final class SalvageService {
             ItemDefinition def,
             SalvageDailyLimitStore.Reservation reservation,
             Consumer<SalvageResult> completion) {
-        try {
-            Bukkit.getScheduler()
-                    .runTask(plugin, () -> processReservedSalvage(playerId, expected, def, reservation, completion));
-        } catch (RuntimeException exception) {
-            releaseReservation(reservation, "не удалось запланировать разбор");
-            plugin.getLogger()
-                    .warning("Salvage: main-thread dispatch отклонён для " + playerId + ": " + exception.getMessage());
-        }
+        plugin.dispatchAsyncCompletion(
+                "salvage commit for " + playerId,
+                () -> processReservedSalvage(playerId, expected, def, reservation, completion),
+                () -> releaseReservation(reservation, "main-thread callback не доставлен из-за shutdown или scheduler failure"));
     }
 
     private void processReservedSalvage(
@@ -217,22 +213,17 @@ public final class SalvageService {
             SalvageResult result,
             ItemDefinition def,
             Map<Fragment, Integer> gained) {
-        try {
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                Player current = Bukkit.getPlayer(playerId);
-                if (current == null || !current.isOnline()) {
-                    return;
-                }
-                if (result == SalvageResult.OK) {
-                    sendSuccess(current, def, gained);
-                }
-                completion.accept(result);
-            });
-        } catch (RuntimeException exception) {
-            plugin.getLogger()
-                    .warning("Salvage: не удалось доставить результат игроку " + playerId + ": "
-                            + exception.getMessage());
-        }
+        plugin.dispatchAsyncCompletion("salvage result for " + playerId, () -> {
+            Player current = Bukkit.getPlayer(playerId);
+            if (current == null || !current.isOnline()) {
+                plugin.getLogger().fine("Salvage: результат не показан — игрок offline: " + playerId);
+                return;
+            }
+            if (result == SalvageResult.OK) {
+                sendSuccess(current, def, gained);
+            }
+            completion.accept(result);
+        });
     }
 
     private void sendSuccess(Player player, ItemDefinition def, Map<Fragment, Integer> gained) {

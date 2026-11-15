@@ -222,3 +222,35 @@ Minecraft chat delivery и YAML write не образуют одну транз�
 ### Ограничения
 
 WeakReference нужна только для сравнения identity; online Player удерживается самим сервером. Если исходная сессия завершилась, weak reference может стать пустой, и callback безопасно подавляется. Это намеренно fail-closed. Gift note адресата остаётся C2 механизмом с его отдельной crash-boundary exactly-once оговоркой.
+
+
+## 9. C5 — shutdown-aware async completion delivery
+
+**Контракт:** durable операции продолжают жить по своим storage/domain правилам; пользовательские Bukkit callbacks являются best effort и не запускают Bukkit API из storage worker. Если callback нельзя доставить из-за disable или scheduler rejection, операция не откатывается, а факт недоставки фиксируется в журнале. Исключение — инфраструктурная компенсация salvage pending reservation: её undelivered handler освобождает резерв, пока общий StorageWriter ещё открыт.
+
+### Реализация
+
+- Добавлен ShutdownAwareCompletionDispatcher: он регистрирует каждый отложенный callback до передачи Paper scheduler, удаляет его при выполнении и подавляет повторное выполнение.
+- При закрытии dispatcher все ещё ожидающие callbacks логируются по operation label, не исполняются и получают свой onUndelivered handler. Повторный close безопасен.
+- Отказ Paper scheduler обрабатывается тем же путём: callback не исполняется, operation label и причина записываются, вызывается инфраструктурный handler.
+- Dispatcher закрывается первым этапом onDisable, до остановки runtime producers и до финального drain общего StorageWriter. Поздние async completions видят закрытый dispatcher и не пытаются обращаться к Bukkit scheduler.
+- PlusSub, PlusGui и PlusSubscription переводят пользовательские результаты и gift-note delivery на общий dispatcher. C4 session identity сохраняется; закрытие плагина не переносит сообщения на reconnect.
+- SalvageService использует dispatcher для main-thread commit и результата. Если commit callback не доставлен из-за shutdown/scheduler failure, undelivered handler пытается освободить durable pending reservation. Если общий writer уже перестал принимать записи, освобождение fail-closed: pending остаётся, а ошибка явно логируется.
+- AsyncStorageWriter остаётся Bukkit-независимым. Его completion futures по-прежнему могут завершаться на worker, submitter или shutdown thread; callbacks обязаны использовать dispatcher перед любым Bukkit API.
+
+### Границы и гарантии
+
+- Закрытие dispatcher предотвращает запуск уже поставленных, но ещё не начавшихся callbacks после начала disable. Уже исполняемый main-thread callback не может быть прерван этим механизмом.
+- При shutdown pending notifications логируются по имени операции; durable purchase/grant/revoke/export не откатываются из-за отсутствия сообщения.
+- Gift note не подтверждается без успешного main-thread send; если её callback отменён shutdown, persistent note остаётся доступной для следующей сессии.
+- Salvage release при shutdown best effort и зависит от того, что StorageWriter ещё принимает запись. При ошибке/тайм-ауте сохраняется fail-closed pending reservation, а не риск повторной награды.
+- При timeout общего StorageWriter queued writes отменяются, а выполняющийся I/O может не завершиться к моменту возврата shutdown. Финальные снимки и durable callbacks не получают обещания успешной записи только на основании вызова submit.
+
+### Регрессионные проверки
+
+- закрытие dispatcher подавляет queued callback и вызывает undelivered handler ровно один раз;
+- повторное закрытие безопасно;
+- dispatch после close отклоняется и вызывает undelivered handler;
+- scheduler rejection не исполняет callback, очищает pending registry и вызывает undelivered handler;
+- штатный callback выполняется один раз и удаляется из pending registry;
+- live Paper 26.2 + Java 25 smoke test остаётся обязательным для проверки фактического disable/scheduler поведения.

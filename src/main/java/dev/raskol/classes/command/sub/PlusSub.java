@@ -131,7 +131,7 @@ public final class PlusSub implements CommandSub {
         int requestedPeriods = periods;
         subscription
                 .buyAsync(playerId, requestedPeriods)
-                .whenComplete((result, failure) -> runOnMain(initiator, currentSender -> {
+                .whenComplete((result, failure) -> runOnMain("plus purchase for " + playerId, initiator, currentSender -> {
                     if (failure != null) {
                         currentSender.sendMessage(err(
                                 "Не удалось завершить операцию подписки. Проверь баланс и обратись к администрации."));
@@ -250,7 +250,7 @@ public final class PlusSub implements CommandSub {
         lastGiftMs.put(senderId, now);
         subscription
                 .giftAsync(senderId, recipientId, requestedPeriods, giftNote)
-                .whenComplete((result, failure) -> runOnMain(initiator, currentSender -> {
+                .whenComplete((result, failure) -> runOnMain("plus gift from " + senderId + " to " + recipientId, initiator, currentSender -> {
                     if (failure != null) {
                         currentSender.sendMessage(
                                 err("Не удалось завершить подарок. Проверь баланс и обратись к администрации."));
@@ -317,7 +317,7 @@ public final class PlusSub implements CommandSub {
         PlusSubscription sub = plugin.getPlusSubscription();
         int requestedPeriods = periods;
         sub.grantAsync(targetId, requestedPeriods)
-                .whenComplete((expires, failure) -> runOnMain(initiator, currentSender -> {
+                .whenComplete((expires, failure) -> runOnMain("plus grant to " + targetId, initiator, currentSender -> {
                     if (failure != null || expires == null || expires < 0L) {
                         currentSender.sendMessage(err("Не удалось сохранить подписку; игроку срок не выдан."));
                         return;
@@ -347,7 +347,7 @@ public final class PlusSub implements CommandSub {
         String targetName = target.getName();
         plugin.getPlusSubscription()
                 .revokeAsync(targetId)
-                .whenComplete((saved, failure) -> runOnMain(initiator, currentSender -> {
+                .whenComplete((saved, failure) -> runOnMain("plus revoke for " + targetId, initiator, currentSender -> {
                     if (failure != null || !Boolean.TRUE.equals(saved)) {
                         currentSender.sendMessage(err("Не удалось сохранить отзыв подписки."));
                         return;
@@ -364,7 +364,7 @@ public final class PlusSub implements CommandSub {
         SenderSession initiator = captureSender(sender);
         plugin.getBuildTemplates()
                 .exportNormalizedAsync()
-                .whenComplete((saved, failure) -> runOnMain(initiator, currentSender -> {
+                .whenComplete((saved, failure) -> runOnMain("plus template export", initiator, currentSender -> {
                     if (failure != null || !Boolean.TRUE.equals(saved)) {
                         currentSender.sendMessage(err("Не удалось записать builds.yml — смотри лог сервера."));
                         return;
@@ -382,21 +382,17 @@ public final class PlusSub implements CommandSub {
         return new SenderSession(null, null, sender == Bukkit.getConsoleSender());
     }
 
-    private void runOnMain(SenderSession initiator, Consumer<CommandSender> action) {
-        try {
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                CommandSender current = resolveSender(initiator);
-                if (current == null) {
-                    plugin.getLogger()
-                            .warning(
-                                    "raskolspec+: результат операции не доставлен — исходная сессия отправителя завершена");
-                    return;
-                }
-                action.accept(current);
-            });
-        } catch (IllegalStateException exception) {
-            plugin.getLogger().warning("raskolspec+: результат операции не доставлен — плагин выключается");
-        }
+    private void runOnMain(String operation, SenderSession initiator, Consumer<CommandSender> action) {
+        plugin.dispatchAsyncCompletion("raskolspec+ " + operation, () -> {
+            CommandSender current = resolveSender(initiator);
+            if (current == null) {
+                plugin.getLogger().warning(
+                        "raskolspec+: результат операции не доставлен [" + operation
+                                + "] — исходная сессия отправителя завершена");
+                return;
+            }
+            action.accept(current);
+        });
     }
 
     private CommandSender resolveSender(SenderSession initiator) {

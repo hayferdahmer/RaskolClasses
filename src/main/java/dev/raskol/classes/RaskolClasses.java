@@ -30,6 +30,7 @@ import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncScheduler;
 import dev.raskol.classes.bootstrap.PluginTasks;
 import dev.raskol.classes.bootstrap.SessionListener;
 import dev.raskol.classes.bootstrap.StartupChecks;
+import dev.raskol.classes.bootstrap.lifecycle.ShutdownAwareCompletionDispatcher;
 import dev.raskol.classes.bootstrap.lifecycle.ShutdownStepRunner;
 import dev.raskol.classes.bootstrap.runtime.AutosaveRuntimeOwner;
 import dev.raskol.classes.bootstrap.runtime.PaperAutosaveTaskScheduler;
@@ -193,6 +194,9 @@ public final class RaskolClasses extends JavaPlugin {
     /** Общая последовательная очередь дисковых снимков хранилищ. */
     private AsyncStorageWriter storageWriter;
 
+    /** Отслеживает отложенные пользовательские completion callbacks до выключения плагина. */
+    private ShutdownAwareCompletionDispatcher asyncCompletionDispatcher;
+
     private Spec2Service spec2Service;
     private Spec2EffectsApplier spec2Applier;
 
@@ -306,6 +310,9 @@ public final class RaskolClasses extends JavaPlugin {
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
+
+        this.asyncCompletionDispatcher = new ShutdownAwareCompletionDispatcher(
+                getLogger(), task -> getServer().getScheduler().runTask(this, task));
 
         PluginManager pluginManager = initializeConfiguration();
         initializeCoreServices(pluginManager);
@@ -694,6 +701,23 @@ public final class RaskolClasses extends JavaPlugin {
         return storageWriter;
     }
 
+    /**
+     * Передаёт пользовательский async result на Paper main thread с учётом shutdown.
+     * onUndelivered выполняется без Bukkit API и может освободить инфраструктурный резерв.
+     */
+    public boolean dispatchAsyncCompletion(String operation, Runnable action, Runnable onUndelivered) {
+        if (asyncCompletionDispatcher == null) {
+            getLogger().warning("Async completion не доставлен [" + operation + "]: dispatcher не инициализирован");
+            onUndelivered.run();
+            return false;
+        }
+        return asyncCompletionDispatcher.dispatch(operation, action, onUndelivered);
+    }
+
+    public boolean dispatchAsyncCompletion(String operation, Runnable action) {
+        return dispatchAsyncCompletion(operation, action, () -> {});
+    }
+
     public void markPurgeNow() {
         lastPurgeMillis = System.currentTimeMillis();
     }
@@ -709,6 +733,13 @@ public final class RaskolClasses extends JavaPlugin {
      */
     private void shutdownRuntime() {
         ShutdownStepRunner shutdown = new ShutdownStepRunner(getLogger());
+
+        // Закрываем канал уведомлений первым: queued callbacks не должны переживать disable.
+        shutdown.run("async completion dispatcher", () -> {
+            if (asyncCompletionDispatcher != null) {
+                asyncCompletionDispatcher.close();
+            }
+        });
 
         // Сначала останавливаем producers, затем сохраняем финальные снимки.
         shutdown.run("global purge runtime", () -> {

@@ -223,7 +223,7 @@ public final class PlusSubscription implements Listener {
 
     public void deliverGiftNote(UUID playerId) {
         if (playerId == null) return;
-        runOnMain(() -> beginGiftNoteDelivery(playerId));
+        runOnMain("gift note delivery start for " + playerId, () -> beginGiftNoteDelivery(playerId));
     }
 
     private void beginGiftNoteDelivery(UUID playerId) {
@@ -239,7 +239,7 @@ public final class PlusSubscription implements Listener {
                 return;
             }
             if (note == null) return;
-            runOnMain(() -> deliverGiftNoteOnMain(playerId, note));
+            runOnMain("gift note delivery for " + playerId, () -> deliverGiftNoteOnMain(playerId, note));
         });
     }
 
@@ -288,14 +288,7 @@ public final class PlusSubscription implements Listener {
         });
     }
 
-    private void runOnMain(Runnable task) {
-        try {
-            plugin.getServer().getScheduler().runTask(plugin, task);
-        } catch (IllegalStateException exception) {
-            LOG.log(
-                    java.util.logging.Level.WARNING,
-                    "raskolspec+: уведомление не доставлено — планировщик недоступен",
-                    exception);
-        }
+    private void runOnMain(String operation, Runnable task) {
+        plugin.dispatchAsyncCompletion("raskolspec+ " + operation, task);
     }
 }

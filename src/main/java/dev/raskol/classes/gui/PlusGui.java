@@ -250,8 +250,7 @@ public final class PlusGui implements Listener {
         UUID playerId = player.getUniqueId();
         WeakReference<Player> originatingSession = new WeakReference<>(player);
         sub.buyAsync(playerId, 1).whenComplete((result, failure) -> {
-            try {
-                plugin.getServer().getScheduler().runTask(plugin, () -> {
+            plugin.dispatchAsyncCompletion("raskolspec+ GUI purchase for " + playerId, () -> {
                     Player original = originatingSession.get();
                     Player current = Bukkit.getPlayer(playerId);
                     // UUID недостаточно: после reconnect результат старой команды не показываем.
@@ -282,10 +281,7 @@ public final class PlusGui implements Listener {
                         case STORAGE_FAILED ->
                             current.sendMessage(msg("Подписка не сохранена. Списание отменено; проверь баланс."));
                     }
-                });
-            } catch (IllegalStateException ignored) {
-                plugin.getLogger().warning("raskolspec+: результат покупки не доставлен — плагин выключается");
-            }
+            });
         });
     }
 
