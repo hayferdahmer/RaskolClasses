@@ -15,6 +15,10 @@ import java.util.logging.Level;
 
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.cc.CCType;
@@ -68,7 +72,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
  *         китовых кастеров, древесных кастеров и слушателя onPlayerQuit; карты
  *         состояния (seal/antiheal/channelTasks) больше не разъезжаются по экземплярам.
  */
-public final class AbilityRegistry {
+public final class AbilityRegistry implements Listener, AutoCloseable {
 
     /** Дефолтная школа каждой способности (override в конфиге имеет приоритет). */
     private static final Map<String, School> DEFAULT_SCHOOLS = new HashMap<>();
@@ -187,6 +191,7 @@ public final class AbilityRegistry {
     }
 
     private final RaskolClasses plugin;
+    private WarriorAbilities warrior;
     private final Map<PlayerClass, List<AbilityDef>> byClass = new EnumMap<>(PlayerClass.class);
     /** 1.14.4-fix: def'ы древесных способностей (slot 6+) по классам. */
     private final Map<PlayerClass, Map<String, AbilityDef>> treeDefs = new EnumMap<>(PlayerClass.class);
@@ -204,7 +209,7 @@ public final class AbilityRegistry {
     }
 
     private void registerCasters() {
-        WarriorAbilities warrior = new WarriorAbilities(plugin);
+        this.warrior = new WarriorAbilities(plugin);
         HunterAbilities hunter = new HunterAbilities(plugin);
         PriestAbilities priest = new PriestAbilities(plugin);
         MageAbilities mage = new MageAbilities(plugin);
@@ -254,6 +259,21 @@ public final class AbilityRegistry {
         casters.put("unwriting", (p, d) -> warlock.unwriting(p, null, d));
         targetedCasters.put("unwriting", warlock::unwriting);
         casters.put("soul_rift", warlock::soulRift);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        if (warrior != null) {
+            warrior.onQuit(event.getPlayer().getUniqueId());
+        }
+    }
+
+    @Override
+    public void close() {
+        if (warrior != null) {
+            warrior.close();
+            warrior = null;
+        }
     }
 
     /** 1.14.0 (контент-долг 1): регистрация кастера древесной способности (slot 6+). */

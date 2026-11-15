@@ -642,3 +642,19 @@ The scan also classified the following paths:
 - A-04 async completion boundary remains open: PlusGui/PlusSub/PlusSubscription, SalvageService, and storage completion-to-main-thread handoffs require explicit session, reconnect, rejected-dispatch and shutdown semantics before changing callback ownership.
 
 Detailed source-backed findings, classification, and the implementation boundary are recorded in `A03_REMAINING_PERIODIC_TASK_AUDIT.md`.
+
+
+## 25. A-03-003.42 — Player-session callback retention
+
+Two delayed callbacks retained stale Player objects across a possible disconnect/reconnect:
+
+- Warrior taunt glow cleanup captured the casting Player until its configured duration elapsed.
+- Avoidance parry-stagger expiry captured the attacking Player until the configured stagger duration elapsed.
+
+Both now use dedicated `PlayerCallbackRuntimeOwner` instances and UUID-only callbacks. At execution they resolve the currently online Player from the server; if the player is offline, the callback safely becomes a no-op. Quit events cancel the matching callback. The owners are closed independently during plugin shutdown.
+
+The existing game timing is unchanged: taunt cleanup still runs after the configured taunt duration, and stagger cleanup still uses the configured player stagger duration. Avoidance still removes the persistent modifier immediately on quit and retains its join-time stale-data safeguard. Repeated callbacks for the same player replace their previous pending callback, preventing an older stagger expiry from clearing a newer stagger early.
+
+`AbilityRegistry` now owns the WarriorAbilities instance, receives quit events for callback cancellation, and closes the Warrior callback owner during shutdown. A focused owner test verifies that UUID-based callbacks resolve the current session rather than retaining the original session object.
+
+No changes were made to ability damage, target selection, taunt radius, stagger magnitude, or mob stagger behavior. A-04 asynchronous storage/completion callbacks remain out of scope.

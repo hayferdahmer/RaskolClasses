@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,23 @@ class PlayerCallbackRuntimeOwnerTest {
         scheduler.run(0);
 
         assertEquals(List.of(playerId), calls);
+        assertEquals(0, owner.ownedTaskCount());
+    }
+
+    @Test
+    void uuidCallbackResolvesTheCurrentSessionAtExecutionTime() {
+        FakeScheduler scheduler = new FakeScheduler();
+        PlayerCallbackRuntimeOwner owner = new PlayerCallbackRuntimeOwner(scheduler);
+        UUID playerId = UUID.randomUUID();
+        Map<UUID, String> sessions = new java.util.HashMap<>();
+        List<String> resolved = new ArrayList<>();
+        sessions.put(playerId, "initial-session");
+
+        owner.schedule(playerId, 1L, id -> resolved.add(sessions.get(id)));
+        sessions.put(playerId, "reconnected-session");
+        scheduler.run(0);
+
+        assertEquals(List.of("reconnected-session"), resolved);
         assertEquals(0, owner.ownedTaskCount());
     }
 
