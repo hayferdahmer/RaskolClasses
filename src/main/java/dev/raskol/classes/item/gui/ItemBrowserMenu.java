@@ -164,7 +164,12 @@ public final class ItemBrowserMenu implements Listener {
 
     @EventHandler
     public void quit(PlayerQuitEvent event) {
-        callbacks.cancel(event.getPlayer().getUniqueId());
+        try {
+            callbacks.cancel(event.getPlayer().getUniqueId());
+        } catch (RuntimeException exception) {
+            plugin.getLogger().log(
+                    java.util.logging.Level.WARNING, "Не удалось отменить отложенное открытие GUI при выходе игрока", exception);
+        }
     }
 
     public void close() {
