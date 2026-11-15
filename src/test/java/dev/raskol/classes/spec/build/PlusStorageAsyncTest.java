@@ -80,4 +80,72 @@ class PlusStorageAsyncTest {
         assertFalse(storage.acknowledgeGiftNoteAsync(player, note.id()).get(5, TimeUnit.SECONDS));
         assertEquals(note, storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS));
     }
+    @Test
+    void giftNoteRemainsUntilMatchingAcknowledgementIsPersisted() throws Exception {
+        AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER);
+        try {
+            UUID player = UUID.randomUUID();
+            PlusStorage storage = new PlusStorage(tempDir.toFile(), writer);
+            assertTrue(storage.extendAsync(player, TimeUnit.DAYS.toMillis(30), "Подарок")
+                    .get(5, TimeUnit.SECONDS));
+
+            PlusStorage.GiftNote note = storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS);
+            assertEquals("Подарок", note.message());
+            assertFalse(storage.acknowledgeGiftNoteAsync(player, UUID.randomUUID().toString())
+                    .get(5, TimeUnit.SECONDS));
+            assertEquals(note, storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS));
+
+            PlusStorage reloaded = new PlusStorage(tempDir.toFile(), writer);
+            assertEquals(note, reloaded.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS));
+            assertTrue(storage.acknowledgeGiftNoteAsync(player, note.id()).get(5, TimeUnit.SECONDS));
+            assertEquals(null, storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS));
+            assertEquals(null, new PlusStorage(tempDir.toFile(), writer)
+                    .getGiftNoteAsync(player).get(5, TimeUnit.SECONDS));
+        } finally {
+            assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
+        }
+    }
+
+    @Test
+    void staleAcknowledgementCannotDeleteReplacementGiftNote() throws Exception {
+        AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER);
+        try {
+            UUID player = UUID.randomUUID();
+            PlusStorage storage = new PlusStorage(tempDir.toFile(), writer);
+            assertTrue(storage.extendAsync(player, TimeUnit.DAYS.toMillis(30), "Первый подарок")
+                    .get(5, TimeUnit.SECONDS));
+            PlusStorage.GiftNote first = storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS);
+
+            assertTrue(storage.extendAsync(player, TimeUnit.DAYS.toMillis(30), "Второй подарок")
+                    .get(5, TimeUnit.SECONDS));
+            PlusStorage.GiftNote second = storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS);
+
+            assertFalse(first.id().equals(second.id()));
+            assertFalse(storage.acknowledgeGiftNoteAsync(player, first.id()).get(5, TimeUnit.SECONDS));
+            assertEquals(second, storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS));
+        } finally {
+            assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
+        }
+    }
+
+    @Test
+    void legacyGiftNoteWithoutIdCanStillBeAcknowledged() throws Exception {
+        UUID player = UUID.randomUUID();
+        YamlConfiguration legacy = new YamlConfiguration();
+        legacy.set("players." + player + ".expires", System.currentTimeMillis() + TimeUnit.DAYS.toMillis(1));
+        legacy.set("players." + player + ".gift-note", "Старый подарок");
+        legacy.save(tempDir.resolve("plus-subscription.yml").toFile());
+
+        AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER);
+        try {
+            PlusStorage storage = new PlusStorage(tempDir.toFile(), writer);
+            PlusStorage.GiftNote note = storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS);
+            assertEquals("Старый подарок", note.message());
+            assertTrue(storage.acknowledgeGiftNoteAsync(player, note.id()).get(5, TimeUnit.SECONDS));
+            assertEquals(null, storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS));
+        } finally {
+            assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
+        }
+    }
+
 }
