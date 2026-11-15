@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.command.sub;
 
+import java.lang.ref.WeakReference;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -114,6 +116,8 @@ public final class PlusSub implements CommandSub {
             sender.sendPlainMessage("Покупка подписки доступна только игроку.");
             return;
         }
+        SenderSession initiator = captureSender(player);
+        UUID playerId = player.getUniqueId();
         PlusSubscription subscription = plugin.getPlusSubscription();
         int periods = 1;
         if (args.length >= 2) {
@@ -125,38 +129,36 @@ public final class PlusSub implements CommandSub {
             }
         }
         int requestedPeriods = periods;
-        subscription
-                .buyAsync(player.getUniqueId(), requestedPeriods)
-                .whenComplete((result, failure) -> runOnMain(() -> {
-                    if (!player.isOnline()) return;
+        subscription.buyAsync(playerId, requestedPeriods).whenComplete((result, failure) ->
+                runOnMain(initiator, currentSender -> {
                     if (failure != null) {
-                        player.sendMessage(err(
+                        currentSender.sendMessage(err(
                                 "Не удалось завершить операцию подписки. Проверь баланс и обратись к администрации."));
                         return;
                     }
                     switch (result) {
                         case OK -> {
                             int days = requestedPeriods * subscription.periodDays();
-                            player.sendMessage(ok("⚜ raskolspec+ продлена на " + days
+                            currentSender.sendMessage(ok("⚜ raskolspec+ продлена на " + days
                                     + " дн. За покупку списано "
                                     + (requestedPeriods * subscription.pricePerPeriod()) + " империалов."));
-                            if (gui != null) gui.openCatalog(player);
+                            if (currentSender instanceof Player currentPlayer && gui != null) {
+                                gui.openCatalog(currentPlayer);
+                            }
                         }
-                        case DISABLED ->
-                            player.sendMessage(
-                                    err("Платная подписка сейчас отключена; шаблоны открыты в тестовом режиме."));
-                        case WALLET_UNAVAILABLE ->
-                            player.sendMessage(err("Кошелёк империалов недоступен — покупка отключена."));
-                        case INVALID_PERIODS ->
-                            player.sendMessage(err("Не удалось рассчитать срок или стоимость подписки."));
-                        case INSUFFICIENT ->
-                            player.sendMessage(err("Недостаточно империалов: нужно "
-                                    + (requestedPeriods * subscription.pricePerPeriod()) + ", у вас "
-                                    + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
-                        case STORAGE_BUSY ->
-                            player.sendMessage(err("Хранилище подписок занято другой операцией. Повтори позже."));
-                        case STORAGE_FAILED ->
-                            player.sendMessage(err("Подписка не сохранена. Списание отменено; проверь баланс."));
+                        case DISABLED -> currentSender.sendMessage(
+                                err("Платная подписка сейчас отключена; шаблоны открыты в тестовом режиме."));
+                        case WALLET_UNAVAILABLE -> currentSender.sendMessage(
+                                err("Кошелёк империалов недоступен — покупка отключена."));
+                        case INVALID_PERIODS -> currentSender.sendMessage(
+                                err("Не удалось рассчитать срок или стоимость подписки."));
+                        case INSUFFICIENT -> currentSender.sendMessage(err("Недостаточно империалов: нужно "
+                                + (requestedPeriods * subscription.pricePerPeriod()) + ", у вас "
+                                + plugin.getImperialWallet().balance(playerId) + "."));
+                        case STORAGE_BUSY -> currentSender.sendMessage(
+                                err("Хранилище подписок занято другой операцией. Повтори позже."));
+                        case STORAGE_FAILED -> currentSender.sendMessage(
+                                err("Подписка не сохранена. Списание отменено; проверь баланс."));
                     }
                 }));
     }
@@ -225,59 +227,58 @@ public final class PlusSub implements CommandSub {
             from.sendMessage(err("Число периодов должно быть целым"));
             return;
         }
+        if (periods < 1 || periods > 365) {
+            from.sendMessage(err("Число периодов должно быть от 1 до 365"));
+            return;
+        }
         PlusSubscription subscription = plugin.getPlusSubscription();
-        boolean recipientOnlineAtGiftStart = to.isOnline();
-        String noteKey = recipientOnlineAtGiftStart ? "plus.gift-received" : "plus.gift-offline-note";
-        String defaultNote = recipientOnlineAtGiftStart
-                ? "⚜ {sender} подарил вам raskolspec+ на {days} дн.!"
-                : "{sender} подарил вам raskolspec+ на {days} дн.";
-        String giftNote = plugin.getRaskolConfig()
-                .message(noteKey, defaultNote)
-                .replace("{sender}", from.getName())
-                .replace("{days}", String.valueOf(periods * subscription.periodDays()));
-        int requestedPeriods = periods;
+        SenderSession initiator = captureSender(from);
+        UUID senderId = from.getUniqueId();
+        String senderName = from.getName();
         UUID recipientId = to.getUniqueId();
         String recipientName = to.getName();
-        subscription
-                .giftAsync(from.getUniqueId(), recipientId, requestedPeriods, giftNote)
-                .whenComplete((result, failure) -> runOnMain(() -> {
-                    if (!from.isOnline()) return;
+        String giftNote = plugin.getRaskolConfig()
+                .message("plus.gift-received", "⚜ {sender} подарил вам raskolspec+ на {days} дн.!")
+                .replace("{sender}", senderName)
+                .replace("{days}", String.valueOf(periods * subscription.periodDays()));
+        int requestedPeriods = periods;
+        // Cooldown фиксируется при принятии корректной команды, а не в UI completion.
+        lastGiftMs.put(senderId, now);
+        subscription.giftAsync(senderId, recipientId, requestedPeriods, giftNote)
+                .whenComplete((result, failure) -> runOnMain(initiator, currentSender -> {
                     if (failure != null) {
-                        from.sendMessage(
+                        currentSender.sendMessage(
                                 err("Не удалось завершить подарок. Проверь баланс и обратись к администрации."));
                         return;
                     }
                     switch (result) {
                         case OK -> {
-                            lastGiftMs.put(from.getUniqueId(), System.currentTimeMillis());
                             int days = requestedPeriods * subscription.periodDays();
-                            from.sendMessage(ok(plugin.getRaskolConfig()
+                            currentSender.sendMessage(ok(plugin.getRaskolConfig()
                                     .message("plus.gift-sent", "⚜ Подписка raskolspec+ подарена {target} на {days} дн.")
                                     .replace("{target}", recipientName)
                                     .replace("{days}", String.valueOf(days))));
                         }
                         case INSUFFICIENT -> {
                             int cost = requestedPeriods * subscription.pricePerPeriod();
-                            int balance = plugin.getImperialWallet().balance(from.getUniqueId());
-                            from.sendMessage(err(plugin.getRaskolConfig()
+                            int balance = plugin.getImperialWallet().balance(senderId);
+                            currentSender.sendMessage(err(plugin.getRaskolConfig()
                                     .message("plus.gift-poor", "Не хватает империалов: нужно {cost}, у вас {balance}")
                                     .replace("{cost}", String.valueOf(cost))
                                     .replace("{balance}", String.valueOf(balance))));
                         }
-                        case SELF_GIFT -> from.sendMessage(err("Нельзя подарить подписку самому себе"));
-                        case WALLET_UNAVAILABLE -> from.sendMessage(err("Кошелёк империалов недоступен"));
-                        case DISABLED ->
-                            from.sendMessage(err("Платная подписка отключена; подарки сейчас недоступны."));
-                        case INVALID_PERIODS -> from.sendMessage(err("Некорректное число периодов."));
-                        case STORAGE_BUSY ->
-                            from.sendMessage(err("Хранилище подписок занято другой операцией. Повтори позже."));
-                        case STORAGE_FAILED ->
-                            from.sendMessage(err("Подарок не сохранён. Списание отменено; проверь баланс."));
+                        case SELF_GIFT -> currentSender.sendMessage(err("Нельзя подарить подписку самому себе"));
+                        case WALLET_UNAVAILABLE -> currentSender.sendMessage(err("Кошелёк империалов недоступен"));
+                        case DISABLED -> currentSender.sendMessage(
+                                err("Платная подписка отключена; подарки сейчас недоступны."));
+                        case INVALID_PERIODS -> currentSender.sendMessage(err("Некорректное число периодов."));
+                        case STORAGE_BUSY -> currentSender.sendMessage(
+                                err("Хранилище подписок занято другой операцией. Повтори позже."));
+                        case STORAGE_FAILED -> currentSender.sendMessage(
+                                err("Подарок не сохранён. Списание отменено; проверь баланс."));
                     }
                 }));
     }
-
-    /* ------------------------------ grant (admin) ------------------------------ */
 
     private void cmdGrant(CommandSender sender, String[] args) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
@@ -304,21 +305,22 @@ public final class PlusSub implements CommandSub {
             sender.sendPlainMessage("Периодов должно быть от 1 до 365");
             return;
         }
+        SenderSession initiator = captureSender(sender);
+        UUID targetId = target.getUniqueId();
+        String targetName = target.getName();
         PlusSubscription sub = plugin.getPlusSubscription();
         int requestedPeriods = periods;
-        sub.grantAsync(target.getUniqueId(), requestedPeriods)
-                .whenComplete((expires, failure) -> runOnMain(() -> {
+        sub.grantAsync(targetId, requestedPeriods).whenComplete((expires, failure) ->
+                runOnMain(initiator, currentSender -> {
                     if (failure != null || expires == null || expires < 0L) {
-                        sender.sendMessage(err("Не удалось сохранить подписку; игроку срок не выдан."));
+                        currentSender.sendMessage(err("Не удалось сохранить подписку; игроку срок не выдан."));
                         return;
                     }
                     int days = requestedPeriods * sub.periodDays();
-                    sender.sendMessage(ok("⚜ " + target.getName() + ": подписка активна, + " + days + " дн. (expires="
-                            + expires + ")"));
+                    currentSender.sendMessage(ok("⚜ " + targetName + ": подписка активна, + " + days
+                            + " дн. (expires=" + expires + ")"));
                 }));
     }
-
-    /* ------------------------------ revoke (admin) ------------------------------ */
 
     private void cmdRevoke(CommandSender sender, String[] args) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
@@ -334,49 +336,74 @@ public final class PlusSub implements CommandSub {
             sender.sendMessage(err("Игрок не найден: " + args[1]));
             return;
         }
-        plugin.getPlusSubscription()
-                .revokeAsync(target.getUniqueId())
-                .whenComplete((saved, failure) -> runOnMain(() -> {
+        SenderSession initiator = captureSender(sender);
+        UUID targetId = target.getUniqueId();
+        String targetName = target.getName();
+        plugin.getPlusSubscription().revokeAsync(targetId).whenComplete((saved, failure) ->
+                runOnMain(initiator, currentSender -> {
                     if (failure != null || !Boolean.TRUE.equals(saved)) {
-                        sender.sendMessage(err("Не удалось сохранить отзыв подписки."));
+                        currentSender.sendMessage(err("Не удалось сохранить отзыв подписки."));
                         return;
                     }
-                    sender.sendMessage(ok("⚜ " + target.getName() + ": подписка отозвана"));
+                    currentSender.sendMessage(ok("⚜ " + targetName + ": подписка отозвана"));
                 }));
     }
 
-    /* ------------------------------ export (admin, 1.14.16-fix2) ------------------------------ */
-
-    /**
-     * Перезаписать builds.yml нормализованными шаблонами (то, что фактически
-     * загружено и применимо). Убирает INFO-строки «нормализовано по стоп-листу/гейтам»
-     * из логов старта до следующего баланс-патча, меняющего стоп-лист/гейты.
-     */
     private void cmdExport(CommandSender sender) {
         if (!sender.hasPermission("raskolclasses.admin.plus")) {
             sender.sendMessage(err(plugin.getRaskolConfig().message("no-permission", "Недостаточно прав")));
             return;
         }
-        plugin.getBuildTemplates()
-                .exportNormalizedAsync()
-                .whenComplete((saved, failure) -> runOnMain(() -> {
+        SenderSession initiator = captureSender(sender);
+        plugin.getBuildTemplates().exportNormalizedAsync().whenComplete((saved, failure) ->
+                runOnMain(initiator, currentSender -> {
                     if (failure != null || !Boolean.TRUE.equals(saved)) {
-                        sender.sendMessage(err("Не удалось записать builds.yml — смотри лог сервера."));
+                        currentSender.sendMessage(err("Не удалось записать builds.yml — смотри лог сервера."));
                         return;
                     }
-                    sender.sendMessage(ok("⚜ builds.yml сохранён нормализованными шаблонами. "
+                    currentSender.sendMessage(ok("⚜ builds.yml сохранён нормализованными шаблонами. "
                             + "Память уже согласована; после следующего /rc reload или рестарта "
                             + "логи нормализации исчезнут."));
                 }));
     }
 
-    private void runOnMain(Runnable action) {
+    private SenderSession captureSender(CommandSender sender) {
+        if (sender instanceof Player player) {
+            return new SenderSession(player.getUniqueId(), new WeakReference<>(player), false);
+        }
+        return new SenderSession(null, null, sender == Bukkit.getConsoleSender());
+    }
+
+    private void runOnMain(SenderSession initiator, Consumer<CommandSender> action) {
         try {
-            plugin.getServer().getScheduler().runTask(plugin, action);
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                CommandSender current = resolveSender(initiator);
+                if (current == null) {
+                    plugin.getLogger().warning(
+                            "raskolspec+: результат операции не доставлен — исходная сессия отправителя завершена");
+                    return;
+                }
+                action.accept(current);
+            });
         } catch (IllegalStateException exception) {
-            plugin.getLogger().warning("raskolspec+: результат операции не обработан — плагин выключается");
+            plugin.getLogger().warning(
+                    "raskolspec+: результат операции не доставлен — плагин выключается");
         }
     }
+
+    private CommandSender resolveSender(SenderSession initiator) {
+        if (initiator.console()) {
+            return Bukkit.getConsoleSender();
+        }
+        if (initiator.playerId() == null) {
+            return null;
+        }
+        Player originalSession = initiator.playerSession().get();
+        Player current = Bukkit.getPlayer(initiator.playerId());
+        return originalSession != null && current == originalSession && current.isOnline() ? current : null;
+    }
+
+    private record SenderSession(UUID playerId, WeakReference<Player> playerSession, boolean console) {}
 
     private static Component ok(String raw) {
         return Component.text(raw, NamedTextColor.GREEN);

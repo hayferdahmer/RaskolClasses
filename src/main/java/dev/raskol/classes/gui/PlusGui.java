@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.lang.ref.WeakReference;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -246,38 +247,43 @@ public final class PlusGui implements Listener {
     }
 
     private void handlePurchase(Player player, PlusSubscription sub) {
-        sub.buyAsync(player.getUniqueId(), 1).whenComplete((result, failure) -> {
+        UUID playerId = player.getUniqueId();
+        WeakReference<Player> originatingSession = new WeakReference<>(player);
+        sub.buyAsync(playerId, 1).whenComplete((result, failure) -> {
             try {
                 plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    if (!player.isOnline()) return;
+                    Player original = originatingSession.get();
+                    Player current = Bukkit.getPlayer(playerId);
+                    // UUID недостаточно: после reconnect результат старой команды не показываем.
+                    if (original == null || current != original || !current.isOnline()) return;
                     if (failure != null) {
-                        player.sendMessage(
+                        current.sendMessage(
                                 msg("Не удалось завершить покупку. Проверь баланс и обратись к администрации."));
                         return;
                     }
                     switch (result) {
                         case OK -> {
-                            player.sendMessage(msg("⚜ raskolspec+ продлена на " + sub.periodDays()
+                            current.sendMessage(msg("⚜ raskolspec+ продлена на " + sub.periodDays()
                                     + " дн. За покупку списано " + sub.pricePerPeriod() + " империалов."));
-                            openCatalog(player);
+                            openCatalog(current);
                         }
-                        case DISABLED ->
-                            player.sendMessage(msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
-                        case WALLET_UNAVAILABLE ->
-                            player.sendMessage(msg("Кошелёк империалов недоступен — покупка отключена."));
-                        case INVALID_PERIODS ->
-                            player.sendMessage(msg("Не удалось рассчитать срок или стоимость подписки."));
-                        case INSUFFICIENT ->
-                            player.sendMessage(msg("Недостаточно империалов: нужно " + sub.pricePerPeriod() + ", у вас "
-                                    + plugin.getImperialWallet().balance(player.getUniqueId()) + "."));
-                        case STORAGE_BUSY ->
-                            player.sendMessage(msg("Хранилище подписок занято другой операцией. Повтори позже."));
-                        case STORAGE_FAILED ->
-                            player.sendMessage(msg("Подписка не сохранена. Списание отменено; проверь баланс."));
+                        case DISABLED -> current.sendMessage(
+                                msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
+                        case WALLET_UNAVAILABLE -> current.sendMessage(
+                                msg("Кошелёк империалов недоступен — покупка отключена."));
+                        case INVALID_PERIODS -> current.sendMessage(
+                                msg("Не удалось рассчитать срок или стоимость подписки."));
+                        case INSUFFICIENT -> current.sendMessage(msg("Недостаточно империалов: нужно "
+                                + sub.pricePerPeriod() + ", у вас "
+                                + plugin.getImperialWallet().balance(playerId) + "."));
+                        case STORAGE_BUSY -> current.sendMessage(
+                                msg("Хранилище подписок занято другой операцией. Повтори позже."));
+                        case STORAGE_FAILED -> current.sendMessage(
+                                msg("Подписка не сохранена. Списание отменено; проверь баланс."));
                     }
                 });
             } catch (IllegalStateException ignored) {
-                plugin.getLogger().warning("raskolspec+: результат покупки не обработан — плагин выключается");
+                plugin.getLogger().warning("raskolspec+: результат покупки не доставлен — плагин выключается");
             }
         });
     }
