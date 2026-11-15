@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.gui;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.lang.ref.WeakReference;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -267,19 +267,20 @@ public final class PlusGui implements Listener {
                                     + " дн. За покупку списано " + sub.pricePerPeriod() + " империалов."));
                             openCatalog(current);
                         }
-                        case DISABLED -> current.sendMessage(
-                                msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
-                        case WALLET_UNAVAILABLE -> current.sendMessage(
-                                msg("Кошелёк империалов недоступен — покупка отключена."));
-                        case INVALID_PERIODS -> current.sendMessage(
-                                msg("Не удалось рассчитать срок или стоимость подписки."));
-                        case INSUFFICIENT -> current.sendMessage(msg("Недостаточно империалов: нужно "
-                                + sub.pricePerPeriod() + ", у вас "
-                                + plugin.getImperialWallet().balance(playerId) + "."));
-                        case STORAGE_BUSY -> current.sendMessage(
-                                msg("Хранилище подписок занято другой операцией. Повтори позже."));
-                        case STORAGE_FAILED -> current.sendMessage(
-                                msg("Подписка не сохранена. Списание отменено; проверь баланс."));
+                        case DISABLED ->
+                            current.sendMessage(msg("Платная подписка отключена; шаблоны открыты в тестовом режиме."));
+                        case WALLET_UNAVAILABLE ->
+                            current.sendMessage(msg("Кошелёк империалов недоступен — покупка отключена."));
+                        case INVALID_PERIODS ->
+                            current.sendMessage(msg("Не удалось рассчитать срок или стоимость подписки."));
+                        case INSUFFICIENT ->
+                            current.sendMessage(msg("Недостаточно империалов: нужно "
+                                    + sub.pricePerPeriod() + ", у вас "
+                                    + plugin.getImperialWallet().balance(playerId) + "."));
+                        case STORAGE_BUSY ->
+                            current.sendMessage(msg("Хранилище подписок занято другой операцией. Повтори позже."));
+                        case STORAGE_FAILED ->
+                            current.sendMessage(msg("Подписка не сохранена. Списание отменено; проверь баланс."));
                     }
                 });
             } catch (IllegalStateException ignored) {
