@@ -631,14 +631,16 @@ public final class HpBarService implements Listener {
 
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
-        Player player = event.getPlayer();
-        respawnCallbacks.schedule(player.getUniqueId(), 0L, () -> {
-            if (player.isOnline() && player.getGameMode() != GameMode.SPECTATOR) {
-                pendingRestore.remove(player.getUniqueId());
-                applyMaxHealth(player);
-                player.setHealth(attrs().carrierMaxHp(player));
-                applyHearts(player, !"vanilla".equals(mode()));
+        UUID playerId = event.getPlayer().getUniqueId();
+        respawnCallbacks.schedule(playerId, 0L, id -> {
+            Player current = plugin.getServer().getPlayer(id);
+            if (current == null || !current.isOnline() || current.getGameMode() == GameMode.SPECTATOR) {
+                return;
             }
+            pendingRestore.remove(id);
+            applyMaxHealth(current);
+            current.setHealth(attrs().carrierMaxHp(current));
+            applyHearts(current, !"vanilla".equals(mode()));
         });
     }
 }

@@ -129,3 +129,28 @@
 - Spotless Format #47 completed successfully, applied those formatting-only changes, then ran the full post-format `mvn -Pdev -B verify`.
 - Post-format verification on `0d6b9705`: 680 tests, 0 failures/errors/skipped; JaCoCo passed; SpotBugs 0 findings / 0 errors; Spotless 491 Java files clean; `BUILD SUCCESS`.
 - The remaining Paper 26.2 runtime smoke test for shutdown failure isolation is not yet performed.
+
+
+## 7. A-03-003.38 — HP respawn callback UUID re-resolution
+
+### Scope and implementation
+
+- Added a UUID-aware overload to `PlayerCallbackRuntimeOwner.schedule`; the existing `Runnable` contract remains available for current callers.
+- `HpAttributeSync` now schedules by UUID and resolves the current online Player when the two-tick callback executes.
+- `HpBarService` now schedules by UUID and resolves the current Player from the server before applying max-health, health and hearts state.
+- The callbacks no longer capture the Player instance from `PlayerRespawnEvent`.
+- Existing timing is preserved: HP Attribute remains delayed by 2 ticks; HP Bar remains next-tick (0 ticks).
+- Existing per-player replacement, quit cancellation, stale callback rejection and shutdown ownership semantics are unchanged.
+
+### Verification
+
+- Added a focused owner test proving that the UUID-aware callback receives the tracked player UUID and releases its task handle.
+- Full Maven/CI verification is required on the final formatted HEAD.
+- Paper 26.2 runtime verification remains required for respawn, quit/reconnect and shutdown behavior.
+
+### Boundaries
+
+- Foliant transition callback continues to use its existing UUID re-resolution path.
+- TrailListener tasks remain bounded to 200 ticks and self-cancel; no registry is introduced without evidence that its extra ownership machinery is justified.
+- The complete repository-wide scheduler/listener ownership scan remains open.
+- A-03-003.37 runtime acceptance remains a separate outstanding gate.

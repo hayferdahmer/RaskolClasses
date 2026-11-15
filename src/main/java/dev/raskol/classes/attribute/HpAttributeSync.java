@@ -109,10 +109,11 @@ public final class HpAttributeSync implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onRespawn(PlayerRespawnEvent event) {
-        Player player = event.getPlayer();
-        respawnCallbacks.schedule(player.getUniqueId(), 2L, () -> {
-            if (player.isOnline()) {
-                sync(player);
+        UUID playerId = event.getPlayer().getUniqueId();
+        respawnCallbacks.schedule(playerId, 2L, id -> {
+            Player current = Bukkit.getPlayer(id);
+            if (current != null && current.isOnline()) {
+                sync(current);
             }
         });
     }

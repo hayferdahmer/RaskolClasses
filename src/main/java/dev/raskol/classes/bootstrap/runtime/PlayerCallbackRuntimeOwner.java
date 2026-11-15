@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import dev.raskol.classes.bootstrap.lifecycle.TaskHandle;
 
@@ -26,6 +27,12 @@ public final class PlayerCallbackRuntimeOwner implements AutoCloseable {
     }
 
     public synchronized void schedule(UUID playerId, long delayTicks, Runnable callback) {
+        Objects.requireNonNull(callback, "callback");
+        schedule(playerId, delayTicks, ignored -> callback.run());
+    }
+
+    /** Планирует callback, получающий UUID вместо захвата объекта Player. */
+    public synchronized void schedule(UUID playerId, long delayTicks, Consumer<UUID> callback) {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(callback, "callback");
         ensureOpen();
@@ -41,14 +48,14 @@ public final class PlayerCallbackRuntimeOwner implements AutoCloseable {
         entries.put(playerId, entry);
     }
 
-    private void execute(UUID playerId, Entry entry, Runnable callback) {
+    private void execute(UUID playerId, Entry entry, Consumer<UUID> callback) {
         synchronized (this) {
             if (closed || entries.get(playerId) != entry) {
                 return;
             }
             entries.remove(playerId);
         }
-        callback.run();
+        callback.accept(playerId);
     }
 
     public synchronized void cancel(UUID playerId) {

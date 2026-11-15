@@ -605,3 +605,10 @@ Implemented on the lifecycle branch and documented in [A03_LIFECYCLE_RESIDUAL_AU
 ### CI checkpoint
 
 Post-format verification passed on implementation HEAD `0d6b97053b30768040e9ea9c3bf92b3f005cd4d4`: 680 tests, JaCoCo, SpotBugs (0 findings), and Spotless (491 Java files clean). The format workflow's post-format Maven verification reported `BUILD SUCCESS`. A Paper 26.2 runtime smoke test specifically exercising an injected shutdown-step failure remains outstanding.
+
+
+## A-03-003.38 — HP respawn callback UUID re-resolution
+
+The HP Attribute and HP Bar respawn callbacks now pass UUID through `PlayerCallbackRuntimeOwner` and resolve the current online Paper Player at execution time. They no longer retain the Player object received by `PlayerRespawnEvent`. The original 2-tick HP Attribute delay and next-tick HP Bar behavior are preserved. The owner retains its Runnable overload for existing non-player-object callbacks and adds a UUID-aware Consumer overload. A focused UUID delivery/release test was added.
+
+TrailListener remains a documented bounded exception: projectile trail tasks self-cancel on invalid projectile/world or after 200 ticks; explicit task registry ownership is deferred unless the wider FX/listener lifecycle audit finds a concrete shutdown or operational need. Full repository-wide task/listener scan and Paper runtime acceptance remain open.

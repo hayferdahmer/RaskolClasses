@@ -32,6 +32,20 @@ class PlayerCallbackRuntimeOwnerTest {
     }
 
     @Test
+    void uuidAwareCallbackReceivesTrackedPlayerId() {
+        FakeScheduler scheduler = new FakeScheduler();
+        PlayerCallbackRuntimeOwner owner = new PlayerCallbackRuntimeOwner(scheduler);
+        UUID playerId = UUID.randomUUID();
+        List<UUID> calls = new ArrayList<>();
+
+        owner.schedule(playerId, 1L, calls::add);
+        scheduler.run(0);
+
+        assertEquals(List.of(playerId), calls);
+        assertEquals(0, owner.ownedTaskCount());
+    }
+
+    @Test
     void replacementCancelsPreviousCallbackAndOnlyLatestRuns() {
         FakeScheduler scheduler = new FakeScheduler();
         PlayerCallbackRuntimeOwner owner = new PlayerCallbackRuntimeOwner(scheduler);
