@@ -209,7 +209,8 @@ public final class AbilityRegistry implements Listener, AutoCloseable {
     }
 
     private void registerCasters() {
-        this.warrior = new WarriorAbilities(plugin);
+        WarriorAbilities warrior = new WarriorAbilities(plugin);
+        this.warrior = warrior;
         HunterAbilities hunter = new HunterAbilities(plugin);
         PriestAbilities priest = new PriestAbilities(plugin);
         MageAbilities mage = new MageAbilities(plugin);
