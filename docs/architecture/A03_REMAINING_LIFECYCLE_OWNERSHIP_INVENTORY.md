@@ -640,3 +640,5 @@ The scan also classified the following paths:
 - Bounded one-shot exceptions: class ability VFX/impact callbacks, projectile pickup/glow callbacks, Avoidance stagger cleanup, and TrailListener projectile trails. They have finite delays or self-cancel conditions; they remain candidates for focused UUID/session review where a Player object is retained, but do not represent unbounded repeating-task leaks.
 - Plugin-scoped by design: RIPS enforcement dispatch to the Paper main thread; the monitor executor remains owned by `RuntimeIntegrityRuntimeOwner`.
 - A-04 async completion boundary remains open: PlusGui/PlusSub/PlusSubscription, SalvageService, and storage completion-to-main-thread handoffs require explicit session, reconnect, rejected-dispatch and shutdown semantics before changing callback ownership.
+
+Detailed source-backed findings, classification, and the implementation boundary are recorded in `A03_REMAINING_PERIODIC_TASK_AUDIT.md`.
