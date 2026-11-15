@@ -79,10 +79,12 @@ final class SalvageDailyLimitStore {
                 UUID operationId = UUID.fromString(key);
                 String playerValue = pending.getString(key + ".player");
                 long day = pending.getLong(key + ".day", -1L);
-                UUID playerId = UUID.fromString(playerValue);
-                if (day >= 0L) {
-                    reservations.put(operationId, new Reservation(operationId, playerId, day));
+                if (playerValue == null || playerValue.isBlank() || day < 0L) {
+                    logger.warning("Salvage: пропущен незавершённый резерв без корректного игрока или даты: " + key);
+                    continue;
                 }
+                UUID playerId = UUID.fromString(playerValue);
+                reservations.put(operationId, new Reservation(operationId, playerId, day));
             } catch (IllegalArgumentException exception) {
                 logger.warning("Salvage: пропущен некорректный незавершённый резерв: " + key);
             }

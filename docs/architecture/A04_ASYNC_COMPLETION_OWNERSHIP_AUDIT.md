@@ -6,7 +6,7 @@
 - Ветка: `refactor/a03-foundation-lifecycle`
 - Базовый HEAD: `fe853ba9b21579c740820c2220dcff5d06a2d991`
 - Платформа: Paper 26.2 / Java 25
-- Тип работы: source-backed audit; production-код и игровые правила не меняются.
+- Тип работы: source-backed audit + реализация выбранного C3; экономика и формулы наград не меняются.
 - Связанные материалы: `A03_STORAGE_COMPLETION_CALLBACK_AUDIT.md`, `A03_REMAINING_ONE_SHOT_SCHEDULER_AUDIT.md`, `A03_REMAINING_LIFECYCLE_OWNERSHIP_INVENTORY.md`.
 
 Этот этап расширяет ранее выполненный аудит инфраструктурных storage acknowledgements на пользовательские операции, где асинхронный результат влияет на экономику, предметы, уведомления или административную команду. Он не объявляет все callbacks репозитория полностью инвентаризированными.
@@ -165,7 +165,8 @@
 ## 7. Границы этого аудита
 
 - Это source-backed аудит перечисленных storage/economy/user-completion paths, а не заявление о полном формальном доказательстве отсутствия любых async callbacks в репозитории.
-- Production-код, gameplay balance и YAML schema не изменялись.
+- Изменены `SalvageDailyLimitStore`, `SalvageService`, callback в `ItemSub` и тесты двухфазного резерва.
+- Формулы наград, дневной лимит и legacy-формат committed-записей YAML сохранены; добавлена секция `pending`.
 - `AsyncStorageWriter` не получил Bukkit dependency.
 - `main` не изменяется; `BootstrapCoordinator` не активируется.
-- Нельзя переходить к реализации C2/C3, пока не выбрана семантика доставки подарочного сообщения и расходования salvage attempt.
+- C3 выбран и реализован как commit-on-salvage; C2 (надёжная доставка gift note) остаётся отдельной следующей задачей и не менялся.
