@@ -59,14 +59,15 @@ class AsyncStorageWriterTest {
     }
 
     @Test
-    @DisplayName("штатное completion выполняется на storage worker thread")
-    void successfulCompletionRunsOnStorageWorkerThread() throws Exception {
+    @DisplayName("штатная запись выполняется на storage worker thread и завершает future")
+    void successfulWriteRunsOnStorageWorkerThread() throws Exception {
         File file = tempDir.resolve("worker-thread.yml").toFile();
         CountDownLatch writeStarted = new CountDownLatch(1);
         CountDownLatch releaseWrite = new CountDownLatch(1);
         CountDownLatch completionInvoked = new CountDownLatch(1);
-        AtomicReference<String> completionThread = new AtomicReference<>();
+        AtomicReference<String> writerThread = new AtomicReference<>();
         AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER, (snapshot, target, logger) -> {
+            writerThread.set(Thread.currentThread().getName());
             writeStarted.countDown();
             try {
                 // Завершение записи контролирует тест после регистрации completion callback.
@@ -81,15 +82,12 @@ class AsyncStorageWriterTest {
         try {
             var result = writer.submit(file, "value: worker\n");
             assertTrue(writeStarted.await(5, TimeUnit.SECONDS));
-            result.whenComplete((saved, failure) -> {
-                completionThread.set(Thread.currentThread().getName());
-                completionInvoked.countDown();
-            });
+            result.whenComplete((saved, failure) -> completionInvoked.countDown());
             releaseWrite.countDown();
 
             assertTrue(result.get(5, TimeUnit.SECONDS));
             assertTrue(completionInvoked.await(5, TimeUnit.SECONDS));
-            assertEquals("RaskolClasses-Storage", completionThread.get());
+            assertEquals("RaskolClasses-Storage", writerThread.get());
         } finally {
             releaseWrite.countDown();
             assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
