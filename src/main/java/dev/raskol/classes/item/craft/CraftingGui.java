@@ -113,8 +113,11 @@ public final class CraftingGui implements Listener {
         try {
             callbacks.cancel(event.getPlayer().getUniqueId());
         } catch (RuntimeException exception) {
-            plugin.getLogger().log(
-                    java.util.logging.Level.WARNING, "Не удалось отменить отложенное открытие GUI при выходе игрока", exception);
+            plugin.getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "Не удалось отменить отложенное открытие GUI при выходе игрока",
+                            exception);
         }
     }
 
