@@ -16,8 +16,6 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 import dev.raskol.classes.RaskolClasses;
-import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
-import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.cc.CCType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
@@ -44,29 +42,12 @@ import net.kyori.adventure.text.format.NamedTextColor;
  *         числа с фолбэком, уронное ядро с spec2-хуками, таргетинг, VFX) унаследован;
  *         в ките остались только воин-специфичные механики.
  */
-public final class WarriorAbilities extends AbstractKit implements AutoCloseable {
+public final class WarriorAbilities extends AbstractKit {
 
     private static final PlayerClass PC = PlayerClass.WARRIOR;
 
-    private final PlayerCallbackRuntimeOwner tauntCallbacks;
-
     public WarriorAbilities(RaskolClasses plugin) {
         super(plugin, PC, "wp");
-        this.tauntCallbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(plugin));
-    }
-
-    public void onQuit(UUID playerId) {
-        try {
-            tauntCallbacks.cancel(playerId);
-        } catch (RuntimeException failure) {
-            plugin.getLogger().warning("Не удалось отменить отложенную очистку таунта для " + playerId + ": "
-                    + failure.getMessage());
-        }
-    }
-
-    @Override
-    public void close() {
-        tauntCallbacks.close();
     }
 
     /* ------------------------------ воин-специфика ------------------------------ */
@@ -356,8 +337,8 @@ public final class WarriorAbilities extends AbstractKit implements AutoCloseable
         }
         if (taunted > 0) {
             UUID casterId = p.getUniqueId();
-            tauntCallbacks.schedule(casterId, secs * 20L, playerId -> {
-                Player caster = plugin.getServer().getPlayer(playerId);
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                Player caster = plugin.getServer().getPlayer(casterId);
                 if (caster == null || !caster.isOnline()) {
                     return;
                 }
@@ -366,7 +347,7 @@ public final class WarriorAbilities extends AbstractKit implements AutoCloseable
                         mob.setGlowing(false);
                     }
                 }
-            });
+            }, secs * 20L);
         }
         p.sendMessage(Component.text("Вызов брошен: мобов — " + taunted, NamedTextColor.GREEN));
         return taunted > 0;

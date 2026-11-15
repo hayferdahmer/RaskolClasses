@@ -651,10 +651,10 @@ Two delayed callbacks retained stale Player objects across a possible disconnect
 - Warrior taunt glow cleanup captured the casting Player until its configured duration elapsed.
 - Avoidance parry-stagger expiry captured the attacking Player until the configured stagger duration elapsed.
 
-Both now use dedicated `PlayerCallbackRuntimeOwner` instances and UUID-only callbacks. At execution they resolve the currently online Player from the server; if the player is offline, the callback safely becomes a no-op. Quit events cancel the matching callback. The owners are closed independently during plugin shutdown.
+Warrior taunt cleanup now captures only the caster UUID and resolves the currently online Player when the finite one-shot callback executes. It retains its original per-cast scheduling behavior, so multiple taunts do not replace one another's expiry callbacks. If the caster is offline at expiry, cleanup safely becomes a no-op.
 
-The existing game timing is unchanged: taunt cleanup still runs after the configured taunt duration, and stagger cleanup still uses the configured player stagger duration. Avoidance still removes the persistent modifier immediately on quit and retains its join-time stale-data safeguard. Repeated callbacks for the same player replace their previous pending callback, preventing an older stagger expiry from clearing a newer stagger early.
+Avoidance now uses a dedicated `PlayerCallbackRuntimeOwner` for parry-stagger expiry. The callback captures only the attacker UUID, resolves the current online Player at execution, and is cancelled on quit. Its owner is closed independently during plugin shutdown. Avoidance still removes the persistent modifier immediately on quit and retains its join-time stale-data safeguard. Repeated parries for the same attacker replace the previous pending expiry, so an older callback cannot clear a newer stagger early.
 
-`AbilityRegistry` now owns the WarriorAbilities instance, receives quit events for callback cancellation, and closes the Warrior callback owner during shutdown. A focused owner test verifies that UUID-based callbacks resolve the current session rather than retaining the original session object.
+A focused owner test verifies that UUID-based callbacks resolve the current session rather than retaining the original session object. The bounded Warrior one-shot remains one callback per cast and does not introduce a new generic task registry.
 
 No changes were made to ability damage, target selection, taunt radius, stagger magnitude, or mob stagger behavior. A-04 asynchronous storage/completion callbacks remain out of scope.

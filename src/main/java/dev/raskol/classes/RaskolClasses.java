@@ -514,7 +514,6 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
-        pluginManager.registerEvents(abilities, this);
         pluginManager.registerEvents(combat.vanillaListener(), this);
         pluginManager.registerEvents(combat.avoidance(), this);
         pluginManager.registerEvents(new HunterAbilities.FanArrowHit(this), this);
@@ -814,11 +813,6 @@ public final class RaskolClasses extends JavaPlugin {
         shutdown.run("avoidance stagger callbacks", () -> {
             if (combat != null) {
                 combat.avoidance().shutdown();
-            }
-        });
-        shutdown.run("warrior taunt callbacks", () -> {
-            if (abilities != null) {
-                abilities.close();
             }
         });
         shutdown.run("elemental resist purge runtime", () -> {
