@@ -3,8 +3,6 @@
 package dev.raskol.classes.item.service;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,6 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.bukkit.entity.Player;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.bootstrap.lifecycle.ShutdownStepRunner;
 import dev.raskol.classes.item.api.ItemStatsProvider;
 import dev.raskol.classes.item.craft.CraftingGui;
 import dev.raskol.classes.item.craft.CraftingService;
@@ -168,25 +167,11 @@ public final class ItemSystem implements ItemStatsProvider {
     }
 
     public void stop() {
-        List<String> failedSteps = new ArrayList<>();
-        closeSafely("item hook callbacks", hook::stop, failedSteps);
-        closeSafely("crafting GUI callbacks", craftingGui::close, failedSteps);
-        closeSafely("item browser callbacks", browser::close, failedSteps);
-        if (failedSteps.isEmpty()) {
-            plugin.getLogger().info("Остановка ItemSystem завершена: все callback owners закрыты");
-        } else {
-            plugin.getLogger().severe(
-                    "Остановка ItemSystem завершена с ошибками: " + String.join(", ", failedSteps));
-        }
-    }
-
-    private void closeSafely(String name, Runnable action, List<String> failedSteps) {
-        try {
-            action.run();
-        } catch (RuntimeException exception) {
-            failedSteps.add(name);
-            plugin.getLogger().log(java.util.logging.Level.SEVERE, "Не удалось закрыть " + name, exception);
-        }
+        ShutdownStepRunner shutdown = new ShutdownStepRunner(plugin.getLogger());
+        shutdown.run("item hook callbacks", hook::stop);
+        shutdown.run("crafting GUI callbacks", craftingGui::close);
+        shutdown.run("item browser callbacks", browser::close);
+        shutdown.logSummary();
     }
 
     public ItemDefinition definitionOf(org.bukkit.inventory.ItemStack item) {

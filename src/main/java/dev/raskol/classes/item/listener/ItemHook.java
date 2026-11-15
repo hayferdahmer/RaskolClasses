@@ -97,11 +97,27 @@ public final class ItemHook implements Listener {
     }
 
     public void stop() {
+        RuntimeException failure = null;
         if (reconcileTask != null) {
-            reconcileTask.cancel();
-            reconcileTask = null;
+            try {
+                reconcileTask.cancel();
+                reconcileTask = null;
+            } catch (RuntimeException exception) {
+                failure = exception;
+            }
         }
-        callbacks.close();
+        try {
+            callbacks.close();
+        } catch (RuntimeException exception) {
+            if (failure == null) {
+                failure = exception;
+            } else {
+                failure.addSuppressed(exception);
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
     }
 
     public void schedule(Player player) {
