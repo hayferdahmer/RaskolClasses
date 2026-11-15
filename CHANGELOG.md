@@ -26,6 +26,14 @@
 - Выполнен A-03-003.7: runtime RIPS monitor и выделенный executor переданы `RuntimeIntegrityRuntimeOwner`; startup gate и Paper-specific enforcement callback оставлены в composition root. Добавлены тесты на конкурентный start, terminal close и освобождение executor при ошибке планирования; результаты Maven/CI ещё не подтверждены. Архитектурные границы и acceptance status записаны в `docs/architecture/A03_RUNTIME_INTEGRITY_OWNER.md`.
 - Добавлены unit-тесты для lifecycle, управления задачами, реестра сервисов и графа модулей. Интеграция Foundation с существующими сервисами будет выполняться отдельными проверяемыми этапами.
 
+### Async Completion Ownership — A-04
+
+- Добавлен shutdown-aware dispatcher для пользовательских async completion callbacks: pending уведомления подавляются и журналируются при disable или отказе Paper scheduler.
+- Переведены PlusSub, PlusGui, PlusSubscription и SalvageService на общий канал доставки; durable операции не откатываются из-за недоставленного сообщения.
+- Для salvage добавлена best-effort компенсация pending reservation при отмене main-thread commit до закрытия общего StorageWriter.
+- Добавлены регрессионные тесты dispatcher для shutdown, повторного close, scheduler rejection и однократного выполнения.
+- Добавлен staging smoke-test checklist для Paper 26.2 / Java 25; live runtime-проверка остаётся обязательной.
+
 ## [1.15.8] — «Подписанный рубеж» · 2026-11-13
 
 ### RIPS: официальная подпись артефакта и защита целостности
