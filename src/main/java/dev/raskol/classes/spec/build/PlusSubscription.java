@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.build;
 
-import java.util.UUID;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -232,7 +232,10 @@ public final class PlusSubscription implements Listener {
 
         storage.getGiftNoteAsync(playerId).whenComplete((note, failure) -> {
             if (failure != null) {
-                LOG.log(java.util.logging.Level.WARNING, "raskolspec+: не удалось прочитать подарочное уведомление", failure);
+                LOG.log(
+                        java.util.logging.Level.WARNING,
+                        "raskolspec+: не удалось прочитать подарочное уведомление",
+                        failure);
                 return;
             }
             if (note == null) return;
@@ -264,7 +267,10 @@ public final class PlusSubscription implements Listener {
                 state.acknowledging = false;
             }
             if (failure != null) {
-                LOG.log(java.util.logging.Level.WARNING, "raskolspec+: не удалось подтвердить доставку подарочного уведомления", failure);
+                LOG.log(
+                        java.util.logging.Level.WARNING,
+                        "raskolspec+: не удалось подтвердить доставку подарочного уведомления",
+                        failure);
                 return;
             }
             if (Boolean.TRUE.equals(saved)) {
@@ -275,7 +281,8 @@ public final class PlusSubscription implements Listener {
                 if (currentNote == null || !currentNote.id().equals(note.id())) {
                     giftDeliveryStates.remove(playerId, state);
                 } else {
-                    LOG.warning("raskolspec+: сообщение отправлено, но подтверждение доставки отложено до следующей попытки");
+                    LOG.warning(
+                            "raskolspec+: сообщение отправлено, но подтверждение доставки отложено до следующей попытки");
                 }
             });
         });
@@ -285,8 +292,10 @@ public final class PlusSubscription implements Listener {
         try {
             plugin.getServer().getScheduler().runTask(plugin, task);
         } catch (IllegalStateException exception) {
-            LOG.log(java.util.logging.Level.WARNING,
-                    "raskolspec+: уведомление не доставлено — планировщик недоступен", exception);
+            LOG.log(
+                    java.util.logging.Level.WARNING,
+                    "raskolspec+: уведомление не доставлено — планировщик недоступен",
+                    exception);
         }
     }
 }

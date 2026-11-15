@@ -140,7 +140,8 @@ public final class PlusStorage {
     }
 
     private static String legacyGiftNoteId(UUID uuid, String note) {
-        return UUID.nameUUIDFromBytes((uuid + "\n" + note).getBytes(StandardCharsets.UTF_8)).toString();
+        return UUID.nameUUIDFromBytes((uuid + "\n" + note).getBytes(StandardCharsets.UTF_8))
+                .toString();
     }
 
     private YamlConfiguration copyStore() {

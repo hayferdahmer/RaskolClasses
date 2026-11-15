@@ -62,6 +62,7 @@ class PlusStorageAsyncTest {
             assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
         }
     }
+
     @Test
     void failedAcknowledgementKeepsGiftNoteAvailable() throws Exception {
         UUID player = UUID.randomUUID();
@@ -79,5 +80,4 @@ class PlusStorageAsyncTest {
         assertFalse(storage.acknowledgeGiftNoteAsync(player, note.id()).get(5, TimeUnit.SECONDS));
         assertEquals(note, storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS));
     }
-
 }
