@@ -3,6 +3,7 @@
 package dev.raskol.classes.spec.build;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -26,8 +27,11 @@ public final class PlusStorage {
     private final AsyncStorageWriter writer;
     private YamlConfiguration store;
     private final Map<UUID, Long> expires = new HashMap<>();
-    private final Map<UUID, String> pendingGiftNotes = new HashMap<>();
+    private final Map<UUID, GiftNote> pendingGiftNotes = new HashMap<>();
     private boolean writeInFlight;
+    private CompletableFuture<Void> writeIdle = CompletableFuture.completedFuture(null);
+
+    public record GiftNote(String id, String message) {}
 
     public PlusStorage(File folder, AsyncStorageWriter writer) {
         this.file = new File(folder, "plus-subscription.yml");
@@ -49,7 +53,10 @@ public final class PlusStorage {
                 long exp = sec.getLong("expires", 0L);
                 if (exp > 0L) expires.put(uuid, exp);
                 String note = sec.getString("gift-note", null);
-                if (note != null && !note.isBlank()) pendingGiftNotes.put(uuid, note);
+                if (note != null && !note.isBlank()) {
+                    String noteId = sec.getString("gift-note-id", legacyGiftNoteId(uuid, note));
+                    pendingGiftNotes.put(uuid, new GiftNote(noteId, note));
+                }
             } catch (IllegalArgumentException ignored) {
                 // Некорректные UUID пропускаются, остальные записи сохраняются.
             }
@@ -85,26 +92,55 @@ public final class PlusStorage {
         if (candidate == null) return CompletableFuture.completedFuture(false);
         String path = "players." + uuid;
         candidate.set(path + ".expires", next);
-        if (giftNote != null && !giftNote.isBlank()) candidate.set(path + ".gift-note", giftNote);
+        if (giftNote != null && !giftNote.isBlank()) {
+            candidate.set(path + ".gift-note", giftNote);
+            candidate.set(path + ".gift-note-id", UUID.randomUUID().toString());
+        }
         return persistCandidate(candidate);
     }
 
-    public synchronized CompletableFuture<String> consumeGiftNoteAsync(UUID uuid) {
-        if (uuid == null || writeInFlight) return CompletableFuture.completedFuture(null);
-        String note = pendingGiftNotes.get(uuid);
-        if (note == null) return CompletableFuture.completedFuture(null);
+    public synchronized CompletableFuture<GiftNote> getGiftNoteAsync(UUID uuid) {
+        if (uuid == null) return CompletableFuture.completedFuture(null);
+        if (writeInFlight) return writeIdle.thenCompose(ignored -> getGiftNoteAsync(uuid));
+        return CompletableFuture.completedFuture(pendingGiftNotes.get(uuid));
+    }
+
+    public synchronized CompletableFuture<Boolean> acknowledgeGiftNoteAsync(UUID uuid, String expectedNoteId) {
+        if (uuid == null || expectedNoteId == null || expectedNoteId.isBlank()) {
+            return CompletableFuture.completedFuture(false);
+        }
+        if (writeInFlight) {
+            return writeIdle.thenCompose(ignored -> acknowledgeGiftNoteAsync(uuid, expectedNoteId));
+        }
+        GiftNote current = pendingGiftNotes.get(uuid);
+        if (current == null || !current.id().equals(expectedNoteId)) {
+            return CompletableFuture.completedFuture(false);
+        }
         YamlConfiguration candidate = copyStore();
-        if (candidate == null) return CompletableFuture.completedFuture(null);
-        candidate.set("players." + uuid + ".gift-note", null);
-        return persistCandidate(candidate).thenApply(saved -> saved ? note : null);
+        if (candidate == null) return CompletableFuture.completedFuture(false);
+        String path = "players." + uuid;
+        candidate.set(path + ".gift-note", null);
+        candidate.set(path + ".gift-note-id", null);
+        return persistCandidate(candidate);
     }
 
     public synchronized CompletableFuture<Boolean> setGiftNoteAsync(UUID uuid, String note) {
         if (uuid == null || writeInFlight) return CompletableFuture.completedFuture(false);
         YamlConfiguration candidate = copyStore();
         if (candidate == null) return CompletableFuture.completedFuture(false);
-        candidate.set("players." + uuid + ".gift-note", note == null || note.isBlank() ? null : note);
+        String path = "players." + uuid;
+        if (note == null || note.isBlank()) {
+            candidate.set(path + ".gift-note", null);
+            candidate.set(path + ".gift-note-id", null);
+        } else {
+            candidate.set(path + ".gift-note", note);
+            candidate.set(path + ".gift-note-id", UUID.randomUUID().toString());
+        }
         return persistCandidate(candidate);
+    }
+
+    private static String legacyGiftNoteId(UUID uuid, String note) {
+        return UUID.nameUUIDFromBytes((uuid + "\n" + note).getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private YamlConfiguration copyStore() {
@@ -122,7 +158,7 @@ public final class PlusStorage {
         // Все обращения к YAML и построение Java-снимка выполняются до передачи строки worker-потоку.
         final String snapshot = candidate.saveToString();
         Map<UUID, Long> nextExpires = new HashMap<>();
-        Map<UUID, String> nextNotes = new HashMap<>();
+        Map<UUID, GiftNote> nextNotes = new HashMap<>();
         var players = candidate.getConfigurationSection("players");
         if (players != null) {
             for (String key : players.getKeys(false)) {
@@ -133,13 +169,18 @@ public final class PlusStorage {
                     long expiry = section.getLong("expires", 0L);
                     if (expiry > 0L) nextExpires.put(uuid, expiry);
                     String note = section.getString("gift-note", null);
-                    if (note != null && !note.isBlank()) nextNotes.put(uuid, note);
+                    if (note != null && !note.isBlank()) {
+                        String noteId = section.getString("gift-note-id", legacyGiftNoteId(uuid, note));
+                        nextNotes.put(uuid, new GiftNote(noteId, note));
+                    }
                 } catch (IllegalArgumentException ignored) {
                     // Некорректные UUID пропускаются без потери остальных записей.
                 }
             }
         }
         writeInFlight = true;
+        CompletableFuture<Void> idle = new CompletableFuture<>();
+        writeIdle = idle;
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         writer.submit(file, snapshot).whenComplete((saved, failure) -> {
             boolean successful = failure == null && Boolean.TRUE.equals(saved);
@@ -156,6 +197,7 @@ public final class PlusStorage {
                 writeInFlight = false;
             }
             result.complete(successful);
+            idle.complete(null);
         });
         return result;
     }

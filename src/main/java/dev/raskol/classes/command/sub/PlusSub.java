@@ -231,8 +231,10 @@ public final class PlusSub implements CommandSub {
                 .replace("{sender}", from.getName())
                 .replace("{days}", String.valueOf(periods * subscription.periodDays()));
         int requestedPeriods = periods;
+        UUID recipientId = to.getUniqueId();
+        String recipientName = to.getName();
         subscription
-                .giftAsync(from.getUniqueId(), to.getUniqueId(), requestedPeriods, offlineNote)
+                .giftAsync(from.getUniqueId(), recipientId, requestedPeriods, offlineNote)
                 .whenComplete((result, failure) -> runOnMain(() -> {
                     if (!from.isOnline()) return;
                     if (failure != null) {
@@ -246,12 +248,8 @@ public final class PlusSub implements CommandSub {
                             int days = requestedPeriods * subscription.periodDays();
                             from.sendMessage(ok(plugin.getRaskolConfig()
                                     .message("plus.gift-sent", "⚜ Подписка raskolspec+ подарена {target} на {days} дн.")
-                                    .replace("{target}", to.getName())
+                                    .replace("{target}", recipientName)
                                     .replace("{days}", String.valueOf(days))));
-                            if (to.isOnline()) {
-                                to.sendMessage(net.kyori.adventure.text.Component.text(
-                                        "⚜ Вам подарили raskolspec+ на " + days + " дней!", NamedTextColor.GOLD));
-                            }
                         }
                         case INSUFFICIENT -> {
                             int cost = requestedPeriods * subscription.pricePerPeriod();

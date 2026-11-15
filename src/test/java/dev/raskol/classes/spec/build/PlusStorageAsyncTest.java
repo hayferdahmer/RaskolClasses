@@ -62,4 +62,22 @@ class PlusStorageAsyncTest {
             assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
         }
     }
+    @Test
+    void failedAcknowledgementKeepsGiftNoteAvailable() throws Exception {
+        UUID player = UUID.randomUUID();
+        AsyncStorageWriter seedWriter = new AsyncStorageWriter(LOGGER);
+        assertTrue(new PlusStorage(tempDir.toFile(), seedWriter)
+                .extendAsync(player, TimeUnit.DAYS.toMillis(30), "Подарок")
+                .get(5, TimeUnit.SECONDS));
+        assertTrue(seedWriter.closeAndAwait(Duration.ofSeconds(5)));
+
+        AsyncStorageWriter closedWriter = new AsyncStorageWriter(LOGGER);
+        assertTrue(closedWriter.closeAndAwait(Duration.ofSeconds(5)));
+        PlusStorage storage = new PlusStorage(tempDir.toFile(), closedWriter);
+        PlusStorage.GiftNote note = storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS);
+
+        assertFalse(storage.acknowledgeGiftNoteAsync(player, note.id()).get(5, TimeUnit.SECONDS));
+        assertEquals(note, storage.getGiftNoteAsync(player).get(5, TimeUnit.SECONDS));
+    }
+
 }
