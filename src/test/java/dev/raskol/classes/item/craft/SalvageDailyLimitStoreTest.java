@@ -116,7 +116,6 @@ class SalvageDailyLimitStoreTest {
         }
     }
 
-
     @Test
     @DisplayName("commit и release ожидают завершения предыдущей записи")
     void finalizationOperationsAreSerialized() throws Exception {
@@ -130,12 +129,8 @@ class SalvageDailyLimitStoreTest {
             var committed = store.commit(first.reservation());
             var released = store.release(second.reservation());
 
-            assertEquals(
-                    SalvageDailyLimitStore.OperationResult.SUCCESS,
-                    committed.get(5, TimeUnit.SECONDS));
-            assertEquals(
-                    SalvageDailyLimitStore.OperationResult.SUCCESS,
-                    released.get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.OperationResult.SUCCESS, committed.get(5, TimeUnit.SECONDS));
+            assertEquals(SalvageDailyLimitStore.OperationResult.SUCCESS, released.get(5, TimeUnit.SECONDS));
             assertEquals(
                     SalvageDailyLimitStore.OperationResult.SUCCESS,
                     store.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS).result());
