@@ -18,7 +18,6 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import dev.raskol.classes.RaskolClasses;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 
 public final class PlusSubscription implements Listener {
     private static final Logger LOG = Logger.getLogger("RaskolClasses");
@@ -253,7 +252,7 @@ public final class PlusSubscription implements Listener {
 
         synchronized (state) {
             if (!state.sent) {
-                current.sendMessage(Component.text("⚜ " + note.message(), NamedTextColor.GOLD));
+                current.sendMessage(Component.text(note.message(), NamedTextColor.GOLD));
                 state.sent = true;
             }
             if (state.acknowledging) return;

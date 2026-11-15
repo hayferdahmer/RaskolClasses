@@ -226,15 +226,20 @@ public final class PlusSub implements CommandSub {
             return;
         }
         PlusSubscription subscription = plugin.getPlusSubscription();
-        String offlineNote = plugin.getRaskolConfig()
-                .message("plus.gift-offline-note", "{sender} подарил вам raskolspec+ на {days} дн.")
+        boolean recipientOnlineAtGiftStart = to.isOnline();
+        String noteKey = recipientOnlineAtGiftStart ? "plus.gift-received" : "plus.gift-offline-note";
+        String defaultNote = recipientOnlineAtGiftStart
+                ? "⚜ {sender} подарил вам raskolspec+ на {days} дн.!"
+                : "{sender} подарил вам raskolspec+ на {days} дн.";
+        String giftNote = plugin.getRaskolConfig()
+                .message(noteKey, defaultNote)
                 .replace("{sender}", from.getName())
                 .replace("{days}", String.valueOf(periods * subscription.periodDays()));
         int requestedPeriods = periods;
         UUID recipientId = to.getUniqueId();
         String recipientName = to.getName();
         subscription
-                .giftAsync(from.getUniqueId(), recipientId, requestedPeriods, offlineNote)
+                .giftAsync(from.getUniqueId(), recipientId, requestedPeriods, giftNote)
                 .whenComplete((result, failure) -> runOnMain(() -> {
                     if (!from.isOnline()) return;
                     if (failure != null) {
