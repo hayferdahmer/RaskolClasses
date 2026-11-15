@@ -44,6 +44,7 @@ final class SalvageDailyLimitStore {
     private final Map<UUID, DailyCount> counts = new HashMap<>();
     private final Map<UUID, Reservation> reservations = new HashMap<>();
     private boolean writeInFlight;
+    private CompletableFuture<Void> writeIdle = CompletableFuture.completedFuture(null);
 
     SalvageDailyLimitStore(File file, Logger logger, AsyncStorageWriter writer) {
         this.file = file;
@@ -129,7 +130,7 @@ final class SalvageDailyLimitStore {
             return CompletableFuture.completedFuture(OperationResult.NOT_FOUND);
         }
         if (writeInFlight) {
-            return CompletableFuture.completedFuture(OperationResult.BUSY);
+            return writeIdle.thenCompose(ignored -> commit(reservation));
         }
 
         Map<UUID, DailyCount> nextCounts = new HashMap<>(counts);
@@ -162,7 +163,7 @@ final class SalvageDailyLimitStore {
             return CompletableFuture.completedFuture(OperationResult.NOT_FOUND);
         }
         if (writeInFlight) {
-            return CompletableFuture.completedFuture(OperationResult.BUSY);
+            return writeIdle.thenCompose(ignored -> release(reservation));
         }
 
         Map<UUID, Reservation> nextReservations = new HashMap<>(reservations);
@@ -211,11 +212,14 @@ final class SalvageDailyLimitStore {
         });
 
         writeInFlight = true;
+        CompletableFuture<Void> idle = new CompletableFuture<>();
+        writeIdle = idle;
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         writer.submit(file, snapshot.saveToString()).whenComplete((saved, error) -> {
             synchronized (SalvageDailyLimitStore.this) {
                 writeInFlight = false;
                 result.complete(error == null && Boolean.TRUE.equals(saved));
+                idle.complete(null);
             }
         });
         return result;

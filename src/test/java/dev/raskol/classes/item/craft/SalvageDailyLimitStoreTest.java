@@ -116,6 +116,32 @@ class SalvageDailyLimitStoreTest {
         }
     }
 
+
+    @Test
+    @DisplayName("commit и release ожидают завершения предыдущей записи")
+    void finalizationOperationsAreSerialized() throws Exception {
+        UUID playerId = UUID.randomUUID();
+        File file = tempDir.resolve("salvage-serialized.yml").toFile();
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            SalvageDailyLimitStore store = new SalvageDailyLimitStore(file, LOGGER, writer);
+            var first = store.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS);
+            var second = store.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS);
+
+            var committed = store.commit(first.reservation());
+            var released = store.release(second.reservation());
+
+            assertEquals(
+                    SalvageDailyLimitStore.OperationResult.SUCCESS,
+                    committed.get(5, TimeUnit.SECONDS));
+            assertEquals(
+                    SalvageDailyLimitStore.OperationResult.SUCCESS,
+                    released.get(5, TimeUnit.SECONDS));
+            assertEquals(
+                    SalvageDailyLimitStore.OperationResult.SUCCESS,
+                    store.reserve(playerId, 20_000L, 2).get(5, TimeUnit.SECONDS).result());
+        }
+    }
+
     @Test
     @DisplayName("ошибка сохранения блокирует резервирование")
     void storageFailureFailsClosed() throws Exception {
