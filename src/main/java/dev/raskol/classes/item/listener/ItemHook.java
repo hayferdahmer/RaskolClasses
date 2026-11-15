@@ -384,12 +384,7 @@ public final class ItemHook implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void quit(PlayerQuitEvent e) {
         UUID id = e.getPlayer().getUniqueId();
-        try {
-            callbacks.cancel(id);
-        } catch (RuntimeException exception) {
-            plugin.getLogger().log(
-                    java.util.logging.Level.WARNING, "Не удалось отменить reconciliation callback при выходе игрока", exception);
-        }
+        callbacks.cancel(id);
         hashes.remove(id);
         items.clear(id);
         items.setBonuses().clear(id);
