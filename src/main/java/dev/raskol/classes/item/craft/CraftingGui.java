@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -17,6 +18,8 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.item.model.ItemDefinition;
 
 import net.kyori.adventure.text.Component;
@@ -42,11 +45,13 @@ public final class CraftingGui implements Listener {
     private final RaskolClasses plugin;
     private final CraftingService crafting;
     private final FragmentRegistry fragments;
+    private final PlayerCallbackRuntimeOwner callbacks;
 
     public CraftingGui(RaskolClasses plugin, CraftingService crafting, FragmentRegistry fragments) {
         this.plugin = plugin;
         this.crafting = crafting;
         this.fragments = fragments;
+        this.callbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(plugin));
     }
 
     private static final class Holder implements InventoryHolder {
@@ -94,11 +99,22 @@ public final class CraftingGui implements Listener {
 
     /** 1.15.5-fix: открытие GUI только на следующем тике. */
     private void scheduleOpen(Player player, int page) {
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) {
-                open(player, page);
+        UUID playerId = player.getUniqueId();
+        callbacks.schedule(playerId, 1L, id -> {
+            Player online = Bukkit.getPlayer(id);
+            if (online != null && online.isOnline()) {
+                open(online, page);
             }
         });
+    }
+
+    @EventHandler
+    public void quit(PlayerQuitEvent event) {
+        callbacks.cancel(event.getPlayer().getUniqueId());
+    }
+
+    public void close() {
+        callbacks.close();
     }
 
     private ItemStack iconFor(Player player, CraftingService.Recipe recipe) {

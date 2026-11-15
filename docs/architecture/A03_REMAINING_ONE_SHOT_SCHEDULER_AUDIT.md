@@ -1,8 +1,8 @@
-# A-03-003.39 — Remaining one-shot scheduler and async handoff audit
+# A-03-003.39 / A-03-003.40 — Remaining one-shot scheduler and async handoff
 
 ## Status
 
-Audit-only. No production source or tests were changed in this slice.
+The A-03-003.39 source audit and A-03-003.40 implementation are complete on the lifecycle branch. The implementation migrates the three synchronous next-tick callback paths described below. A-04 asynchronous completion callbacks remain explicitly out of scope.
 
 Audited against lifecycle branch source at the A-03-003.38 implementation checkpoint. The findings below are bounded observations from the named call sites, not a claim that every scheduler call in the repository has been exhaustively classified.
 
@@ -15,18 +15,14 @@ The following methods schedule a next-tick callback and close over the Player in
 - `src/main/java/dev/raskol/classes/item/craft/CraftingGui.java:97` — `scheduleOpen(Player, int)`.
 - `src/main/java/dev/raskol/classes/item/gui/ItemBrowserMenu.java:151` — `scheduleOpen(Player, ...)`.
 
-Both callbacks check `player.isOnline()` before opening the GUI. This avoids acting on a disconnected player, but it still retains the old Player reference for the scheduled tick and does not resolve a reconnecting session by UUID. The delay is one tick, so this is a bounded stale-reference/lifecycle consistency issue, not an unbounded task leak.
-
-**Recommended treatment:** migrate these callbacks together to a dedicated GUI callback owner or a shared owner with a distinct purpose-specific instance. Store UUID, resolve the current online Player at execution, and cancel by UUID on quit. Preserve next-tick timing and the exact GUI arguments. Do not reuse an owner whose per-player key is shared with HP/Foliant callbacks: independent workflows must not replace each other's callbacks.
+Both callbacks previously retained the caller's Player. A-03-003.40 now gives each GUI its own `PlayerCallbackRuntimeOwner`, schedules with a one-tick delay, stores only UUID and the exact page/filter arguments, resolves the current online Player through `Bukkit.getPlayer(UUID)`, and cancels on `PlayerQuitEvent`. The two GUI owners are independent and cannot replace each other's same-UUID callbacks.
 
 ### P2 — ItemHook next-tick reconciliation retains Player
 
 - `src/main/java/dev/raskol/classes/item/listener/ItemHook.java:99` — `schedule(Player)` schedules next-tick reconciliation and captures the supplied Player.
 - The repeating reconciliation task is separately retained in `reconcileTask` and cancelled by `stop()` (`start()` around line 87).
 
-The one-shot callback is bounded to one tick but has no explicit handle, UUID re-resolution, or quit cancellation. It should be considered with the GUI callbacks only if the owner abstraction remains narrow and the call sites can preserve their independent semantics.
-
-**Recommended treatment:** UUID-based re-resolution for the one-shot path; retain the existing repeating task lifecycle unchanged. Add focused tests for disconnect/reconnect, callback completion and shutdown if this path is migrated.
+The one-shot callback was bounded to one tick but had no explicit handle, UUID re-resolution, or quit cancellation. A-03-003.40 now routes it through a dedicated `PlayerCallbackRuntimeOwner`, resolves the current online Player by UUID, cancels on quit, and closes the owner from `ItemHook.stop()`. The existing repeating reconciliation task remains separately owned and retains its cadence.
 
 ### P2 — TrailListener uses bounded self-cancelling projectile tasks
 
@@ -54,16 +50,16 @@ These need a dedicated A-04 completion/acknowledgement audit: define whether a c
 - Cooldown notification callbacks release completed handles.
 - RIPS runtime-integrity enforcement remains intentionally plugin-scoped and must not be cancelled by generic player callback shutdown.
 
-## Recommended grouped implementation
+## A-03-003.40 implementation record
 
-Next bounded implementation package:
-
-1. Introduce a purpose-specific owner for GUI and ItemHook next-tick callbacks, or prove that a single owner instance can serve these independent clients without key collisions.
-2. Migrate CraftingGui, ItemBrowserMenu and ItemHook together, preserving each callback's arguments and one-tick scheduling semantics.
-3. Add quit cancellation and online UUID re-resolution.
-4. Add focused tests for replacement isolation, disconnect/reconnect, completion release and owner shutdown.
-5. Keep asynchronous purchase/salvage/spec notification completion in A-04.
-6. Keep TrailListener unchanged unless further evidence justifies stronger ownership.
+- `CraftingGui`, `ItemBrowserMenu` and `ItemHook` now each own a separate `PlayerCallbackRuntimeOwner` backed by `PaperPlayerCallbackScheduler`.
+- Each migrated callback preserves its one-tick delay and original GUI/reconciliation arguments; callbacks retain UUID rather than Player and resolve the current online Player at execution.
+- Both GUI listeners cancel their pending callback on quit and expose `close()` for shutdown.
+- `ItemHook.quit()` cancels its pending reconciliation callback before clearing player state; `ItemHook.stop()` cancels the repeating task and closes its one-shot owner.
+- `ItemSystem.stop()` closes all three independent owners through failure-isolated shutdown steps.
+- Added a focused owner test proving same-UUID callbacks in independent owners do not replace each other. Existing tests cover quit cancellation, stale callback rejection, completion release, close and retry after cancellation failure.
+- `TrailListener` remains unchanged as a bounded self-cancelling exception.
+- A-04 asynchronous purchase/salvage/spec notification callbacks remain out of scope.
 
 ## Explicit limitations
 

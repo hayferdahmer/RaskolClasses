@@ -17,8 +17,11 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
@@ -48,10 +51,12 @@ public final class ItemBrowserMenu implements Listener {
 
     private final RaskolClasses plugin;
     private final ItemSystem items;
+    private final PlayerCallbackRuntimeOwner callbacks;
 
     public ItemBrowserMenu(RaskolClasses plugin, ItemSystem items) {
         this.plugin = plugin;
         this.items = items;
+        this.callbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(plugin));
     }
 
     private static final class Holder implements InventoryHolder {
@@ -148,11 +153,22 @@ public final class ItemBrowserMenu implements Listener {
 
     /** 1.15.5-fix: открытие GUI только на следующем тике — курсор не рассинхронизируется. */
     private void scheduleOpen(Player player, int page, String query, String classFilter, String rarityFilter) {
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) {
-                open(player, page, query, classFilter, rarityFilter);
+        UUID playerId = player.getUniqueId();
+        callbacks.schedule(playerId, 1L, id -> {
+            Player online = Bukkit.getPlayer(id);
+            if (online != null && online.isOnline()) {
+                open(online, page, query, classFilter, rarityFilter);
             }
         });
+    }
+
+    @EventHandler
+    public void quit(PlayerQuitEvent event) {
+        callbacks.cancel(event.getPlayer().getUniqueId());
+    }
+
+    public void close() {
+        callbacks.close();
     }
 
     private ItemStack iconFor(String itemId) {

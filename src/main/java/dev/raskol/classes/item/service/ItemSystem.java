@@ -11,6 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.bukkit.entity.Player;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.bootstrap.lifecycle.ShutdownStepRunner;
 import dev.raskol.classes.item.api.ItemStatsProvider;
 import dev.raskol.classes.item.craft.CraftingGui;
 import dev.raskol.classes.item.craft.CraftingService;
@@ -166,7 +167,11 @@ public final class ItemSystem implements ItemStatsProvider {
     }
 
     public void stop() {
-        hook.stop();
+        ShutdownStepRunner shutdown = new ShutdownStepRunner(plugin.getLogger());
+        shutdown.run("item hook callbacks", hook::stop);
+        shutdown.run("crafting GUI callbacks", craftingGui::close);
+        shutdown.run("item browser callbacks", browser::close);
+        shutdown.logSummary();
     }
 
     public ItemDefinition definitionOf(org.bukkit.inventory.ItemStack item) {

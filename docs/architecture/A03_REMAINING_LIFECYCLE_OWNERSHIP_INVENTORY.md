@@ -624,3 +624,8 @@ Audit-only checkpoint. The named source-backed findings and recommended grouped 
 - A-04 boundary: `PlusGui`, `SalvageService` and `PlusSubscription` have asynchronous completion-to-main-thread handoffs retaining Player. Their session/reconnect/shutdown semantics need a separate completion contract audit; UUID substitution alone is not a safe decision.
 - A-03-003.38 HP respawn callbacks and the Foliant transition callback already use UUID-aware resolution.
 - The repository-wide scheduler/listener scan remains open. No production source/tests changed in this audit. `main` remains untouched and `BootstrapCoordinator` remains inactive.
+
+ 
+## 23. A-03-003.40 — GUI and item reconciliation one-shot ownership
+
+`CraftingGui`, `ItemBrowserMenu` and `ItemHook` now each own an independent `PlayerCallbackRuntimeOwner` using the existing `PaperPlayerCallbackScheduler`. The one-tick delay and callback arguments are preserved. Scheduled callbacks retain UUID only and resolve the current online Player at execution. The two GUI listeners cancel their callbacks on quit and close their owners during `ItemSystem.stop()`; `ItemHook` cancels on quit and closes its owner alongside the repeating reconciliation task. `ItemSystem.stop()` runs each owner shutdown as a separate failure-isolated step so one cancellation failure does not prevent the other owners from closing. A focused test verifies independent owners do not replace callbacks for the same UUID. A-04 async completion callbacks and bounded `TrailListener` projectile tasks remain unchanged.

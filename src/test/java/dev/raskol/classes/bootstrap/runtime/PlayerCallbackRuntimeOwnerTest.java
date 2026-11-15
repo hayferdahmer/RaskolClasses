@@ -93,6 +93,25 @@ class PlayerCallbackRuntimeOwnerTest {
     }
 
     @Test
+    void independentOwnersDoNotReplaceCallbacksForTheSamePlayer() {
+        FakeScheduler firstScheduler = new FakeScheduler();
+        FakeScheduler secondScheduler = new FakeScheduler();
+        PlayerCallbackRuntimeOwner first = new PlayerCallbackRuntimeOwner(firstScheduler);
+        PlayerCallbackRuntimeOwner second = new PlayerCallbackRuntimeOwner(secondScheduler);
+        UUID playerId = UUID.randomUUID();
+        List<String> calls = new ArrayList<>();
+
+        first.schedule(playerId, 1L, () -> calls.add("first"));
+        second.schedule(playerId, 1L, () -> calls.add("second"));
+        firstScheduler.run(0);
+        secondScheduler.run(0);
+
+        assertEquals(List.of("first", "second"), calls);
+        assertEquals(0, first.ownedTaskCount());
+        assertEquals(0, second.ownedTaskCount());
+    }
+
+    @Test
     void closeCancelsAllCallbacksAndRejectsNewOnes() {
         FakeScheduler scheduler = new FakeScheduler();
         PlayerCallbackRuntimeOwner owner = new PlayerCallbackRuntimeOwner(scheduler);
