@@ -189,7 +189,8 @@ class HudChannelCoordinatorTest {
                         OptionalLong.empty(),
                         java.util.Optional.of(presentation))));
 
-        assertEquals(presentation, harness.output.bossBarPresentations.get(playerId).get("effect:stealth"));
+        assertEquals(
+                presentation, harness.output.bossBarPresentations.get(playerId).get("effect:stealth"));
     }
 
     @Test
@@ -197,10 +198,7 @@ class HudChannelCoordinatorTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new BossBarPresentation(
-                        1.01,
-                        BossBarPresentation.Color.RED,
-                        BossBarPresentation.Style.SOLID,
-                        java.util.Set.of()));
+                        1.01, BossBarPresentation.Color.RED, BossBarPresentation.Style.SOLID, java.util.Set.of()));
     }
 
     @Test
@@ -380,8 +378,9 @@ class HudChannelCoordinatorTest {
 
         @Override
         public void upsertBossBar(UUID playerId, String widgetId, WidgetFrame frame) {
-            frame.bossBarPresentation().ifPresent(presentation ->
-                    bossBarPresentations.computeIfAbsent(playerId, ignored -> new java.util.HashMap<>())
+            frame.bossBarPresentation()
+                    .ifPresent(presentation -> bossBarPresentations
+                            .computeIfAbsent(playerId, ignored -> new java.util.HashMap<>())
                             .put(widgetId, presentation));
             upsertBossBar(playerId, widgetId, frame.payload());
         }
@@ -393,7 +392,7 @@ class HudChannelCoordinatorTest {
                 playerBars.remove(widgetId);
                 if (playerBars.isEmpty()) {
                     bossBars.remove(playerId);
-            bossBarPresentations.remove(playerId);
+                    bossBarPresentations.remove(playerId);
                 }
             }
             java.util.Map<String, BossBarPresentation> presentations = bossBarPresentations.get(playerId);
