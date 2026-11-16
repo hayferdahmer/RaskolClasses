@@ -14,7 +14,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
 
+import dev.raskol.classes.hud.snapshot.DataStatus;
 import dev.raskol.classes.hud.snapshot.HudFailureReporter;
+import dev.raskol.classes.hud.snapshot.HudValue;
+import dev.raskol.classes.targeting.domain.TargetReadResult;
 import dev.raskol.classes.hud.snapshot.PlayerHudSnapshot;
 import dev.raskol.classes.hud.snapshot.WidgetFrame;
 
@@ -33,7 +36,7 @@ class HudChannelCoordinatorTest {
                         frame("alpha", "ACTION_BAR", 50, "A", OptionalLong.empty()),
                         frame("low", "ACTION_BAR", 10, "L", OptionalLong.empty())));
 
-        assertEquals("A", harness.output.actionBar);
+        assertEquals("A", harness.output.actionBars.get(playerId));
     }
 
     @Test
@@ -47,12 +50,12 @@ class HudChannelCoordinatorTest {
 
         harness.coordinator.publishNotification(
                 playerId, frame("notice", "ACTION_BAR", 100, "ready", OptionalLong.of(1_500L)));
-        assertEquals("ready", harness.output.actionBar);
+        assertEquals("ready", harness.output.actionBars.get(playerId));
 
         harness.now.set(1_500L);
         harness.coordinator.tick();
 
-        assertEquals("resource", harness.output.actionBar);
+        assertEquals("resource", harness.output.actionBars.get(playerId));
     }
 
     @Test
@@ -67,7 +70,7 @@ class HudChannelCoordinatorTest {
                 snapshot(playerId),
                 List.of(frame("resource", "ACTION_BAR", 10, "new-resource", OptionalLong.empty())));
 
-        assertEquals("notice", harness.output.actionBar);
+        assertEquals("notice", harness.output.actionBars.get(playerId));
     }
 
     @Test
@@ -81,15 +84,15 @@ class HudChannelCoordinatorTest {
                         frame("effect:fire", "BOSS_BAR", 1, "Fire", OptionalLong.empty()),
                         frame("effect:poison", "BOSS_BAR", 1, "Poison", OptionalLong.empty())));
 
-        assertEquals(2, harness.output.bossBars.size());
+        assertEquals(2, harness.output.bossBars.get(playerId).size());
 
         harness.coordinator.publish(
                 playerId,
                 snapshot(playerId),
                 List.of(frame("effect:fire", "BOSS_BAR", 1, "Fire II", OptionalLong.empty())));
 
-        assertEquals(1, harness.output.bossBars.size());
-        assertEquals("Fire II", harness.output.bossBars.get("effect:fire"));
+        assertEquals(1, harness.output.bossBars.get(playerId).size());
+        assertEquals("Fire II", harness.output.bossBars.get(playerId).get("effect:fire"));
         assertEquals(List.of("effect:poison"), harness.output.removedBossBars);
     }
 
@@ -103,13 +106,13 @@ class HudChannelCoordinatorTest {
                 List.of(
                         frame("resource", "ACTION_BAR", 10, "resource", OptionalLong.empty()),
                         frame("temporary", "BOSS_BAR", 1, "temporary", OptionalLong.of(1_100L))));
-        assertEquals(1, harness.output.bossBars.size());
+        assertEquals(1, harness.output.bossBars.get(playerId).size());
 
         harness.now.set(1_100L);
         harness.coordinator.tick();
 
         assertTrue(harness.output.bossBars.isEmpty());
-        assertEquals("resource", harness.output.actionBar);
+        assertEquals("resource", harness.output.actionBars.get(playerId));
     }
 
     @Test
@@ -123,7 +126,7 @@ class HudChannelCoordinatorTest {
                 IllegalStateException.class, () -> harness.coordinator.publish(playerId, snapshot(playerId), frames));
         harness.coordinator.publish(playerId, snapshot(playerId), frames);
 
-        assertEquals("resource", harness.output.actionBar);
+        assertEquals("resource", harness.output.actionBars.get(playerId));
         assertEquals(1, harness.output.actionBarWrites);
     }
 
@@ -159,7 +162,7 @@ class HudChannelCoordinatorTest {
         assertEquals(0, harness.coordinator.trackedPlayerCount());
         assertEquals(1, harness.output.clearPlayerCalls);
         assertTrue(harness.output.bossBars.isEmpty());
-        assertEquals(null, harness.output.actionBar);
+        assertTrue(!harness.output.actionBars.containsKey(playerId));
 
         harness.coordinator.close();
         harness.coordinator.close();
@@ -176,11 +179,13 @@ class HudChannelCoordinatorTest {
                 first, snapshot(first), List.of(frame("first", "ACTION_BAR", 10, "first", OptionalLong.empty())));
         harness.coordinator.publish(
                 second, snapshot(second), List.of(frame("second", "ACTION_BAR", 10, "second", OptionalLong.empty())));
-        harness.output.failNextClear = true;
-        harness.coordinator.publish(first, snapshot(first), List.of());
+        harness.coordinator.publishNotification(
+                first, frame("first-notice", "ACTION_BAR", 100, "first", OptionalLong.of(1_100L)));
+        harness.now.set(1_100L);
+        harness.output.failClearPlayers.add(first);
 
         assertThrows(IllegalStateException.class, harness.coordinator::tick);
-        assertEquals("second", harness.output.actionBar);
+        assertEquals("second", harness.output.actionBars.get(second));
     }
 
     @Test
@@ -211,14 +216,14 @@ class HudChannelCoordinatorTest {
     }
 
     private static final class RecordingOutput implements HudChannelOutput {
-        private final java.util.Map<String, String> bossBars = new java.util.HashMap<>();
+        private final java.util.Map<UUID, java.util.Map<String, String>> bossBars = new java.util.HashMap<>();
+        private final java.util.Map<UUID, String> actionBars = new java.util.HashMap<>();
         private final List<String> removedBossBars = new ArrayList<>();
-        private String actionBar;
         private int actionBarWrites;
         private int clearPlayerCalls;
         private int clearAllCalls;
         private boolean failNextActionBar;
-        private boolean failNextClear;
+        private final java.util.Set<UUID> failClearPlayers = new java.util.HashSet<>();
 
         @Override
         public void sendActionBar(UUID playerId, String payload) {
@@ -226,41 +231,46 @@ class HudChannelCoordinatorTest {
                 failNextActionBar = false;
                 throw new IllegalStateException("actionbar unavailable");
             }
-            actionBar = payload;
+            actionBars.put(playerId, payload);
             actionBarWrites++;
         }
 
         @Override
         public void clearActionBar(UUID playerId) {
-            if (failNextClear) {
-                failNextClear = false;
+            if (failClearPlayers.remove(playerId)) {
                 throw new IllegalStateException("actionbar clear failed");
             }
-            actionBar = null;
+            actionBars.remove(playerId);
         }
 
         @Override
         public void upsertBossBar(UUID playerId, String widgetId, String payload) {
-            bossBars.put(widgetId, payload);
+            bossBars.computeIfAbsent(playerId, ignored -> new java.util.HashMap<>()).put(widgetId, payload);
         }
 
         @Override
         public void removeBossBar(UUID playerId, String widgetId) {
-            bossBars.remove(widgetId);
+            java.util.Map<String, String> playerBars = bossBars.get(playerId);
+            if (playerBars != null) {
+                playerBars.remove(widgetId);
+                if (playerBars.isEmpty()) {
+                    bossBars.remove(playerId);
+                }
+            }
             removedBossBars.add(widgetId);
         }
 
         @Override
         public void clearPlayer(UUID playerId) {
             clearPlayerCalls++;
-            actionBar = null;
-            bossBars.clear();
+            actionBars.remove(playerId);
+            bossBars.remove(playerId);
         }
 
         @Override
         public void clearAll() {
             clearAllCalls++;
-            actionBar = null;
+            actionBars.clear();
             bossBars.clear();
         }
     }

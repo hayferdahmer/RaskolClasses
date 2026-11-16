@@ -155,7 +155,6 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
     }
 
     /** Очищает все output handles; при ошибке состояние сохраняется для retry. */
-    @Override
     public synchronized void clearAll() {
         RuntimeException failure = null;
         try {
