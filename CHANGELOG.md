@@ -30,7 +30,7 @@
 - Добавлен независимый registry legacy frames, чтобы snapshot publication не стирала кадры ещё не мигрированных producers.
 - `BossBarService` пока сохраняет legacy runtime; перенос BossBar и сохранение их цветов/progress/duration — HUD-C.4.2.
 - Клиентский мод зафиксирован как отдельный optional renderer; vanilla fallback остаётся полноценным, сетевой handshake/protocol отложен до проверки его отдельного репозитория.
-- CI и Paper 26.2 / Java 25 staging verification для этого среза выполняются отдельно.
+- GitHub Actions на финальном HEAD `033d8b85`: **715 тестов, 0 failures/errors/skipped; SpotBugs — 0 findings; Spotless и финальный verify — SUCCESS**. Live staging smoke test Paper 26.2 / Java 25 остаётся отдельным гейтом.
 
 ### Architecture Refactoring — A-03
 
