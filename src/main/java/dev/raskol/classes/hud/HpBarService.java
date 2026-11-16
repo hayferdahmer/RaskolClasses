@@ -543,9 +543,7 @@ public final class HpBarService implements Listener {
         }
         line = line.append(Component.text((int) res + "/" + (int) effectiveMax, numbers))
                 .append(Component.text(" ❭", frame));
-        if (channelCoordinator == null) {
-            player.sendActionBar(line);
-        } else {
+        if (channelCoordinator != null) {
             channelCoordinator.upsertPersistentFrame(
                     uuid,
                     new WidgetFrame(
