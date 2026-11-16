@@ -132,7 +132,7 @@ public final class ResourceService implements Listener {
         current = Math.min(current, effectiveMax);
         long combatWindowMillis =
                 playerClass == null ? 0L : Math.max(0L, config.combatWindowSeconds(playerClass)) * 1000L;
-        boolean inCombat = state != null && combatWindowMillis > 0L && state.isInCombat(combatWindowMillis);
+        boolean inCombat = combatWindowMillis > 0L && state.isInCombat(combatWindowMillis);
         return Optional.of(new ResourceSnapshot(current, effectiveMax, inCombat));
     }
 
