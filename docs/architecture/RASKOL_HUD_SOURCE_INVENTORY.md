@@ -366,3 +366,29 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 - Spotless + final verification: [run 43954439872](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43954439872).
 - Следующий этап: **HUD-C.4 — Legacy Producer Migration & Runtime Wiring**. Перед отключением старых writers необходимо подключить один owner, перенести cooldown notifications на TTL API, сохранить legacy config semantics и добавить integration tests на reload/quit/disable.
 - Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным до включения нового pipeline на production.
+
+
+## 11. HUD-C.4.1 — ActionBar migration и optional client mod
+
+### 11.1. Подтверждённый production path
+
+- `RaskolClasses` создаёт один `HudChannelCoordinator` + `PaperHudChannelOutput`.
+- `HudService` публикует persistent class/resource/DoT frame (`legacy-class-resource`, priority 40).
+- `HpBarService` публикует persistent HP/resource frame (`legacy-health-resource`, priority 50); его игровые расчёты и persistence не переносились.
+- `CooldownManager` публикует transient ready notifications (priority 100, TTL 3 секунды).
+- `HudRuntimeOwner` обслуживает и legacy HUD refresh, и expiry tick channel coordinator; второй periodic owner не создавался.
+- Session cleanup очищает per-player channel state. Shutdown отменяет cooldown producers до очистки и закрытия coordinator.
+- Production legacy producers используют coordinator, а не прямой `Player.sendActionBar`. Низкоуровневый Paper send выполняется в `PaperHudChannelOutput`.
+
+### 11.2. Ограничения
+
+- Snapshot `HudCoordinator` и production `HudSnapshotProvider` пока не подключены к composition root. Legacy frames — временный migration API.
+- `BossBarService` остаётся отдельным legacy writer/owner; следующий slice — HUD-C.4.2.
+- ActionBar arbitration координирует только producers RaskolClasses. Внешние плагины могут отправлять собственный ActionBar и перезаписывать его.
+- Clearing ActionBar может очистить текущее сообщение канала независимо от того, какой плагин отправил его последним; глобальной ownership-механики Paper API не предоставляет.
+- Клиентский мод — отдельный optional renderer. Сервер остаётся authoritative; handshake, versioned wire protocol и display-safe DTO будут спроектированы после просмотра исходников/контрактов отдельного mod repository. До этого сетевой протокол не реализуется.
+- Отсутствие мода обязано оставлять vanilla fallback рабочим; Resource Pack optional и независим от клиентского мода.
+
+### 11.3. Следующий slice
+
+**HUD-C.4.2 — BossBar producer migration.** Перенести effect bars в тот же ownership coordinator, сохранив цвет, прогресс, duration, max-visible policy и совместимость текущего config. Для этого расширить типизированный payload/renderer seam, а не терять параметры через текущую строковую BossBar заглушку. Затем перейти к C.5 lifecycle/reload integration и production snapshot source.
