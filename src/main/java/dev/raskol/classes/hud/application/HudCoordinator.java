@@ -33,6 +33,7 @@ public final class HudCoordinator implements AutoCloseable {
     private final Map<UUID, Long> revisions = new HashMap<>();
     private final Map<UUID, PlayerHudSnapshot> latestSnapshots = new HashMap<>();
     private int fallbackCursor;
+    private boolean closing;
     private boolean closed;
 
     public HudCoordinator(
@@ -157,12 +158,13 @@ public final class HudCoordinator implements AutoCloseable {
         if (closed) {
             return;
         }
-        closed = true;
+        closing = true;
         dirtyPlayers.clear();
         RuntimeException aggregate = null;
         for (UUID playerId : List.copyOf(latestSnapshots.keySet())) {
             try {
                 publisher.clearPlayer(playerId);
+                latestSnapshots.remove(playerId);
             } catch (RuntimeException failure) {
                 if (aggregate == null) {
                     aggregate = new IllegalStateException("Не удалось полностью очистить HUD snapshot publisher");
@@ -171,11 +173,13 @@ public final class HudCoordinator implements AutoCloseable {
                 report(playerId, "publisher-close", failure);
             }
         }
-        latestSnapshots.clear();
-        revisions.clear();
         if (aggregate != null) {
             throw aggregate;
         }
+        latestSnapshots.clear();
+        revisions.clear();
+        closed = true;
+        closing = false;
     }
 
     private RefreshOutcome refresh(UUID playerId) {
@@ -228,8 +232,8 @@ public final class HudCoordinator implements AutoCloseable {
     }
 
     private void ensureOpen() {
-        if (closed) {
-            throw new IllegalStateException("HudCoordinator уже закрыт");
+        if (closed || closing) {
+            throw new IllegalStateException("HudCoordinator уже закрывается или закрыт");
         }
     }
 

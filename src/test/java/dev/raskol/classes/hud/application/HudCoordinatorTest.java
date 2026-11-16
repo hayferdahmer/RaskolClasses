@@ -76,7 +76,7 @@ class HudCoordinatorTest {
         assertEquals(2, firstTick.attempted());
         assertEquals(2, secondTick.attempted());
         assertEquals(4, captures.get());
-        assertEquals(1, coordinator.dirtyPlayerCount());
+        assertEquals(0, coordinator.dirtyPlayerCount());
     }
 
     @Test
@@ -170,6 +170,26 @@ class HudCoordinatorTest {
     }
 
     @Test
+    void closeCanRetryPublisherCleanupAfterFailure() {
+        UUID playerId = UUID.randomUUID();
+        RecordingPublisher publisher = new RecordingPublisher();
+        HudCoordinator coordinator = coordinator((id, revision) -> snapshot(id, revision),
+                new HudWidgetRegistry(), publisher, 1);
+        coordinator.markDirty(playerId);
+        coordinator.tick(List.of(playerId));
+        publisher.failClearOnce = true;
+
+        assertThrows(IllegalStateException.class, coordinator::close);
+        assertNotNull(coordinator.latestSnapshot(playerId));
+        assertThrows(IllegalStateException.class, () -> coordinator.markDirty(playerId));
+
+        coordinator.close();
+
+        assertNull(coordinator.latestSnapshot(playerId));
+        assertEquals(List.of(playerId), publisher.cleared);
+    }
+
+    @Test
     void unavailableValuesAreNotRepresentedAsZero() {
         HudValue<Double> unavailable = HudValue.unavailable();
         assertEquals(DataStatus.UNAVAILABLE, unavailable.status());
@@ -232,6 +252,7 @@ class HudCoordinatorTest {
         private final List<List<WidgetFrame>> frames = new ArrayList<>();
         private final List<UUID> cleared = new ArrayList<>();
         private boolean failOnce;
+        private boolean failClearOnce;
 
         @Override
         public void publish(UUID playerId, PlayerHudSnapshot snapshot, List<WidgetFrame> widgetFrames) {
@@ -245,6 +266,10 @@ class HudCoordinatorTest {
 
         @Override
         public void clearPlayer(UUID playerId) {
+            if (failClearOnce) {
+                failClearOnce = false;
+                throw new IllegalStateException("publisher cleanup failed");
+            }
             cleared.add(playerId);
         }
     }
