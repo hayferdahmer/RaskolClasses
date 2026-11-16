@@ -472,3 +472,36 @@ Interaction adapter переводит подтверждённое сервер
 
 Не считать любое событие взаимодействия безусловным подтверждением выбора: учитывать отмену, руку, тип сущности и конфликты взаимодействий. Выбранный Paper event path и границы адаптера описаны в [RASKOL_HUD_TARGET_INTERACTION_SPIKE.md](RASKOL_HUD_TARGET_INTERACTION_SPIKE.md). TargetView остаётся read-only и immutable.
 
+
+
+## 14. HUD-C.3 — Channel Ownership & Arbitration
+
+### 14.1. Каналы и ownership
+
+- `HudChannelCoordinator` — единый владелец output состояния игрока.
+- `ACTION_BAR` — один активный frame на игрока; выбирается по priority, затем по времени поступления, затем по стабильному widget ID.
+- `BOSS_BAR` — несколько одновременно принадлежащих RaskolHUD полос; ключ — стабильный widget ID.
+- `SCOREBOARD` — намеренно не публикуется до утверждения политики сосуществования с внешними плагинами.
+- Renderer/output adapter не читает игровые сервисы и не владеет refresh policy.
+
+### 14.2. Постоянные кадры и уведомления
+
+- Публикация snapshot заменяет полный набор постоянных widget frames.
+- Уведомления поступают отдельным вызовом и не являются частью snapshot.
+- Уведомление ActionBar обязано иметь конечный absolute expiry timestamp.
+- Более высокий priority временно вытесняет нижний; при expiry/cancel предыдущий действующий frame восстанавливается.
+- Для равного priority выигрывает более позднее поступление; если sequence совпадает, применяется лексикографический widget ID.
+- Expiry проверяется на каждом channel tick и непосредственно перед публикацией.
+
+### 14.3. Ошибки и lifecycle
+
+- Output считается опубликованным только после успешного вызова adapter; ошибка не фиксирует rendered state и допускает retry.
+- Ошибка одного игрока при expiry tick не блокирует обработку остальных игроков.
+- Quit/disable очищают только HUD-owned ActionBar/BossBar handles.
+- Paper adapter требует main thread; Bukkit API не вызывается из snapshot/domain coordinator.
+- Paper BossBars адресуются по UUID игрока + widget ID; несколько полос независимы.
+- Scoreboard frames fail-fast отклоняются, пока политика совместимости не утверждена.
+
+### 14.4. Граница миграции
+
+HUD-C.3 создаёт channel coordinator и Paper output adapter, но не перенаправляет текущие legacy producers. `HudService`, `HpBarService`, `CooldownManager` и `BossBarService` сохраняют существующее поведение до отдельного миграционного slice. Поэтому этот этап сам по себе не устраняет текущие ActionBar writes на работающем сервере; он создаёт проверенный единый owner для последующего подключения.

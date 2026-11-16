@@ -386,3 +386,15 @@ Scope:
 - HUD-C.3 remains the next slice: single-owner channel arbitration.
 
 Tests cover dirty coalescing, refresh budget, fallback processing, provider retry, widget isolation, publisher retry/revision, quit/close cleanup and explicit unavailable values.
+
+
+## 23. HUD-C.3 — Channel coordinator и Paper output adapter
+
+Добавлены:
+- `hud/channel/HudChannelCoordinator` — priority arbitration, TTL, восстановление ActionBar frame, отдельный поток notifications, stable BossBar widget IDs;
+- `hud/channel/HudChannelOutput` — узкий output port;
+- `hud/runtime/PaperHudChannelOutput` — main-thread Paper adapter для ActionBar и нескольких HUD-owned BossBars.
+
+Coordinator реализует `HudFramePublisher`, поэтому его можно передать в уже существующий `HudCoordinator` без изменения snapshot pipeline. Scoreboard отклоняется до отдельного решения о совместимости.
+
+Legacy producer migration намеренно не входит в этот commit. До неё старые writers остаются активными, а новый channel owner не создаётся в composition root. Это исключает скрытую смену текущего поведения и двойное управление каналами.

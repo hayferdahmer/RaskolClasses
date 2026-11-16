@@ -365,3 +365,15 @@ Target Frame показывает последнюю явно выбранную
 Уже подключены legacy runtime owners для ActionBar HUD, BossBar и HP listener/tick. Это решает ownership задач и часть reload/quit lifecycle, но **не означает**, что реализованы unified snapshot, widget registry, channel arbitration или новые renderers.
 
 Следующий этап — **HUD-C.2: immutable snapshot pipeline и coordinator core**. Затем HUD-C.3 channel ownership/arbitration, далее миграция legacy producers. Целевые продуктовые решения H-01–H-06, единый PlayerHudSnapshot, independent widgets, optional Resource Pack и Locked Target остаются действующими; этот source reconciliation не меняет их.
+
+
+## 21. HUD-C.3 — Channel arbitration
+
+HUD-C.3 вводит единый presentation ownership seam между immutable widget frames и Paper output:
+- ActionBar — один победитель по priority/sequence/stable ID;
+- transient notifications имеют отдельный TTL и не теряются при обновлении snapshot;
+- после expiry/cancel восстанавливается нижележащий persistent frame;
+- BossBar допускает несколько полос, принадлежащих RaskolHUD по stable widget ID;
+- Scoreboard остаётся fail-fast disabled до решения о внешней совместимости.
+
+Текущие legacy producers пока не мигрированы и сохраняют прежний runtime path. Их подключение к новому owner — отдельный этап после проверки coordinator.
