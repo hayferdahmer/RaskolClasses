@@ -272,7 +272,7 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
         for (Map.Entry<String, WidgetFrame> entry : desiredBossBars.entrySet()) {
             WidgetFrame rendered = state.renderedBossBars.get(entry.getKey());
             if (!Objects.equals(rendered, entry.getValue())) {
-                output.upsertBossBar(playerId, entry.getKey(), entry.getValue().payload());
+                output.upsertBossBar(playerId, entry.getKey(), entry.getValue());
                 state.renderedBossBars.put(entry.getKey(), entry.getValue());
             }
         }
