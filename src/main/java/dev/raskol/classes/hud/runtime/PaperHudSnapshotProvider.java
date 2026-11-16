@@ -84,7 +84,7 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
 
         PlayerClass playerClass = classProvider.getClassOf(player);
         PlayerHudSnapshot.CharacterView character = readCharacter(playerId, playerClass);
-        PlayerHudSnapshot.HealthView health = readHealth(player);
+        PlayerHudSnapshot.HealthView health = readHealth(player, playerClass);
         ResourceSnapshot resourceSnapshot =
                 playerClass == null ? null : resources.readSnapshot(playerId, playerClass);
         PlayerHudSnapshot.ResourceView resource = readResource(playerClass, resourceSnapshot);
@@ -156,7 +156,10 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
                 HudValue.unavailable());
     }
 
-    private PlayerHudSnapshot.HealthView readHealth(Player player) {
+    private PlayerHudSnapshot.HealthView readHealth(Player player, PlayerClass playerClass) {
+        if (playerClass == null) {
+            return unavailableHealth();
+        }
         double current = attributes.currentFormulaHp(player);
         double maximum = attributes.maxHp(player.getUniqueId());
         if (!isFiniteNonNegative(current) || !Double.isFinite(maximum) || maximum <= 0.0) {

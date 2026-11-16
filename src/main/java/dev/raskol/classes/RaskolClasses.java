@@ -497,7 +497,6 @@ public final class RaskolClasses extends JavaPlugin {
                         effects,
                         combat.dots(),
                         spec2Service,
-                        raskolConfig,
                         System::currentTimeMillis),
                 hudWidgetRegistry,
                 hudChannelCoordinator,
