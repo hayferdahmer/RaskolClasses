@@ -180,7 +180,7 @@ class HudCoordinatorTest {
         publisher.failClearOnce = true;
 
         assertThrows(IllegalStateException.class, coordinator::close);
-        assertNotNull(coordinator.latestSnapshot(playerId));
+        assertTrue(coordinator.latestSnapshot(playerId) != null);
         assertThrows(IllegalStateException.class, () -> coordinator.markDirty(playerId));
 
         coordinator.close();
