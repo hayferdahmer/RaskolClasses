@@ -75,8 +75,8 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
 
         PlayerChannels state = players.computeIfAbsent(id, ignored -> new PlayerChannels());
         for (String widgetId : replacement.keySet()) {
-            if (state.persistentFrames.containsKey(widgetId)) {
-                throw new IllegalArgumentException("HUD widgetId уже принадлежит legacy producer: " + widgetId);
+            if (state.persistentFrames.containsKey(widgetId) || state.notifications.containsKey(widgetId)) {
+                throw new IllegalArgumentException("HUD widgetId уже принадлежит другому producer: " + widgetId);
             }
         }
         state.snapshotFrames.clear();
@@ -95,8 +95,8 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
         validateSupportedChannel(frame);
         long now = clock.getAsLong();
         PlayerChannels state = players.computeIfAbsent(id, ignored -> new PlayerChannels());
-        if (state.snapshotFrames.containsKey(frame.widgetId())) {
-            throw new IllegalArgumentException("HUD widgetId уже принадлежит snapshot producer: " + frame.widgetId());
+        if (state.snapshotFrames.containsKey(frame.widgetId()) || state.notifications.containsKey(frame.widgetId())) {
+            throw new IllegalArgumentException("HUD widgetId уже принадлежит другому producer: " + frame.widgetId());
         }
         if (isExpired(frame, now)) {
             state.persistentFrames.remove(frame.widgetId());

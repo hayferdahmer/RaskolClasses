@@ -7,6 +7,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -19,12 +20,16 @@ import dev.raskol.classes.combat.dot.DotInstance;
 import dev.raskol.classes.combat.dot.DotService;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.config.RaskolConfig;
+import dev.raskol.classes.hud.channel.HudChannel;
+import dev.raskol.classes.hud.channel.HudChannelCoordinator;
+import dev.raskol.classes.hud.snapshot.WidgetFrame;
 import dev.raskol.classes.resource.ResourceState;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.ComponentBuilder;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 /**
  * ActionBar-HUD в тёмной стилизации:
@@ -43,6 +48,8 @@ import net.kyori.adventure.text.format.TextColor;
 public final class HudService {
 
     private static final int BAR_CELLS = 10;
+    private static final String WIDGET_ID = "legacy-class-resource";
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final TextColor FRAME_COLOR = TextColor.fromHexString("#555555");
     private static final Component FRAME_OPEN = Component.text("❬ ", FRAME_COLOR);
     private static final Component FRAME_CLOSE = Component.text(" ❭", FRAME_COLOR);
@@ -51,6 +58,7 @@ public final class HudService {
     private static final Component NO_EXTRA = Component.empty();
 
     private final RaskolClasses plugin;
+    private final HudChannelCoordinator channelCoordinator;
     private final Map<UUID, Boolean> overrides = new HashMap<>();
 
     private final Map<UUID, String> lastFrameKey = new HashMap<>();
@@ -65,7 +73,12 @@ public final class HudService {
     private long frame = 0;
 
     public HudService(RaskolClasses plugin) {
+        this(plugin, null);
+    }
+
+    public HudService(RaskolClasses plugin, HudChannelCoordinator channelCoordinator) {
         this.plugin = plugin;
+        this.channelCoordinator = channelCoordinator;
         applyConfig();
     }
 
@@ -79,8 +92,14 @@ public final class HudService {
     /** Выполняет один цикл обновления HUD; планирование принадлежит HudRuntimeOwner. */
     public void tick() {
         frame++;
+        boolean vanillaHpMode = "vanilla".equalsIgnoreCase(
+                plugin.getConfig().getString("hp-display.mode", "actionbar"));
         for (Player player : Bukkit.getOnlinePlayers()) {
-            tickFor(player);
+            if (vanillaHpMode) {
+                tickFor(player);
+            } else {
+                removeFrame(player.getUniqueId());
+            }
         }
     }
 
@@ -90,19 +109,27 @@ public final class HudService {
         lastFrameKey.remove(playerId);
         sparkPosition.remove(playerId);
         lastResourceInt.remove(playerId);
+        removeFrame(playerId);
     }
 
     /** Очищает кэши кадров HUD, не затрагивая ActionBar других presentation-сервисов. */
     public void clearAll() {
+        List<UUID> playersWithFrames = List.copyOf(lastFrameKey.keySet());
         overrides.clear();
         lastFrameKey.clear();
         sparkPosition.clear();
         lastResourceInt.clear();
+        for (UUID playerId : playersWithFrames) {
+            removeFrame(playerId);
+        }
     }
 
     public boolean toggle(Player player) {
         boolean visible = isVisible(player);
         overrides.put(player.getUniqueId(), !visible);
+        if (visible) {
+            removeFrame(player.getUniqueId());
+        }
         return !visible;
     }
 
@@ -112,21 +139,25 @@ public final class HudService {
     }
 
     private void tickFor(Player player) {
+        UUID id = player.getUniqueId();
         if (!isVisible(player)) {
+            removeFrame(id);
             return;
         }
         if (plugin.getRaskolConfig().hudSkipSpectator() && player.getGameMode() == GameMode.SPECTATOR) {
+            removeFrame(id);
             return;
         }
         if (player.hasMetadata("vanished") || player.hasMetadata("disappeared")) {
+            removeFrame(id);
             return;
         }
 
         PlayerClass pc = plugin.getClassProvider().getClassOf(player);
         if (pc == null) {
+            removeFrame(id);
             return;
         }
-        UUID id = player.getUniqueId();
         double value = plugin.getResources().getValue(id);
         int valueInt = (int) value;
         int filled = (int) Math.round(value / ResourceState.MAX_VALUE * BAR_CELLS);
@@ -167,9 +198,20 @@ public final class HudService {
         if (key.equals(lastFrameKey.get(id)) && frame % 2 != 0) {
             return;
         }
+        Component rendered = render(pc, valueInt, filled, spark, dotsComponent);
+        if (channelCoordinator == null) {
+            player.sendActionBar(rendered);
+        } else {
+            channelCoordinator.upsertPersistentFrame(
+                    id,
+                    new WidgetFrame(
+                            WIDGET_ID,
+                            HudChannel.ACTION_BAR.name(),
+                            40,
+                            LEGACY.serialize(rendered),
+                            OptionalLong.empty()));
+        }
         lastFrameKey.put(id, key);
-
-        player.sendActionBar(render(pc, valueInt, filled, spark, dotsComponent));
 
         if (plugin.getRaskolConfig().hudFullResourceAura() && valueInt >= ResourceState.MAX_VALUE && frame % 2 == 0) {
             player.getWorld()
@@ -181,6 +223,12 @@ public final class HudService {
                             0.5,
                             0.35,
                             0.01);
+        }
+    }
+
+    private void removeFrame(UUID playerId) {
+        if (channelCoordinator != null) {
+            channelCoordinator.removePersistentFrame(playerId, WIDGET_ID);
         }
     }
 
