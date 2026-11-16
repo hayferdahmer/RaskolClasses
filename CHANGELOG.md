@@ -12,6 +12,16 @@
 
 ## [Unreleased]
 
+### RaskolHUD — HUD-C.2 / HUD-C.3
+
+- Добавлен immutable `PlayerHudSnapshot` pipeline с типизированными view, явным `DataStatus`, revision control и bounded refresh coordinator.
+- Добавлен `HudChannelCoordinator`: единый ActionBar arbitration по priority/sequence/stable widget ID, отдельный TTL-поток уведомлений и восстановление постоянного кадра после expiry/cancel.
+- Добавлен ownership нескольких HUD BossBars по стабильным widget ID и Paper output adapter с проверкой main thread.
+- Scoreboard channel отклоняется до утверждения политики совместимости с внешними плагинами.
+- Legacy producers пока не мигрированы и не подключены к новому coordinator; текущий визуальный вывод и gameplay не менялись.
+- GitHub Actions для проверенного кода: **711 тестов, 0 failures/errors/skipped; SpotBugs — 0 находок; Spotless и license headers — успешно**. Runtime smoke test на staging Paper 26.2 / Java 25 остаётся отдельным обязательным гейтом.
+
+
 ### Architecture Refactoring — A-03
 
 - Добавлены базовые контракты жизненного цикла модулей: состояния, контекст, интерфейс PluginModule и проверка допустимых переходов.

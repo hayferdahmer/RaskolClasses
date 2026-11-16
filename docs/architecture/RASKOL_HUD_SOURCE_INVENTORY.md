@@ -333,3 +333,36 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 ### 9.6. Следующий implementation slice
 
 Следующий шаг — **HUD-C.2: immutable snapshot pipeline и coordinator core**. Он должен реализовать только Bukkit-independent value types/coordinator orchestration и deterministic tests; не подключать новые renderers и не менять существующий визуальный вывод. ActionBar arbitration — отдельный HUD-C.3 slice, после которого legacy senders мигрируют на единый publisher.
+
+
+## 10. HUD-C.2 / HUD-C.3 — реализация snapshot и channel ownership (2026-11-16)
+
+**Эта секция supersedes статусы разделов 9.4 и 9.6 выше.** Раздел 9 сохраняется как исторический source audit до реализации C.2/C.3.
+
+### 10.1. Реализовано
+
+- `hud/snapshot/PlayerHudSnapshot` и вложенные immutable views.
+- `hud/application/HudCoordinator`: dirty coalescing, bounded refresh, revision publication и изоляция ошибок источника/виджета/publisher.
+- `hud/channel/HudChannelCoordinator`: единый arbitration owner для ActionBar и HUD-owned BossBar.
+- `hud/channel/HudChannelOutput`: Paper-independent output seam.
+- `hud/runtime/PaperHudChannelOutput`: Paper adapter, проверяющий main thread и управляющий только созданными RaskolHUD BossBar handles.
+- ActionBar priority: больший priority выигрывает; для равного priority более поздняя публикация выигрывает; внутри одного snapshot tie разрешается стабильным widget ID.
+- Notifications хранятся отдельно от snapshot, обязаны иметь finite TTL и после expiry/cancel восстанавливают следующий доступный ActionBar frame.
+- Несколько BossBar могут быть активны одновременно; идентификатор ownership — player UUID + widget ID.
+- Scoreboard channel fail-fast disabled до утверждения внешней compatibility policy.
+
+### 10.2. Границы текущей интеграции
+
+- C.2/C.3 core и Paper output adapter реализованы, но ещё не подключены в `RaskolClasses` composition root.
+- `HudService`, `HpBarService`, `CooldownManager` продолжают использовать прежний ActionBar path.
+- `BossBarService` остаётся legacy owner; новые BossBar frames пока не подаются в Paper adapter из production pipeline.
+- Поэтому этот этап не устраняет конкуренцию legacy writers на работающем сервере и не меняет текущий визуальный HUD.
+- ActionBar ownership координируется внутри RaskolClasses; глобальная арбитрация с произвольными внешними плагинами не гарантируется клиентским ActionBar API.
+
+### 10.3. Проверки и следующий slice
+
+- GitHub Actions: **711 tests, 0 failures/errors/skipped**; SpotBugs 0; Spotless clean; license headers passed.
+- Build/Analyze: [run 43954439931](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43954439931).
+- Spotless + final verification: [run 43954439872](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43954439872).
+- Следующий этап: **HUD-C.4 — Legacy Producer Migration & Runtime Wiring**. Перед отключением старых writers необходимо подключить один owner, перенести cooldown notifications на TTL API, сохранить legacy config semantics и добавить integration tests на reload/quit/disable.
+- Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным до включения нового pipeline на production.
