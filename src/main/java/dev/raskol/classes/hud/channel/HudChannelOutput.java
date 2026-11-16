@@ -13,6 +13,11 @@ public interface HudChannelOutput {
 
     void upsertBossBar(UUID playerId, String widgetId, String payload);
 
+    /** Типизированный overload; старые output implementations сохраняют совместимость через payload. */
+    default void upsertBossBar(UUID playerId, String widgetId, dev.raskol.classes.hud.snapshot.WidgetFrame frame) {
+        upsertBossBar(playerId, widgetId, frame.payload());
+    }
+
     void removeBossBar(UUID playerId, String widgetId);
 
     void clearPlayer(UUID playerId);
