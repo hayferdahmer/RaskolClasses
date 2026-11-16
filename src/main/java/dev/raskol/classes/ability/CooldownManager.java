@@ -140,9 +140,7 @@ public final class CooldownManager implements Listener {
                             player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
                             String text = notifyMessage.replace("{ability}", displayName);
                             Component message = Component.text(text, NamedTextColor.GREEN);
-                            if (hudChannelCoordinator == null) {
-                                player.sendActionBar(message);
-                            } else {
+                            if (hudChannelCoordinator != null) {
                                 long expiresAt = System.currentTimeMillis() + READY_NOTIFICATION_TTL_MILLIS;
                                 hudChannelCoordinator.publishNotification(
                                         playerId,
