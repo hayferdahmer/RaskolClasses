@@ -32,6 +32,14 @@
 - Клиентский мод зафиксирован как отдельный optional renderer; vanilla fallback остаётся полноценным, сетевой handshake/protocol отложен до проверки его отдельного репозитория.
 - GitHub Actions на финальном HEAD `033d8b85`: **715 тестов, 0 failures/errors/skipped; SpotBugs — 0 findings; Spotless и финальный verify — SUCCESS**. Live staging smoke test Paper 26.2 / Java 25 остаётся отдельным гейтом.
 
+### RaskolHUD — HUD-C.4.2 BossBar migration
+
+- `BossBarService` переведён с прямого владения Bukkit BossBar на публикацию per-effect frames через `HudChannelCoordinator`.
+- Добавлен platform-neutral `BossBarPresentation`: progress, color, style и flags передаются до Paper output без потери параметров.
+- `PaperHudChannelOutput` стал единым владельцем ActionBar и нескольких BossBar handles; сохранены class colors, segmented style, remaining-time progress, sorting, min-duration и max-visible policy.
+- `BossBarRuntimeOwner` останавливается до channel coordinator; все legacy ActionBar/BossBar producers проходят через единый channel owner.
+- HUD-C.4 CI на HEAD `310ba30a`: **717 тестов, 0 failures/errors/skipped; SpotBugs — 0 findings; Spotless и final verify — SUCCESS**. Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным.
+
 ### Architecture Refactoring — A-03
 
 - Добавлены базовые контракты жизненного цикла модулей: состояния, контекст, интерфейс PluginModule и проверка допустимых переходов.
