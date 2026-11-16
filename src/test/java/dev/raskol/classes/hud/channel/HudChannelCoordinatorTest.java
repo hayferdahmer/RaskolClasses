@@ -201,8 +201,29 @@ class HudChannelCoordinatorTest {
     }
 
     private static PlayerHudSnapshot snapshot(UUID playerId) {
+        HudValue<String> unavailableText = HudValue.unavailable();
+        HudValue<Double> unavailableNumber = HudValue.unavailable();
         return new PlayerHudSnapshot(
-                playerId, 1L, 1_000L, null, null, null, null, null, null, List.of(), List.of(), null, null);
+                playerId,
+                1L,
+                1_000L,
+                new PlayerHudSnapshot.CharacterView(
+                        unavailableText,
+                        unavailableText,
+                        unavailableText,
+                        unavailableText,
+                        HudValue.available(1),
+                        HudValue.available(0L),
+                        HudValue.available(100L)),
+                new PlayerHudSnapshot.HealthView(unavailableNumber, unavailableNumber),
+                new PlayerHudSnapshot.ResourceView(
+                        unavailableText, unavailableText, unavailableText, unavailableNumber, unavailableNumber),
+                new PlayerHudSnapshot.AttributeView(unavailableNumber, unavailableNumber, unavailableNumber),
+                TargetReadResult.none(),
+                List.of(),
+                List.of(),
+                new PlayerHudSnapshot.CombatView(HudValue.available(false), HudValue.notApplicable()),
+                new PlayerHudSnapshot.HudProfileView(HudValue.available("default"), java.util.Set.of()));
     }
 
     private static final class Harness {
