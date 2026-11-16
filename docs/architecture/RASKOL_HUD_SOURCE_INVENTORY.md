@@ -361,7 +361,7 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 
 ### 10.3. Проверки и следующий slice
 
-- GitHub Actions: **711 tests, 0 failures/errors/skipped**; SpotBugs 0; Spotless clean; license headers passed.
+- GitHub Actions: **712 tests, 0 failures/errors/skipped**; SpotBugs 0; Spotless clean; license headers passed.
 - Build/Analyze: [run 43954439931](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43954439931).
 - Spotless + final verification: [run 43954439872](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43954439872).
 - Следующий этап: **HUD-C.4 — Legacy Producer Migration & Runtime Wiring**. Перед отключением старых writers необходимо подключить один owner, перенести cooldown notifications на TTL API, сохранить legacy config semantics и добавить integration tests на reload/quit/disable.

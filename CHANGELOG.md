@@ -19,7 +19,7 @@
 - Добавлен ownership нескольких HUD BossBars по стабильным widget ID и Paper output adapter с проверкой main thread.
 - Scoreboard channel отклоняется до утверждения политики совместимости с внешними плагинами.
 - Legacy producers пока не мигрированы и не подключены к новому coordinator; текущий визуальный вывод и gameplay не менялись.
-- GitHub Actions для проверенного кода: **711 тестов, 0 failures/errors/skipped; SpotBugs — 0 находок; Spotless и license headers — успешно**. Runtime smoke test на staging Paper 26.2 / Java 25 остаётся отдельным обязательным гейтом.
+- GitHub Actions для проверенного кода: **712 тестов, 0 failures/errors/skipped; SpotBugs — 0 находок; Spotless и license headers — успешно**. Runtime smoke test на staging Paper 26.2 / Java 25 остаётся отдельным обязательным гейтом.
 
 
 ### Architecture Refactoring — A-03
