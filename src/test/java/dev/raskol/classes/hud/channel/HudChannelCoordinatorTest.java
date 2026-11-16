@@ -174,8 +174,7 @@ class HudChannelCoordinatorTest {
         Harness harness = new Harness();
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
-        harness.coordinator.publish(
-                first, snapshot(first), List.of(frame("first", "ACTION_BAR", 10, "first", OptionalLong.empty())));
+        harness.coordinator.publish(first, snapshot(first), List.of());
         harness.coordinator.publish(
                 second, snapshot(second), List.of(frame("second", "ACTION_BAR", 10, "second", OptionalLong.empty())));
         harness.coordinator.publishNotification(
