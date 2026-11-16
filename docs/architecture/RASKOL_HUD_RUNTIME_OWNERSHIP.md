@@ -330,3 +330,36 @@ The service does not resolve Bukkit entities, implement concrete NPC/PvP/territo
 Production wiring now uses `HudRuntimeOwner` for the legacy ActionBar refresh producer and quit-session cleanup. The owner is registered during core service initialization, started only when the existing `hud.enabled && hp-display.mode=vanilla` gate is true, reconciled on configuration reload, and closed during plugin shutdown.
 
 `HudService` retains rendering, resource/DoT reads, animation and per-player frame caches. Its scheduler has been removed; `tick()` is a single-cycle callback. Quit and shutdown cleanup clear the HUD-owned caches only. No empty ActionBar is sent during cleanup because the ActionBar channel may also be used by the independent HP display path. No HUD visual format, resource formula, DoT rendering, config key or HP behavior was intentionally changed.
+
+
+## 22. Актуализация прогресса по feature branch
+
+Source reconciliation выполнен после первоначального HUD-C design. Старые формулировки о том, что Paper adapters ещё не wired, относятся к промежуточным срезам и не описывают текущий HEAD.
+
+### Уже wired в RaskolClasses
+
+- `HudRuntimeOwner` + `PaperHudTaskScheduler` + `PaperHudSessionEvents` управляют legacy `HudService.tick()` и quit cache cleanup.
+- `BossBarRuntimeOwner` + `PaperBossBarTaskScheduler` управляют `BossBarService.tick()` и очисткой полос.
+- `HpBarRuntimeOwner` + Paper registration/scheduler управляют HP listener и tick; HP service не передан в HUD и сохраняет gameplay/persistence ownership.
+- Root startup/reload/shutdown wiring существует; HUD owners не активируют `BootstrapCoordinator`.
+- Основные owners остаются отдельными до появления нового coordinator. Не добавлять параллельный scheduler поверх legacy owner.
+
+### Текущие ограничения
+
+- Snapshot/widget/channel coordinator из design ещё не реализован.
+- Legacy services продолжают читать игровые сервисы напрямую.
+- `CooldownManager` остаётся отдельным transient ActionBar sender; unified ActionBar arbitration ещё не реализован.
+- BossBar effect renderer продолжает напрямую создавать/обновлять Bukkit BossBar.
+- Targeting domain/application code не подключён к Paper event path и composition root.
+- Scoreboard renderer выключен/не реализован; внешняя совместимость не решена.
+
+### Порядок дальнейшей реализации
+
+1. **HUD-C.2 — Coordinator core:** immutable `PlayerHudSnapshot`, typed field statuses/views, per-player revision, capturedAtMillis, dirty coalescing, bounded refresh and widget evaluation ports; Bukkit-independent tests only.
+2. **HUD-C.3 — Channel ownership:** deterministic ActionBar arbitration (priority, stable tie-break, TTL, persistent restoration), HUD-owned BossBar registry contract; Scoreboard remains deferred.
+3. **HUD-C.4 — Legacy producer migration:** adapt `HudService`, HP presentation seam and cooldown notifications to coordinator/channel contracts; preserve legacy output until explicit switch-over. Existing runtime owners must be reused or transferred, never duplicated.
+4. **HUD-C.5 — Session/reload/disable:** end-to-end cleanup, reload idempotence, partial failure recovery and Paper lifecycle tests.
+5. **HUD-C.6 — Root integration:** remove superseded legacy producers only after new channel owners are active and characterized; preserve `getHud()`, `getBossBars()`, `getHpBarService()`.
+6. **HUD-C.7 — Verification:** focused tests, Maven verify, Spotless, SpotBugs, then controlled Paper 26.2 / Java 25 staging smoke tests.
+
+**Текущий следующий шаг:** HUD-C.2. Не переходить к визуальному redesign или resource-pack implementation до стабилизации snapshot/coordinator/channel contracts.
