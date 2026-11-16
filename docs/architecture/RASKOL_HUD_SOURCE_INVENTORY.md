@@ -267,3 +267,69 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 - не менять YAML, PDC, heal semantics, health.yml и публичные compatibility facades.
 
 После этого — HUD-B.2: определить `PlayerHudSnapshot`, revision consistency и widget contracts. Реализацию task ownership отложить до HUD-C.
+
+
+## 9. Актуализация source inventory после A-03 runtime ownership
+
+**Эта секция supersedes устаревшие описания task ownership и reload из разделов 2–5 выше.** Первоначальные SHA ниже относятся к раннему HUD-A срезу; актуальные feature-branch blobs проверены повторно.
+
+### 9.1. Актуальные исходники (feature branch)
+
+| Файл | Текущий blob SHA | Строк |
+|---|---|---:|
+| `hud/HudService.java` | `aead6955344f34b37be4337a229eb3e4caf926b7` | 321 |
+| `hud/BossBarService.java` | `2779fc779d3b5fd32d60012e092b7bef84c2e0b7` |  |
+| `hud/HpBarService.java` | `d51a26e1583e20c8e82761941f785ecfb73496a3` |  |
+| `RaskolClasses.java` | `3a57979e107939836aff76deedfdb357f0be7b4c` | 1260 |
+| `config.yml` | `dcce8c9b8240d45acd2c3cfed0205ff1b8053242` | 2594 |
+| `hud/runtime/HudRuntimeOwner.java` | `5e84d6920020c53311d35ef9afd72a1134431701` | 189 |
+| `hud/runtime/BossBarRuntimeOwner.java` | `2ffab0424f2f4716bd845075aa126ca72685273d` | 138 |
+| `hud/runtime/HpBarRuntimeOwner.java` | `e529d545a0e4e736549793d2e74795d6d3e91c8f` | 151 |
+| `ability/CooldownManager.java` | `7a412ffb9593c604f1572d5aaa4ddbfaaf59319f` | 360 |
+| `hook/PlaceholderSnapshotService.java` | `4713a57d452dec76a43aa608d8262b7214c68bba` | 127 |
+
+### 9.2. Текущее распределение ownership
+
+- `HudService` больше не планирует собственную задачу. Его `tick()` — один цикл рендеринга; периодическая задача и quit cleanup принадлежат `HudRuntimeOwner`.
+- `BossBarService` больше не владеет scheduler task. `BossBarRuntimeOwner` владеет периодическим producer и вызывает `clearBars` при restart/close.
+- `HpBarService` остаётся смешанным HP gameplay/persistence/presentation сервисом. Listener registration и периодический tick переданы `HpBarRuntimeOwner`; health.yml, dirty flush, healing, HP formulas и respawn callbacks остаются вне RaskolHUD ownership.
+- `RaskolClasses` создаёт и запускает эти owners через composition root; shutdown закрывает их до финальных HP snapshots и до закрытия общего StorageWriter.
+- `reconcileHudRuntime()` вызывается при reload и согласует ActionBar HUD с парой `hud.enabled && hp-display.mode == vanilla`. Это устраняет первоначальную проблему, когда `applyConfig()` менял только cache/config, но не task lifecycle.
+- `PlaceholderSnapshotService` остаётся отдельным optional integration snapshot provider, не частью renderer pipeline.
+
+### 9.3. Фактические ActionBar producers и открытый конфликт
+
+На актуальной ветке обнаружены три независимых отправителя в один клиентский ActionBar channel:
+1. `HudService` — class resource + DoT;
+2. `HpBarService` — unified HP + resource, когда `hp-display.mode != vanilla`;
+3. `CooldownManager` — transient ready notification.
+
+Режимы `HudService` и `HpBarService` на startup/reload взаимоисключаются текущим gate, но `CooldownManager` по-прежнему отправляет ActionBar независимо. Это подтверждает необходимость будущего `HudChannelCoordinator`: временное уведомление должно вытеснять persistent frame по TTL, после чего persistent HUD должен восстанавливаться без гонки независимых writers.
+
+### 9.4. Что ещё не реализовано
+
+- Единого immutable `PlayerHudSnapshot` в runtime pipeline нет.
+- Нет production `HudCoordinator` с dirty coalescing и bounded fallback refresh.
+- Нет production `HudWidgetRegistry` и `HudChannelCoordinator`.
+- `HudService`, `HpBarService` и `BossBarService` всё ещё читают игровые сервисы напрямую; текущие owners решают lifecycle, но не data/presentation separation.
+- Target domain contracts/store/application service существуют в коде, но Paper interaction adapter и production bootstrap wiring не активированы.
+- Scoreboard остаётся отложенным до решения о совместимости с внешними плагинами.
+
+### 9.5. Актуальные риски
+
+| ID | Статус | Уточнение |
+|---|---|---|
+| HUD-A-01 | Open | HpBarService всё ещё совмещает gameplay, persistence и presentation. |
+| HUD-A-02 | Resolved at runtime-owner layer | HudRuntimeOwner управляет start/stop; reload вызывает reconcileHudRuntime. |
+| HUD-A-03 | Partially contained | Основные persistent producers взаимоисключаются legacy mode gate; transient CooldownManager всё ещё пишет напрямую в ActionBar. |
+| HUD-A-04 | Resolved for HudService cache | Quit cleanup делегируется HudRuntimeOwner. |
+| HUD-A-05 | Open / re-audit | Нужно проверить очистку per-player cache при скрытии/потере класса, а не только при quit. |
+| HUD-A-06 | Open | BossBarService всё ещё зависит от HudService.isVisible(player). |
+| HUD-A-07 | Partially resolved | У legacy HUD producers появились отдельные owners; единого coordinator/channel owner пока нет. |
+| HUD-A-08 | Open | Конфиг читается из RaskolConfig и напрямую из Bukkit config в нескольких сервисах. |
+| HUD-A-09 | Partially resolved | Есть runtime-owner tests; snapshot/widget/channel contract tests ещё не реализованы. |
+| HUD-A-10 | Open | Политика сосуществования с чужими BossBars/Scoreboard не принята. |
+
+### 9.6. Следующий implementation slice
+
+Следующий шаг — **HUD-C.2: immutable snapshot pipeline и coordinator core**. Он должен реализовать только Bukkit-independent value types/coordinator orchestration и deterministic tests; не подключать новые renderers и не менять существующий визуальный вывод. ActionBar arbitration — отдельный HUD-C.3 slice, после которого legacy senders мигрируют на единый publisher.
