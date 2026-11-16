@@ -422,12 +422,12 @@ Legacy producer migration намеренно не входит в этот commi
 ### Границы
 
 - Legacy ActionBar writers больше не отправляют сообщения напрямую в production path; они публикуют кадры в coordinator.
-- `BossBarService` и `BossBarRuntimeOwner` пока остаются отдельным legacy path. Их перенос — следующий slice HUD-C.4.2.
+- `BossBarService` переведён на channel coordinator; `BossBarRuntimeOwner` сохраняет периодический сбор effect state, но не владеет Paper BossBar handles.
 - Production `HudSnapshotProvider` и `HudCoordinator` пока не wired в root; текущая миграция не означает завершение unified snapshot pipeline.
 - Arbitration действует внутри RaskolClasses. Внешний плагин всё ещё может отправить собственный ActionBar; Paper API не предоставляет глобальную межплагинную блокировку канала.
 - Optional client-mod renderer остаётся отдельным будущим adapter. Протокол не реализуется до проверки репозитория клиентского мода.
 
-Проверки C4.1: CI на финальном HEAD и controlled Paper 26.2 / Java 25 smoke test должны быть завершены отдельно. Исторические промежуточные статусы в разделах 14–23 выше не следует трактовать как текущую wiring-схему.
+Промежуточный статус C4.1 ниже superseded разделом 25. Исторические промежуточные статусы в разделах 14–23 выше не следует трактовать как текущую wiring-схему.
 
 
 ### Проверка HUD-C.4.1
@@ -437,3 +437,25 @@ Legacy producer migration намеренно не входит в этот commi
 - SpotBugs: 0 findings.
 - Spotless format и final branch verification: SUCCESS.
 - Live Paper 26.2 / Java 25 staging smoke test ещё не выполнен.
+
+
+## 25. HUD-C.4.2 — BossBar producer migration
+
+- Добавлен immutable `BossBarPresentation` с progress `[0..1]`, platform-neutral color/style и набором flags.
+- `WidgetFrame` получил optional typed BossBar metadata; прежний 5-argument constructor сохранён для ActionBar и legacy test callers.
+- `HudChannelOutput` получил typed overload с compatibility default; coordinator передаёт полный frame, а не только строковый title.
+- `PaperHudChannelOutput` создаёт/обновляет/удаляет HUD-owned BossBar по UUID + widget ID, применяя title, class color, segmented style, progress и flags.
+- `BossBarService` больше не создаёт Bukkit BossBar и не хранит Paper handles. Он выбирает active effects, применяет min-duration/max-visible policy, строит title/progress и публикует стабильные frames в coordinator.
+- Сохранены class colors, `SEGMENTED_10`, remaining-time progress, infinite-effect full bar, effect sorting, min duration и max-visible count.
+- `BossBarRuntimeOwner` закрывается до `HudRuntimeOwner` и channel coordinator, чтобы producer не публиковал после закрытия output.
+- Все legacy ActionBar/BossBar producers теперь проходят через единый channel owner. Production snapshot data provider пока не подключён.
+
+### Проверка HUD-C.4
+
+Финальный проверенный кодовый HEAD: `310ba30a5a90f7dde46202d54be4cb6fd84ab13f`.
+- Maven verify: 717 tests, 0 failures/errors/skipped.
+- SpotBugs: 0 findings.
+- Spotless format + final branch verification: SUCCESS.
+- [Build + Analyze run 43959893978](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43959893978).
+- [Spotless run 43959893936](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43959893936).
+- Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным.
