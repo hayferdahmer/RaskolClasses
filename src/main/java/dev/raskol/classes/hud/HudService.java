@@ -92,8 +92,8 @@ public final class HudService {
     /** Выполняет один цикл обновления HUD; планирование принадлежит HudRuntimeOwner. */
     public void tick() {
         frame++;
-        boolean vanillaHpMode = "vanilla".equalsIgnoreCase(
-                plugin.getConfig().getString("hp-display.mode", "actionbar"));
+        boolean vanillaHpMode =
+                "vanilla".equalsIgnoreCase(plugin.getConfig().getString("hp-display.mode", "actionbar"));
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (vanillaHpMode) {
                 tickFor(player);
