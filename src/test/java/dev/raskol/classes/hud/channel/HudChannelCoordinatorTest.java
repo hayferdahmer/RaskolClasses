@@ -14,10 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
 
-import dev.raskol.classes.hud.snapshot.DataStatus;
 import dev.raskol.classes.hud.snapshot.HudFailureReporter;
-import dev.raskol.classes.hud.snapshot.HudValue;
-import dev.raskol.classes.targeting.domain.TargetReadResult;
 import dev.raskol.classes.hud.snapshot.PlayerHudSnapshot;
 import dev.raskol.classes.hud.snapshot.WidgetFrame;
 
@@ -245,7 +242,8 @@ class HudChannelCoordinatorTest {
 
         @Override
         public void upsertBossBar(UUID playerId, String widgetId, String payload) {
-            bossBars.computeIfAbsent(playerId, ignored -> new java.util.HashMap<>()).put(widgetId, payload);
+            bossBars.computeIfAbsent(playerId, ignored -> new java.util.HashMap<>())
+                    .put(widgetId, payload);
         }
 
         @Override
