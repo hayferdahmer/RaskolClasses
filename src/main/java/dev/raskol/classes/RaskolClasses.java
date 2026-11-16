@@ -101,9 +101,9 @@ import dev.raskol.classes.hud.runtime.HudServiceOutputCleanup;
 import dev.raskol.classes.hud.runtime.PaperBossBarTaskScheduler;
 import dev.raskol.classes.hud.runtime.PaperHpBarRuntimeRegistration;
 import dev.raskol.classes.hud.runtime.PaperHpBarTaskScheduler;
+import dev.raskol.classes.hud.runtime.PaperHudChannelOutput;
 import dev.raskol.classes.hud.runtime.PaperHudSessionEvents;
 import dev.raskol.classes.hud.runtime.PaperHudTaskScheduler;
-import dev.raskol.classes.hud.runtime.PaperHudChannelOutput;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
@@ -367,13 +367,14 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.hudChannelCoordinator = new HudChannelCoordinator(
                 new PaperHudChannelOutput(),
-                (playerId, stage, failure) -> getLogger().log(
-                        java.util.logging.Level.WARNING,
-                        "[RaskolHUD] Ошибка channel output для " + playerId + " на этапе " + stage,
-                        failure),
+                (playerId, stage, failure) -> getLogger()
+                        .log(
+                                java.util.logging.Level.WARNING,
+                                "[RaskolHUD] Ошибка channel output для " + playerId + " на этапе " + stage,
+                                failure),
                 System::currentTimeMillis);
-        this.cooldowns = new CooldownManager(
-                new File(getDataFolder(), "cooldowns.yml"), storageWriter, hudChannelCoordinator);
+        this.cooldowns =
+                new CooldownManager(new File(getDataFolder(), "cooldowns.yml"), storageWriter, hudChannelCoordinator);
         this.cooldowns.attachScheduler(
                 this,
                 raskolConfig.isReadyNotifyEnabled(),
