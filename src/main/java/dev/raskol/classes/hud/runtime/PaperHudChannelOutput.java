@@ -85,7 +85,7 @@ public final class PaperHudChannelOutput implements HudChannelOutput {
         } else if (!bar.getPlayers().contains(player)) {
             bar.addPlayer(player);
         }
-        bar.setTitle(LEGACY.deserialize(frame.payload()));
+        bar.setTitle(frame.payload());
         bar.setColor(color);
         bar.setStyle(style);
         bar.setProgress(presentation.progress());
