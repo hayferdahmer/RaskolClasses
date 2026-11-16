@@ -406,7 +406,6 @@ public final class RaskolClasses extends JavaPlugin {
                             java.util.logging.Level.WARNING,
                             "Не удалось зарегистрировать HUD runtime; ActionBar HUD будет отключён",
                             exception);
-            hudRuntimeOwner = null;
         }
         this.bossBars = new BossBarService(this);
         this.bossBarRuntimeOwner = new BossBarRuntimeOwner(
@@ -578,6 +577,7 @@ public final class RaskolClasses extends JavaPlugin {
     private void startRuntimeTasks() {
         if (hudRuntimeOwner != null) {
             try {
+                hudRuntimeOwner.register();
                 hudRuntimeOwner.start();
             } catch (RuntimeException exception) {
                 getLogger()
@@ -1011,6 +1011,7 @@ public final class RaskolClasses extends JavaPlugin {
             return;
         }
         try {
+            hudRuntimeOwner.register();
             hudRuntimeOwner.start();
         } catch (RuntimeException exception) {
             getLogger()
