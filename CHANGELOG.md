@@ -40,6 +40,15 @@
 - `BossBarRuntimeOwner` останавливается до channel coordinator; все legacy ActionBar/BossBar producers проходят через единый channel owner.
 - HUD-C.4 CI на HEAD `310ba30a`: **717 тестов, 0 failures/errors/skipped; SpotBugs — 0 findings; Spotless и final verify — SUCCESS**. Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным.
 
+### RaskolHUD — HUD-C.5 Production Snapshot Provider
+
+- Добавлен `PaperHudSnapshotProvider`, подключённый к production `HudCoordinator` в composition root.
+- Snapshot собирает class/spec, formula HP, resource/effective max, STR/AGI/INT, активные эффекты, DoT и combat state; mutable sources копируются в immutable views.
+- `ResourceService.readSnapshot` не создаёт/не мутирует ResourceState и возвращает empty, пока состояние игрока не загружено.
+- Character level/XP и Locked Target остаются явно UNAVAILABLE до подключения RPG Core progression и targeting runtime; ложные нули/отсутствие цели не подставляются.
+- Bounded round-robin refresh — 64 игрока за HUD refresh cycle; пустой widget registry сохраняет текущий legacy visual output до следующего этапа widgets.
+- Optional client mod не получает протокол или hard dependency: C.5 подготавливает общий server-side read model.
+
 ### Architecture Refactoring — A-03
 
 - Добавлены базовые контракты жизненного цикла модулей: состояния, контекст, интерфейс PluginModule и проверка допустимых переходов.

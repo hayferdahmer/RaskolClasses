@@ -459,3 +459,29 @@ Legacy producer migration намеренно не входит в этот commi
 - [Build + Analyze run 43959893978](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43959893978).
 - [Spotless run 43959893936](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43959893936).
 - Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным.
+
+
+## 26. HUD-C.5 — Production snapshot lifecycle
+
+### Composition root и execution thread
+
+- `PaperHudSnapshotProvider` создаётся после инициализации ClassProvider, AttributeService, ResourceService, ActiveEffectManager, DotService и Spec2Service.
+- `HudCoordinator` получает provider, пустой `HudWidgetRegistry`, существующий `HudChannelCoordinator` как publisher и failure reporter.
+- Coordinator вызывается из существующего `HudRuntimeOwner` refresh callback. Дополнительный scheduler/task owner не создаётся.
+- Каждая capture выполняется на Paper main thread. Provider проверяет thread и online player session; Bukkit Entity/Player не попадают в snapshot.
+- Fallback refresh ограничен 64 игроками за один HUD refresh cycle; cursor обеспечивает round-robin progress при большем online population. Dirty API есть, но source invalidation events пока не wired.
+
+### Read ownership и data availability
+
+- `ResourceService.readSnapshot` читает уже созданное состояние без создания ResourceState и без вызова `setCeiling`; если состояние ещё не загружено, возвращает empty и snapshot помечает resource/combat как UNAVAILABLE.
+- Formula HP читается через AttributeService/HpPool; STR/AGI/INT берутся из уже рассчитанного AttributeService cache.
+- Effects/DoT копируются в snapshot values; provider не сохраняет ссылки на mutable map или DotInstance.
+- Class/spec читаются из действующих источников. Character level/XP не читаются из AuraSkills-backed CharacterLevelService.
+- Locked Target пока unavailable: targeting application/Paper adapter не активированы в composition root. Нельзя выдавать `NONE`, пока источник не может подтвердить отсутствие цели.
+
+### Session и shutdown
+
+- Existing `HudServiceOutputCleanup` вызывает `HudCoordinator.onPlayerQuit` через supplier, чтобы cleanup owner мог быть создан раньше provider/coordinator без раннего захвата null.
+- `HudCoordinator.onPlayerQuit` очищает revision, latest snapshot, dirty marker и channel publisher state игрока.
+- На disable snapshot coordinator закрывается после runtime producer owner и до `HudChannelCoordinator.close`.
+- Registry пустой на этом slice: snapshot публикация не затрагивает legacy persistent frames и не меняет текущую визуальную подачу.

@@ -403,3 +403,32 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 - [Build + Analyze run 43959893978](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43959893978).
 - [Spotless run 43959893936](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43959893936).
 - Live Paper 26.2 / Java 25 staging smoke test остаётся отдельным гейтом.
+
+
+## 12. HUD-C.5 — Production Snapshot Provider & Read Model Wiring
+
+### 12.1. Подключено
+
+- Добавлен `PaperHudSnapshotProvider` — единственный Paper read adapter для immutable `PlayerHudSnapshot`. Он проверяет main thread и требует актуальную online-сессию.
+- Provider копирует в snapshot class identity/display name, выбранную specialization/role, formula HP, effective resource, STR/AGI/INT, активные эффекты, DoT на самом игроке и combat flag.
+- Все mutable источники копируются в immutable values: effect map → `EffectView`, mutable `DotInstance` → `DotView`, resource state → `ResourceSnapshot`.
+- `ResourceService.readSnapshot` возвращает `Optional<ResourceSnapshot>`: не создаёт ResourceState, не меняет resource ceiling и не маскирует ещё не загруженное состояние нулём. Effective maximum учитывает актуальные specialization/item bonuses; отображаемое значение клампится только в read projection.
+- `HudCoordinator` подключён к composition root и получает bounded round-robin fallback budget **64 players per HUD refresh cycle**. Capture/publish выполняется синхронно на Paper main thread; revision увеличивается только после успешной публикации.
+- Session quit очищает snapshot/cache state через `HudCoordinator.onPlayerQuit`; shutdown закрывает snapshot coordinator до channel coordinator.
+- Snapshot publication использует существующий `HudChannelCoordinator`. Пустой registry на этом этапе намеренный: `snapshotFrames` остаются отдельными от legacy persistent frames, поэтому C.5 не меняет текущую визуальную подачу и не стирает legacy ActionBar/BossBar.
+
+### 12.2. Явные состояния, а не выдуманные значения
+
+- Character class доступен, если ClassProvider его разрешил. Неизвестный класс остаётся `UNAVAILABLE`.
+- Specialization/role доступны при валидной выбранной специализации; отсутствие выбора — `NOT_APPLICABLE`.
+- Character level и XP пока `UNAVAILABLE`: текущий CharacterLevelService зависит от AuraSkills и не используется как будущий RPG Core read contract.
+- Target пока `UNAVAILABLE(POLICY_PROVIDER_UNAVAILABLE)`: targeting application/Paper interaction runtime ещё не подключён к production root. Provider не подменяет Locked Target на crosshair target или на ложный `NONE`.
+- Combat flag читается из combat window ResourceState; точное expiry timestamp пока unavailable, поскольку ResourceState не публикует last-combat timestamp.
+- Theme ID берётся из class ID. `enabledWidgetIds` пока пустой набор без персонального HUD profile store; это не означает отключение всех будущих default widgets.
+
+### 12.3. Границы C.5
+
+- Widget registry пока пустой: snapshot read model уже собирается и хранится, но новые snapshot widgets ещё не создают presentation frames. Legacy producers продолжают работать через отдельный channel ownership path.
+- Dirty coalescing API остаётся доступным, но production invalidation events пока не подключены; сейчас используется ограниченный round-robin fallback refresh.
+- Никаких client-mod packets, handshake или wire DTO не добавлялось. Server read model остаётся общей основой для будущего vanilla и optional mod renderer.
+- Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным перед production rollout.

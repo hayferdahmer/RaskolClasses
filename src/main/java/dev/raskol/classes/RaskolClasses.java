@@ -501,7 +501,7 @@ public final class RaskolClasses extends JavaPlugin {
                 hudWidgetRegistry,
                 hudChannelCoordinator,
                 hudSnapshotFailureReporter,
-                16);
+                64);
 
         ImperialWallet wallet = PlayerPointsWallet.tryCreate();
         if (wallet == null) {
@@ -1030,7 +1030,7 @@ public final class RaskolClasses extends JavaPlugin {
         command.setTabCompleter(executor);
     }
 
-    /** Поддерживает TTL уведомлений и обновляет legacy HUD producers на основном потоке. */
+    /** Обновляет legacy producers, production snapshot read model и TTL на основном потоке. */
     private void tickHudRuntime() {
         if (hud != null) {
             hud.tick();

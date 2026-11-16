@@ -116,7 +116,7 @@ public final class ResourceService implements Listener {
 
     /**
      * Возвращает read-only проекцию ресурса без создания ResourceState и без изменения его потолка.
-     * Используется HUD snapshot capture, чтобы чтение presentation data не мутировало игровое состояние.
+     * Если состояние игрока ещё не загружено, возвращает Optional.empty вместо фиктивного нуля.
      */
     public Optional<ResourceSnapshot> readSnapshot(UUID uuid, PlayerClass playerClass) {
         java.util.Objects.requireNonNull(uuid, "uuid");

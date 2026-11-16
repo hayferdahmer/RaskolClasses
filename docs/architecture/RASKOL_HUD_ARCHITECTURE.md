@@ -408,4 +408,16 @@ ActionBar и BossBar legacy producers теперь публикуют frames в 
 - `BossBarPresentation` задаёт platform-neutral progress, color, style и flags; `WidgetFrame` переносит metadata до Paper adapter.
 - `BossBarRuntimeOwner` останавливается до закрытия channel coordinator; ActionBar TTL обслуживается существующим `HudRuntimeOwner`.
 
-HUD-C.4 закрывает legacy producer migration и channel runtime wiring. Production `HudSnapshotProvider` / `HudCoordinator` пока остаются отдельным следующим этапом. Optional client-mod renderer также остаётся отдельным будущим adapter; его протокол не придумывается до просмотра исходников клиентского мода.
+HUD-C.4 закрыл legacy producer migration, а HUD-C.5 подключил production `PaperHudSnapshotProvider` и `HudCoordinator` к composition root. Read model пока не создаёт новые frames: registry намеренно пустой до реализации built-in widgets. Optional client-mod renderer остаётся отдельным будущим adapter; его протокол не придумывается до просмотра исходников клиентского мода.
+
+
+## 24. HUD-C.5 — Production snapshot read model
+
+- `PaperHudSnapshotProvider` собирает единый immutable snapshot на Paper main thread и отклоняет capture вне main thread или для offline UUID.
+- Подключены class/spec identity, formula HP, resource, STR/AGI/INT, active effects, DoT и combat state.
+- `ResourceService.readSnapshot` — read-only projection: отсутствующий runtime state даёт `Optional.empty`, resource state не создаётся и не мутируется ради отображения.
+- Неиспользуемые или пока не подключённые источники обозначаются явно: character level/XP — UNAVAILABLE до RPG Core progression read contract; Locked Target — UNAVAILABLE до production targeting adapter; combat expiry — UNAVAILABLE до публикации timestamp источником.
+- `HudCoordinator` подключён к root с round-robin budget 64 players per HUD refresh cycle. Текущий production path использует bounded fallback; event-driven dirty invalidation остаётся следующим улучшением.
+- Quit и shutdown очищают snapshot state; coordinator закрывается до channel owner.
+- Registry пока пустой, поэтому C.5 не меняет визуальный HUD и не отключает legacy frames.
+- Optional client mod остаётся независимым renderer target; сетевой протокол не входит в C.5.
