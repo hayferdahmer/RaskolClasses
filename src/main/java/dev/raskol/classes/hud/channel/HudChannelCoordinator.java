@@ -62,12 +62,13 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
 
         long now = clock.getAsLong();
         Map<String, FrameEntry> replacement = new LinkedHashMap<>();
+        long publicationSequence = nextSequence++;
         for (WidgetFrame frame : List.copyOf(frames)) {
             validateSupportedChannel(frame);
             if (isExpired(frame, now)) {
                 continue;
             }
-            if (replacement.putIfAbsent(frame.widgetId(), new FrameEntry(frame, nextSequence++)) != null) {
+            if (replacement.putIfAbsent(frame.widgetId(), new FrameEntry(frame, publicationSequence)) != null) {
                 throw new IllegalArgumentException("Повторный HUD widgetId в одном snapshot: " + frame.widgetId());
             }
         }

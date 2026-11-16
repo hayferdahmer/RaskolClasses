@@ -31,8 +31,8 @@ class HudChannelCoordinatorTest {
                 playerId,
                 snapshot(playerId),
                 List.of(
-                        frame("zeta", "ACTION_BAR", 50, "Z", OptionalLong.empty()),
                         frame("alpha", "ACTION_BAR", 50, "A", OptionalLong.empty()),
+                        frame("zeta", "ACTION_BAR", 50, "Z", OptionalLong.empty()),
                         frame("low", "ACTION_BAR", 10, "L", OptionalLong.empty())));
 
         assertEquals("A", harness.output.actionBars.get(playerId));
