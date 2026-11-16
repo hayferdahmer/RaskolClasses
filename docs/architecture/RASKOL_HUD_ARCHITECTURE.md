@@ -395,3 +395,17 @@ HUD-C.3 вводит единый presentation ownership seam между immutab
 - Optional Resource Pack остаётся независимой возможностью: мод не делает Resource Pack обязательным, а Resource Pack не заменяет клиентский мод.
 
 Таким образом, целевой продукт имеет два режима: vanilla HUD без дополнительных установок и расширенный RaskolHUD при добровольной установке клиентского мода. Server Core и read model должны быть общими для обоих режимов.
+
+
+## 23. HUD-C.4 — Legacy producer migration complete
+
+ActionBar и BossBar legacy producers теперь публикуют frames в единый `HudChannelCoordinator`.
+
+- `HudService`: class resource/DoT ActionBar frame.
+- `HpBarService`: HP/resource ActionBar frame; gameplay HP calculations и `health.yml` остаются в сервисе.
+- `CooldownManager`: readiness ActionBar notifications с TTL.
+- `BossBarService`: per-effect BossBar frames со стабильными IDs; Paper BossBar handles принадлежат `PaperHudChannelOutput`.
+- `BossBarPresentation` задаёт platform-neutral progress, color, style и flags; `WidgetFrame` переносит metadata до Paper adapter.
+- `BossBarRuntimeOwner` останавливается до закрытия channel coordinator; ActionBar TTL обслуживается существующим `HudRuntimeOwner`.
+
+HUD-C.4 закрывает legacy producer migration и channel runtime wiring. Production `HudSnapshotProvider` / `HudCoordinator` пока остаются отдельным следующим этапом. Optional client-mod renderer также остаётся отдельным будущим adapter; его протокол не придумывается до просмотра исходников клиентского мода.
