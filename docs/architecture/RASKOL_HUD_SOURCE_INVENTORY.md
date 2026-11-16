@@ -383,7 +383,7 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 ### 11.2. Ограничения
 
 - Snapshot `HudCoordinator` и production `HudSnapshotProvider` пока не подключены к composition root. Legacy frames — временный migration API.
-- `BossBarService` остаётся отдельным legacy writer/owner; следующий slice — HUD-C.4.2.
+- `BossBarService` публикует per-effect frames в `HudChannelCoordinator`; Paper BossBar handles принадлежат `PaperHudChannelOutput`.
 - ActionBar arbitration координирует только producers RaskolClasses. Внешние плагины могут отправлять собственный ActionBar и перезаписывать его.
 - Clearing ActionBar может очистить текущее сообщение канала независимо от того, какой плагин отправил его последним; глобальной ownership-механики Paper API не предоставляет.
 - Клиентский мод — отдельный optional renderer. Сервер остаётся authoritative; handshake, versioned wire protocol и display-safe DTO будут спроектированы после просмотра исходников/контрактов отдельного mod repository. До этого сетевой протокол не реализуется.
@@ -391,15 +391,15 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 
 ### 11.3. Следующий slice
 
-**HUD-C.4.2 — BossBar producer migration.** Перенести effect bars в тот же ownership coordinator, сохранив цвет, прогресс, duration, max-visible policy и совместимость текущего config. Для этого расширить типизированный payload/renderer seam, а не терять параметры через текущую строковую BossBar заглушку. Затем перейти к C.5 lifecycle/reload integration и production snapshot source.
+**Следующий этап — HUD-C.5: Production Snapshot Provider & Read Model Wiring.** Подключить реальные источники HP/resources/attributes/effects/DoT/target к `HudCoordinator`, сохранив typed availability states, bounded refresh, per-player revisions и текущий channel arbitration. Клиентский mod bridge проектировать отдельно после просмотра его исходников.
 
 
 ### 11.4. Verification
 
-Финальный проверенный кодовый HEAD: `033d8b85b2375f671c55314726531505a86e8179`.
-- Maven verify: **715 tests, 0 failures/errors/skipped**; license headers passed.
+Финальный проверенный кодовый HEAD: `310ba30a5a90f7dde46202d54be4cb6fd84ab13f`.
+- Maven verify: **717 tests, 0 failures/errors/skipped**; license headers passed.
 - SpotBugs: **0 findings**.
 - Spotless format + final branch verification: **SUCCESS**.
-- [Build + Analyze run 43958556946](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43958556946).
-- [Spotless run 43958556857](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43958556857).
+- [Build + Analyze run 43959893978](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43958556946).
+- [Spotless run 43959893936](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43958556857).
 - Live Paper 26.2 / Java 25 staging smoke test остаётся отдельным гейтом.
