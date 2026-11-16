@@ -544,20 +544,28 @@ public final class HpBarService implements Listener {
         line = line.append(Component.text((int) res + "/" + (int) effectiveMax, numbers))
                 .append(Component.text(" ❭", frame));
         if (channelCoordinator != null) {
-            channelCoordinator.upsertPersistentFrame(
-                    uuid,
-                    new WidgetFrame(
-                            HUD_WIDGET_ID,
-                            HudChannel.ACTION_BAR.name(),
-                            50,
-                            LEGACY.serialize(line),
-                            OptionalLong.empty()));
+            try {
+                channelCoordinator.upsertPersistentFrame(
+                        uuid,
+                        new WidgetFrame(
+                                HUD_WIDGET_ID,
+                                HudChannel.ACTION_BAR.name(),
+                                50,
+                                LEGACY.serialize(line),
+                                OptionalLong.empty()));
+            } catch (RuntimeException ignored) {
+                // Ошибка presentation не должна прерывать HP, регенерацию или сохранение.
+            }
         }
     }
 
     private void removeHudFrame(UUID playerId) {
         if (channelCoordinator != null) {
-            channelCoordinator.removePersistentFrame(playerId, HUD_WIDGET_ID);
+            try {
+                channelCoordinator.removePersistentFrame(playerId, HUD_WIDGET_ID);
+            } catch (RuntimeException ignored) {
+                // Channel coordinator журналирует ошибку; HP lifecycle продолжается.
+            }
         }
     }
 
