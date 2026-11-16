@@ -363,3 +363,26 @@ Source reconciliation выполнен после первоначального
 6. **HUD-C.7 — Verification:** focused tests, Maven verify, Spotless, SpotBugs, then controlled Paper 26.2 / Java 25 staging smoke tests.
 
 **Текущий следующий шаг:** HUD-C.2. Не переходить к визуальному redesign или resource-pack implementation до стабилизации snapshot/coordinator/channel contracts.
+
+
+## 19. HUD-C.2 — Coordinator core and immutable snapshot pipeline
+
+Implemented as a Bukkit-independent application slice; it is not wired into the Paper composition root and does not replace legacy renderers.
+
+Production contracts:
+- `hud.snapshot.DataStatus` and `HudValue<T>` distinguish AVAILABLE, NOT_APPLICABLE and UNAVAILABLE without encoding missing data as zero.
+- `PlayerHudSnapshot` contains immutable typed views for character, health, resource, attributes, locked target, effects, DoT, combat and profile. Lists/sets are defensive immutable copies; no Bukkit Player/Entity or mutable domain state is retained.
+- `HudSnapshotProvider` is the synchronous read seam. Its Paper implementation must capture on the main thread and return the requested player/revision.
+- `HudWidgetRegistry` rejects duplicate IDs and evaluates in deterministic ID order.
+- `HudWidget` returns an immutable `WidgetFrame`; it does not call Bukkit or mutate gameplay.
+- `HudCoordinator` coalesces repeated dirty signals, prioritizes dirty players, shares a hard per-tick refresh budget with a round-robin online-player fallback, and retains failed captures/publications for retry.
+- Published revisions advance only after publisher acceptance. Quit/close clear per-player snapshots and publisher output.
+- Provider and publisher failures are reported and retried; one widget failure is reported and isolated from other widgets.
+
+Scope:
+- No production Paper data adapters, renderer, channel arbitration, event subscriptions, scheduler wiring or `RaskolClasses` root integration.
+- No legacy ActionBar/BossBar producer was changed.
+- No gameplay, config, persistence or visual output changed.
+- HUD-C.3 remains the next slice: single-owner channel arbitration.
+
+Tests cover dirty coalescing, refresh budget, fallback processing, provider retry, widget isolation, publisher retry/revision, quit/close cleanup and explicit unavailable values.
