@@ -407,7 +407,7 @@ public final class RaskolClasses extends JavaPlugin {
                             "Не удалось зарегистрировать HUD runtime; ActionBar HUD будет отключён",
                             exception);
         }
-        this.bossBars = new BossBarService(this);
+        this.bossBars = new BossBarService(this, hudChannelCoordinator);
         this.bossBarRuntimeOwner = new BossBarRuntimeOwner(
                 new PaperBossBarTaskScheduler(this, bossBars::tick),
                 () -> getRaskolConfig().bossBarTickPeriod(),
@@ -788,6 +788,12 @@ public final class RaskolClasses extends JavaPlugin {
                 hpBarRuntimeOwner = null;
             }
         });
+        shutdown.run("BossBar runtime", () -> {
+            if (bossBarRuntimeOwner != null) {
+                bossBarRuntimeOwner.close();
+                bossBarRuntimeOwner = null;
+            }
+        });
         shutdown.run("ActionBar HUD runtime", () -> {
             if (hudRuntimeOwner != null) {
                 hudRuntimeOwner.close();
@@ -947,11 +953,6 @@ public final class RaskolClasses extends JavaPlugin {
             if (fx != null) {
                 fx.shutdown();
                 fx = null;
-            }
-        });
-        shutdown.run("BossBar runtime", () -> {
-            if (bossBarRuntimeOwner != null) {
-                bossBarRuntimeOwner.close();
             }
         });
         shutdown.run("cooldown snapshot", () -> {
