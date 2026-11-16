@@ -71,8 +71,7 @@ public final class CooldownManager implements Listener {
         this(file, storageWriter, null);
     }
 
-    public CooldownManager(
-            File file, AsyncStorageWriter storageWriter, HudChannelCoordinator hudChannelCoordinator) {
+    public CooldownManager(File file, AsyncStorageWriter storageWriter, HudChannelCoordinator hudChannelCoordinator) {
         this.file = file;
         this.storageWriter = storageWriter;
         this.hudChannelCoordinator = hudChannelCoordinator;
