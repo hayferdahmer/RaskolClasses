@@ -904,6 +904,11 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
+        <Class name="dev.raskol.classes.hud.BossBarService"/>
+        <Field name="channelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
         <Class name="dev.raskol.classes.hud.HudService"/>
         <Field name="channelCoordinator"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
