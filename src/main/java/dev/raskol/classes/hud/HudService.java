@@ -200,14 +200,19 @@ public final class HudService {
         }
         Component rendered = render(pc, valueInt, filled, spark, dotsComponent);
         if (channelCoordinator != null) {
-            channelCoordinator.upsertPersistentFrame(
-                    id,
-                    new WidgetFrame(
-                            WIDGET_ID,
-                            HudChannel.ACTION_BAR.name(),
-                            40,
-                            LEGACY.serialize(rendered),
-                            OptionalLong.empty()));
+            try {
+                channelCoordinator.upsertPersistentFrame(
+                        id,
+                        new WidgetFrame(
+                                WIDGET_ID,
+                                HudChannel.ACTION_BAR.name(),
+                                40,
+                                LEGACY.serialize(rendered),
+                                OptionalLong.empty()));
+            } catch (RuntimeException ignored) {
+                // Coordinator сам журналирует ошибку; следующий refresh повторит публикацию.
+                return;
+            }
         }
         lastFrameKey.put(id, key);
 
@@ -226,7 +231,11 @@ public final class HudService {
 
     private void removeFrame(UUID playerId) {
         if (channelCoordinator != null) {
-            channelCoordinator.removePersistentFrame(playerId, WIDGET_ID);
+            try {
+                channelCoordinator.removePersistentFrame(playerId, WIDGET_ID);
+            } catch (RuntimeException ignored) {
+                // Ошибка вывода не должна прерывать игровой tick или session cleanup.
+            }
         }
     }
 
