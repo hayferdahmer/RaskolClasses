@@ -56,18 +56,16 @@ public final class PaperHudChannelOutput implements HudChannelOutput {
 
     @Override
     public void upsertBossBar(UUID playerId, String widgetId, String payload) {
-        upsertBossBar(
-                playerId,
-                widgetId,
-                new WidgetFrame(widgetId, "BOSS_BAR", 0, payload, OptionalLong.empty()));
+        upsertBossBar(playerId, widgetId, new WidgetFrame(widgetId, "BOSS_BAR", 0, payload, OptionalLong.empty()));
     }
 
     @Override
     public void upsertBossBar(UUID playerId, String widgetId, WidgetFrame frame) {
         ensurePrimaryThread();
         Player player = requireOnlinePlayer(playerId);
-        BossBarPresentation presentation = frame.bossBarPresentation().orElseGet(
-                () -> new BossBarPresentation(1.0, BossBarPresentation.Color.WHITE, BossBarPresentation.Style.SOLID, Set.of()));
+        BossBarPresentation presentation = frame.bossBarPresentation()
+                .orElseGet(() -> new BossBarPresentation(
+                        1.0, BossBarPresentation.Color.WHITE, BossBarPresentation.Style.SOLID, Set.of()));
         BarColor color = BarColor.valueOf(presentation.color().name());
         BarStyle style = BarStyle.valueOf(presentation.style().name());
         Map<String, BossBar> playerBars = bossBars.computeIfAbsent(playerId, ignored -> new HashMap<>());

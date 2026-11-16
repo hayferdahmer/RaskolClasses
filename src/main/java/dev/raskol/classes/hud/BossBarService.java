@@ -137,10 +137,7 @@ public final class BossBarService {
                         LEGACY.serialize(title),
                         OptionalLong.empty(),
                         java.util.Optional.of(new BossBarPresentation(
-                                progress,
-                                color,
-                                BossBarPresentation.Style.SEGMENTED_10,
-                                Set.of())));
+                                progress, color, BossBarPresentation.Style.SEGMENTED_10, Set.of())));
                 if (channelCoordinator != null) {
                     try {
                         channelCoordinator.upsertPersistentFrame(playerId, frame);
@@ -188,10 +185,8 @@ public final class BossBarService {
      */
     private double totalDurationMillis(PlayerClass playerClass, EffectType type) {
         return switch (type) {
-            case SHIELD_WALL ->
-                plugin.getRaskolConfig().durationSeconds(PlayerClass.WARRIOR, "steel_skin", 5) * 1000.0;
-            case BLOOD_FURY ->
-                plugin.getRaskolConfig().durationSeconds(PlayerClass.WARRIOR, "blood_fury", 4) * 1000.0;
+            case SHIELD_WALL -> plugin.getRaskolConfig().durationSeconds(PlayerClass.WARRIOR, "steel_skin", 5) * 1000.0;
+            case BLOOD_FURY -> plugin.getRaskolConfig().durationSeconds(PlayerClass.WARRIOR, "blood_fury", 4) * 1000.0;
             case EVASION -> plugin.getRaskolConfig().durationSeconds(PlayerClass.ROGUE, "evasion", 4) * 1000.0;
             case STEALTH -> plugin.getRaskolConfig().durationSeconds(PlayerClass.ROGUE, "stealth", 15) * 1000.0;
             case NO_FALL_DAMAGE ->

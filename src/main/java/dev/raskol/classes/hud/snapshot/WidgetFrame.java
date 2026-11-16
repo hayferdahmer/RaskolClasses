@@ -15,8 +15,7 @@ public record WidgetFrame(
         OptionalLong expiresAtMillis,
         Optional<BossBarPresentation> bossBarPresentation) {
 
-    public WidgetFrame(
-            String widgetId, String channel, int priority, String payload, OptionalLong expiresAtMillis) {
+    public WidgetFrame(String widgetId, String channel, int priority, String payload, OptionalLong expiresAtMillis) {
         this(widgetId, channel, priority, payload, expiresAtMillis, Optional.empty());
     }
 
