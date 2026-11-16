@@ -64,10 +64,8 @@ public final class HudCoordinator implements AutoCloseable {
     public synchronized RefreshReport tick(Collection<UUID> onlinePlayers) {
         ensureOpen();
         Objects.requireNonNull(onlinePlayers, "onlinePlayers");
-        List<UUID> online = onlinePlayers.stream()
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
+        List<UUID> online =
+                onlinePlayers.stream().filter(Objects::nonNull).distinct().toList();
         Set<UUID> onlineSet = new HashSet<>(online);
         dirtyPlayers.removeIf(playerId -> !onlineSet.contains(playerId));
 
@@ -129,7 +127,8 @@ public final class HudCoordinator implements AutoCloseable {
         }
 
         dirtyPlayers.addAll(retry);
-        return new RefreshReport(attempted, published, snapshotFailures, widgetFailures, publishFailures, dirtyPlayers.size());
+        return new RefreshReport(
+                attempted, published, snapshotFailures, widgetFailures, publishFailures, dirtyPlayers.size());
     }
 
     public synchronized PlayerHudSnapshot latestSnapshot(UUID playerId) {
@@ -234,7 +233,8 @@ public final class HudCoordinator implements AutoCloseable {
         }
     }
 
-    private record RefreshOutcome(boolean published, boolean snapshotFailed, boolean publishFailed, int widgetFailures) {
+    private record RefreshOutcome(
+            boolean published, boolean snapshotFailed, boolean publishFailed, int widgetFailures) {
         private static RefreshOutcome success(int widgetFailures) {
             return new RefreshOutcome(true, false, false, widgetFailures);
         }

@@ -89,8 +89,7 @@ public record PlayerHudSnapshot(
             if (currentFormulaHp.status() != DataStatus.AVAILABLE) {
                 return OptionalDouble.empty();
             }
-            return OptionalDouble.of(Math.max(
-                    0.0d, Math.min(1.0d, currentFormulaHp.value() / maxFormulaHp.value())));
+            return OptionalDouble.of(Math.max(0.0d, Math.min(1.0d, currentFormulaHp.value() / maxFormulaHp.value())));
         }
     }
 
@@ -136,7 +135,12 @@ public record PlayerHudSnapshot(
     }
 
     public record EffectView(
-            String id, String displayName, Optional<String> iconKey, long expiresAtMillis, boolean indefinite, int stacks) {
+            String id,
+            String displayName,
+            Optional<String> iconKey,
+            long expiresAtMillis,
+            boolean indefinite,
+            int stacks) {
         public EffectView {
             requireText(id, "id");
             requireText(displayName, "displayName");

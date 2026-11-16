@@ -47,7 +47,9 @@ class HudCoordinatorTest {
         assertEquals(1, report.published());
         assertEquals(1, publisher.snapshots.size());
         assertEquals(1L, coordinator.latestSnapshot(playerId).revision());
-        assertEquals(List.of("health"), publisher.frames.getFirst().stream().map(WidgetFrame::widgetId).toList());
+        assertEquals(
+                List.of("health"),
+                publisher.frames.getFirst().stream().map(WidgetFrame::widgetId).toList());
     }
 
     @Test
@@ -127,7 +129,9 @@ class HudCoordinatorTest {
         assertEquals(1, report.published());
         assertEquals(1, report.widgetFailures());
         assertEquals(List.of("widget:a-failing"), failures);
-        assertEquals(List.of("b-working"), publisher.frames.getFirst().stream().map(WidgetFrame::widgetId).toList());
+        assertEquals(
+                List.of("b-working"),
+                publisher.frames.getFirst().stream().map(WidgetFrame::widgetId).toList());
     }
 
     @Test
@@ -135,8 +139,8 @@ class HudCoordinatorTest {
         UUID playerId = UUID.randomUUID();
         RecordingPublisher publisher = new RecordingPublisher();
         publisher.failOnce = true;
-        HudCoordinator coordinator = coordinator((id, revision) -> snapshot(id, revision),
-                new HudWidgetRegistry(), publisher, 1);
+        HudCoordinator coordinator =
+                coordinator((id, revision) -> snapshot(id, revision), new HudWidgetRegistry(), publisher, 1);
         coordinator.markDirty(playerId);
 
         assertEquals(1, coordinator.tick(List.of(playerId)).publishFailures());
@@ -149,8 +153,8 @@ class HudCoordinatorTest {
     void quitAndCloseClearPublishedPlayerState() {
         UUID playerId = UUID.randomUUID();
         RecordingPublisher publisher = new RecordingPublisher();
-        HudCoordinator coordinator = coordinator((id, revision) -> snapshot(id, revision),
-                new HudWidgetRegistry(), publisher, 2);
+        HudCoordinator coordinator =
+                coordinator((id, revision) -> snapshot(id, revision), new HudWidgetRegistry(), publisher, 2);
         coordinator.markDirty(playerId);
         coordinator.tick(List.of(playerId));
 
@@ -186,8 +190,13 @@ class HudCoordinatorTest {
                 revision,
                 1_000L + revision,
                 new PlayerHudSnapshot.CharacterView(
-                        unavailableText, unavailableText, unavailableText, unavailableText,
-                        HudValue.available(1), HudValue.available(0L), HudValue.available(100L)),
+                        unavailableText,
+                        unavailableText,
+                        unavailableText,
+                        unavailableText,
+                        HudValue.available(1),
+                        HudValue.available(0L),
+                        HudValue.available(100L)),
                 new PlayerHudSnapshot.HealthView(unavailableNumber, unavailableNumber),
                 new PlayerHudSnapshot.ResourceView(
                         unavailableText, unavailableText, unavailableText, unavailableNumber, unavailableNumber),
@@ -199,7 +208,8 @@ class HudCoordinatorTest {
                 new PlayerHudSnapshot.HudProfileView(HudValue.available("default"), Set.of()));
     }
 
-    private static HudWidget widget(String id, java.util.function.Function<PlayerHudSnapshot, Optional<WidgetFrame>> evaluator) {
+    private static HudWidget widget(
+            String id, java.util.function.Function<PlayerHudSnapshot, Optional<WidgetFrame>> evaluator) {
         return new HudWidget() {
             @Override
             public String id() {
