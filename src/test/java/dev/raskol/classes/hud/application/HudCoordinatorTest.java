@@ -173,8 +173,8 @@ class HudCoordinatorTest {
     void closeCanRetryPublisherCleanupAfterFailure() {
         UUID playerId = UUID.randomUUID();
         RecordingPublisher publisher = new RecordingPublisher();
-        HudCoordinator coordinator = coordinator((id, revision) -> snapshot(id, revision),
-                new HudWidgetRegistry(), publisher, 1);
+        HudCoordinator coordinator =
+                coordinator((id, revision) -> snapshot(id, revision), new HudWidgetRegistry(), publisher, 1);
         coordinator.markDirty(playerId);
         coordinator.tick(List.of(playerId));
         publisher.failClearOnce = true;
