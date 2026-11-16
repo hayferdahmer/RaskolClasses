@@ -392,3 +392,14 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 ### 11.3. Следующий slice
 
 **HUD-C.4.2 — BossBar producer migration.** Перенести effect bars в тот же ownership coordinator, сохранив цвет, прогресс, duration, max-visible policy и совместимость текущего config. Для этого расширить типизированный payload/renderer seam, а не терять параметры через текущую строковую BossBar заглушку. Затем перейти к C.5 lifecycle/reload integration и production snapshot source.
+
+
+### 11.4. Verification
+
+Финальный проверенный кодовый HEAD: `033d8b85b2375f671c55314726531505a86e8179`.
+- Maven verify: **715 tests, 0 failures/errors/skipped**; license headers passed.
+- SpotBugs: **0 findings**.
+- Spotless format + final branch verification: **SUCCESS**.
+- [Build + Analyze run 43958556946](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43958556946).
+- [Spotless run 43958556857](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43958556857).
+- Live Paper 26.2 / Java 25 staging smoke test остаётся отдельным гейтом.
