@@ -93,6 +93,7 @@ import dev.raskol.classes.hotbar.runtime.ScrollCooldownRuntimeOwner;
 import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HpBarService;
 import dev.raskol.classes.hud.HudService;
+import dev.raskol.classes.hud.channel.HudChannelCoordinator;
 import dev.raskol.classes.hud.runtime.BossBarRuntimeOwner;
 import dev.raskol.classes.hud.runtime.HpBarRuntimeOwner;
 import dev.raskol.classes.hud.runtime.HudRuntimeOwner;
@@ -102,6 +103,7 @@ import dev.raskol.classes.hud.runtime.PaperHpBarRuntimeRegistration;
 import dev.raskol.classes.hud.runtime.PaperHpBarTaskScheduler;
 import dev.raskol.classes.hud.runtime.PaperHudSessionEvents;
 import dev.raskol.classes.hud.runtime.PaperHudTaskScheduler;
+import dev.raskol.classes.hud.runtime.PaperHudChannelOutput;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
@@ -178,6 +180,7 @@ public final class RaskolClasses extends JavaPlugin {
     private AbilityRegistry abilities;
     private ActiveEffectManager effects;
     private HudService hud;
+    private HudChannelCoordinator hudChannelCoordinator;
     private HudRuntimeOwner hudRuntimeOwner;
     private BossBarService bossBars;
     private BossBarRuntimeOwner bossBarRuntimeOwner;
@@ -362,7 +365,15 @@ public final class RaskolClasses extends JavaPlugin {
 
         classProvider.setResourceService(resources);
 
-        this.cooldowns = new CooldownManager(new File(getDataFolder(), "cooldowns.yml"), storageWriter);
+        this.hudChannelCoordinator = new HudChannelCoordinator(
+                new PaperHudChannelOutput(),
+                (playerId, stage, failure) -> getLogger().log(
+                        java.util.logging.Level.WARNING,
+                        "[RaskolHUD] Ошибка channel output для " + playerId + " на этапе " + stage,
+                        failure),
+                System::currentTimeMillis);
+        this.cooldowns = new CooldownManager(
+                new File(getDataFolder(), "cooldowns.yml"), storageWriter, hudChannelCoordinator);
         this.cooldowns.attachScheduler(
                 this,
                 raskolConfig.isReadyNotifyEnabled(),
@@ -377,13 +388,13 @@ public final class RaskolClasses extends JavaPlugin {
         abilities.loadFromConfig(raskolConfig);
         TreeAbilities.registerCasters(this, abilities);
 
-        this.hud = new HudService(this);
+        this.hud = new HudService(this, hudChannelCoordinator);
         long hudPeriod = Math.max(1L, raskolConfig.hudUpdatePeriodTicks());
         this.hudRuntimeOwner = new HudRuntimeOwner(
                 new PaperHudTaskScheduler(this),
                 new PaperHudSessionEvents(this),
-                new HudServiceOutputCleanup(hud),
-                hud::tick,
+                new HudServiceOutputCleanup(hud, hudChannelCoordinator),
+                this::tickHudRuntime,
                 hudPeriod,
                 hudPeriod);
         try {
@@ -449,7 +460,7 @@ public final class RaskolClasses extends JavaPlugin {
                 100L);
         hpSyncRuntimeOwner.start();
         this.hpBarRespawnCallbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(this));
-        this.hpBarService = new HpBarService(this, hpBarRespawnCallbacks);
+        this.hpBarService = new HpBarService(this, hpBarRespawnCallbacks, hudChannelCoordinator);
         this.hpBarRuntimeOwner = new HpBarRuntimeOwner(
                 new PaperHpBarRuntimeRegistration(pluginManager, this, hpBarService),
                 new PaperHpBarTaskScheduler(this),
@@ -564,16 +575,14 @@ public final class RaskolClasses extends JavaPlugin {
 
     /** Запускает периодические задачи после регистрации listeners и интеграций. */
     private void startRuntimeTasks() {
-        boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
-        boolean hpVanilla = "vanilla".equalsIgnoreCase(getConfig().getString("hp-display.mode", "actionbar"));
-        if (hudEnabled && hpVanilla && hudRuntimeOwner != null) {
+        if (hudRuntimeOwner != null) {
             try {
                 hudRuntimeOwner.start();
             } catch (RuntimeException exception) {
                 getLogger()
                         .log(
                                 java.util.logging.Level.WARNING,
-                                "Не удалось запустить ActionBar HUD; остальные игровые системы продолжат работу",
+                                "Не удалось запустить HUD channel runtime; остальные игровые системы продолжат работу",
                                 exception);
             }
         }
@@ -754,6 +763,12 @@ public final class RaskolClasses extends JavaPlugin {
                 autosaveRuntimeOwner = null;
             }
         });
+        shutdown.run("cooldown runtime", () -> {
+            if (cooldownRuntimeOwner != null) {
+                cooldownRuntimeOwner.close();
+                cooldownRuntimeOwner = null;
+            }
+        });
         shutdown.run("HP bar respawn callbacks", () -> {
             if (hpBarRespawnCallbacks != null) {
                 hpBarRespawnCallbacks.close();
@@ -776,6 +791,12 @@ public final class RaskolClasses extends JavaPlugin {
             if (hudRuntimeOwner != null) {
                 hudRuntimeOwner.close();
                 hudRuntimeOwner = null;
+            }
+        });
+        shutdown.run("HUD channel coordinator", () -> {
+            if (hudChannelCoordinator != null) {
+                hudChannelCoordinator.close();
+                hudChannelCoordinator = null;
             }
         });
         shutdown.run("PlaceholderAPI runtime", () -> {
@@ -932,12 +953,7 @@ public final class RaskolClasses extends JavaPlugin {
                 bossBarRuntimeOwner.close();
             }
         });
-        shutdown.run("cooldown runtime", () -> {
-            if (cooldownRuntimeOwner != null) {
-                cooldownRuntimeOwner.close();
-            }
-        });
-        shutdown.run("cooldown snapshot", () -> {
+        shutdown.run("cooldown snapshot", () => {
             if (cooldowns != null) {
                 cooldowns.saveAll();
             }
@@ -978,24 +994,28 @@ public final class RaskolClasses extends JavaPlugin {
         command.setTabCompleter(executor);
     }
 
-    /** Согласует ActionBar HUD runtime с текущим режимом после reload. */
+    /** Поддерживает TTL уведомлений и обновляет legacy HUD producers на основном потоке. */
+    private void tickHudRuntime() {
+        if (hud != null) {
+            hud.tick();
+        }
+        if (hudChannelCoordinator != null) {
+            hudChannelCoordinator.tick();
+        }
+    }
+
+    /** HUD channel runtime остаётся активным независимо от legacy display mode: уведомления имеют свой TTL. */
     private void reconcileHudRuntime() {
         if (hudRuntimeOwner == null) {
             return;
         }
-        boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
-        boolean hpVanilla = "vanilla".equalsIgnoreCase(getConfig().getString("hp-display.mode", "actionbar"));
         try {
-            if (hudEnabled && hpVanilla) {
-                hudRuntimeOwner.start();
-            } else {
-                hudRuntimeOwner.stop();
-            }
+            hudRuntimeOwner.start();
         } catch (RuntimeException exception) {
             getLogger()
                     .log(
                             java.util.logging.Level.WARNING,
-                            "Не удалось согласовать ActionBar HUD runtime после reload",
+                            "Не удалось согласовать HUD channel runtime после reload",
                             exception);
         }
     }
