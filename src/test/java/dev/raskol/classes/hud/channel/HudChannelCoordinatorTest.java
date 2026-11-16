@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
 
+import dev.raskol.classes.hud.snapshot.BossBarPresentation;
 import dev.raskol.classes.hud.snapshot.HudFailureReporter;
 import dev.raskol.classes.hud.snapshot.HudValue;
 import dev.raskol.classes.hud.snapshot.PlayerHudSnapshot;
