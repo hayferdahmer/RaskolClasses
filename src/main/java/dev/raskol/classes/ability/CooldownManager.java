@@ -5,6 +5,7 @@ package dev.raskol.classes.ability;
 import java.io.File;
 import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -24,11 +25,15 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import dev.raskol.classes.hud.channel.HudChannel;
+import dev.raskol.classes.hud.channel.HudChannelCoordinator;
+import dev.raskol.classes.hud.snapshot.WidgetFrame;
 import dev.raskol.classes.storage.AsyncStorageWriter;
 import dev.raskol.classes.storage.SafeStorage;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 /**
  * Кулдауны в миллисекундах (на игрока и способность) + персист (A1).
@@ -45,11 +50,14 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public final class CooldownManager implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
+    private static final long READY_NOTIFICATION_TTL_MILLIS = 3_000L;
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private final Map<UUID, Map<String, Long>> readyAt = new ConcurrentHashMap<>();
     private final File file;
     private final YamlConfiguration store;
     private final AsyncStorageWriter storageWriter;
+    private final HudChannelCoordinator hudChannelCoordinator;
 
     private final Map<UUID, Map<String, BukkitTask>> tasks = new ConcurrentHashMap<>();
     private Plugin plugin;
@@ -60,8 +68,14 @@ public final class CooldownManager implements Listener {
     private String notifyMessage = "{ability} — готова";
 
     public CooldownManager(File file, AsyncStorageWriter storageWriter) {
+        this(file, storageWriter, null);
+    }
+
+    public CooldownManager(
+            File file, AsyncStorageWriter storageWriter, HudChannelCoordinator hudChannelCoordinator) {
         this.file = file;
         this.storageWriter = storageWriter;
+        this.hudChannelCoordinator = hudChannelCoordinator;
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
 
@@ -97,6 +111,9 @@ public final class CooldownManager implements Listener {
     public void start(UUID playerId, String abilityId, long durationMillis, String displayName) {
         readyAt.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>())
                 .put(abilityId, System.currentTimeMillis() + durationMillis);
+        if (hudChannelCoordinator != null) {
+            hudChannelCoordinator.cancelNotification(playerId, notificationId(abilityId));
+        }
 
         if (!notifyEnabled || plugin == null || durationMillis < notifyMinMillis) {
             return;
@@ -123,11 +140,28 @@ public final class CooldownManager implements Listener {
                             }
                             player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
                             String text = notifyMessage.replace("{ability}", displayName);
-                            player.sendActionBar(Component.text(text, NamedTextColor.GREEN));
+                            Component message = Component.text(text, NamedTextColor.GREEN);
+                            if (hudChannelCoordinator == null) {
+                                player.sendActionBar(message);
+                            } else {
+                                long expiresAt = System.currentTimeMillis() + READY_NOTIFICATION_TTL_MILLIS;
+                                hudChannelCoordinator.publishNotification(
+                                        playerId,
+                                        new WidgetFrame(
+                                                notificationId(abilityId),
+                                                HudChannel.ACTION_BAR.name(),
+                                                100,
+                                                LEGACY.serialize(message),
+                                                OptionalLong.of(expiresAt)));
+                            }
                         }),
                         delayTicks);
         taskReference.set(task);
         byAbility.put(abilityId, task);
+    }
+
+    private static String notificationId(String abilityId) {
+        return "cooldown-ready:" + abilityId;
     }
 
     /** Выполняет уведомление и освобождает только handle завершившегося callback. */
