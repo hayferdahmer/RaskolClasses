@@ -6,16 +6,20 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.boss.BarColor;
+import org.bukkit.boss.BarFlag;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 
 import dev.raskol.classes.hud.channel.HudChannelOutput;
+import dev.raskol.classes.hud.snapshot.BossBarPresentation;
+import dev.raskol.classes.hud.snapshot.WidgetFrame;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -52,12 +56,24 @@ public final class PaperHudChannelOutput implements HudChannelOutput {
 
     @Override
     public void upsertBossBar(UUID playerId, String widgetId, String payload) {
+        upsertBossBar(
+                playerId,
+                widgetId,
+                new WidgetFrame(widgetId, "BOSS_BAR", 0, payload, OptionalLong.empty()));
+    }
+
+    @Override
+    public void upsertBossBar(UUID playerId, String widgetId, WidgetFrame frame) {
         ensurePrimaryThread();
         Player player = requireOnlinePlayer(playerId);
+        BossBarPresentation presentation = frame.bossBarPresentation().orElseGet(
+                () -> new BossBarPresentation(1.0, BossBarPresentation.Color.WHITE, BossBarPresentation.Style.SOLID, Set.of()));
+        BarColor color = BarColor.valueOf(presentation.color().name());
+        BarStyle style = BarStyle.valueOf(presentation.style().name());
         Map<String, BossBar> playerBars = bossBars.computeIfAbsent(playerId, ignored -> new HashMap<>());
         BossBar bar = playerBars.get(widgetId);
         if (bar == null) {
-            bar = Bukkit.createBossBar(payload, BarColor.WHITE, BarStyle.SOLID);
+            bar = Bukkit.createBossBar("", color, style);
             try {
                 bar.addPlayer(player);
             } catch (RuntimeException failure) {
@@ -68,11 +84,22 @@ public final class PaperHudChannelOutput implements HudChannelOutput {
                 throw failure;
             }
             playerBars.put(widgetId, bar);
-            return;
-        }
-        bar.setTitle(payload);
-        if (!bar.getPlayers().contains(player)) {
+        } else if (!bar.getPlayers().contains(player)) {
             bar.addPlayer(player);
+        }
+        bar.setTitle(LEGACY.deserialize(frame.payload()));
+        bar.setColor(color);
+        bar.setStyle(style);
+        bar.setProgress(presentation.progress());
+        for (BossBarPresentation.Flag flag : BossBarPresentation.Flag.values()) {
+            BarFlag paperFlag = BarFlag.valueOf(flag.name());
+            if (presentation.flags().contains(flag)) {
+                if (!bar.hasFlag(paperFlag)) {
+                    bar.addFlag(paperFlag);
+                }
+            } else if (bar.hasFlag(paperFlag)) {
+                bar.removeFlag(paperFlag);
+            }
         }
     }
 
