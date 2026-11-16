@@ -428,3 +428,12 @@ Legacy producer migration намеренно не входит в этот commi
 - Optional client-mod renderer остаётся отдельным будущим adapter. Протокол не реализуется до проверки репозитория клиентского мода.
 
 Проверки C4.1: CI на финальном HEAD и controlled Paper 26.2 / Java 25 smoke test должны быть завершены отдельно. Исторические промежуточные статусы в разделах 14–23 выше не следует трактовать как текущую wiring-схему.
+
+
+### Проверка HUD-C.4.1
+
+Финальный проверенный кодовый HEAD: `033d8b85b2375f671c55314726531505a86e8179`.
+- Maven verify: 715 tests, 0 failures/errors/skipped.
+- SpotBugs: 0 findings.
+- Spotless format и final branch verification: SUCCESS.
+- Live Paper 26.2 / Java 25 staging smoke test ещё не выполнен.
