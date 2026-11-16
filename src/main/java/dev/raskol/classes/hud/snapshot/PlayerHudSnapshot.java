@@ -5,6 +5,7 @@ package dev.raskol.classes.hud.snapshot;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.UUID;
 
