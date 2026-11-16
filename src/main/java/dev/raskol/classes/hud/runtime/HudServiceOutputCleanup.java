@@ -6,23 +6,68 @@ import java.util.Objects;
 import java.util.UUID;
 
 import dev.raskol.classes.hud.HudService;
+import dev.raskol.classes.hud.channel.HudChannelCoordinator;
 
 /** Адаптер очистки per-player состояния legacy ActionBar HUD. */
 public final class HudServiceOutputCleanup implements HudOutputCleanup {
 
     private final HudService hudService;
+    private final HudChannelCoordinator channelCoordinator;
 
     public HudServiceOutputCleanup(HudService hudService) {
+        this(hudService, null);
+    }
+
+    public HudServiceOutputCleanup(HudService hudService, HudChannelCoordinator channelCoordinator) {
         this.hudService = Objects.requireNonNull(hudService, "hudService");
+        this.channelCoordinator = channelCoordinator;
     }
 
     @Override
     public void clearPlayer(UUID playerId) {
-        hudService.clearPlayer(playerId);
+        RuntimeException failure = null;
+        try {
+            hudService.clearPlayer(playerId);
+        } catch (RuntimeException exception) {
+            failure = exception;
+        }
+        if (channelCoordinator != null) {
+            try {
+                channelCoordinator.clearPlayer(playerId);
+            } catch (RuntimeException exception) {
+                failure = merge(failure, exception);
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
     }
 
     @Override
     public void clearAll() {
-        hudService.clearAll();
+        RuntimeException failure = null;
+        try {
+            hudService.clearAll();
+        } catch (RuntimeException exception) {
+            failure = exception;
+        }
+        if (channelCoordinator != null) {
+            try {
+                channelCoordinator.clearAll();
+            } catch (RuntimeException exception) {
+                failure = merge(failure, exception);
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    private static RuntimeException merge(RuntimeException current, RuntimeException next) {
+        if (current == null) {
+            return next;
+        }
+        current.addSuppressed(next);
+        return current;
     }
 }
