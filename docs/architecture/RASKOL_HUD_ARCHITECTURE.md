@@ -421,3 +421,8 @@ HUD-C.4 закрыл legacy producer migration, а HUD-C.5 подключил pr
 - Quit и shutdown очищают snapshot state; coordinator закрывается до channel owner.
 - Registry пока пустой, поэтому C.5 не меняет визуальный HUD и не отключает legacy frames.
 - Optional client mod остаётся независимым renderer target; сетевой протокол не входит в C.5.
+
+
+### Проверка HUD-C.5
+
+Кодовый HEAD `d555e5afbf448bda2020200615673814e0d223c1`: 721 tests passed, 0 failures/errors/skipped; SpotBugs 0; Spotless 512 Java files clean; license headers passed. [Build + Analyze](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43964002393). Live Paper 26.2 / Java 25 staging smoke test не выполнен.

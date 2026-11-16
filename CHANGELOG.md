@@ -49,6 +49,8 @@
 - Bounded round-robin refresh — 64 игрока за HUD refresh cycle; пустой widget registry сохраняет текущий legacy visual output до следующего этапа widgets.
 - Optional client mod не получает протокол или hard dependency: C.5 подготавливает общий server-side read model.
 
+- HUD-C.5 CI на проверенном кодовом HEAD `d555e5af`: **721 тест, 0 failures/errors/skipped; SpotBugs — 0; Spotless — 512 Java files clean; license headers — SUCCESS**. [Build + Analyze run 43964002393](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43964002393).
+
 ### Architecture Refactoring — A-03
 
 - Добавлены базовые контракты жизненного цикла модулей: состояния, контекст, интерфейс PluginModule и проверка допустимых переходов.

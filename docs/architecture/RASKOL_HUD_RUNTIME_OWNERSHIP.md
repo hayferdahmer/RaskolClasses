@@ -485,3 +485,14 @@ Legacy producer migration намеренно не входит в этот commi
 - `HudCoordinator.onPlayerQuit` очищает revision, latest snapshot, dirty marker и channel publisher state игрока.
 - На disable snapshot coordinator закрывается после runtime producer owner и до `HudChannelCoordinator.close`.
 - Registry пустой на этом slice: snapshot публикация не затрагивает legacy persistent frames и не меняет текущую визуальную подачу.
+
+
+### Проверка HUD-C.5
+
+- Кодовый HEAD: `d555e5afbf448bda2020200615673814e0d223c1`.
+- Maven verify: 721 tests, 0 failures/errors/skipped.
+- SpotBugs: 0 findings.
+- Spotless: 512 Java files clean.
+- License headers: SUCCESS.
+- [Build + Analyze run 43964002393](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43964002393).
+- Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным.

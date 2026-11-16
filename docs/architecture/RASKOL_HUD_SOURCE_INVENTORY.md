@@ -432,3 +432,13 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 - Dirty coalescing API остаётся доступным, но production invalidation events пока не подключены; сейчас используется ограниченный round-robin fallback refresh.
 - Никаких client-mod packets, handshake или wire DTO не добавлялось. Server read model остаётся общей основой для будущего vanilla и optional mod renderer.
 - Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным перед production rollout.
+
+### 12.4. Проверка HUD-C.5
+
+Проверенный кодовый HEAD: `d555e5afbf448bda2020200615673814e0d223c1`.
+- Maven verify: **721 tests, 0 failures/errors/skipped**.
+- SpotBugs: **0 findings**.
+- Spotless: **512 Java files clean, 0 requiring changes**.
+- License headers: SUCCESS.
+- [Build + Analyze run 43964002393](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43964002393).
+- Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным.
