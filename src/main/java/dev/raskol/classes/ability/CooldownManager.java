@@ -111,7 +111,11 @@ public final class CooldownManager implements Listener {
         readyAt.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>())
                 .put(abilityId, System.currentTimeMillis() + durationMillis);
         if (hudChannelCoordinator != null) {
-            hudChannelCoordinator.cancelNotification(playerId, notificationId(abilityId));
+            try {
+                hudChannelCoordinator.cancelNotification(playerId, notificationId(abilityId));
+            } catch (RuntimeException ignored) {
+                // Ошибка ActionBar не должна менять установку игрового cooldown.
+            }
         }
 
         if (!notifyEnabled || plugin == null || durationMillis < notifyMinMillis) {
@@ -142,14 +146,18 @@ public final class CooldownManager implements Listener {
                             Component message = Component.text(text, NamedTextColor.GREEN);
                             if (hudChannelCoordinator != null) {
                                 long expiresAt = System.currentTimeMillis() + READY_NOTIFICATION_TTL_MILLIS;
-                                hudChannelCoordinator.publishNotification(
-                                        playerId,
-                                        new WidgetFrame(
-                                                notificationId(abilityId),
-                                                HudChannel.ACTION_BAR.name(),
-                                                100,
-                                                LEGACY.serialize(message),
-                                                OptionalLong.of(expiresAt)));
+                                try {
+                                    hudChannelCoordinator.publishNotification(
+                                            playerId,
+                                            new WidgetFrame(
+                                                    notificationId(abilityId),
+                                                    HudChannel.ACTION_BAR.name(),
+                                                    100,
+                                                    LEGACY.serialize(message),
+                                                    OptionalLong.of(expiresAt)));
+                                } catch (RuntimeException ignored) {
+                                    // Уведомление необязательно и не должно ломать завершение cooldown callback.
+                                }
                             }
                         }),
                         delayTicks);
