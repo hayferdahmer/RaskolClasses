@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hud.channel;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -29,8 +28,8 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
     private static final String BOSS_BAR = HudChannel.BOSS_BAR.name();
     private static final String SCOREBOARD = HudChannel.SCOREBOARD.name();
 
-    private static final Comparator<FrameEntry> ACTION_BAR_ORDER = Comparator
-            .comparingInt((FrameEntry entry) -> entry.frame().priority())
+    private static final Comparator<FrameEntry> ACTION_BAR_ORDER = Comparator.comparingInt(
+                    (FrameEntry entry) -> entry.frame().priority())
             .reversed()
             .thenComparing(Comparator.comparingLong(FrameEntry::sequence).reversed())
             .thenComparing(entry -> entry.frame().widgetId());
@@ -44,8 +43,7 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
     private boolean closing;
     private boolean closed;
 
-    public HudChannelCoordinator(
-            HudChannelOutput output, HudFailureReporter failureReporter, LongSupplier clock) {
+    public HudChannelCoordinator(HudChannelOutput output, HudFailureReporter failureReporter, LongSupplier clock) {
         this.output = Objects.requireNonNull(output, "output");
         this.failureReporter = Objects.requireNonNull(failureReporter, "failureReporter");
         this.clock = Objects.requireNonNull(clock, "clock");

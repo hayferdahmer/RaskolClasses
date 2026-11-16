@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.hud.runtime;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -17,6 +16,7 @@ import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 
 import dev.raskol.classes.hud.channel.HudChannelOutput;
+
 import net.kyori.adventure.text.Component;
 
 /** Paper adapter для ActionBar и BossBar, созданных исключительно RaskolHUD. */

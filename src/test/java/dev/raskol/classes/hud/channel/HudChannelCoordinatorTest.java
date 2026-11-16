@@ -25,10 +25,13 @@ class HudChannelCoordinatorTest {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();
 
-        harness.coordinator.publish(playerId, snapshot(playerId), List.of(
-                frame("zeta", "ACTION_BAR", 50, "Z", OptionalLong.empty()),
-                frame("alpha", "ACTION_BAR", 50, "A", OptionalLong.empty()),
-                frame("low", "ACTION_BAR", 10, "L", OptionalLong.empty())));
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
+                List.of(
+                        frame("zeta", "ACTION_BAR", 50, "Z", OptionalLong.empty()),
+                        frame("alpha", "ACTION_BAR", 50, "A", OptionalLong.empty()),
+                        frame("low", "ACTION_BAR", 10, "L", OptionalLong.empty())));
 
         assertEquals("A", harness.output.actionBar);
     }
@@ -37,7 +40,9 @@ class HudChannelCoordinatorTest {
     void transientNotificationTemporarilyReplacesAndThenRestoresPersistentFrame() {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();
-        harness.coordinator.publish(playerId, snapshot(playerId),
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
                 List.of(frame("resource", "ACTION_BAR", 10, "resource", OptionalLong.empty())));
 
         harness.coordinator.publishNotification(
@@ -57,7 +62,9 @@ class HudChannelCoordinatorTest {
         harness.coordinator.publishNotification(
                 playerId, frame("notice", "ACTION_BAR", 100, "notice", OptionalLong.of(2_000L)));
 
-        harness.coordinator.publish(playerId, snapshot(playerId),
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
                 List.of(frame("resource", "ACTION_BAR", 10, "new-resource", OptionalLong.empty())));
 
         assertEquals("notice", harness.output.actionBar);
@@ -67,13 +74,18 @@ class HudChannelCoordinatorTest {
     void multipleBossBarsAreOwnedAndStaleBarsAreRemoved() {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();
-        harness.coordinator.publish(playerId, snapshot(playerId), List.of(
-                frame("effect:fire", "BOSS_BAR", 1, "Fire", OptionalLong.empty()),
-                frame("effect:poison", "BOSS_BAR", 1, "Poison", OptionalLong.empty())));
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
+                List.of(
+                        frame("effect:fire", "BOSS_BAR", 1, "Fire", OptionalLong.empty()),
+                        frame("effect:poison", "BOSS_BAR", 1, "Poison", OptionalLong.empty())));
 
         assertEquals(2, harness.output.bossBars.size());
 
-        harness.coordinator.publish(playerId, snapshot(playerId),
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
                 List.of(frame("effect:fire", "BOSS_BAR", 1, "Fire II", OptionalLong.empty())));
 
         assertEquals(1, harness.output.bossBars.size());
@@ -85,9 +97,12 @@ class HudChannelCoordinatorTest {
     void expiredWidgetFramesAreNotPublishedAndAreRemovedOnTick() {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();
-        harness.coordinator.publish(playerId, snapshot(playerId), List.of(
-                frame("resource", "ACTION_BAR", 10, "resource", OptionalLong.empty()),
-                frame("temporary", "BOSS_BAR", 1, "temporary", OptionalLong.of(1_100L))));
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
+                List.of(
+                        frame("resource", "ACTION_BAR", 10, "resource", OptionalLong.empty()),
+                        frame("temporary", "BOSS_BAR", 1, "temporary", OptionalLong.of(1_100L))));
         assertEquals(1, harness.output.bossBars.size());
 
         harness.now.set(1_100L);
@@ -104,7 +119,8 @@ class HudChannelCoordinatorTest {
         harness.output.failNextActionBar = true;
         List<WidgetFrame> frames = List.of(frame("resource", "ACTION_BAR", 10, "resource", OptionalLong.empty()));
 
-        assertThrows(IllegalStateException.class, () -> harness.coordinator.publish(playerId, snapshot(playerId), frames));
+        assertThrows(
+                IllegalStateException.class, () -> harness.coordinator.publish(playerId, snapshot(playerId), frames));
         harness.coordinator.publish(playerId, snapshot(playerId), frames);
 
         assertEquals("resource", harness.output.actionBar);
@@ -116,9 +132,12 @@ class HudChannelCoordinatorTest {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();
 
-        assertThrows(UnsupportedOperationException.class, () -> harness.coordinator.publish(
-                playerId, snapshot(playerId),
-                List.of(frame("sidebar", "SCOREBOARD", 1, "not-enabled", OptionalLong.empty()))));
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> harness.coordinator.publish(
+                        playerId,
+                        snapshot(playerId),
+                        List.of(frame("sidebar", "SCOREBOARD", 1, "not-enabled", OptionalLong.empty()))));
 
         assertEquals(0, harness.output.actionBarWrites);
         assertTrue(harness.output.bossBars.isEmpty());
@@ -128,9 +147,12 @@ class HudChannelCoordinatorTest {
     void clearPlayerRemovesOwnedOutputAndCloseIsIdempotent() {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();
-        harness.coordinator.publish(playerId, snapshot(playerId), List.of(
-                frame("resource", "ACTION_BAR", 10, "resource", OptionalLong.empty()),
-                frame("effect", "BOSS_BAR", 1, "effect", OptionalLong.empty())));
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
+                List.of(
+                        frame("resource", "ACTION_BAR", 10, "resource", OptionalLong.empty()),
+                        frame("effect", "BOSS_BAR", 1, "effect", OptionalLong.empty())));
 
         harness.coordinator.clearPlayer(playerId);
 
@@ -150,10 +172,10 @@ class HudChannelCoordinatorTest {
         Harness harness = new Harness();
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
-        harness.coordinator.publish(first, snapshot(first),
-                List.of(frame("first", "ACTION_BAR", 10, "first", OptionalLong.empty())));
-        harness.coordinator.publish(second, snapshot(second),
-                List.of(frame("second", "ACTION_BAR", 10, "second", OptionalLong.empty())));
+        harness.coordinator.publish(
+                first, snapshot(first), List.of(frame("first", "ACTION_BAR", 10, "first", OptionalLong.empty())));
+        harness.coordinator.publish(
+                second, snapshot(second), List.of(frame("second", "ACTION_BAR", 10, "second", OptionalLong.empty())));
         harness.output.failNextClear = true;
         harness.coordinator.publish(first, snapshot(first), List.of());
 
@@ -166,8 +188,10 @@ class HudChannelCoordinatorTest {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();
 
-        assertThrows(IllegalArgumentException.class, () -> harness.coordinator.publishNotification(
-                playerId, frame("notice", "ACTION_BAR", 100, "notice", OptionalLong.empty())));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> harness.coordinator.publishNotification(
+                        playerId, frame("notice", "ACTION_BAR", 100, "notice", OptionalLong.empty())));
     }
 
     private static WidgetFrame frame(String id, String channel, int priority, String payload, OptionalLong expiry) {
@@ -176,19 +200,7 @@ class HudChannelCoordinatorTest {
 
     private static PlayerHudSnapshot snapshot(UUID playerId) {
         return new PlayerHudSnapshot(
-                playerId,
-                1L,
-                1_000L,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                List.of(),
-                List.of(),
-                null,
-                null);
+                playerId, 1L, 1_000L, null, null, null, null, null, null, List.of(), List.of(), null, null);
     }
 
     private static final class Harness {
