@@ -953,7 +953,7 @@ public final class RaskolClasses extends JavaPlugin {
                 bossBarRuntimeOwner.close();
             }
         });
-        shutdown.run("cooldown snapshot", () => {
+        shutdown.run("cooldown snapshot", () -> {
             if (cooldowns != null) {
                 cooldowns.saveAll();
             }
