@@ -106,24 +106,69 @@ public final class ResourceService implements Listener {
      * 1.14.4 (3B): состояние ресурса с актуальным потолком из spec2-агрегата.
      */
     public ResourceState stateOf(UUID uuid) {
-        ResourceState st = states.computeIfAbsent(uuid, k -> new ResourceState());
-        Spec2Service svc = plugin.getSpec2Service();
-        double maxBonus = svc == null ? 0.0 : svc.resourceMaxBonus(uuid);
-        if (!Double.isFinite(maxBonus) || maxBonus < 0) maxBonus = 0.0;
+        ResourceState state = states.computeIfAbsent(uuid, ignored -> new ResourceState());
+        Player player = Bukkit.getPlayer(uuid);
+        PlayerClass playerClass = player == null ? null : classProvider.getClassOf(player);
+        state.setCeiling(effectiveMax(uuid, playerClass));
+        return state;
+    }
+
+    /**
+     * Возвращает read-only проекцию ресурса без создания ResourceState и без изменения его потолка.
+     * Используется HUD snapshot capture, чтобы чтение presentation data не мутировало игровое состояние.
+     */
+    public ResourceSnapshot readSnapshot(UUID uuid, PlayerClass playerClass) {
+        java.util.Objects.requireNonNull(uuid, "uuid");
+        ResourceState state = states.get(uuid);
+        double effectiveMax = effectiveMax(uuid, playerClass);
+        double current = state == null ? 0.0 : state.getValue();
+        if (!Double.isFinite(current) || current < 0.0) {
+            throw new IllegalStateException("ResourceState содержит некорректное значение для " + uuid);
+        }
+        current = Math.min(current, effectiveMax);
+        long combatWindowMillis = playerClass == null
+                ? 0L
+                : Math.max(0L, config.combatWindowSeconds(playerClass)) * 1000L;
+        boolean inCombat = state != null && combatWindowMillis > 0L && state.isInCombat(combatWindowMillis);
+        return new ResourceSnapshot(current, effectiveMax, inCombat);
+    }
+
+    private double effectiveMax(UUID uuid, PlayerClass playerClass) {
+        Spec2Service specializationService = plugin.getSpec2Service();
+        double maxBonus = specializationService == null ? 0.0 : specializationService.resourceMaxBonus(uuid);
+        if (!Double.isFinite(maxBonus) || maxBonus < 0.0) {
+            maxBonus = 0.0;
+        }
         Player player = Bukkit.getPlayer(uuid);
         if (player != null && plugin.getItems() != null) {
-            PlayerClass pc = classProvider.getClassOf(player);
-            dev.raskol.classes.item.model.ItemStat maxStat = pc == PlayerClass.WARRIOR
+            PlayerClass resolvedClass = playerClass != null ? playerClass : classProvider.getClassOf(player);
+            dev.raskol.classes.item.model.ItemStat maxStat = resolvedClass == PlayerClass.WARRIOR
                     ? dev.raskol.classes.item.model.ItemStat.MAX_RAGE
-                    : pc == PlayerClass.ROGUE || pc == PlayerClass.HUNTER
+                    : resolvedClass == PlayerClass.ROGUE || resolvedClass == PlayerClass.HUNTER
                             ? dev.raskol.classes.item.model.ItemStat.MAX_ENERGY
                             : dev.raskol.classes.item.model.ItemStat.MAX_MANA;
             double itemBonus = plugin.getItems().value(uuid, maxStat);
-            if (!Double.isFinite(itemBonus) || itemBonus < 0) itemBonus = 0.0;
-            maxBonus += itemBonus;
+            if (Double.isFinite(itemBonus) && itemBonus > 0.0) {
+                maxBonus += itemBonus;
+            }
         }
-        st.setCeiling(MAX_VALUE + maxBonus);
-        return st;
+        double effectiveMax = MAX_VALUE + maxBonus;
+        if (!Double.isFinite(effectiveMax) || effectiveMax <= 0.0) {
+            throw new IllegalStateException("Не удалось вычислить эффективный максимум ресурса для " + uuid);
+        }
+        return effectiveMax;
+    }
+
+    /** Неизменяемая read-модель ресурса для потребителей отображения. */
+    public record ResourceSnapshot(double current, double effectiveMax, boolean inCombat) {
+        public ResourceSnapshot {
+            if (!Double.isFinite(current) || current < 0.0) {
+                throw new IllegalArgumentException("current должен быть конечным неотрицательным числом");
+            }
+            if (!Double.isFinite(effectiveMax) || effectiveMax <= 0.0 || current > effectiveMax) {
+                throw new IllegalArgumentException("Некорректный effectiveMax/current ресурса");
+            }
+        }
     }
 
     public double getValue(UUID uuid) {

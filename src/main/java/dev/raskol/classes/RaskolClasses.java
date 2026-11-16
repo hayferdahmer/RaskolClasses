@@ -93,6 +93,7 @@ import dev.raskol.classes.hotbar.runtime.ScrollCooldownRuntimeOwner;
 import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HpBarService;
 import dev.raskol.classes.hud.HudService;
+import dev.raskol.classes.hud.application.HudCoordinator;
 import dev.raskol.classes.hud.channel.HudChannelCoordinator;
 import dev.raskol.classes.hud.runtime.BossBarRuntimeOwner;
 import dev.raskol.classes.hud.runtime.HpBarRuntimeOwner;
@@ -104,6 +105,9 @@ import dev.raskol.classes.hud.runtime.PaperHpBarTaskScheduler;
 import dev.raskol.classes.hud.runtime.PaperHudChannelOutput;
 import dev.raskol.classes.hud.runtime.PaperHudSessionEvents;
 import dev.raskol.classes.hud.runtime.PaperHudTaskScheduler;
+import dev.raskol.classes.hud.runtime.PaperHudSnapshotProvider;
+import dev.raskol.classes.hud.snapshot.HudFailureReporter;
+import dev.raskol.classes.hud.snapshot.HudWidgetRegistry;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
@@ -182,6 +186,8 @@ public final class RaskolClasses extends JavaPlugin {
     private HudService hud;
     private HudChannelCoordinator hudChannelCoordinator;
     private HudRuntimeOwner hudRuntimeOwner;
+    private HudCoordinator hudCoordinator;
+    private HudWidgetRegistry hudWidgetRegistry;
     private BossBarService bossBars;
     private BossBarRuntimeOwner bossBarRuntimeOwner;
     private HpBarService hpBarService;
@@ -394,7 +400,7 @@ public final class RaskolClasses extends JavaPlugin {
         this.hudRuntimeOwner = new HudRuntimeOwner(
                 new PaperHudTaskScheduler(this),
                 new PaperHudSessionEvents(this),
-                new HudServiceOutputCleanup(hud, hudChannelCoordinator),
+                new HudServiceOutputCleanup(hud, hudChannelCoordinator, () -> hudCoordinator),
                 this::tickHudRuntime,
                 hudPeriod,
                 hudPeriod);
@@ -474,6 +480,29 @@ public final class RaskolClasses extends JavaPlugin {
         this.spec2Service = new Spec2Service(this, spec2Storage);
         this.spec2Service.refreshDisabledCache();
         pluginManager.registerEvents(new Spec2RoleListener(this), this);
+
+        // Production read model собирается после инициализации всех игровых источников.
+        this.hudWidgetRegistry = new HudWidgetRegistry();
+        HudFailureReporter hudSnapshotFailureReporter = (playerId, stage, failure) -> getLogger()
+                .log(
+                        java.util.logging.Level.WARNING,
+                        "[RaskolHUD] Snapshot pipeline: " + stage + " для " + playerId,
+                        failure);
+        this.hudCoordinator = new HudCoordinator(
+                new PaperHudSnapshotProvider(
+                        getServer(),
+                        classProvider,
+                        attributes,
+                        resources,
+                        effects,
+                        combat.dots(),
+                        spec2Service,
+                        raskolConfig,
+                        System::currentTimeMillis),
+                hudWidgetRegistry,
+                hudChannelCoordinator,
+                hudSnapshotFailureReporter,
+                16);
 
         ImperialWallet wallet = PlayerPointsWallet.tryCreate();
         if (wallet == null) {
@@ -800,6 +829,12 @@ public final class RaskolClasses extends JavaPlugin {
                 hudRuntimeOwner = null;
             }
         });
+        shutdown.run("HUD snapshot coordinator", () -> {
+            if (hudCoordinator != null) {
+                hudCoordinator.close();
+                hudCoordinator = null;
+            }
+        });
         shutdown.run("HUD channel coordinator", () -> {
             if (hudChannelCoordinator != null) {
                 hudChannelCoordinator.close();
@@ -1001,6 +1036,11 @@ public final class RaskolClasses extends JavaPlugin {
         if (hud != null) {
             hud.tick();
         }
+        if (hudCoordinator != null) {
+            hudCoordinator.tick(getServer().getOnlinePlayers().stream()
+                    .map(org.bukkit.entity.Player::getUniqueId)
+                    .toList());
+        }
         if (hudChannelCoordinator != null) {
             hudChannelCoordinator.tick();
         }
@@ -1142,6 +1182,15 @@ public final class RaskolClasses extends JavaPlugin {
 
     public HudService getHud() {
         return hud;
+    }
+
+    /** Production immutable read model для HUD-виджетов и будущих renderer adapters. */
+    public HudCoordinator getHudCoordinator() {
+        return hudCoordinator;
+    }
+
+    public HudWidgetRegistry getHudWidgetRegistry() {
+        return hudWidgetRegistry;
     }
 
     public BossBarService getBossBars() {

@@ -4,6 +4,9 @@ package dev.raskol.classes.hud.runtime;
 
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
+
+import dev.raskol.classes.hud.application.HudCoordinator;
 
 import dev.raskol.classes.hud.HudService;
 import dev.raskol.classes.hud.channel.HudChannelCoordinator;
@@ -13,14 +16,23 @@ public final class HudServiceOutputCleanup implements HudOutputCleanup {
 
     private final HudService hudService;
     private final HudChannelCoordinator channelCoordinator;
+    private final Supplier<HudCoordinator> snapshotCoordinator;
 
     public HudServiceOutputCleanup(HudService hudService) {
-        this(hudService, null);
+        this(hudService, null, () -> null);
     }
 
     public HudServiceOutputCleanup(HudService hudService, HudChannelCoordinator channelCoordinator) {
+        this(hudService, channelCoordinator, () -> null);
+    }
+
+    public HudServiceOutputCleanup(
+            HudService hudService,
+            HudChannelCoordinator channelCoordinator,
+            Supplier<HudCoordinator> snapshotCoordinator) {
         this.hudService = Objects.requireNonNull(hudService, "hudService");
         this.channelCoordinator = channelCoordinator;
+        this.snapshotCoordinator = Objects.requireNonNull(snapshotCoordinator, "snapshotCoordinator");
     }
 
     @Override
@@ -31,7 +43,14 @@ public final class HudServiceOutputCleanup implements HudOutputCleanup {
         } catch (RuntimeException exception) {
             failure = exception;
         }
-        if (channelCoordinator != null) {
+        HudCoordinator coordinator = snapshotCoordinator.get();
+        if (coordinator != null) {
+            try {
+                coordinator.onPlayerQuit(playerId);
+            } catch (RuntimeException exception) {
+                failure = merge(failure, exception);
+            }
+        } else if (channelCoordinator != null) {
             try {
                 channelCoordinator.clearPlayer(playerId);
             } catch (RuntimeException exception) {
