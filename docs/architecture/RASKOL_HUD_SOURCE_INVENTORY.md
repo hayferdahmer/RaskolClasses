@@ -400,6 +400,6 @@ HUD-A source inventory завершён. Следующий шаг — **HUD-B.1
 - Maven verify: **717 tests, 0 failures/errors/skipped**; license headers passed.
 - SpotBugs: **0 findings**.
 - Spotless format + final branch verification: **SUCCESS**.
-- [Build + Analyze run 43959893978](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43958556946).
-- [Spotless run 43959893936](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43958556857).
+- [Build + Analyze run 43959893978](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43959893978).
+- [Spotless run 43959893936](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43959893936).
 - Live Paper 26.2 / Java 25 staging smoke test остаётся отдельным гейтом.
