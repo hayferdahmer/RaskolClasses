@@ -99,6 +99,7 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
         PlayerChannels state = players.computeIfAbsent(id, ignored -> new PlayerChannels());
         if (isExpired(notification, now)) {
             state.notifications.remove(notification.widgetId());
+            reconcileSafely(id, state, now, "notification-expired");
             removeIfEmpty(id, state);
             return;
         }

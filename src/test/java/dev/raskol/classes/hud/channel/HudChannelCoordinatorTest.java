@@ -58,6 +58,24 @@ class HudChannelCoordinatorTest {
     }
 
     @Test
+    void alreadyExpiredReplacementImmediatelyRestoresPersistentFrame() {
+        Harness harness = new Harness();
+        UUID playerId = UUID.randomUUID();
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
+                List.of(frame("resource", "ACTION_BAR", 10, "resource", OptionalLong.empty())));
+        harness.coordinator.publishNotification(
+                playerId, frame("notice", "ACTION_BAR", 100, "notice", OptionalLong.of(2_000L)));
+        assertEquals("notice", harness.output.actionBars.get(playerId));
+
+        harness.coordinator.publishNotification(
+                playerId, frame("notice", "ACTION_BAR", 100, "expired", OptionalLong.of(900L)));
+
+        assertEquals("resource", harness.output.actionBars.get(playerId));
+    }
+
+    @Test
     void notificationSurvivesPersistentSnapshotReplacement() {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();
