@@ -882,4 +882,36 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="MS_EXPOSE_REP"/>
     </Match>
 
+    <!--
+      HUD-C.4.1: точечные исключения для lifecycle-managed channel coordinator.
+      Это намеренно внедряемая общая зависимость presentation pipeline, а не
+      наружу возвращаемая mutable value model. RaskolClasses getter сохраняет
+      существующий compatibility accessor для HP service.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getHpBarService"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.ability.CooldownManager"/>
+        <Field name="hudChannelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hud.HpBarService"/>
+        <Field name="channelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hud.HudService"/>
+        <Field name="channelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hud.runtime.HudServiceOutputCleanup"/>
+        <Field name="channelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
 </FindBugsFilter>
