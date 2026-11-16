@@ -356,3 +356,12 @@ Target Frame показывает последнюю явно выбранную
 
 Результат HUD-C.1.4 зафиксирован в [RASKOL_HUD_TARGET_INTERACTION_SPIKE.md](RASKOL_HUD_TARGET_INTERACTION_SPIKE.md): выбран `PlayerInteractAtEntityEvent`, `MONITOR`, `ignoreCancelled = true`, только main hand, без отмены/изменения события. Runtime-реализация и controlled Paper 26.2 test остаются следующими отдельными воротами.
 
+
+
+## 20. Актуальный статус HUD-C на feature branch
+
+Ранее записанные разделы 13–19 отражают исторические design decisions и промежуточные milestones. Текущий source of truth по выполненному runtime ownership — раздел 22 в [RASKOL_HUD_RUNTIME_OWNERSHIP.md](RASKOL_HUD_RUNTIME_OWNERSHIP.md) и раздел 9 в [RASKOL_HUD_SOURCE_INVENTORY.md](RASKOL_HUD_SOURCE_INVENTORY.md).
+
+Уже подключены legacy runtime owners для ActionBar HUD, BossBar и HP listener/tick. Это решает ownership задач и часть reload/quit lifecycle, но **не означает**, что реализованы unified snapshot, widget registry, channel arbitration или новые renderers.
+
+Следующий этап — **HUD-C.2: immutable snapshot pipeline и coordinator core**. Затем HUD-C.3 channel ownership/arbitration, далее миграция legacy producers. Целевые продуктовые решения H-01–H-06, единый PlayerHudSnapshot, independent widgets, optional Resource Pack и Locked Target остаются действующими; этот source reconciliation не меняет их.
