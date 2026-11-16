@@ -74,9 +74,49 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
         }
 
         PlayerChannels state = players.computeIfAbsent(id, ignored -> new PlayerChannels());
-        state.widgetFrames.clear();
-        state.widgetFrames.putAll(replacement);
+        for (String widgetId : replacement.keySet()) {
+            if (state.persistentFrames.containsKey(widgetId)) {
+                throw new IllegalArgumentException("HUD widgetId уже принадлежит legacy producer: " + widgetId);
+            }
+        }
+        state.snapshotFrames.clear();
+        state.snapshotFrames.putAll(replacement);
         reconcileSafely(id, state, now, "publish");
+        removeIfEmpty(id, state);
+    }
+
+    /**
+     * Публикует или обновляет один постоянный кадр legacy producer.
+     * Кадр живёт отдельно от snapshot frames и не стирается следующим snapshot.
+     */
+    public synchronized void upsertPersistentFrame(UUID playerId, WidgetFrame frame) {
+        ensureOpen();
+        UUID id = Objects.requireNonNull(playerId, "playerId");
+        validateSupportedChannel(frame);
+        long now = clock.getAsLong();
+        PlayerChannels state = players.computeIfAbsent(id, ignored -> new PlayerChannels());
+        if (state.snapshotFrames.containsKey(frame.widgetId())) {
+            throw new IllegalArgumentException("HUD widgetId уже принадлежит snapshot producer: " + frame.widgetId());
+        }
+        if (isExpired(frame, now)) {
+            state.persistentFrames.remove(frame.widgetId());
+        } else {
+            state.persistentFrames.put(frame.widgetId(), new FrameEntry(frame, nextSequence++));
+        }
+        reconcileSafely(id, state, now, "persistent-frame");
+        removeIfEmpty(id, state);
+    }
+
+    /** Удаляет один постоянный кадр, не затрагивая другие producers и уведомления. */
+    public synchronized void removePersistentFrame(UUID playerId, String widgetId) {
+        ensureOpen();
+        UUID id = Objects.requireNonNull(playerId, "playerId");
+        PlayerChannels state = players.get(id);
+        if (state == null) {
+            return;
+        }
+        state.persistentFrames.remove(Objects.requireNonNull(widgetId, "widgetId"));
+        reconcileSafely(id, state, clock.getAsLong(), "persistent-frame-remove");
         removeIfEmpty(id, state);
     }
 
@@ -97,6 +137,11 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
 
         long now = clock.getAsLong();
         PlayerChannels state = players.computeIfAbsent(id, ignored -> new PlayerChannels());
+        if (state.snapshotFrames.containsKey(notification.widgetId())
+                || state.persistentFrames.containsKey(notification.widgetId())) {
+            throw new IllegalArgumentException("HUD notification ID конфликтует с постоянным widgetId: "
+                    + notification.widgetId());
+        }
         if (isExpired(notification, now)) {
             state.notifications.remove(notification.widgetId());
             reconcileSafely(id, state, now, "notification-expired");
@@ -128,7 +173,8 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
         for (Map.Entry<UUID, PlayerChannels> entry : List.copyOf(players.entrySet())) {
             UUID playerId = entry.getKey();
             PlayerChannels state = entry.getValue();
-            state.widgetFrames.values().removeIf(frame -> isExpired(frame.frame(), now));
+            state.snapshotFrames.values().removeIf(frame -> isExpired(frame.frame(), now));
+            state.persistentFrames.values().removeIf(frame -> isExpired(frame.frame(), now));
             state.notifications.values().removeIf(frame -> isExpired(frame.frame(), now));
             try {
                 reconcile(playerId, state, now);
@@ -210,7 +256,7 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
         }
 
         Map<String, WidgetFrame> desiredBossBars = new HashMap<>();
-        for (FrameEntry entry : state.widgetFrames.values()) {
+        for (FrameEntry entry : allPersistentFrames(state)) {
             WidgetFrame frame = entry.frame();
             if (BOSS_BAR.equals(frame.channel()) && !isExpired(frame, now)) {
                 desiredBossBars.put(frame.widgetId(), frame);
@@ -232,9 +278,15 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
         }
     }
 
+    private static List<FrameEntry> allPersistentFrames(PlayerChannels state) {
+        return java.util.stream.Stream.concat(
+                        state.snapshotFrames.values().stream(), state.persistentFrames.values().stream())
+                .toList();
+    }
+
     private static FrameEntry selectActionBar(PlayerChannels state, long now) {
         return java.util.stream.Stream.concat(
-                        state.widgetFrames.values().stream(), state.notifications.values().stream())
+                        allPersistentFrames(state).stream(), state.notifications.values().stream())
                 .filter(entry -> ACTION_BAR.equals(entry.frame().channel()))
                 .filter(entry -> !isExpired(entry.frame(), now))
                 .min(ACTION_BAR_ORDER)
@@ -268,7 +320,8 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
     }
 
     private void removeIfEmpty(UUID playerId, PlayerChannels state) {
-        if (state.widgetFrames.isEmpty()
+        if (state.snapshotFrames.isEmpty()
+                && state.persistentFrames.isEmpty()
                 && state.notifications.isEmpty()
                 && state.renderedActionBar == null
                 && state.renderedBossBars.isEmpty()) {
@@ -299,7 +352,8 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
     }
 
     private static final class PlayerChannels {
-        private final Map<String, FrameEntry> widgetFrames = new LinkedHashMap<>();
+        private final Map<String, FrameEntry> snapshotFrames = new LinkedHashMap<>();
+        private final Map<String, FrameEntry> persistentFrames = new LinkedHashMap<>();
         private final Map<String, FrameEntry> notifications = new LinkedHashMap<>();
         private final Map<String, WidgetFrame> renderedBossBars = new HashMap<>();
         private WidgetFrame renderedActionBar;

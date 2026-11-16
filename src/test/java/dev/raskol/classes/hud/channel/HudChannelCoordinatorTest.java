@@ -76,6 +76,60 @@ class HudChannelCoordinatorTest {
     }
 
     @Test
+    void legacyPersistentFramesCoexistWithSnapshotsAndAreRemovedIndependently() {
+        Harness harness = new Harness();
+        UUID playerId = UUID.randomUUID();
+        harness.coordinator.upsertPersistentFrame(
+                playerId, frame("legacy-resource", "ACTION_BAR", 40, "legacy", OptionalLong.empty()));
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
+                List.of(frame("snapshot-target", "ACTION_BAR", 60, "target", OptionalLong.empty())));
+        assertEquals("target", harness.output.actionBars.get(playerId));
+
+        harness.coordinator.removePersistentFrame(playerId, "legacy-resource");
+        assertEquals("target", harness.output.actionBars.get(playerId));
+
+        harness.coordinator.publish(playerId, snapshot(playerId), List.of());
+        assertTrue(!harness.output.actionBars.containsKey(playerId));
+    }
+
+    @Test
+    void legacyPersistentFrameIsRestoredAfterNotificationExpires() {
+        Harness harness = new Harness();
+        UUID playerId = UUID.randomUUID();
+        harness.coordinator.upsertPersistentFrame(
+                playerId, frame("legacy-hp", "ACTION_BAR", 50, "hp", OptionalLong.empty()));
+        harness.coordinator.publishNotification(
+                playerId, frame("cooldown-ready:fire", "ACTION_BAR", 100, "ready", OptionalLong.of(1_500L)));
+        assertEquals("ready", harness.output.actionBars.get(playerId));
+
+        harness.now.set(1_500L);
+        harness.coordinator.tick();
+
+        assertEquals("hp", harness.output.actionBars.get(playerId));
+    }
+
+    @Test
+    void persistentFrameIdsCannotCollideWithSnapshotOrNotificationIds() {
+        Harness harness = new Harness();
+        UUID playerId = UUID.randomUUID();
+        harness.coordinator.upsertPersistentFrame(
+                playerId, frame("shared", "ACTION_BAR", 10, "legacy", OptionalLong.empty()));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> harness.coordinator.publish(
+                        playerId,
+                        snapshot(playerId),
+                        List.of(frame("shared", "ACTION_BAR", 10, "snapshot", OptionalLong.empty()))));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> harness.coordinator.publishNotification(
+                        playerId, frame("shared", "ACTION_BAR", 100, "notice", OptionalLong.of(2_000L))));
+    }
+
+    @Test
     void notificationSurvivesPersistentSnapshotReplacement() {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();

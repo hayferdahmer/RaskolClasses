@@ -18,9 +18,12 @@ import org.bukkit.entity.Player;
 import dev.raskol.classes.hud.channel.HudChannelOutput;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 /** Paper adapter для ActionBar и BossBar, созданных исключительно RaskolHUD. */
 public final class PaperHudChannelOutput implements HudChannelOutput {
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
+
     private final Map<UUID, Map<String, BossBar>> bossBars = new HashMap<>();
     private final Set<UUID> actionBarPlayers = new HashSet<>();
 
@@ -28,7 +31,7 @@ public final class PaperHudChannelOutput implements HudChannelOutput {
     public void sendActionBar(UUID playerId, String payload) {
         ensurePrimaryThread();
         Player player = requireOnlinePlayer(playerId);
-        player.sendActionBar(Component.text(payload));
+        player.sendActionBar(LEGACY.deserialize(payload));
         actionBarPlayers.add(playerId);
     }
 
