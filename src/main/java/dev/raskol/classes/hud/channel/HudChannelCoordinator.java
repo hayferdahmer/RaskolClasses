@@ -139,8 +139,8 @@ public final class HudChannelCoordinator implements HudFramePublisher, AutoClose
         PlayerChannels state = players.computeIfAbsent(id, ignored -> new PlayerChannels());
         if (state.snapshotFrames.containsKey(notification.widgetId())
                 || state.persistentFrames.containsKey(notification.widgetId())) {
-            throw new IllegalArgumentException("HUD notification ID конфликтует с постоянным widgetId: "
-                    + notification.widgetId());
+            throw new IllegalArgumentException(
+                    "HUD notification ID конфликтует с постоянным widgetId: " + notification.widgetId());
         }
         if (isExpired(notification, now)) {
             state.notifications.remove(notification.widgetId());
