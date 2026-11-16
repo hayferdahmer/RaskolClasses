@@ -168,8 +168,7 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
         return new PlayerHudSnapshot.HealthView(HudValue.available(current), HudValue.available(maximum));
     }
 
-    private PlayerHudSnapshot.ResourceView readResource(
-            PlayerClass playerClass, Optional<ResourceSnapshot> snapshot) {
+    private PlayerHudSnapshot.ResourceView readResource(PlayerClass playerClass, Optional<ResourceSnapshot> snapshot) {
         if (playerClass == null || snapshot.isEmpty()) {
             return unavailableResource();
         }
