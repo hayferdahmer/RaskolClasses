@@ -4,6 +4,8 @@ package dev.raskol.classes.hud.channel;
 
 import java.util.UUID;
 
+import dev.raskol.classes.hud.snapshot.WidgetFrame;
+
 /** Узкий порт вывода HUD-owned каналов; реализация Paper работает только на main thread. */
 public interface HudChannelOutput {
 
@@ -14,7 +16,7 @@ public interface HudChannelOutput {
     void upsertBossBar(UUID playerId, String widgetId, String payload);
 
     /** Типизированный overload; старые output implementations сохраняют совместимость через payload. */
-    default void upsertBossBar(UUID playerId, String widgetId, dev.raskol.classes.hud.snapshot.WidgetFrame frame) {
+    default void upsertBossBar(UUID playerId, String widgetId, WidgetFrame frame) {
         upsertBossBar(playerId, widgetId, frame.payload());
     }
 

@@ -168,6 +168,41 @@ class HudChannelCoordinatorTest {
     }
 
     @Test
+    void bossBarPresentationMetadataReachesTheOutputAdapter() {
+        Harness harness = new Harness();
+        UUID playerId = UUID.randomUUID();
+        BossBarPresentation presentation = new BossBarPresentation(
+                0.35,
+                BossBarPresentation.Color.PURPLE,
+                BossBarPresentation.Style.SEGMENTED_10,
+                java.util.Set.of(BossBarPresentation.Flag.DARKEN_SKY));
+
+        harness.coordinator.publish(
+                playerId,
+                snapshot(playerId),
+                List.of(new WidgetFrame(
+                        "effect:stealth",
+                        "BOSS_BAR",
+                        10,
+                        "stealth",
+                        OptionalLong.empty(),
+                        java.util.Optional.of(presentation))));
+
+        assertEquals(presentation, harness.output.bossBarPresentations.get(playerId).get("effect:stealth"));
+    }
+
+    @Test
+    void bossBarPresentationRejectsInvalidProgress() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new BossBarPresentation(
+                        1.01,
+                        BossBarPresentation.Color.RED,
+                        BossBarPresentation.Style.SOLID,
+                        java.util.Set.of()));
+    }
+
+    @Test
     void expiredWidgetFramesAreNotPublishedAndAreRemovedOnTick() {
         Harness harness = new Harness();
         UUID playerId = UUID.randomUUID();
@@ -310,6 +345,8 @@ class HudChannelCoordinatorTest {
         private final java.util.Map<UUID, java.util.Map<String, String>> bossBars = new java.util.HashMap<>();
         private final java.util.Map<UUID, String> actionBars = new java.util.HashMap<>();
         private final List<String> removedBossBars = new ArrayList<>();
+        private final java.util.Map<UUID, java.util.Map<String, BossBarPresentation>> bossBarPresentations =
+                new java.util.HashMap<>();
         private int actionBarWrites;
         private int clearPlayerCalls;
         private int clearAllCalls;
@@ -341,12 +378,28 @@ class HudChannelCoordinatorTest {
         }
 
         @Override
+        public void upsertBossBar(UUID playerId, String widgetId, WidgetFrame frame) {
+            frame.bossBarPresentation().ifPresent(presentation ->
+                    bossBarPresentations.computeIfAbsent(playerId, ignored -> new java.util.HashMap<>())
+                            .put(widgetId, presentation));
+            upsertBossBar(playerId, widgetId, frame.payload());
+        }
+
+        @Override
         public void removeBossBar(UUID playerId, String widgetId) {
             java.util.Map<String, String> playerBars = bossBars.get(playerId);
             if (playerBars != null) {
                 playerBars.remove(widgetId);
                 if (playerBars.isEmpty()) {
                     bossBars.remove(playerId);
+            bossBarPresentations.remove(playerId);
+                }
+            }
+            java.util.Map<String, BossBarPresentation> presentations = bossBarPresentations.get(playerId);
+            if (presentations != null) {
+                presentations.remove(widgetId);
+                if (presentations.isEmpty()) {
+                    bossBarPresentations.remove(playerId);
                 }
             }
             removedBossBars.add(widgetId);
@@ -364,6 +417,7 @@ class HudChannelCoordinatorTest {
             clearAllCalls++;
             actionBars.clear();
             bossBars.clear();
+            bossBarPresentations.clear();
         }
     }
 
