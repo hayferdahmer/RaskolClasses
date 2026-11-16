@@ -6,9 +6,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-import dev.raskol.classes.hud.application.HudCoordinator;
-
 import dev.raskol.classes.hud.HudService;
+import dev.raskol.classes.hud.application.HudCoordinator;
 import dev.raskol.classes.hud.channel.HudChannelCoordinator;
 
 /** Адаптер очистки per-player состояния legacy ActionBar HUD. */

@@ -27,8 +27,7 @@ class ResourceSnapshotTest {
         assertThrows(IllegalArgumentException.class, () -> new ResourceSnapshot(-1.0, 100.0, false));
         assertThrows(IllegalArgumentException.class, () -> new ResourceSnapshot(Double.NaN, 100.0, false));
         assertThrows(
-                IllegalArgumentException.class,
-                () -> new ResourceSnapshot(Double.POSITIVE_INFINITY, 100.0, false));
+                IllegalArgumentException.class, () -> new ResourceSnapshot(Double.POSITIVE_INFINITY, 100.0, false));
     }
 
     @Test

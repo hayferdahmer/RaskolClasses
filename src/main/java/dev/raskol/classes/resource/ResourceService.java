@@ -126,9 +126,8 @@ public final class ResourceService implements Listener {
             throw new IllegalStateException("ResourceState содержит некорректное значение для " + uuid);
         }
         current = Math.min(current, effectiveMax);
-        long combatWindowMillis = playerClass == null
-                ? 0L
-                : Math.max(0L, config.combatWindowSeconds(playerClass)) * 1000L;
+        long combatWindowMillis =
+                playerClass == null ? 0L : Math.max(0L, config.combatWindowSeconds(playerClass)) * 1000L;
         boolean inCombat = state != null && combatWindowMillis > 0L && state.isInCombat(combatWindowMillis);
         return new ResourceSnapshot(current, effectiveMax, inCombat);
     }

@@ -85,16 +85,14 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
         PlayerClass playerClass = classProvider.getClassOf(player);
         PlayerHudSnapshot.CharacterView character = readCharacter(playerId, playerClass);
         PlayerHudSnapshot.HealthView health = readHealth(player, playerClass);
-        ResourceSnapshot resourceSnapshot =
-                playerClass == null ? null : resources.readSnapshot(playerId, playerClass);
+        ResourceSnapshot resourceSnapshot = playerClass == null ? null : resources.readSnapshot(playerId, playerClass);
         PlayerHudSnapshot.ResourceView resource = readResource(playerClass, resourceSnapshot);
         PlayerHudSnapshot.AttributeView attributeView = readAttributes(playerId, playerClass);
         List<PlayerHudSnapshot.EffectView> effectViews = readEffects(playerId);
         List<PlayerHudSnapshot.DotView> dotViews = readDots(playerId, capturedAtMillis);
 
-        HudValue<Boolean> inCombat = resourceSnapshot == null
-                ? HudValue.unavailable()
-                : HudValue.available(resourceSnapshot.inCombat());
+        HudValue<Boolean> inCombat =
+                resourceSnapshot == null ? HudValue.unavailable() : HudValue.available(resourceSnapshot.inCombat());
 
         return new PlayerHudSnapshot(
                 playerId,
