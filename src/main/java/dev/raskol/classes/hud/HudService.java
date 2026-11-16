@@ -199,9 +199,7 @@ public final class HudService {
             return;
         }
         Component rendered = render(pc, valueInt, filled, spark, dotsComponent);
-        if (channelCoordinator == null) {
-            player.sendActionBar(rendered);
-        } else {
+        if (channelCoordinator != null) {
             channelCoordinator.upsertPersistentFrame(
                     id,
                     new WidgetFrame(
