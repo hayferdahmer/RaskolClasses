@@ -4,6 +4,7 @@ package dev.raskol.classes.resource;
 
 import java.io.File;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -117,11 +118,14 @@ public final class ResourceService implements Listener {
      * Возвращает read-only проекцию ресурса без создания ResourceState и без изменения его потолка.
      * Используется HUD snapshot capture, чтобы чтение presentation data не мутировало игровое состояние.
      */
-    public ResourceSnapshot readSnapshot(UUID uuid, PlayerClass playerClass) {
+    public Optional<ResourceSnapshot> readSnapshot(UUID uuid, PlayerClass playerClass) {
         java.util.Objects.requireNonNull(uuid, "uuid");
         ResourceState state = states.get(uuid);
+        if (state == null) {
+            return Optional.empty();
+        }
         double effectiveMax = effectiveMax(uuid, playerClass);
-        double current = state == null ? 0.0 : state.getValue();
+        double current = state.getValue();
         if (!Double.isFinite(current) || current < 0.0) {
             throw new IllegalStateException("ResourceState содержит некорректное значение для " + uuid);
         }
@@ -129,7 +133,7 @@ public final class ResourceService implements Listener {
         long combatWindowMillis =
                 playerClass == null ? 0L : Math.max(0L, config.combatWindowSeconds(playerClass)) * 1000L;
         boolean inCombat = state != null && combatWindowMillis > 0L && state.isInCombat(combatWindowMillis);
-        return new ResourceSnapshot(current, effectiveMax, inCombat);
+        return Optional.of(new ResourceSnapshot(current, effectiveMax, inCombat));
     }
 
     private double effectiveMax(UUID uuid, PlayerClass playerClass) {

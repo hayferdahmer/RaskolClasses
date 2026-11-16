@@ -85,14 +85,16 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
         PlayerClass playerClass = classProvider.getClassOf(player);
         PlayerHudSnapshot.CharacterView character = readCharacter(playerId, playerClass);
         PlayerHudSnapshot.HealthView health = readHealth(player, playerClass);
-        ResourceSnapshot resourceSnapshot = playerClass == null ? null : resources.readSnapshot(playerId, playerClass);
+        Optional<ResourceSnapshot> resourceSnapshot =
+                playerClass == null ? Optional.empty() : resources.readSnapshot(playerId, playerClass);
         PlayerHudSnapshot.ResourceView resource = readResource(playerClass, resourceSnapshot);
         PlayerHudSnapshot.AttributeView attributeView = readAttributes(playerId, playerClass);
         List<PlayerHudSnapshot.EffectView> effectViews = readEffects(playerId);
         List<PlayerHudSnapshot.DotView> dotViews = readDots(playerId, capturedAtMillis);
 
-        HudValue<Boolean> inCombat =
-                resourceSnapshot == null ? HudValue.unavailable() : HudValue.available(resourceSnapshot.inCombat());
+        HudValue<Boolean> inCombat = resourceSnapshot
+                .map(snapshot -> HudValue.available(snapshot.inCombat()))
+                .orElseGet(HudValue::unavailable);
 
         return new PlayerHudSnapshot(
                 playerId,
@@ -166,16 +168,17 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
         return new PlayerHudSnapshot.HealthView(HudValue.available(current), HudValue.available(maximum));
     }
 
-    private PlayerHudSnapshot.ResourceView readResource(PlayerClass playerClass, ResourceSnapshot snapshot) {
-        if (playerClass == null || snapshot == null) {
+    private PlayerHudSnapshot.ResourceView readResource(
+            PlayerClass playerClass, Optional<ResourceSnapshot> snapshot) {
+        if (playerClass == null || snapshot.isEmpty()) {
             return unavailableResource();
         }
         return new PlayerHudSnapshot.ResourceView(
                 HudValue.available(playerClass.name().toLowerCase(Locale.ROOT) + "_resource"),
                 HudValue.available(playerClass.getResourceName()),
                 HudValue.available(playerClass.getResourceSymbol()),
-                HudValue.available(snapshot.current()),
-                HudValue.available(snapshot.effectiveMax()));
+                HudValue.available(snapshot.orElseThrow().current()),
+                HudValue.available(snapshot.orElseThrow().effectiveMax()));
     }
 
     private PlayerHudSnapshot.AttributeView readAttributes(UUID playerId, PlayerClass playerClass) {
