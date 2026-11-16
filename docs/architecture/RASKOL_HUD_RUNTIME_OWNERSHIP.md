@@ -398,3 +398,33 @@ Tests cover dirty coalescing, refresh budget, fallback processing, provider retr
 Coordinator реализует `HudFramePublisher`, поэтому его можно передать в уже существующий `HudCoordinator` без изменения snapshot pipeline. Scoreboard отклоняется до отдельного решения о совместимости.
 
 Legacy producer migration намеренно не входит в этот commit. До неё старые writers остаются активными, а новый channel owner не создаётся в composition root. Это исключает скрытую смену текущего поведения и двойное управление каналами.
+
+
+## 24. HUD-C.4.1 — ActionBar producer migration и root wiring
+
+На feature branch выполнен первый ограниченный slice legacy migration.
+
+### Runtime wiring
+
+- `HudChannelCoordinator` создаётся в `RaskolClasses` composition root и использует `PaperHudChannelOutput`.
+- Существующий `HudRuntimeOwner` переиспользуется: его refresh callback выполняет legacy `HudService.tick()` и `HudChannelCoordinator.tick()`. Отдельная конкурирующая задача для TTL не добавлялась.
+- Runtime owner работает независимо от `hud.enabled` и `hp-display.mode`, чтобы срок жизни уведомлений обслуживался и в тех режимах, где class HUD не отображается.
+- Quit cleanup очищает per-player legacy state и весь channel-owned output; shutdown сначала останавливает cooldown notification producers и HP runtime, затем очищает HUD и закрывает coordinator.
+
+### Переведённые producers
+
+- `HudService` публикует постоянный class-resource/DoT кадр с ID `legacy-class-resource`, priority 40.
+- `HpBarService` публикует постоянный HP/resource кадр с ID `legacy-health-resource`, priority 50. HP math, STR regeneration, max-health modifier, restore callbacks и `health.yml` остаются во владении HpBarService.
+- `CooldownManager` публикует readiness notification с ID `cooldown-ready:<abilityId>`, priority 100 и TTL 3 секунды. При старте нового cooldown уведомление того же ability ID отменяется.
+- Legacy persistent frames имеют отдельный per-player registry и не стираются snapshot publication. Это transitional seam до подключения production HudSnapshotProvider.
+- Paper ActionBar output восстанавливает форматирование Adventure component из legacy serialized payload.
+
+### Границы
+
+- Legacy ActionBar writers больше не отправляют сообщения напрямую в production path; они публикуют кадры в coordinator.
+- `BossBarService` и `BossBarRuntimeOwner` пока остаются отдельным legacy path. Их перенос — следующий slice HUD-C.4.2.
+- Production `HudSnapshotProvider` и `HudCoordinator` пока не wired в root; текущая миграция не означает завершение unified snapshot pipeline.
+- Arbitration действует внутри RaskolClasses. Внешний плагин всё ещё может отправить собственный ActionBar; Paper API не предоставляет глобальную межплагинную блокировку канала.
+- Optional client-mod renderer остаётся отдельным будущим adapter. Протокол не реализуется до проверки репозитория клиентского мода.
+
+Проверки C4.1: CI на финальном HEAD и controlled Paper 26.2 / Java 25 smoke test должны быть завершены отдельно. Исторические промежуточные статусы в разделах 14–23 выше не следует трактовать как текущую wiring-схему.
