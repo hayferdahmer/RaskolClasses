@@ -8,7 +8,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -38,11 +37,8 @@ public final class ManaSoakedService {
         this.plugin = plugin;
     }
 
-    public BukkitTask start() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
-    }
-
-    private void tick() {
+    /** Выполняет один цикл проверки маны и резистов. */
+    public void tick() {
         if (!plugin.getConfig().getBoolean("resist.mana-soaked.enabled", true)) {
             return;
         }
@@ -76,6 +72,12 @@ public final class ManaSoakedService {
                 plugin.getResists().removeModifiersBySource(uuid, SOURCE);
             }
         }
+    }
+
+    /** Сбрасывает tracking-состояние после остановки периодического producer. */
+    public void clearTracking() {
+        mageIds.clear();
+        lastScanTick = -1L;
     }
 
     /** Полный проход по онлайну: добавить новых магов, снять модификаторы экс-магов. */

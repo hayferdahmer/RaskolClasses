@@ -13,10 +13,11 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 
 import io.papermc.paper.registry.RegistryAccess;
 import io.papermc.paper.registry.RegistryKey;
@@ -41,10 +42,11 @@ public final class HpAttributeSync implements Listener {
             .get(NamespacedKey.minecraft("max_health"));
 
     private final RaskolClasses plugin;
-    private BukkitTask sweepTask;
+    private final PlayerCallbackRuntimeOwner respawnCallbacks;
 
-    public HpAttributeSync(RaskolClasses plugin) {
+    public HpAttributeSync(RaskolClasses plugin, PlayerCallbackRuntimeOwner respawnCallbacks) {
         this.plugin = plugin;
+        this.respawnCallbacks = respawnCallbacks;
     }
 
     /** Установить ванильный MAX_HEALTH = carrier = min(formula, 1024). */
@@ -93,22 +95,26 @@ public final class HpAttributeSync implements Listener {
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        try {
+            respawnCallbacks.cancel(event.getPlayer().getUniqueId());
+        } catch (RuntimeException exception) {
+            plugin.getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "Не удалось отменить HP attribute respawn callback",
+                            exception);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onRespawn(PlayerRespawnEvent event) {
-        Bukkit.getScheduler().runTaskLater(plugin, () -> sync(event.getPlayer()), 2L);
-    }
-
-    /** Запустить периодический sweep (страховка от рассинхрона кэша). */
-    public void startSweep(long periodTicks) {
-        if (sweepTask != null) {
-            sweepTask.cancel();
-        }
-        sweepTask = Bukkit.getScheduler().runTaskTimer(plugin, this::syncAll, periodTicks, periodTicks);
-    }
-
-    public void stopSweep() {
-        if (sweepTask != null) {
-            sweepTask.cancel();
-            sweepTask = null;
-        }
+        UUID playerId = event.getPlayer().getUniqueId();
+        respawnCallbacks.schedule(playerId, 2L, id -> {
+            Player current = Bukkit.getPlayer(id);
+            if (current != null && current.isOnline()) {
+                sync(current);
+            }
+        });
     }
 }

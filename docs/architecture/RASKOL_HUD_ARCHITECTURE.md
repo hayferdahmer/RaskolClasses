@@ -1,0 +1,428 @@
+# RaskolHUD — встроенная HUD-подсистема RaskolClasses
+
+## Статус решения
+
+Зафиксировано в рамках проектирования RaskolClasses 1.16.0. HUD-A Source Inventory завершён; результаты и исходные SHA зафиксированы в [RASKOL_HUD_SOURCE_INVENTORY.md](RASKOL_HUD_SOURCE_INVENTORY.md).
+
+- Плагин: `RaskolClasses`
+- Подсистема: `RaskolHUD`
+- Целевая платформа: Paper 26.2 / Java 25
+- Размещение: внутренний модуль единого плагина и единого JAR
+- Целевой релиз: 1.16.0
+- Ветка проектирования: `refactor/a03-foundation-lifecycle`
+
+### Принятые решения пользователя
+
+| ID | Решение | Зафиксированное значение |
+|---|---|---|
+| H-01 | Визуальная философия | `raskol` — самостоятельная визуальная идентичность RASKOL |
+| H-02 | Технология отображения | `hybrid` — сочетание доступных серверных механизмов Paper |
+| H-03 | Масштаб первой версии | `full` — полноценная MMORPG-панель в рамках 1.16.0 |
+| H-04 | Политика Resource Pack | `optional` — расширенный фирменный визуал при установленном паке; функциональный fallback без него |
+
+Эти решения являются утверждёнными исходными ограничениями проектирования. Они не означают, что все детали визуального дизайна, ресурс-пака или конкретных виджетов уже согласованы.
+
+## 1. Назначение и границы ответственности
+
+RaskolHUD отвечает исключительно за представление игрового состояния игроку. Он не владеет игровыми характеристиками, здоровьем, ресурсами, уровнем, боевыми эффектами или состоянием цели.
+
+Источниками истины остаются соответствующие игровые подсистемы RaskolClasses. HUD получает согласованный read-only снимок состояния и отображает его.
+
+Обязательные свойства:
+
+- один плагин, один JAR, один конфигурационный контур и общий жизненный цикл RaskolClasses;
+- отсутствие отдельного плагина RaskolHUD;
+- отсутствие обязательной зависимости от BetterHUD;
+- отсутствие прямого изменения игровых данных из кода отображения;
+- сбой HUD не должен останавливать Character, Combat, Resources, Storage или другие игровые подсистемы;
+- отключение HUD не должно менять игровые механики и сохраняемые данные;
+- все Paper/Bukkit-вызовы отображения выполняются в допустимом серверном потоке.
+
+## 2. Референсы и правила использования
+
+### 2.1. Визуальный и функциональный референс — BetterHUD
+
+Основной референс: https://github.com/toxicity188/BetterHud
+
+Рассматривать как источник идей и примеров возможностей:
+
+- отображение текста, изображений и голов;
+- генерация и использование resource pack;
+- PNG-последовательности и анимации;
+- компоновка HUD-элементов;
+- API для подключения источников данных;
+- разделение определения HUD, данных игрока и механизма отображения.
+
+Лицензия репозитория — MIT: https://github.com/toxicity188/BetterHud/blob/master/LICENSE
+
+Лицензия BetterHUD сама по себе не означает автоматического разрешения копировать произвольные ресурсы, сторонние шрифты, изображения или зависимости. До заимствования исходного кода или ресурсов необходимо отдельно проверить конкретные файлы, лицензионные уведомления и требования к атрибуции. Предпочтительный путь — собственная реализация по изученным архитектурным идеям.
+
+### 2.2. Пример API-интеграции — BetterHud-MMOCore
+
+Пример Bukkit API addon: https://github.com/toxicity188/BetterHud-MMOCore
+
+Использовать как узкий архитектурный пример:
+
+- отдельный адаптер интеграции;
+- получение данных внешней игровой системы через API;
+- обработка событий перезагрузки/изменения состояния;
+- изоляция интеграционной логики от ядра HUD.
+
+Это пример интеграционного адаптера, а не шаблон для копирования всей внутренней архитектуры RaskolClasses. RaskolHUD остаётся внутренним модулем, поэтому внешний plugin dependency lifecycle из примера напрямую не переносится.
+
+## 3. Согласованные требования HUD-01—HUD-10
+
+- **HUD-01 — Internal module:** RaskolHUD является внутренней подсистемой RaskolClasses, не отдельным плагином.
+- **HUD-02 — Unified snapshot:** отображение строится на едином неизменяемом `PlayerHudSnapshot`, а не на множестве несогласованных прямых запросов к сервисам.
+- **HUD-03 — Health/display separation:** расчёт здоровья и синхронизация HP не смешиваются с кодом визуализации. Существующий HpBarService рассматривается как legacy presentation seam и подлежит инвентаризации перед объединением.
+- **HUD-04 — Independent widgets:** виджеты имеют независимые контракты, настройки, условия видимости и обработку ошибок.
+- **HUD-05 — Per-player visibility:** игрок может иметь индивидуальные настройки видимости поддерживаемых элементов.
+- **HUD-06 — Animations and notifications:** поддерживаются анимации, переходы и кратковременные уведомления без изменения доменного состояния.
+- **HUD-07 — Change-driven refresh:** обновление запускается изменениями данных; периодическая проверка допускается как ограниченный fallback для источников без событий.
+- **HUD-08 — PlaceholderAPI:** интеграция с PlaceholderAPI остаётся необязательной и изолированной адаптером. Отсутствие PlaceholderAPI не ломает HUD.
+- **HUD-09 — Unified config/themes:** единая конфигурационная модель HUD, профили/темы и настройки виджетов; значения валидируются до публикации.
+- **HUD-10 — No BetterHUD runtime dependency:** BetterHUD не требуется на сервере для работы RaskolHUD и не является runtime dependency.
+
+## 4. Целевая внутренняя архитектура
+
+Предлагаемая структура — модуль внутри существующего Modular Monolith:
+
+```text
+dev.raskol.classes
+└── hud
+    ├── api
+    │   ├── PlayerHudSnapshot
+    │   ├── HudWidget
+    │   └── HudVisibility
+    ├── application
+    │   ├── HudCoordinator
+    │   ├── HudSnapshotProvider
+    │   ├── HudRefreshPolicy
+    │   └── HudNotificationService
+    ├── domain
+    │   ├── HudProfile
+    │   ├── HudWidgetId
+    │   ├── HudTheme
+    │   └── HudState
+    ├── widget
+    │   ├── character
+    │   ├── resources
+    │   ├── target
+    │   ├── effects
+    │   ├── combat
+    │   └── progression
+    ├── presentation
+    │   ├── adapter
+    │   │   ├── ActionBarRenderer
+    │   │   ├── BossBarRenderer
+    │   │   ├── ScoreboardRenderer
+    │   │   └── ResourcePackRenderer
+    │   └── layout
+    ├── infrastructure
+    │   ├── config
+    │   ├── scheduler
+    │   └── integration
+    │       └── placeholderapi
+    └── lifecycle
+        └── HudRuntimeOwner
+```
+
+Это целевая логическая карта, а не требование создать все перечисленные пакеты заранее. Фактические границы уточняются после аудита текущих `HudService`, `BossBarService`, `HpBarService`, конфигурации и мест их вызова.
+
+### 4.1. PlayerHudSnapshot
+
+Единый immutable snapshot содержит только данные, необходимые для отображения. Предварительный состав:
+
+- UUID игрока и revision/timestamp снимка;
+- имя/класс/специализация/уровень персонажа;
+- текущий и требуемый опыт, прогресс уровня;
+- здоровье и максимум здоровья;
+- доступные классу ресурсы и их текущие/максимальные значения;
+- STR/AGI/INT и другие согласованные публичные характеристики;
+- выбранная цель и её доступные для отображения параметры;
+- активные эффекты, длительность и стаки;
+- боевые состояния и cooldown/readiness-индикаторы, если источник предоставляет безопасный read model;
+- состояние уведомлений;
+- эффективный профиль видимости и тема.
+
+Snapshot не должен содержать изменяемые ссылки на внутренние коллекции доменных сервисов, Bukkit Entity как долговременное состояние или ссылки, позволяющие HUD менять игровые данные. Для цели допустим краткоживущий идентификатор/проекция; доступ к Entity проверяется в presentation adapter на момент отображения.
+
+Snapshot публикуется атомарно и не должен смешивать значения разных revisions. Если какой-либо источник недоступен, соответствующее поле представляется как отсутствующее/неизвестное, а не подменяется выдуманным нулём.
+
+### 4.2. Поток данных
+
+1. Игровая подсистема изменяет своё состояние.
+2. Она публикует доменное событие либо обновляет свой read model.
+3. HudSnapshotProvider собирает актуальные данные через узкие query/read-only контракты.
+4. HudCoordinator помечает HUD игрока dirty и объединяет частые изменения.
+5. После throttling создаётся новый immutable PlayerHudSnapshot.
+6. Независимые виджеты преобразуют snapshot в presentation model.
+7. Выбранные renderer adapters отправляют изменения игроку через Paper API.
+8. Ошибка одного виджета/рендерера изолируется и диагностируется, не ломая остальные игровые подсистемы.
+
+Не следует опрашивать все сервисы каждый тик. Периодический fallback ограничен, конфигурируем и используется только там, где нет событийного источника.
+
+## 5. Гибридный механизм отображения
+
+H-02 означает не один универсальный канал, а выбор механизма под задачу.
+
+- **ActionBar:** короткие динамические значения, боевые уведомления и компактные статусы.
+- **BossBar:** выбранная цель, крупные ресурсные/прогресс-индикаторы и временные encounter-полосы; конфликтующие полосы должны управляться единым приоритетным арбитром.
+- **Scoreboard:** структурированная боковая панель, если её ограничения и совместимость с другими scoreboard-плагинами приемлемы.
+- **Resource pack / custom font glyphs:** фирменные иконки, рамки и визуальные элементы, если выбранная реализация требует клиентских ресурсов.
+- **Inventory GUI:** только для настройки/редактирования профиля HUD, не как постоянный боевой HUD.
+
+Ограничения:
+
+- не обещать произвольное свободное размещение элементов на экране стандартными средствами Paper;
+- не предполагать, что сервер может рисовать произвольные PNG поверх экрана без клиентской поддержки/ресурс-пака и конкретного механизма рендеринга;
+- Resource Pack имеет политику `optional`: он расширяет фирменный визуал, но не является условием работы RaskolHUD;
+- пакет версионируется, имеет проверяемый hash и понятную политику предложения, принятия, отказа и обновления;
+- при отсутствии, отказе или несовпадении версии Resource Pack RaskolHUD использует функциональный fallback на стандартные Paper/Adventure-каналы;
+- важные игровые данные и критичные уведомления нельзя делать доступными исключительно через custom glyph/resource-pack path;
+- не перезаписывать чужие scoreboard-команды/компоненты без явной стратегии совместимости;
+- все каналы имеют приоритеты и правила взаимного исключения, чтобы ActionBar/BossBar/Scoreboard не конфликтовали между собой.
+
+## 6. Полный функциональный охват 1.16.0
+
+H-03 = full означает, что к релизу 1.16.0 планируется законченная первая версия следующих групп виджетов:
+
+1. **Character frame:** имя/класс/специализация/уровень.
+2. **Health frame:** здоровье и максимум, корректная синхронизация с HP системой.
+3. **Class resource frame:** мана/энергия/ярость и классовые ресурсы — только те, которые действительно поддерживает класс.
+4. **Progression frame:** опыт, прогресс до следующего уровня, уведомление о повышении.
+5. **Target frame:** выбранная цель, здоровье и разрешённые к показу параметры.
+6. **Effects frame:** баффы, дебаффы, контрольные эффекты, стаки и оставшееся время.
+7. **Combat indicators:** доступные боевые состояния и уведомления, не подменяющие cooldown/ability mechanics.
+8. **Class/specialization widgets:** контекстные индикаторы для классов и специализаций, когда источник данных существует.
+9. **Notifications:** получение уровня, изменение специализации, важные игровые события и предупреждения.
+10. **HUD profile/settings:** включение/отключение отдельных виджетов, тема и персональные настройки.
+
+Full — это функциональный scope, а не обещание реализовать все элементы только через один визуальный канал или добавить несуществующие клиентские возможности.
+
+## 7. Совместимость с существующими сервисами
+
+На момент архитектурного решения в RaskolClasses уже присутствуют:
+
+- `HudService`;
+- `BossBarService`;
+- `HpBarService`.
+
+Их нельзя удалять или объединять механически. Перед реализацией требуется:
+
+1. инвентаризировать публичные методы и все call sites;
+2. зафиксировать текущие режимы ActionBar/BossBar/HP и конфигурационные ключи;
+3. сохранить поведение и совместимость конфигов;
+4. проверить известные HUD-001 и HUD-002:
+   - `HudService.applyConfig()` должен корректно управлять запуском/остановкой task при смене режима;
+   - персональные maps должны очищаться при quit;
+5. определить единое владение задачами, listeners и scoreboard/bossbar handles;
+6. перенести реализацию за новые контракты небольшими проверяемыми шагами.
+
+Существующие классы могут временно стать адаптерами нового HUD-модуля. Нельзя допустить двух параллельных владельцев одной BossBar/ActionBar/Scoreboard-сущности.
+
+## 8. Конфигурация и персонализация
+
+Целевая конфигурация должна поддерживать:
+
+- глобальное включение HUD;
+- включение отдельных виджетов;
+- выбор темы;
+- приоритеты и каналы отображения;
+- частоту fallback refresh и coalescing;
+- поведение resource pack;
+- персональные настройки игрока;
+- безопасные defaults и миграции.
+
+Точные YAML-ключи, схема хранения пользовательских профилей и формат resource pack пока не утверждены. Нельзя вводить несовместимые изменения существующих YAML-конфигов без отдельной миграции и тестов.
+
+## 9. Lifecycle и отказоустойчивость
+
+RaskolHUD следует интегрировать в общий lifecycle RaskolClasses как presentation ownership module, когда будет готова соответствующая граница A-03.
+
+- initialize: прочитать и проверить конфигурацию, собрать immutable config snapshot;
+- register: зарегистрировать события и необязательные integration hooks;
+- start: активировать coordinator и разрешённые refresh tasks;
+- stop: прекратить публикацию/обновления, удалить отображаемые элементы и отменить принадлежащие HUD задачи;
+- close: освободить listener/task/resource handles; повторное закрытие безопасно.
+
+HUD не владеет AsyncStorageWriter и не должен закрывать общее хранилище. Ошибка HUD должна приводить к деградации отображения с диагностикой, а не к отключению RaskolClasses.
+
+## 10. Этапы реализации
+
+- **HUD-A — Source inventory:** аудит HudService, BossBarService, HpBarService, listeners, tasks, конфигов и всех call sites.
+- **HUD-B — Contracts:** PlayerHudSnapshot, widget/read-model contracts, visibility/profile contracts.
+- **HUD-C — Runtime ownership:** HudCoordinator, task/listener ownership, coalescing и lifecycle.
+- **HUD-D — Render adapters:** ActionBar, BossBar, Scoreboard и resource-pack/custom-font path.
+- **HUD-E — Core widgets:** character, health, resources, progression, target, effects, combat.
+- **HUD-F — Personalization:** индивидуальная видимость, темы, настройки и GUI.
+- **HUD-G — Integrations:** необязательный PlaceholderAPI adapter и внутренние query/event contracts.
+- **HUD-H — Verification:** unit/integration tests, конфигурационная миграция, нагрузочные проверки и тестирование на Paper 26.2.
+
+HUD-A/B можно начинать после определения необходимых seams в A-03. Полная реализация и интеграция должны завершиться до выпуска либо в составе релиза 1.16.0. Стабильная 1.15.8 не получает незапрошенных изменений.
+
+## 11. Критерии приёмки
+
+- [ ] RaskolHUD поставляется внутри RaskolClasses одним JAR.
+- [ ] Нет обязательной runtime-зависимости BetterHUD.
+- [ ] H-01/H-02/H-03 соблюдены.
+- [ ] Все игровые данные поступают через read-only contracts/snapshot.
+- [ ] Snapshot неизменяем, согласован по revision и безопасен к публикации.
+- [ ] Виджеты независимы и настраиваются индивидуально.
+- [ ] Работают character, health, class resources, progression, target, effects, combat и notifications.
+- [ ] Реализованы персональные настройки и темы.
+- [ ] PlaceholderAPI остаётся необязательной интеграцией.
+- [ ] Обновления не создают постоянный опрос всех сервисов каждый тик.
+- [ ] Нет утечек задач, listeners, BossBar, scoreboard/team и per-player state при quit/disable/reload.
+- [ ] Ошибка HUD не ломает игровые подсистемы.
+- [ ] Существующие YAML/PDC/API contracts сохранены либо мигрированы с тестами.
+- [ ] Проверены HUD-001 и HUD-002.
+- [ ] Проверены совместимость и поведение на Paper 26.2 / Java 25.
+
+## 12. Что ещё не утверждено
+
+Отдельного решения пока требуют:
+
+- окончательный визуальный макет и компоновка экранных зон;
+- точная политика конфликтов с чужими Scoreboard/BossBar системами;
+- какие данные target frame разрешено показывать для игроков, мобов и NPC;
+- UX-механизм явного выбора/снятия locked target;
+- точные YAML-ключи и формат персональных профилей;
+- конкретные event/query contracts каждого виджета.
+
+Эти вопросы не меняют уже принятые H-01, H-02 и H-03.
+
+
+## 13. Результат HUD-A Source Inventory
+
+Аудит существующих исходников завершён без изменений runtime-кода. Установлено, что текущие обязанности распределены между тремя разными по смыслу реализациями: HudService (ресурсный ActionBar), BossBarService (BossBar активных эффектов) и HpBarService (HP runtime, healing, persistence и частично presentation). HpBarService не является чистым HUD-модулем и должен сохранять совместимую HP facade. Обнаружены source-level проблемы reload/task ownership и per-player cleanup. Подробности, call-site примеры, конфигурационные ключи, риски и SHA файлов приведены в [RASKOL_HUD_SOURCE_INVENTORY.md](RASKOL_HUD_SOURCE_INVENTORY.md).
+
+HUD-B.1 уточнил read contracts и правила snapshot. Отдельно зафиксировано, что текущий CharacterLevelService AuraSkills-backed не может быть источником уровня в 1.16.0, а выбранная target entity не имеет единого владельца в текущем коде. Контракты и поля описаны в [RASKOL_HUD_DATA_CONTRACTS.md](RASKOL_HUD_DATA_CONTRACTS.md).
+
+**Следующий этап:** HUD-B.2 — Snapshot Schema и HUD-B.3 — Widget Contracts. Runtime implementation пока не начиналась.
+
+
+## 14. HUD-B.2/B.3 — Snapshot и widget contracts
+
+Предложена единая immutable схема PlayerHudSnapshot с явными DataStatus, typed views для Character/Health/Resource/Attributes/Target/Effects/DoT/Combat/Profile и отдельным каналом одноразовых уведомлений. Виджеты возвращают presentation intents, а единый HudChannelCoordinator управляет конкуренцией ActionBar, BossBar и Scoreboard. Подробная схема, правила неизвестных значений, expiry и канального ownership находятся в [RASKOL_HUD_DATA_CONTRACTS.md](RASKOL_HUD_DATA_CONTRACTS.md).
+
+Решение H-04 по Resource Pack принято: `optional`. Оно добавлено в таблицу решений и раздел 5. Политика fallback обязательна: все важные данные остаются читаемыми через стандартные серверные каналы без клиентского пакета.
+
+Открытыми остаются UX-механизм явного выбора locked target и политика конфликтов Scoreboard/BossBar с внешними плагинами. Семантика Target Frame утверждена как Locked Target. Они не блокируют проектирование общего runtime owner.
+
+
+## 15. H-04 — Resource Pack policy
+
+**Принято пользователем: `optional`.**
+
+- Resource Pack не обязателен для входа на сервер и не является runtime dependency RaskolClasses.
+- При наличии согласованной версии пакета HUD может использовать custom glyphs, рамки, иконки и фирменные assets.
+- При отказе, отсутствии или несовпадении пакета сохраняется функциональный fallback на стандартные Paper/Adventure-каналы.
+- Здоровье, ресурсы, прогресс, target information и критичные уведомления нельзя делать доступными исключительно через custom glyphs.
+- Версия, hash, URL/механизм доставки, prompt policy и поведение при отказе будут отдельными configuration/release contracts; точные YAML-ключи пока не утверждены.
+
+## 16. HUD-B/HUD-C — статус
+
+HUD-B.1–B.3: read contracts, immutable snapshot, widget intents и channel ownership описаны. H-04 принят. HUD-C runtime ownership design вынесен в [RASKOL_HUD_RUNTIME_OWNERSHIP.md](RASKOL_HUD_RUNTIME_OWNERSHIP.md).
+
+До реализации остаются: UX-механизм явного выбора цели, внешняя Scoreboard/BossBar compatibility policy и source-level characterization текущих задач/listeners. Runtime-код на этом этапе не менялся.
+
+
+## 17. H-05 — Target Frame semantics
+
+**Принято пользователем: вариант 2 — Locked Target.**
+
+Target Frame показывает последнюю явно выбранную/зафиксированную игроком цель, а не сущность под прицелом в текущий момент. Наведение камеры на другую сущность само по себе не переключает цель. Цель сохраняется до явного переключения/снятия выбора либо до автоматической инвалидизации (сущность больше не существует/не доступна по правилам мира, игрок вышел или сессия завершена). Точный способ выбора цели (команда, GUI, keybind через поддерживаемый клиентский механизм или иной серверный UX) пока не утверждён. Не предполагать наличие client-side keybind без клиентского мода.
+
+Целевой selection state должен иметь отдельного владельца в targeting/application domain; RaskolHUD только читает TargetHudReadPort и не реализует выбор/блокировку цели внутри renderer. Crosshair/raycast target может использоваться как вспомогательный preview в будущем, но не заменяет locked target и не меняет его автоматически.
+
+
+
+## 18. H-05 — Locked Target
+
+**Принято пользователем: вариант 2 — Locked Target.** HUD показывает последнюю явно выбранную цель; движение прицела не переключает её автоматически. Выбор и очистка принадлежат отдельному targeting/application owner, а HUD читает immutable `TargetView`. Основной UX выбора по H-06 — ПКМ по допустимому существу; очистка и переключение остаются отдельными явными действиями. Клиентский мод или keybind не предполагается.
+
+## 19. H-06 — Target selection interaction
+
+**Принято пользователем: выбор цели правой кнопкой мыши по существу.**
+
+- ПКМ по допустимому существу явно фиксирует его как текущую цель игрока.
+- Движение камеры/прицела без нового действия не меняет locked target.
+- Снятие цели и переключение остаются отдельными явными действиями; команды `/target clear`, `/target next` и `/target nearest` рассматриваются как базовые UX-кандидаты.
+- Серверная реализация должна использовать доступные Paper/Bukkit interaction events и проверять допустимость цели, мир/дистанцию, состояние игрока и права/правила PvP/PvE.
+- Нельзя обещать универсальное распознавание «ПКМ по любой сущности»: необходимо проверить фактическое покрытие событий для living entities, NPC-плагинов и отменённых взаимодействий.
+- Target selection принадлежит отдельному targeting/application owner. HUD только читает immutable TargetView.
+- Если действие ПКМ конфликтует с предметами/блоками или другим плагином, приоритет и исключения должны быть определены тестами и конфигурацией, а не решаться внутри renderer.
+
+Результат HUD-C.1.4 зафиксирован в [RASKOL_HUD_TARGET_INTERACTION_SPIKE.md](RASKOL_HUD_TARGET_INTERACTION_SPIKE.md): выбран `PlayerInteractAtEntityEvent`, `MONITOR`, `ignoreCancelled = true`, только main hand, без отмены/изменения события. Runtime-реализация и controlled Paper 26.2 test остаются следующими отдельными воротами.
+
+
+
+## 20. Актуальный статус HUD-C на feature branch
+
+Ранее записанные разделы 13–19 отражают исторические design decisions и промежуточные milestones. Текущий source of truth по выполненному runtime ownership — раздел 22 в [RASKOL_HUD_RUNTIME_OWNERSHIP.md](RASKOL_HUD_RUNTIME_OWNERSHIP.md) и раздел 9 в [RASKOL_HUD_SOURCE_INVENTORY.md](RASKOL_HUD_SOURCE_INVENTORY.md).
+
+Уже подключены legacy runtime owners для ActionBar HUD, BossBar и HP listener/tick. Это решает ownership задач и часть reload/quit lifecycle, но **не означает**, что реализованы unified snapshot, widget registry, channel arbitration или новые renderers.
+
+Следующий этап — **HUD-C.2: immutable snapshot pipeline и coordinator core**. Затем HUD-C.3 channel ownership/arbitration, далее миграция legacy producers. Целевые продуктовые решения H-01–H-06, единый PlayerHudSnapshot, independent widgets, optional Resource Pack и Locked Target остаются действующими; этот source reconciliation не меняет их.
+
+
+## 21. HUD-C.3 — Channel arbitration
+
+HUD-C.3 вводит единый presentation ownership seam между immutable widget frames и Paper output:
+- ActionBar — один победитель по priority/sequence/stable ID;
+- transient notifications имеют отдельный TTL и не теряются при обновлении snapshot;
+- после expiry/cancel восстанавливается нижележащий persistent frame;
+- BossBar допускает несколько полос, принадлежащих RaskolHUD по stable widget ID;
+- Scoreboard остаётся fail-fast disabled до решения о внешней совместимости.
+
+Текущие legacy producers пока не мигрированы и сохраняют прежний runtime path. Их подключение к новому owner — отдельный этап после проверки coordinator.
+
+
+## 22. Optional client-mod renderer — продуктовый принцип
+
+Пользователь отдельно разрабатывает клиентский мод RaskolHUD. Он является **необязательным отдельным артефактом**, который игрок сможет скачать и установить самостоятельно.
+
+Архитектурные ограничения:
+
+- RaskolClasses Server Core остаётся единственным источником истины для HP, ресурсов, характеристик, эффектов, цели, прогрессии и боевых правил.
+- Клиентский мод отвечает только за отображение и локальные визуальные эффекты. Он не рассчитывает и не изменяет игровые значения.
+- Без мода игрок получает полноценный функциональный fallback через стандартные серверные каналы Paper/Minecraft.
+- При обнаружении совместимого мода сервер сможет выбрать расширенный клиентский renderer; при отсутствии мода, несовместимой версии или потере handshake используется vanilla fallback.
+- Клиентский мод не становится hard dependency в `plugin.yml`, не требуется для входа на сервер и не влияет на доступ к игровым механикам.
+- Передача данных в мод будет ограничена явной display-safe проекцией. Нельзя отправлять внутренние объекты сервисов, скрытые данные или данные, не предназначенные конкретному игроку.
+- Версионированный capability handshake, channel ID, wire format, reconnect и fallback policy будут согласованы отдельно после проверки исходников/API клиентского мода. До этого не фиксировать выдуманный протокол и не добавлять speculative networking code.
+- Optional Resource Pack остаётся независимой возможностью: мод не делает Resource Pack обязательным, а Resource Pack не заменяет клиентский мод.
+
+Таким образом, целевой продукт имеет два режима: vanilla HUD без дополнительных установок и расширенный RaskolHUD при добровольной установке клиентского мода. Server Core и read model должны быть общими для обоих режимов.
+
+
+## 23. HUD-C.4 — Legacy producer migration complete
+
+ActionBar и BossBar legacy producers теперь публикуют frames в единый `HudChannelCoordinator`.
+
+- `HudService`: class resource/DoT ActionBar frame.
+- `HpBarService`: HP/resource ActionBar frame; gameplay HP calculations и `health.yml` остаются в сервисе.
+- `CooldownManager`: readiness ActionBar notifications с TTL.
+- `BossBarService`: per-effect BossBar frames со стабильными IDs; Paper BossBar handles принадлежат `PaperHudChannelOutput`.
+- `BossBarPresentation` задаёт platform-neutral progress, color, style и flags; `WidgetFrame` переносит metadata до Paper adapter.
+- `BossBarRuntimeOwner` останавливается до закрытия channel coordinator; ActionBar TTL обслуживается существующим `HudRuntimeOwner`.
+
+HUD-C.4 закрыл legacy producer migration, а HUD-C.5 подключил production `PaperHudSnapshotProvider` и `HudCoordinator` к composition root. Read model пока не создаёт новые frames: registry намеренно пустой до реализации built-in widgets. Optional client-mod renderer остаётся отдельным будущим adapter; его протокол не придумывается до просмотра исходников клиентского мода.
+
+
+## 24. HUD-C.5 — Production snapshot read model
+
+- `PaperHudSnapshotProvider` собирает единый immutable snapshot на Paper main thread и отклоняет capture вне main thread или для offline UUID.
+- Подключены class/spec identity, formula HP, resource, STR/AGI/INT, active effects, DoT и combat state.
+- `ResourceService.readSnapshot` — read-only projection: отсутствующий runtime state даёт `Optional.empty`, resource state не создаётся и не мутируется ради отображения.
+- Неиспользуемые или пока не подключённые источники обозначаются явно: character level/XP — UNAVAILABLE до RPG Core progression read contract; Locked Target — UNAVAILABLE до production targeting adapter; combat expiry — UNAVAILABLE до публикации timestamp источником.
+- `HudCoordinator` подключён к root с round-robin budget 64 players per HUD refresh cycle. Текущий production path использует bounded fallback; event-driven dirty invalidation остаётся следующим улучшением.
+- Quit и shutdown очищают snapshot state; coordinator закрывается до channel owner.
+- Registry пока пустой, поэтому C.5 не меняет визуальный HUD и не отключает legacy frames.
+- Optional client mod остаётся независимым renderer target; сетевой протокол не входит в C.5.
+
+
+### Проверка HUD-C.5
+
+Кодовый HEAD `d555e5afbf448bda2020200615673814e0d223c1`: 721 tests passed, 0 failures/errors/skipped; SpotBugs 0; Spotless 512 Java files clean; license headers passed. [Build + Analyze](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43964002393). Live Paper 26.2 / Java 25 staging smoke test не выполнен.

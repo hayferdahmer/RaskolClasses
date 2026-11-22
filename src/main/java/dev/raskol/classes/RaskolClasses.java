@@ -4,15 +4,11 @@ package dev.raskol.classes;
 
 import java.io.File;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.ability.AbilityRegistry;
 import dev.raskol.classes.ability.CooldownManager;
@@ -20,64 +16,119 @@ import dev.raskol.classes.ability.HunterAbilities;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.ability.passive.PassiveListener;
+import dev.raskol.classes.ability.runtime.CooldownRuntimeOwner;
+import dev.raskol.classes.ability.runtime.PaperCooldownRuntimeRegistration;
 import dev.raskol.classes.api.combat.CombatProfileLifecycleListener;
 import dev.raskol.classes.api.combat.CombatProfileRegistry;
 import dev.raskol.classes.api.combat.EntityLevelProvider;
 import dev.raskol.classes.api.items.ItemsApi;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.HpAttributeSync;
+import dev.raskol.classes.attribute.runtime.HpAttributeSyncRuntimeOwner;
+import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncRegistration;
+import dev.raskol.classes.attribute.runtime.PaperHpAttributeSyncScheduler;
 import dev.raskol.classes.bootstrap.PluginTasks;
 import dev.raskol.classes.bootstrap.SessionListener;
 import dev.raskol.classes.bootstrap.StartupChecks;
+import dev.raskol.classes.bootstrap.lifecycle.ShutdownAwareCompletionDispatcher;
+import dev.raskol.classes.bootstrap.lifecycle.ShutdownStepRunner;
+import dev.raskol.classes.bootstrap.runtime.AutosaveRuntimeOwner;
+import dev.raskol.classes.bootstrap.runtime.PaperAutosaveTaskScheduler;
+import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
+import dev.raskol.classes.bootstrap.runtime.PaperPurgeTaskScheduler;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
+import dev.raskol.classes.bootstrap.runtime.PurgeRuntimeOwner;
+import dev.raskol.classes.cc.CCFeedback;
 import dev.raskol.classes.cc.CCGuard;
 import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.CastGuard;
 import dev.raskol.classes.cc.VanillaCCWrapper;
+import dev.raskol.classes.cc.runtime.CCFeedbackRuntimeOwner;
+import dev.raskol.classes.cc.runtime.CCRuntimeOwner;
+import dev.raskol.classes.cc.runtime.PaperCCFeedbackScheduler;
+import dev.raskol.classes.cc.runtime.PaperCCRuntimeRegistration;
+import dev.raskol.classes.cc.runtime.PaperCCTaskScheduler;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.combat.ResistService;
+import dev.raskol.classes.combat.dot.runtime.DotRuntimeOwner;
+import dev.raskol.classes.combat.dot.runtime.PaperDotRuntimeRegistration;
+import dev.raskol.classes.combat.dot.runtime.PaperDotTaskScheduler;
+import dev.raskol.classes.combat.runtime.ManaSoakedRuntimeOwner;
+import dev.raskol.classes.combat.runtime.PaperManaSoakedTaskScheduler;
+import dev.raskol.classes.combat.school.ElementalResistService;
 import dev.raskol.classes.command.RaskolCommand;
 import dev.raskol.classes.config.ConfigMigrator;
 import dev.raskol.classes.config.ConfigValidator;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.ActiveEffectManager;
 import dev.raskol.classes.flavor.CrownFlavorService;
+import dev.raskol.classes.flavor.runtime.FlavorRuntimeOwner;
+import dev.raskol.classes.flavor.runtime.PaperFlavorRuntimeRegistration;
+import dev.raskol.classes.flavor.runtime.PaperFlavorTaskScheduler;
 import dev.raskol.classes.foliant.FoliantService;
+import dev.raskol.classes.foliant.runtime.FoliantRuntimeOwner;
+import dev.raskol.classes.foliant.runtime.PaperFoliantRuntimeRegistration;
+import dev.raskol.classes.foliant.runtime.PaperFoliantRuntimeScheduler;
 import dev.raskol.classes.fx.FxService;
 import dev.raskol.classes.fx.TrailListener;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.gui.PlusGui;
 import dev.raskol.classes.hook.BlueprintHook;
 import dev.raskol.classes.hook.FactionHook;
-import dev.raskol.classes.hook.FlavorPlaceholder;
 import dev.raskol.classes.hook.PassportChangeListener;
 import dev.raskol.classes.hook.PlaceholderSnapshotService;
+import dev.raskol.classes.hook.runtime.PaperPlaceholderRuntimeRegistration;
+import dev.raskol.classes.hook.runtime.PaperPlaceholderRuntimeScheduler;
+import dev.raskol.classes.hook.runtime.PlaceholderRuntimeOwner;
 import dev.raskol.classes.hotbar.AbilityToken;
 import dev.raskol.classes.hotbar.BindListener;
 import dev.raskol.classes.hotbar.ScrollCooldownTask;
 import dev.raskol.classes.hotbar.ScrollSanitizer;
+import dev.raskol.classes.hotbar.runtime.PaperScrollCooldownTaskScheduler;
+import dev.raskol.classes.hotbar.runtime.ScrollCooldownRuntimeOwner;
 import dev.raskol.classes.hud.BossBarService;
 import dev.raskol.classes.hud.HpBarService;
 import dev.raskol.classes.hud.HudService;
+import dev.raskol.classes.hud.application.HudCoordinator;
+import dev.raskol.classes.hud.channel.HudChannelCoordinator;
+import dev.raskol.classes.hud.runtime.BossBarRuntimeOwner;
+import dev.raskol.classes.hud.runtime.HpBarRuntimeOwner;
+import dev.raskol.classes.hud.runtime.HudRuntimeOwner;
+import dev.raskol.classes.hud.runtime.HudServiceOutputCleanup;
+import dev.raskol.classes.hud.runtime.PaperBossBarTaskScheduler;
+import dev.raskol.classes.hud.runtime.PaperHpBarRuntimeRegistration;
+import dev.raskol.classes.hud.runtime.PaperHpBarTaskScheduler;
+import dev.raskol.classes.hud.runtime.PaperHudChannelOutput;
+import dev.raskol.classes.hud.runtime.PaperHudSessionEvents;
+import dev.raskol.classes.hud.runtime.PaperHudSnapshotProvider;
+import dev.raskol.classes.hud.runtime.PaperHudTaskScheduler;
+import dev.raskol.classes.hud.snapshot.HudFailureReporter;
+import dev.raskol.classes.hud.snapshot.HudWidgetRegistry;
 import dev.raskol.classes.install.InstallBindListener;
 import dev.raskol.classes.install.InstallToken;
 import dev.raskol.classes.install.InstallationService;
+import dev.raskol.classes.install.runtime.InstallationRuntimeOwner;
+import dev.raskol.classes.install.runtime.PaperInstallationTaskScheduler;
 import dev.raskol.classes.integrity.artifact.ArtifactBoundIntegrityVerifier;
 import dev.raskol.classes.integrity.policy.IntegrityFailurePolicy;
 import dev.raskol.classes.integrity.policy.RuntimeIntegrityEnforcementPolicy;
 import dev.raskol.classes.integrity.reporting.SecurityReporter;
-import dev.raskol.classes.integrity.runtime.RuntimeIntegrityMonitor;
+import dev.raskol.classes.integrity.runtime.RuntimeIntegrityRuntimeOwner;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegritySnapshot;
 import dev.raskol.classes.integrity.runtime.RuntimeIntegrityState;
-import dev.raskol.classes.integrity.runtime.RuntimeIntegrityStateManager;
-import dev.raskol.classes.integrity.runtime.RuntimeSecurityReporter;
 import dev.raskol.classes.integrity.verification.IntegrityVerificationResult;
 import dev.raskol.classes.item.service.ItemSystem;
 import dev.raskol.classes.pet.PetService;
+import dev.raskol.classes.pet.runtime.PaperPetRuntimeRegistration;
+import dev.raskol.classes.pet.runtime.PaperPetTaskScheduler;
+import dev.raskol.classes.pet.runtime.PetRuntimeOwner;
 import dev.raskol.classes.resource.ResourceService;
+import dev.raskol.classes.resource.runtime.PaperResourceTaskScheduler;
+import dev.raskol.classes.resource.runtime.ResourceRuntimeOwner;
 import dev.raskol.classes.spec.build.BuildTemplates;
 import dev.raskol.classes.spec.build.ImperialWallet;
 import dev.raskol.classes.spec.build.NullWallet;
@@ -125,12 +176,25 @@ public final class RaskolClasses extends JavaPlugin {
     private SkillLevelProvider skillLevels;
     private CharacterLevelService characterLevels;
     private ResourceService resources;
+    private ResourceRuntimeOwner resourceRuntimeOwner;
+    private ScrollCooldownTask scrollCooldownTask;
+    private ScrollCooldownRuntimeOwner scrollCooldownRuntimeOwner;
     private CooldownManager cooldowns;
+    private CooldownRuntimeOwner cooldownRuntimeOwner;
     private AbilityRegistry abilities;
     private ActiveEffectManager effects;
     private HudService hud;
+    private HudChannelCoordinator hudChannelCoordinator;
+    private HudRuntimeOwner hudRuntimeOwner;
+    private HudCoordinator hudCoordinator;
+    private HudWidgetRegistry hudWidgetRegistry;
     private BossBarService bossBars;
+    private BossBarRuntimeOwner bossBarRuntimeOwner;
     private HpBarService hpBarService;
+    private HpBarRuntimeOwner hpBarRuntimeOwner;
+    private HpAttributeSyncRuntimeOwner hpSyncRuntimeOwner;
+    private PlayerCallbackRuntimeOwner hpAttributeRespawnCallbacks;
+    private PlayerCallbackRuntimeOwner hpBarRespawnCallbacks;
     private AbilityToken tokens;
 
     /** 1.14.0: spec2-слой (деревья путей). */
@@ -139,12 +203,17 @@ public final class RaskolClasses extends JavaPlugin {
     /** Общая последовательная очередь дисковых снимков хранилищ. */
     private AsyncStorageWriter storageWriter;
 
+    /** Отслеживает отложенные пользовательские completion callbacks до выключения плагина. */
+    private ShutdownAwareCompletionDispatcher asyncCompletionDispatcher;
+
     private Spec2Service spec2Service;
     private Spec2EffectsApplier spec2Applier;
 
     private FactionHook factionHook;
     private CrownFlavorService flavorService;
+    private FlavorRuntimeOwner flavorRuntimeOwner;
     private PlaceholderSnapshotService placeholderSnapshots;
+    private PlaceholderRuntimeOwner placeholderRuntimeOwner;
 
     private ItemSystem items;
     private ItemsApi itemsApi;
@@ -152,15 +221,19 @@ public final class RaskolClasses extends JavaPlugin {
     private EntityLevelProvider entityLevelProvider;
     private BlueprintHook blueprintHook;
     private FoliantService foliantService;
+    private FoliantRuntimeOwner foliantRuntimeOwner;
+    private PlayerCallbackRuntimeOwner foliantTransitionCallbacks;
 
     private FxService fx;
 
     private InstallationService installations;
+    private InstallationRuntimeOwner installationRuntimeOwner;
     private InstallToken installToken;
 
     private ResistService resists;
     private CombatService combat;
     private ManaSoakedService manaSoaked;
+    private ManaSoakedRuntimeOwner manaSoakedRuntimeOwner;
     private ConfigValidator configValidator;
     private AttributeService attributes;
 
@@ -174,7 +247,13 @@ public final class RaskolClasses extends JavaPlugin {
     /** 1.14.6: пет-слой. */
     private PetService pets;
 
+    /** Единственный владелец listener и задач runtime петов. */
+    private PetRuntimeOwner petRuntimeOwner;
+
+    private DotRuntimeOwner dotRuntimeOwner;
     private CCService ccService;
+    private CCRuntimeOwner ccRuntimeOwner;
+    private CCFeedbackRuntimeOwner ccFeedbackRuntimeOwner;
     private CCGuard ccGuard;
     private CastGuard castGuard;
     private VanillaCCWrapper vanillaCCWrapper;
@@ -189,7 +268,9 @@ public final class RaskolClasses extends JavaPlugin {
     private volatile long lastPurgeMillis = System.currentTimeMillis();
     private final long enabledAtMillis = System.currentTimeMillis();
 
-    private final List<BukkitTask> activeTasks = new ArrayList<>();
+    private PurgeRuntimeOwner purgeRuntimeOwner;
+    private PurgeRuntimeOwner elementalResistPurgeRuntimeOwner;
+    private AutosaveRuntimeOwner autosaveRuntimeOwner;
 
     /** RIPS verifier shared by startup and runtime checks. */
     private ArtifactBoundIntegrityVerifier artifactBoundIntegrityVerifier;
@@ -198,7 +279,7 @@ public final class RaskolClasses extends JavaPlugin {
     private IntegrityVerificationResult integrityVerificationResult;
 
     /** RIPS runtime integrity monitor; started only after successful plugin initialization. */
-    private RuntimeIntegrityMonitor runtimeIntegrityMonitor;
+    private RuntimeIntegrityRuntimeOwner runtimeIntegrityRuntimeOwner;
 
     /** Runtime policy for classifying integrity failures. */
     private final RuntimeIntegrityEnforcementPolicy runtimeIntegrityEnforcementPolicy =
@@ -239,6 +320,21 @@ public final class RaskolClasses extends JavaPlugin {
             return;
         }
 
+        this.asyncCompletionDispatcher = new ShutdownAwareCompletionDispatcher(
+                getLogger(), task -> getServer().getScheduler().runTask(this, task));
+
+        PluginManager pluginManager = initializeConfiguration();
+        initializeCoreServices(pluginManager);
+        registerGameplayListeners(pluginManager);
+        registerOptionalIntegrations(pluginManager);
+        startRuntimeTasks();
+        finishStartup();
+    }
+
+    /**
+     * Загружает конфигурацию и выполняет ранние проверки до создания игровых сервисов.
+     */
+    private PluginManager initializeConfiguration() {
         this.raskolConfig = new RaskolConfig(this);
         ConfigMigrator.migrate148(this);
 
@@ -249,8 +345,11 @@ public final class RaskolClasses extends JavaPlugin {
         StartupChecks.logCoreVersion(this);
         StartupChecks.cleanupTmpFiles(this);
 
-        PluginManager pluginManager = getServer().getPluginManager();
+        return getServer().getPluginManager();
+    }
 
+    /** Создаёт игровые сервисы и принадлежащие им ранние задачи в исходном порядке. */
+    private void initializeCoreServices(PluginManager pluginManager) {
         this.classProvider = new ClassProvider(this, raskolConfig);
         if (!classProvider.isAvailable()) {
             getLogger().warning("LuckPerms не найден — определение классов отключено");
@@ -268,24 +367,57 @@ public final class RaskolClasses extends JavaPlugin {
         this.skillLevels = new SkillLevelProvider(this);
         this.characterLevels = new CharacterLevelService(this);
         this.resources = new ResourceService(this, raskolConfig, classProvider);
+        this.resourceRuntimeOwner = new ResourceRuntimeOwner(new PaperResourceTaskScheduler(this, resources::tick));
 
         classProvider.setResourceService(resources);
 
-        this.cooldowns = new CooldownManager(new File(getDataFolder(), "cooldowns.yml"), storageWriter);
+        this.hudChannelCoordinator = new HudChannelCoordinator(
+                new PaperHudChannelOutput(),
+                (playerId, stage, failure) -> getLogger()
+                        .log(
+                                java.util.logging.Level.WARNING,
+                                "[RaskolHUD] Ошибка channel output для " + playerId + " на этапе " + stage,
+                                failure),
+                System::currentTimeMillis);
+        this.cooldowns =
+                new CooldownManager(new File(getDataFolder(), "cooldowns.yml"), storageWriter, hudChannelCoordinator);
         this.cooldowns.attachScheduler(
                 this,
                 raskolConfig.isReadyNotifyEnabled(),
                 raskolConfig.readyNotifyMinCooldownSeconds(),
                 raskolConfig.readyNotifySoundKey(),
                 raskolConfig.readyNotifyMessage());
+        this.cooldownRuntimeOwner = new CooldownRuntimeOwner(
+                new PaperCooldownRuntimeRegistration(this, cooldowns), cooldowns::cancelAllTasks);
         this.effects = new ActiveEffectManager(this);
 
         this.abilities = new AbilityRegistry(this);
         abilities.loadFromConfig(raskolConfig);
         TreeAbilities.registerCasters(this, abilities);
 
-        this.hud = new HudService(this);
-        this.bossBars = new BossBarService(this);
+        this.hud = new HudService(this, hudChannelCoordinator);
+        long hudPeriod = Math.max(1L, raskolConfig.hudUpdatePeriodTicks());
+        this.hudRuntimeOwner = new HudRuntimeOwner(
+                new PaperHudTaskScheduler(this),
+                new PaperHudSessionEvents(this),
+                new HudServiceOutputCleanup(hud, hudChannelCoordinator, () -> hudCoordinator),
+                this::tickHudRuntime,
+                hudPeriod,
+                hudPeriod);
+        try {
+            hudRuntimeOwner.register();
+        } catch (RuntimeException exception) {
+            getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "Не удалось зарегистрировать HUD runtime; ActionBar HUD будет отключён",
+                            exception);
+        }
+        this.bossBars = new BossBarService(this, hudChannelCoordinator);
+        this.bossBarRuntimeOwner = new BossBarRuntimeOwner(
+                new PaperBossBarTaskScheduler(this, bossBars::tick),
+                () -> getRaskolConfig().bossBarTickPeriod(),
+                bossBars::clearBars);
         this.tokens = new AbilityToken(this);
 
         this.fx = new FxService(this);
@@ -296,13 +428,22 @@ public final class RaskolClasses extends JavaPlugin {
         if (getConfig().getBoolean("item.enabled", true)) {
             items.start();
         }
-        combat.dots().registerListeners();
-        activeTasks.add(combat.dots().startTickTask());
+        this.dotRuntimeOwner = new DotRuntimeOwner(
+                new PaperDotRuntimeRegistration(pluginManager, this, combat.dots()),
+                new PaperDotTaskScheduler(this),
+                combat.dots()::tick);
+        dotRuntimeOwner.start();
         this.manaSoaked = new ManaSoakedService(this);
+        this.manaSoakedRuntimeOwner = new ManaSoakedRuntimeOwner(
+                new PaperManaSoakedTaskScheduler(this, manaSoaked::tick), manaSoaked::clearTracking);
 
-        this.ccService = new CCService(this);
-        ccService.registerListeners();
-        activeTasks.add(ccService.startTickTask());
+        this.ccFeedbackRuntimeOwner = new CCFeedbackRuntimeOwner(new PaperCCFeedbackScheduler(this));
+        this.ccService = new CCService(this, new CCFeedback(ccFeedbackRuntimeOwner));
+        this.ccRuntimeOwner = new CCRuntimeOwner(
+                new PaperCCRuntimeRegistration(pluginManager, this, ccService),
+                new PaperCCTaskScheduler(this),
+                ccService::tick);
+        ccRuntimeOwner.start();
 
         this.ccGuard = new CCGuard(this);
         ccGuard.registerListeners();
@@ -317,10 +458,20 @@ public final class RaskolClasses extends JavaPlugin {
         configValidator.logSummary();
 
         this.attributes = new AttributeService(this);
-        this.hpSync = new HpAttributeSync(this);
-        pluginManager.registerEvents(hpSync, this);
-        hpSync.startSweep(100L);
-        this.hpBarService = new HpBarService(this);
+        this.hpAttributeRespawnCallbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(this));
+        this.hpSync = new HpAttributeSync(this, hpAttributeRespawnCallbacks);
+        hpSyncRuntimeOwner = new HpAttributeSyncRuntimeOwner(
+                new PaperHpAttributeSyncRegistration(pluginManager, this, hpSync),
+                new PaperHpAttributeSyncScheduler(this, hpSync),
+                100L);
+        hpSyncRuntimeOwner.start();
+        this.hpBarRespawnCallbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(this));
+        this.hpBarService = new HpBarService(this, hpBarRespawnCallbacks, hudChannelCoordinator);
+        this.hpBarRuntimeOwner = new HpBarRuntimeOwner(
+                new PaperHpBarRuntimeRegistration(pluginManager, this, hpBarService),
+                new PaperHpBarTaskScheduler(this),
+                hpBarService::tick,
+                () -> Math.max(1L, getConfig().getInt("hp-display.update-period-ticks", 10)));
 
         Spec2Points.configure(this);
 
@@ -329,6 +480,28 @@ public final class RaskolClasses extends JavaPlugin {
         this.spec2Service = new Spec2Service(this, spec2Storage);
         this.spec2Service.refreshDisabledCache();
         pluginManager.registerEvents(new Spec2RoleListener(this), this);
+
+        // Production read model собирается после инициализации всех игровых источников.
+        this.hudWidgetRegistry = new HudWidgetRegistry();
+        HudFailureReporter hudSnapshotFailureReporter = (playerId, stage, failure) -> getLogger()
+                .log(
+                        java.util.logging.Level.WARNING,
+                        "[RaskolHUD] Snapshot pipeline: " + stage + " для " + playerId,
+                        failure);
+        this.hudCoordinator = new HudCoordinator(
+                new PaperHudSnapshotProvider(
+                        getServer(),
+                        classProvider,
+                        attributes,
+                        resources,
+                        effects,
+                        combat.dots(),
+                        spec2Service,
+                        System::currentTimeMillis),
+                hudWidgetRegistry,
+                hudChannelCoordinator,
+                hudSnapshotFailureReporter,
+                64);
 
         ImperialWallet wallet = PlayerPointsWallet.tryCreate();
         if (wallet == null) {
@@ -349,28 +522,41 @@ public final class RaskolClasses extends JavaPlugin {
 
         this.factionHook = new FactionHook(this);
         this.flavorService = new CrownFlavorService(this, factionHook);
+        this.flavorRuntimeOwner = new FlavorRuntimeOwner(
+                new PaperFlavorRuntimeRegistration(pluginManager, this, flavorService),
+                new PaperFlavorTaskScheduler(this, flavorService::tickAura));
 
         this.installations = new InstallationService(this);
+        this.installationRuntimeOwner =
+                new InstallationRuntimeOwner(new PaperInstallationTaskScheduler(this, installations::sweep));
         this.installToken = new InstallToken(this);
 
-        this.foliantService = new FoliantService(this);
-        activeTasks.add(foliantService.startLockFlushTask());
+        this.foliantTransitionCallbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(this));
+        this.foliantService = new FoliantService(this, foliantTransitionCallbacks);
+        this.foliantRuntimeOwner = new FoliantRuntimeOwner(
+                new PaperFoliantRuntimeRegistration(pluginManager, this, foliantService),
+                new PaperFoliantRuntimeScheduler(this, foliantService::flushLocksIfDirty),
+                1200L);
+        foliantRuntimeOwner.start();
 
         this.warlockAbilities = WarlockAbilities.install(this);
 
         this.pets = new PetService(this);
-        pets.registerListeners();
-        activeTasks.add(pets.startTickTask());
-        activeTasks.add(pets.scheduleOrphanScan());
+        this.petRuntimeOwner = new PetRuntimeOwner(
+                new PaperPetRuntimeRegistration(this, pets), new PaperPetTaskScheduler(pets), pets::despawnAll);
+        petRuntimeOwner.start();
+    }
 
+    /** Регистрирует игровые listeners и синхронизирует уже подключённых игроков. */
+    private void registerGameplayListeners(PluginManager pluginManager) {
         pluginManager.registerEvents(resources, this);
         pluginManager.registerEvents(effects, this);
-        pluginManager.registerEvents(cooldowns, this);
+        cooldownRuntimeOwner.start();
         this.passiveListener = new PassiveListener(this);
         pluginManager.registerEvents(passiveListener, this);
         pluginManager.registerEvents(new ClassBook.ClickHandler(this), this);
         pluginManager.registerEvents(new BindListener(this, tokens), this);
-        pluginManager.registerEvents(flavorService, this);
+        flavorRuntimeOwner.register();
         pluginManager.registerEvents(new TrailListener(this), this);
         pluginManager.registerEvents(new InstallBindListener(this, installToken), this);
         pluginManager.registerEvents(combat, this);
@@ -378,9 +564,8 @@ public final class RaskolClasses extends JavaPlugin {
         pluginManager.registerEvents(combat.avoidance(), this);
         pluginManager.registerEvents(new HunterAbilities.FanArrowHit(this), this);
         pluginManager.registerEvents(new ScrollSanitizer(this), this);
-        pluginManager.registerEvents(hpBarService, this);
+        hpBarRuntimeOwner.register();
         pluginManager.registerEvents(fx, this);
-        pluginManager.registerEvents(foliantService, this);
         pluginManager.registerEvents(warlockAbilities, this);
 
         this.passportListener = new PassportChangeListener(this);
@@ -389,32 +574,73 @@ public final class RaskolClasses extends JavaPlugin {
         SessionListener sessions = new SessionListener(this);
         pluginManager.registerEvents(sessions, this);
         sessions.resyncOnline();
+    }
 
-        if (pluginManager.getPlugin("PlaceholderAPI") != null) {
-            this.placeholderSnapshots = new PlaceholderSnapshotService();
-            placeholderSnapshots.start(this);
-            new dev.raskol.classes.hook.RaskolPlaceholder(this, placeholderSnapshots).register();
-            new FlavorPlaceholder(this, placeholderSnapshots).register();
-            getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% " + "и %raskolcrown_*% зарегистрированы");
-        } else {
+    /** Подключает необязательные внешние интеграции. */
+    private void registerOptionalIntegrations(PluginManager pluginManager) {
+        if (pluginManager.getPlugin("PlaceholderAPI") == null) {
             getLogger().warning("PlaceholderAPI не найден: плейсхолдеры не регистрируются");
+            return;
         }
 
-        boolean hudEnabled = getConfig().getBoolean("hud.enabled", true);
-        boolean hpVanilla = "vanilla".equalsIgnoreCase(getConfig().getString("hp-display.mode", "actionbar"));
-        if (hudEnabled && hpVanilla) {
-            activeTasks.add(hud.start());
+        this.placeholderSnapshots = new PlaceholderSnapshotService();
+        this.placeholderRuntimeOwner = new PlaceholderRuntimeOwner(
+                () -> placeholderSnapshots.refreshOnlinePlayers(this),
+                placeholderSnapshots::clear,
+                new PaperPlaceholderRuntimeRegistration(this, placeholderSnapshots),
+                new PaperPlaceholderRuntimeScheduler(this, () -> placeholderSnapshots.refreshOnlinePlayers(this)));
+        try {
+            placeholderRuntimeOwner.start();
+            getLogger().info("PlaceholderAPI: плейсхолдеры %raskolclasses_*% и %raskolcrown_*% зарегистрированы");
+        } catch (RuntimeException exception) {
+            getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "PlaceholderAPI runtime не запущен; интеграция отключена",
+                            exception);
         }
-        activeTasks.add(hpBarService.start());
-        activeTasks.add(resources.startTickTask(this));
-        activeTasks.add(bossBars.start());
-        activeTasks.add(flavorService.startAuraTask());
-        activeTasks.add(installations.startSweepTask());
-        activeTasks.add(new ScrollCooldownTask(this).start());
-        activeTasks.add(manaSoaked.start());
-        activeTasks.add(PluginTasks.startPurgeTask(this));
-        activeTasks.add(PluginTasks.startAutosaveTask(this));
+    }
 
+    /** Запускает периодические задачи после регистрации listeners и интеграций. */
+    private void startRuntimeTasks() {
+        if (hudRuntimeOwner != null) {
+            try {
+                hudRuntimeOwner.register();
+                hudRuntimeOwner.start();
+            } catch (RuntimeException exception) {
+                getLogger()
+                        .log(
+                                java.util.logging.Level.WARNING,
+                                "Не удалось запустить HUD channel runtime; остальные игровые системы продолжат работу",
+                                exception);
+            }
+        }
+        hpBarRuntimeOwner.start();
+        resourceRuntimeOwner.start();
+        bossBarRuntimeOwner.start();
+        flavorRuntimeOwner.start();
+        installationRuntimeOwner.start();
+        scrollCooldownTask = new ScrollCooldownTask(this);
+        scrollCooldownRuntimeOwner = new ScrollCooldownRuntimeOwner(
+                new PaperScrollCooldownTaskScheduler(this, scrollCooldownTask::tick), scrollCooldownTask::clearCaches);
+        getLogger().info("ScrollCooldownTask v12 (durability-bar) active");
+        scrollCooldownRuntimeOwner.start();
+        manaSoakedRuntimeOwner.start();
+        elementalResistPurgeRuntimeOwner = new PurgeRuntimeOwner(new PaperPurgeTaskScheduler(
+                this, combat.elemental()::purgeExpired, ElementalResistService.PURGE_INTERVAL_TICKS));
+        elementalResistPurgeRuntimeOwner.start();
+        long purgeInterval = getRaskolConfig().purgeIntervalTicks();
+        long autosaveInterval = Math.max(1, getConfig().getInt("storage.autosave-minutes", 5)) * 60L * 20L;
+        purgeRuntimeOwner =
+                new PurgeRuntimeOwner(new PaperPurgeTaskScheduler(this, () -> PluginTasks.purge(this), purgeInterval));
+        autosaveRuntimeOwner = new AutosaveRuntimeOwner(
+                new PaperAutosaveTaskScheduler(this, () -> PluginTasks.autosave(this), autosaveInterval));
+        purgeRuntimeOwner.start();
+        autosaveRuntimeOwner.start();
+    }
+
+    /** Выполняет финальную регистрацию команды, startup-отчёт и RIPS runtime monitor. */
+    private void finishStartup() {
         registerCommand();
         StartupChecks.printBanner(this);
         StartupChecks.warnLowCapacityTrees(this);
@@ -436,23 +662,9 @@ public final class RaskolClasses extends JavaPlugin {
             return;
         }
 
-        RuntimeSecurityReporter runtimeReporter =
-                new RuntimeSecurityReporter(new SecurityReporter(getLogger()), getLogger());
-
-        this.runtimeIntegrityMonitor = new RuntimeIntegrityMonitor(
-                () -> artifactBoundIntegrityVerifier.verify(),
-                Duration.ofMinutes(30),
-                Executors.newSingleThreadScheduledExecutor(runnable -> {
-                    Thread thread = new Thread(runnable, "RaskolClasses-RIPS-Monitor");
-                    thread.setDaemon(true);
-                    return thread;
-                }),
-                new RuntimeIntegrityStateManager(),
-                runtimeReporter,
-                this::handleRuntimeIntegrityFailure);
-
-        runtimeIntegrityMonitor.start();
-        getLogger().info("[RIPS] Artifact-bound runtime integrity monitoring started (interval: 30 minutes)");
+        runtimeIntegrityRuntimeOwner = new RuntimeIntegrityRuntimeOwner(
+                () -> artifactBoundIntegrityVerifier.verify(), getLogger(), this::handleRuntimeIntegrityFailure);
+        runtimeIntegrityRuntimeOwner.start();
     }
 
     /**
@@ -527,74 +739,284 @@ public final class RaskolClasses extends JavaPlugin {
         return storageWriter;
     }
 
+    /**
+     * Передаёт пользовательский async result на Paper main thread с учётом shutdown.
+     * onUndelivered выполняется без Bukkit API и может освободить инфраструктурный резерв.
+     */
+    public boolean dispatchAsyncCompletion(String operation, Runnable action, Runnable onUndelivered) {
+        if (asyncCompletionDispatcher == null) {
+            getLogger().warning("Async completion не доставлен [" + operation + "]: dispatcher не инициализирован");
+            onUndelivered.run();
+            return false;
+        }
+        return asyncCompletionDispatcher.dispatch(operation, action, onUndelivered);
+    }
+
+    public boolean dispatchAsyncCompletion(String operation, Runnable action) {
+        return dispatchAsyncCompletion(operation, action, () -> {});
+    }
+
     public void markPurgeNow() {
         lastPurgeMillis = System.currentTimeMillis();
     }
 
     @Override
     public void onDisable() {
-        if (placeholderSnapshots != null) {
-            placeholderSnapshots.close();
+        shutdownRuntime();
+    }
+
+    /**
+     * Останавливает runtime в прежнем порядке: сначала producers и задачи,
+     * затем сохраняемые сервисы, а общий StorageWriter закрывает последним.
+     */
+    private void shutdownRuntime() {
+        ShutdownStepRunner shutdown = new ShutdownStepRunner(getLogger());
+
+        // Закрываем канал уведомлений первым: queued callbacks не должны переживать disable.
+        shutdown.run("async completion dispatcher", () -> {
+            if (asyncCompletionDispatcher != null) {
+                asyncCompletionDispatcher.close();
+            }
+        });
+
+        // Сначала останавливаем producers, затем сохраняем финальные снимки.
+        shutdown.run("global purge runtime", () -> {
+            if (purgeRuntimeOwner != null) {
+                purgeRuntimeOwner.close();
+                purgeRuntimeOwner = null;
+            }
+        });
+        shutdown.run("global autosave runtime", () -> {
+            if (autosaveRuntimeOwner != null) {
+                autosaveRuntimeOwner.close();
+                autosaveRuntimeOwner = null;
+            }
+        });
+        shutdown.run("cooldown runtime", () -> {
+            if (cooldownRuntimeOwner != null) {
+                cooldownRuntimeOwner.close();
+                cooldownRuntimeOwner = null;
+            }
+        });
+        shutdown.run("HP bar respawn callbacks", () -> {
+            if (hpBarRespawnCallbacks != null) {
+                hpBarRespawnCallbacks.close();
+                hpBarRespawnCallbacks = null;
+            }
+        });
+        shutdown.run("HP attribute respawn callbacks", () -> {
+            if (hpAttributeRespawnCallbacks != null) {
+                hpAttributeRespawnCallbacks.close();
+                hpAttributeRespawnCallbacks = null;
+            }
+        });
+        shutdown.run("HP bar runtime", () -> {
+            if (hpBarRuntimeOwner != null) {
+                hpBarRuntimeOwner.close();
+                hpBarRuntimeOwner = null;
+            }
+        });
+        shutdown.run("BossBar runtime", () -> {
+            if (bossBarRuntimeOwner != null) {
+                bossBarRuntimeOwner.close();
+                bossBarRuntimeOwner = null;
+            }
+        });
+        shutdown.run("ActionBar HUD runtime", () -> {
+            if (hudRuntimeOwner != null) {
+                hudRuntimeOwner.close();
+                hudRuntimeOwner = null;
+            }
+        });
+        shutdown.run("HUD snapshot coordinator", () -> {
+            if (hudCoordinator != null) {
+                hudCoordinator.close();
+                hudCoordinator = null;
+            }
+        });
+        shutdown.run("HUD channel coordinator", () -> {
+            if (hudChannelCoordinator != null) {
+                hudChannelCoordinator.close();
+                hudChannelCoordinator = null;
+            }
+        });
+        shutdown.run("PlaceholderAPI runtime", () -> {
+            if (placeholderRuntimeOwner != null) {
+                placeholderRuntimeOwner.close();
+                placeholderRuntimeOwner = null;
+            }
             placeholderSnapshots = null;
-        }
+        });
+        shutdown.run("CrownFlavor runtime", () -> {
+            if (flavorRuntimeOwner != null) {
+                flavorRuntimeOwner.close();
+                flavorRuntimeOwner = null;
+            }
+        });
+        shutdown.run("runtime integrity runtime", () -> {
+            if (runtimeIntegrityRuntimeOwner != null) {
+                runtimeIntegrityRuntimeOwner.close();
+                runtimeIntegrityRuntimeOwner = null;
+            }
+        });
+        shutdown.run("HP attribute runtime", () -> {
+            if (hpSyncRuntimeOwner != null) {
+                hpSyncRuntimeOwner.close();
+            }
+        });
+        shutdown.run("blueprint registrations", () -> {
+            if (blueprintHook != null) {
+                blueprintHook.unregisterBlueprints();
+            }
+        });
+        shutdown.run("Warlock channel runtime", () -> {
+            if (warlockAbilities != null) {
+                warlockAbilities.close();
+            }
+        });
+        shutdown.run("Foliant transition callbacks", () -> {
+            if (foliantTransitionCallbacks != null) {
+                foliantTransitionCallbacks.close();
+                foliantTransitionCallbacks = null;
+            }
+        });
+        shutdown.run("Foliant runtime", () -> {
+            if (foliantRuntimeOwner != null) {
+                foliantRuntimeOwner.close();
+            }
+        });
+        shutdown.run("Foliant final snapshot", () -> {
+            if (foliantService != null) {
+                foliantService.saveLocksIfDirty();
+            }
+        });
 
-        if (runtimeIntegrityMonitor != null) {
-            runtimeIntegrityMonitor.close();
-            runtimeIntegrityMonitor = null;
-        }
+        // Runtime-владелец петов сохраняет обязательный порядок: despawn -> cancel -> unregister.
+        shutdown.run("pet runtime", () -> {
+            if (petRuntimeOwner != null) {
+                petRuntimeOwner.close();
+            }
+        });
+        shutdown.run("DoT runtime", () -> {
+            if (dotRuntimeOwner != null) {
+                dotRuntimeOwner.close();
+                dotRuntimeOwner = null;
+            }
+        });
+        shutdown.run("avoidance stagger callbacks", () -> {
+            if (combat != null) {
+                combat.avoidance().shutdown();
+            }
+        });
+        shutdown.run("elemental resist purge runtime", () -> {
+            if (elementalResistPurgeRuntimeOwner != null) {
+                elementalResistPurgeRuntimeOwner.close();
+                elementalResistPurgeRuntimeOwner = null;
+            }
+        });
+        shutdown.run("CC runtime", () -> {
+            if (ccRuntimeOwner != null) {
+                ccRuntimeOwner.close();
+                ccRuntimeOwner = null;
+            }
+        });
+        shutdown.run("CC feedback resources", () -> {
+            if (ccFeedbackRuntimeOwner != null) {
+                ccFeedbackRuntimeOwner.close();
+                ccFeedbackRuntimeOwner = null;
+            }
+        });
+        shutdown.run("Resource runtime", () -> {
+            if (resourceRuntimeOwner != null) {
+                resourceRuntimeOwner.close();
+            }
+        });
+        shutdown.run("Installation runtime", () -> {
+            if (installationRuntimeOwner != null) {
+                installationRuntimeOwner.close();
+            }
+        });
+        shutdown.run("ScrollCooldown runtime", () -> {
+            if (scrollCooldownRuntimeOwner != null) {
+                scrollCooldownRuntimeOwner.close();
+                scrollCooldownRuntimeOwner = null;
+                scrollCooldownTask = null;
+            }
+        });
+        shutdown.run("ManaSoaked runtime", () -> {
+            if (manaSoakedRuntimeOwner != null) {
+                manaSoakedRuntimeOwner.close();
+                manaSoakedRuntimeOwner = null;
+            }
+        });
+        shutdown.run("items service", () -> {
+            if (items != null) {
+                items.stop();
+            }
+        });
+        shutdown.run("passport listener", () -> {
+            if (passportListener != null) {
+                passportListener.unregister();
+            }
+        });
 
-        if (hpSync != null) {
-            hpSync.stopSweep();
-        }
-        if (blueprintHook != null) {
-            blueprintHook.unregisterBlueprints();
-        }
-        WarlockAbilities.cancelAllChannelTasks();
+        // Финальные снимки создаются до остановки общего StorageWriter.
+        shutdown.run("resource snapshot", () -> {
+            if (resources != null) {
+                resources.saveAll();
+            }
+        });
+        shutdown.run("HP bar snapshot", () -> {
+            if (hpBarService != null) {
+                hpBarService.saveAll();
+            }
+        });
+        shutdown.run("specialization snapshot", () -> {
+            if (spec2Storage != null) {
+                spec2Storage.save();
+            }
+        });
 
-        if (foliantService != null) {
-            foliantService.saveLocksIfDirty();
-        }
+        // Инсталляции очищают свои FX-ресурсы; FxService закрывается только после них.
+        shutdown.run("installation cleanup", () -> {
+            if (installations != null) {
+                installations.shutdown();
+            }
+        });
+        shutdown.run("FX runtime", () -> {
+            if (fx != null) {
+                fx.shutdown();
+                fx = null;
+            }
+        });
+        shutdown.run("cooldown snapshot", () -> {
+            if (cooldowns != null) {
+                cooldowns.saveAll();
+            }
+        });
+        shutdown.run("cooldown state cleanup", () -> {
+            if (cooldowns != null) {
+                cooldowns.clear();
+            }
+        });
+        shutdown.run("class provider", () -> {
+            if (classProvider != null) {
+                classProvider.shutdown();
+            }
+        });
+        shutdown.run("active effects", () -> {
+            if (effects != null) {
+                effects.clear();
+            }
+        });
 
-        // 1.15.7 (Волна 7d): петы дезспавнятся до отмены задач
-        if (pets != null) {
-            pets.despawnAll();
-        }
-
-        activeTasks.forEach(BukkitTask::cancel);
-        activeTasks.clear();
-        if (items != null) items.stop();
-        if (passportListener != null) {
-            passportListener.unregister();
-        }
-        if (resources != null) {
-            resources.saveAll();
-        }
-        if (hpBarService != null) {
-            hpBarService.saveAll();
-        }
-        if (spec2Storage != null) {
-            spec2Storage.save();
-        }
-        if (installations != null) {
-            installations.shutdown();
-        }
-        if (bossBars != null) {
-            bossBars.shutdown();
-        }
-        if (cooldowns != null) {
-            cooldowns.cancelAllTasks();
-            cooldowns.saveAll();
-            cooldowns.clear();
-        }
-        if (classProvider != null) {
-            classProvider.shutdown();
-        }
-        if (effects != null) {
-            effects.clear();
-        }
-        if (storageWriter != null && !storageWriter.closeAndAwait(Duration.ofSeconds(10))) {
-            getLogger().severe("StorageWriter: очередь не была полностью сброшена при выключении");
-        }
+        // Общий writer закрывается последним, даже если предыдущие этапы завершились ошибкой.
+        shutdown.run("storage writer drain and close", () -> {
+            if (storageWriter != null && !storageWriter.closeAndAwait(Duration.ofSeconds(10))) {
+                throw new IllegalStateException("Очередь StorageWriter не была полностью сброшена");
+            }
+        });
+        shutdown.logSummary();
     }
 
     private void registerCommand() {
@@ -606,6 +1028,38 @@ public final class RaskolClasses extends JavaPlugin {
         RaskolCommand executor = new RaskolCommand(this);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
+    }
+
+    /** Обновляет legacy producers, production snapshot read model и TTL на основном потоке. */
+    private void tickHudRuntime() {
+        if (hud != null) {
+            hud.tick();
+        }
+        if (hudCoordinator != null) {
+            hudCoordinator.tick(getServer().getOnlinePlayers().stream()
+                    .map(org.bukkit.entity.Player::getUniqueId)
+                    .toList());
+        }
+        if (hudChannelCoordinator != null) {
+            hudChannelCoordinator.tick();
+        }
+    }
+
+    /** HUD channel runtime остаётся активным независимо от legacy display mode: уведомления имеют свой TTL. */
+    private void reconcileHudRuntime() {
+        if (hudRuntimeOwner == null) {
+            return;
+        }
+        try {
+            hudRuntimeOwner.register();
+            hudRuntimeOwner.start();
+        } catch (RuntimeException exception) {
+            getLogger()
+                    .log(
+                            java.util.logging.Level.WARNING,
+                            "Не удалось согласовать HUD channel runtime после reload",
+                            exception);
+        }
     }
 
     public dev.raskol.classes.bootstrap.PluginReloadResult reloadPlugin() {
@@ -632,14 +1086,15 @@ public final class RaskolClasses extends JavaPlugin {
 
             stage = "HUD";
             hud.applyConfig();
+            reconcileHudRuntime();
             cooldowns.attachScheduler(
                     this,
                     raskolConfig.isReadyNotifyEnabled(),
                     raskolConfig.readyNotifyMinCooldownSeconds(),
                     raskolConfig.readyNotifySoundKey(),
                     raskolConfig.readyNotifyMessage());
-            if (bossBars != null) {
-                bossBars.applyConfig();
+            if (bossBarRuntimeOwner != null) {
+                bossBarRuntimeOwner.restart();
             }
 
             stage = "визуальные эффекты и проверка конфигурации";
@@ -726,6 +1181,15 @@ public final class RaskolClasses extends JavaPlugin {
 
     public HudService getHud() {
         return hud;
+    }
+
+    /** Production immutable read model для HUD-виджетов и будущих renderer adapters. */
+    public HudCoordinator getHudCoordinator() {
+        return hudCoordinator;
+    }
+
+    public HudWidgetRegistry getHudWidgetRegistry() {
+        return hudWidgetRegistry;
     }
 
     public BossBarService getBossBars() {

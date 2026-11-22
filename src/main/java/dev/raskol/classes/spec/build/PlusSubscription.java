@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.build;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -15,6 +17,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 
 import dev.raskol.classes.RaskolClasses;
 
+import net.kyori.adventure.text.Component;
+
 public final class PlusSubscription implements Listener {
     private static final Logger LOG = Logger.getLogger("RaskolClasses");
 
@@ -22,6 +26,17 @@ public final class PlusSubscription implements Listener {
     private final ImperialWallet wallet;
     private final PlusStorage storage;
     private final int periodDays;
+    private final Map<UUID, GiftDeliveryState> giftDeliveryStates = new ConcurrentHashMap<>();
+
+    private static final class GiftDeliveryState {
+        private final String noteId;
+        private boolean sent;
+        private boolean acknowledging;
+
+        private GiftDeliveryState(String noteId) {
+            this.noteId = noteId;
+        }
+    }
 
     public PlusSubscription(RaskolClasses plugin, ImperialWallet wallet, PlusStorage storage, int periodDays) {
         this.plugin = plugin;
@@ -155,9 +170,7 @@ public final class PlusSubscription implements Listener {
             return CompletableFuture.completedFuture(GiftResult.INSUFFICIENT);
         }
 
-        Player target = plugin.getServer().getPlayer(to);
-        String note = target != null && target.isOnline() ? null : offlineNote;
-        return storage.extendAsync(to, duration, note).thenApply(saved -> {
+        return storage.extendAsync(to, duration, offlineNote).thenApply(saved -> {
             if (!saved) {
                 if (!wallet.give(from, cost)) {
                     LOG.severe(
@@ -165,6 +178,7 @@ public final class PlusSubscription implements Listener {
                 }
                 return storage.writeInFlight() ? GiftResult.STORAGE_BUSY : GiftResult.STORAGE_FAILED;
             }
+            deliverGiftNote(to);
             return GiftResult.OK;
         });
     }
@@ -204,21 +218,77 @@ public final class PlusSubscription implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
-        Player player = event.getPlayer();
-        storage.consumeGiftNoteAsync(player.getUniqueId()).thenAccept(note -> {
-            if (note == null) {
+        deliverGiftNote(event.getPlayer().getUniqueId());
+    }
+
+    public void deliverGiftNote(UUID playerId) {
+        if (playerId == null) return;
+        runOnMain("gift note delivery start for " + playerId, () -> beginGiftNoteDelivery(playerId));
+    }
+
+    private void beginGiftNoteDelivery(UUID playerId) {
+        Player current = plugin.getServer().getPlayer(playerId);
+        if (current == null || !current.isOnline()) return;
+
+        storage.getGiftNoteAsync(playerId).whenComplete((note, failure) -> {
+            if (failure != null) {
+                LOG.log(
+                        java.util.logging.Level.WARNING,
+                        "raskolspec+: не удалось прочитать подарочное уведомление",
+                        failure);
                 return;
             }
-            try {
-                plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    if (player.isOnline()) {
-                        player.sendMessage(net.kyori.adventure.text.Component.text(
-                                "⚜ " + note, net.kyori.adventure.text.format.NamedTextColor.GOLD));
-                    }
-                });
-            } catch (IllegalStateException ignored) {
-                LOG.warning("raskolspec+: уведомление не отправлено — плагин уже выключается");
-            }
+            if (note == null) return;
+            runOnMain("gift note delivery for " + playerId, () -> deliverGiftNoteOnMain(playerId, note));
         });
+    }
+
+    private void deliverGiftNoteOnMain(UUID playerId, PlusStorage.GiftNote note) {
+        Player current = plugin.getServer().getPlayer(playerId);
+        if (current == null || !current.isOnline()) return;
+
+        GiftDeliveryState state = giftDeliveryStates.compute(
+                playerId,
+                (ignored, previous) -> previous != null && previous.noteId.equals(note.id())
+                        ? previous
+                        : new GiftDeliveryState(note.id()));
+
+        synchronized (state) {
+            if (!state.sent) {
+                current.sendMessage(Component.text(note.message()));
+                state.sent = true;
+            }
+            if (state.acknowledging) return;
+            state.acknowledging = true;
+        }
+
+        storage.acknowledgeGiftNoteAsync(playerId, note.id()).whenComplete((saved, failure) -> {
+            synchronized (state) {
+                state.acknowledging = false;
+            }
+            if (failure != null) {
+                LOG.log(
+                        java.util.logging.Level.WARNING,
+                        "raskolspec+: не удалось подтвердить доставку подарочного уведомления",
+                        failure);
+                return;
+            }
+            if (Boolean.TRUE.equals(saved)) {
+                giftDeliveryStates.remove(playerId, state);
+                return;
+            }
+            storage.getGiftNoteAsync(playerId).thenAccept(currentNote -> {
+                if (currentNote == null || !currentNote.id().equals(note.id())) {
+                    giftDeliveryStates.remove(playerId, state);
+                } else {
+                    LOG.warning(
+                            "raskolspec+: сообщение отправлено, но подтверждение доставки отложено до следующей попытки");
+                }
+            });
+        });
+    }
+
+    private void runOnMain(String operation, Runnable task) {
+        plugin.dispatchAsyncCompletion("raskolspec+ " + operation, task);
     }
 }

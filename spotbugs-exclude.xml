@@ -85,6 +85,16 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     </Match>
     <Match>
         <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getBossBars"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getHud"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
         <Method name="getFx"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
@@ -111,6 +121,11 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     <Match>
         <Class name="dev.raskol.classes.RaskolClasses"/>
         <Method name="getResists"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getManaSoaked"/>
         <Bug pattern="EI_EXPOSE_REP"/>
     </Match>
     <Match>
@@ -560,6 +575,11 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
+        <Class name="dev.raskol.classes.hook.FlavorPlaceholder"/>
+        <Field name="snapshots"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
         <Class name="dev.raskol.classes.hook.PassportChangeListener"/>
         <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
@@ -572,6 +592,11 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     <Match>
         <Class name="dev.raskol.classes.hook.RaskolPlaceholder"/>
         <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hook.RaskolPlaceholder"/>
+        <Field name="snapshots"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
@@ -855,6 +880,43 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Class name="dev.raskol.classes.ability.WarlockAbilities"/>
         <Method name="install"/>
         <Bug pattern="MS_EXPOSE_REP"/>
+    </Match>
+
+    <!--
+      HUD-C.4.1: точечные исключения для lifecycle-managed channel coordinator.
+      Это намеренно внедряемая общая зависимость presentation pipeline, а не
+      наружу возвращаемая mutable value model. RaskolClasses getter сохраняет
+      существующий compatibility accessor для HP service.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getHpBarService"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.ability.CooldownManager"/>
+        <Field name="hudChannelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hud.HpBarService"/>
+        <Field name="channelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hud.BossBarService"/>
+        <Field name="channelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hud.HudService"/>
+        <Field name="channelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.hud.runtime.HudServiceOutputCleanup"/>
+        <Field name="channelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
 
 </FindBugsFilter>

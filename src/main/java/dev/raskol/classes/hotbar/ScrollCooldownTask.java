@@ -10,7 +10,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
@@ -50,12 +49,8 @@ public final class ScrollCooldownTask {
         this.plugin = plugin;
     }
 
-    public BukkitTask start() {
-        plugin.getLogger().info("ScrollCooldownTask v12 (durability-bar) active");
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 10L, 10L);
-    }
-
-    private void tick() {
+    /** Выполняет один цикл обновления полос кулдауна. */
+    public void tick() {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID uuid = player.getUniqueId();
             Map<Integer, Long> slots = barState.computeIfAbsent(uuid, k -> new ConcurrentHashMap<>());
@@ -126,6 +121,12 @@ public final class ScrollCooldownTask {
         }
         barState.keySet().removeIf(u -> plugin.getServer().getPlayer(u) == null);
         lastHeld.keySet().removeIf(u -> plugin.getServer().getPlayer(u) == null);
+    }
+
+    /** Очищает только внутренние кэши отображения при остановке runtime. */
+    public void clearCaches() {
+        barState.clear();
+        lastHeld.clear();
     }
 
     private long totalSecOf(UUID uuid, PlayerClass pc, ItemStack item) {

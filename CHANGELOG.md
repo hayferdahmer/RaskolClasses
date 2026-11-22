@@ -10,6 +10,69 @@
 
 ---
 
+## [Unreleased]
+
+### RaskolHUD — HUD-C.2 / HUD-C.3
+
+- Добавлен immutable `PlayerHudSnapshot` pipeline с типизированными view, явным `DataStatus`, revision control и bounded refresh coordinator.
+- Добавлен `HudChannelCoordinator`: единый ActionBar arbitration по priority/sequence/stable widget ID, отдельный TTL-поток уведомлений и восстановление постоянного кадра после expiry/cancel.
+- Добавлен ownership нескольких HUD BossBars по стабильным widget ID и Paper output adapter с проверкой main thread.
+- Scoreboard channel отклоняется до утверждения политики совместимости с внешними плагинами.
+- Legacy producers пока не мигрированы и не подключены к новому coordinator; текущий визуальный вывод и gameplay не менялись.
+- GitHub Actions для проверенного кода: **712 тестов, 0 failures/errors/skipped; SpotBugs — 0 находок; Spotless и license headers — успешно**. Runtime smoke test на staging Paper 26.2 / Java 25 остаётся отдельным обязательным гейтом.
+
+
+### RaskolHUD — HUD-C.4.1 ActionBar migration
+
+- Подключён `HudChannelCoordinator` к composition root и переиспользован существующий `HudRuntimeOwner` для TTL expiry без второго периодического producer.
+- `HudService` и presentation path `HpBarService` публикуют persistent ActionBar frames; HP/gameplay calculations и `health.yml` ownership остаются в `HpBarService`.
+- `CooldownManager` переведён на отдельные readiness notifications с priority 100 и TTL 3 секунды; уведомления восстанавливают нижележащий persistent frame.
+- Добавлен независимый registry legacy frames, чтобы snapshot publication не стирала кадры ещё не мигрированных producers.
+- `BossBarService` пока сохраняет legacy runtime; перенос BossBar и сохранение их цветов/progress/duration — HUD-C.4.2.
+- Клиентский мод зафиксирован как отдельный optional renderer; vanilla fallback остаётся полноценным, сетевой handshake/protocol отложен до проверки его отдельного репозитория.
+- GitHub Actions на финальном HEAD `033d8b85`: **715 тестов, 0 failures/errors/skipped; SpotBugs — 0 findings; Spotless и финальный verify — SUCCESS**. Live staging smoke test Paper 26.2 / Java 25 остаётся отдельным гейтом.
+
+### RaskolHUD — HUD-C.4.2 BossBar migration
+
+- `BossBarService` переведён с прямого владения Bukkit BossBar на публикацию per-effect frames через `HudChannelCoordinator`.
+- Добавлен platform-neutral `BossBarPresentation`: progress, color, style и flags передаются до Paper output без потери параметров.
+- `PaperHudChannelOutput` стал единым владельцем ActionBar и нескольких BossBar handles; сохранены class colors, segmented style, remaining-time progress, sorting, min-duration и max-visible policy.
+- `BossBarRuntimeOwner` останавливается до channel coordinator; все legacy ActionBar/BossBar producers проходят через единый channel owner.
+- HUD-C.4 CI на HEAD `310ba30a`: **717 тестов, 0 failures/errors/skipped; SpotBugs — 0 findings; Spotless и final verify — SUCCESS**. Live Paper 26.2 / Java 25 staging smoke test остаётся обязательным.
+
+### RaskolHUD — HUD-C.5 Production Snapshot Provider
+
+- Добавлен `PaperHudSnapshotProvider`, подключённый к production `HudCoordinator` в composition root.
+- Snapshot собирает class/spec, formula HP, resource/effective max, STR/AGI/INT, активные эффекты, DoT и combat state; mutable sources копируются в immutable views.
+- `ResourceService.readSnapshot` не создаёт/не мутирует ResourceState и возвращает empty, пока состояние игрока не загружено.
+- Character level/XP и Locked Target остаются явно UNAVAILABLE до подключения RPG Core progression и targeting runtime; ложные нули/отсутствие цели не подставляются.
+- Bounded round-robin refresh — 64 игрока за HUD refresh cycle; пустой widget registry сохраняет текущий legacy visual output до следующего этапа widgets.
+- Optional client mod не получает протокол или hard dependency: C.5 подготавливает общий server-side read model.
+
+- HUD-C.5 CI на проверенном кодовом HEAD `d555e5af`: **721 тест, 0 failures/errors/skipped; SpotBugs — 0; Spotless — 512 Java files clean; license headers — SUCCESS**. [Build + Analyze run 43964002393](https://github.com/hayferdahmer/RaskolClasses/actions/runs/43964002393).
+
+### Architecture Refactoring — A-03
+
+- Добавлены базовые контракты жизненного цикла модулей: состояния, контекст, интерфейс PluginModule и проверка допустимых переходов.
+- Добавлена независимая от Bukkit область владения задачами с безопасной отменой, агрегированием ошибок и повторной попыткой для задач, отмену которых не удалось подтвердить.
+- Добавлен типизированный ServiceRegistry с фазой регистрации и явным seal перед разрешением зависимостей; обязательные и необязательные сервисы имеют разные контракты.
+- Добавлен детерминированный ModuleDependencyResolver с проверкой повторяющихся ID, отсутствующих зависимостей, самозависимостей и циклов.
+- Добавлен BootstrapCoordinator: фазовый запуск модулей, проверка графа до побочных эффектов, откат при ошибке и обратный порядок остановки/закрытия.
+- ServiceRegistry получил явное закрытие: после shutdown доступ к сервисам запрещён, ссылки на зарегистрированные экземпляры освобождаются.
+- Подготовлен A-03-003.4 Bootstrap Integration Design: зафиксированы текущие startup/shutdown-последовательности, границы владения, обязательные инварианты и безопасная стратегия включения координатора.
+- Выполнен A-03-003.5 Lifecycle Seam Extraction: операции onEnable/onDisable выделены в приватные фазы без активации нового координатора и без изменения порядка вызовов.
+- Завершён A-03-003.6 Legacy Runtime Adapter Assessment: принято решение не создавать pass-through LegacyRuntimeModule; зафиксированы несовпадение lifecycle-фаз, текущее владение задачами и storage, а также граница следующего реального извлечения — runtime integrity monitoring.
+- Выполнен A-03-003.7: runtime RIPS monitor и выделенный executor переданы `RuntimeIntegrityRuntimeOwner`; startup gate и Paper-specific enforcement callback оставлены в composition root. Добавлены тесты на конкурентный start, terminal close и освобождение executor при ошибке планирования; результаты Maven/CI ещё не подтверждены. Архитектурные границы и acceptance status записаны в `docs/architecture/A03_RUNTIME_INTEGRITY_OWNER.md`.
+- Добавлены unit-тесты для lifecycle, управления задачами, реестра сервисов и графа модулей. Интеграция Foundation с существующими сервисами будет выполняться отдельными проверяемыми этапами.
+
+### Async Completion Ownership — A-04
+
+- Добавлен shutdown-aware dispatcher для пользовательских async completion callbacks: pending уведомления подавляются и журналируются при disable или отказе Paper scheduler.
+- Переведены PlusSub, PlusGui, PlusSubscription и SalvageService на общий канал доставки; durable операции не откатываются из-за недоставленного сообщения.
+- Для salvage добавлена best-effort компенсация pending reservation при отмене main-thread commit до закрытия общего StorageWriter.
+- Добавлены регрессионные тесты dispatcher для shutdown, повторного close, scheduler rejection и однократного выполнения.
+- Добавлен staging smoke-test checklist для Paper 26.2 / Java 25; live runtime-проверка остаётся обязательной.
+
 ## [1.15.8] — «Подписанный рубеж» · 2026-11-13
 
 ### RIPS: официальная подпись артефакта и защита целостности

@@ -33,15 +33,16 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.compat.AuthGate;
 import dev.raskol.classes.storage.DirtyStorageState;
@@ -100,6 +101,7 @@ public final class FoliantService implements Listener {
     }
 
     private final RaskolClasses plugin;
+    private final PlayerCallbackRuntimeOwner transitionCallbacks;
     private final NamespacedKey foliantKey;
     private final NamespacedKey ownerKey;
 
@@ -112,8 +114,9 @@ public final class FoliantService implements Listener {
      * Конструктор без побочных эффектов (1.14.13, Волна 13B): загрузка lock-хранилища
      * остаётся здесь (чтение файла безопасно), flush-задача вынесена в startLockFlushTask.
      */
-    public FoliantService(RaskolClasses plugin) {
+    public FoliantService(RaskolClasses plugin, PlayerCallbackRuntimeOwner transitionCallbacks) {
         this.plugin = plugin;
+        this.transitionCallbacks = java.util.Objects.requireNonNull(transitionCallbacks, "transitionCallbacks");
         this.foliantKey = new NamespacedKey(plugin, "raskol_foliant");
         this.ownerKey = new NamespacedKey(plugin, "raskol_foliant_owner");
         this.lockFile = new File(plugin.getDataFolder(), "foliant-lock.yml");
@@ -122,21 +125,13 @@ public final class FoliantService implements Listener {
     }
 
     /**
-     * 1.14.13 (Волна 13B, 10-04): dirty-flush задача foliant-lock.yml (каждые 60 с);
-     * вызов из RaskolClasses.onEnable, ручка — в activeTasks владельца.
+     * Выполняет один проход периодического dirty-flush.
+     * Планировщик и отменяемая задача принадлежат FoliantRuntimeOwner.
      */
-    public BukkitTask startLockFlushTask() {
-        return plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(
-                        plugin,
-                        () -> {
-                            if (lockDirty.isDirty()) {
-                                saveLocks();
-                            }
-                        },
-                        1200L,
-                        1200L);
+    public void flushLocksIfDirty() {
+        if (lockDirty.isDirty()) {
+            saveLocks();
+        }
     }
 
     /**
@@ -343,6 +338,18 @@ public final class FoliantService implements Listener {
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        try {
+            transitionCallbacks.cancel(event.getPlayer().getUniqueId());
+        } catch (RuntimeException exception) {
+            LOGGER.log(
+                    java.util.logging.Level.WARNING,
+                    "Foliant: не удалось отменить post-transition callback при выходе игрока",
+                    exception);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerDeath(PlayerDeathEvent event) {
         UUID uuid = event.getEntity().getUniqueId();
         RelockState st = locks.get(uuid);
@@ -434,11 +441,15 @@ public final class FoliantService implements Listener {
 
         plugin.getAttributes().invalidate(uuid);
 
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            PlayerClass now = plugin.getClassProvider().getClassOf(player);
+        transitionCallbacks.schedule(uuid, 1L, () -> {
+            Player current = plugin.getServer().getPlayer(uuid);
+            if (current == null || !current.isOnline()) {
+                return;
+            }
+            PlayerClass now = plugin.getClassProvider().getClassOf(current);
             if (now != PlayerClass.WARLOCK) {
                 plugin.getLogger()
-                        .severe("Foliant: после миграции класс " + player.getName()
+                        .severe("Foliant: после миграции класс " + current.getName()
                                 + " = " + now + " (ожидался WARLOCK). Проверь LP-группу "
                                 + WARLOCK_GROUP + " и веса.");
             }

@@ -7,8 +7,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import dev.raskol.classes.RaskolClasses;
-
 /**
  * 1.12.2 (Блок 1): стихийный слой резистов поверх резиста канала (ТЗ п.2–3).
  * Хранит source-модификаторы вида «источник → школа → %», суммирует активные
@@ -32,14 +30,13 @@ public final class ElementalResistService {
         }
     }
 
-    private static final long PURGE_TICKS = 600L;
+    public static final long PURGE_INTERVAL_TICKS = 600L;
 
     private final SchoolConfig schoolConfig;
     private final Map<UUID, CopyOnWriteArrayList<ElemMod>> mods = new ConcurrentHashMap<>();
 
-    public ElementalResistService(RaskolClasses plugin, SchoolConfig schoolConfig) {
+    public ElementalResistService(SchoolConfig schoolConfig) {
         this.schoolConfig = schoolConfig;
-        plugin.getServer().getScheduler().runTaskTimer(plugin, this::purgeExpired, PURGE_TICKS, PURGE_TICKS);
     }
 
     /** Рубильник слоя (schools.elemental.enabled). */

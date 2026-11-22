@@ -804,6 +804,8 @@ messages:
     reset:
       poor: "Не хватает монет на сброс талантов: нужно {cost}."
   # 1.14.15 (raskolspec+): сообщения подписки и GUI курируемых билдов
+  # Подарочное уведомление сохраняется до доставки: online использует gift-received,
+  # offline — gift-offline-note; оба варианта отправляются через общий read/ack flow.
   plus:
     status-active: "⚜ raskolspec+ активна · осталось {days} дн."
     status-inactive: "⚜ raskolspec+ не активна"

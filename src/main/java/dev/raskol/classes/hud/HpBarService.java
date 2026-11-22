@@ -5,6 +5,7 @@ package dev.raskol.classes.hud;
 import java.io.File;
 import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -21,22 +22,26 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.EquipmentSlotGroup;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.event.CustomHealEvent;
+import dev.raskol.classes.hud.channel.HudChannel;
+import dev.raskol.classes.hud.channel.HudChannelCoordinator;
+import dev.raskol.classes.hud.snapshot.WidgetFrame;
 import dev.raskol.classes.resource.ResourceState;
 import dev.raskol.classes.storage.DirtyStorageState;
 import dev.raskol.classes.storage.SafeStorage;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 /**
  * 1.9.3-r: математика единиц HP живёт в AttributeService; здесь HUD, реген, персист.
@@ -73,6 +78,8 @@ import net.kyori.adventure.text.format.TextColor;
 public final class HpBarService implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
+    private static final String HUD_WIDGET_ID = "legacy-health-resource";
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
     private static final double LEGACY_MAX_VALUE = 100.0;
     private static final long RESTORE_TIMEOUT_MS = 5_000L;
     private static final long REAPPLY_WINDOW_MS = 3_000L;
@@ -84,6 +91,8 @@ public final class HpBarService implements Listener {
     private record Pending(double ratio, long joinedAt, long lastApplyAt, int applies) {}
 
     private final RaskolClasses plugin;
+    private final PlayerCallbackRuntimeOwner respawnCallbacks;
+    private final HudChannelCoordinator channelCoordinator;
     private final NamespacedKeyHolder maxHpKey;
     private final File healthFile;
     private final YamlConfiguration healthStore;
@@ -100,8 +109,17 @@ public final class HpBarService implements Listener {
 
     private record NamespacedKeyHolder(org.bukkit.NamespacedKey key) {}
 
-    public HpBarService(RaskolClasses plugin) {
+    public HpBarService(RaskolClasses plugin, PlayerCallbackRuntimeOwner respawnCallbacks) {
+        this(plugin, respawnCallbacks, null);
+    }
+
+    public HpBarService(
+            RaskolClasses plugin,
+            PlayerCallbackRuntimeOwner respawnCallbacks,
+            HudChannelCoordinator channelCoordinator) {
         this.plugin = plugin;
+        this.respawnCallbacks = respawnCallbacks;
+        this.channelCoordinator = channelCoordinator;
         this.maxHpKey = new NamespacedKeyHolder(new org.bukkit.NamespacedKey(plugin, "max_hp"));
         this.healthFile = new File(plugin.getDataFolder(), "health.yml");
         this.healthStore = SafeStorage.loadWithFallback(healthFile, LOGGER);
@@ -207,8 +225,39 @@ public final class HpBarService implements Listener {
         return TextColor.fromHexString(fallback);
     }
 
-    public BukkitTask start() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, period(), period());
+    /** Выполняет один цикл HP runtime; планирование принадлежит HpBarRuntimeOwner. */
+    public void tick() {
+        tickCounter++;
+        if (tickCounter % 600L == 0L) {
+            long now = System.currentTimeMillis();
+            pendingRestore.entrySet().removeIf(e -> now - e.getValue().joinedAt() > 60_000L);
+        }
+        boolean unified = !"vanilla".equals(mode());
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            UUID uuid = player.getUniqueId();
+            if (player.getGameMode() == GameMode.SPECTATOR) {
+                removeHudFrame(uuid);
+                continue;
+            }
+            applyMaxHealth(player);
+            applyStrRegen(player);
+            tickPendingRestore(player, uuid);
+            applyHearts(player, unified);
+            if (unified) {
+                sendUnifiedActionbar(player);
+            } else {
+                removeHudFrame(uuid);
+            }
+        }
+        lastTick.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
+        lastAppliedDelta.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
+        pendingRestore.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
+        storageDirty.removePlayersIf(id -> plugin.getServer().getPlayer(id) == null);
+
+        long now = System.currentTimeMillis();
+        if (storageDirty.isDirty() && now - lastFlushAt >= flushIntervalMillis()) {
+            flushDirty();
+        }
     }
 
     /**
@@ -220,38 +269,6 @@ public final class HpBarService implements Listener {
             saveHealth(player);
         }
         flushDirty();
-    }
-
-    private void tick() {
-        tickCounter++;
-        if (tickCounter % 600L == 0L) {
-            long now = System.currentTimeMillis();
-            pendingRestore.entrySet().removeIf(e -> now - e.getValue().joinedAt() > 60_000L);
-        }
-        boolean unified = !"vanilla".equals(mode());
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            if (player.getGameMode() == GameMode.SPECTATOR) {
-                continue;
-            }
-            UUID uuid = player.getUniqueId();
-            applyMaxHealth(player);
-            applyStrRegen(player);
-            tickPendingRestore(player, uuid);
-            applyHearts(player, unified);
-            if (unified) {
-                sendUnifiedActionbar(player);
-            }
-        }
-        lastTick.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
-        lastAppliedDelta.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
-        pendingRestore.keySet().removeIf(id -> plugin.getServer().getPlayer(id) == null);
-        storageDirty.removePlayersIf(id -> plugin.getServer().getPlayer(id) == null);
-
-        // 1.14.7 (P1-7): периодический flush dirty-игроков на диск.
-        long now = System.currentTimeMillis();
-        if (storageDirty.isDirty() && now - lastFlushAt >= flushIntervalMillis()) {
-            flushDirty();
-        }
     }
 
     private void tickPendingRestore(Player player, UUID uuid) {
@@ -526,7 +543,30 @@ public final class HpBarService implements Listener {
         }
         line = line.append(Component.text((int) res + "/" + (int) effectiveMax, numbers))
                 .append(Component.text(" ❭", frame));
-        player.sendActionBar(line);
+        if (channelCoordinator != null) {
+            try {
+                channelCoordinator.upsertPersistentFrame(
+                        uuid,
+                        new WidgetFrame(
+                                HUD_WIDGET_ID,
+                                HudChannel.ACTION_BAR.name(),
+                                50,
+                                LEGACY.serialize(line),
+                                OptionalLong.empty()));
+            } catch (RuntimeException ignored) {
+                // Ошибка presentation не должна прерывать HP, регенерацию или сохранение.
+            }
+        }
+    }
+
+    private void removeHudFrame(UUID playerId) {
+        if (channelCoordinator != null) {
+            try {
+                channelCoordinator.removePersistentFrame(playerId, HUD_WIDGET_ID);
+            } catch (RuntimeException ignored) {
+                // Channel coordinator журналирует ошибку; HP lifecycle продолжается.
+            }
+        }
     }
 
     private static Component gradientBar(
@@ -587,6 +627,7 @@ public final class HpBarService implements Listener {
             return;
         }
         UUID uuid = player.getUniqueId();
+        removeHudFrame(uuid);
         applyMaxHealth(player);
         pendingRestore.put(uuid, new Pending(readRatio(uuid), System.currentTimeMillis(), 0L, 0));
         applyHearts(player, !"vanilla".equals(mode()));
@@ -607,6 +648,15 @@ public final class HpBarService implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
+        removeHudFrame(uuid);
+        try {
+            respawnCallbacks.cancel(uuid);
+        } catch (RuntimeException exception) {
+            LOGGER.log(
+                    java.util.logging.Level.WARNING,
+                    "Не удалось отменить HP bar respawn callback для " + uuid,
+                    exception);
+        }
         Pending p = pendingRestore.remove(uuid);
         if (p != null && p.applies() == 0) {
             LOGGER.info("[hp-restore] " + player.getName()
@@ -625,14 +675,16 @@ public final class HpBarService implements Listener {
 
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
-        Player player = event.getPlayer();
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (player.isOnline() && player.getGameMode() != GameMode.SPECTATOR) {
-                pendingRestore.remove(player.getUniqueId());
-                applyMaxHealth(player);
-                player.setHealth(attrs().carrierMaxHp(player));
-                applyHearts(player, !"vanilla".equals(mode()));
+        UUID playerId = event.getPlayer().getUniqueId();
+        respawnCallbacks.schedule(playerId, 0L, id -> {
+            Player current = plugin.getServer().getPlayer(id);
+            if (current == null || !current.isOnline() || current.getGameMode() == GameMode.SPECTATOR) {
+                return;
             }
+            pendingRestore.remove(id);
+            applyMaxHealth(current);
+            current.setHealth(attrs().carrierMaxHp(current));
+            applyHearts(current, !"vanilla".equals(mode()));
         });
     }
 }

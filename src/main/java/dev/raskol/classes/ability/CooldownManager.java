@@ -5,8 +5,10 @@ package dev.raskol.classes.ability;
 import java.io.File;
 import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
 
 import org.bukkit.Bukkit;
@@ -23,11 +25,15 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import dev.raskol.classes.hud.channel.HudChannel;
+import dev.raskol.classes.hud.channel.HudChannelCoordinator;
+import dev.raskol.classes.hud.snapshot.WidgetFrame;
 import dev.raskol.classes.storage.AsyncStorageWriter;
 import dev.raskol.classes.storage.SafeStorage;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 /**
  * Кулдауны в миллисекундах (на игрока и способность) + персист (A1).
@@ -44,23 +50,31 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public final class CooldownManager implements Listener {
 
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
+    private static final long READY_NOTIFICATION_TTL_MILLIS = 3_000L;
+    private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private final Map<UUID, Map<String, Long>> readyAt = new ConcurrentHashMap<>();
     private final File file;
     private final YamlConfiguration store;
     private final AsyncStorageWriter storageWriter;
+    private final HudChannelCoordinator hudChannelCoordinator;
 
     private final Map<UUID, Map<String, BukkitTask>> tasks = new ConcurrentHashMap<>();
     private Plugin plugin;
 
-    private boolean notifyEnabled = false;
-    private long notifyMinMillis = 30_000L;
+    private volatile boolean notifyEnabled = false;
+    private volatile long notifyMinMillis = 30_000L;
     private Sound notifySound;
     private String notifyMessage = "{ability} — готова";
 
     public CooldownManager(File file, AsyncStorageWriter storageWriter) {
+        this(file, storageWriter, null);
+    }
+
+    public CooldownManager(File file, AsyncStorageWriter storageWriter, HudChannelCoordinator hudChannelCoordinator) {
         this.file = file;
         this.storageWriter = storageWriter;
+        this.hudChannelCoordinator = hudChannelCoordinator;
         this.store = SafeStorage.loadWithFallback(file, LOGGER);
     }
 
@@ -96,6 +110,13 @@ public final class CooldownManager implements Listener {
     public void start(UUID playerId, String abilityId, long durationMillis, String displayName) {
         readyAt.computeIfAbsent(playerId, id -> new ConcurrentHashMap<>())
                 .put(abilityId, System.currentTimeMillis() + durationMillis);
+        if (hudChannelCoordinator != null) {
+            try {
+                hudChannelCoordinator.cancelNotification(playerId, notificationId(abilityId));
+            } catch (RuntimeException ignored) {
+                // Ошибка ActionBar не должна менять установку игрового cooldown.
+            }
+        }
 
         if (!notifyEnabled || plugin == null || durationMillis < notifyMinMillis) {
             return;
@@ -108,10 +129,11 @@ public final class CooldownManager implements Listener {
         }
 
         long delayTicks = Math.max(1L, durationMillis / 50L);
+        AtomicReference<BukkitTask> taskReference = new AtomicReference<>();
         BukkitTask task = Bukkit.getScheduler()
                 .runTaskLater(
                         plugin,
-                        () -> {
+                        () -> executeNotificationCallback(playerId, abilityId, taskReference.get(), () -> {
                             Player player = Bukkit.getPlayer(playerId);
                             if (player == null || !player.isOnline()) {
                                 return;
@@ -121,10 +143,60 @@ public final class CooldownManager implements Listener {
                             }
                             player.playSound(player.getLocation(), notifySound, 1.0f, 1.0f);
                             String text = notifyMessage.replace("{ability}", displayName);
-                            player.sendActionBar(Component.text(text, NamedTextColor.GREEN));
-                        },
+                            Component message = Component.text(text, NamedTextColor.GREEN);
+                            if (hudChannelCoordinator != null) {
+                                long expiresAt = System.currentTimeMillis() + READY_NOTIFICATION_TTL_MILLIS;
+                                try {
+                                    hudChannelCoordinator.publishNotification(
+                                            playerId,
+                                            new WidgetFrame(
+                                                    notificationId(abilityId),
+                                                    HudChannel.ACTION_BAR.name(),
+                                                    100,
+                                                    LEGACY.serialize(message),
+                                                    OptionalLong.of(expiresAt)));
+                                } catch (RuntimeException ignored) {
+                                    // Уведомление необязательно и не должно ломать завершение cooldown callback.
+                                }
+                            }
+                        }),
                         delayTicks);
+        taskReference.set(task);
         byAbility.put(abilityId, task);
+    }
+
+    private static String notificationId(String abilityId) {
+        return "cooldown-ready:" + abilityId;
+    }
+
+    /** Выполняет уведомление и освобождает только handle завершившегося callback. */
+    void executeNotificationCallback(UUID playerId, String abilityId, BukkitTask completedTask, Runnable notification) {
+        try {
+            notification.run();
+        } finally {
+            releaseCompletedTask(tasks, playerId, abilityId, completedTask);
+        }
+    }
+
+    /** Удаляет завершённую задачу только если карта всё ещё содержит её handle. */
+    static void releaseCompletedTask(
+            Map<UUID, Map<String, BukkitTask>> taskRegistry,
+            UUID playerId,
+            String abilityId,
+            BukkitTask completedTask) {
+        if (completedTask == null) {
+            return;
+        }
+
+        Map<String, BukkitTask> byAbility = taskRegistry.get(playerId);
+        if (byAbility == null) {
+            return;
+        }
+
+        byAbility.remove(abilityId, completedTask);
+        if (byAbility.isEmpty()) {
+            taskRegistry.remove(playerId, byAbility);
+        }
     }
 
     public void cancel(UUID playerId, String abilityId) {
@@ -136,9 +208,8 @@ public final class CooldownManager implements Listener {
     }
 
     public void clear() {
+        cancelAllTasks();
         readyAt.clear();
-        tasks.values().forEach(m -> m.values().forEach(BukkitTask::cancel));
-        tasks.clear();
     }
 
     /** 1.6.12: число игроков с записями кулдаунов (для /rc health). */
@@ -227,8 +298,54 @@ public final class CooldownManager implements Listener {
     }
 
     public void cancelAllTasks() {
-        tasks.values().forEach(m -> m.values().forEach(BukkitTask::cancel));
-        tasks.clear();
+        RuntimeException failure = null;
+
+        for (Map.Entry<UUID, Map<String, BukkitTask>> playerEntry : tasks.entrySet()) {
+            UUID playerId = playerEntry.getKey();
+            Map<String, BukkitTask> byAbility = playerEntry.getValue();
+
+            for (Map.Entry<String, BukkitTask> taskEntry : byAbility.entrySet()) {
+                String abilityId = taskEntry.getKey();
+                BukkitTask task = taskEntry.getValue();
+                boolean cancelled = false;
+
+                try {
+                    task.cancel();
+                    cancelled = task.isCancelled();
+                    if (!cancelled) {
+                        failure = appendCancellationFailure(
+                                failure, new IllegalStateException("Задача уведомления кулдауна осталась активной"));
+                    }
+                } catch (RuntimeException exception) {
+                    failure = appendCancellationFailure(failure, exception);
+                    try {
+                        cancelled = task.isCancelled();
+                    } catch (RuntimeException statusException) {
+                        failure = appendCancellationFailure(failure, statusException);
+                    }
+                }
+
+                if (cancelled) {
+                    byAbility.remove(abilityId, task);
+                }
+            }
+
+            if (byAbility.isEmpty()) {
+                tasks.remove(playerId, byAbility);
+            }
+        }
+
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    private static RuntimeException appendCancellationFailure(RuntimeException current, RuntimeException next) {
+        if (current == null) {
+            current = new IllegalStateException("Не удалось отменить все задачи уведомлений кулдаунов");
+        }
+        current.addSuppressed(next);
+        return current;
     }
 
     private void writeSection(UUID playerId) {

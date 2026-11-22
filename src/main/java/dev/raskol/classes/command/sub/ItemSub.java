@@ -78,9 +78,13 @@ public final class ItemSub implements CommandSub {
                 sender.sendMessage(Component.text("Команда доступна игроку.", NamedTextColor.RED));
                 return true;
             }
+            java.util.UUID playerId = p.getUniqueId();
             plugin.getItems().salvage().salvage(p, result -> {
-                if (result != dev.raskol.classes.item.craft.SalvageService.SalvageResult.OK) {
-                    plugin.getItems().salvage().notifyFailure(p, result);
+                Player current = Bukkit.getPlayer(playerId);
+                if (current != null
+                        && current.isOnline()
+                        && result != dev.raskol.classes.item.craft.SalvageService.SalvageResult.OK) {
+                    plugin.getItems().salvage().notifyFailure(current, result);
                 }
             });
             return true;

@@ -4,6 +4,7 @@ package dev.raskol.classes.resource;
 
 import java.io.File;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -23,7 +24,6 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
@@ -59,6 +59,7 @@ public final class ResourceService implements Listener {
     private final Map<UUID, ResourceState> states = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastGainMs = new ConcurrentHashMap<>();
     private final java.util.Set<UUID> resetOnJoin = ConcurrentHashMap.newKeySet();
+    private final Map<UUID, Long> resetGenerations = new ConcurrentHashMap<>();
     private final File file;
     private final YamlConfiguration store;
 
@@ -77,6 +78,7 @@ public final class ResourceService implements Listener {
                     UUID uuid = UUID.fromString(key);
                     if (pendingResets.getBoolean(key, false)) {
                         resetOnJoin.add(uuid);
+                        resetGenerations.put(uuid, 1L);
                     }
                 } catch (IllegalArgumentException ex) {
                     LOGGER.warning("resources.yml: некорректный UUID в pending-resets: " + key);
@@ -93,7 +95,7 @@ public final class ResourceService implements Listener {
         if (uuid == null) {
             return;
         }
-        resetOnJoin.add(uuid);
+        markResetIntent(uuid);
         runOnMainThread(() -> {
             if (resetOnJoin.contains(uuid)) {
                 persistResetMarker(uuid);
@@ -105,24 +107,71 @@ public final class ResourceService implements Listener {
      * 1.14.4 (3B): состояние ресурса с актуальным потолком из spec2-агрегата.
      */
     public ResourceState stateOf(UUID uuid) {
-        ResourceState st = states.computeIfAbsent(uuid, k -> new ResourceState());
-        Spec2Service svc = plugin.getSpec2Service();
-        double maxBonus = svc == null ? 0.0 : svc.resourceMaxBonus(uuid);
-        if (!Double.isFinite(maxBonus) || maxBonus < 0) maxBonus = 0.0;
+        ResourceState state = states.computeIfAbsent(uuid, ignored -> new ResourceState());
+        Player player = Bukkit.getPlayer(uuid);
+        PlayerClass playerClass = player == null ? null : classProvider.getClassOf(player);
+        state.setCeiling(effectiveMax(uuid, playerClass));
+        return state;
+    }
+
+    /**
+     * Возвращает read-only проекцию ресурса без создания ResourceState и без изменения его потолка.
+     * Если состояние игрока ещё не загружено, возвращает Optional.empty вместо фиктивного нуля.
+     */
+    public Optional<ResourceSnapshot> readSnapshot(UUID uuid, PlayerClass playerClass) {
+        java.util.Objects.requireNonNull(uuid, "uuid");
+        ResourceState state = states.get(uuid);
+        if (state == null) {
+            return Optional.empty();
+        }
+        double effectiveMax = effectiveMax(uuid, playerClass);
+        double current = state.getValue();
+        if (!Double.isFinite(current) || current < 0.0) {
+            throw new IllegalStateException("ResourceState содержит некорректное значение для " + uuid);
+        }
+        current = Math.min(current, effectiveMax);
+        long combatWindowMillis =
+                playerClass == null ? 0L : Math.max(0L, config.combatWindowSeconds(playerClass)) * 1000L;
+        boolean inCombat = combatWindowMillis > 0L && state.isInCombat(combatWindowMillis);
+        return Optional.of(new ResourceSnapshot(current, effectiveMax, inCombat));
+    }
+
+    private double effectiveMax(UUID uuid, PlayerClass playerClass) {
+        Spec2Service specializationService = plugin.getSpec2Service();
+        double maxBonus = specializationService == null ? 0.0 : specializationService.resourceMaxBonus(uuid);
+        if (!Double.isFinite(maxBonus) || maxBonus < 0.0) {
+            maxBonus = 0.0;
+        }
         Player player = Bukkit.getPlayer(uuid);
         if (player != null && plugin.getItems() != null) {
-            PlayerClass pc = classProvider.getClassOf(player);
-            dev.raskol.classes.item.model.ItemStat maxStat = pc == PlayerClass.WARRIOR
+            PlayerClass resolvedClass = playerClass != null ? playerClass : classProvider.getClassOf(player);
+            dev.raskol.classes.item.model.ItemStat maxStat = resolvedClass == PlayerClass.WARRIOR
                     ? dev.raskol.classes.item.model.ItemStat.MAX_RAGE
-                    : pc == PlayerClass.ROGUE || pc == PlayerClass.HUNTER
+                    : resolvedClass == PlayerClass.ROGUE || resolvedClass == PlayerClass.HUNTER
                             ? dev.raskol.classes.item.model.ItemStat.MAX_ENERGY
                             : dev.raskol.classes.item.model.ItemStat.MAX_MANA;
             double itemBonus = plugin.getItems().value(uuid, maxStat);
-            if (!Double.isFinite(itemBonus) || itemBonus < 0) itemBonus = 0.0;
-            maxBonus += itemBonus;
+            if (Double.isFinite(itemBonus) && itemBonus > 0.0) {
+                maxBonus += itemBonus;
+            }
         }
-        st.setCeiling(MAX_VALUE + maxBonus);
-        return st;
+        double effectiveMax = MAX_VALUE + maxBonus;
+        if (!Double.isFinite(effectiveMax) || effectiveMax <= 0.0) {
+            throw new IllegalStateException("Не удалось вычислить эффективный максимум ресурса для " + uuid);
+        }
+        return effectiveMax;
+    }
+
+    /** Неизменяемая read-модель ресурса для потребителей отображения. */
+    public record ResourceSnapshot(double current, double effectiveMax, boolean inCombat) {
+        public ResourceSnapshot {
+            if (!Double.isFinite(current) || current < 0.0) {
+                throw new IllegalArgumentException("current должен быть конечным неотрицательным числом");
+            }
+            if (!Double.isFinite(effectiveMax) || effectiveMax <= 0.0 || current > effectiveMax) {
+                throw new IllegalArgumentException("Некорректный effectiveMax/current ресурса");
+            }
+        }
     }
 
     public double getValue(UUID uuid) {
@@ -149,7 +198,7 @@ public final class ResourceService implements Listener {
         if (uuid == null) {
             return;
         }
-        resetOnJoin.add(uuid);
+        markResetIntent(uuid);
         clearRuntimeState(uuid);
         runOnMainThread(() -> {
             if (resetOnJoin.contains(uuid)) {
@@ -163,8 +212,29 @@ public final class ResourceService implements Listener {
         lastGainMs.remove(uuid);
     }
 
+    private void markResetIntent(UUID uuid) {
+        resetOnJoin.add(uuid);
+        resetGenerations.merge(uuid, 1L, Long::sum);
+    }
+
+    private long resetGeneration(UUID uuid) {
+        return resetGenerations.computeIfAbsent(uuid, ignored -> 1L);
+    }
+
+    private void completeResetIntent(UUID uuid, long expectedGeneration) {
+        if (resetGenerations.getOrDefault(uuid, 0L) == expectedGeneration) {
+            resetOnJoin.remove(uuid);
+        }
+    }
+
+    private void restoreResetIntent(UUID uuid) {
+        resetOnJoin.add(uuid);
+        store.set(PENDING_RESETS_PATH + "." + uuid, true);
+    }
+
     private void persistResetMarker(UUID uuid) {
         resetOnJoin.add(uuid);
+        resetGenerations.putIfAbsent(uuid, 1L);
         store.set(uuid.toString(), null);
         store.set(PENDING_RESETS_PATH + "." + uuid, true);
         persistAsync("маркер сброса ресурса для " + uuid, null);
@@ -206,13 +276,13 @@ public final class ResourceService implements Listener {
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             onlinePlayers.add(player.getUniqueId());
         }
-        java.util.Set<UUID> resolvedMarkers =
-                ResourceResetPersistence.prepareSave(store, states, resetOnJoin, onlinePlayers);
+        Map<UUID, Long> resolvedMarkers =
+                ResourceResetPersistence.prepareSave(store, states, resetOnJoin, onlinePlayers, resetGenerations);
         persistAsync("пакетное сохранение ресурсов", successful -> {
             if (successful) {
-                ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin);
+                ResourceResetPersistence.completeSave(resolvedMarkers, resetOnJoin, resetGenerations);
             } else {
-                ResourceResetPersistence.restoreAfterFailedSave(store, resolvedMarkers, resetOnJoin);
+                ResourceResetPersistence.restoreAfterFailedSave(resolvedMarkers, store, resetOnJoin);
                 LOGGER.severe("Маркеры сброса ресурсов восстановлены в памяти для следующей попытки сохранения");
             }
         });
@@ -224,15 +294,15 @@ public final class ResourceService implements Listener {
         String key = uuid.toString();
         // 1.15.5 (аудит 2.6-78): класс сменился оффлайн — шкала стартует с нуля
         if (resetOnJoin.contains(uuid) || store.getBoolean(PENDING_RESETS_PATH + "." + uuid, false)) {
+            long resetGeneration = resetGeneration(uuid);
             clearRuntimeState(uuid);
             store.set(key, null);
             store.set(PENDING_RESETS_PATH + "." + uuid, null);
             persistAsync("завершение сброса ресурса при входе " + uuid, successful -> {
                 if (successful) {
-                    resetOnJoin.remove(uuid);
+                    completeResetIntent(uuid, resetGeneration);
                 } else {
-                    resetOnJoin.add(uuid);
-                    store.set(PENDING_RESETS_PATH + "." + uuid, true);
+                    restoreResetIntent(uuid);
                     LOGGER.severe("Маркер сброса ресурса при входе " + uuid + " восстановлен для следующей попытки");
                 }
             });
@@ -253,24 +323,20 @@ public final class ResourceService implements Listener {
         UUID uuid = event.getPlayer().getUniqueId();
         store.set(uuid.toString(), stateOf(uuid).getValue());
         boolean pendingReset = resetOnJoin.contains(uuid);
+        long resetGeneration = pendingReset ? resetGeneration(uuid) : -1L;
         if (pendingReset) {
             store.set(PENDING_RESETS_PATH + "." + uuid, null);
         }
         persistAsync("выход игрока " + uuid, successful -> {
             if (pendingReset) {
                 if (successful) {
-                    resetOnJoin.remove(uuid);
+                    completeResetIntent(uuid, resetGeneration);
                 } else {
-                    resetOnJoin.add(uuid);
-                    store.set(PENDING_RESETS_PATH + "." + uuid, true);
+                    restoreResetIntent(uuid);
                 }
             }
         });
         clearRuntimeState(uuid);
-    }
-
-    public BukkitTask startTickTask(RaskolClasses plugin) {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
 
     private Spec spec2Spec(UUID uuid) {
@@ -282,7 +348,8 @@ public final class ResourceService implements Listener {
         return main == null ? null : Spec.fromId(main);
     }
 
-    private void tick() {
+    /** Выполняет один цикл регенерации и обслуживания ресурсов. */
+    public void tick() {
         tickCounter++;
         if (tickCounter % DEBUFF_PURGE_TICKS == 0) {
             WarlockAbilities.purgeStaleDebuffs();

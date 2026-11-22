@@ -23,7 +23,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ProjectileHitEvent;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.WarlockAbilities;
@@ -80,14 +79,6 @@ public final class DotService implements Listener {
             magicTypeCache = local;
         }
         return local;
-    }
-
-    public void registerListeners() {
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
-    }
-
-    public BukkitTask startTickTask() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
 
     /* ------------------------------ реестр определений ------------------------------ */
@@ -393,7 +384,7 @@ public final class DotService implements Listener {
         return DotCombatProfileMath.multiplier(profile, school, channelPenPct, schoolPenPct);
     }
 
-    private void tick() {
+    public void tick() {
         long now = System.currentTimeMillis();
         for (Map.Entry<UUID, CopyOnWriteArrayList<DotInstance>> entry : dots.entrySet()) {
             UUID targetUuid = entry.getKey();

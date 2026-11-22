@@ -336,12 +336,17 @@ public final class WarriorAbilities extends AbstractKit {
             taunted++;
         }
         if (taunted > 0) {
+            UUID casterId = p.getUniqueId();
             plugin.getServer()
                     .getScheduler()
                     .runTaskLater(
                             plugin,
                             () -> {
-                                for (Entity e : p.getNearbyEntities(radius + 8, radius + 8, radius + 8)) {
+                                Player caster = plugin.getServer().getPlayer(casterId);
+                                if (caster == null || !caster.isOnline()) {
+                                    return;
+                                }
+                                for (Entity e : caster.getNearbyEntities(radius + 8, radius + 8, radius + 8)) {
                                     if (e instanceof Mob mob && mob.isGlowing()) {
                                         mob.setGlowing(false);
                                     }

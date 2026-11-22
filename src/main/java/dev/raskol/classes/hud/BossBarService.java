@@ -4,24 +4,26 @@ package dev.raskol.classes.hud;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.OptionalLong;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.Bukkit;
-import org.bukkit.boss.BarColor;
-import org.bukkit.boss.BarStyle;
-import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.RaskolConfig;
 import dev.raskol.classes.effect.EffectType;
+import dev.raskol.classes.hud.channel.HudChannel;
+import dev.raskol.classes.hud.channel.HudChannelCoordinator;
+import dev.raskol.classes.hud.snapshot.BossBarPresentation;
+import dev.raskol.classes.hud.snapshot.WidgetFrame;
 import dev.raskol.classes.util.TextFx;
 
 import net.kyori.adventure.text.Component;
@@ -30,53 +32,38 @@ import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
 /**
  * Пакет 5: босс-бар V2 для активных эффектов.
- * 1.10.0-fix: barColor покрывает WARLOCK (BarColor.PURPLE).
+ * Создание, обновление и удаление Paper BossBar делегируется единому HUD channel owner.
  */
 public final class BossBarService {
 
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
+    private static final int BOSS_BAR_PRIORITY = 10;
 
     private final RaskolClasses plugin;
-    private final Map<UUID, Map<EffectType, BossBar>> bars = new ConcurrentHashMap<>();
-    private BukkitTask task;
+    private final HudChannelCoordinator channelCoordinator;
+    private final Map<UUID, Set<String>> publishedFrames = new ConcurrentHashMap<>();
 
     public BossBarService(RaskolClasses plugin) {
+        this(plugin, null);
+    }
+
+    public BossBarService(RaskolClasses plugin, HudChannelCoordinator channelCoordinator) {
         this.plugin = plugin;
+        this.channelCoordinator = channelCoordinator;
     }
 
-    public BukkitTask start() {
-        int period = Math.max(1, plugin.getRaskolConfig().bossBarTickPeriod());
-        this.task = new BukkitRunnable() {
-            @Override
-            public void run() {
-                tick();
-            }
-        }.runTaskTimer(plugin, period, period);
-        return this.task;
-    }
-
-    public void applyConfig() {
-        shutdown();
-        start();
-    }
-
-    public void shutdown() {
-        if (task != null) {
-            task.cancel();
-            task = null;
+    /** Удаляет все опубликованные полосы; периодический вызов принадлежит BossBarRuntimeOwner. */
+    public void clearBars() {
+        for (UUID playerId : List.copyOf(publishedFrames.keySet())) {
+            cleanupPlayer(playerId);
         }
-        for (Map<EffectType, BossBar> playerBars : bars.values()) {
-            for (BossBar bar : playerBars.values()) {
-                bar.removeAll();
-            }
-        }
-        bars.clear();
     }
 
-    private void tick() {
+    /** Выполняет один цикл обновления полос; вызывается синхронным runtime scheduler. */
+    public void tick() {
         RaskolConfig cfg = plugin.getRaskolConfig();
         if (!cfg.isBossBarEnabled()) {
-            cleanupAll();
+            clearBars();
             return;
         }
 
@@ -87,100 +74,106 @@ public final class BossBarService {
         String fmtInf = cfg.bossBarFormatInfinite();
 
         for (Player player : Bukkit.getOnlinePlayers()) {
-            UUID id = player.getUniqueId();
+            UUID playerId = player.getUniqueId();
 
             if (plugin.getHud() != null && !plugin.getHud().isVisible(player)) {
-                cleanupPlayer(id);
+                cleanupPlayer(playerId);
                 continue;
             }
-            PlayerClass pc = plugin.getClassProvider().getClassOf(player);
-            if (pc == null) {
-                cleanupPlayer(id);
+            PlayerClass playerClass = plugin.getClassProvider().getClassOf(player);
+            if (playerClass == null) {
+                cleanupPlayer(playerId);
                 continue;
             }
-            RaskolConfig.ClassTheme theme = cfg.themeOf(pc);
 
-            Map<EffectType, Long> active = plugin.getEffects().getActiveEffects(id);
-
+            RaskolConfig.ClassTheme theme = cfg.themeOf(playerClass);
+            Map<EffectType, Long> active = plugin.getEffects().getActiveEffects(playerId);
             List<Map.Entry<EffectType, Long>> candidates = new ArrayList<>();
-            for (Map.Entry<EffectType, Long> e : active.entrySet()) {
-                EffectType type = e.getKey();
+            for (Map.Entry<EffectType, Long> entry : active.entrySet()) {
+                EffectType type = entry.getKey();
                 if (type.displayName() == null) {
                     continue;
                 }
-                boolean oneShot = e.getValue() == Long.MAX_VALUE;
-                if (oneShot || totalDurationMillis(pc, type) >= minMillis) {
-                    candidates.add(e);
+                boolean oneShot = entry.getValue() == Long.MAX_VALUE;
+                if (oneShot || totalDurationMillis(playerClass, type) >= minMillis) {
+                    candidates.add(entry);
                 }
             }
 
             candidates.sort(Comparator.<Map.Entry<EffectType, Long>, Long>comparing(
-                            e -> e.getValue() == Long.MAX_VALUE ? Long.MAX_VALUE : e.getValue() - now)
+                            entry -> entry.getValue() == Long.MAX_VALUE ? Long.MAX_VALUE : entry.getValue() - now)
                     .reversed());
 
-            Map<EffectType, BossBar> playerBars = bars.computeIfAbsent(id, k -> new EnumMap<>(EffectType.class));
-            BarColor color = barColor(pc);
-
-            List<EffectType> visible = new ArrayList<>();
+            BossBarPresentation.Color color = barColor(playerClass);
+            Set<String> visibleFrames = new HashSet<>();
             int kept = 0;
-            for (Map.Entry<EffectType, Long> e : candidates) {
+            for (Map.Entry<EffectType, Long> entry : candidates) {
                 if (kept >= maxVisible) {
                     break;
                 }
-                EffectType type = e.getKey();
-                long expires = e.getValue();
+                EffectType type = entry.getKey();
+                long expiresAt = entry.getValue();
+                String widgetId = widgetId(type);
+                visibleFrames.add(widgetId);
 
-                BossBar bar = playerBars.get(type);
-                if (bar == null) {
-                    bar = Bukkit.createBossBar("", color, BarStyle.SEGMENTED_10);
-                    bar.addPlayer(player);
-                    playerBars.put(type, bar);
+                String secondsText;
+                double progress;
+                if (expiresAt == Long.MAX_VALUE) {
+                    secondsText = "";
+                    progress = 1.0;
                 } else {
-                    bar.setColor(color);
+                    long remaining = Math.max(0L, expiresAt - now);
+                    int seconds = (int) Math.max(1L, (remaining + 999L) / 1000L);
+                    secondsText = String.valueOf(seconds);
+                    double total = totalDurationMillis(playerClass, type);
+                    progress = total > 0.0 ? Math.max(0.0, Math.min(1.0, remaining / total)) : 1.0;
                 }
 
-                if (expires == Long.MAX_VALUE) {
-                    bar.setTitle(LEGACY.serialize(buildTitle(theme, type, fmtInf, "")));
-                    bar.setProgress(1.0);
-                } else {
-                    long remaining = Math.max(0L, expires - now);
-                    int sec = (int) Math.max(1L, (remaining + 999L) / 1000L);
-                    bar.setTitle(LEGACY.serialize(buildTitle(theme, type, fmt, String.valueOf(sec))));
-                    double total = totalDurationMillis(pc, type);
-                    bar.setProgress(total > 0 ? Math.max(0.0, Math.min(1.0, remaining / total)) : 1.0);
+                Component title = buildTitle(theme, type, expiresAt == Long.MAX_VALUE ? fmtInf : fmt, secondsText);
+                WidgetFrame frame = new WidgetFrame(
+                        widgetId,
+                        HudChannel.BOSS_BAR.name(),
+                        BOSS_BAR_PRIORITY,
+                        LEGACY.serialize(title),
+                        OptionalLong.empty(),
+                        java.util.Optional.of(new BossBarPresentation(
+                                progress, color, BossBarPresentation.Style.SEGMENTED_10, Set.of())));
+                if (channelCoordinator != null) {
+                    try {
+                        channelCoordinator.upsertPersistentFrame(playerId, frame);
+                    } catch (RuntimeException ignored) {
+                        // Coordinator журналирует сбой; следующий BossBar tick повторит публикацию.
+                    }
                 }
-                visible.add(type);
                 kept++;
             }
 
-            List<EffectType> toRemove = new ArrayList<>();
-            for (Map.Entry<EffectType, BossBar> entry : playerBars.entrySet()) {
-                if (!visible.contains(entry.getKey())) {
-                    entry.getValue().removePlayer(player);
-                    toRemove.add(entry.getKey());
-                }
-            }
-            for (EffectType t : toRemove) {
-                playerBars.remove(t);
-            }
-            if (playerBars.isEmpty()) {
-                bars.remove(id);
-            }
+            replacePublishedFrames(playerId, visibleFrames);
         }
 
-        List<UUID> offline = new ArrayList<>();
-        for (UUID id : bars.keySet()) {
-            if (Bukkit.getPlayer(id) == null) {
-                offline.add(id);
+        for (UUID playerId : List.copyOf(publishedFrames.keySet())) {
+            if (Bukkit.getPlayer(playerId) == null) {
+                cleanupPlayer(playerId);
             }
-        }
-        for (UUID id : offline) {
-            cleanupPlayer(id);
         }
     }
 
-    private Component buildTitle(RaskolConfig.ClassTheme theme, EffectType type, String template, String secText) {
-        String suffix = template.replace("{name}", "").replace("{sec}", secText);
+    private void replacePublishedFrames(UUID playerId, Set<String> visibleFrames) {
+        Set<String> previous = publishedFrames.getOrDefault(playerId, Set.of());
+        for (String widgetId : previous) {
+            if (!visibleFrames.contains(widgetId)) {
+                removeFrame(playerId, widgetId);
+            }
+        }
+        if (visibleFrames.isEmpty()) {
+            publishedFrames.remove(playerId);
+        } else {
+            publishedFrames.put(playerId, Set.copyOf(visibleFrames));
+        }
+    }
+
+    private Component buildTitle(RaskolConfig.ClassTheme theme, EffectType type, String template, String secondsText) {
+        String suffix = template.replace("{name}", "").replace("{sec}", secondsText);
         return Component.text(theme.symbol() + " ", theme.primary())
                 .append(TextFx.gradient(type.displayName(), theme.primary(), theme.secondary()))
                 .append(Component.text(suffix, NamedTextColor.DARK_GRAY));
@@ -188,9 +181,9 @@ public final class BossBarService {
 
     /**
      * Длительность эффекта для прогресс-бара.
-     * 1.10.0: WARLOCK-эффекты пока не входят в EffectType — возвращаем 0 (бар полный).
+     * WARLOCK-эффекты пока не входят в EffectType — возвращаем 0 (бар полный).
      */
-    private double totalDurationMillis(PlayerClass pc, EffectType type) {
+    private double totalDurationMillis(PlayerClass playerClass, EffectType type) {
         return switch (type) {
             case SHIELD_WALL -> plugin.getRaskolConfig().durationSeconds(PlayerClass.WARRIOR, "steel_skin", 5) * 1000.0;
             case BLOOD_FURY -> plugin.getRaskolConfig().durationSeconds(PlayerClass.WARRIOR, "blood_fury", 4) * 1000.0;
@@ -202,39 +195,38 @@ public final class BossBarService {
         };
     }
 
-    /** 1.10.0: покрыт WARLOCK (PURPLE — вторичный цвет темы #9B30FF). */
-    private static BarColor barColor(PlayerClass pc) {
-        return switch (pc) {
-            case WARRIOR -> BarColor.RED;
-            case HUNTER -> BarColor.GREEN;
-            case PRIEST -> BarColor.WHITE;
-            case MAGE -> BarColor.BLUE;
-            case ROGUE -> BarColor.PURPLE;
-            case WARLOCK -> BarColor.PURPLE;
+    private static BossBarPresentation.Color barColor(PlayerClass playerClass) {
+        return switch (playerClass) {
+            case WARRIOR -> BossBarPresentation.Color.RED;
+            case HUNTER -> BossBarPresentation.Color.GREEN;
+            case PRIEST -> BossBarPresentation.Color.WHITE;
+            case MAGE -> BossBarPresentation.Color.BLUE;
+            case ROGUE, WARLOCK -> BossBarPresentation.Color.PURPLE;
         };
     }
 
-    private void cleanupPlayer(UUID id) {
-        Map<EffectType, BossBar> playerBars = bars.remove(id);
-        if (playerBars == null) {
+    private static String widgetId(EffectType type) {
+        return "legacy-effect:" + type.name().toLowerCase(Locale.ROOT);
+    }
+
+    private void cleanupPlayer(UUID playerId) {
+        Set<String> widgetIds = publishedFrames.remove(playerId);
+        if (widgetIds == null) {
             return;
         }
-        Player p = Bukkit.getPlayer(id);
-        for (BossBar bar : playerBars.values()) {
-            if (p != null) {
-                bar.removePlayer(p);
-            } else {
-                bar.removeAll();
-            }
+        for (String widgetId : widgetIds) {
+            removeFrame(playerId, widgetId);
         }
     }
 
-    private void cleanupAll() {
-        for (Map<EffectType, BossBar> playerBars : bars.values()) {
-            for (BossBar bar : playerBars.values()) {
-                bar.removeAll();
-            }
+    private void removeFrame(UUID playerId, String widgetId) {
+        if (channelCoordinator == null) {
+            return;
         }
-        bars.clear();
+        try {
+            channelCoordinator.removePersistentFrame(playerId, widgetId);
+        } catch (RuntimeException ignored) {
+            // Coordinator журналирует сбой и повторит reconciliation на следующем channel tick.
+        }
     }
 }

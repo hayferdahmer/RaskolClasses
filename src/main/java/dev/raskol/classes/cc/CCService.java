@@ -28,7 +28,6 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
 import dev.raskol.classes.RaskolClasses;
@@ -75,6 +74,7 @@ public final class CCService implements Listener {
     }
 
     private final RaskolClasses plugin;
+    private final CCFeedback feedback;
     private final Map<UUID, CopyOnWriteArrayList<CCInstance>> active = new ConcurrentHashMap<>();
     private final Map<UUID, EnumMap<DRCategory, DRState>> drStates = new ConcurrentHashMap<>();
     private final Map<UUID, Long> nextFearTurn = new ConcurrentHashMap<>();
@@ -88,25 +88,18 @@ public final class CCService implements Listener {
      * полей. Регистрацию слушателей и запуск тик-задачи (каждый тик) выполняет
      * владелец (RaskolClasses.onEnable).
      */
-    public CCService(RaskolClasses plugin) {
+    public CCService(RaskolClasses plugin, CCFeedback feedback) {
         this.plugin = plugin;
+        this.feedback = java.util.Objects.requireNonNull(feedback, "feedback");
         this.slowAttrKey = new NamespacedKey(plugin, "cc_slow");
     }
 
     /** 1.14.13 (Волна 13B-b): регистрация слушателей — вызов из RaskolClasses.onEnable. */
-    public void registerListeners() {
-        plugin.getServer().getPluginManager().registerEvents(this, plugin);
-    }
-
     /**
      * 1.14.13 (Волна 13B-b): тик-задача 1 тик (50 мс); ручка в activeTasks владельца.
      * Высокая частота (20 раз/сек) критична для velocity-обнуления под STUN/ROOT
      * и принудительного бега FEAR — явная отмена в onDisable обязательна.
      */
-    public BukkitTask startTickTask() {
-        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 1L, 1L);
-    }
-
     /* ------------------------------ конфиг-читалки ------------------------------ */
 
     public boolean enabled() {
@@ -365,7 +358,7 @@ public final class CCService implements Listener {
         if (type.interruptible() && CastChannels.interrupt(targetUuid)) {
             CCFeedback.onInterruptCast(plugin, target, type);
         }
-        CCFeedback.onApply(plugin, caster, target, type, applied, drMult);
+        feedback.onApply(plugin, caster, target, type, applied, drMult);
         return new ApplyResult(CCResult.SUCCESS, applied, drMult);
     }
 
@@ -435,7 +428,7 @@ public final class CCService implements Listener {
             if (breaksOnDamage(inst.type())) {
                 list.remove(inst);
                 clearBehavior(uuid, inst.type());
-                CCFeedback.onExpire(plugin, target, inst.type());
+                feedback.onExpire(plugin, target, inst.type());
             }
         }
         if (list.isEmpty()) {
@@ -612,7 +605,7 @@ public final class CCService implements Listener {
 
     /* ------------------------------ тик ------------------------------ */
 
-    private void tick() {
+    public void tick() {
         tickCounter++;
         long now = System.currentTimeMillis();
         if (tickCounter % 20L == 0L) {
@@ -636,7 +629,7 @@ public final class CCService implements Listener {
                 if (inst.expired(now)) {
                     list.remove(inst);
                     clearBehavior(uuid, inst.type());
-                    CCFeedback.onExpire(plugin, target, inst.type());
+                    feedback.onExpire(plugin, target, inst.type());
                     continue;
                 }
                 if (particleFrame) {

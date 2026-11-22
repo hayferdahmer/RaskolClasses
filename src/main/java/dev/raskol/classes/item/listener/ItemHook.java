@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -35,6 +36,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
@@ -70,10 +73,12 @@ public final class ItemHook implements Listener {
     private final NamespacedKey attackSpeedKey, movementSpeedKey, starterKitClassKey;
     private final Map<UUID, Long> hashes = new ConcurrentHashMap<>();
     private BukkitTask reconcileTask;
+    private final PlayerCallbackRuntimeOwner callbacks;
 
     public ItemHook(RaskolClasses plugin, ItemSystem items) {
         this.plugin = plugin;
         this.items = items;
+        this.callbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(plugin));
         attackSpeedKey = new NamespacedKey(plugin, "item_attack_speed");
         movementSpeedKey = new NamespacedKey(plugin, "item_movement_speed");
         starterKitClassKey = new NamespacedKey(plugin, "starter_kit_class");
@@ -92,12 +97,36 @@ public final class ItemHook implements Listener {
     }
 
     public void stop() {
-        if (reconcileTask != null) reconcileTask.cancel();
+        RuntimeException failure = null;
+        if (reconcileTask != null) {
+            try {
+                reconcileTask.cancel();
+                reconcileTask = null;
+            } catch (RuntimeException exception) {
+                failure = exception;
+            }
+        }
+        try {
+            callbacks.close();
+        } catch (RuntimeException exception) {
+            if (failure == null) {
+                failure = exception;
+            } else {
+                failure.addSuppressed(exception);
+            }
+        }
+        if (failure != null) {
+            throw failure;
+        }
     }
 
-    public void schedule(Player p) {
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (p.isOnline()) reconcile(p);
+    public void schedule(Player player) {
+        UUID playerId = player.getUniqueId();
+        callbacks.schedule(playerId, 1L, id -> {
+            Player online = Bukkit.getPlayer(id);
+            if (online != null && online.isOnline()) {
+                reconcile(online);
+            }
         });
     }
 
@@ -371,6 +400,7 @@ public final class ItemHook implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void quit(PlayerQuitEvent e) {
         UUID id = e.getPlayer().getUniqueId();
+        callbacks.cancel(id);
         hashes.remove(id);
         items.clear(id);
         items.setBonuses().clear(id);

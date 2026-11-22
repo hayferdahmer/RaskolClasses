@@ -34,6 +34,8 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.attribute.AttributeMath;
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.bootstrap.runtime.PaperPlayerCallbackScheduler;
+import dev.raskol.classes.bootstrap.runtime.PlayerCallbackRuntimeOwner;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.config.ConfigReads;
 
@@ -95,12 +97,14 @@ public final class AvoidanceService implements Listener {
 
     private final RaskolClasses plugin;
     private final NamespacedKey staggerKey;
+    private final PlayerCallbackRuntimeOwner staggerCallbacks;
     /** 1.15.6 (2.6-53): время последнего showTitle dodge/parry для каждого игрока. */
     private final Map<UUID, Long> lastAvoidTagMs = new ConcurrentHashMap<>();
 
     public AvoidanceService(RaskolClasses plugin) {
         this.plugin = plugin;
         this.staggerKey = new NamespacedKey(plugin, "parry_stagger");
+        this.staggerCallbacks = new PlayerCallbackRuntimeOwner(new PaperPlayerCallbackScheduler(plugin));
     }
 
     /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteDouble (аудит 1-01). */
@@ -130,9 +134,15 @@ public final class AvoidanceService implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
+        UUID playerId = event.getPlayer().getUniqueId();
         clearStagger(event.getPlayer());
-        // Очистка троттлинг-карты — игрок уходит, запись больше не нужна.
-        lastAvoidTagMs.remove(event.getPlayer().getUniqueId());
+        lastAvoidTagMs.remove(playerId);
+        try {
+            staggerCallbacks.cancel(playerId);
+        } catch (RuntimeException failure) {
+            plugin.getLogger()
+                    .warning("Не удалось отменить stagger callback для " + playerId + ": " + failure.getMessage());
+        }
     }
 
     /**
@@ -150,6 +160,10 @@ public final class AvoidanceService implements Listener {
         if (instance != null) {
             removeStagger(instance);
         }
+    }
+
+    public void shutdown() {
+        staggerCallbacks.close();
     }
 
     /* ------------------------------ ролл уклонения ------------------------------ */
@@ -302,19 +316,17 @@ public final class AvoidanceService implements Listener {
             removeStagger(instance);
             instance.addModifier(new AttributeModifier(
                     staggerKey, mult, AttributeModifier.Operation.MULTIPLY_SCALAR_1, EquipmentSlotGroup.ANY));
-            plugin.getServer()
-                    .getScheduler()
-                    .runTaskLater(
-                            plugin,
-                            () -> {
-                                if (ap.isOnline()) {
-                                    AttributeInstance cur = ap.getAttribute(Attribute.ATTACK_SPEED);
-                                    if (cur != null) {
-                                        removeStagger(cur);
-                                    }
-                                }
-                            },
-                            ticks);
+            UUID attackerId = ap.getUniqueId();
+            staggerCallbacks.schedule(attackerId, ticks, playerId -> {
+                Player currentAttacker = plugin.getServer().getPlayer(playerId);
+                if (currentAttacker == null || !currentAttacker.isOnline()) {
+                    return;
+                }
+                AttributeInstance currentAttribute = currentAttacker.getAttribute(Attribute.ATTACK_SPEED);
+                if (currentAttribute != null) {
+                    removeStagger(currentAttribute);
+                }
+            });
         } else if (attacker instanceof Mob mob) {
             long ticks = Math.max(1L, (long) (cfgD("avoidance.parry-stagger-mob-ms", 500.0) / 50.0));
             mob.addPotionEffect(

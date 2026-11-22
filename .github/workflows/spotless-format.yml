@@ -3,6 +3,13 @@
 name: RaskolClasses Spotless Format
 
 on:
+  push:
+    branches: [ refactor/a03-foundation-lifecycle ]
+    paths:
+      - .github/workflows/spotless-format.yml
+      - docs/architecture/A03_REMAINING_LIFECYCLE_OWNERSHIP_INVENTORY.md
+      - 'src/main/java/**/*.java'
+      - 'src/test/java/**/*.java'
   workflow_dispatch:
     inputs:
       target_branch:
@@ -16,19 +23,22 @@ on:
 permissions:
   contents: write
 
+# Общая группа исключает параллельную запись форматтера в одну ветку.
 concurrency:
-  group: spotless-format-${{ inputs.target_branch }}
+  group: spotless-${{ inputs.target_branch || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   format:
-    if: inputs.target_branch == 'refactor/a03-foundation-lifecycle'
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/refactor/a03-foundation-lifecycle') ||
+      (github.event_name == 'workflow_dispatch' && inputs.target_branch == 'refactor/a03-foundation-lifecycle')
     runs-on: ubuntu-24.04
     steps:
       - name: Guard target branch
         shell: bash
         env:
-          TARGET_BRANCH: ${{ inputs.target_branch }}
+          TARGET_BRANCH: ${{ inputs.target_branch || github.ref_name }}
         run: |
           set -euo pipefail
           if [[ "${TARGET_BRANCH}" != "refactor/a03-foundation-lifecycle" ]]; then
@@ -39,7 +49,7 @@ jobs:
       - name: Checkout target branch
         uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.target_branch }}
+          ref: ${{ inputs.target_branch || github.ref_name }}
           fetch-depth: 0
 
       - name: Set up JDK 25
@@ -52,10 +62,10 @@ jobs:
       - name: Apply Spotless formatting
         run: mvn -Pdev -B spotless:apply
 
-      - name: Commit formatting changes
+      - name: Commit and push formatting changes safely
         shell: bash
         env:
-          TARGET_BRANCH: ${{ inputs.target_branch }}
+          TARGET_BRANCH: ${{ inputs.target_branch || github.ref_name }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -63,10 +73,31 @@ jobs:
           git add -u
           if git diff --cached --quiet; then
             echo "No formatting changes were necessary."
-          else
-            git commit -m "style: apply Spotless formatting"
-            git push origin "HEAD:${TARGET_BRANCH}"
+            exit 0
           fi
 
-      - name: Verify formatted code
+          git commit -m "style: apply Spotless formatting"
+
+          pushed=false
+          for attempt in 1 2 3; do
+            echo "Push attempt ${attempt}/3"
+            git fetch origin "${TARGET_BRANCH}"
+            if ! git rebase "origin/${TARGET_BRANCH}"; then
+              git rebase --abort || true
+              echo "::error::Formatting changes conflict with newer commits on ${TARGET_BRANCH}; no remote changes were made."
+              exit 1
+            fi
+            if git push origin "HEAD:refs/heads/${TARGET_BRANCH}"; then
+              pushed=true
+              break
+            fi
+            echo "Branch advanced during push; retrying against its latest head."
+          done
+
+          if [[ "${pushed}" != "true" ]]; then
+            echo "::error::Could not push formatting commit after 3 attempts."
+            exit 1
+          fi
+
+      - name: Verify final branch state
         run: mvn -Pdev -B verify

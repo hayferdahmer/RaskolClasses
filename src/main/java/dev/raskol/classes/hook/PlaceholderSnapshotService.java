@@ -11,7 +11,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitTask;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -23,24 +22,10 @@ import dev.raskol.classes.classsystem.PlayerClass;
  * чтение состояния Player и вызовы внешних интеграций остаются в этом сервисе
  * и выполняются только на основном потоке.</p>
  */
-public final class PlaceholderSnapshotService implements AutoCloseable {
-
-    private static final long REFRESH_PERIOD_TICKS = 5L;
+public final class PlaceholderSnapshotService {
 
     private final Map<UUID, PlaceholderSnapshot> snapshots = new ConcurrentHashMap<>();
     private final Set<UUID> warnedFailures = ConcurrentHashMap.newKeySet();
-    private BukkitTask refreshTask;
-
-    /**
-     * Запускает обновление снимков на основном потоке.
-     */
-    public void start(RaskolClasses plugin) {
-        refreshOnlinePlayers(plugin);
-        refreshTask = plugin.getServer()
-                .getScheduler()
-                .runTaskTimer(plugin, () -> refreshOnlinePlayers(plugin), REFRESH_PERIOD_TICKS, REFRESH_PERIOD_TICKS);
-    }
-
     /**
      * Возвращает значение из последнего опубликованного снимка.
      */
@@ -57,7 +42,8 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
         return snapshot == null ? null : snapshot.crownValue(parameter);
     }
 
-    private void refreshOnlinePlayers(RaskolClasses plugin) {
+    /** Обновляет снимки всех игроков; вызывается runtime owner на основном потоке. */
+    public void refreshOnlinePlayers(RaskolClasses plugin) {
         Set<UUID> onlineIds = new HashSet<>();
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             UUID playerId = player.getUniqueId();
@@ -132,12 +118,8 @@ public final class PlaceholderSnapshotService implements AutoCloseable {
         return String.format(Locale.ROOT, "%.1f", value);
     }
 
-    @Override
-    public void close() {
-        if (refreshTask != null) {
-            refreshTask.cancel();
-            refreshTask = null;
-        }
+    /** Очищает опубликованные значения после остановки runtime producer. */
+    public void clear() {
         snapshots.clear();
         warnedFailures.clear();
     }

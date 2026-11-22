@@ -166,7 +166,17 @@ public final class ItemSystem implements ItemStatsProvider {
     }
 
     public void stop() {
-        hook.stop();
+        closeSafely("item hook callbacks", hook::stop);
+        closeSafely("crafting GUI callbacks", craftingGui::close);
+        closeSafely("item browser callbacks", browser::close);
+    }
+
+    private void closeSafely(String name, Runnable action) {
+        try {
+            action.run();
+        } catch (RuntimeException exception) {
+            plugin.getLogger().log(java.util.logging.Level.SEVERE, "Не удалось закрыть " + name, exception);
+        }
     }
 
     public ItemDefinition definitionOf(org.bukkit.inventory.ItemStack item) {

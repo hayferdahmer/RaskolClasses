@@ -58,7 +58,13 @@ public final class AsyncStorageWriter implements AutoCloseable {
                 new ThreadPoolExecutor.AbortPolicy());
     }
 
-    /** Ставит неизменяемый снимок в FIFO-очередь фоновой записи. */
+    /**
+     * Ставит неизменяемый снимок в FIFO-очередь фоновой записи.
+     *
+     * <p>Completion future не привязан к отдельному executor: при штатной записи
+     * callbacks обычно исполняются на storage worker thread, а при отклонении
+     * submit или отмене очереди могут исполняться на вызывающем потоке.</p>
+     */
     public CompletableFuture<Boolean> submit(File file, String snapshot) {
         if (file == null || snapshot == null) {
             return CompletableFuture.completedFuture(false);
