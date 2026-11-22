@@ -38,8 +38,7 @@ class Spec2StorageMigrationTest {
         UUID playerId = UUID.fromString("d7a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
         File legacy = write(
                 "spec2.yml",
-                "players:\n  " + playerId
-                        + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
+                "players:\n  " + playerId + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
 
         migrate();
 
@@ -60,8 +59,7 @@ class Spec2StorageMigrationTest {
         UUID legacyOnlyId = UUID.fromString("b7a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
         write(
                 "spec2-storage.yml",
-                "players:\n  " + sharedId
-                        + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
+                "players:\n  " + sharedId + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
         write(
                 "spec2.yml",
                 "players:\n  " + sharedId
@@ -107,8 +105,7 @@ class Spec2StorageMigrationTest {
         assertEquals(100L, saved.getLong(profile + ".created-at"));
         assertEquals("discipline", saved.getString(profile + ".specialization.main"));
         assertEquals(
-                List.of("quest:crypt-depths:" + playerId),
-                saved.getStringList("processed-quest-rewards." + playerId));
+                List.of("quest:crypt-depths:" + playerId), saved.getStringList("processed-quest-rewards." + playerId));
         YamlConfiguration backup = YamlConfiguration.loadConfiguration(
                 tempDir.resolve("characters.yml.bak").toFile());
         assertEquals("discipline", backup.getString(profile + ".specialization.main"));
@@ -189,8 +186,8 @@ class Spec2StorageMigrationTest {
 
     private void migrate() {
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
-            CharacterProfileStorage profiles =
-                    new CharacterProfileStorage(tempDir.resolve("characters.yml").toFile(), writer, LOGGER);
+            CharacterProfileStorage profiles = new CharacterProfileStorage(
+                    tempDir.resolve("characters.yml").toFile(), writer, LOGGER);
             Spec2StorageMigration.migrate(tempDir.toFile(), profiles, LOGGER);
             assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
         }
