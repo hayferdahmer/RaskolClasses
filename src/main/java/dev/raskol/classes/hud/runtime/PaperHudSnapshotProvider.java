@@ -123,9 +123,10 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
         CharacterExperienceService.ProgressSnapshot progression = characterExperience.snapshot(playerId);
         HudValue<Integer> characterLevel = HudValue.available(progression.level());
         HudValue<Long> currentExperience = HudValue.available(progression.currentExperience());
-        HudValue<Long> experienceToNextLevel = progression.experienceToNextLevel().isPresent()
-                ? HudValue.available(progression.experienceToNextLevel().getAsLong())
-                : HudValue.notApplicable();
+        HudValue<Long> experienceToNextLevel =
+                progression.experienceToNextLevel().isPresent()
+                        ? HudValue.available(progression.experienceToNextLevel().getAsLong())
+                        : HudValue.notApplicable();
 
         if (playerClass == null) {
             return new PlayerHudSnapshot.CharacterView(
