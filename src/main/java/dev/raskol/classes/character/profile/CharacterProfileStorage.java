@@ -7,9 +7,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -94,9 +94,12 @@ public final class CharacterProfileStorage {
     }
 
     private void loadProcessedQuestRewards(YamlConfiguration yaml) {
+        if (!yaml.contains(QUEST_REWARDS_PATH)) {
+            return;
+        }
         ConfigurationSection section = yaml.getConfigurationSection(QUEST_REWARDS_PATH);
         if (section == null) {
-            return;
+            throw new IllegalStateException("Журнал квестовых наград должен быть YAML-разделом");
         }
         for (String rawId : section.getKeys(false)) {
             UUID playerId;
@@ -106,6 +109,9 @@ public final class CharacterProfileStorage {
                 throw new IllegalStateException("Некорректный UUID в журнале квестовых наград: " + rawId, exception);
             }
 
+            if (!profiles.containsKey(playerId)) {
+                throw new IllegalStateException("Журнал квестовых наград ссылается на отсутствующий профиль " + rawId);
+            }
             Object rawRewards = section.get(rawId);
             if (!(rawRewards instanceof List<?> rewards)) {
                 throw new IllegalStateException("Журнал квестовых наград игрока " + rawId + " должен быть списком");
