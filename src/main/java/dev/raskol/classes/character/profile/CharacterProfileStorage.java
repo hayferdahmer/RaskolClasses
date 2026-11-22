@@ -4,7 +4,10 @@ package dev.raskol.classes.character.profile;
 
 import java.io.File;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,7 +30,9 @@ import dev.raskol.classes.storage.SafeStorage;
 public final class CharacterProfileStorage {
 
     public static final String FILE_NAME = "characters.yml";
+    private static final int CURRENT_STORAGE_SCHEMA_VERSION = 2;
     private static final String PROFILES_PATH = "profiles";
+    private static final String QUEST_REWARDS_PATH = "processed-quest-rewards";
     private static final String SCHEMA_PATH = "schema-version";
 
     private final File file;
@@ -35,6 +40,7 @@ public final class CharacterProfileStorage {
     private final Logger logger;
     private final LongSupplier clock;
     private final Map<UUID, CharacterProfile> profiles = new LinkedHashMap<>();
+    private final Map<UUID, Set<String>> processedQuestRewards = new LinkedHashMap<>();
     private final AtomicLong mutationVersion = new AtomicLong();
     private final AtomicLong persistedVersion = new AtomicLong();
 
@@ -53,11 +59,12 @@ public final class CharacterProfileStorage {
     private void load() {
         YamlConfiguration yaml = SafeStorage.loadWithFallback(file, logger);
         int schemaVersion = readInteger(yaml, SCHEMA_PATH, 0);
-        if (schemaVersion < 0 || schemaVersion > CharacterProfile.CURRENT_SCHEMA_VERSION) {
+        if (schemaVersion < 0 || schemaVersion > CURRENT_STORAGE_SCHEMA_VERSION) {
             throw new IllegalStateException("Неподдерживаемая версия characters.yml: " + schemaVersion);
         }
 
-        boolean migrated = schemaVersion < CharacterProfile.CURRENT_SCHEMA_VERSION;
+        boolean storageMigrated = schemaVersion < CURRENT_STORAGE_SCHEMA_VERSION;
+        boolean allowLegacyProfiles = schemaVersion == 0;
         ConfigurationSection section = yaml.getConfigurationSection(PROFILES_PATH);
         if (section != null) {
             for (String rawId : section.getKeys(false)) {
@@ -72,16 +79,53 @@ public final class CharacterProfileStorage {
                 if (profileSection == null) {
                     throw new IllegalStateException("Профиль " + rawId + " должен быть YAML-разделом");
                 }
-                CharacterProfile profile = readProfile(playerId, profileSection, migrated);
+                CharacterProfile profile = readProfile(playerId, profileSection, allowLegacyProfiles);
                 profiles.put(playerId, profile);
             }
         }
 
-        if (migrated && file.exists()) {
+        loadProcessedQuestRewards(yaml);
+
+        if (storageMigrated && file.exists()) {
             mutationVersion.incrementAndGet();
             logger.info("CharacterProfileStorage: characters.yml будет обновлён до схемы "
-                    + CharacterProfile.CURRENT_SCHEMA_VERSION);
+                    + CURRENT_STORAGE_SCHEMA_VERSION);
         }
+    }
+
+    private void loadProcessedQuestRewards(YamlConfiguration yaml) {
+        ConfigurationSection section = yaml.getConfigurationSection(QUEST_REWARDS_PATH);
+        if (section == null) {
+            return;
+        }
+        for (String rawId : section.getKeys(false)) {
+            UUID playerId;
+            try {
+                playerId = UUID.fromString(rawId);
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalStateException("Некорректный UUID в журнале квестовых наград: " + rawId, exception);
+            }
+
+            Object rawRewards = section.get(rawId);
+            if (!(rawRewards instanceof List<?> rewards)) {
+                throw new IllegalStateException("Журнал квестовых наград игрока " + rawId + " должен быть списком");
+            }
+            Set<String> parsedRewards = new LinkedHashSet<>();
+            for (Object rawReward : rewards) {
+                if (!(rawReward instanceof String rewardId) || !isValidRewardId(rewardId)) {
+                    throw new IllegalStateException("Некорректный идентификатор квестовой награды игрока " + rawId);
+                }
+                parsedRewards.add(rewardId);
+            }
+            processedQuestRewards.put(playerId, parsedRewards);
+        }
+    }
+
+    private static boolean isValidRewardId(String rewardId) {
+        if (rewardId == null || rewardId.isBlank() || rewardId.length() > 160) {
+            return false;
+        }
+        return rewardId.chars().noneMatch(Character::isISOControl);
     }
 
     private CharacterProfile readProfile(UUID playerId, ConfigurationSection section, boolean allowLegacyDefaults) {
@@ -174,6 +218,35 @@ public final class CharacterProfileStorage {
         markDirty();
     }
 
+    /**
+     * Атомарно сохраняет обновлённый профиль вместе с квитанцией о выдаче квестовой награды.
+     * Оба изменения попадают в один YAML-снимок, поэтому повторная выдача после рестарта невозможна.
+     *
+     * @return true, если квитанция записана впервые; false, если награда уже была обработана
+     */
+    public synchronized boolean recordQuestRewardIfAbsent(
+            UUID playerId, String rewardId, CharacterProfile updatedProfile) {
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(updatedProfile, "updatedProfile");
+        if (!playerId.equals(updatedProfile.playerId())) {
+            throw new IllegalArgumentException("Профиль квестовой награды принадлежит другому игроку");
+        }
+        if (!isValidRewardId(rewardId)) {
+            throw new IllegalArgumentException("Некорректный идентификатор квестовой награды");
+        }
+        if (!profiles.containsKey(playerId)) {
+            throw new IllegalStateException("Перед записью квестовой награды профиль игрока должен существовать");
+        }
+
+        Set<String> rewards = processedQuestRewards.computeIfAbsent(playerId, ignored -> new LinkedHashSet<>());
+        if (!rewards.add(rewardId)) {
+            return false;
+        }
+        profiles.put(playerId, updatedProfile);
+        markDirty();
+        return true;
+    }
+
     public synchronized int profileCount() {
         return profiles.size();
     }
@@ -211,7 +284,7 @@ public final class CharacterProfileStorage {
 
     private YamlConfiguration serialize() {
         YamlConfiguration yaml = new YamlConfiguration();
-        yaml.set(SCHEMA_PATH, CharacterProfile.CURRENT_SCHEMA_VERSION);
+        yaml.set(SCHEMA_PATH, CURRENT_STORAGE_SCHEMA_VERSION);
         for (CharacterProfile profile : profiles.values()) {
             String base = PROFILES_PATH + "." + profile.playerId();
             yaml.set(base + ".schema-version", profile.schemaVersion());
@@ -219,6 +292,9 @@ public final class CharacterProfileStorage {
             yaml.set(base + ".experience", profile.experienceIntoLevel());
             yaml.set(base + ".created-at", profile.createdAtMillis());
             yaml.set(base + ".updated-at", profile.updatedAtMillis());
+        }
+        for (Map.Entry<UUID, Set<String>> entry : processedQuestRewards.entrySet()) {
+            yaml.set(QUEST_REWARDS_PATH + "." + entry.getKey(), List.copyOf(entry.getValue()));
         }
         return yaml;
     }
