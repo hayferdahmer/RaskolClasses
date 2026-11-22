@@ -38,8 +38,7 @@ public final class Spec2ClassState {
         return spec != null && spec.playerClass() == currentClass;
     }
 
-    public static ReconcilePlan plan(
-            PlayerClass currentClass, String mainSpec, Collection<String> storedTreeIds) {
+    public static ReconcilePlan plan(PlayerClass currentClass, String mainSpec, Collection<String> storedTreeIds) {
         if (currentClass == null) {
             return new ReconcilePlan(false, false, List.of());
         }
