@@ -4,7 +4,7 @@ name: RaskolClasses Spotless Format
 
 on:
   push:
-    branches: [ refactor/a03-foundation-lifecycle, feat/v1.16-core-progression ]
+    branches: [ refactor/a03-foundation-lifecycle ]
     paths:
       - .github/workflows/spotless-format.yml
       - docs/architecture/A03_REMAINING_LIFECYCLE_OWNERSHIP_INVENTORY.md
@@ -22,15 +22,15 @@ concurrency:
 
 jobs:
   format:
-    if: github.ref == 'refs/heads/refactor/a03-foundation-lifecycle' || github.ref == 'refs/heads/feat/v1.16-core-progression'
+    if: github.ref == 'refs/heads/refactor/a03-foundation-lifecycle'
     runs-on: ubuntu-24.04
     steps:
       - name: Guard target branch
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_REF}" != "refs/heads/refactor/a03-foundation-lifecycle" && "${GITHUB_REF}" != "refs/heads/feat/v1.16-core-progression" ]]; then
-            echo "This workflow is restricted to the approved development branches."
+          if [[ "${GITHUB_REF}" != "refs/heads/refactor/a03-foundation-lifecycle" ]]; then
+            echo "This workflow is restricted to refactor/a03-foundation-lifecycle."
             exit 1
           fi
 
