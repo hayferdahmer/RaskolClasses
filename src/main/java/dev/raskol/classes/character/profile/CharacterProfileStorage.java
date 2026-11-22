@@ -522,7 +522,8 @@ public final class CharacterProfileStorage {
                 for (Map.Entry<String, Map<String, Integer>> tree : trees.entrySet()) {
                     for (Map.Entry<String, Integer> rank : tree.getValue().entrySet()) {
                         yaml.set(
-                                base + ".specialization.ranks." + tree.getKey() + "." + rank.getKey(), rank.getValue());
+                                base + ".specialization.ranks." + tree.getKey() + "." + rank.getKey(),
+                                rank.getValue());
                     }
                 }
             }
