@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.character.progression;
 
-import java.util.Set;
 
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.LivingEntity;
@@ -19,9 +18,6 @@ import dev.raskol.classes.RaskolClasses;
 /** Выдаёт RPG-опыт только за убийства существ, отмеченных при допустимом естественном появлении. */
 public final class CharacterExperienceListener implements Listener {
 
-    private static final Set<String> EXPERIENCE_SPAWN_REASONS =
-            Set.of("NATURAL", "CHUNK_GEN", "PATROL", "RAID", "REINFORCEMENTS", "VILLAGE_DEFENSE", "VILLAGE_INVASION");
-
     private final RaskolClasses plugin;
     private final NamespacedKey eligibleSpawnKey;
 
@@ -33,10 +29,8 @@ public final class CharacterExperienceListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onCreatureSpawn(CreatureSpawnEvent event) {
         LivingEntity entity = event.getEntity();
-        String reason = event.getSpawnReason().name();
-        boolean bossSpawn = (entity.getType().name().equals("WITHER") && reason.equals("BUILD_WITHER"))
-                || (entity.getType().name().equals("ENDER_DRAGON") && reason.equals("DEFAULT"));
-        if (entity instanceof Player || (!EXPERIENCE_SPAWN_REASONS.contains(reason) && !bossSpawn)) {
+        if (entity instanceof Player
+                || !CharacterExperienceSpawnPolicy.isEligibleSpawn(entity.getType().name(), event.getSpawnReason().name())) {
             return;
         }
         entity.getPersistentDataContainer().set(eligibleSpawnKey, PersistentDataType.BYTE, (byte) 1);
@@ -46,18 +40,11 @@ public final class CharacterExperienceListener implements Listener {
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
         Byte eligibleSpawn = entity.getPersistentDataContainer().get(eligibleSpawnKey, PersistentDataType.BYTE);
-        if (entity instanceof Player || !Byte.valueOf((byte) 1).equals(eligibleSpawn)) {
-            return;
-        }
-
         Player killer = entity.getKiller();
-        if (killer == null) {
-            return;
-        }
-
         long reward = plugin.getConfig()
                 .getLong("experience.mob-rewards." + entity.getType().name(), 0L);
-        if (reward <= 0) {
+        if (!CharacterExperienceSpawnPolicy.shouldAwardExperience(
+                entity instanceof Player, killer != null, Byte.valueOf((byte) 1).equals(eligibleSpawn), reward)) {
             return;
         }
 
