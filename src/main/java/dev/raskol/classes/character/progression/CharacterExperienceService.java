@@ -55,8 +55,7 @@ public final class CharacterExperienceService {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(completionId, "completionId");
         if (questId == null || !questId.matches("[a-z0-9][a-z0-9._-]{0,63}")) {
-            throw new IllegalArgumentException(
-                    "Идентификатор квеста должен быть стабильным slug в нижнем регистре");
+            throw new IllegalArgumentException("Идентификатор квеста должен быть стабильным slug в нижнем регистре");
         }
         if (experience <= 0L) {
             throw new IllegalArgumentException("Квестовая награда XP должна быть положительной");
@@ -67,8 +66,7 @@ public final class CharacterExperienceService {
         if (profiles.hasProcessedQuestReward(playerId, rewardId)) {
             CharacterProgressionEngine.State unchangedState =
                     new CharacterProgressionEngine.State(current.level(), current.experienceIntoLevel());
-            return new QuestAwardResult(
-                    false, new CharacterProgressionEngine.AwardResult(unchangedState, 0, 0L));
+            return new QuestAwardResult(false, new CharacterProgressionEngine.AwardResult(unchangedState, 0, 0L));
         }
 
         CharacterProgressionEngine.State state =
@@ -95,13 +93,11 @@ public final class CharacterExperienceService {
         CharacterProfile unchanged = profiles.find(playerId).orElseThrow();
         CharacterProgressionEngine.State unchangedState =
                 new CharacterProgressionEngine.State(unchanged.level(), unchanged.experienceIntoLevel());
-        return new QuestAwardResult(
-                false, new CharacterProgressionEngine.AwardResult(unchangedState, 0, 0L));
+        return new QuestAwardResult(false, new CharacterProgressionEngine.AwardResult(unchangedState, 0, 0L));
     }
 
     /** Результат обработки квестовой награды; повторная выдача возвращает awarded=false. */
-    public record QuestAwardResult(
-            boolean awarded, CharacterProgressionEngine.AwardResult progression) {
+    public record QuestAwardResult(boolean awarded, CharacterProgressionEngine.AwardResult progression) {
         public QuestAwardResult {
             Objects.requireNonNull(progression, "progression");
         }
