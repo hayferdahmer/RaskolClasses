@@ -1171,6 +1171,8 @@ public final class RaskolClasses extends JavaPlugin {
         return characterLevels;
     }
 
+    // Хранилище намеренно предоставляется сервисам плагина как общий владелец профилей.
+    @SuppressWarnings("EI_EXPOSE_REP")
     public CharacterProfileStorage getCharacterProfiles() {
         return characterProfiles;
     }
