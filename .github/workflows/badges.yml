@@ -6,7 +6,7 @@
 # больше не нужно править руками.
 #
 # Источники истины:
-#   release  — <version> в pom.xml
+#   build     — <version> в pom.xml (версия сборки, а не опубликованный GitHub Release)
 #   paper    — <paper.version> в pom.xml
 #   java     — <maven.compiler.release> в pom.xml
 #   selftest — число «N чеков» в javadoc SelftestRunner («(/rc selftest), N чеков»)
@@ -61,7 +61,7 @@ jobs:
           set -euo pipefail
           mkdir -p .github/badges
           mk() { printf '{"schemaVersion":1,"label":"%s","message":"%s","color":"%s","labelColor":"2d1b45"}\n' "$1" "$2" "$3" > ".github/badges/$4.json"; }
-          mk "release"    "${{ steps.v.outputs.ver }}"          "b3262c" release
+          mk "build"      "${{ steps.v.outputs.ver }}"          "b3262c" release
           mk "paper"      "${{ steps.v.outputs.paper }}+"       "b08d3e" paper
           mk "java"       "${{ steps.v.outputs.java }}"         "b08d3e" java
           mk "selftest"   "${{ steps.v.outputs.checks }} чеков" "4f7a3a" selftest

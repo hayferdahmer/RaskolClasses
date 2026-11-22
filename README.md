@@ -13,7 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/hayferdahmer/RaskolClasses/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/hayferdahmer/RaskolClasses/build.yml?branch=main&style=flat-square&label=build&labelColor=2d1b45" alt="build"/></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Frelease.json" alt="release"/></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Frelease.json" alt="build version"/></a>
   <a href="#install"><img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Fselftest.json" alt="selftest"/></a>
   <img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Ftests.json" alt="unit-тесты"/>
   <br/>
@@ -22,6 +22,10 @@
   <a href="https://github.com/hayferdahmer/RaskolClasses/commits/main"><img src="https://img.shields.io/github/last-commit/hayferdahmer/RaskolClasses?style=flat-square&label=%D0%BF%D0%BE%D1%81%D0%BB%D0%B5%D0%B4%D0%BD%D0%B8%D0%B9%20%D0%BA%D0%BE%D1%81%D1%82%D1%91%D1%80&labelColor=2d1b45&color=b08d3e" alt="last commit"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/proprietary-8b0000?style=flat-square&label=license&labelColor=2d1b45" alt="license"/></a>
 </p>
+
+
+
+> **Статус разработки:** в `main` находится ветка **1.16.0-SNAPSHOT**. Это development-сборка, а не опубликованный релиз. Последний официальный GitHub Release — **[v1.15.8](https://github.com/hayferdahmer/RaskolClasses/releases/tag/v1.15.8)**. Не устанавливайте SNAPSHOT на production: для сервера используйте только официальный подписанный JAR из GitHub Releases.
 
 <p align="center">
   <i>«Присядь к огню, путник. За окном — две короны и одна война,<br/>
@@ -59,7 +63,7 @@
     <td align="center"><b>8</b><br/><sub>школ урона</sub></td>
     <td align="center"><b>9</b><br/><sub>типов контроля</sub></td>
     <td align="center"><b>5</b><br/><sub>видов DoT</sub></td>
-    <td align="center"><b>139</b><br/><sub>headless-чека</sub></td>
+    <td align="center"><b>167</b><br/><sub>headless-чеков</sub></td>
   </tr>
 </table>
 
@@ -190,6 +194,26 @@
 Вкладка листает ряды ◀ ▶ и переключает спеки класса: основная и две вторичные.
 
 </details>
+
+</details>
+
+<a id="progression"></a>
+
+<details>
+<summary><b>⚜ Прогрессия персонажа · 1.16.0 (в разработке)</b></summary>
+
+**Уровень персонажа:** 1–60. Источник истины — профиль игрока в `plugins/RaskolClasses/characters.yml`. Уровень больше не вычисляется из AuraSkills, ванильного опыта Minecraft или среднего навыков. AuraSkills полностью удалён из интеграций плагина.
+
+- Порог перехода: `120 + 18 × уровень + round(0.9 × уровень²)`.
+- Полный путь с 1-го до 60-го уровня: **102 132 RPG XP**.
+- Опыт начисляется за разрешённые естественные PvE-появления мобов согласно `experience.mob-rewards`; убийства игроков XP не дают.
+- Игрок без профиля начинает с уровня 1 и 0 XP. Старый уровень AuraSkills не переносится.
+- Квитанции квестовых наград хранятся в `processed-quest-rewards` того же файла; повторная доставка одного completion UUID не выдаёт XP повторно.
+- Команды администратора: `/rc xp view`, `/rc xp add`, `/rc xp set` (право `raskolclasses.admin.progression`).
+
+**Граница текущей реализации:** `characters.yml` хранит прогрессию и ledger квестовых наград (storage schema v2; schema профиля v1). Данные Spec 2.0 пока остаются в отдельном `spec2-storage.yml`. Объединение профиля, специализации и связанных данных в согласованную модель `yaml-single`, а также Class Lock и политика Soul Tome `replace` — незакрытые задачи релизного объёма 1.16.0. Не считайте их завершёнными только по наличию базовой прогрессии.
+
+Подробности: [схема профиля](docs/architecture/V160_CHARACTER_PROFILE_STORAGE.md) · [кривая и награды](docs/architecture/V160_EXPERIENCE_PROGRESSION.md) · [операционный runbook](docs/RUNBOOK.md).
 
 </details>
 
@@ -397,7 +421,7 @@ Amplifier следующего удара ставится на защищавш
 <details>
 <summary><b>⚜ Глава VI · Устройство замка</b></summary>
 
-<sub><i>Карта залов: какой пакет за что отвечает. Линия 1.15.</i></sub>
+<sub><i>Карта залов: боевые подсистемы, RPG Core 1.16.0 и инфраструктура плагина.</i></sub>
 
 | Слой | Структура |
 | --- | --- |
@@ -420,12 +444,14 @@ Amplifier следующего удара ставится на защищавш
 | Спек 2.0: реестр | `spec/registry/trees/*Trees` (18 деревьев) |
 | Спек 2.0: хранилище | `spec/storage/Spec2Storage` (`spec2-storage.yml`, миграция из `spec2.yml`) |
 | Спек 2.0: сервис | `spec/service/Spec2Service` + `Spec2EffectsApplier`; `spec/listen/Spec2RoleListener` |
+| Прогрессия персонажа | `character/progression/*`: кривая 1–60, начисление PvE XP, cap, квестовые награды и административное управление |
+| Профили персонажей | `characters.yml`: versioned profile + ledger квестовых наград; Spec 2.0 пока отдельно в `spec2-storage.yml` |
 | Атрибуты | `AttributeService` (фасад) + `HpPool` (план B) + `AttributeModifiers` |
 | HUD | `HpBarService` (HP и ресурс, отложенная запись `health.yml`) + `HudService` (DoT-строка, dirty-rendering) |
 | Книга | `ClassBook` (фасад) + `gui/book/*Tab` (5 вкладок, включая «Снаряжение») |
 | Команды | `RaskolCommand` (роутер) + `command/sub/*Sub` (debug, item, set, gear alias, foliant, health, cc) |
 | Конфиг | `config.yml` (avoidance и hp-display в корне с 1.14.6-fix) + per-class `kits/<class>.yml` |
-| Тесты | `/rc selftest` — **139 headless-чека** |
+| Тесты | `/rc selftest` — **167 headless-чеков** (включая 3 зарезервированных skip-чека); unit-тесты — число в живом бейдже |
 
 Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — на них и держатся headless-чеки.
 
@@ -449,7 +475,7 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 | `/rc debug profile` | `raskolclasses.debug` | Боевой профиль моба в прицеле |
 | `/rc debug simulate …` | `raskolclasses.debug` | Дуэль и матрица TTK 6×6 |
 | `/rc health` | `raskolclasses.debug` | MSPT/TPS, purge, аптайм, per-class конфиги |
-| `/rc selftest` | `raskolclasses.debug` | 139 headless-чека |
+| `/rc selftest` | `raskolclasses.debug` | 167 headless-чеков (3 зарезервированы и могут быть skipped) |
 | `/rc cc list \| status \| clear \| test \| reset` | `raskolclasses.admin.cc` | Админка контроля с DR |
 | `/rc foliant give <ник>` | `raskolclasses.admin` | Выдать Фолиант Душ |
 | `/rc reload` | `raskolclasses.admin` | Перезагрузка `config.yml` + `kits/*.yml` |
@@ -508,17 +534,17 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 
 <sub><i>Как собрать плагин, развести огонь и убедиться, что пламя горит ровно.</i></sub>
 
-**Требования:** Paper 1.21.4+, Java 21, Maven.
+**Требования для целевой платформы проекта:** Paper 26.2, Java 25 (JDK 25 для сборки), Maven. `plugin.yml` задаёт `api-version: 26.2`; поддержка Paper 1.21.x не заявляется.
 
 ```bash
 mvn -B clean verify
 cp target/raskol-classes-*.jar plugins/
 # перезапуск сервера
-/rc selftest   # ожидается 139/139 PASS
+/rc selftest   # ожидается 167 чеков; три зарезервированных чека могут быть SKIP
 ```
 
 ```text
-пламя:  ████████████████████████████████  139 / 139
+пламя:  ████████████████████████████████  167 checks (до 3 reserved SKIP)
 ```
 
 Профиль `-Pdev` добавляет `-Xlint:all` и SpotBugs: `mvn -Pdev -B verify`.
@@ -529,7 +555,7 @@ cp target/raskol-classes-*.jar plugins/
 **Softdepend:** `LuckPerms` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints`. Каждый опционален, деградация graceful.
 
 <details>
-<summary>🧪 <b>Регресс-матрица selftest</b> · 139 чека</summary>
+<summary>🧪 <b>Регресс-матрица selftest</b> · 167 чеков</summary>
 
 <br/>
 
@@ -558,8 +584,13 @@ cp target/raskol-classes-*.jar plugins/
 | Локализация сообщений предметного слоя | 134 |
 | Крафт и фрагменты 1.15.4: реестр, pure-математика, рецепты | 135–137 |
 | UI/UX 1.15.5: hover-превью, pure-фильтр браузера | 138–139 |
+| Рецепты, LuckPerms, SafeStorage, Foliant и крафт-гейты | 140–146 |
+| DoT, combat listener, burst rollback, row-gates и экономика | 147–154 |
+| Конкурентность атрибутов, purge чужих деревьев, FX ownership | 155–158 |
+| Контракт unlock ability, FactionHook, affix/PDC/config guards, DAG prereq | 159, 161, 163–166 |
+| Зарезервированные проверки (могут быть SKIP) | 160, 162, 167 |
 
-Полный прогон — перед любым хотфиксом и релизом. Skip-чеки считаются отдельно и не входят в PASS-счётчик.
+Всего в реестре 167 чеков; три позиции зарезервированы под проверки, требующие специальной синтетической среды, и могут отображаться как SKIP. Полный прогон — перед любым хотфиксом и релизом.
 
 </details>
 
@@ -574,7 +605,10 @@ cp target/raskol-classes-*.jar plugins/
 
 | Файл | Содержание |
 | --- | --- |
-| 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Аварии и гейты, тюнинг без пересборки, контроль и DR, проки, респеки, миграции, troubleshooting |
+| 📘 [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Поддерживаемая платформа, установка, RIPS, миграции и troubleshooting |
+| 📗 [`docs/architecture/V160_CHARACTER_PROFILE_STORAGE.md`](docs/architecture/V160_CHARACTER_PROFILE_STORAGE.md) | Схема профиля персонажа и миграция storage schema |
+| 📗 [`docs/architecture/V160_EXPERIENCE_PROGRESSION.md`](docs/architecture/V160_EXPERIENCE_PROGRESSION.md) | XP-кривая, PvE-награды, анти-фарм и квестовые квитанции |
+| 🔐 [`docs/RIPS-OPERATIONS.md`](docs/RIPS-OPERATIONS.md) | Подпись официальных артефактов и эксплуатация RIPS |
 | 📖 [`CHANGELOG.md`](CHANGELOG.md) | История версий (не переписывается задним числом) |
 | ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v2.0 |
 
