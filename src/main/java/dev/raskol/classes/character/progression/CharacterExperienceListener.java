@@ -63,10 +63,11 @@ public final class CharacterExperienceListener implements Listener {
 
         CharacterProgressionEngine.AwardResult result =
                 plugin.getCharacterExperience().award(killer.getUniqueId(), reward);
-        boolean notifyLevelUp = result.levelsGained() > 0
-                && plugin.getConfig().getBoolean("experience.notifications.level-up", true);
+        boolean notifyLevelUp =
+                result.levelsGained() > 0 && plugin.getConfig().getBoolean("experience.notifications.level-up", true);
         if (notifyLevelUp) {
-            killer.sendMessage("§6Уровень персонажа повышен: §e" + result.state().level());
+            killer.sendMessage(
+                    "§6Уровень персонажа повышен: §e" + result.state().level());
         }
     }
 }
