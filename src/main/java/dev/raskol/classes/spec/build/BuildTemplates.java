@@ -72,14 +72,14 @@ public final class BuildTemplates {
     private final File file;
 
     private volatile Map<String, Map<Archetype, BuildTemplate>> bySpec;
-    private volatile Set<String> staleSpecs; // спеки, у которых хотя бы один архетип stale
+    private volatile Set<String> staleTemplates; // спеки, у которых хотя бы один архетип stale
     private volatile Map<String, String> loadProblems; // spec → причина отказа
 
     public BuildTemplates(RaskolClasses plugin) {
         this.plugin = plugin;
         this.file = new File(plugin.getDataFolder(), "builds.yml");
         this.bySpec = Map.of();
-        this.staleSpecs = Set.of();
+        this.staleTemplates = Set.of();
         this.loadProblems = Map.of();
     }
 
@@ -115,7 +115,7 @@ public final class BuildTemplates {
         if (!file.exists()) {
             LOG.info("raskolspec+: builds.yml отсутствует, шаблоны не загружены");
             bySpec = Map.of();
-            staleSpecs = Set.of();
+            staleTemplates = Set.of();
             loadProblems = Map.of();
             return;
         }
@@ -124,7 +124,7 @@ public final class BuildTemplates {
         if (templatesSec == null) {
             LOG.warning("raskolspec+: в builds.yml отсутствует секция templates");
             bySpec = Map.of();
-            staleSpecs = Set.of();
+            staleTemplates = Set.of();
             loadProblems = Map.of();
             return;
         }
@@ -171,7 +171,7 @@ public final class BuildTemplates {
                     }
                     // 1.15.6 (2.6-94): проверяем stale на ИСХОДНЫХ (до auto-heal) ranks
                     if (hasStaleNode(t.rawRanks(), disabledNodes)) {
-                        stale.add(specId);
+                        stale.add(staleTemplateKey(specId, arch));
                     }
                     // 1.14.16-fix (AUTO-HEAL): приводим шаблон к множеству, которое
                     // гарантированно переживает reconcile (стоп-лист, prereq, ряд-гейты).
@@ -212,7 +212,7 @@ public final class BuildTemplates {
         }
 
         this.bySpec = Collections.unmodifiableMap(loaded);
-        this.staleSpecs = Set.copyOf(stale);
+        this.staleTemplates = Set.copyOf(stale);
         this.loadProblems = Collections.unmodifiableMap(problems);
 
         LOG.info("raskolspec+: загружено шаблонов " + countLoaded()
@@ -416,9 +416,14 @@ public final class BuildTemplates {
         return m == null ? Optional.empty() : Optional.ofNullable(m.get(archetype));
     }
 
+    /** Ключ stale-состояния конкретного архетипа, а не всей специализации. */
+    static String staleTemplateKey(String spec, Archetype archetype) {
+        return spec + ":" + archetype.yamlKey();
+    }
+
     /** Шаблон stale (содержит узел из disabled-nodes в исходных рангах)? */
     public boolean isStale(BuildTemplate t) {
-        return staleSpecs.contains(t.spec());
+        return staleTemplates.contains(staleTemplateKey(t.spec(), t.archetype()));
     }
 
     /** Все валидные спеки. */
