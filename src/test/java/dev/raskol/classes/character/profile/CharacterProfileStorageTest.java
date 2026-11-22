@@ -114,9 +114,15 @@ class CharacterProfileStorageTest {
             CharacterProfile restored = storage.find(playerId).orElseThrow();
             assertEquals(12, restored.level());
             assertEquals(200L, restored.experienceIntoLevel());
-            org.junit.jupiter.api.Assertions.assertFalse(storage.isDirty());
-            assertEquals("schema-version: [broken", java.nio.file.Files.readString(file.toPath()));
+            org.junit.jupiter.api.Assertions.assertTrue(storage.isDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(storage.saveIfDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
         }
+
+        YamlConfiguration restored = YamlConfiguration.loadConfiguration(file);
+        assertEquals(2, restored.getInt("schema-version"));
+        assertEquals(12, restored.getInt("profiles." + playerId + ".level"));
+        assertEquals(200L, restored.getLong("profiles." + playerId + ".experience"));
     }
 
     @Test
