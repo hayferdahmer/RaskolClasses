@@ -140,8 +140,8 @@ public final class LuckPermsBackend {
             if (user != null) {
                 restoreClassGroups(user, previousClassNodes, previousPrimary);
             }
-            plugin.getLogger().warning(
-                    "Не удалось заменить class-группу игрока " + uuid + ": " + exception.getMessage());
+            plugin.getLogger()
+                    .warning("Не удалось заменить class-группу игрока " + uuid + ": " + exception.getMessage());
             return false;
         }
     }
@@ -154,8 +154,7 @@ public final class LuckPermsBackend {
 
         int requiredWeight = 15;
         for (PlayerClass playerClass : PlayerClass.values()) {
-            String otherGroupName =
-                    "class_" + playerClass.name().toLowerCase(java.util.Locale.ROOT);
+            String otherGroupName = "class_" + playerClass.name().toLowerCase(java.util.Locale.ROOT);
             if (groupName.equalsIgnoreCase(otherGroupName)) {
                 continue;
             }
@@ -178,8 +177,7 @@ public final class LuckPermsBackend {
         return groupName != null && groupName.toLowerCase(java.util.Locale.ROOT).startsWith("class_");
     }
 
-    private void restoreClassGroups(
-            User user, List<InheritanceNode> previousClassNodes, String previousPrimary) {
+    private void restoreClassGroups(User user, List<InheritanceNode> previousClassNodes, String previousPrimary) {
         try {
             for (InheritanceNode node : user.getNodes(NodeType.INHERITANCE)) {
                 if (isClassGroup(node.getGroupName())) {

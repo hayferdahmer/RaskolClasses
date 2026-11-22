@@ -14,7 +14,8 @@ class ClassGroupResolverTest {
 
     @Test
     void resolvesSinglePrimaryClassGroup() {
-        ClassGroupResolver.Resolution result = ClassGroupResolver.resolve("class_mage", List.of("class_mage", "default"));
+        ClassGroupResolver.Resolution result =
+                ClassGroupResolver.resolve("class_mage", List.of("class_mage", "default"));
 
         assertEquals(ClassGroupResolver.Status.RESOLVED, result.status());
         assertEquals(PlayerClass.MAGE, result.playerClass());
@@ -39,7 +40,8 @@ class ClassGroupResolverTest {
 
     @Test
     void rejectsMultipleClassGroupsInsteadOfChoosingAnArbitraryOne() {
-        ClassGroupResolver.Resolution result = ClassGroupResolver.resolve("class_mage", List.of("class_mage", "class_warrior"));
+        ClassGroupResolver.Resolution result =
+                ClassGroupResolver.resolve("class_mage", List.of("class_mage", "class_warrior"));
 
         assertEquals(ClassGroupResolver.Status.CONFLICT, result.status());
         assertNull(result.playerClass());
