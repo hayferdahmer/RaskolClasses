@@ -39,9 +39,6 @@ public final class CharacterExperienceListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
-        if (entity instanceof Player) {
-            return;
-        }
         Player killer = entity.getKiller();
         if (killer == null) {
             return;
@@ -51,7 +48,7 @@ public final class CharacterExperienceListener implements Listener {
         long reward = plugin.getConfig()
                 .getLong("experience.mob-rewards." + entity.getType().name(), 0L);
         if (!CharacterExperienceSpawnPolicy.shouldAwardExperience(
-                false, true, Byte.valueOf((byte) 1).equals(eligibleSpawn), reward)) {
+                entity instanceof Player, true, Byte.valueOf((byte) 1).equals(eligibleSpawn), reward)) {
             return;
         }
 
