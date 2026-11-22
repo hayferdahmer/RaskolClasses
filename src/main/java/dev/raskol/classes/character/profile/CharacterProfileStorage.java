@@ -363,7 +363,7 @@ public final class CharacterProfileStorage {
         }
         Map<String, Map<String, Integer>> trees = specializationRanks.get(playerId);
         if (trees == null) {
-            return Map.of();
+            return new LinkedHashMap<>();
         }
         Map<String, Integer> ranks = trees.get(treeId);
         return ranks == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ranks);

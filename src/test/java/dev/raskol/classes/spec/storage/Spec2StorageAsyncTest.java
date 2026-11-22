@@ -41,8 +41,8 @@ class Spec2StorageAsyncTest {
         UUID playerId = UUID.randomUUID();
 
         storage.setMain(playerId, "restoration");
-        storage.setRanks(playerId, "restoration", Map.of("healing_touch", 2));
         Map<String, Integer> ranks = storage.getRanks(playerId, "restoration");
+        ranks.merge("healing_touch", 2, Integer::sum);
         ranks.merge("renewal", 1, Integer::sum);
         storage.setRanks(playerId, "restoration", ranks);
         assertTrue(storage.isDirty());
