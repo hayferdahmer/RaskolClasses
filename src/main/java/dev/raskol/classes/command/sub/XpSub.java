@@ -150,8 +150,8 @@ public final class XpSub implements CommandSub {
     private void audit(CommandSender sender, Player target, String action, String details) {
         Logger logger = plugin.getLogger();
         String actorId = sender instanceof Player player ? player.getUniqueId().toString() : "console";
-        logger.info("PROGRESSION_AUDIT actor=" + sender.getName() + " actorId=" + actorId
-                + " action=" + action + " target=" + target.getUniqueId() + " details=\"" + details + "\"");
+        logger.info("PROGRESSION_AUDIT actor=" + sender.getName() + " actorId=" + actorId + " action=" + action
+                + " target=" + target.getUniqueId() + " details=\"" + details + "\"");
     }
 
     private static Long parseLong(String value) {
