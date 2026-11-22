@@ -3,6 +3,7 @@
 package dev.raskol.classes.character.progression;
 
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.function.LongSupplier;
 
@@ -52,11 +53,36 @@ public final class CharacterExperienceService {
         return result;
     }
 
+    public ProgressSnapshot snapshot(UUID playerId) {
+        CharacterProfile profile = profiles.ensureProfile(Objects.requireNonNull(playerId, "playerId"));
+        OptionalLong experienceToNextLevel = profile.level() >= CharacterProgressionEngine.MAX_LEVEL
+                ? OptionalLong.empty()
+                : OptionalLong.of(curve.requiredExperience(profile.level()) - profile.experienceIntoLevel());
+        return new ProgressSnapshot(profile.level(), profile.experienceIntoLevel(), experienceToNextLevel);
+    }
+
     public CharacterProfile profile(UUID playerId) {
         return profiles.ensureProfile(Objects.requireNonNull(playerId, "playerId"));
     }
 
     public CharacterExperienceCurve curve() {
         return curve;
+    }
+
+    public record ProgressSnapshot(int level, long currentExperience, OptionalLong experienceToNextLevel) {
+        public ProgressSnapshot {
+            if (level < CharacterProgressionEngine.MIN_LEVEL || level > CharacterProgressionEngine.MAX_LEVEL) {
+                throw new IllegalArgumentException("Уровень персонажа вне диапазона 1–60");
+            }
+            if (currentExperience < 0L || experienceToNextLevel == null) {
+                throw new IllegalArgumentException("Некорректное состояние XP-снимка");
+            }
+            if ((level == CharacterProgressionEngine.MAX_LEVEL) != experienceToNextLevel.isEmpty()) {
+                throw new IllegalArgumentException("Наличие следующего уровня не совпадает с уровнем персонажа");
+            }
+            if (experienceToNextLevel.isPresent() && experienceToNextLevel.getAsLong() < 0L) {
+                throw new IllegalArgumentException("Остаток опыта до следующего уровня не может быть отрицательным");
+            }
+        }
     }
 }
