@@ -37,7 +37,7 @@ public final class ClassProvider {
             }
         }
         this.backend = resolved;
-        // 1.3.2: Core-адаптер; читает класс из паспорта Core, LP остаётся фолбэком
+        // Core используется только как резерв, если прямой LP API недоступен.
         this.coreHook = new RaskolCoreHook(plugin, config);
     }
 
@@ -66,14 +66,12 @@ public final class ClassProvider {
                 cache.put(id, null);
                 return null;
             }
-            if (resolution.playerClass() != null) {
-                cache.put(id, resolution.playerClass());
-                return resolution.playerClass();
-            }
+            PlayerClass resolved = resolution.playerClass();
+            cache.put(id, resolved);
+            return resolved;
         }
 
-        // Core остаётся резервным источником только когда LP-бэкенд недоступен
-        // или не нашёл ни одной группы class_*.
+        // Core остаётся резервным источником только если прямой LP-бэкенд недоступен.
         if (coreHook.isAvailable()) {
             PlayerClass fromCore = coreHook.resolveClass(id);
             if (fromCore != null) {
