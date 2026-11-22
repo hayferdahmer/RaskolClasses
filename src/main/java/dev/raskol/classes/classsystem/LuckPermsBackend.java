@@ -102,6 +102,7 @@ public final class LuckPermsBackend {
         User user = null;
         List<InheritanceNode> previousClassNodes = new ArrayList<>();
         String previousPrimary = null;
+        boolean snapshotCaptured = false;
         try {
             ensureClassGroup(targetGroup);
             user = api.getUserManager().loadUser(uuid).join();
@@ -115,6 +116,7 @@ public final class LuckPermsBackend {
                     previousClassNodes.add(node);
                 }
             }
+            snapshotCaptured = true;
 
             for (InheritanceNode node : previousClassNodes) {
                 user.data().remove(node);
@@ -137,7 +139,7 @@ public final class LuckPermsBackend {
             provider.invalidate(uuid);
             return true;
         } catch (Exception exception) {
-            if (user != null) {
+            if (user != null && snapshotCaptured) {
                 restoreClassGroups(user, previousClassNodes, previousPrimary);
             }
             plugin.getLogger()
