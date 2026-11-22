@@ -263,7 +263,8 @@ public final class WarriorAbilities extends AbstractKit {
         }
         castFx(p, "rampage", "ENTITY_PLAYER_ATTACK_SWEEP", "SWEEP_ATTACK", 0.7f, 1.1f, 12);
         double dmg = tdmg(p, def, 6.0, 0.5);
-        for (int i = 0; i < 3; i++) {
+        int hitCount = 3 + plugin.getSpec2Service().kitExtraHits(p.getUniqueId(), def.id());
+        for (int i = 0; i < hitCount; i++) {
             if (t.isDead()) {
                 break;
             }
