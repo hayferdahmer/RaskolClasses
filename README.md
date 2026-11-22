@@ -523,7 +523,7 @@ cp target/raskol-classes-*.jar plugins/
 > [!NOTE]
 > При первом старте 1.14.4+ выполняется миграция хранилища: `spec2.yml` → `spec2-storage.yml` (rename, содержимое не меняется). В логе появится строка `spec2: migrated …`.
 
-**Softdepend:** `LuckPerms` · `AuraSkills` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints`. Каждый опционален, деградация graceful.
+**Softdepend:** `LuckPerms` · `PlaceholderAPI` · `RaskolCore` · `Towny` · `Vault` · `AuthMe` · `Essentials` · `packetevents` · `PlayerPoints`. Каждый опционален, деградация graceful.
 
 <details>
 <summary>🧪 <b>Регресс-матрица selftest</b> · 139 чека</summary>
