@@ -137,15 +137,10 @@ public final class AbilitiesTab implements BookTabView {
     private void handleAbilityClick(
             RenderCtx ctx, Player player, PlayerClass pc, AbilityDef def, boolean left, boolean right) {
         RaskolClasses plugin = ctx.plugin();
-        if (!abilityUnlocked(
-                plugin,
-                player.getUniqueId(),
-                def,
-                plugin.getCharacterLevels().characterLevel(player.getUniqueId()))) {
+        if (!abilityUnlocked(plugin, player.getUniqueId(), def, plugin.getCharacterLevels().characterLevel(player.getUniqueId()))) {
             if (plugin.getAbilities().requiresTreeUnlock(def.id())) {
                 player.sendMessage(Component.text(
-                        "Сначала открой способность соответствующим узлом дерева путей.",
-                        NamedTextColor.GRAY));
+                        "Сначала открой способность соответствующим узлом дерева путей.", NamedTextColor.GRAY));
             } else {
                 player.sendMessage(Component.text(
                         "«" + def.displayName() + "» откроется на уровне " + def.unlockLevel() + ".",
