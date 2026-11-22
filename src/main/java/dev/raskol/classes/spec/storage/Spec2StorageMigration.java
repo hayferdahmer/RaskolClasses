@@ -184,8 +184,8 @@ public final class Spec2StorageMigration {
 
             String main = fresh.main() == null ? old.main() : fresh.main();
             if (fresh.main() != null && old.main() != null && !fresh.main().equals(old.main())) {
-                logger.warning("spec2: конфликт основной специализации " + playerId
-                        + "; приоритет у " + CURRENT_FILE_NAME + ", legacy-копия будет архивирована");
+                logger.warning("spec2: конфликт основной специализации " + playerId + "; приоритет у "
+                        + CURRENT_FILE_NAME + ", legacy-копия будет архивирована");
             }
 
             Map<String, Map<String, Integer>> ranks = deepCopy(fresh.ranks());
@@ -195,8 +195,8 @@ public final class Spec2StorageMigration {
                 for (Map.Entry<String, Integer> rank : tree.getValue().entrySet()) {
                     Integer existing = targetRanks.putIfAbsent(rank.getKey(), rank.getValue());
                     if (existing != null && !existing.equals(rank.getValue())) {
-                        logger.warning("spec2: конфликт ранга " + playerId + "/" + tree.getKey() + "/"
-                                + rank.getKey() + "; приоритет у " + CURRENT_FILE_NAME);
+                        logger.warning("spec2: конфликт ранга " + playerId + "/" + tree.getKey() + "/" + rank.getKey()
+                                + "; приоритет у " + CURRENT_FILE_NAME);
                     }
                 }
             }
@@ -222,16 +222,16 @@ public final class Spec2StorageMigration {
         }
 
         for (Map.Entry<String, Map<String, Integer>> tree : source.ranks().entrySet()) {
-            Map<String, Integer> existing = new LinkedHashMap<>(
-                    profiles.getSpecializationRanks(playerId, tree.getKey()));
+            Map<String, Integer> existing =
+                    new LinkedHashMap<>(profiles.getSpecializationRanks(playerId, tree.getKey()));
             boolean changed = false;
             for (Map.Entry<String, Integer> rank : tree.getValue().entrySet()) {
                 Integer current = existing.putIfAbsent(rank.getKey(), rank.getValue());
                 if (current == null) {
                     changed = true;
                 } else if (!current.equals(rank.getValue())) {
-                    logger.warning("spec2: конфликт ранга " + playerId + "/" + tree.getKey() + "/"
-                            + rank.getKey() + "; приоритет у characters.yml, исходное значение сохранено в архиве");
+                    logger.warning("spec2: конфликт ранга " + playerId + "/" + tree.getKey() + "/" + rank.getKey()
+                            + "; приоритет у characters.yml, исходное значение сохранено в архиве");
                 }
             }
             if (changed) {
@@ -244,11 +244,7 @@ public final class Spec2StorageMigration {
         if (!source.present()) {
             return;
         }
-        File[] files = {
-            new File(directory, name),
-            new File(directory, name + ".tmp"),
-            new File(directory, name + ".bak")
-        };
+        File[] files = {new File(directory, name), new File(directory, name + ".tmp"), new File(directory, name + ".bak")};
         for (File file : files) {
             if (!file.exists()) {
                 continue;
