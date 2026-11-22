@@ -20,6 +20,9 @@ import net.luckperms.api.event.EventSubscription;
 import net.luckperms.api.event.user.UserDataRecalculateEvent;
 import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
+import net.luckperms.api.node.NodeType;
+import net.luckperms.api.node.types.InheritanceNode;
+import net.luckperms.api.node.types.WeightNode;
 
 /**
  * LP-бэкенд определения класса: группа LuckPerms вида class_<NAME> → PlayerClass.
