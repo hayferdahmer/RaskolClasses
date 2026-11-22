@@ -72,7 +72,7 @@ public final class BuildTemplates {
     private final File file;
 
     private volatile Map<String, Map<Archetype, BuildTemplate>> bySpec;
-    private volatile Set<String> staleTemplates; // спеки, у которых хотя бы один архетип stale
+    private volatile Set<String> staleTemplates; // конкретные шаблоны, содержащие отключённые узлы
     private volatile Map<String, String> loadProblems; // spec → причина отказа
 
     public BuildTemplates(RaskolClasses plugin) {
