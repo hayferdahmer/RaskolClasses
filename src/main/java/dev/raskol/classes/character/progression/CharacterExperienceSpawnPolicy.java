@@ -7,8 +7,8 @@ import java.util.Set;
 /** Чистая политика допустимого PvE-опыта и причин появления сущностей. */
 public final class CharacterExperienceSpawnPolicy {
 
-    private static final Set<String> NATURAL_SPAWN_REASONS = Set.of(
-            "NATURAL", "CHUNK_GEN", "PATROL", "RAID", "REINFORCEMENTS", "VILLAGE_DEFENSE", "VILLAGE_INVASION");
+    private static final Set<String> NATURAL_SPAWN_REASONS =
+            Set.of("NATURAL", "CHUNK_GEN", "PATROL", "RAID", "REINFORCEMENTS", "VILLAGE_DEFENSE", "VILLAGE_INVASION");
 
     private CharacterExperienceSpawnPolicy() {}
 
