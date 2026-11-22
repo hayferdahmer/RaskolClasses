@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.UUID;
 
+import dev.raskol.classes.character.profile.CharacterProfile;
 import dev.raskol.classes.character.profile.CharacterProfileStorage;
 
 /** Единственная точка начисления опыта и изменения уровня персонажа. */
