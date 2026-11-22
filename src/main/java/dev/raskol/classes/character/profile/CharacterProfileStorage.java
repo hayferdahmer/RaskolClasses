@@ -3,6 +3,7 @@
 package dev.raskol.classes.character.profile;
 
 import java.io.File;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -11,6 +12,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.logging.Logger;
@@ -30,7 +35,7 @@ import dev.raskol.classes.storage.SafeStorage;
 public final class CharacterProfileStorage {
 
     public static final String FILE_NAME = "characters.yml";
-    private static final int CURRENT_STORAGE_SCHEMA_VERSION = 2;
+    private static final int CURRENT_STORAGE_SCHEMA_VERSION = 3;
     private static final String PROFILES_PATH = "profiles";
     private static final String QUEST_REWARDS_PATH = "processed-quest-rewards";
     private static final String SCHEMA_PATH = "schema-version";
@@ -41,6 +46,8 @@ public final class CharacterProfileStorage {
     private final LongSupplier clock;
     private final Map<UUID, CharacterProfile> profiles = new LinkedHashMap<>();
     private final Map<UUID, Set<String>> processedQuestRewards = new LinkedHashMap<>();
+    private final Map<UUID, String> specializationMains = new LinkedHashMap<>();
+    private final Map<UUID, Map<String, Map<String, Integer>>> specializationRanks = new LinkedHashMap<>();
     private final AtomicLong mutationVersion = new AtomicLong();
     private final AtomicLong persistedVersion = new AtomicLong();
 
@@ -81,6 +88,7 @@ public final class CharacterProfileStorage {
                 }
                 CharacterProfile profile = readProfile(playerId, profileSection, allowLegacyProfiles);
                 profiles.put(playerId, profile);
+                loadSpecialization(playerId, profileSection);
             }
         }
 
@@ -91,6 +99,68 @@ public final class CharacterProfileStorage {
             logger.info("CharacterProfileStorage: characters.yml будет обновлён до схемы "
                     + CURRENT_STORAGE_SCHEMA_VERSION);
         }
+    }
+
+    private void loadSpecialization(UUID playerId, ConfigurationSection profileSection) {
+        if (!profileSection.contains("specialization")) {
+            return;
+        }
+        ConfigurationSection specialization = profileSection.getConfigurationSection("specialization");
+        if (specialization == null) {
+            throw new IllegalStateException("Специализация профиля " + playerId + " должна быть YAML-разделом");
+        }
+
+        if (specialization.contains("main")) {
+            Object rawMain = specialization.get("main");
+            if (!(rawMain instanceof String main) || !isValidStorageKey(main)) {
+                throw new IllegalStateException("Некорректная основная специализация профиля " + playerId);
+            }
+            specializationMains.put(playerId, main);
+        }
+
+        if (!specialization.contains("ranks")) {
+            return;
+        }
+        ConfigurationSection ranks = specialization.getConfigurationSection("ranks");
+        if (ranks == null) {
+            throw new IllegalStateException("Ранги специализации профиля " + playerId + " должны быть YAML-разделом");
+        }
+
+        Map<String, Map<String, Integer>> parsedTrees = new LinkedHashMap<>();
+        for (String treeId : ranks.getKeys(false)) {
+            if (!isValidStorageKey(treeId)) {
+                throw new IllegalStateException("Некорректный идентификатор дерева специализации " + treeId);
+            }
+            ConfigurationSection tree = ranks.getConfigurationSection(treeId);
+            if (tree == null) {
+                throw new IllegalStateException("Дерево специализации " + treeId + " должно быть YAML-разделом");
+            }
+            Map<String, Integer> parsedRanks = new LinkedHashMap<>();
+            for (String nodeId : tree.getKeys(false)) {
+                Object rawRank = tree.get(nodeId);
+                if (!isValidStorageKey(nodeId)
+                        || !(rawRank instanceof Number number)
+                        || number.doubleValue() != (double) number.intValue()
+                        || number.intValue() <= 0) {
+                    throw new IllegalStateException(
+                            "Некорректный ранг узла " + nodeId + " дерева " + treeId + " профиля " + playerId);
+                }
+                parsedRanks.put(nodeId, number.intValue());
+            }
+            if (!parsedRanks.isEmpty()) {
+                parsedTrees.put(treeId, parsedRanks);
+            }
+        }
+        if (!parsedTrees.isEmpty()) {
+            specializationRanks.put(playerId, parsedTrees);
+        }
+    }
+
+    private static boolean isValidStorageKey(String value) {
+        return value != null
+                && !value.isBlank()
+                && value.length() <= 64
+                && value.chars().noneMatch(Character::isISOControl);
     }
 
     private void loadProcessedQuestRewards(YamlConfiguration yaml) {
@@ -262,6 +332,99 @@ public final class CharacterProfileStorage {
         return true;
     }
 
+    /** Основная специализация персонажа внутри единого characters.yml. */
+    public synchronized String getSpecializationMain(UUID playerId) {
+        return specializationMains.get(Objects.requireNonNull(playerId, "playerId"));
+    }
+
+    public synchronized void setSpecializationMain(UUID playerId, String specId) {
+        Objects.requireNonNull(playerId, "playerId");
+        if (specId != null && !isValidStorageKey(specId)) {
+            throw new IllegalArgumentException("Некорректный идентификатор специализации");
+        }
+        ensureProfile(playerId);
+        if (Objects.equals(specializationMains.get(playerId), specId)) {
+            return;
+        }
+        if (specId == null) {
+            specializationMains.remove(playerId);
+        } else {
+            specializationMains.put(playerId, specId);
+        }
+        markDirty();
+    }
+
+    public synchronized Map<String, Integer> getSpecializationRanks(UUID playerId, String treeId) {
+        Objects.requireNonNull(playerId, "playerId");
+        if (!isValidStorageKey(treeId)) {
+            throw new IllegalArgumentException("Некорректный идентификатор дерева специализации");
+        }
+        Map<String, Map<String, Integer>> trees = specializationRanks.get(playerId);
+        if (trees == null) {
+            return Map.of();
+        }
+        Map<String, Integer> ranks = trees.get(treeId);
+        return ranks == null ? Map.of() : Map.copyOf(ranks);
+    }
+
+    public synchronized void setSpecializationRanks(
+            UUID playerId, String treeId, Map<String, Integer> ranks) {
+        Objects.requireNonNull(playerId, "playerId");
+        if (!isValidStorageKey(treeId)) {
+            throw new IllegalArgumentException("Некорректный идентификатор дерева специализации");
+        }
+        ensureProfile(playerId);
+        Map<String, Integer> cleanRanks = new LinkedHashMap<>();
+        if (ranks != null) {
+            for (Map.Entry<String, Integer> entry : ranks.entrySet()) {
+                if (!isValidStorageKey(entry.getKey())) {
+                    throw new IllegalArgumentException("Некорректный идентификатор узла специализации");
+                }
+                Integer rank = entry.getValue();
+                if (rank != null && rank > 0) {
+                    cleanRanks.put(entry.getKey(), rank);
+                }
+            }
+        }
+
+        Map<String, Map<String, Integer>> trees =
+                specializationRanks.computeIfAbsent(playerId, ignored -> new LinkedHashMap<>());
+        if (cleanRanks.isEmpty()) {
+            trees.remove(treeId);
+            if (trees.isEmpty()) {
+                specializationRanks.remove(playerId);
+            }
+        } else {
+            trees.put(treeId, cleanRanks);
+        }
+        markDirty();
+    }
+
+    public synchronized List<String> storedSpecializationTreeIds(UUID playerId) {
+        Objects.requireNonNull(playerId, "playerId");
+        Map<String, Map<String, Integer>> trees = specializationRanks.get(playerId);
+        return trees == null ? List.of() : List.copyOf(trees.keySet());
+    }
+
+    public synchronized void removeSpecializationTree(UUID playerId, String treeId) {
+        Objects.requireNonNull(playerId, "playerId");
+        if (!isValidStorageKey(treeId)) {
+            throw new IllegalArgumentException("Некорректный идентификатор дерева специализации");
+        }
+        Map<String, Map<String, Integer>> trees = specializationRanks.get(playerId);
+        if (trees != null && trees.remove(treeId) != null) {
+            if (trees.isEmpty()) {
+                specializationRanks.remove(playerId);
+            }
+            markDirty();
+        }
+    }
+
+    public synchronized boolean hasSpecializationData(UUID playerId) {
+        Objects.requireNonNull(playerId, "playerId");
+        return specializationMains.containsKey(playerId) || specializationRanks.containsKey(playerId);
+    }
+
     public synchronized int profileCount() {
         return profiles.size();
     }
@@ -276,9 +439,14 @@ public final class CharacterProfileStorage {
             return false;
         }
 
+        CompletableFuture<Boolean> future = submitSnapshot();
+        return !future.isDone() || future.getNow(false);
+    }
+
+    private CompletableFuture<Boolean> submitSnapshot() {
         long snapshotVersion = mutationVersion.get();
         String snapshot = serialize().saveToString();
-        var future = writer.submit(file, snapshot);
+        CompletableFuture<Boolean> future = writer.submit(file, snapshot);
         future.thenAccept(successful -> {
             if (successful) {
                 persistedVersion.accumulateAndGet(snapshotVersion, Math::max);
@@ -286,11 +454,38 @@ public final class CharacterProfileStorage {
                 logger.severe("CharacterProfileStorage: не удалось сохранить поколение " + snapshotVersion);
             }
         });
-        return !future.isDone() || future.getNow(false);
+        return future;
     }
 
     public synchronized boolean saveIfDirty() {
         return isDirty() && save();
+    }
+
+    /**
+     * Сохраняет единый YAML-снимок и ждёт подтверждения записи.
+     * Используется только при миграции, когда старый файл нельзя архивировать
+     * до успешной фиксации всех данных в characters.yml.
+     */
+    public synchronized boolean saveAndAwait(Duration timeout) {
+        Objects.requireNonNull(timeout, "timeout");
+        if (timeout.isNegative()) {
+            throw new IllegalArgumentException("timeout не может быть отрицательным");
+        }
+        if (!isDirty()) {
+            return true;
+        }
+        CompletableFuture<Boolean> future = submitSnapshot();
+        try {
+            return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            logger.severe("CharacterProfileStorage: ожидание миграционного сохранения прервано");
+            return false;
+        } catch (ExecutionException | TimeoutException exception) {
+            logger.severe("CharacterProfileStorage: не удалось подтвердить миграционное сохранение: "
+                    + exception.getMessage());
+            return false;
+        }
     }
 
     public boolean isDirty() {
@@ -307,6 +502,19 @@ public final class CharacterProfileStorage {
             yaml.set(base + ".experience", profile.experienceIntoLevel());
             yaml.set(base + ".created-at", profile.createdAtMillis());
             yaml.set(base + ".updated-at", profile.updatedAtMillis());
+
+            String mainSpec = specializationMains.get(profile.playerId());
+            if (mainSpec != null) {
+                yaml.set(base + ".specialization.main", mainSpec);
+            }
+            Map<String, Map<String, Integer>> trees = specializationRanks.get(profile.playerId());
+            if (trees != null) {
+                for (Map.Entry<String, Map<String, Integer>> tree : trees.entrySet()) {
+                    for (Map.Entry<String, Integer> rank : tree.getValue().entrySet()) {
+                        yaml.set(base + ".specialization.ranks." + tree.getKey() + "." + rank.getKey(), rank.getValue());
+                    }
+                }
+            }
         }
         for (Map.Entry<UUID, Set<String>> entry : processedQuestRewards.entrySet()) {
             yaml.set(QUEST_REWARDS_PATH + "." + entry.getKey(), List.copyOf(entry.getValue()));
