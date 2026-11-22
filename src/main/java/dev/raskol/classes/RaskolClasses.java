@@ -48,6 +48,7 @@ import dev.raskol.classes.cc.runtime.CCRuntimeOwner;
 import dev.raskol.classes.cc.runtime.PaperCCFeedbackScheduler;
 import dev.raskol.classes.cc.runtime.PaperCCRuntimeRegistration;
 import dev.raskol.classes.cc.runtime.PaperCCTaskScheduler;
+import dev.raskol.classes.character.profile.CharacterProfileStorage;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.SkillLevelProvider;
@@ -175,6 +176,7 @@ public final class RaskolClasses extends JavaPlugin {
     private ClassProvider classProvider;
     private SkillLevelProvider skillLevels;
     private CharacterLevelService characterLevels;
+    private CharacterProfileStorage characterProfiles;
     private ResourceService resources;
     private ResourceRuntimeOwner resourceRuntimeOwner;
     private ScrollCooldownTask scrollCooldownTask;
@@ -356,6 +358,8 @@ public final class RaskolClasses extends JavaPlugin {
         }
 
         this.storageWriter = new AsyncStorageWriter(getLogger());
+        this.characterProfiles = new CharacterProfileStorage(
+                new File(getDataFolder(), CharacterProfileStorage.FILE_NAME), storageWriter, getLogger());
         this.items = new ItemSystem(this);
         this.itemsApi = new ItemsApi(this);
         this.combatProfiles = new CombatProfileRegistry();
@@ -971,6 +975,11 @@ public final class RaskolClasses extends JavaPlugin {
                 hpBarService.saveAll();
             }
         });
+        shutdown.run("character profile snapshot", () -> {
+            if (characterProfiles != null) {
+                characterProfiles.saveIfDirty();
+            }
+        });
         shutdown.run("specialization snapshot", () -> {
             if (spec2Storage != null) {
                 spec2Storage.save();
@@ -1157,6 +1166,10 @@ public final class RaskolClasses extends JavaPlugin {
 
     public CharacterLevelService getCharacterLevels() {
         return characterLevels;
+    }
+
+    public CharacterProfileStorage getCharacterProfiles() {
+        return characterProfiles;
     }
 
     public ResourceService getResources() {
