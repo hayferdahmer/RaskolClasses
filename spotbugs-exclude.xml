@@ -914,4 +914,15 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
 
+    <!--
+      RPG progression listener: plugin is the lifecycle owner that exposes the
+      immutable configuration snapshot and profile-backed XP application service.
+      The listener is registered and released with this plugin instance.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.character.progression.CharacterExperienceListener"/>
+        <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
 </FindBugsFilter>
