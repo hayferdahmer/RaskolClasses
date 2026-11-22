@@ -251,7 +251,8 @@ public final class RogueAbilities extends AbstractKit {
     }
 
     public boolean shadowDance(Player p, AbilityDef def) {
-        double agiBonus = base(def, 30.0);
+        double agiBonus = base(def, 30.0)
+                + plugin.getSpec2Service().kitAttrAgiBonus(p.getUniqueId(), def.id());
         int secs = duration(def, 4);
         castFx(p, "shadow_dance", "ENTITY_ENDERMAN_TELEPORT", "CLOUD", 0.6f, 1.1f, 20);
         plugin.getAttributes().addTimedModifier(p.getUniqueId(), def.id(), 0.0, agiBonus, 0.0, secs * 1000L);
