@@ -208,3 +208,41 @@
 6. Библиотека поддерживает создание, публикацию, поиск, фильтрацию, оценки, комментарии, избранное, версии и модерацию.
 7. Устаревшие руководства не урезаются автоматически и не применяются без проверки.
 8. CI покрывает все контракты, а live smoke test выполняется отдельно на Paper 26.2 + Java 25.
+
+
+## 9. Матрица 20 отключённых узлов
+
+Отключённый узел нельзя возвращать в конфигурацию только потому, что его эффект попадает в общий `agg.proc`. Для каждого эффекта нужен конкретный потребитель в боевой логике и тест результата.
+
+| Узел | Effect kind | Требуемый runtime-потребитель |
+| --- | --- | --- |
+| `as_seal_fate` | `proc_combo_point` | Система комбо-очков Разбойника: накопление, лимит, расход и событие критического удара |
+| `bm_wild_bond` | `proc_pet_copy` | PetService: шанс повторить часть урона владельца атакой питомца |
+| `bm_bestial_discipline` | `pet_attack_speed_pct` | PetService: скорость атак питомца |
+| `bm_ferocious_inspiration` | `proc_group_buff` | PetService/групповые эффекты: крит питомца усиливает урон союзников |
+| `bm_cobra_reflexes` | `pet_dodge_pct` | PetService: уклонение питомца от входящих атак |
+| `bm_spirit_bond` | `proc_pet_heal` | Событие лечения владельца: шанс перенаправить часть лечения питомцу |
+| `bm_go_for_the_throat` | `proc_pet_crit_bonus` | PetService: дополнительный урон критического удара питомца |
+| `bm_primal_fury` | `pet_phys_dmg_pct` | PetService: физический урон питомца |
+| `bm_frenzy` | `proc_pet_frenzy` | PetService: крит питомца запускает временное ускорение атак |
+| `bm_pack_leader` | `pet_crit_pct` | PetService: шанс критического удара питомца |
+| `mm_eagle_eye` | `crit_ranged_pct` | CombatService: отдельный шанс крита для стрел/дальних атак |
+| `mm_sniper_training` | `crit_ranged_pct` | Тот же ranged-crit контракт, с суммированием рангов |
+| `mm_piercing_shots` | `kit_pen_phys` | HunterAbilities/PenTraitsService: пробитие физической защиты именно для `aimed_shot` |
+| `mm_rapid_fire` | `kit_extra_arrows` | HunterAbilities: дополнительное число снарядов `arrow_fan` |
+| `sv_trap_mastery` | `trap_dmg_pct` | BearTrapHandler/InstallationService: увеличение урона ловушек Охотника |
+| `sv_resourcefulness` | `cd_trap_pct` | InstallationService: сокращение перезарядки ловушек |
+| `ol_dual_wield_specialization` | `offhand_dmg_pct` | CombatService: отдельный расчёт урона оружия в левой руке |
+| `fury_unstoppable_force` | `kit_extra_hits` | WarriorAbilities: дополнительное число ударов `rampage` |
+| `guard_spell_ward` | `kit_resist_magic` | WarriorAbilities/CombatService: магическое сопротивление от `balder_skin` |
+| `su_master_of_subtlety` | `kit_attr_agi` | RogueAbilities: дополнительная ловкость во время `shadow_dance` |
+
+### Подтверждённые пробелы текущей реализации
+
+- `PetService` использует бонусы здоровья и урона питомца, но перечисленные новые скорость атак, уклонение, крит, копирование урона и групповые проки отдельными потребителями не покрыты.
+- `Spec2Service.accumulate()` отправляет неизвестные effect kinds в общий proc-агрегат. Само сохранение числа в агрегате не доказывает, что эффект применяется.
+- `TreeAbilities` имеет общие слои base/coeff/cooldown/duration, но не реализует перечисленные extra-hit/extra-arrow, ability-specific penetration, magic resistance и attribute-бонусы.
+- Текущий боевой крит физического урона использует melee-контракт; отдельный контракт ranged-крита для двух узлов Стрельбы не подтверждён.
+- Для `proc_combo_point` сначала требуется определить полноценную механику комбо-очков; один случайный proc без потребителей и расхода ресурса не является рабочей способностью.
+
+Снимать каждый ID со стоп-листа разрешается только отдельным изменением после реализации его потребителя и тестов. Для узлов с вероятностными эффектами тестировать нужно не конкретный случайный бросок, а детерминированный расчёт шанса/ожидаемого эффекта плюс отдельный интеграционный сценарий с контролируемым random source.
