@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -121,7 +122,7 @@ class CharacterProfileStorageTest {
         }
 
         YamlConfiguration restored = YamlConfiguration.loadConfiguration(file);
-        assertEquals(2, restored.getInt("schema-version"));
+        assertEquals(3, restored.getInt("schema-version"));
         assertEquals(12, restored.getInt("profiles." + playerId + ".level"));
         assertEquals(200L, restored.getLong("profiles." + playerId + ".experience"));
     }
@@ -204,7 +205,7 @@ class CharacterProfileStorageTest {
     }
 
     @Test
-    void migratesStorageSchemaOneToTwoWithoutChangingProfileData() throws Exception {
+    void migratesStorageSchemaOneToThreeWithoutChangingProfileData() throws Exception {
         UUID playerId = UUID.fromString("5b9e5b9e-9e5b-4b9e-9e5b-9e5b9e5b9e5b");
         File file = new File(tempDir.toFile(), "characters.yml");
         YamlConfiguration yaml = new YamlConfiguration();
@@ -228,10 +229,40 @@ class CharacterProfileStorageTest {
         }
 
         YamlConfiguration migrated = YamlConfiguration.loadConfiguration(file);
-        assertEquals(2, migrated.getInt("schema-version"));
+        assertEquals(3, migrated.getInt("schema-version"));
         assertEquals(1, migrated.getInt(base + ".schema-version"));
         assertEquals(27, migrated.getInt(base + ".level"));
         assertEquals(1234L, migrated.getLong(base + ".experience"));
+    }
+
+    @Test
+    void persistsSpecializationStateInsideTheCharacterProfileSnapshot() throws Exception {
+        UUID playerId = UUID.fromString("1a2b3c4d-5e6f-4a2b-8c3d-4e5f6a7b8c9d");
+        File file = new File(tempDir.toFile(), "characters.yml");
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage = new CharacterProfileStorage(file, writer, LOGGER, () -> 100L);
+            storage.ensureProfile(playerId);
+            storage.setSpecializationMain(playerId, "fire");
+            storage.setSpecializationRanks(playerId, "fire", Map.of("fireball", 2, "pyroblast", 1));
+
+            org.junit.jupiter.api.Assertions.assertTrue(storage.saveIfDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
+        }
+
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(file);
+        String profile = "profiles." + playerId;
+        assertEquals(3, saved.getInt("schema-version"));
+        assertEquals("fire", saved.getString(profile + ".specialization.main"));
+        assertEquals(2, saved.getInt(profile + ".specialization.ranks.fire.fireball"));
+        assertEquals(1, saved.getInt(profile + ".specialization.ranks.fire.pyroblast"));
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage reloaded = new CharacterProfileStorage(file, writer, LOGGER, () -> 300L);
+            assertEquals("fire", reloaded.getSpecializationMain(playerId));
+            assertEquals(Map.of("fireball", 2, "pyroblast", 1), reloaded.getSpecializationRanks(playerId, "fire"));
+            org.junit.jupiter.api.Assertions.assertFalse(reloaded.isDirty());
+        }
     }
 
     @Test
