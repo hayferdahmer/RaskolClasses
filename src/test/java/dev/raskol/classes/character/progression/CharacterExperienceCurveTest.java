@@ -38,14 +38,8 @@ class CharacterExperienceCurveTest {
 
     @Test
     void rejectsNegativeCurveCoefficients() {
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new CharacterExperienceCurve(-1, 18, 9));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new CharacterExperienceCurve(120, -1, 9));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new CharacterExperienceCurve(120, 18, -1));
+        assertThrows(IllegalArgumentException.class, () -> new CharacterExperienceCurve(-1, 18, 9));
+        assertThrows(IllegalArgumentException.class, () -> new CharacterExperienceCurve(120, -1, 9));
+        assertThrows(IllegalArgumentException.class, () -> new CharacterExperienceCurve(120, 18, -1));
     }
 }

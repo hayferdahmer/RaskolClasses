@@ -19,14 +19,8 @@ import dev.raskol.classes.RaskolClasses;
 /** Выдаёт RPG-опыт только за убийства существ, отмеченных при допустимом естественном появлении. */
 public final class CharacterExperienceListener implements Listener {
 
-    private static final Set<String> EXPERIENCE_SPAWN_REASONS = Set.of(
-            "NATURAL",
-            "CHUNK_GEN",
-            "PATROL",
-            "RAID",
-            "REINFORCEMENTS",
-            "VILLAGE_DEFENSE",
-            "VILLAGE_INVASION");
+    private static final Set<String> EXPERIENCE_SPAWN_REASONS =
+            Set.of("NATURAL", "CHUNK_GEN", "PATROL", "RAID", "REINFORCEMENTS", "VILLAGE_DEFENSE", "VILLAGE_INVASION");
 
     private final RaskolClasses plugin;
     private final NamespacedKey eligibleSpawnKey;
@@ -52,8 +46,8 @@ public final class CharacterExperienceListener implements Listener {
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
         if (entity instanceof Player
-                || !Byte.valueOf((byte) 1).equals(
-                        entity.getPersistentDataContainer().get(eligibleSpawnKey, PersistentDataType.BYTE))) {
+                || !Byte.valueOf((byte) 1)
+                        .equals(entity.getPersistentDataContainer().get(eligibleSpawnKey, PersistentDataType.BYTE))) {
             return;
         }
 
@@ -62,16 +56,17 @@ public final class CharacterExperienceListener implements Listener {
             return;
         }
 
-        long reward = plugin.getConfig().getLong("experience.mob-rewards." + entity.getType().name(), 0L);
+        long reward = plugin.getConfig()
+                .getLong("experience.mob-rewards." + entity.getType().name(), 0L);
         if (reward <= 0) {
             return;
         }
 
         CharacterProgressionEngine.AwardResult result =
                 plugin.getCharacterExperience().award(killer.getUniqueId(), reward);
-        if (result.levelsGained() > 0
-                && plugin.getConfig().getBoolean("experience.notifications.level-up", true)) {
-            killer.sendMessage("§6Уровень персонажа повышен: §e" + result.state().level());
+        if (result.levelsGained() > 0 && plugin.getConfig().getBoolean("experience.notifications.level-up", true)) {
+            killer.sendMessage(
+                    "§6Уровень персонажа повышен: §e" + result.state().level());
         }
     }
 }

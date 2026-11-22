@@ -20,8 +20,7 @@ public final class CharacterExperienceService {
         this(profiles, curve, System::currentTimeMillis);
     }
 
-    CharacterExperienceService(
-            CharacterProfileStorage profiles, CharacterExperienceCurve curve, LongSupplier clock) {
+    CharacterExperienceService(CharacterProfileStorage profiles, CharacterExperienceCurve curve, LongSupplier clock) {
         this.profiles = Objects.requireNonNull(profiles, "profiles");
         this.curve = Objects.requireNonNull(curve, "curve");
         this.clock = Objects.requireNonNull(clock, "clock");

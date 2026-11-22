@@ -19,5 +19,4 @@ public final class CharacterLevelService {
     public int characterLevel(UUID uuid) {
         return profiles.ensureProfile(Objects.requireNonNull(uuid, "uuid")).level();
     }
-
 }

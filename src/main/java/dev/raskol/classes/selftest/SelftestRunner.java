@@ -1433,7 +1433,12 @@ public final class SelftestRunner {
         r.check("19", "стоимость перехода 1→2 равна 139 XP", firstLevelCost == 139L, "XP curve", firstLevelCost);
 
         long levelSixtyCost = curve.totalExperienceToLevel(60);
-        r.check("20", "путь с 1 до 60 уровня требует 102132 XP", levelSixtyCost == 102_132L, "XP curve", levelSixtyCost);
+        r.check(
+                "20",
+                "путь с 1 до 60 уровня требует 102132 XP",
+                levelSixtyCost == 102_132L,
+                "XP curve",
+                levelSixtyCost);
     }
 
     /* ------------------------------ 21: canHit ------------------------------ */
