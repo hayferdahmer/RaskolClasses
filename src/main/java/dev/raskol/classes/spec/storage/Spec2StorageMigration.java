@@ -244,7 +244,9 @@ public final class Spec2StorageMigration {
         if (!source.present()) {
             return;
         }
-        File[] files = {new File(directory, name), new File(directory, name + ".tmp"), new File(directory, name + ".bak")};
+        File[] files = {
+            new File(directory, name), new File(directory, name + ".tmp"), new File(directory, name + ".bak")
+        };
         for (File file : files) {
             if (!file.exists()) {
                 continue;
@@ -258,8 +260,8 @@ public final class Spec2StorageMigration {
                 }
                 logger.info("spec2: архивирован " + file.getName() + " → " + target.getName());
             } catch (IOException exception) {
-                logger.warning("spec2: не удалось архивировать " + file.getName()
-                        + "; файл оставлен на месте: " + exception.getMessage());
+                logger.warning("spec2: не удалось архивировать " + file.getName() + "; файл оставлен на месте: "
+                        + exception.getMessage());
             }
         }
     }
@@ -301,8 +303,7 @@ public final class Spec2StorageMigration {
                 logger.warning("spec2: не удалось удалить временный backup " + temporary.getName());
             }
             throw new IllegalStateException(
-                    "Не удалось обновить backup единого characters.yml; исходные Spec 2.0 файлы сохранены",
-                    exception);
+                    "Не удалось обновить backup единого characters.yml; исходные Spec 2.0 файлы сохранены", exception);
         }
         logger.info("spec2: backup characters.yml обновлён единым снимком профиля и специализаций");
     }
