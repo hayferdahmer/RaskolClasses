@@ -1103,13 +1103,7 @@ public final class RaskolConfig {
                 case MAGE ->
                     Map.of(
                             "fire_prometheus",
-                                    new AbilityDefaults(
-                                            1,
-                                            15,
-                                            6,
-                                            "Огонь Прометея",
-                                            0,
-                                            "Огненный шар: гибридный урон + поджог 3 с"),
+                                    new AbilityDefaults(1, 15, 6, "Огонь Прометея", 0, "Огненный шар: гибридный урон + поджог 3 с"),
                             "hermes_step",
                                     new AbilityDefaults(25, 20, 20, "Шаг Гермеса", 0, "Блинк до 16 блоков вперёд"),
                             "boreas_breath",
