@@ -233,9 +233,7 @@ public final class DebugSub implements CommandSub {
 
         sender.sendMessage(Component.text("=== " + target.getName() + " ===", NamedTextColor.GOLD));
         sender.sendMessage(Component.text(
-                "Класс: " + (pc != null ? pc.getDisplayName() : "—") + " (source="
-                        + "character-profile)",
-                NamedTextColor.AQUA));
+                "Класс: " + (pc != null ? pc.getDisplayName() : "—"), NamedTextColor.AQUA));
         sender.sendMessage(Component.text(
                 "Спека: " + (spec != null ? spec.displayName() : "—") + " · деревья путей — в Книге класса",
                 NamedTextColor.YELLOW));
