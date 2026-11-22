@@ -138,6 +138,11 @@ public final class Spec2Points {
         return snap.rowGate(row);
     }
 
+    /** Гейт ряда с учётом индивидуальной настройки дерева. */
+    public static int rowGate(int row, String treeId) {
+        return snap.rowGate(row, treeId);
+    }
+
     /**
      * 1.14.7 (P1-4): читает spec2.start-level / spec2.max-points / spec2.row-gates,
      * 1.15.6: + spec2.row-gates-by-tree; валидирует и атомарно publishes новый Snapshot.
