@@ -12,6 +12,16 @@
 
 ## [Unreleased]
 
+### RPG Core — v1.16.0 foundation
+
+- Начата собственная модель прогрессии персонажа с диапазоном уровней 1–60; чистый progression engine переносит остаток XP через несколько уровней и явно обрабатывает достижение максимального уровня.
+- Добавлен immutable `CharacterProfile` и единый versioned YAML store `characters.yml` (schema v1) с атомарной асинхронной записью через общий StorageWriter.
+- Профиль существующего игрока без собственной записи создаётся при первом входе на уровне 1 с 0 XP; повторный вход не сбрасывает сохранённые данные.
+- Подключены join/quit, общий autosave и финальный snapshot перед закрытием StorageWriter; добавлена legacy-schema migration и строгая проверка некорректных/будущих версий.
+- Character level пока не переключён с AuraSkills/fallback на новый профиль; миграция игровых потребителей и удаление AuraSkills остаются отдельными этапами.
+- Добавлены unit-тесты progression engine и profile storage; CI для текущего PR ещё ожидает подтверждения.
+
+
 ### RaskolHUD — HUD-C.2 / HUD-C.3
 
 - Добавлен immutable `PlayerHudSnapshot` pipeline с типизированными view, явным `DataStatus`, revision control и bounded refresh coordinator.
