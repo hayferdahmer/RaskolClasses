@@ -66,6 +66,36 @@ class CharacterProfileStorageTest {
     }
 
     @Test
+    void migratesLegacySchemaWithoutResettingExistingProfileFields() throws Exception {
+        UUID playerId = UUID.fromString("7b3a7b3a-3a7b-4a3a-8b3a-3a7b3a7b3a7b");
+        File file = new File(tempDir.toFile(), "characters.yml");
+        YamlConfiguration legacy = new YamlConfiguration();
+        legacy.set("profiles." + playerId + ".level", 23);
+        java.nio.file.Files.writeString(file.toPath(), legacy.saveToString());
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(file, writer, LOGGER, () -> 500L);
+            CharacterProfile migrated = storage.find(playerId).orElseThrow();
+
+            assertEquals(23, migrated.level());
+            assertEquals(0L, migrated.experienceIntoLevel());
+            assertEquals(500L, migrated.createdAtMillis());
+            assertEquals(500L, migrated.updatedAtMillis());
+            org.junit.jupiter.api.Assertions.assertTrue(storage.isDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(storage.saveIfDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
+        }
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage reloaded =
+                    new CharacterProfileStorage(file, writer, LOGGER, () -> 900L);
+            assertEquals(23, reloaded.find(playerId).orElseThrow().level());
+            org.junit.jupiter.api.Assertions.assertFalse(reloaded.isDirty());
+        }
+    }
+
+    @Test
     void rejectsUnsupportedFutureSchemaWithoutRewritingIt() throws Exception {
         File file = new File(tempDir.toFile(), "characters.yml");
         String original = "schema-version: 99\nprofiles: {}\n";
