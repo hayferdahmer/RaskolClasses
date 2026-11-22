@@ -45,5 +45,6 @@ public final class PluginTasks {
         plugin.getCooldowns().saveAll();
         plugin.getResources().saveAll();
         plugin.getSpec2Storage().save();
+        plugin.getCharacterProfiles().saveIfDirty();
     }
 }
