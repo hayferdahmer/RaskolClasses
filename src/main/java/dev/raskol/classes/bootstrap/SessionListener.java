@@ -38,6 +38,7 @@ public final class SessionListener implements Listener {
         plugin.getResists().clear(quitUuid);
         plugin.getAttributes().clear(quitUuid);
         plugin.getCharacterLevels().invalidate(quitUuid);
+        plugin.getCharacterProfiles().saveIfDirty();
         plugin.getSpec2Service().clear(quitUuid);
         // 1.14.7 (Sprint 4, P1-3): GUI-сессия книги не переживает выход
         TalentsTab.clearSession(quitUuid);
@@ -48,6 +49,8 @@ public final class SessionListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        plugin.getCharacterProfiles().ensureProfile(player.getUniqueId());
+        plugin.getCharacterProfiles().saveIfDirty();
         plugin.getSpec2Service().reconcile(player.getUniqueId());
         plugin.getHpSync().sync(player);
     }
@@ -55,8 +58,10 @@ public final class SessionListener implements Listener {
     /** Разовая синхронизация онлайна при старте плагина (игроки, зашедшие до enable). */
     public void resyncOnline() {
         for (Player online : plugin.getServer().getOnlinePlayers()) {
+            plugin.getCharacterProfiles().ensureProfile(online.getUniqueId());
             plugin.getSpec2Service().reconcile(online.getUniqueId());
             plugin.getHpSync().sync(online);
         }
+        plugin.getCharacterProfiles().saveIfDirty();
     }
 }
