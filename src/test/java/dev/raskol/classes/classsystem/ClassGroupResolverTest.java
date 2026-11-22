@@ -14,8 +14,7 @@ class ClassGroupResolverTest {
 
     @Test
     void resolvesSinglePrimaryClassGroup() {
-        ClassGroupResolver.Resolution result =
-                ClassGroupResolver.resolve("class_mage", List.of("class_mage", "default"));
+        ClassGroupResolver.Resolution result = ClassGroupResolver.resolve("class_mage", List.of("class_mage", "default"));
 
         assertEquals(ClassGroupResolver.Status.RESOLVED, result.status());
         assertEquals(PlayerClass.MAGE, result.playerClass());
@@ -24,8 +23,7 @@ class ClassGroupResolverTest {
 
     @Test
     void reportsNoClassWhenNoClassGroupExists() {
-        ClassGroupResolver.Resolution result =
-                ClassGroupResolver.resolve("default", List.of("default", "vip"));
+        ClassGroupResolver.Resolution result = ClassGroupResolver.resolve("default", List.of("default", "vip"));
 
         assertEquals(ClassGroupResolver.Status.NO_CLASS, result.status());
         assertNull(result.playerClass());
@@ -33,8 +31,7 @@ class ClassGroupResolverTest {
 
     @Test
     void rejectsClassGroupThatIsNotPrimary() {
-        ClassGroupResolver.Resolution result =
-                ClassGroupResolver.resolve("default", List.of("default", "class_mage"));
+        ClassGroupResolver.Resolution result = ClassGroupResolver.resolve("default", List.of("default", "class_mage"));
 
         assertEquals(ClassGroupResolver.Status.CONFLICT, result.status());
         assertNull(result.playerClass());
@@ -42,8 +39,7 @@ class ClassGroupResolverTest {
 
     @Test
     void rejectsMultipleClassGroupsInsteadOfChoosingAnArbitraryOne() {
-        ClassGroupResolver.Resolution result =
-                ClassGroupResolver.resolve("class_mage", List.of("class_mage", "class_warrior"));
+        ClassGroupResolver.Resolution result = ClassGroupResolver.resolve("class_mage", List.of("class_mage", "class_warrior"));
 
         assertEquals(ClassGroupResolver.Status.CONFLICT, result.status());
         assertNull(result.playerClass());
@@ -51,8 +47,7 @@ class ClassGroupResolverTest {
 
     @Test
     void rejectsUnknownClassGroup() {
-        ClassGroupResolver.Resolution result =
-                ClassGroupResolver.resolve("class_unknown", List.of("class_unknown"));
+        ClassGroupResolver.Resolution result = ClassGroupResolver.resolve("class_unknown", List.of("class_unknown"));
 
         assertEquals(ClassGroupResolver.Status.CONFLICT, result.status());
         assertNull(result.playerClass());
@@ -60,8 +55,7 @@ class ClassGroupResolverTest {
 
     @Test
     void normalizesGroupNamesCaseInsensitively() {
-        ClassGroupResolver.Resolution result =
-                ClassGroupResolver.resolve("CLASS_ROGUE", List.of("class_rogue"));
+        ClassGroupResolver.Resolution result = ClassGroupResolver.resolve("CLASS_ROGUE", List.of("class_rogue"));
 
         assertEquals(ClassGroupResolver.Status.RESOLVED, result.status());
         assertEquals(PlayerClass.ROGUE, result.playerClass());

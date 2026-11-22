@@ -460,9 +460,13 @@ public final class FoliantService implements Listener {
         try {
             return plugin.getClassProvider().replaceClassGroup(player.getUniqueId(), PlayerClass.WARLOCK);
         } catch (RuntimeException exception) {
-            plugin.getLogger().warning(
-                    "Foliant: Class Lock отклонил переход ("
-                            + exception.getClass().getSimpleName() + ": " + exception.getMessage() + ")");
+            plugin.getLogger()
+                    .warning(
+                            "Foliant: Class Lock отклонил переход ("
+                                    + exception.getClass().getSimpleName()
+                                    + ": "
+                                    + exception.getMessage()
+                                    + ")");
             return false;
         }
     }

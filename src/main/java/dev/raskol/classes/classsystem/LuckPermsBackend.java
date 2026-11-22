@@ -128,8 +128,7 @@ public final class LuckPermsBackend {
 
             api.getUserManager().saveUser(user).join();
             ClassGroupResolver.Resolution resolution = resolveUser(user);
-            if (resolution.status() != ClassGroupResolver.Status.RESOLVED
-                    || resolution.playerClass() != targetClass) {
+            if (resolution.status() != ClassGroupResolver.Status.RESOLVED || resolution.playerClass() != targetClass) {
                 restoreClassGroups(user, previousClassNodes, previousPrimary);
                 return false;
             }
@@ -213,9 +212,13 @@ public final class LuckPermsBackend {
         PlayerClass now = resolution.playerClass();
         if (resolution.status() == ClassGroupResolver.Status.CONFLICT) {
             if (conflictWarnings.add(uuid)) {
-                plugin.getLogger().warning(
-                        "Конфликт class-групп LuckPerms у " + uuid + ": " + resolution.classGroups()
-                                + "; класс не назначен, требуется оставить одну primary-группу class_<NAME>.");
+                plugin.getLogger()
+                        .warning(
+                                "Конфликт class-групп LuckPerms у "
+                                        + uuid
+                                        + ": "
+                                        + resolution.classGroups()
+                                        + "; класс не назначен, требуется оставить одну primary-группу class_<NAME>.");
             }
         } else {
             conflictWarnings.remove(uuid);
