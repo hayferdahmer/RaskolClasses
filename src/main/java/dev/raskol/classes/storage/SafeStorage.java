@@ -137,9 +137,8 @@ public final class SafeStorage {
                 if (isReadableYaml(file)) {
                     Files.copy(file.toPath(), bak.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 } else {
-                    logger.warning(
-                            "SafeStorage: основной файл " + file.getName()
-                                    + " повреждён; существующая резервная копия не будет перезаписана");
+                    logger.warning("SafeStorage: основной файл " + file.getName()
+                            + " повреждён; существующая резервная копия не будет перезаписана");
                 }
             }
             try {
