@@ -20,9 +20,4 @@ public final class CharacterLevelService {
         return profiles.ensureProfile(Objects.requireNonNull(uuid, "uuid")).level();
     }
 
-    /** Оставлено для совместимости владельцев старых runtime-задач; кэш уровня больше не используется. */
-    public void invalidate(UUID uuid) {}
-
-    /** Оставлено для совместимости владельцев старых runtime-задач; кэш уровня больше не используется. */
-    public void purgeStale() {}
 }
