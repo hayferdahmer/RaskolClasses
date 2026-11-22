@@ -124,48 +124,48 @@ public final class AbilityRegistry {
                         def("tyr_strike", "Удар Тира", 1, 10, 20, 8),
                         def("balder_skin", "Шкура Бальдра", 2, 25, 25, 30),
                         def("berserkergang", "Берсеркерганг", 3, 50, 35, 45),
-                        def("fenrir_blood", "Кровь Фенрира", 4, 65, 30, 25),
-                        def("ragnarok", "Рагнарёк", 5, 75, 60, 60)));
+                        def("fenrir_blood", "Кровь Фенрира", 4, 55, 30, 25),
+                        def("ragnarok", "Рагнарёк", 5, 60, 60, 60)));
         DEFAULTS.put(
                 PlayerClass.HUNTER,
                 List.of(
                         def("wolf_mark", "Метка Волка", 1, 10, 20, 12),
                         def("swallow", "Ласточка", 2, 25, 15, 40),
                         def("piercing_shot", "Пронзающий выстрел", 3, 50, 30, 20),
-                        def("arrow_fan", "Веер стрел", 4, 65, 35, 22),
-                        def("arrow_rain", "Дождь стрел", 5, 75, 60, 90)));
+                        def("arrow_fan", "Веер стрел", 4, 55, 35, 22),
+                        def("arrow_rain", "Дождь стрел", 5, 60, 60, 90)));
         DEFAULTS.put(
                 PlayerClass.PRIEST,
                 List.of(
                         def("saint_tear", "Слеза Святой", 1, 10, 10, 3),
                         def("word_of_life", "Слово Жизни", 2, 25, 20, 6),
                         def("aegis_faith", "Эгида Веры", 3, 50, 30, 30),
-                        def("circle_elysium", "Круг Элизия", 4, 65, 50, 60),
-                        def("wrath_heaven", "Кара Небес", 5, 75, 60, 90)));
+                        def("circle_elysium", "Круг Элизия", 4, 55, 50, 60),
+                        def("wrath_heaven", "Кара Небес", 5, 60, 60, 90)));
         DEFAULTS.put(
                 PlayerClass.MAGE,
                 List.of(
                         def("fire_prometheus", "Огонь Прометея", 1, 10, 15, 6),
                         def("hermes_step", "Шаг Гермеса", 2, 25, 20, 20),
                         def("boreas_breath", "Дыхание Борея", 3, 50, 40, 45),
-                        def("athena_aegis", "Эгида Афины", 4, 65, 30, 30),
-                        def("zeus_wrath", "Гнев Зевса", 5, 75, 60, 90)));
+                        def("athena_aegis", "Эгида Афины", 4, 55, 30, 30),
+                        def("zeus_wrath", "Гнев Зевса", 5, 60, 60, 90)));
         DEFAULTS.put(
                 PlayerClass.ROGUE,
                 List.of(
                         def("shadow_cloak", "Плащ теней", 1, 10, 30, 30),
                         def("blade_fan", "Веер клинков", 2, 25, 25, 15),
                         def("strangle", "Удушение палача", 3, 50, 40, 40),
-                        def("borgia_poison", "Яд Борджа", 4, 65, 35, 30),
-                        def("shadow_dance", "Танец теней", 5, 75, 60, 120)));
+                        def("borgia_poison", "Яд Борджа", 4, 55, 35, 30),
+                        def("shadow_dance", "Танец теней", 5, 60, 60, 120)));
         DEFAULTS.put(
                 PlayerClass.WARLOCK,
                 List.of(
                         def("black_word", "Чёрное Слово", 1, 10, 10, 4),
                         def("ruin_seal", "Печать Погибели", 2, 25, 15, 16),
                         def("hunger_corruption", "Голод Скверны", 3, 50, 25, 26),
-                        def("unwriting", "Небытие", 4, 65, 30, 22),
-                        def("soul_rift", "Раскол Души", 5, 75, 50, 80)));
+                        def("unwriting", "Небытие", 4, 55, 30, 22),
+                        def("soul_rift", "Раскол Души", 5, 60, 50, 80)));
     }
 
     private static AbilityDef def(String id, String name, int slot, int unlock, int cost, int cooldownSeconds) {
