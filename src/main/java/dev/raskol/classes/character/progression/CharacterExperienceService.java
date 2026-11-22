@@ -47,6 +47,22 @@ public final class CharacterExperienceService {
 
     public ProgressSnapshot snapshot(UUID playerId) {
         CharacterProfile profile = profiles.ensureProfile(Objects.requireNonNull(playerId, "playerId"));
+        CharacterProgressionEngine.State state =
+                new CharacterProgressionEngine.State(profile.level(), profile.experienceIntoLevel());
+        CharacterProgressionEngine.AwardResult reconciled =
+                CharacterProgressionEngine.award(state, 0L, curve::requiredExperience);
+        if (!reconciled.state().equals(state)) {
+            long updatedAt = Math.max(profile.updatedAtMillis(), System.currentTimeMillis());
+            profile = new CharacterProfile(
+                    profile.playerId(),
+                    profile.schemaVersion(),
+                    reconciled.state().level(),
+                    reconciled.state().experienceIntoLevel(),
+                    profile.createdAtMillis(),
+                    updatedAt);
+            profiles.upsert(profile);
+        }
+
         OptionalLong experienceToNextLevel = profile.level() >= CharacterProgressionEngine.MAX_LEVEL
                 ? OptionalLong.empty()
                 : OptionalLong.of(curve.requiredExperience(profile.level()) - profile.experienceIntoLevel());
