@@ -22,7 +22,6 @@ import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.DRCategory;
 import dev.raskol.classes.cc.DRState;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.combat.WeaponMastery;
@@ -228,22 +227,16 @@ public final class DebugSub implements CommandSub {
         AttributeService attrs = plugin.getAttributes();
         ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
-        int topN = Math.max(1, plugin.getConfig().getInt("character-level.top-n", 5));
         int cap = (int) plugin.getConfig().getDouble("attributes.level-cap", 60.0);
         // 1.14.0 (Б8.2): спека из spec2-хранилища
         Spec spec = Spec.fromId(plugin.getSpec2Service().mainSpec(uuid));
 
         sender.sendMessage(Component.text("=== " + target.getName() + " ===", NamedTextColor.GOLD));
-        sender.sendMessage(Component.text(
-                "Класс: " + (pc != null ? pc.getDisplayName() : "—") + " (source="
-                        + plugin.getConfig().getString("attributes.level-source", "character") + ")",
-                NamedTextColor.AQUA));
+        sender.sendMessage(Component.text("Класс: " + (pc != null ? pc.getDisplayName() : "—"), NamedTextColor.AQUA));
         sender.sendMessage(Component.text(
                 "Спека: " + (spec != null ? spec.displayName() : "—") + " · деревья путей — в Книге класса",
                 NamedTextColor.YELLOW));
-        sender.sendMessage(Component.text(
-                "Уровень персонажа: " + charLevel + " (топ-" + topN + " скиллов, кап " + cap + ")",
-                NamedTextColor.AQUA));
+        sender.sendMessage(Component.text("Уровень персонажа: " + charLevel + " / " + cap, NamedTextColor.AQUA));
         if (pc == null) {
             return;
         }
@@ -368,10 +361,7 @@ public final class DebugSub implements CommandSub {
         double taken = plugin.getCombat().simulateTaken(target, profile);
         sender.sendMessage(Component.text(
                 "Симул. урона (20/10/5): дойдёт " + SubUtil.fmt1(taken) + " из 35", NamedTextColor.GRAY));
-        int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-        sender.sendMessage(Component.text(
-                "Уровень " + pc.profileSkillName() + ": "
-                        + (level == SkillLevelProvider.NO_SKILL_SYSTEM ? "AuraSkills не подключён" : level),
-                NamedTextColor.GRAY));
+        int level = plugin.getCharacterLevels().characterLevel(uuid);
+        sender.sendMessage(Component.text("Уровень персонажа: " + level, NamedTextColor.GRAY));
     }
 }

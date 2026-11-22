@@ -1,7 +1,7 @@
 # © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 # SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 # ============================================================
-#  RaskolClasses v1.15.8 — «РАСКОЛ | ДВЕ КОРОНЫ» [RELEASE]
+#  RaskolClasses v1.16.0-SNAPSHOT — «РАСКОЛ | ДВЕ КОРОНЫ» [DEVELOPMENT]
 #  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
@@ -194,20 +194,56 @@ class-accept:
 balance:
   target-ttk-seconds: 20.0
 
-character-level:
-  top-n: 5
-  fallback: 40
-  skills:
-    - fighting
-    - defense
-    - archery
-    - agility
-    - healing
-    - sorcery
-    - alchemy
-    - enchanting
-    - mining
-    - forging
+# Собственная прогрессия персонажа (уровни 1–60).
+# Порог следующего уровня: base + linear × level + quadratic-tenths × level² / 10.
+# Значения по умолчанию дают 102 132 XP от 1 до 60 уровня.
+experience:
+  # Кривая фиксируется при запуске; после её изменения требуется перезапуск сервера.
+  curve:
+    base: 120
+    linear: 18
+    quadratic-tenths: 9
+  notifications:
+    level-up: true
+  # Награды выдаются только за убийства естественно появившихся PvE-сущностей.
+  # Мобы из спавнеров, яиц, команд, кастомных спавнеров и размножения XP не дают.
+  mob-rewards:
+    ZOMBIE: 8
+    SKELETON: 8
+    SPIDER: 7
+    CAVE_SPIDER: 10
+    CREEPER: 10
+    DROWNED: 10
+    HUSK: 10
+    STRAY: 10
+    PHANTOM: 14
+    WITCH: 18
+    ENDERMAN: 18
+    BLAZE: 18
+    GHAST: 25
+    MAGMA_CUBE: 8
+    SLIME: 4
+    GUARDIAN: 18
+    ELDER_GUARDIAN: 160
+    PILLAGER: 12
+    VINDICATOR: 22
+    EVOKER: 35
+    RAVAGER: 40
+    VEX: 5
+    SHULKER: 30
+    WITHER_SKELETON: 24
+    PIGLIN: 12
+    PIGLIN_BRUTE: 26
+    HOGLIN: 18
+    ZOGLIN: 22
+    ZOMBIFIED_PIGLIN: 8
+    SILVERFISH: 5
+    ENDERMITE: 6
+    BREEZE: 25
+    BOGGED: 14
+    WARDEN: 250
+    WITHER: 350
+    ENDER_DRAGON: 500
 
 # ------------------------------------------------------------
 # 1.14.0 «Спек 2.0»: деревья путей.
@@ -380,7 +416,6 @@ resist:
       magic: 6
 
 attributes:
-  level-source: character
   level-cap: 60
   classes:
     WARRIOR: { main: STR, base-str: 12, base-agi: 6, base-int: 4, growth-str: 1.2, growth-agi: 0.5, growth-int: 0.3 }
@@ -991,7 +1026,7 @@ classes:
       fenrir_blood:
         name: "Кровь Фенрира"
         description: "Волчья кровь лечит тебя (хил скалируется от Силы оружия)"
-        unlock: 65
+        unlock: 55
         cost: 30
         cooldown: 25
         power: wp
@@ -1001,7 +1036,7 @@ classes:
       ragnarok:
         name: "Рагнарёк"
         description: "Сумерки богов: тяжёлый удар; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)"
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 60
         power: wp
@@ -1194,7 +1229,7 @@ classes:
       arrow_fan:
         name: "Веер стрел"
         description: "Три стрелы конусом, урон каждой скалируется от Силы оружия"
-        unlock: 65
+        unlock: 55
         cost: 35
         cooldown: 22
         power: wp
@@ -1204,7 +1239,7 @@ classes:
       arrow_rain:
         name: "Дождь стрел"
         description: "Шквал стрел по площади радиусом 5 (не проходит сквозь стены)"
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 90
         power: wp
@@ -1352,7 +1387,7 @@ classes:
       circle_elysium:
         name: "Круг Элизия"
         description: "Лечит себя и всех союзников в радиусе 6 (скалируется от Силы исцеления)"
-        unlock: 65
+        unlock: 55
         cost: 50
         cooldown: 60
         power: hpow
@@ -1363,7 +1398,7 @@ classes:
       wrath_heaven:
         name: "Кара Небес"
         description: "Карая кара: тяжёлый маг-урон; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)"
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 90
         power: sp
@@ -1536,7 +1571,7 @@ classes:
       athena_aegis:
         name: "Эгида Афины"
         description: "Щит богини: +магрезист на 5 с + аура партиклов на кастере и звук снятия."
-        unlock: 65
+        unlock: 55
         cost: 30
         cooldown: 30
         power: sp
@@ -1547,7 +1582,7 @@ classes:
       zeus_wrath:
         name: "Гнев Зевса"
         description: "Сцена: гром → затемнение цели → подбрасывание на 3 блока → молния с маг-уроном + горение (DoT burning); цель <25% HP → ×3 (игнорирует burst-окно и кап)."
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 90
         power: sp
@@ -1753,7 +1788,7 @@ classes:
       borgia_poison:
         name: "Яд Борджа"
         description: "Отравленный клинок: урон + яд (DoT poison, NATURE, стеки до 3)"
-        unlock: 65
+        unlock: 55
         cost: 35
         cooldown: 30
         power: wp
@@ -1763,7 +1798,7 @@ classes:
       shadow_dance:
         name: "Танец теней"
         description: "Танец клинков: +30 ЛОВКОСТИ на 4 с (всплеск уклонения через avoidance)"
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 120
         base: 30
@@ -1954,7 +1989,7 @@ classes:
       unwriting:
         name: "Небытие"
         description: "Вычеркнуть из истории: снимает с цели все положительные зелья и эффекты; маг-урон и +16 урона за каждый стёртый эффект."
-        unlock: 65
+        unlock: 55
         cost: 30
         cooldown: 22
         power: sp
@@ -1965,7 +2000,7 @@ classes:
       soul_rift:
         name: "Раскол Души"
         description: "Канал 2.5 секунды: зона 8 блоков сеет маг-урон и запрет лечения; финальный взрыв бьёт тем сильнее, чем ближе цель к смерти (до +66.6% от недостающего HP)."
-        unlock: 75
+        unlock: 60
         cost: 50
         cooldown: 80
         power: sp
@@ -2589,5 +2624,5 @@ vfx:
       tag: "☾ Чёрная Месса"
 
 # ============================================================
-#  КОНЕЦ config.yml · RaskolClasses 1.15.8
+#  КОНЕЦ config.yml · RaskolClasses 1.16.0
 # ============================================================

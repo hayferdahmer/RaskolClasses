@@ -10,7 +10,7 @@ the server at runtime and remain under their owners' own licenses:
   - Paper API (PaperMC)          https://papermc.io
   - LuckPerms API                https://luckperms.net
   - PlaceholderAPI               https://github.com/PlaceholderAPI/PlaceholderAPI
-Optional integrations (AuraSkills, Towny, Vault, AuthMe, Essentials,
+Optional integrations (Towny, Vault, AuthMe, Essentials,
 packetevents, PlayerPoints, MythicMobs and others) are separate products with
 their own licenses. Build and test tooling (Maven, JUnit, SpotBugs) is used
 only during development and is not part of the distributed Software.

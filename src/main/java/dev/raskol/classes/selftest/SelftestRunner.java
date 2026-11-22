@@ -38,7 +38,7 @@ import dev.raskol.classes.cc.CCType;
 import dev.raskol.classes.cc.CastChannels;
 import dev.raskol.classes.cc.DRCategory;
 import dev.raskol.classes.cc.VanillaCCWrapper;
-import dev.raskol.classes.classsystem.CharacterLevelService;
+import dev.raskol.classes.character.progression.CharacterExperienceCurve;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatMath;
 import dev.raskol.classes.combat.CombatService;
@@ -1428,11 +1428,17 @@ public final class SelftestRunner {
         boolean ok18 = pp.timeout() || pp.ttkSeconds() >= 30.0;
         r.check("18", "жрец↔жрец ≥30 с или timeout", ok18, "BalanceSimulator", pp.ttkSeconds());
 
-        int cl1 = CharacterLevelService.topNAverage(new int[] {99, 70, 40, 20, 10, 5, 0}, 5);
-        r.check("19", "topNAverage([99..0],5)=47", cl1 == 47, "topNAverage", cl1);
+        CharacterExperienceCurve curve = CharacterExperienceCurve.defaults();
+        long firstLevelCost = curve.requiredExperience(1);
+        r.check("19", "стоимость перехода 1→2 равна 139 XP", firstLevelCost == 139L, "XP curve", firstLevelCost);
 
-        int cl2 = CharacterLevelService.topNAverage(new int[] {15, 0, 0, 0, 0}, 5);
-        r.check("20", "topNAverage([15,0,0,0,0],5)=3", cl2 == 3, "topNAverage", cl2);
+        long levelSixtyCost = curve.totalExperienceToLevel(60);
+        r.check(
+                "20",
+                "путь с 1 до 60 уровня требует 102132 XP",
+                levelSixtyCost == 102_132L,
+                "XP curve",
+                levelSixtyCost);
     }
 
     /* ------------------------------ 21: canHit ------------------------------ */

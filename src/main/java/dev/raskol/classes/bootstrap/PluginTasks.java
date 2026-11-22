@@ -29,7 +29,6 @@ public final class PluginTasks {
         plugin.getInstallations().purgeStale();
         plugin.getResists().purgeExpired();
         plugin.getAttributes().purgeExpired();
-        plugin.getCharacterLevels().purgeStale();
         // 1.14.8-fix (Волна 6.3, P0-6-02): метки китов и боевые логи
         HunterAbilities.purgeStale();
         RogueAbilities.purgeStale();
@@ -45,5 +44,6 @@ public final class PluginTasks {
         plugin.getCooldowns().saveAll();
         plugin.getResources().saveAll();
         plugin.getSpec2Storage().save();
+        plugin.getCharacterProfiles().saveIfDirty();
     }
 }

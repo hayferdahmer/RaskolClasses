@@ -25,6 +25,7 @@ import dev.raskol.classes.command.sub.ItemSub;
 import dev.raskol.classes.command.sub.PlusSub;
 import dev.raskol.classes.command.sub.SetSub;
 import dev.raskol.classes.command.sub.SubUtil;
+import dev.raskol.classes.command.sub.XpSub;
 import dev.raskol.classes.gui.ClassBook;
 
 import net.kyori.adventure.text.Component;
@@ -48,8 +49,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
 
     // 1.13.0 (Б4): "cc" добавлен для таб-комплита /rc <Tab>
     // 1.14.15 (raskolspec+): "plus" добавлен в список подкоманд
-    private static final List<String> ROOT_SUBS =
-            List.of("menu", "reload", "debug", "health", "selftest", "gear", "item", "set", "foliant", "cc", "plus");
+    private static final List<String> ROOT_SUBS = List.of(
+            "menu", "reload", "debug", "health", "selftest", "gear", "item", "set", "foliant", "cc", "plus", "xp");
 
     /** 1.14.12 (Волна 12B, 7-04): rate-limit для тяжёлых команд (мс). */
     private static final long HEAVY_CMD_COOLDOWN_MS = 10_000L;
@@ -71,7 +72,8 @@ public final class RaskolCommand implements CommandExecutor, TabCompleter {
                 new CcSub(plugin),
                 // 1.14.15 (raskolspec+): подписка на кураторские билды.
                 // plusGui уже создан в onEnable до registerCommand — порядок гарантирован.
-                new PlusSub(plugin, plugin.getPlusGui()))) {
+                new PlusSub(plugin, plugin.getPlusGui()),
+                new XpSub(plugin))) {
             subs.put(sub.name(), sub);
         }
     }

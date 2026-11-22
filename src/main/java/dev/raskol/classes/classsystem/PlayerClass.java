@@ -9,8 +9,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 /**
  * Шесть классов сервера «РАСКОЛ». Цвета сообщений и скиллы — по ТЗ.
  * 1.10.0: добавлен WARLOCK (скрытый класс, переход через Фолиант Душ).
- * 1.10.3-fix: профильный скилл WARLOCK = sorcery (как у мага); дерево occult
- *         удалено из AuraSkills, и ссылки на него блокировали все способности.
  * 1.14.13 (Sprint 9, Волна 13D, P0-4-05): switch(pc) заменены на метаданные —
  *         resourceName/resourceSymbol стали полями enum-значений; HpBarService.symbolOf
  *         читает pc.getResourceSymbol() вместо switch.
@@ -23,12 +21,12 @@ import net.kyori.adventure.text.format.NamedTextColor;
  *         Числовые значения регена/окна остаются в конфиге — админ тюнит без сборки.
  */
 public enum PlayerClass {
-    WARRIOR("Воин", NamedTextColor.RED, "fighting", "Ярость", "⚔", RegenModel.COMBAT_PAUSE),
-    HUNTER("Охотник", NamedTextColor.DARK_GREEN, "archery", "Концентрация", "➳", RegenModel.COMBAT_PAUSE),
-    PRIEST("Жрец", NamedTextColor.WHITE, "healing", "Свет", "✚", RegenModel.PLAIN),
-    MAGE("Маг", NamedTextColor.BLUE, "sorcery", "Мана", "✦", RegenModel.TIERED),
-    ROGUE("Разбойник", NamedTextColor.DARK_PURPLE, "agility", "Энергия", "☠", RegenModel.PLAIN),
-    WARLOCK("Чернокнижник", NamedTextColor.LIGHT_PURPLE, "sorcery", "Скверна", "☾", RegenModel.FLOOR_DECAY);
+    WARRIOR("Воин", NamedTextColor.RED, "Ярость", "⚔", RegenModel.COMBAT_PAUSE),
+    HUNTER("Охотник", NamedTextColor.DARK_GREEN, "Концентрация", "➳", RegenModel.COMBAT_PAUSE),
+    PRIEST("Жрец", NamedTextColor.WHITE, "Свет", "✚", RegenModel.PLAIN),
+    MAGE("Маг", NamedTextColor.BLUE, "Мана", "✦", RegenModel.TIERED),
+    ROGUE("Разбойник", NamedTextColor.DARK_PURPLE, "Энергия", "☠", RegenModel.PLAIN),
+    WARLOCK("Чернокнижник", NamedTextColor.LIGHT_PURPLE, "Скверна", "☾", RegenModel.FLOOR_DECAY);
 
     /**
      * 1.14.13 (Волна 13D): модель регена ресурса класса — ключ switch в ResourceService.
@@ -49,9 +47,6 @@ public enum PlayerClass {
 
     private final String displayName;
     private final NamedTextColor color;
-    /** Профильный скилл AuraSkills: его уровень открывает способности. */
-    private final String profileSkillName;
-
     /** 1.14.13 (Волна 13D, 4-05): имя ресурса (вместо switch в getResourceName). */
     private final String resourceName;
     /** 1.14.13 (Волна 13D, 4-05): символ ресурса для HUD (вместо switch в HpBarService.symbolOf). */
@@ -62,13 +57,11 @@ public enum PlayerClass {
     PlayerClass(
             String displayName,
             NamedTextColor color,
-            String profileSkillName,
             String resourceName,
             String resourceSymbol,
             RegenModel regenModel) {
         this.displayName = displayName;
         this.color = color;
-        this.profileSkillName = profileSkillName;
         this.resourceName = resourceName;
         this.resourceSymbol = resourceSymbol;
         this.regenModel = regenModel;
@@ -108,10 +101,6 @@ public enum PlayerClass {
 
     public NamedTextColor getColor() {
         return color;
-    }
-
-    public String profileSkillName() {
-        return profileSkillName;
     }
 
     /** 1.14.13 (Волна 13D, 4-05): имя ресурса из метаданных (вместо switch). */

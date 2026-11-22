@@ -108,8 +108,15 @@ public final class ConfigValidator {
 
         // 1.15.8 (2.3-1): legacy-проверки talents.* удалены вместе с ключами.
 
-        checkPositive(cfg, "character-level.top-n", 1);
-        checkNonNegative(cfg, "character-level.fallback");
+        checkPositive(cfg, "experience.curve.base", 1);
+        checkNonNegative(cfg, "experience.curve.linear");
+        checkNonNegative(cfg, "experience.curve.quadratic-tenths");
+        ConfigurationSection mobRewards = cfg.getConfigurationSection("experience.mob-rewards");
+        if (mobRewards != null) {
+            for (String entityType : mobRewards.getKeys(false)) {
+                checkNonNegative(cfg, "experience.mob-rewards." + entityType);
+            }
+        }
 
         // 1.15.8 (2.8-13): combat — burst-окно и капы
         checkPositive(cfg, "combat.burst-window-seconds", 1);

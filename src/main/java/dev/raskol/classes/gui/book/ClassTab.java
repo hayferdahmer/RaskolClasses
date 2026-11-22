@@ -82,7 +82,6 @@ public final class ClassTab implements BookTabView {
         double intel = attrs.value(uuid, AttributeType.INT);
         double[] eff = attrs.effectiveAvoidance(uuid);
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
-        int topN = Math.max(1, plugin.getConfig().getInt("character-level.top-n", 5));
         int cap = (int) plugin.getConfig().getDouble("attributes.level-cap", 60.0);
         ItemStack item = new ItemStack(Material.ENCHANTED_BOOK);
         item.editMeta(meta -> {
@@ -92,12 +91,8 @@ public final class ClassTab implements BookTabView {
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text(
-                    BookItems.msg(
-                                    plugin,
-                                    "book.attributes.char-level",
-                                    "Уровень персонажа: {value} (топ-{n} скиллов, кап {cap})")
+                    BookItems.msg(plugin, "book.attributes.char-level", "Уровень персонажа: {value} / {cap}")
                             .replace("{value}", String.valueOf(charLevel))
-                            .replace("{n}", String.valueOf(topN))
                             .replace("{cap}", String.valueOf(cap)),
                     NamedTextColor.WHITE));
             lore.add(Component.empty());

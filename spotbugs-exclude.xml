@@ -365,11 +365,6 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
-        <Class name="dev.raskol.classes.classsystem.SkillLevelProvider"/>
-        <Field name="plugin"/>
-        <Bug pattern="EI_EXPOSE_REP2"/>
-    </Match>
-    <Match>
         <Class name="dev.raskol.classes.combat.AvoidanceService"/>
         <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
@@ -916,6 +911,33 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
     <Match>
         <Class name="dev.raskol.classes.hud.runtime.HudServiceOutputCleanup"/>
         <Field name="channelCoordinator"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!--
+      RPG progression listener: plugin is the lifecycle owner that exposes the
+      immutable configuration snapshot and profile-backed XP application service.
+      The listener is registered and released with this plugin instance.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.character.progression.CharacterExperienceListener"/>
+        <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!--
+      RPG progression admin surface: RaskolClasses owns the service lifecycle,
+      and the command adapter is registered/unregistered with that plugin instance.
+      These exact accessor/field exclusions follow the existing plugin-service pattern.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getCharacterExperience"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.command.sub.XpSub"/>
+        <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
 

@@ -389,16 +389,14 @@ public final class VanillaDamageListener implements Listener {
             add += powers.weaponPower(uuid) * cfgD("attributes.offense.basic-coeff", 0.35);
             if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", false)) {
                 add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.STR)
-                        + plugin.getAttributes()
-                                .levelOf(uuid, plugin.getClassProvider().getClassOf(attacker));
+                        + plugin.getAttributes().levelOf(uuid);
             }
             crit = rollMeleeCrit(attacker);
         } else {
             add += powers.spellPower(uuid) * cfgD("attributes.offense.basic-coeff-magic", 0.35);
             if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", false)) {
                 add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.INT)
-                        + plugin.getAttributes()
-                                .levelOf(uuid, plugin.getClassProvider().getClassOf(attacker));
+                        + plugin.getAttributes().levelOf(uuid);
             }
             crit = rollSpellCrit(attacker);
         }
