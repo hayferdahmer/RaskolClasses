@@ -79,6 +79,17 @@ public final class SafeStorage {
         return new YamlConfiguration();
     }
 
+    /** Проверяет, что текущий файл можно разобрать как YAML до обновления резервной копии. */
+    private static boolean isReadableYaml(File file) {
+        try {
+            YamlConfiguration yaml = new YamlConfiguration();
+            yaml.load(file);
+            return true;
+        } catch (Exception exception) {
+            return false;
+        }
+    }
+
     /** Парсинг файла или null (отсутствует/бит). */
     private static YamlConfiguration tryLoad(File file) {
         if (file == null || !file.exists()) {
@@ -123,7 +134,13 @@ public final class SafeStorage {
             Files.writeString(tmp.toPath(), snapshot);
             if (file.exists()) {
                 File bak = new File(file.getParentFile(), file.getName() + ".bak");
-                Files.copy(file.toPath(), bak.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                if (isReadableYaml(file)) {
+                    Files.copy(file.toPath(), bak.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                } else {
+                    logger.warning(
+                            "SafeStorage: основной файл " + file.getName()
+                                    + " повреждён; существующая резервная копия не будет перезаписана");
+                }
             }
             try {
                 Files.move(
