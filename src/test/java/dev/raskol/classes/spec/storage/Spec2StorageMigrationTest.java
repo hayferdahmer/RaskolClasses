@@ -132,7 +132,7 @@ class Spec2StorageMigrationTest {
         Files.writeString(tempDir.resolve("characters.yml"), "schema-version: [broken");
         File source = write(
                 "spec2-storage.yml",
-                "players:\\n  " + playerId + ":\\n    main: fire\\n    ranks:\\n      fire:\\n        fireball: 2\\n");
+                "players:\n  " + playerId + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
 
         migrate();
 
