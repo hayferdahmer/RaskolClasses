@@ -186,11 +186,8 @@ class CharacterProfileStorageTest {
 
             org.junit.jupiter.api.Assertions.assertTrue(
                     storage.recordQuestRewardIfAbsent(playerId, rewardId, expected));
-            org.junit.jupiter.api.Assertions.assertFalse(
-                    storage.recordQuestRewardIfAbsent(
-                            playerId,
-                            rewardId,
-                            new CharacterProfile(playerId, 1, 4, 0L, 100L, 300L)));
+            org.junit.jupiter.api.Assertions.assertFalse(storage.recordQuestRewardIfAbsent(
+                    playerId, rewardId, new CharacterProfile(playerId, 1, 4, 0L, 100L, 300L)));
             assertEquals(expected, storage.find(playerId).orElseThrow());
             org.junit.jupiter.api.Assertions.assertTrue(storage.saveIfDirty());
             org.junit.jupiter.api.Assertions.assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
@@ -272,5 +269,4 @@ class CharacterProfileStorageTest {
                     IllegalStateException.class, () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 200L));
         }
     }
-
 }
