@@ -27,9 +27,9 @@ class Spec2KitEffectAggregationTest {
         Spec2Service.accumulate(agg, extraArrows, 2);
         Spec2Service.accumulate(agg, agility, 3);
 
-        assertEquals(2.0, agg.kitExtraHits.get("rampage"));
-        assertEquals(2.0, agg.kitExtraArrows.get("arrow_fan"));
-        assertEquals(30.0, agg.kitAttrAgi.get("shadow_dance"));
+        assertEquals(2.0, agg.kitExtraHits.get("rampage"), 0.0001);
+        assertEquals(2.0, agg.kitExtraArrows.get("arrow_fan"), 0.0001);
+        assertEquals(30.0, agg.kitAttrAgi.get("shadow_dance"), 0.0001);
     }
 
     private static Spec2Node node(String treeId, String nodeId) {
