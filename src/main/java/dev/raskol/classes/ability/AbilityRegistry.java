@@ -296,6 +296,11 @@ public final class AbilityRegistry {
 
     /* ------------------------------ 1.14.2 (Волна 2): покрытие unlock↔кастер ------------------------------ */
 
+    /** Проверяет, должна ли доступность способности определяться узлом дерева. */
+    public boolean requiresTreeUnlock(String id) {
+        return id != null && (TransferableAbilities.isTransferable(id) || treeCasterIds.contains(id));
+    }
+
     /** Есть ли реализация (китовый или древесный кастер) для id способности. */
     public boolean hasCaster(String id) {
         return id != null && (casters.containsKey(id) || targetedCasters.containsKey(id));
@@ -524,29 +529,21 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // --- гейт 4: единый уровень персонажа ---
+        // --- гейт 4: единый источник разблокировки ---
         int level = plugin.getCharacterLevels().characterLevel(id);
-        if (level < def.unlockLevel()) {
-            caster.sendMessage(Component.text(
-                    "«" + def.displayName() + "» откроется на уровне " + def.unlockLevel() + " (у вас " + level + ")",
-                    NamedTextColor.RED));
-            return false;
-        }
-
-        // --- гейт 5: transferable (slots 4–5 → unlock_ability в дереве) ---
-        if (TransferableAbilities.isTransferable(def.id())
-                && !plugin.getSpec2Service().hasUnlocked(id, def.id())) {
-            caster.sendMessage(Component.text(
-                    "«" + def.displayName() + "» откроется узлом дерева путей " + pc.name() + ".",
-                    NamedTextColor.GRAY));
-            return false;
-        }
-
-        // --- гейт 6: tree (slot 6+, зарегистрированные через registerTreeCaster) ---
-        if (treeCasterIds.contains(def.id()) && !plugin.getSpec2Service().hasUnlocked(id, def.id())) {
-            caster.sendMessage(Component.text(
-                    "«" + def.displayName() + "» откроется узлом дерева путей " + pc.name() + ".",
-                    NamedTextColor.GRAY));
+        boolean treeGated = requiresTreeUnlock(def.id());
+        boolean treeUnlocked = treeGated && plugin.getSpec2Service().hasUnlocked(id, def.id());
+        if (!AbilityAccessPolicy.isUnlocked(def, level, treeGated, treeUnlocked)) {
+            if (treeGated) {
+                caster.sendMessage(Component.text(
+                        "«" + def.displayName() + "» откроется узлом дерева путей " + pc.name() + ".",
+                        NamedTextColor.GRAY));
+            } else {
+                caster.sendMessage(Component.text(
+                        "«" + def.displayName() + "» откроется на уровне " + def.unlockLevel()
+                                + " (у вас " + level + ")",
+                        NamedTextColor.RED));
+            }
             return false;
         }
 
