@@ -38,7 +38,15 @@ public final class Spec2StorageMigration {
 
         Source current = loadSource(new File(directory, CURRENT_FILE_NAME), logger);
         Source legacy = loadSource(new File(directory, LEGACY_FILE_NAME), logger);
-        Map<UUID, Spec2Data> combined = merge(parse(current.yaml()), parse(legacy.yaml()), logger);
+        Map<UUID, Spec2Data> currentData = parse(current.yaml());
+        Map<UUID, Spec2Data> legacyData = parse(legacy.yaml());
+        if (current.present() && !current.readable() && legacyData.isEmpty()) {
+            throw new IllegalStateException("spec2-storage.yml повреждён, а пригодной legacy-копии нет");
+        }
+        if (legacy.present() && !legacy.readable() && currentData.isEmpty()) {
+            throw new IllegalStateException("spec2.yml повреждён, а пригодной текущей копии нет");
+        }
+        Map<UUID, Spec2Data> combined = merge(currentData, legacyData, logger);
 
         for (Map.Entry<UUID, Spec2Data> entry : combined.entrySet()) {
             UUID playerId = entry.getKey();
@@ -80,16 +88,12 @@ public final class Spec2StorageMigration {
                 if (!candidate.equals(file)) {
                     logger.warning("spec2: восстановлен источник " + file.getName() + " из " + candidate.getName());
                 }
-                return new Source(true, yaml);
+                return new Source(true, true, yaml);
             } catch (Exception exception) {
                 logger.warning("spec2: не удалось прочитать " + candidate.getName() + ": " + exception.getMessage());
             }
         }
-        if (present) {
-            throw new IllegalStateException(
-                    "Все копии " + file.getName() + " повреждены; файлы сохранены, запуск миграции остановлен");
-        }
-        return new Source(false, new YamlConfiguration());
+        return new Source(present, !present, new YamlConfiguration());
     }
 
     private static Map<UUID, Spec2Data> parse(YamlConfiguration yaml) {
@@ -274,7 +278,7 @@ public final class Spec2StorageMigration {
                 && value.chars().noneMatch(Character::isISOControl);
     }
 
-    private record Source(boolean present, YamlConfiguration yaml) {}
+    private record Source(boolean present, boolean readable, YamlConfiguration yaml) {}
 
     private record Spec2Data(String main, Map<String, Map<String, Integer>> ranks) {
         private Spec2Data {
