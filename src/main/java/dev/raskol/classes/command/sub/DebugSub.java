@@ -234,12 +234,13 @@ public final class DebugSub implements CommandSub {
         sender.sendMessage(Component.text("=== " + target.getName() + " ===", NamedTextColor.GOLD));
         sender.sendMessage(Component.text(
                 "Класс: " + (pc != null ? pc.getDisplayName() : "—") + " (source="
-                        + plugin.getConfig().getString("attributes.level-source", "character") + ")",
+                        + "character-profile)",
                 NamedTextColor.AQUA));
         sender.sendMessage(Component.text(
                 "Спека: " + (spec != null ? spec.displayName() : "—") + " · деревья путей — в Книге класса",
                 NamedTextColor.YELLOW));
-        sender.sendMessage(Component.text("Уровень персонажа: " + charLevel + " / " + cap, NamedTextColor.AQUA));
+        sender.sendMessage(
+                Component.text("Уровень персонажа: " + charLevel + " / " + cap, NamedTextColor.AQUA));
         if (pc == null) {
             return;
         }
