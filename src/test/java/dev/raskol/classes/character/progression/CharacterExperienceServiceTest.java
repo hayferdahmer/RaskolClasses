@@ -84,7 +84,8 @@ class CharacterExperienceServiceTest {
             CharacterExperienceService.ProgressSnapshot capped = service.snapshot(playerId);
             assertEquals(60, capped.level());
             assertEquals(0L, capped.currentExperience());
-            org.junit.jupiter.api.Assertions.assertTrue(capped.experienceToNextLevel().isEmpty());
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    capped.experienceToNextLevel().isEmpty());
         }
     }
 
