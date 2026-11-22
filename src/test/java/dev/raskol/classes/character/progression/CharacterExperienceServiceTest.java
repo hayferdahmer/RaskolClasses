@@ -65,6 +65,30 @@ class CharacterExperienceServiceTest {
     }
 
     @Test
+    void exposesRemainingExperienceForHudAndNoNextLevelAtCap() {
+        UUID playerId = UUID.fromString("eb0beb0b-0beb-4eb0-8beb-eb0beb0beb0b");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
+
+            service.award(playerId, 500L);
+            CharacterExperienceService.ProgressSnapshot snapshot = service.snapshot(playerId);
+
+            assertEquals(4, snapshot.level());
+            assertEquals(19L, snapshot.currentExperience());
+            assertEquals(187L, snapshot.experienceToNextLevel().orElseThrow());
+
+            storage.upsert(new CharacterProfile(playerId, 1, 60, 0L, 100L, 100L));
+            CharacterExperienceService.ProgressSnapshot capped = service.snapshot(playerId);
+            assertEquals(60, capped.level());
+            assertEquals(0L, capped.currentExperience());
+            org.junit.jupiter.api.Assertions.assertTrue(capped.experienceToNextLevel().isEmpty());
+        }
+    }
+
+    @Test
     void zeroAwardDoesNotMutateAnExistingProfile() {
         UUID playerId = UUID.fromString("c9fac9fa-9fac-4c9f-ac9f-c9fac9fac9fa");
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
