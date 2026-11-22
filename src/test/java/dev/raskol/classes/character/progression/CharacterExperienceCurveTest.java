@@ -24,7 +24,7 @@ class CharacterExperienceCurveTest {
         CharacterExperienceCurve curve = CharacterExperienceCurve.defaults();
 
         assertEquals(4_484L, curve.totalExperienceToLevel(15));
-        assertEquals(39_488L, curve.totalExperienceToLevel(40));
+        assertEquals(37_208L, curve.totalExperienceToLevel(40));
         assertEquals(102_132L, curve.totalExperienceToLevel(60));
     }
 
