@@ -40,7 +40,7 @@ commands:
       /rc item <give|reload|debug|browse> — предметный слой (admin)
       /rc xp view <player> — просмотр прогресса персонажа (admin)
       /rc xp add <player> <amount> — начислить XP (admin)
-      /rc xp set <player> <level> <xp> — установить прогресс (admin)
+      /rc xp set <player> <level> <xp-in-level> — установить прогресс (admin)
     aliases: [raskol, raskolclasses]
 
 permissions:
