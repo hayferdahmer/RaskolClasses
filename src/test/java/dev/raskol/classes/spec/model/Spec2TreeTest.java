@@ -53,7 +53,12 @@ class Spec2TreeTest {
             assertNotNull(tree, "дерево отсутствует: " + spec.id());
             Set<String> ids = new HashSet<>();
             Set<String> coordinates = new HashSet<>();
-            for (Spec2Node node : tree.nodes()) {
+            Map<String, Integer> declarationOrder = new HashMap<>();
+            List<Spec2Node> orderedNodes = tree.nodes();
+            for (int i = 0; i < orderedNodes.size(); i++) {
+                declarationOrder.put(orderedNodes.get(i).id(), i);
+            }
+            for (Spec2Node node : orderedNodes) {
                 assertTrue(ids.add(node.id()), "дублирующийся node id: " + spec.id() + "/" + node.id());
                 assertTrue(
                         coordinates.add(node.row() + ":" + node.col()),
@@ -68,6 +73,13 @@ class Spec2TreeTest {
                     assertTrue(
                             prereq.getValue() > 0,
                             "ранг prerequisite должен быть положительным: " + spec.id() + "/" + node.id());
+                    Spec2Node prerequisite = tree.find(prereq.getKey());
+                    assertTrue(
+                            prerequisite.row() < node.row()
+                                    || (prerequisite.row() == node.row()
+                                            && declarationOrder.get(prerequisite.id()) < declarationOrder.get(node.id())),
+                            "prerequisite должен идти в более раннем ряду или раньше в том же ряду: "
+                                    + spec.id() + "/" + node.id() + " -> " + prerequisite.id());
                 }
                 assertTrue(tree.isReachable(node.id(), Set.of()), "цикл в графе: " + spec.id() + "/" + node.id());
             }
