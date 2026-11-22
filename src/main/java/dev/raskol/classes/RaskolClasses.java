@@ -143,6 +143,7 @@ import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.service.Spec2EffectsApplier;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.spec.storage.Spec2Storage;
+import dev.raskol.classes.spec.storage.Spec2StorageMigration;
 import dev.raskol.classes.storage.AsyncStorageWriter;
 
 /**
@@ -362,6 +363,7 @@ public final class RaskolClasses extends JavaPlugin {
         this.storageWriter = new AsyncStorageWriter(getLogger());
         this.characterProfiles = new CharacterProfileStorage(
                 new File(getDataFolder(), CharacterProfileStorage.FILE_NAME), storageWriter, getLogger());
+        Spec2StorageMigration.migrate(getDataFolder(), characterProfiles, getLogger());
         this.items = new ItemSystem(this);
         this.itemsApi = new ItemsApi(this);
         this.combatProfiles = new CombatProfileRegistry();
@@ -486,7 +488,7 @@ public final class RaskolClasses extends JavaPlugin {
 
         Spec2Points.configure(this);
 
-        this.spec2Storage = new Spec2Storage(this, storageWriter);
+        this.spec2Storage = new Spec2Storage(characterProfiles);
         this.spec2Applier = new Spec2EffectsApplier(this);
         this.spec2Service = new Spec2Service(this, spec2Storage);
         this.spec2Service.refreshDisabledCache();
@@ -989,9 +991,6 @@ public final class RaskolClasses extends JavaPlugin {
             }
         });
         shutdown.run("specialization snapshot", () -> {
-            if (spec2Storage != null) {
-                spec2Storage.save();
-            }
         });
 
         // Инсталляции очищают свои FX-ресурсы; FxService закрывается только после них.
