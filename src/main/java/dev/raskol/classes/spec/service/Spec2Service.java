@@ -25,6 +25,7 @@ import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.hook.EconomyHook;
 import dev.raskol.classes.spec.SpecRole;
 import dev.raskol.classes.spec.SpecRoles;
+import dev.raskol.classes.spec.model.Spec2ClassState;
 import dev.raskol.classes.spec.model.Spec2Node;
 import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.model.Spec2Tree;

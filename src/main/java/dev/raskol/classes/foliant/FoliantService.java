@@ -436,6 +436,10 @@ public final class FoliantService implements Listener {
                         .severe("Foliant: после миграции класс " + current.getName()
                                 + " = " + now + " (ожидался WARLOCK). Проверь LP-группу "
                                 + WARLOCK_GROUP + " и веса.");
+                return;
+            }
+            if (plugin.getSpec2Service() != null) {
+                plugin.getSpec2Service().reconcile(uuid);
             }
         });
 

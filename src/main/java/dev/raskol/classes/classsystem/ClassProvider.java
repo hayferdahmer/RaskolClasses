@@ -101,6 +101,13 @@ public final class ClassProvider {
         cache.invalidate(playerId);
     }
 
+    public void forget(UUID playerId) {
+        invalidate(playerId);
+        if (backend != null) {
+            backend.forget(playerId);
+        }
+    }
+
     public void setResourceService(ResourceService resourceService) {
         if (backend != null) {
             backend.setResourceService(resourceService);

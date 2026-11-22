@@ -66,8 +66,10 @@ public final class Spec2RoleListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        plugin.getSpec2Applier().remove(event.getPlayer().getUniqueId());
-        plugin.getSpec2Service().clear(event.getPlayer().getUniqueId());
+        UUID uuid = event.getPlayer().getUniqueId();
+        plugin.getSpec2Applier().remove(uuid);
+        plugin.getSpec2Service().clear(uuid);
+        plugin.getClassProvider().forget(uuid);
     }
 
     /** FIGHTER: множитель исходящего урона. */
