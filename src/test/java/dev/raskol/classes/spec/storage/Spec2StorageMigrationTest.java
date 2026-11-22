@@ -38,7 +38,8 @@ class Spec2StorageMigrationTest {
         UUID playerId = UUID.fromString("d7a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
         File legacy = write(
                 "spec2.yml",
-                "players:\n  " + playerId + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
+                "players:\n  " + playerId
+                        + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
 
         migrate();
 
@@ -59,7 +60,8 @@ class Spec2StorageMigrationTest {
         UUID legacyOnlyId = UUID.fromString("b7a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
         write(
                 "spec2-storage.yml",
-                "players:\n  " + sharedId + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
+                "players:\n  " + sharedId
+                        + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
         write(
                 "spec2.yml",
                 "players:\n  " + sharedId
@@ -68,7 +70,8 @@ class Spec2StorageMigrationTest {
 
         migrate();
 
-        YamlConfiguration saved = YamlConfiguration.loadConfiguration(tempDir.resolve("characters.yml").toFile());
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml").toFile());
         String shared = "profiles." + sharedId + ".specialization";
         assertEquals("fire", saved.getString(shared + ".main"));
         assertEquals(2, saved.getInt(shared + ".ranks.fire.fireball"));
@@ -96,14 +99,16 @@ class Spec2StorageMigrationTest {
 
         migrate();
 
-        YamlConfiguration saved = YamlConfiguration.loadConfiguration(tempDir.resolve("characters.yml").toFile());
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml").toFile());
         assertEquals(3, saved.getInt("schema-version"));
         assertEquals(23, saved.getInt(profile + ".level"));
         assertEquals(1234L, saved.getLong(profile + ".experience"));
         assertEquals(100L, saved.getLong(profile + ".created-at"));
         assertEquals("discipline", saved.getString(profile + ".specialization.main"));
         assertEquals(
-                List.of("quest:crypt-depths:" + playerId), saved.getStringList("processed-quest-rewards." + playerId));
+                List.of("quest:crypt-depths:" + playerId),
+                saved.getStringList("processed-quest-rewards." + playerId));
         YamlConfiguration backup = YamlConfiguration.loadConfiguration(
                 tempDir.resolve("characters.yml.bak").toFile());
         assertEquals("discipline", backup.getString(profile + ".specialization.main"));
@@ -153,7 +158,8 @@ class Spec2StorageMigrationTest {
 
         migrate();
 
-        YamlConfiguration saved = YamlConfiguration.loadConfiguration(tempDir.resolve("characters.yml").toFile());
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml").toFile());
         assertEquals("arcane", saved.getString("profiles." + playerId + ".specialization.main"));
         assertFalse(legacy.exists());
         assertTrue(tempDir.resolve("spec2.yml.migrated").toFile().isFile());
