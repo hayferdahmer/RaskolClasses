@@ -92,11 +92,13 @@ public final class Spec2StorageMigration {
                 YamlConfiguration yaml = new YamlConfiguration();
                 yaml.load(candidate);
                 if (!candidate.equals(file)) {
-                    logger.warning("spec2: восстановлен источник " + file.getName() + " из " + candidate.getName());
+                    logger.warning(
+                            "spec2: восстановлен источник " + file.getName() + " из " + candidate.getName());
                 }
                 return new Source(true, true, yaml);
             } catch (Exception exception) {
-                logger.warning("spec2: не удалось прочитать " + candidate.getName() + ": " + exception.getMessage());
+                logger.warning(
+                        "spec2: не удалось прочитать " + candidate.getName() + ": " + exception.getMessage());
             }
         }
         return new Source(present, !present, new YamlConfiguration());
@@ -121,7 +123,8 @@ public final class Spec2StorageMigration {
             }
             ConfigurationSection player = players.getConfigurationSection(rawId);
             if (player == null) {
-                throw new IllegalStateException("Запись Spec 2.0 игрока " + rawId + " должна быть YAML-разделом");
+                throw new IllegalStateException(
+                        "Запись Spec 2.0 игрока " + rawId + " должна быть YAML-разделом");
             }
 
             String main = null;
@@ -137,15 +140,18 @@ public final class Spec2StorageMigration {
             if (player.contains("ranks")) {
                 ConfigurationSection trees = player.getConfigurationSection("ranks");
                 if (trees == null) {
-                    throw new IllegalStateException("Ранги Spec 2.0 игрока " + rawId + " должны быть YAML-разделом");
+                    throw new IllegalStateException(
+                            "Ранги Spec 2.0 игрока " + rawId + " должны быть YAML-разделом");
                 }
                 for (String treeId : trees.getKeys(false)) {
                     if (!isValidKey(treeId)) {
-                        throw new IllegalStateException("Некорректный идентификатор дерева Spec 2.0: " + treeId);
+                        throw new IllegalStateException(
+                                "Некорректный идентификатор дерева Spec 2.0: " + treeId);
                     }
                     ConfigurationSection tree = trees.getConfigurationSection(treeId);
                     if (tree == null) {
-                        throw new IllegalStateException("Дерево Spec 2.0 " + treeId + " должно быть YAML-разделом");
+                        throw new IllegalStateException(
+                                "Дерево Spec 2.0 " + treeId + " должно быть YAML-разделом");
                     }
                     Map<String, Integer> treeRanks = new LinkedHashMap<>();
                     for (String nodeId : tree.getKeys(false)) {
