@@ -1025,7 +1025,7 @@ classes:
       fenrir_blood:
         name: "Кровь Фенрира"
         description: "Волчья кровь лечит тебя (хил скалируется от Силы оружия)"
-        unlock: 65
+        unlock: 55
         cost: 30
         cooldown: 25
         power: wp
@@ -1035,7 +1035,7 @@ classes:
       ragnarok:
         name: "Рагнарёк"
         description: "Сумерки богов: тяжёлый удар; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)"
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 60
         power: wp
@@ -1228,7 +1228,7 @@ classes:
       arrow_fan:
         name: "Веер стрел"
         description: "Три стрелы конусом, урон каждой скалируется от Силы оружия"
-        unlock: 65
+        unlock: 55
         cost: 35
         cooldown: 22
         power: wp
@@ -1238,7 +1238,7 @@ classes:
       arrow_rain:
         name: "Дождь стрел"
         description: "Шквал стрел по площади радиусом 5 (не проходит сквозь стены)"
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 90
         power: wp
@@ -1386,7 +1386,7 @@ classes:
       circle_elysium:
         name: "Круг Элизия"
         description: "Лечит себя и всех союзников в радиусе 6 (скалируется от Силы исцеления)"
-        unlock: 65
+        unlock: 55
         cost: 50
         cooldown: 60
         power: hpow
@@ -1397,7 +1397,7 @@ classes:
       wrath_heaven:
         name: "Кара Небес"
         description: "Карая кара: тяжёлый маг-урон; цель ниже 25% HP получает ×3 (игнорирует анти-ваншот)"
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 90
         power: sp
@@ -1570,7 +1570,7 @@ classes:
       athena_aegis:
         name: "Эгида Афины"
         description: "Щит богини: +магрезист на 5 с + аура партиклов на кастере и звук снятия."
-        unlock: 65
+        unlock: 55
         cost: 30
         cooldown: 30
         power: sp
@@ -1581,7 +1581,7 @@ classes:
       zeus_wrath:
         name: "Гнев Зевса"
         description: "Сцена: гром → затемнение цели → подбрасывание на 3 блока → молния с маг-уроном + горение (DoT burning); цель <25% HP → ×3 (игнорирует burst-окно и кап)."
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 90
         power: sp
@@ -1787,7 +1787,7 @@ classes:
       borgia_poison:
         name: "Яд Борджа"
         description: "Отравленный клинок: урон + яд (DoT poison, NATURE, стеки до 3)"
-        unlock: 65
+        unlock: 55
         cost: 35
         cooldown: 30
         power: wp
@@ -1797,7 +1797,7 @@ classes:
       shadow_dance:
         name: "Танец теней"
         description: "Танец клинков: +30 ЛОВКОСТИ на 4 с (всплеск уклонения через avoidance)"
-        unlock: 75
+        unlock: 60
         cost: 60
         cooldown: 120
         base: 30
@@ -1988,7 +1988,7 @@ classes:
       unwriting:
         name: "Небытие"
         description: "Вычеркнуть из истории: снимает с цели все положительные зелья и эффекты; маг-урон и +16 урона за каждый стёртый эффект."
-        unlock: 65
+        unlock: 55
         cost: 30
         cooldown: 22
         power: sp
@@ -1999,7 +1999,7 @@ classes:
       soul_rift:
         name: "Раскол Души"
         description: "Канал 2.5 секунды: зона 8 блоков сеет маг-урон и запрет лечения; финальный взрыв бьёт тем сильнее, чем ближе цель к смерти (до +66.6% от недостающего HP)."
-        unlock: 75
+        unlock: 60
         cost: 50
         cooldown: 80
         power: sp
