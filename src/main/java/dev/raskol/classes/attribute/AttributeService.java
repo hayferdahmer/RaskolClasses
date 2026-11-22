@@ -190,7 +190,7 @@ public final class AttributeService {
             c.intel = 0;
             return;
         }
-        double level = levelOf(uuid, pc);
+        double level = levelOf(uuid);
         double str = baseOf(pc, AttributeType.STR) + growthOf(pc, AttributeType.STR) * level;
         double agi = baseOf(pc, AttributeType.AGI) + growthOf(pc, AttributeType.AGI) * level;
         double intel = baseOf(pc, AttributeType.INT) + growthOf(pc, AttributeType.INT) * level;
@@ -239,7 +239,7 @@ public final class AttributeService {
         if (pc == null) {
             formula = AttributeMath.maxHp(0.0, 0.0, false, baseHp, perStr, perLevel, 0.0);
         } else {
-            double level = levelOf(uuid, pc);
+            double level = levelOf(uuid);
             boolean strMain = mainOf(pc) == AttributeType.STR;
             formula = AttributeMath.maxHp(
                     value(uuid, AttributeType.STR), level, strMain, baseHp, perStr, perLevel, mainBonus);
