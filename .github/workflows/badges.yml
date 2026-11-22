@@ -6,7 +6,7 @@
 # больше не нужно править руками.
 #
 # Источники истины:
-#   release  — <version> в pom.xml
+#   build     — <version> в pom.xml (версия сборки, а не опубликованный GitHub Release)
 #   paper    — <paper.version> в pom.xml
 #   java     — <maven.compiler.release> в pom.xml
 #   selftest — число «N чеков» в javadoc SelftestRunner («(/rc selftest), N чеков»)

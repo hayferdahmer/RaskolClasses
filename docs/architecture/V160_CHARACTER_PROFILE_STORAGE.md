@@ -9,7 +9,7 @@
 Файл прогрессии: `plugins/RaskolClasses/characters.yml`. Это единый атомарный файл для профилей уровня/XP и квестовых квитанций, но пока не единое хранилище всех игровых данных персонажа: Spec 2.0 продолжает использовать `spec2-storage.yml`.
 
 ```yaml
-schema-version: 1
+schema-version: 2
 profiles:
   <player-uuid>:
     schema-version: 1
@@ -17,6 +17,9 @@ profiles:
     experience: 0
     created-at: 1795363200000
     updated-at: 1795363200000
+processed-quest-rewards:
+  <player-uuid>:
+    - "quest:<quest-id>:<completion-uuid>"
 ```
 
 - `schema-version: 2` на верхнем уровне задаёт текущую версию всего файла; схема профиля внутри `profiles` остаётся `1`.
