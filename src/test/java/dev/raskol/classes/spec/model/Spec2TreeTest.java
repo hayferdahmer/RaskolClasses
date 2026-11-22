@@ -16,6 +16,9 @@ import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import dev.raskol.classes.ability.TransferableAbilities;
+import dev.raskol.classes.ability.TreeAbilities;
+import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.registry.Spec2Registry;
 
@@ -97,6 +100,36 @@ class Spec2TreeTest {
         assertEquals(27, snapshot.rowGate(6, "beastmaster"));
         assertEquals(30, snapshot.rowGate(6, "arms"));
         assertEquals(30, snapshot.rowGate(6, null));
+    }
+
+    @Test
+    @DisplayName("все узлы открытия ведут к уникальным зарегистрированным способностям")
+    void unlockAbilityNodesAreUniqueAndRegistered() {
+        Set<String> declaredAbilities = new HashSet<>();
+        for (PlayerClass playerClass : PlayerClass.values()) {
+            declaredAbilities.addAll(TreeAbilities.idsFor(playerClass));
+        }
+        declaredAbilities.addAll(TransferableAbilities.allIds());
+
+        Set<String> unlockedAbilities = new HashSet<>();
+        for (Spec spec : Spec.values()) {
+            Spec2Tree tree = Spec2Registry.treeOf(spec.id());
+            assertNotNull(tree, "дерево отсутствует: " + spec.id());
+            for (Spec2Node node : tree.nodes()) {
+                if (node.effect() == null || !"unlock_ability".equals(node.effect().kind())) {
+                    continue;
+                }
+                String abilityId = node.effect().target();
+                assertTrue(
+                        unlockedAbilities.add(abilityId),
+                        "дублирующий узел открытия способности: " + abilityId + " в " + spec.id() + "/" + node.id());
+                assertTrue(
+                        declaredAbilities.contains(abilityId),
+                        "способность не зарегистрирована: " + abilityId + " в " + spec.id() + "/" + node.id());
+            }
+        }
+        assertEquals(81, unlockedAbilities.size(), "ожидалось 69 древесных и 12 перенесённых способностей");
+        assertEquals(declaredAbilities, unlockedAbilities, "список доступных способностей и узлы открытия должны совпадать");
     }
 
     @Test
