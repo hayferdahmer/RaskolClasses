@@ -110,6 +110,41 @@ class Spec2StorageMigrationTest {
     }
 
     @Test
+    @DisplayName("восстанавливает основной файл из backup до архивации уже перенесённых данных")
+    void repairsCorruptPrimaryFromBackupBeforeArchivingSources() throws IOException {
+        UUID playerId = UUID.fromString("e8a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
+        YamlConfiguration backup = new YamlConfiguration();
+        String profile = "profiles." + playerId;
+        backup.set("schema-version", 3);
+        backup.set(profile + ".schema-version", 1);
+        backup.set(profile + ".level", 19);
+        backup.set(profile + ".experience", 321L);
+        backup.set(profile + ".created-at", 100L);
+        backup.set(profile + ".updated-at", 200L);
+        backup.set(profile + ".specialization.main", "fire");
+        backup.set(profile + ".specialization.ranks.fire.fireball", 2);
+        Files.writeString(tempDir.resolve("characters.yml.bak"), backup.saveToString());
+        Files.writeString(tempDir.resolve("characters.yml"), "schema-version: [broken");
+        File source = write(
+                "spec2-storage.yml",
+                "players:\\n  " + playerId + ":\\n    main: fire\\n    ranks:\\n      fire:\\n        fireball: 2\\n");
+
+        migrate();
+
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml").toFile());
+        YamlConfiguration refreshedBackup = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml.bak").toFile());
+        assertEquals(19, saved.getInt(profile + ".level"));
+        assertEquals("fire", saved.getString(profile + ".specialization.main"));
+        assertEquals(2, saved.getInt(profile + ".specialization.ranks.fire.fireball"));
+        assertEquals(19, refreshedBackup.getInt(profile + ".level"));
+        assertEquals("fire", refreshedBackup.getString(profile + ".specialization.main"));
+        assertFalse(source.exists());
+        assertTrue(tempDir.resolve("spec2-storage.yml.migrated").toFile().isFile());
+    }
+
+    @Test
     @DisplayName("повреждённый legacy архивируется только если текущая копия пригодна")
     void archivesUnreadableLegacyAfterMigratingCurrentCopy() throws IOException {
         UUID playerId = UUID.fromString("e7a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
