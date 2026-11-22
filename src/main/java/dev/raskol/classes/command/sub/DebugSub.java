@@ -227,7 +227,6 @@ public final class DebugSub implements CommandSub {
         AttributeService attrs = plugin.getAttributes();
         ResistService.Breakdown rb = plugin.getResists().breakdown(uuid);
         int charLevel = plugin.getCharacterLevels().characterLevel(uuid);
-        int topN = Math.max(1, plugin.getConfig().getInt("character-level.top-n", 5));
         int cap = (int) plugin.getConfig().getDouble("attributes.level-cap", 60.0);
         // 1.14.0 (Б8.2): спека из spec2-хранилища
         Spec spec = Spec.fromId(plugin.getSpec2Service().mainSpec(uuid));
@@ -241,7 +240,7 @@ public final class DebugSub implements CommandSub {
                 "Спека: " + (spec != null ? spec.displayName() : "—") + " · деревья путей — в Книге класса",
                 NamedTextColor.YELLOW));
         sender.sendMessage(Component.text(
-                "Уровень персонажа: " + charLevel + " (топ-" + topN + " скиллов, кап " + cap + ")",
+                "Уровень персонажа: " + charLevel + " / " + cap,
                 NamedTextColor.AQUA));
         if (pc == null) {
             return;
