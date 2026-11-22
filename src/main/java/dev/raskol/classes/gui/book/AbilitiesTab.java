@@ -17,7 +17,6 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.gui.ClassBook;
 import dev.raskol.classes.install.InstallationType;
 import dev.raskol.classes.util.TextFx;
@@ -167,8 +166,8 @@ public final class AbilitiesTab implements BookTabView {
         UUID uuid = player.getUniqueId();
         long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
         double resource = plugin.getResources().getValue(uuid);
-        int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-        boolean unlocked = level == SkillLevelProvider.NO_SKILL_SYSTEM || level >= def.unlockLevel();
+        int level = plugin.getCharacterLevels().characterLevel(uuid);
+        boolean unlocked = level >= def.unlockLevel();
         boolean ready = remaining <= 0 && resource >= def.cost() && unlocked;
         int scrolls = countAbilityScrolls(plugin, player, def.id());
 
