@@ -28,8 +28,8 @@ class CharacterProfileStorageTest {
     void createsLegacyPlayerAtLevelOneExactlyOnce() {
         UUID playerId = UUID.fromString("d5c2d5c2-5c2d-4d5c-8c2d-5c2d5c2d5c2d");
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
-            CharacterProfileStorage storage =
-                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+            File file = new File(tempDir.toFile(), "characters.yml");
+            CharacterProfileStorage storage = new CharacterProfileStorage(file, writer, LOGGER, () -> 100L);
 
             CharacterProfile first = storage.ensureProfile(playerId);
             CharacterProfile second = storage.ensureProfile(playerId);
