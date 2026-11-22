@@ -42,6 +42,9 @@ class Spec2StorageAsyncTest {
 
         storage.setMain(playerId, "restoration");
         storage.setRanks(playerId, "restoration", Map.of("healing_touch", 2));
+        Map<String, Integer> ranks = storage.getRanks(playerId, "restoration");
+        ranks.merge("renewal", 1, Integer::sum);
+        storage.setRanks(playerId, "restoration", ranks);
         assertTrue(storage.isDirty());
         assertTrue(storage.save());
         assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
@@ -50,6 +53,7 @@ class Spec2StorageAsyncTest {
         String profile = "profiles." + playerId;
         assertEquals("restoration", saved.getString(profile + ".specialization.main"));
         assertEquals(2, saved.getInt(profile + ".specialization.ranks.restoration.healing_touch"));
+        assertEquals(1, saved.getInt(profile + ".specialization.ranks.restoration.renewal"));
         assertEquals(3, saved.getInt("schema-version"));
         assertFalse(storage.isDirty());
     }
