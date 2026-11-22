@@ -34,8 +34,8 @@ public final class CharacterExperienceListener implements Listener {
     public void onCreatureSpawn(CreatureSpawnEvent event) {
         LivingEntity entity = event.getEntity();
         String reason = event.getSpawnReason().name();
-        boolean bossSpawn = entity.getType().name().equals("WITHER") && reason.equals("BUILD_WITHER")
-                || entity.getType().name().equals("ENDER_DRAGON") && reason.equals("DEFAULT");
+        boolean bossSpawn = (entity.getType().name().equals("WITHER") && reason.equals("BUILD_WITHER"))
+                || (entity.getType().name().equals("ENDER_DRAGON") && reason.equals("DEFAULT"));
         if (entity instanceof Player || (!EXPERIENCE_SPAWN_REASONS.contains(reason) && !bossSpawn)) {
             return;
         }
@@ -45,9 +45,8 @@ public final class CharacterExperienceListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
-        if (entity instanceof Player
-                || !Byte.valueOf((byte) 1)
-                        .equals(entity.getPersistentDataContainer().get(eligibleSpawnKey, PersistentDataType.BYTE))) {
+        Byte eligibleSpawn = entity.getPersistentDataContainer().get(eligibleSpawnKey, PersistentDataType.BYTE);
+        if (entity instanceof Player || !Byte.valueOf((byte) 1).equals(eligibleSpawn)) {
             return;
         }
 
@@ -64,9 +63,10 @@ public final class CharacterExperienceListener implements Listener {
 
         CharacterProgressionEngine.AwardResult result =
                 plugin.getCharacterExperience().award(killer.getUniqueId(), reward);
-        if (result.levelsGained() > 0 && plugin.getConfig().getBoolean("experience.notifications.level-up", true)) {
-            killer.sendMessage(
-                    "§6Уровень персонажа повышен: §e" + result.state().level());
+        boolean notifyLevelUp = result.levelsGained() > 0
+                && plugin.getConfig().getBoolean("experience.notifications.level-up", true);
+        if (notifyLevelUp) {
+            killer.sendMessage("§6Уровень персонажа повышен: §e" + result.state().level());
         }
     }
 }
