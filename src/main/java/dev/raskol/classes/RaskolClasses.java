@@ -4,6 +4,7 @@ package dev.raskol.classes;
 
 import java.io.File;
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.bukkit.command.PluginCommand;
