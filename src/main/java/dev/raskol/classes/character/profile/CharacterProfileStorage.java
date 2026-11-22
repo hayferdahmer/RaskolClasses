@@ -98,12 +98,7 @@ public final class CharacterProfileStorage {
 
         try {
             return new CharacterProfile(
-                    playerId,
-                    CharacterProfile.CURRENT_SCHEMA_VERSION,
-                    level,
-                    experience,
-                    createdAt,
-                    updatedAt);
+                    playerId, CharacterProfile.CURRENT_SCHEMA_VERSION, level, experience, createdAt, updatedAt);
         } catch (IllegalArgumentException exception) {
             throw new IllegalStateException("Некорректные данные профиля " + playerId, exception);
         }

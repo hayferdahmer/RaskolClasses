@@ -51,8 +51,7 @@ public final class CharacterProgressionEngine {
      * @param requiredExperience функция порога для перехода с указанного уровня на следующий
      * @return новое состояние, число полученных уровней и остаток после достижения cap
      */
-    public static AwardResult award(
-            State current, long awardedExperience, IntToLongFunction requiredExperience) {
+    public static AwardResult award(State current, long awardedExperience, IntToLongFunction requiredExperience) {
         Objects.requireNonNull(current, "current");
         Objects.requireNonNull(requiredExperience, "requiredExperience");
         if (awardedExperience < 0) {

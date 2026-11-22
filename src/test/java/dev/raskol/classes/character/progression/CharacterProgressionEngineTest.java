@@ -21,8 +21,8 @@ class CharacterProgressionEngineTest {
 
     @Test
     void returnsExperienceRemainingAfterReachingMaximumLevel() {
-        CharacterProgressionEngine.AwardResult result = CharacterProgressionEngine.award(
-                new CharacterProgressionEngine.State(59, 80), 50, level -> 100L);
+        CharacterProgressionEngine.AwardResult result =
+                CharacterProgressionEngine.award(new CharacterProgressionEngine.State(59, 80), 50, level -> 100L);
 
         assertEquals(new CharacterProgressionEngine.State(60, 0), result.state());
         assertEquals(1, result.levelsGained());
@@ -34,8 +34,7 @@ class CharacterProgressionEngineTest {
         CharacterProgressionEngine.State maximum =
                 new CharacterProgressionEngine.State(CharacterProgressionEngine.MAX_LEVEL, 0);
 
-        CharacterProgressionEngine.AwardResult result =
-                CharacterProgressionEngine.award(maximum, 75, level -> 100L);
+        CharacterProgressionEngine.AwardResult result = CharacterProgressionEngine.award(maximum, 75, level -> 100L);
 
         assertEquals(maximum, result.state());
         assertEquals(0, result.levelsGained());
@@ -46,16 +45,14 @@ class CharacterProgressionEngineTest {
     void rejectsNegativeExperience() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> CharacterProgressionEngine.award(
-                        new CharacterProgressionEngine.State(1, 0), -1, level -> 100L));
+                () -> CharacterProgressionEngine.award(new CharacterProgressionEngine.State(1, 0), -1, level -> 100L));
     }
 
     @Test
     void rejectsNonPositiveLevelThreshold() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> CharacterProgressionEngine.award(
-                        new CharacterProgressionEngine.State(1, 0), 100, level -> 0));
+                () -> CharacterProgressionEngine.award(new CharacterProgressionEngine.State(1, 0), 100, level -> 0));
     }
 
     @Test

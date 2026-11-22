@@ -57,8 +57,7 @@ class CharacterProfileStorageTest {
         }
 
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
-            CharacterProfileStorage reloaded =
-                    new CharacterProfileStorage(file, writer, LOGGER, () -> 300L);
+            CharacterProfileStorage reloaded = new CharacterProfileStorage(file, writer, LOGGER, () -> 300L);
 
             assertEquals(expected, reloaded.find(playerId).orElseThrow());
             assertNotEquals(300L, reloaded.find(playerId).orElseThrow().createdAtMillis());
@@ -74,8 +73,7 @@ class CharacterProfileStorageTest {
         java.nio.file.Files.writeString(file.toPath(), legacy.saveToString());
 
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
-            CharacterProfileStorage storage =
-                    new CharacterProfileStorage(file, writer, LOGGER, () -> 500L);
+            CharacterProfileStorage storage = new CharacterProfileStorage(file, writer, LOGGER, () -> 500L);
             CharacterProfile migrated = storage.find(playerId).orElseThrow();
 
             assertEquals(23, migrated.level());
@@ -88,8 +86,7 @@ class CharacterProfileStorageTest {
         }
 
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
-            CharacterProfileStorage reloaded =
-                    new CharacterProfileStorage(file, writer, LOGGER, () -> 900L);
+            CharacterProfileStorage reloaded = new CharacterProfileStorage(file, writer, LOGGER, () -> 900L);
             assertEquals(23, reloaded.find(playerId).orElseThrow().level());
             org.junit.jupiter.api.Assertions.assertFalse(reloaded.isDirty());
         }
@@ -103,8 +100,7 @@ class CharacterProfileStorageTest {
 
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             assertThrows(
-                    IllegalStateException.class,
-                    () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 100L));
+                    IllegalStateException.class, () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 100L));
         }
         assertEquals(original, java.nio.file.Files.readString(file.toPath()));
     }
@@ -125,8 +121,7 @@ class CharacterProfileStorageTest {
 
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             assertThrows(
-                    IllegalStateException.class,
-                    () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 200L));
+                    IllegalStateException.class, () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 200L));
         }
     }
 
@@ -140,8 +135,7 @@ class CharacterProfileStorageTest {
 
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             assertThrows(
-                    IllegalStateException.class,
-                    () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 100L));
+                    IllegalStateException.class, () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 100L));
         }
     }
 }
