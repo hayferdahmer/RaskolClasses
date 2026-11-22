@@ -28,6 +28,13 @@ public final class CharacterExperienceService {
         }
 
         CharacterProfile current = profiles.ensureProfile(playerId);
+        if (profiles.hasProcessedQuestReward(playerId, rewardId)) {
+            CharacterProgressionEngine.State unchangedState =
+                    new CharacterProgressionEngine.State(current.level(), current.experienceIntoLevel());
+            return new QuestAwardResult(
+                    false, new CharacterProgressionEngine.AwardResult(unchangedState, 0, 0L));
+        }
+
         CharacterProgressionEngine.State state =
                 new CharacterProgressionEngine.State(current.level(), current.experienceIntoLevel());
         CharacterProgressionEngine.AwardResult result =
