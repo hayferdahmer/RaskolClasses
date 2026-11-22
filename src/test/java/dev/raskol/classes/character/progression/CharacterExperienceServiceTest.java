@@ -7,7 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
@@ -259,6 +262,38 @@ class CharacterExperienceServiceTest {
                     IllegalArgumentException.class,
                     () -> service.awardQuestCompletion(playerId, "quest-id", completionId, -1L));
             assertEquals(0, storage.profileCount());
+        }
+    }
+
+
+    @Test
+    void concurrentDeliveryOfTheSameQuestCompletionAwardsExperienceOnlyOnce() throws Exception {
+        UUID playerId = UUID.fromString("1a5d1a5d-5d1a-4a5d-8a5d-5d1a5d1a5d1a");
+        UUID completionId = UUID.fromString("2b6e2b6e-6e2b-4b6e-8b6e-6e2b6e2b6e2b");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
+            try (ExecutorService executor = Executors.newFixedThreadPool(8)) {
+                List<java.util.concurrent.Future<CharacterExperienceService.QuestAwardResult>> deliveries =
+                        java.util.stream.IntStream.range(0, 16)
+                                .mapToObj(ignored -> executor.submit(
+                                        () -> service.awardQuestCompletion(
+                                                playerId, "repeatable-hunt", completionId, 250L)))
+                                .toList();
+
+                long successfulAwards = 0L;
+                for (var delivery : deliveries) {
+                    if (delivery.get().awarded()) {
+                        successfulAwards++;
+                    }
+                }
+
+                assertEquals(1L, successfulAwards);
+                assertEquals(2, storage.find(playerId).orElseThrow().level());
+                assertEquals(111L, storage.find(playerId).orElseThrow().experienceIntoLevel());
+            }
         }
     }
 
