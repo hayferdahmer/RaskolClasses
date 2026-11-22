@@ -587,7 +587,7 @@ cp target/raskol-classes-*.jar plugins/
 | Рецепты, LuckPerms, SafeStorage, Foliant и крафт-гейты | 140–146 |
 | DoT, combat listener, burst rollback, row-gates и экономика | 147–154 |
 | Конкурентность атрибутов, purge чужих деревьев, FX ownership | 155–158 |
-| Контракт unlock ability, FactionHook, affix/PDC/config guards, DAG prereq | 159–166 |
+| Контракт unlock ability, FactionHook, affix/PDC/config guards, DAG prereq | 159, 161, 163–166 |
 | Зарезервированные проверки (могут быть SKIP) | 160, 162, 167 |
 
 Всего в реестре 167 чеков; три позиции зарезервированы под проверки, требующие специальной синтетической среды, и могут отображаться как SKIP. Полный прогон — перед любым хотфиксом и релизом.
