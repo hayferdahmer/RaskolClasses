@@ -55,8 +55,7 @@ public final class CharacterExperienceListener implements Listener {
             return;
         }
 
-        long reward = plugin.getConfig()
-                .getLong("experience.mob-rewards." + entity.getType().name(), 0L);
+        long reward = plugin.getConfig().getLong("experience.mob-rewards." + entity.getType().name(), 0L);
         if (reward <= 0) {
             return;
         }
