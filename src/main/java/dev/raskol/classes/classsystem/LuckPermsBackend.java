@@ -149,16 +149,25 @@ public final class LuckPermsBackend {
         if (group == null) {
             group = api.getGroupManager().createAndLoadGroup(groupName).join();
         }
-        if (group.getWeight().isEmpty()) {
-            int weight = 15;
-            for (PlayerClass playerClass : PlayerClass.values()) {
-                Group existing = api.getGroupManager().getGroup(
-                        "class_" + playerClass.name().toLowerCase(java.util.Locale.ROOT));
-                if (existing != null && existing.getWeight().isPresent()) {
-                    weight = Math.max(weight, existing.getWeight().getAsInt());
-                }
+
+        int requiredWeight = 15;
+        for (PlayerClass playerClass : PlayerClass.values()) {
+            String otherGroupName =
+                    "class_" + playerClass.name().toLowerCase(java.util.Locale.ROOT);
+            if (groupName.equalsIgnoreCase(otherGroupName)) {
+                continue;
             }
-            group.data().add(WeightNode.builder(weight).build());
+            Group existing = api.getGroupManager().getGroup(otherGroupName);
+            if (existing != null && existing.getWeight().isPresent()) {
+                requiredWeight = Math.max(requiredWeight, existing.getWeight().getAsInt());
+            }
+        }
+
+        if (group.getWeight().isEmpty() || group.getWeight().getAsInt() < requiredWeight) {
+            for (WeightNode node : group.getNodes(NodeType.WEIGHT)) {
+                group.data().remove(node);
+            }
+            group.data().add(WeightNode.builder(requiredWeight).build());
             api.getGroupManager().saveGroup(group).join();
         }
     }
