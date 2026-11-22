@@ -228,8 +228,10 @@ public final class HunterAbilities extends AbstractKit {
         castFx(p, "arrow_fan", "ENTITY_ARROW_SHOOT", "SWEEP_ATTACK", 0.6f, 1.1f, 10);
         double dmgEach = dmg(p, def, 6.0, 0.35);
         Vector dir = p.getLocation().getDirection().setY(0).normalize();
-        for (int i = -1; i <= 1; i++) {
-            Vector v = dir.clone().rotateAroundY(i * 0.22).multiply(2.2);
+        int arrowCount = 3 + plugin.getSpec2Service().kitExtraArrows(p.getUniqueId(), def.id());
+        for (int i = 0; i < arrowCount; i++) {
+            double angle = (i - (arrowCount - 1) / 2.0) * 0.22;
+            Vector v = dir.clone().rotateAroundY(angle).multiply(2.2);
             launchFanArrow(p, v, dmgEach);
         }
         return true;
