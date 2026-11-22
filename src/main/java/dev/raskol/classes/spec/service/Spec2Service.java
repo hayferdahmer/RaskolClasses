@@ -161,6 +161,7 @@ public final class Spec2Service {
         public final Map<String, Double> procAmp = new HashMap<>();
         /** Бонусы эффектов конкретной способности, ключ = abilityId. */
         public final Map<String, Double> kitDur = new HashMap<>();
+
         public final Map<String, Double> kitExtraHits = new HashMap<>();
         public final Map<String, Double> kitExtraArrows = new HashMap<>();
         public final Map<String, Double> kitAttrAgi = new HashMap<>();
