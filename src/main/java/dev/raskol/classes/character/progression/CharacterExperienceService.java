@@ -5,9 +5,7 @@ package dev.raskol.classes.character.progression;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.UUID;
-import java.util.function.LongSupplier;
 
-import dev.raskol.classes.character.profile.CharacterProfile;
 import dev.raskol.classes.character.profile.CharacterProfileStorage;
 
 /** Единственная точка начисления опыта и изменения уровня персонажа. */
@@ -15,16 +13,10 @@ public final class CharacterExperienceService {
 
     private final CharacterProfileStorage profiles;
     private final CharacterExperienceCurve curve;
-    private final LongSupplier clock;
 
     public CharacterExperienceService(CharacterProfileStorage profiles, CharacterExperienceCurve curve) {
-        this(profiles, curve, System::currentTimeMillis);
-    }
-
-    CharacterExperienceService(CharacterProfileStorage profiles, CharacterExperienceCurve curve, LongSupplier clock) {
         this.profiles = Objects.requireNonNull(profiles, "profiles");
         this.curve = Objects.requireNonNull(curve, "curve");
-        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /** Начисляет опыт, сохраняет новый снимок профиля и возвращает результат перехода. */
@@ -41,7 +33,7 @@ public final class CharacterExperienceService {
                 CharacterProgressionEngine.award(state, experience, curve::requiredExperience);
 
         if (!result.state().equals(state)) {
-            long updatedAt = Math.max(current.createdAtMillis(), clock.getAsLong());
+            long updatedAt = Math.max(current.createdAtMillis(), System.currentTimeMillis());
             profiles.upsert(new CharacterProfile(
                     playerId,
                     current.schemaVersion(),
@@ -59,14 +51,6 @@ public final class CharacterExperienceService {
                 ? OptionalLong.empty()
                 : OptionalLong.of(curve.requiredExperience(profile.level()) - profile.experienceIntoLevel());
         return new ProgressSnapshot(profile.level(), profile.experienceIntoLevel(), experienceToNextLevel);
-    }
-
-    public CharacterProfile profile(UUID playerId) {
-        return profiles.ensureProfile(Objects.requireNonNull(playerId, "playerId"));
-    }
-
-    public CharacterExperienceCurve curve() {
-        return curve;
     }
 
     public record ProgressSnapshot(int level, long currentExperience, OptionalLong experienceToNextLevel) {
