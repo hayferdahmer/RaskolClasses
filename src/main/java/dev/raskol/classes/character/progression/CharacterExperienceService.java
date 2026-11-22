@@ -33,7 +33,7 @@ public final class CharacterExperienceService {
                 CharacterProgressionEngine.award(state, experience, curve::requiredExperience);
 
         if (!result.state().equals(state)) {
-            long updatedAt = Math.max(current.createdAtMillis(), System.currentTimeMillis());
+            long updatedAt = Math.max(current.updatedAtMillis(), System.currentTimeMillis());
             profiles.upsert(new CharacterProfile(
                     playerId,
                     current.schemaVersion(),
