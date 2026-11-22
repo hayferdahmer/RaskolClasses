@@ -101,6 +101,9 @@
 | Команда | Назначение | Право |
 | ------- | ---------- | ----- |
 | `/rc reload` | Перезагрузка конфигов (config.yml, kits/*.yml, crafting.yml) | `raskolclasses.admin` |
+| `/rc xp view <player>` | Просмотр уровня и прогресса персонажа | `raskolclasses.admin.progression` |
+| `/rc xp add <player> <amount>` | Начисление XP с записью аудита | `raskolclasses.admin.progression` |
+| `/rc xp set <player> <level> <xp-in-level>` | Установка уровня и XP внутри него с валидацией и аудитом | `raskolclasses.admin.progression` |
 | `/rc debug [player]` | Диагностика: атрибуты, ресурсы, CC-стек, burst-лог | `raskolclasses.debug` |
 | `/rc selftest` | Headless-самотестирование формул (167 чеков) | `raskolclasses.debug` |
 | `/rc foliant give <player>` | Выдать Фолиант Душ игроку | `raskolclasses.admin` |
