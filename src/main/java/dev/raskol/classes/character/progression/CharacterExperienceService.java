@@ -21,7 +21,7 @@ public final class CharacterExperienceService {
     }
 
     /** Начисляет опыт, сохраняет новый снимок профиля и возвращает результат перехода. */
-    public CharacterProgressionEngine.AwardResult award(UUID playerId, long experience) {
+    public synchronized CharacterProgressionEngine.AwardResult award(UUID playerId, long experience) {
         Objects.requireNonNull(playerId, "playerId");
         if (experience < 0) {
             throw new IllegalArgumentException("Начисляемый опыт не может быть отрицательным");
@@ -50,7 +50,7 @@ public final class CharacterExperienceService {
      * Возвращает снимок прогрессии; при изменении XP-кривой применяет уже накопленный опыт
      * к активным порогам и сохраняет согласованное состояние профиля.
      */
-    public ProgressSnapshot snapshot(UUID playerId) {
+    public synchronized ProgressSnapshot snapshot(UUID playerId) {
         CharacterProfile profile = profiles.ensureProfile(Objects.requireNonNull(playerId, "playerId"));
         CharacterProgressionEngine.State state =
                 new CharacterProgressionEngine.State(profile.level(), profile.experienceIntoLevel());
