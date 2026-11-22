@@ -728,9 +728,8 @@ public final class Spec2Service {
         if (currentClass == null) {
             if ((main != null || !storedTrees.isEmpty()) && unresolvedClassWarnings.add(uuid)) {
                 plugin.getLogger()
-                        .warning(
-                                "spec2: класс игрока " + uuid
-                                        + " не разрешён; очистка сохранённых специализаций и рангов пропущена, данные сохранены");
+                        .warning("spec2: класс игрока " + uuid
+                                + " не разрешён; очистка сохранённых специализаций и рангов пропущена, данные сохранены");
             }
             return;
         }
