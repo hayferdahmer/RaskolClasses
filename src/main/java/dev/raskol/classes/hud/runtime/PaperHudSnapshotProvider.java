@@ -16,6 +16,7 @@ import org.bukkit.entity.Player;
 
 import dev.raskol.classes.attribute.AttributeService;
 import dev.raskol.classes.attribute.AttributeType;
+import dev.raskol.classes.character.progression.CharacterExperienceService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.dot.DotInstance;
@@ -45,6 +46,7 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
     private final ActiveEffectManager effects;
     private final DotService dots;
     private final Spec2Service specializations;
+    private final CharacterExperienceService characterExperience;
     private final LongSupplier clock;
 
     public PaperHudSnapshotProvider(
@@ -55,6 +57,7 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
             ActiveEffectManager effects,
             DotService dots,
             Spec2Service specializations,
+            CharacterExperienceService characterExperience,
             LongSupplier clock) {
         this.server = Objects.requireNonNull(server, "server");
         this.classProvider = Objects.requireNonNull(classProvider, "classProvider");
@@ -63,6 +66,7 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
         this.effects = Objects.requireNonNull(effects, "effects");
         this.dots = Objects.requireNonNull(dots, "dots");
         this.specializations = Objects.requireNonNull(specializations, "specializations");
+        this.characterExperience = Objects.requireNonNull(characterExperience, "characterExperience");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -116,15 +120,22 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
     }
 
     private PlayerHudSnapshot.CharacterView readCharacter(UUID playerId, PlayerClass playerClass) {
+        CharacterExperienceService.ProgressSnapshot progression = characterExperience.snapshot(playerId);
+        HudValue<Integer> characterLevel = HudValue.available(progression.level());
+        HudValue<Long> currentExperience = HudValue.available(progression.currentExperience());
+        HudValue<Long> experienceToNextLevel = progression.experienceToNextLevel().isPresent()
+                ? HudValue.available(progression.experienceToNextLevel().getAsLong())
+                : HudValue.notApplicable();
+
         if (playerClass == null) {
             return new PlayerHudSnapshot.CharacterView(
                     HudValue.unavailable(),
                     HudValue.unavailable(),
                     HudValue.unavailable(),
                     HudValue.unavailable(),
-                    HudValue.unavailable(),
-                    HudValue.unavailable(),
-                    HudValue.unavailable());
+                    characterLevel,
+                    currentExperience,
+                    experienceToNextLevel);
         }
 
         String specializationId = specializations.mainSpec(playerId);
@@ -145,15 +156,14 @@ public final class PaperHudSnapshotProvider implements HudSnapshotProvider {
             }
         }
 
-        // CharacterLevelService пока зависит от AuraSkills и не является целевым RPG Core read source.
         return new PlayerHudSnapshot.CharacterView(
                 HudValue.available(playerClass.name().toLowerCase(Locale.ROOT)),
                 HudValue.available(playerClass.getDisplayName()),
                 specialization,
                 role,
-                HudValue.unavailable(),
-                HudValue.unavailable(),
-                HudValue.unavailable());
+                characterLevel,
+                currentExperience,
+                experienceToNextLevel);
     }
 
     private PlayerHudSnapshot.HealthView readHealth(Player player, PlayerClass playerClass) {
