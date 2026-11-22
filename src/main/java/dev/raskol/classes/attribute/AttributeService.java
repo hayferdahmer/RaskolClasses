@@ -15,7 +15,6 @@ import org.bukkit.entity.Player;
 
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.config.ConfigReads;
 import dev.raskol.classes.item.model.ItemStat;
 
@@ -159,16 +158,7 @@ public final class AttributeService {
         };
     }
 
-    public double levelOf(UUID uuid, PlayerClass pc) {
-        String source = plugin.getConfig().getString("attributes.level-source", "character");
-        if ("vanilla".equalsIgnoreCase(source)) {
-            Player player = Bukkit.getPlayer(uuid);
-            return player != null ? Math.max(0, player.getLevel()) : 0;
-        }
-        if ("class-skill".equalsIgnoreCase(source)) {
-            int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-            return level == SkillLevelProvider.NO_SKILL_SYSTEM ? 0 : Math.max(0, level);
-        }
+    public double levelOf(UUID uuid) {
         return plugin.getCharacterLevels().characterLevel(uuid);
     }
 
