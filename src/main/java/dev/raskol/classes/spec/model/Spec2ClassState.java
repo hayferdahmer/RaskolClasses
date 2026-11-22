@@ -47,7 +47,9 @@ public final class Spec2ClassState {
         boolean clearMain = mainSpec != null && !allowedTrees.contains(mainSpec);
         List<String> foreignTrees = storedTreeIds == null
                 ? List.of()
-                : storedTreeIds.stream().filter(treeId -> !allowedTrees.contains(treeId)).toList();
+                : storedTreeIds.stream()
+                        .filter(treeId -> !allowedTrees.contains(treeId))
+                        .toList();
         return new ReconcilePlan(true, clearMain, foreignTrees);
     }
 }

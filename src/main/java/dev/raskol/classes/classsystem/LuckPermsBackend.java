@@ -44,6 +44,7 @@ public final class LuckPermsBackend {
     private final RaskolClasses plugin;
     private final LuckPerms api;
     private final EventSubscription<UserDataRecalculateEvent> subscription;
+
     private record ClassState(PlayerClass playerClass) {}
 
     private final Map<UUID, ClassState> lastClass = new ConcurrentHashMap<>();
