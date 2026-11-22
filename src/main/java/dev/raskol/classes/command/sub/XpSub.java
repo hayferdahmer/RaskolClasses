@@ -46,8 +46,7 @@ public final class XpSub implements CommandSub {
         String action = args[0].toLowerCase(Locale.ROOT);
         Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null) {
-            sender.sendMessage(Component.text(
-                    "Игрок должен быть в сети. Укажите точный ник.", NamedTextColor.RED));
+            sender.sendMessage(Component.text("Игрок должен быть в сети. Укажите точный ник.", NamedTextColor.RED));
             return true;
         }
 
@@ -99,17 +98,19 @@ public final class XpSub implements CommandSub {
                 Integer level = parseInt(args[2]);
                 Long currentXp = parseLong(args[3]);
                 if (level == null || currentXp == null) {
-                    sender.sendMessage(Component.text(
-                            "Уровень и XP должны быть целыми числами.", NamedTextColor.RED));
+                    sender.sendMessage(Component.text("Уровень и XP должны быть целыми числами.", NamedTextColor.RED));
                     return true;
                 }
                 try {
-                    CharacterExperienceService.ProgressSnapshot before =
-                            experience.snapshot(target.getUniqueId());
+                    CharacterExperienceService.ProgressSnapshot before = experience.snapshot(target.getUniqueId());
                     CharacterExperienceService.ProgressSnapshot after =
                             experience.set(target.getUniqueId(), level, currentXp);
-                    audit(sender, target, "set", before.level() + "/" + before.currentExperience()
-                            + " -> " + after.level() + "/" + after.currentExperience());
+                    audit(
+                            sender,
+                            target,
+                            "set",
+                            before.level() + "/" + before.currentExperience() + " -> " + after.level() + "/"
+                                    + after.currentExperience());
                     sender.sendMessage(Component.text(
                             "Прогресс персонажа " + target.getName() + " обновлён.", NamedTextColor.GREEN));
                     sendSnapshot(sender, target, after);
@@ -137,11 +138,12 @@ public final class XpSub implements CommandSub {
             CommandSender sender, Player target, CharacterExperienceService.ProgressSnapshot snapshot) {
         String progress = snapshot.experienceToNextLevel().isPresent()
                 ? snapshot.currentExperience() + " / "
-                        + (snapshot.currentExperience() + snapshot.experienceToNextLevel().getAsLong()) + " XP"
+                        + (snapshot.currentExperience()
+                                + snapshot.experienceToNextLevel().getAsLong()) + " XP"
                 : "максимальный уровень";
         sender.sendMessage(Component.text(
-                target.getName() + ": уровень " + snapshot.level() + "/"
-                        + CharacterProgressionEngine.MAX_LEVEL + " · " + progress,
+                target.getName() + ": уровень " + snapshot.level() + "/" + CharacterProgressionEngine.MAX_LEVEL + " · "
+                        + progress,
                 NamedTextColor.GOLD));
     }
 
