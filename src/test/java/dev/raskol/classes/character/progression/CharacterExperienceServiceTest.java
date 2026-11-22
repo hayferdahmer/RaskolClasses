@@ -1,0 +1,98 @@
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+package dev.raskol.classes.character.progression;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.io.File;
+import java.nio.file.Path;
+import java.util.UUID;
+import java.util.logging.Logger;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import dev.raskol.classes.character.profile.CharacterProfile;
+import dev.raskol.classes.character.profile.CharacterProfileStorage;
+import dev.raskol.classes.storage.AsyncStorageWriter;
+
+class CharacterExperienceServiceTest {
+
+    private static final Logger LOGGER = Logger.getLogger("CharacterExperienceServiceTest");
+
+    @TempDir
+    Path tempDir;
+
+    @Test
+    void awardsExperienceAcrossMultipleLevelsAndUpdatesTheProfile() {
+        UUID playerId = UUID.fromString("a7d8a7d8-7d8a-4a7d-8d7a-a7d8a7d8a7d8");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults(), () -> 200L);
+
+            CharacterProgressionEngine.AwardResult result = service.award(playerId, 500L);
+
+            assertEquals(new CharacterProgressionEngine.State(4, 19L), result.state());
+            assertEquals(3, result.levelsGained());
+            assertEquals(0L, result.unspentExperience());
+            CharacterProfile profile = storage.find(playerId).orElseThrow();
+            assertEquals(4, profile.level());
+            assertEquals(19L, profile.experienceIntoLevel());
+            assertEquals(200L, profile.updatedAtMillis());
+        }
+    }
+
+    @Test
+    void reportsUnspentExperienceAfterReachingLevelCap() {
+        UUID playerId = UUID.fromString("b8e9b8e9-8e9b-4b8e-9e8b-b8e9b8e9b8e9");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+            storage.upsert(new CharacterProfile(playerId, 1, 59, 0L, 100L, 100L));
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults(), () -> 200L);
+
+            CharacterProgressionEngine.AwardResult result = service.award(playerId, 5_000L);
+
+            assertEquals(new CharacterProgressionEngine.State(60, 0L), result.state());
+            assertEquals(1, result.levelsGained());
+            assertEquals(685L, result.unspentExperience());
+            assertEquals(60, storage.find(playerId).orElseThrow().level());
+        }
+    }
+
+    @Test
+    void zeroAwardDoesNotMutateAnExistingProfile() {
+        UUID playerId = UUID.fromString("c9fac9fa-9fac-4c9f-ac9f-c9fac9fac9fa");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+            CharacterProfile original = storage.ensureProfile(playerId);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults(), () -> 200L);
+
+            CharacterProgressionEngine.AwardResult result = service.award(playerId, 0L);
+
+            assertEquals(new CharacterProgressionEngine.State(1, 0L), result.state());
+            assertEquals(original, storage.find(playerId).orElseThrow());
+        }
+    }
+
+    @Test
+    void rejectsNegativeAwardsWithoutChangingTheProfile() {
+        UUID playerId = UUID.fromString("dafb dafb-dafb-4daf-8daf-dafb dafb dafb".replace(" ", ""));
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+            CharacterProfile original = storage.ensureProfile(playerId);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults(), () -> 200L);
+
+            assertThrows(IllegalArgumentException.class, () -> service.award(playerId, -1L));
+            assertEquals(original, storage.find(playerId).orElseThrow());
+        }
+    }
+}
