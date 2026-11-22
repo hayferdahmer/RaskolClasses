@@ -72,16 +72,23 @@ public final class XpSub implements CommandSub {
                     return true;
                 }
                 CharacterExperienceService.ProgressSnapshot before = experience.snapshot(target.getUniqueId());
-                CharacterProgressionEngine.AwardResult result =
-                        experience.award(target.getUniqueId(), amount);
+                CharacterProgressionEngine.AwardResult result;
+                try {
+                    result = experience.award(target.getUniqueId(), amount);
+                } catch (ArithmeticException exception) {
+                    sender.sendMessage(Component.text(
+                            "Слишком большое значение XP: переполнение при начислении.", NamedTextColor.RED));
+                    return true;
+                }
                 CharacterExperienceService.ProgressSnapshot after = experience.snapshot(target.getUniqueId());
                 audit(sender, target, "add", amount + " XP; " + before.level() + " -> " + after.level());
-                sender.sendMessage(Component.text(
-                        "Начислено " + amount + " XP игроку " + target.getName()
+                String message = before.level() == CharacterProgressionEngine.MAX_LEVEL
+                        ? target.getName() + " уже достиг 60 уровня; XP не сохраняется."
+                        : "Начислено " + amount + " XP игроку " + target.getName()
                                 + ". Уровень: " + after.level()
                                 + (result.levelsGained() > 0 ? " (+" + result.levelsGained() + ")" : "")
-                                + (result.unspentExperience() > 0 ? "; на 60 уровне остаток не сохраняется" : ""),
-                        NamedTextColor.GREEN));
+                                + (result.unspentExperience() > 0 ? "; остаток на 60 уровне не сохраняется" : "");
+                sender.sendMessage(Component.text(message, NamedTextColor.GREEN));
                 sendSnapshot(sender, target, after);
             }
             case "set" -> {
@@ -163,7 +170,7 @@ public final class XpSub implements CommandSub {
 
     private static void sendUsage(CommandSender sender) {
         sender.sendMessage(Component.text(
-                "/rc xp view <игрок> · /rc xp add <игрок> <XP> · /rc xp set <игрок> <уровень> <XP>",
+                "/rc xp view <игрок> · /rc xp add <игрок> <XP> · /rc xp set <игрок> <уровень> <XP-в-уровне>",
                 NamedTextColor.YELLOW));
     }
 }
