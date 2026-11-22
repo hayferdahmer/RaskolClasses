@@ -49,9 +49,11 @@ import dev.raskol.classes.cc.runtime.PaperCCFeedbackScheduler;
 import dev.raskol.classes.cc.runtime.PaperCCRuntimeRegistration;
 import dev.raskol.classes.cc.runtime.PaperCCTaskScheduler;
 import dev.raskol.classes.character.profile.CharacterProfileStorage;
+import dev.raskol.classes.character.progression.CharacterExperienceCurve;
+import dev.raskol.classes.character.progression.CharacterExperienceListener;
+import dev.raskol.classes.character.progression.CharacterExperienceService;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
-import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.combat.ResistService;
@@ -174,9 +176,9 @@ public final class RaskolClasses extends JavaPlugin {
 
     private RaskolConfig raskolConfig;
     private ClassProvider classProvider;
-    private SkillLevelProvider skillLevels;
     private CharacterLevelService characterLevels;
     private CharacterProfileStorage characterProfiles;
+    private CharacterExperienceService characterExperience;
     private ResourceService resources;
     private ResourceRuntimeOwner resourceRuntimeOwner;
     private ScrollCooldownTask scrollCooldownTask;
@@ -368,8 +370,13 @@ public final class RaskolClasses extends JavaPlugin {
         this.blueprintHook = new BlueprintHook(this);
         blueprintHook.registerBlueprints();
 
-        this.skillLevels = new SkillLevelProvider(this);
-        this.characterLevels = new CharacterLevelService(this);
+        this.characterLevels = new CharacterLevelService(characterProfiles);
+        CharacterExperienceCurve experienceCurve = new CharacterExperienceCurve(
+                getConfig().getLong("experience.curve.base", 120L),
+                getConfig().getLong("experience.curve.linear", 18L),
+                getConfig().getInt("experience.curve.quadratic-tenths", 9));
+        this.characterExperience = new CharacterExperienceService(characterProfiles, experienceCurve);
+        pluginManager.registerEvents(new CharacterExperienceListener(this), this);
         this.resources = new ResourceService(this, raskolConfig, classProvider);
         this.resourceRuntimeOwner = new ResourceRuntimeOwner(new PaperResourceTaskScheduler(this, resources::tick));
 
@@ -1160,16 +1167,16 @@ public final class RaskolClasses extends JavaPlugin {
         return classProvider;
     }
 
-    public SkillLevelProvider getSkillLevels() {
-        return skillLevels;
-    }
-
     public CharacterLevelService getCharacterLevels() {
         return characterLevels;
     }
 
     public CharacterProfileStorage getCharacterProfiles() {
         return characterProfiles;
+    }
+
+    public CharacterExperienceService getCharacterExperience() {
+        return characterExperience;
     }
 
     public ResourceService getResources() {
