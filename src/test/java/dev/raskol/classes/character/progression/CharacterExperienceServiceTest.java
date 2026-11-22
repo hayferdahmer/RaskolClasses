@@ -173,4 +173,91 @@ class CharacterExperienceServiceTest {
             assertThrows(IllegalArgumentException.class, () -> service.set(playerId, 60, 1L));
         }
     }
+
+    @Test
+    void awardsQuestCompletionOnlyOnceEvenWhenTheSameEventIsDeliveredAgain() {
+        UUID playerId = UUID.fromString("9c2d9c2d-2d9c-4c2d-8d9c-2d9c2d9c2d9c");
+        UUID completionId = UUID.fromString("8b1e8b1e-1e8b-4b1e-8b1e-1e8b1e8b1e8b");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
+
+            CharacterExperienceService.QuestAwardResult first =
+                    service.awardQuestCompletion(playerId, "crypt-depths", completionId, 500L);
+            CharacterProfile afterFirst = storage.find(playerId).orElseThrow();
+            CharacterExperienceService.QuestAwardResult duplicate =
+                    service.awardQuestCompletion(playerId, "crypt-depths", completionId, 500L);
+
+            assertEquals(true, first.awarded());
+            assertEquals(3, first.progression().levelsGained());
+            assertEquals(false, duplicate.awarded());
+            assertEquals(0, duplicate.progression().levelsGained());
+            assertEquals(new CharacterProgressionEngine.State(4, 19L), duplicate.progression().state());
+            assertEquals(afterFirst, storage.find(playerId).orElseThrow());
+        }
+    }
+
+    @Test
+    void questCompletionReceiptSurvivesStorageReloadAndDoesNotBlockAnotherCompletion() throws Exception {
+        UUID playerId = UUID.fromString("7d3a7d3a-3a7d-4d3a-8d3a-3a7d3a7d3a7d");
+        UUID completionId = UUID.fromString("6c2f6c2f-2f6c-4c2f-8c2f-2f6c2f6c2f6c");
+        File file = new File(tempDir.toFile(), "characters.yml");
+        CharacterProfile afterFirst;
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage = new CharacterProfileStorage(file, writer, LOGGER);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
+
+            assertEquals(true, service.awardQuestCompletion(playerId, "royal-crypt", completionId, 250L).awarded());
+            afterFirst = storage.find(playerId).orElseThrow();
+            org.junit.jupiter.api.Assertions.assertTrue(storage.saveIfDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
+        }
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage = new CharacterProfileStorage(file, writer, LOGGER);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
+
+            CharacterExperienceService.QuestAwardResult duplicate =
+                    service.awardQuestCompletion(playerId, "royal-crypt", completionId, 250L);
+            CharacterExperienceService.QuestAwardResult nextCompletion =
+                    service.awardQuestCompletion(
+                            playerId,
+                            "royal-crypt",
+                            UUID.fromString("5b3e5b3e-3e5b-4b3e-8b3e-3e5b3e5b3e5b"),
+                            250L);
+
+            assertEquals(false, duplicate.awarded());
+            assertEquals(afterFirst, storage.find(playerId).orElseThrow());
+            assertEquals(true, nextCompletion.awarded());
+            assertEquals(500L, storage.find(playerId).orElseThrow().experienceIntoLevel());
+        }
+    }
+
+    @Test
+    void rejectsInvalidQuestRewardIdentifiersAndNonPositiveExperience() {
+        UUID playerId = UUID.fromString("4a6d4a6d-6d4a-4a6d-8a6d-6d4a6d4a6d4a");
+        UUID completionId = UUID.fromString("3b5e3b5e-5e3b-4b5e-8b5e-5e3b5e3b5e3b");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
+
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> service.awardQuestCompletion(playerId, "UpperCaseQuest", completionId, 100L));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> service.awardQuestCompletion(playerId, "quest-id", completionId, 0L));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> service.awardQuestCompletion(playerId, "quest-id", completionId, -1L));
+            assertEquals(0, storage.profileCount());
+        }
+    }
+
 }
