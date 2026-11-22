@@ -3,6 +3,7 @@
 © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 RaskolClasses — боевой слой сервера «РАСКОЛ | ДВЕ КОРОНЫ».
+1.16.0-SNAPSHOT: development. Целевая платформа Paper 26.2 + Java 25; RPG Core progression 1–60 добавлена, но релизные гейты Class Lock, yaml-single и Soul Tome replace ещё не закрыты. Тег v1.16.0 и официальный Release не опубликованы.
 1.15.8: Волна 8 — spotless (форматирование), JaCoCo (покрытие кода),
         paper-api остаётся на SNAPSHOT (релизных артефактов Paper до выхода
         Minecraft 1.21.5 не публикует; пин на 1.21.4-R0.1 ломал resolve),

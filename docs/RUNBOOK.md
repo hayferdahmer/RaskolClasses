@@ -4,7 +4,21 @@
 
 # Runbook
 
-## 1.15.8. Поддерживаемая конфигурация, выпуск и проверка RIPS
+## 1.16.0. Текущий статус разработки и релизные ограничения
+
+**Статус:** `1.16.0-SNAPSHOT`, development-only. Это не опубликованный релиз и не production-артефакт. Последний официальный GitHub Release — [v1.15.8](https://github.com/hayferdahmer/RaskolClasses/releases/tag/v1.15.8). Тег `v1.16.0` и GitHub Release пока не созданы.
+
+**Целевая платформа:** Paper 26.2, Java 25; Maven compiler release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. CI на актуальном RPG Core commit ранее подтвердил Build и Analyze: 758 unit-тестов, SpotBugs 0, Spotless и license headers успешно. Это CI-проверка, а не live smoke test на сервере.
+
+**Что уже входит в main:** собственная прогрессия персонажа 1–60, `characters.yml` storage schema v2, PvE XP, квестовый reward ledger и административные команды `/rc xp`. AuraSkills больше не является источником уровня и удалён из интеграций.
+
+**Что блокирует официальный 1.16.0:** завершение Class Lock через LuckPerms group; согласование/миграция профиля и Spec 2.0 к целевой модели `yaml-single` (сейчас `characters.yml` и `spec2-storage.yml` раздельны); Soul Tome `replace`; интеграционные проверки и финальная документация. До закрытия этих пунктов нельзя снимать `-SNAPSHOT`, создавать тег `v1.16.0` или публиковать релиз.
+
+**Live smoke test:** проверка на реальном Paper 26.2 + Java 25 сервере ещё не подтверждена этим CI. Она остаётся отдельной проверкой владельца сервера после получения подготовленного OFFICIAL verification artifact.
+
+---
+
+## Историческая запись 1.15.8. Production-конфигурация и проверка RIPS
 
 **Подтверждённая production-конфигурация:** Paper 26.2 (серверная сборка `26.2-112-c9e894d`) + Java 25. RaskolClasses 1.15.8 успешно включился на сервере. Стартовая проверка RIPS завершилась `VERIFIED`, проверено `checkedFiles=408`.
 
@@ -37,6 +51,8 @@
 Значение `checkedFiles` зависит от состава конкретного официального JAR; сверяйте его с логом соответствующей сборки, не считайте фиксированной константой.
 
 ### Release workflow
+
+Для 1.16.0 сначала должны быть закрыты релизные ограничения из вводного раздела. Наличие успешного CI и ручного signing-verification не означает публикацию: только tag-triggered workflow создаёт официальный JAR и GitHub Release.
 
 1. Убедитесь, что проверяется актуальный commit `main` и CI завершился успешно.
 2. При необходимости запустите ручной `signing-verification`, чтобы получить временный OFFICIAL JAR для production smoke test. Этот workflow сам по себе не создаёт тег и не публикует GitHub Release.

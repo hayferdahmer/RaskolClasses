@@ -1,7 +1,7 @@
 # © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 # SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 # ============================================================
-#  RaskolClasses v1.16.0-SNAPSHOT — «РАСКОЛ | ДВЕ КОРОНЫ» [DEVELOPMENT]
+#  RaskolClasses v1.16.0-SNAPSHOT — «РАСКОЛ | ДВЕ КОРОНЫ» [DEVELOPMENT / NOT RELEASED]
 #  Весь баланс, стилистика и длительности — в этом файле.
 #  Per-class приоритет: plugins/RaskolClasses/kits/<class>.yml (P5).
 #  Применение: ПОЛНАЯ замена файла + рестарт сервера.
