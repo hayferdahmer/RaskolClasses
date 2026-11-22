@@ -69,6 +69,7 @@ class Spec2StorageAsyncTest {
         Spec2Storage storage = new Spec2Storage(profiles);
 
         storage.setRanks(UUID.randomUUID(), "restoration", Map.of("healing_touch", 1));
+        storage.save();
 
         assertTrue(writer.closeAndAwait(Duration.ofSeconds(5)));
         assertTrue(storage.isDirty());
