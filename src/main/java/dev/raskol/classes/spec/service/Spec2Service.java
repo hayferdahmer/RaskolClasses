@@ -25,6 +25,7 @@ import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.hook.EconomyHook;
 import dev.raskol.classes.spec.SpecRole;
 import dev.raskol.classes.spec.SpecRoles;
+import dev.raskol.classes.spec.model.Spec2ClassState;
 import dev.raskol.classes.spec.model.Spec2Node;
 import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.model.Spec2Tree;
@@ -184,6 +185,7 @@ public final class Spec2Service {
     private final EconomyHook economy;
     private final Map<UUID, Agg> caches = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastActionMs = new ConcurrentHashMap<>();
+    private final Set<UUID> unresolvedClassWarnings = ConcurrentHashMap.newKeySet();
 
     /** 1.14.12 (12A, 5-05): снапшот стоп-листа; null = ещё не построен (лениво). */
     private volatile Set<String> disabledCache = null;
@@ -255,7 +257,12 @@ public final class Spec2Service {
 
     public SpecRole roleOfOwner(UUID uuid) {
         String main = storage.getMain(uuid);
-        return main == null ? null : SpecRoles.roleOf(main);
+        Player online = plugin.getServer().getPlayer(uuid);
+        if (main == null || online == null) {
+            return null;
+        }
+        PlayerClass currentClass = plugin.getClassProvider().getClassOf(online);
+        return Spec2ClassState.isMainSpecCompatible(currentClass, main) ? SpecRoles.roleOf(main) : null;
     }
 
     public boolean chooseMain(Player player, String specId) {
@@ -287,14 +294,7 @@ public final class Spec2Service {
     }
 
     private List<String> treesOf(PlayerClass pc) {
-        return switch (pc) {
-            case WARRIOR -> List.of("arms", "fury", "guard");
-            case HUNTER -> List.of("marksmanship", "survival", "beastmaster");
-            case PRIEST -> List.of("discipline", "holy", "shadow");
-            case MAGE -> List.of("arcane", "fire", "frost");
-            case ROGUE -> List.of("assassination", "outlaw", "subtlety");
-            case WARLOCK -> List.of("affliction", "destruction", "demonology");
-        };
+        return Spec2ClassState.treesOf(pc);
     }
 
     /* ------------------------------ rate-limit ------------------------------ */
@@ -717,11 +717,34 @@ public final class Spec2Service {
      * purge без этого гарда уничтожил бы все ранги.
      */
     private void purgeForeignTrees(UUID uuid) {
-        List<String> current = classTreeIds(uuid);
-        for (String stored : storage.storedTreeIds(uuid)) {
-            if (!current.contains(stored)) {
-                storage.removeTree(uuid, stored);
+        Player online = plugin.getServer().getPlayer(uuid);
+        if (online == null) {
+            return;
+        }
+
+        PlayerClass currentClass = plugin.getClassProvider().getClassOf(online);
+        String main = storage.getMain(uuid);
+        List<String> storedTrees = storage.storedTreeIds(uuid);
+        if (currentClass == null) {
+            if ((main != null || !storedTrees.isEmpty()) && unresolvedClassWarnings.add(uuid)) {
+                plugin.getLogger()
+                        .warning(
+                                "spec2: класс игрока " + uuid
+                                        + " не разрешён; очистка сохранённых специализаций и рангов пропущена, данные сохранены");
             }
+            return;
+        }
+        unresolvedClassWarnings.remove(uuid);
+
+        Spec2ClassState.ReconcilePlan plan = Spec2ClassState.plan(currentClass, main, storedTrees);
+        if (plan.clearMainSpec()) {
+            storage.setMain(uuid, null);
+            plugin.getLogger()
+                    .warning("spec2: основная специализация " + main + " игрока " + uuid
+                            + " сброшена после подтверждённой смены класса на " + currentClass.name());
+        }
+        for (String foreignTree : plan.foreignTreeIds()) {
+            storage.removeTree(uuid, foreignTree);
         }
     }
 
@@ -827,6 +850,7 @@ public final class Spec2Service {
     public void clear(UUID uuid) {
         caches.remove(uuid);
         lastActionMs.remove(uuid);
+        unresolvedClassWarnings.remove(uuid);
     }
 
     /* ------------------------------ агрегат ------------------------------ */

@@ -19,7 +19,6 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.config.ConfigReads;
 import dev.raskol.classes.event.CustomHealEvent;
 import dev.raskol.classes.spec.SpecRole;
-import dev.raskol.classes.spec.SpecRoles;
 
 /**
  * 1.14.0 «Спек 2.0» (Б2): роли-пассивки основной спеки (дизайн-док, раздел 6):
@@ -51,8 +50,7 @@ public final class Spec2RoleListener implements Listener {
     }
 
     private SpecRole roleOf(UUID uuid) {
-        String main = plugin.getSpec2Service().mainSpec(uuid);
-        return main == null ? null : SpecRoles.roleOf(main);
+        return plugin.getSpec2Service().roleOfOwner(uuid);
     }
 
     /** 1.14.10 (Волна 7.3b): делегат в ConfigReads.finiteDouble (аудит 1-01). */
@@ -68,8 +66,10 @@ public final class Spec2RoleListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
-        plugin.getSpec2Applier().remove(event.getPlayer().getUniqueId());
-        plugin.getSpec2Service().clear(event.getPlayer().getUniqueId());
+        UUID uuid = event.getPlayer().getUniqueId();
+        plugin.getSpec2Applier().remove(uuid);
+        plugin.getSpec2Service().clear(uuid);
+        plugin.getClassProvider().forget(uuid);
     }
 
     /** FIGHTER: множитель исходящего урона. */

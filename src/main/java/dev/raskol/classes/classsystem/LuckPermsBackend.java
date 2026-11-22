@@ -44,7 +44,10 @@ public final class LuckPermsBackend {
     private final RaskolClasses plugin;
     private final LuckPerms api;
     private final EventSubscription<UserDataRecalculateEvent> subscription;
-    private final Map<UUID, PlayerClass> lastClass = new ConcurrentHashMap<>();
+
+    private record ClassState(PlayerClass playerClass) {}
+
+    private final Map<UUID, ClassState> lastClass = new ConcurrentHashMap<>();
     private final Set<UUID> conflictWarnings = ConcurrentHashMap.newKeySet();
 
     private ResourceService resourceService;
@@ -222,15 +225,30 @@ public final class LuckPermsBackend {
         } else {
             conflictWarnings.remove(uuid);
         }
-        PlayerClass prev = lastClass.put(uuid, now);
+        ClassState previousState = lastClass.put(uuid, new ClassState(now));
         provider.invalidate(uuid);
-        if (prev == null || prev == now) {
+        boolean firstSighting = previousState == null;
+        boolean classChanged = firstSighting || previousState.playerClass() != now;
+        if (!classChanged) {
             return;
         }
-        if (resourceService == null) {
-            return;
-        }
+
         Player online = plugin.getServer().getPlayer(uuid);
+        if (online != null) {
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (plugin.isEnabled()
+                        && plugin.getServer().getPlayer(uuid) != null
+                        && plugin.getSpec2Service() != null) {
+                    plugin.getSpec2Service().reconcile(uuid);
+                }
+            });
+        }
+
+        // Первое состояние нужно для reconcile, но не считается сменой класса
+        // и не должно сбрасывать ресурс игрока.
+        if (firstSighting || resourceService == null) {
+            return;
+        }
         if (online != null) {
             resourceService.clear(uuid);
         } else {
@@ -238,10 +256,18 @@ public final class LuckPermsBackend {
         }
     }
 
+    /** Удаляет временное состояние игрока при выходе. */
+    public void forget(UUID uuid) {
+        lastClass.remove(uuid);
+        conflictWarnings.remove(uuid);
+    }
+
     /** Отписка от EventBus (onDisable плагина). */
     public void unsubscribe() {
         if (subscription != null) {
             subscription.close();
         }
+        lastClass.clear();
+        conflictWarnings.clear();
     }
 }
