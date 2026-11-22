@@ -33,7 +33,7 @@ commands:
       /rc gear — статы снаряжения (alias item stats)
       /rc foliant give <player> — выдать Фолиант Душ (admin)
       /rc cc <status|clear|test|reset|list> — админка CC/DR (admin)
-      /rc set <class> — назначить класс игроку (admin)
+      /rc set <list|info|active> — просмотр сетов экипировки
       /rc plus <status|buy|gift|apply> — подписка raskolspec+
       /rc plus <grant|revoke> <player> <days> — администрирование подписки (admin)
       /rc item <stats|salvage|craft> — предметный слой (игрок)

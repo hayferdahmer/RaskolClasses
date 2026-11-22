@@ -5,7 +5,6 @@ package dev.raskol.classes.foliant;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -50,12 +49,6 @@ import dev.raskol.classes.storage.SafeStorage;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.luckperms.api.LuckPerms;
-import net.luckperms.api.LuckPermsProvider;
-import net.luckperms.api.model.group.Group;
-import net.luckperms.api.model.user.User;
-import net.luckperms.api.node.NodeType;
-import net.luckperms.api.node.types.InheritanceNode;
 
 /**
  * 1.10.0: ФОЛИАНТ ДУШ (скрытый путь Чернокнижника).
@@ -465,66 +458,13 @@ public final class FoliantService implements Listener {
      */
     private boolean swapLuckPermsGroup(Player player) {
         try {
-            return swapViaApi(player.getUniqueId());
-        } catch (Exception e) {
-            plugin.getLogger()
-                    .warning("Foliant: LP API недоступен ("
-                            + e.getClass().getSimpleName() + ": " + e.getMessage()
-                            + ") — фолбэк на console-команды");
-            return swapViaConsole(player);
-        }
-    }
-
-    private boolean swapViaApi(UUID uuid) {
-        LuckPerms lp = LuckPermsProvider.get();
-        ensureGroup(lp);
-        User user = lp.getUserManager().loadUser(uuid).join();
-        List<InheritanceNode> toRemove = new ArrayList<>();
-        for (InheritanceNode node : user.getNodes(NodeType.INHERITANCE)) {
-            if (node.getGroupName().startsWith("class_")) {
-                toRemove.add(node);
-            }
-        }
-        for (InheritanceNode node : toRemove) {
-            user.data().remove(node);
-        }
-        user.data().add(InheritanceNode.builder(WARLOCK_GROUP).build());
-        lp.getUserManager().saveUser(user).join();
-        return true;
-    }
-
-    private void ensureGroup(LuckPerms lp) {
-        Group group = lp.getGroupManager().getGroup(WARLOCK_GROUP);
-        if (group != null) {
-            return;
-        }
-        lp.getGroupManager().createAndLoadGroup(WARLOCK_GROUP).join();
-        int weight = 15;
-        for (String src : new String[] {"class_mage", "class_priest", "class_warrior"}) {
-            Group s = lp.getGroupManager().getGroup(src);
-            if (s != null && s.getWeight().isPresent()) {
-                weight = s.getWeight().getAsInt();
-                break;
-            }
-        }
-        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp group " + WARLOCK_GROUP + " setweight " + weight);
-        plugin.getLogger().info("Foliant: создана LP-группа " + WARLOCK_GROUP + " с весом " + weight);
-    }
-
-    private boolean swapViaConsole(Player player) {
-        String name = player.getName();
-        if (!isSafeName(name)) {
-            plugin.getLogger()
-                    .severe("Foliant: небезопасный ник '" + name + "' — console-миграция отклонена (используй LP API)");
+            return plugin.getClassProvider().replaceClassGroup(player.getUniqueId(), PlayerClass.WARLOCK);
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning(
+                    "Foliant: Class Lock отклонил переход ("
+                            + exception.getClass().getSimpleName() + ": " + exception.getMessage() + ")");
             return false;
         }
-        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp creategroup " + WARLOCK_GROUP);
-        for (PlayerClass pc : PlayerClass.values()) {
-            Bukkit.dispatchCommand(
-                    Bukkit.getConsoleSender(),
-                    "lp user " + name + " parent remove class_" + pc.name().toLowerCase(Locale.ROOT));
-        }
-        return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp user " + name + " parent add " + WARLOCK_GROUP);
     }
 
     private void burstParticles(Player player) {
