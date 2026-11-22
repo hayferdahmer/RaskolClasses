@@ -42,7 +42,8 @@ class Spec2StorageMigrationTest {
 
         migrate();
 
-        YamlConfiguration saved = YamlConfiguration.loadConfiguration(tempDir.resolve("characters.yml").toFile());
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml").toFile());
         String profile = "profiles." + playerId;
         assertEquals("fire", saved.getString(profile + ".specialization.main"));
         assertEquals(2, saved.getInt(profile + ".specialization.ranks.fire.fireball"));
@@ -101,8 +102,10 @@ class Spec2StorageMigrationTest {
         assertEquals(1234L, saved.getLong(profile + ".experience"));
         assertEquals(100L, saved.getLong(profile + ".created-at"));
         assertEquals("discipline", saved.getString(profile + ".specialization.main"));
-        assertEquals(List.of("quest:crypt-depths:" + playerId), saved.getStringList("processed-quest-rewards." + playerId));
-        YamlConfiguration backup = YamlConfiguration.loadConfiguration(tempDir.resolve("characters.yml.bak").toFile());
+        assertEquals(
+                List.of("quest:crypt-depths:" + playerId), saved.getStringList("processed-quest-rewards." + playerId));
+        YamlConfiguration backup = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml.bak").toFile());
         assertEquals("discipline", backup.getString(profile + ".specialization.main"));
     }
 
