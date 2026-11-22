@@ -211,9 +211,9 @@
 - Квитанции квестовых наград хранятся в `processed-quest-rewards` того же файла; повторная доставка одного completion UUID не выдаёт XP повторно.
 - Команды администратора: `/rc xp view`, `/rc xp add`, `/rc xp set` (право `raskolclasses.admin.progression`).
 
-**Граница текущей реализации:** `characters.yml` хранит прогрессию и ledger квестовых наград (storage schema v2; schema профиля v1). Данные Spec 2.0 пока остаются в отдельном `spec2-storage.yml`. Объединение профиля, специализации и связанных данных в согласованную модель `yaml-single`, а также Class Lock и политика Soul Tome `replace` — незакрытые задачи релизного объёма 1.16.0. Не считайте их завершёнными только по наличию базовой прогрессии.
+**Граница текущей реализации:** `characters.yml` хранит прогрессию и ledger квестовых наград (storage schema v2; schema профиля v1). Данные Spec 2.0 пока остаются в отдельном `spec2-storage.yml`. Базовый контракт Class Lock уже реализован в рабочей ветке: единственная primary-группа `class_<NAME>`, конфликтующие группы блокируют определение класса, а Фолиант использует проверяемую замену группы с откатом. Live-проверка на конфигурации LuckPerms сервера ещё не проведена. Миграция к `yaml-single` и политика Soul Tome `replace` остаются незакрытыми задачами релизного объёма 1.16.0.
 
-Подробности: [схема профиля](docs/architecture/V160_CHARACTER_PROFILE_STORAGE.md) · [кривая и награды](docs/architecture/V160_EXPERIENCE_PROGRESSION.md) · [операционный runbook](docs/RUNBOOK.md).
+Подробности: [Class Lock](docs/architecture/V160_CLASS_LOCK.md) · [схема профиля](docs/architecture/V160_CHARACTER_PROFILE_STORAGE.md) · [кривая и награды](docs/architecture/V160_EXPERIENCE_PROGRESSION.md) · [операционный runbook](docs/RUNBOOK.md).
 
 </details>
 

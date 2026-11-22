@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.classsystem;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,6 +20,9 @@ import net.luckperms.api.event.EventSubscription;
 import net.luckperms.api.event.user.UserDataRecalculateEvent;
 import net.luckperms.api.model.group.Group;
 import net.luckperms.api.model.user.User;
+import net.luckperms.api.node.NodeType;
+import net.luckperms.api.node.types.InheritanceNode;
+import net.luckperms.api.node.types.WeightNode;
 
 /**
  * LP-бэкенд определения класса: группа LuckPerms вида class_<NAME> → PlayerClass.
@@ -39,6 +45,7 @@ public final class LuckPermsBackend {
     private final LuckPerms api;
     private final EventSubscription<UserDataRecalculateEvent> subscription;
     private final Map<UUID, PlayerClass> lastClass = new ConcurrentHashMap<>();
+    private final Set<UUID> conflictWarnings = ConcurrentHashMap.newKeySet();
 
     private ResourceService resourceService;
 
@@ -55,32 +62,143 @@ public final class LuckPermsBackend {
     }
 
     /**
-     * Класс игрока: primary-группа, затем наследованные группы;
-     * первая группа вида class_<NAME> побеждает; иначе null.
+     * Класс определяется только primary-группой class_<NAME>.
+     * Несколько эффективных class_* групп или class_* не в primary — конфликт,
+     * а не повод выбирать случайную наследуемую группу.
      */
     public PlayerClass resolve(Player player) {
+        return resolveDetailed(player).playerClass();
+    }
+
+    public ClassGroupResolver.Resolution resolveDetailed(Player player) {
         if (api == null || player == null) {
-            return null;
+            return ClassGroupResolver.resolve(null, List.of());
         }
         return resolveUser(api.getUserManager().getUser(player.getUniqueId()));
     }
 
-    /** Резолв по LP-User (работает и для оффлайн-событий). */
-    private PlayerClass resolveUser(User user) {
+    /** Резолв по LP-User; работает и для офлайн-событий. */
+    private ClassGroupResolver.Resolution resolveUser(User user) {
         if (user == null) {
-            return null;
+            return ClassGroupResolver.resolve(null, List.of());
         }
-        PlayerClass pc = PlayerClass.fromLuckPermsGroup(user.getPrimaryGroup());
-        if (pc != null) {
-            return pc;
+        List<String> inheritedNames = user.getInheritedGroups(user.getQueryOptions()).stream()
+                .map(Group::getName)
+                .toList();
+        return ClassGroupResolver.resolve(user.getPrimaryGroup(), inheritedNames);
+    }
+
+    /**
+     * Атомарно заменяет единственную class_* группу и выставляет её primary.
+     * При невозможности подтвердить итоговую primary-группу исходные узлы
+     * восстанавливаются, а переход отклоняется.
+     */
+    public boolean replaceClassGroup(UUID uuid, PlayerClass targetClass) {
+        if (api == null || uuid == null || targetClass == null) {
+            return false;
         }
-        for (Group group : user.getInheritedGroups(user.getQueryOptions())) {
-            pc = PlayerClass.fromLuckPermsGroup(group.getName());
-            if (pc != null) {
-                return pc;
+
+        String targetGroup = "class_" + targetClass.name().toLowerCase(java.util.Locale.ROOT);
+        User user = null;
+        List<InheritanceNode> previousClassNodes = new ArrayList<>();
+        String previousPrimary = null;
+        boolean snapshotCaptured = false;
+        try {
+            ensureClassGroup(targetGroup);
+            user = api.getUserManager().loadUser(uuid).join();
+            if (user == null) {
+                return false;
+            }
+
+            previousPrimary = user.getPrimaryGroup();
+            for (InheritanceNode node : user.getNodes(NodeType.INHERITANCE)) {
+                if (isClassGroup(node.getGroupName())) {
+                    previousClassNodes.add(node);
+                }
+            }
+            snapshotCaptured = true;
+
+            for (InheritanceNode node : previousClassNodes) {
+                user.data().remove(node);
+            }
+            user.data().add(InheritanceNode.builder(targetGroup).build());
+
+            if (!user.setPrimaryGroup(targetGroup).wasSuccessful()) {
+                restoreClassGroups(user, previousClassNodes, previousPrimary);
+                return false;
+            }
+
+            api.getUserManager().saveUser(user).join();
+            ClassGroupResolver.Resolution resolution = resolveUser(user);
+            if (resolution.status() != ClassGroupResolver.Status.RESOLVED || resolution.playerClass() != targetClass) {
+                restoreClassGroups(user, previousClassNodes, previousPrimary);
+                return false;
+            }
+
+            conflictWarnings.remove(uuid);
+            provider.invalidate(uuid);
+            return true;
+        } catch (Exception exception) {
+            if (user != null && snapshotCaptured) {
+                restoreClassGroups(user, previousClassNodes, previousPrimary);
+            }
+            plugin.getLogger()
+                    .warning("Не удалось заменить class-группу игрока " + uuid + ": " + exception.getMessage());
+            return false;
+        }
+    }
+
+    private void ensureClassGroup(String groupName) {
+        Group group = api.getGroupManager().getGroup(groupName);
+        if (group == null) {
+            group = api.getGroupManager().createAndLoadGroup(groupName).join();
+        }
+
+        int requiredWeight = 15;
+        for (PlayerClass playerClass : PlayerClass.values()) {
+            String otherGroupName = "class_" + playerClass.name().toLowerCase(java.util.Locale.ROOT);
+            if (groupName.equalsIgnoreCase(otherGroupName)) {
+                continue;
+            }
+            Group existing = api.getGroupManager().getGroup(otherGroupName);
+            if (existing != null && existing.getWeight().isPresent()) {
+                requiredWeight = Math.max(requiredWeight, existing.getWeight().getAsInt());
             }
         }
-        return null;
+
+        if (group.getWeight().isEmpty() || group.getWeight().getAsInt() < requiredWeight) {
+            for (WeightNode node : group.getNodes(NodeType.WEIGHT)) {
+                group.data().remove(node);
+            }
+            group.data().add(WeightNode.builder(requiredWeight).build());
+            api.getGroupManager().saveGroup(group).join();
+        }
+    }
+
+    private static boolean isClassGroup(String groupName) {
+        return groupName != null && groupName.toLowerCase(java.util.Locale.ROOT).startsWith("class_");
+    }
+
+    private void restoreClassGroups(User user, List<InheritanceNode> previousClassNodes, String previousPrimary) {
+        try {
+            for (InheritanceNode node : user.getNodes(NodeType.INHERITANCE)) {
+                if (isClassGroup(node.getGroupName())) {
+                    user.data().remove(node);
+                }
+            }
+            for (InheritanceNode node : previousClassNodes) {
+                user.data().add(node);
+            }
+            if (previousPrimary != null && !previousPrimary.isBlank()) {
+                user.setPrimaryGroup(previousPrimary);
+            }
+            api.getUserManager().saveUser(user).join();
+            provider.invalidate(user.getUniqueId());
+        } catch (Exception exception) {
+            plugin.getLogger()
+                    .severe("Не удалось откатить class-группы игрока " + user.getUniqueId() + ": "
+                            + exception.getMessage());
+        }
     }
 
     /**
@@ -90,7 +208,20 @@ public final class LuckPermsBackend {
      */
     private void onRecalculate(UserDataRecalculateEvent event) {
         UUID uuid = event.getUser().getUniqueId();
-        PlayerClass now = resolveUser(event.getUser());
+        ClassGroupResolver.Resolution resolution = resolveUser(event.getUser());
+        PlayerClass now = resolution.playerClass();
+        if (resolution.status() == ClassGroupResolver.Status.CONFLICT) {
+            if (conflictWarnings.add(uuid)) {
+                plugin.getLogger()
+                        .warning("Конфликт class-групп LuckPerms у "
+                                + uuid
+                                + ": "
+                                + resolution.classGroups()
+                                + "; класс не назначен, требуется оставить одну primary-группу class_<NAME>.");
+            }
+        } else {
+            conflictWarnings.remove(uuid);
+        }
         PlayerClass prev = lastClass.put(uuid, now);
         provider.invalidate(uuid);
         if (prev == null || prev == now) {

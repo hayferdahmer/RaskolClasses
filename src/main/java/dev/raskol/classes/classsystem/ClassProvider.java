@@ -37,7 +37,7 @@ public final class ClassProvider {
             }
         }
         this.backend = resolved;
-        // 1.3.2: Core-адаптер; читает класс из паспорта Core, LP остаётся фолбэком
+        // Core используется только как резерв, если прямой LP API недоступен.
         this.coreHook = new RaskolCoreHook(plugin, config);
     }
 
@@ -46,10 +46,10 @@ public final class ClassProvider {
         return backend != null;
     }
 
-    /** 1.3.2: источник класса для /rc debug. */
+    /** Источник класса для диагностики: LuckPerms — каноническая группа. */
     public String sourceOf() {
-        if (coreHook.isAvailable()) return "core";
         if (backend != null) return "lp";
+        if (coreHook.isAvailable()) return "core";
         return "off";
     }
 
@@ -60,7 +60,18 @@ public final class ClassProvider {
             return entry.playerClass();
         }
 
-        // 1.3.2: сначала Core, потом LP-фолбэк
+        if (backend != null) {
+            ClassGroupResolver.Resolution resolution = backend.resolveDetailed(player);
+            if (resolution.status() == ClassGroupResolver.Status.CONFLICT) {
+                cache.put(id, null);
+                return null;
+            }
+            PlayerClass resolved = resolution.playerClass();
+            cache.put(id, resolved);
+            return resolved;
+        }
+
+        // Core остаётся резервным источником только если прямой LP-бэкенд недоступен.
         if (coreHook.isAvailable()) {
             PlayerClass fromCore = coreHook.resolveClass(id);
             if (fromCore != null) {
@@ -69,12 +80,16 @@ public final class ClassProvider {
             }
         }
 
-        if (backend == null) {
-            return null;
-        }
-        PlayerClass resolved = backend.resolve(player);
-        cache.put(id, resolved);
-        return resolved;
+        cache.put(id, null);
+        return null;
+    }
+
+    /**
+     * Единая точка замены класса в LuckPerms. Используется переходом Фолианта
+     * и будущими административными сценариями Class Lock.
+     */
+    public boolean replaceClassGroup(UUID playerId, PlayerClass targetClass) {
+        return backend != null && backend.replaceClassGroup(playerId, targetClass);
     }
 
     public PlayerClass getCachedClass(UUID playerId) {
