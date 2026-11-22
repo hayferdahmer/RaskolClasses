@@ -58,7 +58,8 @@ public final class Spec2StorageMigration {
             mergeIntoProfile(profiles, playerId, source, logger);
         }
 
-        boolean needsSave = profiles.isDirty();
+        boolean hasLegacySources = current.present() || legacy.present();
+        boolean needsSave = profiles.isDirty() || hasLegacySources;
         if (needsSave && !profiles.saveAndAwait(SAVE_TIMEOUT)) {
             throw new IllegalStateException(
                     "Не удалось подтвердить миграцию Spec 2.0 в characters.yml; исходные файлы сохранены");
