@@ -45,6 +45,10 @@ public final class CharacterExperienceService {
         return result;
     }
 
+    /**
+     * Возвращает снимок прогрессии; при изменении XP-кривой применяет уже накопленный опыт
+     * к активным порогам и сохраняет согласованное состояние профиля.
+     */
     public ProgressSnapshot snapshot(UUID playerId) {
         CharacterProfile profile = profiles.ensureProfile(Objects.requireNonNull(playerId, "playerId"));
         CharacterProgressionEngine.State state =
