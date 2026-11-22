@@ -22,7 +22,6 @@ import dev.raskol.classes.cc.CCService;
 import dev.raskol.classes.cc.DRCategory;
 import dev.raskol.classes.cc.DRState;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.DamageProfile;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.combat.WeaponMastery;
@@ -368,10 +367,7 @@ public final class DebugSub implements CommandSub {
         double taken = plugin.getCombat().simulateTaken(target, profile);
         sender.sendMessage(Component.text(
                 "Симул. урона (20/10/5): дойдёт " + SubUtil.fmt1(taken) + " из 35", NamedTextColor.GRAY));
-        int level = plugin.getSkillLevels().getLevel(uuid, pc.profileSkillName());
-        sender.sendMessage(Component.text(
-                "Уровень " + pc.profileSkillName() + ": "
-                        + (level == SkillLevelProvider.NO_SKILL_SYSTEM ? "AuraSkills не подключён" : level),
-                NamedTextColor.GRAY));
+        int level = plugin.getCharacterLevels().characterLevel(uuid);
+        sender.sendMessage(Component.text("Уровень персонажа: " + level, NamedTextColor.GRAY));
     }
 }
