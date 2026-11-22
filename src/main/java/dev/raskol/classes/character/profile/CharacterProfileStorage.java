@@ -52,7 +52,7 @@ public final class CharacterProfileStorage {
 
     private void load() {
         YamlConfiguration yaml = SafeStorage.loadWithFallback(file, logger);
-        int schemaVersion = yaml.getInt(SCHEMA_PATH, 0);
+        int schemaVersion = readInteger(yaml, SCHEMA_PATH, 0);
         if (schemaVersion < 0 || schemaVersion > CharacterProfile.CURRENT_SCHEMA_VERSION) {
             throw new IllegalStateException("Неподдерживаемая версия characters.yml: " + schemaVersion);
         }
@@ -85,7 +85,7 @@ public final class CharacterProfileStorage {
     }
 
     private CharacterProfile readProfile(UUID playerId, ConfigurationSection section, boolean allowLegacyDefaults) {
-        int profileSchema = section.getInt("schema-version", allowLegacyDefaults ? 0 : -1);
+        int profileSchema = readInteger(section, "schema-version", allowLegacyDefaults ? 0 : -1);
         if (profileSchema < 0 || profileSchema > CharacterProfile.CURRENT_SCHEMA_VERSION) {
             throw new IllegalStateException("Неподдерживаемая схема профиля " + playerId + ": " + profileSchema);
         }
@@ -109,6 +109,21 @@ public final class CharacterProfileStorage {
         }
     }
 
+    private static int readInteger(ConfigurationSection section, String key, int defaultValue) {
+        if (!section.contains(key)) {
+            return defaultValue;
+        }
+        Object value = section.get(key);
+        if (!(value instanceof Number number)) {
+            return Integer.MIN_VALUE;
+        }
+        int parsed = number.intValue();
+        if (number.doubleValue() != (double) parsed) {
+            return Integer.MIN_VALUE;
+        }
+        return parsed;
+    }
+
     private static int readInt(ConfigurationSection section, String key, boolean allowDefault, int defaultValue) {
         if (!section.contains(key)) {
             if (allowDefault) {
@@ -116,7 +131,7 @@ public final class CharacterProfileStorage {
             }
             throw new IllegalStateException("В профиле отсутствует обязательное поле " + key);
         }
-        return section.getInt(key, Integer.MIN_VALUE);
+        return readInteger(section, key, Integer.MIN_VALUE);
     }
 
     private static long readLong(ConfigurationSection section, String key, boolean allowDefault, long defaultValue) {
@@ -126,7 +141,15 @@ public final class CharacterProfileStorage {
             }
             throw new IllegalStateException("В профиле отсутствует обязательное поле " + key);
         }
-        return section.getLong(key, Long.MIN_VALUE);
+        Object value = section.get(key);
+        if (!(value instanceof Number number)) {
+            return Long.MIN_VALUE;
+        }
+        long parsed = number.longValue();
+        if (number.doubleValue() != (double) parsed) {
+            return Long.MIN_VALUE;
+        }
+        return parsed;
     }
 
     /** Возвращает профиль или создаёт новый профиль персонажа первого уровня. */
