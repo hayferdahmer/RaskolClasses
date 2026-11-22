@@ -191,7 +191,7 @@ class CharacterExperienceServiceTest {
                     service.awardQuestCompletion(playerId, "crypt-depths", completionId, 500L);
             CharacterProfile afterFirst = storage.find(playerId).orElseThrow();
             CharacterExperienceService.QuestAwardResult duplicate =
-                    service.awardQuestCompletion(playerId, "crypt-depths", completionId, 500L);
+                    service.awardQuestCompletion(playerId, "crypt-depths", completionId, Long.MAX_VALUE);
 
             assertEquals(true, first.awarded());
             assertEquals(3, first.progression().levelsGained());
