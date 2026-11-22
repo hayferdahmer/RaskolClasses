@@ -453,6 +453,9 @@ Pure-модули (`*Math`, `WeaponMastery`) не касаются Bukkit — н
 | `/rc cc list \| status \| clear \| test \| reset` | `raskolclasses.admin.cc` | Админка контроля с DR |
 | `/rc foliant give <ник>` | `raskolclasses.admin` | Выдать Фолиант Душ |
 | `/rc reload` | `raskolclasses.admin` | Перезагрузка `config.yml` + `kits/*.yml` |
+| `/rc xp view <ник>` | `raskolclasses.admin.progression` | Просмотр уровня и XP персонажа онлайн-игрока |
+| `/rc xp add <ник> <XP>` | `raskolclasses.admin.progression` | Начисление XP с аудитом действия |
+| `/rc xp set <ник> <уровень> <XP-в-уровне>` | `raskolclasses.admin.progression` | Установка прогресса с проверкой порога уровня и аудитом |
 | `/rc plus` | `raskolclasses.plus.use` | GUI raskolspec+: каталог шаблонов текущей спеки |
 | `/rc plus status [ник]` | `raskolclasses.plus.use` | Статус подписки: дни до истечения или «истёк» |
 | `/rc plus buy <периоды>` | `raskolclasses.plus.use` | Купить или продлить подписку за PlayerPoints |
