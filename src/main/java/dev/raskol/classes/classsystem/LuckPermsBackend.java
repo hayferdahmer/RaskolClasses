@@ -226,7 +226,9 @@ public final class LuckPermsBackend {
         }
         ClassState previousState = lastClass.put(uuid, new ClassState(now));
         provider.invalidate(uuid);
-        if (previousState == null || previousState.playerClass() == now) {
+        boolean firstSighting = previousState == null;
+        boolean classChanged = firstSighting || previousState.playerClass() != now;
+        if (!classChanged) {
             return;
         }
 
@@ -241,7 +243,9 @@ public final class LuckPermsBackend {
             });
         }
 
-        if (resourceService == null) {
+        // Первое состояние нужно для reconcile, но не считается сменой класса
+        // и не должно сбрасывать ресурс игрока.
+        if (firstSighting || resourceService == null) {
             return;
         }
         if (online != null) {
