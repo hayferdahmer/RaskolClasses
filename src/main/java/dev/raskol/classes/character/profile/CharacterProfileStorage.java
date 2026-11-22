@@ -143,8 +143,7 @@ public final class CharacterProfileStorage {
                         || number.doubleValue() != (double) number.intValue()
                         || number.intValue() <= 0) {
                     throw new IllegalStateException(
-                            "Некорректный ранг узла " + nodeId + " дерева " + treeId
-                                    + " профиля " + playerId);
+                            "Некорректный ранг узла " + nodeId + " дерева " + treeId + " профиля " + playerId);
                 }
                 parsedRanks.put(nodeId, number.intValue());
             }
@@ -370,8 +369,7 @@ public final class CharacterProfileStorage {
         return ranks == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ranks);
     }
 
-    public synchronized void setSpecializationRanks(
-            UUID playerId, String treeId, Map<String, Integer> ranks) {
+    public synchronized void setSpecializationRanks(UUID playerId, String treeId, Map<String, Integer> ranks) {
         Objects.requireNonNull(playerId, "playerId");
         if (!isValidStorageKey(treeId)) {
             throw new IllegalArgumentException("Некорректный идентификатор дерева специализации");
@@ -401,7 +399,8 @@ public final class CharacterProfileStorage {
         }
 
         ensureProfile(playerId);
-        specializationRanks.computeIfAbsent(playerId, ignored -> new LinkedHashMap<>())
+        specializationRanks
+                .computeIfAbsent(playerId, ignored -> new LinkedHashMap<>())
                 .put(treeId, cleanRanks);
         markDirty();
     }
@@ -518,9 +517,7 @@ public final class CharacterProfileStorage {
             if (trees != null) {
                 for (Map.Entry<String, Map<String, Integer>> tree : trees.entrySet()) {
                     for (Map.Entry<String, Integer> rank : tree.getValue().entrySet()) {
-                        yaml.set(
-                                base + ".specialization.ranks." + tree.getKey() + "." + rank.getKey(),
-                                rank.getValue());
+                        yaml.set(base + ".specialization.ranks." + tree.getKey() + "." + rank.getKey(), rank.getValue());
                     }
                 }
             }
