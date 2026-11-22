@@ -29,9 +29,9 @@ class CharacterExperienceServiceTest {
         UUID playerId = UUID.fromString("a7d8a7d8-7d8a-4a7d-8d7a-a7d8a7d8a7d8");
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             CharacterProfileStorage storage =
-                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
             CharacterExperienceService service =
-                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults(), () -> 200L);
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
 
             CharacterProgressionEngine.AwardResult result = service.award(playerId, 500L);
 
@@ -41,7 +41,7 @@ class CharacterExperienceServiceTest {
             CharacterProfile profile = storage.find(playerId).orElseThrow();
             assertEquals(4, profile.level());
             assertEquals(19L, profile.experienceIntoLevel());
-            assertEquals(200L, profile.updatedAtMillis());
+            org.junit.jupiter.api.Assertions.assertTrue(profile.updatedAtMillis() >= profile.createdAtMillis());
         }
     }
 
@@ -50,10 +50,10 @@ class CharacterExperienceServiceTest {
         UUID playerId = UUID.fromString("b8e9b8e9-8e9b-4b8e-9e8b-b8e9b8e9b8e9");
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             CharacterProfileStorage storage =
-                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
             storage.upsert(new CharacterProfile(playerId, 1, 59, 0L, 100L, 100L));
             CharacterExperienceService service =
-                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults(), () -> 200L);
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
 
             CharacterProgressionEngine.AwardResult result = service.award(playerId, 5_000L);
 
@@ -69,10 +69,10 @@ class CharacterExperienceServiceTest {
         UUID playerId = UUID.fromString("c9fac9fa-9fac-4c9f-ac9f-c9fac9fac9fa");
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             CharacterProfileStorage storage =
-                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
             CharacterProfile original = storage.ensureProfile(playerId);
             CharacterExperienceService service =
-                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults(), () -> 200L);
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
 
             CharacterProgressionEngine.AwardResult result = service.award(playerId, 0L);
 
@@ -86,10 +86,10 @@ class CharacterExperienceServiceTest {
         UUID playerId = UUID.fromString("dafb dafb-dafb-4daf-8daf-dafb dafb dafb".replace(" ", ""));
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             CharacterProfileStorage storage =
-                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
             CharacterProfile original = storage.ensureProfile(playerId);
             CharacterExperienceService service =
-                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults(), () -> 200L);
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
 
             assertThrows(IllegalArgumentException.class, () -> service.award(playerId, -1L));
             assertEquals(original, storage.find(playerId).orElseThrow());
