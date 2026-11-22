@@ -93,6 +93,32 @@ class CharacterProfileStorageTest {
     }
 
     @Test
+    void loadsValidBackupWhenPrimaryFileIsCorrupt() throws Exception {
+        UUID playerId = UUID.fromString("6a5d6a5d-5d6a-4a5d-8d6a-5d6a5d6a5d6a");
+        File file = new File(tempDir.toFile(), "characters.yml");
+        YamlConfiguration backup = new YamlConfiguration();
+        String base = "profiles." + playerId;
+        backup.set("schema-version", 1);
+        backup.set(base + ".schema-version", 1);
+        backup.set(base + ".level", 12);
+        backup.set(base + ".experience", 200L);
+        backup.set(base + ".created-at", 100L);
+        backup.set(base + ".updated-at", 200L);
+        java.nio.file.Files.writeString(new File(tempDir.toFile(), "characters.yml.bak").toPath(), backup.saveToString());
+        java.nio.file.Files.writeString(file.toPath(), "schema-version: [broken");
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage = new CharacterProfileStorage(file, writer, LOGGER, () -> 300L);
+
+            CharacterProfile restored = storage.find(playerId).orElseThrow();
+            assertEquals(12, restored.level());
+            assertEquals(200L, restored.experienceIntoLevel());
+            org.junit.jupiter.api.Assertions.assertFalse(storage.isDirty());
+            assertEquals("schema-version: [broken", java.nio.file.Files.readString(file.toPath()));
+        }
+    }
+
+    @Test
     void rejectsUnsupportedFutureSchemaWithoutRewritingIt() throws Exception {
         File file = new File(tempDir.toFile(), "characters.yml");
         String original = "schema-version: 99\nprofiles: {}\n";
