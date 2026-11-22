@@ -12,8 +12,8 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.stream.IntStream;
 import java.util.logging.Logger;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -278,12 +278,10 @@ class CharacterExperienceServiceTest {
             CharacterExperienceService service =
                     new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
             try (ExecutorService executor = Executors.newFixedThreadPool(8)) {
-                List<Future<CharacterExperienceService.QuestAwardResult>> deliveries =
-                        IntStream.range(0, 16)
-                                .mapToObj(ignored -> executor.submit(
-                                        () -> service.awardQuestCompletion(
-                                                playerId, "repeatable-hunt", completionId, 250L)))
-                                .toList();
+                List<Future<CharacterExperienceService.QuestAwardResult>> deliveries = IntStream.range(0, 16)
+                        .mapToObj(ignored -> executor.submit(
+                                () -> service.awardQuestCompletion(playerId, "repeatable-hunt", completionId, 250L)))
+                        .toList();
 
                 long successfulAwards = 0L;
                 for (var delivery : deliveries) {
@@ -298,5 +296,4 @@ class CharacterExperienceServiceTest {
             }
         }
     }
-
 }
