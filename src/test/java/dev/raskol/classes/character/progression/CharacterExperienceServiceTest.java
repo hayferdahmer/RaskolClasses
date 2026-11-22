@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.IntStream;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.Test;
@@ -197,7 +199,9 @@ class CharacterExperienceServiceTest {
             assertEquals(3, first.progression().levelsGained());
             assertEquals(false, duplicate.awarded());
             assertEquals(0, duplicate.progression().levelsGained());
-            assertEquals(new CharacterProgressionEngine.State(4, 19L), duplicate.progression().state());
+            assertEquals(
+                    new CharacterProgressionEngine.State(4, 19L),
+                    duplicate.progression().state());
             assertEquals(afterFirst, storage.find(playerId).orElseThrow());
         }
     }
@@ -213,7 +217,10 @@ class CharacterExperienceServiceTest {
             CharacterExperienceService service =
                     new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
 
-            assertEquals(true, service.awardQuestCompletion(playerId, "royal-crypt", completionId, 250L).awarded());
+            assertEquals(
+                    true,
+                    service.awardQuestCompletion(playerId, "royal-crypt", completionId, 250L)
+                            .awarded());
             afterFirst = storage.find(playerId).orElseThrow();
             org.junit.jupiter.api.Assertions.assertTrue(storage.saveIfDirty());
             org.junit.jupiter.api.Assertions.assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
@@ -230,12 +237,8 @@ class CharacterExperienceServiceTest {
             assertEquals(false, duplicate.awarded());
             assertEquals(afterFirst, storage.find(playerId).orElseThrow());
 
-            CharacterExperienceService.QuestAwardResult nextCompletion =
-                    service.awardQuestCompletion(
-                            playerId,
-                            "royal-crypt",
-                            UUID.fromString("5b3e5b3e-3e5b-4b3e-8b3e-3e5b3e5b3e5b"),
-                            250L);
+            CharacterExperienceService.QuestAwardResult nextCompletion = service.awardQuestCompletion(
+                    playerId, "royal-crypt", UUID.fromString("5b3e5b3e-3e5b-4b3e-8b3e-3e5b3e5b3e5b"), 250L);
             assertEquals(true, nextCompletion.awarded());
             assertEquals(4, storage.find(playerId).orElseThrow().level());
             assertEquals(19L, storage.find(playerId).orElseThrow().experienceIntoLevel());
@@ -265,7 +268,6 @@ class CharacterExperienceServiceTest {
         }
     }
 
-
     @Test
     void concurrentDeliveryOfTheSameQuestCompletionAwardsExperienceOnlyOnce() throws Exception {
         UUID playerId = UUID.fromString("1a5d1a5d-5d1a-4a5d-8a5d-5d1a5d1a5d1a");
@@ -276,8 +278,8 @@ class CharacterExperienceServiceTest {
             CharacterExperienceService service =
                     new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
             try (ExecutorService executor = Executors.newFixedThreadPool(8)) {
-                List<java.util.concurrent.Future<CharacterExperienceService.QuestAwardResult>> deliveries =
-                        java.util.stream.IntStream.range(0, 16)
+                List<Future<CharacterExperienceService.QuestAwardResult>> deliveries =
+                        IntStream.range(0, 16)
                                 .mapToObj(ignored -> executor.submit(
                                         () -> service.awardQuestCompletion(
                                                 playerId, "repeatable-hunt", completionId, 250L)))
