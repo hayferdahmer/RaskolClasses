@@ -321,7 +321,8 @@ public final class AbilityRegistry {
                             base.id(),
                             cfg.abilityName(pc, base.id(), base.displayName()),
                             base.slot(),
-                            StarterAbilities.unlockLevel(pc, base.id(), cfg.abilityUnlock(pc, base.id(), base.unlockLevel())),
+                            StarterAbilities.unlockLevel(
+                                    pc, base.id(), cfg.abilityUnlock(pc, base.id(), base.unlockLevel())),
                             cfg.abilityCost(pc, base.id(), base.cost()),
                             cfg.abilityCooldownSeconds(pc, base.id(), (int) (base.cooldownMillis() / 1000L)) * 1000L,
                             readSchool(pc, base.id())))
