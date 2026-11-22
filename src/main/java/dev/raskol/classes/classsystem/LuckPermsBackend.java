@@ -193,8 +193,8 @@ public final class LuckPermsBackend {
             api.getUserManager().saveUser(user).join();
             provider.invalidate(user.getUniqueId());
         } catch (Exception exception) {
-            plugin.getLogger().severe(
-                    "Не удалось откатить class-группы игрока " + user.getUniqueId() + ": "
+            plugin.getLogger()
+                    .severe("Не удалось откатить class-группы игрока " + user.getUniqueId() + ": "
                             + exception.getMessage());
         }
     }
@@ -211,12 +211,11 @@ public final class LuckPermsBackend {
         if (resolution.status() == ClassGroupResolver.Status.CONFLICT) {
             if (conflictWarnings.add(uuid)) {
                 plugin.getLogger()
-                        .warning(
-                                "Конфликт class-групп LuckPerms у "
-                                        + uuid
-                                        + ": "
-                                        + resolution.classGroups()
-                                        + "; класс не назначен, требуется оставить одну primary-группу class_<NAME>.");
+                        .warning("Конфликт class-групп LuckPerms у "
+                                + uuid
+                                + ": "
+                                + resolution.classGroups()
+                                + "; класс не назначен, требуется оставить одну primary-группу class_<NAME>.");
             }
         } else {
             conflictWarnings.remove(uuid);
