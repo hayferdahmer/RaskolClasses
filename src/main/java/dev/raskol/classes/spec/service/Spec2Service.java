@@ -690,7 +690,7 @@ public final class Spec2Service {
             } finally {
                 Spec2Points.endTree();
             }
-            if (kept.size() != raw.size()) {
+            if (!kept.equals(raw)) {
                 storage.setRanks(uuid, treeId, kept);
                 plugin.getLogger()
                         .warning("spec2: ранги дерева " + treeId + " игрока " + uuid + " прорежены до валидных ("
