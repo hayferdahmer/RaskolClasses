@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.character.progression;
 
-
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -30,7 +29,8 @@ public final class CharacterExperienceListener implements Listener {
     public void onCreatureSpawn(CreatureSpawnEvent event) {
         LivingEntity entity = event.getEntity();
         if (entity instanceof Player
-                || !CharacterExperienceSpawnPolicy.isEligibleSpawn(entity.getType().name(), event.getSpawnReason().name())) {
+                || !CharacterExperienceSpawnPolicy.isEligibleSpawn(
+                        entity.getType().name(), event.getSpawnReason().name())) {
             return;
         }
         entity.getPersistentDataContainer().set(eligibleSpawnKey, PersistentDataType.BYTE, (byte) 1);
