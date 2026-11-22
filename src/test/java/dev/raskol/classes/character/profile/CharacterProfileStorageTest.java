@@ -104,7 +104,8 @@ class CharacterProfileStorageTest {
         backup.set(base + ".experience", 200L);
         backup.set(base + ".created-at", 100L);
         backup.set(base + ".updated-at", 200L);
-        java.nio.file.Files.writeString(new File(tempDir.toFile(), "characters.yml.bak").toPath(), backup.saveToString());
+        File backupFile = new File(tempDir.toFile(), "characters.yml.bak");
+        java.nio.file.Files.writeString(backupFile.toPath(), backup.saveToString());
         java.nio.file.Files.writeString(file.toPath(), "schema-version: [broken");
 
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
