@@ -390,7 +390,7 @@ public final class VanillaDamageListener implements Listener {
             if (plugin.getConfig().getBoolean("attributes.offense.str-to-physical", false)) {
                 add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.STR)
                         + plugin.getAttributes()
-                                .levelOf(uuid, plugin.getClassProvider().getClassOf(attacker));
+                                .levelOf(uuid);
             }
             crit = rollMeleeCrit(attacker);
         } else {
@@ -398,7 +398,7 @@ public final class VanillaDamageListener implements Listener {
             if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", false)) {
                 add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.INT)
                         + plugin.getAttributes()
-                                .levelOf(uuid, plugin.getClassProvider().getClassOf(attacker));
+                                .levelOf(uuid);
             }
             crit = rollSpellCrit(attacker);
         }
