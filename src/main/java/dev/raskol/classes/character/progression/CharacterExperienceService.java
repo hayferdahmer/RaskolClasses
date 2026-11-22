@@ -46,6 +46,37 @@ public final class CharacterExperienceService {
         return result;
     }
 
+    /** Устанавливает уровень и опыт внутри него для административных операций. */
+    public synchronized ProgressSnapshot set(UUID playerId, int level, long experienceIntoLevel) {
+        Objects.requireNonNull(playerId, "playerId");
+        if (level < CharacterProgressionEngine.MIN_LEVEL || level > CharacterProgressionEngine.MAX_LEVEL) {
+            throw new IllegalArgumentException("Уровень персонажа должен быть в диапазоне 1–60");
+        }
+        if (experienceIntoLevel < 0L) {
+            throw new IllegalArgumentException("Опыт текущего уровня не может быть отрицательным");
+        }
+        if (level == CharacterProgressionEngine.MAX_LEVEL && experienceIntoLevel != 0L) {
+            throw new IllegalArgumentException("На 60 уровне опыт до следующего уровня отсутствует");
+        }
+        if (level < CharacterProgressionEngine.MAX_LEVEL
+                && experienceIntoLevel >= curve.requiredExperience(level)) {
+            throw new IllegalArgumentException("Опыт должен быть меньше порога следующего уровня");
+        }
+
+        CharacterProfile current = profiles.ensureProfile(playerId);
+        if (current.level() != level || current.experienceIntoLevel() != experienceIntoLevel) {
+            long updatedAt = Math.max(current.updatedAtMillis(), System.currentTimeMillis());
+            profiles.upsert(new CharacterProfile(
+                    playerId,
+                    current.schemaVersion(),
+                    level,
+                    experienceIntoLevel,
+                    current.createdAtMillis(),
+                    updatedAt));
+        }
+        return snapshot(playerId);
+    }
+
     /**
      * Возвращает снимок прогрессии; при изменении XP-кривой применяет уже накопленный опыт
      * к активным порогам и сохраняет согласованное состояние профиля.
