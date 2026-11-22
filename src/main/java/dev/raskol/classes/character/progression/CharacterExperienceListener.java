@@ -39,7 +39,10 @@ public final class CharacterExperienceListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onCreatureSpawn(CreatureSpawnEvent event) {
         LivingEntity entity = event.getEntity();
-        if (entity instanceof Player || !EXPERIENCE_SPAWN_REASONS.contains(event.getSpawnReason().name())) {
+        String reason = event.getSpawnReason().name();
+        boolean bossSpawn = entity.getType().name().equals("WITHER") && reason.equals("BUILD_WITHER")
+                || entity.getType().name().equals("ENDER_DRAGON") && reason.equals("DEFAULT");
+        if (entity instanceof Player || (!EXPERIENCE_SPAWN_REASONS.contains(reason) && !bossSpawn)) {
             return;
         }
         entity.getPersistentDataContainer().set(eligibleSpawnKey, PersistentDataType.BYTE, (byte) 1);
