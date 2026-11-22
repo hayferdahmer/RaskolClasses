@@ -25,7 +25,7 @@
 
 
 
-> **Статус разработки:** в `main` находится ветка **1.16.0-SNAPSHOT**. Это development-сборка, а не опубликованный релиз. Последний официальный GitHub Release — **[v1.15.8](https://github.com/hayferdahmer/RaskolClasses/releases/tag/v1.15.8)**. Не устанавливайте SNAPSHOT на production: для сервера используйте только официальный подписанный JAR из GitHub Releases.
+> **Статус разработки:** код в `main` сейчас собирается как **1.16.0-SNAPSHOT**. Это development-сборка, а не опубликованный релиз. Последний официальный GitHub Release — **[v1.15.8](https://github.com/hayferdahmer/RaskolClasses/releases/tag/v1.15.8)**. Не устанавливайте SNAPSHOT на production: для сервера используйте только официальный подписанный JAR из GitHub Releases.
 
 <p align="center">
   <i>«Присядь к огню, путник. За окном — две короны и одна война,<br/>
