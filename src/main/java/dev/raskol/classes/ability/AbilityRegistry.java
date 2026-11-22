@@ -19,7 +19,6 @@ import org.bukkit.entity.Player;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.cc.CCType;
 import dev.raskol.classes.classsystem.PlayerClass;
-import dev.raskol.classes.classsystem.SkillLevelProvider;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.school.School;
 import dev.raskol.classes.compat.AuthGate;
@@ -525,9 +524,9 @@ public final class AbilityRegistry {
             return false;
         }
 
-        // --- гейт 4: level (skill-уровень класса, если система скиллов активна) ---
-        int level = plugin.getSkillLevels().getLevel(id, pc.profileSkillName());
-        if (level != SkillLevelProvider.NO_SKILL_SYSTEM && level < def.unlockLevel()) {
+        // --- гейт 4: единый уровень персонажа ---
+        int level = plugin.getCharacterLevels().characterLevel(id);
+        if (level < def.unlockLevel()) {
             caster.sendMessage(Component.text(
                     "«" + def.displayName() + "» откроется на уровне " + def.unlockLevel() + " (у вас " + level + ")",
                     NamedTextColor.RED));
