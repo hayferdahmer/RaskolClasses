@@ -5,18 +5,18 @@ package dev.raskol.classes.classsystem;
 import java.util.Objects;
 import java.util.UUID;
 
-import dev.raskol.classes.character.profile.CharacterProfileStorage;
+import dev.raskol.classes.character.progression.CharacterExperienceService;
 
 /** Читает единый уровень персонажа из канонического профиля. */
 public final class CharacterLevelService {
 
-    private final CharacterProfileStorage profiles;
+    private final CharacterExperienceService experience;
 
-    public CharacterLevelService(CharacterProfileStorage profiles) {
-        this.profiles = Objects.requireNonNull(profiles, "profiles");
+    public CharacterLevelService(CharacterExperienceService experience) {
+        this.experience = Objects.requireNonNull(experience, "experience");
     }
 
     public int characterLevel(UUID uuid) {
-        return profiles.ensureProfile(Objects.requireNonNull(uuid, "uuid")).level();
+        return experience.snapshot(Objects.requireNonNull(uuid, "uuid")).level();
     }
 }
