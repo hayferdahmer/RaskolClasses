@@ -65,7 +65,7 @@ XP(L) = base + linear × L + round(quadraticTenths × L² / 10)
 
 ## Анти-фарм и границы выдачи
 
-1. При появлении сущности слушатель отмечает её PersistentDataContainer только для разрешённых причин появления: NATURAL, CHUNK_GEN, PATROL, RAID, REINFORCEMENTS, VILLAGE_DEFENSE и VILLAGE_INVASION.
+1. При появлении сущности слушатель отмечает её PersistentDataContainer только для разрешённых причин появления: NATURAL, CHUNK_GEN, PATROL, RAID, REINFORCEMENTS, VILLAGE_DEFENSE и VILLAGE_INVASION. Дополнительно разрешены построенный игроком Wither (BUILD_WITHER) и штатный Ender Dragon (DEFAULT).
 2. Убийство сущности даёт RPG-опыт только если у неё есть эта метка и `getKiller()` возвращает игрока.
 3. Сущности от спавнеров, яиц призыва, команд, кастомных спавнеров, размножения и прочих неразрешённых причин не получают метку.
 4. Смерть игрока никогда не начисляет XP: PvP-награды в этом пакете отсутствуют.
