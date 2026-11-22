@@ -51,6 +51,14 @@ class BuildTemplatesTest {
     }
 
     @Test
+    void staleMarkerIsScopedToOneArchetype() {
+        assertEquals("outlaw:pvp", BuildTemplates.staleTemplateKey("outlaw", Archetype.PVP));
+        assertEquals("outlaw:pve", BuildTemplates.staleTemplateKey("outlaw", Archetype.PVE));
+        assertFalse(BuildTemplates.staleTemplateKey("outlaw", Archetype.PVP)
+                .equals(BuildTemplates.staleTemplateKey("outlaw", Archetype.PVE)));
+    }
+
+    @Test
     void validTemplatePasses() {
         // arms с 1 узлом ряда 1 — минимально валидный
         BuildTemplate t = BuildTemplate.of("arms", Archetype.PVP, "Test", "t", Map.of("arms_training", 3), "1.14.15");
