@@ -159,8 +159,11 @@ public final class Spec2Service {
         public final Map<String, Double> proc = new HashMap<>();
         /** 1.14.7 (контракт C): сила проков за ранг (Σ value2), ключ = id без proc_. */
         public final Map<String, Double> procAmp = new HashMap<>();
-        /** 1.14.7 (P0-6A): бонус длительности способностей из kit_dur-узлов, ключ = abilityId. */
+        /** Бонусы эффектов конкретной способности, ключ = abilityId. */
         public final Map<String, Double> kitDur = new HashMap<>();
+        public final Map<String, Double> kitExtraHits = new HashMap<>();
+        public final Map<String, Double> kitExtraArrows = new HashMap<>();
+        public final Map<String, Double> kitAttrAgi = new HashMap<>();
 
         public final Map<String, Double> dotDur = new HashMap<>();
         public final Map<String, Double> dotStacks = new HashMap<>();
@@ -783,7 +786,7 @@ public final class Spec2Service {
         return kept;
     }
 
-    private void accumulate(Agg agg, Spec2Node node, int rank) {
+    static void accumulate(Agg agg, Spec2Node node, int rank) {
         var e = node.effect().scaledBy(rank);
         switch (e.kind()) {
             case "attr" -> {
@@ -808,8 +811,11 @@ public final class Spec2Service {
             case "kit_mult" -> agg.coeff.merge(e.target(), e.value(), Double::sum);
             case "cd" -> agg.cdPct.merge(e.target(), e.value(), Double::sum);
             case "kit_cd" -> agg.cdSec.merge(e.target(), e.value(), Double::sum);
-            // 1.14.7 (P0-6A): kit_dur — бонус длительности по ЦЕЛИ (abilityId)
+            // Эффекты способности агрегируются по abilityId, чтобы не усиливать чужие умения.
             case "kit_dur" -> agg.kitDur.merge(e.target(), e.value(), Double::sum);
+            case "kit_extra_hits" -> agg.kitExtraHits.merge(e.target(), e.value(), Double::sum);
+            case "kit_extra_arrows" -> agg.kitExtraArrows.merge(e.target(), e.value(), Double::sum);
+            case "kit_attr_agi" -> agg.kitAttrAgi.merge(e.target(), e.value(), Double::sum);
             case "regen" -> agg.regen += e.value();
             case "avoid" -> {
                 if ("dodge".equals(e.target())) agg.dodge += e.value();
@@ -901,6 +907,18 @@ public final class Spec2Service {
     /** 1.14.7 (P0-6A): Σ value kit_dur-узлов по способности (секунды). */
     public double kitDurBonus(UUID uuid, String abilityId) {
         return agg(uuid).kitDur.getOrDefault(abilityId, 0.0);
+    }
+
+    public int kitExtraHits(UUID uuid, String abilityId) {
+        return (int) Math.max(0, Math.round(agg(uuid).kitExtraHits.getOrDefault(abilityId, 0.0)));
+    }
+
+    public int kitExtraArrows(UUID uuid, String abilityId) {
+        return (int) Math.max(0, Math.round(agg(uuid).kitExtraArrows.getOrDefault(abilityId, 0.0)));
+    }
+
+    public double kitAttrAgiBonus(UUID uuid, String abilityId) {
+        return agg(uuid).kitAttrAgi.getOrDefault(abilityId, 0.0);
     }
 
     public double[] avoidBonus(UUID uuid) {
