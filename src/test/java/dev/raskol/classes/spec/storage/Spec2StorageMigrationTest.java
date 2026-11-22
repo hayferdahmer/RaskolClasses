@@ -136,7 +136,8 @@ class Spec2StorageMigrationTest {
         Path charactersDirectory = tempDir.resolve("characters.yml");
         Files.createDirectory(charactersDirectory);
         Files.writeString(charactersDirectory.resolve("keep-me"), "directory must not be replaced");
-        File source = write("spec2-storage.yml", "players:\n  test:\n    main: frost\n");
+        UUID playerId = UUID.fromString("f7a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
+        File source = write("spec2-storage.yml", "players:\n  " + playerId + ":\n    main: frost\n");
 
         assertThrows(IllegalStateException.class, this::migrate);
         assertTrue(source.exists());
