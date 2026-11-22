@@ -925,4 +925,20 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
 
+    <!--
+      RPG progression admin surface: RaskolClasses owns the service lifecycle,
+      and the command adapter is registered/unregistered with that plugin instance.
+      These exact accessor/field exclusions follow the existing plugin-service pattern.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.RaskolClasses"/>
+        <Method name="getCharacterExperience"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+    <Match>
+        <Class name="dev.raskol.classes.command.sub.XpSub"/>
+        <Field name="plugin"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
 </FindBugsFilter>
