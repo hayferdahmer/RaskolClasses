@@ -540,8 +540,8 @@ public final class AbilityRegistry {
                         NamedTextColor.GRAY));
             } else {
                 caster.sendMessage(Component.text(
-                        "«" + def.displayName() + "» откроется на уровне " + def.unlockLevel()
-                                + " (у вас " + level + ")",
+                        "«" + def.displayName() + "» откроется на уровне " + def.unlockLevel() + " (у вас " + level
+                                + ")",
                         NamedTextColor.RED));
             }
             return false;
