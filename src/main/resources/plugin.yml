@@ -38,6 +38,9 @@ commands:
       /rc plus <grant|revoke> <player> <days> — администрирование подписки (admin)
       /rc item <stats|salvage|craft> — предметный слой (игрок)
       /rc item <give|reload|debug|browse> — предметный слой (admin)
+      /rc xp view <player> — просмотр прогресса персонажа (admin)
+      /rc xp add <player> <amount> — начислить XP (admin)
+      /rc xp set <player> <level> <xp> — установить прогресс (admin)
     aliases: [raskol, raskolclasses]
 
 permissions:
