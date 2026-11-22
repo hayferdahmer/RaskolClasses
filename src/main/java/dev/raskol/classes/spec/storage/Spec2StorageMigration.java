@@ -236,8 +236,9 @@ public final class Spec2StorageMigration {
                 if (current == null) {
                     changed = true;
                 } else if (!current.equals(rank.getValue())) {
-                    logger.warning("spec2: конфликт ранга " + playerId + "/" + tree.getKey() + "/"
-                            + rank.getKey() + "; приоритет у characters.yml, исходное значение сохранено в архиве");
+                    logger.warning(
+                            "spec2: конфликт ранга " + playerId + "/" + tree.getKey() + "/"
+                                    + rank.getKey() + "; приоритет у characters.yml, исходное значение сохранено в архиве");
                 }
             }
             if (changed) {
