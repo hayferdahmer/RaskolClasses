@@ -89,6 +89,11 @@ public final class Spec2Points {
             }
             return rowGate(row);
         }
+
+        /** Проверяет доступность ряда с учётом индивидуального порога дерева. */
+        public boolean rowUnlocked(int row, int spentInTree, String treeId) {
+            return spentInTree >= rowGate(row, treeId);
+        }
     }
 
     private static final Snapshot DEFAULTS = new Snapshot(15, 46, new int[] {0, 5, 10, 15, 20, 30});
@@ -246,6 +251,6 @@ public final class Spec2Points {
 
     /** Явный treeId: per-tree override → глобальный гейт. */
     public static boolean rowUnlocked(int row, int spentInTree, String treeId) {
-        return spentInTree >= snap.rowGate(row, treeId);
+        return snap.rowUnlocked(row, spentInTree, treeId);
     }
 }
