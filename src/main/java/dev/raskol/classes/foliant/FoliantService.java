@@ -3,7 +3,6 @@
 package dev.raskol.classes.foliant;
 
 import java.io.File;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -63,12 +62,6 @@ import net.luckperms.api.node.types.InheritanceNode;
  * 1.11.2: санитайзер ника, дроп только с пиглинов ада, релок-цикл, soulbound.
  * 1.14.0 (Б8): гейты SPEC_CHOSEN/TALENTS_SPENT читают spec2-слой
  *         (Spec2Service.mainSpec / spentGlobal); legacy SpecService/TalentService удалены.
- * 1.14.12 (Sprint 8, Волна 12B, P0-7-01): grantSorcerySkill проверяет isSafeName
- *         ПЕРЕД fallback-dispatchCommand — имя игрока из конфига не может попасть
- *         в консольную команду без валидации (аудит 7-01).
- * 1.14.12 (Sprint 8, Волна 12B, P0-6-05): catch-блоки в swapLuckPermsGroup/grantSorcerySkill
- *         сужены до Exception/ReflectiveOperationException + warning-лог
- *         (раньше Throwable и ignored — падали молча или ловили OOM/StackOverflow).
  * 1.14.13 (Sprint 9, Волна 13B, P0-10-04): lock-flush задача вынесена из конструктора
  *         в startLockFlushTask(); вызывает RaskolClasses.onEnable, ручка задачи
  *         складывается в activeTasks и отменяется в onDisable явно.
@@ -437,8 +430,6 @@ public final class FoliantService implements Listener {
             plugin.getPassives().clear(uuid);
         }
 
-        grantSorcerySkill(player, 10);
-
         plugin.getAttributes().invalidate(uuid);
 
         transitionCallbacks.schedule(uuid, 1L, () -> {
@@ -534,110 +525,6 @@ public final class FoliantService implements Listener {
                     "lp user " + name + " parent remove class_" + pc.name().toLowerCase(Locale.ROOT));
         }
         return Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp user " + name + " parent add " + WARLOCK_GROUP);
-    }
-
-    private static final Object VOID_OK = new Object();
-
-    private static Object invokeQuiet(Object target, String name, Object... args) {
-        if (target == null) {
-            return null;
-        }
-        for (Method m : target.getClass().getMethods()) {
-            if (!m.getName().equals(name) || m.getParameterCount() != args.length) {
-                continue;
-            }
-            try {
-                Object r = m.invoke(target, args);
-                return r != null ? r : VOID_OK;
-            } catch (Exception ignored) {
-            }
-        }
-        return null;
-    }
-
-    private static Object invokeFirstExisting(Object target, String[] names, Object... args) {
-        for (String n : names) {
-            Object r = invokeQuiet(target, n, args);
-            if (r != null) {
-                return r;
-            }
-        }
-        return null;
-    }
-
-    private Object findSorcerySkill(Object api) {
-        Object registry =
-                invokeFirstExisting(api, new String[] {"getGlobalRegistry", "getSkillRegistry", "getRegistry"});
-        if (registry == null) {
-            return null;
-        }
-        Object direct =
-                invokeFirstExisting(registry, new String[] {"getSkill", "getSkillById", "getSkillByName"}, "sorcery");
-        if (direct != null && direct != VOID_OK) {
-            return direct;
-        }
-        Object collection = invokeQuiet(registry, "getSkills");
-        if (collection instanceof Iterable<?> it) {
-            for (Object sk : it) {
-                Object id = invokeQuiet(sk, "getId");
-                String idStr = id != null ? id.toString().toLowerCase(Locale.ROOT) : "";
-                if (idStr.contains("sorcery")) {
-                    return sk;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 1.14.12 (Волна 12B, 7-01): fallback-dispatchCommand проверяет isSafeName ПЕРЕД
-     * подстановкой ника — имя игрока не может быть использовано для инъекции в
-     * консольную команду из ключа foliant.sorcery-grant-command.
-     * 1.14.12 (Волна 12B, 6-05): catch сужен до ReflectiveOperationException | LinkageError
-     * (Throwable ловил OOM/StackOverflow молча).
-     */
-    private void grantSorcerySkill(Player player, int level) {
-        try {
-            Class<?> apiClass = Class.forName("dev.aurelium.auraskills.api.AuraSkillsApi");
-            Object api = apiClass.getMethod("get").invoke(null);
-            Object user = invokeQuiet(api, "getUser", player.getUniqueId());
-            Object skill = findSorcerySkill(api);
-            if (user != null && skill != null && skill != VOID_OK) {
-                Object done = invokeFirstExisting(
-                        user, new String[] {"setSkillLevel", "setLevel", "addSkillLevel"}, skill, level);
-                if (done != null) {
-                    plugin.getLogger()
-                            .info("Foliant: выдан sorcery=" + level + " игроку " + player.getName()
-                                    + " (AuraSkills API)");
-                    return;
-                }
-            }
-            if (skill == null || skill == VOID_OK) {
-                plugin.getLogger().warning("Foliant: дерево sorcery не найдено в AuraSkills");
-                return;
-            }
-        } catch (ReflectiveOperationException | LinkageError e) {
-            plugin.getLogger()
-                    .warning("Foliant: рефлексия AuraSkills API упала ("
-                            + e.getClass().getSimpleName() + ": " + e.getMessage()
-                            + ") — переход на fallback-команду");
-        }
-        String cmd = plugin.getConfig().getString("foliant.sorcery-grant-command", "");
-        if (cmd != null && !cmd.isEmpty()) {
-            // 1.14.12 (7-01): isSafeName — защита от инъекции ника в консольную команду
-            if (!isSafeName(player.getName())) {
-                plugin.getLogger()
-                        .severe("Foliant: небезопасный ник '" + player.getName()
-                                + "' — fallback-команда sorcery-grant отклонена. Игрок: "
-                                + player.getName() + ", уровень: " + level);
-                return;
-            }
-            String exec = cmd.replace("{player}", player.getName()).replace("{level}", String.valueOf(level));
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), exec);
-            plugin.getLogger().info("Foliant: sorcery выдан командой: " + exec);
-            return;
-        }
-        plugin.getLogger().warning("Foliant: не удалось выдать sorcery автоматически. Игрок: " + player.getName());
     }
 
     private void burstParticles(Player player) {
