@@ -1021,7 +1021,7 @@ public final class RaskolConfig {
                     Map.of(
                             "tyr_strike",
                                     new AbilityDefaults(
-                                            10,
+                                            1,
                                             20,
                                             8,
                                             "Удар Тира",
@@ -1052,7 +1052,7 @@ public final class RaskolConfig {
                     Map.of(
                             "wolf_mark",
                                     new AbilityDefaults(
-                                            10,
+                                            1,
                                             20,
                                             12,
                                             "Метка Волка",
@@ -1082,7 +1082,7 @@ public final class RaskolConfig {
                     Map.of(
                             "saint_tear",
                                     new AbilityDefaults(
-                                            10, 10, 3, "Слеза Святой", 0, "Литургический хил себе или союзнику"),
+                                            1, 10, 3, "Слеза Святой", 0, "Литургический хил себе или союзнику"),
                             "word_of_life",
                                     new AbilityDefaults(
                                             25, 20, 6, "Слово Жизни", 0, "Мощное слово: большой хил себе или союзнику"),
@@ -1104,7 +1104,7 @@ public final class RaskolConfig {
                     Map.of(
                             "fire_prometheus",
                                     new AbilityDefaults(
-                                            10,
+                                            1,
                                             15,
                                             6,
                                             "Огонь Прометея",
@@ -1127,7 +1127,7 @@ public final class RaskolConfig {
                                             "Молния: тяжёлый маг-урон; цель ниже 25% HP получает ×3"));
                 case ROGUE ->
                     Map.of(
-                            "shadow_cloak", new AbilityDefaults(10, 30, 30, "Плащ теней", 15, "Невидимость 15 с"),
+                            "shadow_cloak", new AbilityDefaults(1, 30, 30, "Плащ теней", 15, "Невидимость 15 с"),
                             "blade_fan",
                                     new AbilityDefaults(
                                             25, 25, 15, "Веер клинков", 0, "Вихрь ножей по площади радиусом 3"),
@@ -1140,7 +1140,7 @@ public final class RaskolConfig {
                     Map.of(
                             "black_word",
                                     new AbilityDefaults(
-                                            10,
+                                            1,
                                             10,
                                             4,
                                             "Чёрное Слово",
