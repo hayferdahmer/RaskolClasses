@@ -165,4 +165,69 @@ class CharacterProfileStorageTest {
                     IllegalStateException.class, () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 100L));
         }
     }
+
+    @Test
+    void recordsQuestRewardAndProfileInOneDurableSnapshot() throws Exception {
+        UUID playerId = UUID.fromString("4a8d4a8d-8d4a-4a8d-8d4a-4a8d4a8d4a8d");
+        String rewardId = "quest:crypt-depths:4a8d4a8d-8d4a-4a8d-8d4a-4a8d4a8d4a8d";
+        File file = new File(tempDir.toFile(), "characters.yml");
+        CharacterProfile expected = new CharacterProfile(playerId, 1, 3, 42L, 100L, 200L);
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage = new CharacterProfileStorage(file, writer, LOGGER, () -> 100L);
+            storage.ensureProfile(playerId);
+
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    storage.recordQuestRewardIfAbsent(playerId, rewardId, expected));
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    storage.recordQuestRewardIfAbsent(
+                            playerId,
+                            rewardId,
+                            new CharacterProfile(playerId, 1, 4, 0L, 100L, 300L)));
+            assertEquals(expected, storage.find(playerId).orElseThrow());
+            org.junit.jupiter.api.Assertions.assertTrue(storage.saveIfDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
+        }
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage reloaded = new CharacterProfileStorage(file, writer, LOGGER, () -> 400L);
+
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    reloaded.recordQuestRewardIfAbsent(playerId, rewardId, expected));
+            assertEquals(expected, reloaded.find(playerId).orElseThrow());
+            org.junit.jupiter.api.Assertions.assertFalse(reloaded.isDirty());
+        }
+    }
+
+    @Test
+    void migratesStorageSchemaOneToTwoWithoutChangingProfileData() throws Exception {
+        UUID playerId = UUID.fromString("5b9e5b9e-9e5b-4b9e-9e5b-9e5b9e5b9e5b");
+        File file = new File(tempDir.toFile(), "characters.yml");
+        YamlConfiguration yaml = new YamlConfiguration();
+        String base = "profiles." + playerId;
+        yaml.set("schema-version", 1);
+        yaml.set(base + ".schema-version", 1);
+        yaml.set(base + ".level", 27);
+        yaml.set(base + ".experience", 1234L);
+        yaml.set(base + ".created-at", 100L);
+        yaml.set(base + ".updated-at", 200L);
+        java.nio.file.Files.writeString(file.toPath(), yaml.saveToString());
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage = new CharacterProfileStorage(file, writer, LOGGER, () -> 500L);
+
+            assertEquals(27, storage.find(playerId).orElseThrow().level());
+            assertEquals(1234L, storage.find(playerId).orElseThrow().experienceIntoLevel());
+            org.junit.jupiter.api.Assertions.assertTrue(storage.isDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(storage.saveIfDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
+        }
+
+        YamlConfiguration migrated = YamlConfiguration.loadConfiguration(file);
+        assertEquals(2, migrated.getInt("schema-version"));
+        assertEquals(1, migrated.getInt(base + ".schema-version"));
+        assertEquals(27, migrated.getInt(base + ".level"));
+        assertEquals(1234L, migrated.getLong(base + ".experience"));
+    }
+
 }
