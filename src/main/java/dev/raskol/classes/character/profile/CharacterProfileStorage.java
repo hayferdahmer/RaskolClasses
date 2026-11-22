@@ -107,7 +107,8 @@ public final class CharacterProfileStorage {
         }
         ConfigurationSection specialization = profileSection.getConfigurationSection("specialization");
         if (specialization == null) {
-            throw new IllegalStateException("Специализация профиля " + playerId + " должна быть YAML-разделом");
+            throw new IllegalStateException(
+                    "Специализация профиля " + playerId + " должна быть YAML-разделом");
         }
 
         if (specialization.contains("main")) {
@@ -123,7 +124,8 @@ public final class CharacterProfileStorage {
         }
         ConfigurationSection ranks = specialization.getConfigurationSection("ranks");
         if (ranks == null) {
-            throw new IllegalStateException("Ранги специализации профиля " + playerId + " должны быть YAML-разделом");
+            throw new IllegalStateException(
+                    "Ранги специализации профиля " + playerId + " должны быть YAML-разделом");
         }
 
         Map<String, Map<String, Integer>> parsedTrees = new LinkedHashMap<>();
@@ -133,7 +135,8 @@ public final class CharacterProfileStorage {
             }
             ConfigurationSection tree = ranks.getConfigurationSection(treeId);
             if (tree == null) {
-                throw new IllegalStateException("Дерево специализации " + treeId + " должно быть YAML-разделом");
+                throw new IllegalStateException(
+                        "Дерево специализации " + treeId + " должно быть YAML-разделом");
             }
             Map<String, Integer> parsedRanks = new LinkedHashMap<>();
             for (String nodeId : tree.getKeys(false)) {
@@ -143,7 +146,8 @@ public final class CharacterProfileStorage {
                         || number.doubleValue() != (double) number.intValue()
                         || number.intValue() <= 0) {
                     throw new IllegalStateException(
-                            "Некорректный ранг узла " + nodeId + " дерева " + treeId + " профиля " + playerId);
+                            "Некорректный ранг узла " + nodeId + " дерева " + treeId
+                                    + " профиля " + playerId);
                 }
                 parsedRanks.put(nodeId, number.intValue());
             }
@@ -400,7 +404,8 @@ public final class CharacterProfileStorage {
         }
 
         ensureProfile(playerId);
-        specializationRanks.computeIfAbsent(playerId, ignored -> new LinkedHashMap<>()).put(treeId, cleanRanks);
+        specializationRanks.computeIfAbsent(playerId, ignored -> new LinkedHashMap<>())
+                .put(treeId, cleanRanks);
         markDirty();
     }
 
@@ -519,7 +524,8 @@ public final class CharacterProfileStorage {
             if (trees != null) {
                 for (Map.Entry<String, Map<String, Integer>> tree : trees.entrySet()) {
                     for (Map.Entry<String, Integer> rank : tree.getValue().entrySet()) {
-                        yaml.set(base + ".specialization.ranks." + tree.getKey() + "." + rank.getKey(), rank.getValue());
+                        yaml.set(
+                                base + ".specialization.ranks." + tree.getKey() + "." + rank.getKey(), rank.getValue());
                     }
                 }
             }
