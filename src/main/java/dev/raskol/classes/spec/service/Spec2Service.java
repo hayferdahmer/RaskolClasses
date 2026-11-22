@@ -727,9 +727,10 @@ public final class Spec2Service {
         List<String> storedTrees = storage.storedTreeIds(uuid);
         if (currentClass == null) {
             if ((main != null || !storedTrees.isEmpty()) && unresolvedClassWarnings.add(uuid)) {
-                plugin.getLogger().warning(
-                        "spec2: класс игрока " + uuid
-                                + " не разрешён; очистка сохранённых специализаций и рангов пропущена, данные сохранены");
+                plugin.getLogger()
+                        .warning(
+                                "spec2: класс игрока " + uuid
+                                        + " не разрешён; очистка сохранённых специализаций и рангов пропущена, данные сохранены");
             }
             return;
         }
@@ -738,8 +739,8 @@ public final class Spec2Service {
         Spec2ClassState.ReconcilePlan plan = Spec2ClassState.plan(currentClass, main, storedTrees);
         if (plan.clearMainSpec()) {
             storage.setMain(uuid, null);
-            plugin.getLogger().warning(
-                    "spec2: основная специализация " + main + " игрока " + uuid
+            plugin.getLogger()
+                    .warning("spec2: основная специализация " + main + " игрока " + uuid
                             + " сброшена после подтверждённой смены класса на " + currentClass.name());
         }
         for (String foreignTree : plan.foreignTreeIds()) {

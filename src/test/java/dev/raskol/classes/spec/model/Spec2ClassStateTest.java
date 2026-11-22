@@ -16,8 +16,7 @@ class Spec2ClassStateTest {
 
     @Test
     void unresolvedClassPreservesMainSpecAndEveryStoredTree() {
-        Spec2ClassState.ReconcilePlan plan =
-                Spec2ClassState.plan(null, "fire", List.of("arcane", "fire", "frost"));
+        Spec2ClassState.ReconcilePlan plan = Spec2ClassState.plan(null, "fire", List.of("arcane", "fire", "frost"));
 
         assertFalse(plan.classResolved());
         assertFalse(plan.clearMainSpec());
@@ -26,8 +25,7 @@ class Spec2ClassStateTest {
 
     @Test
     void matchingClassPreservesMainSpecAndItsTrees() {
-        Spec2ClassState.ReconcilePlan plan =
-                Spec2ClassState.plan(PlayerClass.MAGE, "fire", List.of("arcane", "fire", "frost"));
+        Spec2ClassState.ReconcilePlan plan = Spec2ClassState.plan(PlayerClass.MAGE, "fire", List.of("arcane", "fire", "frost"));
 
         assertTrue(plan.classResolved());
         assertFalse(plan.clearMainSpec());
@@ -36,8 +34,7 @@ class Spec2ClassStateTest {
 
     @Test
     void confirmedClassChangeClearsMainSpecAndForeignTrees() {
-        Spec2ClassState.ReconcilePlan plan =
-                Spec2ClassState.plan(PlayerClass.WARLOCK, "fire", List.of("arcane", "fire", "affliction"));
+        Spec2ClassState.ReconcilePlan plan = Spec2ClassState.plan(PlayerClass.WARLOCK, "fire", List.of("arcane", "fire", "affliction"));
 
         assertTrue(plan.classResolved());
         assertTrue(plan.clearMainSpec());
@@ -46,8 +43,7 @@ class Spec2ClassStateTest {
 
     @Test
     void missingMainSpecDoesNotTriggerReset() {
-        Spec2ClassState.ReconcilePlan plan =
-                Spec2ClassState.plan(PlayerClass.WARLOCK, null, List.of("affliction"));
+        Spec2ClassState.ReconcilePlan plan = Spec2ClassState.plan(PlayerClass.WARLOCK, null, List.of("affliction"));
 
         assertTrue(plan.classResolved());
         assertFalse(plan.clearMainSpec());
