@@ -36,7 +36,8 @@ public record CharacterExperienceCurve(long baseExperience, long linearCoefficie
 
     /** Суммарный опыт, необходимый для достижения целевого уровня с первого. */
     public long totalExperienceToLevel(int targetLevel) {
-        if (targetLevel < CharacterProgressionEngine.MIN_LEVEL || targetLevel > CharacterProgressionEngine.MAX_LEVEL) {
+        if (targetLevel < CharacterProgressionEngine.MIN_LEVEL
+                || targetLevel > CharacterProgressionEngine.MAX_LEVEL) {
             throw new IllegalArgumentException("Целевой уровень должен быть в диапазоне 1–60");
         }
         long total = 0L;
