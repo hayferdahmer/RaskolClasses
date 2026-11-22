@@ -135,6 +135,7 @@ class Spec2StorageMigrationTest {
     void keepsSourceWhenUnifiedFileCannotBeWritten() throws IOException {
         Path charactersDirectory = tempDir.resolve("characters.yml");
         Files.createDirectory(charactersDirectory);
+        Files.writeString(charactersDirectory.resolve("keep-me"), "directory must not be replaced");
         File source = write("spec2-storage.yml", "players:\n  test:\n    main: frost\n");
 
         assertThrows(IllegalStateException.class, this::migrate);
