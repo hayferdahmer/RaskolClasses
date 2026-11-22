@@ -8,7 +8,7 @@
 
 **Статус:** `1.16.0-SNAPSHOT`, development-only. Это не опубликованный релиз и не production-артефакт. Последний официальный GitHub Release — [v1.15.8](https://github.com/hayferdahmer/RaskolClasses/releases/tag/v1.15.8). Тег `v1.16.0` и GitHub Release пока не созданы.
 
-**Целевая платформа:** Paper 26.2, Java 25; Maven compiler release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. CI PR #43 для Class Lock подтвердил Build и Analyze: 764 unit-теста, SpotBugs 0, Spotless — 526 файлов чисты, license headers и 13 RIPS policy tests прошли. Это CI-проверка, а не live smoke test на сервере.
+**Целевая платформа:** Paper 26.2, Java 25; Maven compiler release 25, Paper API `26.2.build.135-stable`, `api-version: '26.2'`. CI PR #44 для Class Lock + Spec 2.0 lifecycle подтвердил Build и Analyze: 769 unit-тестов, SpotBugs 0, Spotless — 528 файлов чисты, license headers и 13 RIPS policy tests прошли. Это CI-проверка, а не live smoke test на сервере.
 
 **Что уже входит в main:** собственная прогрессия персонажа 1–60, `characters.yml` storage schema v2, PvE XP, квестовый reward ledger и административные команды `/rc xp`. AuraSkills больше не является источником уровня и удалён из интеграций.
 
@@ -17,6 +17,8 @@
 **Нумерация:** `1.16.0` — SemVer-версия плагина. Обозначения `v160.1`, `v160.2` и т. п. — только внутренние номера рабочих пакетов внутри 1.16.0; это не версии плагина, не Git-теги и не релизы. `1.16.1` будет отдельной patch-версией только после выпуска 1.16.0 и при необходимости хотфикса.
 
 **Class Lock / LuckPerms:** у каждого игрока должна быть ровно одна эффективная группа `class_<NAME>`, и она должна быть primary group. При нескольких class-группах, неизвестной `class_*` или class-группе не в primary плагин не выбирает класс произвольно; нужно исправить членство/веса групп через LuckPerms. Фолиант выполняет смену группы только через API с проверкой итоговой primary-группы и откатом при неуспехе. Для `parents-by-weight` вес class-группы должен позволять ей стать primary; `User#setPrimaryGroup` само по себе не гарантирует итоговую primary-группу при любой настройке расчёта.
+
+**Spec 2.0 при конфликте класса:** сохранённая основная специализация и ранги не удаляются, пока LuckPerms не вернёт однозначный класс. В этот период ролевые пассивки не применяются. Когда класс подтверждён, несовместимая основная спека сбрасывается, а ранги деревьев чужих классов очищаются.
 
 **Live smoke test:** проверка на реальном Paper 26.2 + Java 25 сервере ещё не подтверждена этим CI. Она остаётся отдельной проверкой владельца сервера после получения подготовленного OFFICIAL verification artifact.
 
