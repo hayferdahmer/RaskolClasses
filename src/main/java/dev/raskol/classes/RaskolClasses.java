@@ -990,9 +990,6 @@ public final class RaskolClasses extends JavaPlugin {
                 characterProfiles.saveIfDirty();
             }
         });
-        shutdown.run("specialization snapshot", () -> {
-        });
-
         // Инсталляции очищают свои FX-ресурсы; FxService закрывается только после них.
         shutdown.run("installation cleanup", () -> {
             if (installations != null) {
