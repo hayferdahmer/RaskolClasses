@@ -157,10 +157,7 @@ public final class CharacterProfileStorage {
     }
 
     private static boolean isValidStorageKey(String value) {
-        return value != null
-                && !value.isBlank()
-                && value.length() <= 64
-                && value.chars().noneMatch(Character::isISOControl);
+        return value != null && value.matches("[A-Za-z0-9_-]{1,64}");
     }
 
     private void loadProcessedQuestRewards(YamlConfiguration yaml) {

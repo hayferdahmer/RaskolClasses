@@ -321,10 +321,7 @@ public final class Spec2StorageMigration {
     }
 
     private static boolean isValidKey(String value) {
-        return value != null
-                && !value.isBlank()
-                && value.length() <= 64
-                && value.chars().noneMatch(Character::isISOControl);
+        return value != null && value.matches("[A-Za-z0-9_-]{1,64}");
     }
 
     private record Source(boolean present, boolean readable, YamlConfiguration yaml) {}
