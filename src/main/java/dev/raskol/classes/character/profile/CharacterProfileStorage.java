@@ -107,8 +107,7 @@ public final class CharacterProfileStorage {
         }
         ConfigurationSection specialization = profileSection.getConfigurationSection("specialization");
         if (specialization == null) {
-            throw new IllegalStateException(
-                    "Специализация профиля " + playerId + " должна быть YAML-разделом");
+            throw new IllegalStateException("Специализация профиля " + playerId + " должна быть YAML-разделом");
         }
 
         if (specialization.contains("main")) {
@@ -124,8 +123,7 @@ public final class CharacterProfileStorage {
         }
         ConfigurationSection ranks = specialization.getConfigurationSection("ranks");
         if (ranks == null) {
-            throw new IllegalStateException(
-                    "Ранги специализации профиля " + playerId + " должны быть YAML-разделом");
+            throw new IllegalStateException("Ранги специализации профиля " + playerId + " должны быть YAML-разделом");
         }
 
         Map<String, Map<String, Integer>> parsedTrees = new LinkedHashMap<>();
@@ -135,8 +133,7 @@ public final class CharacterProfileStorage {
             }
             ConfigurationSection tree = ranks.getConfigurationSection(treeId);
             if (tree == null) {
-                throw new IllegalStateException(
-                        "Дерево специализации " + treeId + " должно быть YAML-разделом");
+                throw new IllegalStateException("Дерево специализации " + treeId + " должно быть YAML-разделом");
             }
             Map<String, Integer> parsedRanks = new LinkedHashMap<>();
             for (String nodeId : tree.getKeys(false)) {
