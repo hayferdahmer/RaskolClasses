@@ -224,6 +224,15 @@ public final class CharacterProfileStorage {
         markDirty();
     }
 
+    /** Проверяет, была ли уже обработана указанная квестовая награда для игрока. */
+    public synchronized boolean hasProcessedQuestReward(UUID playerId, String rewardId) {
+        Objects.requireNonNull(playerId, "playerId");
+        if (!isValidRewardId(rewardId)) {
+            throw new IllegalArgumentException("Некорректный идентификатор квестовой награды");
+        }
+        return processedQuestRewards.getOrDefault(playerId, Set.of()).contains(rewardId);
+    }
+
     /**
      * Атомарно сохраняет обновлённый профиль вместе с квитанцией о выдаче квестовой награды.
      * Оба изменения попадают в один YAML-снимок, поэтому повторная выдача после рестарта невозможна.
