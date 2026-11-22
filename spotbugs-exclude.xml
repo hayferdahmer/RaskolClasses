@@ -365,11 +365,6 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
     <Match>
-        <Class name="dev.raskol.classes.classsystem.SkillLevelProvider"/>
-        <Field name="plugin"/>
-        <Bug pattern="EI_EXPOSE_REP2"/>
-    </Match>
-    <Match>
         <Class name="dev.raskol.classes.combat.AvoidanceService"/>
         <Field name="plugin"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
