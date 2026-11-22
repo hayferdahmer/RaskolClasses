@@ -38,7 +38,6 @@ import dev.raskol.classes.cc.CCType;
 import dev.raskol.classes.cc.CastChannels;
 import dev.raskol.classes.cc.DRCategory;
 import dev.raskol.classes.cc.VanillaCCWrapper;
-import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.character.progression.CharacterExperienceCurve;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.CombatMath;
