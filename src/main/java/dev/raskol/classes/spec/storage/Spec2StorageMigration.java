@@ -58,9 +58,15 @@ public final class Spec2StorageMigration {
             mergeIntoProfile(profiles, playerId, source, logger);
         }
 
-        if (profiles.isDirty() && !profiles.saveAndAwait(SAVE_TIMEOUT)) {
+        boolean needsSave = profiles.isDirty();
+        if (needsSave && !profiles.saveAndAwait(SAVE_TIMEOUT)) {
             throw new IllegalStateException(
                     "Не удалось подтвердить миграцию Spec 2.0 в characters.yml; исходные файлы сохранены");
+        }
+
+        File unifiedFile = new File(directory, CharacterProfileStorage.FILE_NAME);
+        if (unifiedFile.isFile() && (needsSave || current.present() || legacy.present())) {
+            refreshUnifiedBackup(directory, unifiedFile, logger);
         }
 
         archiveSource(directory, CURRENT_FILE_NAME, current, logger);
@@ -259,6 +265,49 @@ public final class Spec2StorageMigration {
                         + "; файл оставлен на месте: " + exception.getMessage());
             }
         }
+    }
+
+    /**
+     * После миграции backup тоже должен содержать единый снимок.
+     * Иначе восстановление старого characters.yml.bak могло бы вернуть профиль
+     * без specialization после того, как отдельный spec2-файл уже архивирован.
+     */
+    private static void refreshUnifiedBackup(File directory, File unifiedFile, Logger logger) {
+        File temporary = new File(directory, CharacterProfileStorage.FILE_NAME + ".bak.tmp");
+        File backup = new File(directory, CharacterProfileStorage.FILE_NAME + ".bak");
+        File archivedBackup = null;
+        try {
+            Files.copy(unifiedFile.toPath(), temporary.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            if (backup.exists()) {
+                archivedBackup = nextArchiveFile(backup);
+                Files.move(backup.toPath(), archivedBackup.toPath());
+            }
+            try {
+                Files.move(
+                        temporary.toPath(),
+                        backup.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException exception) {
+                Files.move(temporary.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException exception) {
+            if (archivedBackup != null && archivedBackup.exists() && !backup.exists()) {
+                try {
+                    Files.move(archivedBackup.toPath(), backup.toPath());
+                } catch (IOException restoreException) {
+                    logger.severe("spec2: не удалось восстановить прежний backup characters.yml: "
+                            + restoreException.getMessage());
+                }
+            }
+            if (temporary.exists() && !temporary.delete()) {
+                logger.warning("spec2: не удалось удалить временный backup " + temporary.getName());
+            }
+            throw new IllegalStateException(
+                    "Не удалось обновить backup единого characters.yml; исходные Spec 2.0 файлы сохранены",
+                    exception);
+        }
+        logger.info("spec2: backup characters.yml обновлён единым снимком профиля и специализаций");
     }
 
     private static File nextArchiveFile(File source) {
