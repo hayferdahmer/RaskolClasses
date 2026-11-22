@@ -90,6 +90,24 @@ class CharacterExperienceServiceTest {
     }
 
     @Test
+    void snapshotReconcilesProgressWhenTheConfiguredCurveChanges() {
+        UUID playerId = UUID.fromString("fc1cfc1c-1cfc-4fc1-8c1c-fc1cfc1cfc1c");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
+            storage.upsert(new CharacterProfile(playerId, 1, 1, 500L, 100L, 100L));
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
+
+            CharacterExperienceService.ProgressSnapshot snapshot = service.snapshot(playerId);
+
+            assertEquals(4, snapshot.level());
+            assertEquals(19L, snapshot.currentExperience());
+            assertEquals(4, storage.find(playerId).orElseThrow().level());
+        }
+    }
+
+    @Test
     void zeroAwardDoesNotMutateAnExistingProfile() {
         UUID playerId = UUID.fromString("c9fac9fa-9fac-4c9f-ac9f-c9fac9fac9fa");
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
