@@ -37,30 +37,29 @@ public final class SessionListener implements Listener {
         UUID quitUuid = event.getPlayer().getUniqueId();
         plugin.getResists().clear(quitUuid);
         plugin.getAttributes().clear(quitUuid);
-        plugin.getCharacterProfiles().saveIfDirty();
         plugin.getSpec2Service().clear(quitUuid);
         // 1.14.7 (Sprint 4, P1-3): GUI-сессия книги не переживает выход
         TalentsTab.clearSession(quitUuid);
-        // 1.15.5 (аудит 2.6-91): фиксация spec2-изменений выходящего игрока
-        plugin.getSpec2Storage().saveIfDirty();
+        // Прогресс и Spec 2.0 записываются одним снимком characters.yml.
+        plugin.saveCharacterProfilesIfDirty();
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        plugin.getCharacterProfiles().ensureProfile(player.getUniqueId());
-        plugin.getCharacterProfiles().saveIfDirty();
+        plugin.ensureCharacterProfile(player.getUniqueId());
         plugin.getSpec2Service().reconcile(player.getUniqueId());
         plugin.getHpSync().sync(player);
+        plugin.saveCharacterProfilesIfDirty();
     }
 
     /** Разовая синхронизация онлайна при старте плагина (игроки, зашедшие до enable). */
     public void resyncOnline() {
         for (Player online : plugin.getServer().getOnlinePlayers()) {
-            plugin.getCharacterProfiles().ensureProfile(online.getUniqueId());
+            plugin.ensureCharacterProfile(online.getUniqueId());
             plugin.getSpec2Service().reconcile(online.getUniqueId());
             plugin.getHpSync().sync(online);
         }
-        plugin.getCharacterProfiles().saveIfDirty();
+        plugin.saveCharacterProfilesIfDirty();
     }
 }
