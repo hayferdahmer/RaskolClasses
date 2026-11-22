@@ -46,6 +46,57 @@ public final class CharacterExperienceService {
         return result;
     }
 
+    /**
+     * Выдаёт XP за конкретное завершение квеста не более одного раза.
+     * completionId должен быть создан и сохранён квестовой системой до отправки награды.
+     */
+    public synchronized QuestAwardResult awardQuestCompletion(
+            UUID playerId, String questId, UUID completionId, long experience) {
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(completionId, "completionId");
+        if (questId == null || !questId.matches("[a-z0-9][a-z0-9._-]{0,63}")) {
+            throw new IllegalArgumentException("Идентификатор квеста должен быть стабильным slug в нижнем регистре");
+        }
+        if (experience <= 0L) {
+            throw new IllegalArgumentException("Квестовая награда XP должна быть положительной");
+        }
+
+        String rewardId = "quest:" + questId + ":" + completionId;
+        CharacterProfile current = profiles.ensureProfile(playerId);
+        CharacterProgressionEngine.State state =
+                new CharacterProgressionEngine.State(current.level(), current.experienceIntoLevel());
+        CharacterProgressionEngine.AwardResult result =
+                CharacterProgressionEngine.award(state, experience, curve::requiredExperience);
+
+        CharacterProfile updated = current;
+        if (!result.state().equals(state)) {
+            long updatedAt = Math.max(current.updatedAtMillis(), System.currentTimeMillis());
+            updated = new CharacterProfile(
+                    playerId,
+                    current.schemaVersion(),
+                    result.state().level(),
+                    result.state().experienceIntoLevel(),
+                    current.createdAtMillis(),
+                    updatedAt);
+        }
+
+        boolean recorded = profiles.recordQuestRewardIfAbsent(playerId, rewardId, updated);
+        if (recorded) {
+            return new QuestAwardResult(true, result);
+        }
+        CharacterProfile unchanged = profiles.find(playerId).orElseThrow();
+        CharacterProgressionEngine.State unchangedState =
+                new CharacterProgressionEngine.State(unchanged.level(), unchanged.experienceIntoLevel());
+        return new QuestAwardResult(false, new CharacterProgressionEngine.AwardResult(unchangedState, 0, 0L));
+    }
+
+    /** Результат обработки квестовой награды; повторная выдача возвращает awarded=false. */
+    public record QuestAwardResult(boolean awarded, CharacterProgressionEngine.AwardResult progression) {
+        public QuestAwardResult {
+            Objects.requireNonNull(progression, "progression");
+        }
+    }
+
     /** Устанавливает уровень и опыт внутри него для административных операций. */
     public synchronized ProgressSnapshot set(UUID playerId, int level, long experienceIntoLevel) {
         Objects.requireNonNull(playerId, "playerId");
