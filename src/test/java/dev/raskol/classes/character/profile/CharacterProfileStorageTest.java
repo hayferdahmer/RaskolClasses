@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -234,6 +235,43 @@ class CharacterProfileStorageTest {
         assertEquals(1, migrated.getInt(base + ".schema-version"));
         assertEquals(27, migrated.getInt(base + ".level"));
         assertEquals(1234L, migrated.getLong(base + ".experience"));
+    }
+
+
+    @Test
+    void rejectsMalformedQuestRewardLedgerInsteadOfIgnoringIt() throws Exception {
+        UUID playerId = UUID.fromString("3c7f3c7f-7f3c-4c7f-8c7f-3c7f3c7f3c7f");
+        File file = new File(tempDir.toFile(), "characters.yml");
+        YamlConfiguration yaml = new YamlConfiguration();
+        String profile = "profiles." + playerId;
+        yaml.set("schema-version", 2);
+        yaml.set(profile + ".schema-version", 1);
+        yaml.set(profile + ".level", 1);
+        yaml.set(profile + ".experience", 0L);
+        yaml.set(profile + ".created-at", 100L);
+        yaml.set(profile + ".updated-at", 100L);
+        yaml.set("processed-quest-rewards." + playerId, List.of(42));
+        java.nio.file.Files.writeString(file.toPath(), yaml.saveToString());
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            assertThrows(
+                    IllegalStateException.class, () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 200L));
+        }
+    }
+
+    @Test
+    void rejectsQuestRewardReceiptsWithoutACharacterProfile() throws Exception {
+        UUID playerId = UUID.fromString("2b6e2b6e-6e2b-4b6e-8b6e-6e2b6e2b6e2b");
+        File file = new File(tempDir.toFile(), "characters.yml");
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("schema-version", 2);
+        yaml.set("processed-quest-rewards." + playerId, List.of("quest:crypt-depths:" + playerId));
+        java.nio.file.Files.writeString(file.toPath(), yaml.saveToString());
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            assertThrows(
+                    IllegalStateException.class, () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 200L));
+        }
     }
 
 }
