@@ -1430,12 +1430,7 @@ public final class SelftestRunner {
 
         CharacterExperienceCurve curve = CharacterExperienceCurve.defaults();
         long firstLevelCost = curve.requiredExperience(1);
-        r.check(
-                "19",
-                "стоимость перехода 1→2 равна 139 XP",
-                firstLevelCost == 139L,
-                "XP curve",
-                firstLevelCost);
+        r.check("19", "стоимость перехода 1→2 равна 139 XP", firstLevelCost == 139L, "XP curve", firstLevelCost);
 
         long levelSixtyCost = curve.totalExperienceToLevel(60);
         r.check(

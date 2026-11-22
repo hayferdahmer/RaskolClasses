@@ -91,8 +91,7 @@ public final class ClassTab implements BookTabView {
                     plugin.getRaskolConfig().themeOf(pc).secondary()));
             List<Component> lore = new ArrayList<>();
             lore.add(Component.text(
-                    BookItems.msg(
-                            plugin, "book.attributes.char-level", "Уровень персонажа: {value} / {cap}")
+                    BookItems.msg(plugin, "book.attributes.char-level", "Уровень персонажа: {value} / {cap}")
                             .replace("{value}", String.valueOf(charLevel))
                             .replace("{cap}", String.valueOf(cap)),
                     NamedTextColor.WHITE));

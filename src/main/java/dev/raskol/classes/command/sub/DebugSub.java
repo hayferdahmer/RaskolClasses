@@ -232,13 +232,11 @@ public final class DebugSub implements CommandSub {
         Spec spec = Spec.fromId(plugin.getSpec2Service().mainSpec(uuid));
 
         sender.sendMessage(Component.text("=== " + target.getName() + " ===", NamedTextColor.GOLD));
-        sender.sendMessage(Component.text(
-                "Класс: " + (pc != null ? pc.getDisplayName() : "—"), NamedTextColor.AQUA));
+        sender.sendMessage(Component.text("Класс: " + (pc != null ? pc.getDisplayName() : "—"), NamedTextColor.AQUA));
         sender.sendMessage(Component.text(
                 "Спека: " + (spec != null ? spec.displayName() : "—") + " · деревья путей — в Книге класса",
                 NamedTextColor.YELLOW));
-        sender.sendMessage(
-                Component.text("Уровень персонажа: " + charLevel + " / " + cap, NamedTextColor.AQUA));
+        sender.sendMessage(Component.text("Уровень персонажа: " + charLevel + " / " + cap, NamedTextColor.AQUA));
         if (pc == null) {
             return;
         }
