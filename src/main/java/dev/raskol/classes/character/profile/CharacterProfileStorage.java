@@ -480,9 +480,6 @@ public final class CharacterProfileStorage {
         if (timeout.isNegative()) {
             throw new IllegalArgumentException("timeout не может быть отрицательным");
         }
-        if (!isDirty()) {
-            return true;
-        }
         CompletableFuture<Boolean> future = submitSnapshot();
         try {
             boolean successful = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
