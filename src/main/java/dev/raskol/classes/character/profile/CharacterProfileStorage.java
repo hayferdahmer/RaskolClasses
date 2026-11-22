@@ -342,7 +342,12 @@ public final class CharacterProfileStorage {
         if (specId != null && !isValidStorageKey(specId)) {
             throw new IllegalArgumentException("Некорректный идентификатор специализации");
         }
-        ensureProfile(playerId);
+        if (specId == null && !profiles.containsKey(playerId)) {
+            return;
+        }
+        if (specId != null) {
+            ensureProfile(playerId);
+        }
         if (Objects.equals(specializationMains.get(playerId), specId)) {
             return;
         }
@@ -373,7 +378,6 @@ public final class CharacterProfileStorage {
         if (!isValidStorageKey(treeId)) {
             throw new IllegalArgumentException("Некорректный идентификатор дерева специализации");
         }
-        ensureProfile(playerId);
         Map<String, Integer> cleanRanks = new LinkedHashMap<>();
         if (ranks != null) {
             for (Map.Entry<String, Integer> entry : ranks.entrySet()) {
@@ -387,16 +391,19 @@ public final class CharacterProfileStorage {
             }
         }
 
-        Map<String, Map<String, Integer>> trees =
-                specializationRanks.computeIfAbsent(playerId, ignored -> new LinkedHashMap<>());
+        Map<String, Map<String, Integer>> existingTrees = specializationRanks.get(playerId);
         if (cleanRanks.isEmpty()) {
-            trees.remove(treeId);
-            if (trees.isEmpty()) {
-                specializationRanks.remove(playerId);
+            if (existingTrees != null && existingTrees.remove(treeId) != null) {
+                if (existingTrees.isEmpty()) {
+                    specializationRanks.remove(playerId);
+                }
+                markDirty();
             }
-        } else {
-            trees.put(treeId, cleanRanks);
+            return;
         }
+
+        ensureProfile(playerId);
+        specializationRanks.computeIfAbsent(playerId, ignored -> new LinkedHashMap<>()).put(treeId, cleanRanks);
         markDirty();
     }
 
@@ -476,7 +483,11 @@ public final class CharacterProfileStorage {
         }
         CompletableFuture<Boolean> future = submitSnapshot();
         try {
-            return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            boolean successful = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (successful) {
+                persistedVersion.accumulateAndGet(mutationVersion.get(), Math::max);
+            }
+            return successful;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             logger.severe("CharacterProfileStorage: ожидание миграционного сохранения прервано");
