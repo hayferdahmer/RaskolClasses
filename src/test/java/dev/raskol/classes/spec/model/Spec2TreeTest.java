@@ -81,7 +81,7 @@ class Spec2TreeTest {
                             prerequisite.row() < node.row()
                                     || (prerequisite.row() == node.row()
                                             && declarationOrder.get(prerequisite.id())
-                                            < declarationOrder.get(node.id())),
+                                                    < declarationOrder.get(node.id())),
                             "prerequisite должен идти в более раннем ряду или раньше в том же ряду: " + spec.id() + "/"
                                     + node.id() + " -> " + prerequisite.id());
                 }
@@ -116,7 +116,8 @@ class Spec2TreeTest {
             Spec2Tree tree = Spec2Registry.treeOf(spec.id());
             assertNotNull(tree, "дерево отсутствует: " + spec.id());
             for (Spec2Node node : tree.nodes()) {
-                if (node.effect() == null || !"unlock_ability".equals(node.effect().kind())) {
+                if (node.effect() == null
+                        || !"unlock_ability".equals(node.effect().kind())) {
                     continue;
                 }
                 String abilityId = node.effect().target();
@@ -129,7 +130,8 @@ class Spec2TreeTest {
             }
         }
         assertEquals(81, unlockedAbilities.size(), "ожидалось 69 древесных и 12 перенесённых способностей");
-        assertEquals(declaredAbilities, unlockedAbilities, "список доступных способностей и узлы открытия должны совпадать");
+        assertEquals(
+                declaredAbilities, unlockedAbilities, "список доступных способностей и узлы открытия должны совпадать");
     }
 
     @Test
