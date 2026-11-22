@@ -138,4 +138,39 @@ class CharacterExperienceServiceTest {
             assertEquals(original, storage.find(playerId).orElseThrow());
         }
     }
+
+    @Test
+    void setsCharacterLevelAndProgressWithinTheConfiguredCurve() {
+        UUID playerId = UUID.fromString("ed1ced1c-ed1c-4ed1-8ed1-ed1ced1ced1c");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
+
+            CharacterExperienceService.ProgressSnapshot result = service.set(playerId, 15, 100L);
+
+            assertEquals(15, result.level());
+            assertEquals(100L, result.currentExperience());
+            assertEquals(493L, result.experienceToNextLevel().orElseThrow());
+            assertEquals(15, storage.find(playerId).orElseThrow().level());
+        }
+    }
+
+    @Test
+    void rejectsInvalidLevelProgressAndMaxLevelExperience() {
+        UUID playerId = UUID.fromString("f12df12d-f12d-4f12-8df1-f12df12df12d");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER);
+            CharacterExperienceService service =
+                    new CharacterExperienceService(storage, CharacterExperienceCurve.defaults());
+
+            assertThrows(IllegalArgumentException.class, () -> service.set(playerId, 0, 0L));
+            assertThrows(IllegalArgumentException.class, () -> service.set(playerId, 61, 0L));
+            assertThrows(IllegalArgumentException.class, () -> service.set(playerId, 15, -1L));
+            assertThrows(IllegalArgumentException.class, () -> service.set(playerId, 15, 593L));
+            assertThrows(IllegalArgumentException.class, () -> service.set(playerId, 60, 1L));
+        }
+    }
 }
