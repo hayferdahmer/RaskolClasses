@@ -370,12 +370,12 @@ public final class RaskolClasses extends JavaPlugin {
         this.blueprintHook = new BlueprintHook(this);
         blueprintHook.registerBlueprints();
 
-        this.characterLevels = new CharacterLevelService(characterProfiles);
         CharacterExperienceCurve experienceCurve = new CharacterExperienceCurve(
                 getConfig().getLong("experience.curve.base", 120L),
                 getConfig().getLong("experience.curve.linear", 18L),
                 getConfig().getInt("experience.curve.quadratic-tenths", 9));
         this.characterExperience = new CharacterExperienceService(characterProfiles, experienceCurve);
+        this.characterLevels = new CharacterLevelService(characterExperience);
         pluginManager.registerEvents(new CharacterExperienceListener(this), this);
         this.resources = new ResourceService(this, raskolConfig, classProvider);
         this.resourceRuntimeOwner = new ResourceRuntimeOwner(new PaperResourceTaskScheduler(this, resources::tick));
