@@ -103,6 +103,17 @@ class Spec2TreeTest {
     }
 
     @Test
+    @DisplayName("проверка доступности ряда использует override конкретного дерева")
+    void rowUnlockedUsesPerTreeOverride() {
+        Spec2Points.Snapshot snapshot = new Spec2Points.Snapshot(
+                15, 46, new int[] {0, 5, 10, 15, 20, 30}, Map.of("beastmaster", new int[] {0, 5, 10, 15, 20, 27}));
+
+        assertTrue(snapshot.rowUnlocked(6, 27, "beastmaster"));
+        assertFalse(snapshot.rowUnlocked(6, 27, "arms"));
+        assertTrue(snapshot.rowUnlocked(6, 30, "arms"));
+    }
+
+    @Test
     @DisplayName("все узлы открытия ведут к уникальным зарегистрированным способностям")
     void unlockAbilityNodesAreUniqueAndRegistered() {
         Set<String> declaredAbilities = new HashSet<>();
