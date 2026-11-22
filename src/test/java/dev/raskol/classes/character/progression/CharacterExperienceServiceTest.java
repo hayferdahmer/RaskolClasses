@@ -223,15 +223,16 @@ class CharacterExperienceServiceTest {
 
             CharacterExperienceService.QuestAwardResult duplicate =
                     service.awardQuestCompletion(playerId, "royal-crypt", completionId, 250L);
+
+            assertEquals(false, duplicate.awarded());
+            assertEquals(afterFirst, storage.find(playerId).orElseThrow());
+
             CharacterExperienceService.QuestAwardResult nextCompletion =
                     service.awardQuestCompletion(
                             playerId,
                             "royal-crypt",
                             UUID.fromString("5b3e5b3e-3e5b-4b3e-8b3e-3e5b3e5b3e5b"),
                             250L);
-
-            assertEquals(false, duplicate.awarded());
-            assertEquals(afterFirst, storage.find(playerId).orElseThrow());
             assertEquals(true, nextCompletion.awarded());
             assertEquals(4, storage.find(playerId).orElseThrow().level());
             assertEquals(19L, storage.find(playerId).orElseThrow().experienceIntoLevel());
