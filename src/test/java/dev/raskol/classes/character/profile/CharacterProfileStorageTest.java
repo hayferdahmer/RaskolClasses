@@ -110,6 +110,27 @@ class CharacterProfileStorageTest {
     }
 
     @Test
+    void rejectsOutOfRangeProfileInsteadOfClampingItToLevelOne() throws Exception {
+        UUID playerId = UUID.fromString("2c4e2c4e-4e2c-4c4e-8c4e-4e2c4e2c4e2c");
+        File file = new File(tempDir.toFile(), "characters.yml");
+        YamlConfiguration yaml = new YamlConfiguration();
+        String base = "profiles." + playerId;
+        yaml.set("schema-version", 1);
+        yaml.set(base + ".schema-version", 1);
+        yaml.set(base + ".level", 0);
+        yaml.set(base + ".experience", 0L);
+        yaml.set(base + ".created-at", 100L);
+        yaml.set(base + ".updated-at", 100L);
+        java.nio.file.Files.writeString(file.toPath(), yaml.saveToString());
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 200L));
+        }
+    }
+
+    @Test
     void rejectsMalformedExistingProfileInsteadOfSilentlyResettingIt() throws Exception {
         File file = new File(tempDir.toFile(), "characters.yml");
         YamlConfiguration yaml = new YamlConfiguration();
