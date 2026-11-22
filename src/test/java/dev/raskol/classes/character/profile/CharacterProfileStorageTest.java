@@ -237,7 +237,6 @@ class CharacterProfileStorageTest {
         assertEquals(1234L, migrated.getLong(base + ".experience"));
     }
 
-
     @Test
     void rejectsMalformedQuestRewardLedgerInsteadOfIgnoringIt() throws Exception {
         UUID playerId = UUID.fromString("3c7f3c7f-7f3c-4c7f-8c7f-3c7f3c7f3c7f");
