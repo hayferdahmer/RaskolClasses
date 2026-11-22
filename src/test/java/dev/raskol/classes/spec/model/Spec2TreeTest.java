@@ -77,9 +77,10 @@ class Spec2TreeTest {
                     assertTrue(
                             prerequisite.row() < node.row()
                                     || (prerequisite.row() == node.row()
-                                            && declarationOrder.get(prerequisite.id()) < declarationOrder.get(node.id())),
-                            "prerequisite должен идти в более раннем ряду или раньше в том же ряду: "
-                                    + spec.id() + "/" + node.id() + " -> " + prerequisite.id());
+                                            && declarationOrder.get(prerequisite.id())
+                                            < declarationOrder.get(node.id())),
+                            "prerequisite должен идти в более раннем ряду или раньше в том же ряду: " + spec.id() + "/"
+                                    + node.id() + " -> " + prerequisite.id());
                 }
                 assertTrue(tree.isReachable(node.id(), Set.of()), "цикл в графе: " + spec.id() + "/" + node.id());
             }
@@ -92,10 +93,7 @@ class Spec2TreeTest {
     @DisplayName("per-tree row gate переопределяет глобальный порог только для своего дерева")
     void perTreeRowGateOverride() {
         Spec2Points.Snapshot snapshot = new Spec2Points.Snapshot(
-                15,
-                46,
-                new int[] {0, 5, 10, 15, 20, 30},
-                Map.of("beastmaster", new int[] {0, 5, 10, 15, 20, 27}));
+                15, 46, new int[] {0, 5, 10, 15, 20, 30}, Map.of("beastmaster", new int[] {0, 5, 10, 15, 20, 27}));
         assertEquals(27, snapshot.rowGate(6, "beastmaster"));
         assertEquals(30, snapshot.rowGate(6, "arms"));
         assertEquals(30, snapshot.rowGate(6, null));
