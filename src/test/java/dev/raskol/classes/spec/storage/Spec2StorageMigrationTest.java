@@ -102,6 +102,8 @@ class Spec2StorageMigrationTest {
         assertEquals(100L, saved.getLong(profile + ".created-at"));
         assertEquals("discipline", saved.getString(profile + ".specialization.main"));
         assertEquals(List.of("quest:crypt-depths:" + playerId), saved.getStringList("processed-quest-rewards." + playerId));
+        YamlConfiguration backup = YamlConfiguration.loadConfiguration(tempDir.resolve("characters.yml.bak").toFile());
+        assertEquals("discipline", backup.getString(profile + ".specialization.main"));
     }
 
     @Test
