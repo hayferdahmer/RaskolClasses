@@ -1,0 +1,96 @@
+// © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+// SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+package dev.raskol.classes.character.profile;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import java.io.File;
+import java.nio.file.Path;
+import java.util.UUID;
+import java.util.logging.Logger;
+
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import dev.raskol.classes.storage.AsyncStorageWriter;
+
+class CharacterProfileStorageTest {
+
+    private static final Logger LOGGER = Logger.getLogger("CharacterProfileStorageTest");
+
+    @TempDir
+    Path tempDir;
+
+    @Test
+    void createsLegacyPlayerAtLevelOneExactlyOnce() {
+        UUID playerId = UUID.fromString("d5c2d5c2-5c2d-4d5c-8c2d-5c2d5c2d5c2d");
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage =
+                    new CharacterProfileStorage(new File(tempDir.toFile(), "characters.yml"), writer, LOGGER, () -> 100L);
+
+            CharacterProfile first = storage.ensureProfile(playerId);
+            CharacterProfile second = storage.ensureProfile(playerId);
+
+            assertEquals(1, first.level());
+            assertEquals(0, first.experienceIntoLevel());
+            assertEquals(first, second);
+            assertEquals(100L, first.createdAtMillis());
+            assertEquals(100L, first.updatedAtMillis());
+        }
+    }
+
+    @Test
+    void persistsProfileAndReloadsItWithoutResettingProgress() throws Exception {
+        UUID playerId = UUID.fromString("8a4d8a4d-4d8a-4d8a-8d4a-4d8a4d8a4d8a");
+        File file = new File(tempDir.toFile(), "characters.yml");
+        CharacterProfile expected;
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage storage = new CharacterProfileStorage(file, writer, LOGGER, () -> 100L);
+            storage.ensureProfile(playerId);
+            expected = new CharacterProfile(playerId, 1, 7, 425L, 100L, 200L);
+            storage.upsert(expected);
+            org.junit.jupiter.api.Assertions.assertTrue(storage.saveIfDirty());
+            org.junit.jupiter.api.Assertions.assertTrue(writer.closeAndAwait(java.time.Duration.ofSeconds(5)));
+        }
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            CharacterProfileStorage reloaded =
+                    new CharacterProfileStorage(file, writer, LOGGER, () -> 300L);
+
+            assertEquals(expected, reloaded.find(playerId).orElseThrow());
+            assertNotEquals(300L, reloaded.find(playerId).orElseThrow().createdAtMillis());
+        }
+    }
+
+    @Test
+    void rejectsUnsupportedFutureSchemaWithoutRewritingIt() throws Exception {
+        File file = new File(tempDir.toFile(), "characters.yml");
+        String original = "schema-version: 99\nprofiles: {}\n";
+        java.nio.file.Files.writeString(file.toPath(), original);
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 100L));
+        }
+        assertEquals(original, java.nio.file.Files.readString(file.toPath()));
+    }
+
+    @Test
+    void rejectsMalformedExistingProfileInsteadOfSilentlyResettingIt() throws Exception {
+        File file = new File(tempDir.toFile(), "characters.yml");
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("schema-version", 1);
+        yaml.set("profiles.not-a-uuid.level", 42);
+        java.nio.file.Files.writeString(file.toPath(), yaml.saveToString());
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 100L));
+        }
+    }
+}
