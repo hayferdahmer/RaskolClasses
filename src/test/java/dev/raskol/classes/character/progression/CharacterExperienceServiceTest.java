@@ -233,7 +233,8 @@ class CharacterExperienceServiceTest {
             assertEquals(false, duplicate.awarded());
             assertEquals(afterFirst, storage.find(playerId).orElseThrow());
             assertEquals(true, nextCompletion.awarded());
-            assertEquals(500L, storage.find(playerId).orElseThrow().experienceIntoLevel());
+            assertEquals(4, storage.find(playerId).orElseThrow().level());
+            assertEquals(19L, storage.find(playerId).orElseThrow().experienceIntoLevel());
         }
     }
 
