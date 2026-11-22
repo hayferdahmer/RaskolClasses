@@ -369,7 +369,7 @@ public final class CharacterProfileStorage {
             return Map.of();
         }
         Map<String, Integer> ranks = trees.get(treeId);
-        return ranks == null ? Map.of() : Map.copyOf(ranks);
+        return ranks == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ranks);
     }
 
     public synchronized void setSpecializationRanks(
