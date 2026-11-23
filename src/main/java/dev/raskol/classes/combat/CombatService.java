@@ -63,6 +63,7 @@ public final class CombatService implements Listener {
 
     private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final ThreadLocal<UUID> ABILITY_SOURCE = new ThreadLocal<>();
+    private static final ThreadLocal<DamageSourceContext> CURRENT_SOURCE_CONTEXT = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
     private static final ThreadLocal<School> CURRENT_CAST_SCHOOL = new ThreadLocal<>();
@@ -113,6 +114,11 @@ public final class CombatService implements Listener {
 
     public static UUID abilitySourceMark() {
         return ABILITY_SOURCE.get();
+    }
+
+    /** Контекст доступен только на время синхронного применения конкретного удара. */
+    public static DamageSourceContext currentSourceContext() {
+        return CURRENT_SOURCE_CONTEXT.get();
     }
 
     public static boolean reflectSuppressed() {
@@ -518,6 +524,8 @@ public final class CombatService implements Listener {
         double actualPhys = 0.0;
         double actualMagic = 0.0;
 
+        DamageSourceContext previousContext = CURRENT_SOURCE_CONTEXT.get();
+        CURRENT_SOURCE_CONTEXT.set(DamageSourceContext.infer(source, target, fromProc, reflectSuppressed()));
         ABILITY_SOURCE.set(source instanceof Player s2 ? s2.getUniqueId() : null);
         try {
             if (applyPhys > 0.0) {
@@ -563,6 +571,11 @@ public final class CombatService implements Listener {
             }
         } finally {
             ABILITY_SOURCE.remove();
+            if (previousContext == null) {
+                CURRENT_SOURCE_CONTEXT.remove();
+            } else {
+                CURRENT_SOURCE_CONTEXT.set(previousContext);
+            }
         }
 
         double actualTaken = (actualPhys + actualMagic) * scale;
