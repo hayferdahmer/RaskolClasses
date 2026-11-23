@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.item.config;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.item.model.ItemRarity;
 import dev.raskol.classes.item.service.ItemRegistry;
+import dev.raskol.classes.spec.Spec;
 
 @DisplayName("ItemConfigLoader: headless production loading")
 class ItemConfigLoaderHeadlessTest {
@@ -34,6 +36,20 @@ class ItemConfigLoaderHeadlessTest {
                             .toList()
                             .isEmpty(),
                     "В реестре должны быть предметы класса " + playerClass);
+        }
+    }
+
+    @Test
+    @DisplayName("18 специализаций загружаются с пятью слотами и собственным set id")
+    void loadsAllSpecializationTemplates() throws Exception {
+        ItemRegistry registry = ItemConfigLoader.loadHeadless(new File("src/main/resources/items.yml"));
+        for (Spec spec : Spec.values()) {
+            List<dev.raskol.classes.item.model.ItemDefinition> items = registry.all().stream()
+                    .filter(item -> spec.id().equals(item.spec()))
+                    .toList();
+            assertEquals(45, items.size(), spec.id());
+            assertTrue(items.stream().allMatch(item -> item.playerClass() == spec.playerClass()), spec.id());
+            assertTrue(items.stream().allMatch(item -> (spec.id() + "_regalia").equals(item.setId())), spec.id());
         }
     }
 
