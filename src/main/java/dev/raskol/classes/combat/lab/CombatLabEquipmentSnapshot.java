@@ -94,8 +94,9 @@ public record CombatLabEquipmentSnapshot(
                     .sorted(Map.Entry.comparingByKey())
                     .filter(entry -> pieces >= entry.getKey())
                     .forEach(entry -> {
-                        entry.getValue().stats().forEach((stat, value) ->
-                                stats.merge(stat, stat.clamp(value), Double::sum));
+                        entry.getValue()
+                                .stats()
+                                .forEach((stat, value) -> stats.merge(stat, stat.clamp(value), Double::sum));
                     });
             active = set.bonuses().keySet().stream().anyMatch(threshold -> pieces >= threshold);
             if (active) activeSets.add(setId);
@@ -107,12 +108,9 @@ public record CombatLabEquipmentSnapshot(
                 .findFirst()
                 .orElse(null);
         WeaponType weaponType = mainHand == null ? null : mainHand.weaponType();
-        String attackType = weaponType == WeaponType.STAFF || weaponType == WeaponType.WAND
-                ? "MAGIC"
-                : "PHYSICAL";
-        double mastery = mainHand == null
-                ? WeaponMastery.FOREIGN
-                : WeaponMastery.masteryMultiplier(playerClass, weaponType);
+        String attackType = weaponType == WeaponType.STAFF || weaponType == WeaponType.WAND ? "MAGIC" : "PHYSICAL";
+        double mastery =
+                mainHand == null ? WeaponMastery.FOREIGN : WeaponMastery.masteryMultiplier(playerClass, weaponType);
 
         return new CombatLabEquipmentSnapshot(
                 stats,
@@ -125,12 +123,12 @@ public record CombatLabEquipmentSnapshot(
     }
 
     private static Comparator<ItemDefinition> candidateOrder(PlayerClass playerClass) {
-        return Comparator.<ItemDefinition>comparingDouble(
-                        item -> item.slot() == ItemSlot.MAIN_HAND
-                                ? WeaponMastery.masteryMultiplier(playerClass, item.weaponType())
-                                : 1.0)
+        return Comparator.<ItemDefinition>comparingDouble(item -> item.slot() == ItemSlot.MAIN_HAND
+                        ? WeaponMastery.masteryMultiplier(playerClass, item.weaponType())
+                        : 1.0)
                 .reversed()
-                .thenComparing(Comparator.comparingInt(ItemDefinition::itemLevel).reversed())
+                .thenComparing(
+                        Comparator.comparingInt(ItemDefinition::itemLevel).reversed())
                 .thenComparing(ItemDefinition::id);
     }
 

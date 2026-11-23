@@ -3,7 +3,6 @@
 package dev.raskol.classes.combat.lab;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,10 +41,7 @@ class CombatLabEquipmentSnapshotTest {
                         template.customModelData()))
                 .toList();
         List<ItemDefinition> definitions = ItemTemplateExpander.expand(
-                templates,
-                Map.of(),
-                List.of(20, 40, 60),
-                List.of(ItemRarity.COMMON, ItemRarity.RARE, ItemRarity.EPIC));
+                templates, Map.of(), List.of(20, 40, 60), List.of(ItemRarity.COMMON, ItemRarity.RARE, ItemRarity.EPIC));
         Map<String, SetDefinition> sets = new java.util.HashMap<>();
         for (PlayerClass playerClass : PlayerClass.values()) {
             String id = playerClass.name().toLowerCase(java.util.Locale.ROOT) + "_regalia";
@@ -66,12 +62,9 @@ class CombatLabEquipmentSnapshotTest {
     @Test
     @DisplayName("экипировка соблюдает порог уровня и выбирает лучший доступный item-level")
     void equipmentUsesLevelRequirements() {
-        var belowGearLevel = CombatLabEquipmentSnapshot.from(
-                registry, PlayerClass.WARRIOR, 15, ItemRarity.RARE);
-        var levelThirty = CombatLabEquipmentSnapshot.from(
-                registry, PlayerClass.WARRIOR, 30, ItemRarity.RARE);
-        var levelSixty = CombatLabEquipmentSnapshot.from(
-                registry, PlayerClass.WARRIOR, 60, ItemRarity.RARE);
+        var belowGearLevel = CombatLabEquipmentSnapshot.from(registry, PlayerClass.WARRIOR, 15, ItemRarity.RARE);
+        var levelThirty = CombatLabEquipmentSnapshot.from(registry, PlayerClass.WARRIOR, 30, ItemRarity.RARE);
+        var levelSixty = CombatLabEquipmentSnapshot.from(registry, PlayerClass.WARRIOR, 60, ItemRarity.RARE);
 
         assertTrue(belowGearLevel.equippedItemIds().isEmpty());
         assertEquals(5, levelThirty.equippedItemIds().size());
