@@ -418,7 +418,7 @@ public final class PetService implements Listener {
                     || !target.isValid()
                     || target.isDead()
                     || !pet.getWorld().equals(target.getWorld())
-                    || pet.getLocation().distanceSquared(target.getLocation()) > 9.0
+                    || pet.getLocation().distanceSquared(target.getLocation()) > 4.0
                     || !pet.hasLineOfSight(target)
                     || !plugin.getCombat().canHit(owner, target)
                     || currentTick < state.nextAttackTick) {
