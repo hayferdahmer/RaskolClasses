@@ -292,12 +292,11 @@ public final class Spec2StorageMigration {
         return target;
     }
 
-    private static void rejectUnknownKeys(
-            ConfigurationSection section, Set<String> allowed, String context) {
+    private static void rejectUnknownKeys(ConfigurationSection section, Set<String> allowed, String context) {
         for (String key : section.getKeys(false)) {
             if (!allowed.contains(key)) {
-                throw new IllegalStateException("Неизвестное поле " + key + " в " + context
-                        + "; исходная запись не будет архивирована");
+                throw new IllegalStateException(
+                        "Неизвестное поле " + key + " в " + context + "; исходная запись не будет архивирована");
             }
         }
     }
