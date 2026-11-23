@@ -100,12 +100,11 @@ class Spec2StorageMigrationTest {
         assertFalse(tempDir.resolve("spec2-storage.yml").toFile().exists());
     }
 
-
     @Test
     @DisplayName("повреждённое новое хранилище не мешает восстановлению из читаемого legacy")
     void fallsBackToLegacyWhenCurrentStorageIsCorrupt() throws IOException {
-        File legacy = write("spec2.yml", "players:\\n  preserved:\\n    main: frost\\n");
-        File current = write("spec2-storage.yml", "players: [unterminated\\n");
+        File legacy = write("spec2.yml", "players:\n  preserved:\n    main: frost\n");
+        File current = write("spec2-storage.yml", "players: [unterminated\n");
 
         YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
 
@@ -121,8 +120,8 @@ class Spec2StorageMigrationTest {
     @Test
     @DisplayName("при отсутствии main миграция восстанавливает существующий backup")
     void recoversCurrentBackupWhenMainIsMissing() throws IOException {
-        write("spec2.yml", "players:\\n  legacy:\\n    main: old\\n");
-        write("spec2-storage.yml.bak", "players:\\n  current:\\n    main: new\\n");
+        write("spec2.yml", "players:\n  legacy:\n    main: old\n");
+        write("spec2-storage.yml.bak", "players:\n  current:\n    main: new\n");
 
         YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
 
