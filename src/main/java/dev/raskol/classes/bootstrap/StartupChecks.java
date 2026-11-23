@@ -6,6 +6,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.logging.Logger;
 
 import org.bukkit.ChatColor;
 
@@ -20,7 +21,7 @@ import dev.raskol.classes.spec.registry.Spec2Registry;
  * Все методы статические, идемпотентные, без состояния: плагин передаётся параметром.
  *
  * Состав:
- *  - cleanupTmpFiles: удаление .yml.tmp старше часа (1.11.2 T5);
+ *  - reportStaleTmpFiles: диагностика старых .yml.tmp без удаления;
  *  - logCoreVersion: проверка совместимости RaskolCore (рефлексия, soft-depend);
  *  - warnLowCapacityTrees: startup-warning P0-4 для деревьев ниже tree-capacity-min;
  *  - printBanner: консольный баннер релиза.
@@ -34,30 +35,24 @@ public final class StartupChecks {
 
     private StartupChecks() {}
 
-    /** 1.11.2 (T5): удаляет .yml.tmp старше 1 часа в папке плагина. */
-    public static void cleanupTmpFiles(RaskolClasses plugin) {
-        File folder = plugin.getDataFolder();
+    /** Находит старые .tmp, сохраняя их для безопасного восстановления через SafeStorage. */
+    public static int reportStaleTmpFiles(File folder, Logger logger) {
         if (folder == null || !folder.isDirectory()) {
-            return;
+            return 0;
         }
         File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml.tmp"));
         if (files == null || files.length == 0) {
-            return;
+            return 0;
         }
         long oneHourAgo = System.currentTimeMillis() - 3_600_000L;
-        int removed = 0;
-        for (File f : files) {
-            if (f.lastModified() < oneHourAgo) {
-                if (f.delete()) {
-                    removed++;
-                } else {
-                    plugin.getLogger().warning("Не удалось удалить устаревший .tmp: " + f.getName());
-                }
+        int stale = 0;
+        for (File file : files) {
+            if (file.lastModified() < oneHourAgo) {
+                stale++;
+                logger.warning("Обнаружен старый .tmp; файл сохранён для SafeStorage recovery: " + file.getName());
             }
         }
-        if (removed > 0) {
-            plugin.getLogger().info("Удалено устаревших .yml.tmp файлов: " + removed);
-        }
+        return stale;
     }
 
     /** Soft-depend проверка RaskolCore: версия ядра для мгновенного reconcile паспорта. */
