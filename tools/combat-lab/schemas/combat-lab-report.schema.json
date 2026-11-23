@@ -58,9 +58,11 @@
     "nonNegativeMetric": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["value"],
+      "required": ["value", "ci95_low", "ci95_high"],
       "properties": {
-        "value": { "type": "number", "minimum": 0 }
+        "value": { "type": "number", "minimum": 0 },
+        "ci95_low": { "type": "number", "minimum": 0 },
+        "ci95_high": { "type": "number", "minimum": 0 }
       }
     }
   }
