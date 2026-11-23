@@ -77,7 +77,7 @@ public record CombatLabEquipmentSnapshot(
                     .filter(item -> item.rarity() == rarity)
                     .filter(item -> item.itemLevel() <= level)
                     .filter(item -> ItemStatAggregator.eligible(item, playerClass, spec, level))
-                    .min(candidateOrder(playerClass))
+                    .min(candidateOrder(playerClass, spec))
                     .map(item -> scaleToCharacterLevel(item, level))
                     .ifPresent(equipped::add);
         }
@@ -166,13 +166,15 @@ public record CombatLabEquipmentSnapshot(
                 definition.template());
     }
 
-    private static Comparator<ItemDefinition> candidateOrder(PlayerClass playerClass) {
-        return Comparator.<ItemDefinition>comparingDouble(item -> item.slot() == ItemSlot.MAIN_HAND
-                        ? WeaponMastery.masteryMultiplier(playerClass, item.weaponType())
-                        : 1.0)
-                .reversed()
+    private static Comparator<ItemDefinition> candidateOrder(PlayerClass playerClass, String spec) {
+        return Comparator.<ItemDefinition>comparingInt(item ->
+                        spec != null && spec.equalsIgnoreCase(item.spec()) ? 0 : 1)
                 .thenComparing(
-                        Comparator.comparingInt(ItemDefinition::itemLevel).reversed())
+                        Comparator.<ItemDefinition>comparingDouble(item -> item.slot() == ItemSlot.MAIN_HAND
+                                        ? WeaponMastery.masteryMultiplier(playerClass, item.weaponType())
+                                        : 1.0)
+                                .reversed())
+                .thenComparing(Comparator.comparingInt(ItemDefinition::itemLevel).reversed())
                 .thenComparing(ItemDefinition::id);
     }
 
