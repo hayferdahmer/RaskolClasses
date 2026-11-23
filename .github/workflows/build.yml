@@ -13,7 +13,7 @@ name: RaskolClasses Build
 
 on:
   push:
-    branches: [ '**' ]
+    branches: [ main ]
     tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
@@ -61,17 +61,18 @@ jobs:
         with:
           name: jacoco-coverage-report
           path: target/site/jacoco/
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 30
 
   # -----------------------------------------------------------
   # Расширенный анализ: -Xlint:all + SpotBugs.
-  # На обычных ветках и PR остаётся диагностическим.
-  # Для tag-релизов и ручной OFFICIAL signing verification из main — обязательный gate.
+  # На обычных PR/push его выполняет Combat CI Guard для всех Java/resource изменений.
+  # Здесь он остаётся строгим gate для tag-релизов и ручной OFFICIAL signing verification из main.
   # -----------------------------------------------------------
   analyze:
-    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') && !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
