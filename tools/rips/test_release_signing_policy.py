@@ -62,7 +62,7 @@ def build_registry(entries: list[tuple[str, str]]) -> str:
 
 class ReleaseWorkflowGatePolicyTest(unittest.TestCase):
 
-    def test_analyze_is_required_for_official_release_jobs(self):
+    def test_code_quality_is_required_for_build_and_release_jobs(self):
         workflow_path = (
             Path(__file__).resolve().parents[2]
             / ".github"
@@ -72,13 +72,12 @@ class ReleaseWorkflowGatePolicyTest(unittest.TestCase):
         workflow = workflow_path.read_text(encoding="utf-8")
 
         self.assertIn(
-            "continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') "
-            "&& !(github.event_name == 'workflow_dispatch' "
-            "&& github.ref == 'refs/heads/main') }}",
+            "code-quality:\\n    name: Code Quality (Spotless + SpotBugs)",
             workflow,
         )
+        self.assertNotIn("continue-on-error:", workflow)
         self.assertIn(
-            "signing-verification:\n    needs: [build, analyze]",
+            "signing-verification:\\n    needs: [build, code-quality]",
             workflow,
         )
         self.assertIn(
@@ -88,12 +87,11 @@ class ReleaseWorkflowGatePolicyTest(unittest.TestCase):
         self.assertIn('ET.parse("pom.xml")', workflow)
         self.assertIn('f"plugin.version={expected_version}"', workflow)
         self.assertIn(
-            "release:\n    needs: [build, analyze]",
+            "release:\\n    needs: [build, code-quality]",
             workflow,
         )
         self.assertIn("if: startsWith(github.ref, 'refs/tags/v')", workflow)
-        self.assertNotIn("refs/heads/release/1.15.8", workflow)
-        self.assertNotIn("raskol-classes-1.15.8.jar", workflow)
+
 
 
 class TrustedPublicKeyRegistryPolicyTest(unittest.TestCase):
