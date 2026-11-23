@@ -100,9 +100,6 @@ public final class SafeStorage {
                 if (i > 0) {
                     restorePrimary(file, candidate, tmp);
                 }
-                if (i == 0 && tmp.exists() && !tmp.delete()) {
-                    logger.warning("SafeStorage: не удалось удалить устаревший временный файл " + tmp.getName());
-                }
                 return new LoadResult(statuses[i], configuration, candidate);
             } catch (InvalidConfigurationException exception) {
                 lastCorruption = exception;
