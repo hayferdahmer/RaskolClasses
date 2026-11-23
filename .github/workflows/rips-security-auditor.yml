@@ -4,7 +4,6 @@ name: RIPS Security Auditor
 
 on:
   pull_request:
-    branches: [ release/1.15.8 ]
     paths:
       - 'src/main/java/dev/raskol/classes/integrity/**'
       - 'src/test/java/dev/raskol/classes/integrity/**'
@@ -12,7 +11,6 @@ on:
       - 'pom.xml'
       - '.github/workflows/rips-security-auditor.yml'
   push:
-    branches: [ release/1.15.8 ]
     paths:
       - 'src/main/java/dev/raskol/classes/integrity/**'
       - 'src/test/java/dev/raskol/classes/integrity/**'
