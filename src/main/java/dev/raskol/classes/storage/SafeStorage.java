@@ -91,7 +91,9 @@ public final class SafeStorage {
             anyCopyExists = exists(file.toPath()) || exists(tmp.toPath()) || exists(backup.toPath());
         } catch (IOException exception) {
             throw new StorageLoadException(
-                    LoadStatus.IO_ERROR, "SafeStorage: невозможно проверить наличие копий " + file.getName(), exception);
+                    LoadStatus.IO_ERROR,
+                    "SafeStorage: невозможно проверить наличие копий " + file.getName(),
+                    exception);
         }
         if (!anyCopyExists) {
             logger.info("SafeStorage: хранилище " + file.getName() + " ещё не создано");
@@ -184,14 +186,19 @@ public final class SafeStorage {
                 Files.copy(recovered.toPath(), tmp.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
             try {
-                Files.move(tmp.toPath(), primary.toPath(),
-                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(
+                        tmp.toPath(),
+                        primary.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException exception) {
                 Files.move(tmp.toPath(), primary.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException exception) {
-            throw new StorageLoadException(LoadStatus.IO_ERROR,
-                    "SafeStorage: резервная копия прочитана, но основной файл не удалось восстановить", exception);
+            throw new StorageLoadException(
+                    LoadStatus.IO_ERROR,
+                    "SafeStorage: резервная копия прочитана, но основной файл не удалось восстановить",
+                    exception);
         }
     }
 
@@ -208,8 +215,10 @@ public final class SafeStorage {
                 throw new IOException("SHA-256 копии карантина не совпадает с оригиналом");
             }
             String json = "{\n"
-                    + "  \"originalPath\": \"" + escapeJson(original.toAbsolutePath().toString()) + "\",\n"
-                    + "  \"quarantinePath\": \"" + escapeJson(quarantine.toAbsolutePath().toString()) + "\",\n"
+                    + "  \"originalPath\": \""
+                    + escapeJson(original.toAbsolutePath().toString()) + "\",\n"
+                    + "  \"quarantinePath\": \""
+                    + escapeJson(quarantine.toAbsolutePath().toString()) + "\",\n"
                     + "  \"capturedAt\": \"" + Instant.now() + "\",\n"
                     + "  \"sizeBytes\": " + Files.size(original) + ",\n"
                     + "  \"sha256\": \"" + HexFormat.of().formatHex(originalHash) + "\",\n"
