@@ -93,7 +93,9 @@ class Spec2StorageMigrationTest {
         characters.set(profile + ".updated-at", 200L);
         characters.set("processed-quest-rewards." + playerId, List.of("quest:crypt-depths:" + playerId));
         Files.writeString(tempDir.resolve("characters.yml"), characters.saveToString());
-        write("spec2-storage.yml", "players:\n  " + playerId + ":\n    main: discipline\n");
+        write(
+                "spec2-storage.yml",
+                "players:\n  " + playerId + ":\n    main: discipline\n    ranks:\n      discipline:\n        shield_wall: 2\n");
 
         migrate();
 
@@ -104,11 +106,17 @@ class Spec2StorageMigrationTest {
         assertEquals(1234L, saved.getLong(profile + ".experience"));
         assertEquals(100L, saved.getLong(profile + ".created-at"));
         assertEquals("discipline", saved.getString(profile + ".specialization.main"));
+        assertEquals(2, saved.getInt(profile + ".specialization.ranks.discipline.shield_wall"));
         assertEquals(
                 List.of("quest:crypt-depths:" + playerId), saved.getStringList("processed-quest-rewards." + playerId));
         YamlConfiguration backup = YamlConfiguration.loadConfiguration(
                 tempDir.resolve("characters.yml.bak").toFile());
         assertEquals("discipline", backup.getString(profile + ".specialization.main"));
+        assertEquals(2, backup.getInt(profile + ".specialization.ranks.discipline.shield_wall"));
+        assertEquals(23, backup.getInt(profile + ".level"));
+        assertEquals(
+                List.of("quest:crypt-depths:" + playerId),
+                backup.getStringList("processed-quest-rewards." + playerId));
     }
 
     @Test
@@ -144,6 +152,37 @@ class Spec2StorageMigrationTest {
         assertEquals("fire", refreshedBackup.getString(profile + ".specialization.main"));
         assertFalse(source.exists());
         assertTrue(tempDir.resolve("spec2-storage.yml.migrated").toFile().isFile());
+    }
+
+    @Test
+    @DisplayName("существующий профиль имеет приоритет, а отсутствующие ранги дополняются из Spec 2.0")
+    void preservesExistingCharacterSpecializationAndAddsOnlyMissingRanks() throws IOException {
+        UUID playerId = UUID.fromString("f8a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
+        YamlConfiguration characters = new YamlConfiguration();
+        String profile = "profiles." + playerId;
+        characters.set("schema-version", 3);
+        characters.set(profile + ".schema-version", 1);
+        characters.set(profile + ".level", 31);
+        characters.set(profile + ".experience", 900L);
+        characters.set(profile + ".created-at", 100L);
+        characters.set(profile + ".updated-at", 200L);
+        characters.set(profile + ".specialization.main", "frost");
+        characters.set(profile + ".specialization.ranks.frost.ice_lance", 3);
+        Files.writeString(tempDir.resolve("characters.yml"), characters.saveToString());
+        write(
+                "spec2-storage.yml",
+                "players:\n  " + playerId
+                        + ":\n    main: fire\n    ranks:\n      frost:\n        ice_lance: 1\n        frost_armor: 2\n      fire:\n        fireball: 1\n");
+
+        migrate();
+
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml").toFile());
+        assertEquals(31, saved.getInt(profile + ".level"));
+        assertEquals("frost", saved.getString(profile + ".specialization.main"));
+        assertEquals(3, saved.getInt(profile + ".specialization.ranks.frost.ice_lance"));
+        assertEquals(2, saved.getInt(profile + ".specialization.ranks.frost.frost_armor"));
+        assertEquals(1, saved.getInt(profile + ".specialization.ranks.fire.fireball"));
     }
 
     @Test
