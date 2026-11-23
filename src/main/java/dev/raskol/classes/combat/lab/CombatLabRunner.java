@@ -179,7 +179,7 @@ public final class CombatLabRunner {
                 + ",\"ci95_method\":\"" + method + "\"}";
     }
 
-    private static double[] wilsonInterval(int successes, int samples) {
+    private static double[] wilsonInterval(long successes, long samples) {
         double z = 1.959963984540054;
         double p = successes / (double) samples;
         double denominator = 1.0 + z * z / samples;
