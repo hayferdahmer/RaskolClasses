@@ -65,10 +65,7 @@ public final class CharacterProfileStorage {
 
     private void load() {
         YamlConfiguration yaml = SafeStorage.loadWithFallback(file, logger);
-        rejectUnknownKeys(
-                yaml,
-                Set.of(SCHEMA_PATH, PROFILES_PATH, QUEST_REWARDS_PATH),
-                "корневом разделе characters.yml");
+        rejectUnknownKeys(yaml, Set.of(SCHEMA_PATH, PROFILES_PATH, QUEST_REWARDS_PATH), "корневом разделе characters.yml");
         int schemaVersion = readInteger(yaml, SCHEMA_PATH, 0);
         if (schemaVersion < 0 || schemaVersion > CURRENT_STORAGE_SCHEMA_VERSION) {
             throw new IllegalStateException("Неподдерживаемая версия characters.yml: " + schemaVersion);
