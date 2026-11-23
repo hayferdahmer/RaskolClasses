@@ -167,7 +167,7 @@ class Spec2StorageMigrationTest {
 
         assertThrows(IllegalStateException.class, this::migrate);
 
-        assertEquals(oldBackup, Files.readString(tempDir.resolve("characters.yml.bak")));
+        assertEquals(oldMain, Files.readString(tempDir.resolve("characters.yml.bak")));
         assertTrue(source.isFile());
         assertFalse(tempDir.resolve("spec2-storage.yml.migrated").toFile().exists());
     }
