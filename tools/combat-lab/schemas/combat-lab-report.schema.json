@@ -48,21 +48,23 @@
     "rate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["value", "ci95_low", "ci95_high"],
+      "required": ["value", "ci95_low", "ci95_high", "ci95_method"],
       "properties": {
         "value": { "type": "number", "minimum": 0, "maximum": 1 },
         "ci95_low": { "type": "number", "minimum": 0, "maximum": 1 },
-        "ci95_high": { "type": "number", "minimum": 0, "maximum": 1 }
+        "ci95_high": { "type": "number", "minimum": 0, "maximum": 1 },
+        "ci95_method": { "enum": ["wilson", "bootstrap_percentile"] }
       }
     },
     "nonNegativeMetric": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["value", "ci95_low", "ci95_high"],
+      "required": ["value", "ci95_low", "ci95_high", "ci95_method"],
       "properties": {
         "value": { "type": "number", "minimum": 0 },
         "ci95_low": { "type": "number", "minimum": 0 },
-        "ci95_high": { "type": "number", "minimum": 0 }
+        "ci95_high": { "type": "number", "minimum": 0 },
+        "ci95_method": { "const": "bootstrap_percentile" }
       }
     }
   }
