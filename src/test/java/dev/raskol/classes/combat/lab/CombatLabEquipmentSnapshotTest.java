@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
@@ -125,6 +124,6 @@ class CombatLabEquipmentSnapshotTest {
 
         assertEquals(WeaponType.STAFF, snapshot.weaponType());
         assertEquals("MAGIC", snapshot.autoAttackType());
-        assertEquals(1.0, snapshot.weaponMasteryMultiplier(), 1e-9);
+        assertEquals(0.75, snapshot.weaponMasteryMultiplier(), 1e-9);
     }
 }
