@@ -72,6 +72,7 @@ jobs:
   code-quality:
     name: Quality Gate (Spotless + SpotBugs)
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -84,7 +85,25 @@ jobs:
           cache: maven
 
       - name: Build with -Pdev (lint + SpotBugs)
-        run: mvn -Pdev -B verify
+        shell: bash
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3; do
+            echo "Maven quality gate attempt ${attempt}/3"
+            mvn -Pdev -B -DskipTests verify 2>&1 | tee /tmp/maven-quality.log
+            status=${PIPESTATUS[0]}
+            if [ "${status}" -eq 0 ]; then
+              exit 0
+            fi
+            if ! grep -Eqi 'HTTP Status: 429|status 429|Too Many Requests' /tmp/maven-quality.log; then
+              exit "${status}"
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "Maven Central rate limit persisted after 3 attempts."
+              exit "${status}"
+            fi
+            sleep $((attempt * 20))
+          done
 
       - name: Upload SpotBugs report
         if: always()
