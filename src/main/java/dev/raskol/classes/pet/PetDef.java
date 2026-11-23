@@ -16,6 +16,8 @@ import org.bukkit.entity.EntityType;
  * Scaling (дизайн A2): hp = baseHp + attr×2; dmg = baseDmg + power×0.3;
  * attr/power берутся по полям hpAttr ("str"/"int") и powerTag ("wp"/"sp"),
  * затем умножаются на (1 + spec2 pet_hp_pct / pet_dmg_pct / 100) в PetMath.
+ * baseAttackIntervalTicks — начальная калибровочная частота управляемого pet attack scheduler;
+ * её нужно подтвердить live smoke на Paper 26.2 до включения speed talents.
  * Элементалей Мага в деревьях НЕТ — в реестр не входят.
  */
 public record PetDef(
