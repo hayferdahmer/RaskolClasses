@@ -767,10 +767,7 @@ public final class CombatService implements Listener {
         if (player == null) {
             return false;
         }
-        UUID uuid = player.getUniqueId();
-        double baseChance = plugin.getAttributes().critMeleeChance(uuid);
-        double bonus = safePct(plugin.getSpec2Service().critRangedBonus(uuid));
-        double chance = Math.max(0.0, Math.min(100.0, baseChance + bonus * 100.0));
+        double chance = plugin.getAttributes().critRangedChance(player.getUniqueId());
         return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0 < chance;
     }
 
