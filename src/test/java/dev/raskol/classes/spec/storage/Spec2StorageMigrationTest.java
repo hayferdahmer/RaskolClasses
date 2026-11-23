@@ -95,7 +95,8 @@ class Spec2StorageMigrationTest {
         Files.writeString(tempDir.resolve("characters.yml"), characters.saveToString());
         write(
                 "spec2-storage.yml",
-                "players:\n  " + playerId + ":\n    main: discipline\n    ranks:\n      discipline:\n        shield_wall: 2\n");
+                "players:\n  " + playerId
+                        + ":\n    main: discipline\n    ranks:\n      discipline:\n        shield_wall: 2\n");
 
         migrate();
 
@@ -115,8 +116,7 @@ class Spec2StorageMigrationTest {
         assertEquals(2, backup.getInt(profile + ".specialization.ranks.discipline.shield_wall"));
         assertEquals(23, backup.getInt(profile + ".level"));
         assertEquals(
-                List.of("quest:crypt-depths:" + playerId),
-                backup.getStringList("processed-quest-rewards." + playerId));
+                List.of("quest:crypt-depths:" + playerId), backup.getStringList("processed-quest-rewards." + playerId));
     }
 
     @Test
@@ -219,8 +219,7 @@ class Spec2StorageMigrationTest {
     void refusesUnknownTopLevelFields() throws IOException {
         UUID playerId = UUID.fromString("a9b1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
         File source = write(
-                "spec2-storage.yml",
-                "players:\n  " + playerId + ":\n    main: fire\nfuture-section:\n  value: 42\n");
+                "spec2-storage.yml", "players:\n  " + playerId + ":\n    main: fire\nfuture-section:\n  value: 42\n");
 
         assertThrows(IllegalStateException.class, this::migrate);
 
@@ -232,9 +231,7 @@ class Spec2StorageMigrationTest {
     @DisplayName("неизвестное поле игрока Spec 2.0 блокирует миграцию и сохраняет исходник")
     void refusesUnknownPlayerFields() throws IOException {
         UUID playerId = UUID.fromString("b9b1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
-        File source = write(
-                "spec2.yml",
-                "players:\n  " + playerId + ":\n    main: fire\n    future-field: 42\n");
+        File source = write("spec2.yml", "players:\n  " + playerId + ":\n    main: fire\n    future-field: 42\n");
 
         assertThrows(IllegalStateException.class, this::migrate);
 
