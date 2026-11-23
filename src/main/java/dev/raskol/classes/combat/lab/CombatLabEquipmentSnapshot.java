@@ -34,8 +34,8 @@ public record CombatLabEquipmentSnapshot(
         double attackIntervalSeconds,
         String cadenceModel) {
 
-    public static final CombatLabEquipmentSnapshot EMPTY =
-            new CombatLabEquipmentSnapshot(Map.of(), List.of(), List.of(), null, null, "PHYSICAL", 1.0, 0.25, "PLAYER_UNARMED_DEFAULT");
+    public static final CombatLabEquipmentSnapshot EMPTY = new CombatLabEquipmentSnapshot(
+            Map.of(), List.of(), List.of(), null, null, "PHYSICAL", 1.0, 0.25, "PLAYER_UNARMED_DEFAULT");
 
     public CombatLabEquipmentSnapshot {
         stats = Map.copyOf(stats);
@@ -47,8 +47,10 @@ public record CombatLabEquipmentSnapshot(
         if (!Double.isFinite(weaponMasteryMultiplier) || weaponMasteryMultiplier < 0.0) {
             throw new IllegalArgumentException("Некорректный множитель WeaponMastery");
         }
-        if (!Double.isFinite(attackIntervalSeconds) || attackIntervalSeconds <= 0.0
-                || cadenceModel == null || cadenceModel.isBlank()) {
+        if (!Double.isFinite(attackIntervalSeconds)
+                || attackIntervalSeconds <= 0.0
+                || cadenceModel == null
+                || cadenceModel.isBlank()) {
             throw new IllegalArgumentException("Некорректная модель интервала автоатаки");
         }
     }
@@ -123,7 +125,8 @@ public record CombatLabEquipmentSnapshot(
                 mainHand == null ? WeaponMastery.FOREIGN : WeaponMastery.masteryMultiplier(playerClass, weaponType);
         WeaponCadence.Profile cadence = mainHand == null
                 ? WeaponCadence.unarmed()
-                : WeaponCadence.forWeapon(weaponType, mainHand.material(), stats.getOrDefault(ItemStat.ATTACK_SPEED, 0.0));
+                : WeaponCadence.forWeapon(
+                        weaponType, mainHand.material(), stats.getOrDefault(ItemStat.ATTACK_SPEED, 0.0));
 
         return new CombatLabEquipmentSnapshot(
                 stats,

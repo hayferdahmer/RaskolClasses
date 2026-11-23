@@ -56,7 +56,6 @@ public final class PaperWeaponCadenceResolver {
             }
         }
         double paperValue = (base + additive + base * multipliedBase) * (1.0 + multipliedTotal);
-        return new AuditResult(
-                material.name(), WeaponCadence.referenceAttackSpeed(material.name()), paperValue);
+        return new AuditResult(material.name(), WeaponCadence.referenceAttackSpeed(material.name()), paperValue);
     }
 }

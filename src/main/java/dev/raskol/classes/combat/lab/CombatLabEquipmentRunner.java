@@ -240,9 +240,13 @@ public final class CombatLabEquipmentRunner {
                 + "      \"equipment\": {\"first_items\":" + stringArray(firstEquipment.equippedItemIds())
                 + ",\"second_items\":" + stringArray(secondEquipment.equippedItemIds())
                 + ",\"first_weapon_type\":\""
-                + (firstEquipment.weaponType() == null ? "NONE" : firstEquipment.weaponType().name())
+                + (firstEquipment.weaponType() == null
+                        ? "NONE"
+                        : firstEquipment.weaponType().name())
                 + "\",\"second_weapon_type\":\""
-                + (secondEquipment.weaponType() == null ? "NONE" : secondEquipment.weaponType().name())
+                + (secondEquipment.weaponType() == null
+                        ? "NONE"
+                        : secondEquipment.weaponType().name())
                 + "\",\"first_attack_type\":\"" + firstEquipment.autoAttackType()
                 + "\",\"second_attack_type\":\"" + secondEquipment.autoAttackType()
                 + "\",\"first_mastery\":" + number(firstEquipment.weaponMasteryMultiplier())

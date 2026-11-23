@@ -56,12 +56,12 @@ import dev.raskol.classes.character.progression.CharacterExperienceService;
 import dev.raskol.classes.classsystem.CharacterLevelService;
 import dev.raskol.classes.classsystem.ClassProvider;
 import dev.raskol.classes.combat.CombatService;
-import dev.raskol.classes.combat.lab.runtime.PaperWeaponCadenceResolver;
 import dev.raskol.classes.combat.ManaSoakedService;
 import dev.raskol.classes.combat.ResistService;
 import dev.raskol.classes.combat.dot.runtime.DotRuntimeOwner;
 import dev.raskol.classes.combat.dot.runtime.PaperDotRuntimeRegistration;
 import dev.raskol.classes.combat.dot.runtime.PaperDotTaskScheduler;
+import dev.raskol.classes.combat.lab.runtime.PaperWeaponCadenceResolver;
 import dev.raskol.classes.combat.runtime.ManaSoakedRuntimeOwner;
 import dev.raskol.classes.combat.runtime.PaperManaSoakedTaskScheduler;
 import dev.raskol.classes.combat.school.ElementalResistService;
@@ -444,13 +444,15 @@ public final class RaskolClasses extends JavaPlugin {
             items.start();
             for (PaperWeaponCadenceResolver.AuditResult audit : PaperWeaponCadenceResolver.auditConfiguredMaterials()) {
                 if (audit.matches()) {
-                    getLogger().info("[CombatLab] Paper weapon cadence verified: " + audit.material()
-                            + " attackSpeed=" + audit.paperAttackSpeed());
+                    getLogger()
+                            .info("[CombatLab] Paper weapon cadence verified: " + audit.material() + " attackSpeed="
+                                    + audit.paperAttackSpeed());
                 } else {
-                    getLogger().warning("[CombatLab] Paper weapon cadence profile mismatch: " + audit.material()
-                            + " expected=" + audit.expectedAttackSpeed()
-                            + " actual=" + audit.paperAttackSpeed()
-                            + "; update Combat Lab reference data before calibration");
+                    getLogger()
+                            .warning("[CombatLab] Paper weapon cadence profile mismatch: " + audit.material()
+                                    + " expected=" + audit.expectedAttackSpeed()
+                                    + " actual=" + audit.paperAttackSpeed()
+                                    + "; update Combat Lab reference data before calibration");
                 }
             }
         }

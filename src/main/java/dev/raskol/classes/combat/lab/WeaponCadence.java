@@ -31,8 +31,11 @@ public final class WeaponCadence {
     }
 
     public static Profile forWeapon(WeaponType weaponType, String materialId, double attackSpeedBonusPct) {
-        if (weaponType == null || materialId == null || materialId.isBlank()
-                || !Double.isFinite(attackSpeedBonusPct) || attackSpeedBonusPct < 0.0) {
+        if (weaponType == null
+                || materialId == null
+                || materialId.isBlank()
+                || !Double.isFinite(attackSpeedBonusPct)
+                || attackSpeedBonusPct < 0.0) {
             throw new IllegalArgumentException("Тип оружия, материал и бонус скорости обязательны");
         }
         if (weaponType == WeaponType.BOW) {
@@ -41,9 +44,11 @@ public final class WeaponCadence {
         if (weaponType == WeaponType.CROSSBOW) {
             return new Profile(1.25, "CROSSBOW_RELOAD_25_TICKS");
         }
-        double baseAttackSpeed = PAPER_26_2_MATERIAL_ATTACK_SPEED.getOrDefault(materialId.toUpperCase(java.util.Locale.ROOT), 0.0);
+        double baseAttackSpeed =
+                PAPER_26_2_MATERIAL_ATTACK_SPEED.getOrDefault(materialId.toUpperCase(java.util.Locale.ROOT), 0.0);
         if (baseAttackSpeed <= 0.0) {
-            throw new IllegalArgumentException("Нет проверенного Paper 26.2 профиля скорости для материала: " + materialId);
+            throw new IllegalArgumentException(
+                    "Нет проверенного Paper 26.2 профиля скорости для материала: " + materialId);
         }
         double effectiveAttackSpeed = baseAttackSpeed * (1.0 + attackSpeedBonusPct / 100.0);
         return new Profile(1.0 / effectiveAttackSpeed, "PAPER_26_2_MATERIAL_ATTACK_SPEED");

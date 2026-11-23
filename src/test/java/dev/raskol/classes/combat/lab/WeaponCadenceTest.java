@@ -26,17 +26,33 @@ class WeaponCadenceTest {
     @DisplayName("полный заряд лука и перезарядка арбалета моделируются отдельно от melee attribute")
     void rangedCadenceUsesChargeAndReloadTime() {
         assertEquals(1.0, WeaponCadence.forWeapon(WeaponType.BOW, "BOW", 50.0).intervalSeconds(), 1.0e-9);
-        assertEquals(1.25, WeaponCadence.forWeapon(WeaponType.CROSSBOW, "CROSSBOW", 50.0).intervalSeconds(), 1.0e-9);
+        assertEquals(
+                1.25,
+                WeaponCadence.forWeapon(WeaponType.CROSSBOW, "CROSSBOW", 50.0).intervalSeconds(),
+                1.0e-9);
     }
 
     @Test
     @DisplayName("материальные скорости Paper 26.2 задают корректный интервал")
     void materialProfilesMatchVanillaAttackSpeed() {
-        assertEquals(0.625, WeaponCadence.forWeapon(WeaponType.SWORD, "IRON_SWORD", 0.0).intervalSeconds(), 1.0e-9);
-        assertEquals(1.0 / 0.9, WeaponCadence.forWeapon(WeaponType.AXE, "IRON_AXE", 0.0).intervalSeconds(), 1.0e-9);
-        assertEquals(1.0 / 0.6, WeaponCadence.forWeapon(WeaponType.MACE, "MACE", 0.0).intervalSeconds(), 1.0e-9);
-        assertEquals(1.0 / 1.1, WeaponCadence.forWeapon(WeaponType.SPEAR, "TRIDENT", 0.0).intervalSeconds(), 1.0e-9);
-        assertEquals(0.25, WeaponCadence.forWeapon(WeaponType.STAFF, "BLAZE_ROD", 0.0).intervalSeconds(), 1.0e-9);
+        assertEquals(
+                0.625,
+                WeaponCadence.forWeapon(WeaponType.SWORD, "IRON_SWORD", 0.0).intervalSeconds(),
+                1.0e-9);
+        assertEquals(
+                1.0 / 0.9,
+                WeaponCadence.forWeapon(WeaponType.AXE, "IRON_AXE", 0.0).intervalSeconds(),
+                1.0e-9);
+        assertEquals(
+                1.0 / 0.6, WeaponCadence.forWeapon(WeaponType.MACE, "MACE", 0.0).intervalSeconds(), 1.0e-9);
+        assertEquals(
+                1.0 / 1.1,
+                WeaponCadence.forWeapon(WeaponType.SPEAR, "TRIDENT", 0.0).intervalSeconds(),
+                1.0e-9);
+        assertEquals(
+                0.25,
+                WeaponCadence.forWeapon(WeaponType.STAFF, "BLAZE_ROD", 0.0).intervalSeconds(),
+                1.0e-9);
     }
 
     @Test
