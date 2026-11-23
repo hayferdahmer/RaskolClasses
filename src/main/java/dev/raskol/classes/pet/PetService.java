@@ -588,18 +588,11 @@ public final class PetService implements Listener {
         }
 
         double physicalBonus = talentPct(ownerId, "pet_phys_dmg_pct");
-        if (physicalBonus > 0.0) {
-            event.setDamage(event.getDamage() * (1.0 + physicalBonus / 100.0));
-        }
-
-        double critChance = talentPct(ownerId, "pet_crit_pct");
-        boolean critical = rollPercent(critChance);
-        if (critical) {
-            double critMultiplier = 1.5;
-            if (rollPercent(talentPct(ownerId, "pet_crit_bonus"))) {
-                critMultiplier += 0.5;
-            }
-            event.setDamage(event.getDamage() * critMultiplier);
+        boolean critical = rollPercent(talentPct(ownerId, "pet_crit_pct"));
+        boolean empoweredCritical = critical && rollPercent(talentPct(ownerId, "pet_crit_bonus"));
+        double multiplier = PetTalentMath.outgoingDamageMultiplier(physicalBonus, critical, empoweredCritical);
+        if (multiplier > 1.0 && Double.isFinite(event.getDamage()) && event.getDamage() > 0.0) {
+            event.setDamage(event.getDamage() * multiplier);
         }
     }
 
@@ -678,7 +671,8 @@ public final class PetService implements Listener {
     }
 
     private static boolean rollPercent(double chance) {
-        return chance > 0.0 && ThreadLocalRandom.current().nextDouble(100.0) < chance;
+        double bounded = PetTalentMath.chance(chance);
+        return bounded > 0.0 && ThreadLocalRandom.current().nextDouble(100.0) < bounded;
     }
 
 
