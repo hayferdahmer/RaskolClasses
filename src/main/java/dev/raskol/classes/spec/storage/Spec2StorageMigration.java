@@ -67,7 +67,8 @@ final class Spec2StorageMigration {
             throw exception;
         }
         if (!legacyReadable) {
-            if (currentLoad.status() != SafeStorage.LoadStatus.NEW && !current.getKeys(true).isEmpty()) {
+            if (currentLoad.status() != SafeStorage.LoadStatus.NEW
+                    && !current.getKeys(true).isEmpty()) {
                 logger.severe("spec2: legacy-файл не читается; используем существующее новое хранилище, "
                         + "legacy оставлен без изменений");
                 return current;
@@ -75,7 +76,9 @@ final class Spec2StorageMigration {
             throw new IllegalStateException(
                     "spec2: legacy-файл существует, но не читается; безопасная миграция невозможна");
         }
-        if (legacyReadable && current.getKeys(true).isEmpty() && !legacy.getKeys(true).isEmpty()) {
+        if (legacyReadable
+                && current.getKeys(true).isEmpty()
+                && !legacy.getKeys(true).isEmpty()) {
             if (SafeStorage.saveAtomic(legacy, newFile, logger)) {
                 logger.info("spec2: новая копия проверена и записана; legacy сохранён для ручной проверки: "
                         + OLD_FILE_NAME + " → " + NEW_FILE_NAME);
@@ -86,10 +89,14 @@ final class Spec2StorageMigration {
             return legacy;
         }
 
-        if (legacyReadable && !legacy.getKeys(true).isEmpty() && !current.getKeys(true).isEmpty()) {
+        if (legacyReadable
+                && !legacy.getKeys(true).isEmpty()
+                && !current.getKeys(true).isEmpty()) {
             logger.warning("spec2: обнаружены оба файла с данными; используем " + NEW_FILE_NAME + ", legacy "
                     + OLD_FILE_NAME + " не удаляем автоматически");
-        } else if (legacyReadable && current.getKeys(true).isEmpty() && legacy.getKeys(true).isEmpty()) {
+        } else if (legacyReadable
+                && current.getKeys(true).isEmpty()
+                && legacy.getKeys(true).isEmpty()) {
             logger.info("spec2: пустой legacy-файл сохранён без изменений: " + OLD_FILE_NAME);
         }
         return current;
@@ -101,9 +108,7 @@ final class Spec2StorageMigration {
         } catch (NoSuchFileException exception) {
             return null;
         } catch (IOException exception) {
-            throw new IllegalStateException(
-                    "spec2: невозможно проверить путь хранилища " + file.getName(), exception);
+            throw new IllegalStateException("spec2: невозможно проверить путь хранилища " + file.getName(), exception);
         }
     }
 }
-
