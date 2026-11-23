@@ -25,6 +25,7 @@ import dev.raskol.classes.item.model.ItemStat;
 import dev.raskol.classes.item.model.SetDefinition;
 import dev.raskol.classes.item.model.WeaponType;
 import dev.raskol.classes.item.service.ItemRegistry;
+import dev.raskol.classes.spec.Spec;
 
 @DisplayName("Combat Lab: equipment snapshot and duel contracts")
 class CombatLabEquipmentSnapshotTest {
@@ -134,6 +135,22 @@ class CombatLabEquipmentSnapshotTest {
                     CombatLabEquipmentSnapshot.from(production, playerClass, 60, ItemRarity.EPIC, null, 20261123L);
             assertFalse(snapshot.equippedItemIds().isEmpty(), playerClass + " должен получить экипировку");
             assertNotNull(snapshot.mainHandItemId(), playerClass + " должен получить основное оружие");
+        }
+    }
+
+    @Test
+    @DisplayName("все 18 специализаций получают собственный комплект и set thresholds")
+    void specializationGearIsSelectedForEverySpec() throws Exception {
+        ItemRegistry production = ItemConfigLoader.loadHeadless(new File("src/main/resources/items.yml"));
+        for (Spec spec : Spec.values()) {
+            var snapshot = CombatLabEquipmentSnapshot.from(
+                    production, spec.playerClass(), 60, ItemRarity.EPIC, spec.id(), 20261123L);
+            assertEquals(5, snapshot.equippedItemIds().size(), spec.id());
+            assertTrue(snapshot.mainHandItemId().contains("spec_" + spec.id() + "_main_hand"));
+            assertTrue(snapshot.activeSetIds().contains(spec.id() + "_regalia"));
+            for (String itemId : snapshot.equippedItemIds()) {
+                assertEquals(spec.id(), production.get(itemId).spec(), itemId);
+            }
         }
     }
 
