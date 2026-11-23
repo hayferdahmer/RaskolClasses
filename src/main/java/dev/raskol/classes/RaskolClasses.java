@@ -347,7 +347,7 @@ public final class RaskolClasses extends JavaPlugin {
                         + getServer().getBukkitVersion());
 
         StartupChecks.logCoreVersion(this);
-        StartupChecks.cleanupTmpFiles(this);
+        StartupChecks.reportStaleTmpFiles(getDataFolder(), getLogger());
 
         return getServer().getPluginManager();
     }

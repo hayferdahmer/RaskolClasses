@@ -4,6 +4,7 @@ package dev.raskol.classes.storage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -11,13 +12,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Проверки восстановления YAML и атомарной записи. */
+/** Проверки восстановления YAML, карантина повреждённых копий и атомарной записи. */
 @DisplayName("SafeStorage: восстановление и атомарная запись")
 class SafeStorageTest {
 
@@ -27,24 +29,27 @@ class SafeStorageTest {
     Path tempDir;
 
     @Test
-    @DisplayName("отсутствие файла и sidecar-файлов означает новое хранилище")
+    @DisplayName("отсутствие всех копий означает новое хранилище")
     void missingStorageStartsEmpty() {
-        assertTrue(SafeStorage.loadWithFallback(tempDir.resolve("fresh.yml").toFile(), LOGGER)
-                .getKeys(true)
-                .isEmpty());
+        SafeStorage.LoadResult result =
+                SafeStorage.load(tempDir.resolve("fresh.yml").toFile(), LOGGER);
+
+        assertEquals(SafeStorage.LoadStatus.NEW, result.status());
+        assertTrue(result.configuration().getKeys(true).isEmpty());
     }
 
     @Test
-    @DisplayName("основной файл имеет приоритет, устаревший tmp удаляется")
-    void mainFileWinsAndStaleTmpIsRemoved() throws IOException {
+    @DisplayName("основной файл имеет приоритет, временная копия сохраняется")
+    void mainFileWinsAndStaleTmpIsRetained() throws IOException {
         File file = write("main.yml", "value: main\n");
         File tmp = new File(file.getParentFile(), file.getName() + ".tmp");
         Files.writeString(tmp.toPath(), "value: tmp\n");
 
-        YamlConfiguration loaded = SafeStorage.loadWithFallback(file, LOGGER);
+        SafeStorage.LoadResult result = SafeStorage.load(file, LOGGER);
 
-        assertEquals("main", loaded.getString("value"));
-        assertFalse(tmp.exists());
+        assertEquals(SafeStorage.LoadStatus.LOADED_MAIN, result.status());
+        assertEquals("main", result.configuration().getString("value"));
+        assertTrue(tmp.exists());
     }
 
     @Test
@@ -53,30 +58,58 @@ class SafeStorageTest {
         File file = tempDir.resolve("tmp-recovery.yml").toFile();
         Files.writeString(new File(file.getParentFile(), file.getName() + ".tmp").toPath(), "value: latest\n");
 
-        assertEquals("latest", SafeStorage.loadWithFallback(file, LOGGER).getString("value"));
+        SafeStorage.LoadResult result = SafeStorage.load(file, LOGGER);
+
+        assertEquals(SafeStorage.LoadStatus.RECOVERED_TMP, result.status());
+        assertEquals("latest", result.configuration().getString("value"));
     }
 
     @Test
-    @DisplayName("повреждённый основной файл восстанавливается из bak")
-    void corruptMainRestoresBackup() throws IOException {
+    @DisplayName("повреждённый основной файл сохраняется в карантин, затем восстанавливается bak")
+    void corruptMainIsQuarantinedAndBackupRestored() throws IOException {
         File file = write("backup-recovery.yml", "value: [unterminated\n");
         Files.writeString(new File(file.getParentFile(), file.getName() + ".bak").toPath(), "value: backup\n");
 
-        assertEquals("backup", SafeStorage.loadWithFallback(file, LOGGER).getString("value"));
+        SafeStorage.LoadResult result = SafeStorage.load(file, LOGGER);
+
+        assertEquals(SafeStorage.LoadStatus.RECOVERED_BACKUP, result.status());
+        assertEquals("backup", result.configuration().getString("value"));
+        assertTrue(Files.exists(file.toPath()), "Оригинал повреждённого файла не удаляется");
+        assertEquals(1, countFilesEndingWith(".quarantine"));
+        assertEquals(1, countFilesEndingWith(".quarantine.json"));
     }
 
     @Test
-    @DisplayName("если все копии повреждены, возвращается пустая конфигурация")
-    void unusableCopiesReturnEmptyConfiguration() throws IOException {
+    @DisplayName("если все копии повреждены, загрузка завершается ошибкой и сохраняет доказательства")
+    void unusableCopiesFailClosedAndAreQuarantined() throws IOException {
         File file = write("broken.yml", "value: [broken\n");
         Files.writeString(new File(file.getParentFile(), file.getName() + ".tmp").toPath(), "value: [broken\n");
         Files.writeString(new File(file.getParentFile(), file.getName() + ".bak").toPath(), "value: [broken\n");
 
-        assertTrue(SafeStorage.loadWithFallback(file, LOGGER).getKeys(true).isEmpty());
+        SafeStorage.StorageLoadException exception =
+                assertThrows(SafeStorage.StorageLoadException.class, () -> SafeStorage.load(file, LOGGER));
+
+        assertEquals(SafeStorage.LoadStatus.CORRUPT, exception.status());
+        assertTrue(Files.exists(file.toPath()));
+        assertEquals(3, countFilesEndingWith(".quarantine"));
+        assertEquals(3, countFilesEndingWith(".quarantine.json"));
+        assertThrows(SafeStorage.StorageLoadException.class, () -> SafeStorage.loadWithFallback(file, LOGGER));
     }
 
     @Test
-    @DisplayName("повторное сохранение оставляет предыдущую версию в bak")
+    @DisplayName("сохранение не перезаписывает повреждённый основной файл")
+    void atomicSaveDoesNotOverwriteCorruptMain() throws IOException {
+        File file = write("do-not-overwrite.yml", "value: [broken\n");
+        String original = Files.readString(file.toPath());
+        YamlConfiguration replacement = new YamlConfiguration();
+        replacement.set("value", "replacement");
+
+        assertFalse(SafeStorage.saveAtomic(replacement, file, LOGGER));
+        assertEquals(original, Files.readString(file.toPath()));
+    }
+
+    @Test
+    @DisplayName("валидный снимок сохраняется, предыдущая версия остаётся в bak")
     void atomicSaveCreatesBackup() throws IOException {
         File file = tempDir.resolve("atomic.yml").toFile();
         YamlConfiguration first = new YamlConfiguration();
@@ -103,6 +136,13 @@ class SafeStorageTest {
         configuration.set("value", "must-not-be-lost");
 
         assertFalse(SafeStorage.saveAtomic(configuration, target, LOGGER));
+    }
+
+    private long countFilesEndingWith(String suffix) throws IOException {
+        try (Stream<Path> files = Files.list(tempDir)) {
+            return files.filter(path -> path.getFileName().toString().endsWith(suffix))
+                    .count();
+        }
     }
 
     private File write(String name, String content) throws IOException {

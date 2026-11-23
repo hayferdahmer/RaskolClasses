@@ -4,6 +4,7 @@ package dev.raskol.classes.spec.storage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -27,7 +28,7 @@ class Spec2StorageMigrationTest {
     Path tempDir;
 
     @Test
-    @DisplayName("legacy копируется и удаляется только после успешной записи")
+    @DisplayName("legacy копируется, но исходный файл сохраняется после успешной записи")
     void migratesLegacyAfterSuccessfulCopy() throws IOException {
         File legacy = write("spec2.yml", "players:\n  test:\n    main: fire\n");
         YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
@@ -35,7 +36,7 @@ class Spec2StorageMigrationTest {
 
         assertEquals("fire", loaded.getString("players.test.main"));
         assertTrue(current.isFile());
-        assertFalse(legacy.exists());
+        assertTrue(legacy.isFile());
         assertEquals("fire", YamlConfiguration.loadConfiguration(current).getString("players.test.main"));
     }
 
@@ -78,14 +79,53 @@ class Spec2StorageMigrationTest {
     }
 
     @Test
-    @DisplayName("пустой legacy-файл удаляется без создания записей")
-    void removesEmptyLegacyFile() throws IOException {
+    @DisplayName("пустой legacy-файл сохраняется без создания записей")
+    void preservesEmptyLegacyFile() throws IOException {
         File legacy = write("spec2.yml", "{}\n");
 
         YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
 
         assertTrue(loaded.getKeys(true).isEmpty());
-        assertFalse(legacy.exists());
+        assertTrue(legacy.isFile());
+    }
+
+    @Test
+    @DisplayName("нечитаемый legacy без пригодного нового хранилища блокирует запуск")
+    void failsClosedWhenLegacyIsUnreadableAndNoCurrentStoreExists() throws IOException {
+        File legacy = write("spec2.yml", "players: [unterminated\n");
+
+        assertThrows(IllegalStateException.class, () -> Spec2StorageMigration.load(tempDir.toFile(), LOGGER));
+
+        assertTrue(legacy.isFile());
+        assertFalse(tempDir.resolve("spec2-storage.yml").toFile().exists());
+    }
+
+    @Test
+    @DisplayName("повреждённое новое хранилище не мешает восстановлению из читаемого legacy")
+    void fallsBackToLegacyWhenCurrentStorageIsCorrupt() throws IOException {
+        File legacy = write("spec2.yml", "players:\n  preserved:\n    main: frost\n");
+        File current = write("spec2-storage.yml", "players: [unterminated\n");
+
+        YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
+
+        assertEquals("frost", loaded.getString("players.preserved.main"));
+        assertTrue(legacy.isFile());
+        assertTrue(current.isFile());
+        try (var files = Files.list(tempDir)) {
+            assertTrue(files.anyMatch(path -> path.getFileName().toString().endsWith(".quarantine")));
+        }
+    }
+
+    @Test
+    @DisplayName("при отсутствии main миграция восстанавливает существующий backup")
+    void recoversCurrentBackupWhenMainIsMissing() throws IOException {
+        write("spec2.yml", "players:\n  legacy:\n    main: old\n");
+        write("spec2-storage.yml.bak", "players:\n  current:\n    main: new\n");
+
+        YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
+
+        assertEquals("new", loaded.getString("players.current.main"));
+        assertTrue(tempDir.resolve("spec2-storage.yml").toFile().isFile());
     }
 
     private File write(String name, String content) throws IOException {
