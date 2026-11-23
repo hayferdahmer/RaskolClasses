@@ -227,12 +227,12 @@ public final class SafeStorage {
             Files.writeString(metadata, json);
             logger.severe("SafeStorage: повреждённая копия сохранена в карантин: " + quarantine.getFileName());
         } catch (IOException | NoSuchAlgorithmException exception) {
-            logger.log(Level.SEVERE,
-                    "SafeStorage: не удалось безопасно поместить " + damaged.getName()
+            logger.log(
+                    Level.SEVERE, "SafeStorage: не удалось безопасно поместить " + damaged.getName()
                             + " в карантин; исходник оставлен, дальнейшая работа запрещена",
                     exception);
-            throw new StorageLoadException(LoadStatus.IO_ERROR,
-                    "SafeStorage: карантин повреждённой копии не подтверждён", exception);
+            throw new StorageLoadException(
+                    LoadStatus.IO_ERROR, "SafeStorage: карантин повреждённой копии не подтверждён", exception);
         }
     }
 
@@ -254,10 +254,12 @@ public final class SafeStorage {
     }
 
     private static String escapeJson(String value) {
-        return value == null ? "" : value.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r");
+        return value == null
+                ? ""
+                : value.replace("\\", "\\\\")
+                        .replace("\"", "\\\"")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r");
     }
 
     private static File sibling(File file, String suffix) {
