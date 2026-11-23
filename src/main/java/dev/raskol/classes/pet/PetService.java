@@ -26,8 +26,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
@@ -581,7 +581,8 @@ public final class PetService implements Listener {
             return;
         }
         Player owner = plugin.getServer().getPlayer(ownerId);
-        if (owner == null || !(event.getEntity() instanceof LivingEntity target)
+        if (owner == null
+                || !(event.getEntity() instanceof LivingEntity target)
                 || !plugin.getCombat().canHit(owner, target)) {
             event.setCancelled(true);
             return;
@@ -614,12 +615,14 @@ public final class PetService implements Listener {
     /** Дикая связь: питомец повторяет часть уже рассчитанного урона хозяина. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onOwnerDamageCopy(EntityDamageByEntityEvent event) {
-        if (SUPPRESS_PET_TALENTS.get() || !(event.getDamager() instanceof Player owner)
+        if (SUPPRESS_PET_TALENTS.get()
+                || !(event.getDamager() instanceof Player owner)
                 || !(event.getEntity() instanceof LivingEntity target)) {
             return;
         }
         LivingEntity pet = petOf(owner);
-        if (pet == null || !plugin.getCombat().canHit(owner, target)
+        if (pet == null
+                || !plugin.getCombat().canHit(owner, target)
                 || !rollPercent(talentPct(owner.getUniqueId(), "pet_copy"))) {
             return;
         }
@@ -674,7 +677,6 @@ public final class PetService implements Listener {
         double bounded = PetTalentMath.chance(chance);
         return bounded > 0.0 && ThreadLocalRandom.current().nextDouble(100.0) < bounded;
     }
-
 
     /** A4: пет не бьёт союзников/владельца; ретаргет пета на цель владельца. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
