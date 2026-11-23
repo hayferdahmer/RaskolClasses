@@ -1053,6 +1053,10 @@ public final class Spec2Service {
         return procBonus(uuid, "pet_dmg_pct");
     }
 
+    public double petAttackSpeedPercent(UUID uuid) {
+        return procBonus(uuid, "pet_attack_speed_pct");
+    }
+
     public double trapDamagePercent(UUID uuid) {
         return procBonus(uuid, "trap_dmg_pct");
     }
