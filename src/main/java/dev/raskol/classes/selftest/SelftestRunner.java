@@ -698,17 +698,15 @@ public final class SelftestRunner {
         java.io.File[] leftovers = tmpDir.listFiles();
         if (leftovers != null) {
             for (java.io.File f : leftovers) {
-                // 1.15.8 (Волна 8): результат delete() проверяется; неудача не роняет
-                // чек (файлы уберёт StartupChecks.cleanupTmpFiles), но видна в отчёте.
+                // Selftest удаляет только собственные временные файлы; общий startup-код
+                // не удаляет .tmp, поскольку они могут содержать последнюю пригодную копию.
                 if (!f.delete()) {
-                    r.note("⚠ 143: не удалось удалить временный файл " + f.getName()
-                            + " (подберёт cleanupTmpFiles на старте)");
+                    r.note("⚠ 143: не удалось удалить собственный временный файл " + f.getName());
                 }
             }
         }
         if (!tmpDir.delete()) {
-            r.note("⚠ 143: не удалось удалить временную директорию " + tmpDir.getName()
-                    + " (подберёт cleanupTmpFiles на старте)");
+            r.note("⚠ 143: не удалось удалить собственную временную директорию " + tmpDir.getName());
         }
         r.check(
                 "143",
