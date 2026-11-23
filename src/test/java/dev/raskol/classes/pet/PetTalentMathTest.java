@@ -23,6 +23,16 @@ class PetTalentMathTest {
     }
 
     @Test
+    @DisplayName("fractional Spec2 proc chances convert to percent exactly once")
+    void fractionalProcChanceConvertsToPercent() {
+        assertEquals(5.0, PetTalentMath.chancePercentFromFraction(0.05), 0.0001);
+        assertEquals(25.0, PetTalentMath.chancePercentFromFraction(0.25), 0.0001);
+        assertEquals(100.0, PetTalentMath.chancePercentFromFraction(1.5), 0.0001);
+        assertEquals(0.0, PetTalentMath.chancePercentFromFraction(-0.1), 0.0001);
+        assertEquals(0.0, PetTalentMath.chancePercentFromFraction(Double.NaN), 0.0001);
+    }
+
+    @Test
     @DisplayName("pet physical rank bonus and critical talent compose once")
     void damageMultipliersCompose() {
         assertEquals(1.20, PetTalentMath.outgoingDamageMultiplier(20.0, false, false), 0.0001);
