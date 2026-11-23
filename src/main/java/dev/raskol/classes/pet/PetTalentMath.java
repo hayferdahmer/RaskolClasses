@@ -21,7 +21,8 @@ final class PetTalentMath {
         return PetMath.damage(baseDamage, power, 0.0, buffMultiplier);
     }
 
-    static double outgoingDamage(double baseDamage, double physicalBonusPct, boolean critical, boolean empoweredCritical) {
+    static double outgoingDamage(
+            double baseDamage, double physicalBonusPct, boolean critical, boolean empoweredCritical) {
         double safeBase = Double.isFinite(baseDamage) ? Math.max(0.0, baseDamage) : 0.0;
         return safeBase * outgoingDamageMultiplier(physicalBonusPct, critical, empoweredCritical);
     }
