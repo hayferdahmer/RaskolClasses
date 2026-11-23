@@ -1,0 +1,73 @@
+# © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+# SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+# Вспомогательное обслуживание лицензионных заголовков только через PR.
+name: License Maintenance (PR only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: "Ветка, для которой подготовить PR с лицензионными заголовками"
+        required: true
+        default: "main"
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: license-maintenance-${{ inputs.target_branch }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-license-pr:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Validate target branch
+        env:
+          TARGET_BRANCH: ${{ inputs.target_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${TARGET_BRANCH}" == "" || "${TARGET_BRANCH}" == "main" && "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::Run this workflow from the target branch and provide its exact name."
+            exit 1
+          fi
+          if [[ "${TARGET_BRANCH}" != "${GITHUB_REF_NAME}" ]]; then
+            echo "::error::Dispatch the workflow from the same branch selected as target."
+            exit 1
+          fi
+
+      - name: Checkout target branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.target_branch }}
+          persist-credentials: false
+
+      - name: Apply and verify license headers
+        run: |
+          python3 tools/apply-license-header.py --apply
+          python3 tools/apply-license-header.py --check
+
+      - name: Create a reviewable pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/license-maintenance-${{ github.run_id }}
+          base: ${{ inputs.target_branch }}
+          delete-branch: true
+          commit-message: "chore(license): apply verified v2.0 headers"
+          title: "chore(license): apply verified v2.0 headers"
+          body: |
+            Автоматически подготовлен вспомогательным License Maintenance workflow.
+
+            - Изменения ограничены результатом tools/apply-license-header.py.
+            - Проверка --check выполнена до создания PR.
+            - Никаких прямых записей в целевую ветку нет.
+            - Обязательные CI-проверки должны пройти до слияния.
+          add-paths: |
+            **/*.java
+            **/*.yml
+            **/*.yaml
+            **/*.xml
