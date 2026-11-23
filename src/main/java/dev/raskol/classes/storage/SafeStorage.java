@@ -144,7 +144,7 @@ public final class SafeStorage {
             try {
                 parse(candidate.toPath());
             } catch (InvalidConfigurationException exception) {
-                quarantine(primary, candidate, exception, logger);
+                quarantine(candidate, candidate, exception, logger);
                 quarantined.add(candidate);
             } catch (IOException exception) {
                 logger.log(Level.SEVERE, "SafeStorage: не удалось проверить копию " + candidate.getName(), exception);
