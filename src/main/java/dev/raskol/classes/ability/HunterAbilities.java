@@ -164,11 +164,13 @@ public final class HunterAbilities extends AbstractKit {
             if (!plugin.getCombat().canHit(shooter, target)) {
                 return;
             }
-            plugin.getCombat().dealDamage(
-                    target,
-                    shooter,
-                    DamageProfile.physical(damage),
-                    DamageSourceContext.ability(shooter.getUniqueId(), target.getUniqueId(), "arrow_fan", false));
+            plugin.getCombat()
+                    .dealDamage(
+                            target,
+                            shooter,
+                            DamageProfile.physical(damage),
+                            DamageSourceContext.ability(
+                                    shooter.getUniqueId(), target.getUniqueId(), "arrow_fan", false));
         }
     }
 
