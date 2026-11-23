@@ -86,21 +86,18 @@ public record CombatLabEquipmentSnapshot(
             rolled.add(AffixRoller.roll(item.affixPool(), item.affixCount(), item.itemLevel(), itemSeed));
         }
 
+        // Повторяем аккумуляцию ItemHook: базовые статы + affix-rolls,
+        // ATTACK_DAMAGE учитывается только для MAIN_HAND.
         Map<ItemStat, Double> aggregated = new EnumMap<>(ItemStat.class);
-        aggregated.putAll(ItemStatAggregator.aggregate(equipped, rolled, playerClass, spec, level));
-        // Runtime ItemHook принимает ATTACK_DAMAGE только с MAIN_HAND; сохраняем тот же контракт.
-        double mainHandDamage = 0.0;
         for (int i = 0; i < equipped.size(); i++) {
             ItemDefinition item = equipped.get(i);
-            if (item.slot() == ItemSlot.MAIN_HAND) {
-                mainHandDamage += item.baseStats().getOrDefault(ItemStat.ATTACK_DAMAGE, 0.0);
-                mainHandDamage += rolled.get(i).getOrDefault(ItemStat.ATTACK_DAMAGE, 0.0);
-            }
-        }
-        if (mainHandDamage > 0.0) {
-            aggregated.put(ItemStat.ATTACK_DAMAGE, ItemStat.ATTACK_DAMAGE.clamp(mainHandDamage));
-        } else {
-            aggregated.remove(ItemStat.ATTACK_DAMAGE);
+            boolean weaponSlot = item.slot() == ItemSlot.MAIN_HAND;
+            item.baseStats().forEach((stat, value) -> {
+                if (stat != ItemStat.ATTACK_DAMAGE || weaponSlot) aggregated.merge(stat, value, Double::sum);
+            });
+            rolled.get(i).forEach((stat, value) -> {
+                if (stat != ItemStat.ATTACK_DAMAGE || weaponSlot) aggregated.merge(stat, value, Double::sum);
+            });
         }
 
         SetBonusService setBonusService = new SetBonusService();
@@ -108,7 +105,7 @@ public record CombatLabEquipmentSnapshot(
         UUID snapshotId = UUID.nameUUIDFromBytes(
                 (playerClass.name() + ":" + level + ":" + spec + ":" + seed).getBytes(StandardCharsets.UTF_8));
         Map<ItemStat, Double> stats = setBonusService.apply(snapshotId, equipped, aggregated);
-        stats.replaceAll((stat, value) -> stat.clamp(value));
+        stats.replaceAll((stat, value) -> Double.isFinite(value) ? value : 0.0);
 
         List<String> activeSets = setBonusService.active(snapshotId).stream()
                 .filter(active -> !active.activeThresholds().isEmpty())
