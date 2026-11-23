@@ -7,21 +7,23 @@ import java.util.Random;
 import dev.raskol.classes.combat.CombatMath;
 
 /**
- * Первый детерминированный headless-профиль: стандартизированный бой без экипировки.
- *
- * Это калибровочный probe для проверки общих формул характеристик, крита,
- * уклонения, резиста и анти-ваншот-капа. Он намеренно НЕ моделирует способности,
- * таланты, предметы, проки, питомцев, CC, школы и Paper events.
+ * Детерминированный движок дуэлей Combat Lab.
+ * Профиль без экипировки остаётся контрольным; экипированные снимки используют
+ * runtime-формулы VanillaDamageListener, PowerService и WeaponMastery.
  */
 public final class CombatLabDuelEngine {
 
     public static final String PROFILE_ID = "pvp-unarmed-melee-probe-v1";
+    public static final String EQUIPMENT_PROFILE_ID = "pvp-equipment-auto-attack-v1";
     private static final double DEFAULT_ATTACK_INTERVAL_SECONDS = 0.8;
     private static final double DEFAULT_MAX_DURATION_SECONDS = 60.0;
 
     public record Rules(
             double unarmedBaseDamage,
             double weaponPowerCoefficient,
+            double magicPowerCoefficient,
+            boolean strengthToPhysical,
+            boolean intellectToMagic,
             double attackIntervalSeconds,
             double singleHitCapPct,
             double resistCapPct,
@@ -30,6 +32,7 @@ public final class CombatLabDuelEngine {
         public Rules {
             if (!finiteNonNegative(unarmedBaseDamage)
                     || !finiteNonNegative(weaponPowerCoefficient)
+                    || !finiteNonNegative(magicPowerCoefficient)
                     || !Double.isFinite(attackIntervalSeconds)
                     || attackIntervalSeconds <= 0.0
                     || !finiteNonNegative(singleHitCapPct)
@@ -46,6 +49,9 @@ public final class CombatLabDuelEngine {
             return new Rules(
                     1.0,
                     config.getDouble("attributes.offense.basic-coeff", 0.35),
+                    config.getDouble("attributes.offense.basic-coeff-magic", 0.35),
+                    config.getBoolean("attributes.offense.str-to-physical", false),
+                    config.getBoolean("attributes.offense.int-to-magic", false),
                     DEFAULT_ATTACK_INTERVAL_SECONDS,
                     config.getDouble("combat.max-single-hit-pct", 35.0),
                     config.getDouble("resist.pvp-cap", 90.0),
@@ -75,6 +81,21 @@ public final class CombatLabDuelEngine {
 
     public static DuelResult duel(
             CombatLabCombatantSnapshot first, CombatLabCombatantSnapshot second, Rules rules, long seed) {
+        return duelInternal(first, second, rules, seed, false);
+    }
+
+    /** Дуэль с включёнными экипировкой, типом автоатаки и WeaponMastery. */
+    public static DuelResult duelEquipped(
+            CombatLabCombatantSnapshot first, CombatLabCombatantSnapshot second, Rules rules, long seed) {
+        return duelInternal(first, second, rules, seed, true);
+    }
+
+    private static DuelResult duelInternal(
+            CombatLabCombatantSnapshot first,
+            CombatLabCombatantSnapshot second,
+            Rules rules,
+            long seed,
+            boolean equipmentAware) {
         if (first == null || second == null || rules == null) {
             throw new IllegalArgumentException("Участники и правила обязательны");
         }
@@ -91,38 +112,53 @@ public final class CombatLabDuelEngine {
         int secondCrits = 0;
         int firstAvoids = 0;
         int secondAvoids = 0;
+        double firstInterval = attackInterval(first, rules, equipmentAware);
+        double secondInterval = attackInterval(second, rules, equipmentAware);
+        double nextFirstAttack = firstInterval;
+        double nextSecondAttack = secondInterval;
         double elapsed = 0.0;
 
         while (elapsed < rules.maxDurationSeconds()) {
-            HitResult firstHit = resolvePhysicalHit(first, second, rules, random);
-            HitResult secondHit = resolvePhysicalHit(second, first, rules, random);
-            double dealtToSecond = firstHit.damage();
-            double dealtToFirst = secondHit.damage();
-            if (firstHit.critical()) firstCrits++;
-            if (secondHit.critical()) secondCrits++;
-            if (firstHit.avoided()) secondAvoids++;
-            if (secondHit.avoided()) firstAvoids++;
-            firstHits++;
-            secondHits++;
-            firstDamage += dealtToSecond;
-            secondDamage += dealtToFirst;
-
-            // Реген в бою использует ту же pure-формулу AttributeMath, что и сервер.
-            double firstRegen = Math.min(
-                    first.maxHealth() - firstHealth, first.healthRegenPerSecond() * rules.attackIntervalSeconds());
-            double secondRegen = Math.min(
-                    second.maxHealth() - secondHealth, second.healthRegenPerSecond() * rules.attackIntervalSeconds());
+            double nextEvent = Math.min(nextFirstAttack, nextSecondAttack);
+            if (nextEvent > rules.maxDurationSeconds()) break;
+            double delta = nextEvent - elapsed;
+            double firstRegen = Math.min(first.maxHealth() - firstHealth, first.healthRegenPerSecond() * delta);
+            double secondRegen = Math.min(second.maxHealth() - secondHealth, second.healthRegenPerSecond() * delta);
             firstHealth += firstRegen;
             secondHealth += secondRegen;
             firstHealing += firstRegen;
             secondHealing += secondRegen;
-            firstHealth -= dealtToFirst;
-            secondHealth -= dealtToSecond;
+            elapsed = nextEvent;
 
-            elapsed += rules.attackIntervalSeconds();
+            boolean firstAttacks = Math.abs(nextFirstAttack - nextEvent) < 1.0e-9;
+            boolean secondAttacks = Math.abs(nextSecondAttack - nextEvent) < 1.0e-9;
+            HitResult firstHit = firstAttacks
+                    ? resolveHit(first, second, rules, random, equipmentAware)
+                    : new HitResult(0.0, false, false);
+            HitResult secondHit = secondAttacks
+                    ? resolveHit(second, first, rules, random, equipmentAware)
+                    : new HitResult(0.0, false, false);
+
+            if (firstAttacks) {
+                firstHits++;
+                firstDamage += firstHit.damage();
+                secondHealth -= firstHit.damage();
+                if (firstHit.critical()) firstCrits++;
+                if (firstHit.avoided()) secondAvoids++;
+                nextFirstAttack += firstInterval;
+            }
+            if (secondAttacks) {
+                secondHits++;
+                secondDamage += secondHit.damage();
+                firstHealth -= secondHit.damage();
+                if (secondHit.critical()) secondCrits++;
+                if (secondHit.avoided()) firstAvoids++;
+                nextSecondAttack += secondInterval;
+            }
+
             if (firstHealth <= 0.0 || secondHealth <= 0.0) {
                 boolean draw = firstHealth <= 0.0 && secondHealth <= 0.0;
-                return new DuelResult(
+                return result(
                         elapsed,
                         false,
                         draw,
@@ -139,7 +175,18 @@ public final class CombatLabDuelEngine {
                         secondAvoids);
             }
         }
-        return new DuelResult(
+
+        double remainingTime = Math.max(0.0, rules.maxDurationSeconds() - elapsed);
+        double firstFinalRegen =
+                Math.min(first.maxHealth() - firstHealth, first.healthRegenPerSecond() * remainingTime);
+        double secondFinalRegen =
+                Math.min(second.maxHealth() - secondHealth, second.healthRegenPerSecond() * remainingTime);
+        firstHealth += firstFinalRegen;
+        secondHealth += secondFinalRegen;
+        firstHealing += firstFinalRegen;
+        secondHealing += secondFinalRegen;
+
+        return result(
                 rules.maxDurationSeconds(),
                 true,
                 Math.abs(firstHealth - secondHealth) < 1e-9,
@@ -156,18 +203,81 @@ public final class CombatLabDuelEngine {
                 secondAvoids);
     }
 
-    private static HitResult resolvePhysicalHit(
-            CombatLabCombatantSnapshot attacker, CombatLabCombatantSnapshot defender, Rules rules, Random random) {
-        double avoidChance = Math.max(0.0, defender.dodgeChancePct() + defender.parryChancePct());
-        if (random.nextDouble() * 100.0 < avoidChance) {
-            return new HitResult(0.0, false, true);
+    private static DuelResult result(
+            double duration,
+            boolean timeout,
+            boolean draw,
+            boolean firstWon,
+            double firstDamage,
+            double secondDamage,
+            double firstHealing,
+            double secondHealing,
+            int firstHits,
+            int secondHits,
+            int firstCrits,
+            int secondCrits,
+            int firstAvoids,
+            int secondAvoids) {
+        return new DuelResult(
+                duration,
+                timeout,
+                draw,
+                firstWon,
+                firstDamage,
+                secondDamage,
+                firstHealing,
+                secondHealing,
+                firstHits,
+                secondHits,
+                firstCrits,
+                secondCrits,
+                firstAvoids,
+                secondAvoids);
+    }
+
+    private static double attackInterval(CombatLabCombatantSnapshot combatant, Rules rules, boolean equipmentAware) {
+        if (!equipmentAware || combatant.attackSpeedPct() <= 0.0) {
+            return rules.attackIntervalSeconds();
         }
-        double damage = rules.unarmedBaseDamage() + attacker.weaponPower() * rules.weaponPowerCoefficient();
-        boolean critical = random.nextDouble() * 100.0 < attacker.meleeCritChancePct();
+        return rules.attackIntervalSeconds() / (1.0 + combatant.attackSpeedPct() / 100.0);
+    }
+
+    private static HitResult resolveHit(
+            CombatLabCombatantSnapshot attacker,
+            CombatLabCombatantSnapshot defender,
+            Rules rules,
+            Random random,
+            boolean equipmentAware) {
+        boolean magic = equipmentAware && "MAGIC".equals(attacker.autoAttackType());
+        double damage =
+                equipmentAware && attacker.attackDamage() > 0.0 ? attacker.attackDamage() : rules.unarmedBaseDamage();
+        if (magic) {
+            damage += attacker.spellPower() * rules.magicPowerCoefficient();
+            if (rules.intellectToMagic()) damage += attacker.intellect() + attacker.level();
+        } else {
+            damage += attacker.weaponPower() * rules.weaponPowerCoefficient();
+            if (rules.strengthToPhysical()) damage += attacker.strength() + attacker.level();
+        }
+
+        double critChance = magic ? attacker.spellCritChancePct() : attacker.meleeCritChancePct();
+        boolean critical = random.nextDouble() * 100.0 < critChance;
         if (critical) {
-            damage *= attacker.meleeCritMultiplier();
+            damage *= magic ? attacker.spellCritMultiplier() : attacker.meleeCritMultiplier();
         }
-        double mitigation = CombatMath.mitigation(defender.physicalResistPct(), rules.resistCapPct());
+        if (equipmentAware && !magic) {
+            damage *= attacker.weaponMasteryMultiplier();
+        }
+
+        // В runtime исходящий критический бросок выполняется до защитного уклонения.
+        if (!magic) {
+            double avoidChance = Math.max(0.0, defender.dodgeChancePct() + defender.parryChancePct());
+            if (random.nextDouble() * 100.0 < avoidChance) {
+                return new HitResult(0.0, critical, true);
+            }
+        }
+
+        double resistance = magic ? defender.magicResistPct() : defender.physicalResistPct();
+        double mitigation = CombatMath.mitigation(resistance, rules.resistCapPct());
         damage *= 1.0 - mitigation;
         return new HitResult(
                 CombatMath.cappedDamage(damage, defender.maxHealth(), rules.singleHitCapPct()), critical, false);

@@ -43,11 +43,29 @@ public final class ItemConfigLoader {
     }
 
     public static ItemRegistry load(File file, Consumer<String> warning) throws Exception {
+        return load(file, warning, ItemValidator::validateMaterial);
+    }
+
+    /**
+     * Headless-загрузка для Combat Lab: использует тот же YAML-парсер, генератор,
+     * проверки схемы, статов, слотов, классов, специализаций, оружия и сетов.
+     * Проверка реального Bukkit Material откладывается до обычной Paper runtime-загрузки.
+     */
+    public static ItemRegistry loadHeadless(File file) throws Exception {
+        return loadHeadless(file, ignored -> {});
+    }
+
+    public static ItemRegistry loadHeadless(File file, Consumer<String> warning) throws Exception {
+        return load(file, warning, ItemValidator::validateMaterialSyntax);
+    }
+
+    private static ItemRegistry load(File file, Consumer<String> warning, Consumer<String> materialValidator)
+            throws Exception {
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
         int maxLevel = ItemValidator.validateSchema(yaml);
 
-        List<ItemDefinition> defs = new ArrayList<>(parseExplicitItems(yaml, maxLevel, warning));
-        defs.addAll(parseAndExpandTemplates(yaml, maxLevel));
+        List<ItemDefinition> defs = new ArrayList<>(parseExplicitItems(yaml, maxLevel, warning, materialValidator));
+        defs.addAll(parseAndExpandTemplates(yaml, maxLevel, materialValidator));
 
         Map<String, SetDefinition> sets = parseSets(yaml);
         List<ItemDefinition> filtered = filterUnknownRefs(defs, sets, yaml, warning);
@@ -62,7 +80,7 @@ public final class ItemConfigLoader {
     /* ------------------------------ шаг 1: явные предметы ------------------------------ */
 
     private static List<ItemDefinition> parseExplicitItems(
-            YamlConfiguration yaml, int maxLevel, Consumer<String> warning) {
+            YamlConfiguration yaml, int maxLevel, Consumer<String> warning, Consumer<String> materialValidator) {
         List<ItemDefinition> defs = new ArrayList<>();
         ConfigurationSection entries = yaml.getConfigurationSection("items");
         if (entries == null) {
@@ -74,7 +92,7 @@ public final class ItemConfigLoader {
                 throw new IllegalArgumentException("items." + id + " must be a section");
             }
             try {
-                ItemDefinition def = parseDefinition(id, s);
+                ItemDefinition def = parseDefinition(id, s, materialValidator);
                 if (def.itemLevel() > maxLevel) {
                     throw new IllegalArgumentException("item-level exceeds settings.max-item-level");
                 }
@@ -87,10 +105,11 @@ public final class ItemConfigLoader {
         return defs;
     }
 
-    private static ItemDefinition parseDefinition(String id, ConfigurationSection s) {
+    private static ItemDefinition parseDefinition(
+            String id, ConfigurationSection s, Consumer<String> materialValidator) {
         ItemSlot slot = ItemSlot.valueOf(stringOrDefault(s, "slot", "").toUpperCase(Locale.ROOT));
         String material = stringOrDefault(s, "material", "");
-        ItemValidator.validateMaterial(material);
+        materialValidator.accept(material);
         ItemValidator.validateMaterialSlot(slot, material);
 
         String cls = s.getString("class", "ALL");
@@ -144,7 +163,8 @@ public final class ItemConfigLoader {
 
     /* ------------------------------ шаг 2: шаблоны и генерация ------------------------------ */
 
-    private static List<ItemDefinition> parseAndExpandTemplates(YamlConfiguration yaml, int maxLevel) {
+    private static List<ItemDefinition> parseAndExpandTemplates(
+            YamlConfiguration yaml, int maxLevel, Consumer<String> materialValidator) {
         ConfigurationSection templates = yaml.getConfigurationSection("templates");
         List<ItemTemplateExpander.Template> ts = new ArrayList<>();
         Map<String, String> materials = new HashMap<>();
@@ -205,7 +225,7 @@ public final class ItemConfigLoader {
                         budget == null ? null : budget.getConfigurationSection("stat-cost"), ItemStat.class));
 
         for (ItemDefinition def : expanded) {
-            ItemValidator.validateExpandedMaterial(def);
+            materialValidator.accept(def.material());
             ItemValidator.validateWeaponType(yaml, def);
         }
         return expanded;
