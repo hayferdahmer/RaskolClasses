@@ -653,10 +653,10 @@ public final class PetService implements Listener {
         }
         PetState state = pets.get(ownerId);
         long currentTick = Bukkit.getCurrentTick();
-        boolean cadenceManaged = state != null
-                && !state.cadenceDisabled
-                && (PetTalentMath.speedPercent(plugin.getSpec2Service().petAttackSpeedPercent(ownerId)) > 0.0
-                        || currentTick < state.frenzyUntilTick);
+        boolean cadenceManaged = PetTalentMath.cadenceManaged(
+                plugin.getSpec2Service().petAttackSpeedPercent(ownerId),
+                state != null && currentTick < state.frenzyUntilTick,
+                state == null || state.cadenceDisabled);
         if (cadenceManaged && !SCHEDULED_PET_ATTACK.get()) {
             event.setCancelled(true);
             return;
