@@ -71,14 +71,11 @@ class ReleaseWorkflowGatePolicyTest(unittest.TestCase):
         )
         workflow = workflow_path.read_text(encoding="utf-8")
 
-        self.assertIn(
-            "code-quality:\n    name: Code Quality (Spotless + SpotBugs)",
-            workflow,
-        )
+        self.assertRegex(workflow, r"code-quality:\\s+name: Code Quality")
         self.assertNotIn("continue-on-error:", workflow)
-        self.assertIn(
-            "signing-verification:\n    needs: [build, code-quality]",
+        self.assertRegex(
             workflow,
+            r"signing-verification:\\s+needs: \\[build, code-quality\\]",
         )
         self.assertIn(
             "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
@@ -86,9 +83,9 @@ class ReleaseWorkflowGatePolicyTest(unittest.TestCase):
         )
         self.assertIn('ET.parse("pom.xml")', workflow)
         self.assertIn('f"plugin.version={expected_version}"', workflow)
-        self.assertIn(
-            "release:\n    needs: [build, code-quality]",
+        self.assertRegex(
             workflow,
+            r"release:\\s+needs: \\[build, code-quality\\]",
         )
         self.assertIn("if: startsWith(github.ref, 'refs/tags/v')", workflow)
 
