@@ -29,6 +29,7 @@ import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.cc.CCType;
 import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.combat.DamageSourceContext;
 import dev.raskol.classes.combat.Targeting;
 import dev.raskol.classes.combat.dot.DotInstance;
 import dev.raskol.classes.pet.PetService;
@@ -163,7 +164,11 @@ public final class HunterAbilities extends AbstractKit {
             if (!plugin.getCombat().canHit(shooter, target)) {
                 return;
             }
-            plugin.getCombat().dealDamage(target, shooter, DamageProfile.physical(damage));
+            plugin.getCombat().dealDamage(
+                    target,
+                    shooter,
+                    DamageProfile.physical(damage),
+                    DamageSourceContext.ability(shooter.getUniqueId(), target.getUniqueId(), "arrow_fan", false));
         }
     }
 
