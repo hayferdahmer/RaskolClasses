@@ -111,12 +111,18 @@ public final class CombatLabDuelEngine {
             secondDamage += dealtToFirst;
 
             // Реген в бою использует ту же pure-формулу AttributeMath, что и сервер.
-            double firstRegen = first.healthRegenPerSecond() * rules.attackIntervalSeconds();
-            double secondRegen = second.healthRegenPerSecond() * rules.attackIntervalSeconds();
-            firstHealth = Math.min(first.maxHealth(), firstHealth - dealtToFirst + firstRegen);
-            secondHealth = Math.min(second.maxHealth(), secondHealth - dealtToSecond + secondRegen);
+            double firstRegen = Math.min(
+                    first.maxHealth() - firstHealth,
+                    first.healthRegenPerSecond() * rules.attackIntervalSeconds());
+            double secondRegen = Math.min(
+                    second.maxHealth() - secondHealth,
+                    second.healthRegenPerSecond() * rules.attackIntervalSeconds());
+            firstHealth += firstRegen;
+            secondHealth += secondRegen;
             firstHealing += firstRegen;
             secondHealing += secondRegen;
+            firstHealth -= dealtToFirst;
+            secondHealth -= dealtToSecond;
 
             elapsed += rules.attackIntervalSeconds();
             if (firstHealth <= 0.0 || secondHealth <= 0.0) {
