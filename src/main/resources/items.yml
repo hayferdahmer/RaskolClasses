@@ -389,7 +389,7 @@ templates:
   mage_head:
     class: MAGE
     slot: HEAD
-    material: GOLD_HELMET
+    material: GOLDEN_HELMET
     custom-model-data: 2301
     names: ["Диадема расколотой звезды"]
     set: mage_regalia
