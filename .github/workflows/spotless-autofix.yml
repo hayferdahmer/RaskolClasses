@@ -13,6 +13,7 @@ permissions:
 jobs:
   format:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v5
@@ -26,8 +27,11 @@ jobs:
           java-version: '25'
           cache: maven
 
+      - name: Warm project Maven cache without enforcing current formatting
+        run: mvn -Pdev -B -DskipTests -Dspotless.check.skip=true verify
+
       - name: Apply repository formatting
-        run: mvn -Pdev -B spotless:apply
+        run: mvn -Pdev -B com.diffplug.spotless:spotless-maven-plugin:3.10.4:apply
 
       - name: Commit formatted files
         run: |
