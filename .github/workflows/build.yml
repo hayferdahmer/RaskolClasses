@@ -45,7 +45,25 @@ jobs:
           cache: maven
 
       - name: Build and test (mvn verify)
-        run: mvn -B verify
+        shell: bash
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3; do
+            echo "Maven build attempt ${attempt}/3"
+            mvn -B verify 2>&1 | tee /tmp/maven-build.log
+            status=${PIPESTATUS[0]}
+            if [ "${status}" -eq 0 ]; then
+              exit 0
+            fi
+            if ! grep -Eqi 'HTTP Status: 429|status 429|Too Many Requests' /tmp/maven-build.log; then
+              exit "${status}"
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "Maven Central rate limit persisted after 3 attempts."
+              exit "${status}"
+            fi
+            sleep $((attempt * 20))
+          done
 
       - name: Upload artifact
         if: success()
