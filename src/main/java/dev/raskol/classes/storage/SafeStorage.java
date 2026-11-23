@@ -228,7 +228,8 @@ public final class SafeStorage {
             logger.severe("SafeStorage: повреждённая копия сохранена в карантин: " + quarantine.getFileName());
         } catch (IOException | NoSuchAlgorithmException exception) {
             logger.log(
-                    Level.SEVERE, "SafeStorage: не удалось безопасно поместить " + damaged.getName()
+                    Level.SEVERE,
+                    "SafeStorage: не удалось безопасно поместить " + damaged.getName()
                             + " в карантин; исходник оставлен, дальнейшая работа запрещена",
                     exception);
             throw new StorageLoadException(
@@ -296,7 +297,8 @@ public final class SafeStorage {
             if (targetExists) {
                 parse(target.toPath());
             } else if (tmpExists || backupExists) {
-                throw new IOException("Основной файл отсутствует, но существуют sidecar-копии; сначала требуется recovery");
+                throw new IOException(
+                        "Основной файл отсутствует, но существуют sidecar-копии; сначала требуется recovery");
             }
 
             Files.writeString(tmp.toPath(), snapshot);
@@ -308,15 +310,20 @@ public final class SafeStorage {
             }
 
             try {
-                Files.move(tmp.toPath(), target.toPath(),
-                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(
+                        tmp.toPath(),
+                        target.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException exception) {
                 Files.move(tmp.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
             return true;
         } catch (IOException | InvalidConfigurationException | IllegalArgumentException exception) {
-            logger.log(Level.SEVERE, "SafeStorage: запись " + target.getName()
-                    + " отменена; существующие данные сохранены", exception);
+            logger.log(
+                    Level.SEVERE,
+                    "SafeStorage: запись " + target.getName() + " отменена; существующие данные сохранены",
+                    exception);
             return false;
         }
     }
