@@ -16,11 +16,11 @@ import dev.raskol.classes.item.model.WeaponType;
 class WeaponCadenceTest {
 
     @Test
-    @DisplayName("безоружный интервал берётся из Paper player attack-speed attribute")
+    @DisplayName("безоружный интервал соответствует базовым 4 атакам в секунду")
     void unarmedUsesPlayerDefaultAttribute() {
         WeaponCadence.Profile profile = WeaponCadence.unarmed();
-        assertEquals("PLAYER_UNARMED_DEFAULT", profile.modelId());
-        assertTrue(profile.intervalSeconds() > 0.0);
+        assertEquals(0.25, profile.intervalSeconds(), 1.0e-9);
+        assertEquals("PLAYER_UNARMED_DEFAULT_4_ATTACKS_PER_SECOND", profile.modelId());
     }
 
     @Test
@@ -31,12 +31,22 @@ class WeaponCadenceTest {
     }
 
     @Test
-    @DisplayName("бонус ATTACK_SPEED умножает итоговый Paper material attribute")
+    @DisplayName("материальные скорости Paper 26.2 задают корректный интервал")
+    void materialProfilesMatchVanillaAttackSpeed() {
+        assertEquals(0.625, WeaponCadence.forWeapon(WeaponType.SWORD, "IRON_SWORD", 0.0).intervalSeconds(), 1.0e-9);
+        assertEquals(1.0 / 0.9, WeaponCadence.forWeapon(WeaponType.AXE, "IRON_AXE", 0.0).intervalSeconds(), 1.0e-9);
+        assertEquals(1.0 / 0.6, WeaponCadence.forWeapon(WeaponType.MACE, "MACE", 0.0).intervalSeconds(), 1.0e-9);
+        assertEquals(1.0 / 1.1, WeaponCadence.forWeapon(WeaponType.SPEAR, "TRIDENT", 0.0).intervalSeconds(), 1.0e-9);
+        assertEquals(0.25, WeaponCadence.forWeapon(WeaponType.STAFF, "BLAZE_ROD", 0.0).intervalSeconds(), 1.0e-9);
+    }
+
+    @Test
+    @DisplayName("бонус ATTACK_SPEED умножает итоговую скорость материала")
     void itemSpeedBonusMultipliesMaterialAttackSpeed() {
         WeaponCadence.Profile normal = WeaponCadence.forWeapon(WeaponType.SWORD, "IRON_SWORD", 0.0);
         WeaponCadence.Profile boosted = WeaponCadence.forWeapon(WeaponType.SWORD, "IRON_SWORD", 25.0);
         assertEquals(normal.intervalSeconds() / 1.25, boosted.intervalSeconds(), 1.0e-9);
-        assertEquals("PLAYER_MATERIAL_ATTRIBUTE", normal.modelId());
+        assertEquals("PAPER_26_2_MATERIAL_ATTACK_SPEED", normal.modelId());
     }
 
     @Test
