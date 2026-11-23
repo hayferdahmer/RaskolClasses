@@ -97,6 +97,9 @@ public final class SafeStorage {
                             + (i == 1 ? ".tmp" : ".bak"));
                 }
                 quarantineInvalidCopies(candidates, logger, candidate, quarantined);
+                if (i > 0) {
+                    restorePrimary(file, candidate, tmp);
+                }
                 if (i == 0 && tmp.exists() && !tmp.delete()) {
                     logger.warning("SafeStorage: не удалось удалить устаревший временный файл " + tmp.getName());
                 }
@@ -151,6 +154,23 @@ public final class SafeStorage {
                 throw new StorageLoadException(LoadStatus.IO_ERROR,
                         "SafeStorage: ошибка проверки " + candidate.getName(), exception);
             }
+        }
+    }
+
+    private static void restorePrimary(File primary, File recovered, File tmp) {
+        try {
+            if (!recovered.equals(tmp)) {
+                Files.copy(recovered.toPath(), tmp.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            try {
+                Files.move(tmp.toPath(), primary.toPath(),
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException exception) {
+                Files.move(tmp.toPath(), primary.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException exception) {
+            throw new StorageLoadException(LoadStatus.IO_ERROR,
+                    "SafeStorage: резервная копия прочитана, но основной файл не удалось восстановить", exception);
         }
     }
 
