@@ -583,8 +583,7 @@ public final class PetService implements Listener {
             return;
         }
 
-        double physicalBonus = plugin.getSpec2Service().petDmgPercent(ownerId)
-                + talentPct(ownerId, "pet_phys_dmg_pct");
+        double physicalBonus = plugin.getSpec2Service().petDmgPercent(ownerId) + talentPct(ownerId, "pet_phys_dmg_pct");
         boolean critical = rollPercent(talentPct(ownerId, "pet_crit_pct"));
         boolean empoweredCritical = critical && rollPercent(talentPct(ownerId, "pet_crit_bonus"));
         double multiplier = PetTalentMath.outgoingDamageMultiplier(physicalBonus, critical, empoweredCritical);
