@@ -21,6 +21,10 @@ def valid_report():
                 "second_attack_type": "MAGIC",
                 "first_mastery": 1.0,
                 "second_mastery": 1.0,
+                "first_attack_interval_seconds": 0.625,
+                "second_attack_interval_seconds": 0.25,
+                "first_cadence_model": "PLAYER_MATERIAL_ATTRIBUTE",
+                "second_cadence_model": "PLAYER_MATERIAL_ATTRIBUTE",
             },
             "metrics": {
                 "win_rate": {"value": 0.5, "ci95_low": 0.47, "ci95_high": 0.53, "ci95_method": "wilson"},
@@ -35,10 +39,10 @@ def valid_report():
             },
         })
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "report_type": "combat-lab-equipment-report",
-        "simulator_version": "headless-equipment-duel-0.1.0",
-        "scenario_set": "pvp-equipment-auto-attack-v1",
+        "simulator_version": "headless-equipment-duel-0.2.0",
+        "scenario_set": "pvp-equipment-auto-attack-v2",
         "simulation_scope": "production items.yml and equipment-aware auto-attacks",
         "source_commit": "a" * 40,
         "seed": 42,
