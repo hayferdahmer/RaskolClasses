@@ -65,6 +65,10 @@ public final class CharacterProfileStorage {
 
     private void load() {
         YamlConfiguration yaml = SafeStorage.loadWithFallback(file, logger);
+        rejectUnknownKeys(
+                yaml,
+                Set.of(SCHEMA_PATH, PROFILES_PATH, QUEST_REWARDS_PATH),
+                "корневом разделе characters.yml");
         int schemaVersion = readInteger(yaml, SCHEMA_PATH, 0);
         if (schemaVersion < 0 || schemaVersion > CURRENT_STORAGE_SCHEMA_VERSION) {
             throw new IllegalStateException("Неподдерживаемая версия characters.yml: " + schemaVersion);
@@ -86,6 +90,10 @@ public final class CharacterProfileStorage {
                 if (profileSection == null) {
                     throw new IllegalStateException("Профиль " + rawId + " должен быть YAML-разделом");
                 }
+                rejectUnknownKeys(
+                        profileSection,
+                        Set.of("schema-version", "level", "experience", "created-at", "updated-at", "specialization"),
+                        "профиле " + rawId);
                 CharacterProfile profile = readProfile(playerId, profileSection, allowLegacyProfiles);
                 profiles.put(playerId, profile);
                 loadSpecialization(playerId, profileSection);
@@ -109,6 +117,7 @@ public final class CharacterProfileStorage {
         if (specialization == null) {
             throw new IllegalStateException("Специализация профиля " + playerId + " должна быть YAML-разделом");
         }
+        rejectUnknownKeys(specialization, Set.of("main", "ranks"), "специализации профиля " + playerId);
 
         if (specialization.contains("main")) {
             Object rawMain = specialization.get("main");
@@ -153,6 +162,15 @@ public final class CharacterProfileStorage {
         }
         if (!parsedTrees.isEmpty()) {
             specializationRanks.put(playerId, parsedTrees);
+        }
+    }
+
+    private static void rejectUnknownKeys(ConfigurationSection section, Set<String> allowed, String context) {
+        for (String key : section.getKeys(false)) {
+            if (!allowed.contains(key)) {
+                throw new IllegalStateException("Неизвестное поле " + key + " в " + context
+                        + "; запись отклонена, чтобы не потерять данные при сохранении");
+            }
         }
     }
 
