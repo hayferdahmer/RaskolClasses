@@ -774,7 +774,7 @@ public final class CombatService implements Listener {
         return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0 < chance;
     }
 
-    private static boolean isRangedAbility(DamageSourceContext context) {
+    static boolean isRangedAbility(DamageSourceContext context) {
         if (context == null || context.sourceType() != DamageSourceContext.SourceType.ABILITY) {
             return false;
         }
