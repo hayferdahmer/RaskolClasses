@@ -16,9 +16,9 @@ import dev.raskol.classes.item.model.WeaponType;
  *   - ×0.75 (familiar)  — знакомое оружие, сниженный урон;
  *   - ×0.50 (foreign)   — чужое оружие, минимальный урон.
  *
- * Матрица 8 типов × 6 классов:
+ * Матрица 9 типов × 6 классов:
  *   WARRIOR:  SWORD(1.0) AXE(1.0) MACE(1.0) DAGGER(0.75) BOW(0.5) CROSSBOW(0.5) STAFF(0.5) WAND(0.5)
- *   HUNTER:   BOW(1.0) CROSSBOW(1.0) DAGGER(0.75) AXE(0.75) MACE(0.5) SWORD(0.5) STAFF(0.5) WAND(0.5)
+ *   HUNTER:   BOW(1.0) CROSSBOW(1.0) SPEAR(1.0) DAGGER(0.75) AXE(0.75) MACE(0.5) SWORD(0.5) STAFF(0.5) WAND(0.5)
  *   ROGUE:    DAGGER(1.0) SWORD(0.75) AXE(0.5) MACE(0.5) BOW(0.5) CROSSBOW(0.5) STAFF(0.5) WAND(0.5)
  *   MAGE:     STAFF(1.0) WAND(1.0) DAGGER(0.5) SWORD(0.5) AXE(0.5) MACE(0.5) BOW(0.5) CROSSBOW(0.5)
  *   PRIEST:   MACE(1.0) STAFF(0.75) WAND(0.75) DAGGER(0.5) SWORD(0.5) AXE(0.5) BOW(0.5) CROSSBOW(0.5)
@@ -78,6 +78,7 @@ public final class WeaponMastery {
         warrior.put(WeaponType.DAGGER, FAMILIAR);
         warrior.put(WeaponType.BOW, FOREIGN);
         warrior.put(WeaponType.CROSSBOW, FOREIGN);
+        warrior.put(WeaponType.SPEAR, FOREIGN);
         warrior.put(WeaponType.STAFF, FOREIGN);
         warrior.put(WeaponType.WAND, FOREIGN);
         matrix.put(PlayerClass.WARRIOR, Map.copyOf(warrior));
@@ -85,6 +86,7 @@ public final class WeaponMastery {
         Map<WeaponType, Double> hunter = new EnumMap<>(WeaponType.class);
         hunter.put(WeaponType.BOW, NATIVE);
         hunter.put(WeaponType.CROSSBOW, NATIVE);
+        hunter.put(WeaponType.SPEAR, NATIVE);
         hunter.put(WeaponType.DAGGER, FAMILIAR);
         hunter.put(WeaponType.AXE, FAMILIAR);
         hunter.put(WeaponType.MACE, FOREIGN);
@@ -100,6 +102,7 @@ public final class WeaponMastery {
         rogue.put(WeaponType.MACE, FOREIGN);
         rogue.put(WeaponType.BOW, FOREIGN);
         rogue.put(WeaponType.CROSSBOW, FOREIGN);
+        rogue.put(WeaponType.SPEAR, FOREIGN);
         rogue.put(WeaponType.STAFF, FOREIGN);
         rogue.put(WeaponType.WAND, FOREIGN);
         matrix.put(PlayerClass.ROGUE, Map.copyOf(rogue));
@@ -113,6 +116,7 @@ public final class WeaponMastery {
         mage.put(WeaponType.MACE, FOREIGN);
         mage.put(WeaponType.BOW, FOREIGN);
         mage.put(WeaponType.CROSSBOW, FOREIGN);
+        mage.put(WeaponType.SPEAR, FOREIGN);
         matrix.put(PlayerClass.MAGE, Map.copyOf(mage));
 
         Map<WeaponType, Double> priest = new EnumMap<>(WeaponType.class);
@@ -124,6 +128,7 @@ public final class WeaponMastery {
         priest.put(WeaponType.AXE, FOREIGN);
         priest.put(WeaponType.BOW, FOREIGN);
         priest.put(WeaponType.CROSSBOW, FOREIGN);
+        priest.put(WeaponType.SPEAR, FOREIGN);
         matrix.put(PlayerClass.PRIEST, Map.copyOf(priest));
 
         Map<WeaponType, Double> warlock = new EnumMap<>(WeaponType.class);
@@ -135,6 +140,7 @@ public final class WeaponMastery {
         warlock.put(WeaponType.MACE, FOREIGN);
         warlock.put(WeaponType.BOW, FOREIGN);
         warlock.put(WeaponType.CROSSBOW, FOREIGN);
+        warlock.put(WeaponType.SPEAR, FOREIGN);
         matrix.put(PlayerClass.WARLOCK, Map.copyOf(warlock));
 
         return Map.copyOf(matrix);
