@@ -91,7 +91,9 @@ public record DamageSourceContext(
         }
         if (source instanceof Projectile projectile) {
             UUID shooterId =
-                    projectile.getShooter() instanceof Entity shooter ? shooter.getUniqueId() : null;
+                    projectile.getShooter() instanceof Entity shooter
+                            ? shooter.getUniqueId()
+                            : null;
             return new DamageSourceContext(
                     source.getUniqueId(),
                     shooterId,
