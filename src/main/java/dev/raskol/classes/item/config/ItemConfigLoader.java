@@ -190,8 +190,24 @@ public final class ItemConfigLoader {
                 }
                 Integer modelData = s.contains("custom-model-data") ? s.getInt("custom-model-data") : null;
                 ItemValidator.validateModelData(modelData, id);
+                String spec = s.getString("spec");
+                if (spec != null) {
+                    Spec parsedSpec = Spec.fromId(spec);
+                    if (parsedSpec == null || parsedSpec.playerClass() != pc) {
+                        throw new IllegalArgumentException("template spec does not belong to class: " + id);
+                    }
+                    spec = parsedSpec.id();
+                }
                 ts.add(new ItemTemplateExpander.Template(
-                        id, pc, slot, wt, distribution, s.getStringList("names"), s.getString("set"), modelData));
+                        id,
+                        pc,
+                        slot,
+                        wt,
+                        distribution,
+                        s.getStringList("names"),
+                        s.getString("set"),
+                        modelData,
+                        spec));
             }
         }
         if (ts.isEmpty()) {
