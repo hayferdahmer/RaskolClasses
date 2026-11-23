@@ -9,11 +9,11 @@ from compare_reports import GateError, compare_reports, validate_baseline, valid
 
 
 def metric(value, low=None, high=None):
-    result = {"value": value}
-    if low is not None:
-        result["ci95_low"] = low
-        result["ci95_high"] = high
-    return result
+    return {
+        "value": value,
+        "ci95_low": value if low is None else low,
+        "ci95_high": value if high is None else high,
+    }
 
 
 def baseline():
@@ -23,6 +23,7 @@ def baseline():
         "status": "approved",
         "simulator_version": "combat-lab-1",
         "scenario_set": "pvp-pve-core-v1",
+        "created_from_commit": "b" * 40,
         "scenarios": [
             {
                 "scenario_id": "pvp-warrior-vs-mage-l40",
@@ -57,13 +58,13 @@ def report():
                 "sample_count": 100,
                 "invariant_violations": [],
                 "metrics": {
-                    "win_rate": metric(0.54, 0.45, 0.63),
-                    "proc_rate": metric(0.21, 0.13, 0.29),
+                    "win_rate": metric(0.54, 0.52, 0.56),
+                    "proc_rate": metric(0.21, 0.18, 0.22),
                     "pet_damage_share": metric(0.0, 0.0, 0.0),
-                    "resource_waste_pct": metric(0.11, 0.05, 0.17),
-                    "ttk_median_seconds": metric(25.0),
-                    "dps_mean": metric(82.0),
-                    "hps_mean": metric(0.0),
+                    "resource_waste_pct": metric(0.11, 0.08, 0.14),
+                    "ttk_median_seconds": metric(25.0, 24.5, 25.5),
+                    "dps_mean": metric(82.0, 81.0, 83.0),
+                    "hps_mean": metric(0.0, 0.0, 0.0),
                 },
             }
         ],
@@ -76,13 +77,13 @@ class CombatLabGateTest(unittest.TestCase):
 
     def test_win_rate_drift_over_five_percentage_points_fails(self):
         candidate = report()
-        candidate["scenarios"][0]["metrics"]["win_rate"] = metric(0.60, 0.52, 0.68)
+        candidate["scenarios"][0]["metrics"]["win_rate"] = metric(0.60, 0.58, 0.62)
         failures = compare_reports(baseline(), candidate)
         self.assertTrue(any("win_rate" in failure for failure in failures))
 
     def test_ttk_relative_drift_over_ten_percent_fails(self):
         candidate = report()
-        candidate["scenarios"][0]["metrics"]["ttk_median_seconds"] = metric(27.0)
+        candidate["scenarios"][0]["metrics"]["ttk_median_seconds"] = metric(27.0, 26.8, 27.2)
         failures = compare_reports(baseline(), candidate)
         self.assertTrue(any("ttk_median_seconds" in failure for failure in failures))
 
