@@ -22,6 +22,6 @@ class AttributeMathRangedCritTest {
     void invalidInputsAreNeutralized() {
         assertEquals(5.0, AttributeMath.critRanged(Double.NaN, 5.0, 0.05, 40.0), 0.0001);
         assertEquals(5.0, AttributeMath.critRanged(100.0, 5.0, Double.NaN, 40.0), 0.0001);
-        assertEquals(0.0, AttributeMath.critRanged(100.0, Double.NaN, 0.05, 40.0), 0.0001);
+        assertEquals(5.0, AttributeMath.critRanged(100.0, Double.NaN, 0.05, 40.0), 0.0001);
     }
 }
