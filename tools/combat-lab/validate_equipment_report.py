@@ -38,9 +38,9 @@ def validate_report(report: dict) -> None:
         "generated_at", "loaded_item_definitions", "rarity", "scenarios",
     }
     require(set(report) == required, "Неверный набор полей верхнего уровня")
-    require(report["schema_version"] == "1.0", "Неподдерживаемая schema_version")
+    require(report["schema_version"] == "1.1", "Неподдерживаемая schema_version")
     require(report["report_type"] == "combat-lab-equipment-report", "Это не equipment report")
-    require(report["scenario_set"] == "pvp-equipment-auto-attack-v1", "Неверный scenario_set")
+    require(report["scenario_set"] == "pvp-equipment-auto-attack-v2", "Неверный scenario_set")
     require(bool(re.fullmatch(r"[0-9a-f]{40}", report["source_commit"])), "Некорректный source_commit")
     require(isinstance(report["seed"], int) and not isinstance(report["seed"], bool) and report["seed"] >= 0,
             "Некорректный seed")
@@ -71,6 +71,8 @@ def validate_report(report: dict) -> None:
         require(set(equipment) == {
             "first_items", "second_items", "first_weapon_type", "second_weapon_type",
             "first_attack_type", "second_attack_type", "first_mastery", "second_mastery",
+            "first_attack_interval_seconds", "second_attack_interval_seconds",
+            "first_cadence_model", "second_cadence_model",
         }, f"{scenario_id}: неверная структура equipment")
         level = int(scenario_id.rsplit("_", 1)[1])
         if level >= 30:
@@ -86,6 +88,13 @@ def validate_report(report: dict) -> None:
             else:
                 require(attack_type == "PHYSICAL", f"{scenario_id}: физическое оружие размечено неверно")
             require(mastery in {0.5, 0.75, 1.0}, f"{scenario_id}: недопустимый WeaponMastery")
+            interval = equipment[f"{side}_attack_interval_seconds"]
+            cadence = equipment[f"{side}_cadence_model"]
+            require(isinstance(interval, (int, float)) and not isinstance(interval, bool)
+                    and math.isfinite(interval) and interval > 0.0,
+                    f"{scenario_id}: некорректный интервал автоатаки")
+            require(isinstance(cadence, str) and bool(cadence),
+                    f"{scenario_id}: отсутствует модель темпа атаки")
 
         metrics = scenario["metrics"]
         require(set(metrics) == RATE_METRICS | CONTINUOUS_METRICS, f"{scenario_id}: неверный набор метрик")
