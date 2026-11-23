@@ -96,7 +96,7 @@ public final class SafeStorage {
                     logger.warning("SafeStorage: " + file.getName() + " восстановлен из "
                             + (i == 1 ? ".tmp" : ".bak"));
                 }
-                quarantineInvalidCopies(file, candidates, logger, candidate, quarantined);
+                quarantineInvalidCopies(candidates, logger, candidate, quarantined);
                 if (i == 0 && tmp.exists() && !tmp.delete()) {
                     logger.warning("SafeStorage: не удалось удалить устаревший временный файл " + tmp.getName());
                 }
@@ -136,7 +136,7 @@ public final class SafeStorage {
     }
 
     private static void quarantineInvalidCopies(
-            File primary, File[] candidates, Logger logger, File selected, Set<File> quarantined) {
+            File[] candidates, Logger logger, File selected, Set<File> quarantined) {
         for (File candidate : candidates) {
             if (!candidate.exists() || candidate.equals(selected) || quarantined.contains(candidate)) {
                 continue;
@@ -226,8 +226,8 @@ public final class SafeStorage {
                 throw new IOException("Не удалось создать каталог " + parent);
             }
 
-            YamlConfiguration parsedSnapshot = new YamlConfiguration();
-            parsedSnapshot.loadFromString(snapshot);
+            YamlConfiguration validation = new YamlConfiguration();
+            validation.loadFromString(snapshot);
 
             if (target.exists()) {
                 parse(target.toPath());
