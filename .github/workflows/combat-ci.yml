@@ -1,0 +1,91 @@
+# © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+# SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+name: RaskolClasses Combat CI Guard
+
+on:
+  pull_request:
+    paths:
+      - 'src/main/java/dev/raskol/classes/combat/**'
+      - 'src/main/java/dev/raskol/classes/ability/**'
+      - 'src/main/java/dev/raskol/classes/attribute/**'
+      - 'src/main/java/dev/raskol/classes/pet/**'
+      - 'src/main/java/dev/raskol/classes/resource/**'
+      - 'src/main/java/dev/raskol/classes/cc/**'
+      - 'src/main/java/dev/raskol/classes/spec/**'
+      - 'src/main/java/dev/raskol/classes/install/**'
+      - 'src/main/java/dev/raskol/classes/selftest/**'
+      - 'src/test/java/**'
+      - 'src/main/resources/config.yml'
+      - 'src/main/resources/kits/**'
+      - 'tools/combat-ci/**'
+      - '.github/workflows/combat-ci.yml'
+  push:
+    branches: [ '**' ]
+    paths:
+      - 'src/main/java/dev/raskol/classes/combat/**'
+      - 'src/main/java/dev/raskol/classes/ability/**'
+      - 'src/main/java/dev/raskol/classes/attribute/**'
+      - 'src/main/java/dev/raskol/classes/pet/**'
+      - 'src/main/java/dev/raskol/classes/resource/**'
+      - 'src/main/java/dev/raskol/classes/cc/**'
+      - 'src/main/java/dev/raskol/classes/spec/**'
+      - 'src/main/java/dev/raskol/classes/install/**'
+      - 'src/main/java/dev/raskol/classes/selftest/**'
+      - 'src/test/java/**'
+      - 'src/main/resources/config.yml'
+      - 'src/main/resources/kits/**'
+      - 'tools/combat-ci/**'
+      - '.github/workflows/combat-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: combat-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  combat-ci-guard:
+    name: Combat CI Guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Identify combat changes and enforce test coverage contract
+        id: audit
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: python3 tools/combat-ci/check_combat_diff.py
+
+      - name: Run complete unit and integration test suite
+        run: mvn -B verify
+
+      - name: Run static analysis and SpotBugs
+        run: mvn -Pdev -B verify
+
+      - name: Combat CI summary
+        if: always()
+        run: |
+          {
+            echo "## Combat CI Guard"
+            echo "- Commit: ${GITHUB_SHA}"
+            echo "- Event: ${GITHUB_EVENT_NAME}"
+            echo "- Combat changes: ${{ steps.audit.outputs.combat_changed }}"
+            echo "- Test changes: ${{ steps.audit.outputs.tests_changed }}"
+            echo "- Full Maven verification and static analysis are required gates."
+            echo "- Statistical balance thresholds will become a required gate when Combat Lab emits its versioned JSON report."
+          } >> "$GITHUB_STEP_SUMMARY"
