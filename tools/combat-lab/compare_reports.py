@@ -25,6 +25,15 @@ METRIC_POLICIES = {
     "hps_mean": {"max_relative_delta": 0.10},
 }
 REQUIRED_METRICS = tuple(METRIC_POLICIES)
+CI95_METHODS = {
+    "win_rate": "wilson",
+    "proc_rate": "wilson",
+    "pet_damage_share": "bootstrap_percentile",
+    "resource_waste_pct": "bootstrap_percentile",
+    "ttk_median_seconds": "bootstrap_percentile",
+    "dps_mean": "bootstrap_percentile",
+    "hps_mean": "bootstrap_percentile",
+}
 
 
 class GateError(ValueError):
@@ -133,6 +142,10 @@ def validate_report(report: dict[str, Any], baseline: dict[str, Any]) -> None:
             value = metrics.get(metric)
             if not isinstance(value, dict) or "value" not in value:
                 raise GateError(f"{scenario_id}.{metric}: некорректная структура метрики")
+            if value.get("ci95_method") != CI95_METHODS[metric]:
+                raise GateError(
+                    f"{scenario_id}.{metric}: CI95 method должен быть {CI95_METHODS[metric]}"
+                )
             estimate = _number(value["value"], f"{scenario_id}.{metric}.value", 0.0, 1.0 if metric in RATE_METRICS else None)
             upper_bound = 1.0 if metric in RATE_METRICS else None
             low = _number(value.get("ci95_low"), f"{scenario_id}.{metric}.ci95_low", 0.0, upper_bound)
