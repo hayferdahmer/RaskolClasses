@@ -32,6 +32,19 @@ class PetTalentMathTest {
     }
 
     @Test
+    @DisplayName("pet rank bonuses apply once after runtime base damage and buff scaling")
+    void runtimeBaseAndHitBonusesDoNotDoubleScale() {
+        double base = PetTalentMath.runtimeBaseDamage(10.0, 0.0, 1.0);
+        assertEquals(10.0, base, 0.0001);
+        assertEquals(12.0, PetTalentMath.outgoingDamage(base, 20.0, false, false), 0.0001);
+
+        double buffedBase = PetTalentMath.runtimeBaseDamage(10.0, 0.0, 1.5);
+        assertEquals(15.0, buffedBase, 0.0001);
+        assertEquals(18.0, PetTalentMath.outgoingDamage(buffedBase, 20.0, false, false), 0.0001);
+        assertEquals(0.0, PetTalentMath.outgoingDamage(Double.NaN, 20.0, false, false), 0.0001);
+    }
+
+    @Test
     @DisplayName("implemented pet talents expose the expected rank-scaled effect contracts")
     void registeredPetTalentContractsMatchHandlers() {
         assertEffect("bm_wild_bond", "proc_pet_copy", "pet", 0.05);
