@@ -431,11 +431,7 @@ public final class PetService implements Listener {
                 PetDef def = PetDef.byId(st.defId);
                 setAttackDamage(
                         pet,
-                        PetMath.damage(
-                                def.baseDmg(),
-                                powerValue(owner, def),
-                                plugin.getSpec2Service().petDmgPercent(ownerUuid),
-                                1.0));
+                        PetMath.damage(def.baseDmg(), powerValue(owner, def), 0.0, 1.0));
                 setSpeed(pet, st.baseSpeed);
                 if (st.glow) {
                     pet.setGlowing(false);
@@ -566,7 +562,7 @@ public final class PetService implements Listener {
     }
 
     /** Боевые таланты питомца: защита, крит и физическое усиление. */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onPetDamage(EntityDamageByEntityEvent event) {
         if (SUPPRESS_PET_TALENTS.get() || !(event.getDamager() instanceof LivingEntity pet)) {
             return;
