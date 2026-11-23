@@ -85,8 +85,8 @@ public record CombatLabEquipmentSnapshot(
             rolled.add(AffixRoller.roll(item.affixPool(), item.affixCount(), item.itemLevel(), itemSeed));
         }
 
-        Map<ItemStat, Double> aggregated = new EnumMap<>(
-                ItemStatAggregator.aggregate(equipped, rolled, playerClass, spec, level));
+        Map<ItemStat, Double> aggregated = new EnumMap<>(ItemStat.class);
+        aggregated.putAll(ItemStatAggregator.aggregate(equipped, rolled, playerClass, spec, level));
         // Runtime ItemHook принимает ATTACK_DAMAGE только с MAIN_HAND; сохраняем тот же контракт.
         double mainHandDamage = 0.0;
         for (int i = 0; i < equipped.size(); i++) {
