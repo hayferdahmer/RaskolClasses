@@ -58,13 +58,38 @@ CI95 должен содержать точечную оценку и целик
 5. Смена версии симулятора требует новой калибровки; отчёты разных версий напрямую не сравниваются.
 6. Для каждого scenario CI должен проверять все предусмотренные итерации и seeds. Уменьшение выборки не должно скрывать регрессию.
 
+## Первый headless probe
+
+`CombatLabRunner` запускает отдельный калибровочный профиль `pvp-unarmed-melee-probe-v1`:
+- 6 классов × 5 контрольных уровней × 30 направленных матчапов = 150 сценариев;
+- не менее 1200 воспроизводимых дуэлей на сценарий;
+- seed фиксируется, bootstrap CI использует детерминированный seed;
+- снимки атрибутов используют `AttributeMath` и `PowerService` production pure formulas;
+- резисты используют `CombatMath.mitigation`, который также вызывается production `ResistService`;
+- анти-ваншот использует `CombatMath.cappedDamage`, общий с production `CombatService`;
+- CI проверяет полноту матрицы, уникальность scenario ID, инварианты и корректность CI.
+
+Это намеренно **не полный боевой симулятор**. В probe зафиксированы безоружный физический удар и интервал атаки 0.8 с. Не моделируются экипировка/weapon mastery, активные способности, таланты, проки, питомцы, CC, школы, burst-window и экономика ресурсов. Поэтому probe-отчёт имеет собственный `combat-lab-probe-report` формат и отдельную JSON Schema; его нельзя передавать в полный baseline comparator и нельзя использовать для утверждения баланса.
+
+Запуск из корня репозитория после компиляции:
+
+```bash
+mvn -Pdev -B -DskipTests verify
+mvn -Pdev -B org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
+  -Dexec.mainClass=dev.raskol.classes.combat.lab.CombatLabRunner \
+  -Dexec.classpathScope=compile \
+  -Dexec.args="--config src/main/resources/config.yml --output target/combat-lab/unarmed-probe-report.json --seed 20261123 --iterations 1200 --source-commit $(git rev-parse HEAD)"
+python3 tools/combat-lab/validate_probe_report.py target/combat-lab/unarmed-probe-report.json
+```
+
 ## Статус интеграции
 
 - [x] Формат отчёта и JSON Schema.
 - [x] Версионированный baseline placeholder со статусом pending.
 - [x] Comparator с проверкой полного набора сценариев, версии, выборки, CI и инвариантов.
 - [x] Регрессионные тесты анализатора.
-- [ ] Headless runner, использующий production pure math и реальные игровые конфиги.
+- [x] Первый ограниченный headless probe: снимки классов из `config.yml`, shared production pure math, deterministic duel engine и отдельный probe-report.
+- [ ] Полный headless runner для экипировки, способностей, талантов, проков, питомцев, CC, школ и ресурсной экономики.
 - [ ] Утверждённый baseline по PvP/PvE матрицам.
 - [ ] Обязательное сравнение в Combat CI Guard для combat-related PR.
 - [ ] Расширенный nightly/manual профиль с тысячами прогонов.

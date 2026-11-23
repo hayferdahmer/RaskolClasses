@@ -75,6 +75,17 @@ jobs:
         id: verify
         run: mvn -Pdev -B -DskipTests verify
 
+      - name: Run deterministic Combat Lab unarmed probe
+        run: >
+          mvn -Pdev -B
+          org.codehaus.mojo:exec-maven-plugin:3.5.0:java
+          -Dexec.mainClass=dev.raskol.classes.combat.lab.CombatLabRunner
+          -Dexec.classpathScope=compile
+          -Dexec.args="--config src/main/resources/config.yml --output target/combat-lab/unarmed-probe-report.json --seed 20261123 --iterations 1200 --source-commit ${GITHUB_SHA}"
+
+      - name: Validate generated Combat Lab probe report
+        run: python3 tools/combat-lab/validate_probe_report.py target/combat-lab/unarmed-probe-report.json
+
       - name: Upload diagnostic reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -87,6 +98,7 @@ jobs:
             target/failsafe-reports/**
             target/spotbugsXml.xml
             target/site/jacoco/**
+            target/combat-lab/**
 
       - name: Combat CI summary
         if: always()
@@ -106,5 +118,5 @@ jobs:
             echo "- Combat packages: ${COMBAT_PACKAGES:-none}"
             echo "- Required gates: Java 25 compile, test compilation, Spotless and SpotBugs; unit tests execute in the required Build workflow."
             echo "- Diff audit: package-level test coverage plus auditor regression tests."
-            echo "- Combat Lab: comparator regression tests and baseline contract validation are blocking; live statistical comparison remains PENDING until production headless runner and approved baseline are available."
+            echo "- Combat Lab: deterministic 150-scenario unarmed probe is executed and structurally validated; full ability/gear/talent/PvE statistical gate remains PENDING."
           } >> "$GITHUB_STEP_SUMMARY"
