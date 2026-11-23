@@ -33,6 +33,16 @@ class PetTalentMathTest {
     }
 
     @Test
+    @DisplayName("managed cadence is active only for speed effects or frenzy and respects fallback")
+    void cadenceOwnershipDecisionRespectsFallback() {
+        assertTrue(PetTalentMath.cadenceManaged(5.0, false, false));
+        assertTrue(PetTalentMath.cadenceManaged(0.0, true, false));
+        assertFalse(PetTalentMath.cadenceManaged(0.0, false, false));
+        assertFalse(PetTalentMath.cadenceManaged(15.0, true, true));
+        assertFalse(PetTalentMath.cadenceManaged(Double.NaN, false, false));
+    }
+
+    @Test
     @DisplayName("pet attack speed percentages are finite and capped")
     void speedPercentIsSanitized() {
         assertEquals(0.0, PetTalentMath.speedPercent(Double.NaN), 0.0001);
