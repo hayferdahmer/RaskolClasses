@@ -176,6 +176,34 @@ class Spec2StorageMigrationTest {
     }
 
     @Test
+    @DisplayName("неизвестное поле в корне Spec 2.0 блокирует миграцию и сохраняет исходник")
+    void refusesUnknownTopLevelFields() throws IOException {
+        UUID playerId = UUID.fromString("a9b1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
+        File source = write(
+                "spec2-storage.yml",
+                "players:\n  " + playerId + ":\n    main: fire\nfuture-section:\n  value: 42\n");
+
+        assertThrows(IllegalStateException.class, this::migrate);
+
+        assertTrue(source.isFile());
+        assertFalse(tempDir.resolve("spec2-storage.yml.migrated").toFile().exists());
+    }
+
+    @Test
+    @DisplayName("неизвестное поле игрока Spec 2.0 блокирует миграцию и сохраняет исходник")
+    void refusesUnknownPlayerFields() throws IOException {
+        UUID playerId = UUID.fromString("b9b1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
+        File source = write(
+                "spec2.yml",
+                "players:\n  " + playerId + ":\n    main: fire\n    future-field: 42\n");
+
+        assertThrows(IllegalStateException.class, this::migrate);
+
+        assertTrue(source.isFile());
+        assertFalse(tempDir.resolve("spec2.yml.migrated").toFile().exists());
+    }
+
+    @Test
     @DisplayName("если все источники повреждены, миграция останавливается и сохраняет оригинал")
     void refusesToArchiveWhenNoReadableSourceExists() throws IOException {
         File legacy = write("spec2.yml", "players: [unterminated\n");
