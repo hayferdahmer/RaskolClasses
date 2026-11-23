@@ -197,6 +197,45 @@ class Spec2StorageMigrationTest {
         assertTrue(source.exists());
     }
 
+    @Test
+    @DisplayName("восстанавливает .tmp источника Spec 2.0 и переносит его до архивации")
+    void restoresTemporarySpecSourceBeforeArchiving() throws IOException {
+        UUID playerId = UUID.fromString("a1b2c3d4-e5f6-4a2b-8c3d-4e5f6a7b8c9d");
+        File temporary = write(
+                "spec2-storage.yml.tmp",
+                "players:\\n  " + playerId + ":\\n    main: restoration\\n");
+
+        migrate();
+
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml").toFile());
+        assertEquals(
+                "restoration",
+                saved.getString("profiles." + playerId + ".specialization.main"));
+        assertFalse(temporary.exists());
+        assertTrue(tempDir.resolve("spec2-storage.yml.migrated").toFile().isFile());
+    }
+
+    @Test
+    @DisplayName("восстанавливает .bak источника Spec 2.0 и архивирует все исходные копии")
+    void restoresBackupSpecSourceBeforeArchiving() throws IOException {
+        UUID playerId = UUID.fromString("b1b2c3d4-e5f6-4a2b-8c3d-4e5f6a7b8c9d");
+        File backup = write(
+                "spec2-storage.yml.bak",
+                "players:\\n  " + playerId + ":\\n    main: discipline\\n");
+
+        migrate();
+
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml").toFile());
+        assertEquals(
+                "discipline",
+                saved.getString("profiles." + playerId + ".specialization.main"));
+        assertFalse(backup.exists());
+        assertTrue(tempDir.resolve("spec2-storage.yml.migrated").toFile().isFile());
+        assertTrue(tempDir.resolve("spec2-storage.yml.bak.migrated").toFile().isFile());
+    }
+
     private void migrate() {
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             CharacterProfileStorage profiles = new CharacterProfileStorage(
