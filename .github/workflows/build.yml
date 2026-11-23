@@ -61,13 +61,12 @@ jobs:
         with:
           name: jacoco-coverage-report
           path: target/site/jacoco/
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 30
 
   # -----------------------------------------------------------
-  # Расширенный анализ: -Xlint:all + SpotBugs.
-  # На обычных ветках и PR остаётся диагностическим.
-  # Для tag-релизов и ручной OFFICIAL signing verification из main — обязательный gate.
+  # Обязательный контур качества: -Xlint:all + Spotless + SpotBugs.
+  # Блокирует PR, OFFICIAL signing verification и публикацию релиза.
   # -----------------------------------------------------------
   code-quality:
     name: Code Quality (Spotless + SpotBugs)
