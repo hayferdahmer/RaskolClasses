@@ -62,7 +62,8 @@ public record DamageSourceContext(
         }
     }
 
-    public static DamageSourceContext infer(Entity source, Entity target, boolean fromProc, boolean reflected) {
+    public static DamageSourceContext infer(
+            Entity source, Entity target, boolean fromProc, boolean reflected) {
         UUID targetId = target == null ? null : target.getUniqueId();
         if (source == null) {
             return new DamageSourceContext(
@@ -89,7 +90,8 @@ public record DamageSourceContext(
                     reflected);
         }
         if (source instanceof Projectile projectile) {
-            UUID shooterId = projectile.getShooter() instanceof Entity shooter ? shooter.getUniqueId() : null;
+            UUID shooterId =
+                    projectile.getShooter() instanceof Entity shooter ? shooter.getUniqueId() : null;
             return new DamageSourceContext(
                     source.getUniqueId(),
                     shooterId,

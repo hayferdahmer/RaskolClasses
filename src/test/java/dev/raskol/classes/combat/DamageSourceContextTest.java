@@ -67,7 +67,8 @@ class DamageSourceContextTest {
         UUID owner = UUID.randomUUID();
         UUID target = UUID.randomUUID();
 
-        DamageSourceContext context = DamageSourceContext.pet(pet, owner, target, "wolf_mark", true);
+        DamageSourceContext context =
+                DamageSourceContext.pet(pet, owner, target, "wolf_mark", true);
 
         assertEquals(DamageSourceContext.SourceType.PET, context.sourceType());
         assertEquals(pet, context.sourceEntityId());
@@ -129,7 +130,8 @@ class DamageSourceContextTest {
                         null,
                         false,
                         false);
-        DamageSourceContext updated = original.withWeaponHand(DamageSourceContext.WeaponHand.OFF_HAND);
+        DamageSourceContext updated =
+                original.withWeaponHand(DamageSourceContext.WeaponHand.OFF_HAND);
 
         assertSame(DamageSourceContext.WeaponHand.UNKNOWN, original.weaponHand());
         assertEquals(DamageSourceContext.WeaponHand.OFF_HAND, updated.weaponHand());
