@@ -47,6 +47,17 @@ class Spec2KitEffectAggregationTest {
     }
 
     @Test
+    @DisplayName("ranged critical chance aggregates from both Marksmanship nodes")
+    void rangedCriticalChanceAggregatesByRank() {
+        Spec2Service.Agg agg = new Spec2Service.Agg();
+
+        Spec2Service.accumulate(agg, node("marksmanship", "mm_eagle_eye"), 2);
+        Spec2Service.accumulate(agg, node("marksmanship", "mm_sniper_training"), 1);
+
+        assertEquals(4.0, agg.proc.get("crit_ranged_pct"), 0.0001);
+    }
+
+    @Test
     @DisplayName("trap damage and cooldown passives aggregate by rank")
     void trapPassivesAggregateByRank() {
         Spec2Service.Agg agg = new Spec2Service.Agg();
