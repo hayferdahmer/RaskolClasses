@@ -280,6 +280,24 @@ public final class AttributeService {
         return Math.min(cap, total);
     }
 
+    /** Шанс дальнобойного физического крита с отдельными талантами и предметным статом. */
+    public double critRangedChance(UUID uuid) {
+        Player player = Bukkit.getPlayer(uuid);
+        PlayerClass pc = player != null ? plugin.getClassProvider().getClassOf(player) : null;
+        if (pc == null) {
+            return 0.0;
+        }
+        double base = AttributeMath.critRanged(
+                value(uuid, AttributeType.AGI),
+                cfgD("attributes.crit.ranged-base", 5.0),
+                cfgD("attributes.crit.ranged-per-agi", 0.05),
+                cfgD("attributes.crit.ranged-cap", 40.0));
+        double bonus = plugin.getSpec2Service().critRangedBonus(uuid);
+        double itemBonus = plugin.getItems() == null ? 0.0 : plugin.getItems().value(uuid, ItemStat.CRIT_RANGED);
+        double total = base + (Double.isFinite(bonus) && bonus > 0.0 ? bonus : 0.0) + itemBonus;
+        return Math.min(cfgD("attributes.crit.ranged-cap", 40.0), total);
+    }
+
     /**
      * Шанс критического удара заклинания.
      * 1.15.6 (2.6-87): cap читается из конфига (attributes.crit.spell-cap),
