@@ -248,8 +248,7 @@ public final class PetService implements Listener {
 
         double hp = PetMath.hp(
                 def.baseHp(), attrValue(owner, def), plugin.getSpec2Service().petHpPercent(ouuid));
-        double dmg = PetMath.damage(
-                def.baseDmg(), powerValue(owner, def), plugin.getSpec2Service().petDmgPercent(ouuid), 1.0);
+        double dmg = PetMath.damage(def.baseDmg(), powerValue(owner, def), 0.0, 1.0);
 
         Location spawn = owner.getLocation().add(1.0, 0.0, 1.0);
         Entity spawned = owner.getWorld().spawnEntity(spawn, def.entityType());
@@ -310,11 +309,7 @@ public final class PetService implements Listener {
         // dmgMult/speedMult удалены из PetState.
         st.glow = glow;
         st.buffUntil = System.currentTimeMillis() + Math.max(1, seconds) * 1000L;
-        double dmg = PetMath.damage(
-                def.baseDmg(),
-                powerValue(owner, def),
-                plugin.getSpec2Service().petDmgPercent(owner.getUniqueId()),
-                dmgMult);
+        double dmg = PetMath.damage(def.baseDmg(), powerValue(owner, def), 0.0, dmgMult);
         setAttackDamage(pet, dmg);
         setSpeed(pet, st.baseSpeed * speedMult);
         pet.setGlowing(glow);
@@ -588,7 +583,8 @@ public final class PetService implements Listener {
             return;
         }
 
-        double physicalBonus = talentPct(ownerId, "pet_phys_dmg_pct");
+        double physicalBonus = plugin.getSpec2Service().petDmgPercent(ownerId)
+                + talentPct(ownerId, "pet_phys_dmg_pct");
         boolean critical = rollPercent(talentPct(ownerId, "pet_crit_pct"));
         boolean empoweredCritical = critical && rollPercent(talentPct(ownerId, "pet_crit_bonus"));
         double multiplier = PetTalentMath.outgoingDamageMultiplier(physicalBonus, critical, empoweredCritical);
