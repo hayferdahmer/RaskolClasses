@@ -11,10 +11,10 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.HashSet;
-import java.util.Set;
+import java.util.HexFormat;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -103,8 +103,7 @@ public final class SafeStorage {
             try {
                 YamlConfiguration configuration = parse(candidate.toPath());
                 if (i > 0) {
-                    logger.warning("SafeStorage: " + file.getName() + " восстановлен из "
-                            + (i == 1 ? ".tmp" : ".bak"));
+                    logger.warning("SafeStorage: " + file.getName() + " восстановлен из " + (i == 1 ? ".tmp" : ".bak"));
                 }
                 quarantineInvalidCopies(candidates, logger, candidate, quarantined);
                 if (i > 0) {
@@ -122,10 +121,13 @@ public final class SafeStorage {
         }
 
         if (sawIoError) {
-            throw new StorageLoadException(LoadStatus.IO_ERROR,
-                    "SafeStorage: невозможно безопасно прочитать копии " + file.getName(), lastCorruption);
+            throw new StorageLoadException(
+                    LoadStatus.IO_ERROR,
+                    "SafeStorage: невозможно безопасно прочитать копии " + file.getName(),
+                    lastCorruption);
         }
-        throw new StorageLoadException(LoadStatus.CORRUPT,
+        throw new StorageLoadException(
+                LoadStatus.CORRUPT,
                 "SafeStorage: все существующие копии " + file.getName()
                         + " повреждены; запись заблокирована, исходники сохранены",
                 lastCorruption);
@@ -158,8 +160,8 @@ public final class SafeStorage {
                 quarantined.add(candidate);
             } catch (IOException exception) {
                 logger.log(Level.SEVERE, "SafeStorage: не удалось проверить копию " + candidate.getName(), exception);
-                throw new StorageLoadException(LoadStatus.IO_ERROR,
-                        "SafeStorage: ошибка проверки " + candidate.getName(), exception);
+                throw new StorageLoadException(
+                        LoadStatus.IO_ERROR, "SafeStorage: ошибка проверки " + candidate.getName(), exception);
             }
         }
     }
