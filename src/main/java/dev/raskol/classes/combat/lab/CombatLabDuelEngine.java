@@ -176,6 +176,16 @@ public final class CombatLabDuelEngine {
             }
         }
 
+        double remainingTime = Math.max(0.0, rules.maxDurationSeconds() - elapsed);
+        double firstFinalRegen = Math.min(
+                first.maxHealth() - firstHealth, first.healthRegenPerSecond() * remainingTime);
+        double secondFinalRegen = Math.min(
+                second.maxHealth() - secondHealth, second.healthRegenPerSecond() * remainingTime);
+        firstHealth += firstFinalRegen;
+        secondHealth += secondFinalRegen;
+        firstHealing += firstFinalRegen;
+        secondHealing += secondFinalRegen;
+
         return result(
                 rules.maxDurationSeconds(),
                 true,
@@ -239,13 +249,6 @@ public final class CombatLabDuelEngine {
             Random random,
             boolean equipmentAware) {
         boolean magic = equipmentAware && "MAGIC".equals(attacker.autoAttackType());
-        if (!magic) {
-            double avoidChance = Math.max(0.0, defender.dodgeChancePct() + defender.parryChancePct());
-            if (random.nextDouble() * 100.0 < avoidChance) {
-                return new HitResult(0.0, false, true);
-            }
-        }
-
         double damage =
                 equipmentAware && attacker.attackDamage() > 0.0 ? attacker.attackDamage() : rules.unarmedBaseDamage();
         if (magic) {
@@ -263,6 +266,14 @@ public final class CombatLabDuelEngine {
         }
         if (equipmentAware && !magic) {
             damage *= attacker.weaponMasteryMultiplier();
+        }
+
+        // В runtime исходящий критический бросок выполняется до защитного уклонения.
+        if (!magic) {
+            double avoidChance = Math.max(0.0, defender.dodgeChancePct() + defender.parryChancePct());
+            if (random.nextDouble() * 100.0 < avoidChance) {
+                return new HitResult(0.0, critical, true);
+            }
         }
 
         double resistance = magic ? defender.magicResistPct() : defender.physicalResistPct();
