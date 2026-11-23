@@ -14,7 +14,7 @@ import dev.raskol.classes.combat.CombatMath;
 public final class CombatLabDuelEngine {
 
     public static final String PROFILE_ID = "pvp-unarmed-melee-probe-v1";
-    public static final String EQUIPMENT_PROFILE_ID = "pvp-equipment-auto-attack-v1";
+    public static final String EQUIPMENT_PROFILE_ID = "pvp-equipment-auto-attack-v2";
     private static final double DEFAULT_ATTACK_INTERVAL_SECONDS = 0.8;
     private static final double DEFAULT_MAX_DURATION_SECONDS = 60.0;
 
@@ -236,10 +236,7 @@ public final class CombatLabDuelEngine {
     }
 
     private static double attackInterval(CombatLabCombatantSnapshot combatant, Rules rules, boolean equipmentAware) {
-        if (!equipmentAware || combatant.attackSpeedPct() <= 0.0) {
-            return rules.attackIntervalSeconds();
-        }
-        return rules.attackIntervalSeconds() / (1.0 + combatant.attackSpeedPct() / 100.0);
+        return equipmentAware ? combatant.attackIntervalSeconds() : rules.attackIntervalSeconds();
     }
 
     private static HitResult resolveHit(
