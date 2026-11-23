@@ -48,10 +48,8 @@ class Spec2StorageMigrationTest {
         assertEquals("fire", saved.getString(profile + ".specialization.main"));
         assertEquals(2, saved.getInt(profile + ".specialization.ranks.fire.fireball"));
         assertEquals(1, saved.getInt(profile + ".level"));
-        assertTrue(legacy.exists());
-        try (var files = Files.list(tempDir)) {
-            assertTrue(files.anyMatch(path -> path.getFileName().toString().endsWith(".quarantine")));
-        }
+        assertFalse(legacy.exists());
+        assertTrue(tempDir.resolve("spec2.yml.migrated").toFile().isFile());
     }
 
     @Test
@@ -160,8 +158,10 @@ class Spec2StorageMigrationTest {
         YamlConfiguration saved = YamlConfiguration.loadConfiguration(
                 tempDir.resolve("characters.yml").toFile());
         assertEquals("arcane", saved.getString("profiles." + playerId + ".specialization.main"));
-        assertFalse(legacy.exists());
-        assertTrue(tempDir.resolve("spec2.yml.migrated").toFile().isFile());
+        assertTrue(legacy.exists());
+        try (var files = Files.list(tempDir)) {
+            assertTrue(files.anyMatch(path -> path.getFileName().toString().endsWith(".quarantine")));
+        }
     }
 
     @Test
