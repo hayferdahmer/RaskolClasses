@@ -57,7 +57,7 @@ jobs:
         id: audit
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
           HEAD_SHA: ${{ github.sha }}
         run: python3 tools/combat-ci/check_combat_diff.py
 

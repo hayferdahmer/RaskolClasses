@@ -20,17 +20,16 @@ class DamageSourceContextTest {
     @DisplayName("окружение не получает фиктивного атакующего и руки оружия")
     void environmentHasNoAttacker() {
         UUID target = UUID.randomUUID();
-        DamageSourceContext context =
-                new DamageSourceContext(
-                        null,
-                        UUID.randomUUID(),
-                        UUID.randomUUID(),
-                        target,
-                        DamageSourceContext.SourceType.ENVIRONMENT,
-                        "FALL_DAMAGE",
-                        DamageSourceContext.WeaponHand.OFF_HAND,
-                        false,
-                        false);
+        DamageSourceContext context = new DamageSourceContext(
+                null,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                target,
+                DamageSourceContext.SourceType.ENVIRONMENT,
+                "FALL_DAMAGE",
+                DamageSourceContext.WeaponHand.OFF_HAND,
+                false,
+                false);
 
         assertNull(context.sourceEntityId());
         assertNull(context.attackerId());
@@ -43,17 +42,16 @@ class DamageSourceContextTest {
     @DisplayName("контекст игрока по умолчанию связывает владельца с атакующим")
     void playerOwnerDefaultsToAttacker() {
         UUID player = UUID.randomUUID();
-        DamageSourceContext context =
-                new DamageSourceContext(
-                        player,
-                        player,
-                        null,
-                        UUID.randomUUID(),
-                        DamageSourceContext.SourceType.PLAYER,
-                        " Tyr_Strike ",
-                        null,
-                        false,
-                        false);
+        DamageSourceContext context = new DamageSourceContext(
+                player,
+                player,
+                null,
+                UUID.randomUUID(),
+                DamageSourceContext.SourceType.PLAYER,
+                " Tyr_Strike ",
+                null,
+                false,
+                false);
 
         assertEquals(player, context.ownerId());
         assertEquals("tyr_strike", context.abilityId());
@@ -82,17 +80,16 @@ class DamageSourceContextTest {
     @Test
     @DisplayName("невалидный ID способности не попадает в боевой контекст")
     void invalidAbilityIdIsDiscarded() {
-        DamageSourceContext context =
-                new DamageSourceContext(
-                        null,
-                        null,
-                        null,
-                        null,
-                        DamageSourceContext.SourceType.ABILITY,
-                        "../admin",
-                        DamageSourceContext.WeaponHand.UNKNOWN,
-                        false,
-                        false);
+        DamageSourceContext context = new DamageSourceContext(
+                null,
+                null,
+                null,
+                null,
+                DamageSourceContext.SourceType.ABILITY,
+                "../admin",
+                DamageSourceContext.WeaponHand.UNKNOWN,
+                false,
+                false);
 
         assertNull(context.abilityId());
     }
@@ -100,17 +97,16 @@ class DamageSourceContextTest {
     @Test
     @DisplayName("reflection всегда помечен как отражённый источник")
     void reflectionIsExplicit() {
-        DamageSourceContext context =
-                new DamageSourceContext(
-                        null,
-                        null,
-                        null,
-                        null,
-                        DamageSourceContext.SourceType.REFLECTION,
-                        null,
-                        null,
-                        true,
-                        false);
+        DamageSourceContext context = new DamageSourceContext(
+                null,
+                null,
+                null,
+                null,
+                DamageSourceContext.SourceType.REFLECTION,
+                null,
+                null,
+                true,
+                false);
 
         assertTrue(context.reflected());
         assertTrue(context.fromProc());
@@ -119,17 +115,16 @@ class DamageSourceContextTest {
     @Test
     @DisplayName("withWeaponHand создаёт новый контекст и не меняет исходный")
     void handCopyIsImmutable() {
-        DamageSourceContext original =
-                new DamageSourceContext(
-                        null,
-                        null,
-                        null,
-                        null,
-                        DamageSourceContext.SourceType.ABILITY,
-                        "aimed_shot",
-                        null,
-                        false,
-                        false);
+        DamageSourceContext original = new DamageSourceContext(
+                null,
+                null,
+                null,
+                null,
+                DamageSourceContext.SourceType.ABILITY,
+                "aimed_shot",
+                null,
+                false,
+                false);
         DamageSourceContext updated =
                 original.withWeaponHand(DamageSourceContext.WeaponHand.OFF_HAND);
 
