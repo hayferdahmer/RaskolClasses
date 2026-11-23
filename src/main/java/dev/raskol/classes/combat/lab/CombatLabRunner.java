@@ -72,7 +72,7 @@ public final class CombatLabRunner {
 
         return "{\n"
                 + "  \"schema_version\": \"1.0\",\n"
-                + "  \"report_type\": \"combat-lab-report\",\n"
+                + "  \"report_type\": \"combat-lab-probe-report\",\n"
                 + "  \"simulator_version\": \"headless-unarmed-probe-0.1.0\",\n"
                 + "  \"scenario_set\": \"" + CombatLabDuelEngine.PROFILE_ID + "\",\n"
                 + "  \"simulation_scope\": \"unarmed physical auto-attacks only; no items, active abilities, talents, procs, pets, crowd control, resource spending or school effects\",\n"
