@@ -43,7 +43,6 @@ public final class PluginTasks {
     public static void autosave(RaskolClasses plugin) {
         plugin.getCooldowns().saveAll();
         plugin.getResources().saveAll();
-        plugin.getSpec2Storage().save();
-        plugin.getCharacterProfiles().saveIfDirty();
+        plugin.saveCharacterProfilesIfDirty();
     }
 }

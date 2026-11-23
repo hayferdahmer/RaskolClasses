@@ -4,6 +4,7 @@ package dev.raskol.classes;
 
 import java.io.File;
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.bukkit.command.PluginCommand;
@@ -143,6 +144,7 @@ import dev.raskol.classes.spec.model.Spec2Points;
 import dev.raskol.classes.spec.service.Spec2EffectsApplier;
 import dev.raskol.classes.spec.service.Spec2Service;
 import dev.raskol.classes.spec.storage.Spec2Storage;
+import dev.raskol.classes.spec.storage.Spec2StorageMigration;
 import dev.raskol.classes.storage.AsyncStorageWriter;
 
 /**
@@ -362,6 +364,7 @@ public final class RaskolClasses extends JavaPlugin {
         this.storageWriter = new AsyncStorageWriter(getLogger());
         this.characterProfiles = new CharacterProfileStorage(
                 new File(getDataFolder(), CharacterProfileStorage.FILE_NAME), storageWriter, getLogger());
+        Spec2StorageMigration.migrate(getDataFolder(), characterProfiles, getLogger());
         this.items = new ItemSystem(this);
         this.itemsApi = new ItemsApi(this);
         this.combatProfiles = new CombatProfileRegistry();
@@ -486,7 +489,7 @@ public final class RaskolClasses extends JavaPlugin {
 
         Spec2Points.configure(this);
 
-        this.spec2Storage = new Spec2Storage(this, storageWriter);
+        this.spec2Storage = new Spec2Storage(characterProfiles);
         this.spec2Applier = new Spec2EffectsApplier(this);
         this.spec2Service = new Spec2Service(this, spec2Storage);
         this.spec2Service.refreshDisabledCache();
@@ -988,12 +991,6 @@ public final class RaskolClasses extends JavaPlugin {
                 characterProfiles.saveIfDirty();
             }
         });
-        shutdown.run("specialization snapshot", () -> {
-            if (spec2Storage != null) {
-                spec2Storage.save();
-            }
-        });
-
         // Инсталляции очищают свои FX-ресурсы; FxService закрывается только после них.
         shutdown.run("installation cleanup", () -> {
             if (installations != null) {
@@ -1172,8 +1169,12 @@ public final class RaskolClasses extends JavaPlugin {
         return characterLevels;
     }
 
-    public CharacterProfileStorage getCharacterProfiles() {
-        return characterProfiles;
+    public void ensureCharacterProfile(UUID playerId) {
+        characterProfiles.ensureProfile(playerId);
+    }
+
+    public boolean saveCharacterProfilesIfDirty() {
+        return characterProfiles.saveIfDirty();
     }
 
     public CharacterExperienceService getCharacterExperience() {
