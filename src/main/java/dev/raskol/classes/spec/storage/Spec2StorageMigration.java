@@ -287,13 +287,8 @@ public final class Spec2StorageMigration {
     private static void refreshUnifiedBackup(File directory, File unifiedFile, Logger logger) {
         File temporary = new File(directory, CharacterProfileStorage.FILE_NAME + ".bak.tmp");
         File backup = new File(directory, CharacterProfileStorage.FILE_NAME + ".bak");
-        File archivedBackup = null;
         try {
             Files.copy(unifiedFile.toPath(), temporary.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            if (backup.exists()) {
-                archivedBackup = nextArchiveFile(backup);
-                Files.move(backup.toPath(), archivedBackup.toPath());
-            }
             try {
                 Files.move(
                         temporary.toPath(),
@@ -301,17 +296,10 @@ public final class Spec2StorageMigration {
                         StandardCopyOption.ATOMIC_MOVE,
                         StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException exception) {
+                // Старый backup не перемещаем заранее: до замены он остаётся доступен для восстановления.
                 Files.move(temporary.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException exception) {
-            if (archivedBackup != null && archivedBackup.exists() && !backup.exists()) {
-                try {
-                    Files.move(archivedBackup.toPath(), backup.toPath());
-                } catch (IOException restoreException) {
-                    logger.severe("spec2: не удалось восстановить прежний backup characters.yml: "
-                            + restoreException.getMessage());
-                }
-            }
             if (temporary.exists() && !temporary.delete()) {
                 logger.warning("spec2: не удалось удалить временный backup " + temporary.getName());
             }
