@@ -236,6 +236,33 @@ class Spec2StorageMigrationTest {
         assertTrue(tempDir.resolve("spec2-storage.yml.bak.migrated").toFile().isFile());
     }
 
+    @Test
+    @DisplayName("повторный запуск после частичной архивации не теряет и не дублирует данные")
+    void retriesSafelyWhenOneLegacySourceRemainsAfterPartialArchiving() throws IOException {
+        UUID playerId = UUID.fromString("c1b2c3d4-e5f6-4a2b-8c3d-4e5f6a7b8c9d");
+        write(
+                "spec2-storage.yml",
+                "players:\n  " + playerId + ":\n    main: fire\n    ranks:\n      fire:\n        fireball: 2\n");
+        write(
+                "spec2.yml",
+                "players:\n  " + playerId
+                        + ":\n    main: frost\n    ranks:\n      fire:\n        fireball: 1\n        pyroblast: 1\n");
+
+        migrate();
+
+        Path archivedLegacy = tempDir.resolve("spec2.yml.migrated");
+        Files.move(archivedLegacy, tempDir.resolve("spec2.yml"));
+        migrate();
+
+        String profile = "profiles." + playerId;
+        YamlConfiguration saved = YamlConfiguration.loadConfiguration(
+                tempDir.resolve("characters.yml").toFile());
+        assertEquals("fire", saved.getString(profile + ".specialization.main"));
+        assertEquals(2, saved.getInt(profile + ".specialization.ranks.fire.fireball"));
+        assertEquals(1, saved.getInt(profile + ".specialization.ranks.fire.pyroblast"));
+        assertTrue(tempDir.resolve("spec2.yml.migrated-1").toFile().isFile());
+    }
+
     private void migrate() {
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
             CharacterProfileStorage profiles = new CharacterProfileStorage(
