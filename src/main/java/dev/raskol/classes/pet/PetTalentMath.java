@@ -20,6 +20,10 @@ final class PetTalentMath {
         return Double.isFinite(value) ? Math.max(0.0, Math.min(200.0, value)) : 0.0;
     }
 
+    static boolean cadenceManaged(double permanentSpeedPct, boolean frenzyActive, boolean disabled) {
+        return !disabled && (speedPercent(permanentSpeedPct) > 0.0 || frenzyActive);
+    }
+
     /** Переводит суммарный бонус скорости атаки в целочисленный интервал тиков. */
     static int attackIntervalTicks(int baseTicks, double permanentSpeedPct, double temporarySpeedPct) {
         int base = Math.max(1, baseTicks);
