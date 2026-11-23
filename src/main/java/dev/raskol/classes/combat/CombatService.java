@@ -121,6 +121,14 @@ public final class CombatService implements Listener {
         return CURRENT_SOURCE_CONTEXT.get();
     }
 
+    static void setCurrentSourceContext(DamageSourceContext context) {
+        if (context == null) {
+            CURRENT_SOURCE_CONTEXT.remove();
+        } else {
+            CURRENT_SOURCE_CONTEXT.set(context);
+        }
+    }
+
     public static boolean reflectSuppressed() {
         return Boolean.TRUE.equals(REFLECT_SUPPRESS.get());
     }
