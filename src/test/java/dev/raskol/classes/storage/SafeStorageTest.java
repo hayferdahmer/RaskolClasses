@@ -75,8 +75,8 @@ class SafeStorageTest {
         assertEquals(SafeStorage.LoadStatus.RECOVERED_BACKUP, result.status());
         assertEquals("backup", result.configuration().getString("value"));
         assertTrue(Files.exists(file.toPath()), "Оригинал повреждённого файла не удаляется");
-        assertEquals(1, quarantineFiles().count());
-        assertEquals(1, metadataFiles().count());
+        assertEquals(1, countFilesEndingWith(".quarantine"));
+        assertEquals(1, countFilesEndingWith(".quarantine.json"));
     }
 
     @Test
@@ -91,8 +91,8 @@ class SafeStorageTest {
 
         assertEquals(SafeStorage.LoadStatus.CORRUPT, exception.status());
         assertTrue(Files.exists(file.toPath()));
-        assertEquals(3, quarantineFiles().count());
-        assertEquals(3, metadataFiles().count());
+        assertEquals(3, countFilesEndingWith(".quarantine"));
+        assertEquals(3, countFilesEndingWith(".quarantine.json"));
         assertThrows(SafeStorage.StorageLoadException.class, () -> SafeStorage.loadWithFallback(file, LOGGER));
     }
 
@@ -138,12 +138,10 @@ class SafeStorageTest {
         assertFalse(SafeStorage.saveAtomic(configuration, target, LOGGER));
     }
 
-    private Stream<Path> quarantineFiles() throws IOException {
-        return Files.list(tempDir).filter(path -> path.getFileName().toString().endsWith(".quarantine"));
-    }
-
-    private Stream<Path> metadataFiles() throws IOException {
-        return Files.list(tempDir).filter(path -> path.getFileName().toString().endsWith(".quarantine.json"));
+    private long countFilesEndingWith(String suffix) throws IOException {
+        try (Stream<Path> files = Files.list(tempDir)) {
+            return files.filter(path -> path.getFileName().toString().endsWith(suffix)).count();
+        }
     }
 
     private File write(String name, String content) throws IOException {
