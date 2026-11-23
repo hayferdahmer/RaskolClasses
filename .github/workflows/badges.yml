@@ -27,6 +27,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: badges
@@ -69,6 +70,7 @@ jobs:
           mk "unit-тесты" "${{ steps.v.outputs.tests }}"        "4f7a3a" tests
 
       - name: Открыть PR с обновлёнными бейджами
+        id: cpr
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -82,3 +84,14 @@ jobs:
             Изменения проходят обычный review и CI; прямой записи в main нет.
           add-paths: |
             .github/badges/*.json
+
+      - name: Запустить обязательные проверки для PR с бейджами
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOT_BRANCH: bot/live-badges-${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run build.yml --ref "${BOT_BRANCH}"
+          gh workflow run rips-security-auditor.yml --ref "${BOT_BRANCH}"
