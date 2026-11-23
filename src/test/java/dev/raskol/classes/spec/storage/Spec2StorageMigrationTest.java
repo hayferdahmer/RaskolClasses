@@ -203,7 +203,7 @@ class Spec2StorageMigrationTest {
         UUID playerId = UUID.fromString("a1b2c3d4-e5f6-4a2b-8c3d-4e5f6a7b8c9d");
         File temporary = write(
                 "spec2-storage.yml.tmp",
-                "players:\\n  " + playerId + ":\\n    main: restoration\\n");
+                "players:\n  " + playerId + ":\n    main: restoration\n");
 
         migrate();
 
@@ -222,7 +222,7 @@ class Spec2StorageMigrationTest {
         UUID playerId = UUID.fromString("b1b2c3d4-e5f6-4a2b-8c3d-4e5f6a7b8c9d");
         File backup = write(
                 "spec2-storage.yml.bak",
-                "players:\\n  " + playerId + ":\\n    main: discipline\\n");
+                "players:\n  " + playerId + ":\n    main: discipline\n");
 
         migrate();
 
