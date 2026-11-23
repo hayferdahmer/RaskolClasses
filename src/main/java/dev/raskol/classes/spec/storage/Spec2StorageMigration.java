@@ -47,15 +47,21 @@ final class Spec2StorageMigration {
 
         YamlConfiguration current =
                 newFile.exists() ? SafeStorage.loadWithFallback(newFile, logger) : new YamlConfiguration();
+        if (!legacyReadable) {
+            if (newFile.exists() && !current.getKeys(true).isEmpty()) {
+                logger.severe("spec2: legacy-файл не читается; используем существующее новое хранилище, "
+                        + "legacy оставлен без изменений");
+                return current;
+            }
+            throw new IllegalStateException(
+                    "spec2: legacy-файл существует, но не читается; безопасная миграция невозможна");
+        }
         if (legacyReadable
                 && current.getKeys(true).isEmpty()
                 && !legacy.getKeys(true).isEmpty()) {
             if (SafeStorage.saveAtomic(legacy, newFile, logger)) {
-                if (oldFile.delete()) {
-                    logger.info("spec2: восстановлено и мигрировано " + OLD_FILE_NAME + " → " + NEW_FILE_NAME);
-                } else {
-                    logger.warning("spec2: новая копия записана, но legacy-файл оставлен: " + OLD_FILE_NAME);
-                }
+                logger.info("spec2: новая копия проверена и записана; legacy сохранён для ручной проверки: "
+                        + OLD_FILE_NAME + " → " + NEW_FILE_NAME);
             } else {
                 logger.warning(
                         "spec2: не удалось записать новую копию; legacy-файл сохранён, данные остаются в памяти");
@@ -71,9 +77,7 @@ final class Spec2StorageMigration {
         } else if (legacyReadable
                 && current.getKeys(true).isEmpty()
                 && legacy.getKeys(true).isEmpty()) {
-            if (!oldFile.delete()) {
-                logger.warning("spec2: не удалось удалить пустой legacy-файл " + OLD_FILE_NAME);
-            }
+            logger.info("spec2: пустой legacy-файл сохранён без изменений: " + OLD_FILE_NAME);
         }
         return current;
     }
