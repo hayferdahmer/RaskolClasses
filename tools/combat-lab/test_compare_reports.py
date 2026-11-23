@@ -50,13 +50,13 @@ def report():
         "scenario_set": "pvp-pve-core-v1",
         "source_commit": "a" * 40,
         "seed": 42,
-        "iterations_per_scenario": 100,
+        "iterations_per_scenario": 1200,
         "generated_at": "2026-11-23T00:00:00Z",
         "scenarios": [
             {
                 "scenario_id": "pvp-warrior-vs-mage-l40",
                 "mode": "pvp",
-                "sample_count": 100,
+                "sample_count": 1200,
                 "invariant_violations": [],
                 "metrics": {
                     "win_rate": metric(0.54, 0.52, 0.56, "wilson"),
@@ -99,6 +99,19 @@ class CombatLabGateTest(unittest.TestCase):
         candidate["scenarios"] = []
         with self.assertRaisesRegex(GateError, "непустым массивом"):
             compare_reports(baseline(), candidate)
+
+    def test_insufficient_sample_size_fails(self):
+        candidate = report()
+        candidate["iterations_per_scenario"] = 100
+        candidate["scenarios"][0]["sample_count"] = 100
+        with self.assertRaisesRegex(GateError, "не менее 1200"):
+            compare_reports(baseline(), candidate)
+
+    def test_confidence_interval_crossing_tolerance_boundary_fails(self):
+        candidate = report()
+        candidate["scenarios"][0]["metrics"]["win_rate"] = metric(0.56, 0.55, 0.58, "wilson")
+        failures = compare_reports(baseline(), candidate)
+        self.assertTrue(any("CI95" in failure and "win_rate" in failure for failure in failures))
 
     def test_incompatible_simulator_version_fails(self):
         candidate = report()
