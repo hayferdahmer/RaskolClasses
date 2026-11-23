@@ -28,8 +28,7 @@ class StartupChecksTest {
         Files.writeString(staleTmp.toPath(), "players: preserved\n");
         assertTrue(staleTmp.setLastModified(1L));
 
-        int staleCount = StartupChecks.reportStaleTmpFiles(
-                tempDir.toFile(), Logger.getLogger("StartupChecksTest"));
+        int staleCount = StartupChecks.reportStaleTmpFiles(tempDir.toFile(), Logger.getLogger("StartupChecksTest"));
 
         assertEquals(1, staleCount);
         assertTrue(staleTmp.isFile());
