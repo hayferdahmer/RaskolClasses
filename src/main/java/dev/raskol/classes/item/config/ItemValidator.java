@@ -49,10 +49,20 @@ public final class ItemValidator {
         return maxLevel;
     }
 
-    /** Материал существует в реестре Bukkit. */
+    /** Материал существует в реестре Bukkit; используется только в Paper runtime. */
     public static void validateMaterial(String material) {
-        if (Material.matchMaterial(material) == null) {
+        if (material == null || Material.matchMaterial(material) == null) {
             throw new IllegalArgumentException("unknown material " + material);
+        }
+    }
+
+    /**
+     * Проверяет безопасный синтаксис идентификатора материала без обращения к Bukkit Registry.
+     * Реальное существование материала дополнительно проверяется при загрузке в Paper runtime.
+     */
+    public static void validateMaterialSyntax(String material) {
+        if (material == null || !material.matches("[A-Za-z0-9_:.\\-/]+")) {
+            throw new IllegalArgumentException("invalid material identifier " + material);
         }
     }
 
