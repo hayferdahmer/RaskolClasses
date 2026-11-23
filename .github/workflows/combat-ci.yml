@@ -71,9 +71,8 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: python3 tools/combat-ci/check_combat_diff.py
 
-      - name: Compile tests and run Spotless and SpotBugs
-        id: verify
-        run: mvn -Pdev -B -DskipTests verify
+      - name: Compile production and test classes
+        run: mvn -Pdev -B -DskipTests test-compile
 
       - name: Run deterministic Combat Lab unarmed probe
         run: >
@@ -127,7 +126,7 @@ jobs:
             echo "- Combat changes: ${COMBAT_CHANGED:-unknown}"
             echo "- Test changes: ${TESTS_CHANGED:-unknown}"
             echo "- Combat packages: ${COMBAT_PACKAGES:-none}"
-            echo "- Required gates: Java 25 compile, test compilation, Spotless and SpotBugs; unit tests execute in the required Build workflow."
+            echo "- Required gates: Java 25 compilation, combat-specific Python checks and deterministic probes; Spotless, SpotBugs and unit tests are owned by RASKOL Forge."
             echo "- Combat Lab: unarmed control and production items.yml 18-spec equipment matrix (1,530 directed scenarios × 1,200 duels) are executed and structurally validated."
             echo "- Scope limitation: active abilities, talents, procs, pets, CC, resource economy and live Paper event behavior remain outside this equipment auto-attack profile."
           } >> "$GITHUB_STEP_SUMMARY"
