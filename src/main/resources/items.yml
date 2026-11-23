@@ -499,6 +499,1191 @@ templates:
       magic-resist: 30
       int: 25
 
+  spec_arms_main_hand:
+    class: WARRIOR
+    spec: arms
+    slot: MAIN_HAND
+    weapon-type: SWORD
+    material: IRON_SWORD
+    custom-model-data: 3001
+    names: ["Клинок Первого удара"]
+    set: arms_regalia
+    distribution:
+      attack-damage: 25
+      weapon-power: 45
+      crit-melee: 30
+  spec_arms_head:
+    class: WARRIOR
+    spec: arms
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3002
+    names: ["Шлем Клинок Первого удара"]
+    set: arms_regalia
+    distribution:
+      hp-bonus: 35
+      str: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_arms_chest:
+    class: WARRIOR
+    spec: arms
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3003
+    names: ["Нагрудник Клинок Первого удара"]
+    set: arms_regalia
+    distribution:
+      hp-bonus: 35
+      str: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_arms_legs:
+    class: WARRIOR
+    spec: arms
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3004
+    names: ["Поножи Клинок Первого удара"]
+    set: arms_regalia
+    distribution:
+      hp-bonus: 35
+      str: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_arms_feet:
+    class: WARRIOR
+    spec: arms
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3005
+    names: ["Сапоги Клинок Первого удара"]
+    set: arms_regalia
+    distribution:
+      hp-bonus: 35
+      str: 30
+      phys-resist: 15
+      crit-melee: 20
+
+  spec_fury_main_hand:
+    class: WARRIOR
+    spec: fury
+    slot: MAIN_HAND
+    weapon-type: AXE
+    material: IRON_AXE
+    custom-model-data: 3011
+    names: ["Рёв Красного шторма"]
+    set: fury_regalia
+    distribution:
+      attack-damage: 25
+      weapon-power: 40
+      attack-speed: 35
+  spec_fury_head:
+    class: WARRIOR
+    spec: fury
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3012
+    names: ["Шлем Рёв Красного шторма"]
+    set: fury_regalia
+    distribution:
+      hp-bonus: 35
+      str: 30
+      phys-resist: 15
+      attack-speed: 20
+  spec_fury_chest:
+    class: WARRIOR
+    spec: fury
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3013
+    names: ["Нагрудник Рёв Красного шторма"]
+    set: fury_regalia
+    distribution:
+      hp-bonus: 35
+      str: 30
+      phys-resist: 15
+      attack-speed: 20
+  spec_fury_legs:
+    class: WARRIOR
+    spec: fury
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3014
+    names: ["Поножи Рёв Красного шторма"]
+    set: fury_regalia
+    distribution:
+      hp-bonus: 35
+      str: 30
+      phys-resist: 15
+      attack-speed: 20
+  spec_fury_feet:
+    class: WARRIOR
+    spec: fury
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3015
+    names: ["Сапоги Рёв Красного шторма"]
+    set: fury_regalia
+    distribution:
+      hp-bonus: 35
+      str: 30
+      phys-resist: 15
+      attack-speed: 20
+
+  spec_guard_main_hand:
+    class: WARRIOR
+    spec: guard
+    slot: MAIN_HAND
+    weapon-type: MACE
+    material: MACE
+    custom-model-data: 3021
+    names: ["Оплот Железного дозора"]
+    set: guard_regalia
+    distribution:
+      attack-damage: 25
+      weapon-power: 35
+      hp-bonus: 40
+  spec_guard_head:
+    class: WARRIOR
+    spec: guard
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3022
+    names: ["Шлем Оплот Железного дозора"]
+    set: guard_regalia
+    distribution:
+      hp-bonus: 50
+      phys-resist: 30
+      str: 20
+  spec_guard_chest:
+    class: WARRIOR
+    spec: guard
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3023
+    names: ["Нагрудник Оплот Железного дозора"]
+    set: guard_regalia
+    distribution:
+      hp-bonus: 50
+      phys-resist: 30
+      str: 20
+  spec_guard_legs:
+    class: WARRIOR
+    spec: guard
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3024
+    names: ["Поножи Оплот Железного дозора"]
+    set: guard_regalia
+    distribution:
+      hp-bonus: 50
+      phys-resist: 30
+      str: 20
+  spec_guard_feet:
+    class: WARRIOR
+    spec: guard
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3025
+    names: ["Сапоги Оплот Железного дозора"]
+    set: guard_regalia
+    distribution:
+      hp-bonus: 50
+      phys-resist: 30
+      str: 20
+
+  spec_marksmanship_main_hand:
+    class: HUNTER
+    spec: marksmanship
+    slot: MAIN_HAND
+    weapon-type: BOW
+    material: BOW
+    custom-model-data: 3031
+    names: ["Прицел Последней звезды"]
+    set: marksmanship_regalia
+    distribution:
+      attack-damage: 25
+      weapon-power: 45
+      pen-phys-pct: 30
+  spec_marksmanship_head:
+    class: HUNTER
+    spec: marksmanship
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3032
+    names: ["Шлем Прицел Последней звезды"]
+    set: marksmanship_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      pen-phys-pct: 20
+  spec_marksmanship_chest:
+    class: HUNTER
+    spec: marksmanship
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3033
+    names: ["Нагрудник Прицел Последней звезды"]
+    set: marksmanship_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      pen-phys-pct: 20
+  spec_marksmanship_legs:
+    class: HUNTER
+    spec: marksmanship
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3034
+    names: ["Поножи Прицел Последней звезды"]
+    set: marksmanship_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      pen-phys-pct: 20
+  spec_marksmanship_feet:
+    class: HUNTER
+    spec: marksmanship
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3035
+    names: ["Сапоги Прицел Последней звезды"]
+    set: marksmanship_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      pen-phys-pct: 20
+
+  spec_survival_main_hand:
+    class: HUNTER
+    spec: survival
+    slot: MAIN_HAND
+    weapon-type: SPEAR
+    material: TRIDENT
+    custom-model-data: 3041
+    names: ["Копьё Дикого рубежа"]
+    set: survival_regalia
+    distribution:
+      attack-damage: 25
+      weapon-power: 45
+      crit-melee: 30
+  spec_survival_head:
+    class: HUNTER
+    spec: survival
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3042
+    names: ["Шлем Копьё Дикого рубежа"]
+    set: survival_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_survival_chest:
+    class: HUNTER
+    spec: survival
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3043
+    names: ["Нагрудник Копьё Дикого рубежа"]
+    set: survival_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_survival_legs:
+    class: HUNTER
+    spec: survival
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3044
+    names: ["Поножи Копьё Дикого рубежа"]
+    set: survival_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_survival_feet:
+    class: HUNTER
+    spec: survival
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3045
+    names: ["Сапоги Копьё Дикого рубежа"]
+    set: survival_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+
+  spec_beastmaster_main_hand:
+    class: HUNTER
+    spec: beastmaster
+    slot: MAIN_HAND
+    weapon-type: BOW
+    material: BOW
+    custom-model-data: 3051
+    names: ["Знак Верного зверя"]
+    set: beastmaster_regalia
+    distribution:
+      attack-damage: 25
+      weapon-power: 45
+      crit-melee: 30
+  spec_beastmaster_head:
+    class: HUNTER
+    spec: beastmaster
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3052
+    names: ["Шлем Знак Верного зверя"]
+    set: beastmaster_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_beastmaster_chest:
+    class: HUNTER
+    spec: beastmaster
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3053
+    names: ["Нагрудник Знак Верного зверя"]
+    set: beastmaster_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_beastmaster_legs:
+    class: HUNTER
+    spec: beastmaster
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3054
+    names: ["Поножи Знак Верного зверя"]
+    set: beastmaster_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_beastmaster_feet:
+    class: HUNTER
+    spec: beastmaster
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3055
+    names: ["Сапоги Знак Верного зверя"]
+    set: beastmaster_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+
+  spec_discipline_main_hand:
+    class: PRIEST
+    spec: discipline
+    slot: MAIN_HAND
+    weapon-type: MACE
+    material: MACE
+    custom-model-data: 3061
+    names: ["Печать Несломленной воли"]
+    set: discipline_regalia
+    distribution:
+      attack-damage: 20
+      heal-power: 45
+      spell-power: 35
+  spec_discipline_head:
+    class: PRIEST
+    spec: discipline
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3062
+    names: ["Шлем Печать Несломленной воли"]
+    set: discipline_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      heal-power: 20
+      magic-resist: 15
+  spec_discipline_chest:
+    class: PRIEST
+    spec: discipline
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3063
+    names: ["Нагрудник Печать Несломленной воли"]
+    set: discipline_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      heal-power: 20
+      magic-resist: 15
+  spec_discipline_legs:
+    class: PRIEST
+    spec: discipline
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3064
+    names: ["Поножи Печать Несломленной воли"]
+    set: discipline_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      heal-power: 20
+      magic-resist: 15
+  spec_discipline_feet:
+    class: PRIEST
+    spec: discipline
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3065
+    names: ["Сапоги Печать Несломленной воли"]
+    set: discipline_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      heal-power: 20
+      magic-resist: 15
+
+  spec_holy_main_hand:
+    class: PRIEST
+    spec: holy
+    slot: MAIN_HAND
+    weapon-type: MACE
+    material: MACE
+    custom-model-data: 3071
+    names: ["Свет Непокорённого рассвета"]
+    set: holy_regalia
+    distribution:
+      attack-damage: 20
+      heal-power: 50
+      spell-power: 30
+  spec_holy_head:
+    class: PRIEST
+    spec: holy
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3072
+    names: ["Шлем Свет Непокорённого рассвета"]
+    set: holy_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      heal-power: 20
+      magic-resist: 15
+  spec_holy_chest:
+    class: PRIEST
+    spec: holy
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3073
+    names: ["Нагрудник Свет Непокорённого рассвета"]
+    set: holy_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      heal-power: 20
+      magic-resist: 15
+  spec_holy_legs:
+    class: PRIEST
+    spec: holy
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3074
+    names: ["Поножи Свет Непокорённого рассвета"]
+    set: holy_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      heal-power: 20
+      magic-resist: 15
+  spec_holy_feet:
+    class: PRIEST
+    spec: holy
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3075
+    names: ["Сапоги Свет Непокорённого рассвета"]
+    set: holy_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      heal-power: 20
+      magic-resist: 15
+
+  spec_shadow_main_hand:
+    class: PRIEST
+    spec: shadow
+    slot: MAIN_HAND
+    weapon-type: STAFF
+    material: BLAZE_ROD
+    custom-model-data: 3081
+    names: ["Сумрак Безмолвного хора"]
+    set: shadow_regalia
+    distribution:
+      attack-damage: 20
+      spell-power: 50
+      crit-spell: 30
+  spec_shadow_head:
+    class: PRIEST
+    spec: shadow
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3082
+    names: ["Шлем Сумрак Безмолвного хора"]
+    set: shadow_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+  spec_shadow_chest:
+    class: PRIEST
+    spec: shadow
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3083
+    names: ["Нагрудник Сумрак Безмолвного хора"]
+    set: shadow_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+  spec_shadow_legs:
+    class: PRIEST
+    spec: shadow
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3084
+    names: ["Поножи Сумрак Безмолвного хора"]
+    set: shadow_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+  spec_shadow_feet:
+    class: PRIEST
+    spec: shadow
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3085
+    names: ["Сапоги Сумрак Безмолвного хора"]
+    set: shadow_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+
+  spec_arcane_main_hand:
+    class: MAGE
+    spec: arcane
+    slot: MAIN_HAND
+    weapon-type: STAFF
+    material: BLAZE_ROD
+    custom-model-data: 3091
+    names: ["Астральный фокус"]
+    set: arcane_regalia
+    distribution:
+      attack-damage: 20
+      spell-power: 50
+      crit-spell: 30
+  spec_arcane_head:
+    class: MAGE
+    spec: arcane
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3092
+    names: ["Шлем Астральный фокус"]
+    set: arcane_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+  spec_arcane_chest:
+    class: MAGE
+    spec: arcane
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3093
+    names: ["Нагрудник Астральный фокус"]
+    set: arcane_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+  spec_arcane_legs:
+    class: MAGE
+    spec: arcane
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3094
+    names: ["Поножи Астральный фокус"]
+    set: arcane_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+  spec_arcane_feet:
+    class: MAGE
+    spec: arcane
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3095
+    names: ["Сапоги Астральный фокус"]
+    set: arcane_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+
+  spec_fire_main_hand:
+    class: MAGE
+    spec: fire
+    slot: MAIN_HAND
+    weapon-type: WAND
+    material: BLAZE_ROD
+    custom-model-data: 3101
+    names: ["Сердце Пепельного солнца"]
+    set: fire_regalia
+    distribution:
+      attack-damage: 20
+      spell-power: 45
+      crit-damage: 35
+  spec_fire_head:
+    class: MAGE
+    spec: fire
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3102
+    names: ["Шлем Сердце Пепельного солнца"]
+    set: fire_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-damage: 20
+  spec_fire_chest:
+    class: MAGE
+    spec: fire
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3103
+    names: ["Нагрудник Сердце Пепельного солнца"]
+    set: fire_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-damage: 20
+  spec_fire_legs:
+    class: MAGE
+    spec: fire
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3104
+    names: ["Поножи Сердце Пепельного солнца"]
+    set: fire_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-damage: 20
+  spec_fire_feet:
+    class: MAGE
+    spec: fire
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3105
+    names: ["Сапоги Сердце Пепельного солнца"]
+    set: fire_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-damage: 20
+
+  spec_frost_main_hand:
+    class: MAGE
+    spec: frost
+    slot: MAIN_HAND
+    weapon-type: STAFF
+    material: BLAZE_ROD
+    custom-model-data: 3111
+    names: ["Кристалл Вечной стужи"]
+    set: frost_regalia
+    distribution:
+      attack-damage: 20
+      spell-power: 45
+      crit-spell: 35
+  spec_frost_head:
+    class: MAGE
+    spec: frost
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3112
+    names: ["Шлем Кристалл Вечной стужи"]
+    set: frost_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 25
+      crit-spell: 10
+  spec_frost_chest:
+    class: MAGE
+    spec: frost
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3113
+    names: ["Нагрудник Кристалл Вечной стужи"]
+    set: frost_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 25
+      crit-spell: 10
+  spec_frost_legs:
+    class: MAGE
+    spec: frost
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3114
+    names: ["Поножи Кристалл Вечной стужи"]
+    set: frost_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 25
+      crit-spell: 10
+  spec_frost_feet:
+    class: MAGE
+    spec: frost
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3115
+    names: ["Сапоги Кристалл Вечной стужи"]
+    set: frost_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 25
+      crit-spell: 10
+
+  spec_assassination_main_hand:
+    class: ROGUE
+    spec: assassination
+    slot: MAIN_HAND
+    weapon-type: DAGGER
+    material: IRON_SWORD
+    custom-model-data: 3121
+    names: ["Клинки Последнего вдоха"]
+    set: assassination_regalia
+    distribution:
+      attack-damage: 25
+      weapon-power: 45
+      crit-melee: 30
+  spec_assassination_head:
+    class: ROGUE
+    spec: assassination
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3122
+    names: ["Шлем Клинки Последнего вдоха"]
+    set: assassination_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_assassination_chest:
+    class: ROGUE
+    spec: assassination
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3123
+    names: ["Нагрудник Клинки Последнего вдоха"]
+    set: assassination_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_assassination_legs:
+    class: ROGUE
+    spec: assassination
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3124
+    names: ["Поножи Клинки Последнего вдоха"]
+    set: assassination_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_assassination_feet:
+    class: ROGUE
+    spec: assassination
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3125
+    names: ["Сапоги Клинки Последнего вдоха"]
+    set: assassination_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+
+  spec_outlaw_main_hand:
+    class: ROGUE
+    spec: outlaw
+    slot: MAIN_HAND
+    weapon-type: SWORD
+    material: IRON_SWORD
+    custom-model-data: 3131
+    names: ["Кодекс Чёрного флага"]
+    set: outlaw_regalia
+    distribution:
+      attack-damage: 25
+      weapon-power: 40
+      attack-speed: 35
+  spec_outlaw_head:
+    class: ROGUE
+    spec: outlaw
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3132
+    names: ["Шлем Кодекс Чёрного флага"]
+    set: outlaw_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      attack-speed: 20
+  spec_outlaw_chest:
+    class: ROGUE
+    spec: outlaw
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3133
+    names: ["Нагрудник Кодекс Чёрного флага"]
+    set: outlaw_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      attack-speed: 20
+  spec_outlaw_legs:
+    class: ROGUE
+    spec: outlaw
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3134
+    names: ["Поножи Кодекс Чёрного флага"]
+    set: outlaw_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      attack-speed: 20
+  spec_outlaw_feet:
+    class: ROGUE
+    spec: outlaw
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3135
+    names: ["Сапоги Кодекс Чёрного флага"]
+    set: outlaw_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      attack-speed: 20
+
+  spec_subtlety_main_hand:
+    class: ROGUE
+    spec: subtlety
+    slot: MAIN_HAND
+    weapon-type: DAGGER
+    material: IRON_SWORD
+    custom-model-data: 3141
+    names: ["Покров Безмолвной тени"]
+    set: subtlety_regalia
+    distribution:
+      attack-damage: 25
+      weapon-power: 45
+      crit-melee: 30
+  spec_subtlety_head:
+    class: ROGUE
+    spec: subtlety
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3142
+    names: ["Шлем Покров Безмолвной тени"]
+    set: subtlety_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_subtlety_chest:
+    class: ROGUE
+    spec: subtlety
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3143
+    names: ["Нагрудник Покров Безмолвной тени"]
+    set: subtlety_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_subtlety_legs:
+    class: ROGUE
+    spec: subtlety
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3144
+    names: ["Поножи Покров Безмолвной тени"]
+    set: subtlety_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+  spec_subtlety_feet:
+    class: ROGUE
+    spec: subtlety
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3145
+    names: ["Сапоги Покров Безмолвной тени"]
+    set: subtlety_regalia
+    distribution:
+      hp-bonus: 35
+      agi: 30
+      phys-resist: 15
+      crit-melee: 20
+
+  spec_affliction_main_hand:
+    class: WARLOCK
+    spec: affliction
+    slot: MAIN_HAND
+    weapon-type: WAND
+    material: BLAZE_ROD
+    custom-model-data: 3151
+    names: ["Свиток Тысячи шрамов"]
+    set: affliction_regalia
+    distribution:
+      attack-damage: 20
+      spell-power: 50
+      crit-spell: 30
+  spec_affliction_head:
+    class: WARLOCK
+    spec: affliction
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3152
+    names: ["Шлем Свиток Тысячи шрамов"]
+    set: affliction_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+  spec_affliction_chest:
+    class: WARLOCK
+    spec: affliction
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3153
+    names: ["Нагрудник Свиток Тысячи шрамов"]
+    set: affliction_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+  spec_affliction_legs:
+    class: WARLOCK
+    spec: affliction
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3154
+    names: ["Поножи Свиток Тысячи шрамов"]
+    set: affliction_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+  spec_affliction_feet:
+    class: WARLOCK
+    spec: affliction
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3155
+    names: ["Сапоги Свиток Тысячи шрамов"]
+    set: affliction_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-spell: 20
+
+  spec_destruction_main_hand:
+    class: WARLOCK
+    spec: destruction
+    slot: MAIN_HAND
+    weapon-type: STAFF
+    material: BLAZE_ROD
+    custom-model-data: 3161
+    names: ["Жезл Раскалённого разлома"]
+    set: destruction_regalia
+    distribution:
+      attack-damage: 20
+      spell-power: 45
+      crit-damage: 35
+  spec_destruction_head:
+    class: WARLOCK
+    spec: destruction
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3162
+    names: ["Шлем Жезл Раскалённого разлома"]
+    set: destruction_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-damage: 20
+  spec_destruction_chest:
+    class: WARLOCK
+    spec: destruction
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3163
+    names: ["Нагрудник Жезл Раскалённого разлома"]
+    set: destruction_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-damage: 20
+  spec_destruction_legs:
+    class: WARLOCK
+    spec: destruction
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3164
+    names: ["Поножи Жезл Раскалённого разлома"]
+    set: destruction_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-damage: 20
+  spec_destruction_feet:
+    class: WARLOCK
+    spec: destruction
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3165
+    names: ["Сапоги Жезл Раскалённого разлома"]
+    set: destruction_regalia
+    distribution:
+      hp-bonus: 35
+      int: 30
+      magic-resist: 15
+      crit-damage: 20
+
+  spec_demonology_main_hand:
+    class: WARLOCK
+    spec: demonology
+    slot: MAIN_HAND
+    weapon-type: WAND
+    material: BLAZE_ROD
+    custom-model-data: 3171
+    names: ["Идол Девятого легиона"]
+    set: demonology_regalia
+    distribution:
+      attack-damage: 20
+      spell-power: 45
+      hp-bonus: 35
+  spec_demonology_head:
+    class: WARLOCK
+    spec: demonology
+    slot: HEAD
+    material: IRON_HELMET
+    custom-model-data: 3172
+    names: ["Шлем Идол Девятого легиона"]
+    set: demonology_regalia
+    distribution:
+      hp-bonus: 40
+      int: 30
+      magic-resist: 15
+      spell-power: 15
+  spec_demonology_chest:
+    class: WARLOCK
+    spec: demonology
+    slot: CHEST
+    material: IRON_CHESTPLATE
+    custom-model-data: 3173
+    names: ["Нагрудник Идол Девятого легиона"]
+    set: demonology_regalia
+    distribution:
+      hp-bonus: 40
+      int: 30
+      magic-resist: 15
+      spell-power: 15
+  spec_demonology_legs:
+    class: WARLOCK
+    spec: demonology
+    slot: LEGS
+    material: IRON_LEGGINGS
+    custom-model-data: 3174
+    names: ["Поножи Идол Девятого легиона"]
+    set: demonology_regalia
+    distribution:
+      hp-bonus: 40
+      int: 30
+      magic-resist: 15
+      spell-power: 15
+  spec_demonology_feet:
+    class: WARLOCK
+    spec: demonology
+    slot: FEET
+    material: IRON_BOOTS
+    custom-model-data: 3175
+    names: ["Сапоги Идол Девятого легиона"]
+    set: demonology_regalia
+    distribution:
+      hp-bonus: 40
+      int: 30
+      magic-resist: 15
+      spell-power: 15
+
+
 items: {}
 
 sets:
@@ -598,3 +1783,273 @@ sets:
         stats:
           crit-spell: 3
           cc-power: 2
+  arms_regalia:
+    display-name: "Регалии Острия"
+    bonuses:
+      2:
+        description: "Две части Регалии Острия усиливают специализацию arms."
+        stats:
+          str: 3
+      4:
+        description: "Четыре части Регалии Острия раскрывают основную роль специализации."
+        stats:
+          weapon-power: 3
+      5:
+        description: "Полный комплект Регалии Острия завершает специализационный профиль."
+        stats:
+          crit-melee: 2
+  fury_regalia:
+    display-name: "Регалии Неистовства"
+    bonuses:
+      2:
+        description: "Две части Регалии Неистовства усиливают специализацию fury."
+        stats:
+          str: 3
+      4:
+        description: "Четыре части Регалии Неистовства раскрывают основную роль специализации."
+        stats:
+          weapon-power: 3
+      5:
+        description: "Полный комплект Регалии Неистовства завершает специализационный профиль."
+        stats:
+          attack-speed: 2
+  guard_regalia:
+    display-name: "Регалии Стража"
+    bonuses:
+      2:
+        description: "Две части Регалии Стража усиливают специализацию guard."
+        stats:
+          hp-bonus: 35
+      4:
+        description: "Четыре части Регалии Стража раскрывают основную роль специализации."
+        stats:
+          phys-resist: 2
+      5:
+        description: "Полный комплект Регалии Стража завершает специализационный профиль."
+        stats:
+          str: 3
+  marksmanship_regalia:
+    display-name: "Регалии Меткого выстрела"
+    bonuses:
+      2:
+        description: "Две части Регалии Меткого выстрела усиливают специализацию marksmanship."
+        stats:
+          agi: 3
+      4:
+        description: "Четыре части Регалии Меткого выстрела раскрывают основную роль специализации."
+        stats:
+          weapon-power: 3
+      5:
+        description: "Полный комплект Регалии Меткого выстрела завершает специализационный профиль."
+        stats:
+          pen-phys-pct: 2
+  survival_regalia:
+    display-name: "Регалии Выжившего"
+    bonuses:
+      2:
+        description: "Две части Регалии Выжившего усиливают специализацию survival."
+        stats:
+          agi: 3
+      4:
+        description: "Четыре части Регалии Выжившего раскрывают основную роль специализации."
+        stats:
+          weapon-power: 3
+      5:
+        description: "Полный комплект Регалии Выжившего завершает специализационный профиль."
+        stats:
+          crit-melee: 2
+  beastmaster_regalia:
+    display-name: "Регалии Повелителя зверей"
+    bonuses:
+      2:
+        description: "Две части Регалии Повелителя зверей усиливают специализацию beastmaster."
+        stats:
+          agi: 3
+      4:
+        description: "Четыре части Регалии Повелителя зверей раскрывают основную роль специализации."
+        stats:
+          weapon-power: 3
+      5:
+        description: "Полный комплект Регалии Повелителя зверей завершает специализационный профиль."
+        stats:
+          hp-bonus: 35
+  discipline_regalia:
+    display-name: "Регалии Послушания"
+    bonuses:
+      2:
+        description: "Две части Регалии Послушания усиливают специализацию discipline."
+        stats:
+          heal-power: 3
+      4:
+        description: "Четыре части Регалии Послушания раскрывают основную роль специализации."
+        stats:
+          int: 3
+      5:
+        description: "Полный комплект Регалии Послушания завершает специализационный профиль."
+        stats:
+          magic-resist: 2
+  holy_regalia:
+    display-name: "Регалии Света"
+    bonuses:
+      2:
+        description: "Две части Регалии Света усиливают специализацию holy."
+        stats:
+          heal-power: 3
+      4:
+        description: "Четыре части Регалии Света раскрывают основную роль специализации."
+        stats:
+          int: 3
+      5:
+        description: "Полный комплект Регалии Света завершает специализационный профиль."
+        stats:
+          hp-bonus: 35
+  shadow_regalia:
+    display-name: "Регалии Тени"
+    bonuses:
+      2:
+        description: "Две части Регалии Тени усиливают специализацию shadow."
+        stats:
+          int: 3
+      4:
+        description: "Четыре части Регалии Тени раскрывают основную роль специализации."
+        stats:
+          spell-power: 3
+      5:
+        description: "Полный комплект Регалии Тени завершает специализационный профиль."
+        stats:
+          crit-spell: 2
+  arcane_regalia:
+    display-name: "Регалии Тайной магии"
+    bonuses:
+      2:
+        description: "Две части Регалии Тайной магии усиливают специализацию arcane."
+        stats:
+          int: 3
+      4:
+        description: "Четыре части Регалии Тайной магии раскрывают основную роль специализации."
+        stats:
+          spell-power: 3
+      5:
+        description: "Полный комплект Регалии Тайной магии завершает специализационный профиль."
+        stats:
+          crit-spell: 2
+  fire_regalia:
+    display-name: "Регалии Огня"
+    bonuses:
+      2:
+        description: "Две части Регалии Огня усиливают специализацию fire."
+        stats:
+          int: 3
+      4:
+        description: "Четыре части Регалии Огня раскрывают основную роль специализации."
+        stats:
+          spell-power: 3
+      5:
+        description: "Полный комплект Регалии Огня завершает специализационный профиль."
+        stats:
+          crit-damage: 2
+  frost_regalia:
+    display-name: "Регалии Льда"
+    bonuses:
+      2:
+        description: "Две части Регалии Льда усиливают специализацию frost."
+        stats:
+          int: 3
+      4:
+        description: "Четыре части Регалии Льда раскрывают основную роль специализации."
+        stats:
+          spell-power: 3
+      5:
+        description: "Полный комплект Регалии Льда завершает специализационный профиль."
+        stats:
+          magic-resist: 2
+  assassination_regalia:
+    display-name: "Регалии Ликвидации"
+    bonuses:
+      2:
+        description: "Две части Регалии Ликвидации усиливают специализацию assassination."
+        stats:
+          agi: 3
+      4:
+        description: "Четыре части Регалии Ликвидации раскрывают основную роль специализации."
+        stats:
+          weapon-power: 3
+      5:
+        description: "Полный комплект Регалии Ликвидации завершает специализационный профиль."
+        stats:
+          crit-melee: 2
+  outlaw_regalia:
+    display-name: "Регалии Головореза"
+    bonuses:
+      2:
+        description: "Две части Регалии Головореза усиливают специализацию outlaw."
+        stats:
+          agi: 3
+      4:
+        description: "Четыре части Регалии Головореза раскрывают основную роль специализации."
+        stats:
+          weapon-power: 3
+      5:
+        description: "Полный комплект Регалии Головореза завершает специализационный профиль."
+        stats:
+          attack-speed: 2
+  subtlety_regalia:
+    display-name: "Регалии Скрытности"
+    bonuses:
+      2:
+        description: "Две части Регалии Скрытности усиливают специализацию subtlety."
+        stats:
+          agi: 3
+      4:
+        description: "Четыре части Регалии Скрытности раскрывают основную роль специализации."
+        stats:
+          weapon-power: 3
+      5:
+        description: "Полный комплект Регалии Скрытности завершает специализационный профиль."
+        stats:
+          crit-melee: 2
+  affliction_regalia:
+    display-name: "Регалии Колдовства"
+    bonuses:
+      2:
+        description: "Две части Регалии Колдовства усиливают специализацию affliction."
+        stats:
+          int: 3
+      4:
+        description: "Четыре части Регалии Колдовства раскрывают основную роль специализации."
+        stats:
+          spell-power: 3
+      5:
+        description: "Полный комплект Регалии Колдовства завершает специализационный профиль."
+        stats:
+          crit-spell: 2
+  destruction_regalia:
+    display-name: "Регалии Разрушения"
+    bonuses:
+      2:
+        description: "Две части Регалии Разрушения усиливают специализацию destruction."
+        stats:
+          int: 3
+      4:
+        description: "Четыре части Регалии Разрушения раскрывают основную роль специализации."
+        stats:
+          spell-power: 3
+      5:
+        description: "Полный комплект Регалии Разрушения завершает специализационный профиль."
+        stats:
+          crit-damage: 2
+  demonology_regalia:
+    display-name: "Регалии Демонологии"
+    bonuses:
+      2:
+        description: "Две части Регалии Демонологии усиливают специализацию demonology."
+        stats:
+          int: 3
+      4:
+        description: "Четыре части Регалии Демонологии раскрывают основную роль специализации."
+        stats:
+          spell-power: 3
+      5:
+        description: "Полный комплект Регалии Демонологии завершает специализационный профиль."
+        stats:
+          hp-bonus: 35
