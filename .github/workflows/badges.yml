@@ -12,8 +12,7 @@
 #   selftest — число «N чеков» в javadoc SelftestRunner («(/rc selftest), N чеков»)
 #   unit     — количество @Test / @ParameterizedTest в src/test
 #
-# Если main защищён правилами (запрещён push от GITHUB_TOKEN), разреши боту обход
-# или переведи коммит на отдельную ветку badges.
+# Обновления оформляются отдельным PR; workflow не пишет напрямую в main.
 name: RASKOL Chronicle | Live Badges
 
 on:
@@ -35,6 +34,7 @@ concurrency:
 
 jobs:
   badges:
+    name: Badge Refresh (PR only)
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
