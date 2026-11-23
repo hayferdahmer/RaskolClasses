@@ -20,3 +20,5 @@ This is the first deterministic equipment data slice, not the final equipment si
 - The tests validate the shared production item-model/template contracts, not full runtime registry parity.
 
 The unarmed probe remains a separate, valid diagnostic and is not a v1.16 balance baseline.
+
+The Java sources in this slice are formatted with the repository's pinned Spotless configuration.
