@@ -234,7 +234,7 @@ jobs:
   # -----------------------------------------------------------
   signing-verification:
     name: RIPS Official Signing Check
-    needs: [build, code-quality]
+    needs: [build, code-quality, paper-runtime-qa]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment:
@@ -352,7 +352,7 @@ jobs:
   # -----------------------------------------------------------
   release:
     name: Signed Release Publication
-    needs: [build, code-quality]
+    needs: [build, code-quality, paper-runtime-qa]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     environment:
