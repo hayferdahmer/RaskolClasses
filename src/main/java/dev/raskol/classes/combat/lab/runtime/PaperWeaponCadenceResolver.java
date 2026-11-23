@@ -24,6 +24,13 @@ public final class PaperWeaponCadenceResolver {
 
     private PaperWeaponCadenceResolver() {}
 
+    public static java.util.List<AuditResult> auditConfiguredMaterials() {
+        return WeaponCadence.referenceMaterials().stream()
+                .sorted()
+                .map(PaperWeaponCadenceResolver::auditMaterial)
+                .toList();
+    }
+
     public static AuditResult auditMaterial(String materialId) {
         Material material = Material.matchMaterial(materialId);
         if (material == null || !material.isItem()) {
