@@ -620,23 +620,24 @@ public final class CombatService implements Listener {
         double actualPhys = 0.0;
         double actualMagic = 0.0;
 
-        DamageSourceContext previousContext = CURRENT_SOURCE_CONTEXT.get();
-        CURRENT_SOURCE_CONTEXT.set(effectiveSourceContext);
         ABILITY_SOURCE.set(source instanceof Player s2 ? s2.getUniqueId() : null);
         try {
             if (applyPhys > 0.0) {
                 double before = target.getHealth();
                 target.setNoDamageTicks(0);
-                setSuppress(true);
-                try {
-                    if (source != null) {
-                        target.damage(applyPhys, source);
-                    } else {
-                        target.damage(applyPhys);
+                withSourceContext(effectiveSourceContext, () -> {
+                    setSuppress(true);
+                    try {
+                        if (source != null) {
+                            target.damage(applyPhys, source);
+                        } else {
+                            target.damage(applyPhys);
+                        }
+                    } finally {
+                        setSuppress(false);
                     }
-                } finally {
-                    setSuppress(false);
-                }
+                    return null;
+                });
                 double after = target.getHealth();
                 if (after < before) {
                     actualPhys = (before - after) / scale;
@@ -645,21 +646,24 @@ public final class CombatService implements Listener {
             if (applyMagic > 0.0) {
                 double before = target.getHealth();
                 target.setNoDamageTicks(0);
-                setSuppress(true);
-                try {
-                    org.bukkit.damage.DamageType magic = magicType();
-                    if (magic != null) {
-                        DamageSource.Builder builder = DamageSource.builder(magic);
-                        if (source != null) {
-                            builder = builder.withDirectEntity(source).withCausingEntity(source);
+                withSourceContext(effectiveSourceContext, () -> {
+                    setSuppress(true);
+                    try {
+                        org.bukkit.damage.DamageType magic = magicType();
+                        if (magic != null) {
+                            DamageSource.Builder builder = DamageSource.builder(magic);
+                            if (source != null) {
+                                builder = builder.withDirectEntity(source).withCausingEntity(source);
+                            }
+                            target.damage(applyMagic, builder.build());
+                        } else {
+                            target.damage(applyMagic);
                         }
-                        target.damage(applyMagic, builder.build());
-                    } else {
-                        target.damage(applyMagic);
+                    } finally {
+                        setSuppress(false);
                     }
-                } finally {
-                    setSuppress(false);
-                }
+                    return null;
+                });
                 double after = target.getHealth();
                 if (after < before) {
                     actualMagic = (before - after) / scale;
@@ -667,11 +671,6 @@ public final class CombatService implements Listener {
             }
         } finally {
             ABILITY_SOURCE.remove();
-            if (previousContext == null) {
-                CURRENT_SOURCE_CONTEXT.remove();
-            } else {
-                CURRENT_SOURCE_CONTEXT.set(previousContext);
-            }
         }
 
         double actualTaken = (actualPhys + actualMagic) * scale;
