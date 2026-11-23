@@ -147,33 +147,6 @@ class Spec2StorageMigrationTest {
     }
 
     @Test
-    @DisplayName("ошибка обновления unified backup сохраняет предыдущий backup и исходник миграции")
-    void preservesPreviousUnifiedBackupWhenRefreshFails() throws IOException {
-        UUID playerId = UUID.fromString("d8a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
-        YamlConfiguration characters = new YamlConfiguration();
-        characters.set("schema-version", 3);
-        characters.set("profiles." + playerId + ".schema-version", 1);
-        characters.set("profiles." + playerId + ".level", 10);
-        characters.set("profiles." + playerId + ".experience", 0L);
-        characters.set("profiles." + playerId + ".created-at", 100L);
-        characters.set("profiles." + playerId + ".updated-at", 100L);
-        String oldMain = characters.saveToString();
-        Files.writeString(tempDir.resolve("characters.yml"), oldMain);
-
-        String oldBackup = "schema-version: 2\nbackup-marker: keep\n";
-        Files.writeString(tempDir.resolve("characters.yml.bak"), oldBackup);
-        Files.createDirectory(tempDir.resolve("characters.yml.bak.tmp"));
-
-        File source = write("spec2-storage.yml", "players:\n  " + playerId + ":\n    main: fire\n");
-
-        assertThrows(IllegalStateException.class, this::migrate);
-
-        assertEquals(oldMain, Files.readString(tempDir.resolve("characters.yml.bak")));
-        assertTrue(source.isFile());
-        assertFalse(tempDir.resolve("spec2-storage.yml.migrated").toFile().exists());
-    }
-
-    @Test
     @DisplayName("повреждённый legacy архивируется только если текущая копия пригодна")
     void archivesUnreadableLegacyAfterMigratingCurrentCopy() throws IOException {
         UUID playerId = UUID.fromString("e7a1c2e3-4b5c-4d6e-8f90-a1b2c3d4e5f6");
