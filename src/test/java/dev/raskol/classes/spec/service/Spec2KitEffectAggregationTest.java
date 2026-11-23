@@ -46,6 +46,18 @@ class Spec2KitEffectAggregationTest {
         assertEquals(0.0, agg.kitResistMagic.getOrDefault("shield_wall", 0.0), 0.0001);
     }
 
+    @Test
+    @DisplayName("trap damage and cooldown passives aggregate by rank")
+    void trapPassivesAggregateByRank() {
+        Spec2Service.Agg agg = new Spec2Service.Agg();
+
+        Spec2Service.accumulate(agg, node("survival", "sv_trap_mastery"), 3);
+        Spec2Service.accumulate(agg, node("survival", "sv_resourcefulness"), 2);
+
+        assertEquals(30.0, agg.proc.get("trap_dmg_pct"), 0.0001);
+        assertEquals(20.0, agg.proc.get("cd_trap_pct"), 0.0001);
+    }
+
     private static Spec2Node node(String treeId, String nodeId) {
         var tree = Spec2Registry.treeOf(treeId);
         assertNotNull(tree, "дерево отсутствует: " + treeId);
