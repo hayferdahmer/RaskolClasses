@@ -16,15 +16,15 @@ final class PetTalentMath {
         return Double.isFinite(fraction) ? Math.max(0.0, Math.min(1.0, fraction)) * 100.0 : 0.0;
     }
 
+    static double speedPercent(double value) {
+        return Double.isFinite(value) ? Math.max(0.0, Math.min(200.0, value)) : 0.0;
+    }
+
     /** Переводит суммарный бонус скорости атаки в целочисленный интервал тиков. */
     static int attackIntervalTicks(int baseTicks, double permanentSpeedPct, double temporarySpeedPct) {
         int base = Math.max(1, baseTicks);
-        double permanent = Double.isFinite(permanentSpeedPct)
-                ? Math.max(0.0, Math.min(200.0, permanentSpeedPct))
-                : 0.0;
-        double temporary = Double.isFinite(temporarySpeedPct)
-                ? Math.max(0.0, Math.min(200.0, temporarySpeedPct))
-                : 0.0;
+        double permanent = speedPercent(permanentSpeedPct);
+        double temporary = speedPercent(temporarySpeedPct);
         double combined = Math.min(200.0, permanent + temporary);
         return Math.max(1, (int) Math.round(base / (1.0 + combined / 100.0)));
     }
