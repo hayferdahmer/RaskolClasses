@@ -1169,10 +1169,6 @@ public final class RaskolClasses extends JavaPlugin {
         return characterLevels;
     }
 
-    public CharacterProfileStorage getCharacterProfiles() {
-        return characterProfiles;
-    }
-
     public void ensureCharacterProfile(UUID playerId) {
         characterProfiles.ensureProfile(playerId);
     }
