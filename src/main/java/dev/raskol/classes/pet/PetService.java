@@ -596,11 +596,10 @@ public final class PetService implements Listener {
         boolean critical = rollPercent(critChance);
         if (critical) {
             double critMultiplier = 1.5;
-            if (rollPercent(talentPct(ownerId, "proc_pet_crit_bonus"))) {
+            if (rollPercent(talentPct(ownerId, "pet_crit_bonus"))) {
                 critMultiplier += 0.5;
             }
             event.setDamage(event.getDamage() * critMultiplier);
-            triggerPetFrenzy(ownerId, pet);
         }
     }
 
@@ -628,7 +627,7 @@ public final class PetService implements Listener {
         }
         LivingEntity pet = petOf(owner);
         if (pet == null || !plugin.getCombat().canHit(owner, target)
-                || !rollPercent(talentPct(owner.getUniqueId(), "proc_pet_copy"))) {
+                || !rollPercent(talentPct(owner.getUniqueId(), "pet_copy"))) {
             return;
         }
         double copiedDamage = event.getFinalDamage() * 0.10;
@@ -650,7 +649,7 @@ public final class PetService implements Listener {
             return;
         }
         LivingEntity pet = petOf(owner);
-        if (pet == null || !rollPercent(talentPct(owner.getUniqueId(), "proc_pet_heal"))) {
+        if (pet == null || !rollPercent(talentPct(owner.getUniqueId(), "pet_heal"))) {
             return;
         }
         AttributeInstance maxHealth = pet.getAttribute(MAX_HEALTH);
@@ -682,26 +681,6 @@ public final class PetService implements Listener {
         return chance > 0.0 && ThreadLocalRandom.current().nextDouble(100.0) < chance;
     }
 
-    private void triggerPetFrenzy(UUID ownerId, LivingEntity pet) {
-        double chance = talentPct(ownerId, "proc_pet_frenzy");
-        if (!rollPercent(chance)) {
-            return;
-        }
-        AttributeInstance speed = pet.getAttribute(MOVEMENT_SPEED);
-        if (speed == null) {
-            return;
-        }
-        double original = speed.getBaseValue();
-        speed.setBaseValue(Math.min(1.0, original * 1.30));
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (pet.isValid() && !pet.isDead()) {
-                AttributeInstance current = pet.getAttribute(MOVEMENT_SPEED);
-                if (current != null && Double.compare(current.getBaseValue(), Math.min(1.0, original * 1.30)) == 0) {
-                    current.setBaseValue(original);
-                }
-            }
-        }, 160L);
-    }
 
     /** A4: пет не бьёт союзников/владельца; ретаргет пета на цель владельца. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
