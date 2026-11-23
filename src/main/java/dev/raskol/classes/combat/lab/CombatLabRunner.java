@@ -91,7 +91,6 @@ public final class CombatLabRunner {
             CombatLabDuelEngine.Rules rules,
             long seed,
             int iterations) {
-        double[] wins = new double[iterations];
         double[] ttk = new double[iterations];
         double[] dps = new double[iterations];
         double[] hps = new double[iterations];
@@ -100,7 +99,6 @@ public final class CombatLabRunner {
         for (int i = 0; i < iterations; i++) {
             CombatLabDuelEngine.DuelResult result =
                     CombatLabDuelEngine.duel(first, second, rules, mixSeed(seed, i, 0, 0));
-            wins[i] = result.firstPlayerWon() ? 1.0 : 0.0;
             if (result.firstPlayerWon()) {
                 winsCount++;
             }
@@ -114,7 +112,7 @@ public final class CombatLabRunner {
             }
         }
         if (!violations.isEmpty()) {
-            return scenarioObject(first, second, iterations, violations, 0, 0, 0, 0, 0, 0, 0, 0);
+            return scenarioObject(first, second, iterations, violations, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         Random bootstrapRandom = new Random(mixSeed(seed, first.level(), first.playerClass().ordinal(),
