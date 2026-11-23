@@ -34,7 +34,10 @@ public final class CombatLabRunner {
         Arguments options = Arguments.parse(args);
         YamlConfiguration config = YamlConfiguration.loadConfiguration(options.config().toFile());
         String report = run(config, options.seed(), options.iterations(), options.sourceCommit());
-        Files.createDirectories(options.output().toAbsolutePath().getParent());
+        Path outputParent = options.output().toAbsolutePath().getParent();
+        if (outputParent != null) {
+            Files.createDirectories(outputParent);
+        }
         Files.writeString(options.output(), report);
         System.out.println("Combat Lab report written: " + options.output());
         System.out.println("Scenario set: " + CombatLabDuelEngine.PROFILE_ID);
