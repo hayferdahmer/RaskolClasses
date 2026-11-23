@@ -49,6 +49,10 @@ public final class WeaponCadence {
         return new Profile(1.0 / effectiveAttackSpeed, "PAPER_26_2_MATERIAL_ATTACK_SPEED");
     }
 
+    public static java.util.Set<String> referenceMaterials() {
+        return PAPER_26_2_MATERIAL_ATTACK_SPEED.keySet();
+    }
+
     public static double referenceAttackSpeed(String materialId) {
         if (materialId == null) return 0.0;
         return PAPER_26_2_MATERIAL_ATTACK_SPEED.getOrDefault(materialId.toUpperCase(java.util.Locale.ROOT), 0.0);
