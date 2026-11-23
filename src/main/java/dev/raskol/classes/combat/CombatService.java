@@ -68,6 +68,7 @@ public final class CombatService implements Listener {
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
     private static final ThreadLocal<School> CURRENT_CAST_SCHOOL = new ThreadLocal<>();
+
     private static final ThreadLocal<String> CURRENT_ABILITY_ID = new ThreadLocal<>();
 
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
@@ -166,7 +167,9 @@ public final class CombatService implements Listener {
     /** Контекст способности восстанавливается даже при вложенном вызове или исключении. */
     public static <T> T withAbilityContext(String abilityId, Supplier<T> action) {
         String previous = CURRENT_ABILITY_ID.get();
-        String normalized = abilityId == null || abilityId.isBlank() ? null : abilityId.trim().toLowerCase(Locale.ROOT);
+        String normalized = abilityId == null || abilityId.isBlank()
+                ? null
+                : abilityId.trim().toLowerCase(Locale.ROOT);
         if (normalized == null) {
             CURRENT_ABILITY_ID.remove();
         } else {
@@ -350,16 +353,13 @@ public final class CombatService implements Listener {
         return dealDamage(target, source, profile, null, allowOverCap, false);
     }
 
-    public double dealDamage(LivingEntity target, Entity source, DamageProfile profile, DamageSourceContext sourceContext) {
+    public double dealDamage(
+            LivingEntity target, Entity source, DamageProfile profile, DamageSourceContext sourceContext) {
         return dealDamage(target, source, profile, sourceContext, false, false);
     }
 
     public double dealDamage(
-            LivingEntity target,
-            Entity source,
-            DamageProfile profile,
-            boolean allowOverCap,
-            boolean fromProc) {
+            LivingEntity target, Entity source, DamageProfile profile, boolean allowOverCap, boolean fromProc) {
         return dealDamage(target, source, profile, null, allowOverCap, fromProc);
     }
 
@@ -376,9 +376,8 @@ public final class CombatService implements Listener {
         if (!canHit(source, target)) {
             return 0.0;
         }
-        DamageSourceContext effectiveSourceContext = sourceContext == null
-                ? resolveSourceContext(source, target, fromProc)
-                : sourceContext;
+        DamageSourceContext effectiveSourceContext =
+                sourceContext == null ? resolveSourceContext(source, target, fromProc) : sourceContext;
         if (effectiveSourceContext.targetId() != null
                 && !effectiveSourceContext.targetId().equals(target.getUniqueId())) {
             return 0.0;
@@ -461,8 +460,8 @@ public final class CombatService implements Listener {
         if (effectiveSourceContext.sourceType() == DamageSourceContext.SourceType.ABILITY
                 && effectiveSourceContext.abilityId() != null
                 && effectiveSourceContext.attackerId() != null) {
-            double bonus = plugin.getSpec2Service().kitPenPhysBonus(
-                    effectiveSourceContext.attackerId(), effectiveSourceContext.abilityId());
+            double bonus = plugin.getSpec2Service()
+                    .kitPenPhysBonus(effectiveSourceContext.attackerId(), effectiveSourceContext.abilityId());
             if (Double.isFinite(bonus) && bonus > 0.0) {
                 kitPhysPen = Math.min(100.0, bonus) / 100.0;
             }
@@ -569,8 +568,8 @@ public final class CombatService implements Listener {
                 if (prof.immunities().contains(School.PHYSICAL)) {
                     physPart = 0.0;
                 } else {
-                    double profilePhysResist = penResistPct(
-                            profileChannelResist(prof, true, source, School.PHYSICAL), effectivePhysPen);
+                    double profilePhysResist =
+                            penResistPct(profileChannelResist(prof, true, source, School.PHYSICAL), effectivePhysPen);
                     physPart *= 1.0 - profilePhysResist / 100.0;
                     physPart *=
                             1.0 + Math.max(-100.0, prof.vulnerabilities().getOrDefault(School.PHYSICAL, 0.0)) / 100.0;

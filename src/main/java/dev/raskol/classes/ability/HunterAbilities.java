@@ -403,7 +403,8 @@ public final class HunterAbilities extends AbstractKit {
         castFx(p, "explosive_trap", "BLOCK_TRIPWIRE_ATTACH", "SMOKE", 0.6f, 1.0f, 8);
         p.getWorld().spawnParticle(Particle.SMOKE, spot.clone().add(0.0, 0.3, 0.0), 6, 0.2, 0.2, 0.2, 0.01);
         UUID pid = p.getUniqueId();
-        double trapBonus = Math.max(0.0, Math.min(100.0, plugin.getSpec2Service().trapDamagePercent(pid)));
+        double trapBonus =
+                Math.max(0.0, Math.min(100.0, plugin.getSpec2Service().trapDamagePercent(pid)));
         double dmg = tdmg(p, def, 10.0, 0.8) * (1.0 + trapBonus / 100.0);
         plugin.getServer()
                 .getScheduler()
