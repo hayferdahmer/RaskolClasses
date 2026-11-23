@@ -159,15 +159,15 @@ public final class PetService implements Listener {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
 
-    /**
-     * 1.14.13 (Волна 13B): отложенный startup-скан осиротевших петов (после загрузки
-     * миров, +100 тиков); ручка в activeTasks владельца (одноразовая задача).
-     */
     /** Планирует частый cadence tick; lifecycle tick остаётся раз в секунду. */
     public BukkitTask startAttackTask() {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tickPetAttacks, 1L, 1L);
     }
 
+    /**
+     * 1.14.13 (Волна 13B): отложенный startup-скан осиротевших петов (после загрузки
+     * миров, +100 тиков); ручка в activeTasks владельца (одноразовая задача.
+     */
     public BukkitTask scheduleOrphanScan() {
         return plugin.getServer()
                 .getScheduler()
