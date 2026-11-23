@@ -25,7 +25,8 @@ public final class ItemTemplateExpander {
             Map<ItemStat, Double> distribution,
             List<String> names,
             String setId,
-            Integer customModelData) {
+            Integer customModelData,
+            String spec) {
         public Template {
             distribution = Map.copyOf(distribution);
             names = List.copyOf(names);
@@ -38,7 +39,7 @@ public final class ItemTemplateExpander {
                 WeaponType weaponType,
                 Map<ItemStat, Double> distribution,
                 List<String> names) {
-            this(id, playerClass, slot, weaponType, distribution, names, null, null);
+            this(id, playerClass, slot, weaponType, distribution, names, null, null, null);
         }
 
         public Template(
@@ -49,7 +50,19 @@ public final class ItemTemplateExpander {
                 Map<ItemStat, Double> distribution,
                 List<String> names,
                 String setId) {
-            this(id, playerClass, slot, weaponType, distribution, names, setId, null);
+            this(id, playerClass, slot, weaponType, distribution, names, setId, null, null);
+        }
+
+        public Template(
+                String id,
+                PlayerClass playerClass,
+                ItemSlot slot,
+                WeaponType weaponType,
+                Map<ItemStat, Double> distribution,
+                List<String> names,
+                String setId,
+                Integer customModelData) {
+            this(id, playerClass, slot, weaponType, distribution, names, setId, customModelData, null);
         }
     }
 
@@ -185,7 +198,7 @@ public final class ItemTemplateExpander {
                             rarity,
                             level,
                             t.playerClass(),
-                            null,
+                            t.spec(),
                             Math.min(level, 60),
                             stats,
                             pool,
