@@ -213,6 +213,11 @@ jobs:
             echo "::error::RaskolClasses did not complete plugin enablement on Paper."
             exit 1
           fi
+          if grep -Eq '\\[(ERROR|SEVERE)\\]: \\[RaskolClasses\\]' server.log; then
+            cat server.log
+            echo "::error::RaskolClasses emitted an ERROR/SEVERE log during startup."
+            exit 1
+          fi
           echo "Paper 26.2 startup and RaskolClasses plugin enablement: PASS"
           grep -E 'Preparing level|Enabling RaskolClasses|Done \(' server.log
 
