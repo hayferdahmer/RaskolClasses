@@ -125,13 +125,14 @@ public final class CombatLabEquipmentRunner {
         double[] dps = new double[iterations];
         double[] hps = new double[iterations];
         int wins = 0;
-        long hits = 0L, crits = 0L, avoids = 0L;
+        long hits = 0L, incomingHits = 0L, crits = 0L, avoids = 0L;
         List<String> violations = new ArrayList<>();
         for (int i = 0; i < iterations; i++) {
             CombatLabDuelEngine.DuelResult result =
                     CombatLabDuelEngine.duelEquipped(first, second, rules, mixSeed(seed, i, 0, 0));
             if (result.firstPlayerWon()) wins++;
             hits += result.firstHits();
+            incomingHits += result.secondHits();
             crits += result.firstCrits();
             avoids += result.firstAvoids();
             ttk[i] = result.durationSeconds();
@@ -191,9 +192,9 @@ public final class CombatLabEquipmentRunner {
         double[] hpsCi = bootstrapInterval(hps, true, bootstrap);
         double[] winCi = wilsonInterval(wins, iterations);
         double critRate = hits == 0 ? 0 : crits / (double) hits;
-        double avoidRate = hits == 0 ? 0 : avoids / (double) hits;
+        double avoidRate = incomingHits == 0 ? 0 : avoids / (double) incomingHits;
         double[] critCi = wilsonInterval(crits, hits);
-        double[] avoidCi = wilsonInterval(avoids, hits);
+        double[] avoidCi = wilsonInterval(avoids, incomingHits);
         return scenarioObject(
                 id,
                 firstSpec.id(),
