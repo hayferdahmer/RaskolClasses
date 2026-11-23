@@ -9,15 +9,27 @@ import re
 import sys
 from pathlib import Path
 
-CLASSES = {"warrior", "hunter", "priest", "mage", "rogue", "warlock"}
+SPEC_IDS = {
+    "arms", "fury", "guard", "marksmanship", "survival", "beastmaster",
+    "discipline", "holy", "shadow", "arcane", "fire", "frost",
+    "assassination", "outlaw", "subtlety", "affliction", "destruction", "demonology",
+}
+SPEC_WEAPONS = {
+    "arms": "SWORD", "fury": "AXE", "guard": "MACE",
+    "marksmanship": "BOW", "survival": "SPEAR", "beastmaster": "BOW",
+    "discipline": "MACE", "holy": "MACE", "shadow": "STAFF",
+    "arcane": "STAFF", "fire": "WAND", "frost": "STAFF",
+    "assassination": "DAGGER", "outlaw": "SWORD", "subtlety": "DAGGER",
+    "affliction": "WAND", "destruction": "STAFF", "demonology": "WAND",
+}
 LEVELS = {1, 15, 30, 45, 60}
 RATE_METRICS = {"win_rate", "crit_rate", "avoidance_rate"}
 CONTINUOUS_METRICS = {"ttk_median_seconds", "dps_mean", "hps_mean"}
 EXPECTED = {
     f"pvp_equipment_{first}_vs_{second}_level_{level}"
     for level in LEVELS
-    for first in CLASSES
-    for second in CLASSES
+    for first in SPEC_IDS
+    for second in SPEC_IDS
     if first != second
 }
 
@@ -35,12 +47,12 @@ def validate_report(report: dict) -> None:
     required = {
         "schema_version", "report_type", "simulator_version", "scenario_set",
         "simulation_scope", "source_commit", "seed", "iterations_per_scenario",
-        "generated_at", "loaded_item_definitions", "rarity", "scenarios",
+        "generated_at", "loaded_item_definitions", "specialization_count", "rarity", "scenarios",
     }
     require(set(report) == required, "Неверный набор полей верхнего уровня")
-    require(report["schema_version"] == "1.1", "Неподдерживаемая schema_version")
+    require(report["schema_version"] == "1.2", "Неподдерживаемая schema_version")
     require(report["report_type"] == "combat-lab-equipment-report", "Это не equipment report")
-    require(report["scenario_set"] == "pvp-equipment-auto-attack-v2", "Неверный scenario_set")
+    require(report["scenario_set"] == "pvp-specialization-equipment-auto-attack-v1", "Неверный scenario_set")
     require(bool(re.fullmatch(r"[0-9a-f]{40}", report["source_commit"])), "Некорректный source_commit")
     require(isinstance(report["seed"], int) and not isinstance(report["seed"], bool) and report["seed"] >= 0,
             "Некорректный seed")
@@ -51,6 +63,7 @@ def validate_report(report: dict) -> None:
             "generated_at должен быть UTC ISO-8601")
     require(isinstance(report["loaded_item_definitions"], int) and report["loaded_item_definitions"] > 0,
             "Production item registry пуст")
+    require(report["specialization_count"] == len(SPEC_IDS), "Ожидалось 18 специализаций")
     require(report["rarity"] == "EPIC", "В отчёте должна быть зафиксирована редкость EPIC")
     scenarios = report["scenarios"]
     require(isinstance(scenarios, list) and len(scenarios) == len(EXPECTED), "Неполная матрица сценариев")
@@ -69,17 +82,32 @@ def validate_report(report: dict) -> None:
 
         equipment = scenario["equipment"]
         require(set(equipment) == {
-            "first_items", "second_items", "first_weapon_type", "second_weapon_type",
+            "first_spec", "second_spec", "first_items", "second_items",
+            "first_active_sets", "second_active_sets",
+            "first_weapon_type", "second_weapon_type",
             "first_attack_type", "second_attack_type", "first_mastery", "second_mastery",
             "first_attack_interval_seconds", "second_attack_interval_seconds",
             "first_cadence_model", "second_cadence_model",
         }, f"{scenario_id}: неверная структура equipment")
+        first_spec, second_spec = scenario_id.removeprefix("pvp_equipment_").rsplit("_level_", 1)[0].split("_vs_", 1)
         level = int(scenario_id.rsplit("_", 1)[1])
-        if level >= 30:
-            require(equipment["first_items"] and equipment["second_items"],
-                    f"{scenario_id}: экипировка отсутствует на боевом уровне")
-        for side in ("first", "second"):
+        require(first_spec in SPEC_IDS and second_spec in SPEC_IDS and first_spec != second_spec,
+                f"{scenario_id}: неизвестная пара специализаций")
+        require(equipment["first_spec"] == first_spec and equipment["second_spec"] == second_spec,
+                f"{scenario_id}: specialization metadata does not match scenario id")
+        for side, spec_id in (("first", first_spec), ("second", second_spec)):
+            items = equipment[f"{side}_items"]
+            active_sets = equipment[f"{side}_active_sets"]
+            if level >= 30:
+                require(len(items) == 5 and f"{spec_id}_regalia" in active_sets,
+                        f"{scenario_id}: неполный специализационный комплект")
+                require(all(f"spec_{spec_id}_" in item_id for item_id in items),
+                        f"{scenario_id}: найдены предметы чужой специализации")
+            else:
+                require(items == [] and active_sets == [], f"{scenario_id}: экипировка появилась до 20 уровня")
             weapon = equipment[f"{side}_weapon_type"]
+            expected_weapon = SPEC_WEAPONS[spec_id] if level >= 30 else "NONE"
+            require(weapon == expected_weapon, f"{scenario_id}: неверный тип оружия специализации")
             attack_type = equipment[f"{side}_attack_type"]
             mastery = equipment[f"{side}_mastery"]
             require(attack_type in {"PHYSICAL", "MAGIC"}, f"{scenario_id}: неизвестный attack type")
