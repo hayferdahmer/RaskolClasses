@@ -93,6 +93,13 @@ class ProbeReportValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ProbeReportError, "bootstrap"):
             validate_report(report)
 
+    def test_non_finite_metric_is_rejected(self):
+        report = valid_report()
+        report["scenarios"][0]["metrics"]["dps_mean"]["value"] = float("inf")
+        report["scenarios"][0]["metrics"]["dps_mean"]["ci95_high"] = float("inf")
+        with self.assertRaisesRegex(ProbeReportError, "конечными"):
+            validate_report(report)
+
     def test_full_source_commit_is_required(self):
         report = valid_report()
         report["source_commit"] = "deadbeef"
