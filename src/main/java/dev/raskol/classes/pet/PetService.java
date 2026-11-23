@@ -429,8 +429,7 @@ public final class PetService implements Listener {
                 continue;
             }
             double frenzyPct = frenzyActive ? 30.0 : 0.0;
-            int interval = PetTalentMath.attackIntervalTicks(
-                    def.baseAttackIntervalTicks(), disciplinePct, frenzyPct);
+            int interval = PetTalentMath.attackIntervalTicks(def.baseAttackIntervalTicks(), disciplinePct, frenzyPct);
             state.nextAttackTick = currentTick + interval;
             SCHEDULED_PET_ATTACK.set(Boolean.TRUE);
             try {
