@@ -49,8 +49,7 @@ public final class StartupChecks {
         for (File file : files) {
             if (file.lastModified() < oneHourAgo) {
                 stale++;
-                logger.warning(
-                        "Обнаружен старый .tmp; файл сохранён для SafeStorage recovery: " + file.getName());
+                logger.warning("Обнаружен старый .tmp; файл сохранён для SafeStorage recovery: " + file.getName());
             }
         }
         return stale;
