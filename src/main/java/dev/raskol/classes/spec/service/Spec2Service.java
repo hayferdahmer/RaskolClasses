@@ -1048,6 +1048,14 @@ public final class Spec2Service {
         return procBonus(uuid, "pet_dmg_pct");
     }
 
+    public double trapDamagePercent(UUID uuid) {
+        return procBonus(uuid, "trap_dmg_pct");
+    }
+
+    public double trapCooldownReductionPercent(UUID uuid) {
+        return procBonus(uuid, "cd_trap_pct");
+    }
+
     public Set<String> unlockedAbilities(UUID uuid) {
         return Set.copyOf(agg(uuid).unlocked);
     }
