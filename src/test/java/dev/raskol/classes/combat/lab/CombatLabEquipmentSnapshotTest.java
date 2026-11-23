@@ -3,17 +3,21 @@
 package dev.raskol.classes.combat.lab;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import dev.raskol.classes.classsystem.PlayerClass;
+import dev.raskol.classes.item.config.ItemConfigLoader;
 import dev.raskol.classes.item.config.ItemTemplateExpander;
 import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
@@ -22,7 +26,7 @@ import dev.raskol.classes.item.model.SetDefinition;
 import dev.raskol.classes.item.model.WeaponType;
 import dev.raskol.classes.item.service.ItemRegistry;
 
-@DisplayName("Combat Lab: equipment snapshot contracts")
+@DisplayName("Combat Lab: equipment snapshot and duel contracts")
 class CombatLabEquipmentSnapshotTest {
 
     private static ItemRegistry registry;
@@ -118,5 +122,44 @@ class CombatLabEquipmentSnapshotTest {
         assertEquals(WeaponType.STAFF, snapshot.weaponType());
         assertEquals("MAGIC", snapshot.autoAttackType());
         assertEquals(0.75, snapshot.weaponMasteryMultiplier(), 1e-9);
+    }
+
+    @Test
+    @DisplayName("настоящий items.yml загружается через production loader без поднятия Paper сервера")
+    void productionItemsYamlLoadsForHeadlessRunner() throws Exception {
+        ItemRegistry production = ItemConfigLoader.load(new File("src/main/resources/items.yml"));
+        assertTrue(production.size() > 0);
+        for (PlayerClass playerClass : PlayerClass.values()) {
+            var snapshot = CombatLabEquipmentSnapshot.from(
+                    production, playerClass, 60, ItemRarity.EPIC, null, 20261123L);
+            assertFalse(snapshot.equippedItemIds().isEmpty(), playerClass + " должен получить экипировку");
+            assertNotNull(snapshot.mainHandItemId(), playerClass + " должен получить основное оружие");
+        }
+    }
+
+    @Test
+    @DisplayName("экипировка меняет боевые характеристики и участвует в расчёте урона")
+    void equipmentChangesDuelDamage() {
+        YamlConfiguration config =
+                YamlConfiguration.loadConfiguration(new File("src/main/resources/config.yml"));
+        var warriorEquipment = CombatLabEquipmentSnapshot.from(
+                registry, PlayerClass.WARRIOR, 60, ItemRarity.RARE, null, 12345L);
+        var mageEquipment = CombatLabEquipmentSnapshot.from(
+                registry, PlayerClass.MAGE, 60, ItemRarity.RARE, null, 54321L);
+        var equippedWarrior =
+                CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 60, warriorEquipment);
+        var equippedMage = CombatLabCombatantSnapshot.from(config, PlayerClass.MAGE, 60, mageEquipment);
+        var unarmedWarrior = CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 60);
+        var unarmedMage = CombatLabCombatantSnapshot.from(config, PlayerClass.MAGE, 60);
+        var rules = CombatLabDuelEngine.Rules.from(config);
+
+        assertTrue(equippedWarrior.maxHealth() >= unarmedWarrior.maxHealth());
+        assertTrue(equippedWarrior.weaponPower() > unarmedWarrior.weaponPower());
+        assertTrue(equippedMage.spellPower() > unarmedMage.spellPower());
+        var equipped = CombatLabDuelEngine.duelEquipped(equippedWarrior, equippedMage, rules, 777L);
+        var repeated = CombatLabDuelEngine.duelEquipped(equippedWarrior, equippedMage, rules, 777L);
+        var control = CombatLabDuelEngine.duel(unarmedWarrior, unarmedMage, rules, 777L);
+        assertEquals(equipped, repeated);
+        assertTrue(Math.abs(equipped.firstDamageDealt() - control.firstDamageDealt()) > 1e-9);
     }
 }
