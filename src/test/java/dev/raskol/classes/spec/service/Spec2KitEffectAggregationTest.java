@@ -47,6 +47,18 @@ class Spec2KitEffectAggregationTest {
     }
 
     @Test
+    @DisplayName("pet discipline and frenzy effects aggregate in their correct units")
+    void petAttackCadenceEffectsAggregateByRank() {
+        Spec2Service.Agg agg = new Spec2Service.Agg();
+
+        Spec2Service.accumulate(agg, node("beastmaster", "bm_bestial_discipline"), 3);
+        Spec2Service.accumulate(agg, node("beastmaster", "bm_frenzy"), 2);
+
+        assertEquals(15.0, agg.proc.get("pet_attack_speed_pct"), 0.0001);
+        assertEquals(0.50, agg.proc.get("pet_frenzy"), 0.0001);
+    }
+
+    @Test
     @DisplayName("ranged critical chance aggregates from both Marksmanship nodes")
     void rangedCriticalChanceAggregatesByRank() {
         Spec2Service.Agg agg = new Spec2Service.Agg();
