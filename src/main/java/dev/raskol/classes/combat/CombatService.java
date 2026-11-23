@@ -478,7 +478,9 @@ public final class CombatService implements Listener {
         boolean physCrit = false;
         boolean magicCrit = false;
         if (source instanceof Player sp) {
-            if (physBase > 0.0 && rollMeleeCrit(sp)) {
+            boolean rangedAbility = isRangedAbility(effectiveSourceContext);
+            boolean physicalCritical = rangedAbility ? rollRangedCrit(sp) : rollMeleeCrit(sp);
+            if (physBase > 0.0 && physicalCritical) {
                 physBase *= meleeMult(sp);
                 physCrit = true;
                 critFeedback(sp, true);
@@ -758,6 +760,29 @@ public final class CombatService implements Listener {
         double baseChance = plugin.getAttributes().critMeleeChance(player.getUniqueId());
         double bonus = safePct(plugin.getSpec2Service().critMeleeBonus(player.getUniqueId()));
         return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0 < (baseChance + bonus * 100.0);
+    }
+
+    /** Дальнобойный крит использует базовый шанс физического крита и отдельные таланты стрелка. */
+    public boolean rollRangedCrit(Player player) {
+        if (player == null) {
+            return false;
+        }
+        UUID uuid = player.getUniqueId();
+        double baseChance = plugin.getAttributes().critMeleeChance(uuid);
+        double bonus = safePct(plugin.getSpec2Service().critRangedBonus(uuid));
+        double chance = Math.max(0.0, Math.min(100.0, baseChance + bonus * 100.0));
+        return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0 < chance;
+    }
+
+    private static boolean isRangedAbility(DamageSourceContext context) {
+        if (context == null || context.sourceType() != DamageSourceContext.SourceType.ABILITY) {
+            return false;
+        }
+        return switch (context.abilityId() == null ? "" : context.abilityId()) {
+            case "aimed_shot", "piercing_shot", "arrow_fan", "arrow_rain", "silencing_shot",
+                    "chimera_shot", "poison_shot", "black_arrow", "wyvern_sting", "serpent_sting" -> true;
+            default -> false;
+        };
     }
 
     private boolean rollSpellCrit(Player player) {
