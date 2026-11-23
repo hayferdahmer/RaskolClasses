@@ -13,7 +13,7 @@ on:
       - 'tools/combat-ci/**'
       - '.github/workflows/combat-ci.yml'
   push:
-    branches: [ '**' ]
+    branches: [ main ]
     paths:
       - 'src/main/java/**'
       - 'src/test/java/**'
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - name: Checkout complete history
+      - name: Checkout source (fetch base commit on demand)
         uses: actions/checkout@v5
         with:
           fetch-depth: 1

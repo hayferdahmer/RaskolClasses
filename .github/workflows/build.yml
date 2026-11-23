@@ -13,7 +13,7 @@ name: RaskolClasses Build
 
 on:
   push:
-    branches: [ '**' ]
+    branches: [ main ]
     tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
