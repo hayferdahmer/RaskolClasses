@@ -53,14 +53,18 @@ def load_json(path: Path) -> dict[str, Any]:
 def validate_baseline(baseline: dict[str, Any]) -> None:
     if baseline.get("schema_version") != SCHEMA_VERSION:
         raise GateError("Baseline: неподдерживаемая schema_version")
-    if not baseline.get("baseline_id") or not baseline.get("simulator_version"):
-        raise GateError("Baseline: отсутствует baseline_id или simulator_version")
+    if not baseline.get("baseline_id") or not baseline.get("simulator_version") or not baseline.get("scenario_set"):
+        raise GateError("Baseline: отсутствует baseline_id, simulator_version или scenario_set")
     status = baseline.get("status")
     if status not in {"pending", "approved"}:
         raise GateError("Baseline: status должен быть pending или approved")
     scenarios = baseline.get("scenarios")
     if not isinstance(scenarios, list):
         raise GateError("Baseline: scenarios должен быть массивом")
+    if status == "approved":
+        commit = baseline.get("created_from_commit")
+        if not isinstance(commit, str) or len(commit) != 40 or any(ch not in "0123456789abcdef" for ch in commit):
+            raise GateError("Approved baseline должен ссылаться на полный source commit SHA")
     if status == "pending":
         if scenarios:
             raise GateError("Pending baseline не должен содержать неподтверждённые игровые значения")
@@ -98,8 +102,8 @@ def validate_report(report: dict[str, Any], baseline: dict[str, Any]) -> None:
     iterations = report.get("iterations_per_scenario")
     if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
         raise GateError("Report: seed должен быть целым неотрицательным числом")
-    if isinstance(iterations, bool) or not isinstance(iterations, int) or iterations < 1:
-        raise GateError("Report: iterations_per_scenario должен быть положительным целым")
+    if isinstance(iterations, bool) or not isinstance(iterations, int) or iterations < 100:
+        raise GateError("Report: для статистического gate нужно не менее 100 итераций на сценарий")
     scenarios = report.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
         raise GateError("Report: scenarios должен быть непустым массивом")
@@ -115,8 +119,8 @@ def validate_report(report: dict[str, Any], baseline: dict[str, Any]) -> None:
         sample_count = scenario.get("sample_count")
         if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 1:
             raise GateError(f"{scenario_id}: sample_count должен быть положительным целым")
-        if sample_count < iterations:
-            raise GateError(f"{scenario_id}: sample_count меньше iterations_per_scenario")
+        if sample_count < iterations or sample_count < 100:
+            raise GateError(f"{scenario_id}: выборка меньше iterations_per_scenario или 100 прогонов")
         violations = scenario.get("invariant_violations")
         if not isinstance(violations, list):
             raise GateError(f"{scenario_id}: invariant_violations должен быть массивом")
@@ -129,12 +133,12 @@ def validate_report(report: dict[str, Any], baseline: dict[str, Any]) -> None:
             value = metrics.get(metric)
             if not isinstance(value, dict) or "value" not in value:
                 raise GateError(f"{scenario_id}.{metric}: некорректная структура метрики")
-            _number(value["value"], f"{scenario_id}.{metric}.value", 0.0, 1.0 if metric in RATE_METRICS else None)
-            if metric in RATE_METRICS:
-                low = _number(value.get("ci95_low"), f"{scenario_id}.{metric}.ci95_low", 0.0, 1.0)
-                high = _number(value.get("ci95_high"), f"{scenario_id}.{metric}.ci95_high", 0.0, 1.0)
-                if low > value["value"] or value["value"] > high:
-                    raise GateError(f"{scenario_id}.{metric}: CI95 не содержит оценку")
+            estimate = _number(value["value"], f"{scenario_id}.{metric}.value", 0.0, 1.0 if metric in RATE_METRICS else None)
+            upper_bound = 1.0 if metric in RATE_METRICS else None
+            low = _number(value.get("ci95_low"), f"{scenario_id}.{metric}.ci95_low", 0.0, upper_bound)
+            high = _number(value.get("ci95_high"), f"{scenario_id}.{metric}.ci95_high", 0.0, upper_bound)
+            if low > estimate or estimate > high:
+                raise GateError(f"{scenario_id}.{metric}: CI95 не содержит оценку")
 
 
 def compare_reports(baseline: dict[str, Any], report: dict[str, Any]) -> list[str]:
@@ -157,21 +161,20 @@ def compare_reports(baseline: dict[str, Any], report: dict[str, Any]) -> list[st
         for metric, policy in METRIC_POLICIES.items():
             old = _number(before[metric], f"baseline.{scenario_id}.{metric}", 0.0, 1.0 if metric in RATE_METRICS else None)
             new = float(after[metric]["value"])
-            delta = abs(new - old)
             if "max_abs_delta" in policy:
                 limit = policy["max_abs_delta"]
-                if delta > limit:
-                    failures.append(
-                        f"{scenario_id}.{metric}: |{new:.4f} - {old:.4f}| = {delta:.4f} > {limit:.4f}"
-                    )
+                allowed_low, allowed_high = max(0.0, old - limit), min(1.0, old + limit)
             else:
-                relative = delta / max(abs(old), 1e-9)
                 limit = policy["max_relative_delta"]
-                if relative > limit:
-                    failures.append(
-                        f"{scenario_id}.{metric}: relative delta {relative:.1%} > {limit:.1%} "
-                        f"(current={new:.4f}, baseline={old:.4f})"
-                    )
+                allowed_low, allowed_high = max(0.0, old * (1.0 - limit)), old * (1.0 + limit)
+            current = after[metric]
+            ci_low, ci_high = float(current["ci95_low"]), float(current["ci95_high"])
+            if ci_low < allowed_low or ci_high > allowed_high:
+                failures.append(
+                    f"{scenario_id}.{metric}: CI95 [{ci_low:.4f}, {ci_high:.4f}] "
+                    f"выходит за допустимый диапазон [{allowed_low:.4f}, {allowed_high:.4f}] "
+                    f"(estimate={new:.4f}, baseline={old:.4f})"
+                )
     return failures
 
 
