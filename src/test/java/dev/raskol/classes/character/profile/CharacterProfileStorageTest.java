@@ -175,6 +175,42 @@ class CharacterProfileStorageTest {
     }
 
     @Test
+    void rejectsUnknownTopLevelFieldsInsteadOfDroppingThemOnSave() throws Exception {
+        File file = new File(tempDir.toFile(), "characters.yml");
+        String original = "schema-version: 3\\nprofiles: {}\\nunrelated-section:\\n  value: 42\\n";
+        java.nio.file.Files.writeString(file.toPath(), original);
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            assertThrows(
+                    IllegalStateException.class, () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 100L));
+        }
+        assertEquals(original, java.nio.file.Files.readString(file.toPath()));
+    }
+
+    @Test
+    void rejectsUnknownProfileFieldsInsteadOfDroppingThemOnSave() throws Exception {
+        UUID playerId = UUID.fromString("9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a");
+        File file = new File(tempDir.toFile(), "characters.yml");
+        YamlConfiguration yaml = new YamlConfiguration();
+        String base = "profiles." + playerId;
+        yaml.set("schema-version", 3);
+        yaml.set(base + ".schema-version", 1);
+        yaml.set(base + ".level", 12);
+        yaml.set(base + ".experience", 50L);
+        yaml.set(base + ".created-at", 100L);
+        yaml.set(base + ".updated-at", 200L);
+        yaml.set(base + ".future-field", "must-not-be-lost");
+        String original = yaml.saveToString();
+        java.nio.file.Files.writeString(file.toPath(), original);
+
+        try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
+            assertThrows(
+                    IllegalStateException.class, () -> new CharacterProfileStorage(file, writer, LOGGER, () -> 300L));
+        }
+        assertEquals(original, java.nio.file.Files.readString(file.toPath()));
+    }
+
+    @Test
     void recordsQuestRewardAndProfileInOneDurableSnapshot() throws Exception {
         UUID playerId = UUID.fromString("4a8d4a8d-8d4a-4a8d-8d4a-4a8d4a8d4a8d");
         String rewardId = "quest:crypt-depths:4a8d4a8d-8d4a-4a8d-8d4a-4a8d4a8d4a8d";
