@@ -14,6 +14,21 @@ import dev.raskol.classes.combat.CombatService;
 class AbilityRegistryContextTest {
 
     @Test
+    @DisplayName("cast boundary normalizes ability IDs and clears blank nested scopes")
+    void castBoundaryNormalizesAndClearsBlankIds() {
+        AbilityRegistry.withAbilityScope("  AIMED_SHOT  ", () -> {
+            assertEquals("aimed_shot", CombatService.currentAbilityId());
+            AbilityRegistry.withAbilityScope(" ", () -> {
+                assertNull(CombatService.currentAbilityId());
+                return true;
+            });
+            assertEquals("aimed_shot", CombatService.currentAbilityId());
+            return true;
+        });
+        assertNull(CombatService.currentAbilityId());
+    }
+
+    @Test
     @DisplayName("cast boundary exposes the active ability ID and restores the outer scope")
     void castBoundaryScopesAbilityId() {
         assertNull(CombatService.currentAbilityId());
