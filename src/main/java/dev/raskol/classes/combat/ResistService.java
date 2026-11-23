@@ -252,15 +252,11 @@ public final class ResistService {
     }
 
     public double physicalFactor(UUID uuid, double cap) {
-        double factor = 1.0 - physicalResist(uuid, cap) / 100.0;
-        if (!Double.isFinite(factor)) return 1.0;
-        return Math.max(0.0, Math.min(1.0, factor));
+        return 1.0 - CombatMath.mitigation(physicalResist(uuid, cap), cap);
     }
 
     public double magicFactor(UUID uuid, double cap) {
-        double factor = 1.0 - magicResist(uuid, cap) / 100.0;
-        if (!Double.isFinite(factor)) return 1.0;
-        return Math.max(0.0, Math.min(1.0, factor));
+        return 1.0 - CombatMath.mitigation(magicResist(uuid, cap), cap);
     }
 
     private FactorCache factors(UUID uuid) {
@@ -268,8 +264,8 @@ public final class ResistService {
         long tick = Bukkit.getCurrentTick();
         if (cache.tick != tick) {
             Breakdown b = breakdown(uuid);
-            cache.phys = 1.0 - b.physicalTotal() / 100.0;
-            cache.magic = 1.0 - b.magicTotal() / 100.0;
+            cache.phys = 1.0 - CombatMath.mitigation(b.physicalTotal(), cap());
+            cache.magic = 1.0 - CombatMath.mitigation(b.magicTotal(), cap());
             cache.tick = tick;
         }
         return cache;
