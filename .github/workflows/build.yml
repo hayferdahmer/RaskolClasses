@@ -69,9 +69,9 @@ jobs:
   # На обычных ветках и PR остаётся диагностическим.
   # Для tag-релизов и ручной OFFICIAL signing verification из main — обязательный gate.
   # -----------------------------------------------------------
-  analyze:
+  code-quality:
+    name: Code Quality (Spotless + SpotBugs)
     runs-on: ubuntu-24.04
-    continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') && !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -116,7 +116,7 @@ jobs:
   # for server validation, but NEVER creates a tag or publishes a Release.
   # -----------------------------------------------------------
   signing-verification:
-    needs: [build, analyze]
+    needs: [build, code-quality]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment:
@@ -233,7 +233,7 @@ jobs:
   #     4. соответствие CI private key активному public key.
   # -----------------------------------------------------------
   release:
-    needs: [build, analyze]
+    needs: [build, code-quality]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     environment:
