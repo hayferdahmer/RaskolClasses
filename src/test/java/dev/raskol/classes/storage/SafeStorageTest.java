@@ -86,8 +86,8 @@ class SafeStorageTest {
         Files.writeString(new File(file.getParentFile(), file.getName() + ".tmp").toPath(), "value: [broken\n");
         Files.writeString(new File(file.getParentFile(), file.getName() + ".bak").toPath(), "value: [broken\n");
 
-        SafeStorage.StorageLoadException exception = assertThrows(
-                SafeStorage.StorageLoadException.class, () -> SafeStorage.load(file, LOGGER));
+        SafeStorage.StorageLoadException exception =
+                assertThrows(SafeStorage.StorageLoadException.class, () -> SafeStorage.load(file, LOGGER));
 
         assertEquals(SafeStorage.LoadStatus.CORRUPT, exception.status());
         assertTrue(Files.exists(file.toPath()));
@@ -140,7 +140,8 @@ class SafeStorageTest {
 
     private long countFilesEndingWith(String suffix) throws IOException {
         try (Stream<Path> files = Files.list(tempDir)) {
-            return files.filter(path -> path.getFileName().toString().endsWith(suffix)).count();
+            return files.filter(path -> path.getFileName().toString().endsWith(suffix))
+                    .count();
         }
     }
 
