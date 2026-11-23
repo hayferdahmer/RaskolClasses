@@ -11,6 +11,11 @@ final class PetTalentMath {
         return Double.isFinite(value) ? Math.max(0.0, Math.min(100.0, value)) : 0.0;
     }
 
+    /** Конвертирует proc-шанс Spec2 из доли 0..1 в проценты для rollPercent. */
+    static double chancePercentFromFraction(double fraction) {
+        return Double.isFinite(fraction) ? Math.max(0.0, Math.min(1.0, fraction)) * 100.0 : 0.0;
+    }
+
     /** Базовый урон сущности не содержит talent-проценты: они применяются в событии попадания. */
     static double runtimeBaseDamage(double baseDamage, double power, double buffMultiplier) {
         return PetMath.damage(baseDamage, power, 0.0, buffMultiplier);
