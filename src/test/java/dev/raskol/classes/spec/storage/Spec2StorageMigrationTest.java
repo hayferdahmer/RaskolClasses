@@ -92,7 +92,8 @@ class Spec2StorageMigrationTest {
         characters.set(profile + ".created-at", 100L);
         characters.set(profile + ".updated-at", 200L);
         characters.set("processed-quest-rewards." + playerId, List.of("quest:crypt-depths:" + playerId));
-        Files.writeString(tempDir.resolve("characters.yml"), characters.saveToString());
+        String oldMain = characters.saveToString();
+        Files.writeString(tempDir.resolve("characters.yml"), oldMain);
         write("spec2-storage.yml", "players:\n  " + playerId + ":\n    main: discipline\n");
 
         migrate();
