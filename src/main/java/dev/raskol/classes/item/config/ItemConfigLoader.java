@@ -199,15 +199,7 @@ public final class ItemConfigLoader {
                     spec = parsedSpec.id();
                 }
                 ts.add(new ItemTemplateExpander.Template(
-                        id,
-                        pc,
-                        slot,
-                        wt,
-                        distribution,
-                        s.getStringList("names"),
-                        s.getString("set"),
-                        modelData,
-                        spec));
+                        id, pc, slot, wt, distribution, s.getStringList("names"), s.getString("set"), modelData, spec));
             }
         }
         if (ts.isEmpty()) {

@@ -167,14 +167,14 @@ public record CombatLabEquipmentSnapshot(
     }
 
     private static Comparator<ItemDefinition> candidateOrder(PlayerClass playerClass, String spec) {
-        return Comparator.<ItemDefinition>comparingInt(item ->
-                        spec != null && spec.equalsIgnoreCase(item.spec()) ? 0 : 1)
+        return Comparator.<ItemDefinition>comparingInt(
+                        item -> spec != null && spec.equalsIgnoreCase(item.spec()) ? 0 : 1)
+                .thenComparing(Comparator.<ItemDefinition>comparingDouble(item -> item.slot() == ItemSlot.MAIN_HAND
+                                ? WeaponMastery.masteryMultiplier(playerClass, item.weaponType())
+                                : 1.0)
+                        .reversed())
                 .thenComparing(
-                        Comparator.<ItemDefinition>comparingDouble(item -> item.slot() == ItemSlot.MAIN_HAND
-                                        ? WeaponMastery.masteryMultiplier(playerClass, item.weaponType())
-                                        : 1.0)
-                                .reversed())
-                .thenComparing(Comparator.comparingInt(ItemDefinition::itemLevel).reversed())
+                        Comparator.comparingInt(ItemDefinition::itemLevel).reversed())
                 .thenComparing(ItemDefinition::id);
     }
 

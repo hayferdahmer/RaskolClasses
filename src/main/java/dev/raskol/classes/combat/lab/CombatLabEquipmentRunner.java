@@ -80,7 +80,15 @@ public final class CombatLabEquipmentRunner {
                             CombatLabCombatantSnapshot.from(config, secondClass, level, secondEquipment);
                     long scenarioSeed = mixSeed(seed, level, firstSpec.ordinal(), secondSpec.ordinal());
                     scenarios.add(scenarioJson(
-                            firstSpec, secondSpec, first, second, firstEquipment, secondEquipment, rules, scenarioSeed, iterations));
+                            firstSpec,
+                            secondSpec,
+                            first,
+                            second,
+                            firstEquipment,
+                            secondEquipment,
+                            rules,
+                            scenarioSeed,
+                            iterations));
                 }
             }
         }
@@ -147,13 +155,34 @@ public final class CombatLabEquipmentRunner {
                         || !secondEquipment.activeSetIds().contains(secondSpec.id() + "_regalia"))) {
             violations.add("expected_specialization_set_missing_at_level_" + first.level());
         }
-        String id = "pvp_equipment_" + firstSpec.id() + "_vs_" + secondSpec.id()
-                + "_level_" + first.level();
+        String id = "pvp_equipment_" + firstSpec.id() + "_vs_" + secondSpec.id() + "_level_" + first.level();
         if (!violations.isEmpty()) {
             return scenarioObject(
-                    id, firstSpec.id(), secondSpec.id(), iterations, violations,
-                    firstEquipment, secondEquipment,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    id,
+                    firstSpec.id(),
+                    secondSpec.id(),
+                    iterations,
+                    violations,
+                    firstEquipment,
+                    secondEquipment,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0);
         }
 
         Random bootstrap = new Random(mixSeed(seed, first.level(), firstSpec.ordinal(), secondSpec.ordinal()));
@@ -166,14 +195,31 @@ public final class CombatLabEquipmentRunner {
         double[] critCi = wilsonInterval(crits, hits);
         double[] avoidCi = wilsonInterval(avoids, hits);
         return scenarioObject(
-                id, firstSpec.id(), secondSpec.id(), iterations, violations,
-                firstEquipment, secondEquipment,
-                wins / (double) iterations, winCi[0], winCi[1],
-                median(ttk), ttkCi[0], ttkCi[1],
-                mean(dps), dpsCi[0], dpsCi[1],
-                mean(hps), hpsCi[0], hpsCi[1],
-                critRate, critCi[0], critCi[1],
-                avoidRate, avoidCi[0], avoidCi[1]);
+                id,
+                firstSpec.id(),
+                secondSpec.id(),
+                iterations,
+                violations,
+                firstEquipment,
+                secondEquipment,
+                wins / (double) iterations,
+                winCi[0],
+                winCi[1],
+                median(ttk),
+                ttkCi[0],
+                ttkCi[1],
+                mean(dps),
+                dpsCi[0],
+                dpsCi[1],
+                mean(hps),
+                hpsCi[0],
+                hpsCi[1],
+                critRate,
+                critCi[0],
+                critCi[1],
+                avoidRate,
+                avoidCi[0],
+                avoidCi[1]);
     }
 
     private static String scenarioObject(
@@ -214,9 +260,13 @@ public final class CombatLabEquipmentRunner {
                 + ",\"first_active_sets\":" + stringArray(firstEquipment.activeSetIds())
                 + ",\"second_active_sets\":" + stringArray(secondEquipment.activeSetIds())
                 + ",\"first_weapon_type\":\""
-                + (firstEquipment.weaponType() == null ? "NONE" : firstEquipment.weaponType().name())
+                + (firstEquipment.weaponType() == null
+                        ? "NONE"
+                        : firstEquipment.weaponType().name())
                 + "\",\"second_weapon_type\":\""
-                + (secondEquipment.weaponType() == null ? "NONE" : secondEquipment.weaponType().name())
+                + (secondEquipment.weaponType() == null
+                        ? "NONE"
+                        : secondEquipment.weaponType().name())
                 + "\",\"first_attack_type\":\"" + firstEquipment.autoAttackType()
                 + "\",\"second_attack_type\":\"" + secondEquipment.autoAttackType()
                 + "\",\"first_mastery\":" + number(firstEquipment.weaponMasteryMultiplier())
