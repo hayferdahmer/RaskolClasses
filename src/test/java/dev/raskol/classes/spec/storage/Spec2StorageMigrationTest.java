@@ -201,17 +201,13 @@ class Spec2StorageMigrationTest {
     @DisplayName("восстанавливает .tmp источника Spec 2.0 и переносит его до архивации")
     void restoresTemporarySpecSourceBeforeArchiving() throws IOException {
         UUID playerId = UUID.fromString("a1b2c3d4-e5f6-4a2b-8c3d-4e5f6a7b8c9d");
-        File temporary = write(
-                "spec2-storage.yml.tmp",
-                "players:\n  " + playerId + ":\n    main: restoration\n");
+        File temporary = write("spec2-storage.yml.tmp", "players:\n  " + playerId + ":\n    main: restoration\n");
 
         migrate();
 
         YamlConfiguration saved = YamlConfiguration.loadConfiguration(
                 tempDir.resolve("characters.yml").toFile());
-        assertEquals(
-                "restoration",
-                saved.getString("profiles." + playerId + ".specialization.main"));
+        assertEquals("restoration", saved.getString("profiles." + playerId + ".specialization.main"));
         assertFalse(temporary.exists());
         assertTrue(tempDir.resolve("spec2-storage.yml.migrated").toFile().isFile());
     }
@@ -220,17 +216,13 @@ class Spec2StorageMigrationTest {
     @DisplayName("восстанавливает .bak источника Spec 2.0 и архивирует все исходные копии")
     void restoresBackupSpecSourceBeforeArchiving() throws IOException {
         UUID playerId = UUID.fromString("b1b2c3d4-e5f6-4a2b-8c3d-4e5f6a7b8c9d");
-        File backup = write(
-                "spec2-storage.yml.bak",
-                "players:\n  " + playerId + ":\n    main: discipline\n");
+        File backup = write("spec2-storage.yml.bak", "players:\n  " + playerId + ":\n    main: discipline\n");
 
         migrate();
 
         YamlConfiguration saved = YamlConfiguration.loadConfiguration(
                 tempDir.resolve("characters.yml").toFile());
-        assertEquals(
-                "discipline",
-                saved.getString("profiles." + playerId + ".specialization.main"));
+        assertEquals("discipline", saved.getString("profiles." + playerId + ".specialization.main"));
         assertFalse(backup.exists());
         assertTrue(tempDir.resolve("spec2-storage.yml.migrated").toFile().isFile());
         assertTrue(tempDir.resolve("spec2-storage.yml.bak.migrated").toFile().isFile());
@@ -251,7 +243,7 @@ class Spec2StorageMigrationTest {
         migrate();
 
         Path archivedLegacy = tempDir.resolve("spec2.yml.migrated");
-        Files.move(archivedLegacy, tempDir.resolve("spec2.yml"));
+        Files.copy(archivedLegacy, tempDir.resolve("spec2.yml"));
         migrate();
 
         String profile = "profiles." + playerId;
