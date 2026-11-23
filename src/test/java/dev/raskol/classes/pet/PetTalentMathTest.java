@@ -54,6 +54,14 @@ class PetTalentMathTest {
     }
 
     @Test
+    @DisplayName("all registered pet archetypes define an explicit base attack interval")
+    void petArchetypesDefineBaseAttackIntervals() {
+        assertEquals(20, PetDef.byId("wolf").baseAttackIntervalTicks());
+        assertEquals(20, PetDef.byId("demon").baseAttackIntervalTicks());
+        assertEquals(20, PetDef.byId("shadowfiend").baseAttackIntervalTicks());
+    }
+
+    @Test
     @DisplayName("pet rank bonuses apply once after runtime base damage and buff scaling")
     void runtimeBaseAndHitBonusesDoNotDoubleScale() {
         double base = PetTalentMath.runtimeBaseDamage(10.0, 0.0, 1.0);
