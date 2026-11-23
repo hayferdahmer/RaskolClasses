@@ -87,8 +87,8 @@ class CombatLabDuelEngineTest {
         assertTrue(result.secondHits() > 0);
         assertTrue(result.firstCrits() <= result.firstHits());
         assertTrue(result.secondCrits() <= result.secondHits());
-        assertTrue(result.firstAvoids() <= result.firstHits());
-        assertTrue(result.secondAvoids() <= result.secondHits());
+        assertTrue(result.firstAvoids() <= result.secondHits());
+        assertTrue(result.secondAvoids() <= result.firstHits());
     }
 
     @Test
