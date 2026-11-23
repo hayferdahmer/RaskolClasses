@@ -10,6 +10,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -117,7 +118,7 @@ public final class Spec2StorageMigration {
             throw new IllegalStateException(
                     "Неизвестная структура Spec 2.0: непустой YAML не содержит ожидаемый раздел players");
         }
-        rejectUnknownKeys(yaml, java.util.Set.of("players"), "корневом разделе Spec 2.0");
+        rejectUnknownKeys(yaml, Set.of("players"), "корневом разделе Spec 2.0");
         ConfigurationSection players = yaml.getConfigurationSection("players");
         if (players == null) {
             throw new IllegalStateException("Раздел players в legacy Spec 2.0 должен быть YAML-разделом");
@@ -134,7 +135,7 @@ public final class Spec2StorageMigration {
             if (player == null) {
                 throw new IllegalStateException("Запись Spec 2.0 игрока " + rawId + " должна быть YAML-разделом");
             }
-            rejectUnknownKeys(player, java.util.Set.of("main", "ranks"), "записи Spec 2.0 игрока " + rawId);
+            rejectUnknownKeys(player, Set.of("main", "ranks"), "записи Spec 2.0 игрока " + rawId);
 
             String main = null;
             if (player.contains("main")) {
@@ -331,7 +332,7 @@ public final class Spec2StorageMigration {
     }
 
     private static void rejectUnknownKeys(
-            ConfigurationSection section, java.util.Set<String> allowed, String context) {
+            ConfigurationSection section, Set<String> allowed, String context) {
         for (String key : section.getKeys(false)) {
             if (!allowed.contains(key)) {
                 throw new IllegalStateException("Неизвестное поле " + key + " в " + context
