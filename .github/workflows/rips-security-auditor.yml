@@ -1,6 +1,6 @@
 # © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 # SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
-name: RIPS Security Auditor
+name: RASKOL Sentinel | RIPS Security
 
 on:
   pull_request:
@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   audit:
-    name: Read-only RIPS security audit
+    name: Integrity & Tamper Audit
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
