@@ -32,6 +32,20 @@ class Spec2KitEffectAggregationTest {
         assertEquals(30.0, agg.kitAttrAgi.get("shadow_dance"), 0.0001);
     }
 
+    @Test
+    @DisplayName("physical penetration and magic ward remain scoped to their ability IDs")
+    void abilitySpecificPenetrationAndWardDoNotLeakToOtherAbilities() {
+        Spec2Service.Agg agg = new Spec2Service.Agg();
+
+        Spec2Service.accumulate(agg, node("marksmanship", "mm_piercing_shots"), 2);
+        Spec2Service.accumulate(agg, node("guard", "guard_spell_ward"), 2);
+
+        assertEquals(20.0, agg.kitPenPhys.get("aimed_shot"), 0.0001);
+        assertEquals(50.0, agg.kitResistMagic.get("balder_skin"), 0.0001);
+        assertEquals(0.0, agg.kitPenPhys.getOrDefault("arrow_fan", 0.0), 0.0001);
+        assertEquals(0.0, agg.kitResistMagic.getOrDefault("shield_wall", 0.0), 0.0001);
+    }
+
     private static Spec2Node node(String treeId, String nodeId) {
         var tree = Spec2Registry.treeOf(treeId);
         assertNotNull(tree, "дерево отсутствует: " + treeId);
