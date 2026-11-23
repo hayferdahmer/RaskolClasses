@@ -33,7 +33,7 @@ public final class CombatLabEquipmentRunner {
         Arguments options = Arguments.parse(args);
         YamlConfiguration config = YamlConfiguration.loadConfiguration(options.config().toFile());
         List<String> warnings = new ArrayList<>();
-        ItemRegistry registry = ItemConfigLoader.load(options.items().toFile(), warnings::add);
+        ItemRegistry registry = ItemConfigLoader.loadHeadless(options.items().toFile(), warnings::add);
         if (registry.size() == 0) {
             throw new IllegalStateException("Production items.yml не загрузил ни одного предмета");
         }
