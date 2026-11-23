@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
+import java.util.function.Supplier;
 
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -196,6 +197,10 @@ public final class AbilityRegistry {
     private final Set<String> treeCasterIds = new HashSet<>();
 
     private final Map<UUID, Map<String, Long>> lastAttempts = new ConcurrentHashMap<>();
+
+    static <T> T withAbilityScope(String abilityId, Supplier<T> cast) {
+        return CombatService.withAbilityContext(abilityId, cast);
+    }
 
     public AbilityRegistry(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -586,7 +591,7 @@ public final class AbilityRegistry {
         // --- cast ---
         boolean ok;
         try {
-            ok = CombatService.withAbilityContext(def.id(), () -> {
+            ok = withAbilityScope(def.id(), () -> {
                 CombatService.setCurrentCastSchool(def.school());
                 try {
                     return targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
