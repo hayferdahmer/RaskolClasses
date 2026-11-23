@@ -76,6 +76,7 @@ public record CombatLabEquipmentSnapshot(
                     .filter(item -> item.itemLevel() <= level)
                     .filter(item -> ItemStatAggregator.eligible(item, playerClass, spec, level))
                     .min(candidateOrder(playerClass))
+                    .map(item -> scaleToCharacterLevel(item, level))
                     .ifPresent(equipped::add);
         }
 
@@ -133,6 +134,32 @@ public record CombatLabEquipmentSnapshot(
                 weaponType,
                 attackType,
                 mastery);
+    }
+
+    private static ItemDefinition scaleToCharacterLevel(ItemDefinition definition, int characterLevel) {
+        if (definition.itemLevel() == characterLevel) return definition;
+        double scale = (double) characterLevel / definition.itemLevel();
+        Map<ItemStat, Double> scaledStats = new EnumMap<>(ItemStat.class);
+        definition.baseStats().forEach((stat, value) -> scaledStats.put(stat, stat.clamp(value * scale)));
+        return new ItemDefinition(
+                definition.id(),
+                definition.displayName(),
+                definition.material(),
+                definition.slot(),
+                definition.weaponType(),
+                definition.rarity(),
+                characterLevel,
+                definition.playerClass(),
+                definition.spec(),
+                definition.levelRequirement(),
+                scaledStats,
+                definition.affixPool(),
+                definition.affixCount(),
+                definition.setId(),
+                definition.lore(),
+                definition.glow(),
+                definition.customModelData(),
+                definition.template());
     }
 
     private static Comparator<ItemDefinition> candidateOrder(PlayerClass playerClass) {
