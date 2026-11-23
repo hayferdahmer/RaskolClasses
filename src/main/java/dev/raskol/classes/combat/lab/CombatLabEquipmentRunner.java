@@ -82,11 +82,11 @@ public final class CombatLabEquipmentRunner {
             }
         }
         return "{\n"
-                + "  \"schema_version\": \"1.0\",\n"
+                + "  \"schema_version\": \"1.1\",\n"
                 + "  \"report_type\": \"combat-lab-equipment-report\",\n"
-                + "  \"simulator_version\": \"headless-equipment-duel-0.1.0\",\n"
+                + "  \"simulator_version\": \"headless-equipment-duel-0.2.0\",\n"
                 + "  \"scenario_set\": \"" + CombatLabDuelEngine.EQUIPMENT_PROFILE_ID + "\",\n"
-                + "  \"simulation_scope\": \"production items.yml; production affix roller, stat aggregator, set bonuses, PowerService formulas, physical and magic auto-attacks, resistances and WeaponMastery; no active abilities, talents, procs, pets or CC\",\n"
+                + "  \"simulation_scope\": \"production items.yml; Paper 26.2 material attack-speed modifiers, full-draw bow and crossbow reload cadence, production affix roller, set bonuses, physical/magic auto-attacks and WeaponMastery; no active abilities, talents, procs, pets or CC\",\n"
                 + "  \"source_commit\": \"" + sourceCommit + "\",\n"
                 + "  \"seed\": " + seed + ",\n"
                 + "  \"iterations_per_scenario\": " + iterations + ",\n"
@@ -232,33 +232,33 @@ public final class CombatLabEquipmentRunner {
             double avoid,
             double avoidLow,
             double avoidHigh) {
-        return "    {\n"
-                + "      \"scenario_id\": \"" + id + "\",\n"
-                + "      \"mode\": \"pvp\",\n"
-                + "      \"sample_count\": " + samples + ",\n"
-                + "      \"invariant_violations\": " + stringArray(violations) + ",\n"
-                + "      \"equipment\": {\"first_items\":" + stringArray(firstEquipment.equippedItemIds())
-                + ",\"second_items\":" + stringArray(secondEquipment.equippedItemIds())
-                + ",\"first_weapon_type\":\""
-                + (firstEquipment.weaponType() == null
-                        ? "NONE"
-                        : firstEquipment.weaponType().name())
-                + "\",\"second_weapon_type\":\""
-                + (secondEquipment.weaponType() == null
-                        ? "NONE"
-                        : secondEquipment.weaponType().name())
-                + "\",\"first_attack_type\":\"" + firstEquipment.autoAttackType()
-                + "\",\"second_attack_type\":\"" + secondEquipment.autoAttackType()
-                + "\",\"first_mastery\":" + number(firstEquipment.weaponMasteryMultiplier())
-                + ",\"second_mastery\":" + number(secondEquipment.weaponMasteryMultiplier()) + "},\n"
-                + "      \"metrics\": {\n"
-                + "        \"win_rate\": " + metric(win, winLow, winHigh, "wilson") + ",\n"
-                + "        \"ttk_median_seconds\": " + metric(ttk, ttkLow, ttkHigh, "bootstrap_percentile") + ",\n"
-                + "        \"dps_mean\": " + metric(dps, dpsLow, dpsHigh, "bootstrap_percentile") + ",\n"
-                + "        \"hps_mean\": " + metric(hps, hpsLow, hpsHigh, "bootstrap_percentile") + ",\n"
-                + "        \"crit_rate\": " + metric(crit, critLow, critHigh, "wilson") + ",\n"
-                + "        \"avoidance_rate\": " + metric(avoid, avoidLow, avoidHigh, "wilson") + "\n"
-                + "      }\n"
+        return "    {\\n"
+                + "      \\"scenario_id\\": \\"" + id + "\\",\\n"
+                + "      \\"mode\\": \\"pvp\\",\\n"
+                + "      \\"sample_count\\": " + samples + ",\\n"
+                + "      \\"invariant_violations\\": " + stringArray(violations) + ",\\n"
+                + "      \\"equipment\\": {\\"first_items\\":" + stringArray(firstEquipment.equippedItemIds())
+                + ",\\"second_items\\":" + stringArray(secondEquipment.equippedItemIds())
+                + ",\\"first_weapon_type\\":\\""
+                + (firstEquipment.weaponType() == null ? "NONE" : firstEquipment.weaponType().name())
+                + "\\",\\"second_weapon_type\\":\\""
+                + (secondEquipment.weaponType() == null ? "NONE" : secondEquipment.weaponType().name())
+                + "\\",\\"first_attack_type\\":\\"" + firstEquipment.autoAttackType()
+                + "\\",\\"second_attack_type\\":\\"" + secondEquipment.autoAttackType()
+                + "\\",\\"first_mastery\\":" + number(firstEquipment.weaponMasteryMultiplier())
+                + ",\\"second_mastery\\":" + number(secondEquipment.weaponMasteryMultiplier())
+                + ",\\"first_attack_interval_seconds\\":" + number(firstEquipment.attackIntervalSeconds())
+                + ",\\"second_attack_interval_seconds\\":" + number(secondEquipment.attackIntervalSeconds())
+                + ",\\"first_cadence_model\\":\\"" + firstEquipment.cadenceModel() + "\\""
+                + ",\\"second_cadence_model\\":\\"" + secondEquipment.cadenceModel() + "\\"},\\n"
+                + "      \\"metrics\\": {\\n"
+                + "        \\"win_rate\\": " + metric(win, winLow, winHigh, "wilson") + ",\\n"
+                + "        \\"ttk_median_seconds\\": " + metric(ttk, ttkLow, ttkHigh, "bootstrap_percentile") + ",\\n"
+                + "        \\"dps_mean\\": " + metric(dps, dpsLow, dpsHigh, "bootstrap_percentile") + ",\\n"
+                + "        \\"hps_mean\\": " + metric(hps, hpsLow, hpsHigh, "bootstrap_percentile") + ",\\n"
+                + "        \\"crit_rate\\": " + metric(crit, critLow, critHigh, "wilson") + ",\\n"
+                + "        \\"avoidance_rate\\": " + metric(avoid, avoidLow, avoidHigh, "wilson") + "\\n"
+                + "      }\\n"
                 + "    }";
     }
 
