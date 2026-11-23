@@ -53,6 +53,8 @@ public final class CombatLabDuelEngine {
         }
     }
 
+    private record HitResult(double damage, boolean critical, boolean avoided) {}
+
     public record DuelResult(
             double durationSeconds,
             boolean timeout,
@@ -95,20 +97,18 @@ public final class CombatLabDuelEngine {
         double elapsed = 0.0;
 
         while (elapsed < rules.maxDurationSeconds()) {
-            double dealtToSecond = resolvePhysicalHit(first, second, rules, random);
-            double dealtToFirst = resolvePhysicalHit(second, first, rules, random);
+            HitResult firstHit = resolvePhysicalHit(first, second, rules, random);
+            HitResult secondHit = resolvePhysicalHit(second, first, rules, random);
+            double dealtToSecond = firstHit.damage();
+            double dealtToFirst = secondHit.damage();
+            if (firstHit.critical()) firstCrits++;
+            if (secondHit.critical()) secondCrits++;
+            if (firstHit.avoided()) secondAvoids++;
+            if (secondHit.avoided()) firstAvoids++;
             firstHits++;
             secondHits++;
-            if (dealtToSecond > 0.0) {
-                firstDamage += dealtToSecond;
-            } else {
-                secondAvoids++;
-            }
-            if (dealtToFirst > 0.0) {
-                secondDamage += dealtToFirst;
-            } else {
-                firstAvoids++;
-            }
+            firstDamage += dealtToSecond;
+            secondDamage += dealtToFirst;
 
             // Реген в бою использует ту же pure-формулу AttributeMath, что и сервер.
             double firstRegen = first.healthRegenPerSecond() * rules.attackIntervalSeconds();
@@ -155,22 +155,26 @@ public final class CombatLabDuelEngine {
                 secondAvoids);
     }
 
-    private static double resolvePhysicalHit(
+    private static HitResult resolvePhysicalHit(
             CombatLabCombatantSnapshot attacker,
             CombatLabCombatantSnapshot defender,
             Rules rules,
             Random random) {
         double avoidChance = Math.max(0.0, defender.dodgeChancePct() + defender.parryChancePct());
         if (random.nextDouble() * 100.0 < avoidChance) {
-            return 0.0;
+            return new HitResult(0.0, false, true);
         }
         double damage = rules.unarmedBaseDamage() + attacker.weaponPower() * rules.weaponPowerCoefficient();
-        if (random.nextDouble() * 100.0 < attacker.meleeCritChancePct()) {
+        boolean critical = random.nextDouble() * 100.0 < attacker.meleeCritChancePct();
+        if (critical) {
             damage *= attacker.meleeCritMultiplier();
         }
         double mitigation = CombatMath.mitigation(defender.physicalResistPct(), rules.resistCapPct());
         damage *= 1.0 - mitigation;
-        return CombatMath.cappedDamage(damage, defender.maxHealth(), rules.singleHitCapPct());
+        return new HitResult(
+                CombatMath.cappedDamage(damage, defender.maxHealth(), rules.singleHitCapPct()),
+                critical,
+                false);
     }
 
     private static boolean finiteNonNegative(double value) {
