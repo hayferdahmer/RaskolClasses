@@ -14,6 +14,7 @@ public enum ItemStat {
     SPELL_POWER("spell-power", 0, 1000),
     HEAL_POWER("heal-power", 0, 1000),
     CRIT_MELEE("crit-melee", 0, 50),
+    CRIT_RANGED("crit-ranged", 0, 50),
     CRIT_SPELL("crit-spell", 0, 50),
     CRIT_DAMAGE("crit-damage", 0, 100),
     ATTACK_SPEED("attack-speed", 0, 50),
