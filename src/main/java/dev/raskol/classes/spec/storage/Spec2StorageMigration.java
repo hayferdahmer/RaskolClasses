@@ -95,14 +95,13 @@ public final class Spec2StorageMigration {
             SafeStorage.LoadResult loaded = SafeStorage.load(file, logger);
             if (loaded.status() == SafeStorage.LoadStatus.RECOVERED_TMP
                     || loaded.status() == SafeStorage.LoadStatus.RECOVERED_BACKUP) {
-                logger.warning("spec2: источник " + file.getName() + " восстановлен SafeStorage: "
-                        + loaded.status());
+                logger.warning("spec2: источник " + file.getName() + " восстановлен SafeStorage: " + loaded.status());
             }
             return new Source(present, true, loaded.configuration());
         } catch (SafeStorage.StorageLoadException exception) {
             if (exception.status() == SafeStorage.LoadStatus.CORRUPT) {
-                logger.severe("spec2: все копии " + file.getName()
-                        + " повреждены; оригиналы и карантин сохранены: " + exception.getMessage());
+                logger.severe("spec2: все копии " + file.getName() + " повреждены; оригиналы и карантин сохранены: "
+                        + exception.getMessage());
                 return new Source(true, false, new YamlConfiguration());
             }
             throw exception;
