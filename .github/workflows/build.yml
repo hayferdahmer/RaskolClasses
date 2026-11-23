@@ -9,7 +9,7 @@
 #   - проверка соответствия CI private key единственному ACTIVE public key
 #     непосредственно перед публикацией релиза;
 #   - private key доступен только signing-verification/release jobs через Environment Secret.
-name: RaskolClasses Build
+name: RASKOL Forge | Build & Release
 
 on:
   push:
@@ -23,6 +23,7 @@ jobs:
   # Основной job: license gate + RIPS policy tests + build.
   # -----------------------------------------------------------
   build:
+    name: Build & Test (Java 25)
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -69,7 +70,7 @@ jobs:
   # Блокирует PR, OFFICIAL signing verification и публикацию релиза.
   # -----------------------------------------------------------
   code-quality:
-    name: Code Quality (Spotless + SpotBugs)
+    name: Quality Gate (Spotless + SpotBugs)
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -115,6 +116,7 @@ jobs:
   # for server validation, but NEVER creates a tag or publishes a Release.
   # -----------------------------------------------------------
   signing-verification:
+    name: RIPS Official Signing Check
     needs: [build, code-quality]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -232,6 +234,7 @@ jobs:
   #     4. соответствие CI private key активному public key.
   # -----------------------------------------------------------
   release:
+    name: Signed Release Publication
     needs: [build, code-quality]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
