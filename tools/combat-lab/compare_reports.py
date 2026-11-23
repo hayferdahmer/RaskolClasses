@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = "1.0"
+MINIMUM_ITERATIONS = 1200
 RATE_METRICS = {"win_rate", "proc_rate", "pet_damage_share", "resource_waste_pct"}
 METRIC_POLICIES = {
     # Доли сравниваются в процентных пунктах, а не относительно малой базы.
@@ -111,8 +112,8 @@ def validate_report(report: dict[str, Any], baseline: dict[str, Any]) -> None:
     iterations = report.get("iterations_per_scenario")
     if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
         raise GateError("Report: seed должен быть целым неотрицательным числом")
-    if isinstance(iterations, bool) or not isinstance(iterations, int) or iterations < 100:
-        raise GateError("Report: для статистического gate нужно не менее 100 итераций на сценарий")
+    if isinstance(iterations, bool) or not isinstance(iterations, int) or iterations < MINIMUM_ITERATIONS:
+        raise GateError("Report: для статистического gate нужно не менее 1200 итераций на сценарий")
     scenarios = report.get("scenarios")
     if not isinstance(scenarios, list) or not scenarios:
         raise GateError("Report: scenarios должен быть непустым массивом")
@@ -128,8 +129,8 @@ def validate_report(report: dict[str, Any], baseline: dict[str, Any]) -> None:
         sample_count = scenario.get("sample_count")
         if isinstance(sample_count, bool) or not isinstance(sample_count, int) or sample_count < 1:
             raise GateError(f"{scenario_id}: sample_count должен быть положительным целым")
-        if sample_count < iterations or sample_count < 100:
-            raise GateError(f"{scenario_id}: выборка меньше iterations_per_scenario или 100 прогонов")
+        if sample_count < iterations or sample_count < MINIMUM_ITERATIONS:
+            raise GateError(f"{scenario_id}: выборка меньше iterations_per_scenario или 1200 прогонов")
         violations = scenario.get("invariant_violations")
         if not isinstance(violations, list):
             raise GateError(f"{scenario_id}: invariant_violations должен быть массивом")
