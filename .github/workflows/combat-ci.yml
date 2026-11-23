@@ -1,6 +1,6 @@
 # © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 # SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
-name: RaskolClasses Combat CI Guard
+name: RASKOL Combat Lab | Combat CI
 
 on:
   pull_request:
@@ -37,7 +37,7 @@ concurrency:
 
 jobs:
   combat-ci-guard:
-    name: Combat CI Guard
+    name: Statistical Combat Regression Gate
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -120,7 +120,7 @@ jobs:
           COMBAT_PACKAGES: ${{ steps.audit.outputs.combat_packages }}
         run: |
           {
-            echo "## Combat CI Guard"
+            echo "## RASKOL Combat Lab"
             echo "- Result: **${JOB_STATUS}**"
             echo "- Commit: ${GITHUB_SHA}"
             echo "- Event: ${GITHUB_EVENT_NAME}"
