@@ -442,8 +442,7 @@ public final class PetService implements Listener {
                 state.cadenceDisabled = true;
                 LOGGER.log(
                         java.util.logging.Level.WARNING,
-                        "Управляемый cadence отключён для питомца " + state.defId
-                                + "; восстановлена ванильная атака",
+                        "Управляемый cadence отключён для питомца " + state.defId + "; восстановлена ванильная атака",
                         exception);
             } finally {
                 SCHEDULED_PET_ATTACK.remove();
