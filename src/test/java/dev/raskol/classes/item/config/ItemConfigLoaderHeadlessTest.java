@@ -23,15 +23,17 @@ class ItemConfigLoaderHeadlessTest {
     @DisplayName("production items.yml загружается без Bukkit Registry и сохраняет предметы всех классов")
     void loadsProductionRegistryWithoutPaperRegistry() throws Exception {
         List<String> warnings = new ArrayList<>();
-        ItemRegistry registry = ItemConfigLoader.loadHeadless(
-                new File("src/main/resources/items.yml"), warnings::add);
+        ItemRegistry registry = ItemConfigLoader.loadHeadless(new File("src/main/resources/items.yml"), warnings::add);
 
         assertTrue(registry.size() > 0);
         assertTrue(registry.all().stream().anyMatch(item -> item.rarity() == ItemRarity.EPIC));
         for (PlayerClass playerClass : PlayerClass.values()) {
-            assertFalse(registry.all().stream()
-                    .filter(item -> item.playerClass() == playerClass)
-                    .toList().isEmpty(), "В реестре должны быть предметы класса " + playerClass);
+            assertFalse(
+                    registry.all().stream()
+                            .filter(item -> item.playerClass() == playerClass)
+                            .toList()
+                            .isEmpty(),
+                    "В реестре должны быть предметы класса " + playerClass);
         }
     }
 
@@ -39,7 +41,6 @@ class ItemConfigLoaderHeadlessTest {
     @DisplayName("headless material validator отклоняет некорректный идентификатор")
     void rejectsInvalidMaterialIdentifier() {
         org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class,
-                () -> ItemValidator.validateMaterialSyntax("minecraft:stone;rm -rf"));
+                IllegalArgumentException.class, () -> ItemValidator.validateMaterialSyntax("minecraft:stone;rm -rf"));
     }
 }

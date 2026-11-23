@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat.lab;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -31,7 +30,8 @@ public final class CombatLabEquipmentRunner {
 
     public static void main(String[] args) throws Exception {
         Arguments options = Arguments.parse(args);
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(options.config().toFile());
+        YamlConfiguration config =
+                YamlConfiguration.loadConfiguration(options.config().toFile());
         List<String> warnings = new ArrayList<>();
         ItemRegistry registry = ItemConfigLoader.loadHeadless(options.items().toFile(), warnings::add);
         if (registry.size() == 0) {
@@ -71,10 +71,10 @@ public final class CombatLabEquipmentRunner {
                             registry, firstClass, level, RARITY, null, firstEquipmentSeed);
                     CombatLabEquipmentSnapshot secondEquipment = CombatLabEquipmentSnapshot.from(
                             registry, secondClass, level, RARITY, null, secondEquipmentSeed);
-                    CombatLabCombatantSnapshot first = CombatLabCombatantSnapshot.from(
-                            config, firstClass, level, firstEquipment);
-                    CombatLabCombatantSnapshot second = CombatLabCombatantSnapshot.from(
-                            config, secondClass, level, secondEquipment);
+                    CombatLabCombatantSnapshot first =
+                            CombatLabCombatantSnapshot.from(config, firstClass, level, firstEquipment);
+                    CombatLabCombatantSnapshot second =
+                            CombatLabCombatantSnapshot.from(config, secondClass, level, secondEquipment);
                     long scenarioSeed = mixSeed(seed, level, firstClass.ordinal(), secondClass.ordinal());
                     scenarios.add(scenarioJson(
                             first, second, firstEquipment, secondEquipment, rules, scenarioSeed, iterations));
@@ -123,25 +123,57 @@ public final class CombatLabEquipmentRunner {
             ttk[i] = result.durationSeconds();
             dps[i] = result.firstDamageDealt() / Math.max(0.001, result.durationSeconds());
             hps[i] = result.firstHealing() / Math.max(0.001, result.durationSeconds());
-            if (!Double.isFinite(ttk[i]) || !Double.isFinite(dps[i]) || !Double.isFinite(hps[i])
-                    || ttk[i] <= 0.0 || dps[i] < 0.0 || hps[i] < 0.0) {
+            if (!Double.isFinite(ttk[i])
+                    || !Double.isFinite(dps[i])
+                    || !Double.isFinite(hps[i])
+                    || ttk[i] <= 0.0
+                    || dps[i] < 0.0
+                    || hps[i] < 0.0) {
                 violations.add("non_finite_or_negative_result");
                 break;
             }
         }
-        if (violations.isEmpty() && first.level() >= 30
-                && (firstEquipment.equippedItemIds().isEmpty() || secondEquipment.equippedItemIds().isEmpty())) {
+        if (violations.isEmpty()
+                && first.level() >= 30
+                && (firstEquipment.equippedItemIds().isEmpty()
+                        || secondEquipment.equippedItemIds().isEmpty())) {
             violations.add("expected_equipment_missing_at_level_" + first.level());
         }
         String id = "pvp_equipment_" + first.playerClass().name().toLowerCase(Locale.ROOT)
                 + "_vs_" + second.playerClass().name().toLowerCase(Locale.ROOT)
                 + "_level_" + first.level();
         if (!violations.isEmpty()) {
-            return scenarioObject(id, iterations, violations, firstEquipment, secondEquipment,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            return scenarioObject(
+                    id,
+                    iterations,
+                    violations,
+                    firstEquipment,
+                    secondEquipment,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0);
         }
 
-        Random bootstrap = new Random(mixSeed(seed, first.level(), first.playerClass().ordinal(), second.playerClass().ordinal()));
+        Random bootstrap = new Random(mixSeed(
+                seed,
+                first.level(),
+                first.playerClass().ordinal(),
+                second.playerClass().ordinal()));
         double[] ttkCi = bootstrapInterval(ttk, false, bootstrap);
         double[] dpsCi = bootstrapInterval(dps, true, bootstrap);
         double[] hpsCi = bootstrapInterval(hps, true, bootstrap);
@@ -150,23 +182,56 @@ public final class CombatLabEquipmentRunner {
         double avoidRate = hits == 0 ? 0 : avoids / (double) hits;
         double[] critCi = wilsonInterval(crits, hits);
         double[] avoidCi = wilsonInterval(avoids, hits);
-        return scenarioObject(id, iterations, violations, firstEquipment, secondEquipment,
-                wins / (double) iterations, winCi[0], winCi[1],
-                median(ttk), ttkCi[0], ttkCi[1],
-                mean(dps), dpsCi[0], dpsCi[1],
-                mean(hps), hpsCi[0], hpsCi[1],
-                critRate, critCi[0], critCi[1], avoidRate, avoidCi[0], avoidCi[1]);
+        return scenarioObject(
+                id,
+                iterations,
+                violations,
+                firstEquipment,
+                secondEquipment,
+                wins / (double) iterations,
+                winCi[0],
+                winCi[1],
+                median(ttk),
+                ttkCi[0],
+                ttkCi[1],
+                mean(dps),
+                dpsCi[0],
+                dpsCi[1],
+                mean(hps),
+                hpsCi[0],
+                hpsCi[1],
+                critRate,
+                critCi[0],
+                critCi[1],
+                avoidRate,
+                avoidCi[0],
+                avoidCi[1]);
     }
 
     private static String scenarioObject(
-            String id, int samples, List<String> violations,
-            CombatLabEquipmentSnapshot firstEquipment, CombatLabEquipmentSnapshot secondEquipment,
-            double win, double winLow, double winHigh,
-            double ttk, double ttkLow, double ttkHigh,
-            double dps, double dpsLow, double dpsHigh,
-            double hps, double hpsLow, double hpsHigh,
-            double crit, double critLow, double critHigh,
-            double avoid, double avoidLow, double avoidHigh) {
+            String id,
+            int samples,
+            List<String> violations,
+            CombatLabEquipmentSnapshot firstEquipment,
+            CombatLabEquipmentSnapshot secondEquipment,
+            double win,
+            double winLow,
+            double winHigh,
+            double ttk,
+            double ttkLow,
+            double ttkHigh,
+            double dps,
+            double dpsLow,
+            double dpsHigh,
+            double hps,
+            double hpsLow,
+            double hpsHigh,
+            double crit,
+            double critLow,
+            double critHigh,
+            double avoid,
+            double avoidLow,
+            double avoidHigh) {
         return "    {\n"
                 + "      \"scenario_id\": \"" + id + "\",\n"
                 + "      \"mode\": \"pvp\",\n"
@@ -174,8 +239,14 @@ public final class CombatLabEquipmentRunner {
                 + "      \"invariant_violations\": " + stringArray(violations) + ",\n"
                 + "      \"equipment\": {\"first_items\":" + stringArray(firstEquipment.equippedItemIds())
                 + ",\"second_items\":" + stringArray(secondEquipment.equippedItemIds())
-                + ",\"first_weapon_type\":\"" + (firstEquipment.weaponType() == null ? "NONE" : firstEquipment.weaponType().name())
-                + "\",\"second_weapon_type\":\"" + (secondEquipment.weaponType() == null ? "NONE" : secondEquipment.weaponType().name())
+                + ",\"first_weapon_type\":\""
+                + (firstEquipment.weaponType() == null
+                        ? "NONE"
+                        : firstEquipment.weaponType().name())
+                + "\",\"second_weapon_type\":\""
+                + (secondEquipment.weaponType() == null
+                        ? "NONE"
+                        : secondEquipment.weaponType().name())
                 + "\",\"first_attack_type\":\"" + firstEquipment.autoAttackType()
                 + "\",\"second_attack_type\":\"" + secondEquipment.autoAttackType()
                 + "\",\"first_mastery\":" + number(firstEquipment.weaponMasteryMultiplier())
@@ -192,8 +263,8 @@ public final class CombatLabEquipmentRunner {
     }
 
     private static String metric(double value, double low, double high, String method) {
-        return "{\"value\":" + number(value) + ",\"ci95_low\":" + number(low)
-                + ",\"ci95_high\":" + number(high) + ",\"ci95_method\":\"" + method + "\"}";
+        return "{\"value\":" + number(value) + ",\"ci95_low\":" + number(low) + ",\"ci95_high\":" + number(high)
+                + ",\"ci95_method\":\"" + method + "\"}";
     }
 
     private static double[] wilsonInterval(long successes, long samples) {
@@ -260,7 +331,8 @@ public final class CombatLabEquipmentRunner {
             int iterations = MINIMUM_ITERATIONS;
             String commit = System.getenv("GITHUB_SHA");
             for (int i = 0; i < args.length; i++) {
-                if (i + 1 >= args.length) throw new IllegalArgumentException("Для аргумента нужен параметр: " + args[i]);
+                if (i + 1 >= args.length)
+                    throw new IllegalArgumentException("Для аргумента нужен параметр: " + args[i]);
                 String value = args[++i];
                 switch (args[i - 1]) {
                     case "--config" -> config = Path.of(value);

@@ -59,13 +59,12 @@ public final class ItemConfigLoader {
         return load(file, warning, ItemValidator::validateMaterialSyntax);
     }
 
-    private static ItemRegistry load(
-            File file, Consumer<String> warning, Consumer<String> materialValidator) throws Exception {
+    private static ItemRegistry load(File file, Consumer<String> warning, Consumer<String> materialValidator)
+            throws Exception {
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
         int maxLevel = ItemValidator.validateSchema(yaml);
 
-        List<ItemDefinition> defs =
-                new ArrayList<>(parseExplicitItems(yaml, maxLevel, warning, materialValidator));
+        List<ItemDefinition> defs = new ArrayList<>(parseExplicitItems(yaml, maxLevel, warning, materialValidator));
         defs.addAll(parseAndExpandTemplates(yaml, maxLevel, materialValidator));
 
         Map<String, SetDefinition> sets = parseSets(yaml);
@@ -81,10 +80,7 @@ public final class ItemConfigLoader {
     /* ------------------------------ шаг 1: явные предметы ------------------------------ */
 
     private static List<ItemDefinition> parseExplicitItems(
-            YamlConfiguration yaml,
-            int maxLevel,
-            Consumer<String> warning,
-            Consumer<String> materialValidator) {
+            YamlConfiguration yaml, int maxLevel, Consumer<String> warning, Consumer<String> materialValidator) {
         List<ItemDefinition> defs = new ArrayList<>();
         ConfigurationSection entries = yaml.getConfigurationSection("items");
         if (entries == null) {

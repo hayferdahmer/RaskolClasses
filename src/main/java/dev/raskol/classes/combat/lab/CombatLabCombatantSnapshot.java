@@ -40,10 +40,7 @@ public record CombatLabCombatantSnapshot(
 
     /** Строит боевой снимок с теми же предметными бонусами, что и runtime ItemHook/PowerService. */
     public static CombatLabCombatantSnapshot from(
-            YamlConfiguration config,
-            PlayerClass playerClass,
-            int level,
-            CombatLabEquipmentSnapshot equipment) {
+            YamlConfiguration config, PlayerClass playerClass, int level, CombatLabEquipmentSnapshot equipment) {
         if (config == null || playerClass == null || equipment == null) {
             throw new IllegalArgumentException("config, playerClass и equipment обязательны");
         }
@@ -76,19 +73,22 @@ public record CombatLabCombatantSnapshot(
                 + equipment.value(ItemStat.HP_BONUS);
 
         double weaponPower = PowerService.weaponPowerFormula(
-                        config.getDouble("attributes.power.base-wp." + playerClass.name(), defaultWeaponPower(playerClass)),
+                        config.getDouble(
+                                "attributes.power.base-wp." + playerClass.name(), defaultWeaponPower(playerClass)),
                         strength,
                         agility,
                         config.getDouble("attributes.power.str-to-wp", 1.5),
                         config.getDouble("attributes.power.agi-to-wp", 0.5))
                 + equipment.value(ItemStat.WEAPON_POWER);
         double spellPower = PowerService.spellPowerFormula(
-                        config.getDouble("attributes.power.base-sp." + playerClass.name(), defaultSpellPower(playerClass)),
+                        config.getDouble(
+                                "attributes.power.base-sp." + playerClass.name(), defaultSpellPower(playerClass)),
                         intellect,
                         config.getDouble("attributes.power.int-to-sp", 1.5))
                 + equipment.value(ItemStat.SPELL_POWER);
         double healPower = PowerService.healPowerFormula(
-                        config.getDouble("attributes.power.base-hpow." + playerClass.name(), defaultHealPower(playerClass)),
+                        config.getDouble(
+                                "attributes.power.base-hpow." + playerClass.name(), defaultHealPower(playerClass)),
                         intellect,
                         config.getDouble("attributes.power.int-to-hpow", 1.4))
                 + equipment.value(ItemStat.HEAL_POWER);

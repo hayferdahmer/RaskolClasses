@@ -122,10 +122,8 @@ public final class CombatLabDuelEngine {
             double nextEvent = Math.min(nextFirstAttack, nextSecondAttack);
             if (nextEvent > rules.maxDurationSeconds()) break;
             double delta = nextEvent - elapsed;
-            double firstRegen = Math.min(
-                    first.maxHealth() - firstHealth, first.healthRegenPerSecond() * delta);
-            double secondRegen = Math.min(
-                    second.maxHealth() - secondHealth, second.healthRegenPerSecond() * delta);
+            double firstRegen = Math.min(first.maxHealth() - firstHealth, first.healthRegenPerSecond() * delta);
+            double secondRegen = Math.min(second.maxHealth() - secondHealth, second.healthRegenPerSecond() * delta);
             firstHealth += firstRegen;
             secondHealth += secondRegen;
             firstHealing += firstRegen;
@@ -161,9 +159,20 @@ public final class CombatLabDuelEngine {
             if (firstHealth <= 0.0 || secondHealth <= 0.0) {
                 boolean draw = firstHealth <= 0.0 && secondHealth <= 0.0;
                 return result(
-                        elapsed, false, draw, !draw && secondHealth <= 0.0,
-                        firstDamage, secondDamage, firstHealing, secondHealing,
-                        firstHits, secondHits, firstCrits, secondCrits, firstAvoids, secondAvoids);
+                        elapsed,
+                        false,
+                        draw,
+                        !draw && secondHealth <= 0.0,
+                        firstDamage,
+                        secondDamage,
+                        firstHealing,
+                        secondHealing,
+                        firstHits,
+                        secondHits,
+                        firstCrits,
+                        secondCrits,
+                        firstAvoids,
+                        secondAvoids);
             }
         }
 
@@ -200,13 +209,23 @@ public final class CombatLabDuelEngine {
             int firstAvoids,
             int secondAvoids) {
         return new DuelResult(
-                duration, timeout, draw, firstWon, firstDamage, secondDamage,
-                firstHealing, secondHealing, firstHits, secondHits,
-                firstCrits, secondCrits, firstAvoids, secondAvoids);
+                duration,
+                timeout,
+                draw,
+                firstWon,
+                firstDamage,
+                secondDamage,
+                firstHealing,
+                secondHealing,
+                firstHits,
+                secondHits,
+                firstCrits,
+                secondCrits,
+                firstAvoids,
+                secondAvoids);
     }
 
-    private static double attackInterval(
-            CombatLabCombatantSnapshot combatant, Rules rules, boolean equipmentAware) {
+    private static double attackInterval(CombatLabCombatantSnapshot combatant, Rules rules, boolean equipmentAware) {
         if (!equipmentAware || combatant.attackSpeedPct() <= 0.0) {
             return rules.attackIntervalSeconds();
         }
@@ -227,9 +246,8 @@ public final class CombatLabDuelEngine {
             }
         }
 
-        double damage = equipmentAware && attacker.attackDamage() > 0.0
-                ? attacker.attackDamage()
-                : rules.unarmedBaseDamage();
+        double damage =
+                equipmentAware && attacker.attackDamage() > 0.0 ? attacker.attackDamage() : rules.unarmedBaseDamage();
         if (magic) {
             damage += attacker.spellPower() * rules.magicPowerCoefficient();
             if (rules.intellectToMagic()) damage += attacker.intellect() + attacker.level();

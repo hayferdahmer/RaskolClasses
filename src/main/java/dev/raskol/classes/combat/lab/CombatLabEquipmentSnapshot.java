@@ -17,7 +17,6 @@ import dev.raskol.classes.item.model.ItemDefinition;
 import dev.raskol.classes.item.model.ItemRarity;
 import dev.raskol.classes.item.model.ItemSlot;
 import dev.raskol.classes.item.model.ItemStat;
-import dev.raskol.classes.item.model.SetDefinition;
 import dev.raskol.classes.item.model.WeaponType;
 import dev.raskol.classes.item.service.ItemRegistry;
 import dev.raskol.classes.item.service.ItemStatAggregator;
@@ -33,8 +32,8 @@ public record CombatLabEquipmentSnapshot(
         String autoAttackType,
         double weaponMasteryMultiplier) {
 
-    public static final CombatLabEquipmentSnapshot EMPTY = new CombatLabEquipmentSnapshot(
-            Map.of(), List.of(), List.of(), null, null, "PHYSICAL", 1.0);
+    public static final CombatLabEquipmentSnapshot EMPTY =
+            new CombatLabEquipmentSnapshot(Map.of(), List.of(), List.of(), null, null, "PHYSICAL", 1.0);
 
     public CombatLabEquipmentSnapshot {
         stats = Map.copyOf(stats);
@@ -55,12 +54,7 @@ public record CombatLabEquipmentSnapshot(
 
     /** Выбирает предметы с учётом класса/специализации и использует production affix/set aggregators. */
     public static CombatLabEquipmentSnapshot from(
-            ItemRegistry registry,
-            PlayerClass playerClass,
-            int level,
-            ItemRarity rarity,
-            String spec,
-            long seed) {
+            ItemRegistry registry, PlayerClass playerClass, int level, ItemRarity rarity, String spec, long seed) {
         if (registry == null || playerClass == null || rarity == null) {
             throw new IllegalArgumentException("Реестр, класс и редкость обязательны");
         }
@@ -119,9 +113,8 @@ public record CombatLabEquipmentSnapshot(
                 .orElse(null);
         WeaponType weaponType = mainHand == null ? null : mainHand.weaponType();
         String attackType = weaponType == WeaponType.STAFF || weaponType == WeaponType.WAND ? "MAGIC" : "PHYSICAL";
-        double mastery = mainHand == null
-                ? WeaponMastery.FOREIGN
-                : WeaponMastery.masteryMultiplier(playerClass, weaponType);
+        double mastery =
+                mainHand == null ? WeaponMastery.FOREIGN : WeaponMastery.masteryMultiplier(playerClass, weaponType);
 
         return new CombatLabEquipmentSnapshot(
                 stats,
@@ -164,7 +157,8 @@ public record CombatLabEquipmentSnapshot(
                         ? WeaponMastery.masteryMultiplier(playerClass, item.weaponType())
                         : 1.0)
                 .reversed()
-                .thenComparing(Comparator.comparingInt(ItemDefinition::itemLevel).reversed())
+                .thenComparing(
+                        Comparator.comparingInt(ItemDefinition::itemLevel).reversed())
                 .thenComparing(ItemDefinition::id);
     }
 

@@ -130,8 +130,8 @@ class CombatLabEquipmentSnapshotTest {
         ItemRegistry production = ItemConfigLoader.loadHeadless(new File("src/main/resources/items.yml"));
         assertTrue(production.size() > 0);
         for (PlayerClass playerClass : PlayerClass.values()) {
-            var snapshot = CombatLabEquipmentSnapshot.from(
-                    production, playerClass, 60, ItemRarity.EPIC, null, 20261123L);
+            var snapshot =
+                    CombatLabEquipmentSnapshot.from(production, playerClass, 60, ItemRarity.EPIC, null, 20261123L);
             assertFalse(snapshot.equippedItemIds().isEmpty(), playerClass + " должен получить экипировку");
             assertNotNull(snapshot.mainHandItemId(), playerClass + " должен получить основное оружие");
         }
@@ -140,14 +140,12 @@ class CombatLabEquipmentSnapshotTest {
     @Test
     @DisplayName("экипировка меняет боевые характеристики и участвует в расчёте урона")
     void equipmentChangesDuelDamage() {
-        YamlConfiguration config =
-                YamlConfiguration.loadConfiguration(new File("src/main/resources/config.yml"));
-        var warriorEquipment = CombatLabEquipmentSnapshot.from(
-                registry, PlayerClass.WARRIOR, 60, ItemRarity.RARE, null, 12345L);
-        var mageEquipment = CombatLabEquipmentSnapshot.from(
-                registry, PlayerClass.MAGE, 60, ItemRarity.RARE, null, 54321L);
-        var equippedWarrior =
-                CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 60, warriorEquipment);
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(new File("src/main/resources/config.yml"));
+        var warriorEquipment =
+                CombatLabEquipmentSnapshot.from(registry, PlayerClass.WARRIOR, 60, ItemRarity.RARE, null, 12345L);
+        var mageEquipment =
+                CombatLabEquipmentSnapshot.from(registry, PlayerClass.MAGE, 60, ItemRarity.RARE, null, 54321L);
+        var equippedWarrior = CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 60, warriorEquipment);
         var equippedMage = CombatLabCombatantSnapshot.from(config, PlayerClass.MAGE, 60, mageEquipment);
         var unarmedWarrior = CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 60);
         var unarmedMage = CombatLabCombatantSnapshot.from(config, PlayerClass.MAGE, 60);
