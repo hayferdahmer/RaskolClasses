@@ -53,21 +53,21 @@ final class Spec2StorageMigration {
             return legacy;
         }
 
+        SafeStorage.LoadResult currentLoad;
         YamlConfiguration current;
         try {
-            current = currentExists
-                    ? SafeStorage.loadWithFallback(newFile, logger)
-                    : new YamlConfiguration();
+            currentLoad = SafeStorage.load(newFile, logger);
+            current = currentLoad.configuration();
         } catch (SafeStorage.StorageLoadException exception) {
             if (legacyReadable && exception.status() == SafeStorage.LoadStatus.CORRUPT) {
                 logger.severe("spec2: новое хранилище повреждено; используем читаемый legacy-файл, "
-                        + "обе копии нового хранилища сохранены для восстановления");
+                        + "повреждённые копии нового хранилища сохранены для восстановления");
                 return legacy;
             }
             throw exception;
         }
         if (!legacyReadable) {
-            if (currentExists && !current.getKeys(true).isEmpty()) {
+            if (currentLoad.status() != SafeStorage.LoadStatus.NEW && !current.getKeys(true).isEmpty()) {
                 logger.severe("spec2: legacy-файл не читается; используем существующее новое хранилище, "
                         + "legacy оставлен без изменений");
                 return current;
