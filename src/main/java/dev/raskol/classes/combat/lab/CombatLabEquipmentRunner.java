@@ -138,7 +138,7 @@ public final class CombatLabEquipmentRunner {
                 + "_level_" + first.level();
         if (!violations.isEmpty()) {
             return scenarioObject(id, iterations, violations, firstEquipment, secondEquipment,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         Random bootstrap = new Random(mixSeed(seed, first.level(), first.playerClass().ordinal(), second.playerClass().ordinal()));
