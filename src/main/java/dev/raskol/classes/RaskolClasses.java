@@ -442,18 +442,25 @@ public final class RaskolClasses extends JavaPlugin {
         this.combat = new CombatService(this, resists);
         if (getConfig().getBoolean("item.enabled", true)) {
             items.start();
-            for (PaperWeaponCadenceResolver.AuditResult audit : PaperWeaponCadenceResolver.auditConfiguredMaterials()) {
-                if (audit.matches()) {
-                    getLogger()
-                            .info("[CombatLab] Paper weapon cadence verified: " + audit.material() + " attackSpeed="
-                                    + audit.paperAttackSpeed());
-                } else {
-                    getLogger()
-                            .warning("[CombatLab] Paper weapon cadence profile mismatch: " + audit.material()
-                                    + " expected=" + audit.expectedAttackSpeed()
-                                    + " actual=" + audit.paperAttackSpeed()
-                                    + "; update Combat Lab reference data before calibration");
+            try {
+                for (PaperWeaponCadenceResolver.AuditResult audit : PaperWeaponCadenceResolver.auditConfiguredMaterials()) {
+                    if (audit.matches()) {
+                        getLogger()
+                                .info("[CombatLab] Paper weapon cadence verified: " + audit.material() + " attackSpeed="
+                                        + audit.paperAttackSpeed());
+                    } else {
+                        getLogger()
+                                .warning("[CombatLab] Paper weapon cadence profile mismatch: " + audit.material()
+                                        + " expected=" + audit.expectedAttackSpeed()
+                                        + " actual=" + audit.paperAttackSpeed()
+                                        + "; update Combat Lab reference data before calibration");
+                    }
                 }
+            } catch (RuntimeException exception) {
+                getLogger().log(
+                        java.util.logging.Level.WARNING,
+                        "[CombatLab] Paper weapon cadence audit unavailable; plugin startup continues",
+                        exception);
             }
         }
         this.dotRuntimeOwner = new DotRuntimeOwner(
