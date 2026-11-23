@@ -100,6 +100,23 @@ class Spec2StorageMigrationTest {
         assertFalse(tempDir.resolve("spec2-storage.yml").toFile().exists());
     }
 
+
+    @Test
+    @DisplayName("повреждённое новое хранилище не мешает восстановлению из читаемого legacy")
+    void fallsBackToLegacyWhenCurrentStorageIsCorrupt() throws IOException {
+        File legacy = write("spec2.yml", "players:\\n  preserved:\\n    main: frost\\n");
+        File current = write("spec2-storage.yml", "players: [unterminated\\n");
+
+        YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
+
+        assertEquals("frost", loaded.getString("players.preserved.main"));
+        assertTrue(legacy.isFile());
+        assertTrue(current.isFile());
+        try (var files = Files.list(tempDir)) {
+            assertTrue(files.anyMatch(path -> path.getFileName().toString().endsWith(".quarantine")));
+        }
+    }
+
     private File write(String name, String content) throws IOException {
         Path path = tempDir.resolve(name);
         Files.writeString(path, content);
