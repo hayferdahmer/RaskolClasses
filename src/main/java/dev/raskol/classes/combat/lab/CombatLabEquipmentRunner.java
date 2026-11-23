@@ -232,33 +232,33 @@ public final class CombatLabEquipmentRunner {
             double avoid,
             double avoidLow,
             double avoidHigh) {
-        return "    {\\n"
-                + "      \\"scenario_id\\": \\"" + id + "\\",\\n"
-                + "      \\"mode\\": \\"pvp\\",\\n"
-                + "      \\"sample_count\\": " + samples + ",\\n"
-                + "      \\"invariant_violations\\": " + stringArray(violations) + ",\\n"
-                + "      \\"equipment\\": {\\"first_items\\":" + stringArray(firstEquipment.equippedItemIds())
-                + ",\\"second_items\\":" + stringArray(secondEquipment.equippedItemIds())
-                + ",\\"first_weapon_type\\":\\""
+        return "    {\n"
+                + "      \"scenario_id\": \"" + id + "\",\n"
+                + "      \"mode\": \"pvp\",\n"
+                + "      \"sample_count\": " + samples + ",\n"
+                + "      \"invariant_violations\": " + stringArray(violations) + ",\n"
+                + "      \"equipment\": {\"first_items\":" + stringArray(firstEquipment.equippedItemIds())
+                + ",\"second_items\":" + stringArray(secondEquipment.equippedItemIds())
+                + ",\"first_weapon_type\":\""
                 + (firstEquipment.weaponType() == null ? "NONE" : firstEquipment.weaponType().name())
-                + "\\",\\"second_weapon_type\\":\\""
+                + "\",\"second_weapon_type\":\""
                 + (secondEquipment.weaponType() == null ? "NONE" : secondEquipment.weaponType().name())
-                + "\\",\\"first_attack_type\\":\\"" + firstEquipment.autoAttackType()
-                + "\\",\\"second_attack_type\\":\\"" + secondEquipment.autoAttackType()
-                + "\\",\\"first_mastery\\":" + number(firstEquipment.weaponMasteryMultiplier())
-                + ",\\"second_mastery\\":" + number(secondEquipment.weaponMasteryMultiplier())
-                + ",\\"first_attack_interval_seconds\\":" + number(firstEquipment.attackIntervalSeconds())
-                + ",\\"second_attack_interval_seconds\\":" + number(secondEquipment.attackIntervalSeconds())
-                + ",\\"first_cadence_model\\":\\"" + firstEquipment.cadenceModel() + "\\""
-                + ",\\"second_cadence_model\\":\\"" + secondEquipment.cadenceModel() + "\\"},\\n"
-                + "      \\"metrics\\": {\\n"
-                + "        \\"win_rate\\": " + metric(win, winLow, winHigh, "wilson") + ",\\n"
-                + "        \\"ttk_median_seconds\\": " + metric(ttk, ttkLow, ttkHigh, "bootstrap_percentile") + ",\\n"
-                + "        \\"dps_mean\\": " + metric(dps, dpsLow, dpsHigh, "bootstrap_percentile") + ",\\n"
-                + "        \\"hps_mean\\": " + metric(hps, hpsLow, hpsHigh, "bootstrap_percentile") + ",\\n"
-                + "        \\"crit_rate\\": " + metric(crit, critLow, critHigh, "wilson") + ",\\n"
-                + "        \\"avoidance_rate\\": " + metric(avoid, avoidLow, avoidHigh, "wilson") + "\\n"
-                + "      }\\n"
+                + "\",\"first_attack_type\":\"" + firstEquipment.autoAttackType()
+                + "\",\"second_attack_type\":\"" + secondEquipment.autoAttackType()
+                + "\",\"first_mastery\":" + number(firstEquipment.weaponMasteryMultiplier())
+                + ",\"second_mastery\":" + number(secondEquipment.weaponMasteryMultiplier())
+                + ",\"first_attack_interval_seconds\":" + number(firstEquipment.attackIntervalSeconds())
+                + ",\"second_attack_interval_seconds\":" + number(secondEquipment.attackIntervalSeconds())
+                + ",\"first_cadence_model\":\"" + firstEquipment.cadenceModel() + "\""
+                + ",\"second_cadence_model\":\"" + secondEquipment.cadenceModel() + "\"},\n"
+                + "      \"metrics\": {\n"
+                + "        \"win_rate\": " + metric(win, winLow, winHigh, "wilson") + ",\n"
+                + "        \"ttk_median_seconds\": " + metric(ttk, ttkLow, ttkHigh, "bootstrap_percentile") + ",\n"
+                + "        \"dps_mean\": " + metric(dps, dpsLow, dpsHigh, "bootstrap_percentile") + ",\n"
+                + "        \"hps_mean\": " + metric(hps, hpsLow, hpsHigh, "bootstrap_percentile") + ",\n"
+                + "        \"crit_rate\": " + metric(crit, critLow, critHigh, "wilson") + ",\n"
+                + "        \"avoidance_rate\": " + metric(avoid, avoidLow, avoidHigh, "wilson") + "\n"
+                + "      }\n"
                 + "    }";
     }
 
