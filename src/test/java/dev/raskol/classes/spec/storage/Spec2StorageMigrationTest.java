@@ -27,7 +27,7 @@ class Spec2StorageMigrationTest {
     Path tempDir;
 
     @Test
-    @DisplayName("legacy копируется и удаляется только после успешной записи")
+    @DisplayName("legacy копируется, но исходный файл сохраняется после успешной записи")
     void migratesLegacyAfterSuccessfulCopy() throws IOException {
         File legacy = write("spec2.yml", "players:\n  test:\n    main: fire\n");
         YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
@@ -35,7 +35,7 @@ class Spec2StorageMigrationTest {
 
         assertEquals("fire", loaded.getString("players.test.main"));
         assertTrue(current.isFile());
-        assertFalse(legacy.exists());
+        assertTrue(legacy.isFile());
         assertEquals("fire", YamlConfiguration.loadConfiguration(current).getString("players.test.main"));
     }
 
@@ -78,14 +78,27 @@ class Spec2StorageMigrationTest {
     }
 
     @Test
-    @DisplayName("пустой legacy-файл удаляется без создания записей")
-    void removesEmptyLegacyFile() throws IOException {
+    @DisplayName("пустой legacy-файл сохраняется без создания записей")
+    void preservesEmptyLegacyFile() throws IOException {
         File legacy = write("spec2.yml", "{}\n");
 
         YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
 
         assertTrue(loaded.getKeys(true).isEmpty());
-        assertFalse(legacy.exists());
+        assertTrue(legacy.isFile());
+    }
+
+
+    @Test
+    @DisplayName("нечитаемый legacy без пригодного нового хранилища блокирует запуск")
+    void failsClosedWhenLegacyIsUnreadableAndNoCurrentStoreExists() throws IOException {
+        File legacy = write("spec2.yml", "players: [unterminated\\n");
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class, () -> Spec2StorageMigration.load(tempDir.toFile(), LOGGER));
+
+        assertTrue(legacy.isFile());
+        assertFalse(tempDir.resolve("spec2-storage.yml").toFile().exists());
     }
 
     private File write(String name, String content) throws IOException {
