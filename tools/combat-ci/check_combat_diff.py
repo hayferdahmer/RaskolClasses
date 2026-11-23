@@ -11,6 +11,9 @@ import sys
 
 COMBAT_PREFIXES = (
     "src/main/java/dev/raskol/classes/combat/",
+    "src/main/java/dev/raskol/classes/balance/",
+    "src/main/java/dev/raskol/classes/event/",
+    "src/main/java/dev/raskol/classes/targeting/",
     "src/main/java/dev/raskol/classes/ability/",
     "src/main/java/dev/raskol/classes/attribute/",
     "src/main/java/dev/raskol/classes/pet/",
@@ -100,7 +103,11 @@ def missing_test_packages(combat_paths: list[str], test_paths: list[str], selfte
     packages.discard(None)
     covered = {test_package_of(path) for path in test_paths}
     covered.discard(None)
-    return sorted(package for package in packages if package not in covered and not selftest_changed)
+    return sorted(
+        package
+        for package in packages
+        if package not in covered and not (package == "selftest" and selftest_changed)
+    )
 
 
 def main() -> int:

@@ -32,9 +32,13 @@ class CombatDiffAuditTest(unittest.TestCase):
         tests = ["src/test/java/dev/raskol/classes/combat/DamageRouterTest.java"]
         self.assertEqual([], missing_test_packages(combat, tests, False))
 
-    def test_selftest_runner_is_an_explicit_fallback(self):
+    def test_selftest_runner_covers_only_its_own_package(self):
+        selftest = ["src/main/java/dev/raskol/classes/selftest/SelftestRunner.java"]
+        self.assertEqual([], missing_test_packages(selftest, [], True))
+
+    def test_selftest_runner_does_not_bypass_combat_test_requirement(self):
         combat = ["src/main/java/dev/raskol/classes/combat/DamageRouter.java"]
-        self.assertEqual([], missing_test_packages(combat, [], True))
+        self.assertEqual(["combat"], missing_test_packages(combat, [], True))
 
     @patch("check_combat_diff.subprocess.run")
     def test_zero_base_uses_root_commit_diff(self, run):

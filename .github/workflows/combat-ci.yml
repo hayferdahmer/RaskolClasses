@@ -95,5 +95,6 @@ jobs:
             echo "- Test changes: ${TESTS_CHANGED:-unknown}"
             echo "- Combat packages: ${COMBAT_PACKAGES:-none}"
             echo "- Required gates: Java 25 compile, test compilation, Spotless and SpotBugs; unit tests execute in the required Build workflow."
-            echo "- Diff audit: package-level test coverage plus auditor regression tests.\n- Statistical balance gate: pending versioned Combat Lab JSON baseline/report implementation."
+            echo "- Diff audit: package-level test coverage plus auditor regression tests."
+            echo "- Statistical balance gate: pending versioned Combat Lab JSON baseline/report implementation."
           } >> "$GITHUB_STEP_SUMMARY"
