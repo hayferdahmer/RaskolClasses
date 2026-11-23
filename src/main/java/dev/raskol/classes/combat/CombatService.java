@@ -263,11 +263,12 @@ public final class CombatService implements Listener {
     }
 
     private static DamageSourceContext resolveSourceContext(Entity source, LivingEntity target, boolean fromProc) {
-        String abilityId = fromProc ? null : CURRENT_ABILITY_ID.get();
+        boolean reflected = reflectSuppressed();
+        String abilityId = fromProc || reflected ? null : CURRENT_ABILITY_ID.get();
         if (abilityId != null && source instanceof Player player) {
             return DamageSourceContext.ability(player.getUniqueId(), target.getUniqueId(), abilityId, false);
         }
-        return DamageSourceContext.infer(source, target, fromProc, reflectSuppressed());
+        return DamageSourceContext.infer(source, target, fromProc, reflected);
     }
 
     private static org.bukkit.damage.DamageType magicType() {
