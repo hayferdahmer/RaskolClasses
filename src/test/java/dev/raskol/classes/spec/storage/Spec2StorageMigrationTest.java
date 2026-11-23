@@ -4,6 +4,7 @@ package dev.raskol.classes.spec.storage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -88,14 +89,12 @@ class Spec2StorageMigrationTest {
         assertTrue(legacy.isFile());
     }
 
-
     @Test
     @DisplayName("нечитаемый legacy без пригодного нового хранилища блокирует запуск")
     void failsClosedWhenLegacyIsUnreadableAndNoCurrentStoreExists() throws IOException {
-        File legacy = write("spec2.yml", "players: [unterminated\\n");
+        File legacy = write("spec2.yml", "players: [unterminated\n");
 
-        org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalStateException.class, () -> Spec2StorageMigration.load(tempDir.toFile(), LOGGER));
+        assertThrows(IllegalStateException.class, () -> Spec2StorageMigration.load(tempDir.toFile(), LOGGER));
 
         assertTrue(legacy.isFile());
         assertFalse(tempDir.resolve("spec2-storage.yml").toFile().exists());
