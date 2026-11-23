@@ -35,6 +35,16 @@ final class Spec2StorageMigration {
                     + " не удалось прочитать; оригинал оставлен без изменений: " + ex.getMessage());
         }
 
+        if (newFile.exists() && !newFile.isFile()) {
+            if (!legacyReadable) {
+                throw new IllegalStateException(
+                        "spec2: целевой путь не является файлом, а legacy-хранилище недоступно");
+            }
+            logger.severe("spec2: целевой путь " + NEW_FILE_NAME
+                    + " занят каталогом или специальным файлом; legacy оставлен без изменений");
+            return legacy;
+        }
+
         YamlConfiguration current =
                 newFile.exists() ? SafeStorage.loadWithFallback(newFile, logger) : new YamlConfiguration();
         if (legacyReadable
