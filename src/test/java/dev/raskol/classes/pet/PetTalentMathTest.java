@@ -33,6 +33,18 @@ class PetTalentMathTest {
     }
 
     @Test
+    @DisplayName("permanent and temporary pet attack speed reduce the interval in ticks")
+    void attackSpeedModifiersReduceAttackInterval() {
+        assertEquals(20, PetTalentMath.attackIntervalTicks(20, 0.0, 0.0));
+        assertEquals(19, PetTalentMath.attackIntervalTicks(20, 5.0, 0.0));
+        assertEquals(17, PetTalentMath.attackIntervalTicks(20, 15.0, 0.0));
+        assertEquals(15, PetTalentMath.attackIntervalTicks(20, 0.0, 30.0));
+        assertEquals(14, PetTalentMath.attackIntervalTicks(20, 15.0, 30.0));
+        assertEquals(7, PetTalentMath.attackIntervalTicks(20, 500.0, 0.0));
+        assertEquals(20, PetTalentMath.attackIntervalTicks(20, Double.NaN, Double.NaN));
+    }
+
+    @Test
     @DisplayName("pet physical rank bonus and critical talent compose once")
     void damageMultipliersCompose() {
         assertEquals(1.20, PetTalentMath.outgoingDamageMultiplier(20.0, false, false), 0.0001);
