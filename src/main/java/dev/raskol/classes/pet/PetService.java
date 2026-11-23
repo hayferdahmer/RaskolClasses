@@ -644,6 +644,10 @@ public final class PetService implements Listener {
         pet.setHealth(Math.min(maxHealth.getValue(), pet.getHealth() + heal));
     }
 
+    public UUID ownerIdOf(LivingEntity pet) {
+        return pet == null ? null : petOwnerId(pet);
+    }
+
     private UUID petOwnerId(LivingEntity pet) {
         String raw = pet.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
         if (raw == null) {
