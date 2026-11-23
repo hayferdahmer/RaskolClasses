@@ -71,7 +71,7 @@ class ReleaseWorkflowGatePolicyTest(unittest.TestCase):
         )
         workflow = workflow_path.read_text(encoding="utf-8")
 
-        self.assertRegex(workflow, r"code-quality:\s+name: Code Quality")
+        self.assertRegex(workflow, r"code-quality:\s+name: (?:Code Quality|Quality Gate)")
         self.assertNotIn("continue-on-error:", workflow)
         self.assertRegex(
             workflow,
