@@ -75,6 +75,9 @@ public final class CharacterProfileStorage {
         boolean storageMigrated = schemaVersion < CURRENT_STORAGE_SCHEMA_VERSION;
         boolean allowLegacyProfiles = schemaVersion == 0;
         ConfigurationSection section = yaml.getConfigurationSection(PROFILES_PATH);
+        if (yaml.contains(PROFILES_PATH) && section == null) {
+            throw new IllegalStateException("Раздел profiles в characters.yml должен быть YAML-разделом");
+        }
         if (section != null) {
             for (String rawId : section.getKeys(false)) {
                 UUID playerId;
