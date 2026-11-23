@@ -1,0 +1,39 @@
+name: Temporary Spotless Autofix
+
+on:
+  push:
+    branches:
+      - feat/v1.16-combat-lab-abilities-talents
+
+permissions:
+  contents: write
+
+jobs:
+  spotless-autofix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/v1.16-combat-lab-abilities-talents
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - name: Warm Maven dependencies
+        run: mvn -Pdev -B -DskipTests -Dspotless.check.skip=true verify
+      - name: Apply Spotless
+        run: mvn -Pdev -B com.diffplug.spotless:spotless-maven-plugin:3.10.4:apply
+      - name: Commit formatting
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add src
+            git commit -m "style: apply Spotless formatting"
+            git push origin HEAD:feat/v1.16-combat-lab-abilities-talents
+          fi
