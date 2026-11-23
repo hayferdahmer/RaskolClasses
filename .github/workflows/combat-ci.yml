@@ -11,6 +11,8 @@ on:
       - 'src/test/resources/**'
       - 'pom.xml'
       - 'tools/combat-ci/**'
+      - 'tools/combat-lab/**'
+      - 'docs/testing/COMBAT_LAB_STATISTICAL_GATE.md'
       - '.github/workflows/combat-ci.yml'
   push:
     branches: [ main ]
@@ -21,6 +23,8 @@ on:
       - 'src/test/resources/**'
       - 'pom.xml'
       - 'tools/combat-ci/**'
+      - 'tools/combat-lab/**'
+      - 'docs/testing/COMBAT_LAB_STATISTICAL_GATE.md'
       - '.github/workflows/combat-ci.yml'
   workflow_dispatch:
 
@@ -52,6 +56,12 @@ jobs:
 
       - name: Test Combat CI diff auditor
         run: python3 -m unittest discover -s tools/combat-ci -p 'test_*.py' -v
+
+      - name: Test Combat Lab statistical comparator
+        run: python3 -m unittest discover -s tools/combat-lab -p 'test_*.py' -v
+
+      - name: Validate versioned Combat Lab baseline contract
+        run: python3 tools/combat-lab/compare_reports.py --baseline tools/combat-lab/baselines/v1.16.0.json --validate-only
 
       - name: Identify combat changes and enforce package test coverage
         id: audit
@@ -96,5 +106,5 @@ jobs:
             echo "- Combat packages: ${COMBAT_PACKAGES:-none}"
             echo "- Required gates: Java 25 compile, test compilation, Spotless and SpotBugs; unit tests execute in the required Build workflow."
             echo "- Diff audit: package-level test coverage plus auditor regression tests."
-            echo "- Statistical balance gate: pending versioned Combat Lab JSON baseline/report implementation."
+            echo "- Combat Lab: comparator regression tests and baseline contract validation are blocking; live statistical comparison remains PENDING until production headless runner and approved baseline are available."
           } >> "$GITHUB_STEP_SUMMARY"
