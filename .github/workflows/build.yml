@@ -208,7 +208,7 @@ jobs:
             echo "::error::Paper did not finish startup within 5 minutes."
             exit 1
           fi
-          if ! grep -Eq 'Enabled RaskolClasses v' server.log; then
+          if ! grep -Eq '\\[RaskolClasses\\] RaskolClasses v[^[:space:]]+ запущен' server.log; then
             cat server.log
             echo "::error::RaskolClasses did not complete plugin enablement on Paper."
             exit 1
