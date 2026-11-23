@@ -779,8 +779,16 @@ public final class CombatService implements Listener {
             return false;
         }
         return switch (context.abilityId() == null ? "" : context.abilityId()) {
-            case "aimed_shot", "piercing_shot", "arrow_fan", "arrow_rain", "silencing_shot",
-                    "chimera_shot", "poison_shot", "black_arrow", "wyvern_sting", "serpent_sting" -> true;
+            case "aimed_shot",
+                    "piercing_shot",
+                    "arrow_fan",
+                    "arrow_rain",
+                    "silencing_shot",
+                    "chimera_shot",
+                    "poison_shot",
+                    "black_arrow",
+                    "wyvern_sting",
+                    "serpent_sting" -> true;
             default -> false;
         };
     }
