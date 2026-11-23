@@ -127,7 +127,7 @@ class CombatLabEquipmentSnapshotTest {
     @Test
     @DisplayName("настоящий items.yml загружается через production loader без поднятия Paper сервера")
     void productionItemsYamlLoadsForHeadlessRunner() throws Exception {
-        ItemRegistry production = ItemConfigLoader.load(new File("src/main/resources/items.yml"));
+        ItemRegistry production = ItemConfigLoader.loadHeadless(new File("src/main/resources/items.yml"));
         assertTrue(production.size() > 0);
         for (PlayerClass playerClass : PlayerClass.values()) {
             var snapshot = CombatLabEquipmentSnapshot.from(
