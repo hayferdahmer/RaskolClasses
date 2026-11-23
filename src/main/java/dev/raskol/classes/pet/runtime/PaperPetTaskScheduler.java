@@ -20,12 +20,46 @@ public final class PaperPetTaskScheduler implements PetTaskScheduler {
 
     @Override
     public TaskHandle scheduleTickTask() {
-        return new BukkitTaskHandle(petService.startTickTask());
+        return new CompositeTaskHandle(
+                new BukkitTaskHandle(petService.startTickTask()),
+                new BukkitTaskHandle(petService.startAttackTask()));
     }
 
     @Override
     public TaskHandle scheduleOrphanScan() {
         return new BukkitTaskHandle(petService.scheduleOrphanScan());
+    }
+
+    private static final class CompositeTaskHandle implements TaskHandle {
+
+        private final java.util.List<TaskHandle> tasks;
+
+        private CompositeTaskHandle(TaskHandle... tasks) {
+            this.tasks = java.util.List.of(tasks);
+        }
+
+        @Override
+        public void cancel() {
+            RuntimeException failure = null;
+            for (TaskHandle task : tasks) {
+                try {
+                    task.cancel();
+                } catch (RuntimeException exception) {
+                    if (failure == null) {
+                        failure = new IllegalStateException("Не удалось отменить все задачи петов");
+                    }
+                    failure.addSuppressed(exception);
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return tasks.stream().allMatch(TaskHandle::isCancelled);
+        }
     }
 
     private static final class BukkitTaskHandle implements TaskHandle {
