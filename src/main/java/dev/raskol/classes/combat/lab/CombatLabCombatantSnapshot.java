@@ -172,7 +172,8 @@ public record CombatLabCombatantSnapshot(
         return switch (playerClass) {
             case WARRIOR -> 18.0;
             case ROGUE -> 14.0;
-            case MAGE, WARLOCK -> 12.0 == 12.0 && playerClass == PlayerClass.MAGE ? 12.0 : 10.0;
+            case MAGE -> 12.0;
+            case WARLOCK -> 10.0;
             case PRIEST, HUNTER -> 16.0;
         };
     }
