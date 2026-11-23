@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -78,8 +79,13 @@ def validate_report(report: dict) -> None:
                 f"{scenario_id}.{name}: неверный формат метрики",
             )
             value, low, high = metric["value"], metric["ci95_low"], metric["ci95_high"]
-            _require(all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (value, low, high)),
-                     f"{scenario_id}.{name}: значения должны быть числами")
+            _require(
+                all(
+                    isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+                    for v in (value, low, high)
+                ),
+                f"{scenario_id}.{name}: значения должны быть конечными числами",
+            )
             _require(all(v >= 0 for v in (value, low, high)), f"{scenario_id}.{name}: отрицательное значение")
             _require(low <= value <= high, f"{scenario_id}.{name}: CI95 не содержит оценку")
             if name in RATE_METRICS:
