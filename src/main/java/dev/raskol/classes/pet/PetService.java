@@ -579,7 +579,7 @@ public final class PetService implements Listener {
 
         double physicalBonus = plugin.getSpec2Service().petDmgPercent(ownerId) + talentPct(ownerId, "pet_phys_dmg_pct");
         boolean critical = rollPercent(talentPct(ownerId, "pet_crit_pct"));
-        boolean empoweredCritical = critical && rollPercent(talentPct(ownerId, "pet_crit_bonus"));
+        boolean empoweredCritical = critical && rollPercent(talentChancePct(ownerId, "pet_crit_bonus"));
         if (Double.isFinite(event.getDamage()) && event.getDamage() > 0.0) {
             event.setDamage(PetTalentMath.outgoingDamage(event.getDamage(), physicalBonus, critical, empoweredCritical));
         }
@@ -611,7 +611,7 @@ public final class PetService implements Listener {
         LivingEntity pet = petOf(owner);
         if (pet == null
                 || !plugin.getCombat().canHit(owner, target)
-                || !rollPercent(talentPct(owner.getUniqueId(), "pet_copy"))) {
+                || !rollPercent(talentChancePct(owner.getUniqueId(), "pet_copy"))) {
             return;
         }
         double copiedDamage = event.getFinalDamage() * 0.10;
@@ -633,7 +633,7 @@ public final class PetService implements Listener {
             return;
         }
         LivingEntity pet = petOf(owner);
-        if (pet == null || !rollPercent(talentPct(owner.getUniqueId(), "pet_heal"))) {
+        if (pet == null || !rollPercent(talentChancePct(owner.getUniqueId(), "pet_heal"))) {
             return;
         }
         AttributeInstance maxHealth = pet.getAttribute(MAX_HEALTH);
@@ -659,6 +659,10 @@ public final class PetService implements Listener {
     private double talentPct(UUID ownerId, String effectId) {
         double value = plugin.getSpec2Service().procBonus(ownerId, effectId);
         return Double.isFinite(value) ? Math.max(0.0, Math.min(100.0, value)) : 0.0;
+    }
+
+    private double talentChancePct(UUID ownerId, String effectId) {
+        return PetTalentMath.chancePercentFromFraction(plugin.getSpec2Service().procBonus(ownerId, effectId));
     }
 
     private static boolean rollPercent(double chance) {
