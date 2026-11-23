@@ -584,17 +584,21 @@ public final class AbilityRegistry {
         attempts.put(def.id(), now);
 
         // --- cast ---
-        CombatService.setCurrentCastSchool(def.school());
         boolean ok;
         try {
-            ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
+            ok = CombatService.withAbilityContext(def.id(), () -> {
+                CombatService.setCurrentCastSchool(def.school());
+                try {
+                    return targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
+                } finally {
+                    CombatService.clearCastSchool();
+                }
+            });
         } catch (RuntimeException ex) {
             // 1.14.8-fix (Волна 6.1, P0-6C): полный стектрейс — getMessage() у NPE равен
             // null и не позволял локализовать падающий кастер из 69.
             plugin.getLogger().log(Level.WARNING, "Каст " + def.id() + " бросил исключение", ex);
             ok = false;
-        } finally {
-            CombatService.clearCastSchool();
         }
 
         if (!ok) {
