@@ -75,6 +75,7 @@ public final class CombatLabRunner {
                 + "  \"report_type\": \"combat-lab-report\",\n"
                 + "  \"simulator_version\": \"headless-unarmed-probe-0.1.0\",\n"
                 + "  \"scenario_set\": \"" + CombatLabDuelEngine.PROFILE_ID + "\",\n"
+                + "  \"simulation_scope\": \"unarmed physical auto-attacks only; no items, active abilities, talents, procs, pets, crowd control, resource spending or school effects\",\n"
                 + "  \"source_commit\": \"" + sourceCommit + "\",\n"
                 + "  \"seed\": " + seed + ",\n"
                 + "  \"iterations_per_scenario\": " + iterations + ",\n"
@@ -95,13 +96,17 @@ public final class CombatLabRunner {
         double[] dps = new double[iterations];
         double[] hps = new double[iterations];
         int winsCount = 0;
+        long totalHits = 0L;
+        long totalCrits = 0L;
+        long totalAvoids = 0L;
         List<String> violations = new ArrayList<>();
         for (int i = 0; i < iterations; i++) {
             CombatLabDuelEngine.DuelResult result =
                     CombatLabDuelEngine.duel(first, second, rules, mixSeed(seed, i, 0, 0));
-            if (result.firstPlayerWon()) {
-                winsCount++;
-            }
+            if (result.firstPlayerWon()) winsCount++;
+            totalHits += result.firstHits();
+            totalCrits += result.firstCrits();
+            totalAvoids += result.firstAvoids();
             ttk[i] = result.durationSeconds();
             dps[i] = result.firstDamageDealt() / Math.max(0.001, result.durationSeconds());
             hps[i] = result.firstHealing() / Math.max(0.001, result.durationSeconds());
@@ -112,33 +117,29 @@ public final class CombatLabRunner {
             }
         }
         if (!violations.isEmpty()) {
-            return scenarioObject(first, second, iterations, violations, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            return scenarioObject(first, second, iterations, violations,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
-        Random bootstrapRandom = new Random(mixSeed(seed, first.level(), first.playerClass().ordinal(),
-                second.playerClass().ordinal()));
+        Random bootstrapRandom = new Random(mixSeed(
+                seed, first.level(), first.playerClass().ordinal(), second.playerClass().ordinal()));
         double[] ttkCi = bootstrapInterval(ttk, false, bootstrapRandom);
         double[] dpsCi = bootstrapInterval(dps, true, bootstrapRandom);
         double[] hpsCi = bootstrapInterval(hps, true, bootstrapRandom);
         double winRate = winsCount / (double) iterations;
         double[] winCi = wilsonInterval(winsCount, iterations);
+        double critRate = totalHits == 0L ? 0.0 : totalCrits / (double) totalHits;
+        double avoidanceRate = totalHits == 0L ? 0.0 : totalAvoids / (double) totalHits;
+        double[] critCi = wilsonInterval(totalCrits, totalHits);
+        double[] avoidanceCi = wilsonInterval(totalAvoids, totalHits);
         return scenarioObject(
-                first,
-                second,
-                iterations,
-                violations,
-                winRate,
-                winCi[0],
-                winCi[1],
-                median(ttk),
-                ttkCi[0],
-                ttkCi[1],
-                mean(dps),
-                dpsCi[0],
-                dpsCi[1],
-                mean(hps),
-                hpsCi[0],
-                hpsCi[1]);
+                first, second, iterations, violations,
+                winRate, winCi[0], winCi[1],
+                median(ttk), ttkCi[0], ttkCi[1],
+                mean(dps), dpsCi[0], dpsCi[1],
+                mean(hps), hpsCi[0], hpsCi[1],
+                critRate, critCi[0], critCi[1],
+                avoidanceRate, avoidanceCi[0], avoidanceCi[1]);
     }
 
     private static String scenarioObject(
@@ -146,18 +147,12 @@ public final class CombatLabRunner {
             CombatLabCombatantSnapshot second,
             int samples,
             List<String> violations,
-            double winRate,
-            double winLow,
-            double winHigh,
-            double ttk,
-            double ttkLow,
-            double ttkHigh,
-            double dps,
-            double dpsLow,
-            double dpsHigh,
-            double hps,
-            double hpsLow,
-            double hpsHigh) {
+            double winRate, double winLow, double winHigh,
+            double ttk, double ttkLow, double ttkHigh,
+            double dps, double dpsLow, double dpsHigh,
+            double hps, double hpsLow, double hpsHigh,
+            double critRate, double critLow, double critHigh,
+            double avoidanceRate, double avoidanceLow, double avoidanceHigh) {
         String id = "pvp_unarmed_" + first.playerClass().name().toLowerCase(Locale.ROOT)
                 + "_vs_" + second.playerClass().name().toLowerCase(Locale.ROOT)
                 + "_level_" + first.level();
@@ -171,9 +166,8 @@ public final class CombatLabRunner {
                 + "        \"ttk_median_seconds\": " + metric(ttk, ttkLow, ttkHigh, "bootstrap_percentile") + ",\n"
                 + "        \"dps_mean\": " + metric(dps, dpsLow, dpsHigh, "bootstrap_percentile") + ",\n"
                 + "        \"hps_mean\": " + metric(hps, hpsLow, hpsHigh, "bootstrap_percentile") + ",\n"
-                + "        \"proc_rate\": " + metric(0.0, 0.0, 0.0, "wilson") + ",\n"
-                + "        \"pet_damage_share\": " + metric(0.0, 0.0, 0.0, "bootstrap_percentile") + ",\n"
-                + "        \"resource_waste_pct\": " + metric(0.0, 0.0, 0.0, "bootstrap_percentile") + "\n"
+                + "        \"crit_rate\": " + metric(critRate, critLow, critHigh, "wilson") + ",\n"
+                + "        \"avoidance_rate\": " + metric(avoidanceRate, avoidanceLow, avoidanceHigh, "wilson") + "\n"
                 + "      }\n"
                 + "    }";
     }
