@@ -133,7 +133,7 @@ jobs:
   # Uses an explicitly authorized DEVELOPMENT artifact; never a release key.
   # -----------------------------------------------------------
   paper-runtime-qa:
-    name: Paper 26.2 Runtime Smoke Test
+    name: RASKOL Watchtower | Paper 26.2 Runtime
     needs: [build]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -208,9 +208,9 @@ jobs:
             echo "::error::Paper did not finish startup within 5 minutes."
             exit 1
           fi
-          if ! grep -Eq 'Enabling RaskolClasses v' server.log; then
+          if ! grep -Eq 'Enabled RaskolClasses v' server.log; then
             cat server.log
-            echo "::error::RaskolClasses was not enabled by Paper."
+            echo "::error::RaskolClasses did not complete plugin enablement on Paper."
             exit 1
           fi
           echo "Paper 26.2 startup and RaskolClasses plugin enablement: PASS"
