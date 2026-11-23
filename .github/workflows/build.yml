@@ -18,6 +18,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Least privilege by default. The release job explicitly elevates to contents: write.
+permissions:
+  contents: read
+
 jobs:
   # -----------------------------------------------------------
   # Основной job: license gate + RIPS policy tests + build.
