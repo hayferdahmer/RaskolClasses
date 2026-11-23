@@ -68,7 +68,8 @@ public final class Spec2StorageMigration {
         }
 
         File unifiedFile = new File(directory, CharacterProfileStorage.FILE_NAME);
-        if (unifiedFile.isFile() && (needsSave || current.present() || legacy.present())
+        if (unifiedFile.isFile()
+                && (needsSave || current.present() || legacy.present())
                 && !profiles.saveAndAwait(SAVE_TIMEOUT)) {
             throw new IllegalStateException(
                     "Не удалось подтвердить обновление backup characters.yml; исходные файлы сохранены");
@@ -280,7 +281,6 @@ public final class Spec2StorageMigration {
             }
         }
     }
-
 
     private static File nextArchiveFile(File source) {
         File parent = source.getParentFile();
