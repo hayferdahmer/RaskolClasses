@@ -1,24 +1,30 @@
-# Combat Lab — Equipment Layer (first slice)
+# Combat Lab — Equipment and Weapon Cadence
 
 ## Implemented contract
 
-- Immutable loadout snapshots consume the same `ItemRegistry` and `ItemDefinition` model used by the runtime item system.
-- Selection respects class/spec/level eligibility, item slot, item level and requested rarity.
-- Exactly one best eligible definition is selected per equipment slot.
-- Main-hand selection prefers the highest production `WeaponMastery` multiplier, then the highest item level, then a stable item ID.
-- Base item stats and cumulative set thresholds are aggregated into an immutable snapshot.
-- The snapshot exposes main-hand item identity, weapon family, physical/magic auto-attack type and mastery multiplier.
-- Tests build deterministic fixtures through the production `ItemTemplateExpander` and the same item model/registry types without requiring a live Paper registry bootstrap.
+- The headless runner loads the committed `items.yml` through `ItemConfigLoader.loadHeadless()`; it uses the production `ItemRegistry`, item definitions, eligibility rules, `AffixRoller`, `ItemStatAggregator` and `SetBonusService`.
+- Loadout selection is deterministic by class, specialization, level, rarity, slot, WeaponMastery, item level and stable item ID.
+- Base stats, affixes and active set thresholds are aggregated into an immutable equipment snapshot. `ATTACK_DAMAGE` contributes only from MAIN_HAND, matching `ItemHook`.
+- The duel snapshot includes equipment-derived attributes, physical/magic auto-attack type, WeaponMastery and a resolved attack interval.
+- Equipment report schema 1.1 records each combatant's cadence interval and cadence model ID.
+
+## Weapon cadence contract
+
+The headless model is independent of Bukkit registry initialization:
+
+- Melee weapons use the Paper 26.2 reference attack-speed values for the materials currently configured in `items.yml`: `IRON_SWORD=1.6`, `IRON_AXE=0.9`, `MACE=0.6`, `TRIDENT=1.1`, `BLAZE_ROD=4.0`.
+- The interval is `1 / (materialAttackSpeed × (1 + equipmentAttackSpeedPct / 100))`. This mirrors the one aggregated `MULTIPLY_SCALAR_1` modifier installed by `ItemHook`.
+- Bow cadence uses a full critical charge (20 ticks / 1 second). Crossbow cadence uses an unenchanted reload (25 ticks / 1.25 seconds). Item `ATTACK_SPEED` does not accelerate these use-duration mechanics.
+- Unarmed cadence uses the player default of 4 full-strength attacks per second (0.25 seconds).
+- `PaperWeaponCadenceResolver` reads the actual Paper player base attribute and material HAND modifiers. It audits all configured melee materials during plugin startup and logs any mismatch against the headless reference table.
+- `SPEAR` is explicit in WeaponMastery: native for HUNTER, foreign for the other classes, consistent with the existing Hunter SPEAR/TRIDENT item template.
 
 ## Deliberate limitations
 
-This is the first deterministic equipment data slice, not the final equipment simulator:
-- The CLI runner is not yet wired to load the live `items.yml` registry. Runtime integration can pass `plugin.getItems().registry()`; the next runner step must add a Paper-registry-independent loader for the committed item resource.
-- Random affix rolls are not included yet. A shared deterministic affix roller must be extracted and used by both the runtime item factory and Combat Lab before affixes can be represented faithfully.
-- Enchantment/gem/socket systems are not included.
-- The snapshot is not yet wired into duel damage, HP, crit, resistance or attack-speed calculations.
-- The tests validate the shared production item-model/template contracts, not full runtime registry parity.
+- The Paper startup audit has been implemented but must still be confirmed against a live RASKOL Paper 26.2 startup log.
+- Bow partial draw, Quick Charge, projectile travel, hit probability, ammunition and movement are not simulated. The current profile represents a fully charged bow and an unenchanted crossbow.
+- The runner still passes `spec=null`; specialization-specific item templates and all 18 specialization sets are the next implementation slice.
+- Enchantments, gems and sockets are not included.
+- Active abilities, talents, procs, pets, CC, resource economy, burst caps and PvE behavior are not included.
 
-The unarmed probe remains a separate, valid diagnostic and is not a v1.16 balance baseline.
-
-The Java sources in this slice are formatted with the repository's pinned Spotless configuration.
+This equipment-aware auto-attack profile is not a complete combat simulator and is not an approved v1.16 balance baseline. Keep all talent nodes disabled until the remaining runtime layers and QA are complete.

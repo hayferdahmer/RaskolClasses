@@ -32,7 +32,9 @@ public record CombatLabCombatantSnapshot(
         double attackDamage,
         double attackSpeedPct,
         String autoAttackType,
-        double weaponMasteryMultiplier) {
+        double weaponMasteryMultiplier,
+        double attackIntervalSeconds,
+        String cadenceModel) {
 
     public static CombatLabCombatantSnapshot from(YamlConfiguration config, PlayerClass playerClass, int level) {
         return from(config, playerClass, level, CombatLabEquipmentSnapshot.EMPTY);
@@ -169,7 +171,9 @@ public record CombatLabCombatantSnapshot(
                 equipment.value(ItemStat.ATTACK_DAMAGE),
                 equipment.value(ItemStat.ATTACK_SPEED),
                 equipment.autoAttackType(),
-                equipment.weaponMasteryMultiplier());
+                equipment.weaponMasteryMultiplier(),
+                equipment.attackIntervalSeconds(),
+                equipment.cadenceModel());
     }
 
     private static double stat(YamlConfiguration config, String path, String key, double fallback) {
