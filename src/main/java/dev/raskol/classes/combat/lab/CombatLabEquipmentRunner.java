@@ -17,6 +17,7 @@ import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.item.config.ItemConfigLoader;
 import dev.raskol.classes.item.model.ItemRarity;
 import dev.raskol.classes.item.service.ItemRegistry;
+import dev.raskol.classes.spec.Spec;
 
 /** CLI-раннер equipment-aware профиля на настоящем items.yml и production item registry. */
 public final class CombatLabEquipmentRunner {
@@ -62,36 +63,47 @@ public final class CombatLabEquipmentRunner {
         CombatLabDuelEngine.Rules rules = CombatLabDuelEngine.Rules.from(config);
         List<String> scenarios = new ArrayList<>();
         for (int level : LEVELS) {
-            for (PlayerClass firstClass : PlayerClass.values()) {
-                for (PlayerClass secondClass : PlayerClass.values()) {
-                    if (firstClass == secondClass) continue;
-                    long firstEquipmentSeed = mixSeed(seed, level, firstClass.ordinal(), RARITY.ordinal());
-                    long secondEquipmentSeed = mixSeed(seed, level, secondClass.ordinal(), RARITY.ordinal());
+            for (Spec firstSpec : Spec.values()) {
+                for (Spec secondSpec : Spec.values()) {
+                    if (firstSpec == secondSpec) continue;
+                    PlayerClass firstClass = firstSpec.playerClass();
+                    PlayerClass secondClass = secondSpec.playerClass();
+                    long firstEquipmentSeed = mixSeed(seed, level, firstSpec.ordinal(), RARITY.ordinal());
+                    long secondEquipmentSeed = mixSeed(seed, level, secondSpec.ordinal(), RARITY.ordinal());
                     CombatLabEquipmentSnapshot firstEquipment = CombatLabEquipmentSnapshot.from(
-                            registry, firstClass, level, RARITY, null, firstEquipmentSeed);
+                            registry, firstClass, level, RARITY, firstSpec.id(), firstEquipmentSeed);
                     CombatLabEquipmentSnapshot secondEquipment = CombatLabEquipmentSnapshot.from(
-                            registry, secondClass, level, RARITY, null, secondEquipmentSeed);
+                            registry, secondClass, level, RARITY, secondSpec.id(), secondEquipmentSeed);
                     CombatLabCombatantSnapshot first =
                             CombatLabCombatantSnapshot.from(config, firstClass, level, firstEquipment);
                     CombatLabCombatantSnapshot second =
                             CombatLabCombatantSnapshot.from(config, secondClass, level, secondEquipment);
-                    long scenarioSeed = mixSeed(seed, level, firstClass.ordinal(), secondClass.ordinal());
+                    long scenarioSeed = mixSeed(seed, level, firstSpec.ordinal(), secondSpec.ordinal());
                     scenarios.add(scenarioJson(
-                            first, second, firstEquipment, secondEquipment, rules, scenarioSeed, iterations));
+                            firstSpec,
+                            secondSpec,
+                            first,
+                            second,
+                            firstEquipment,
+                            secondEquipment,
+                            rules,
+                            scenarioSeed,
+                            iterations));
                 }
             }
         }
         return "{\n"
-                + "  \"schema_version\": \"1.1\",\n"
+                + "  \"schema_version\": \"1.2\",\n"
                 + "  \"report_type\": \"combat-lab-equipment-report\",\n"
-                + "  \"simulator_version\": \"headless-equipment-duel-0.2.0\",\n"
+                + "  \"simulator_version\": \"headless-equipment-duel-0.3.0\",\n"
                 + "  \"scenario_set\": \"" + CombatLabDuelEngine.EQUIPMENT_PROFILE_ID + "\",\n"
-                + "  \"simulation_scope\": \"production items.yml; Paper 26.2 material attack-speed modifiers, full-draw bow and crossbow reload cadence, production affix roller, set bonuses, physical/magic auto-attacks and WeaponMastery; no active abilities, talents, procs, pets or CC\",\n"
+                + "  \"simulation_scope\": \"production items.yml; 18 specialization-locked five-piece sets, Paper 26.2 material attack-speed reference profiles, full-draw bow and crossbow reload cadence, production affix roller and set bonuses; physical/magic auto-attacks and WeaponMastery only\",\n"
                 + "  \"source_commit\": \"" + sourceCommit + "\",\n"
                 + "  \"seed\": " + seed + ",\n"
                 + "  \"iterations_per_scenario\": " + iterations + ",\n"
                 + "  \"generated_at\": \"" + Instant.now() + "\",\n"
                 + "  \"loaded_item_definitions\": " + registry.size() + ",\n"
+                + "  \"specialization_count\": " + Spec.values().length + ",\n"
                 + "  \"rarity\": \"" + RARITY.name() + "\",\n"
                 + "  \"scenarios\": [\n"
                 + String.join(",\n", scenarios)
@@ -100,6 +112,8 @@ public final class CombatLabEquipmentRunner {
     }
 
     private static String scenarioJson(
+            Spec firstSpec,
+            Spec secondSpec,
             CombatLabCombatantSnapshot first,
             CombatLabCombatantSnapshot second,
             CombatLabEquipmentSnapshot firstEquipment,
@@ -111,13 +125,14 @@ public final class CombatLabEquipmentRunner {
         double[] dps = new double[iterations];
         double[] hps = new double[iterations];
         int wins = 0;
-        long hits = 0L, crits = 0L, avoids = 0L;
+        long hits = 0L, incomingHits = 0L, crits = 0L, avoids = 0L;
         List<String> violations = new ArrayList<>();
         for (int i = 0; i < iterations; i++) {
             CombatLabDuelEngine.DuelResult result =
                     CombatLabDuelEngine.duelEquipped(first, second, rules, mixSeed(seed, i, 0, 0));
             if (result.firstPlayerWon()) wins++;
             hits += result.firstHits();
+            incomingHits += result.secondHits();
             crits += result.firstCrits();
             avoids += result.firstAvoids();
             ttk[i] = result.durationSeconds();
@@ -135,16 +150,18 @@ public final class CombatLabEquipmentRunner {
         }
         if (violations.isEmpty()
                 && first.level() >= 30
-                && (firstEquipment.equippedItemIds().isEmpty()
-                        || secondEquipment.equippedItemIds().isEmpty())) {
-            violations.add("expected_equipment_missing_at_level_" + first.level());
+                && (firstEquipment.equippedItemIds().size() != 5
+                        || secondEquipment.equippedItemIds().size() != 5
+                        || !firstEquipment.activeSetIds().contains(firstSpec.id() + "_regalia")
+                        || !secondEquipment.activeSetIds().contains(secondSpec.id() + "_regalia"))) {
+            violations.add("expected_specialization_set_missing_at_level_" + first.level());
         }
-        String id = "pvp_equipment_" + first.playerClass().name().toLowerCase(Locale.ROOT)
-                + "_vs_" + second.playerClass().name().toLowerCase(Locale.ROOT)
-                + "_level_" + first.level();
+        String id = "pvp_equipment_" + firstSpec.id() + "_vs_" + secondSpec.id() + "_level_" + first.level();
         if (!violations.isEmpty()) {
             return scenarioObject(
                     id,
+                    firstSpec.id(),
+                    secondSpec.id(),
                     iterations,
                     violations,
                     firstEquipment,
@@ -169,21 +186,19 @@ public final class CombatLabEquipmentRunner {
                     0);
         }
 
-        Random bootstrap = new Random(mixSeed(
-                seed,
-                first.level(),
-                first.playerClass().ordinal(),
-                second.playerClass().ordinal()));
+        Random bootstrap = new Random(mixSeed(seed, first.level(), firstSpec.ordinal(), secondSpec.ordinal()));
         double[] ttkCi = bootstrapInterval(ttk, false, bootstrap);
         double[] dpsCi = bootstrapInterval(dps, true, bootstrap);
         double[] hpsCi = bootstrapInterval(hps, true, bootstrap);
         double[] winCi = wilsonInterval(wins, iterations);
         double critRate = hits == 0 ? 0 : crits / (double) hits;
-        double avoidRate = hits == 0 ? 0 : avoids / (double) hits;
+        double avoidRate = incomingHits == 0 ? 0 : avoids / (double) incomingHits;
         double[] critCi = wilsonInterval(crits, hits);
-        double[] avoidCi = wilsonInterval(avoids, hits);
+        double[] avoidCi = wilsonInterval(avoids, incomingHits);
         return scenarioObject(
                 id,
+                firstSpec.id(),
+                secondSpec.id(),
                 iterations,
                 violations,
                 firstEquipment,
@@ -210,6 +225,8 @@ public final class CombatLabEquipmentRunner {
 
     private static String scenarioObject(
             String id,
+            String firstSpec,
+            String secondSpec,
             int samples,
             List<String> violations,
             CombatLabEquipmentSnapshot firstEquipment,
@@ -237,8 +254,12 @@ public final class CombatLabEquipmentRunner {
                 + "      \"mode\": \"pvp\",\n"
                 + "      \"sample_count\": " + samples + ",\n"
                 + "      \"invariant_violations\": " + stringArray(violations) + ",\n"
-                + "      \"equipment\": {\"first_items\":" + stringArray(firstEquipment.equippedItemIds())
+                + "      \"equipment\": {\"first_spec\":\"" + firstSpec + "\","
+                + "\"second_spec\":\"" + secondSpec + "\""
+                + ",\"first_items\":" + stringArray(firstEquipment.equippedItemIds())
                 + ",\"second_items\":" + stringArray(secondEquipment.equippedItemIds())
+                + ",\"first_active_sets\":" + stringArray(firstEquipment.activeSetIds())
+                + ",\"second_active_sets\":" + stringArray(secondEquipment.activeSetIds())
                 + ",\"first_weapon_type\":\""
                 + (firstEquipment.weaponType() == null
                         ? "NONE"

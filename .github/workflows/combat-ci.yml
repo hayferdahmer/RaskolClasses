@@ -128,6 +128,6 @@ jobs:
             echo "- Test changes: ${TESTS_CHANGED:-unknown}"
             echo "- Combat packages: ${COMBAT_PACKAGES:-none}"
             echo "- Required gates: Java 25 compile, test compilation, Spotless and SpotBugs; unit tests execute in the required Build workflow."
-            echo "- Combat Lab: unarmed control and production items.yml equipment-aware 150-scenario matrices are executed and structurally validated."
+            echo "- Combat Lab: unarmed control and production items.yml 18-spec equipment matrix (1,530 directed scenarios × 1,200 duels) are executed and structurally validated."
             echo "- Scope limitation: active abilities, talents, procs, pets, CC, resource economy and live Paper event behavior remain outside this equipment auto-attack profile."
           } >> "$GITHUB_STEP_SUMMARY"
