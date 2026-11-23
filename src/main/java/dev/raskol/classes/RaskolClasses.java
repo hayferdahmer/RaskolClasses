@@ -443,7 +443,8 @@ public final class RaskolClasses extends JavaPlugin {
         if (getConfig().getBoolean("item.enabled", true)) {
             items.start();
             try {
-                for (PaperWeaponCadenceResolver.AuditResult audit : PaperWeaponCadenceResolver.auditConfiguredMaterials()) {
+                for (PaperWeaponCadenceResolver.AuditResult audit :
+                        PaperWeaponCadenceResolver.auditConfiguredMaterials()) {
                     if (audit.matches()) {
                         getLogger()
                                 .info("[CombatLab] Paper weapon cadence verified: " + audit.material() + " attackSpeed="
@@ -457,10 +458,11 @@ public final class RaskolClasses extends JavaPlugin {
                     }
                 }
             } catch (RuntimeException exception) {
-                getLogger().log(
-                        java.util.logging.Level.WARNING,
-                        "[CombatLab] Paper weapon cadence audit unavailable; plugin startup continues",
-                        exception);
+                getLogger()
+                        .log(
+                                java.util.logging.Level.WARNING,
+                                "[CombatLab] Paper weapon cadence audit unavailable; plugin startup continues",
+                                exception);
             }
         }
         this.dotRuntimeOwner = new DotRuntimeOwner(
