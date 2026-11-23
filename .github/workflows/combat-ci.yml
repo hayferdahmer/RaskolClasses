@@ -39,7 +39,7 @@ jobs:
   combat-ci-guard:
     name: Combat CI Guard
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout source (fetch base commit on demand)
         uses: actions/checkout@v5
@@ -83,8 +83,19 @@ jobs:
           -Dexec.classpathScope=compile
           -Dexec.args="--config src/main/resources/config.yml --output target/combat-lab/unarmed-probe-report.json --seed 20261123 --iterations 1200 --source-commit ${GITHUB_SHA}"
 
-      - name: Validate generated Combat Lab probe report
+      - name: Validate generated unarmed control report
         run: python3 tools/combat-lab/validate_probe_report.py target/combat-lab/unarmed-probe-report.json
+
+      - name: Run deterministic production equipment-aware duel matrix
+        run: >
+          mvn -Pdev -B
+          org.codehaus.mojo:exec-maven-plugin:3.5.0:java
+          -Dexec.mainClass=dev.raskol.classes.combat.lab.CombatLabEquipmentRunner
+          -Dexec.classpathScope=compile
+          -Dexec.args="--config src/main/resources/config.yml --items src/main/resources/items.yml --output target/combat-lab/equipment-duel-report.json --seed 20261123 --iterations 1200 --source-commit ${GITHUB_SHA}"
+
+      - name: Validate equipment-aware report
+        run: python3 tools/combat-lab/validate_equipment_report.py target/combat-lab/equipment-duel-report.json
 
       - name: Upload diagnostic reports
         if: always()
@@ -117,6 +128,6 @@ jobs:
             echo "- Test changes: ${TESTS_CHANGED:-unknown}"
             echo "- Combat packages: ${COMBAT_PACKAGES:-none}"
             echo "- Required gates: Java 25 compile, test compilation, Spotless and SpotBugs; unit tests execute in the required Build workflow."
-            echo "- Diff audit: package-level test coverage plus auditor regression tests."
-            echo "- Combat Lab: deterministic 150-scenario unarmed probe is executed and structurally validated; full ability/gear/talent/PvE statistical gate remains PENDING."
+            echo "- Combat Lab: unarmed control and production items.yml equipment-aware 150-scenario matrices are executed and structurally validated."
+            echo "- Scope limitation: active abilities, talents, procs, pets, CC, resource economy and live Paper event behavior remain outside this equipment auto-attack profile."
           } >> "$GITHUB_STEP_SUMMARY"
