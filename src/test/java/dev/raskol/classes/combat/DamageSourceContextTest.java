@@ -65,8 +65,7 @@ class DamageSourceContextTest {
         UUID owner = UUID.randomUUID();
         UUID target = UUID.randomUUID();
 
-        DamageSourceContext context =
-                DamageSourceContext.pet(pet, owner, target, "wolf_mark", true);
+        DamageSourceContext context = DamageSourceContext.pet(pet, owner, target, "wolf_mark", true);
 
         assertEquals(DamageSourceContext.SourceType.PET, context.sourceType());
         assertEquals(pet, context.sourceEntityId());
@@ -98,15 +97,7 @@ class DamageSourceContextTest {
     @DisplayName("reflection всегда помечен как отражённый источник")
     void reflectionIsExplicit() {
         DamageSourceContext context = new DamageSourceContext(
-                null,
-                null,
-                null,
-                null,
-                DamageSourceContext.SourceType.REFLECTION,
-                null,
-                null,
-                true,
-                false);
+                null, null, null, null, DamageSourceContext.SourceType.REFLECTION, null, null, true, false);
 
         assertTrue(context.reflected());
         assertTrue(context.fromProc());
@@ -116,17 +107,8 @@ class DamageSourceContextTest {
     @DisplayName("withWeaponHand создаёт новый контекст и не меняет исходный")
     void handCopyIsImmutable() {
         DamageSourceContext original = new DamageSourceContext(
-                null,
-                null,
-                null,
-                null,
-                DamageSourceContext.SourceType.ABILITY,
-                "aimed_shot",
-                null,
-                false,
-                false);
-        DamageSourceContext updated =
-                original.withWeaponHand(DamageSourceContext.WeaponHand.OFF_HAND);
+                null, null, null, null, DamageSourceContext.SourceType.ABILITY, "aimed_shot", null, false, false);
+        DamageSourceContext updated = original.withWeaponHand(DamageSourceContext.WeaponHand.OFF_HAND);
 
         assertSame(DamageSourceContext.WeaponHand.UNKNOWN, original.weaponHand());
         assertEquals(DamageSourceContext.WeaponHand.OFF_HAND, updated.weaponHand());
