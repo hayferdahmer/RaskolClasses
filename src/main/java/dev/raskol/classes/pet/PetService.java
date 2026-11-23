@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
@@ -84,6 +85,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public final class PetService implements Listener {
 
     private static final ThreadLocal<Boolean> SUPPRESS_PET_TALENTS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private static final ThreadLocal<Boolean> SCHEDULED_PET_ATTACK = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
 
     public enum SummonResult {
@@ -107,6 +109,9 @@ public final class PetService implements Listener {
         String defId;
         long expiresAt;
         long buffUntil;
+        long nextAttackTick;
+        long frenzyUntilTick;
+        long frenzyIcdUntilTick;
         boolean glow;
         double baseSpeed;
         /** 1.15.7 (2.6-68): последняя известная позиция пета для различения
@@ -158,6 +163,11 @@ public final class PetService implements Listener {
      * 1.14.13 (Волна 13B): отложенный startup-скан осиротевших петов (после загрузки
      * миров, +100 тиков); ручка в activeTasks владельца (одноразовая задача).
      */
+    /** Планирует частый cadence tick; lifecycle tick остаётся раз в секунду. */
+    public BukkitTask startAttackTask() {
+        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tickPetAttacks, 1L, 1L);
+    }
+
     public BukkitTask scheduleOrphanScan() {
         return plugin.getServer()
                 .getScheduler()
@@ -384,6 +394,67 @@ public final class PetService implements Listener {
         }
     }
 
+    private void tickPetAttacks() {
+        long currentTick = Bukkit.getCurrentTick();
+        for (Map.Entry<UUID, PetState> entry : pets.entrySet()) {
+            UUID ownerUuid = entry.getKey();
+            PetState state = entry.getValue();
+            Entity entity = plugin.getServer().getEntity(state.petUuid);
+            if (!(entity instanceof Mob pet) || pet.isDead()) {
+                continue;
+            }
+            Player owner = plugin.getServer().getPlayer(ownerUuid);
+            if (owner == null || !owner.isOnline()) {
+                continue;
+            }
+            double disciplinePct = plugin.getSpec2Service().petAttackSpeedPercent(ownerUuid);
+            boolean frenzyActive = currentTick < state.frenzyUntilTick;
+            if (disciplinePct <= 0.0 && !frenzyActive) {
+                continue;
+            }
+            LivingEntity target = pet.getTarget();
+            if (target == null
+                    || !target.isValid()
+                    || target.isDead()
+                    || !pet.getWorld().equals(target.getWorld())
+                    || pet.getLocation().distanceSquared(target.getLocation()) > 9.0
+                    || !pet.hasLineOfSight(target)
+                    || !plugin.getCombat().canHit(owner, target)
+                    || currentTick < state.nextAttackTick) {
+                continue;
+            }
+            PetDef def = PetDef.byId(state.defId);
+            if (def == null) {
+                continue;
+            }
+            double frenzyPct = frenzyActive ? 30.0 : 0.0;
+            int interval = PetTalentMath.attackIntervalTicks(
+                    def.baseAttackIntervalTicks(), disciplinePct, frenzyPct);
+            state.nextAttackTick = currentTick + interval;
+            SCHEDULED_PET_ATTACK.set(Boolean.TRUE);
+            try {
+                pet.attack(target);
+            } catch (RuntimeException exception) {
+                LOGGER.log(
+                        java.util.logging.Level.WARNING,
+                        "Не удалось выполнить управляемую атаку питомца " + state.defId,
+                        exception);
+            } finally {
+                SCHEDULED_PET_ATTACK.remove();
+            }
+        }
+    }
+
+    private void triggerPetFrenzy(UUID ownerId, PetState state, long currentTick) {
+        if (state == null
+                || currentTick < state.frenzyIcdUntilTick
+                || !rollPercent(talentChancePct(ownerId, "pet_frenzy"))) {
+            return;
+        }
+        state.frenzyUntilTick = Math.max(state.frenzyUntilTick, currentTick + 160L);
+        state.frenzyIcdUntilTick = currentTick + 20L;
+    }
+
     private void tick() {
         long now = System.currentTimeMillis();
         for (Map.Entry<UUID, PetState> entry : pets.entrySet()) {
@@ -570,15 +641,28 @@ public final class PetService implements Listener {
             return;
         }
         Player owner = plugin.getServer().getPlayer(ownerId);
-        if (owner == null
-                || !(event.getEntity() instanceof LivingEntity target)
-                || !plugin.getCombat().canHit(owner, target)) {
+        if (owner == null || !(event.getEntity() instanceof LivingEntity target)) {
+            event.setCancelled(true);
+            return;
+        }
+        PetState state = pets.get(ownerId);
+        long currentTick = Bukkit.getCurrentTick();
+        boolean cadenceManaged = plugin.getSpec2Service().petAttackSpeedPercent(ownerId) > 0.0
+                || (state != null && currentTick < state.frenzyUntilTick);
+        if (cadenceManaged && !SCHEDULED_PET_ATTACK.get()) {
+            event.setCancelled(true);
+            return;
+        }
+        if (!plugin.getCombat().canHit(owner, target)) {
             event.setCancelled(true);
             return;
         }
 
         double physicalBonus = plugin.getSpec2Service().petDmgPercent(ownerId) + talentPct(ownerId, "pet_phys_dmg_pct");
         boolean critical = rollPercent(talentPct(ownerId, "pet_crit_pct"));
+        if (critical) {
+            triggerPetFrenzy(ownerId, state, currentTick);
+        }
         boolean empoweredCritical = critical && rollPercent(talentChancePct(ownerId, "pet_crit_bonus"));
         if (Double.isFinite(event.getDamage()) && event.getDamage() > 0.0) {
             event.setDamage(
