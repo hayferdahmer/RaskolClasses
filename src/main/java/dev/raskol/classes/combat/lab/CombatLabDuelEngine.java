@@ -177,10 +177,10 @@ public final class CombatLabDuelEngine {
         }
 
         double remainingTime = Math.max(0.0, rules.maxDurationSeconds() - elapsed);
-        double firstFinalRegen = Math.min(
-                first.maxHealth() - firstHealth, first.healthRegenPerSecond() * remainingTime);
-        double secondFinalRegen = Math.min(
-                second.maxHealth() - secondHealth, second.healthRegenPerSecond() * remainingTime);
+        double firstFinalRegen =
+                Math.min(first.maxHealth() - firstHealth, first.healthRegenPerSecond() * remainingTime);
+        double secondFinalRegen =
+                Math.min(second.maxHealth() - secondHealth, second.healthRegenPerSecond() * remainingTime);
         firstHealth += firstFinalRegen;
         secondHealth += secondFinalRegen;
         firstHealing += firstFinalRegen;
