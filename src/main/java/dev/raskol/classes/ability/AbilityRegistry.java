@@ -613,6 +613,12 @@ public final class AbilityRegistry {
 
         // 1.14.0 (Б8.2-fix): кулдаун из spec2: процент (cd) + секунды (kit_cd)
         double cdMult = plugin.getSpec2Service().cooldownMult(id, def.id());
+        if ("explosive_trap".equals(def.id())) {
+            double trapReduction = Math.max(
+                            0.0, Math.min(90.0, plugin.getSpec2Service().trapCooldownReductionPercent(id)))
+                    / 100.0;
+            cdMult *= 1.0 - trapReduction;
+        }
         double cdSecBonus = plugin.getSpec2Service().cooldownSecBonus(id, def.id());
         if (!Double.isFinite(cdMult) || cdMult <= 0.0) {
             cdMult = 1.0;
