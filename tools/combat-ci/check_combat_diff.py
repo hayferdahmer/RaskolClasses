@@ -28,9 +28,17 @@ TEST_PREFIXES = (
 
 
 def git_changed_files(base: str, head: str) -> list[str]:
-    if not base or not head or set(base) == {"0"}:
-        print("::error::Не удалось определить базовый SHA для анализа боевого diff.")
+    if not head:
+        print("::error::Не удалось определить HEAD SHA для анализа боевого diff.")
         raise SystemExit(2)
+    if not base or set(base) == {"0"}:
+        parent = subprocess.run(
+            ["git", "rev-parse", f"{head}^"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        base = parent.stdout.strip() if parent.returncode == 0 else head
     result = subprocess.run(
         ["git", "diff", "--name-only", "--diff-filter=ACMRT", f"{base}...{head}"],
         check=False,
@@ -49,7 +57,7 @@ def main() -> int:
     head = os.environ.get("HEAD_SHA", "")
     changed = git_changed_files(base, head)
     combat = [p for p in changed if p.startswith(COMBAT_PREFIXES)]
-    tests = [p for p in changed if p.startswith(TEST_PREFIXES) and "/test/" in p or p.startswith("src/test/java/")]
+    tests = [p for p in changed if p.startswith("src/test/java/") or p.startswith("src/main/java/dev/raskol/classes/selftest/")]
 
     print(f"Изменённых файлов: {len(changed)}")
     print(f"Боевых файлов: {len(combat)}")
