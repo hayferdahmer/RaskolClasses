@@ -30,23 +30,44 @@ SELFTEST_RUNNER = "src/main/java/dev/raskol/classes/selftest/SelftestRunner.java
 
 
 def git_changed_files(base: str, head: str) -> list[str]:
+    """Возвращает добавленные/изменённые файлы; удалённые тесты не засчитываются."""
     if not head:
         print("::error::Не удалось определить HEAD SHA для анализа боевого diff.")
         raise SystemExit(2)
+
     if not base or set(base) == {"0"}:
-        parent = subprocess.run(
-            ["git", "rev-parse", f"{head}^"],
+        result = subprocess.run(
+            ["git", "diff-tree", "--root", "--no-commit-id", "--name-only", "-r", head],
             check=False,
             capture_output=True,
             text=True,
         )
-        base = parent.stdout.strip() if parent.returncode == 0 else head
-    result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACMRT", f"{base}...{head}"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+    else:
+        exists = subprocess.run(
+            ["git", "cat-file", "-e", f"{base}^{{commit}}"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if exists.returncode:
+            fetch = subprocess.run(
+                ["git", "fetch", "--no-tags", "--depth=1", "origin", base],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if fetch.returncode:
+                print("::error::Не удалось получить базовый commit для diff-аудита.")
+                print(fetch.stderr)
+                raise SystemExit(fetch.returncode)
+
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "--diff-filter=ACMRT", base, head],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
     if result.returncode:
         print("::error::git diff завершился с ошибкой:")
         print(result.stderr)
@@ -55,28 +76,42 @@ def git_changed_files(base: str, head: str) -> list[str]:
 
 
 def package_of(path: str) -> str | None:
+    """Возвращает корневую подсистему, не дробя её по вложенным каталогам."""
     for prefix in COMBAT_PREFIXES:
         if path.startswith(prefix):
             remainder = path[len(prefix):]
-            package = prefix.rstrip("/").split("/")[-1]
-            return package if "/" not in remainder else package + "/" + remainder.split("/")[0]
+            if not remainder:
+                return None
+            return prefix.rstrip("/").split("/")[-1]
     return None
+
+
+def test_package_of(path: str) -> str | None:
+    if not path.startswith(TEST_ROOT):
+        return None
+    remainder = path[len(TEST_ROOT):]
+    if not remainder:
+        return None
+    return remainder.split("/", 1)[0]
+
+
+def missing_test_packages(combat_paths: list[str], test_paths: list[str], selftest_changed: bool) -> list[str]:
+    packages = {package_of(path) for path in combat_paths}
+    packages.discard(None)
+    covered = {test_package_of(path) for path in test_paths}
+    covered.discard(None)
+    return sorted(package for package in packages if package not in covered and not selftest_changed)
 
 
 def main() -> int:
     base = os.environ.get("BASE_SHA", "")
     head = os.environ.get("HEAD_SHA", "")
     changed = git_changed_files(base, head)
-    combat = [path for path in changed if any(path.startswith(prefix) for prefix in COMBAT_PREFIXES)]
+    combat = [path for path in changed if package_of(path)]
     tests = [path for path in changed if path.startswith("src/test/java/")]
     selftest_changed = SELFTEST_RUNNER in changed
     packages = sorted({package_of(path) for path in combat if package_of(path)})
-    missing: list[str] = []
-
-    for package in packages:
-        expected_prefix = TEST_ROOT + package + "/"
-        if not any(path.startswith(expected_prefix) for path in tests) and not selftest_changed:
-            missing.append(package)
+    missing = missing_test_packages(combat, tests, selftest_changed)
 
     print(f"Изменённых файлов: {len(changed)}")
     print(f"Боевых файлов: {len(combat)}")
@@ -91,6 +126,7 @@ def main() -> int:
         output.write(f"combat_changed={'true' if combat else 'false'}\n")
         output.write(f"tests_changed={'true' if tests or selftest_changed else 'false'}\n")
         output.write(f"combat_packages={','.join(packages)}\n")
+        output.write(f"missing_test_packages={','.join(missing)}\n")
 
     if missing:
         print("::error::Для изменённых боевых подсистем не найдены тесты в соответствующих test-пакетах.")

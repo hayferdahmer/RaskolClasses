@@ -66,7 +66,15 @@ public record DamageSourceContext(
         UUID targetId = target == null ? null : target.getUniqueId();
         if (source == null) {
             return new DamageSourceContext(
-                    null, null, null, targetId, SourceType.ENVIRONMENT, null, WeaponHand.UNKNOWN, fromProc, reflected);
+                    null,
+                    null,
+                    null,
+                    targetId,
+                    SourceType.ENVIRONMENT,
+                    null,
+                    WeaponHand.UNKNOWN,
+                    fromProc,
+                    reflected);
         }
         if (source instanceof Player player) {
             return new DamageSourceContext(
@@ -108,24 +116,56 @@ public record DamageSourceContext(
     public static DamageSourceContext pet(
             UUID petId, UUID ownerId, UUID targetId, String abilityId, boolean fromProc) {
         return new DamageSourceContext(
-                petId, ownerId, ownerId, targetId, SourceType.PET, abilityId, WeaponHand.UNKNOWN, fromProc, false);
+                petId,
+                ownerId,
+                ownerId,
+                targetId,
+                SourceType.PET,
+                abilityId,
+                WeaponHand.UNKNOWN,
+                fromProc,
+                false);
     }
 
     public static DamageSourceContext trap(
             UUID trapId, UUID ownerId, UUID targetId, String abilityId, boolean fromProc) {
         return new DamageSourceContext(
-                trapId, ownerId, ownerId, targetId, SourceType.TRAP, abilityId, WeaponHand.UNKNOWN, fromProc, false);
+                trapId,
+                ownerId,
+                ownerId,
+                targetId,
+                SourceType.TRAP,
+                abilityId,
+                WeaponHand.UNKNOWN,
+                fromProc,
+                false);
     }
 
     public static DamageSourceContext ability(
             UUID casterId, UUID targetId, String abilityId, boolean fromProc) {
         return new DamageSourceContext(
-                casterId, casterId, casterId, targetId, SourceType.ABILITY, abilityId, WeaponHand.UNKNOWN, fromProc, false);
+                casterId,
+                casterId,
+                casterId,
+                targetId,
+                SourceType.ABILITY,
+                abilityId,
+                WeaponHand.UNKNOWN,
+                fromProc,
+                false);
     }
 
     public DamageSourceContext withWeaponHand(WeaponHand hand) {
         return new DamageSourceContext(
-                sourceEntityId, attackerId, ownerId, targetId, sourceType, abilityId, hand, fromProc, reflected);
+                sourceEntityId,
+                attackerId,
+                ownerId,
+                targetId,
+                sourceType,
+                abilityId,
+                hand,
+                fromProc,
+                reflected);
     }
 
     private static String normalizeAbilityId(String value) {
