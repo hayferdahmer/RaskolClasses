@@ -117,6 +117,19 @@ class Spec2StorageMigrationTest {
         }
     }
 
+
+    @Test
+    @DisplayName("при отсутствии main миграция восстанавливает существующий backup")
+    void recoversCurrentBackupWhenMainIsMissing() throws IOException {
+        write("spec2.yml", "players:\\n  legacy:\\n    main: old\\n");
+        write("spec2-storage.yml.bak", "players:\\n  current:\\n    main: new\\n");
+
+        YamlConfiguration loaded = Spec2StorageMigration.load(tempDir.toFile(), LOGGER);
+
+        assertEquals("new", loaded.getString("players.current.main"));
+        assertTrue(tempDir.resolve("spec2-storage.yml").toFile().isFile());
+    }
+
     private File write(String name, String content) throws IOException {
         Path path = tempDir.resolve(name);
         Files.writeString(path, content);
