@@ -3,8 +3,10 @@
 """Регрессионные тесты для аудита боевого diff."""
 
 import unittest
+from subprocess import CompletedProcess
+from unittest.mock import patch
 
-from unittest.mock import patch\nfrom subprocess import CompletedProcess\n\nfrom check_combat_diff import git_changed_files, missing_test_packages, package_of, test_package_of
+from check_combat_diff import git_changed_files, missing_test_packages, package_of, test_package_of
 
 
 class CombatDiffAuditTest(unittest.TestCase):
@@ -36,7 +38,9 @@ class CombatDiffAuditTest(unittest.TestCase):
 
     @patch("check_combat_diff.subprocess.run")
     def test_zero_base_uses_root_commit_diff(self, run):
-        run.return_value = CompletedProcess([], 0, "src/main/java/dev/raskol/classes/combat/A.java\\n", "")
+        run.return_value = CompletedProcess(
+            [], 0, "src/main/java/dev/raskol/classes/combat/A.java\n", ""
+        )
         files = git_changed_files("0000000000000000000000000000000000000000", "abc123")
         self.assertEqual(["src/main/java/dev/raskol/classes/combat/A.java"], files)
         self.assertEqual("diff-tree", run.call_args.args[0][1])
@@ -46,7 +50,9 @@ class CombatDiffAuditTest(unittest.TestCase):
         run.side_effect = [
             CompletedProcess([], 1, "", "missing"),
             CompletedProcess([], 0, "", ""),
-            CompletedProcess([], 0, "src/main/java/dev/raskol/classes/pet/Pet.java\\n", ""),
+            CompletedProcess(
+                [], 0, "src/main/java/dev/raskol/classes/pet/Pet.java\n", ""
+            ),
         ]
         files = git_changed_files("base-sha", "head-sha")
         self.assertEqual(["src/main/java/dev/raskol/classes/pet/Pet.java"], files)
