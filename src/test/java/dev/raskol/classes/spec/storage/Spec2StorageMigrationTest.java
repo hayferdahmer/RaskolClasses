@@ -116,7 +116,6 @@ class Spec2StorageMigrationTest {
         }
     }
 
-
     @Test
     @DisplayName("при отсутствии main миграция восстанавливает существующий backup")
     void recoversCurrentBackupWhenMainIsMissing() throws IOException {
