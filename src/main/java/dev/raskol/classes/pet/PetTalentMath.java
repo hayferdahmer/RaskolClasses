@@ -16,6 +16,19 @@ final class PetTalentMath {
         return Double.isFinite(fraction) ? Math.max(0.0, Math.min(1.0, fraction)) * 100.0 : 0.0;
     }
 
+    /** Переводит суммарный бонус скорости атаки в целочисленный интервал тиков. */
+    static int attackIntervalTicks(int baseTicks, double permanentSpeedPct, double temporarySpeedPct) {
+        int base = Math.max(1, baseTicks);
+        double permanent = Double.isFinite(permanentSpeedPct)
+                ? Math.max(0.0, Math.min(200.0, permanentSpeedPct))
+                : 0.0;
+        double temporary = Double.isFinite(temporarySpeedPct)
+                ? Math.max(0.0, Math.min(200.0, temporarySpeedPct))
+                : 0.0;
+        double combined = Math.min(200.0, permanent + temporary);
+        return Math.max(1, (int) Math.round(base / (1.0 + combined / 100.0)));
+    }
+
     /** Базовый урон сущности не содержит talent-проценты: они применяются в событии попадания. */
     static double runtimeBaseDamage(double baseDamage, double power, double buffMultiplier) {
         return PetMath.damage(baseDamage, power, 0.0, buffMultiplier);
