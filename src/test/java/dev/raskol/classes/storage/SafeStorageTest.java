@@ -39,8 +39,8 @@ class SafeStorageTest {
     }
 
     @Test
-    @DisplayName("основной файл имеет приоритет, устаревший tmp удаляется")
-    void mainFileWinsAndStaleTmpIsRemoved() throws IOException {
+    @DisplayName("основной файл имеет приоритет, временная копия сохраняется")
+    void mainFileWinsAndStaleTmpIsRetained() throws IOException {
         File file = write("main.yml", "value: main\n");
         File tmp = new File(file.getParentFile(), file.getName() + ".tmp");
         Files.writeString(tmp.toPath(), "value: tmp\n");
@@ -49,7 +49,7 @@ class SafeStorageTest {
 
         assertEquals(SafeStorage.LoadStatus.LOADED_MAIN, result.status());
         assertEquals("main", result.configuration().getString("value"));
-        assertFalse(tmp.exists());
+        assertTrue(tmp.exists());
     }
 
     @Test
