@@ -15,6 +15,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: license-maintenance-${{ inputs.target_branch }}
@@ -52,6 +53,7 @@ jobs:
           python3 tools/apply-license-header.py --check
 
       - name: Create a reviewable pull request
+        id: cpr
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -72,3 +74,14 @@ jobs:
             **/*.yml
             **/*.yaml
             **/*.xml
+
+      - name: Dispatch required CI for the maintenance branch
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOT_BRANCH: bot/license-maintenance-${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run build.yml --ref "${BOT_BRANCH}"
+          gh workflow run rips-security-auditor.yml --ref "${BOT_BRANCH}"
