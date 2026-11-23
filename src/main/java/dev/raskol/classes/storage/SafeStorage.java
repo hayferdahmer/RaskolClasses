@@ -12,6 +12,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -81,6 +83,7 @@ public final class SafeStorage {
         LoadStatus[] statuses = {LoadStatus.LOADED_MAIN, LoadStatus.RECOVERED_TMP, LoadStatus.RECOVERED_BACKUP};
         Throwable lastCorruption = null;
         boolean sawIoError = false;
+        Set<File> quarantined = new HashSet<>();
 
         for (int i = 0; i < candidates.length; i++) {
             File candidate = candidates[i];
@@ -93,7 +96,7 @@ public final class SafeStorage {
                     logger.warning("SafeStorage: " + file.getName() + " восстановлен из "
                             + (i == 1 ? ".tmp" : ".bak"));
                 }
-                quarantineInvalidCopies(file, candidates, logger, candidate);
+                quarantineInvalidCopies(file, candidates, logger, candidate, quarantined);
                 if (i == 0 && tmp.exists() && !tmp.delete()) {
                     logger.warning("SafeStorage: не удалось удалить устаревший временный файл " + tmp.getName());
                 }
@@ -101,6 +104,7 @@ public final class SafeStorage {
             } catch (InvalidConfigurationException exception) {
                 lastCorruption = exception;
                 quarantine(file, candidate, exception, logger);
+                quarantined.add(candidate);
             } catch (IOException exception) {
                 sawIoError = true;
                 logger.log(Level.SEVERE, "SafeStorage: ошибка чтения " + candidate.getName(), exception);
@@ -132,15 +136,16 @@ public final class SafeStorage {
     }
 
     private static void quarantineInvalidCopies(
-            File primary, File[] candidates, Logger logger, File selected) {
+            File primary, File[] candidates, Logger logger, File selected, Set<File> quarantined) {
         for (File candidate : candidates) {
-            if (!candidate.exists() || candidate.equals(selected)) {
+            if (!candidate.exists() || candidate.equals(selected) || quarantined.contains(candidate)) {
                 continue;
             }
             try {
                 parse(candidate.toPath());
             } catch (InvalidConfigurationException exception) {
                 quarantine(primary, candidate, exception, logger);
+                quarantined.add(candidate);
             } catch (IOException exception) {
                 logger.log(Level.SEVERE, "SafeStorage: не удалось проверить копию " + candidate.getName(), exception);
                 throw new StorageLoadException(LoadStatus.IO_ERROR,
