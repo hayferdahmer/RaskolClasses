@@ -177,7 +177,7 @@ class CharacterProfileStorageTest {
     @Test
     void rejectsUnknownTopLevelFieldsInsteadOfDroppingThemOnSave() throws Exception {
         File file = new File(tempDir.toFile(), "characters.yml");
-        String original = "schema-version: 3\\nprofiles: {}\\nunrelated-section:\\n  value: 42\\n";
+        String original = "schema-version: 3\nprofiles: {}\nunrelated-section:\n  value: 42\n";
         java.nio.file.Files.writeString(file.toPath(), original);
 
         try (AsyncStorageWriter writer = new AsyncStorageWriter(LOGGER)) {
