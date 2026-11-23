@@ -6,10 +6,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -83,7 +86,13 @@ public final class SafeStorage {
 
         File tmp = sibling(file, ".tmp");
         File backup = sibling(file, ".bak");
-        boolean anyCopyExists = file.exists() || tmp.exists() || backup.exists();
+        final boolean anyCopyExists;
+        try {
+            anyCopyExists = exists(file.toPath()) || exists(tmp.toPath()) || exists(backup.toPath());
+        } catch (IOException exception) {
+            throw new StorageLoadException(
+                    LoadStatus.IO_ERROR, "SafeStorage: невозможно проверить наличие копий " + file.getName(), exception);
+        }
         if (!anyCopyExists) {
             logger.info("SafeStorage: хранилище " + file.getName() + " ещё не создано");
             return new LoadResult(LoadStatus.NEW, new YamlConfiguration().saveToString(), null);
@@ -97,10 +106,10 @@ public final class SafeStorage {
 
         for (int i = 0; i < candidates.length; i++) {
             File candidate = candidates[i];
-            if (!candidate.exists()) {
-                continue;
-            }
             try {
+                if (!exists(candidate.toPath())) {
+                    continue;
+                }
                 YamlConfiguration configuration = parse(candidate.toPath());
                 if (i > 0) {
                     logger.warning("SafeStorage: " + file.getName() + " восстановлен из " + (i == 1 ? ".tmp" : ".bak"));
@@ -112,7 +121,7 @@ public final class SafeStorage {
                 return new LoadResult(statuses[i], configuration.saveToString(), candidate);
             } catch (InvalidConfigurationException exception) {
                 lastCorruption = exception;
-                quarantine(file, candidate, exception, logger);
+                quarantine(candidate, exception, logger);
                 quarantined.add(candidate);
             } catch (IOException exception) {
                 sawIoError = true;
@@ -150,13 +159,16 @@ public final class SafeStorage {
     private static void quarantineInvalidCopies(
             File[] candidates, Logger logger, File selected, Set<File> quarantined) {
         for (File candidate : candidates) {
-            if (!candidate.exists() || candidate.equals(selected) || quarantined.contains(candidate)) {
+            if (candidate.equals(selected) || quarantined.contains(candidate)) {
                 continue;
             }
             try {
+                if (!exists(candidate.toPath())) {
+                    continue;
+                }
                 parse(candidate.toPath());
             } catch (InvalidConfigurationException exception) {
-                quarantine(candidate, candidate, exception, logger);
+                quarantine(candidate, exception, logger);
                 quarantined.add(candidate);
             } catch (IOException exception) {
                 logger.log(Level.SEVERE, "SafeStorage: не удалось проверить копию " + candidate.getName(), exception);
@@ -183,7 +195,7 @@ public final class SafeStorage {
         }
     }
 
-    private static void quarantine(File primary, File damaged, Exception reason, Logger logger) {
+    private static void quarantine(File damaged, Exception reason, Logger logger) {
         Path original = damaged.toPath();
         String token = Instant.now().toEpochMilli() + "-" + UUID.randomUUID();
         Path quarantine = sibling(damaged, ".corrupt-" + token + ".quarantine").toPath();
@@ -212,6 +224,15 @@ public final class SafeStorage {
                     exception);
             throw new StorageLoadException(LoadStatus.IO_ERROR,
                     "SafeStorage: карантин повреждённой копии не подтверждён", exception);
+        }
+    }
+
+    private static boolean exists(Path path) throws IOException {
+        try {
+            Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            return true;
+        } catch (NoSuchFileException exception) {
+            return false;
         }
     }
 
@@ -258,16 +279,19 @@ public final class SafeStorage {
             YamlConfiguration validation = new YamlConfiguration();
             validation.loadFromString(snapshot);
 
-            if (target.exists()) {
+            boolean targetExists = exists(target.toPath());
+            boolean tmpExists = exists(tmp.toPath());
+            boolean backupExists = exists(backup.toPath());
+            if (targetExists) {
                 parse(target.toPath());
-            } else if (tmp.exists() || backup.exists()) {
+            } else if (tmpExists || backupExists) {
                 throw new IOException("Основной файл отсутствует, но существуют sidecar-копии; сначала требуется recovery");
             }
 
             Files.writeString(tmp.toPath(), snapshot);
             parse(tmp.toPath());
 
-            if (target.exists()) {
+            if (targetExists) {
                 Files.copy(target.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 parse(backup.toPath());
             }
