@@ -565,9 +565,9 @@ public final class CombatService implements Listener {
                 if (prof.immunities().contains(School.PHYSICAL)) {
                     physPart = 0.0;
                 } else {
-                    double profilePhysResist =
-                            profileChannelResist(prof, true, source, School.PHYSICAL) - kitPhysPen * 100.0;
-                    physPart *= 1.0 - Math.max(0.0, profilePhysResist) / 100.0;
+                    double profilePhysResist = penResistPct(
+                            profileChannelResist(prof, true, source, School.PHYSICAL), effectivePhysPen);
+                    physPart *= 1.0 - profilePhysResist / 100.0;
                     physPart *=
                             1.0 + Math.max(-100.0, prof.vulnerabilities().getOrDefault(School.PHYSICAL, 0.0)) / 100.0;
                 }
