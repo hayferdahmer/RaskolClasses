@@ -112,6 +112,7 @@ public final class PetService implements Listener {
         long nextAttackTick;
         long frenzyUntilTick;
         long frenzyIcdUntilTick;
+        boolean cadenceDisabled;
         boolean glow;
         double baseSpeed;
         /** 1.15.7 (2.6-68): последняя известная позиция пета для различения
@@ -399,6 +400,9 @@ public final class PetService implements Listener {
         for (Map.Entry<UUID, PetState> entry : pets.entrySet()) {
             UUID ownerUuid = entry.getKey();
             PetState state = entry.getValue();
+            if (state.cadenceDisabled) {
+                continue;
+            }
             Entity entity = plugin.getServer().getEntity(state.petUuid);
             if (!(entity instanceof Mob pet) || pet.isDead()) {
                 continue;
@@ -435,9 +439,11 @@ public final class PetService implements Listener {
             try {
                 pet.attack(target);
             } catch (RuntimeException exception) {
+                state.cadenceDisabled = true;
                 LOGGER.log(
                         java.util.logging.Level.WARNING,
-                        "Не удалось выполнить управляемую атаку питомца " + state.defId,
+                        "Управляемый cadence отключён для питомца " + state.defId
+                                + "; восстановлена ванильная атака",
                         exception);
             } finally {
                 SCHEDULED_PET_ATTACK.remove();
@@ -647,9 +653,10 @@ public final class PetService implements Listener {
         }
         PetState state = pets.get(ownerId);
         long currentTick = Bukkit.getCurrentTick();
-        boolean cadenceManaged =
-                PetTalentMath.speedPercent(plugin.getSpec2Service().petAttackSpeedPercent(ownerId)) > 0.0
-                        || (state != null && currentTick < state.frenzyUntilTick);
+        boolean cadenceManaged = state != null
+                && !state.cadenceDisabled
+                && (PetTalentMath.speedPercent(plugin.getSpec2Service().petAttackSpeedPercent(ownerId)) > 0.0
+                        || currentTick < state.frenzyUntilTick);
         if (cadenceManaged && !SCHEDULED_PET_ATTACK.get()) {
             event.setCancelled(true);
             return;
