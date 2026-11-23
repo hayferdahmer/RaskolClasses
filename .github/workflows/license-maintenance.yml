@@ -1,7 +1,7 @@
 # © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 # SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 # Вспомогательное обслуживание лицензионных заголовков только через PR.
-name: License Maintenance (PR only)
+name: RASKOL Steward | License Maintenance
 
 on:
   workflow_dispatch:
@@ -22,6 +22,7 @@ concurrency:
 
 jobs:
   prepare-license-pr:
+    name: License Repair (PR only)
     runs-on: ubuntu-24.04
     steps:
       - name: Validate target branch
