@@ -74,10 +74,7 @@ public final class CombatLabDuelEngine {
     private CombatLabDuelEngine() {}
 
     public static DuelResult duel(
-            CombatLabCombatantSnapshot first,
-            CombatLabCombatantSnapshot second,
-            Rules rules,
-            long seed) {
+            CombatLabCombatantSnapshot first, CombatLabCombatantSnapshot second, Rules rules, long seed) {
         if (first == null || second == null || rules == null) {
             throw new IllegalArgumentException("Участники и правила обязательны");
         }
@@ -112,11 +109,9 @@ public final class CombatLabDuelEngine {
 
             // Реген в бою использует ту же pure-формулу AttributeMath, что и сервер.
             double firstRegen = Math.min(
-                    first.maxHealth() - firstHealth,
-                    first.healthRegenPerSecond() * rules.attackIntervalSeconds());
+                    first.maxHealth() - firstHealth, first.healthRegenPerSecond() * rules.attackIntervalSeconds());
             double secondRegen = Math.min(
-                    second.maxHealth() - secondHealth,
-                    second.healthRegenPerSecond() * rules.attackIntervalSeconds());
+                    second.maxHealth() - secondHealth, second.healthRegenPerSecond() * rules.attackIntervalSeconds());
             firstHealth += firstRegen;
             secondHealth += secondRegen;
             firstHealing += firstRegen;
@@ -162,10 +157,7 @@ public final class CombatLabDuelEngine {
     }
 
     private static HitResult resolvePhysicalHit(
-            CombatLabCombatantSnapshot attacker,
-            CombatLabCombatantSnapshot defender,
-            Rules rules,
-            Random random) {
+            CombatLabCombatantSnapshot attacker, CombatLabCombatantSnapshot defender, Rules rules, Random random) {
         double avoidChance = Math.max(0.0, defender.dodgeChancePct() + defender.parryChancePct());
         if (random.nextDouble() * 100.0 < avoidChance) {
             return new HitResult(0.0, false, true);
@@ -178,9 +170,7 @@ public final class CombatLabDuelEngine {
         double mitigation = CombatMath.mitigation(defender.physicalResistPct(), rules.resistCapPct());
         damage *= 1.0 - mitigation;
         return new HitResult(
-                CombatMath.cappedDamage(damage, defender.maxHealth(), rules.singleHitCapPct()),
-                critical,
-                false);
+                CombatMath.cappedDamage(damage, defender.maxHealth(), rules.singleHitCapPct()), critical, false);
     }
 
     private static boolean finiteNonNegative(double value) {

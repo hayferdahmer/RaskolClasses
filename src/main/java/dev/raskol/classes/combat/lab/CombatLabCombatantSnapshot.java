@@ -32,8 +32,7 @@ public record CombatLabCombatantSnapshot(
         double parryChancePct,
         double healthRegenPerSecond) {
 
-    public static CombatLabCombatantSnapshot from(
-            YamlConfiguration config, PlayerClass playerClass, int level) {
+    public static CombatLabCombatantSnapshot from(YamlConfiguration config, PlayerClass playerClass, int level) {
         if (config == null || playerClass == null) {
             throw new IllegalArgumentException("config и playerClass обязательны");
         }
@@ -42,12 +41,10 @@ public record CombatLabCombatantSnapshot(
         }
 
         String classPath = "attributes.classes." + playerClass.name() + ".";
-        double strength = stat(config, classPath, "base-str", 0.0)
-                + stat(config, classPath, "growth-str", 0.0) * level;
-        double agility = stat(config, classPath, "base-agi", 0.0)
-                + stat(config, classPath, "growth-agi", 0.0) * level;
-        double intellect = stat(config, classPath, "base-int", 0.0)
-                + stat(config, classPath, "growth-int", 0.0) * level;
+        double strength = stat(config, classPath, "base-str", 0.0) + stat(config, classPath, "growth-str", 0.0) * level;
+        double agility = stat(config, classPath, "base-agi", 0.0) + stat(config, classPath, "growth-agi", 0.0) * level;
+        double intellect =
+                stat(config, classPath, "base-int", 0.0) + stat(config, classPath, "growth-int", 0.0) * level;
         boolean strengthMain = "STR".equalsIgnoreCase(config.getString(classPath + "main", ""));
 
         double maxHealth = AttributeMath.maxHp(
@@ -85,8 +82,7 @@ public record CombatLabCombatantSnapshot(
         boolean agilityMain = "AGI".equalsIgnoreCase(config.getString(classPath + "main", ""));
         if (agilityMain) {
             double micro = config.getDouble("avoidance.agi-main-parry-micro", 0.5);
-            dodge += Math.max(0.0, parryFull - micro)
-                    * config.getDouble("avoidance.agi-main-dodge-refund", 0.5);
+            dodge += Math.max(0.0, parryFull - micro) * config.getDouble("avoidance.agi-main-dodge-refund", 0.5);
         }
         dodge *= config.getDouble("avoidance.dodge-mult", 0.5);
         double parry = agilityMain ? config.getDouble("avoidance.agi-main-parry-micro", 0.5) : parryFull;

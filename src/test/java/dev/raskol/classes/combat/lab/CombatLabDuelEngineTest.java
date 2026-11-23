@@ -31,8 +31,7 @@ class CombatLabDuelEngineTest {
     void snapshotsCoverAllClassesAndMilestones() {
         for (PlayerClass playerClass : PlayerClass.values()) {
             for (int level : new int[] {1, 15, 30, 45, 60}) {
-                CombatLabCombatantSnapshot snapshot =
-                        CombatLabCombatantSnapshot.from(config, playerClass, level);
+                CombatLabCombatantSnapshot snapshot = CombatLabCombatantSnapshot.from(config, playerClass, level);
                 assertTrue(Double.isFinite(snapshot.maxHealth()));
                 assertTrue(snapshot.maxHealth() > 0.0);
                 assertTrue(Double.isFinite(snapshot.weaponPower()));
@@ -47,8 +46,7 @@ class CombatLabDuelEngineTest {
     @Test
     @DisplayName("HP снимка совпадает с production AttributeMath")
     void healthUsesProductionFormula() {
-        CombatLabCombatantSnapshot warrior =
-                CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 30);
+        CombatLabCombatantSnapshot warrior = CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 30);
         double expected = AttributeMath.maxHp(
                 warrior.strength(),
                 30,
@@ -63,27 +61,21 @@ class CombatLabDuelEngineTest {
     @Test
     @DisplayName("одинаковые входные данные и seed дают одинаковую дуэль")
     void duelIsDeterministic() {
-        CombatLabCombatantSnapshot warrior =
-                CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 30);
-        CombatLabCombatantSnapshot mage =
-                CombatLabCombatantSnapshot.from(config, PlayerClass.MAGE, 30);
+        CombatLabCombatantSnapshot warrior = CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 30);
+        CombatLabCombatantSnapshot mage = CombatLabCombatantSnapshot.from(config, PlayerClass.MAGE, 30);
         CombatLabDuelEngine.Rules rules = CombatLabDuelEngine.Rules.from(config);
-        CombatLabDuelEngine.DuelResult first =
-                CombatLabDuelEngine.duel(warrior, mage, rules, 42L);
-        CombatLabDuelEngine.DuelResult second =
-                CombatLabDuelEngine.duel(warrior, mage, rules, 42L);
+        CombatLabDuelEngine.DuelResult first = CombatLabDuelEngine.duel(warrior, mage, rules, 42L);
+        CombatLabDuelEngine.DuelResult second = CombatLabDuelEngine.duel(warrior, mage, rules, 42L);
         assertEquals(first, second);
     }
 
     @Test
     @DisplayName("бой возвращает конечные значения и не превышает лимит времени")
     void duelReturnsBoundedResult() {
-        CombatLabCombatantSnapshot warrior =
-                CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 60);
-        CombatLabCombatantSnapshot priest =
-                CombatLabCombatantSnapshot.from(config, PlayerClass.PRIEST, 60);
-        CombatLabDuelEngine.DuelResult result = CombatLabDuelEngine.duel(
-                warrior, priest, CombatLabDuelEngine.Rules.from(config), 20261123L);
+        CombatLabCombatantSnapshot warrior = CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 60);
+        CombatLabCombatantSnapshot priest = CombatLabCombatantSnapshot.from(config, PlayerClass.PRIEST, 60);
+        CombatLabDuelEngine.DuelResult result =
+                CombatLabDuelEngine.duel(warrior, priest, CombatLabDuelEngine.Rules.from(config), 20261123L);
         assertTrue(Double.isFinite(result.durationSeconds()));
         assertTrue(result.durationSeconds() > 0.0);
         assertTrue(result.durationSeconds() <= 60.0);

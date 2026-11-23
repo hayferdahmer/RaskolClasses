@@ -32,7 +32,8 @@ public final class CombatLabRunner {
 
     public static void main(String[] args) throws IOException {
         Arguments options = Arguments.parse(args);
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(options.config().toFile());
+        YamlConfiguration config =
+                YamlConfiguration.loadConfiguration(options.config().toFile());
         String report = run(config, options.seed(), options.iterations(), options.sourceCommit());
         Path outputParent = options.output().toAbsolutePath().getParent();
         if (outputParent != null) {
@@ -62,13 +63,10 @@ public final class CombatLabRunner {
                     if (firstClass == secondClass) {
                         continue;
                     }
-                    CombatLabCombatantSnapshot first =
-                            CombatLabCombatantSnapshot.from(config, firstClass, level);
-                    CombatLabCombatantSnapshot second =
-                            CombatLabCombatantSnapshot.from(config, secondClass, level);
+                    CombatLabCombatantSnapshot first = CombatLabCombatantSnapshot.from(config, firstClass, level);
+                    CombatLabCombatantSnapshot second = CombatLabCombatantSnapshot.from(config, secondClass, level);
                     long scenarioSeed = mixSeed(seed, level, firstClass.ordinal(), secondClass.ordinal());
-                    scenarios.add(scenarioJson(
-                            first, second, rules, scenarioSeed, iterations));
+                    scenarios.add(scenarioJson(first, second, rules, scenarioSeed, iterations));
                 }
             }
         }
@@ -113,19 +111,26 @@ public final class CombatLabRunner {
             ttk[i] = result.durationSeconds();
             dps[i] = result.firstDamageDealt() / Math.max(0.001, result.durationSeconds());
             hps[i] = result.firstHealing() / Math.max(0.001, result.durationSeconds());
-            if (!Double.isFinite(ttk[i]) || !Double.isFinite(dps[i]) || !Double.isFinite(hps[i])
-                    || ttk[i] <= 0.0 || dps[i] < 0.0 || hps[i] < 0.0) {
+            if (!Double.isFinite(ttk[i])
+                    || !Double.isFinite(dps[i])
+                    || !Double.isFinite(hps[i])
+                    || ttk[i] <= 0.0
+                    || dps[i] < 0.0
+                    || hps[i] < 0.0) {
                 violations.add("non_finite_or_negative_result");
                 break;
             }
         }
         if (!violations.isEmpty()) {
-            return scenarioObject(first, second, iterations, violations,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            return scenarioObject(
+                    first, second, iterations, violations, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         Random bootstrapRandom = new Random(mixSeed(
-                seed, first.level(), first.playerClass().ordinal(), second.playerClass().ordinal()));
+                seed,
+                first.level(),
+                first.playerClass().ordinal(),
+                second.playerClass().ordinal()));
         double[] ttkCi = bootstrapInterval(ttk, false, bootstrapRandom);
         double[] dpsCi = bootstrapInterval(dps, true, bootstrapRandom);
         double[] hpsCi = bootstrapInterval(hps, true, bootstrapRandom);
@@ -136,13 +141,28 @@ public final class CombatLabRunner {
         double[] critCi = wilsonInterval(totalCrits, totalHits);
         double[] avoidanceCi = wilsonInterval(totalAvoids, totalHits);
         return scenarioObject(
-                first, second, iterations, violations,
-                winRate, winCi[0], winCi[1],
-                median(ttk), ttkCi[0], ttkCi[1],
-                mean(dps), dpsCi[0], dpsCi[1],
-                mean(hps), hpsCi[0], hpsCi[1],
-                critRate, critCi[0], critCi[1],
-                avoidanceRate, avoidanceCi[0], avoidanceCi[1]);
+                first,
+                second,
+                iterations,
+                violations,
+                winRate,
+                winCi[0],
+                winCi[1],
+                median(ttk),
+                ttkCi[0],
+                ttkCi[1],
+                mean(dps),
+                dpsCi[0],
+                dpsCi[1],
+                mean(hps),
+                hpsCi[0],
+                hpsCi[1],
+                critRate,
+                critCi[0],
+                critCi[1],
+                avoidanceRate,
+                avoidanceCi[0],
+                avoidanceCi[1]);
     }
 
     private static String scenarioObject(
@@ -150,12 +170,24 @@ public final class CombatLabRunner {
             CombatLabCombatantSnapshot second,
             int samples,
             List<String> violations,
-            double winRate, double winLow, double winHigh,
-            double ttk, double ttkLow, double ttkHigh,
-            double dps, double dpsLow, double dpsHigh,
-            double hps, double hpsLow, double hpsHigh,
-            double critRate, double critLow, double critHigh,
-            double avoidanceRate, double avoidanceLow, double avoidanceHigh) {
+            double winRate,
+            double winLow,
+            double winHigh,
+            double ttk,
+            double ttkLow,
+            double ttkHigh,
+            double dps,
+            double dpsLow,
+            double dpsHigh,
+            double hps,
+            double hpsLow,
+            double hpsHigh,
+            double critRate,
+            double critLow,
+            double critHigh,
+            double avoidanceRate,
+            double avoidanceLow,
+            double avoidanceHigh) {
         String id = "pvp_unarmed_" + first.playerClass().name().toLowerCase(Locale.ROOT)
                 + "_vs_" + second.playerClass().name().toLowerCase(Locale.ROOT)
                 + "_level_" + first.level();
@@ -187,8 +219,7 @@ public final class CombatLabRunner {
         double p = successes / (double) samples;
         double denominator = 1.0 + z * z / samples;
         double center = (p + z * z / (2.0 * samples)) / denominator;
-        double margin = z * Math.sqrt(p * (1.0 - p) / samples
-                + z * z / (4.0 * samples * samples)) / denominator;
+        double margin = z * Math.sqrt(p * (1.0 - p) / samples + z * z / (4.0 * samples * samples)) / denominator;
         return new double[] {Math.max(0.0, center - margin), Math.min(1.0, center + margin)};
     }
 
@@ -218,9 +249,7 @@ public final class CombatLabRunner {
         double[] sorted = values.clone();
         Arrays.sort(sorted);
         int middle = sorted.length / 2;
-        return sorted.length % 2 == 0
-                ? (sorted[middle - 1] + sorted[middle]) / 2.0
-                : sorted[middle];
+        return sorted.length % 2 == 0 ? (sorted[middle - 1] + sorted[middle]) / 2.0 : sorted[middle];
     }
 
     private static String stringArray(List<String> values) {
