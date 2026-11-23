@@ -153,7 +153,7 @@ public final class CombatLabEquipmentRunner {
             return scenarioObject(
                     id, firstSpec.id(), secondSpec.id(), iterations, violations,
                     firstEquipment, secondEquipment,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         Random bootstrap = new Random(mixSeed(seed, first.level(), firstSpec.ordinal(), secondSpec.ordinal()));
