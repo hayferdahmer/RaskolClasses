@@ -581,7 +581,8 @@ public final class PetService implements Listener {
         boolean critical = rollPercent(talentPct(ownerId, "pet_crit_pct"));
         boolean empoweredCritical = critical && rollPercent(talentChancePct(ownerId, "pet_crit_bonus"));
         if (Double.isFinite(event.getDamage()) && event.getDamage() > 0.0) {
-            event.setDamage(PetTalentMath.outgoingDamage(event.getDamage(), physicalBonus, critical, empoweredCritical));
+            event.setDamage(
+                    PetTalentMath.outgoingDamage(event.getDamage(), physicalBonus, critical, empoweredCritical));
         }
     }
 
