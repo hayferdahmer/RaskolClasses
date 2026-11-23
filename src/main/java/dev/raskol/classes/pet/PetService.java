@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 
 import org.bukkit.Chunk;
@@ -24,6 +25,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityRegainHealthEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityTargetEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -80,6 +83,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
  */
 public final class PetService implements Listener {
 
+    private static final ThreadLocal<Boolean> SUPPRESS_PET_TALENTS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
 
     public enum SummonResult {
@@ -566,9 +570,145 @@ public final class PetService implements Listener {
         }
     }
 
+    /** Боевые таланты питомца: защита, крит и физическое усиление. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPetDamage(EntityDamageByEntityEvent event) {
+        if (SUPPRESS_PET_TALENTS.get() || !(event.getDamager() instanceof LivingEntity pet)) {
+            return;
+        }
+        UUID ownerId = petOwnerId(pet);
+        if (ownerId == null) {
+            return;
+        }
+        Player owner = plugin.getServer().getPlayer(ownerId);
+        if (owner == null || !(event.getEntity() instanceof LivingEntity target)
+                || !plugin.getCombat().canHit(owner, target)) {
+            event.setCancelled(true);
+            return;
+        }
+
+        double physicalBonus = talentPct(ownerId, "pet_phys_dmg_pct");
+        if (physicalBonus > 0.0) {
+            event.setDamage(event.getDamage() * (1.0 + physicalBonus / 100.0));
+        }
+
+        double critChance = talentPct(ownerId, "pet_crit_pct");
+        boolean critical = rollPercent(critChance);
+        if (critical) {
+            double critMultiplier = 1.5;
+            if (rollPercent(talentPct(ownerId, "proc_pet_crit_bonus"))) {
+                critMultiplier += 0.5;
+            }
+            event.setDamage(event.getDamage() * critMultiplier);
+            triggerPetFrenzy(ownerId, pet);
+        }
+    }
+
+    /** Уклонение питомца проверяется на входящем уроне любого типа. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPetIncomingDamage(EntityDamageEvent event) {
+        if (!(event.getEntity() instanceof LivingEntity pet)) {
+            return;
+        }
+        UUID ownerId = petOwnerId(pet);
+        if (ownerId == null || plugin.getServer().getPlayer(ownerId) == null) {
+            return;
+        }
+        if (rollPercent(talentPct(ownerId, "pet_dodge_pct"))) {
+            event.setCancelled(true);
+        }
+    }
+
+    /** Дикая связь: питомец повторяет часть уже рассчитанного урона хозяина. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onOwnerDamageCopy(EntityDamageByEntityEvent event) {
+        if (SUPPRESS_PET_TALENTS.get() || !(event.getDamager() instanceof Player owner)
+                || !(event.getEntity() instanceof LivingEntity target)) {
+            return;
+        }
+        LivingEntity pet = petOf(owner);
+        if (pet == null || !plugin.getCombat().canHit(owner, target)
+                || !rollPercent(talentPct(owner.getUniqueId(), "proc_pet_copy"))) {
+            return;
+        }
+        double copiedDamage = event.getFinalDamage() * 0.10;
+        if (!Double.isFinite(copiedDamage) || copiedDamage <= 0.0) {
+            return;
+        }
+        SUPPRESS_PET_TALENTS.set(Boolean.TRUE);
+        try {
+            target.damage(copiedDamage, pet);
+        } finally {
+            SUPPRESS_PET_TALENTS.remove();
+        }
+    }
+
+    /** Духовная связь: лечение хозяина с шансом лечит его питомца на половину объёма. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onOwnerRegainHealth(EntityRegainHealthEvent event) {
+        if (!(event.getEntity() instanceof Player owner)) {
+            return;
+        }
+        LivingEntity pet = petOf(owner);
+        if (pet == null || !rollPercent(talentPct(owner.getUniqueId(), "proc_pet_heal"))) {
+            return;
+        }
+        AttributeInstance maxHealth = pet.getAttribute(MAX_HEALTH);
+        if (maxHealth == null || !Double.isFinite(event.getAmount()) || event.getAmount() <= 0.0) {
+            return;
+        }
+        double heal = event.getAmount() * 0.50;
+        pet.setHealth(Math.min(maxHealth.getValue(), pet.getHealth() + heal));
+    }
+
+    private UUID petOwnerId(LivingEntity pet) {
+        String raw = pet.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private double talentPct(UUID ownerId, String effectId) {
+        double value = plugin.getSpec2Service().procBonus(ownerId, effectId);
+        return Double.isFinite(value) ? Math.max(0.0, Math.min(100.0, value)) : 0.0;
+    }
+
+    private static boolean rollPercent(double chance) {
+        return chance > 0.0 && ThreadLocalRandom.current().nextDouble(100.0) < chance;
+    }
+
+    private void triggerPetFrenzy(UUID ownerId, LivingEntity pet) {
+        double chance = talentPct(ownerId, "proc_pet_frenzy");
+        if (!rollPercent(chance)) {
+            return;
+        }
+        AttributeInstance speed = pet.getAttribute(MOVEMENT_SPEED);
+        if (speed == null) {
+            return;
+        }
+        double original = speed.getBaseValue();
+        speed.setBaseValue(Math.min(1.0, original * 1.30));
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (pet.isValid() && !pet.isDead()) {
+                AttributeInstance current = pet.getAttribute(MOVEMENT_SPEED);
+                if (current != null && Double.compare(current.getBaseValue(), Math.min(1.0, original * 1.30)) == 0) {
+                    current.setBaseValue(original);
+                }
+            }
+        }, 160L);
+    }
+
     /** A4: пет не бьёт союзников/владельца; ретаргет пета на цель владельца. */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
+        if (SUPPRESS_PET_TALENTS.get()) {
+            return;
+        }
         Entity damager = event.getDamager();
         // 1.14.12 (Волна 12C, 5-06): PDC только у LivingEntity
         if (!(damager instanceof LivingEntity damagerLiving)) {
