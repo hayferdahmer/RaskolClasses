@@ -23,6 +23,8 @@ on:
       - 'src/test/resources/**'
       - 'pom.xml'
       - 'tools/combat-ci/**'
+      - 'tools/combat-lab/**'
+      - 'docs/testing/COMBAT_LAB_STATISTICAL_GATE.md'
       - '.github/workflows/combat-ci.yml'
   workflow_dispatch:
 
