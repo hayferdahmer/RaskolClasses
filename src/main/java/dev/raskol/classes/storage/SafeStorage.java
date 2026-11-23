@@ -43,12 +43,22 @@ public final class SafeStorage {
         IO_ERROR
     }
 
-    public record LoadResult(LoadStatus status, YamlConfiguration configuration, File source) {
+    public record LoadResult(LoadStatus status, String yamlSnapshot, File source) {
         public LoadResult {
             Objects.requireNonNull(status, "status");
-            Objects.requireNonNull(configuration, "configuration");
+            Objects.requireNonNull(yamlSnapshot, "yamlSnapshot");
             if (status == LoadStatus.NEW && source != null) {
                 throw new IllegalArgumentException("NEW не должен иметь source");
+            }
+        }
+
+        public YamlConfiguration configuration() {
+            try {
+                YamlConfiguration copy = new YamlConfiguration();
+                copy.loadFromString(yamlSnapshot);
+                return copy;
+            } catch (InvalidConfigurationException exception) {
+                throw new IllegalStateException("SafeStorage: внутренний снимок загрузки повреждён", exception);
             }
         }
     }
@@ -76,7 +86,7 @@ public final class SafeStorage {
         boolean anyCopyExists = file.exists() || tmp.exists() || backup.exists();
         if (!anyCopyExists) {
             logger.info("SafeStorage: хранилище " + file.getName() + " ещё не создано");
-            return new LoadResult(LoadStatus.NEW, new YamlConfiguration(), null);
+            return new LoadResult(LoadStatus.NEW, new YamlConfiguration().saveToString(), null);
         }
 
         File[] candidates = {file, tmp, backup};
@@ -100,7 +110,7 @@ public final class SafeStorage {
                 if (i > 0) {
                     restorePrimary(file, candidate, tmp);
                 }
-                return new LoadResult(statuses[i], configuration, candidate);
+                return new LoadResult(statuses[i], configuration.saveToString(), candidate);
             } catch (InvalidConfigurationException exception) {
                 lastCorruption = exception;
                 quarantine(file, candidate, exception, logger);
