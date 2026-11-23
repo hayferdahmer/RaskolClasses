@@ -8,11 +8,12 @@ import unittest
 from compare_reports import GateError, compare_reports, validate_baseline, validate_report
 
 
-def metric(value, low=None, high=None):
+def metric(value, low=None, high=None, method="bootstrap_percentile"):
     return {
         "value": value,
         "ci95_low": value if low is None else low,
         "ci95_high": value if high is None else high,
+        "ci95_method": method,
     }
 
 
@@ -58,8 +59,8 @@ def report():
                 "sample_count": 100,
                 "invariant_violations": [],
                 "metrics": {
-                    "win_rate": metric(0.54, 0.52, 0.56),
-                    "proc_rate": metric(0.21, 0.18, 0.22),
+                    "win_rate": metric(0.54, 0.52, 0.56, "wilson"),
+                    "proc_rate": metric(0.21, 0.18, 0.22, "wilson"),
                     "pet_damage_share": metric(0.0, 0.0, 0.0),
                     "resource_waste_pct": metric(0.11, 0.08, 0.14),
                     "ttk_median_seconds": metric(25.0, 24.5, 25.5),
@@ -77,7 +78,7 @@ class CombatLabGateTest(unittest.TestCase):
 
     def test_win_rate_drift_over_five_percentage_points_fails(self):
         candidate = report()
-        candidate["scenarios"][0]["metrics"]["win_rate"] = metric(0.60, 0.58, 0.62)
+        candidate["scenarios"][0]["metrics"]["win_rate"] = metric(0.60, 0.58, 0.62, "wilson")
         failures = compare_reports(baseline(), candidate)
         self.assertTrue(any("win_rate" in failure for failure in failures))
 
@@ -107,8 +108,14 @@ class CombatLabGateTest(unittest.TestCase):
 
     def test_ci_must_contain_rate_estimate(self):
         candidate = report()
-        candidate["scenarios"][0]["metrics"]["proc_rate"] = metric(0.2, 0.3, 0.4)
+        candidate["scenarios"][0]["metrics"]["proc_rate"] = metric(0.2, 0.3, 0.4, "wilson")
         with self.assertRaisesRegex(GateError, "CI95 не содержит"):
+            compare_reports(baseline(), candidate)
+
+    def test_wrong_confidence_method_fails(self):
+        candidate = report()
+        candidate["scenarios"][0]["metrics"]["win_rate"]["ci95_method"] = "bootstrap_percentile"
+        with self.assertRaisesRegex(GateError, "CI95 method"):
             compare_reports(baseline(), candidate)
 
     def test_pending_baseline_cannot_be_used_for_comparison(self):
