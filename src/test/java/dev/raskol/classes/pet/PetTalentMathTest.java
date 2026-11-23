@@ -33,6 +33,15 @@ class PetTalentMathTest {
     }
 
     @Test
+    @DisplayName("pet attack speed percentages are finite and capped")
+    void speedPercentIsSanitized() {
+        assertEquals(0.0, PetTalentMath.speedPercent(Double.NaN), 0.0001);
+        assertEquals(0.0, PetTalentMath.speedPercent(-10.0), 0.0001);
+        assertEquals(15.0, PetTalentMath.speedPercent(15.0), 0.0001);
+        assertEquals(200.0, PetTalentMath.speedPercent(500.0), 0.0001);
+    }
+
+    @Test
     @DisplayName("permanent and temporary pet attack speed reduce the interval in ticks")
     void attackSpeedModifiersReduceAttackInterval() {
         assertEquals(20, PetTalentMath.attackIntervalTicks(20, 0.0, 0.0));
