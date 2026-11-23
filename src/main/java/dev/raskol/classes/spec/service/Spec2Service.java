@@ -998,6 +998,11 @@ public final class Spec2Service {
         return agg(uuid).critMelee;
     }
 
+    /** Бонус шанса критического удара для дальнобойных атак, в процентных пунктах. */
+    public double critRangedBonus(UUID uuid) {
+        return procBonus(uuid, "crit_ranged_pct");
+    }
+
     public double wpPercent(UUID uuid) {
         return agg(uuid).wpPct;
     }
