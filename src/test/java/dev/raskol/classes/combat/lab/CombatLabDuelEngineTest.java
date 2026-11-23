@@ -3,7 +3,6 @@
 package dev.raskol.classes.combat.lab;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,6 +93,10 @@ class CombatLabDuelEngineTest {
         assertTrue(result.secondHealing() >= 0.0);
         assertTrue(result.firstHits() > 0);
         assertTrue(result.secondHits() > 0);
+        assertTrue(result.firstCrits() <= result.firstHits());
+        assertTrue(result.secondCrits() <= result.secondHits());
+        assertTrue(result.firstAvoids() <= result.firstHits());
+        assertTrue(result.secondAvoids() <= result.secondHits());
     }
 
     @Test
@@ -102,6 +105,30 @@ class CombatLabDuelEngineTest {
         boolean thrown = false;
         try {
             CombatLabCombatantSnapshot.from(config, PlayerClass.WARRIOR, 0);
+        } catch (IllegalArgumentException expected) {
+            thrown = true;
+        }
+        assertTrue(thrown);
+    }
+
+    @Test
+    @DisplayName("runner отклоняет выборку ниже статистического минимума")
+    void runnerRejectsInsufficientSampleSize() {
+        boolean thrown = false;
+        try {
+            CombatLabRunner.run(config, 1L, 1199, "a".repeat(40));
+        } catch (IllegalArgumentException expected) {
+            thrown = true;
+        }
+        assertTrue(thrown);
+    }
+
+    @Test
+    @DisplayName("runner требует полный commit SHA")
+    void runnerRequiresFullCommitSha() {
+        boolean thrown = false;
+        try {
+            CombatLabRunner.run(config, 1L, 1200, "short");
         } catch (IllegalArgumentException expected) {
             thrown = true;
         }
