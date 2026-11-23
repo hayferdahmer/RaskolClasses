@@ -23,8 +23,7 @@ public final class PaperPetTaskScheduler implements PetTaskScheduler {
         BukkitTask lifecycleTask = petService.startTickTask();
         try {
             BukkitTask attackTask = petService.startAttackTask();
-            return new CompositeTaskHandle(
-                    new BukkitTaskHandle(lifecycleTask), new BukkitTaskHandle(attackTask));
+            return new CompositeTaskHandle(new BukkitTaskHandle(lifecycleTask), new BukkitTaskHandle(attackTask));
         } catch (RuntimeException startupFailure) {
             try {
                 lifecycleTask.cancel();
