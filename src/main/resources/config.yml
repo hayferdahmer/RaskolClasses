@@ -450,6 +450,9 @@ attributes:
     melee-per-agi: 0.05
     melee-cap: 40
     melee-mult: 1.5
+    ranged-base: 5
+    ranged-per-agi: 0.05
+    ranged-cap: 40
     spell-base: 5
     spell-per-int: 0.03
     spell-cap: 35

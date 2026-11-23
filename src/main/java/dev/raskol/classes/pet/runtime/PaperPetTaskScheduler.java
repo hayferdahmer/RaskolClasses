@@ -20,7 +20,18 @@ public final class PaperPetTaskScheduler implements PetTaskScheduler {
 
     @Override
     public TaskHandle scheduleTickTask() {
-        return new BukkitTaskHandle(petService.startTickTask());
+        BukkitTask lifecycleTask = petService.startTickTask();
+        try {
+            BukkitTask attackTask = petService.startAttackTask();
+            return new CompositeTaskHandle(new BukkitTaskHandle(lifecycleTask), new BukkitTaskHandle(attackTask));
+        } catch (RuntimeException startupFailure) {
+            try {
+                lifecycleTask.cancel();
+            } catch (RuntimeException cleanupFailure) {
+                startupFailure.addSuppressed(cleanupFailure);
+            }
+            throw startupFailure;
+        }
     }
 
     @Override

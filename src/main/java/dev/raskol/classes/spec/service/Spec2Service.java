@@ -165,6 +165,8 @@ public final class Spec2Service {
         public final Map<String, Double> kitExtraHits = new HashMap<>();
         public final Map<String, Double> kitExtraArrows = new HashMap<>();
         public final Map<String, Double> kitAttrAgi = new HashMap<>();
+        public final Map<String, Double> kitPenPhys = new HashMap<>();
+        public final Map<String, Double> kitResistMagic = new HashMap<>();
 
         public final Map<String, Double> dotDur = new HashMap<>();
         public final Map<String, Double> dotStacks = new HashMap<>();
@@ -817,6 +819,8 @@ public final class Spec2Service {
             case "kit_extra_hits" -> agg.kitExtraHits.merge(e.target(), e.value(), Double::sum);
             case "kit_extra_arrows" -> agg.kitExtraArrows.merge(e.target(), e.value(), Double::sum);
             case "kit_attr_agi" -> agg.kitAttrAgi.merge(e.target(), e.value(), Double::sum);
+            case "kit_pen_phys" -> agg.kitPenPhys.merge(e.target(), e.value(), Double::sum);
+            case "kit_resist_magic" -> agg.kitResistMagic.merge(e.target(), e.value(), Double::sum);
             case "regen" -> agg.regen += e.value();
             case "avoid" -> {
                 if ("dodge".equals(e.target())) agg.dodge += e.value();
@@ -922,6 +926,14 @@ public final class Spec2Service {
         return agg(uuid).kitAttrAgi.getOrDefault(abilityId, 0.0);
     }
 
+    public double kitPenPhysBonus(UUID uuid, String abilityId) {
+        return agg(uuid).kitPenPhys.getOrDefault(abilityId, 0.0);
+    }
+
+    public double kitResistMagicBonus(UUID uuid, String abilityId) {
+        return agg(uuid).kitResistMagic.getOrDefault(abilityId, 0.0);
+    }
+
     public double[] avoidBonus(UUID uuid) {
         Agg a = agg(uuid);
         return new double[] {a.dodge, a.parry};
@@ -986,6 +998,11 @@ public final class Spec2Service {
         return agg(uuid).critMelee;
     }
 
+    /** Бонус шанса критического удара для дальнобойных атак, в процентных пунктах. */
+    public double critRangedBonus(UUID uuid) {
+        return procBonus(uuid, "crit_ranged_pct");
+    }
+
     public double wpPercent(UUID uuid) {
         return agg(uuid).wpPct;
     }
@@ -1034,6 +1051,18 @@ public final class Spec2Service {
 
     public double petDmgPercent(UUID uuid) {
         return procBonus(uuid, "pet_dmg_pct");
+    }
+
+    public double petAttackSpeedPercent(UUID uuid) {
+        return procBonus(uuid, "pet_attack_speed_pct");
+    }
+
+    public double trapDamagePercent(UUID uuid) {
+        return procBonus(uuid, "trap_dmg_pct");
+    }
+
+    public double trapCooldownReductionPercent(UUID uuid) {
+        return procBonus(uuid, "cd_trap_pct");
     }
 
     public Set<String> unlockedAbilities(UUID uuid) {

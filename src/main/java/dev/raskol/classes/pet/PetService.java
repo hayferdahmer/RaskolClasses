@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.logging.Logger;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
@@ -84,6 +85,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public final class PetService implements Listener {
 
     private static final ThreadLocal<Boolean> SUPPRESS_PET_TALENTS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private static final ThreadLocal<Boolean> SCHEDULED_PET_ATTACK = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final Logger LOGGER = Logger.getLogger("RaskolClasses");
 
     public enum SummonResult {
@@ -107,6 +109,10 @@ public final class PetService implements Listener {
         String defId;
         long expiresAt;
         long buffUntil;
+        long nextAttackTick;
+        long frenzyUntilTick;
+        long frenzyIcdUntilTick;
+        boolean cadenceDisabled;
         boolean glow;
         double baseSpeed;
         /** 1.15.7 (2.6-68): последняя известная позиция пета для различения
@@ -152,6 +158,11 @@ public final class PetService implements Listener {
     /** 1.14.13 (Волна 13B): тик-задача жизненного цикла петов; ручка в activeTasks владельца. */
     public BukkitTask startTickTask() {
         return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+    }
+
+    /** Планирует частый cadence tick; lifecycle tick остаётся раз в секунду. */
+    public BukkitTask startAttackTask() {
+        return plugin.getServer().getScheduler().runTaskTimer(plugin, this::tickPetAttacks, 1L, 1L);
     }
 
     /**
@@ -248,7 +259,7 @@ public final class PetService implements Listener {
 
         double hp = PetMath.hp(
                 def.baseHp(), attrValue(owner, def), plugin.getSpec2Service().petHpPercent(ouuid));
-        double dmg = PetMath.damage(def.baseDmg(), powerValue(owner, def), 0.0, 1.0);
+        double dmg = PetTalentMath.runtimeBaseDamage(def.baseDmg(), powerValue(owner, def), 1.0);
 
         Location spawn = owner.getLocation().add(1.0, 0.0, 1.0);
         Entity spawned = owner.getWorld().spawnEntity(spawn, def.entityType());
@@ -309,7 +320,7 @@ public final class PetService implements Listener {
         // dmgMult/speedMult удалены из PetState.
         st.glow = glow;
         st.buffUntil = System.currentTimeMillis() + Math.max(1, seconds) * 1000L;
-        double dmg = PetMath.damage(def.baseDmg(), powerValue(owner, def), 0.0, dmgMult);
+        double dmg = PetTalentMath.runtimeBaseDamage(def.baseDmg(), powerValue(owner, def), dmgMult);
         setAttackDamage(pet, dmg);
         setSpeed(pet, st.baseSpeed * speedMult);
         pet.setGlowing(glow);
@@ -384,6 +395,71 @@ public final class PetService implements Listener {
         }
     }
 
+    private void tickPetAttacks() {
+        long currentTick = Bukkit.getCurrentTick();
+        for (Map.Entry<UUID, PetState> entry : pets.entrySet()) {
+            UUID ownerUuid = entry.getKey();
+            PetState state = entry.getValue();
+            if (state.cadenceDisabled) {
+                continue;
+            }
+            Entity entity = plugin.getServer().getEntity(state.petUuid);
+            if (!(entity instanceof Mob pet) || pet.isDead()) {
+                continue;
+            }
+            Player owner = plugin.getServer().getPlayer(ownerUuid);
+            if (owner == null || !owner.isOnline()) {
+                continue;
+            }
+            double disciplinePct =
+                    PetTalentMath.speedPercent(plugin.getSpec2Service().petAttackSpeedPercent(ownerUuid));
+            boolean frenzyActive = currentTick < state.frenzyUntilTick;
+            if (disciplinePct <= 0.0 && !frenzyActive) {
+                continue;
+            }
+            LivingEntity target = pet.getTarget();
+            if (target == null
+                    || !target.isValid()
+                    || target.isDead()
+                    || !pet.getWorld().equals(target.getWorld())
+                    || pet.getLocation().distanceSquared(target.getLocation()) > 4.0
+                    || !pet.hasLineOfSight(target)
+                    || !plugin.getCombat().canHit(owner, target)
+                    || currentTick < state.nextAttackTick) {
+                continue;
+            }
+            PetDef def = PetDef.byId(state.defId);
+            if (def == null) {
+                continue;
+            }
+            double frenzyPct = frenzyActive ? 30.0 : 0.0;
+            int interval = PetTalentMath.attackIntervalTicks(def.baseAttackIntervalTicks(), disciplinePct, frenzyPct);
+            state.nextAttackTick = currentTick + interval;
+            SCHEDULED_PET_ATTACK.set(Boolean.TRUE);
+            try {
+                pet.attack(target);
+            } catch (RuntimeException exception) {
+                state.cadenceDisabled = true;
+                LOGGER.log(
+                        java.util.logging.Level.WARNING,
+                        "Управляемый cadence отключён для питомца " + state.defId + "; восстановлена ванильная атака",
+                        exception);
+            } finally {
+                SCHEDULED_PET_ATTACK.remove();
+            }
+        }
+    }
+
+    private void triggerPetFrenzy(UUID ownerId, PetState state, long currentTick) {
+        if (state == null
+                || currentTick < state.frenzyIcdUntilTick
+                || !rollPercent(talentChancePct(ownerId, "pet_frenzy"))) {
+            return;
+        }
+        state.frenzyUntilTick = Math.max(state.frenzyUntilTick, currentTick + 160L);
+        state.frenzyIcdUntilTick = currentTick + 20L;
+    }
+
     private void tick() {
         long now = System.currentTimeMillis();
         for (Map.Entry<UUID, PetState> entry : pets.entrySet()) {
@@ -429,13 +505,7 @@ public final class PetService implements Listener {
             if (st.buffUntil > 0L && now > st.buffUntil) {
                 st.buffUntil = 0L;
                 PetDef def = PetDef.byId(st.defId);
-                setAttackDamage(
-                        pet,
-                        PetMath.damage(
-                                def.baseDmg(),
-                                powerValue(owner, def),
-                                plugin.getSpec2Service().petDmgPercent(ownerUuid),
-                                1.0));
+                setAttackDamage(pet, PetTalentMath.runtimeBaseDamage(def.baseDmg(), powerValue(owner, def), 1.0));
                 setSpeed(pet, st.baseSpeed);
                 if (st.glow) {
                     pet.setGlowing(false);
@@ -566,7 +636,7 @@ public final class PetService implements Listener {
     }
 
     /** Боевые таланты питомца: защита, крит и физическое усиление. */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onPetDamage(EntityDamageByEntityEvent event) {
         if (SUPPRESS_PET_TALENTS.get() || !(event.getDamager() instanceof LivingEntity pet)) {
             return;
@@ -576,19 +646,34 @@ public final class PetService implements Listener {
             return;
         }
         Player owner = plugin.getServer().getPlayer(ownerId);
-        if (owner == null
-                || !(event.getEntity() instanceof LivingEntity target)
-                || !plugin.getCombat().canHit(owner, target)) {
+        if (owner == null || !(event.getEntity() instanceof LivingEntity target)) {
+            event.setCancelled(true);
+            return;
+        }
+        PetState state = pets.get(ownerId);
+        long currentTick = Bukkit.getCurrentTick();
+        boolean cadenceManaged = PetTalentMath.cadenceManaged(
+                plugin.getSpec2Service().petAttackSpeedPercent(ownerId),
+                state != null && currentTick < state.frenzyUntilTick,
+                state == null || state.cadenceDisabled);
+        if (cadenceManaged && !SCHEDULED_PET_ATTACK.get()) {
+            event.setCancelled(true);
+            return;
+        }
+        if (!plugin.getCombat().canHit(owner, target)) {
             event.setCancelled(true);
             return;
         }
 
         double physicalBonus = plugin.getSpec2Service().petDmgPercent(ownerId) + talentPct(ownerId, "pet_phys_dmg_pct");
         boolean critical = rollPercent(talentPct(ownerId, "pet_crit_pct"));
-        boolean empoweredCritical = critical && rollPercent(talentPct(ownerId, "pet_crit_bonus"));
-        double multiplier = PetTalentMath.outgoingDamageMultiplier(physicalBonus, critical, empoweredCritical);
-        if (multiplier > 1.0 && Double.isFinite(event.getDamage()) && event.getDamage() > 0.0) {
-            event.setDamage(event.getDamage() * multiplier);
+        if (critical) {
+            triggerPetFrenzy(ownerId, state, currentTick);
+        }
+        boolean empoweredCritical = critical && rollPercent(talentChancePct(ownerId, "pet_crit_bonus"));
+        if (Double.isFinite(event.getDamage()) && event.getDamage() > 0.0) {
+            event.setDamage(
+                    PetTalentMath.outgoingDamage(event.getDamage(), physicalBonus, critical, empoweredCritical));
         }
     }
 
@@ -618,7 +703,7 @@ public final class PetService implements Listener {
         LivingEntity pet = petOf(owner);
         if (pet == null
                 || !plugin.getCombat().canHit(owner, target)
-                || !rollPercent(talentPct(owner.getUniqueId(), "pet_copy"))) {
+                || !rollPercent(talentChancePct(owner.getUniqueId(), "pet_copy"))) {
             return;
         }
         double copiedDamage = event.getFinalDamage() * 0.10;
@@ -640,7 +725,7 @@ public final class PetService implements Listener {
             return;
         }
         LivingEntity pet = petOf(owner);
-        if (pet == null || !rollPercent(talentPct(owner.getUniqueId(), "pet_heal"))) {
+        if (pet == null || !rollPercent(talentChancePct(owner.getUniqueId(), "pet_heal"))) {
             return;
         }
         AttributeInstance maxHealth = pet.getAttribute(MAX_HEALTH);
@@ -649,6 +734,10 @@ public final class PetService implements Listener {
         }
         double heal = event.getAmount() * 0.50;
         pet.setHealth(Math.min(maxHealth.getValue(), pet.getHealth() + heal));
+    }
+
+    public UUID ownerIdOf(LivingEntity pet) {
+        return pet == null ? null : petOwnerId(pet);
     }
 
     private UUID petOwnerId(LivingEntity pet) {
@@ -666,6 +755,10 @@ public final class PetService implements Listener {
     private double talentPct(UUID ownerId, String effectId) {
         double value = plugin.getSpec2Service().procBonus(ownerId, effectId);
         return Double.isFinite(value) ? Math.max(0.0, Math.min(100.0, value)) : 0.0;
+    }
+
+    private double talentChancePct(UUID ownerId, String effectId) {
+        return PetTalentMath.chancePercentFromFraction(plugin.getSpec2Service().procBonus(ownerId, effectId));
     }
 
     private static boolean rollPercent(double chance) {

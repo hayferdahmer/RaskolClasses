@@ -16,6 +16,8 @@ import org.bukkit.entity.EntityType;
  * Scaling (дизайн A2): hp = baseHp + attr×2; dmg = baseDmg + power×0.3;
  * attr/power берутся по полям hpAttr ("str"/"int") и powerTag ("wp"/"sp"),
  * затем умножаются на (1 + spec2 pet_hp_pct / pet_dmg_pct / 100) в PetMath.
+ * baseAttackIntervalTicks — начальная калибровочная частота управляемого pet attack scheduler;
+ * её нужно подтвердить live smoke на Paper 26.2 до включения speed talents.
  * Элементалей Мага в деревьях НЕТ — в реестр не входят.
  */
 public record PetDef(
@@ -26,12 +28,13 @@ public record PetDef(
         int ttlSeconds,
         String nameTemplate,
         String hpAttr,
-        String powerTag) {
+        String powerTag,
+        int baseAttackIntervalTicks) {
 
     private static final Map<String, PetDef> REGISTRY = Map.of(
-            "wolf", new PetDef("wolf", EntityType.WOLF, 20.0, 4.0, 0, "Волк %s", "str", "wp"),
-            "demon", new PetDef("demon", EntityType.VEX, 30.0, 8.0, 12, "Демон %s", "int", "sp"),
-            "shadowfiend", new PetDef("shadowfiend", EntityType.VEX, 12.0, 5.0, 8, "Тенескот %s", "int", "sp"));
+            "wolf", new PetDef("wolf", EntityType.WOLF, 20.0, 4.0, 0, "Волк %s", "str", "wp", 20),
+            "demon", new PetDef("demon", EntityType.VEX, 30.0, 8.0, 12, "Демон %s", "int", "sp", 20),
+            "shadowfiend", new PetDef("shadowfiend", EntityType.VEX, 12.0, 5.0, 8, "Тенескот %s", "int", "sp", 20));
 
     public static PetDef byId(String id) {
         return id == null ? null : REGISTRY.get(id);

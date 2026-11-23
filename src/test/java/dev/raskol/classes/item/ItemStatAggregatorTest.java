@@ -39,6 +39,13 @@ class ItemStatAggregatorTest {
     }
 
     @Test
+    void rangedCriticalItemStatIsRegisteredAndClamped() {
+        assertEquals(ItemStat.CRIT_RANGED, ItemStat.fromId("crit-ranged"));
+        assertEquals(40.0, ItemStat.CRIT_RANGED.clamp(40.0), 0.0001);
+        assertEquals(50.0, ItemStat.CRIT_RANGED.clamp(80.0), 0.0001);
+    }
+
+    @Test
     void classAndLevelRequirementsFilterItemStats() {
         var eligible = item(PlayerClass.WARRIOR, 10, 4);
         var wrongClass = item(PlayerClass.MAGE, 1, 20);

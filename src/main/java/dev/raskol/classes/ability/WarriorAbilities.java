@@ -103,8 +103,9 @@ public final class WarriorAbilities extends AbstractKit {
         double b = base(def, 15.0) + plugin.getSpec2Service().baseBonus(uuid, def.id());
         double c = coeff(def, 0.05) * plugin.getSpec2Service().coeffMult(uuid, def.id());
         double grant = b + plugin.getCombat().powers().weaponPower(uuid) * c;
+        double magicGrant = Math.max(0.0, plugin.getSpec2Service().kitResistMagicBonus(uuid, def.id()));
         int secs = TreeAbilities.durationWithSpec(plugin, PC, def.id(), 5, uuid);
-        plugin.getResists().addTimedModifier(uuid, def.id(), grant, 0.0, secs * 1000L);
+        plugin.getResists().addTimedModifier(uuid, def.id(), grant, magicGrant, secs * 1000L);
         castFx(p, "balder_skin", "ITEM_ARMOR_EQUIP_GOLD", "ENCHANT", 0.6f, 1.0f, 20);
         return true;
     }

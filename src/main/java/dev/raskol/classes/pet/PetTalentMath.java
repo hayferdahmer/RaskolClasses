@@ -11,6 +11,39 @@ final class PetTalentMath {
         return Double.isFinite(value) ? Math.max(0.0, Math.min(100.0, value)) : 0.0;
     }
 
+    /** Конвертирует proc-шанс Spec2 из доли 0..1 в проценты для rollPercent. */
+    static double chancePercentFromFraction(double fraction) {
+        return Double.isFinite(fraction) ? Math.max(0.0, Math.min(1.0, fraction)) * 100.0 : 0.0;
+    }
+
+    static double speedPercent(double value) {
+        return Double.isFinite(value) ? Math.max(0.0, Math.min(200.0, value)) : 0.0;
+    }
+
+    static boolean cadenceManaged(double permanentSpeedPct, boolean frenzyActive, boolean disabled) {
+        return !disabled && (speedPercent(permanentSpeedPct) > 0.0 || frenzyActive);
+    }
+
+    /** Переводит суммарный бонус скорости атаки в целочисленный интервал тиков. */
+    static int attackIntervalTicks(int baseTicks, double permanentSpeedPct, double temporarySpeedPct) {
+        int base = Math.max(1, baseTicks);
+        double permanent = speedPercent(permanentSpeedPct);
+        double temporary = speedPercent(temporarySpeedPct);
+        double combined = Math.min(200.0, permanent + temporary);
+        return Math.max(1, (int) Math.round(base / (1.0 + combined / 100.0)));
+    }
+
+    /** Базовый урон сущности не содержит talent-проценты: они применяются в событии попадания. */
+    static double runtimeBaseDamage(double baseDamage, double power, double buffMultiplier) {
+        return PetMath.damage(baseDamage, power, 0.0, buffMultiplier);
+    }
+
+    static double outgoingDamage(
+            double baseDamage, double physicalBonusPct, boolean critical, boolean empoweredCritical) {
+        double safeBase = Double.isFinite(baseDamage) ? Math.max(0.0, baseDamage) : 0.0;
+        return safeBase * outgoingDamageMultiplier(physicalBonusPct, critical, empoweredCritical);
+    }
+
     static double outgoingDamageMultiplier(double physicalBonusPct, boolean critical, boolean empoweredCritical) {
         double bonus = Double.isFinite(physicalBonusPct) ? Math.max(0.0, Math.min(300.0, physicalBonusPct)) : 0.0;
         double multiplier = 1.0 + bonus / 100.0;

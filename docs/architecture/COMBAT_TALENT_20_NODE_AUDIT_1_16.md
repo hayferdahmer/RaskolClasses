@@ -175,3 +175,40 @@
 
 ---
 **Итог:** аудит фиксирует 20 узлов по одному контракту, отделяет уже добавленный код от отсутствующих игровых механизмов и задаёт безопасный порядок реализации. Следующий кодовый этап — не включение талантов, а общий source context/damage attribution и pet attack controller.
+
+## 10. Обновление статуса после PR #58 (2026-11-23)
+
+Этот раздел уточняет матрицу выше по фактическому коду PR #58. Он имеет приоритет над прежними пометками «не подтверждено» для перечисленных ниже consumers, но не снимает gate включения талантов.
+
+### Новые подтверждённые consumers
+
+- **Общий source context — частично закрыт.** `AbilityRegistry` задаёт вложенно-безопасный ability ID на время синхронного каста; `CombatService` принимает явный `DamageSourceContext`, восстанавливает вложенный контекст вокруг Bukkit damage event и отклоняет контекст с чужим target UUID. Это не полный контракт projectile identity / weapon hand / vanilla event ID из раздела 4.
+- **`mm_eagle_eye` и `mm_sniper_training` — ranged crit consumer добавлен.** Есть отдельные `attributes.crit.ranged-base`, `ranged-per-agi`, `ranged-cap`, item stat `crit-ranged`, общий talent aggregate `crit_ranged_pct`; ванильные projectile hits и явно классифицированные ranged ability IDs используют этот шанс. Базовая формула сейчас использует AGI; коэффициенты по умолчанию повторяют прежние физические crit defaults и должны быть откалиброваны до live-включения.
+- **`mm_piercing_shots` — ability-scoped penetration consumer добавлен.** Бонус действует только на физический mitigation path `aimed_shot`; он не является общим снижением защиты цели.
+- **`guard_spell_ward` — consumer добавлен.** Магическая часть временного модификатора `balder_skin` получает rank bonus; caps и срок действия остаются в `ResistService`.
+- **`sv_trap_mastery` и `sv_resourcefulness` — consumers добавлены для `explosive_trap`.** Первый увеличивает урон, второй уменьшает cooldown с жёстким пределом 90%. Универсальный TrapRegistry всё ещё отсутствует.
+- **PR #48 consumers перепроверены:** `mm_rapid_fire` → `arrow_fan`, `fury_unstoppable_force` → `rampage`, `su_master_of_subtlety` → `shadow_dance` имеют runtime consumers, но остаются выключенными до решений по damage budget и интеграционных тестов.
+
+### Уточнения по питомцам
+
+- Proc-эффекты `proc_pet_copy`, `proc_pet_heal`, `proc_pet_crit_bonus` хранятся долями 0..1; перед процентным roll они теперь конвертируются в 0..100. Прямые процентные статы `pet_dodge_pct`, `pet_crit_pct` и `pet_phys_dmg_pct` остаются в процентных пунктах.
+- Бонусы урона питомца применяются на `LOW` до стандартного mitigation listener. Базовый attack damage сущности не содержит повторно тот же `pet_dmg_pct`, поэтому снятие временного баффа не должно удваивать процент питомца.
+- Vanilla damage attribution распознаёт активного питомца и его владельца для PvP/friendly-fire решения, но не добавляет владельцу обычный weapon-power / weapon-mastery bonus к атаке питомца.
+- Это исправляет порядок и единицы для части PR #49, но не закрывает фактический heal amount в Spirit Bond, полное покрытие pet archetypes и интеграционную event matrix.
+
+### Проверки текущего среза
+
+- Java 25 Build: 832 tests, 0 failures, 0 errors.
+- Combat CI Guard: success; Spotless/SpotBugs gate, package coverage, unarmed control report и equipment-aware report validation прошли.
+- Equipment-aware matrix: 18 специализаций, 1,530 направленных сценариев × 1,200 повторов. Это по-прежнему auto-attack/equipment calibration, не ability/talent-aware baseline.
+
+### Остаточные блокеры
+
+- `PetAttackController` с измеримым attack interval для питомцев; затем `bm_bestial_discipline` и `bm_frenzy`.
+- Стабильный `Party/FactionResolver` для `bm_ferocious_inspiration`.
+- Отдельный Rogue combo-point resource и consumers для `as_seal_fate`.
+- Надёжная weapon-hand attribution для `ol_dual_wield_specialization`.
+- Actual-heal semantics и полная event matrix для уже добавленных pet handlers.
+- Live Paper 26.2 runtime smoke и Combat Lab модель активных способностей/талантов.
+
+**Все 20 talent nodes остаются disabled.** Добавление consumer не является разрешением на включение: каждый узел всё ещё должен пройти формульные, event-level, balance и Paper runtime gates.

@@ -4,6 +4,7 @@ package dev.raskol.classes.combat;
 
 import java.util.Locale;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.bukkit.GameMode;
 import org.bukkit.NamespacedKey;
@@ -67,6 +68,8 @@ public final class CombatService implements Listener {
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
     private static final ThreadLocal<School> CURRENT_CAST_SCHOOL = new ThreadLocal<>();
+
+    private static final ThreadLocal<String> CURRENT_ABILITY_ID = new ThreadLocal<>();
 
     private static volatile org.bukkit.damage.DamageType magicTypeCache;
 
@@ -157,6 +160,51 @@ public final class CombatService implements Listener {
         CURRENT_CAST_SCHOOL.remove();
     }
 
+    public static String currentAbilityId() {
+        return CURRENT_ABILITY_ID.get();
+    }
+
+    /** Контекст способности восстанавливается даже при вложенном вызове или исключении. */
+    public static <T> T withAbilityContext(String abilityId, Supplier<T> action) {
+        String previous = CURRENT_ABILITY_ID.get();
+        String normalized = abilityId == null || abilityId.isBlank()
+                ? null
+                : abilityId.trim().toLowerCase(Locale.ROOT);
+        if (normalized == null) {
+            CURRENT_ABILITY_ID.remove();
+        } else {
+            CURRENT_ABILITY_ID.set(normalized);
+        }
+        try {
+            return action.get();
+        } finally {
+            if (previous == null) {
+                CURRENT_ABILITY_ID.remove();
+            } else {
+                CURRENT_ABILITY_ID.set(previous);
+            }
+        }
+    }
+
+    /** Источник события восстанавливается после вложенного урона, включая proc/reflection. */
+    public static <T> T withSourceContext(DamageSourceContext context, Supplier<T> action) {
+        DamageSourceContext previous = CURRENT_SOURCE_CONTEXT.get();
+        if (context == null) {
+            CURRENT_SOURCE_CONTEXT.remove();
+        } else {
+            CURRENT_SOURCE_CONTEXT.set(context);
+        }
+        try {
+            return action.get();
+        } finally {
+            if (previous == null) {
+                CURRENT_SOURCE_CONTEXT.remove();
+            } else {
+                CURRENT_SOURCE_CONTEXT.set(previous);
+            }
+        }
+    }
+
     /* ------------------------------ геттеры слоёв ------------------------------ */
 
     public ResistService resists() {
@@ -215,6 +263,15 @@ public final class CombatService implements Listener {
 
     private double cfgD(String path, double def) {
         return ConfigReads.finiteDouble(plugin.getConfig(), path, def);
+    }
+
+    private static DamageSourceContext resolveSourceContext(Entity source, LivingEntity target, boolean fromProc) {
+        boolean reflected = reflectSuppressed();
+        String abilityId = fromProc || reflected ? null : CURRENT_ABILITY_ID.get();
+        if (abilityId != null && source instanceof Player player) {
+            return DamageSourceContext.ability(player.getUniqueId(), target.getUniqueId(), abilityId, false);
+        }
+        return DamageSourceContext.infer(source, target, fromProc, reflected);
     }
 
     private static org.bukkit.damage.DamageType magicType() {
@@ -289,19 +346,40 @@ public final class CombatService implements Listener {
     /* ------------------------- путь B (наши способности) ------------------------- */
 
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile) {
-        return dealDamage(target, source, profile, false, false);
+        return dealDamage(target, source, profile, null, false, false);
     }
 
     public double dealDamage(LivingEntity target, Entity source, DamageProfile profile, boolean allowOverCap) {
-        return dealDamage(target, source, profile, allowOverCap, false);
+        return dealDamage(target, source, profile, null, allowOverCap, false);
+    }
+
+    public double dealDamage(
+            LivingEntity target, Entity source, DamageProfile profile, DamageSourceContext sourceContext) {
+        return dealDamage(target, source, profile, sourceContext, false, false);
     }
 
     public double dealDamage(
             LivingEntity target, Entity source, DamageProfile profile, boolean allowOverCap, boolean fromProc) {
+        return dealDamage(target, source, profile, null, allowOverCap, fromProc);
+    }
+
+    public double dealDamage(
+            LivingEntity target,
+            Entity source,
+            DamageProfile profile,
+            DamageSourceContext sourceContext,
+            boolean allowOverCap,
+            boolean fromProc) {
         if (profile == null || target == null || target.isDead()) {
             return 0.0;
         }
         if (!canHit(source, target)) {
+            return 0.0;
+        }
+        DamageSourceContext effectiveSourceContext =
+                sourceContext == null ? resolveSourceContext(source, target, fromProc) : sourceContext;
+        if (effectiveSourceContext.targetId() != null
+                && !effectiveSourceContext.targetId().equals(target.getUniqueId())) {
             return 0.0;
         }
         DamageProfile safe = CombatMath.sanitize(profile);
@@ -378,6 +456,17 @@ public final class CombatService implements Listener {
                 armorPen = 1.0;
             }
         }
+        double kitPhysPen = 0.0;
+        if (effectiveSourceContext.sourceType() == DamageSourceContext.SourceType.ABILITY
+                && effectiveSourceContext.abilityId() != null
+                && effectiveSourceContext.attackerId() != null) {
+            double bonus = plugin.getSpec2Service()
+                    .kitPenPhysBonus(effectiveSourceContext.attackerId(), effectiveSourceContext.abilityId());
+            if (Double.isFinite(bonus) && bonus > 0.0) {
+                kitPhysPen = Math.min(100.0, bonus) / 100.0;
+            }
+        }
+        double effectivePhysPen = Math.min(1.0, armorPen + kitPhysPen);
 
         if (physBase > 0.0 && target instanceof Player tgtP && hasShield(tgtP)) {
             if (rollBlock(tgtP)) {
@@ -389,7 +478,9 @@ public final class CombatService implements Listener {
         boolean physCrit = false;
         boolean magicCrit = false;
         if (source instanceof Player sp) {
-            if (physBase > 0.0 && rollMeleeCrit(sp)) {
+            boolean rangedAbility = isRangedAbility(effectiveSourceContext);
+            boolean physicalCritical = rangedAbility ? rollRangedCrit(sp) : rollMeleeCrit(sp);
+            if (physBase > 0.0 && physicalCritical) {
                 physBase *= meleeMult(sp);
                 physCrit = true;
                 critFeedback(sp, true);
@@ -420,7 +511,7 @@ public final class CombatService implements Listener {
             double physFactor = resists.physicalFactor(uuid, cap);
             double magicFactor = resists.magicFactor(uuid, cap);
             if (!schoolConfig.enabled()) {
-                physFactor = penFactor(physFactor, armorPen);
+                physFactor = penFactor(physFactor, effectivePhysPen);
                 magicFactor = penFactor(magicFactor, armorPen);
                 physPart = Double.isFinite(physFactor) ? physBase * physFactor : physBase;
                 double magicScaled = Double.isFinite(magicFactor) ? magicBase * magicFactor : magicBase;
@@ -449,7 +540,7 @@ public final class CombatService implements Listener {
                     effElPhys = CombatMath.effectiveResist(elPhys, 0.0, spPhys, schoolConfig.penPctCap());
                     effElMagic = CombatMath.effectiveResist(elMagic, 0.0, spMagic, schoolConfig.penPctCap());
                 }
-                physResistPct = penResistPct(physResistPct, armorPen);
+                physResistPct = penResistPct(physResistPct, effectivePhysPen);
                 magicResistPct = penResistPct(magicResistPct, armorPen);
                 double mitPhys = SchoolMitigation.mitigationFor(
                         physResistPct,
@@ -479,7 +570,9 @@ public final class CombatService implements Listener {
                 if (prof.immunities().contains(School.PHYSICAL)) {
                     physPart = 0.0;
                 } else {
-                    physPart *= 1.0 - profileChannelResist(prof, true, source, School.PHYSICAL) / 100.0;
+                    double profilePhysResist =
+                            penResistPct(profileChannelResist(prof, true, source, School.PHYSICAL), effectivePhysPen);
+                    physPart *= 1.0 - profilePhysResist / 100.0;
                     physPart *=
                             1.0 + Math.max(-100.0, prof.vulnerabilities().getOrDefault(School.PHYSICAL, 0.0)) / 100.0;
                 }
@@ -532,23 +625,24 @@ public final class CombatService implements Listener {
         double actualPhys = 0.0;
         double actualMagic = 0.0;
 
-        DamageSourceContext previousContext = CURRENT_SOURCE_CONTEXT.get();
-        CURRENT_SOURCE_CONTEXT.set(DamageSourceContext.infer(source, target, fromProc, reflectSuppressed()));
         ABILITY_SOURCE.set(source instanceof Player s2 ? s2.getUniqueId() : null);
         try {
             if (applyPhys > 0.0) {
                 double before = target.getHealth();
                 target.setNoDamageTicks(0);
-                setSuppress(true);
-                try {
-                    if (source != null) {
-                        target.damage(applyPhys, source);
-                    } else {
-                        target.damage(applyPhys);
+                withSourceContext(effectiveSourceContext, () -> {
+                    setSuppress(true);
+                    try {
+                        if (source != null) {
+                            target.damage(applyPhys, source);
+                        } else {
+                            target.damage(applyPhys);
+                        }
+                    } finally {
+                        setSuppress(false);
                     }
-                } finally {
-                    setSuppress(false);
-                }
+                    return null;
+                });
                 double after = target.getHealth();
                 if (after < before) {
                     actualPhys = (before - after) / scale;
@@ -557,21 +651,24 @@ public final class CombatService implements Listener {
             if (applyMagic > 0.0) {
                 double before = target.getHealth();
                 target.setNoDamageTicks(0);
-                setSuppress(true);
-                try {
-                    org.bukkit.damage.DamageType magic = magicType();
-                    if (magic != null) {
-                        DamageSource.Builder builder = DamageSource.builder(magic);
-                        if (source != null) {
-                            builder = builder.withDirectEntity(source).withCausingEntity(source);
+                withSourceContext(effectiveSourceContext, () -> {
+                    setSuppress(true);
+                    try {
+                        org.bukkit.damage.DamageType magic = magicType();
+                        if (magic != null) {
+                            DamageSource.Builder builder = DamageSource.builder(magic);
+                            if (source != null) {
+                                builder = builder.withDirectEntity(source).withCausingEntity(source);
+                            }
+                            target.damage(applyMagic, builder.build());
+                        } else {
+                            target.damage(applyMagic);
                         }
-                        target.damage(applyMagic, builder.build());
-                    } else {
-                        target.damage(applyMagic);
+                    } finally {
+                        setSuppress(false);
                     }
-                } finally {
-                    setSuppress(false);
-                }
+                    return null;
+                });
                 double after = target.getHealth();
                 if (after < before) {
                     actualMagic = (before - after) / scale;
@@ -579,11 +676,6 @@ public final class CombatService implements Listener {
             }
         } finally {
             ABILITY_SOURCE.remove();
-            if (previousContext == null) {
-                CURRENT_SOURCE_CONTEXT.remove();
-            } else {
-                CURRENT_SOURCE_CONTEXT.set(previousContext);
-            }
         }
 
         double actualTaken = (actualPhys + actualMagic) * scale;
@@ -668,6 +760,34 @@ public final class CombatService implements Listener {
         double baseChance = plugin.getAttributes().critMeleeChance(player.getUniqueId());
         double bonus = safePct(plugin.getSpec2Service().critMeleeBonus(player.getUniqueId()));
         return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0 < (baseChance + bonus * 100.0);
+    }
+
+    /** Дальнобойный крит использует базовый шанс физического крита и отдельные таланты стрелка. */
+    public boolean rollRangedCrit(Player player) {
+        if (player == null) {
+            return false;
+        }
+        double chance = plugin.getAttributes().critRangedChance(player.getUniqueId());
+        return java.util.concurrent.ThreadLocalRandom.current().nextDouble() * 100.0 < chance;
+    }
+
+    static boolean isRangedAbility(DamageSourceContext context) {
+        if (context == null || context.sourceType() != DamageSourceContext.SourceType.ABILITY) {
+            return false;
+        }
+        return switch (context.abilityId() == null ? "" : context.abilityId()) {
+            case "aimed_shot",
+                    "piercing_shot",
+                    "arrow_fan",
+                    "arrow_rain",
+                    "silencing_shot",
+                    "chimera_shot",
+                    "poison_shot",
+                    "black_arrow",
+                    "wyvern_sting",
+                    "serpent_sting" -> true;
+            default -> false;
+        };
     }
 
     private boolean rollSpellCrit(Player player) {

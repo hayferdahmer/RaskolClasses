@@ -32,6 +32,55 @@ class Spec2KitEffectAggregationTest {
         assertEquals(30.0, agg.kitAttrAgi.get("shadow_dance"), 0.0001);
     }
 
+    @Test
+    @DisplayName("physical penetration and magic ward remain scoped to their ability IDs")
+    void abilitySpecificPenetrationAndWardDoNotLeakToOtherAbilities() {
+        Spec2Service.Agg agg = new Spec2Service.Agg();
+
+        Spec2Service.accumulate(agg, node("marksmanship", "mm_piercing_shots"), 2);
+        Spec2Service.accumulate(agg, node("guard", "guard_spell_ward"), 2);
+
+        assertEquals(20.0, agg.kitPenPhys.get("aimed_shot"), 0.0001);
+        assertEquals(50.0, agg.kitResistMagic.get("balder_skin"), 0.0001);
+        assertEquals(0.0, agg.kitPenPhys.getOrDefault("arrow_fan", 0.0), 0.0001);
+        assertEquals(0.0, agg.kitResistMagic.getOrDefault("shield_wall", 0.0), 0.0001);
+    }
+
+    @Test
+    @DisplayName("pet discipline and frenzy effects aggregate in their correct units")
+    void petAttackCadenceEffectsAggregateByRank() {
+        Spec2Service.Agg agg = new Spec2Service.Agg();
+
+        Spec2Service.accumulate(agg, node("beastmaster", "bm_bestial_discipline"), 3);
+        Spec2Service.accumulate(agg, node("beastmaster", "bm_frenzy"), 2);
+
+        assertEquals(15.0, agg.proc.get("pet_attack_speed_pct"), 0.0001);
+        assertEquals(0.50, agg.proc.get("pet_frenzy"), 0.0001);
+    }
+
+    @Test
+    @DisplayName("ranged critical chance aggregates from both Marksmanship nodes")
+    void rangedCriticalChanceAggregatesByRank() {
+        Spec2Service.Agg agg = new Spec2Service.Agg();
+
+        Spec2Service.accumulate(agg, node("marksmanship", "mm_eagle_eye"), 2);
+        Spec2Service.accumulate(agg, node("marksmanship", "mm_sniper_training"), 1);
+
+        assertEquals(4.0, agg.proc.get("crit_ranged_pct"), 0.0001);
+    }
+
+    @Test
+    @DisplayName("trap damage and cooldown passives aggregate by rank")
+    void trapPassivesAggregateByRank() {
+        Spec2Service.Agg agg = new Spec2Service.Agg();
+
+        Spec2Service.accumulate(agg, node("survival", "sv_trap_mastery"), 3);
+        Spec2Service.accumulate(agg, node("survival", "sv_resourcefulness"), 2);
+
+        assertEquals(30.0, agg.proc.get("trap_dmg_pct"), 0.0001);
+        assertEquals(20.0, agg.proc.get("cd_trap_pct"), 0.0001);
+    }
+
     private static Spec2Node node(String treeId, String nodeId) {
         var tree = Spec2Registry.treeOf(treeId);
         assertNotNull(tree, "дерево отсутствует: " + treeId);

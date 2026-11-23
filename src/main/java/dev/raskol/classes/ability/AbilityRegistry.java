@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 
 import org.bukkit.entity.LivingEntity;
@@ -196,6 +197,10 @@ public final class AbilityRegistry {
     private final Set<String> treeCasterIds = new HashSet<>();
 
     private final Map<UUID, Map<String, Long>> lastAttempts = new ConcurrentHashMap<>();
+
+    static <T> T withAbilityScope(String abilityId, Supplier<T> cast) {
+        return CombatService.withAbilityContext(abilityId, cast);
+    }
 
     public AbilityRegistry(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -584,17 +589,21 @@ public final class AbilityRegistry {
         attempts.put(def.id(), now);
 
         // --- cast ---
-        CombatService.setCurrentCastSchool(def.school());
         boolean ok;
         try {
-            ok = targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
+            ok = withAbilityScope(def.id(), () -> {
+                CombatService.setCurrentCastSchool(def.school());
+                try {
+                    return targeted ? tcast.cast(caster, target, def) : self.cast(caster, def);
+                } finally {
+                    CombatService.clearCastSchool();
+                }
+            });
         } catch (RuntimeException ex) {
             // 1.14.8-fix (Волна 6.1, P0-6C): полный стектрейс — getMessage() у NPE равен
             // null и не позволял локализовать падающий кастер из 69.
             plugin.getLogger().log(Level.WARNING, "Каст " + def.id() + " бросил исключение", ex);
             ok = false;
-        } finally {
-            CombatService.clearCastSchool();
         }
 
         if (!ok) {
@@ -609,6 +618,11 @@ public final class AbilityRegistry {
 
         // 1.14.0 (Б8.2-fix): кулдаун из spec2: процент (cd) + секунды (kit_cd)
         double cdMult = plugin.getSpec2Service().cooldownMult(id, def.id());
+        if ("explosive_trap".equals(def.id())) {
+            double trapReduction =
+                    Math.max(0.0, Math.min(90.0, plugin.getSpec2Service().trapCooldownReductionPercent(id))) / 100.0;
+            cdMult *= 1.0 - trapReduction;
+        }
         double cdSecBonus = plugin.getSpec2Service().cooldownSecBonus(id, def.id());
         if (!Double.isFinite(cdMult) || cdMult <= 0.0) {
             cdMult = 1.0;

@@ -365,6 +365,9 @@ public final class VanillaDamageListener implements Listener {
         if (!(event.getEntity() instanceof LivingEntity)) {
             return;
         }
+        if (isPetAttack(by.getDamager())) {
+            return;
+        }
         Player attacker = resolveAttacker(by);
         if (attacker == null) {
             CombatProfile profile = profileOfSource(by);
@@ -391,7 +394,7 @@ public final class VanillaDamageListener implements Listener {
                 add += plugin.getAttributes().value(uuid, dev.raskol.classes.attribute.AttributeType.STR)
                         + plugin.getAttributes().levelOf(uuid);
             }
-            crit = rollMeleeCrit(attacker);
+            crit = by.getDamager() instanceof Projectile ? combat.rollRangedCrit(attacker) : rollMeleeCrit(attacker);
         } else {
             add += powers.spellPower(uuid) * cfgD("attributes.offense.basic-coeff-magic", 0.35);
             if (plugin.getConfig().getBoolean("attributes.offense.int-to-magic", false)) {
@@ -454,7 +457,17 @@ public final class VanillaDamageListener implements Listener {
         if (damager instanceof Projectile proj && proj.getShooter() instanceof Player ps) {
             return ps;
         }
+        if (damager instanceof LivingEntity pet && plugin.getPets() != null) {
+            UUID ownerId = plugin.getPets().ownerIdOf(pet);
+            return ownerId == null ? null : plugin.getServer().getPlayer(ownerId);
+        }
         return null;
+    }
+
+    private boolean isPetAttack(Entity damager) {
+        return damager instanceof LivingEntity pet
+                && plugin.getPets() != null
+                && plugin.getPets().ownerIdOf(pet) != null;
     }
 
     private Entity sourceEntity(EntityDamageByEntityEvent by) {

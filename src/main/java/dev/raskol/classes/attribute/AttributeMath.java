@@ -95,6 +95,14 @@ public final class AttributeMath {
         return clampPct(base + Math.max(0.0, fin(agi, 0.0)) * fin(perAgi, 0.0), cap);
     }
 
+    public static double critRanged(double agi, double base, double perAgi, double cap) {
+        double safeBase = Math.max(0.0, fin(base, 0.0));
+        double safeAgi = Math.max(0.0, fin(agi, 0.0));
+        double safePerAgi = Math.max(0.0, fin(perAgi, 0.0));
+        double safeCap = Math.max(0.0, fin(cap, 100.0));
+        return clampPct(safeBase + safeAgi * safePerAgi, safeCap);
+    }
+
     public static double critSpell(
             double intel, boolean intMain, double base, double perInt, double mainMult, double cap) {
         double v = base + Math.max(0.0, fin(intel, 0.0)) * fin(perInt, 0.0);

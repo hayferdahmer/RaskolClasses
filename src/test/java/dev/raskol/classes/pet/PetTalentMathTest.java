@@ -3,6 +3,8 @@
 package dev.raskol.classes.pet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,12 +25,74 @@ class PetTalentMathTest {
     }
 
     @Test
+    @DisplayName("fractional Spec2 proc chances convert to percent exactly once")
+    void fractionalProcChanceConvertsToPercent() {
+        assertEquals(5.0, PetTalentMath.chancePercentFromFraction(0.05), 0.0001);
+        assertEquals(25.0, PetTalentMath.chancePercentFromFraction(0.25), 0.0001);
+        assertEquals(100.0, PetTalentMath.chancePercentFromFraction(1.5), 0.0001);
+        assertEquals(0.0, PetTalentMath.chancePercentFromFraction(-0.1), 0.0001);
+        assertEquals(0.0, PetTalentMath.chancePercentFromFraction(Double.NaN), 0.0001);
+    }
+
+    @Test
+    @DisplayName("managed cadence is active only for speed effects or frenzy and respects fallback")
+    void cadenceOwnershipDecisionRespectsFallback() {
+        assertTrue(PetTalentMath.cadenceManaged(5.0, false, false));
+        assertTrue(PetTalentMath.cadenceManaged(0.0, true, false));
+        assertFalse(PetTalentMath.cadenceManaged(0.0, false, false));
+        assertFalse(PetTalentMath.cadenceManaged(15.0, true, true));
+        assertFalse(PetTalentMath.cadenceManaged(Double.NaN, false, false));
+    }
+
+    @Test
+    @DisplayName("pet attack speed percentages are finite and capped")
+    void speedPercentIsSanitized() {
+        assertEquals(0.0, PetTalentMath.speedPercent(Double.NaN), 0.0001);
+        assertEquals(0.0, PetTalentMath.speedPercent(-10.0), 0.0001);
+        assertEquals(15.0, PetTalentMath.speedPercent(15.0), 0.0001);
+        assertEquals(200.0, PetTalentMath.speedPercent(500.0), 0.0001);
+    }
+
+    @Test
+    @DisplayName("permanent and temporary pet attack speed reduce the interval in ticks")
+    void attackSpeedModifiersReduceAttackInterval() {
+        assertEquals(20, PetTalentMath.attackIntervalTicks(20, 0.0, 0.0));
+        assertEquals(19, PetTalentMath.attackIntervalTicks(20, 5.0, 0.0));
+        assertEquals(17, PetTalentMath.attackIntervalTicks(20, 15.0, 0.0));
+        assertEquals(15, PetTalentMath.attackIntervalTicks(20, 0.0, 30.0));
+        assertEquals(14, PetTalentMath.attackIntervalTicks(20, 15.0, 30.0));
+        assertEquals(7, PetTalentMath.attackIntervalTicks(20, 500.0, 0.0));
+        assertEquals(20, PetTalentMath.attackIntervalTicks(20, Double.NaN, Double.NaN));
+    }
+
+    @Test
     @DisplayName("pet physical rank bonus and critical talent compose once")
     void damageMultipliersCompose() {
         assertEquals(1.20, PetTalentMath.outgoingDamageMultiplier(20.0, false, false), 0.0001);
         assertEquals(1.80, PetTalentMath.outgoingDamageMultiplier(20.0, true, false), 0.0001);
         assertEquals(2.40, PetTalentMath.outgoingDamageMultiplier(20.0, true, true), 0.0001);
         assertEquals(1.00, PetTalentMath.outgoingDamageMultiplier(Double.NaN, false, false), 0.0001);
+    }
+
+    @Test
+    @DisplayName("all registered pet archetypes define an explicit base attack interval")
+    void petArchetypesDefineBaseAttackIntervals() {
+        assertEquals(20, PetDef.byId("wolf").baseAttackIntervalTicks());
+        assertEquals(20, PetDef.byId("demon").baseAttackIntervalTicks());
+        assertEquals(20, PetDef.byId("shadowfiend").baseAttackIntervalTicks());
+    }
+
+    @Test
+    @DisplayName("pet rank bonuses apply once after runtime base damage and buff scaling")
+    void runtimeBaseAndHitBonusesDoNotDoubleScale() {
+        double base = PetTalentMath.runtimeBaseDamage(10.0, 0.0, 1.0);
+        assertEquals(10.0, base, 0.0001);
+        assertEquals(12.0, PetTalentMath.outgoingDamage(base, 20.0, false, false), 0.0001);
+
+        double buffedBase = PetTalentMath.runtimeBaseDamage(10.0, 0.0, 1.5);
+        assertEquals(15.0, buffedBase, 0.0001);
+        assertEquals(18.0, PetTalentMath.outgoingDamage(buffedBase, 20.0, false, false), 0.0001);
+        assertEquals(0.0, PetTalentMath.outgoingDamage(Double.NaN, 20.0, false, false), 0.0001);
     }
 
     @Test
