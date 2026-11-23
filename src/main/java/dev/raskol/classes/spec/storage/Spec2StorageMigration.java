@@ -68,8 +68,10 @@ public final class Spec2StorageMigration {
         }
 
         File unifiedFile = new File(directory, CharacterProfileStorage.FILE_NAME);
-        if (unifiedFile.isFile() && (needsSave || current.present() || legacy.present())) {
-            refreshUnifiedBackup(directory, unifiedFile, logger);
+        if (unifiedFile.isFile() && (needsSave || current.present() || legacy.present())
+                && !profiles.saveAndAwait(SAVE_TIMEOUT)) {
+            throw new IllegalStateException(
+                    "Не удалось подтвердить обновление backup characters.yml; исходные файлы сохранены");
         }
 
         archiveSource(directory, CURRENT_FILE_NAME, current, logger);
@@ -279,35 +281,6 @@ public final class Spec2StorageMigration {
         }
     }
 
-    /**
-     * После миграции backup тоже должен содержать единый снимок.
-     * Иначе восстановление старого characters.yml.bak могло бы вернуть профиль
-     * без specialization после того, как отдельный spec2-файл уже архивирован.
-     */
-    private static void refreshUnifiedBackup(File directory, File unifiedFile, Logger logger) {
-        File temporary = new File(directory, CharacterProfileStorage.FILE_NAME + ".bak.tmp");
-        File backup = new File(directory, CharacterProfileStorage.FILE_NAME + ".bak");
-        try {
-            Files.copy(unifiedFile.toPath(), temporary.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            try {
-                Files.move(
-                        temporary.toPath(),
-                        backup.toPath(),
-                        StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException exception) {
-                // Старый backup не перемещаем заранее: до замены он остаётся доступен для восстановления.
-                Files.move(temporary.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException exception) {
-            if (temporary.exists() && !temporary.delete()) {
-                logger.warning("spec2: не удалось удалить временный backup " + temporary.getName());
-            }
-            throw new IllegalStateException(
-                    "Не удалось обновить backup единого characters.yml; исходные Spec 2.0 файлы сохранены", exception);
-        }
-        logger.info("spec2: backup characters.yml обновлён единым снимком профиля и специализаций");
-    }
 
     private static File nextArchiveFile(File source) {
         File parent = source.getParentFile();
