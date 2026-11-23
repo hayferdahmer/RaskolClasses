@@ -17,6 +17,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import dev.raskol.classes.character.profile.CharacterProfileStorage;
+import dev.raskol.classes.storage.SafeStorage;
 
 /** Миграция раздельных файлов Spec 2.0 в единый characters.yml. */
 public final class Spec2StorageMigration {
@@ -85,28 +86,37 @@ public final class Spec2StorageMigration {
         };
         boolean present = false;
         for (File candidate : candidates) {
-            if (!candidate.exists()) {
-                continue;
-            }
-            present = true;
-            try {
-                YamlConfiguration yaml = new YamlConfiguration();
-                yaml.load(candidate);
-                if (!candidate.equals(file)) {
-                    logger.warning("spec2: восстановлен источник " + file.getName() + " из " + candidate.getName());
-                }
-                return new Source(true, true, yaml);
-            } catch (Exception exception) {
-                logger.warning("spec2: не удалось прочитать " + candidate.getName() + ": " + exception.getMessage());
+            if (candidate.exists()) {
+                present = true;
+                break;
             }
         }
-        return new Source(present, !present, new YamlConfiguration());
+        try {
+            SafeStorage.LoadResult loaded = SafeStorage.load(file, logger);
+            if (loaded.status() == SafeStorage.LoadStatus.RECOVERED_TMP
+                    || loaded.status() == SafeStorage.LoadStatus.RECOVERED_BACKUP) {
+                logger.warning("spec2: источник " + file.getName() + " восстановлен SafeStorage: "
+                        + loaded.status());
+            }
+            return new Source(present, true, loaded.configuration());
+        } catch (SafeStorage.StorageLoadException exception) {
+            if (exception.status() == SafeStorage.LoadStatus.CORRUPT) {
+                logger.severe("spec2: все копии " + file.getName()
+                        + " повреждены; оригиналы и карантин сохранены: " + exception.getMessage());
+                return new Source(true, false, new YamlConfiguration());
+            }
+            throw exception;
+        }
     }
 
     private static Map<UUID, Spec2Data> parse(YamlConfiguration yaml) {
         Map<UUID, Spec2Data> result = new LinkedHashMap<>();
         if (!yaml.contains("players")) {
-            return result;
+            if (yaml.getKeys(true).isEmpty()) {
+                return result;
+            }
+            throw new IllegalStateException(
+                    "Неизвестная структура Spec 2.0: непустой YAML не содержит ожидаемый раздел players");
         }
         ConfigurationSection players = yaml.getConfigurationSection("players");
         if (players == null) {
@@ -241,7 +251,8 @@ public final class Spec2StorageMigration {
     }
 
     private static void archiveSource(File directory, String name, Source source, Logger logger) {
-        if (!source.present()) {
+        if (!source.present() || !source.readable()) {
+            // Повреждённые источники остаются на месте; SafeStorage уже сохранил их копии в карантине.
             return;
         }
         File[] files = {

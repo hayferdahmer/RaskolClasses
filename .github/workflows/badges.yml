@@ -12,9 +12,8 @@
 #   selftest — число «N чеков» в javadoc SelftestRunner («(/rc selftest), N чеков»)
 #   unit     — количество @Test / @ParameterizedTest в src/test
 #
-# Если main защищён правилами (запрещён push от GITHUB_TOKEN), разреши боту обход
-# или переведи коммит на отдельную ветку badges.
-name: Живые бейджи
+# Обновления оформляются отдельным PR; workflow не пишет напрямую в main.
+name: RASKOL Chronicle | Live Badges
 
 on:
   push:
@@ -27,6 +26,8 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
+  actions: write
 
 concurrency:
   group: badges
@@ -34,6 +35,7 @@ concurrency:
 
 jobs:
   badges:
+    name: Badge Refresh (PR only)
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -61,21 +63,35 @@ jobs:
           set -euo pipefail
           mkdir -p .github/badges
           mk() { printf '{"schemaVersion":1,"label":"%s","message":"%s","color":"%s","labelColor":"2d1b45"}\n' "$1" "$2" "$3" > ".github/badges/$4.json"; }
-          mk "build"      "${{ steps.v.outputs.ver }}"          "b3262c" release
+          mk "forge"      "${{ steps.v.outputs.ver }}"          "b3262c" release
           mk "paper"      "${{ steps.v.outputs.paper }}+"       "b08d3e" paper
           mk "java"       "${{ steps.v.outputs.java }}"         "b08d3e" java
           mk "selftest"   "${{ steps.v.outputs.checks }} чеков" "4f7a3a" selftest
           mk "unit-тесты" "${{ steps.v.outputs.tests }}"        "4f7a3a" tests
 
-      - name: Закоммитить, если что-то изменилось
+      - name: Открыть PR с обновлёнными бейджами
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: bot/live-badges-${{ github.run_id }}
+          base: main
+          delete-branch: true
+          commit-message: "chore(badges): refresh live badges"
+          title: "chore(badges): refresh live badges"
+          body: |
+            Автоматическое обновление JSON-бейджей из текущих исходников.
+            Изменения проходят обычный review и CI; прямой записи в main нет.
+          add-paths: |
+            .github/badges/*.json
+
+      - name: Запустить обязательные проверки для PR с бейджами
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BOT_BRANCH: bot/live-badges-${{ github.run_id }}
         shell: bash
         run: |
-          git config user.name  "raskol-badges[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/badges
-          if git diff --cached --quiet; then
-            echo "Бейджи актуальны."
-          else
-            git commit -m "chore(badges): обновить живые бейджи [skip ci]"
-            git push
-          fi
+          set -euo pipefail
+          gh workflow run build.yml --ref "${BOT_BRANCH}"
+          gh workflow run rips-security-auditor.yml --ref "${BOT_BRANCH}"

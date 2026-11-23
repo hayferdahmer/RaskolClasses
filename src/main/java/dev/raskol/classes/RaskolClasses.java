@@ -349,7 +349,7 @@ public final class RaskolClasses extends JavaPlugin {
                         + getServer().getBukkitVersion());
 
         StartupChecks.logCoreVersion(this);
-        StartupChecks.cleanupTmpFiles(this);
+        StartupChecks.reportStaleTmpFiles(getDataFolder(), getLogger());
 
         return getServer().getPluginManager();
     }
@@ -1167,6 +1167,10 @@ public final class RaskolClasses extends JavaPlugin {
 
     public CharacterLevelService getCharacterLevels() {
         return characterLevels;
+    }
+
+    public CharacterProfileStorage getCharacterProfiles() {
+        return characterProfiles;
     }
 
     public void ensureCharacterProfile(UUID playerId) {

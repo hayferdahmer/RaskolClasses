@@ -48,8 +48,10 @@ class Spec2StorageMigrationTest {
         assertEquals("fire", saved.getString(profile + ".specialization.main"));
         assertEquals(2, saved.getInt(profile + ".specialization.ranks.fire.fireball"));
         assertEquals(1, saved.getInt(profile + ".level"));
-        assertFalse(legacy.exists());
-        assertTrue(tempDir.resolve("spec2.yml.migrated").toFile().isFile());
+        assertTrue(legacy.exists());
+        try (var files = Files.list(tempDir)) {
+            assertTrue(files.anyMatch(path -> path.getFileName().toString().endsWith(".quarantine")));
+        }
     }
 
     @Test
@@ -160,6 +162,17 @@ class Spec2StorageMigrationTest {
         assertEquals("arcane", saved.getString("profiles." + playerId + ".specialization.main"));
         assertFalse(legacy.exists());
         assertTrue(tempDir.resolve("spec2.yml.migrated").toFile().isFile());
+    }
+
+    @Test
+    @DisplayName("неизвестная непустая YAML-структура не архивируется как пустое хранилище")
+    void refusesUnknownNonEmptyYamlStructure() throws IOException {
+        File legacy = write("spec2.yml", "unrelated-section:\n  value: 42\n");
+
+        assertThrows(IllegalStateException.class, this::migrate);
+
+        assertTrue(legacy.isFile());
+        assertFalse(tempDir.resolve("spec2.yml.migrated").toFile().exists());
     }
 
     @Test

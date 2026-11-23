@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/hayferdahmer/RaskolClasses/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/hayferdahmer/RaskolClasses/build.yml?branch=main&style=flat-square&label=build&labelColor=2d1b45" alt="build"/></a>
+  <a href="https://github.com/hayferdahmer/RaskolClasses/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/hayferdahmer/RaskolClasses/build.yml?branch=main&style=flat-square&label=forge&labelColor=2d1b45" alt="RASKOL Forge"/></a>
   <a href="CHANGELOG.md"><img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Frelease.json" alt="build version"/></a>
   <a href="#install"><img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Fselftest.json" alt="selftest"/></a>
   <img src="https://img.shields.io/endpoint?style=flat-square&url=https%3A%2F%2Fraw.githubusercontent.com%2Fhayferdahmer%2FRaskolClasses%2Fmain%2F.github%2Fbadges%2Ftests.json" alt="unit-тесты"/>
@@ -609,6 +609,7 @@ cp target/raskol-classes-*.jar plugins/
 | 📗 [`docs/architecture/V160_CHARACTER_PROFILE_STORAGE.md`](docs/architecture/V160_CHARACTER_PROFILE_STORAGE.md) | Схема профиля персонажа и миграция storage schema |
 | 📗 [`docs/architecture/V160_EXPERIENCE_PROGRESSION.md`](docs/architecture/V160_EXPERIENCE_PROGRESSION.md) | XP-кривая, PvE-награды, анти-фарм и квестовые квитанции |
 | 🔐 [`docs/RIPS-OPERATIONS.md`](docs/RIPS-OPERATIONS.md) | Подпись официальных артефактов и эксплуатация RIPS |
+| ⚙️ [`docs/CI_CD_AUTOMATION.md`](docs/CI_CD_AUTOMATION.md) | Архитектура RASKOL Forge, Sentinel, Steward, Chronicle, Combat Lab и Watchtower |
 | 📖 [`CHANGELOG.md`](CHANGELOG.md) | История версий (не переписывается задним числом) |
 | ⚖️ [`LICENSE`](LICENSE) | RASKOL Proprietary License v2.0 |
 
