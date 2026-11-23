@@ -3,6 +3,11 @@
 package dev.raskol.classes.spec.storage;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.logging.Logger;
 
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -20,7 +25,8 @@ final class Spec2StorageMigration {
     static YamlConfiguration load(File directory, Logger logger) {
         File oldFile = new File(directory, OLD_FILE_NAME);
         File newFile = new File(directory, NEW_FILE_NAME);
-        if (!oldFile.exists()) {
+        boolean legacyExists = attributes(oldFile) != null;
+        if (!legacyExists) {
             return SafeStorage.loadWithFallback(newFile, logger);
         }
 
@@ -35,7 +41,9 @@ final class Spec2StorageMigration {
                     + " не удалось прочитать; оригинал оставлен без изменений: " + ex.getMessage());
         }
 
-        if (newFile.exists() && !newFile.isFile()) {
+        BasicFileAttributes newAttributes = attributes(newFile);
+        boolean currentExists = newAttributes != null;
+        if (currentExists && !newAttributes.isRegularFile()) {
             if (!legacyReadable) {
                 throw new IllegalStateException(
                         "spec2: целевой путь не является файлом, а legacy-хранилище недоступно");
@@ -47,7 +55,7 @@ final class Spec2StorageMigration {
 
         YamlConfiguration current;
         try {
-            current = newFile.exists()
+            current = currentExists
                     ? SafeStorage.loadWithFallback(newFile, logger)
                     : new YamlConfiguration();
         } catch (SafeStorage.StorageLoadException exception) {
@@ -59,7 +67,7 @@ final class Spec2StorageMigration {
             throw exception;
         }
         if (!legacyReadable) {
-            if (newFile.exists() && !current.getKeys(true).isEmpty()) {
+            if (currentExists && !current.getKeys(true).isEmpty()) {
                 logger.severe("spec2: legacy-файл не читается; используем существующее новое хранилище, "
                         + "legacy оставлен без изменений");
                 return current;
@@ -92,4 +100,16 @@ final class Spec2StorageMigration {
         }
         return current;
     }
+
+    private static BasicFileAttributes attributes(File file) {
+        try {
+            return Files.readAttributes(file.toPath(), BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        } catch (NoSuchFileException exception) {
+            return null;
+        } catch (IOException exception) {
+            throw new IllegalStateException(
+                    "spec2: невозможно проверить путь хранилища " + file.getName(), exception);
+        }
+    }
 }
+
