@@ -379,6 +379,10 @@ public final class CombatService implements Listener {
         DamageSourceContext effectiveSourceContext = sourceContext == null
                 ? resolveSourceContext(source, target, fromProc)
                 : sourceContext;
+        if (effectiveSourceContext.targetId() != null
+                && !effectiveSourceContext.targetId().equals(target.getUniqueId())) {
+            return 0.0;
+        }
         DamageProfile safe = CombatMath.sanitize(profile);
         if (safe.isEmpty()) {
             return 0.0;
