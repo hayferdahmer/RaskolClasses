@@ -83,8 +83,6 @@ jobs:
                   totals[key] += value
               suites.append((root.attrib.get("name", report), values))
 
-          with open("GITHUB_STEP_SUMMARY", "w", encoding="utf-8") as _:
-              pass
           summary = [
               "## RASKOL Archivist — storage integrity",
               "",
