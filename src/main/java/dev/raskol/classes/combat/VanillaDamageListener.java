@@ -277,12 +277,16 @@ public final class VanillaDamageListener implements Listener {
         caps.applySingleHitCapCarrier(event, target);
         double scale = caps.scaleOf(target);
         double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
-        effective = caps.applyBurstCap(target, effective, caps.formulaMaxOf(target));
+        BurstReservationLedger.Allocation burst =
+                caps.reserveBurstCap(target, effective, caps.formulaMaxOf(target));
+        effective = burst.allowed();
         if (effective <= 0.0) {
             event.setCancelled(true);
             return;
         }
-        burstRollbacks.arm(event, uuid, effective);
+        if (burst.token() != null) {
+            burstRollbacks.arm(event, uuid, burst.token(), effective);
+        }
         event.setDamage(effective * scale);
 
         if (event.getCause() != EntityDamageEvent.DamageCause.CUSTOM
@@ -315,7 +319,7 @@ public final class VanillaDamageListener implements Listener {
             return;
         }
         if (event.getEntity() instanceof Player target && target.getUniqueId().equals(rollback.playerId())) {
-            caps.undoLastBurst(target, rollback.amount());
+            caps.rollbackBurst(target, rollback.token(), rollback.amount());
         }
     }
 
