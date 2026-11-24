@@ -277,8 +277,7 @@ public final class VanillaDamageListener implements Listener {
         caps.applySingleHitCapCarrier(event, target);
         double scale = caps.scaleOf(target);
         double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
-        BurstReservationLedger.Allocation burst =
-                caps.reserveBurstCap(target, effective, caps.formulaMaxOf(target));
+        BurstReservationLedger.Allocation burst = caps.reserveBurstCap(target, effective, caps.formulaMaxOf(target));
         effective = burst.allowed();
         if (effective <= 0.0) {
             event.setCancelled(true);
