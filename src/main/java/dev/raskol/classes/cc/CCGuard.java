@@ -42,8 +42,8 @@ import dev.raskol.classes.combat.CombatService;
  *         пропускаются без блокировки. Раньше CCGuard отменял DoT-урон от
  *         игрока под CC (потому что DotService.tick вызывает target.damage(amount, owner),
  *         что генерирует EntityDamageByEntityEvent, и CCGuard его перехватывал).
- *         Теперь CombatService.consumeSuppress() проверяется первым: если событие
- *         помечено как suppressed (setSuppress(true) в DotService/CombatService),
+ *         Теперь CombatService.isSuppressed() проверяется первым: если событие
+ *         помечено как suppressed (beginSuppress() в DotService/CombatService),
  *         CCGuard не блокирует его. Это позволяет уже активным DoT тикать даже
  *         если кастер под CC (DoT уже запущен, отмена нелогична).
  */
