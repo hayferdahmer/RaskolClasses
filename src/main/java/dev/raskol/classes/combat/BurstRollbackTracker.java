@@ -16,11 +16,11 @@ final class BurstRollbackTracker {
 
     private final Map<Object, Entry> entries = new IdentityHashMap<>();
 
-    void arm(Object event, UUID playerId, double amount) {
-        if (event == null || playerId == null || !Double.isFinite(amount) || amount <= 0.0) {
+    void arm(Object event, UUID playerId, BurstReservationLedger.Token token, double amount) {
+        if (event == null || playerId == null || token == null || !Double.isFinite(amount) || amount <= 0.0) {
             throw new IllegalArgumentException("Некорректные данные отката burst-лимита");
         }
-        entries.put(event, new Entry(playerId, amount));
+        entries.put(event, new Entry(playerId, token, amount));
     }
 
     Entry take(Object event) {
@@ -30,5 +30,5 @@ final class BurstRollbackTracker {
         return entries.remove(event);
     }
 
-    record Entry(UUID playerId, double amount) {}
+    record Entry(UUID playerId, BurstReservationLedger.Token token, double amount) {}
 }
