@@ -1,0 +1,116 @@
+# © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+# SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+name: RASKOL Archivist | Storage Integrity CI
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/main/java/dev/raskol/classes/storage/**'
+      - 'src/main/java/dev/raskol/classes/character/profile/**'
+      - 'src/main/java/dev/raskol/classes/spec/storage/**'
+      - 'src/test/java/dev/raskol/classes/storage/**'
+      - 'src/test/java/dev/raskol/classes/character/profile/**'
+      - 'src/test/java/dev/raskol/classes/spec/storage/**'
+      - 'src/test/java/dev/raskol/classes/spec/build/PlusStorageAsyncTest.java'
+      - 'src/test/java/dev/raskol/classes/ability/CooldownManagerAsyncStorageTest.java'
+      - 'docs/architecture/RASKOL_ARCHIVIST_STORAGE_AUDIT.md'
+      - 'pom.xml'
+      - '.github/workflows/archivist-storage.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/main/java/dev/raskol/classes/storage/**'
+      - 'src/main/java/dev/raskol/classes/character/profile/**'
+      - 'src/main/java/dev/raskol/classes/spec/storage/**'
+      - 'src/test/java/dev/raskol/classes/storage/**'
+      - 'src/test/java/dev/raskol/classes/character/profile/**'
+      - 'src/test/java/dev/raskol/classes/spec/storage/**'
+      - 'src/test/java/dev/raskol/classes/spec/build/PlusStorageAsyncTest.java'
+      - 'src/test/java/dev/raskol/classes/ability/CooldownManagerAsyncStorageTest.java'
+      - 'docs/architecture/RASKOL_ARCHIVIST_STORAGE_AUDIT.md'
+      - 'pom.xml'
+      - '.github/workflows/archivist-storage.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: raskol-archivist-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  storage-integrity:
+    name: Storage Integrity Tests (Java 25)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run storage integrity and migration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mvn -B -DtrimStackTrace=false -Dtest='SafeStorageTest,AsyncStorageWriterTest,DirtyStorageStateTest,CharacterProfileStorageTest,Spec2StorageAsyncTest,Spec2StorageMigrationTest,CooldownManagerAsyncStorageTest,PlusStorageAsyncTest' test
+
+      - name: Summarize storage test results
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob
+          import sys
+          import xml.etree.ElementTree as ET
+
+          reports = sorted(glob.glob("target/surefire-reports/TEST-*.xml"))
+          totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+          suites = []
+          for report in reports:
+              root = ET.parse(report).getroot()
+              values = {key: int(root.attrib.get(key, "0")) for key in totals}
+              for key, value in values.items():
+                  totals[key] += value
+              suites.append((root.attrib.get("name", report), values))
+
+          with open("GITHUB_STEP_SUMMARY", "w", encoding="utf-8") as _:
+              pass
+          summary = [
+              "## RASKOL Archivist — storage integrity",
+              "",
+              f"- Test classes: {len(suites)}",
+              f"- Tests: {totals['tests']}",
+              f"- Passed: {totals['tests'] - totals['failures'] - totals['errors'] - totals['skipped']}",
+              f"- Failures: {totals['failures']}",
+              f"- Errors: {totals['errors']}",
+              f"- Skipped: {totals['skipped']}",
+              "",
+          ]
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
+              stream.write("\n".join(summary))
+              for name, values in suites:
+                  stream.write(f"- {name}: {values['tests']} tests, {values['failures']} failures, {values['errors']} errors, {values['skipped']} skipped\n")
+
+          if not reports or totals["tests"] == 0:
+              print("No storage test reports were produced.", file=sys.stderr)
+              sys.exit(1)
+          PY
+
+      - name: Upload storage test reports
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: raskol-archivist-storage-reports
+          path: target/surefire-reports/
+          if-no-files-found: warn
+          retention-days: 30
