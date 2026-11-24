@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raskolclasses.invalid/schemas/combat-lab-probe-report.schema.json",
+  "title": "RaskolClasses Combat Lab limited-scope probe report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "report_type",
+    "simulator_version",
+    "scenario_set",
+    "simulation_scope",
+    "source_commit",
+    "seed",
+    "iterations_per_scenario",
+    "generated_at",
+    "scenarios"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "report_type": { "const": "combat-lab-probe-report" },
+    "simulator_version": { "type": "string", "minLength": 1 },
+    "scenario_set": { "const": "pvp-unarmed-melee-probe-v1" },
+    "simulation_scope": { "type": "string", "minLength": 1 },
+    "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "seed": { "type": "integer", "minimum": 0 },
+    "iterations_per_scenario": { "type": "integer", "minimum": 1200 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scenario_id", "mode", "sample_count", "invariant_violations", "metrics"],
+        "properties": {
+          "scenario_id": { "type": "string", "minLength": 1 },
+          "mode": { "const": "pvp" },
+          "sample_count": { "type": "integer", "minimum": 1200 },
+          "invariant_violations": { "type": "array", "items": { "type": "string" } },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "win_rate",
+              "ttk_median_seconds",
+              "dps_mean",
+              "hps_mean",
+              "crit_rate",
+              "avoidance_rate"
+            ],
+            "properties": {
+              "win_rate": { "$ref": "#/$defs/rate" },
+              "crit_rate": { "$ref": "#/$defs/rate" },
+              "avoidance_rate": { "$ref": "#/$defs/rate" },
+              "ttk_median_seconds": { "$ref": "#/$defs/continuous" },
+              "dps_mean": { "$ref": "#/$defs/continuous" },
+              "hps_mean": { "$ref": "#/$defs/continuous" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "rate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "ci95_low", "ci95_high", "ci95_method"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "ci95_low": { "type": "number", "minimum": 0, "maximum": 1 },
+        "ci95_high": { "type": "number", "minimum": 0, "maximum": 1 },
+        "ci95_method": { "const": "wilson" }
+      }
+    },
+    "continuous": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "ci95_low", "ci95_high", "ci95_method"],
+      "properties": {
+        "value": { "type": "number", "minimum": 0 },
+        "ci95_low": { "type": "number", "minimum": 0 },
+        "ci95_high": { "type": "number", "minimum": 0 },
+        "ci95_method": { "const": "bootstrap_percentile" }
+      }
+    }
+  }
+}
