@@ -907,7 +907,7 @@ classes:
       tyr_strike:
         name: "Удар Тира"
         description: "Тяжёлый удар бога войны: физ-урон, скалируется от Силы оружия"
-        unlock: 10
+        unlock: 1
         cost: 20
         cooldown: 8
         power: wp
@@ -1071,7 +1071,7 @@ classes:
       wolf_mark:
         name: "Метка Волка"
         description: "Ведьмачья метка: урон, Slowness I 3 с и подсветка цели на 6 с"
-        unlock: 10
+        unlock: 1
         cost: 20
         cooldown: 12
         power: wp
@@ -1271,7 +1271,7 @@ classes:
       saint_tear:
         name: "Слеза Святой"
         description: "Литургический хил: восстанавливает HP себе или союзнику (скалируется от Силы исцеления)"
-        unlock: 10
+        unlock: 1
         cost: 10
         cooldown: 3
         power: hpow
@@ -1434,7 +1434,7 @@ classes:
       fire_prometheus:
         name: "Огонь Прометея"
         description: "Выпускает огненный шар: маг-урон при попадании + горение (DoT burning, FIRE). Ванильного поджога нет."
-        unlock: 10
+        unlock: 1
         cost: 15
         cooldown: 3
         power: sp
@@ -1614,7 +1614,7 @@ classes:
       shadow_cloak:
         name: "Плащ теней"
         description: "Слиться с тенью: Невидимость 15 с"
-        unlock: 10
+        unlock: 1
         cost: 30
         cooldown: 30
         duration: 15
@@ -1866,7 +1866,7 @@ classes:
       black_word:
         name: "Чёрное Слово"
         description: "Запретное слово бьёт цель магией; плата — 10% собственного здоровья; взамен +25 Скверны. Не лечит. Откат 3 с."
-        unlock: 10
+        unlock: 1
         cost: 0
         cooldown: 3
         power: sp

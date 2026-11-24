@@ -14,6 +14,7 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 
 import dev.raskol.classes.RaskolClasses;
+import dev.raskol.classes.ability.AbilityAccessPolicy;
 import dev.raskol.classes.ability.AbilityDef;
 import dev.raskol.classes.ability.TreeAbilities;
 import dev.raskol.classes.classsystem.PlayerClass;
@@ -136,6 +137,19 @@ public final class AbilitiesTab implements BookTabView {
     private void handleAbilityClick(
             RenderCtx ctx, Player player, PlayerClass pc, AbilityDef def, boolean left, boolean right) {
         RaskolClasses plugin = ctx.plugin();
+        if (!abilityUnlocked(
+                plugin, player.getUniqueId(), def, plugin.getCharacterLevels().characterLevel(player.getUniqueId()))) {
+            if (plugin.getAbilities().requiresTreeUnlock(def.id())) {
+                player.sendMessage(Component.text(
+                        "Сначала открой способность соответствующим узлом дерева путей.", NamedTextColor.GRAY));
+            } else {
+                player.sendMessage(Component.text(
+                        "«" + def.displayName() + "» откроется на уровне " + def.unlockLevel() + ".",
+                        NamedTextColor.GRAY));
+            }
+            ctx.refresh();
+            return;
+        }
         if (left) {
             if (plugin.getAbilities().tryCast(player, def)) {
                 plugin.getFx().onAttempt(player, def.id(), def.cooldownMillis());
@@ -167,7 +181,7 @@ public final class AbilitiesTab implements BookTabView {
         long remaining = plugin.getCooldowns().getRemainingMillis(uuid, def.id());
         double resource = plugin.getResources().getValue(uuid);
         int level = plugin.getCharacterLevels().characterLevel(uuid);
-        boolean unlocked = level >= def.unlockLevel();
+        boolean unlocked = abilityUnlocked(plugin, uuid, def, level);
         boolean ready = remaining <= 0 && resource >= def.cost() && unlocked;
         int scrolls = countAbilityScrolls(plugin, player, def.id());
 
@@ -222,6 +236,12 @@ public final class AbilitiesTab implements BookTabView {
             }
         });
         return item;
+    }
+
+    private boolean abilityUnlocked(RaskolClasses plugin, UUID uuid, AbilityDef def, int level) {
+        boolean treeGated = plugin.getAbilities().requiresTreeUnlock(def.id());
+        boolean treeUnlocked = treeGated && plugin.getSpec2Service().hasUnlocked(uuid, def.id());
+        return AbilityAccessPolicy.isUnlocked(def, level, treeGated, treeUnlocked);
     }
 
     private ItemStack installItem(RaskolClasses plugin, Player player, PlayerClass pc, InstallationType type) {

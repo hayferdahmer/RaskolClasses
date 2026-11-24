@@ -169,7 +169,7 @@ public final class TalentsTab implements BookTabView {
         Set<String> disabledIds = svc.disabledSet();
 
         // --- инфо текущего ряда + прогресс 6 рядов + бюджет ---
-        int gate = Spec2Points.rowGate(row); // 1.14.7 (P1-4): аксессор снимка
+        int gate = Spec2Points.rowGate(row, currentSpec); // per-tree гейт должен совпадать с проверкой покупки
         boolean rowOpen = inTree >= gate;
         List<Spec2Node> nodes = rowNodes(tree, row);
 
@@ -350,7 +350,7 @@ public final class TalentsTab implements BookTabView {
         int inTree = tree.spentInTree(ranks);
         Component acc = Component.empty();
         for (int r = 1; r <= ROW_COUNT; r++) {
-            int g = Spec2Points.rowGate(r); // 1.14.7 (P1-4): аксессор снимка
+            int g = Spec2Points.rowGate(r, tree.id()); // per-tree гейт для выбранного дерева
             boolean open = inTree >= g;
             String sym = (r == ROW_COUNT ? "★" : (open ? "✔" : "🔒"));
             NamedTextColor col = r == ROW_COUNT
@@ -574,7 +574,7 @@ public final class TalentsTab implements BookTabView {
         boolean isOwned = rank > 0;
         boolean maxed = rank >= node.maxRank();
         boolean disabled = disabledIds.contains(node.id());
-        int gate = Spec2Points.rowGate(node.row()); // 1.14.7 (P1-4): аксессор снимка
+        int gate = Spec2Points.rowGate(node.row(), treeId); // тот же гейт, который проверяет Spec2Service
         boolean rowOk = inTree >= gate;
         // 1.14.8-fix (P0-6B): пререквизиты с учётом стоп-листа
         boolean prereqOk = tree.prereqsMet(node, ranks, disabledIds);

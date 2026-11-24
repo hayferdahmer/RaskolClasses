@@ -690,7 +690,7 @@ public final class Spec2Service {
             } finally {
                 Spec2Points.endTree();
             }
-            if (kept.size() != raw.size()) {
+            if (!kept.equals(raw)) {
                 storage.setRanks(uuid, treeId, kept);
                 plugin.getLogger()
                         .warning("spec2: ранги дерева " + treeId + " игрока " + uuid + " прорежены до валидных ("
@@ -772,7 +772,7 @@ public final class Spec2Service {
                 continue;
             }
             int r = Math.min(rank, node.maxRank());
-            if (!Spec2Points.rowUnlocked(node.row(), tree.spentInTree(kept))) {
+            if (!Spec2Points.snapshot().rowUnlocked(node.row(), tree.spentInTree(kept), tree.id())) {
                 continue;
             }
             if (!tree.prereqsMet(node, kept, disabled)) {

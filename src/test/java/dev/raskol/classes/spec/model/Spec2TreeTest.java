@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.spec.model;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,6 +16,9 @@ import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import dev.raskol.classes.ability.TransferableAbilities;
+import dev.raskol.classes.ability.TreeAbilities;
+import dev.raskol.classes.classsystem.PlayerClass;
 import dev.raskol.classes.spec.Spec;
 import dev.raskol.classes.spec.registry.Spec2Registry;
 
@@ -41,6 +45,104 @@ class Spec2TreeTest {
                     t.capacity() >= 50 && t.capacity() <= 58,
                     "ёмкость " + s.id() + " = " + t.capacity() + ", ожидалось [50, 58]");
         }
+    }
+
+    @Test
+    @DisplayName("все 18 деревьев имеют целостный DAG и уникальную сетку узлов")
+    void registryGraphIntegrity() {
+        int totalNodes = 0;
+        for (Spec spec : Spec.values()) {
+            Spec2Tree tree = Spec2Registry.treeOf(spec.id());
+            assertNotNull(tree, "дерево отсутствует: " + spec.id());
+            Set<String> ids = new HashSet<>();
+            Set<String> coordinates = new HashSet<>();
+            Map<String, Integer> declarationOrder = new HashMap<>();
+            List<Spec2Node> orderedNodes = tree.nodes();
+            for (int i = 0; i < orderedNodes.size(); i++) {
+                declarationOrder.put(orderedNodes.get(i).id(), i);
+            }
+            for (Spec2Node node : orderedNodes) {
+                assertTrue(ids.add(node.id()), "дублирующийся node id: " + spec.id() + "/" + node.id());
+                assertTrue(
+                        coordinates.add(node.row() + ":" + node.col()),
+                        "дублирующаяся позиция: " + spec.id() + "/" + node.row() + ":" + node.col());
+                assertTrue(node.row() >= 1 && node.row() <= 6, "неверный ряд: " + spec.id() + "/" + node.id());
+                assertTrue(node.col() >= 1 && node.col() <= 4, "неверный столбец: " + spec.id() + "/" + node.id());
+                assertTrue(node.maxRank() > 0, "maxRank должен быть положительным: " + spec.id() + "/" + node.id());
+                for (Map.Entry<String, Integer> prereq : node.prereqs().entrySet()) {
+                    assertNotNull(
+                            tree.find(prereq.getKey()),
+                            "отсутствующий prerequisite: " + spec.id() + "/" + node.id() + " -> " + prereq.getKey());
+                    assertTrue(
+                            prereq.getValue() > 0,
+                            "ранг prerequisite должен быть положительным: " + spec.id() + "/" + node.id());
+                    Spec2Node prerequisite = tree.find(prereq.getKey());
+                    assertTrue(
+                            prerequisite.row() < node.row()
+                                    || (prerequisite.row() == node.row()
+                                            && declarationOrder.get(prerequisite.id())
+                                                    < declarationOrder.get(node.id())),
+                            "prerequisite должен идти в более раннем ряду или раньше в том же ряду: " + spec.id() + "/"
+                                    + node.id() + " -> " + prerequisite.id());
+                }
+                assertTrue(tree.isReachable(node.id(), Set.of()), "цикл в графе: " + spec.id() + "/" + node.id());
+            }
+            totalNodes += tree.nodes().size();
+        }
+        assertEquals(361, totalNodes, "изменение числа узлов должно проходить осознанный review");
+    }
+
+    @Test
+    @DisplayName("per-tree row gate переопределяет глобальный порог только для своего дерева")
+    void perTreeRowGateOverride() {
+        Spec2Points.Snapshot snapshot = new Spec2Points.Snapshot(
+                15, 46, new int[] {0, 5, 10, 15, 20, 30}, Map.of("beastmaster", new int[] {0, 5, 10, 15, 20, 27}));
+        assertEquals(27, snapshot.rowGate(6, "beastmaster"));
+        assertEquals(30, snapshot.rowGate(6, "arms"));
+        assertEquals(30, snapshot.rowGate(6, null));
+    }
+
+    @Test
+    @DisplayName("проверка доступности ряда использует override конкретного дерева")
+    void rowUnlockedUsesPerTreeOverride() {
+        Spec2Points.Snapshot snapshot = new Spec2Points.Snapshot(
+                15, 46, new int[] {0, 5, 10, 15, 20, 30}, Map.of("beastmaster", new int[] {0, 5, 10, 15, 20, 27}));
+
+        assertTrue(snapshot.rowUnlocked(6, 27, "beastmaster"));
+        assertFalse(snapshot.rowUnlocked(6, 27, "arms"));
+        assertTrue(snapshot.rowUnlocked(6, 30, "arms"));
+    }
+
+    @Test
+    @DisplayName("все узлы открытия ведут к уникальным зарегистрированным способностям")
+    void unlockAbilityNodesAreUniqueAndRegistered() {
+        Set<String> declaredAbilities = new HashSet<>();
+        for (PlayerClass playerClass : PlayerClass.values()) {
+            declaredAbilities.addAll(TreeAbilities.idsFor(playerClass));
+        }
+        declaredAbilities.addAll(TransferableAbilities.allIds());
+
+        Set<String> unlockedAbilities = new HashSet<>();
+        for (Spec spec : Spec.values()) {
+            Spec2Tree tree = Spec2Registry.treeOf(spec.id());
+            assertNotNull(tree, "дерево отсутствует: " + spec.id());
+            for (Spec2Node node : tree.nodes()) {
+                if (node.effect() == null
+                        || !"unlock_ability".equals(node.effect().kind())) {
+                    continue;
+                }
+                String abilityId = node.effect().target();
+                assertTrue(
+                        unlockedAbilities.add(abilityId),
+                        "дублирующий узел открытия способности: " + abilityId + " в " + spec.id() + "/" + node.id());
+                assertTrue(
+                        declaredAbilities.contains(abilityId),
+                        "способность не зарегистрирована: " + abilityId + " в " + spec.id() + "/" + node.id());
+            }
+        }
+        assertEquals(81, unlockedAbilities.size(), "ожидалось 69 древесных и 12 перенесённых способностей");
+        assertEquals(
+                declaredAbilities, unlockedAbilities, "список доступных способностей и узлы открытия должны совпадать");
     }
 
     @Test
