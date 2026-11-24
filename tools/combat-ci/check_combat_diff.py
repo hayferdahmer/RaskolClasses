@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
 # SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
-"""Проверяет боевой diff и наличие тестов для затронутых контрактов."""
+"""Проверяет боевой diff и наличие актуальных тестов для затронутых контрактов."""
 
 from __future__ import annotations
 
@@ -25,6 +25,10 @@ COMBAT_PREFIXES = (
 COMBAT_FILES = {"src/main/resources/config.yml", "src/main/resources/items.yml"}
 TEST_PREFIX = "src/test/java/"
 SELFTEST_PREFIX = "src/main/java/dev/raskol/classes/selftest/"
+RESOURCE_TEST_HINTS = {
+    "src/main/resources/config.yml": ("config",),
+    "src/main/resources/items.yml": ("item",),
+}
 
 
 def is_combat_path(path: str) -> bool:
@@ -35,17 +39,39 @@ def is_test_path(path: str) -> bool:
     return path.startswith(TEST_PREFIX) or path.startswith(SELFTEST_PREFIX)
 
 
+def existing_paths_at_head(paths: list[str]) -> list[str]:
+    """Исключает удалённые из HEAD файлы: они не могут подтверждать покрытие."""
+    existing = []
+    for path in paths:
+        result = subprocess.run(
+            ["git", "cat-file", "-e", f"HEAD:{path}"],
+            check=False, capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            existing.append(path)
+    return existing
+
+
 def matching_test_exists(source_path: str, test_paths: set[str]) -> bool:
     if source_path.startswith(SELFTEST_PREFIX):
         return any(path.startswith(SELFTEST_PREFIX) or path.startswith(TEST_PREFIX) for path in test_paths)
-    if not source_path.startswith("src/main/java/"):
-        return bool(test_paths)
-    package_path = source_path.removeprefix("src/main/java/").rsplit("/", 1)[0]
-    package_test_prefix = TEST_PREFIX + package_path + "/"
-    source_name = source_path.rsplit("/", 1)[-1].removesuffix(".java")
-    return any(
-        path.startswith(package_test_prefix)
-        or (path.startswith(TEST_PREFIX) and source_name.lower() in path.lower())
+    if source_path.startswith("src/main/java/"):
+        package_path = source_path.removeprefix("src/main/java/").rsplit("/", 1)[0]
+        package_test_prefix = TEST_PREFIX + package_path + "/"
+        source_name = source_path.rsplit("/", 1)[-1].removesuffix(".java").lower()
+        return any(
+            path.startswith(package_test_prefix)
+            or (path.startswith(TEST_PREFIX) and source_name in path.lower())
+            for path in test_paths
+        )
+
+    hints = RESOURCE_TEST_HINTS.get(source_path)
+    if hints is None and source_path.startswith("src/main/resources/kits/"):
+        hints = ("kit",)
+    if hints is None and source_path.startswith("src/main/resources/talents/"):
+        hints = ("talent",)
+    return bool(hints) and any(
+        any(hint in path.lower() for hint in hints)
         for path in test_paths
     )
 
@@ -71,13 +97,9 @@ def changed_files(base: str, head: str, event_name: str) -> list[str]:
 def audit(combat_paths: list[str], test_paths: list[str]) -> list[str]:
     tests = set(test_paths)
     failures = []
-    java_sources = [path for path in combat_paths if path.startswith("src/main/java/")]
-    for source in java_sources:
+    for source in combat_paths:
         if not matching_test_exists(source, tests):
-            failures.append(f"{source}: нет изменённого теста в соответствующем пакете")
-    non_java = [path for path in combat_paths if path not in java_sources]
-    if non_java and not tests:
-        failures.extend(f"{path}: изменение ресурса требует сопровождающего теста" for path in non_java)
+            failures.append(f"{source}: нет актуального сопровождающего теста в соответствующем контракте")
     return failures
 
 
@@ -88,22 +110,24 @@ def main() -> int:
             os.environ.get("HEAD_SHA", ""),
             os.environ.get("EVENT_NAME", ""),
         )
+        combat = existing_paths_at_head([path for path in changed if is_combat_path(path)])
+        tests = existing_paths_at_head([path for path in changed if is_test_path(path)])
     except (ValueError, RuntimeError) as exc:
         print(f"::error::{exc}")
         return 2
-    combat = [path for path in changed if is_combat_path(path)]
-    tests = [path for path in changed if is_test_path(path)]
+    combat_changed = [path for path in changed if is_combat_path(path)]
+    test_changed = [path for path in changed if is_test_path(path)]
     output_path = os.environ.get("GITHUB_OUTPUT")
     if output_path:
         with open(output_path, "a", encoding="utf-8") as output:
-            output.write(f"combat_changed={'true' if combat else 'false'}\n")
-            output.write(f"tests_changed={'true' if tests else 'false'}\n")
-            output.write(f"combat_file_count={len(combat)}\n")
-            output.write(f"test_file_count={len(tests)}\n")
+            output.write(f"combat_changed={'true' if combat_changed else 'false'}\n")
+            output.write(f"tests_changed={'true' if test_changed else 'false'}\n")
+            output.write(f"combat_file_count={len(combat_changed)}\n")
+            output.write(f"test_file_count={len(test_changed)}\n")
     print(f"Изменённых файлов: {len(changed)}")
-    print(f"Боевых файлов: {len(combat)}")
-    print(f"Тестовых файлов: {len(tests)}")
-    if not combat:
+    print(f"Боевых файлов: {len(combat_changed)}")
+    print(f"Актуальных тестовых файлов: {len(tests)}")
+    if not combat_changed:
         print("Боевые изменения не обнаружены: Arena-контракт проверен, статистический прогон не заявляется.")
         return 0
     failures = audit(combat, tests)
@@ -111,7 +135,7 @@ def main() -> int:
         for failure in failures:
             print(f"::error::{failure}")
         return 1
-    print("Для каждого изменённого боевого Java-пакета найден сопровождающий тест.")
+    print("Для каждого изменённого боевого контракта найден актуальный сопровождающий тест.")
     return 0
 
 
