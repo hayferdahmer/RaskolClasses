@@ -558,7 +558,8 @@ public final class CombatService implements Listener {
                     actualPhys = (before - after) / scale;
                 }
                 if (burstToken != null) {
-                    caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedPhys - actualPhys));
+                    caps.rollbackBurst(
+                            burstTarget, burstToken, Math.max(0.0, burstReservedPhys - actualPhys));
                     physReservationSettled = true;
                 }
             }
@@ -585,7 +586,8 @@ public final class CombatService implements Listener {
                     actualMagic = (before - after) / scale;
                 }
                 if (burstToken != null) {
-                    caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedMagic - actualMagic));
+                    caps.rollbackBurst(
+                            burstTarget, burstToken, Math.max(0.0, burstReservedMagic - actualMagic));
                     magicReservationSettled = true;
                 }
             }
