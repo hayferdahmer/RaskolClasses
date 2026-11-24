@@ -42,8 +42,10 @@ class BurstRollbackTrackerTest {
         UUID secondPlayer = UUID.randomUUID();
 
         BurstReservationLedger ledger = new BurstReservationLedger();
-        BurstReservationLedger.Token firstToken = ledger.reserve(0L, 10_000L, 100.0, 4.0).token();
-        BurstReservationLedger.Token secondToken = ledger.reserve(0L, 10_000L, 100.0, 9.0).token();
+        BurstReservationLedger.Token firstToken =
+                ledger.reserve(0L, 10_000L, 100.0, 4.0).token();
+        BurstReservationLedger.Token secondToken =
+                ledger.reserve(0L, 10_000L, 100.0, 9.0).token();
         tracker.arm(firstEvent, firstPlayer, firstToken, 4.0);
         tracker.arm(secondEvent, secondPlayer, secondToken, 9.0);
 
