@@ -1,0 +1,6 @@
+name: RaskolCombatQA
+version: 1.0.0
+main: dev.raskol.qa.CombatRuntimeQaPlugin
+api-version: '1.21'
+depend:
+  - RaskolClasses
