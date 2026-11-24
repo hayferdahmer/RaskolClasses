@@ -499,7 +499,12 @@ public final class CombatService implements Listener {
         }
 
         double taken = physPart + magicTruePart;
+        Player burstTarget = null;
+        BurstReservationLedger.Token burstToken = null;
+        double burstReservedPhys = 0.0;
+        double burstReservedMagic = 0.0;
         if (!allowOverCap && target instanceof Player tp2) {
+            burstTarget = tp2;
             double pct = cfgD("combat.max-single-hit-pct", 35.0);
             if (pct > 0.0 && taken > 0.0) {
                 double limit = caps.formulaMaxOf(tp2) * pct / 100.0;
@@ -510,13 +515,18 @@ public final class CombatService implements Listener {
                     taken = limit;
                 }
             }
-            double burstAllowed = caps.applyBurstCap(tp2, taken, caps.formulaMaxOf(tp2));
+            BurstReservationLedger.Allocation burst =
+                    caps.reserveBurstCap(tp2, taken, caps.formulaMaxOf(tp2));
+            burstToken = burst.token();
+            double burstAllowed = burst.allowed();
             if (burstAllowed < taken && taken > 0.0) {
                 double f = burstAllowed / taken;
                 physPart *= f;
                 magicTruePart *= f;
                 taken = burstAllowed;
             }
+            burstReservedPhys = physPart;
+            burstReservedMagic = magicTruePart;
         }
         debugLog(target, source, safe, taken, castSchool);
         double scale = caps.scaleOf(target);
@@ -525,6 +535,8 @@ public final class CombatService implements Listener {
 
         double actualPhys = 0.0;
         double actualMagic = 0.0;
+        boolean physReservationSettled = burstToken == null || burstReservedPhys <= 0.0;
+        boolean magicReservationSettled = burstToken == null || burstReservedMagic <= 0.0;
 
         ABILITY_SOURCE.set(source instanceof Player s2 ? s2.getUniqueId() : null);
         try {
@@ -544,6 +556,10 @@ public final class CombatService implements Listener {
                 double after = target.getHealth();
                 if (after < before) {
                     actualPhys = (before - after) / scale;
+                }
+                if (burstToken != null) {
+                    caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedPhys - actualPhys));
+                    physReservationSettled = true;
                 }
             }
             if (applyMagic > 0.0) {
@@ -568,8 +584,20 @@ public final class CombatService implements Listener {
                 if (after < before) {
                     actualMagic = (before - after) / scale;
                 }
+                if (burstToken != null) {
+                    caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedMagic - actualMagic));
+                    magicReservationSettled = true;
+                }
             }
         } finally {
+            if (burstToken != null) {
+                if (!physReservationSettled) {
+                    caps.rollbackBurst(burstTarget, burstToken, burstReservedPhys);
+                }
+                if (!magicReservationSettled) {
+                    caps.rollbackBurst(burstTarget, burstToken, burstReservedMagic);
+                }
+            }
             ABILITY_SOURCE.remove();
         }
 
