@@ -39,7 +39,8 @@ class StorageArchitectureInvariantTest {
         assertEquals(CharacterProfileStorage.class, fields[0].getType());
         assertFalse(Arrays.stream(fields).anyMatch(field -> File.class.isAssignableFrom(field.getType())));
         assertFalse(Arrays.stream(fields).anyMatch(field -> Path.class.isAssignableFrom(field.getType())));
-        assertFalse(Arrays.stream(fields).anyMatch(field -> AsyncStorageWriter.class.isAssignableFrom(field.getType())));
+        assertFalse(
+                Arrays.stream(fields).anyMatch(field -> AsyncStorageWriter.class.isAssignableFrom(field.getType())));
     }
 
     @Test
@@ -51,13 +52,10 @@ class StorageArchitectureInvariantTest {
     @Test
     @DisplayName("SafeStorage явно различает новое, восстановленное, повреждённое и недоступное хранилище")
     void safeStorageExposesExplicitLoadStates() {
-        Set<String> actual = Arrays.stream(SafeStorage.LoadStatus.values())
-                .map(Enum::name)
-                .collect(Collectors.toSet());
+        Set<String> actual =
+                Arrays.stream(SafeStorage.LoadStatus.values()).map(Enum::name).collect(Collectors.toSet());
 
-        assertEquals(
-                Set.of("NEW", "LOADED_MAIN", "RECOVERED_TMP", "RECOVERED_BACKUP", "CORRUPT", "IO_ERROR"),
-                actual);
+        assertEquals(Set.of("NEW", "LOADED_MAIN", "RECOVERED_TMP", "RECOVERED_BACKUP", "CORRUPT", "IO_ERROR"), actual);
     }
 
     @Test
@@ -85,7 +83,6 @@ class StorageArchitectureInvariantTest {
         assertTrue(java.lang.reflect.Modifier.isStatic(migrate.getModifiers()));
         assertEquals(void.class, migrate.getReturnType());
         assertArrayEquals(
-                new Class<?>[] {File.class, CharacterProfileStorage.class, Logger.class},
-                migrate.getParameterTypes());
+                new Class<?>[] {File.class, CharacterProfileStorage.class, Logger.class}, migrate.getParameterTypes());
     }
 }
