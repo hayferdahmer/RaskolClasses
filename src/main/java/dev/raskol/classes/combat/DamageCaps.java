@@ -25,9 +25,8 @@ import dev.raskol.classes.config.ConfigReads;
  *         (аудит 1-01: единая NaN-проверка).
  * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): carrierMaxOf читает максимум через Hp.max
  *         (атрибут MAX_HEALTH) вместо deprecated LivingEntity#getMaxHealth().
- * 1.15.6 (Волна 4, аудит 2.6-40): undoLastBurst — откат записи burst-лога, если
- *         событие урона отменено downstream (регион/другой плагин): окно больше
- *         не «съедает» бюджет уроном, который не прошёл.
+ * Burst Reservation: адресный rollback по token вместо отката последней записи.
+ * Путь B освобождает неиспользованный бюджет отдельно для физического и магического событий.
  * 1.15.6 (Волна 4, аудит 2.6-52): purge-окно burst-лога читается из конфига
  *         combat.burst-window-seconds вместо зашитых 10 с.
  */
