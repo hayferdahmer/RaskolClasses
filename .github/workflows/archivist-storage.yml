@@ -62,42 +62,71 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mvn -B -DtrimStackTrace=false -Dtest='SafeStorageTest,AsyncStorageWriterTest,DirtyStorageStateTest,CharacterProfileStorageTest,Spec2StorageAsyncTest,Spec2StorageMigrationTest,CooldownManagerAsyncStorageTest,PlusStorageAsyncTest' test
+          mvn -B -DtrimStackTrace=false -Dtest='SafeStorageTest,AsyncStorageWriterTest,DirtyStorageStateTest,CharacterProfileStorageTest,Spec2StorageAsyncTest,Spec2StorageMigrationTest,CooldownManagerAsyncStorageTest,PlusStorageAsyncTest,StorageArchitectureInvariantTest' test
 
       - name: Summarize storage test results
         if: success() || failure()
         shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           import glob
+          import os
+          import pathlib
           import sys
           import xml.etree.ElementTree as ET
 
           reports = sorted(glob.glob("target/surefire-reports/TEST-*.xml"))
           totals = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
           suites = []
+          problems = []
           for report in reports:
               root = ET.parse(report).getroot()
               values = {key: int(root.attrib.get(key, "0")) for key in totals}
               for key, value in values.items():
                   totals[key] += value
-              suites.append((root.attrib.get("name", report), values))
+              name = root.attrib.get("name", report)
+              suites.append((name, values))
+              for case in root.iter("testcase"):
+                  for kind in ("failure", "error"):
+                      issue = case.find(kind)
+                      if issue is not None:
+                          detail = (issue.get("message") or (issue.text or "").strip()).replace("\\n", " ")
+                          problems.append((name, case.get("name", "unknown"), kind, detail[:1000]))
 
-          summary = [
+          passed = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
+          lines = [
               "## RASKOL Archivist — storage integrity",
               "",
+              f"- Commit: `{os.environ.get('GITHUB_SHA', 'unknown')}`",
               f"- Test classes: {len(suites)}",
               f"- Tests: {totals['tests']}",
-              f"- Passed: {totals['tests'] - totals['failures'] - totals['errors'] - totals['skipped']}",
+              f"- Passed: {passed}",
               f"- Failures: {totals['failures']}",
               f"- Errors: {totals['errors']}",
               f"- Skipped: {totals['skipped']}",
               "",
+              "| Test class | Tests | Failures | Errors | Skipped |",
+              "|---|---:|---:|---:|---:|",
           ]
-          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
-              stream.write("\n".join(summary))
-              for name, values in suites:
-                  stream.write(f"- {name}: {values['tests']} tests, {values['failures']} failures, {values['errors']} errors, {values['skipped']} skipped\n")
+          for name, values in suites:
+              lines.append(
+                  f"| `{name}` | {values['tests']} | {values['failures']} | "
+                  f"{values['errors']} | {values['skipped']} |"
+              )
+
+          if problems:
+              lines.extend(["", "### Failure details", ""])
+              for suite, case, kind, detail in problems:
+                  lines.append(f"- **{suite} / {case} ({kind}):** {detail or 'No message'}")
+
+          if not reports or totals["tests"] == 0:
+              lines.extend(["", "**ERROR:** no test reports or zero executed tests."])
+          summary = "\\n".join(lines) + "\\n"
+          pathlib.Path("target/archivist").mkdir(parents=True, exist_ok=True)
+          pathlib.Path("target/archivist/summary.md").write_text(summary, encoding="utf-8")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
+              stream.write(summary)
 
           if not reports or totals["tests"] == 0:
               print("No storage test reports were produced.", file=sys.stderr)
@@ -109,6 +138,8 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: raskol-archivist-storage-reports
-          path: target/surefire-reports/
+          path: |
+            target/surefire-reports/
+            target/archivist/summary.md
           if-no-files-found: warn
           retention-days: 30
