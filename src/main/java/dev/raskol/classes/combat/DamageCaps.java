@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,7 +39,7 @@ public final class DamageCaps {
             List.of("FALL", "DROWNING", "SUFFOCATION", "STARVATION", "VOID", "SONIC_BOOM");
 
     private final RaskolClasses plugin;
-    private final Map<UUID, Deque<double[]>> burstLog = new ConcurrentHashMap<>();
+    private final Map<UUID, BurstReservationLedger> burstLedgers = new ConcurrentHashMap<>();
 
     public DamageCaps(RaskolClasses plugin) {
         this.plugin = plugin;
@@ -125,65 +123,44 @@ public final class DamageCaps {
 
     /* ------------------------------ burst-окно ------------------------------ */
 
-    public double applyBurstCap(Player target, double damage, double maxHp) {
+    public BurstReservationLedger.Allocation reserveBurstCap(Player target, double damage, double maxHp) {
         if (damage <= 0.0) {
-            return damage;
+            return new BurstReservationLedger.Allocation(damage, null);
         }
         double seconds = cfgD("combat.burst-window-seconds", 3.0);
         double pct = cfgD("combat.burst-window-pct", 18.0);
         if (seconds <= 0.0 || pct <= 0.0) {
-            return damage;
+            return new BurstReservationLedger.Allocation(damage, null);
         }
-        double cap = maxHp * pct / 100.0;
+
         long now = System.currentTimeMillis();
         long windowMillis = (long) (seconds * 1000.0);
-        Deque<double[]> dq = burstLog.computeIfAbsent(target.getUniqueId(), k -> new ArrayDeque<>());
-        synchronized (dq) {
-            while (!dq.isEmpty() && now - dq.peekFirst()[0] > windowMillis) {
-                dq.pollFirst();
+        double cap = maxHp * pct / 100.0;
+        BurstReservationLedger ledger =
+                burstLedgers.computeIfAbsent(target.getUniqueId(), ignored -> new BurstReservationLedger());
+        synchronized (ledger) {
+            BurstReservationLedger.Allocation allocation = ledger.reserve(now, windowMillis, cap, damage);
+            if (ledger.isEmpty()) {
+                burstLedgers.remove(target.getUniqueId(), ledger);
             }
-            double sum = 0.0;
-            for (double[] e : dq) {
-                sum += e[1];
-            }
-            double allowed = Math.max(0.0, cap - sum);
-            double finalDmg = Math.min(damage, allowed);
-            if (finalDmg > 0.0) {
-                dq.addLast(new double[] {now, finalDmg});
-            }
-            if (dq.isEmpty()) {
-                burstLog.remove(target.getUniqueId());
-            }
-            return finalDmg;
+            return allocation;
         }
     }
 
-    /**
-     * 1.15.6 (Волна 4, аудит 2.6-40): откат ПОСЛЕДНЕЙ записи burst-лога на amount,
-     * если событие урона отменено downstream. Вызывается из MONITOR-хэндлера
-     * VanillaDamageListener. Защита от чужого отката: снимаем не больше последней
-     * записи; если последняя запись меньше amount — убираем её целиком.
-     */
-    public void undoLastBurst(Player target, double amount) {
-        if (amount <= 0.0) {
+    /** Откатывает только неиспользованную часть конкретной резервации. */
+    public void rollbackBurst(Player target, BurstReservationLedger.Token token, double amount) {
+        if (target == null || token == null || amount <= 0.0) {
             return;
         }
-        Deque<double[]> dq = burstLog.get(target.getUniqueId());
-        if (dq == null) {
+        UUID playerId = target.getUniqueId();
+        BurstReservationLedger ledger = burstLedgers.get(playerId);
+        if (ledger == null) {
             return;
         }
-        synchronized (dq) {
-            double[] last = dq.peekLast();
-            if (last == null) {
-                return;
-            }
-            if (last[1] <= amount + 1e-9) {
-                dq.pollLast();
-            } else {
-                last[1] -= amount;
-            }
-            if (dq.isEmpty()) {
-                burstLog.remove(target.getUniqueId());
+        synchronized (ledger) {
+            ledger.rollback(token, amount);
+            if (ledger.isEmpty()) {
+                burstLedgers.remove(playerId, ledger);
             }
         }
     }
@@ -192,10 +169,11 @@ public final class DamageCaps {
     public void purge() {
         long now = System.currentTimeMillis();
         long windowMillis = (long) (cfgD("combat.burst-window-seconds", 3.0) * 1000.0);
-        burstLog.entrySet().removeIf(entry -> {
-            synchronized (entry.getValue()) {
-                entry.getValue().removeIf(e -> now - e[0] > windowMillis);
-                return entry.getValue().isEmpty();
+        burstLedgers.entrySet().removeIf(entry -> {
+            BurstReservationLedger ledger = entry.getValue();
+            synchronized (ledger) {
+                ledger.prune(now, windowMillis);
+                return ledger.isEmpty();
             }
         });
     }
