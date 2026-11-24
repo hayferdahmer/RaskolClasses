@@ -5,18 +5,6 @@ name: RASKOL Archivist | Storage Integrity CI
 on:
   pull_request:
     branches: [ main ]
-    paths:
-      - 'src/main/java/dev/raskol/classes/storage/**'
-      - 'src/main/java/dev/raskol/classes/character/profile/**'
-      - 'src/main/java/dev/raskol/classes/spec/storage/**'
-      - 'src/test/java/dev/raskol/classes/storage/**'
-      - 'src/test/java/dev/raskol/classes/character/profile/**'
-      - 'src/test/java/dev/raskol/classes/spec/storage/**'
-      - 'src/test/java/dev/raskol/classes/spec/build/PlusStorageAsyncTest.java'
-      - 'src/test/java/dev/raskol/classes/ability/CooldownManagerAsyncStorageTest.java'
-      - 'docs/architecture/RASKOL_ARCHIVIST_STORAGE_AUDIT.md'
-      - 'pom.xml'
-      - '.github/workflows/archivist-storage.yml'
   push:
     branches: [ main ]
     paths:
