@@ -212,6 +212,20 @@ jobs:
           PROPERTIES
           cp paper.jar runtime/paper.jar
 
+      - name: Compile temporary combat runtime QA plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLUGIN_JAR="$(find artifacts -maxdepth 1 -name 'raskol-classes-*.jar' -print -quit)"
+          test -n "$PLUGIN_JAR"
+          mkdir -p build/paper-qa runtime/plugins
+          javac --release 25 -cp "paper.jar:$PLUGIN_JAR" \
+            -d build/paper-qa \
+            tools/paper-qa/src/main/java/dev/raskol/qa/CombatRuntimeQaPlugin.java
+          cp tools/paper-qa/plugin.yml build/paper-qa/plugin.yml
+          jar --create --file runtime/plugins/RaskolCombatQA.jar -C build/paper-qa .
+          echo "Temporary Paper combat QA plugin compiled and installed."
+
       - name: Start Paper and verify plugin enablement
         working-directory: runtime
         shell: bash
@@ -248,8 +262,26 @@ jobs:
             echo "::error::RaskolClasses emitted an ERROR/SEVERE log during startup."
             exit 1
           fi
-          echo "Paper 26.2 startup and RaskolClasses plugin enablement: PASS"
-          grep -E 'Preparing level|Enabling RaskolClasses|Done \(' server.log
+          QA_READY=0
+          for attempt in $(seq 1 30); do
+            if grep -Fq "[RASKOL-COMBAT-QA] SUPPRESS_SCOPE_PASS" server.log; then
+              QA_READY=1
+              break
+            fi
+            if grep -Fq "[RASKOL-COMBAT-QA] SUPPRESS_SCOPE_FAIL" server.log; then
+              cat server.log
+              echo "::error::Paper combat suppression runtime probe failed."
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$QA_READY" -ne 1 ]; then
+            cat server.log
+            echo "::error::Paper combat suppression runtime probe did not complete."
+            exit 1
+          fi
+          echo "Paper 26.2 startup, RaskolClasses enablement and combat suppression probe: PASS"
+          grep -E 'Preparing level|Enabling RaskolClasses|RASKOL-COMBAT-QA|Done \(' server.log
 
       - name: Upload Paper runtime log
         if: always()
