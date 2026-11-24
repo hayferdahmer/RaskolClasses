@@ -65,7 +65,7 @@ jobs:
           mvn -B -DtrimStackTrace=false -Dtest='SafeStorageTest,AsyncStorageWriterTest,DirtyStorageStateTest,CharacterProfileStorageTest,Spec2StorageAsyncTest,Spec2StorageMigrationTest,CooldownManagerAsyncStorageTest,PlusStorageAsyncTest' test
 
       - name: Summarize storage test results
-        if: always()
+        if: success() || failure()
         shell: bash
         run: |
           python3 - <<'PY'
