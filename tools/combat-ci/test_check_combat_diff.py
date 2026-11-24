@@ -2,9 +2,13 @@
 # SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 """Регрессионные тесты diff-аудитора Arena."""
 
+import subprocess
 import unittest
+from unittest.mock import patch
 
-from check_combat_diff import audit, is_combat_path, is_test_path, matching_test_exists
+from check_combat_diff import (
+    audit, existing_paths_at_head, is_combat_path, is_test_path, matching_test_exists,
+)
 
 
 class CombatDiffAuditTests(unittest.TestCase):
@@ -28,10 +32,32 @@ class CombatDiffAuditTests(unittest.TestCase):
         tests = ["src/test/java/dev/raskol/classes/gui/MenuTest.java"]
         self.assertEqual(1, len(audit([source], tests)))
 
-    def test_resource_change_requires_test(self):
+    def test_deleted_test_is_not_counted_as_coverage(self):
+        with patch("check_combat_diff.subprocess.run", return_value=subprocess.CompletedProcess([], 1)):
+            self.assertEqual([], existing_paths_at_head(["src/test/java/dev/raskol/classes/combat/DeletedTest.java"]))
+
+    def test_existing_test_is_kept_as_coverage_candidate(self):
+        with patch("check_combat_diff.subprocess.run", return_value=subprocess.CompletedProcess([], 0)):
+            self.assertEqual(
+                ["src/test/java/dev/raskol/classes/combat/DamageServiceTest.java"],
+                existing_paths_at_head(["src/test/java/dev/raskol/classes/combat/DamageServiceTest.java"]),
+            )
+
+    def test_resource_change_requires_domain_specific_test(self):
         resource = "src/main/resources/items.yml"
-        self.assertEqual([f"{resource}: изменение ресурса требует сопровождающего теста"], audit([resource], []))
+        self.assertEqual(1, len(audit([resource], [])))
+        self.assertEqual(1, len(audit([resource], ["src/test/java/dev/raskol/classes/config/ConfigTest.java"])))
         self.assertEqual([], audit([resource], ["src/test/java/dev/raskol/classes/item/ItemConfigLoaderTest.java"]))
+
+    def test_kit_and_talent_resources_require_matching_tests(self):
+        self.assertEqual(
+            1,
+            len(audit(["src/main/resources/kits/warrior.yml"], ["src/test/java/dev/raskol/classes/item/ItemTest.java"])),
+        )
+        self.assertEqual(
+            [],
+            audit(["src/main/resources/talents/warrior.yml"], ["src/test/java/dev/raskol/classes/talent/TalentConfigTest.java"]),
+        )
 
     def test_no_combat_changes_is_a_valid_noop(self):
         self.assertEqual([], audit([], []))
