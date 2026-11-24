@@ -440,7 +440,7 @@ public final class DotService implements Listener {
                 if (amount <= 0.0) {
                     continue;
                 }
-                CombatService.setSuppress(true);
+                CombatService.beginSuppress();
                 CombatService.beginReflect();
                 try {
                     target.setNoDamageTicks(0);
@@ -465,7 +465,7 @@ public final class DotService implements Listener {
                     }
                 } finally {
                     CombatService.endReflect();
-                    CombatService.setSuppress(false);
+                    CombatService.endSuppress();
                 }
                 tickVfx(target, outcome.inst().def().school());
             }
