@@ -61,8 +61,7 @@ class BurstRollbackTrackerTest {
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), null, token, 1.0));
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), null, 1.0));
         assertThrows(
-                IllegalArgumentException.class,
-                () -> tracker.arm(new Object(), UUID.randomUUID(), token, Double.NaN));
+                IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), token, Double.NaN));
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), token, 0.0));
     }
 
@@ -80,5 +79,4 @@ class BurstRollbackTrackerTest {
 
         assertEquals(80.0, ledger.reserve(120L, 3_000L, 100.0, 100.0).allowed());
     }
-
 }
