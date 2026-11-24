@@ -82,7 +82,7 @@ public final class VanillaDamageListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
-        boolean suppressed = CombatService.consumeSuppress();
+        boolean suppressed = CombatService.isSuppressed();
         CombatProfile targetProfile = event.getEntity() instanceof LivingEntity living
                 ? plugin.getCombatProfiles().profileOf(living.getUniqueId())
                 : null;
