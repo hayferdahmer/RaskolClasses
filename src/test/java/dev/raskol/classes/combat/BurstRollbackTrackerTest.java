@@ -60,4 +60,19 @@ class BurstRollbackTrackerTest {
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), token, Double.NaN));
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), token, 0.0));
     }
+    @Test
+    void cancelledEventRollsBackOnlyItsOwnReservationToken() {
+        BurstReservationLedger ledger = new BurstReservationLedger();
+        BurstReservationLedger.Allocation cancelled = ledger.reserve(100L, 3_000L, 100.0, 40.0);
+        ledger.reserve(110L, 3_000L, 100.0, 20.0);
+        BurstRollbackTracker tracker = new BurstRollbackTracker();
+        Object event = new Object();
+        tracker.arm(event, UUID.randomUUID(), cancelled.token(), 40.0);
+
+        BurstRollbackTracker.Entry rollback = tracker.take(event);
+        ledger.rollback(rollback.token(), rollback.amount());
+
+        assertEquals(80.0, ledger.reserve(120L, 3_000L, 100.0, 100.0).allowed());
+    }
+
 }
