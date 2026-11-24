@@ -91,7 +91,7 @@ jobs:
                   for kind in ("failure", "error"):
                       issue = case.find(kind)
                       if issue is not None:
-                          detail = (issue.get("message") or (issue.text or "").strip()).replace("\\n", " ")
+                          detail = (issue.get("message") or (issue.text or "").strip()).replace("\n", " ")
                           problems.append((name, case.get("name", "unknown"), kind, detail[:1000]))
 
           passed = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
@@ -122,7 +122,7 @@ jobs:
 
           if not reports or totals["tests"] == 0:
               lines.extend(["", "**ERROR:** no test reports or zero executed tests."])
-          summary = "\\n".join(lines) + "\\n"
+          summary = "\n".join(lines) + "\n"
           pathlib.Path("target/archivist").mkdir(parents=True, exist_ok=True)
           pathlib.Path("target/archivist/summary.md").write_text(summary, encoding="utf-8")
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as stream:
