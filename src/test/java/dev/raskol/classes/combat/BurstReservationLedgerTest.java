@@ -5,6 +5,7 @@ package dev.raskol.classes.combat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 
 import org.junit.jupiter.api.Test;
 
@@ -33,6 +34,7 @@ class BurstReservationLedgerTest {
         ledger.rollback(allocation.token(), 20.0);
         BurstReservationLedger.Allocation afterPhysical = ledger.reserve(110L, 3_000L, 100.0, 60.0);
         assertEquals(60.0, afterPhysical.allowed(), EPSILON);
+        ledger.rollback(afterPhysical.token(), 60.0);
 
         ledger.rollback(allocation.token(), 40.0);
         ledger.rollback(allocation.token(), 40.0);
@@ -56,7 +58,7 @@ class BurstReservationLedgerTest {
         BurstReservationLedger.Allocation current = ledger.reserve(1_101L, 1_000L, 100.0, 100.0);
 
         assertEquals(100.0, current.allowed(), EPSILON);
-        assertNull(expired.token() == current.token() ? current.token() : null);
+        assertNotSame(expired.token(), current.token());
     }
 
     @Test
