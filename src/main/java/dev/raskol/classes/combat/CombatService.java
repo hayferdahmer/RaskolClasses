@@ -549,7 +549,7 @@ public final class CombatService implements Listener {
             if (applyMagic > 0.0) {
                 double before = target.getHealth();
                 target.setNoDamageTicks(0);
-                setSuppress(true);
+                beginSuppress();
                 try {
                     org.bukkit.damage.DamageType magic = magicType();
                     if (magic != null) {
@@ -562,7 +562,7 @@ public final class CombatService implements Listener {
                         target.damage(applyMagic);
                     }
                 } finally {
-                    setSuppress(false);
+                    endSuppress();
                 }
                 double after = target.getHealth();
                 if (after < before) {
