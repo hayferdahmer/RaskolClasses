@@ -4,6 +4,7 @@ package dev.raskol.classes.combat;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.UUID;
@@ -19,7 +20,8 @@ class BurstRollbackTrackerTest {
         Object nestedEvent = new Object();
         UUID playerId = UUID.randomUUID();
 
-        BurstReservationLedger.Token token = new BurstReservationLedger().reserve(0L, 10_000L, 100.0, 12.5).token();
+        BurstReservationLedger.Token token =
+                new BurstReservationLedger().reserve(0L, 10_000L, 100.0, 12.5).token();
         tracker.arm(outerEvent, playerId, token, 12.5);
 
         assertNull(tracker.take(nestedEvent));
@@ -27,7 +29,7 @@ class BurstRollbackTrackerTest {
         BurstRollbackTracker.Entry rollback = tracker.take(outerEvent);
         assertEquals(playerId, rollback.playerId());
         assertEquals(12.5, rollback.amount());
-        org.junit.jupiter.api.Assertions.assertSame(token, rollback.token());
+        assertSame(token, rollback.token());
         assertNull(tracker.take(outerEvent));
     }
 
@@ -53,13 +55,17 @@ class BurstRollbackTrackerTest {
     void rejectsInvalidRollbackData() {
         BurstRollbackTracker tracker = new BurstRollbackTracker();
 
-        BurstReservationLedger.Token token = new BurstReservationLedger().reserve(0L, 10_000L, 100.0, 1.0).token();
+        BurstReservationLedger.Token token =
+                new BurstReservationLedger().reserve(0L, 10_000L, 100.0, 1.0).token();
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(null, UUID.randomUUID(), token, 1.0));
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), null, token, 1.0));
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), null, 1.0));
-        assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), token, Double.NaN));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> tracker.arm(new Object(), UUID.randomUUID(), token, Double.NaN));
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), token, 0.0));
     }
+
     @Test
     void cancelledEventRollsBackOnlyItsOwnReservationToken() {
         BurstReservationLedger ledger = new BurstReservationLedger();
