@@ -212,18 +212,18 @@ jobs:
           PROPERTIES
           cp paper.jar runtime/paper.jar
 
-      - name: Compile temporary combat runtime QA plugin
+      - name: Checkout QA harness source
+        uses: actions/checkout@v5
+
+      - name: Build temporary combat runtime QA plugin
         shell: bash
         run: |
           set -euo pipefail
-          PLUGIN_JAR="$(find artifacts -maxdepth 1 -name 'raskol-classes-*.jar' -print -quit)"
+          PLUGIN_JAR="$(find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -name 'raskol-classes-*.jar' -print -quit)"
           test -n "$PLUGIN_JAR"
-          mkdir -p build/paper-qa runtime/plugins
-          javac --release 25 -cp "paper.jar:$PLUGIN_JAR" \
-            -d build/paper-qa \
-            tools/paper-qa/src/main/java/dev/raskol/qa/CombatRuntimeQaPlugin.java
-          cp tools/paper-qa/plugin.yml build/paper-qa/plugin.yml
-          jar --create --file runtime/plugins/RaskolCombatQA.jar -C build/paper-qa .
+          mvn -B -f tools/paper-qa/pom.xml package "-Draskol.jar=$PLUGIN_JAR"
+          mkdir -p runtime/plugins
+          cp tools/paper-qa/target/paper-combat-qa-1.0.0.jar runtime/plugins/RaskolCombatQA.jar
           echo "Temporary Paper combat QA plugin compiled and installed."
 
       - name: Start Paper and verify plugin enablement
