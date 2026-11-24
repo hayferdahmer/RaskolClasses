@@ -12,11 +12,19 @@
 name: RASKOL Forge | Build & Release
 
 on:
+  # Feature branches are validated by their PR, avoiding a duplicate full build.
+  # Main remains continuously validated; version tags retain the release pipeline.
   push:
-    branches: [ '**' ]
+    branches: [ main ]
     tags: [ 'v*' ]
   pull_request:
+    branches: [ main ]
   workflow_dispatch:
+
+# Cancel obsolete runs for the same PR/ref; tags remain isolated by their ref.
+concurrency:
+  group: raskol-forge-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 # Least privilege by default. The release job explicitly elevates to contents: write.
 permissions:

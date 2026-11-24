@@ -4,6 +4,7 @@ name: RASKOL Sentinel | RIPS Security
 
 on:
   pull_request:
+    branches: [ main ]
     paths:
       - 'src/main/java/dev/raskol/classes/integrity/**'
       - 'src/test/java/dev/raskol/classes/integrity/**'
@@ -11,6 +12,7 @@ on:
       - 'pom.xml'
       - '.github/workflows/rips-security-auditor.yml'
   push:
+    branches: [ main ]
     paths:
       - 'src/main/java/dev/raskol/classes/integrity/**'
       - 'src/test/java/dev/raskol/classes/integrity/**'
