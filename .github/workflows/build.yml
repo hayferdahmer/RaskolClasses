@@ -393,7 +393,13 @@ jobs:
             echo "::error::Path A did not report all four scenario PASS records."
             exit 1
           fi
-          echo "Paper 26.2 Path A settlement matrix: PASS"
+          if ! grep -Fq "[BurstReservation] Внешний обработчик увеличил урон после reserve" server.log; then
+            cat server.log
+            cat bot.log
+            echo "::error::The Path A increased-damage scenario did not emit the required overage diagnostic."
+            exit 1
+          fi
+          echo "Paper 26.2 Path A settlement matrix and overage diagnostic: PASS"
           grep -E 'PATH_A_SETTLEMENT_SCENARIO_PASS|PATH_A_SETTLEMENT_MATRIX_PASS' server.log
           echo "Paper 26.2 combined combat runtime QA (suppression + Path B + Path A): PASS"
           cat bot.log
