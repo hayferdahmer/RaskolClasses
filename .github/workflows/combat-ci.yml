@@ -1,0 +1,85 @@
+# © 2026 hayferdahmer. All rights reserved. RASKOL Proprietary License v2.0, see LICENSE.
+# SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
+name: RASKOL Arena | Combat CI Guard
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: raskol-arena-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  combat-ci-guard:
+    name: RASKOL Arena | Combat CI Guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Test Combat diff auditor
+        run: python -m unittest discover -s tools/combat-ci -p "test_*.py" -v
+
+      - name: Test statistical report comparator
+        run: python -m unittest discover -s tools/combat-lab -p "test_compare_reports.py" -v
+
+      - name: Test probe and equipment report validators
+        run: |
+          python -m unittest discover -s tools/combat-lab -p "test_validate_probe_report.py" -v
+          python -m unittest discover -s tools/combat-lab -p "test_validate_equipment_report.py" -v
+
+      - name: Validate pending statistical baseline contract
+        run: python tools/combat-lab/compare_reports.py --baseline tools/combat-lab/baselines/v1.16.0.json --validate-only
+
+      - name: Audit changed combat contracts
+        id: audit
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: python tools/combat-ci/check_combat_diff.py
+
+      - name: Upload Arena contract definitions
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: raskol-arena-contracts
+          path: |
+            tools/combat-lab/schemas/
+            tools/combat-lab/baselines/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Arena execution summary
+        if: always()
+        env:
+          COMBAT_CHANGED: ${{ steps.audit.outputs.combat_changed || 'unknown' }}
+          TESTS_CHANGED: ${{ steps.audit.outputs.tests_changed || 'unknown' }}
+        run: |
+          {
+            echo "## RASKOL Arena | Combat CI Guard"
+            echo "- Commit: ${GITHUB_SHA}"
+            echo "- Event: ${GITHUB_EVENT_NAME}"
+            echo "- Combat changes: ${COMBAT_CHANGED}"
+            echo "- Test changes: ${TESTS_CHANGED}"
+            echo "- Forge owns Maven Build/Test and Spotless/SpotBugs; Arena does not repeat them."
+            echo "- Watchtower owns Paper 26.2 runtime QA; Arena does not start a second Paper server."
+            echo "- Diff audit and report-contract tests: executed by this workflow."
+            echo "- Statistical comparison: BLOCKED while v1.16.0 baseline is pending."
+            echo "- Production headless execution: NOT RUN; runner integration is not present on main."
+          } >> "${GITHUB_STEP_SUMMARY}"

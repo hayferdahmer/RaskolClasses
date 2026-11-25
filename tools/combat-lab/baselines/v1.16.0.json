@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "baseline_id": "raskolclasses-1.16.0-initial",
+  "status": "pending",
+  "simulator_version": "combat-lab-1",
+  "scenario_set": "pvp-pve-core-v1",
+  "created_from_commit": null,
+  "scenarios": [],
+  "pending_reason": "Базовые значения нельзя заполнять до подключения headless runner к production combat math и проверки сценариев. Синтетические или вручную придуманные числа не являются baseline."
+}
