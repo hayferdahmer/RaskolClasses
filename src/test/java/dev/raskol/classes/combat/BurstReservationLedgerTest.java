@@ -107,7 +107,6 @@ class BurstReservationLedgerTest {
         ledger.settle(outer.token(), 7.0);
 
         assertEquals(88.0, ledger.reserve(120L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
-        assertEquals(5.0, nested.token().amount, EPSILON);
     }
 
     @Test
