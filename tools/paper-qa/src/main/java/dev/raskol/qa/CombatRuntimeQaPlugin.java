@@ -155,6 +155,12 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void mutatePathAEvent(EntityDamageEvent event) {
+        if (pathATarget != null && pathATarget.getUniqueId().equals(event.getEntity().getUniqueId())) {
+            getLogger().info("[RASKOL-COMBAT-QA] PATH_A_EVENT_RECEIVED scenario=" + pathAScenario
+                    + " cause=" + event.getCause()
+                    + " damage=" + event.getDamage()
+                    + " cancelled=" + event.isCancelled());
+        }
         if (pathATargetId == null || !pathATargetId.equals(event.getEntity().getUniqueId())
                 || pathAScenario == null) {
             return;
@@ -178,7 +184,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             nestedDispatch = true;
             pathATarget.setNoDamageTicks(0);
             try {
-                pathATarget.damage(2.0, pathASource);
+                pathATarget.damage(2.0);
             } finally {
                 nestedDispatch = false;
                 pathATarget.setNoDamageTicks(0);
@@ -225,6 +231,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             configOverridden = true;
 
             pathATarget.setGameMode(GameMode.SURVIVAL);
+            pathATarget.setInvulnerable(false);
             pathATarget.setNoDamageTicks(0);
             pathATargetId = pathATarget.getUniqueId();
 
@@ -264,7 +271,17 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         combat.purgeBurstLog();
 
         double scale = combat.scaleOf(pathATarget);
-        pathATarget.damage(4.0, pathASource);
+        double healthBefore = pathATarget.getHealth();
+        getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SCENARIO_START scenario=" + scenario
+                + " player=" + pathATarget.getUniqueId()
+                + " gameMode=" + pathATarget.getGameMode()
+                + " invulnerable=" + pathATarget.isInvulnerable()
+                + " noDamageTicks=" + pathATarget.getNoDamageTicks()
+                + " health=" + healthBefore);
+        pathATarget.damage(4.0);
+        getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SCENARIO_DISPATCHED scenario=" + scenario
+                + " eventObserved=" + (outerEvent != null)
+                + " healthDelta=" + (healthBefore - pathATarget.getHealth()));
 
         try {
             double reserved = reservationTotal(pathATargetId);
