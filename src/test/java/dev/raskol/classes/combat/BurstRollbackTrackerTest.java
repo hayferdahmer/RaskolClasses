@@ -61,7 +61,8 @@ class BurstRollbackTrackerTest {
                 new BurstReservationLedger().reserve(0L, 10_000L, 100.0, 1.0).token();
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(null, UUID.randomUUID(), token, 1.0, 1.0, 0L));
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), null, token, 1.0, 1.0, 0L));
-        assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), null, 1.0, 1.0, 0L));
+        assertThrows(
+                IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), null, 1.0, 1.0, 0L));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> tracker.arm(new Object(), UUID.randomUUID(), token, Double.NaN, 1.0, 0L));
