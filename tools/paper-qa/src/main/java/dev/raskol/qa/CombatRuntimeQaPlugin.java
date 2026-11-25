@@ -17,6 +17,8 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
+import org.bukkit.damage.DamageSource;
+import org.bukkit.damage.DamageType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -47,7 +49,6 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     }
 
     private Player pathATarget;
-    private LivingEntity pathASource;
     private CombatService combat;
     private UUID pathATargetId;
     private PathAScenario pathAScenario;
@@ -184,7 +185,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             nestedDispatch = true;
             pathATarget.setNoDamageTicks(0);
             try {
-                pathATarget.damage(2.0);
+                dispatchPathAEvent(2.0);
             } finally {
                 nestedDispatch = false;
                 pathATarget.setNoDamageTicks(0);
@@ -231,18 +232,8 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             configOverridden = true;
 
             pathATarget.setGameMode(GameMode.SURVIVAL);
-            pathATarget.setInvulnerable(false);
             pathATarget.setNoDamageTicks(0);
             pathATargetId = pathATarget.getUniqueId();
-
-            World world = pathATarget.getWorld();
-            pathASource = (LivingEntity) world.spawnEntity(
-                    pathATarget.getLocation().clone().add(3.0, 0.0, 0.0), EntityType.ZOMBIE);
-            if (pathASource instanceof Mob mob) {
-                mob.setAI(false);
-                mob.setAware(false);
-            }
-            pathASource.setRemoveWhenFarAway(false);
 
             runPathAScenario(PathAScenario.REDUCE_OUTER);
         } catch (ReflectiveOperationException | RuntimeException exception) {
@@ -271,17 +262,12 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         combat.purgeBurstLog();
 
         double scale = combat.scaleOf(pathATarget);
-        double healthBefore = pathATarget.getHealth();
         getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SCENARIO_START scenario=" + scenario
                 + " player=" + pathATarget.getUniqueId()
-                + " gameMode=" + pathATarget.getGameMode()
-                + " invulnerable=" + pathATarget.isInvulnerable()
-                + " noDamageTicks=" + pathATarget.getNoDamageTicks()
-                + " health=" + healthBefore);
-        pathATarget.damage(4.0);
+                + " dispatch=PaperPluginManager");
+        dispatchPathAEvent(4.0);
         getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SCENARIO_DISPATCHED scenario=" + scenario
-                + " eventObserved=" + (outerEvent != null)
-                + " healthDelta=" + (healthBefore - pathATarget.getHealth()));
+                + " eventObserved=" + (outerEvent != null));
 
         try {
             double reserved = reservationTotal(pathATargetId);
@@ -339,6 +325,16 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         }
     }
 
+    private void dispatchPathAEvent(double damage) {
+        DamageSource source = DamageSource.builder(DamageType.GENERIC).build();
+        EntityDamageEvent event = new EntityDamageEvent(
+                pathATarget,
+                EntityDamageEvent.DamageCause.CUSTOM,
+                source,
+                damage);
+        Bukkit.getPluginManager().callEvent(event);
+    }
+
     private double reservationTotal(UUID playerId) throws ReflectiveOperationException {
         Field ledgersField = combat.caps().getClass().getDeclaredField("burstLedgers");
         ledgersField.setAccessible(true);
@@ -383,9 +379,6 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 raskol.getConfig().set("combat.max-single-hit-pct", originalSingleHitPct);
             }
             configOverridden = false;
-        }
-        if (pathASource != null && pathASource.isValid()) {
-            pathASource.remove();
         }
         if (pathATarget != null && pathATarget.isOnline()) {
             pathATarget.kickPlayer("RASKOL Paper Path A runtime QA complete");
