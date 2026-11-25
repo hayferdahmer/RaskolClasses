@@ -115,7 +115,7 @@ final class BurstRollbackTracker {
         }
 
         boolean finish(State terminalState) {
-            if (state != State.OPEN || terminalState == State.OPEN) {
+            if (state != State.OPEN || terminalState == null || terminalState == State.OPEN) {
                 return false;
             }
             state = terminalState;
