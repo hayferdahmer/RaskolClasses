@@ -61,9 +61,11 @@ final class DamageAttribution {
             double observedDamage = Math.max(0.0, frame.healthBefore - healthAfter);
             double ownDamage = Math.max(0.0, observedDamage - frame.nestedDamage);
 
-            Frame parent = frames.peek();
-            if (parent != null && parent.target == frame.target) {
-                parent.nestedDamage += observedDamage;
+            for (Frame parent : frames) {
+                if (parent.target == frame.target) {
+                    parent.nestedDamage += observedDamage;
+                    break;
+                }
             }
             if (frames.isEmpty()) {
                 FRAMES.remove();
