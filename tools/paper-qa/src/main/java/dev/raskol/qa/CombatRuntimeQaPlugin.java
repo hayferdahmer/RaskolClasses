@@ -173,8 +173,16 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void interceptCombatChannel(EntityDamageEvent event) {
-        if (targetId == null || !targetId.equals(event.getEntity().getUniqueId())
-                || !CombatService.isSuppressed()) {
+        if (targetId == null || !targetId.equals(event.getEntity().getUniqueId())) {
+            return;
+        }
+        getLogger().info("[RASKOL-COMBAT-QA] DAMAGE_EVENT scenario=" + activeScenario
+                + " cause=" + event.getCause()
+                + " suppressed=" + CombatService.isSuppressed()
+                + " cancelledAtLowest=" + event.isCancelled()
+                + " damage=" + event.getDamage());
+
+        if (!CombatService.isSuppressed()) {
             return;
         }
 
@@ -291,9 +299,14 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
 
         switch (scenario) {
             case CANCEL_PHYSICAL -> {
-                require(physicalEvents == 1 && magicEvents == 1, "physical-cancel event counts");
-                require(cancelledPhysical == 1 && cancelledMagic == 0, "physical-only cancellation");
-                require(actualDamage > 0.001, "magic channel must apply after physical cancellation");
+                require(physicalEvents == 1 && magicEvents == 1,
+                        "physical-cancel event counts: physical=" + physicalEvents + " magic=" + magicEvents
+                                + " actualDamage=" + actualDamage + " reserved=" + reserved);
+                require(cancelledPhysical == 1 && cancelledMagic == 0,
+                        "physical-only cancellation: cancelledPhysical=" + cancelledPhysical
+                                + " cancelledMagic=" + cancelledMagic);
+                require(actualDamage > 0.001,
+                        "magic channel must apply after physical cancellation: actualDamage=" + actualDamage);
                 require(close(reserved, actualDamage / combat.scaleOf(target)), "reservation must equal actual applied magic damage; got " + reserved);
             }
             case CANCEL_MAGIC -> {
