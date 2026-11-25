@@ -62,6 +62,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public final class CombatService implements Listener {
 
     private static final ThreadLocal<Integer> SUPPRESS_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Boolean> LEGACY_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final ThreadLocal<UUID> ABILITY_SOURCE = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
@@ -117,6 +118,30 @@ public final class CombatService implements Listener {
         } else {
             SUPPRESS_DEPTH.set(depth - 1);
         }
+    }
+
+    /**
+     * Совместимость с прежним публичным API. Маркер независим от depth-based scope.
+     *
+     * @deprecated Используйте {@link #isSuppressed()} для чтения нового контекста.
+     */
+    @Deprecated
+    public static boolean consumeSuppress() {
+        boolean suppressed = Boolean.TRUE.equals(LEGACY_SUPPRESS.get());
+        if (suppressed) {
+            LEGACY_SUPPRESS.set(Boolean.FALSE);
+        }
+        return suppressed;
+    }
+
+    /**
+     * Совместимость с прежним публичным API с сохранением consumptive semantics.
+     *
+     * @deprecated Используйте {@link #beginSuppress()} и {@link #endSuppress()}.
+     */
+    @Deprecated
+    public static void setSuppress(boolean value) {
+        LEGACY_SUPPRESS.set(value);
     }
 
     public static UUID abilitySourceMark() {
