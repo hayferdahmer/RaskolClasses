@@ -25,8 +25,9 @@ import dev.raskol.classes.config.ConfigReads;
  *         (аудит 1-01: единая NaN-проверка).
  * 1.14.12 (Sprint 8, Волна 12A, P0-3-02): carrierMaxOf читает максимум через Hp.max
  *         (атрибут MAX_HEALTH) вместо deprecated LivingEntity#getMaxHealth().
- * Burst Reservation: адресный rollback по token вместо отката последней записи.
- * Путь B освобождает неиспользованный бюджет отдельно для физического и магического событий.
+ * Burst Reservation: адресное урегулирование конкретного token.
+ * Путь A использует rollback; Path B один раз сверяет общий token с фактическим
+ * суммарным уроном физических и магических событий после DamageAttribution.
  * 1.15.6 (Волна 4, аудит 2.6-52): purge-окно burst-лога читается из конфига
  *         combat.burst-window-seconds вместо зашитых 10 с.
  */
