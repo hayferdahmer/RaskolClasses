@@ -40,7 +40,7 @@ The probe runs only in the isolated CI runtime. It creates temporary zombies at 
 
 ## Path A burst settlement matrix
 
-A pinned Minecraft 26.2 offline protocol client joins the isolated Paper server so the QA plugin can generate real Player-target damage events. A dependent QA listener changes damage at HIGHEST, after the production NORMAL reservation has been created.
+A pinned Minecraft 26.2 offline protocol client joins the isolated Paper server. The QA plugin creates synthetic Player-target EntityDamageEvent instances and dispatches them synchronously through Paper's PluginManager; this exercises the real production NORMAL/HIGHEST/MONITOR listener pipeline and reservation ledger without depending on NMS player-health application. A dependent QA listener changes damage at HIGHEST, after the production NORMAL reservation has been created.
 
 The four required scenarios are:
 - external listener decreases damage; final ledger usage must match the reduced event amount;
@@ -48,4 +48,4 @@ The four required scenarios are:
 - nested event succeeds while the outer event is cancelled; only the outer reservation is rolled back;
 - nested and outer events both succeed while the outer amount is modified; each handle settles independently.
 
-The QA plugin reads the ledger after synchronous event dispatch and asserts the exact expected reservation totals. The runtime client and temporary QA plugin are not packaged into the production artifact.
+The QA plugin reads the ledger after synchronous event dispatch and asserts the exact expected reservation totals. This matrix verifies event-listener and ledger settlement behavior; it does not claim to verify the underlying NMS health-application path. The runtime client and temporary QA plugin are not packaged into the production artifact.
