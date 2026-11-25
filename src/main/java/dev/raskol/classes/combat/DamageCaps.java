@@ -164,6 +164,24 @@ public final class DamageCaps {
         }
     }
 
+    /** Урегулирует token по полному фактическому расходу Path B одной операцией. */
+    public void settleBurst(Player target, BurstReservationLedger.Token token, double actualAmount) {
+        if (target == null || token == null || !Double.isFinite(actualAmount) || actualAmount < 0.0) {
+            return;
+        }
+        UUID playerId = target.getUniqueId();
+        BurstReservationLedger ledger = burstLedgers.get(playerId);
+        if (ledger == null) {
+            return;
+        }
+        synchronized (ledger) {
+            ledger.reconcile(token, actualAmount);
+            if (ledger.isEmpty()) {
+                burstLedgers.remove(playerId, ledger);
+            }
+        }
+    }
+
     /** 1.15.6 (2.6-52): окно purge = combat.burst-window-seconds (ранее зашитые 10 с). */
     public void purge() {
         long now = System.currentTimeMillis();
