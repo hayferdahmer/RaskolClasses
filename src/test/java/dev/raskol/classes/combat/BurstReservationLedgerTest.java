@@ -68,4 +68,50 @@ class BurstReservationLedgerTest {
         assertEquals(0.0, ledger.reserve(100L, 3_000L, 100.0, Double.NaN).allowed(), EPSILON);
         assertNull(ledger.reserve(110L, 3_000L, 100.0, 0.0).token());
     }
+    @Test
+    void reconcileRaisesReservationWhenActualDamageExceedsInitialReserve() {
+        BurstReservationLedger ledger = new BurstReservationLedger();
+        BurstReservationLedger.Allocation allocation = ledger.reserve(100L, 3_000L, 100.0, 40.0);
+
+        ledger.reconcile(allocation.token(), 65.0);
+
+        assertEquals(35.0, ledger.reserve(110L, 3_000L, 100.0, 70.0).allowed(), EPSILON);
+    }
+
+    @Test
+    void reconcileReleasesUnusedReservationWhenActualDamageIsLower() {
+        BurstReservationLedger ledger = new BurstReservationLedger();
+        BurstReservationLedger.Allocation allocation = ledger.reserve(100L, 3_000L, 100.0, 60.0);
+
+        ledger.reconcile(allocation.token(), 25.0);
+
+        assertEquals(75.0, ledger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
+    }
+
+    @Test
+    void reconcileRemovesReservationWhenNoDamageWasApplied() {
+        BurstReservationLedger ledger = new BurstReservationLedger();
+        BurstReservationLedger.Allocation allocation = ledger.reserve(100L, 3_000L, 100.0, 60.0);
+
+        ledger.reconcile(allocation.token(), 0.0);
+
+        assertEquals(100.0, ledger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
+    }
+
+    @Test
+    void reconcileIgnoresInvalidAmountsAndTokensOwnedByAnotherLedger() {
+        BurstReservationLedger ledger = new BurstReservationLedger();
+        BurstReservationLedger otherLedger = new BurstReservationLedger();
+        BurstReservationLedger.Allocation allocation = ledger.reserve(100L, 3_000L, 100.0, 40.0);
+        BurstReservationLedger.Allocation foreign = otherLedger.reserve(100L, 3_000L, 100.0, 20.0);
+
+        ledger.reconcile(allocation.token(), Double.NaN);
+        ledger.reconcile(allocation.token(), Double.POSITIVE_INFINITY);
+        ledger.reconcile(allocation.token(), -1.0);
+        ledger.reconcile(foreign.token(), 10.0);
+
+        assertEquals(60.0, ledger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
+        assertEquals(80.0, otherLedger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
+    }
+
 }
