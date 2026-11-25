@@ -47,7 +47,7 @@ Path B резервирует общий бюджет до разделения 
 
 ## Path A runtime matrix
 
-Изолированный Paper 26.2 runtime проверяет четыре события через настоящий Player-target event pipeline:
+Изолированный Paper 26.2 runtime проверяет четыре Player-target события, синхронно отправленные через Paper PluginManager. Это проверяет реальные production event listeners и ledger, но не NMS-применение урона к здоровью:
 
 1. Внешний listener уменьшает damage после NORMAL — ledger освобождает разницу.
 2. Внешний listener увеличивает damage после NORMAL — ledger учитывает превышение и пишет диагностику.
