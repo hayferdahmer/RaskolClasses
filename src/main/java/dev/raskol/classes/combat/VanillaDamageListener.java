@@ -336,21 +336,24 @@ public final class VanillaDamageListener implements Listener {
         double finalAmount = event.getDamage() / handle.scale();
         BurstReservationLedger.Settlement settlement = caps.settleBurst(handle.playerId(), handle.token(), finalAmount);
         if (settlement.invalid()) {
-            plugin.getLogger().warning("[BurstReservation] Невалидный итоговый урон; сохранена исходная резервация"
-                    + " player=" + handle.playerId()
-                    + " damage=" + event.getDamage()
-                    + " scale=" + handle.scale());
+            plugin.getLogger()
+                    .warning("[BurstReservation] Невалидный итоговый урон; сохранена исходная резервация"
+                            + " player=" + handle.playerId()
+                            + " damage=" + event.getDamage()
+                            + " scale=" + handle.scale());
         } else if (!settlement.applied()) {
-            plugin.getLogger().warning("[BurstReservation] Резервация отсутствует при settlement"
-                    + " player=" + handle.playerId()
-                    + " reserved=" + handle.reservedAmount()
-                    + " final=" + finalAmount);
+            plugin.getLogger()
+                    .warning("[BurstReservation] Резервация отсутствует при settlement"
+                            + " player=" + handle.playerId()
+                            + " reserved=" + handle.reservedAmount()
+                            + " final=" + finalAmount);
         } else if (settlement.overage() > 1.0e-9) {
-            plugin.getLogger().warning("[BurstReservation] Внешний обработчик увеличил урон после reserve"
-                    + " player=" + handle.playerId()
-                    + " reserved=" + settlement.previousAmount()
-                    + " final=" + settlement.finalAmount()
-                    + " overage=" + settlement.overage());
+            plugin.getLogger()
+                    .warning("[BurstReservation] Внешний обработчик увеличил урон после reserve"
+                            + " player=" + handle.playerId()
+                            + " reserved=" + settlement.previousAmount()
+                            + " final=" + settlement.finalAmount()
+                            + " overage=" + settlement.overage());
         }
     }
 
@@ -360,9 +363,10 @@ public final class VanillaDamageListener implements Listener {
                 burstRollbacks.expire(now, BURST_HANDLE_TTL_MILLIS);
         for (BurstRollbackTracker.Handle handle : expired) {
             caps.rollbackBurst(handle.playerId(), handle.token(), handle.reservedAmount());
-            plugin.getLogger().warning("[BurstReservation] Незавершённый handle истёк; исходная резервация откачена"
-                    + " player=" + handle.playerId()
-                    + " ageMillis=" + (now - handle.createdAtMillis()));
+            plugin.getLogger()
+                    .warning("[BurstReservation] Незавершённый handle истёк; исходная резервация откачена"
+                            + " player=" + handle.playerId()
+                            + " ageMillis=" + (now - handle.createdAtMillis()));
         }
     }
 
