@@ -68,6 +68,54 @@ class BurstRollbackTrackerTest {
     }
 
     @Test
+    void handleCanBeCompletedOnlyOnce() {
+        BurstReservationLedger.Token token =
+                new BurstReservationLedger().reserve(0L, 10_000L, 100.0, 5.0).token();
+        BurstRollbackTracker tracker = new BurstRollbackTracker();
+        Object event = new Object();
+        tracker.arm(event, UUID.randomUUID(), token, 5.0, 2.0, 100L);
+
+        BurstRollbackTracker.Handle handle = tracker.take(event);
+        assertEquals(BurstRollbackTracker.State.OPEN, handle.state());
+        assertEquals(true, handle.finish(BurstRollbackTracker.State.SETTLED));
+        assertEquals(false, handle.finish(BurstRollbackTracker.State.ROLLED_BACK));
+        assertEquals(BurstRollbackTracker.State.SETTLED, handle.state());
+        assertNull(tracker.take(event));
+    }
+
+    @Test
+    void expiredHandlesAreRemovedAndClosedForRollback() {
+        BurstReservationLedger.Token token =
+                new BurstReservationLedger().reserve(0L, 10_000L, 100.0, 5.0).token();
+        BurstRollbackTracker tracker = new BurstRollbackTracker();
+        Object event = new Object();
+        tracker.arm(event, UUID.randomUUID(), token, 5.0, 1.0, 100L);
+
+        var expired = tracker.expire(30_100L, 30_000L);
+
+        assertEquals(1, expired.size());
+        assertEquals(BurstRollbackTracker.State.ROLLED_BACK, expired.getFirst().state());
+        assertEquals(0, tracker.size());
+        assertEquals(0, tracker.expire(60_000L, 30_000L).size());
+    }
+
+    @Test
+    void rejectsDuplicateEventHandleAndInvalidScale() {
+        BurstReservationLedger.Token token =
+                new BurstReservationLedger().reserve(0L, 10_000L, 100.0, 5.0).token();
+        BurstRollbackTracker tracker = new BurstRollbackTracker();
+        Object event = new Object();
+
+        tracker.arm(event, UUID.randomUUID(), token, 5.0, 1.0, 0L);
+        assertThrows(
+                IllegalStateException.class,
+                () -> tracker.arm(event, UUID.randomUUID(), token, 5.0, 1.0, 1L));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> tracker.arm(new Object(), UUID.randomUUID(), token, 5.0, Double.NaN, 1L));
+    }
+
+    @Test
     void cancelledEventRollsBackOnlyItsOwnReservationToken() {
         BurstReservationLedger ledger = new BurstReservationLedger();
         BurstReservationLedger.Allocation cancelled = ledger.reserve(100L, 3_000L, 100.0, 40.0);
