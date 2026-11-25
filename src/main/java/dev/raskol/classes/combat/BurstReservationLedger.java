@@ -74,8 +74,7 @@ final class BurstReservationLedger {
 
     record Allocation(double allowed, Token token) {}
 
-    record Settlement(
-            boolean applied, boolean invalid, double previousAmount, double finalAmount, double overage) {}
+    record Settlement(boolean applied, boolean invalid, double previousAmount, double finalAmount, double overage) {}
 
     static final class Token {
         private final long createdAtMillis;
