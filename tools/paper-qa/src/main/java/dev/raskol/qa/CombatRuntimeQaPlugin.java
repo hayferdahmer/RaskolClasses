@@ -422,19 +422,19 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 require(physicalEvents == 1 && magicEvents == 1, "magic-cancel event counts");
                 require(cancelledPhysical == 0 && cancelledMagic == 1, "magic-only cancellation");
                 require(actualDamage > 0.001, "physical channel must apply after magic cancellation");
-                require(close(reserved, actualDamage / combat.scaleOf(target)), "reservation must equal actual applied physical damage; got " + reserved);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)), "reservation must equal actual applied physical damage; got " + reserved);
             }
             case CANCEL_BOTH -> {
                 require(physicalEvents == 1 && magicEvents == 1, "both-cancel event counts");
                 require(cancelledPhysical == 1 && cancelledMagic == 1, "both channels must be cancelled");
                 require(Math.abs(actualDamage) < 0.001, "cancelled channels must not change health");
-                require(close(reserved, 0.0), "fully cancelled hit must release its complete reservation; got " + reserved);
+                require(closeReservation(reserved, 0.0), "fully cancelled hit must release its complete reservation; got " + reserved);
             }
             case NESTED_HIT -> {
                 require(physicalEvents == 2 && magicEvents == 2, "nested event counts");
                 require(cancelledPhysical == 1 && cancelledMagic == 0, "only the outer physical channel must be cancelled");
                 require(actualDamage > 0.001, "nested and outer magic channels must apply");
-                require(close(reserved, actualDamage / combat.scaleOf(target)), "nested and outer reservations must equal their actual combined health delta; got " + reserved);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)), "nested and outer reservations must equal their actual combined health delta; got " + reserved);
             }
         }
 
