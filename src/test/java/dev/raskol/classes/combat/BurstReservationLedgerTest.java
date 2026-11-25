@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -137,18 +139,18 @@ class BurstReservationLedgerTest {
         BurstReservationLedger.Allocation allocation = ledger.reserve(100L, 3_000L, 100.0, 60.0);
         Object target = new Object();
         double healthBefore = 100.0;
-        double actualDamage = 0.0;
+        double[] actualDamage = {0.0};
 
         assertThrows(IllegalStateException.class, () -> {
             DamageAttribution.Scope attribution = DamageAttribution.begin(target, healthBefore);
             try {
                 throw new IllegalStateException("Synthetic damage failure before health change");
             } finally {
-                actualDamage = attribution.finish(healthBefore);
+                actualDamage[0] = attribution.finish(healthBefore);
             }
         });
 
-        ledger.settle(allocation.token(), actualDamage);
+        ledger.settle(allocation.token(), actualDamage[0]);
         assertEquals(100.0, ledger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
     }
 
@@ -164,8 +166,8 @@ class BurstReservationLedgerTest {
         ledger.settle(allocation.token(), -1.0);
         BurstReservationLedger.Settlement foreignResult = otherLedger.settle(allocation.token(), 10.0);
 
-        assertEquals(true, invalid.invalid());
-        assertEquals(false, foreignResult.applied());
+        assertTrue(invalid.invalid());
+        assertFalse(foreignResult.applied());
 
         assertEquals(60.0, ledger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
         assertEquals(80.0, otherLedger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
