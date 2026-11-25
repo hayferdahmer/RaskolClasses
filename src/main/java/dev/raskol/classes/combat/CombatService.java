@@ -541,20 +541,21 @@ public final class CombatService implements Listener {
         try {
             if (applyPhys > 0.0) {
                 double before = target.getHealth();
-                target.setNoDamageTicks(0);
-                beginSuppress();
+                DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
                 try {
-                    if (source != null) {
-                        target.damage(applyPhys, source);
-                    } else {
-                        target.damage(applyPhys);
+                    target.setNoDamageTicks(0);
+                    beginSuppress();
+                    try {
+                        if (source != null) {
+                            target.damage(applyPhys, source);
+                        } else {
+                            target.damage(applyPhys);
+                        }
+                    } finally {
+                        endSuppress();
                     }
                 } finally {
-                    endSuppress();
-                }
-                double after = target.getHealth();
-                if (after < before) {
-                    actualPhys = (before - after) / scale;
+                    actualPhys = attribution.finish(target.getHealth()) / scale;
                 }
                 if (burstToken != null) {
                     caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedPhys - actualPhys));
@@ -563,25 +564,26 @@ public final class CombatService implements Listener {
             }
             if (applyMagic > 0.0) {
                 double before = target.getHealth();
-                target.setNoDamageTicks(0);
-                beginSuppress();
+                DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
                 try {
-                    org.bukkit.damage.DamageType magic = magicType();
-                    if (magic != null) {
-                        DamageSource.Builder builder = DamageSource.builder(magic);
-                        if (source != null) {
-                            builder = builder.withDirectEntity(source).withCausingEntity(source);
+                    target.setNoDamageTicks(0);
+                    beginSuppress();
+                    try {
+                        org.bukkit.damage.DamageType magic = magicType();
+                        if (magic != null) {
+                            DamageSource.Builder builder = DamageSource.builder(magic);
+                            if (source != null) {
+                                builder = builder.withDirectEntity(source).withCausingEntity(source);
+                            }
+                            target.damage(applyMagic, builder.build());
+                        } else {
+                            target.damage(applyMagic);
                         }
-                        target.damage(applyMagic, builder.build());
-                    } else {
-                        target.damage(applyMagic);
+                    } finally {
+                        endSuppress();
                     }
                 } finally {
-                    endSuppress();
-                }
-                double after = target.getHealth();
-                if (after < before) {
-                    actualMagic = (before - after) / scale;
+                    actualMagic = attribution.finish(target.getHealth()) / scale;
                 }
                 if (burstToken != null) {
                     caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedMagic - actualMagic));
