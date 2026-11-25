@@ -27,12 +27,14 @@ Pass conditions:
 
 A headless client built on `mc-protocol` uses the native Minecraft Java 26.2 protocol (protocol 776) to complete the offline login/configuration handshake with the isolated Paper server. This avoids relying on protocol libraries whose version registry does not yet contain 26.2. The QA plugin waits for the resulting real Bukkit Player, obtains the initialized CombatService, and runs hybrid Path B hits against that Player.
 
-The four scenarios are:
+The six scenarios are:
 
 1. Cancel the physical `ENTITY_ATTACK` event while allowing the magic event.
 2. Cancel the magic event while allowing the physical event.
 3. Cancel both channel events.
 4. During the outer physical event, synchronously execute a nested hybrid hit, then cancel only the outer physical event.
+5. Double the physical event damage and verify that Path B reconciles the token upward to the actual combined health delta.
+6. Halve the physical event damage and verify that Path B releases the unused reservation.
 
 For each scenario the harness checks:
 
@@ -44,7 +46,7 @@ For each scenario the harness checks:
 
 The isolated runtime raises only the burst and single-hit limits in the test server's in-memory plugin configuration so the matrix tests reservation settlement rather than an intentionally restrictive cap. No production configuration or balance value is changed.
 
-The final marker is `[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS`; any failed assertion emits `BURST_CANCELLATION_MATRIX_FAIL` and fails the Watchtower job.
+The final markers are `[RASKOL-COMBAT-QA] PATH_B_SETTLEMENT_MATRIX_PASS` and `[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS`; any failed assertion emits `BURST_CANCELLATION_MATRIX_FAIL` and fails the Watchtower job.
 
 ## Safety and limitations
 
