@@ -181,6 +181,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 pathATarget.damage(2.0, pathASource);
             } finally {
                 nestedDispatch = false;
+                pathATarget.setNoDamageTicks(0);
             }
         }
 
