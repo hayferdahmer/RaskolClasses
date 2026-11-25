@@ -171,6 +171,9 @@ public final class DamageCaps {
 
     BurstReservationLedger.Settlement settleBurst(
             UUID playerId, BurstReservationLedger.Token token, double finalAmount) {
+        if (!Double.isFinite(finalAmount) || finalAmount < 0.0) {
+            return new BurstReservationLedger.Settlement(false, true, 0.0, finalAmount, 0.0);
+        }
         if (playerId == null || token == null) {
             return new BurstReservationLedger.Settlement(false, false, 0.0, finalAmount, 0.0);
         }
