@@ -27,7 +27,7 @@ class BurstReservationLedgerTest {
     }
 
     @Test
-    void partialRollbackCanSettlePhysicalAndMagicChannelsIndependently() {
+    void partialRollbackRemainsAvailableForAddressedReservations() {
         BurstReservationLedger ledger = new BurstReservationLedger();
         BurstReservationLedger.Allocation allocation = ledger.reserve(100L, 3_000L, 100.0, 60.0);
 
@@ -68,6 +68,7 @@ class BurstReservationLedgerTest {
         assertEquals(0.0, ledger.reserve(100L, 3_000L, 100.0, Double.NaN).allowed(), EPSILON);
         assertNull(ledger.reserve(110L, 3_000L, 100.0, 0.0).token());
     }
+
     @Test
     void reconcileRaisesReservationWhenActualDamageExceedsInitialReserve() {
         BurstReservationLedger ledger = new BurstReservationLedger();
@@ -124,5 +125,4 @@ class BurstReservationLedgerTest {
         assertEquals(60.0, ledger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
         assertEquals(80.0, otherLedger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
     }
-
 }
