@@ -46,6 +46,20 @@ final class BurstReservationLedger {
         }
     }
 
+    /** Приводит конкретную резервацию к фактическому расходу, включая превышение резерва. */
+    void reconcile(Token token, double actualAmount) {
+        if (token == null || !Double.isFinite(actualAmount) || actualAmount < 0.0 || !entries.contains(token)) {
+            return;
+        }
+        if (actualAmount <= EPSILON) {
+            entries.remove(token);
+            token.amount = 0.0;
+            return;
+        }
+        // Фактический расход может быть выше исходного резерва после внешних Paper listeners.
+        token.amount = actualAmount;
+    }
+
     void prune(long nowMillis, long windowMillis) {
         while (!entries.isEmpty() && nowMillis - entries.peekFirst().createdAtMillis > windowMillis) {
             entries.removeFirst();
