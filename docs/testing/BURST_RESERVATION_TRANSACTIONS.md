@@ -19,7 +19,7 @@ Burst budget должен учитывать только фактически �
 
 ## Path A — Vanilla/Paper event
 
-На NORMAL listener создаётся reservation и связывается с точным экземпляром `EntityDamageEvent` через одноразовый `BurstReservationTracker.Handle`. Handle хранит player UUID, token, исходный размер резервации, scale и время создания.
+На NORMAL listener создаётся reservation и связывается с точным экземпляром `EntityDamageEvent` через одноразовый `BurstRollbackTracker.Handle`. Handle хранит player UUID, token, исходный размер резервации, scale и время создания.
 
 На MONITOR listener:
 - отменённое событие откатывает только собственный handle;
