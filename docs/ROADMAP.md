@@ -1,0 +1,134 @@
+# Дорожная карта RaskolClasses
+
+**Срез:** 2026-11-26 · **main:** `0d9b17ac6b42ceb11ac7c17430f6b6eb9dcae2b3` · **Платформа:** Paper 26.2 + Java 25  
+**Версия разработки:** `1.16.0-SNAPSHOT` · **Последний официальный релиз:** `v1.15.8`
+
+Документ связывает существующие спецификации, PR и тестовые контракты. Открытый PR не считается частью main до фактического merge.
+
+## Правила движения
+
+1. Сначала архитектурная надёжность и контракты, затем расширение игрового функционала.
+2. Production-код определяет фактическое поведение; документация описывает решения, цели и ограничения.
+3. Этап закрывается доказательствами: тесты, статический анализ, подходящий runtime QA и актуальные документы.
+4. PR checks и post-merge checks — разные доказательства. Paper Watchtower — изолированный CI runtime, не production-сервер.
+5. Не менять базы, ancestry и содержимое зависимых PR без отдельного аудита и разрешения.
+
+## Этап 0 — Инфраструктура разработки
+
+**Статус: основа действует; сопровождение продолжается.**
+
+- **RASKOL Forge:** Java 25 Maven Build/Test, Spotless/SpotBugs, release pipeline.
+- **RASKOL Sentinel:** RIPS security/integrity audit.
+- **RASKOL Steward:** лицензионные заголовки через отдельные PR.
+- **RASKOL Chronicle:** live badges через PR.
+- **RASKOL Watchtower:** Paper 26.2 runtime QA в изолированном GitHub Actions окружении.
+
+Подробности: [CI/CD Automation](CI_CD_AUTOMATION.md), [RIPS Operations](RIPS-OPERATIONS.md), [Runbook](RUNBOOK.md).
+
+## Этап 1 — Стабилизация боевого ядра
+
+**Статус: продолжается.**
+
+Цель — надёжная атрибуция вложенных событий, корректная отмена и точное урегулирование burst reservations.
+
+Согласованная последовательность:
+- #76 — интегрирован;
+- #77 — интегрирован;
+- #79 — интегрирован;
+- #80 — интегрирован, merge commit `0d9b17ac6b42ceb11ac7c17430f6b6eb9dcae2b3`;
+- #81 — следующий PR, Draft, требует отдельного review и проверки актуальности относительно нового main.
+
+Post-merge Build & Release для #80: run `45712784817`, success. Live Badges: `45712784819`, success. Paper 26.2 Watchtower прошёл на PR HEAD до merge; это не live-тест production-сервера.
+
+PR #81 создан от прежнего HEAD #79 и не содержит merge commit #80. Перед любым sync/rebase проверить ancestry и diff; автоматически ветку не переписывать.
+
+Тестовые контракты: [Burst Reservation Transactions](testing/BURST_RESERVATION_TRANSACTIONS.md), [Production Combat Runtime QA](testing/PRODUCTION_COMBAT_RUNTIME_QA.md).
+
+## Этап 2 — Архитектура и жизненный цикл
+
+**Статус: аудит и адресная стабилизация продолжаются.**
+
+- bootstrap и порядок enable/disable;
+- владение scheduler tasks, listeners, callbacks и FX;
+- player session и pet runtime;
+- async storage writer и completion callbacks;
+- runtime integrity monitor;
+- контролируемый shutdown при ошибках и выключении.
+
+Существующие специализированные аудиты находятся в [docs/architecture](architecture/). Не заменять их одним монолитом: общий обзор должен ссылаться на доказательные документы.
+
+## Этап 3 — Хранилище и целостность данных
+
+**Статус: частично реализовано; целевая модель 1.16.0 не завершена.**
+
+SafeStorage fail-closed и профиль персонажа с квестовым reward ledger уже присутствуют. Профиль и Spec 2.0 пока хранятся раздельно.
+
+Открытые задачи:
+- безопасная миграция к выбранной модели `yaml-single`;
+- сохранение данных из `characters.yml` и `spec2-storage.yml`;
+- backup/restore, проверка схем и rollback;
+- отказ без тихого сброса данных при повреждённой или неполной миграции.
+
+См. [Character Profile Storage](architecture/V160_CHARACTER_PROFILE_STORAGE.md) и [Runbook](RUNBOOK.md).
+
+## Этап 4 — RASKOL Arena | Combat CI Guard
+
+**Статус: архитектура и Arena-01 подготовлены в отдельных Draft PR; в main не интегрированы.**
+
+Arena проверяет боевые регрессии, воспроизводимые сценарии и статистический баланс, используя production Combat Core. Это не второй боевой движок.
+
+Границы ответственности:
+- Forge — общий Maven Build/Test и quality gates;
+- Arena — combat diff audit, report/schema contracts, validators, headless deterministic scenarios и статистические сравнения после утверждения baseline;
+- Watchtower — Paper 26.2 runtime QA.
+
+История:
+- [PR #72](https://github.com/hayferdahmer/RaskolClasses/pull/72) — docs-only спецификация `RASKOL_ARENA_V1_SPEC.md`, Draft, не влит;
+- [PR #73](https://github.com/hayferdahmer/RaskolClasses/pull/73) — Arena-01 / консолидация Combat CI, Draft, не влит; CI на последнем зафиксированном HEAD не подтверждён;
+- PR #53–#58 — историческая Combat Lab цепочка; их базы, ветки и содержимое не менять в рамках Arena-01.
+
+Согласованные ограничения:
+- не дублировать Forge и Watchtower;
+- не менять пять действующих required checks и не добавлять Arena в required checks до отдельного решения;
+- не менять, не rebase и не merge PR #54–#58 без отдельного разрешения;
+- все 20 talent nodes остаются disabled; таланты не входят в Arena-01;
+- pending baseline не является утверждённым эталоном и не допускает статистический PASS.
+
+## Этап 5 — RPG Core 1.16.0
+
+**Статус: базовая часть в main; релизные блокеры остаются.**
+
+Цель и принятые параметры:
+- собственная прогрессия персонажа 1–60; AuraSkills удалён из интеграций;
+- PvE XP, анти-фарм и идемпотентные квестовые награды;
+- Class Lock через единственную подтверждённую primary-группу `class_<NAME>`;
+- Spec 2.0: три специализации на класс, выбор с 15 уровня, 46 очков;
+- specialization `v160`, class fixation `group`, Soul Tome `replace`;
+- целевая модель хранения `yaml-single`.
+
+Релизные блокеры:
+1. live-проверка Class Lock на реальной конфигурации LuckPerms;
+2. миграция профиля и Spec 2.0 к `yaml-single`;
+3. завершение Soul Tome `replace`;
+4. интеграционные проверки и финальная документация;
+5. подтверждение готовности официального артефакта.
+
+100–150 часов для пути 1–60 — балансировочная гипотеза, которую нужно проверить телеметрией, а не гарантия.
+
+Подробности: [Class Lock](architecture/V160_CLASS_LOCK.md), [Experience Progression](architecture/V160_EXPERIENCE_PROGRESSION.md), [Character Profile Storage](architecture/V160_CHARACTER_PROFILE_STORAGE.md).
+
+## Этап 6 — Игровая валидация и выпуск
+
+**Статус: будущая интеграционная фаза.**
+
+- закрыть недостающие production combat contracts;
+- расширять Arena только после подтверждения единого production pipeline;
+- проверять PvE/PvP и 18 специализаций на согласованных сценариях;
+- утверждать baseline только по воспроизводимым production-generated reports;
+- пройти unit, quality, integrity, storage и Paper runtime gates;
+- провести live smoke test на сервере владельца;
+- только затем снять SNAPSHOT, создать тег и опубликовать релиз.
+
+## Обновление дорожной карты
+
+После значимого PR обновлять [Development Status](DEVELOPMENT_STATUS.md): commit SHA, PR state, CI run/conclusion, фактически вошедшие в main изменения и оставшиеся блокеры. Исторические факты не переписывать задним числом.
