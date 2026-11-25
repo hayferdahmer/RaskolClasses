@@ -165,21 +165,30 @@ public final class DamageCaps {
         }
     }
 
-    /** Урегулирует token по полному фактическому расходу Path B одной операцией. */
-    public void settleBurst(Player target, BurstReservationLedger.Token token, double actualAmount) {
-        if (target == null || token == null || !Double.isFinite(actualAmount) || actualAmount < 0.0) {
-            return;
+    /** Урегулирует token Path B и возвращает данные для диагностики превышения. */
+    public BurstReservationLedger.Settlement settleBurst(
+            Player target, BurstReservationLedger.Token token, double actualAmount) {
+        if (!Double.isFinite(actualAmount) || actualAmount < 0.0) {
+            return new BurstReservationLedger.Settlement(false, true, 0.0, actualAmount, 0.0);
         }
+        if (target == null || token == null) {
+            return new BurstReservationLedger.Settlement(false, false, 0.0, actualAmount, 0.0);
+        }
+
         UUID playerId = target.getUniqueId();
         BurstReservationLedger ledger = burstLedgers.get(playerId);
         if (ledger == null) {
-            return;
+            return new BurstReservationLedger.Settlement(false, false, 0.0, actualAmount, 0.0);
         }
         synchronized (ledger) {
-            ledger.reconcile(token, actualAmount);
+            long now = System.currentTimeMillis();
+            long windowMillis = (long) (cfgD("combat.burst-window-seconds", 3.0) * 1000.0);
+            ledger.prune(now, windowMillis);
+            BurstReservationLedger.Settlement settlement = ledger.settle(token, actualAmount);
             if (ledger.isEmpty()) {
                 burstLedgers.remove(playerId, ledger);
             }
+            return settlement;
         }
     }
 
