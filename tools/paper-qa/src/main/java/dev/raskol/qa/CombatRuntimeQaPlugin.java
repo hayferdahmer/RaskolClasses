@@ -12,6 +12,7 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.UUID;
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
@@ -55,6 +56,9 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private double blackMassLifestealFraction;
     private double previousWarlockRecoil;
     private boolean previousBlackMassEnabled;
+    private ConfigurationSection warlockConfigSection;
+    private boolean hadWarlockRecoilSetting;
+    private boolean hadBlackMassEnabledSetting;
     private Object previousClassCacheEntry;
     private Map<UUID, Object> classCacheEntries;
     private boolean blackMassContextPrepared;
@@ -436,13 +440,19 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             }
 
             prepareWarlockClassCache(target);
-            previousWarlockRecoil = raskolPlugin.getConfig().getDouble("classes.WARLOCK.recoil-percent", 6.66);
-            previousBlackMassEnabled = raskolPlugin.getConfig().getBoolean(
-                    "classes.WARLOCK.passives.black_mass.enabled", true);
-            blackMassLifestealFraction = raskolPlugin.getConfig().getDouble(
-                    "classes.WARLOCK.passives.black_mass.lifesteal", 0.0666);
-            raskolPlugin.getConfig().set("classes.WARLOCK.recoil-percent", 0.0);
-            raskolPlugin.getConfig().set("classes.WARLOCK.passives.black_mass.enabled", true);
+            warlockConfigSection = raskolPlugin.getRaskolConfig().kitLoader().sectionOf(PlayerClass.WARLOCK);
+            if (warlockConfigSection == null) {
+                throw new IllegalStateException("Warlock kit configuration section is unavailable");
+            }
+            hadWarlockRecoilSetting = warlockConfigSection.contains("recoil.percent");
+            hadBlackMassEnabledSetting = warlockConfigSection.contains("passives.black_mass.enabled");
+            previousWarlockRecoil = raskolPlugin.getRaskolConfig().warlockRecoilPercent();
+            previousBlackMassEnabled = raskolPlugin.getRaskolConfig().passiveEnabled(PlayerClass.WARLOCK, "black_mass");
+            blackMassLifestealFraction = raskolPlugin.getRaskolConfig().passiveDouble(
+                    PlayerClass.WARLOCK, "black_mass", "lifesteal", 0.0666);
+            warlockConfigSection.set("recoil.percent", 0.0);
+            warlockConfigSection.set("passives.black_mass.enabled", true);
+            raskolPlugin.getRaskolConfig().kitCache().invalidate();
 
             World world = target.getWorld();
             Location location = target.getLocation().clone().add(3.0, 0.0, 0.0);
@@ -576,8 +586,17 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             } else {
                 classCacheEntries.put(target.getUniqueId(), previousClassCacheEntry);
             }
-            raskolPlugin.getConfig().set("classes.WARLOCK.recoil-percent", previousWarlockRecoil);
-            raskolPlugin.getConfig().set("classes.WARLOCK.passives.black_mass.enabled", previousBlackMassEnabled);
+            if (hadWarlockRecoilSetting) {
+                warlockConfigSection.set("recoil.percent", previousWarlockRecoil);
+            } else {
+                warlockConfigSection.set("recoil.percent", null);
+            }
+            if (hadBlackMassEnabledSetting) {
+                warlockConfigSection.set("passives.black_mass.enabled", previousBlackMassEnabled);
+            } else {
+                warlockConfigSection.set("passives.black_mass.enabled", null);
+            }
+            raskolPlugin.getRaskolConfig().kitCache().invalidate();
             blackMassContextPrepared = false;
         }
         remove(blackMassTarget);
