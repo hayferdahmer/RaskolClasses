@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 class CombatSuppressionScopeTest {
 
     @AfterEach
+    @SuppressWarnings("deprecation")
     void clearSuppressionContext() {
         while (CombatService.isSuppressed()) {
             CombatService.endSuppress();
@@ -83,6 +84,21 @@ class CombatSuppressionScopeTest {
         CombatService.endSuppress();
 
         assertFalse(CombatService.isSuppressed());
+        assertFalse(CombatService.consumeSuppress());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void legacySuppressMarkerIsThreadLocal() throws InterruptedException {
+        CombatService.setSuppress(true);
+        boolean[] workerObserved = {true};
+
+        Thread worker = new Thread(() -> workerObserved[0] = CombatService.consumeSuppress());
+        worker.start();
+        worker.join();
+
+        assertFalse(workerObserved[0]);
+        assertTrue(CombatService.consumeSuppress());
         assertFalse(CombatService.consumeSuppress());
     }
 
