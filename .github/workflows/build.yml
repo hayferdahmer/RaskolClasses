@@ -335,7 +335,12 @@ jobs:
             echo "::error::Paper Path A settlement matrix did not complete."
             exit 1
           fi
-          echo "Paper 26.2 Path A settlement matrix: PASS"
+          if ! grep -Fq "[BurstReservation] Внешний обработчик увеличил урон после reserve" server.log; then
+            cat server.log
+            echo "::error::The increased-damage scenario did not emit the required overage diagnostic."
+            exit 1
+          fi
+          echo "Paper 26.2 Path A settlement matrix and overage diagnostic: PASS"
           grep -E 'PATH_A_SETTLEMENT_SCENARIO_PASS|PATH_A_SETTLEMENT_MATRIX_PASS' server.log
           cat bot.log
 
