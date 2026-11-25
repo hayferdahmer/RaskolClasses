@@ -99,6 +99,17 @@ class BurstReservationLedgerTest {
     }
 
     @Test
+    void reconcileAfterChannelFailureKeepsOnlyCompletedChannelDamage() {
+        BurstReservationLedger ledger = new BurstReservationLedger();
+        BurstReservationLedger.Allocation allocation = ledger.reserve(100L, 3_000L, 100.0, 60.0);
+
+        // Второй канал завершился исключением: его вклад равен нулю.
+        ledger.reconcile(allocation.token(), 22.0);
+
+        assertEquals(78.0, ledger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
+    }
+
+    @Test
     void reconcileIgnoresInvalidAmountsAndTokensOwnedByAnotherLedger() {
         BurstReservationLedger ledger = new BurstReservationLedger();
         BurstReservationLedger otherLedger = new BurstReservationLedger();
