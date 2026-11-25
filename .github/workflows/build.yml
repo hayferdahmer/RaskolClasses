@@ -244,13 +244,27 @@ jobs:
       - name: Set up Bun for the Minecraft 26.2 protocol client
         uses: oven-sh/setup-bun@v2
 
-      - name: Install native Minecraft 26.2 protocol client
+      - name: Install pinned Minecraft 26.2 protocol client
         shell: bash
         run: |
           set -euo pipefail
-          # GitHub shorthand npm URLs may resolve to SSH; CI must use anonymous HTTPS.
-          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-          npm install --prefix tools/paper-qa --no-save github:GDLev/mc-protocol
+          PROTOCOL_URL="https://github.com/Complexity-ML/node-minecraft-protocol-26.2/releases/download/complexity-26.2.3/minecraft-protocol-complexity-26.2.3.tgz"
+          PROTOCOL_SHA256="8b72d382e3cc06779b2b54fc3e402291f46df3bc28fcc2c189b1fc25b3895dab"
+          curl -fsSL "$PROTOCOL_URL" -o /tmp/minecraft-protocol-26.2.tgz
+          echo "$PROTOCOL_SHA256  /tmp/minecraft-protocol-26.2.tgz" | sha256sum --check
+          npm install --prefix tools/paper-qa --no-save /tmp/minecraft-protocol-26.2.tgz
+          node <<'NODE'
+          const mc = require('./tools/paper-qa/node_modules/minecraft-protocol')
+          const minecraftData = require('./tools/paper-qa/node_modules/minecraft-data')
+          const data = minecraftData('26.2')
+          if (typeof mc.createClient !== 'function') {
+            throw new Error('minecraft-protocol createClient API is unavailable')
+          }
+          if (data.version.version !== 776 || data.version.minecraftVersion !== '26.2') {
+            throw new Error('Installed protocol data does not match Minecraft 26.2 / protocol 776')
+          }
+          console.log('Minecraft protocol client verified:', data.version.minecraftVersion, data.version.version)
+          NODE
 
       - name: Start Paper and verify plugin enablement
         working-directory: runtime
