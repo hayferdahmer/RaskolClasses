@@ -5,7 +5,7 @@ import mc from "minecraft-protocol";
 const client = mc.createClient({
   host: "127.0.0.1",
   port: 25575,
-  username: "RaskolPathAQa",
+  username: "RaskolPathAQA",
   auth: "offline",
   version: "26.2",
 });
