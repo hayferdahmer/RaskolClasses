@@ -406,6 +406,14 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         pathATargetId = targetId;
         pathATarget.setGameMode(GameMode.SURVIVAL);
         pathATarget.setNoDamageTicks(0);
+        try {
+            double previousReservations = reservationTotal(pathATargetId);
+            clearReservations(pathATargetId);
+            getLogger().info("[RASKOL-COMBAT-QA] PATH_A_LEDGER_ISOLATION_RESET previous=" + previousReservations);
+        } catch (ReflectiveOperationException exception) {
+            failPathA("Could not isolate Path A ledger from Path B reservations: " + exception);
+            return;
+        }
         getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_START");
         runPathAScenario(PathAScenario.REDUCE_OUTER);
     }
@@ -577,6 +585,24 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         failed = true;
         getLogger().severe("[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_FAIL: " + message);
         cleanup();
+    }
+
+    private void clearReservations(UUID playerId) throws ReflectiveOperationException {
+        Field ledgersField = combat.caps().getClass().getDeclaredField("burstLedgers");
+        ledgersField.setAccessible(true);
+        Map<?, ?> ledgers = (Map<?, ?>) ledgersField.get(combat.caps());
+        Object ledger = ledgers.get(playerId);
+        if (ledger == null) {
+            return;
+        }
+
+        Field entriesField = ledger.getClass().getDeclaredField("entries");
+        entriesField.setAccessible(true);
+        Deque<?> entries = (Deque<?>) entriesField.get(ledger);
+        synchronized (ledger) {
+            entries.clear();
+            ledgers.remove(playerId, ledger);
+        }
     }
 
     private double reservationTotal(UUID playerId) throws ReflectiveOperationException {
