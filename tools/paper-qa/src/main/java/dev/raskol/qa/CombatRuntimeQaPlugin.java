@@ -37,6 +37,9 @@ import org.bukkit.plugin.java.JavaPlugin;
  */
 public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener {
 
+    private static final double BURST_RESERVATION_TOLERANCE = 0.05;
+    private static final double BLACK_MASS_HEAL_TOLERANCE = 0.001;
+
     private enum Scenario {
         CANCEL_PHYSICAL,
         CANCEL_MAGIC,
@@ -386,25 +389,25 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                                 + " cancelledMagic=" + cancelledMagic);
                 require(actualDamage > 0.001,
                         "magic channel must apply after physical cancellation: actualDamage=" + actualDamage);
-                require(close(reserved, actualDamage / combat.scaleOf(target)), "reservation must equal actual applied magic damage; got " + reserved);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)), "reservation must equal actual applied magic damage; got " + reserved);
             }
             case CANCEL_MAGIC -> {
                 require(physicalEvents == 1 && magicEvents == 1, "magic-cancel event counts");
                 require(cancelledPhysical == 0 && cancelledMagic == 1, "magic-only cancellation");
                 require(actualDamage > 0.001, "physical channel must apply after magic cancellation");
-                require(close(reserved, actualDamage / combat.scaleOf(target)), "reservation must equal actual applied physical damage; got " + reserved);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)), "reservation must equal actual applied physical damage; got " + reserved);
             }
             case CANCEL_BOTH -> {
                 require(physicalEvents == 1 && magicEvents == 1, "both-cancel event counts");
                 require(cancelledPhysical == 1 && cancelledMagic == 1, "both channels must be cancelled");
                 require(Math.abs(actualDamage) < 0.001, "cancelled channels must not change health");
-                require(close(reserved, 0.0), "fully cancelled hit must release its complete reservation; got " + reserved);
+                require(closeReservation(reserved, 0.0), "fully cancelled hit must release its complete reservation; got " + reserved);
             }
             case NESTED_HIT -> {
                 require(physicalEvents == 2 && magicEvents == 2, "nested event counts");
                 require(cancelledPhysical == 1 && cancelledMagic == 0, "only the outer physical channel must be cancelled");
                 require(actualDamage > 0.001, "nested and outer magic channels must apply");
-                require(close(reserved, actualDamage / combat.scaleOf(target)), "nested and outer reservations must equal their actual combined health delta; got " + reserved);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)), "nested and outer reservations must equal their actual combined health delta; got " + reserved);
             }
         }
 
@@ -488,7 +491,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                     "expected lifesteal calculated from MONITOR event damage was not positive");
             requireBlackMass(actualHeal > 0.001,
                     "WarlockPassives did not heal the player; actualHeal=" + actualHeal);
-            requireBlackMass(close(actualHeal, blackMassExpectedHeal),
+            requireBlackMass(closeBlackMassHeal(actualHeal, blackMassExpectedHeal),
                     "actual lifesteal does not match the two event contributions: actual="
                             + actualHeal + " expected=" + blackMassExpectedHeal);
             requireBlackMass(reported > 0.001, "CombatService reported no applied damage");
@@ -565,8 +568,12 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         return total;
     }
 
-    private boolean close(double actual, double expected) {
-        return Math.abs(actual - expected) < 0.05;
+    private boolean closeReservation(double actual, double expected) {
+        return Math.abs(actual - expected) < BURST_RESERVATION_TOLERANCE;
+    }
+
+    private boolean closeBlackMassHeal(double actual, double expected) {
+        return Math.abs(actual - expected) < BLACK_MASS_HEAL_TOLERANCE;
     }
 
     private void require(boolean condition, String label) {
