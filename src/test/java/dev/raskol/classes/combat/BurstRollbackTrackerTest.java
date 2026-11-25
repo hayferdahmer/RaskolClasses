@@ -61,10 +61,15 @@ class BurstRollbackTrackerTest {
                 new BurstReservationLedger().reserve(0L, 10_000L, 100.0, 1.0).token();
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(null, UUID.randomUUID(), token, 1.0, 1.0, 0L));
         assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), null, token, 1.0, 1.0, 0L));
-        assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), null, 1.0, 1.0, 0L));
         assertThrows(
-                IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), token, Double.NaN, 1.0, 0L));
-        assertThrows(IllegalArgumentException.class, () -> tracker.arm(new Object(), UUID.randomUUID(), token, 0.0, 1.0, 0L));
+                IllegalArgumentException.class,
+                () -> tracker.arm(new Object(), UUID.randomUUID(), null, 1.0, 1.0, 0L));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> tracker.arm(new Object(), UUID.randomUUID(), token, Double.NaN, 1.0, 0L));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> tracker.arm(new Object(), UUID.randomUUID(), token, 0.0, 1.0, 0L));
     }
 
     @Test
@@ -107,9 +112,7 @@ class BurstRollbackTrackerTest {
         Object event = new Object();
 
         tracker.arm(event, UUID.randomUUID(), token, 5.0, 1.0, 0L);
-        assertThrows(
-                IllegalStateException.class,
-                () -> tracker.arm(event, UUID.randomUUID(), token, 5.0, 1.0, 1L));
+        assertThrows(IllegalStateException.class, () -> tracker.arm(event, UUID.randomUUID(), token, 5.0, 1.0, 1L));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> tracker.arm(new Object(), UUID.randomUUID(), token, 5.0, Double.NaN, 1L));
