@@ -25,7 +25,7 @@ Pass conditions:
 
 ## Burst cancellation matrix
 
-A headless Minecraft protocol client logs in to the isolated Paper server as a real Bukkit Player. The QA plugin obtains the initialized CombatService and runs hybrid Path B hits against that Player.
+A headless client built on `mc-protocol` uses the native Minecraft Java 26.2 protocol (protocol 776) to complete the offline login/configuration handshake with the isolated Paper server. This avoids relying on protocol libraries whose version registry does not yet contain 26.2. The QA plugin waits for the resulting real Bukkit Player, obtains the initialized CombatService, and runs hybrid Path B hits against that Player.
 
 The four scenarios are:
 
