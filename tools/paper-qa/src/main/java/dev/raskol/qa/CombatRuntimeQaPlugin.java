@@ -171,7 +171,13 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         double before = target.getHealth();
         combat.dealDamage(target, source, DamageProfile.hybrid(2.0, 2.0));
         double actualDamage = before - target.getHealth();
-        double reserved = reservationTotal(targetId);
+        final double reserved;
+        try {
+            reserved = reservationTotal(targetId);
+        } catch (ReflectiveOperationException exception) {
+            fail("Could not inspect the burst reservation ledger: " + exception);
+            return;
+        }
 
         switch (scenario) {
             case CANCEL_PHYSICAL -> {
