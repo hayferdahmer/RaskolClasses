@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.classes.combat;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -54,7 +55,9 @@ public final class VanillaDamageListener implements Listener {
     private final SchoolConfig schoolConfig;
     private final SchoolImmunity immunity;
 
-    /** Состояние отката burst-лога хранится отдельно для каждого события урона. */
+    private static final long BURST_HANDLE_TTL_MILLIS = 30_000L;
+
+    /** Одноразовые reservation handles привязаны к identity конкретного Paper event. */
     private final BurstRollbackTracker burstRollbacks = new BurstRollbackTracker();
 
     public VanillaDamageListener(
@@ -72,6 +75,7 @@ public final class VanillaDamageListener implements Listener {
         this.caps = caps;
         this.schoolConfig = new SchoolConfig(plugin);
         this.immunity = new SchoolImmunity(plugin);
+        plugin.getServer().getScheduler().runTaskTimer(plugin, this::purgeExpiredBurstHandles, 20L, 20L);
     }
 
     private double cfgD(String path, double def) {
@@ -277,12 +281,15 @@ public final class VanillaDamageListener implements Listener {
         caps.applySingleHitCapCarrier(event, target);
         double scale = caps.scaleOf(target);
         double effective = scale > 0.0 ? event.getDamage() / scale : event.getDamage();
-        effective = caps.applyBurstCap(target, effective, caps.formulaMaxOf(target));
+        BurstReservationLedger.Allocation burst = caps.reserveBurstCap(target, effective, caps.formulaMaxOf(target));
+        effective = burst.allowed();
         if (effective <= 0.0) {
             event.setCancelled(true);
             return;
         }
-        burstRollbacks.arm(event, uuid, effective);
+        if (burst.token() != null) {
+            burstRollbacks.arm(event, uuid, burst.token(), effective, scale, System.currentTimeMillis());
+        }
         event.setDamage(effective * scale);
 
         if (event.getCause() != EntityDamageEvent.DamageCause.CUSTOM
@@ -310,12 +317,55 @@ public final class VanillaDamageListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDamageMonitor(EntityDamageEvent event) {
-        BurstRollbackTracker.Entry rollback = burstRollbacks.take(event);
-        if (rollback == null || !event.isCancelled()) {
+        BurstRollbackTracker.Handle handle = burstRollbacks.take(event);
+        if (handle == null) {
             return;
         }
-        if (event.getEntity() instanceof Player target && target.getUniqueId().equals(rollback.playerId())) {
-            caps.undoLastBurst(target, rollback.amount());
+
+        if (event.isCancelled()) {
+            if (handle.finish(BurstRollbackTracker.State.ROLLED_BACK)) {
+                caps.rollbackBurst(handle.playerId(), handle.token(), handle.reservedAmount());
+            }
+            return;
+        }
+
+        if (!handle.finish(BurstRollbackTracker.State.SETTLED)) {
+            return;
+        }
+
+        double finalAmount = event.getDamage() / handle.scale();
+        BurstReservationLedger.Settlement settlement = caps.settleBurst(handle.playerId(), handle.token(), finalAmount);
+        if (settlement.invalid()) {
+            plugin.getLogger()
+                    .warning("[BurstReservation] Невалидный итоговый урон; сохранена исходная резервация"
+                            + " player=" + handle.playerId()
+                            + " damage=" + event.getDamage()
+                            + " scale=" + handle.scale());
+        } else if (!settlement.applied()) {
+            plugin.getLogger()
+                    .warning("[BurstReservation] Резервация отсутствует при settlement"
+                            + " player=" + handle.playerId()
+                            + " reserved=" + handle.reservedAmount()
+                            + " final=" + finalAmount);
+        } else if (settlement.overage() > 1.0e-9) {
+            plugin.getLogger()
+                    .warning("[BurstReservation] Внешний обработчик увеличил урон после reserve"
+                            + " player=" + handle.playerId()
+                            + " reserved=" + settlement.previousAmount()
+                            + " final=" + settlement.finalAmount()
+                            + " overage=" + settlement.overage());
+        }
+    }
+
+    private void purgeExpiredBurstHandles() {
+        long now = System.currentTimeMillis();
+        List<BurstRollbackTracker.Handle> expired = burstRollbacks.expire(now, BURST_HANDLE_TTL_MILLIS);
+        for (BurstRollbackTracker.Handle handle : expired) {
+            caps.rollbackBurst(handle.playerId(), handle.token(), handle.reservedAmount());
+            plugin.getLogger()
+                    .warning("[BurstReservation] Незавершённый handle истёк; исходная резервация откачена"
+                            + " player=" + handle.playerId()
+                            + " ageMillis=" + (now - handle.createdAtMillis()));
         }
     }
 

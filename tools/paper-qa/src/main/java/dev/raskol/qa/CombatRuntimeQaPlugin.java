@@ -2,8 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
 package dev.raskol.qa;
 
+import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.combat.CombatService;
+import java.lang.reflect.Field;
+import java.util.Deque;
+import java.util.Map;
+import java.util.UUID;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
@@ -11,10 +17,14 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
+import org.bukkit.damage.DamageSource;
+import org.bukkit.damage.DamageType;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -30,6 +40,30 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private boolean suppressedCancelled;
     private boolean normalObserved;
     private boolean normalWasSuppressed;
+
+    private enum PathAScenario {
+        REDUCE_OUTER,
+        INCREASE_OUTER,
+        NESTED_PASS_OUTER_CANCEL,
+        NESTED_AND_OUTER_PASS_MODIFIED
+    }
+
+    private Player pathATarget;
+    private CombatService combat;
+    private UUID pathATargetId;
+    private PathAScenario pathAScenario;
+    private EntityDamageEvent outerEvent;
+    private EntityDamageEvent nestedEvent;
+    private boolean nestedDispatch;
+    private boolean failed;
+    private double outerInitialDamage;
+    private double outerFinalDamage;
+    private double nestedFinalDamage;
+    private boolean outerCancelled;
+    private boolean nestedCancelled;
+    private double originalBurstWindowPct;
+    private double originalSingleHitPct;
+    private boolean configOverridden;
 
     @Override
     public void onEnable() {
@@ -108,6 +142,246 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             remove(suppressedTarget);
             remove(normalSource);
             remove(normalTarget);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        if (pathATarget != null) {
+            return;
+        }
+        pathATarget = event.getPlayer();
+        Bukkit.getScheduler().runTaskLater(this, this::startPathAMatrix, 20L);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
+    public void mutatePathAEvent(EntityDamageEvent event) {
+        if (pathATarget != null && pathATarget.getUniqueId().equals(event.getEntity().getUniqueId())) {
+            getLogger().info("[RASKOL-COMBAT-QA] PATH_A_EVENT_RECEIVED scenario=" + pathAScenario
+                    + " cause=" + event.getCause()
+                    + " damage=" + event.getDamage()
+                    + " cancelled=" + event.isCancelled());
+        }
+        if (pathATargetId == null || !pathATargetId.equals(event.getEntity().getUniqueId())
+                || pathAScenario == null) {
+            return;
+        }
+
+        if (nestedDispatch) {
+            nestedDispatch = false;
+            nestedEvent = event;
+            return;
+        }
+
+        if (outerEvent != null) {
+            return;
+        }
+
+        outerEvent = event;
+        outerInitialDamage = event.getDamage();
+
+        if (pathAScenario == PathAScenario.NESTED_PASS_OUTER_CANCEL
+                || pathAScenario == PathAScenario.NESTED_AND_OUTER_PASS_MODIFIED) {
+            nestedDispatch = true;
+            pathATarget.setNoDamageTicks(0);
+            try {
+                dispatchPathAEvent(2.0);
+            } finally {
+                nestedDispatch = false;
+                pathATarget.setNoDamageTicks(0);
+            }
+        }
+
+        switch (pathAScenario) {
+            case REDUCE_OUTER, NESTED_AND_OUTER_PASS_MODIFIED -> event.setDamage(event.getDamage() * 0.5);
+            case INCREASE_OUTER -> event.setDamage(event.getDamage() * 2.0);
+            case NESTED_PASS_OUTER_CANCEL -> event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void capturePathASettlement(EntityDamageEvent event) {
+        if (event == outerEvent) {
+            outerFinalDamage = event.getDamage();
+            outerCancelled = event.isCancelled();
+        } else if (event == nestedEvent) {
+            nestedFinalDamage = event.getDamage();
+            nestedCancelled = event.isCancelled();
+        }
+    }
+
+    private void startPathAMatrix() {
+        try {
+            RaskolClasses raskol = (RaskolClasses) Bukkit.getPluginManager().getPlugin("RaskolClasses");
+            if (raskol == null) {
+                failPathA("RaskolClasses plugin instance was not found");
+                return;
+            }
+            Field combatField = RaskolClasses.class.getDeclaredField("combat");
+            combatField.setAccessible(true);
+            combat = (CombatService) combatField.get(raskol);
+            if (combat == null) {
+                failPathA("CombatService was not initialized");
+                return;
+            }
+
+            originalBurstWindowPct = raskol.getConfig().getDouble("combat.burst-window-pct", 18.0);
+            originalSingleHitPct = raskol.getConfig().getDouble("combat.max-single-hit-pct", 35.0);
+            raskol.getConfig().set("combat.burst-window-pct", 1000.0);
+            raskol.getConfig().set("combat.max-single-hit-pct", 1000.0);
+            configOverridden = true;
+
+            pathATarget.setGameMode(GameMode.SURVIVAL);
+            pathATarget.setNoDamageTicks(0);
+            pathATargetId = pathATarget.getUniqueId();
+
+            runPathAScenario(PathAScenario.REDUCE_OUTER);
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            failPathA("Runtime setup failed: " + exception);
+        }
+    }
+
+    private void runPathAScenario(PathAScenario scenario) {
+        if (failed) {
+            cleanupPathA();
+            return;
+        }
+
+        pathAScenario = scenario;
+        outerEvent = null;
+        nestedEvent = null;
+        nestedDispatch = false;
+        outerInitialDamage = 0.0;
+        outerFinalDamage = 0.0;
+        nestedFinalDamage = 0.0;
+        outerCancelled = false;
+        nestedCancelled = false;
+
+        pathATarget.setHealth(pathATarget.getMaxHealth());
+        pathATarget.setNoDamageTicks(0);
+        combat.purgeBurstLog();
+
+        double scale = combat.scaleOf(pathATarget);
+        getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SCENARIO_START scenario=" + scenario
+                + " player=" + pathATarget.getUniqueId()
+                + " dispatch=PaperPluginManager");
+        dispatchPathAEvent(4.0);
+        getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SCENARIO_DISPATCHED scenario=" + scenario
+                + " eventObserved=" + (outerEvent != null));
+
+        try {
+            double reserved = reservationTotal(pathATargetId);
+            double expected = switch (scenario) {
+                case REDUCE_OUTER, INCREASE_OUTER -> outerFinalDamage / scale;
+                case NESTED_PASS_OUTER_CANCEL -> nestedFinalDamage / scale;
+                case NESTED_AND_OUTER_PASS_MODIFIED -> (nestedFinalDamage + outerFinalDamage) / scale;
+            };
+
+            requirePathA(outerEvent != null, scenario + ": outer event was not observed");
+            requirePathA(close(reserved, expected),
+                    scenario + ": ledger=" + reserved + " expected=" + expected
+                            + " outerInitial=" + outerInitialDamage
+                            + " outerFinal=" + outerFinalDamage
+                            + " nestedFinal=" + nestedFinalDamage);
+            switch (scenario) {
+                case REDUCE_OUTER -> requirePathA(
+                        !outerCancelled && outerFinalDamage < outerInitialDamage,
+                        "decreased outer damage must be accepted and settled");
+                case INCREASE_OUTER -> requirePathA(
+                        !outerCancelled && outerFinalDamage > outerInitialDamage,
+                        "increased outer damage must be accepted and settled");
+                case NESTED_PASS_OUTER_CANCEL -> requirePathA(
+                        nestedEvent != null && !nestedCancelled && outerCancelled,
+                        "nested event must pass while outer event is cancelled");
+                case NESTED_AND_OUTER_PASS_MODIFIED -> requirePathA(
+                        nestedEvent != null && !nestedCancelled && !outerCancelled
+                                && outerFinalDamage < outerInitialDamage,
+                        "nested and modified outer events must both pass");
+            }
+            if (failed) {
+                cleanupPathA();
+                return;
+            }
+
+            getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_SCENARIO_PASS scenario=" + scenario
+                    + " outerInitial=" + outerInitialDamage
+                    + " outerFinal=" + outerFinalDamage
+                    + " nestedFinal=" + nestedFinalDamage
+                    + " outerCancelled=" + outerCancelled
+                    + " nestedCancelled=" + nestedCancelled
+                    + " ledger=" + reserved
+                    + " expected=" + expected);
+
+            PathAScenario[] scenarios = PathAScenario.values();
+            int next = scenario.ordinal() + 1;
+            if (next < scenarios.length) {
+                Bukkit.getScheduler().runTaskLater(this, () -> runPathAScenario(scenarios[next]), 80L);
+            } else {
+                getLogger().info("[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_PASS");
+                cleanupPathA();
+            }
+        } catch (ReflectiveOperationException exception) {
+            failPathA("Could not inspect burst ledger: " + exception);
+        }
+    }
+
+    private void dispatchPathAEvent(double damage) {
+        DamageSource source = DamageSource.builder(DamageType.GENERIC).build();
+        EntityDamageEvent event = new EntityDamageEvent(
+                pathATarget,
+                EntityDamageEvent.DamageCause.CUSTOM,
+                source,
+                damage);
+        Bukkit.getPluginManager().callEvent(event);
+    }
+
+    private double reservationTotal(UUID playerId) throws ReflectiveOperationException {
+        Field ledgersField = combat.caps().getClass().getDeclaredField("burstLedgers");
+        ledgersField.setAccessible(true);
+        Map<?, ?> ledgers = (Map<?, ?>) ledgersField.get(combat.caps());
+        Object ledger = ledgers.get(playerId);
+        if (ledger == null) {
+            return 0.0;
+        }
+        Field entriesField = ledger.getClass().getDeclaredField("entries");
+        entriesField.setAccessible(true);
+        Deque<?> entries = (Deque<?>) entriesField.get(ledger);
+        double total = 0.0;
+        for (Object token : entries) {
+            Field amountField = token.getClass().getDeclaredField("amount");
+            amountField.setAccessible(true);
+            total += amountField.getDouble(token);
+        }
+        return total;
+    }
+
+    private boolean close(double actual, double expected) {
+        return Math.abs(actual - expected) <= 0.001;
+    }
+
+    private void requirePathA(boolean condition, String message) {
+        if (!condition) {
+            failPathA("Assertion failed: " + message);
+        }
+    }
+
+    private void failPathA(String message) {
+        failed = true;
+        getLogger().severe("[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_FAIL: " + message);
+        cleanupPathA();
+    }
+
+    private void cleanupPathA() {
+        if (configOverridden) {
+            RaskolClasses raskol = (RaskolClasses) Bukkit.getPluginManager().getPlugin("RaskolClasses");
+            if (raskol != null) {
+                raskol.getConfig().set("combat.burst-window-pct", originalBurstWindowPct);
+                raskol.getConfig().set("combat.max-single-hit-pct", originalSingleHitPct);
+            }
+            configOverridden = false;
+        }
+        if (pathATarget != null && pathATarget.isOnline()) {
+            pathATarget.kickPlayer("RASKOL Paper Path A runtime QA complete");
         }
     }
 

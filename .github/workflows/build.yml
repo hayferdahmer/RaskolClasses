@@ -226,6 +226,29 @@ jobs:
           cp tools/paper-qa/target/paper-combat-qa-1.0.0.jar runtime/plugins/RaskolCombatQA.jar
           echo "Temporary Paper combat QA plugin compiled and installed."
 
+      - name: Set up Bun for the Minecraft 26.2 protocol client
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install pinned Minecraft 26.2 protocol client
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROTOCOL_URL="https://github.com/Complexity-ML/node-minecraft-protocol-26.2/releases/download/complexity-26.2.3/minecraft-protocol-complexity-26.2.3.tgz"
+          PROTOCOL_SHA256="8b72d382e3cc06779b2b54fc3e402291f46df3bc28fcc2c189b1fc25b3895dab"
+          curl -fsSL "$PROTOCOL_URL" -o /tmp/minecraft-protocol-26.2.tgz
+          echo "$PROTOCOL_SHA256  /tmp/minecraft-protocol-26.2.tgz" | sha256sum --check
+          npm install --prefix tools/paper-qa --no-save /tmp/minecraft-protocol-26.2.tgz
+          node <<'NODE'
+          const mc = require('./tools/paper-qa/node_modules/minecraft-protocol')
+          const minecraftData = require('./tools/paper-qa/node_modules/minecraft-data')
+          const data = minecraftData('26.2')
+          if (typeof mc.createClient !== 'function') throw new Error('minecraft-protocol createClient API is unavailable')
+          if (data.version.version !== 776 || data.version.minecraftVersion !== '26.2') {
+            throw new Error('Installed protocol data does not match Minecraft 26.2 / protocol 776')
+          }
+          console.log('Minecraft protocol client verified:', data.version.minecraftVersion, data.version.version)
+          NODE
+
       - name: Start Paper and verify plugin enablement
         working-directory: runtime
         shell: bash
@@ -282,6 +305,44 @@ jobs:
           fi
           echo "Paper 26.2 startup, RaskolClasses enablement and combat suppression probe: PASS"
           grep -E 'Preparing level|Enabling RaskolClasses|RASKOL-COMBAT-QA|Done \(' server.log
+
+          bun run "$GITHUB_WORKSPACE/tools/paper-qa/burst-runtime-bot.ts" > bot.log 2>&1 &
+          BOT_PID=$!
+          trap 'kill -TERM "$SERVER_PID" "$BOT_PID" 2>/dev/null || true' EXIT
+          MATRIX_READY=0
+          for attempt in $(seq 1 300); do
+            if grep -Fq "[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_PASS" server.log; then
+              MATRIX_READY=1
+              break
+            fi
+            if grep -Fq "[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_FAIL" server.log; then
+              cat server.log
+              cat bot.log
+              echo "::error::Paper Path A burst settlement matrix failed."
+              exit 1
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              cat server.log
+              cat bot.log
+              echo "::error::Paper exited during Path A settlement matrix."
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$MATRIX_READY" -ne 1 ]; then
+            cat server.log
+            cat bot.log
+            echo "::error::Paper Path A settlement matrix did not complete."
+            exit 1
+          fi
+          if ! grep -Fq "[BurstReservation] Внешний обработчик увеличил урон после reserve" server.log; then
+            cat server.log
+            echo "::error::The increased-damage scenario did not emit the required overage diagnostic."
+            exit 1
+          fi
+          echo "Paper 26.2 Path A settlement matrix and overage diagnostic: PASS"
+          grep -E 'PATH_A_SETTLEMENT_SCENARIO_PASS|PATH_A_SETTLEMENT_MATRIX_PASS' server.log
+          cat bot.log
 
       - name: Upload Paper runtime log
         if: always()

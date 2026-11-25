@@ -941,4 +941,29 @@ SPDX-License-Identifier: LicenseRef-Raskol-Proprietary-2.0
         <Bug pattern="EI_EXPOSE_REP2"/>
     </Match>
 
+    <!--
+      Combat API: caps() сохраняется как публичный compatibility accessor.
+      Он возвращает общий lifecycle-managed DamageCaps, а не value snapshot.
+      Внутренние потребители используют тот же экземпляр; изменение API
+      или копирование объекта нарушило бы совместимость и общее состояние.
+      Исключение ограничено только этим методом.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.combat.CombatService"/>
+        <Method name="caps"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+    </Match>
+
+    <!--
+      Combat dependency injection: VanillaDamageListener получает тот же
+      DamageCaps, которым владеет CombatService. Общий экземпляр необходим
+      для единого burst-window ledger; копирование разделило бы состояние.
+      Исключение ограничено только этим полем.
+    -->
+    <Match>
+        <Class name="dev.raskol.classes.combat.VanillaDamageListener"/>
+        <Field name="caps"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
 </FindBugsFilter>
