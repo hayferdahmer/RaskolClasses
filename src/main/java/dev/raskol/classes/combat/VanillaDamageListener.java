@@ -359,8 +359,7 @@ public final class VanillaDamageListener implements Listener {
 
     private void purgeExpiredBurstHandles() {
         long now = System.currentTimeMillis();
-        List<BurstRollbackTracker.Handle> expired =
-                burstRollbacks.expire(now, BURST_HANDLE_TTL_MILLIS);
+        List<BurstRollbackTracker.Handle> expired = burstRollbacks.expire(now, BURST_HANDLE_TTL_MILLIS);
         for (BurstRollbackTracker.Handle handle : expired) {
             caps.rollbackBurst(handle.playerId(), handle.token(), handle.reservedAmount());
             plugin.getLogger()
