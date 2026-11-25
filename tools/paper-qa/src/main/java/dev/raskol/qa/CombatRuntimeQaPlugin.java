@@ -5,6 +5,8 @@ package dev.raskol.qa;
 import dev.raskol.classes.RaskolClasses;
 import dev.raskol.classes.combat.CombatService;
 import dev.raskol.classes.combat.DamageProfile;
+import dev.raskol.classes.classsystem.PlayerClass;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.Deque;
 import java.util.Map;
@@ -22,6 +24,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.persistence.PersistentDataType;
@@ -41,6 +44,20 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     }
 
     private CombatService combat;
+    private RaskolClasses raskolPlugin;
+    private LivingEntity blackMassTarget;
+    private UUID blackMassTargetId;
+    private boolean blackMassNestedTriggered;
+    private int blackMassEvents;
+    private int blackMassAttributedEvents;
+    private double blackMassExpectedHeal;
+    private double blackMassHealthBefore;
+    private double blackMassLifestealFraction;
+    private double previousWarlockRecoil;
+    private boolean previousBlackMassEnabled;
+    private Object previousClassCacheEntry;
+    private Map<UUID, Object> classCacheEntries;
+    private boolean blackMassContextPrepared;
     private Player target;
     private LivingEntity source;
     private Scenario activeScenario;
@@ -172,6 +189,46 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
+    public void triggerNestedBlackMassHit(EntityDamageEvent event) {
+        if (blackMassTargetId == null
+                || !blackMassTargetId.equals(event.getEntity().getUniqueId())
+                || !(event instanceof EntityDamageByEntityEvent byEntity)
+                || !byEntity.getDamager().getUniqueId().equals(target.getUniqueId())
+                || !CombatService.isSuppressed()) {
+            return;
+        }
+
+        if (!target.getUniqueId().equals(CombatService.abilitySourceMark())) {
+            failBlackMass("outer or nested damage event did not carry the Warlock source UUID at LOWEST");
+            return;
+        }
+
+        if (!blackMassNestedTriggered) {
+            blackMassNestedTriggered = true;
+            combat.dealDamage(blackMassTarget, target, new DamageProfile(1.0, 0.0, 0.0));
+            if (!target.getUniqueId().equals(CombatService.abilitySourceMark())) {
+                failBlackMass("outer ability source UUID was not restored after the nested dealDamage call");
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = false)
+    public void observeBlackMassLifesteal(EntityDamageEvent event) {
+        if (blackMassTargetId == null
+                || !blackMassTargetId.equals(event.getEntity().getUniqueId())
+                || !(event instanceof EntityDamageByEntityEvent byEntity)
+                || !byEntity.getDamager().getUniqueId().equals(target.getUniqueId())) {
+            return;
+        }
+
+        blackMassEvents++;
+        if (target.getUniqueId().equals(CombatService.abilitySourceMark())) {
+            blackMassAttributedEvents++;
+            blackMassExpectedHeal += event.getDamage() * blackMassLifestealFraction;
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
     public void interceptCombatChannel(EntityDamageEvent event) {
         if (targetId == null || !targetId.equals(event.getEntity().getUniqueId())) {
             return;
@@ -231,6 +288,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 fail("RaskolClasses plugin instance was not found");
                 return;
             }
+            raskolPlugin = raskol;
             Field combatField = RaskolClasses.class.getDeclaredField("combat");
             combatField.setAccessible(true);
             combat = (CombatService) combatField.get(raskol);
@@ -366,8 +424,113 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.NESTED_HIT, 0), 80L);
         } else {
             getLogger().info("[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS");
-            cleanup();
+            runBlackMassNestedContextProbe();
         }
+    }
+
+    private void runBlackMassNestedContextProbe() {
+        try {
+            if (raskolPlugin == null || target == null || !target.isOnline()) {
+                failBlackMass("Warlock integration probe has no online test player or plugin instance");
+                return;
+            }
+
+            prepareWarlockClassCache(target);
+            previousWarlockRecoil = raskolPlugin.getConfig().getDouble("classes.WARLOCK.recoil-percent", 6.66);
+            previousBlackMassEnabled = raskolPlugin.getConfig().getBoolean(
+                    "classes.WARLOCK.passives.black_mass.enabled", true);
+            blackMassLifestealFraction = raskolPlugin.getConfig().getDouble(
+                    "classes.WARLOCK.passives.black_mass.lifesteal", 0.0666);
+            raskolPlugin.getConfig().set("classes.WARLOCK.recoil-percent", 0.0);
+            raskolPlugin.getConfig().set("classes.WARLOCK.passives.black_mass.enabled", true);
+
+            World world = target.getWorld();
+            Location location = target.getLocation().clone().add(3.0, 0.0, 0.0);
+            Entity spawned = spawnPassiveMob(world, location);
+            if (!(spawned instanceof LivingEntity living)) {
+                failBlackMass("Could not spawn a LivingEntity for the Warlock lifesteal probe");
+                return;
+            }
+            blackMassTarget = living;
+            blackMassTargetId = living.getUniqueId();
+            blackMassTarget.setNoDamageTicks(0);
+
+            target.setGameMode(GameMode.SURVIVAL);
+            target.setHealth(Math.max(1.0, target.getMaxHealth() - 5.0));
+            blackMassHealthBefore = target.getHealth();
+            blackMassNestedTriggered = false;
+            blackMassEvents = 0;
+            blackMassAttributedEvents = 0;
+            blackMassExpectedHeal = 0.0;
+
+            double reported = combat.dealDamage(blackMassTarget, target, new DamageProfile(2.0, 0.0, 0.0));
+            double actualHeal = target.getHealth() - blackMassHealthBefore;
+
+            requireBlackMass(blackMassNestedTriggered, "nested damage callback was not triggered");
+            requireBlackMass(blackMassEvents == 2,
+                    "expected exactly two real EntityDamageByEntityEvent instances, got " + blackMassEvents);
+            requireBlackMass(blackMassAttributedEvents == 2,
+                    "both nested and outer events must retain the Warlock source UUID; attributed="
+                            + blackMassAttributedEvents);
+            requireBlackMass(blackMassExpectedHeal > 0.001,
+                    "expected lifesteal calculated from MONITOR event damage was not positive");
+            requireBlackMass(actualHeal > 0.001,
+                    "WarlockPassives did not heal the player; actualHeal=" + actualHeal);
+            requireBlackMass(close(actualHeal, blackMassExpectedHeal),
+                    "actual lifesteal does not match the two event contributions: actual="
+                            + actualHeal + " expected=" + blackMassExpectedHeal);
+            requireBlackMass(reported > 0.001, "CombatService reported no applied damage");
+
+            if (failed) {
+                cleanup();
+                return;
+            }
+
+            getLogger().info("[RASKOL-COMBAT-QA] BLACK_MASS_NESTED_CONTEXT_PASS"
+                    + " events=" + blackMassEvents
+                    + " attributedEvents=" + blackMassAttributedEvents
+                    + " expectedHeal=" + blackMassExpectedHeal
+                    + " actualHeal=" + actualHeal
+                    + " damageReported=" + reported);
+            cleanup();
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            failBlackMass("Warlock integration probe threw: " + exception);
+        }
+    }
+
+    private void prepareWarlockClassCache(Player player) throws ReflectiveOperationException {
+        Field cacheField = raskolPlugin.getClassProvider().getClass().getDeclaredField("cache");
+        cacheField.setAccessible(true);
+        Object cache = cacheField.get(raskolPlugin.getClassProvider());
+        Field entriesField = cache.getClass().getDeclaredField("entries");
+        entriesField.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<UUID, Object> entries = (Map<UUID, Object>) entriesField.get(cache);
+        classCacheEntries = entries;
+        previousClassCacheEntry = entries.get(player.getUniqueId());
+
+        Class<?> entryType = Class.forName("dev.raskol.classes.classsystem.ClassCache$Entry");
+        Constructor<?> constructor = entryType.getDeclaredConstructor(PlayerClass.class, long.class);
+        constructor.setAccessible(true);
+        Object warlockEntry = constructor.newInstance(PlayerClass.WARLOCK, System.currentTimeMillis() + 60_000L);
+        entries.put(player.getUniqueId(), warlockEntry);
+        blackMassContextPrepared = true;
+
+        if (raskolPlugin.getClassProvider().getClassOf(player) != PlayerClass.WARLOCK) {
+            throw new IllegalStateException("Test class cache did not resolve the player as WARLOCK");
+        }
+    }
+
+    private void requireBlackMass(boolean condition, String label) {
+        if (!condition) {
+            failBlackMass("Assertion failed: " + label);
+        }
+    }
+
+    private void failBlackMass(String message) {
+        failed = true;
+        getLogger().severe("[RASKOL-COMBAT-QA] BLACK_MASS_NESTED_CONTEXT_FAIL: " + message);
+        cleanup();
     }
 
     private double reservationTotal(UUID playerId) throws ReflectiveOperationException {
@@ -407,6 +570,19 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     }
 
     private void cleanup() {
+        if (blackMassContextPrepared) {
+            if (previousClassCacheEntry == null) {
+                classCacheEntries.remove(target.getUniqueId());
+            } else {
+                classCacheEntries.put(target.getUniqueId(), previousClassCacheEntry);
+            }
+            raskolPlugin.getConfig().set("classes.WARLOCK.recoil-percent", previousWarlockRecoil);
+            raskolPlugin.getConfig().set("classes.WARLOCK.passives.black_mass.enabled", previousBlackMassEnabled);
+            blackMassContextPrepared = false;
+        }
+        remove(blackMassTarget);
+        blackMassTarget = null;
+        blackMassTargetId = null;
         if (source != null && source.isValid()) {
             source.remove();
         }
