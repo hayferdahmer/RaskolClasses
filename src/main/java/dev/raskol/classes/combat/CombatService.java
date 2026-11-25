@@ -61,7 +61,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
  */
 public final class CombatService implements Listener {
 
-    private static final ThreadLocal<Boolean> SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
+    private static final ThreadLocal<Integer> SUPPRESS_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<UUID> ABILITY_SOURCE = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
@@ -99,16 +99,24 @@ public final class CombatService implements Listener {
 
     /* ------------------------------ статик-маркеры ------------------------------ */
 
-    public static boolean consumeSuppress() {
-        boolean v = Boolean.TRUE.equals(SUPPRESS.get());
-        if (v) {
-            SUPPRESS.set(Boolean.FALSE);
-        }
-        return v;
+    /** Проверка маркера не изменяет его: несколько listeners видят один контекст события. */
+    public static boolean isSuppressed() {
+        return SUPPRESS_DEPTH.get() > 0;
     }
 
-    public static void setSuppress(boolean value) {
-        SUPPRESS.set(value);
+    /** Начинает вложенную область подавления синтетического Paper damage event. */
+    public static void beginSuppress() {
+        SUPPRESS_DEPTH.set(SUPPRESS_DEPTH.get() + 1);
+    }
+
+    /** Завершает область подавления, сохраняя внешний контекст при вложенном уроне. */
+    public static void endSuppress() {
+        int depth = SUPPRESS_DEPTH.get();
+        if (depth <= 1) {
+            SUPPRESS_DEPTH.remove();
+        } else {
+            SUPPRESS_DEPTH.set(depth - 1);
+        }
     }
 
     public static UUID abilitySourceMark() {
@@ -523,7 +531,7 @@ public final class CombatService implements Listener {
             if (applyPhys > 0.0) {
                 double before = target.getHealth();
                 target.setNoDamageTicks(0);
-                setSuppress(true);
+                beginSuppress();
                 try {
                     if (source != null) {
                         target.damage(applyPhys, source);
@@ -531,7 +539,7 @@ public final class CombatService implements Listener {
                         target.damage(applyPhys);
                     }
                 } finally {
-                    setSuppress(false);
+                    endSuppress();
                 }
                 double after = target.getHealth();
                 if (after < before) {
@@ -541,7 +549,7 @@ public final class CombatService implements Listener {
             if (applyMagic > 0.0) {
                 double before = target.getHealth();
                 target.setNoDamageTicks(0);
-                setSuppress(true);
+                beginSuppress();
                 try {
                     org.bukkit.damage.DamageType magic = magicType();
                     if (magic != null) {
@@ -554,7 +562,7 @@ public final class CombatService implements Listener {
                         target.damage(applyMagic);
                     }
                 } finally {
-                    setSuppress(false);
+                    endSuppress();
                 }
                 double after = target.getHealth();
                 if (after < before) {

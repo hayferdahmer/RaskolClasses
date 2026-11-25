@@ -257,13 +257,13 @@ public final class ProcService {
         }
         double scale = plugin.getHpBarService().scale(attacker);
         double carrierDmg = reflect * scale;
-        CombatService.setSuppress(true);
+        CombatService.beginSuppress();
         CombatService.beginReflect();
         try {
             attacker.damage(carrierDmg, defender);
         } finally {
             CombatService.endReflect();
-            CombatService.setSuppress(false);
+            CombatService.endSuppress();
         }
     }
 

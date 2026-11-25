@@ -42,8 +42,8 @@ import dev.raskol.classes.combat.CombatService;
  *         пропускаются без блокировки. Раньше CCGuard отменял DoT-урон от
  *         игрока под CC (потому что DotService.tick вызывает target.damage(amount, owner),
  *         что генерирует EntityDamageByEntityEvent, и CCGuard его перехватывал).
- *         Теперь CombatService.consumeSuppress() проверяется первым: если событие
- *         помечено как suppressed (setSuppress(true) в DotService/CombatService),
+ *         Теперь CombatService.isSuppressed() проверяется первым: если событие
+ *         помечено как suppressed (beginSuppress() в DotService/CombatService),
  *         CCGuard не блокирует его. Это позволяет уже активным DoT тикать даже
  *         если кастер под CC (DoT уже запущен, отмена нелогична).
  */
@@ -86,7 +86,7 @@ public final class CCGuard implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onDamageByEntity(EntityDamageByEntityEvent event) {
         // 1.15.6 (2.6-37): suppressed-событие (DoT/путь B) — не блокируем
-        if (CombatService.consumeSuppress()) {
+        if (CombatService.isSuppressed()) {
             return;
         }
         if (!(event.getDamager() instanceof Player attacker)) {
@@ -119,7 +119,7 @@ public final class CCGuard implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onShootBow(EntityShootBowEvent event) {
         // 1.15.6 (2.6-37): suppressed-событие — не блокируем
-        if (CombatService.consumeSuppress()) {
+        if (CombatService.isSuppressed()) {
             return;
         }
         if (!(event.getEntity() instanceof Player shooter)) {
@@ -134,7 +134,7 @@ public final class CCGuard implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onProjectileLaunch(ProjectileLaunchEvent event) {
         // 1.15.6 (2.6-37): suppressed-событие — не блокируем
-        if (CombatService.consumeSuppress()) {
+        if (CombatService.isSuppressed()) {
             return;
         }
         if (!(event.getEntity().getShooter() instanceof Player shooter)) {
