@@ -46,18 +46,21 @@ final class BurstReservationLedger {
         }
     }
 
-    /** Приводит конкретную резервацию к фактическому расходу, включая превышение резерва. */
-    void reconcile(Token token, double actualAmount) {
-        if (token == null || !Double.isFinite(actualAmount) || actualAmount < 0.0 || !entries.contains(token)) {
-            return;
+    /** Приводит конкретную резервацию к фактическому расходу и возвращает диагностику превышения. */
+    Settlement settle(Token token, double finalAmount) {
+        if (!Double.isFinite(finalAmount) || finalAmount < 0.0) {
+            return new Settlement(false, true, token == null ? 0.0 : token.amount, finalAmount, 0.0);
         }
-        if (actualAmount <= EPSILON) {
+        if (token == null || !entries.contains(token)) {
+            return new Settlement(false, false, 0.0, finalAmount, 0.0);
+        }
+
+        double previousAmount = token.amount;
+        token.amount = finalAmount;
+        if (token.amount <= EPSILON) {
             entries.remove(token);
-            token.amount = 0.0;
-            return;
         }
-        // Фактический расход может быть выше исходного резерва после внешних Paper listeners.
-        token.amount = actualAmount;
+        return new Settlement(true, false, previousAmount, finalAmount, Math.max(0.0, finalAmount - previousAmount));
     }
 
     void prune(long nowMillis, long windowMillis) {
@@ -71,6 +74,8 @@ final class BurstReservationLedger {
     }
 
     record Allocation(double allowed, Token token) {}
+
+    record Settlement(boolean applied, boolean invalid, double previousAmount, double finalAmount, double overage) {}
 
     static final class Token {
         private final long createdAtMillis;
