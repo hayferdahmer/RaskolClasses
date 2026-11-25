@@ -62,6 +62,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public final class CombatService implements Listener {
 
     private static final ThreadLocal<Integer> SUPPRESS_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Boolean> LEGACY_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     private static final ThreadLocal<UUID> ABILITY_SOURCE = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
@@ -117,6 +118,30 @@ public final class CombatService implements Listener {
         } else {
             SUPPRESS_DEPTH.set(depth - 1);
         }
+    }
+
+    /**
+     * Совместимость с прежним публичным API. Маркер независим от depth-based scope.
+     *
+     * @deprecated Используйте {@link #isSuppressed()} для чтения нового контекста.
+     */
+    @Deprecated
+    public static boolean consumeSuppress() {
+        boolean suppressed = Boolean.TRUE.equals(LEGACY_SUPPRESS.get());
+        if (suppressed) {
+            LEGACY_SUPPRESS.set(Boolean.FALSE);
+        }
+        return suppressed;
+    }
+
+    /**
+     * Совместимость с прежним публичным API с сохранением consumptive semantics.
+     *
+     * @deprecated Используйте {@link #beginSuppress()} и {@link #endSuppress()}.
+     */
+    @Deprecated
+    public static void setSuppress(boolean value) {
+        LEGACY_SUPPRESS.set(value);
     }
 
     public static UUID abilitySourceMark() {
@@ -541,20 +566,21 @@ public final class CombatService implements Listener {
         try {
             if (applyPhys > 0.0) {
                 double before = target.getHealth();
-                target.setNoDamageTicks(0);
-                beginSuppress();
+                DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
                 try {
-                    if (source != null) {
-                        target.damage(applyPhys, source);
-                    } else {
-                        target.damage(applyPhys);
+                    target.setNoDamageTicks(0);
+                    beginSuppress();
+                    try {
+                        if (source != null) {
+                            target.damage(applyPhys, source);
+                        } else {
+                            target.damage(applyPhys);
+                        }
+                    } finally {
+                        endSuppress();
                     }
                 } finally {
-                    endSuppress();
-                }
-                double after = target.getHealth();
-                if (after < before) {
-                    actualPhys = (before - after) / scale;
+                    actualPhys = attribution.finish(target.getHealth()) / scale;
                 }
                 if (burstToken != null) {
                     caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedPhys - actualPhys));
@@ -563,25 +589,26 @@ public final class CombatService implements Listener {
             }
             if (applyMagic > 0.0) {
                 double before = target.getHealth();
-                target.setNoDamageTicks(0);
-                beginSuppress();
+                DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
                 try {
-                    org.bukkit.damage.DamageType magic = magicType();
-                    if (magic != null) {
-                        DamageSource.Builder builder = DamageSource.builder(magic);
-                        if (source != null) {
-                            builder = builder.withDirectEntity(source).withCausingEntity(source);
+                    target.setNoDamageTicks(0);
+                    beginSuppress();
+                    try {
+                        org.bukkit.damage.DamageType magic = magicType();
+                        if (magic != null) {
+                            DamageSource.Builder builder = DamageSource.builder(magic);
+                            if (source != null) {
+                                builder = builder.withDirectEntity(source).withCausingEntity(source);
+                            }
+                            target.damage(applyMagic, builder.build());
+                        } else {
+                            target.damage(applyMagic);
                         }
-                        target.damage(applyMagic, builder.build());
-                    } else {
-                        target.damage(applyMagic);
+                    } finally {
+                        endSuppress();
                     }
                 } finally {
-                    endSuppress();
-                }
-                double after = target.getHealth();
-                if (after < before) {
-                    actualMagic = (before - after) / scale;
+                    actualMagic = attribution.finish(target.getHealth()) / scale;
                 }
                 if (burstToken != null) {
                     caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedMagic - actualMagic));

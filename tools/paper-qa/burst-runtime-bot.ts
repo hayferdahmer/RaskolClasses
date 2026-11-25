@@ -5,7 +5,7 @@ import mc from "minecraft-protocol";
 const client = mc.createClient({
   host: "127.0.0.1",
   port: 25575,
-  username: "RaskolPathAQA",
+  username: "RaskolRuntimeQA",
   auth: "offline",
   version: "26.2",
 });
@@ -15,21 +15,21 @@ let failed = false;
 
 const timeout = setTimeout(() => {
   failed = true;
-  console.error("RASKOL Path A QA bot timed out before joining Paper 26.2.");
-  client.end("RASKOL Path A QA timeout");
+  console.error("RASKOL runtime QA bot timed out before joining Paper 26.2.");
+  client.end("RASKOL runtime QA timeout");
   process.exit(1);
 }, 120_000);
 
 client.once("playerJoin", () => {
   joined = true;
   clearTimeout(timeout);
-  console.log("RASKOL Path A QA bot joined Paper 26.2 (protocol 776):", client.username);
+  console.log("RASKOL runtime QA bot joined Paper 26.2 (protocol 776):", client.username);
 });
 
 client.on("error", (error) => {
   failed = true;
   clearTimeout(timeout);
-  console.error("RASKOL Path A QA bot protocol error:", error);
+  console.error("RASKOL runtime QA bot protocol error:", error);
   process.exit(1);
 });
 
@@ -37,7 +37,7 @@ client.on("end", (reason) => {
   if (!joined && !failed) {
     failed = true;
     clearTimeout(timeout);
-    console.error("RASKOL Path A QA bot disconnected before joining Paper 26.2:", reason);
+    console.error("RASKOL runtime QA bot disconnected before joining Paper 26.2:", reason);
     process.exit(1);
   }
 });
