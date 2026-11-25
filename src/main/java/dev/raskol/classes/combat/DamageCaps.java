@@ -148,10 +148,15 @@ public final class DamageCaps {
 
     /** Откатывает только неиспользованную часть конкретной резервации. */
     public void rollbackBurst(Player target, BurstReservationLedger.Token token, double amount) {
-        if (target == null || token == null || amount <= 0.0) {
+        if (target != null) {
+            rollbackBurst(target.getUniqueId(), token, amount);
+        }
+    }
+
+    void rollbackBurst(UUID playerId, BurstReservationLedger.Token token, double amount) {
+        if (playerId == null || token == null || !Double.isFinite(amount) || amount <= 0.0) {
             return;
         }
-        UUID playerId = target.getUniqueId();
         BurstReservationLedger ledger = burstLedgers.get(playerId);
         if (ledger == null) {
             return;
@@ -161,6 +166,27 @@ public final class DamageCaps {
             if (ledger.isEmpty()) {
                 burstLedgers.remove(playerId, ledger);
             }
+        }
+    }
+
+    BurstReservationLedger.Settlement settleBurst(
+            UUID playerId, BurstReservationLedger.Token token, double finalAmount) {
+        if (playerId == null || token == null) {
+            return new BurstReservationLedger.Settlement(false, false, 0.0, finalAmount, 0.0);
+        }
+        BurstReservationLedger ledger = burstLedgers.get(playerId);
+        if (ledger == null) {
+            return new BurstReservationLedger.Settlement(false, false, 0.0, finalAmount, 0.0);
+        }
+        synchronized (ledger) {
+            long now = System.currentTimeMillis();
+            long windowMillis = (long) (cfgD("combat.burst-window-seconds", 3.0) * 1000.0);
+            ledger.prune(now, windowMillis);
+            BurstReservationLedger.Settlement settlement = ledger.settle(token, finalAmount);
+            if (ledger.isEmpty()) {
+                burstLedgers.remove(playerId, ledger);
+            }
+            return settlement;
         }
     }
 
