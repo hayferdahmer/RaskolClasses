@@ -55,6 +55,19 @@ class DamageAttributionTest {
     }
 
     @Test
+    void propagatesThroughDifferentTargetScopesToMatchingAncestor() {
+        Object outerTarget = new Object();
+        Object middleTarget = new Object();
+        DamageAttribution.Scope outer = DamageAttribution.begin(outerTarget, 20.0);
+        DamageAttribution.Scope middle = DamageAttribution.begin(middleTarget, 10.0);
+        DamageAttribution.Scope nestedSameTarget = DamageAttribution.begin(outerTarget, 20.0);
+
+        assertEquals(3.0, nestedSameTarget.finish(17.0), EPSILON);
+        assertEquals(0.0, middle.finish(10.0), EPSILON);
+        assertEquals(0.0, outer.finish(17.0), EPSILON);
+    }
+
+    @Test
     void handlesSiblingNestedDamageCalls() {
         Object target = new Object();
         DamageAttribution.Scope outer = DamageAttribution.begin(target, 20.0);
