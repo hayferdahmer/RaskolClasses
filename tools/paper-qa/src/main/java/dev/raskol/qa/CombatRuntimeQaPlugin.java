@@ -206,6 +206,11 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             }
         }
 
+        if (failed) {
+            cleanup();
+            return;
+        }
+
         getLogger().info("[RASKOL-COMBAT-QA] BURST_SCENARIO_PASS scenario=" + scenario
                 + " physicalEvents=" + physicalEvents
                 + " magicEvents=" + magicEvents
