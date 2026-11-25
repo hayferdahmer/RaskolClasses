@@ -580,10 +580,23 @@ public final class CombatService implements Listener {
                 }
             }
         } finally {
-            if (burstToken != null) {
-                caps.settleBurst(burstTarget, burstToken, actualPhys + actualMagic);
+            try {
+                if (burstToken != null) {
+                    BurstReservationLedger.Settlement settlement =
+                            caps.settleBurst(burstTarget, burstToken, actualPhys + actualMagic);
+                    if (settlement.overage() > 1.0e-9) {
+                        plugin.getLogger().warning(String.format(
+                                Locale.ROOT,
+                                "[BurstReservation] Path B фактический урон превысил резерв: player=%s reserved=%.6f final=%.6f overage=%.6f",
+                                burstTarget.getUniqueId(),
+                                settlement.previousAmount(),
+                                settlement.finalAmount(),
+                                settlement.overage()));
+                    }
+                }
+            } finally {
+                ABILITY_SOURCE.remove();
             }
-            ABILITY_SOURCE.remove();
         }
 
         double actualTaken = (actualPhys + actualMagic) * scale;
