@@ -218,10 +218,25 @@ jobs:
       - name: Build temporary combat runtime QA plugin
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           PLUGIN_JAR="$(find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -name 'raskol-classes-*.jar' -print -quit)"
           test -n "$PLUGIN_JAR"
-          mvn -B -f tools/paper-qa/pom.xml package "-Draskol.jar=$PLUGIN_JAR"
+          for attempt in 1 2 3; do
+            echo "Paper QA Maven build attempt ${attempt}/3"
+            mvn -B -f tools/paper-qa/pom.xml package "-Draskol.jar=$PLUGIN_JAR" 2>&1 | tee /tmp/paper-qa-maven.log
+            status=${PIPESTATUS[0]}
+            if [ "${status}" -eq 0 ]; then
+              break
+            fi
+            if ! grep -Eqi 'HTTP Status: 429|status 429|Too Many Requests' /tmp/paper-qa-maven.log; then
+              exit "${status}"
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "Maven Central rate limit persisted after 3 Paper QA build attempts."
+              exit "${status}"
+            fi
+            sleep $((attempt * 20))
+          done
           mkdir -p runtime/plugins
           cp tools/paper-qa/target/paper-combat-qa-1.0.0.jar runtime/plugins/RaskolCombatQA.jar
           echo "Temporary Paper combat QA plugin compiled and installed."
