@@ -35,6 +35,27 @@ final class BurstReservationLedger {
         return new Allocation(allowed, token);
     }
 
+    Settlement settle(Token token, double finalAmount) {
+        if (!Double.isFinite(finalAmount) || finalAmount < 0.0) {
+            return new Settlement(false, true, token == null ? 0.0 : token.amount, finalAmount, 0.0);
+        }
+        if (token == null || !entries.contains(token)) {
+            return new Settlement(false, false, 0.0, finalAmount, 0.0);
+        }
+
+        double previousAmount = token.amount;
+        token.amount = finalAmount;
+        if (token.amount <= EPSILON) {
+            entries.remove(token);
+        }
+        return new Settlement(
+                true,
+                false,
+                previousAmount,
+                finalAmount,
+                Math.max(0.0, finalAmount - previousAmount));
+    }
+
     void rollback(Token token, double amount) {
         if (token == null || !Double.isFinite(amount) || amount <= 0.0 || !entries.contains(token)) {
             return;
@@ -57,6 +78,9 @@ final class BurstReservationLedger {
     }
 
     record Allocation(double allowed, Token token) {}
+
+    record Settlement(
+            boolean applied, boolean invalid, double previousAmount, double finalAmount, double overage) {}
 
     static final class Token {
         private final long createdAtMillis;
