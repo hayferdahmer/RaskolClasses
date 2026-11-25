@@ -77,6 +77,23 @@ class DamageAttributionTest {
     }
 
     @Test
+    void attributionContextsAreIsolatedBetweenThreads() throws InterruptedException {
+        Object target = new Object();
+        DamageAttribution.Scope outer = DamageAttribution.begin(target, 20.0);
+        double[] workerDamage = {-1.0};
+
+        Thread worker = new Thread(() -> {
+            DamageAttribution.Scope workerScope = DamageAttribution.begin(target, 10.0);
+            workerDamage[0] = workerScope.finish(8.0);
+        });
+        worker.start();
+        worker.join();
+
+        assertEquals(2.0, workerDamage[0], EPSILON);
+        assertEquals(3.0, outer.finish(17.0), EPSILON);
+    }
+
+    @Test
     void enforcesSingleFinishAndLifoOrder() {
         Object target = new Object();
         DamageAttribution.Scope outer = DamageAttribution.begin(target, 20.0);
