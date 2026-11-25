@@ -166,7 +166,7 @@ public final class DamageCaps {
     }
 
     /** Урегулирует token Path B и возвращает данные для диагностики превышения. */
-    public BurstReservationLedger.Settlement settleBurst(
+    BurstReservationLedger.Settlement settleBurst(
             Player target, BurstReservationLedger.Token token, double actualAmount) {
         if (!Double.isFinite(actualAmount) || actualAmount < 0.0) {
             return new BurstReservationLedger.Settlement(false, true, 0.0, actualAmount, 0.0);
