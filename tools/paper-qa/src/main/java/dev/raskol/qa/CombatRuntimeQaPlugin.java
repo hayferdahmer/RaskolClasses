@@ -168,7 +168,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             return;
         }
         target = event.getPlayer();
-        Bukkit.getScheduler().runTaskLater(this, this::startMatrix, 40L);
+        Bukkit.getScheduler().runTaskLater(this, this::startMatrix, 100L);
     }
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = false)
@@ -287,8 +287,24 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         combat.purgeBurstLog();
 
         double before = target.getHealth();
-        combat.dealDamage(target, source, DamageProfile.hybrid(2.0, 2.0));
+        DamageProfile probeProfile = DamageProfile.hybrid(2.0, 2.0);
+        getLogger().info("[RASKOL-COMBAT-QA] BURST_PREFLIGHT"
+                + " targetValid=" + target.isValid()
+                + " targetDead=" + target.isDead()
+                + " targetInvulnerable=" + target.isInvulnerable()
+                + " gameMode=" + target.getGameMode()
+                + " sourceValid=" + (source != null && source.isValid())
+                + " canHit=" + combat.canHit(source, target)
+                + " simulatedTaken=" + combat.simulateTaken(target, probeProfile)
+                + " formulaMax=" + combat.formulaMaxOf(target)
+                + " scale=" + combat.scaleOf(target)
+                + " health=" + before);
+        double reportedDamage = combat.dealDamage(target, source, probeProfile);
         double actualDamage = before - target.getHealth();
+        getLogger().info("[RASKOL-COMBAT-QA] BURST_RESULT scenario=" + scenario
+                + " reportedDamage=" + reportedDamage
+                + " actualHealthDelta=" + actualDamage
+                + " healthAfter=" + target.getHealth());
         final double reserved;
         try {
             reserved = reservationTotal(targetId);
