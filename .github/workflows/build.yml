@@ -226,13 +226,11 @@ jobs:
           cp tools/paper-qa/target/paper-combat-qa-1.0.0.jar runtime/plugins/RaskolCombatQA.jar
           echo "Temporary Paper combat QA plugin compiled and installed."
 
-      - name: Set up Node.js for the headless Paper player
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      - name: Set up Bun for the Minecraft 26.2 protocol client
+        uses: oven-sh/setup-bun@v2
 
-      - name: Install headless Paper player
-        run: npm install --prefix tools/paper-qa --no-save minecraft-protocol
+      - name: Install native Minecraft 26.2 protocol client
+        run: npm install --prefix tools/paper-qa --no-save github:GDLev/mc-protocol
 
       - name: Start Paper and verify plugin enablement
         working-directory: runtime
@@ -291,7 +289,7 @@ jobs:
           echo "Paper 26.2 startup, RaskolClasses enablement and combat suppression probe: PASS"
           grep -E 'Preparing level|Enabling RaskolClasses|RASKOL-COMBAT-QA|Done \(' server.log
 
-          node "$GITHUB_WORKSPACE/tools/paper-qa/burst-runtime-bot.js" > bot.log 2>&1 &
+          bun run "$GITHUB_WORKSPACE/tools/paper-qa/burst-runtime-bot.ts" > bot.log 2>&1 &
           BOT_PID=$!
           trap 'kill -TERM "$SERVER_PID" "$BOT_PID" 2>/dev/null || true' EXIT
           MATRIX_READY=0
