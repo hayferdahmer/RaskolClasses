@@ -178,7 +178,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             nestedDispatch = true;
             pathATarget.setNoDamageTicks(0);
             try {
-                pathATarget.damage(3.0, pathASource);
+                pathATarget.damage(2.0, pathASource);
             } finally {
                 nestedDispatch = false;
             }
@@ -263,7 +263,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         combat.purgeBurstLog();
 
         double scale = combat.scaleOf(pathATarget);
-        pathATarget.damage(10.0, pathASource);
+        pathATarget.damage(4.0, pathASource);
 
         try {
             double reserved = reservationTotal(pathATargetId);
