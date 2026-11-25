@@ -93,7 +93,9 @@ class BurstReservationLedgerTest {
         BurstReservationLedger.Allocation allocation = ledger.reserve(100L, 3_000L, 100.0, 10.0);
 
         assertEquals(true, ledger.settle(allocation.token(), Double.NaN).invalid());
-        assertEquals(true, ledger.settle(allocation.token(), Double.POSITIVE_INFINITY).invalid());
+        assertEquals(
+                true,
+                ledger.settle(allocation.token(), Double.POSITIVE_INFINITY).invalid());
         assertEquals(true, ledger.settle(allocation.token(), -1.0).invalid());
         assertEquals(90.0, ledger.reserve(110L, 3_000L, 100.0, 100.0).allowed(), EPSILON);
     }
