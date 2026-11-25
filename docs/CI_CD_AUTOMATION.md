@@ -16,7 +16,7 @@
 
 | Контур | Статус | Ответственность |
 |---|---|---|
-| **RASKOL Arena | Combat CI Guard** | Архитектура в PR #72 и Arena-01 в PR #73; оба Draft и не интегрированы в main на срезе 2026-11-26 | Целевой контур combat diff audit, report/schema validation, headless deterministic scenarios и статистических регрессий; Maven/quality gates принадлежат Forge, Paper runtime — Watchtower |
+| **RASKOL Arena — Combat CI Guard** | Архитектура в PR #72 и Arena-01 в PR #73; оба Draft и не интегрированы в main на срезе 2026-11-26 | Целевой контур combat diff audit, report/schema validation, headless deterministic scenarios и статистических регрессий; Maven/quality gates принадлежат Forge, Paper runtime — Watchtower |
 | **RASKOL Archivist** | Проектируется в PR #60; fail-closed SafeStorage уже включён в main через PR #62 | Аудит YAML-хранилищ, snapshots, резервные копии, восстановление и безопасная очистка |
 | **RASKOL Watchtower** | Встроен в Forge; Paper 26.2 Runtime успешно проверен на Java 25 | Отдельный job скачивает стабильный Paper 26.2 через Fill API, проверяет SHA-256, устанавливает собранный JAR и проверяет реальное включение плагина на Java 25 |
 
