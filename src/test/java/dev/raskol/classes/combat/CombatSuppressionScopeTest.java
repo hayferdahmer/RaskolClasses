@@ -15,6 +15,7 @@ class CombatSuppressionScopeTest {
         while (CombatService.isSuppressed()) {
             CombatService.endSuppress();
         }
+        CombatService.setSuppress(false);
     }
 
     @Test
@@ -49,6 +50,40 @@ class CombatSuppressionScopeTest {
         CombatService.endSuppress();
 
         assertFalse(CombatService.isSuppressed());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void legacySuppressMarkerRetainsConsumptiveSemantics() {
+        CombatService.setSuppress(true);
+
+        assertTrue(CombatService.consumeSuppress());
+        assertFalse(CombatService.consumeSuppress());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void legacySetFalseClearsPendingMarker() {
+        CombatService.setSuppress(true);
+        CombatService.setSuppress(false);
+
+        assertFalse(CombatService.consumeSuppress());
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    void legacyMarkerDoesNotMutateDepthBasedScope() {
+        CombatService.beginSuppress();
+        CombatService.setSuppress(true);
+
+        assertTrue(CombatService.isSuppressed());
+        assertTrue(CombatService.consumeSuppress());
+        assertTrue(CombatService.isSuppressed());
+
+        CombatService.endSuppress();
+
+        assertFalse(CombatService.isSuppressed());
+        assertFalse(CombatService.consumeSuppress());
     }
 
     @Test
