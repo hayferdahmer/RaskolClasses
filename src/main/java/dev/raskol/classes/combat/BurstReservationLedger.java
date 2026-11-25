@@ -48,8 +48,7 @@ final class BurstReservationLedger {
         if (token.amount <= EPSILON) {
             entries.remove(token);
         }
-        return new Settlement(
-                true, false, previousAmount, finalAmount, Math.max(0.0, finalAmount - previousAmount));
+        return new Settlement(true, false, previousAmount, finalAmount, Math.max(0.0, finalAmount - previousAmount));
     }
 
     void rollback(Token token, double amount) {
