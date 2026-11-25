@@ -62,7 +62,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 public final class CombatService implements Listener {
 
     private static final ThreadLocal<Integer> SUPPRESS_DEPTH = ThreadLocal.withInitial(() -> 0);
-    private static final ThreadLocal<UUID> ABILITY_SOURCE = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> REFLECT_SUPPRESS = ThreadLocal.withInitial(() -> Boolean.FALSE);
     /** 1.12.3: школа текущего каста (set перед вызовом кастера, clear после). */
     private static final ThreadLocal<School> CURRENT_CAST_SCHOOL = new ThreadLocal<>();
@@ -120,7 +119,7 @@ public final class CombatService implements Listener {
     }
 
     public static UUID abilitySourceMark() {
-        return ABILITY_SOURCE.get();
+        return AbilitySourceContext.current();
     }
 
     public static boolean reflectSuppressed() {
@@ -537,8 +536,8 @@ public final class CombatService implements Listener {
         boolean physReservationSettled = burstToken == null || burstReservedPhys <= 0.0;
         boolean magicReservationSettled = burstToken == null || burstReservedMagic <= 0.0;
 
-        ABILITY_SOURCE.set(source instanceof Player s2 ? s2.getUniqueId() : null);
-        try {
+        try (AbilitySourceContext.Scope ignored =
+                AbilitySourceContext.open(source instanceof Player s2 ? s2.getUniqueId() : null)) {
             if (applyPhys > 0.0) {
                 double before = target.getHealth();
                 DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
@@ -599,7 +598,6 @@ public final class CombatService implements Listener {
                     caps.rollbackBurst(burstTarget, burstToken, burstReservedMagic);
                 }
             }
-            ABILITY_SOURCE.remove();
         }
 
         double actualTaken = (actualPhys + actualMagic) * scale;
