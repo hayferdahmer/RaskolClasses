@@ -86,6 +86,15 @@ The Watchtower job accepts the runtime only when all of the following are presen
 
 The isolated runtime raises only the burst and single-hit limits in the test server's in-memory plugin configuration so the matrices test reservation settlement rather than an intentionally restrictive cap. No production configuration or balance value is changed.
 
+### Numerical tolerances
+
+The runtime harness keeps independent comparison tolerances for different measurements:
+
+- Burst reservation versus applied damage in formula units: absolute tolerance `0.05` (`BURST_RESERVATION_TOLERANCE`). This preserves the existing reservation comparison threshold and does not change combat calculations.
+- Black Mass lifesteal versus the sum of the two real MONITOR event contributions in player health points: absolute tolerance `0.001` (`BLACK_MASS_HEAL_TOLERANCE`). This tighter threshold detects meaningful attribution/healing regressions while allowing minor Bukkit health-value rounding.
+
+These tolerances apply only to QA assertions; no production formula, passive percentage, or combat balance value is modified.
+
 ## Safety and limitations
 
 - The helper and headless client run only in CI.

@@ -328,11 +328,13 @@ jobs:
           trap 'kill -TERM "$SERVER_PID" "$BOT_PID" 2>/dev/null || true' EXIT
           MATRIX_READY=0
           for attempt in $(seq 1 300); do
-            if grep -Fq "[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS" server.log; then
+            if grep -Fq "[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS" server.log \
+              && grep -Fq "[RASKOL-COMBAT-QA] BLACK_MASS_NESTED_CONTEXT_PASS" server.log; then
               MATRIX_READY=1
               break
             fi
-            if grep -Fq "[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_FAIL" server.log; then
+            if grep -Fq "[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_FAIL" server.log \
+              || grep -Fq "[RASKOL-COMBAT-QA] BLACK_MASS_NESTED_CONTEXT_FAIL" server.log; then
               cat server.log
               cat bot.log
               echo "::error::Paper burst cancellation runtime matrix failed."
@@ -352,14 +354,14 @@ jobs:
             echo "::error::Paper burst cancellation runtime matrix did not complete."
             exit 1
           fi
-          echo "Paper 26.2 Path B burst cancellation matrix: PASS"
+          echo "Paper 26.2 Path B burst cancellation matrix and Warlock Black Mass integration: PASS"
           if [ "$(grep -c 'BURST_SCENARIO_PASS scenario=' server.log)" -ne 4 ]; then
             cat server.log
             cat bot.log
             echo "::error::Path B did not report all four scenario PASS records."
             exit 1
           fi
-          grep -E 'BURST_SCENARIO_PASS|BURST_CANCELLATION_MATRIX_PASS' server.log
+          grep -E 'BURST_SCENARIO_PASS|BURST_CANCELLATION_MATRIX_PASS|BLACK_MASS_NESTED_CONTEXT_PASS' server.log
 
           PATH_A_READY=0
           for attempt in $(seq 1 300); do
