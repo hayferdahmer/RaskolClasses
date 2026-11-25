@@ -21,14 +21,18 @@
 | Arena-01 CI | PR #73 Draft, не в main; CI на последнем HEAD не подтверждён | Повторный CI на актуальном HEAD после согласованной синхронизации |
 | Combat Lab chain | PR #53–#58 | Не менять ветки, базы и содержимое без отдельного разрешения |
 | Lifecycle ownership | Специализированные аудиты в docs/architecture | Закрывать конкретные ownership пробелы |
-| Storage 1.16.0 | characters.yml и spec2-storage.yml пока раздельны | Спроектировать и проверить миграцию к yaml-single |
+| Storage 1.16.x (target 1.16.0) | characters.yml и spec2-storage.yml пока раздельны | Спроектировать и проверить миграцию к yaml-single |
 | Class Lock | Код в main | Live-проверка на конфигурации LuckPerms |
 | Soul Tome | Цель replace | Проверить замену группы и rollback |
 | RPG Core | Уровень 1–60 и PvE XP в main | Storage, specialization integration, release gates |
 
-## Релизные блокеры 1.16.0
+## Release gates серии 1.16.x
 
-Согласно Runbook, нельзя снимать SNAPSHOT или публиковать 1.16.0 до live-проверки Class Lock, миграции к `yaml-single`, завершения Soul Tome `replace`, интеграционных проверок и подтверждения официального артефакта.
+- **1.16.0 RPG Foundation:** миграция к `yaml-single`, сохранность данных, интеграционные проверки основы прогрессии и подтверждение официального артефакта.
+- **1.16.1 Class System:** live-проверка и окончательная валидация Class Lock на реальной конфигурации LuckPerms.
+- **1.16.4 Soul Tome & Equipment:** завершение и проверка механики Soul Tome `replace` и интеграции экипировки.
+
+Каждый патч проходит собственные CI и применимые runtime-проверки. См. [ROADMAP](ROADMAP.md) и [Runbook](RUNBOOK.md).
 
 ## Правило обновления
 
