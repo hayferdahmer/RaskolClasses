@@ -230,7 +230,12 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install native Minecraft 26.2 protocol client
-        run: npm install --prefix tools/paper-qa --no-save github:GDLev/mc-protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          # GitHub shorthand npm URLs may resolve to SSH; CI must use anonymous HTTPS.
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          npm install --prefix tools/paper-qa --no-save github:GDLev/mc-protocol
 
       - name: Start Paper and verify plugin enablement
         working-directory: runtime
