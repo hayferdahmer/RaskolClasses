@@ -62,6 +62,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private Object previousClassCacheEntry;
     private Map<UUID, Object> classCacheEntries;
     private boolean blackMassContextPrepared;
+    private boolean classCachePrepared;
     private Player target;
     private LivingEntity source;
     private Scenario activeScenario;
@@ -450,6 +451,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             previousBlackMassEnabled = raskolPlugin.getRaskolConfig().passiveEnabled(PlayerClass.WARLOCK, "black_mass");
             blackMassLifestealFraction = raskolPlugin.getRaskolConfig().passiveDouble(
                     PlayerClass.WARLOCK, "black_mass", "lifesteal", 0.0666);
+            blackMassContextPrepared = true;
             warlockConfigSection.set("recoil.percent", 0.0);
             warlockConfigSection.set("passives.black_mass.enabled", true);
             raskolPlugin.getRaskolConfig().kitCache().invalidate();
@@ -524,7 +526,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         constructor.setAccessible(true);
         Object warlockEntry = constructor.newInstance(PlayerClass.WARLOCK, System.currentTimeMillis() + 60_000L);
         entries.put(player.getUniqueId(), warlockEntry);
-        blackMassContextPrepared = true;
+        classCachePrepared = true;
 
         if (raskolPlugin.getClassProvider().getClassOf(player) != PlayerClass.WARLOCK) {
             throw new IllegalStateException("Test class cache did not resolve the player as WARLOCK");
@@ -580,12 +582,15 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     }
 
     private void cleanup() {
-        if (blackMassContextPrepared) {
+        if (classCachePrepared) {
             if (previousClassCacheEntry == null) {
                 classCacheEntries.remove(target.getUniqueId());
             } else {
                 classCacheEntries.put(target.getUniqueId(), previousClassCacheEntry);
             }
+            classCachePrepared = false;
+        }
+        if (blackMassContextPrepared) {
             if (hadWarlockRecoilSetting) {
                 warlockConfigSection.set("recoil.percent", previousWarlockRecoil);
             } else {
