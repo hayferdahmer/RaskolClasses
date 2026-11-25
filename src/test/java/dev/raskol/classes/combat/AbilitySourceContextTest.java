@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Test;
 
@@ -69,6 +70,41 @@ class AbilitySourceContextTest {
         nested.close();
         assertEquals(outerSource, AbilitySourceContext.current());
         outer.close();
+        assertNull(AbilitySourceContext.current());
+    }
+
+    @Test
+    void rejectsRepeatedCloseAfterScopeHasBeenClosed() {
+        AbilitySourceContext.Scope scope = AbilitySourceContext.open(UUID.randomUUID());
+
+        scope.close();
+
+        assertNull(AbilitySourceContext.current());
+        assertThrows(IllegalStateException.class, scope::close);
+        assertNull(AbilitySourceContext.current());
+    }
+
+    @Test
+    void rejectsCloseFromForeignThreadWithoutCorruptingOwnerContext() throws InterruptedException {
+        UUID source = UUID.randomUUID();
+        AbilitySourceContext.Scope scope = AbilitySourceContext.open(source);
+        AtomicReference<Throwable> closeFailure = new AtomicReference<>();
+
+        Thread worker = new Thread(() -> {
+            try {
+                scope.close();
+            } catch (Throwable failure) {
+                closeFailure.set(failure);
+            }
+        });
+
+        worker.start();
+        worker.join();
+
+        assertEquals(IllegalStateException.class, closeFailure.get().getClass());
+        assertEquals(source, AbilitySourceContext.current());
+
+        scope.close();
         assertNull(AbilitySourceContext.current());
     }
 
