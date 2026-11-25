@@ -352,8 +352,50 @@ jobs:
             echo "::error::Paper burst cancellation runtime matrix did not complete."
             exit 1
           fi
-          echo "Paper 26.2 burst cancellation matrix: PASS"
+          echo "Paper 26.2 Path B burst cancellation matrix: PASS"
+          if [ "$(grep -c 'BURST_SCENARIO_PASS scenario=' server.log)" -ne 4 ]; then
+            cat server.log
+            cat bot.log
+            echo "::error::Path B did not report all four scenario PASS records."
+            exit 1
+          fi
           grep -E 'BURST_SCENARIO_PASS|BURST_CANCELLATION_MATRIX_PASS' server.log
+
+          PATH_A_READY=0
+          for attempt in $(seq 1 300); do
+            if grep -Fq "[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_PASS" server.log; then
+              PATH_A_READY=1
+              break
+            fi
+            if grep -Fq "[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_FAIL" server.log; then
+              cat server.log
+              cat bot.log
+              echo "::error::Paper Path A settlement runtime matrix failed."
+              exit 1
+            fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+              cat server.log
+              cat bot.log
+              echo "::error::Paper exited during Path A settlement runtime matrix."
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$PATH_A_READY" -ne 1 ]; then
+            cat server.log
+            cat bot.log
+            echo "::error::Paper Path A settlement runtime matrix did not complete."
+            exit 1
+          fi
+          if [ "$(grep -c 'PATH_A_SETTLEMENT_SCENARIO_PASS scenario=' server.log)" -ne 4 ]; then
+            cat server.log
+            cat bot.log
+            echo "::error::Path A did not report all four scenario PASS records."
+            exit 1
+          fi
+          echo "Paper 26.2 Path A settlement matrix: PASS"
+          grep -E 'PATH_A_SETTLEMENT_SCENARIO_PASS|PATH_A_SETTLEMENT_MATRIX_PASS' server.log
+          echo "Paper 26.2 combined combat runtime QA (suppression + Path B + Path A): PASS"
           cat bot.log
 
       - name: Upload Paper runtime log
