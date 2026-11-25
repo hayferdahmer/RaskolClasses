@@ -410,6 +410,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         runPathAScenario(PathAScenario.REDUCE_OUTER);
     }
 
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void mutatePathAEvent(EntityDamageEvent event) {
         if (pathATarget != null && pathATarget.getUniqueId().equals(event.getEntity().getUniqueId())) {
             getLogger().info("[RASKOL-COMBAT-QA] PATH_A_EVENT_RECEIVED scenario=" + pathAScenario
@@ -454,6 +455,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         }
     }
 
+    @EventHandler(priority = EventPriority.MONITOR)
     public void capturePathASettlement(EntityDamageEvent event) {
         if (event == outerEvent) {
             outerFinalDamage = event.getDamage();
@@ -569,6 +571,9 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     }
 
     private void failPathA(String message) {
+        if (failed) {
+            return;
+        }
         failed = true;
         getLogger().severe("[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_FAIL: " + message);
         cleanup();
