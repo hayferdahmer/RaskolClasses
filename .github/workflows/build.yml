@@ -361,7 +361,7 @@ jobs:
           if [ "$(grep -c 'BURST_SCENARIO_PASS scenario=' server.log)" -ne 7 ]; then
             cat server.log
             cat bot.log
-            echo "::error::Path B did not report all six scenario PASS records."
+            echo "::error::Path B did not report all seven scenario PASS records."
             exit 1
           fi
           grep -E 'BURST_SCENARIO_PASS|PATH_B_SETTLEMENT_MATRIX_PASS|BURST_CANCELLATION_MATRIX_PASS|BLACK_MASS_NESTED_CONTEXT_PASS' server.log
