@@ -40,7 +40,7 @@ The harness does not save temporary test limits or Warlock settings to the serve
 
 ## Path B — real damage-channel matrix
 
-The helper runs hybrid Path B hits against the real Bukkit Player. The six scenarios are:
+The helper runs hybrid Path B hits against the real Bukkit Player. The seven scenarios are:
 
 1. Cancel the physical `ENTITY_ATTACK` event while allowing the magic event.
 2. Cancel the magic event while allowing the physical event.
@@ -48,14 +48,16 @@ The helper runs hybrid Path B hits against the real Bukkit Player. The six scena
 4. During the outer physical event, synchronously execute a nested hybrid hit, then cancel only the outer physical event.
 5. Increase the physical Paper event damage and verify that the shared reservation expands to the actual applied health delta.
 6. Reduce the physical Paper event damage and verify that the unused reservation is released.
+7. Give the Player 100 absorption points, apply a physical hit that is fully absorbed, and verify that the reservation equals the consumed absorption while health remains unchanged.
 
 For each scenario the harness checks:
 
 - The expected physical and magic Paper events were observed.
 - The intended event(s), and only those events, were cancelled where cancellation is part of the scenario.
 - For increase/reduction scenarios, the final physical event damage differs from its initial value in the expected direction.
-- The Player's actual health delta is measured after the synchronous Path B call returns.
-- The remaining burst ledger amount equals the actual applied health delta converted to formula units.
+- The Player's actual defensive-pool delta (health + absorption) is measured after the synchronous Path B call returns.
+- The remaining burst ledger amount equals the actual applied defensive-pool delta converted to formula units.
+- The absorption-only scenario proves that fully absorbed damage is attributed even when the Player's health does not change.
 - The nested scenario preserves the nested hit's reservation when the outer event is cancelled.
 
 The nested scenario specifically exercises `DamageAttribution`: a nested call's health delta must not be counted again as part of its parent call.
@@ -98,7 +100,7 @@ The final marker is `[RASKOL-COMBAT-QA] PATH_A_SETTLEMENT_MATRIX_PASS`. Any fail
 The Watchtower job accepts the runtime only when all of the following are present in the same server log:
 
 - `SUPPRESS_SCOPE_PASS`
-- Six `BURST_SCENARIO_PASS` records, `PATH_B_SETTLEMENT_MATRIX_PASS` and `BURST_CANCELLATION_MATRIX_PASS`
+- Seven `BURST_SCENARIO_PASS` records, `PATH_B_SETTLEMENT_MATRIX_PASS` and `BURST_CANCELLATION_MATRIX_PASS`
 - `BLACK_MASS_NESTED_CONTEXT_PASS`
 - Four `PATH_A_SETTLEMENT_SCENARIO_PASS` records and `PATH_A_SETTLEMENT_MATRIX_PASS`
 - The Path A increased-damage overage diagnostic
@@ -120,5 +122,5 @@ These tolerances apply only to QA assertions; no production formula, passive per
 - The spawned zombies are removed during cleanup.
 - The test Player is disconnected after all checks or after a failure.
 - The QA plugin and protocol client are never included in the production artifact.
-- Path B validates real Paper damage calls, health deltas and burst settlement. Path A validates event-listener settlement. The Black Mass probe validates nested ability-source attribution and lifesteal. Together they do not claim full formula correctness, PvP balance, or full production combat parity.
+- Path B validates real Paper damage calls, defensive-pool deltas (health + absorption) and burst settlement. Path A validates event-listener settlement. The Black Mass probe validates nested ability-source attribution and lifesteal. Together they do not claim full formula correctness, PvP balance, or full production combat parity.
 - This is an isolated GitHub Actions Paper 26.2 runtime, not a test performed on the production RASKOL server.
