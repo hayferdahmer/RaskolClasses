@@ -558,9 +558,6 @@ public final class CombatService implements Listener {
 
         double actualPhys = 0.0;
         double actualMagic = 0.0;
-        boolean physReservationSettled = burstToken == null || burstReservedPhys <= 0.0;
-        boolean magicReservationSettled = burstToken == null || burstReservedMagic <= 0.0;
-
         try (AbilitySourceContext.Scope ignored =
                 AbilitySourceContext.open(source instanceof Player s2 ? s2.getUniqueId() : null)) {
             if (applyPhys > 0.0) {
@@ -580,10 +577,6 @@ public final class CombatService implements Listener {
                     }
                 } finally {
                     actualPhys = attribution.finish(target.getHealth()) / scale;
-                }
-                if (burstToken != null) {
-                    caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedPhys - actualPhys));
-                    physReservationSettled = true;
                 }
             }
             if (applyMagic > 0.0) {
@@ -609,19 +602,25 @@ public final class CombatService implements Listener {
                 } finally {
                     actualMagic = attribution.finish(target.getHealth()) / scale;
                 }
-                if (burstToken != null) {
-                    caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedMagic - actualMagic));
-                    magicReservationSettled = true;
-                }
             }
         } finally {
-            if (burstToken != null) {
-                if (!physReservationSettled) {
-                    caps.rollbackBurst(burstTarget, burstToken, burstReservedPhys);
+            try {
+                if (burstToken != null) {
+                    BurstReservationLedger.Settlement settlement =
+                            caps.settleBurst(burstTarget, burstToken, actualPhys + actualMagic);
+                    if (settlement.overage() > 1.0e-9) {
+                        plugin.getLogger()
+                                .warning(String.format(
+                                        Locale.ROOT,
+                                        "[BurstReservation] Path B фактический урон превысил резерв: player=%s reserved=%.6f final=%.6f overage=%.6f",
+                                        burstTarget.getUniqueId(),
+                                        settlement.previousAmount(),
+                                        settlement.finalAmount(),
+                                        settlement.overage()));
+                    }
                 }
-                if (!magicReservationSettled) {
-                    caps.rollbackBurst(burstTarget, burstToken, burstReservedMagic);
-                }
+            } finally {
+                ABILITY_SOURCE.remove();
             }
         }
 

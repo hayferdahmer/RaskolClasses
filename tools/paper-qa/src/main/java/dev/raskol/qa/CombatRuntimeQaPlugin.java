@@ -46,7 +46,9 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         CANCEL_PHYSICAL,
         CANCEL_MAGIC,
         CANCEL_BOTH,
-        NESTED_HIT
+        NESTED_HIT,
+        INCREASE_PHYSICAL,
+        REDUCE_PHYSICAL
     }
 
     private CombatService combat;
@@ -76,6 +78,8 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private int magicEvents;
     private int cancelledPhysical;
     private int cancelledMagic;
+    private double initialPhysicalDamage;
+    private double finalPhysicalDamage;
     private boolean nestedTriggered;
     private boolean failed;
     private NamespacedKey suppressedTargetKey;
@@ -289,11 +293,21 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             magicEvents++;
         }
 
+        if (physical) {
+            initialPhysicalDamage = event.getDamage();
+            if (activeScenario == Scenario.INCREASE_PHYSICAL) {
+                event.setDamage(event.getDamage() * 2.0);
+            } else if (activeScenario == Scenario.REDUCE_PHYSICAL) {
+                event.setDamage(event.getDamage() * 0.5);
+            }
+        }
+
         boolean cancel = switch (activeScenario) {
             case CANCEL_PHYSICAL -> physical;
             case CANCEL_MAGIC -> magic;
             case CANCEL_BOTH -> true;
             case NESTED_HIT -> physical && !nestedTriggered;
+            case INCREASE_PHYSICAL, REDUCE_PHYSICAL -> false;
         };
 
         if (activeScenario == Scenario.NESTED_HIT && physical && !nestedTriggered) {
@@ -309,6 +323,16 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 cancelledMagic++;
             }
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void captureFinalCombatChannel(EntityDamageEvent event) {
+        if (targetId == null || !targetId.equals(event.getEntity().getUniqueId())
+                || !CombatService.isSuppressed()
+                || event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
+            return;
+        }
+        finalPhysicalDamage = event.getDamage();
     }
 
     private void startMatrix() {
@@ -374,6 +398,8 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         cancelledPhysical = 0;
         cancelledMagic = 0;
         nestedTriggered = false;
+        initialPhysicalDamage = 0.0;
+        finalPhysicalDamage = 0.0;
 
         target.setHealth(target.getMaxHealth());
         target.setNoDamageTicks(0);
@@ -436,6 +462,24 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 require(actualDamage > 0.001, "nested and outer magic channels must apply");
                 require(closeReservation(reserved, actualDamage / combat.scaleOf(target)), "nested and outer reservations must equal their actual combined health delta; got " + reserved);
             }
+            case INCREASE_PHYSICAL -> {
+                require(physicalEvents == 1 && magicEvents == 1, "increased-damage event counts");
+                require(cancelledPhysical == 0 && cancelledMagic == 0, "increased-damage channels must not be cancelled");
+                require(finalPhysicalDamage > initialPhysicalDamage + 0.001,
+                        "physical Paper damage must be increased by the QA listener: initial="
+                                + initialPhysicalDamage + " final=" + finalPhysicalDamage);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)),
+                        "increased physical damage must be reconciled into the token; got " + reserved);
+            }
+            case REDUCE_PHYSICAL -> {
+                require(physicalEvents == 1 && magicEvents == 1, "reduced-damage event counts");
+                require(cancelledPhysical == 0 && cancelledMagic == 0, "reduced-damage channels must not be cancelled");
+                require(finalPhysicalDamage < initialPhysicalDamage - 0.001,
+                        "physical Paper damage must be reduced by the QA listener: initial="
+                                + initialPhysicalDamage + " final=" + finalPhysicalDamage);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)),
+                        "reduced physical damage must release unused reservation; got " + reserved);
+            }
         }
 
         if (failed) {
@@ -457,7 +501,12 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.CANCEL_BOTH, 0), 80L);
         } else if (scenario == Scenario.CANCEL_BOTH) {
             Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.NESTED_HIT, 0), 80L);
+        } else if (scenario == Scenario.NESTED_HIT) {
+            Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.INCREASE_PHYSICAL, 0), 80L);
+        } else if (scenario == Scenario.INCREASE_PHYSICAL) {
+            Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.REDUCE_PHYSICAL, 0), 80L);
         } else {
+            getLogger().info("[RASKOL-COMBAT-QA] PATH_B_SETTLEMENT_MATRIX_PASS");
             getLogger().info("[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS");
             Bukkit.getScheduler().runTaskLater(this, this::runBlackMassNestedContextProbe, 20L);
         }
