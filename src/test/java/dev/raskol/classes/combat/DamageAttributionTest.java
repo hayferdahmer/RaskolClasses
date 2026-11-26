@@ -127,6 +127,7 @@ class DamageAttributionTest {
     void countsDamageFullyAbsorbedWithoutHealthLoss() {
         Object target = new Object();
         DamageAttribution.Scope scope = DamageAttribution.begin(target, 20.0, 5.0);
+
         assertEquals(5.0, scope.finish(20.0, 0.0), EPSILON);
     }
 
@@ -134,6 +135,7 @@ class DamageAttributionTest {
     void countsDamageAcrossAbsorptionAndHealthPools() {
         Object target = new Object();
         DamageAttribution.Scope scope = DamageAttribution.begin(target, 20.0, 5.0);
+
         assertEquals(5.0, scope.finish(18.0, 2.0), EPSILON);
     }
 
