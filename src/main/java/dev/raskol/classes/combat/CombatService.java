@@ -48,7 +48,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
  * 1.14.7 (Sprint 3, P0-6A): enrageMult и onMeleeHitLand.
  * 1.14.10 (Sprint 7): critFeedback public; cfgD → ConfigReads.
  * 1.14.12 (Sprint 8): hpFractionOf через Hp.max.
- * 1.15.5 (Волна 3, аудит 2.6-31): before/after health guard — фактический урон.
+ * 1.15.5 (Волна 3, аудит 2.6-31): before/after defensive-pool guard — фактический урон с учётом поглощения.
  * 1.15.6 (Волна 4, аудит 2.6-2): setNoDamageTicks(0) перед каждым ударом пути B.
  * 1.15.6 (Волна 7, аудит 2.6-5): отдача Чернокнижика ТОЛЬКО уменьшает: не лечит при
  *         HP ниже minHp (верхний зажим carrierNow), не опускает ниже minHp,
@@ -525,8 +525,6 @@ public final class CombatService implements Listener {
         double taken = physPart + magicTruePart;
         Player burstTarget = null;
         BurstReservationLedger.Token burstToken = null;
-        double burstReservedPhys = 0.0;
-        double burstReservedMagic = 0.0;
         if (!allowOverCap && target instanceof Player tp2) {
             burstTarget = tp2;
             double pct = cfgD("combat.max-single-hit-pct", 35.0);
@@ -548,8 +546,6 @@ public final class CombatService implements Listener {
                 magicTruePart *= f;
                 taken = burstAllowed;
             }
-            burstReservedPhys = physPart;
-            burstReservedMagic = magicTruePart;
         }
         debugLog(target, source, safe, taken, castSchool);
         double scale = caps.scaleOf(target);
@@ -558,73 +554,69 @@ public final class CombatService implements Listener {
 
         double actualPhys = 0.0;
         double actualMagic = 0.0;
-        boolean physReservationSettled = burstToken == null || burstReservedPhys <= 0.0;
-        boolean magicReservationSettled = burstToken == null || burstReservedMagic <= 0.0;
-
         try (AbilitySourceContext.Scope ignored =
                 AbilitySourceContext.open(source instanceof Player s2 ? s2.getUniqueId() : null)) {
-            if (applyPhys > 0.0) {
-                double before = target.getHealth();
-                DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
-                try {
-                    target.setNoDamageTicks(0);
-                    beginSuppress();
+            try {
+                if (applyPhys > 0.0) {
+                    DamageAttribution.Scope attribution =
+                            DamageAttribution.begin(target, target.getHealth(), target.getAbsorptionAmount());
                     try {
-                        if (source != null) {
-                            target.damage(applyPhys, source);
-                        } else {
-                            target.damage(applyPhys);
-                        }
-                    } finally {
-                        endSuppress();
-                    }
-                } finally {
-                    actualPhys = attribution.finish(target.getHealth()) / scale;
-                }
-                if (burstToken != null) {
-                    caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedPhys - actualPhys));
-                    physReservationSettled = true;
-                }
-            }
-            if (applyMagic > 0.0) {
-                double before = target.getHealth();
-                DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
-                try {
-                    target.setNoDamageTicks(0);
-                    beginSuppress();
-                    try {
-                        org.bukkit.damage.DamageType magic = magicType();
-                        if (magic != null) {
-                            DamageSource.Builder builder = DamageSource.builder(magic);
+                        target.setNoDamageTicks(0);
+                        beginSuppress();
+                        try {
                             if (source != null) {
-                                builder = builder.withDirectEntity(source).withCausingEntity(source);
+                                target.damage(applyPhys, source);
+                            } else {
+                                target.damage(applyPhys);
                             }
-                            target.damage(applyMagic, builder.build());
-                        } else {
-                            target.damage(applyMagic);
+                        } finally {
+                            endSuppress();
                         }
                     } finally {
-                        endSuppress();
+                        actualPhys = attribution.finish(target.getHealth(), target.getAbsorptionAmount()) / scale;
                     }
-                } finally {
-                    actualMagic = attribution.finish(target.getHealth()) / scale;
                 }
+                if (applyMagic > 0.0) {
+                    DamageAttribution.Scope attribution =
+                            DamageAttribution.begin(target, target.getHealth(), target.getAbsorptionAmount());
+                    try {
+                        target.setNoDamageTicks(0);
+                        beginSuppress();
+                        try {
+                            org.bukkit.damage.DamageType magic = magicType();
+                            if (magic != null) {
+                                DamageSource.Builder builder = DamageSource.builder(magic);
+                                if (source != null) {
+                                    builder = builder.withDirectEntity(source).withCausingEntity(source);
+                                }
+                                target.damage(applyMagic, builder.build());
+                            } else {
+                                target.damage(applyMagic);
+                            }
+                        } finally {
+                            endSuppress();
+                        }
+                    } finally {
+                        actualMagic = attribution.finish(target.getHealth(), target.getAbsorptionAmount()) / scale;
+                    }
+                }
+            } finally {
                 if (burstToken != null) {
-                    caps.rollbackBurst(burstTarget, burstToken, Math.max(0.0, burstReservedMagic - actualMagic));
-                    magicReservationSettled = true;
-                }
-            }
-        } finally {
-            if (burstToken != null) {
-                if (!physReservationSettled) {
-                    caps.rollbackBurst(burstTarget, burstToken, burstReservedPhys);
-                }
-                if (!magicReservationSettled) {
-                    caps.rollbackBurst(burstTarget, burstToken, burstReservedMagic);
+                    BurstReservationLedger.Settlement settlement =
+                            caps.settleBurst(burstTarget, burstToken, actualPhys + actualMagic);
+                    if (settlement.overage() > 1.0e-9) {
+                        plugin.getLogger()
+                                .warning(String.format(
+                                        Locale.ROOT,
+                                        "[BurstReservation] Path B фактический урон превысил резерв: player=%s reserved=%.6f final=%.6f overage=%.6f",
+                                        burstTarget.getUniqueId(),
+                                        settlement.previousAmount(),
+                                        settlement.finalAmount(),
+                                        settlement.overage()));
+                    }
                 }
             }
         }
-
         double actualTaken = (actualPhys + actualMagic) * scale;
         if (actualTaken <= 0.0) {
             return 0.0;

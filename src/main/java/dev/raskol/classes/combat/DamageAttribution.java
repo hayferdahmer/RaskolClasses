@@ -6,8 +6,9 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 /**
- * Учитывает изменение здоровья, произведённое вложенными вызовами CombatService.
- * Каждый scope соответствует одному синхронному вызову Entity.damage(...).
+ * Учитывает изменение суммарного защитного пула (здоровье + поглощение),
+ * произведённое вложенными вызовами CombatService. Каждый scope соответствует
+ * одному синхронному вызову Entity.damage(...).
  */
 final class DamageAttribution {
 
@@ -29,6 +30,21 @@ final class DamageAttribution {
         return new Scope(frame, frames);
     }
 
+    static Scope begin(Object target, double healthBefore, double absorptionBefore) {
+        return begin(target, defensivePool(healthBefore, absorptionBefore));
+    }
+
+    private static double defensivePool(double health, double absorption) {
+        if (!Double.isFinite(health) || !Double.isFinite(absorption) || absorption < 0.0) {
+            throw new IllegalArgumentException("Health and non-negative absorption must be finite");
+        }
+        double total = health + absorption;
+        if (!Double.isFinite(total)) {
+            throw new IllegalArgumentException("Defensive pool must be finite");
+        }
+        return total;
+    }
+
     static final class Scope {
         private final Frame frame;
         private final Deque<Frame> frames;
@@ -40,9 +56,9 @@ final class DamageAttribution {
         }
 
         /**
-         * Возвращает только урон текущего вызова, исключая вложенные изменения HP.
-         * Полный net health delta передаётся родительскому scope: он тоже наблюдает
-         * этот delta в своём before/after измерении и должен исключить его целиком.
+         * Возвращает только урон текущего вызова, исключая вложенные изменения защитного пула.
+         * Полный net defensive-pool delta передаётся родительскому scope: он тоже
+         * наблюдает этот delta в своём before/after измерении и исключает его целиком.
          */
         double finish(double healthAfter) {
             if (finished) {
@@ -58,7 +74,7 @@ final class DamageAttribution {
             finished = true;
             frames.pop();
 
-            double observedDamage = Math.max(0.0, frame.healthBefore - healthAfter);
+            double observedDamage = Math.max(0.0, frame.defensivePoolBefore - healthAfter);
             double ownDamage = Math.max(0.0, observedDamage - frame.nestedDamage);
 
             for (Frame parent : frames) {
@@ -72,16 +88,20 @@ final class DamageAttribution {
             }
             return ownDamage;
         }
+
+        double finish(double healthAfter, double absorptionAfter) {
+            return finish(defensivePool(healthAfter, absorptionAfter));
+        }
     }
 
     private static final class Frame {
         private final Object target;
-        private final double healthBefore;
+        private final double defensivePoolBefore;
         private double nestedDamage;
 
-        private Frame(Object target, double healthBefore) {
+        private Frame(Object target, double defensivePoolBefore) {
             this.target = target;
-            this.healthBefore = healthBefore;
+            this.defensivePoolBefore = defensivePoolBefore;
         }
     }
 }

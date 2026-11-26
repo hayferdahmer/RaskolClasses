@@ -17,6 +17,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.damage.DamageType;
 import org.bukkit.entity.Entity;
@@ -46,7 +47,10 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         CANCEL_PHYSICAL,
         CANCEL_MAGIC,
         CANCEL_BOTH,
-        NESTED_HIT
+        NESTED_HIT,
+        INCREASE_PHYSICAL,
+        REDUCE_PHYSICAL,
+        ABSORPTION_ONLY
     }
 
     private CombatService combat;
@@ -76,6 +80,8 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private int magicEvents;
     private int cancelledPhysical;
     private int cancelledMagic;
+    private double initialPhysicalDamage;
+    private double finalPhysicalDamage;
     private boolean nestedTriggered;
     private boolean failed;
     private NamespacedKey suppressedTargetKey;
@@ -107,6 +113,13 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private double originalSingleHitPct;
     private boolean configOverridden;
     private boolean cleanupDone;
+    private boolean targetStateCaptured;
+    private GameMode originalGameMode;
+    private double originalTargetHealth;
+    private double originalTargetAbsorption;
+    private int originalNoDamageTicks;
+    private double originalMaxAbsorptionBase;
+    private boolean absorptionAttributeOverridden;
 
     @Override
     public void onEnable() {
@@ -289,11 +302,21 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             magicEvents++;
         }
 
+        if (physical) {
+            initialPhysicalDamage = event.getDamage();
+            if (activeScenario == Scenario.INCREASE_PHYSICAL) {
+                event.setDamage(event.getDamage() * 2.0);
+            } else if (activeScenario == Scenario.REDUCE_PHYSICAL) {
+                event.setDamage(event.getDamage() * 0.5);
+            }
+        }
+
         boolean cancel = switch (activeScenario) {
             case CANCEL_PHYSICAL -> physical;
             case CANCEL_MAGIC -> magic;
             case CANCEL_BOTH -> true;
             case NESTED_HIT -> physical && !nestedTriggered;
+            case INCREASE_PHYSICAL, REDUCE_PHYSICAL, ABSORPTION_ONLY -> false;
         };
 
         if (activeScenario == Scenario.NESTED_HIT && physical && !nestedTriggered) {
@@ -309,6 +332,16 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 cancelledMagic++;
             }
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void captureFinalCombatChannel(EntityDamageEvent event) {
+        if (targetId == null || !targetId.equals(event.getEntity().getUniqueId())
+                || !CombatService.isSuppressed()
+                || event.getCause() != EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
+            return;
+        }
+        finalPhysicalDamage = event.getDamage();
     }
 
     private void startMatrix() {
@@ -337,6 +370,18 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             raskol.getConfig().set("combat.burst-window-pct", 1000.0);
             raskol.getConfig().set("combat.max-single-hit-pct", 1000.0);
             configOverridden = true;
+
+            var maxAbsorptionAttribute = target.getAttribute(Attribute.MAX_ABSORPTION);
+            if (maxAbsorptionAttribute == null) {
+                fail("Player MAX_ABSORPTION attribute is unavailable");
+                return;
+            }
+            originalGameMode = target.getGameMode();
+            originalTargetHealth = target.getHealth();
+            originalTargetAbsorption = target.getAbsorptionAmount();
+            originalNoDamageTicks = target.getNoDamageTicks();
+            originalMaxAbsorptionBase = maxAbsorptionAttribute.getBaseValue();
+            targetStateCaptured = true;
 
             target.setGameMode(GameMode.SURVIVAL);
             target.setNoDamageTicks(0);
@@ -374,13 +419,37 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         cancelledPhysical = 0;
         cancelledMagic = 0;
         nestedTriggered = false;
+        initialPhysicalDamage = 0.0;
+        finalPhysicalDamage = 0.0;
 
         target.setHealth(target.getMaxHealth());
+        if (scenario == Scenario.ABSORPTION_ONLY) {
+            var maxAbsorptionAttribute = target.getAttribute(Attribute.MAX_ABSORPTION);
+            if (maxAbsorptionAttribute == null) {
+                fail("Player MAX_ABSORPTION attribute is unavailable for absorption-only scenario");
+                return;
+            }
+            maxAbsorptionAttribute.setBaseValue(Math.max(originalMaxAbsorptionBase, 100.0));
+            absorptionAttributeOverridden = true;
+            target.setAbsorptionAmount(100.0);
+            require(target.getAbsorptionAmount() > 0.001,
+                    "MAX_ABSORPTION setup must allow a non-zero absorption amount; actual="
+                            + target.getAbsorptionAmount());
+            if (failed) {
+                cleanup();
+                return;
+            }
+        } else {
+            target.setAbsorptionAmount(0.0);
+        }
         target.setNoDamageTicks(0);
         combat.purgeBurstLog();
 
-        double before = target.getHealth();
-        DamageProfile probeProfile = DamageProfile.hybrid(2.0, 2.0);
+        double beforeHealth = target.getHealth();
+        double before = target.getHealth() + target.getAbsorptionAmount();
+        DamageProfile probeProfile = scenario == Scenario.ABSORPTION_ONLY
+                ? new DamageProfile(2.0, 0.0, 0.0)
+                : DamageProfile.hybrid(2.0, 2.0);
         getLogger().info("[RASKOL-COMBAT-QA] BURST_PREFLIGHT"
                 + " targetValid=" + target.isValid()
                 + " targetDead=" + target.isDead()
@@ -391,13 +460,15 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 + " simulatedTaken=" + combat.simulateTaken(target, probeProfile)
                 + " formulaMax=" + combat.formulaMaxOf(target)
                 + " scale=" + combat.scaleOf(target)
-                + " health=" + before);
+                + " health=" + beforeHealth
+                + " absorption=" + target.getAbsorptionAmount());
         double reportedDamage = combat.dealDamage(target, source, probeProfile);
-        double actualDamage = before - target.getHealth();
+        double actualDamage = before - target.getHealth() - target.getAbsorptionAmount();
         getLogger().info("[RASKOL-COMBAT-QA] BURST_RESULT scenario=" + scenario
                 + " reportedDamage=" + reportedDamage
-                + " actualHealthDelta=" + actualDamage
-                + " healthAfter=" + target.getHealth());
+                + " actualDefensivePoolDelta=" + actualDamage
+                + " healthAfter=" + target.getHealth()
+                + " absorptionAfter=" + target.getAbsorptionAmount());
         final double reserved;
         try {
             reserved = reservationTotal(targetId);
@@ -427,14 +498,45 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             case CANCEL_BOTH -> {
                 require(physicalEvents == 1 && magicEvents == 1, "both-cancel event counts");
                 require(cancelledPhysical == 1 && cancelledMagic == 1, "both channels must be cancelled");
-                require(Math.abs(actualDamage) < 0.001, "cancelled channels must not change health");
+                require(Math.abs(actualDamage) < 0.001, "cancelled channels must not change the defensive pool");
                 require(closeReservation(reserved, 0.0), "fully cancelled hit must release its complete reservation; got " + reserved);
             }
             case NESTED_HIT -> {
                 require(physicalEvents == 2 && magicEvents == 2, "nested event counts");
                 require(cancelledPhysical == 1 && cancelledMagic == 0, "only the outer physical channel must be cancelled");
                 require(actualDamage > 0.001, "nested and outer magic channels must apply");
-                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)), "nested and outer reservations must equal their actual combined health delta; got " + reserved);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)), "nested and outer reservations must equal their actual combined defensive-pool delta; got " + reserved);
+            }
+            case INCREASE_PHYSICAL -> {
+                require(physicalEvents == 1 && magicEvents == 1, "increased-damage event counts");
+                require(cancelledPhysical == 0 && cancelledMagic == 0, "increased-damage channels must not be cancelled");
+                require(finalPhysicalDamage > initialPhysicalDamage + 0.001,
+                        "physical Paper damage must be increased by the QA listener: initial="
+                                + initialPhysicalDamage + " final=" + finalPhysicalDamage);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)),
+                        "increased physical damage must be reconciled into the token; got " + reserved);
+            }
+            case REDUCE_PHYSICAL -> {
+                require(physicalEvents == 1 && magicEvents == 1, "reduced-damage event counts");
+                require(cancelledPhysical == 0 && cancelledMagic == 0, "reduced-damage channels must not be cancelled");
+                require(finalPhysicalDamage < initialPhysicalDamage - 0.001,
+                        "physical Paper damage must be reduced by the QA listener: initial="
+                                + initialPhysicalDamage + " final=" + finalPhysicalDamage);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)),
+                        "reduced physical damage must release unused reservation; got " + reserved);
+            }
+            case ABSORPTION_ONLY -> {
+                require(physicalEvents == 1 && magicEvents == 0, "absorption-only physical event counts");
+                require(cancelledPhysical == 0 && cancelledMagic == 0, "absorption-only damage must not be cancelled");
+                require(Math.abs(target.getHealth() - beforeHealth) < 0.001,
+                        "absorption-only hit must not reduce health: before=" + beforeHealth
+                                + " after=" + target.getHealth());
+                require(target.getAbsorptionAmount() < 100.0,
+                        "absorption-only hit must consume absorption: remaining=" + target.getAbsorptionAmount());
+                require(actualDamage > 0.001,
+                        "damage absorbed without health loss must still be attributed: delta=" + actualDamage);
+                require(closeReservation(reserved, actualDamage / combat.scaleOf(target)),
+                        "absorption-only reservation must equal consumed absorption; got " + reserved);
             }
         }
 
@@ -448,7 +550,7 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
                 + " magicEvents=" + magicEvents
                 + " cancelledPhysical=" + cancelledPhysical
                 + " cancelledMagic=" + cancelledMagic
-                + " actualHealthDelta=" + actualDamage
+                + " actualDefensivePoolDelta=" + actualDamage
                 + " reserved=" + reserved);
 
         if (scenario == Scenario.CANCEL_PHYSICAL) {
@@ -457,7 +559,14 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.CANCEL_BOTH, 0), 80L);
         } else if (scenario == Scenario.CANCEL_BOTH) {
             Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.NESTED_HIT, 0), 80L);
+        } else if (scenario == Scenario.NESTED_HIT) {
+            Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.INCREASE_PHYSICAL, 0), 80L);
+        } else if (scenario == Scenario.INCREASE_PHYSICAL) {
+            Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.REDUCE_PHYSICAL, 0), 80L);
+        } else if (scenario == Scenario.REDUCE_PHYSICAL) {
+            Bukkit.getScheduler().runTaskLater(this, () -> runScenario(Scenario.ABSORPTION_ONLY, 0), 80L);
         } else {
+            getLogger().info("[RASKOL-COMBAT-QA] PATH_B_SETTLEMENT_MATRIX_PASS");
             getLogger().info("[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS");
             Bukkit.getScheduler().runTaskLater(this, this::runBlackMassNestedContextProbe, 20L);
         }
@@ -853,6 +962,21 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         remove(blackMassTarget);
         blackMassTarget = null;
         blackMassTargetId = null;
+        if (targetStateCaptured && target != null && target.isOnline()) {
+            var maxAbsorptionAttribute = target.getAttribute(Attribute.MAX_ABSORPTION);
+            if (maxAbsorptionAttribute != null && absorptionAttributeOverridden) {
+                maxAbsorptionAttribute.setBaseValue(originalMaxAbsorptionBase);
+                absorptionAttributeOverridden = false;
+            }
+            target.setGameMode(originalGameMode);
+            target.setHealth(Math.min(originalTargetHealth, target.getMaxHealth()));
+            double absorptionLimit = maxAbsorptionAttribute == null
+                    ? 0.0
+                    : maxAbsorptionAttribute.getValue();
+            target.setAbsorptionAmount(Math.min(originalTargetAbsorption, absorptionLimit));
+            target.setNoDamageTicks(originalNoDamageTicks);
+            targetStateCaptured = false;
+        }
         if (configOverridden) {
             RaskolClasses raskol = (RaskolClasses) Bukkit.getPluginManager().getPlugin("RaskolClasses");
             if (raskol != null) {

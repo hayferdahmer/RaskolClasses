@@ -67,7 +67,7 @@ jobs:
             if [ "${status}" -eq 0 ]; then
               exit 0
             fi
-            if ! grep -Eqi 'HTTP Status: 429|status 429|Too Many Requests' /tmp/maven-build.log; then
+            if ! grep -Eqi '429|Too Many Requests' /tmp/maven-build.log; then
               exit "${status}"
             fi
             if [ "${attempt}" -eq 3 ]; then
@@ -223,8 +223,10 @@ jobs:
           test -n "$PLUGIN_JAR"
           for attempt in 1 2 3; do
             echo "Paper QA Maven build attempt ${attempt}/3"
+            set +e
             mvn -B -f tools/paper-qa/pom.xml package "-Draskol.jar=$PLUGIN_JAR" 2>&1 | tee /tmp/paper-qa-maven.log
             status=${PIPESTATUS[0]}
+            set -e
             if [ "${status}" -eq 0 ]; then
               break
             fi
@@ -328,7 +330,8 @@ jobs:
           trap 'kill -TERM "$SERVER_PID" "$BOT_PID" 2>/dev/null || true' EXIT
           MATRIX_READY=0
           for attempt in $(seq 1 300); do
-            if grep -Fq "[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS" server.log \
+            if grep -Fq "[RASKOL-COMBAT-QA] PATH_B_SETTLEMENT_MATRIX_PASS" server.log \
+              && grep -Fq "[RASKOL-COMBAT-QA] BURST_CANCELLATION_MATRIX_PASS" server.log \
               && grep -Fq "[RASKOL-COMBAT-QA] BLACK_MASS_NESTED_CONTEXT_PASS" server.log; then
               MATRIX_READY=1
               break
@@ -355,13 +358,13 @@ jobs:
             exit 1
           fi
           echo "Paper 26.2 Path B burst cancellation matrix and Warlock Black Mass integration: PASS"
-          if [ "$(grep -c 'BURST_SCENARIO_PASS scenario=' server.log)" -ne 4 ]; then
+          if [ "$(grep -c 'BURST_SCENARIO_PASS scenario=' server.log)" -ne 7 ]; then
             cat server.log
             cat bot.log
-            echo "::error::Path B did not report all four scenario PASS records."
+            echo "::error::Path B did not report all seven scenario PASS records."
             exit 1
           fi
-          grep -E 'BURST_SCENARIO_PASS|BURST_CANCELLATION_MATRIX_PASS|BLACK_MASS_NESTED_CONTEXT_PASS' server.log
+          grep -E 'BURST_SCENARIO_PASS|PATH_B_SETTLEMENT_MATRIX_PASS|BURST_CANCELLATION_MATRIX_PASS|BLACK_MASS_NESTED_CONTEXT_PASS' server.log
 
           PATH_A_READY=0
           for attempt in $(seq 1 300); do
@@ -403,7 +406,7 @@ jobs:
           fi
           echo "Paper 26.2 Path A settlement matrix and overage diagnostic: PASS"
           grep -E 'PATH_A_SETTLEMENT_SCENARIO_PASS|PATH_A_SETTLEMENT_MATRIX_PASS' server.log
-          echo "Paper 26.2 combined combat runtime QA (suppression + Path B + Path A): PASS"
+          echo "Paper 26.2 combined combat runtime QA (suppression + Path B + Black Mass + Path A): PASS"
           cat bot.log
 
       - name: Upload Paper runtime log

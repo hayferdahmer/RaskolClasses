@@ -107,6 +107,48 @@ class DamageAttributionTest {
     }
 
     @Test
+    void closesNestedAttributionInFinallyWhenDamageCallThrows() {
+        Object target = new Object();
+        DamageAttribution.Scope outer = DamageAttribution.begin(target, 20.0);
+
+        assertThrows(IllegalStateException.class, () -> {
+            DamageAttribution.Scope nested = DamageAttribution.begin(target, 20.0);
+            try {
+                throw new IllegalStateException("Synthetic Paper damage failure");
+            } finally {
+                assertEquals(2.0, nested.finish(18.0), EPSILON);
+            }
+        });
+
+        assertEquals(0.0, outer.finish(18.0), EPSILON);
+    }
+
+    @Test
+    void countsDamageFullyAbsorbedWithoutHealthLoss() {
+        Object target = new Object();
+        DamageAttribution.Scope scope = DamageAttribution.begin(target, 20.0, 5.0);
+
+        assertEquals(5.0, scope.finish(20.0, 0.0), EPSILON);
+    }
+
+    @Test
+    void countsDamageAcrossAbsorptionAndHealthPools() {
+        Object target = new Object();
+        DamageAttribution.Scope scope = DamageAttribution.begin(target, 20.0, 5.0);
+
+        assertEquals(5.0, scope.finish(18.0, 2.0), EPSILON);
+    }
+
+    @Test
+    void excludesNestedDamageMeasuredAcrossAbsorptionPool() {
+        Object target = new Object();
+        DamageAttribution.Scope outer = DamageAttribution.begin(target, 20.0, 5.0);
+        DamageAttribution.Scope nested = DamageAttribution.begin(target, 20.0, 5.0);
+        assertEquals(3.0, nested.finish(20.0, 2.0), EPSILON);
+        assertEquals(0.0, outer.finish(20.0, 2.0), EPSILON);
+    }
+
+    @Test
     void enforcesSingleFinishAndLifoOrder() {
         Object target = new Object();
         DamageAttribution.Scope outer = DamageAttribution.begin(target, 20.0);
