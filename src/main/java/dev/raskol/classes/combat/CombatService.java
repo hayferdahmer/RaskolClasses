@@ -558,8 +558,8 @@ public final class CombatService implements Listener {
                 AbilitySourceContext.open(source instanceof Player s2 ? s2.getUniqueId() : null)) {
             try {
                 if (applyPhys > 0.0) {
-                    double before = target.getHealth();
-                    DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
+                    DamageAttribution.Scope attribution =
+                            DamageAttribution.begin(target, target.getHealth(), target.getAbsorptionAmount());
                     try {
                         target.setNoDamageTicks(0);
                         beginSuppress();
@@ -573,12 +573,12 @@ public final class CombatService implements Listener {
                             endSuppress();
                         }
                     } finally {
-                        actualPhys = attribution.finish(target.getHealth()) / scale;
+                        actualPhys = attribution.finish(target.getHealth(), target.getAbsorptionAmount()) / scale;
                     }
                 }
                 if (applyMagic > 0.0) {
-                    double before = target.getHealth();
-                    DamageAttribution.Scope attribution = DamageAttribution.begin(target, before);
+                    DamageAttribution.Scope attribution =
+                            DamageAttribution.begin(target, target.getHealth(), target.getAbsorptionAmount());
                     try {
                         target.setNoDamageTicks(0);
                         beginSuppress();
@@ -597,7 +597,7 @@ public final class CombatService implements Listener {
                             endSuppress();
                         }
                     } finally {
-                        actualMagic = attribution.finish(target.getHealth()) / scale;
+                        actualMagic = attribution.finish(target.getHealth(), target.getAbsorptionAmount()) / scale;
                     }
                 }
             } finally {
