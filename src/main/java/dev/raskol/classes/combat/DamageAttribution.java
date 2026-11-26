@@ -6,8 +6,9 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 /**
- * Учитывает изменение здоровья, произведённое вложенными вызовами CombatService.
- * Каждый scope соответствует одному синхронному вызову Entity.damage(...).
+ * Учитывает изменение суммарного защитного пула (здоровье + поглощение),
+ * произведённое вложенными вызовами CombatService. Каждый scope соответствует
+ * одному синхронному вызову Entity.damage(...).
  */
 final class DamageAttribution {
 
@@ -27,6 +28,21 @@ final class DamageAttribution {
         Frame frame = new Frame(target, healthBefore);
         frames.push(frame);
         return new Scope(frame, frames);
+    }
+
+    static Scope begin(Object target, double healthBefore, double absorptionBefore) {
+        return begin(target, defensivePool(healthBefore, absorptionBefore));
+    }
+
+    private static double defensivePool(double health, double absorption) {
+        if (!Double.isFinite(health) || !Double.isFinite(absorption) || absorption < 0.0) {
+            throw new IllegalArgumentException("Health and non-negative absorption must be finite");
+        }
+        double total = health + absorption;
+        if (!Double.isFinite(total)) {
+            throw new IllegalArgumentException("Defensive pool must be finite");
+        }
+        return total;
     }
 
     static final class Scope {
@@ -71,6 +87,10 @@ final class DamageAttribution {
                 FRAMES.remove();
             }
             return ownDamage;
+        }
+
+        double finish(double healthAfter, double absorptionAfter) {
+            return finish(defensivePool(healthAfter, absorptionAfter));
         }
     }
 
