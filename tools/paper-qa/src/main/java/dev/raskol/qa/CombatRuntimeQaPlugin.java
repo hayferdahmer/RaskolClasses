@@ -17,6 +17,7 @@ import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.attribute.Attribute;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.damage.DamageType;
 import org.bukkit.entity.Entity;
@@ -112,6 +113,13 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
     private double originalSingleHitPct;
     private boolean configOverridden;
     private boolean cleanupDone;
+    private boolean targetStateCaptured;
+    private GameMode originalGameMode;
+    private double originalTargetHealth;
+    private double originalTargetAbsorption;
+    private int originalNoDamageTicks;
+    private double originalMaxAbsorptionBase;
+    private boolean absorptionAttributeOverridden;
 
     @Override
     public void onEnable() {
@@ -363,6 +371,18 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
             raskol.getConfig().set("combat.max-single-hit-pct", 1000.0);
             configOverridden = true;
 
+            var maxAbsorptionAttribute = target.getAttribute(Attribute.MAX_ABSORPTION);
+            if (maxAbsorptionAttribute == null) {
+                fail("Player MAX_ABSORPTION attribute is unavailable");
+                return;
+            }
+            originalGameMode = target.getGameMode();
+            originalTargetHealth = target.getHealth();
+            originalTargetAbsorption = target.getAbsorptionAmount();
+            originalNoDamageTicks = target.getNoDamageTicks();
+            originalMaxAbsorptionBase = maxAbsorptionAttribute.getBaseValue();
+            targetStateCaptured = true;
+
             target.setGameMode(GameMode.SURVIVAL);
             target.setNoDamageTicks(0);
             targetId = target.getUniqueId();
@@ -403,7 +423,25 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         finalPhysicalDamage = 0.0;
 
         target.setHealth(target.getMaxHealth());
-        target.setAbsorptionAmount(scenario == Scenario.ABSORPTION_ONLY ? 100.0 : 0.0);
+        if (scenario == Scenario.ABSORPTION_ONLY) {
+            var maxAbsorptionAttribute = target.getAttribute(Attribute.MAX_ABSORPTION);
+            if (maxAbsorptionAttribute == null) {
+                fail("Player MAX_ABSORPTION attribute is unavailable for absorption-only scenario");
+                return;
+            }
+            maxAbsorptionAttribute.setBaseValue(Math.max(originalMaxAbsorptionBase, 100.0));
+            absorptionAttributeOverridden = true;
+            target.setAbsorptionAmount(100.0);
+            require(target.getAbsorptionAmount() > 0.001,
+                    "MAX_ABSORPTION setup must allow a non-zero absorption amount; actual="
+                            + target.getAbsorptionAmount());
+            if (failed) {
+                cleanup();
+                return;
+            }
+        } else {
+            target.setAbsorptionAmount(0.0);
+        }
         target.setNoDamageTicks(0);
         combat.purgeBurstLog();
 
@@ -924,6 +962,21 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         remove(blackMassTarget);
         blackMassTarget = null;
         blackMassTargetId = null;
+        if (targetStateCaptured && target != null && target.isOnline()) {
+            var maxAbsorptionAttribute = target.getAttribute(Attribute.MAX_ABSORPTION);
+            if (maxAbsorptionAttribute != null && absorptionAttributeOverridden) {
+                maxAbsorptionAttribute.setBaseValue(originalMaxAbsorptionBase);
+                absorptionAttributeOverridden = false;
+            }
+            target.setGameMode(originalGameMode);
+            target.setHealth(Math.min(originalTargetHealth, target.getMaxHealth()));
+            double absorptionLimit = maxAbsorptionAttribute == null
+                    ? 0.0
+                    : maxAbsorptionAttribute.getValue();
+            target.setAbsorptionAmount(Math.min(originalTargetAbsorption, absorptionLimit));
+            target.setNoDamageTicks(originalNoDamageTicks);
+            targetStateCaptured = false;
+        }
         if (configOverridden) {
             RaskolClasses raskol = (RaskolClasses) Bukkit.getPluginManager().getPlugin("RaskolClasses");
             if (raskol != null) {
