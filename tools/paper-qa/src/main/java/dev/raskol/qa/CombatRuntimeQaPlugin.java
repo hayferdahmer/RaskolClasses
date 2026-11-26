@@ -428,8 +428,9 @@ public final class CombatRuntimeQaPlugin extends JavaPlugin implements Listener 
         double actualDamage = before - target.getHealth() - target.getAbsorptionAmount();
         getLogger().info("[RASKOL-COMBAT-QA] BURST_RESULT scenario=" + scenario
                 + " reportedDamage=" + reportedDamage
-                + " actualHealthDelta=" + actualDamage
-                + " healthAfter=" + target.getHealth());
+                + " actualDefensivePoolDelta=" + actualDamage
+                + " healthAfter=" + target.getHealth()
+                + " absorptionAfter=" + target.getAbsorptionAmount());
         final double reserved;
         try {
             reserved = reservationTotal(targetId);
