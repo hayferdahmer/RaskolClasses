@@ -67,7 +67,7 @@ jobs:
             if [ "${status}" -eq 0 ]; then
               exit 0
             fi
-            if ! grep -Eqi 'HTTP Status: 429|status 429|Too Many Requests' /tmp/maven-build.log; then
+            if ! grep -Eqi '429|Too Many Requests' /tmp/maven-build.log; then
               exit "${status}"
             fi
             if [ "${attempt}" -eq 3 ]; then
@@ -223,8 +223,10 @@ jobs:
           test -n "$PLUGIN_JAR"
           for attempt in 1 2 3; do
             echo "Paper QA Maven build attempt ${attempt}/3"
+            set +e
             mvn -B -f tools/paper-qa/pom.xml package "-Draskol.jar=$PLUGIN_JAR" 2>&1 | tee /tmp/paper-qa-maven.log
             status=${PIPESTATUS[0]}
+            set -e
             if [ "${status}" -eq 0 ]; then
               break
             fi
